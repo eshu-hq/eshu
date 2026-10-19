@@ -38,7 +38,15 @@ case is disclosed through `limitations: ["dependency_marker_evidence_incomplete"
 instead, so a caller does not mistake it for "more repositories exist" and
 request a page that is not actually there.
 
-The catalog is unscoped, so its marker read first runs a whole-graph
+The catalog honors the caller grant (#5385 T1): a scoped caller sees only
+repositories and workloads in its grant — rows owned by another tenant are
+dropped, never merely hidden — while shared/admin/local callers keep the full
+listing. Each workload row carries `same_name_siblings`, the count of
+`SAME_NAME` siblings the grant admits (Decision D2: the edge crosses tenants,
+so an ungranted sibling is invisible and uncounted). Identity-only rows (no
+materialized node) report 0.
+
+Its marker read first runs a whole-graph
 `DEPENDS_ON` count and skips the edge read when the graph has none. Otherwise
 it reads `(:Repository)-[:DEPENDS_ON]->(:Repository)` grouped by source
 repository (`RETURN s.id, collect(t.id)`), clipped to 50,000 edges; more edges

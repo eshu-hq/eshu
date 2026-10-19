@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -148,7 +149,9 @@ type SupplyChainImpactHandler struct {
 	// line. Optional: nil silences it. Worth wiring -- the deferral's failure
 	// class freezes attempt_count, so the queue row alone cannot tell an
 	// operator how long this consumer has been waiting.
-	Logger *slog.Logger
+	Logger         *slog.Logger
+	ScopeRepos     handle.ScopeRepos // Nil resolves graph-wide (#5385).
+	WorkloadLookup handle.Lookup     // Nil keeps legacy scopes (#5385).
 }
 
 // Handle executes one supply-chain impact reducer intent.
@@ -209,6 +212,10 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 		// retained winner is globally preferred, so discard every candidate
 		// and keep findings visible rather than persist a false audit winner.
 		suppressions = nil
+	}
+	suppressions, err = h.resolveSuppressionWorkloads(ctx, intent, suppressions)
+	if err != nil {
+		return reducercontract.Result{}, fmt.Errorf("resolve suppression workload scopes: %w", err)
 	}
 	// Per-fact isolation: a malformed vulnerability or suppression fact is
 	// quarantined as a visible input_invalid dead-letter while valid facts

@@ -67,7 +67,7 @@ func TestGetServiceContextFallsBackToRepositoryWorkloadIdentity(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if got, want := resp["id"], "workload:serverless-job"; got != want {
+	if got, want := resp["id"], "workload:repo-serverless:serverless-job"; got != want {
 		t.Fatalf("id = %#v, want %#v", got, want)
 	}
 	if got, want := resp["materialization_status"], "identity_only"; got != want {

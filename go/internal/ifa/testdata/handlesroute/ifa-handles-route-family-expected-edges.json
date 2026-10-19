@@ -5,12 +5,12 @@
     {
       "relationship_type": "HANDLES_ROUTE",
       "source_entity_id": "content-entity:e_b802e874e4a3",
-      "target_entity_id": "endpoint:f8c7b9f9a7ebdd90ea596f67"
+      "target_entity_id": "endpoint:84bcddfc4a8cec0d5e896db3"
     },
     {
       "relationship_type": "HANDLES_ROUTE",
       "source_entity_id": "content-entity:e_2dc1055a2f3d",
-      "target_entity_id": "endpoint:12ae7628fc25a1abb76d2d2f",
+      "target_entity_id": "endpoint:a803276feed3adb9569af0fb",
       "properties": {
         "http_method": "GET"
       }

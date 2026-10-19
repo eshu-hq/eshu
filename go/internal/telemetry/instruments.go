@@ -477,6 +477,14 @@ type Instruments struct {
 	// endpoint removal, kept off ReconciliationDriftRetractions, which means
 	// collector disagreement.
 	WorkloadRepoEdgeRetractions metric.Int64Counter
+	WorkloadIdentityCollisions  metric.Int64Counter
+	WorkloadIdentityRejected    metric.Int64Counter
+	// WorkloadHandleResolutions counts #5385 handle-ladder outcomes on the
+	// reducer surface, one point per resolved provider-asserted selector.
+	// Labels: surface (bounded: reducer), outcome (bounded: exact,
+	// unique_by_name, ambiguous, miss). A rising ambiguous count means a
+	// collector must emit workload_repository_id.
+	WorkloadHandleResolutions metric.Int64Counter
 	// GitRepoSyncFailures counts per-repository git sync operations (clone,
 	// fetch, list_refs) that failed and were isolated to that one repository
 	// for the cycle rather than aborting collection for the rest of the fleet
@@ -3277,6 +3285,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WorkloadRepoEdgeRetractions counter: %w", err)
+	}
+
+	inst.WorkloadIdentityCollisions, err = meter.Int64Counter(
+		"eshu_dp_workload_identity_collision_total",
+		metric.WithDescription("Total workload identity collisions detected at materialization dedupe, by bounded mode (same_scope_drop, cross_scope_merge); any cross_scope_merge after the repository-scoped re-key is a leaked name-only key"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkloadIdentityCollisions counter: %w", err)
+	}
+
+	inst.WorkloadIdentityRejected, err = meter.Int64Counter(
+		"eshu_dp_workload_identity_rejected_total",
+		metric.WithDescription("Total workload and workload-instance candidates dropped at materialization for an unusable repository-scoped identity, by bounded reason (blank_segment, colon_in_name, colon_in_environment); a drop is counted, never silent (#5385)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkloadIdentityRejected counter: %w", err)
+	}
+
+	inst.WorkloadHandleResolutions, err = meter.Int64Counter(
+		"eshu_dp_workload_handle_resolution_total",
+		metric.WithDescription("Total provider-asserted workload handle resolutions through the #5385 ladder, by bounded surface (reducer) and outcome (exact, unique_by_name, ambiguous, miss); rising ambiguous on reducer means a collector needs workload_repository_id"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkloadHandleResolutions counter: %w", err)
 	}
 
 	inst.ReconciliationConvergence, err = meter.Int64Counter(

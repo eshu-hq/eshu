@@ -70,6 +70,20 @@ type RepositoryLink struct {
 	ServiceID *string `json:"service_id,omitempty"`
 
 	// WorkloadID is a provider-asserted Eshu workload id, mirroring ServiceID.
-	// Optional for the same reason.
+	// Optional for the same reason. It accepts both the legacy public handle
+	// workload:<name> and the full repository-scoped id
+	// workload:<repo_id>:<name>; the reducer resolves a handle within the
+	// repositories the fact itself can prove and fails closed (no link,
+	// counted as workload_handle_ambiguous) when the name spans more than
+	// one. The handle-only form is legacy: pair it with
+	// WorkloadRepositoryID so resolution never depends on global name
+	// uniqueness (#5385).
 	WorkloadID *string `json:"workload_id,omitempty"`
+
+	// WorkloadRepositoryID is the repository that defines the workload
+	// WorkloadID asserts. Optional and additive: when present, a
+	// handle-form WorkloadID resolves to exactly that repository's
+	// workload node; when absent, resolution falls back to the fact's
+	// scope repositories and then to graph-wide name uniqueness.
+	WorkloadRepositoryID *string `json:"workload_repository_id,omitempty"`
 }

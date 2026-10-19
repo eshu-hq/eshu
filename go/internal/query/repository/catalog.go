@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 const (
@@ -43,14 +44,18 @@ type catalogRepository struct {
 }
 
 type catalogWorkload struct {
-	ID                    string   `json:"id"`
-	Name                  string   `json:"name"`
-	Kind                  string   `json:"kind"`
-	RepoID                string   `json:"repo_id,omitempty"`
-	RepoName              string   `json:"repo_name,omitempty"`
-	Environments          []string `json:"environments,omitempty"`
-	InstanceCount         int      `json:"instance_count"`
-	MaterializationStatus string   `json:"materialization_status,omitempty"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Kind          string   `json:"kind"`
+	RepoID        string   `json:"repo_id,omitempty"`
+	RepoName      string   `json:"repo_name,omitempty"`
+	Environments  []string `json:"environments,omitempty"`
+	InstanceCount int      `json:"instance_count"`
+	// SameNameSiblings counts SAME_NAME siblings admitted by the caller
+	// grant (Decision D2, #5385). Always present so a scoped caller can
+	// assert the zero it must see for a cross-tenant coincidence.
+	SameNameSiblings      int    `json:"same_name_siblings"`
+	MaterializationStatus string `json:"materialization_status,omitempty"`
 	// Tier, Category, Domain, and Language are declared in service-catalog
 	// manifests (Backstage, Cortex, OpsLevel) and joined from reducer-owned
 	// correlation facts when ServiceCatalogCorrelations is wired. Empty when
@@ -101,6 +106,7 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 			writeReadFailure(w, r, err, catalogCapability, catalogContentRepositoriesFailedMessage)
 			return
 		}
+		response.Repositories = filterCatalogRepositoriesForAccess(r.Context(), response.Repositories)
 		response.Limitations = append(response.Limitations, "workload and service catalog rows require an authoritative graph backend")
 		response.finish()
 		querycontract.WriteSuccess(w, r, http.StatusOK, response, catalogTruth(h.profile(), querycontract.TruthBasisContentIndex))
@@ -113,6 +119,7 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 		writeReadFailure(w, r, err, catalogCapability, catalogRepositoriesFailedMessage)
 		return
 	}
+	response.Repositories = filterCatalogRepositoriesForAccess(r.Context(), response.Repositories)
 	if dependencyDegraded {
 		// See logRepositoryDependencyEdgesDegradation's doc comment: the
 		// dependency-edge pre-pass failed or was truncated, so is_dependency
@@ -174,7 +181,51 @@ func (h *Handler) listCatalogWorkloads(
 		return nil, false, err
 	}
 	merged, mergeTruncated := mergeCatalogWorkloads(graphWorkloads, identityWorkloads, limit)
+	merged = filterCatalogWorkloadsForAccess(ctx, merged)
 	return merged, graphTruncated || identityTruncated || mergeTruncated, nil
+}
+
+// filterCatalogWorkloadsForAccess drops workload rows whose owning
+// repository the caller may not see. Unscoped callers (shared/admin/local,
+// including the golden-corpus gate) keep the full listing; a scoped caller
+// sees only granted repositories, so a same-named workload in another
+// tenant never appears here (#5385 T1). Rows with no owning repository
+// fail closed under a scoped caller.
+func filterCatalogWorkloadsForAccess(
+	ctx context.Context,
+	workloads []catalogWorkload,
+) []catalogWorkload {
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
+	if !access.Scoped() {
+		return workloads
+	}
+	kept := make([]catalogWorkload, 0, len(workloads))
+	for _, workload := range workloads {
+		if access.AllowsRepositoryID(workload.RepoID) {
+			kept = append(kept, workload)
+		}
+	}
+	return kept
+}
+
+// filterCatalogRepositoriesForAccess drops repository rows outside the
+// caller grant, mirroring filterCatalogWorkloadsForAccess so no ungranted
+// repo_id survives anywhere in the /catalog body.
+func filterCatalogRepositoriesForAccess(
+	ctx context.Context,
+	repositories []catalogRepository,
+) []catalogRepository {
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
+	if !access.Scoped() {
+		return repositories
+	}
+	kept := make([]catalogRepository, 0, len(repositories))
+	for _, repository := range repositories {
+		if access.AllowsRepositoryID(repository.ID) {
+			kept = append(kept, repository)
+		}
+	}
+	return kept
 }
 
 func (h *Handler) listCatalogWorkloadsFromGraph(
@@ -198,12 +249,25 @@ func (h *Handler) listCatalogWorkloadIdentitiesFromContent(
 	}
 	workloads := make([]catalogWorkload, 0, len(identities))
 	for _, identity := range identities {
-		if strings.TrimSpace(identity.Name) == "" {
+		// The id is synthesized from (repo_id, name) through the same
+		// workloadid constructor the graph write path uses, so an
+		// identity-only row carries the scoped id its materialized sibling
+		// would (#5385). Hand-built "workload:"+name strings are what let
+		// two repositories' same-named workloads share one id.
+		name := workloadid.StripWorkloadHandlePrefix(identity.Name)
+		if name == "" || strings.TrimSpace(identity.RepoID) == "" {
+			continue
+		}
+		id := workloadid.NewWorkloadID(identity.RepoID, name).String()
+		if id == "" {
+			// A colon-bearing name mints no scoped id; serving the row
+			// with an empty id would hand clients an identifier that
+			// matches no node (#5385).
 			continue
 		}
 		workloads = append(workloads, catalogWorkload{
-			ID:                    "workload:" + strings.TrimPrefix(identity.Name, "workload:"),
-			Name:                  strings.TrimPrefix(identity.Name, "workload:"),
+			ID:                    id,
+			Name:                  name,
 			Kind:                  "service",
 			RepoID:                identity.RepoID,
 			RepoName:              identity.RepoName,
@@ -318,11 +382,20 @@ func mergeCatalogWorkloads(
 	return merged[:limit], true
 }
 
+// catalogWorkloadKey keys the graph/identity merge by (repo_id, name), not
+// by name alone: after the re-key two repositories can own same-named
+// workloads, and a name-only key merges those split siblings back into one
+// row (#5385). The same pair from both sources still dedupes.
 func catalogWorkloadKey(workload catalogWorkload) string {
-	if workload.Name != "" {
-		return strings.ToLower(workload.Name)
+	name := workload.Name
+	if name == "" {
+		// The id is scoped post-flip (workload:<repo_id>:<name>), so the
+		// bare name is the last segment: stripping one prefix would leave
+		// <repo_id>:<name> and the nameless twin would key differently
+		// from its named twin (#5385 T4 review).
+		name = workload.ID[strings.LastIndex(workload.ID, ":")+1:]
 	}
-	return strings.ToLower(strings.TrimPrefix(workload.ID, "workload:"))
+	return strings.ToLower(workload.RepoID) + "\x00" + strings.ToLower(name)
 }
 
 func serviceCatalogRows(workloads []catalogWorkload) []catalogWorkload {

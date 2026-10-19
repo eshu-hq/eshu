@@ -82,6 +82,7 @@ func TestEdgeTypeStringParity(t *testing.T) {
 		RunsImage:                          "RUNS_IMAGE",
 		RunsIn:                             "RUNS_IN",
 		RunsOn:                             "RUNS_ON",
+		SameName:                           "SAME_NAME",
 		SatisfiedBy:                        "SATISFIED_BY",
 		SecretsIamAssumesIamRole:           "SECRETS_IAM_ASSUMES_IAM_ROLE",
 		SecretsIamAuthenticatesToVaultRole: "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",

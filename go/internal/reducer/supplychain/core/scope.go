@@ -97,7 +97,7 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	if !scopeListAnchorMatches(s.Scope.Environment, finding.Environments) {
 		return false
 	}
-	if !scopeListAnchorMatches(s.Scope.WorkloadID, finding.WorkloadIDs) {
+	if !suppressionWorkloadScopeMatches(s.Scope, finding.WorkloadIDs) {
 		return false
 	}
 	if !scopeListAnchorMatches(s.Scope.ServiceID, finding.ServiceIDs) {

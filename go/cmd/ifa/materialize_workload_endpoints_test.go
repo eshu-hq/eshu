@@ -70,6 +70,22 @@ func TestMaterializeWorkloadEndpointsMergesExactNodes(t *testing.T) {
 	if instanceID != wantInstanceID {
 		t.Fatalf("instanceID = %q, want %q", instanceID, wantInstanceID)
 	}
+	// A scoped workload id passes its scope through the same derivation:
+	// the mapper is a pure format-preserving mapping, and the reducer
+	// ladder resolves handles to scoped ids server-side before any write,
+	// so scoped input must yield the scoped instance id (#5385). A fresh
+	// backend keeps the exact-one-MERGE assertion below about this call.
+	scopedBackend := &recordingWorkloadEndpointsBackend{workload: 1, instance: 1, edge: 1}
+	scopedID, err := materializeWorkloadEndpoints(context.Background(), workloadEndpointsOptions{
+		workloadID:  "workload:repo-orders:orders-api",
+		environment: "prod",
+	}, scopedBackend)
+	if err != nil {
+		t.Fatalf("materializeWorkloadEndpoints(scoped) error = %v", err)
+	}
+	if want := "workload-instance:repo-orders:orders-api:prod"; scopedID != want {
+		t.Fatalf("scoped instanceID = %q, want %q", scopedID, want)
+	}
 	if len(backend.executed) != 1 {
 		t.Fatalf("ExecuteCypher calls = %d, want exactly 1 idempotent MERGE", len(backend.executed))
 	}

@@ -336,13 +336,13 @@ func TestGoldenSnapshotEnvironmentCompareUsesTwoMaterializedEnvironments(t *test
 		}
 	}
 	for path, want := range map[string]any{
-		"workload.id":       "workload:deployable-source",
+		"workload.id":       "workload:repository:r_1f68383d:deployable-source",
 		"left.status":       "present",
 		"left.environment":  "stage",
-		"left.instance.id":  "workload-instance:deployable-source:stage",
+		"left.instance.id":  "workload-instance:repository:r_1f68383d:deployable-source:stage",
 		"right.status":      "present",
 		"right.environment": "prod",
-		"right.instance.id": "workload-instance:deployable-source:prod",
+		"right.instance.id": "workload-instance:repository:r_1f68383d:deployable-source:prod",
 		"confidence":        float64(1),
 		"reason":            "Environments are identical",
 	} {

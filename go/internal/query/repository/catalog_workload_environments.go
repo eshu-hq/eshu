@@ -106,7 +106,28 @@ type catalogWorkloadEnrichment struct {
 	instanceCount int
 	instanceEnvs  []string
 	evidenceEnvs  []string
+	// sameNameSiblings counts SAME_NAME siblings admitted by the caller
+	// grant (Decision D2, #5385): the edge crosses tenants by definition,
+	// so a scoped read counts only siblings whose defining repository the
+	// caller may see. Unscoped callers count every sibling.
+	sameNameSiblings int
 }
+
+// catalogWorkloadSiblingCypher resolves each bounded workload's SAME_NAME
+// siblings through one workload-anchored connected path, mirroring
+// CatalogWorkloadRepoCypher's single-chain shape (issue #3466): the second
+// hop expands from the bound workload, never as a bare Repository label
+// scan. Sibling admission is decided Go-side against the caller grant (the
+// same D2 rule every other read in this file follows by construction),
+// keeping this query grant-free and backend-portable.
+const CatalogWorkloadSiblingCypher = `
+	MATCH (w:Workload)-[:SAME_NAME]-(sib:Workload)<-[:DEFINES]-(repo:Repository)
+	WHERE w.id IN $ids
+	RETURN w.id AS id,
+	       sib.id AS sibling_id,
+	       repo.id AS sibling_repo_id
+	ORDER BY id, sibling_id
+`
 
 // assembleCatalogWorkloadsFromGraph reads the bounded workload set and joins
 // repository, instance, and deployment-evidence environment facts in Go. It
@@ -145,6 +166,7 @@ func (h *Handler) assembleCatalogWorkloadsFromGraph(
 		if enrichment, ok := enrichments[id]; ok {
 			workload.RepoID = enrichment.repoID
 			workload.RepoName = enrichment.repoName
+			workload.SameNameSiblings = enrichment.sameNameSiblings
 			workload.InstanceCount = enrichment.instanceCount
 			workload.Environments = mergeCatalogEnvironments(
 				enrichment.instanceEnvs,
@@ -223,6 +245,33 @@ func (h *Handler) catalogWorkloadEnrichments(
 		}
 		entry := catalogWorkloadEnrichmentFor(enrichments, id)
 		entry.evidenceEnvs = append(entry.evidenceEnvs, environment)
+	}
+
+	siblingRows, err := h.Neo4j.Run(ctx, CatalogWorkloadSiblingCypher, params)
+	if err != nil {
+		return nil, err
+	}
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
+	siblings := make(map[string]map[string]struct{})
+	for _, row := range siblingRows {
+		id := querycontract.StringVal(row, "id")
+		siblingRepoID := querycontract.StringVal(row, "sibling_repo_id")
+		if id == "" || siblingRepoID == "" {
+			continue
+		}
+		if siblings[id] == nil {
+			siblings[id] = make(map[string]struct{})
+		}
+		siblings[id][siblingRepoID] = struct{}{}
+	}
+	for id, repos := range siblings {
+		admitted := 0
+		for repoID := range repos {
+			if !access.Scoped() || access.AllowsRepositoryID(repoID) {
+				admitted++
+			}
+		}
+		catalogWorkloadEnrichmentFor(enrichments, id).sameNameSiblings = admitted
 	}
 
 	return enrichments, nil

@@ -68,6 +68,10 @@ type ResourceAnchorAttributes struct {
 	// a caller applying the same dedup/sort it already applies gets a
 	// byte-identical result for valid facts.
 	WorkloadIDs []string
+	// WorkloadRepositoryID is the optional "workload_repository_id" tag
+	// naming the defining repository; a legacy handle-form workload id
+	// resolves inside it, else name uniqueness decides (#5385).
+	WorkloadRepositoryID string
 	// ServiceNames is the same scalar+slice union for
 	// "service_name"/"service_names".
 	ServiceNames []string
@@ -306,10 +310,15 @@ func DecodeResourceAnchorAttributes(resource Resource) (ResourceAnchorAttributes
 	if err != nil {
 		return ResourceAnchorAttributes{}, err
 	}
+	workloadRepositoryID, err := attributeString(attrs, "workload_repository_id", "workload_repository_id")
+	if err != nil {
+		return ResourceAnchorAttributes{}, err
+	}
 	return ResourceAnchorAttributes{
-		WorkloadIDs:  workloadIDs,
-		ServiceNames: serviceNames,
-		Environment:  environment,
+		WorkloadIDs:          workloadIDs,
+		WorkloadRepositoryID: workloadRepositoryID,
+		ServiceNames:         serviceNames,
+		Environment:          environment,
 	}, nil
 }
 
@@ -446,50 +455,4 @@ func DecodeResourceEC2InstanceAttributes(resource Resource) (ResourceEC2Instance
 		return ResourceEC2InstanceAttributes{}, err
 	}
 	return ResourceEC2InstanceAttributes{AMIID: amiID}, nil
-}
-
-// DecodeRelationshipCloudWatchAlarmObservesMetricAttributes decodes the nested
-// Attributes["attributes"] dimensions field off an already-decoded
-// cloudwatch_alarm_observes_metric aws_relationship Relationship (see
-// RelationshipCloudWatchAlarmObservesMetricAttributes).
-func DecodeRelationshipCloudWatchAlarmObservesMetricAttributes(rel Relationship) (RelationshipCloudWatchAlarmObservesMetricAttributes, error) {
-	nested := nestedAttributes(rel.Attributes)
-	raw, ok := nested["dimensions"]
-	if !ok || raw == nil {
-		return RelationshipCloudWatchAlarmObservesMetricAttributes{}, nil
-	}
-	entries, ok := anyMapSlice(raw)
-	if !ok {
-		return RelationshipCloudWatchAlarmObservesMetricAttributes{}, newAttributeShapeError(
-			"attributes.dimensions", fmt.Sprintf("want array, got %T", raw),
-		)
-	}
-	dims := make([]MetricDimension, 0, len(entries))
-	for i, entry := range entries {
-		m, ok := entry.(map[string]any)
-		if !ok {
-			return RelationshipCloudWatchAlarmObservesMetricAttributes{}, newAttributeShapeError(
-				fmt.Sprintf("attributes.dimensions[%d]", i), fmt.Sprintf("want object, got %T", entry),
-			)
-		}
-		value, err := attributeString(m, fmt.Sprintf("attributes.dimensions[%d].value", i), "value")
-		if err != nil {
-			return RelationshipCloudWatchAlarmObservesMetricAttributes{}, err
-		}
-		dims = append(dims, MetricDimension{Value: value})
-	}
-	return RelationshipCloudWatchAlarmObservesMetricAttributes{Dimensions: dims}, nil
-}
-
-// DecodeRelationshipXRaySamplingRuleMatchesServiceAttributes decodes the
-// nested Attributes["attributes"] service_name field off an already-decoded
-// xray_sampling_rule_matches_service aws_relationship Relationship (see
-// RelationshipXRaySamplingRuleMatchesServiceAttributes).
-func DecodeRelationshipXRaySamplingRuleMatchesServiceAttributes(rel Relationship) (RelationshipXRaySamplingRuleMatchesServiceAttributes, error) {
-	nested := nestedAttributes(rel.Attributes)
-	serviceName, err := attributeString(nested, "attributes.service_name", "service_name")
-	if err != nil {
-		return RelationshipXRaySamplingRuleMatchesServiceAttributes{}, err
-	}
-	return RelationshipXRaySamplingRuleMatchesServiceAttributes{ServiceName: serviceName}, nil
 }

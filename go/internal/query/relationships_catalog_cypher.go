@@ -415,10 +415,12 @@ func relationshipEdgesScopeExpr(entry relationshipVerbEntry, scalars []string) s
 // not authorize relationship endpoints through shared workloads"):
 // relationshipVerbCatalog's sourceLabel/target set includes bare Workload
 // nodes (DEPENDS_ON's source and target, INSTANCE_OF's target). Workload
-// identity is name-derived only -- projection.go builds workload:%s from the
-// workload name and MERGEs on {id: $workload_id} -- so two repositories that
-// define same-named workloads collapse to a single Workload node with
-// last-writer-wins repo_id. A DEFINES disjunct (whether infraResourceScopePredicate's
+// identity was name-derived only before #5385 -- projection.go built
+// workload:<name> from the workload name and MERGEd on {id: $workload_id} --
+// so two repositories that defined same-named workloads collapsed to a single
+// Workload node with last-writer-wins repo_id. The re-key scopes the id by
+// repository, but the conservative stance below stays: a DEFINES disjunct
+// (whether infraResourceScopePredicate's
 // own or a belt-and-suspenders EXISTS clause layered on top of it, as an
 // earlier version of this predicate carried) admits that shared node whenever
 // ANY granted repository defines it, not only the repository whose write won

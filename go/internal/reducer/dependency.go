@@ -62,6 +62,7 @@ func BuildWorkloadDependencyRows(
 	descriptors []RepoDescriptor,
 	dependenciesByRepo map[string][]string,
 	targetRepoIDs map[string]string,
+	tally *workloadid.RejectionTally,
 ) []WorkloadDependencyRow {
 	seen := make(map[string]struct{})
 	var rows []WorkloadDependencyRow
@@ -75,8 +76,10 @@ func BuildWorkloadDependencyRows(
 			}
 			targetWorkloadID := workloadid.NewWorkloadID(targetRepoID, depName).String()
 			if targetWorkloadID == "" {
-				// A blank depName yields the empty id; emitting it would
-				// key a shared edge row, so the row is dropped (#6580 P1).
+				// A blank depName or a colon-bearing one yields the empty
+				// id; emitting it would key a shared edge row, so the row
+				// is dropped (#6580 P1) and the drop is counted (#5385).
+				tally.Note(workloadid.ClassifyWorkloadRejection(targetRepoID, depName))
 				continue
 			}
 			edgeKey := descriptor.WorkloadID + "|" + targetRepoID

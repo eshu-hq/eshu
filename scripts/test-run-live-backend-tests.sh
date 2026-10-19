@@ -205,12 +205,16 @@ EOF
 # (#8283: +1 row on both backends for edge/writer/deployable_unit_verify_live_test.go)
 # (#6694: +1 neo4j ledger row for tfstate_state_match_edge_retract_delta_live_test.go promoted to CI class)
 # (#8168: +2 neo4j ledger rows for module_import_key_live_test.go and module_concurrency_live_test.go)
+# (#5385: +1 per backend for newly-classified regeneration_live_test.go, now
+# running on both backends)
+# (#5385: +1 per backend for the new catalog_sibling_live_test.go sibling
+# read proof, running on both backends)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "76" ]] || fail "planned runs ${#plan[@]}, want 76 (32 nornicdb + 44 neo4j)"
+[[ "${#plan[@]}" == "80" ]] || fail "planned runs ${#plan[@]}, want 80 (34 nornicdb + 46 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
-[[ "${#plan_nornicdb[@]}" == "32" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 32"
+[[ "${#plan_nornicdb[@]}" == "34" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 34"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "44" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 44"
+[[ "${#plan_neo4j[@]}" == "46" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 46"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
 	fail "materialized workload-count regression missing from neo4j plan"
 assert_workload_count_neo4j_only() {

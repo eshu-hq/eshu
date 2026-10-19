@@ -92,8 +92,8 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 	}
 	for path, want := range map[string]any{
 		"data.repo_id":                             "repository:r_1f68383d",
-		"data.workload_id":                         "workload:deployable-source",
-		"data.instances[].instance_id":             "workload-instance:deployable-source:prod",
+		"data.workload_id":                         "workload:repository:r_1f68383d:deployable-source",
+		"data.instances[].instance_id":             "workload-instance:repository:r_1f68383d:deployable-source:prod",
 		"data.instances[].platforms[].platform_id": "platform:kubernetes:none:prod:prod:none",
 		"data.image_refs[]":                        "ghcr.io/eshu-hq/supply-chain-demo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 	} {
@@ -134,7 +134,7 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 		"data.instances[].platforms[].topology_edges[]": {
 			{
 				"relationship_type": "RUNS_ON",
-				"source_id":         "workload-instance:deployable-source:prod",
+				"source_id":         "workload-instance:repository:r_1f68383d:deployable-source:prod",
 				"target_id":         "platform:kubernetes:none:prod:prod:none",
 			},
 		},
@@ -142,18 +142,18 @@ func TestGoldenSnapshotTraceDeploymentChainRequiresCanonicalPlatformIdentity(t *
 			{
 				"relationship_type": "DEFINES",
 				"source_id":         "repository:r_1f68383d",
-				"target_id":         "workload:deployable-source",
+				"target_id":         "workload:repository:r_1f68383d:deployable-source",
 			},
 			{
 				"relationship_type": "INSTANCE_OF",
-				"source_id":         "workload-instance:deployable-source:prod",
-				"target_id":         "workload:deployable-source",
+				"source_id":         "workload-instance:repository:r_1f68383d:deployable-source:prod",
+				"target_id":         "workload:repository:r_1f68383d:deployable-source",
 			},
 		},
 		"data.deployment_sources[]": {
 			{
 				"relationship_type": "DEPLOYMENT_SOURCE",
-				"source_id":         "workload-instance:deployable-source:prod",
+				"source_id":         "workload-instance:repository:r_1f68383d:deployable-source:prod",
 				"target_id":         "repository:r_217415d9",
 			},
 		},
@@ -196,7 +196,7 @@ func TestGoldenSnapshotTraceDeploymentChainRejectsReversedExactEndpoints(t *test
 	data := response["data"].(map[string]any)
 	edges := data["topology_edges"].([]any)
 	first := edges[0].(map[string]any)
-	first["source_id"] = "workload:deployable-config"
+	first["source_id"] = "workload:repository:r_217415d9:deployable-config"
 	first["target_id"] = "repository:r_217415d9"
 	mutated, err := json.Marshal(response)
 	if err != nil {

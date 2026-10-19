@@ -8,6 +8,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 )
 
 // appendCorrelationCoreAdditiveDomains registers the source-neutral correlation
@@ -119,6 +120,8 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 			IncidentEvidenceLoader:       serviceCatalogIncidentEvidenceLoader(handlers),
 			VulnerabilityEvidenceLoader:  serviceCatalogVulnerabilityEvidenceLoader(handlers),
 			Instruments:                  handlers.Instruments,
+			ScopeRepos:                   handlers.ScopeRepos,
+			WorkloadLookup:               handle.SiblingLookupOrNil(handlers.WorkloadSiblingLookup),
 		}
 		definitions = append(definitions, serviceCatalog)
 	}

@@ -83,6 +83,12 @@ const graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint = "ac31ec4947f1586093c
 // import_key, so after the bootstrap migration keys every canonical node it
 // would create a second node beside each one. Their own compatibility entries
 // below are kept, keyed by these values, as the record of what they admitted.
+//
+// The #5385 T4 endpoint_repo_id index needs no predecessor entry of its own:
+// it is additive on top of the cutover schema, and the digests it would have
+// named already exist under their proper names (the Neo4j #7245 tip as
+// graphSchemaNeo4jPreInfraSearchKeyIndexesFingerprint, the NornicDB #7097 tip
+// as graphSchemaNornicDBPreModuleImportKeyFingerprint).
 const (
 	graphSchemaNeo4jPreModuleImportKeyFingerprint    = "3e957407c08d6cf2d6cc28c47ab4272b60044d87de7abd47860f2ffc2fb039b9"
 	graphSchemaNornicDBPreModuleImportKeyFingerprint = "8dfe89b1768205432074d1bf45730f897f11515391a80968178d4956b8103944"

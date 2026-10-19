@@ -71,15 +71,41 @@ func (w *CanonicalNodeWriter) buildRepositoryCleanupStatements(mat canonical.Can
 		// the Dropped collection is absent (attribution=false).
 		cleanupCypher = node.RepositoryPathCleanupBareCypher
 	}
+	// Each statement carries its own parameter map: executors must be
+	// free to annotate one statement's params without touching its
+	// siblings.
+	params := func(summary string) map[string]any {
+		return map[string]any{
+			"repo_id":                   r.RepoID,
+			"path":                      r.Path,
+			StatementMetadataSummaryKey: summary,
+		}
+	}
+	const pathConflictSummary = "repository_cleanup lookup=path_conflict"
+	// T4 retirement cascade (issue #5385): the owned-label deletes run
+	// before the path-conflict retirement deletes the retired Repository
+	// (after which its r.id is unrecoverable). The cascade shape is
+	// backend-independent, so the bare opt-out changes only the tail.
 	return []Statement{
 		{
-			Operation: OperationCanonicalRetract,
-			Cypher:    cleanupCypher,
-			Parameters: map[string]any{
-				"repo_id":                   r.RepoID,
-				"path":                      r.Path,
-				StatementMetadataSummaryKey: "repository_cleanup lookup=path_conflict",
-			},
+			Operation:  OperationCanonicalRetract,
+			Cypher:     node.RepositoryRetirementWorkloadCascadeCypher,
+			Parameters: params(pathConflictSummary + " cascade=Workload"),
+		},
+		{
+			Operation:  OperationCanonicalRetract,
+			Cypher:     node.RepositoryRetirementWorkloadInstanceCascadeCypher,
+			Parameters: params(pathConflictSummary + " cascade=WorkloadInstance"),
+		},
+		{
+			Operation:  OperationCanonicalRetract,
+			Cypher:     node.RepositoryRetirementEndpointCascadeCypher,
+			Parameters: params(pathConflictSummary + " cascade=Endpoint"),
+		},
+		{
+			Operation:  OperationCanonicalRetract,
+			Cypher:     cleanupCypher,
+			Parameters: params(pathConflictSummary),
 		},
 	}
 }

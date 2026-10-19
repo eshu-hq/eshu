@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 // ResolvedRelationshipLoader loads resolved repo relationships for one scope.
@@ -273,11 +274,16 @@ func (h WorkloadMaterializationHandler) Handle(
 	if err != nil {
 		return Result{}, err
 	}
+	var rejected workloadid.RejectionTally
 	projection := BuildProjectionRowsWithInfrastructurePlatforms(
 		candidates,
 		deploymentEnvironments,
 		infrastructurePlatforms,
+		&rejected,
 	)
+	recordWorkloadIdentityRejections(ctx, h.Instruments, rejected)
+	projection.ScopeID = intent.ScopeID
+	projection.GenerationID = intent.GenerationID
 	timing.buildProjectionDuration = time.Since(buildStarted)
 
 	graphStarted := time.Now()

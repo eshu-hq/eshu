@@ -16,6 +16,14 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/repositories" {
 		return true
 	}
+	// #5385 flip wave (T1): GET /api/v0/catalog filters every collection by
+	// the caller's repository grant (repository/catalog.go) and counts
+	// same-name siblings only among admitted sibling repos, so a scoped
+	// caller sees exactly its own slice with same_name_siblings = 0 across
+	// tenants.
+	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/catalog" {
+		return true
+	}
 	// #5419 Phase 4b: GET /api/v0/codeowners/ownership now gates both its read
 	// paths (the DECLARES_CODEOWNER graph and the service-catalog correlation
 	// store used by resolveEffectiveRepositoryOwner) on the caller's grant --

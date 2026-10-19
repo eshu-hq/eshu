@@ -91,6 +91,13 @@ func TestBuildLiveRetryContractRowsMirrorProductionPlatformBatch(t *testing.T) {
 	if !strings.Contains(string(materializerSource), "const DefaultMaterializerBatchSize = 500") {
 		t.Fatal("live retry batch size is not pinned to reducer.DefaultMaterializerBatchSize")
 	}
+	// The platform upsert template moved to materializer_templates.go in the
+	// #5385 SAME_NAME refactor; the pin below follows the template, not the
+	// file, so the live query still mirrors the production text byte for byte.
+	materializerSource, err = os.ReadFile(filepath.Join("..", "..", "reducer", "materializer_templates.go"))
+	if err != nil {
+		t.Fatalf("read production materializer templates: %v", err)
+	}
 	if rowsA[0]["platform_id"] != sharedPlatformID || rowsB[0]["platform_id"] != sharedPlatformID {
 		t.Fatalf("shared first rows = (%v, %v), want platform_id %q", rowsA[0], rowsB[0], sharedPlatformID)
 	}

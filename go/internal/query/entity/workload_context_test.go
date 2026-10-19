@@ -272,7 +272,7 @@ func TestGetServiceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 		Neo4j: graph.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.id = $service_name": {
-					"id":        "workload:service-edge-api",
+					"id":        "workload:repo-1:service-edge-api",
 					"name":      "service-edge-api",
 					"kind":      "Deployment",
 					"repo_id":   "repo-1",
@@ -291,6 +291,26 @@ func TestGetServiceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
+				// #5385 flip wave: the qualified handle resolves on the
+				// bounded name-candidate rung with the stripped bare name.
+				"collect(DISTINCT dr.id) as defining": {
+					{
+						"id":        "workload:repo-1:service-edge-api",
+						"name":      "service-edge-api",
+						"kind":      "Deployment",
+						"repo_id":   "repo-1",
+						"repo_name": "service-edge-api",
+						"defining":  []string{"repo-1"},
+						"instances": []any{
+							map[string]any{
+								"instance_id":   "inst-1",
+								"platform_name": "eks-prod",
+								"platform_kind": "EKS",
+								"environment":   "production",
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -312,7 +332,9 @@ func TestGetServiceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
 
-	if got, want := resp["id"], "workload:service-edge-api"; got != want {
+	// Post-flip the qualified handle resolves to the scoped node id; the
+	// response echoes the node identity, not the handle the caller typed.
+	if got, want := resp["id"], "workload:repo-1:service-edge-api"; got != want {
 		t.Fatalf("id = %v, want %v", got, want)
 	}
 	if got, want := resp["name"], "service-edge-api"; got != want {

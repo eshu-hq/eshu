@@ -17,9 +17,11 @@
   can enumerate construction sites; a second constructor, or a caller building
   the string itself, silently restores the blind spot a hand-maintained list
   already had three times.
-- **Constructors take `repoID` and currently ignore it.** That is deliberate and
-  is not dead weight — it is what makes the re-key an edit here rather than at
-  every call site. Do not remove the parameter.
+- **Constructors take `repoID` and scope the key by it.** Do not remove the
+  parameter, and do not accept a caller that cannot supply a real repository:
+  a blank `repoID` fails closed to the empty id, and every production caller
+  passes its own repository (projection candidate, dependency target map,
+  catalog identity row, resolved repo).
 
 ## Changing the identifier format
 
@@ -36,6 +38,8 @@ attached. The proof is in section 5a.
 
 ## Tests
 
-`workloadid_test.go` pins the **current** format on purpose. A re-key must update
-those assertions deliberately; they exist so the format cannot move as an
-unnoticed side effect.
+`workloadid_test.go` pins the **repository-scoped** format on purpose, including
+the fail-closed cases (blank segment, colon in name/environment) and the
+cross-repository isolation case. Any future format move must update those
+assertions deliberately; they exist so the format cannot move as an unnoticed
+side effect.

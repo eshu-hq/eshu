@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -32,7 +33,9 @@ type DocumentationEdgeMaterializationHandler struct {
 	// typed decode seam (Contract System v1 Wave 4e). A nil Instruments is a
 	// no-op: the counter is skipped but the quarantine still surfaces
 	// through Result.SubSignals and the structured error log.
-	Instruments *telemetry.Instruments
+	Instruments    *telemetry.Instruments
+	ScopeRepos     handle.ScopeRepos     // Nil resolves graph-wide (#5385).
+	WorkloadLookup WorkloadSiblingLookup // Nil keeps legacy rows (#5385).
 }
 
 // Handle executes the documentation edge materialization path.
@@ -69,6 +72,10 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 	rows, mentionQuarantined, err := ExtractDocumentationEdgeRowsWithQuarantine(envelopes, intent.ScopeID)
 	if err != nil {
 		return Result{}, fmt.Errorf("extract documentation edge rows: %w", err)
+	}
+	rows, err = h.resolveWorkloadTargets(ctx, intent, rows)
+	if err != nil {
+		return Result{}, err
 	}
 	quarantined := append(deltaQuarantined, mentionQuarantined...)
 	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainDocumentationMaterialization, intent.ScopeID, intent.GenerationID, quarantined)

@@ -45,6 +45,12 @@ func TestGetWorkloadContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
 			"INSTANCE_OF":                         {},
 			"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 			"WHERE infra:K8sResource":             {},
+			// #5385 flip wave: the handle path segment resolves on the
+			// bounded name-candidate rung with the stripped bare name; the
+			// granted DEFINES repo admits the row.
+			"collect(DISTINCT dr.id) as defining": {
+				{"id": "workload:repo-team-a:payments", "name": "payments", "kind": "service", "repo_id": "repo-team-a", "defining": []string{"repo-team-a"}},
+			},
 		},
 	}
 	handler := &EntityHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}

@@ -85,20 +85,23 @@ func replayWorkloadInstanceGraphModel(
 // the regression test for the #5473 environment-alias-contract P1: before the
 // fix, environment.Canonical("production") == "prod" changed the durable
 // WorkloadInstance id (workload-instance:api:production ->
-// workload-instance:api:prod) but WorkloadInstance writes are MERGE-only, so
+// workload-instance:api:prod, and since #5385 the scoped
+// workload-instance:repo-api:api:prod) but WorkloadInstance writes are MERGE-only, so
 // the pre-canonical node and its INSTANCE_OF/DEPLOYMENT_SOURCE/RUNS_ON edges
 // survived forever alongside the new canonical node — duplicate deployment and
 // runtime truth. It seeds a pre-canonical instance (with all three edge types)
 // as already-materialized graph truth, runs the handler for a candidate whose
 // resolved environment is the canonical "prod", and asserts both that the
 // canonical instance (and its edges) exist AND that the pre-canonical instance
-// (and its edges) are gone.
+// (and its edges) are gone. Since #5385 the seed is also a legacy name-only id,
+// so this doubles as proof that a pre-re-key node is superseded by the scoped
+// canonical id rather than coexisting with it.
 func TestWorkloadMaterializationHandlerRetractsSupersededPreCanonicalInstance(t *testing.T) {
 	t.Parallel()
 
 	const (
 		oldInstanceID = "workload-instance:api:production"
-		newInstanceID = "workload-instance:api:prod"
+		newInstanceID = "workload-instance:repo-api:api:prod"
 	)
 
 	lookup := &fakeWorkloadInstanceRetractionLookup{

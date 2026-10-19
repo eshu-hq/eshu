@@ -50,10 +50,10 @@ Context routes are canonical-ID oriented:
 Repository context `workload_count` counts distinct materialized `Workload` nodes linked by `DEFINES`, never read-model
 workload names (repository context does not load them); a graph read failure returns an error, not an inferred count.
 
-When a repository has workload identity facts but no materialized `Workload` node,
-service context can fall back to the repository read model. Responses use
-`materialization_status=identity_only`, `query_basis=repository_read_model`, an empty
-`instances` array, and a `limitations` entry of `workload_identity_not_materialized`.
+When a repository has workload identity facts but no materialized `Workload` node, service
+context can fall back to the repository read model. Responses use `materialization_status=identity_only`,
+`query_basis=repository_read_model`, a `handle` field carrying the stable public `workload:<name>` string,
+an empty `instances` array, and a `limitations` entry of `workload_identity_not_materialized`.
 
 Workload and service context also carry `limitations` on the primary graph-materialized path, not only the read-model
 fallback above: once a repository is resolved, an auxiliary infrastructure read that fails degrades the response to a 200

@@ -347,11 +347,12 @@ func TestProjectionWorkloadAndEndpointIDsIgnoreEnvironmentsAndPlatforms(t *testi
 
 	candidate := repoEdgeRetractCandidate(scopeKeepRepoID, scopeKeepRepoName)
 	candidate.Namespaces = []string{"prod"}
-	bare := BuildProjectionRowsWithInfrastructurePlatforms([]WorkloadCandidate{candidate}, nil, nil)
+	bare := BuildProjectionRowsWithInfrastructurePlatforms([]WorkloadCandidate{candidate}, nil, nil, nil)
 	full := BuildProjectionRowsWithInfrastructurePlatforms(
 		[]WorkloadCandidate{candidate},
 		map[string][]string{scopeKeepRepoID: {"prod", "staging"}},
 		map[string][]InfrastructurePlatformRow{scopeKeepRepoID: {{PlatformID: "platform:eks:prod", PlatformKind: "eks", PlatformName: "prod"}}},
+		nil,
 	)
 	ids := func(p *ProjectionResult) string {
 		var workloads, endpoints []string

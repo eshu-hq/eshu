@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 func (h *Handler) resolveEntityMapStart(
@@ -60,14 +61,24 @@ func entityMapResolverQueries(req entityMapRequest, limit int) []entityMapResolv
 	from := req.From
 	switch req.FromType {
 	case "service", "workload":
+		// Ladder rung 1 is the exact node id above. Rung 2 below is the
+		// handle ladder (compatibility doc section 1.4): the stripped bare
+		// name matched within the request scope. More than one same-name
+		// node fails closed in resolveEntityMapStart, which reports
+		// ambiguous with the candidates' repo_ids.
+		//
+		// The old raw-name fallback is subsumed here on purpose: a bare
+		// input's rung-2 probe is byte-identical to it, and a handle
+		// input's old probe (name = the prefixed handle) could never match
+		// a node name, so it was a dead read. Mirrors
+		// changeSurfaceResolverQueries.
 		queries := []entityMapResolverQuery{EntityMapNodeResolverQuery("Workload", "id", from, "id", 0, limit)}
-		if canonicalID := canonicalWorkloadIDCandidate(from); canonicalID != from {
-			queries = append(queries, EntityMapNodeResolverQuery("Workload", "id", canonicalID, "id", 1, limit))
+		if bare := changeSurfaceWorkloadHandleBareName(from); bare != "" {
+			queries = append(queries, EntityMapNodeResolverQuery("Workload", "name", bare, "id", 1, limit))
 		}
 		if req.RepoID != "" {
-			queries = append(queries, entityMapWorkloadRepoScopedResolverQuery(from, req.RepoID, 2, limit))
+			queries = append(queries, entityMapWorkloadRepoScopedResolverQuery(workloadid.StripWorkloadHandlePrefix(from), req.RepoID, 2, limit))
 		}
-		queries = append(queries, EntityMapNodeResolverQuery("Workload", "name", from, "id", 3, limit))
 		return queries
 	case "workload_instance":
 		return []entityMapResolverQuery{
@@ -134,26 +145,31 @@ func entityMapResolverQueries(req entityMapRequest, limit int) []entityMapResolv
 
 func entityMapGenericResolverQueries(from string, limit int) []entityMapResolverQuery {
 	queries := []entityMapResolverQuery{EntityMapNodeResolverQuery("Workload", "id", from, "id", 0, limit)}
-	if canonicalID := canonicalWorkloadIDCandidate(from); canonicalID != from {
-		queries = append(queries, EntityMapNodeResolverQuery("Workload", "id", canonicalID, "id", 1, limit))
+	// Rung 2 of the handle ladder (compatibility doc section 1.4) replaces
+	// the old canonical-id probe in place: the stripped bare name, matched
+	// only for handle or bare input. The old Workload raw-name probe is
+	// subsumed (byte-identical for bare input, a dead read for handle
+	// input), so the ranks below shift down by one and every other label's
+	// probe order is unchanged.
+	if bare := changeSurfaceWorkloadHandleBareName(from); bare != "" {
+		queries = append(queries, EntityMapNodeResolverQuery("Workload", "name", bare, "id", 1, limit))
 	}
 	queries = append(
 		queries,
-		EntityMapNodeResolverQuery("Workload", "name", from, "id", 2, limit),
-		EntityMapNodeResolverQuery("Repository", "id", from, "id", 3, limit),
-		EntityMapNodeResolverQuery("Repository", "name", from, "id", 4, limit),
-		EntityMapNodeResolverQuery("CloudResource", "id", from, "id", 5, limit),
-		EntityMapNodeResolverQuery("CloudResource", "resource_id", from, "id", 6, limit),
-		EntityMapNodeResolverQuery("TerraformResource", "address", from, "uid", 7, limit),
-		EntityMapNodeResolverQuery("TerraformResource", "uid", from, "uid", 8, limit),
+		EntityMapNodeResolverQuery("Repository", "id", from, "id", 2, limit),
+		EntityMapNodeResolverQuery("Repository", "name", from, "id", 3, limit),
+		EntityMapNodeResolverQuery("CloudResource", "id", from, "id", 4, limit),
+		EntityMapNodeResolverQuery("CloudResource", "resource_id", from, "id", 5, limit),
+		EntityMapNodeResolverQuery("TerraformResource", "address", from, "uid", 6, limit),
+		EntityMapNodeResolverQuery("TerraformResource", "uid", from, "uid", 7, limit),
 		// #5443: TerraformStateResource is the state-observed sibling label;
 		// tried as a distinct candidate, never a label disjunction (see the
 		// terraform/tf case above for why).
-		EntityMapNodeResolverQuery("TerraformStateResource", "address", from, "uid", 9, limit),
-		EntityMapNodeResolverQuery("TerraformStateResource", "uid", from, "uid", 10, limit),
-		EntityMapNodeResolverQuery("TerraformDataSource", "address", from, "uid", 11, limit),
-		EntityMapNodeResolverQuery("K8sResource", "qualified_name", from, "id", 12, limit),
-		EntityMapNodeResolverQuery("File", "path", from, "path", 13, limit),
+		EntityMapNodeResolverQuery("TerraformStateResource", "address", from, "uid", 8, limit),
+		EntityMapNodeResolverQuery("TerraformStateResource", "uid", from, "uid", 9, limit),
+		EntityMapNodeResolverQuery("TerraformDataSource", "address", from, "uid", 10, limit),
+		EntityMapNodeResolverQuery("K8sResource", "qualified_name", from, "id", 11, limit),
+		EntityMapNodeResolverQuery("File", "path", from, "path", 12, limit),
 	)
 	return queries
 }

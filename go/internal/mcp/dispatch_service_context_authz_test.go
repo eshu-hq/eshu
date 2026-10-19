@@ -42,14 +42,14 @@ func TestDispatchToolServiceAndWorkloadContextAllowsScopedRoutes(t *testing.T) {
 			toolName: "get_service_context",
 			args:     map[string]any{"workload_id": "workload:payments"},
 			method:   http.MethodGet,
-			path:     "/api/v0/services/payments/context",
+			path:     "/api/v0/services/workload:payments/context",
 		},
 		{
 			name:     "service story",
 			toolName: "get_service_story",
 			args:     map[string]any{"workload_id": "workload:payments"},
 			method:   http.MethodGet,
-			path:     "/api/v0/services/payments/story",
+			path:     "/api/v0/services/workload:payments/story",
 		},
 	}
 	for _, tt := range tests {

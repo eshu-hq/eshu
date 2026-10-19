@@ -215,6 +215,11 @@ const (
 	RunsIn EdgeType = "RUNS_IN"
 	// RunsOn is the "RUNS_ON" graph relationship type.
 	RunsOn EdgeType = "RUNS_ON"
+	// SameName is the "SAME_NAME" graph relationship type (a Workload to
+	// the same-named Workload in another repository, issue #5385: the
+	// collision edge that keeps split siblings discoverable after the
+	// repository-scoped re-key).
+	SameName EdgeType = "SAME_NAME"
 	// SatisfiedBy is the "SATISFIED_BY" graph relationship type.
 	SatisfiedBy EdgeType = "SATISFIED_BY"
 	// SecretsIamAssumesIamRole is the "SECRETS_IAM_ASSUMES_IAM_ROLE" graph relationship type.
@@ -270,7 +275,7 @@ var registered = []EdgeType{
 	PinsSubmodule,
 	ProvisionsDependencyFor, ProvisionsPlatform, Publishes, QueriesTable, ReadsConfigFrom,
 	ReadsFrom, ReconcilesFrom, References, ReferencesTable, RepoContains,
-	RunsImage, RunsIn, RunsOn, SatisfiedBy,
+	RunsImage, RunsIn, RunsOn, SameName, SatisfiedBy,
 	SecretsIamAssumesIamRole, SecretsIamAuthenticatesToVaultRole, SecretsIamGrantsSecretRead, SecretsIamUsesServiceAccount,
 	SecretsIamUsesVaultPolicy, TaintFlowsTo, TargetsEnvironment, To,
 	Triggers, TriggersOn, WritesTo, Uses, UsesMetaclass,

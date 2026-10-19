@@ -41,6 +41,15 @@ func crossTenantProvisioningGraph() graph.FakeGraphReaderWithSingle {
 			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
 				return rows, nil
 			}
+			// #5385 flip wave: the handle path segment resolves on the
+			// bounded name-candidate rung; the granted DEFINES repo admits
+			// the row so the W3 leak assertions still execute. The
+			// $workload_id guard keeps this branch off the deployment
+			// selector's same-shaped $service_name name read, which keeps
+			// its own legacy row below.
+			if strings.Contains(cypher, "collect(DISTINCT dr.id) as defining") && strings.Contains(cypher, "$workload_id") {
+				return []map[string]any{{"id": "workload:repo-a:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a", "defining": []string{"repo-a"}}}, nil
+			}
 			// ResolveWorkloadSelector's name lookup (#6786 F3: its id
 			// lookup now requires the returned row's own id to equal the
 			// selector, and "workload:orders-api" != "orders-api", so it

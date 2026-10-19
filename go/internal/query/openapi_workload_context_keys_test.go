@@ -75,9 +75,9 @@ func TestOpenAPIWorkloadContextDeclaresEveryFetchedKey(t *testing.T) {
 // TestFetchServiceReadModelWorkloadContextEmitsOnlyDeclaredKeys proves
 // emitted == list. This is the OTHER path that serves the WorkloadContext
 // schema -- the repository-read-model fallback reached when no graph Workload
-// node has materialized yet -- and it emits two keys the primary
-// graph-materialized path never does: "materialization_status" and
-// "query_basis". Both were undeclared in the OpenAPI schema because the
+// node has materialized yet -- and it emits three keys the primary
+// graph-materialized path never does: "materialization_status",
+// "query_basis", and (since #5385) "handle". The first two were undeclared in the OpenAPI schema because the
 // original TestOpenAPIWorkloadContextDeclaresEveryFetchedKey only ever covered
 // fetchWorkloadContextForOperation's key set. This function is not
 // queryplan-digest-tracked (it issues no direct graph Run), so no other gate
@@ -93,6 +93,7 @@ var fetchServiceReadModelWorkloadContextResultKeys = []string{
 	"infrastructure",
 	"materialization_status",
 	"query_basis",
+	"handle",
 	"limitations",
 }
 

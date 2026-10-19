@@ -107,6 +107,7 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"GET /api/v0/auth/profile":                                                      scopedRouteIdentityBound,
 	"GET /api/v0/auth/sessions":                                                     scopedRouteIdentityBound,
 	"GET /api/v0/capabilities":                                                      scopedRouteTenantDataFree,
+	"GET /api/v0/catalog":                                                           scopedRouteGrantBound,
 	"GET /api/v0/ci-cd/run-correlations":                                            scopedRouteGrantBound,
 	"GET /api/v0/ci-cd/run-correlations/count":                                      scopedRouteGrantBound,
 	"GET /api/v0/ci-cd/run-correlations/inventory":                                  scopedRouteGrantBound,

@@ -200,7 +200,9 @@ func resolveWorkloadDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 	if len(candidates) == 0 {
 		return false, fmt.Sprintf("odù %q: ExtractWorkloadCandidates admitted zero workload candidates from this Odù's own Kubernetes Deployment file facts", odu.Name)
 	}
-	projection := reducer.BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, nil)
+	// Nil tally: the Ifa edge check rebuilds the write path's rows read-only;
+	// the reducer handler's own build counts the drops.
+	projection := reducer.BuildProjectionRowsWithInfrastructurePlatforms(candidates, deploymentEnvs, nil, nil)
 	if projection == nil || len(projection.RepoDescriptors) != 4 {
 		got := 0
 		if projection != nil {

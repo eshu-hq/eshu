@@ -29,7 +29,7 @@ func TestDispatchToolInvestigateServiceAllowsScopedRoute(t *testing.T) {
 		if got, want := r.Method, http.MethodGet; got != want {
 			t.Fatalf("method = %q, want %q", got, want)
 		}
-		if got, want := r.URL.Path, "/api/v0/investigations/services/payments"; got != want {
+		if got, want := r.URL.Path, "/api/v0/investigations/services/workload:payments"; got != want {
 			t.Fatalf("path = %q, want %q", got, want)
 		}
 		if _, ok := query.AuthContextFromContext(r.Context()); !ok {

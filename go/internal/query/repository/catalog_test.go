@@ -27,6 +27,7 @@ type catalogGraphRows struct {
 	repo         []map[string]any
 	instance     []map[string]any
 	evidence     []map[string]any
+	siblings     []map[string]any
 }
 
 func (rows catalogGraphRows) reader(t *testing.T, wantLimit int) graph.FakeRepoGraphReader {
@@ -38,6 +39,8 @@ func (rows catalogGraphRows) reader(t *testing.T, wantLimit int) graph.FakeRepoG
 				return rows.repositories, nil
 			case strings.Contains(cypher, "EVIDENCES_REPOSITORY_RELATIONSHIP"):
 				return rows.evidence, nil
+			case strings.Contains(cypher, "SAME_NAME"):
+				return rows.siblings, nil
 			case strings.Contains(cypher, "MATCH (inst:WorkloadInstance)"):
 				return rows.instance, nil
 			case strings.Contains(cypher, "(w:Workload)<-[:DEFINES]-(repo:Repository)"):
@@ -64,16 +67,16 @@ func TestListCatalogReturnsRepositoriesWorkloadsAndServices(t *testing.T) {
 			{"id": "repository:r_api", "name": "svc-catalog", "local_path": "/repos/svc-catalog"},
 		},
 		base: []map[string]any{
-			{"id": "workload:svc-catalog", "name": "svc-catalog", "kind": "service"},
-			{"id": "workload:nightly-sync", "name": "nightly-sync", "kind": "cronjob"},
+			{"id": "workload:repository:r_api:svc-catalog", "name": "svc-catalog", "kind": "service"},
+			{"id": "workload:repository:r_api:nightly-sync", "name": "nightly-sync", "kind": "cronjob"},
 		},
 		repo: []map[string]any{
-			{"id": "workload:svc-catalog", "repo_id": "repository:r_api", "repo_name": "svc-catalog"},
-			{"id": "workload:nightly-sync", "repo_id": "repository:r_api", "repo_name": "svc-catalog"},
+			{"id": "workload:repository:r_api:svc-catalog", "repo_id": "repository:r_api", "repo_name": "svc-catalog"},
+			{"id": "workload:repository:r_api:nightly-sync", "repo_id": "repository:r_api", "repo_name": "svc-catalog"},
 		},
 		instance: []map[string]any{
-			{"id": "workload:svc-catalog", "instance_count": int64(2), "environments": []any{"prod", "qa"}},
-			{"id": "workload:nightly-sync", "instance_count": int64(1), "environments": []any{"prod"}},
+			{"id": "workload:repository:r_api:svc-catalog", "instance_count": int64(2), "environments": []any{"prod", "qa"}},
+			{"id": "workload:repository:r_api:nightly-sync", "instance_count": int64(1), "environments": []any{"prod"}},
 		},
 	}
 
@@ -120,20 +123,20 @@ func TestListCatalogMergesInstanceAndDeploymentEvidenceEnvironments(t *testing.T
 
 	rows := catalogGraphRows{
 		base: []map[string]any{
-			{"id": "workload:svc-catalog", "name": "svc-catalog", "kind": "service"},
-			{"id": "workload:svc-pricing", "name": "svc-pricing", "kind": "service"},
-			{"id": "workload:svc-empty", "name": "svc-empty", "kind": "service"},
+			{"id": "workload:repository:r_api:svc-catalog", "name": "svc-catalog", "kind": "service"},
+			{"id": "workload:repository:r_pricing:svc-pricing", "name": "svc-pricing", "kind": "service"},
+			{"id": "workload:repository:r_empty:svc-empty", "name": "svc-empty", "kind": "service"},
 		},
 		instance: []map[string]any{
 			// Instance-backed service: environments only from WorkloadInstance.
-			{"id": "workload:svc-catalog", "instance_count": int64(2), "environments": []any{"prod", "qa"}},
+			{"id": "workload:repository:r_api:svc-catalog", "instance_count": int64(2), "environments": []any{"prod", "qa"}},
 		},
 		evidence: []map[string]any{
 			// Instance-less service: environments only from TARGETS_ENVIRONMENT
 			// deployment evidence, emitted as scalar per-edge rows.
-			{"id": "workload:svc-pricing", "environment": "example-qa"},
-			{"id": "workload:svc-pricing", "environment": "example-prod"},
-			{"id": "workload:svc-pricing", "environment": "example-qa"},
+			{"id": "workload:repository:r_pricing:svc-pricing", "environment": "example-qa"},
+			{"id": "workload:repository:r_pricing:svc-pricing", "environment": "example-prod"},
+			{"id": "workload:repository:r_pricing:svc-pricing", "environment": "example-qa"},
 		},
 	}
 
@@ -180,8 +183,8 @@ func TestListCatalogTruncatesEachCollectionByLimit(t *testing.T) {
 			{"id": "repository:r_2", "name": "two"},
 		},
 		base: []map[string]any{
-			{"id": "workload:w_1", "name": "one", "kind": "service"},
-			{"id": "workload:w_2", "name": "two", "kind": "service"},
+			{"id": "workload:repository:r_1:one", "name": "one", "kind": "service"},
+			{"id": "workload:repository:r_2:two", "name": "two", "kind": "service"},
 		},
 	}
 
@@ -219,7 +222,7 @@ func TestListCatalogDistinguishesRepositoryOnlyTruncation(t *testing.T) {
 			{"id": "repository:r_2", "name": "two"},
 		},
 		base: []map[string]any{
-			{"id": "workload:w_1", "name": "one", "kind": "service"},
+			{"id": "workload:repository:r_1:one", "name": "one", "kind": "service"},
 		},
 	}
 	handler := &Handler{Neo4j: rows.reader(t, 0), Profile: querycontract.ProfileLocalAuthoritative}
@@ -283,6 +286,45 @@ func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {
 	}
 }
 
+// A colon-bearing identity name mints no repository-scoped id, so the row
+// must be skipped rather than served with an empty "id" (#5385): the catalog
+// is a read surface, but an empty id matches no node and no client can use
+// it.
+func TestListCatalogSkipsIdentityWithUnmintableID(t *testing.T) {
+	t.Parallel()
+
+	handler := &Handler{
+		Content: content.FakePortContentStore{
+			WorkloadIdentities: []repository.CatalogWorkloadIdentityEntry{
+				{
+					Name:     "api:v2",
+					RepoID:   "repository:r_api",
+					RepoName: "api",
+				},
+			},
+		},
+		Neo4j: graph.FakeRepoGraphReader{
+			RunByMatch: map[string][]map[string]any{
+				"MATCH (r:Repository)": {},
+				"MATCH (w:Workload)":   {},
+			},
+		},
+		Profile: querycontract.ProfileLocalAuthoritative,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=10", nil)
+	rec := httptest.NewRecorder()
+
+	handler.listCatalog(rec, req)
+
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+
+	assertCatalogCollectionLength(t, body, "services", 0)
+}
+
 // TestCatalogEvidenceEnvironmentCypherIsSingleChain guards the cold-plan fix
 // for issue #1731. The deployment-evidence environment query MUST express its
 // (workload)<-(repo)<-(artifact)->(env) relationship as a single connected
@@ -328,8 +370,9 @@ func TestCatalogWorkloadRepoCypherIsSingleChain(t *testing.T) {
 }
 
 // TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs guards issue #3389. The
-// three workload enrichment queries (repository, instance environments, and
-// deployment-evidence environments) previously scanned the entire Workload,
+// workload enrichment queries (repository, instance environments,
+// deployment-evidence environments, and — since #5385 — SAME_NAME siblings)
+// must all stay bounded: the first three previously scanned the entire Workload,
 // WorkloadInstance, and Environment populations regardless of the catalog
 // limit. At ~500k-node scale that whole-graph aggregation timed the catalog
 // endpoint out even at limit=5. Each enrichment MUST be bounded to the limited
@@ -358,6 +401,9 @@ func TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs(t *testing.T) {
 			case strings.Contains(cypher, "EVIDENCES_REPOSITORY_RELATIONSHIP"):
 				recordIDs("evidence", cypher, params)
 				return nil, nil
+			case strings.Contains(cypher, "SAME_NAME"):
+				recordIDs("siblings", cypher, params)
+				return nil, nil
 			case strings.Contains(cypher, "MATCH (inst:WorkloadInstance)"):
 				recordIDs("instance", cypher, params)
 				return nil, nil
@@ -366,8 +412,8 @@ func TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs(t *testing.T) {
 				return nil, nil
 			case strings.Contains(cypher, "MATCH (w:Workload)"):
 				return []map[string]any{
-					{"id": "workload:keep_a", "name": "keep-a", "kind": "service"},
-					{"id": "workload:keep_b", "name": "keep-b", "kind": "service"},
+					{"id": "workload:repository:r_keep:keep-a", "name": "keep-a", "kind": "service"},
+					{"id": "workload:repository:r_keep:keep-b", "name": "keep-b", "kind": "service"},
 				}, nil
 			default:
 				return nil, nil
@@ -384,8 +430,8 @@ func TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
 
-	wantIDs := []string{"workload:keep_a", "workload:keep_b"}
-	for _, key := range []string{"repo", "instance", "evidence"} {
+	wantIDs := []string{"workload:repository:r_keep:keep-a", "workload:repository:r_keep:keep-b"}
+	for _, key := range []string{"repo", "instance", "evidence", "siblings"} {
 		entry, ok := captured[key]
 		if !ok {
 			t.Fatalf("enrichment query %q was not executed", key)
@@ -411,6 +457,7 @@ func TestListCatalogSkipsEnrichmentWhenNoWorkloads(t *testing.T) {
 			switch {
 			case strings.Contains(cypher, "EVIDENCES_REPOSITORY_RELATIONSHIP"),
 				strings.Contains(cypher, "MATCH (inst:WorkloadInstance)"),
+				strings.Contains(cypher, "SAME_NAME"),
 				strings.Contains(cypher, "(w:Workload)<-[:DEFINES]-(repo:Repository)"):
 				enrichmentRan = true
 				return nil, nil

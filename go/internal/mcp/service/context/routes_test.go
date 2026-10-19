@@ -59,7 +59,7 @@ func TestRouteMapsGetServiceContext(t *testing.T) {
 	}
 	want := routecontract.Request{
 		Method: "GET",
-		Path:   "/api/v0/services/sample-service-api/context",
+		Path:   "/api/v0/services/workload:sample-service-api/context",
 		Query:  map[string]string{"environment": "prod", "evidence_detail": "handles"},
 	}
 	if !reflect.DeepEqual(request, want) {
@@ -135,7 +135,7 @@ func TestRouteMapsGetServiceStoryQualifiedID(t *testing.T) {
 	}
 	want := routecontract.Request{
 		Method: "GET",
-		Path:   "/api/v0/services/sample-service-api/story",
+		Path:   "/api/v0/services/workload:sample-service-api/story",
 		Query:  map[string]string{"environment": "prod", "service_id": "workload:sample-service-api"},
 	}
 	if !reflect.DeepEqual(request, want) {
@@ -210,7 +210,7 @@ func TestRouteMapsGetServiceIntelligenceReport(t *testing.T) {
 	}
 	want := routecontract.Request{
 		Method: "GET",
-		Path:   "/api/v0/services/sample-service-api/intelligence-report",
+		Path:   "/api/v0/services/workload:sample-service-api/intelligence-report",
 		Query:  map[string]string{"environment": "prod", "service_id": "workload:sample-service-api"},
 	}
 	if !reflect.DeepEqual(request, want) {
@@ -279,10 +279,104 @@ func TestRouteInvestigateServiceForwardsQualifiedWorkloadSelector(t *testing.T) 
 	if !handled || err != nil {
 		t.Fatalf("Route() = (_, %v, %v), want handled without error", handled, err)
 	}
-	if got, want := request.Path, "/api/v0/investigations/services/payments"; got != want {
+	if got, want := request.Path, "/api/v0/investigations/services/workload:payments"; got != want {
 		t.Fatalf("Route() path = %q, want %q", got, want)
 	}
 	if got, want := request.Query["service_id"], "workload:payments"; got != want {
 		t.Fatalf("Route() query[service_id] = %q, want %q", got, want)
+	}
+}
+
+// TestRouteForwardsWorkloadHandleWhole proves a workload: handle reaches the
+// API ladder intact: the MCP builder forwards it whole as the HTTP path
+// segment instead of cutting at the first colon (#5385 lane 2).
+func TestRouteForwardsWorkloadHandleWhole(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		tool     string
+		args     routecontract.Arguments
+		wantPath string
+		wantID   string
+	}{
+		{
+			tool:     "get_service_context",
+			args:     routecontract.Arguments{"workload_id": "workload:checkout"},
+			wantPath: "/api/v0/services/workload:checkout/context",
+		},
+		{
+			tool:     "get_service_story",
+			args:     routecontract.Arguments{"workload_id": "workload:checkout"},
+			wantPath: "/api/v0/services/workload:checkout/story",
+			wantID:   "workload:checkout",
+		},
+		{
+			tool:     "get_service_intelligence_report",
+			args:     routecontract.Arguments{"workload_id": "workload:checkout"},
+			wantPath: "/api/v0/services/workload:checkout/intelligence-report",
+			wantID:   "workload:checkout",
+		},
+		{
+			tool:     "investigate_service",
+			args:     routecontract.Arguments{"service_name": "workload:checkout"},
+			wantPath: "/api/v0/investigations/services/workload:checkout",
+			wantID:   "workload:checkout",
+		},
+	} {
+		request, handled, err := Route(tc.tool, tc.args)
+		if !handled || err != nil {
+			t.Fatalf("%s: Route() = (_, %v, %v), want handled without error", tc.tool, handled, err)
+		}
+		if request.Path != tc.wantPath {
+			t.Errorf("%s: path = %q, want %q", tc.tool, request.Path, tc.wantPath)
+		}
+		if got := request.Query["service_id"]; tc.wantID != "" && got != tc.wantID {
+			t.Errorf("%s: query[service_id] = %q, want %q", tc.tool, got, tc.wantID)
+		}
+	}
+}
+
+// TestRouteForwardsFullScopedWorkloadIDWhole proves the full scoped node id
+// (workload:<repo_id>:<name>) is also forwarded whole, with service_id set,
+// so the ladder's exact-id rung matches first (#5385 lane 2).
+func TestRouteForwardsFullScopedWorkloadIDWhole(t *testing.T) {
+	t.Parallel()
+
+	const fullID = "workload:repository:r_8477a002:checkout"
+	request, handled, err := Route("get_service_story", routecontract.Arguments{"workload_id": fullID})
+	if !handled || err != nil {
+		t.Fatalf("Route() = (_, %v, %v), want handled without error", handled, err)
+	}
+	if got, want := request.Path, "/api/v0/services/"+fullID+"/story"; got != want {
+		t.Fatalf("Route() path = %q, want %q", got, want)
+	}
+	if got := request.Query["service_id"]; got != fullID {
+		t.Fatalf("Route() query[service_id] = %q, want %q", got, fullID)
+	}
+}
+
+// TestRouteLeavesBareAndNonWorkloadSelectorsUnchanged proves the lane-2
+// forwarding touches only workload: selectors: bare names pass through and
+// other qualified types keep the old first-colon cut.
+func TestRouteLeavesBareAndNonWorkloadSelectorsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	request, handled, err := Route("get_service_context", routecontract.Arguments{"workload_id": "checkout"})
+	if !handled || err != nil {
+		t.Fatalf("Route() = (_, %v, %v), want handled without error", handled, err)
+	}
+	if got, want := request.Path, "/api/v0/services/checkout/context"; got != want {
+		t.Errorf("bare: path = %q, want %q", got, want)
+	}
+
+	request, handled, err = Route("get_service_intelligence_report", routecontract.Arguments{"workload_id": "service:checkout"})
+	if !handled || err != nil {
+		t.Fatalf("Route() = (_, %v, %v), want handled without error", handled, err)
+	}
+	if got, want := request.Path, "/api/v0/services/checkout/intelligence-report"; got != want {
+		t.Errorf("non-workload: path = %q, want %q", got, want)
+	}
+	if got := request.Query["service_id"]; got != "" {
+		t.Errorf("non-workload: query[service_id] = %q, want empty", got)
 	}
 }

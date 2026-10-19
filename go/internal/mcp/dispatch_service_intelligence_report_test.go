@@ -35,7 +35,7 @@ func TestResolveRouteServiceIntelligenceReport(t *testing.T) {
 	if route.Method != "GET" {
 		t.Fatalf("method = %q, want GET", route.Method)
 	}
-	if route.Path != "/api/v0/services/sample-service-api/intelligence-report" {
+	if route.Path != "/api/v0/services/workload:sample-service-api/intelligence-report" {
 		t.Fatalf("path = %q", route.Path)
 	}
 	if route.Query["environment"] != "prod" {

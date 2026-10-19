@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/selector"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
@@ -138,7 +139,25 @@ func (h *Handler) collectServiceWorkloadCandidates(
 			return nil, false, err
 		}
 		all = append(all, rows...)
+		// #5385 flip wave: a workload: handle service_id (forwarded by the
+		// MCP service story and intelligence-report routes) matches no
+		// post-flip node id, so fall back to the stripped-name probe exactly
+		// like the ServiceName ladder below. A full scoped id still resolves
+		// on rung 1 and never reaches rung 2 with a phantom name, because
+		// StripWorkloadHandlePrefix passes non-handles through unchanged and
+		// the id probe already matched them.
+		if len(all) == 0 && workloadid.ClassifyWorkloadSelector(selector.ServiceID) == workloadid.SelectorKindHandle {
+			rows, err := h.QueryServiceWorkloadCandidates(ctx, "w.name = $service_id", "service_id", workloadid.StripWorkloadHandlePrefix(selector.ServiceID), selector, repoID, limit, "workload_name")
+			if err != nil {
+				return nil, false, err
+			}
+			all = append(all, rows...)
+		}
 	} else {
+		// Ladder rung 1 probes the full selector string as a node id; rung
+		// 2 probes the stripped bare name (#5385). A prefixed handle must
+		// not reach the name probe intact: node names never carry the
+		// prefix, so it would miss every row.
 		if strings.HasPrefix(selector.ServiceName, "workload:") {
 			rows, err := h.QueryServiceWorkloadCandidates(ctx, "w.id = $service_name", "service_name", selector.ServiceName, selector, repoID, limit, "workload_id")
 			if err != nil {
@@ -146,7 +165,7 @@ func (h *Handler) collectServiceWorkloadCandidates(
 			}
 			all = append(all, rows...)
 		}
-		rows, err := h.QueryServiceWorkloadCandidates(ctx, "w.name = $service_name", "service_name", selector.ServiceName, selector, repoID, limit, "workload_name")
+		rows, err := h.QueryServiceWorkloadCandidates(ctx, "w.name = $service_name", "service_name", workloadid.StripWorkloadHandlePrefix(selector.ServiceName), selector, repoID, limit, "workload_name")
 		if err != nil {
 			return nil, false, err
 		}

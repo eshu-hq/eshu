@@ -15,7 +15,7 @@ import (
 )
 
 // methodologyCommittedSchemaDeclaration is the graph schema change
-// declaration the repository carries (#8073). The tree pin requires every
+// declaration the repository carries (#5385). The tree pin requires every
 // existing go/internal/graph schema*.go file to match the base revision,
 // because the paired Base/Candidate sides execute one test binary. A PR that
 // changes existing schema files on purpose fills this value: Issue (the
@@ -33,12 +33,14 @@ import (
 // the declaration goes inert, and the pin behaves as before. Any other PR
 // leaves the zero value alone.
 var methodologyCommittedSchemaDeclaration = methodologyRewriteDeclaration{
-	Issue:  8168,
-	Reason: "Keys canonical Module on a constrained import_key (DDL adds the uniqueness constraint; Module MERGE and IMPORTS statements reference it); the base tree cannot build that schema, so the paired Base/Candidate sides in this run both measure candidate schema.",
+	Issue:  5385,
+	Reason: "Repository-scoped workload identity re-key: new endpoint repo_id index DDL plus corrected compatibility predecessor literals; the paired Base/Candidate sides in this run both measure candidate schema and no pinned reader changes.",
+	// Production sources only: the pin inventory excludes *_test.go, so the
+	// declaration names exactly the differing non-test schema files.
 	Paths: []string{
 		"go/internal/graph/schema_application.go",
 		"go/internal/graph/schema_predecessors.go",
-		"go/internal/graph/schema_tables.go",
+		"go/internal/graph/schema_tables_indexes.go",
 	},
 }
 
@@ -107,7 +109,7 @@ type methodologySchemaDeclarationCase struct {
 }
 
 // TestMethodologySchemaDeclarationGate is the RED/GREEN contract for the
-// committed graph schema change declaration (#8073). A PR may declare the
+// committed graph schema change declaration (#5385). A PR may declare the
 // existing go/internal/graph schema*.go files it changes on purpose. The
 // tree pin then requires the base-vs-candidate diff to equal the declared
 // set exactly. Every wantFailure arm proves the pin still fails closed.

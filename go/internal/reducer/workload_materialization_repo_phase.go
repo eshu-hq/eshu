@@ -348,7 +348,9 @@ func (h WorkloadMaterializationHandler) retractStaleRepositoryEdges(
 func scopeKeepLists(repoIDs []string, keep repositoryEdgeKeepSource) []retract.KeepList {
 	workloadIDs, endpointIDs := map[string][]string{}, map[string][]string{}
 	if len(keep.candidates) > 0 {
-		projection := BuildProjectionRowsWithInfrastructurePlatforms(keep.candidates, keep.environments, nil)
+		// Nil tally: the keep-list rebuilds the write path's rows read-only;
+		// the handler's own build counts the drops.
+		projection := BuildProjectionRowsWithInfrastructurePlatforms(keep.candidates, keep.environments, nil, nil)
 		for _, row := range projection.WorkloadRows {
 			workloadIDs[row.RepoID] = append(workloadIDs[row.RepoID], row.WorkloadID)
 		}

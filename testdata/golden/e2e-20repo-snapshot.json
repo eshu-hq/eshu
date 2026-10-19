@@ -3743,7 +3743,7 @@
         ],
         "required_json_values": {
           "service_name": "deployable-config",
-          "workload_id": "workload:deployable-config",
+          "workload_id": "workload:repository:r_217415d9:deployable-config",
           "coverage.query_shape": "deployment_config_influence_story"
         },
         "arguments": {
@@ -4405,16 +4405,16 @@
           "right.provenance[]"
         ],
         "required_json_values": {
-          "workload.id": "workload:deployable-source",
+          "workload.id": "workload:repository:r_1f68383d:deployable-source",
           "left.status": "present",
           "left.environment": "stage",
-          "left.instance.id": "workload-instance:deployable-source:stage",
-          "left.instance.workload_id": "workload:deployable-source",
+          "left.instance.id": "workload-instance:repository:r_1f68383d:deployable-source:stage",
+          "left.instance.workload_id": "workload:repository:r_1f68383d:deployable-source",
           "left.provenance[].kind": "materialized_workload_instance",
           "right.status": "present",
           "right.environment": "prod",
-          "right.instance.id": "workload-instance:deployable-source:prod",
-          "right.instance.workload_id": "workload:deployable-source",
+          "right.instance.id": "workload-instance:repository:r_1f68383d:deployable-source:prod",
+          "right.instance.workload_id": "workload:repository:r_1f68383d:deployable-source",
           "right.provenance[].kind": "materialized_workload_instance",
           "confidence": 1,
           "reason": "Environments are identical"
@@ -5441,7 +5441,7 @@
           "view": "service_story",
           "source_response": {
             "service_identity": {
-              "service_id": "workload:api-svc",
+              "service_id": "workload:repository:r_d5318f0f:api-svc",
               "service_name": "api-svc",
               "repo_id": "repository:api-svc"
             },
@@ -5789,7 +5789,7 @@
         "maximum_results": 50,
         "results_field": "story_sections",
         "required_json_values": {
-          "id": "workload:api-svc",
+          "id": "workload:repository:r_d5318f0f:api-svc",
           "name": "api-svc"
         },
         "arguments": {
@@ -5808,7 +5808,7 @@
         ],
         "minimum_results": 0,
         "required_json_values": {
-          "workload_id": "workload:api-svc",
+          "workload_id": "workload:repository:r_d5318f0f:api-svc",
           "name": "api-svc",
           "evidence_boundaries[].domain": "ci_cd_run_correlation"
         },
@@ -5855,7 +5855,7 @@
         "maximum_results": 50,
         "results_field": "story_sections",
         "required_json_values": {
-          "id": "workload:api-svc",
+          "id": "workload:repository:r_d5318f0f:api-svc",
           "name": "api-svc"
         },
         "arguments": {
@@ -5891,7 +5891,7 @@
         "maximum_results": 50,
         "results_field": "story_sections",
         "required_json_values": {
-          "service_identity.service_id": "workload:api-svc"
+          "service_identity.service_id": "workload:repository:r_d5318f0f:api-svc"
         },
         "required_absent_when_present": [
           {
@@ -5959,7 +5959,7 @@
         "results_field": "sections",
         "required_json_values": {
           "schema": "service_intelligence_report.v1",
-          "subject.service_id": "workload:api-svc"
+          "subject.service_id": "workload:repository:r_d5318f0f:api-svc"
         },
         "arguments": {
           "workload_id": "workload:api-svc"
@@ -7247,7 +7247,7 @@
         "required_json_object_matches": {
           "evidence.relationships[]": [
             {
-              "entity_id": "workload:deployable-config",
+              "entity_id": "workload:repository:r_217415d9:deployable-config",
               "relationship_type": "DEFINES",
               "depth": 1
             }
@@ -7743,8 +7743,8 @@
         ],
         "required_json_values": {
           "data.repo_id": "repository:r_1f68383d",
-          "data.workload_id": "workload:deployable-source",
-          "data.instances[].instance_id": "workload-instance:deployable-source:prod",
+          "data.workload_id": "workload:repository:r_1f68383d:deployable-source",
+          "data.instances[].instance_id": "workload-instance:repository:r_1f68383d:deployable-source:prod",
           "data.instances[].platforms[].platform_id": "platform:kubernetes:none:prod:prod:none",
           "data.instances[].platforms[].topology_edges[].relationship_type": "RUNS_ON",
           "data.deployment_fact_summary.deployment_truth_tier": "runtime_confirmed",
@@ -7761,7 +7761,7 @@
           "data.instances[].platforms[].topology_edges[]": [
             {
               "relationship_type": "RUNS_ON",
-              "source_id": "workload-instance:deployable-source:prod",
+              "source_id": "workload-instance:repository:r_1f68383d:deployable-source:prod",
               "target_id": "platform:kubernetes:none:prod:prod:none"
             }
           ],
@@ -7769,18 +7769,18 @@
             {
               "relationship_type": "DEFINES",
               "source_id": "repository:r_1f68383d",
-              "target_id": "workload:deployable-source"
+              "target_id": "workload:repository:r_1f68383d:deployable-source"
             },
             {
               "relationship_type": "INSTANCE_OF",
-              "source_id": "workload-instance:deployable-source:prod",
-              "target_id": "workload:deployable-source"
+              "source_id": "workload-instance:repository:r_1f68383d:deployable-source:prod",
+              "target_id": "workload:repository:r_1f68383d:deployable-source"
             }
           ],
           "data.deployment_sources[]": [
             {
               "relationship_type": "DEPLOYMENT_SOURCE",
-              "source_id": "workload-instance:deployable-source:prod",
+              "source_id": "workload-instance:repository:r_1f68383d:deployable-source:prod",
               "target_id": "repository:r_217415d9"
             }
           ],
@@ -7826,7 +7826,7 @@
         ],
         "required_json_values": {
           "data.repo_id": "repository:r_b11b6e25",
-          "data.workload_id": "workload:supply-chain-demo-db",
+          "data.workload_id": "workload:repository:r_b11b6e25:supply-chain-demo-db",
           "data.deployment_fact_summary.deployment_truth_tier": "runtime_confirmed",
           "data.deployment_fact_summary.k8s_resource_count": 1,
           "data.deployment_fact_summary.image_ref_count": 1,
@@ -7945,8 +7945,8 @@
         "required_json_values": {
           "limit": 2000,
           "repositories[].id": "repository:r_8477a002",
-          "workloads[].id": "workload:deployable-config",
-          "services[].id": "workload:deployable-config"
+          "workloads[].id": "workload:repository:r_217415d9:deployable-config",
+          "services[].id": "workload:repository:r_217415d9:deployable-config"
         }
       },
       "GET /api/v0/status/operator-control-plane": {

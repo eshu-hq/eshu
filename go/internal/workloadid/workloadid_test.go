@@ -8,23 +8,22 @@ import (
 	"testing"
 )
 
-// These tests pin the CURRENT identifier format on purpose. This step changes
-// no identifier value — it only makes construction enumerable by the compiler
-// ahead of the re-key (#5385). Pinning the current format means the re-key
-// commit has to update these assertions deliberately, rather than the format
-// moving as an unnoticed side effect.
-
-func TestNewWorkloadIDPinsCurrentFormat(t *testing.T) {
+// These tests pin the repository-scoped identifier format (#5385 Option C):
+// workload:<repo_id>:<name> and workload-instance:<repo_id>:<name>:<environment>.
+// Two repositories with the same workload name produce distinct ids; the
+// name-only key that collapsed them onto one node is gone.
+func TestNewWorkloadIDEmitsScopedFormat(t *testing.T) {
 	cases := []struct {
 		name     string
 		repoID   string
 		workload string
 		want     string
 	}{
-		{"plain name", "repo:alpha", "checkout", "workload:checkout"},
-		{"repository is not yet part of the key", "repo:beta", "checkout", "workload:checkout"},
-		{"name with a hyphen", "repo:alpha", "api-gateway", "workload:api-gateway"},
-		{"surrounding whitespace is trimmed", "repo:alpha", "  checkout  ", "workload:checkout"},
+		{"plain name", "repo:alpha", "checkout", "workload:repo:alpha:checkout"},
+		{"repository scopes the key", "repo:beta", "checkout", "workload:repo:beta:checkout"},
+		{"name with a hyphen", "repo:alpha", "api-gateway", "workload:repo:alpha:api-gateway"},
+		{"surrounding whitespace is trimmed", "repo:alpha", "  checkout  ", "workload:repo:alpha:checkout"},
+		{"repo id whitespace is trimmed", "  repo:alpha  ", "checkout", "workload:repo:alpha:checkout"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -35,42 +34,41 @@ func TestNewWorkloadIDPinsCurrentFormat(t *testing.T) {
 	}
 }
 
-// Two repositories with the same workload name produce the same id today. That
-// is the defect #5385 exists to fix, and pinning it here means the re-key
-// cannot land without this assertion being changed on purpose.
-func TestNewWorkloadIDCollidesAcrossRepositories(t *testing.T) {
+// Same-named workloads in distinct repositories must not share an id: the
+// cross-repo merge this re-key exists to remove.
+func TestNewWorkloadIDIsolatesAcrossRepositories(t *testing.T) {
 	alpha := NewWorkloadID("repo:alpha", "checkout")
 	beta := NewWorkloadID("repo:beta", "checkout")
-	if alpha != beta {
-		t.Fatalf("expected the current name-only key to collide, got %q vs %q", alpha, beta)
+	if alpha == beta {
+		t.Fatalf("expected distinct scoped keys, both = %q", alpha)
 	}
 }
 
-func TestNewWorkloadInstanceIDPinsCurrentFormat(t *testing.T) {
+func TestNewWorkloadInstanceIDEmitsScopedFormat(t *testing.T) {
 	got := NewWorkloadInstanceID("repo:alpha", "checkout", "production").String()
-	if want := "workload-instance:checkout:production"; got != want {
+	if want := "workload-instance:repo:alpha:checkout:production"; got != want {
 		t.Fatalf("NewWorkloadInstanceID = %q, want %q", got, want)
 	}
 }
 
-func TestNewWorkloadInstanceIDCollidesAcrossRepositories(t *testing.T) {
+func TestNewWorkloadInstanceIDIsolatesAcrossRepositories(t *testing.T) {
 	alpha := NewWorkloadInstanceID("repo:alpha", "checkout", "production")
 	beta := NewWorkloadInstanceID("repo:beta", "checkout", "production")
-	if alpha != beta {
-		t.Fatalf("expected the current instance key to collide, got %q vs %q", alpha, beta)
+	if alpha == beta {
+		t.Fatalf("expected distinct scoped instance keys, both = %q", alpha)
 	}
 }
 
 // The typed value must remain usable wherever a string is required, or callers
 // will cast at every site and the type will stop being load-bearing.
 func TestWorkloadIDStringRoundTrip(t *testing.T) {
-	if got := NewWorkloadID("repo:alpha", "checkout").String(); got != "workload:checkout" {
+	if got := NewWorkloadID("repo:alpha", "checkout").String(); got != "workload:repo:alpha:checkout" {
 		t.Fatalf("String() = %q", got)
 	}
 	if got := (WorkloadID{}).String(); got != "" {
 		t.Fatalf("empty id must stringify to empty, got %q", got)
 	}
-	if got := NewWorkloadInstanceID("repo:alpha", "checkout", "production").String(); got != "workload-instance:checkout:production" {
+	if got := NewWorkloadInstanceID("repo:alpha", "checkout", "production").String(); got != "workload-instance:repo:alpha:checkout:production" {
 		t.Fatalf("instance String() = %q", got)
 	}
 }
@@ -92,17 +90,19 @@ func TestIdentifierTypesAreOpaque(t *testing.T) {
 	}
 }
 
-// A blank segment must not produce a bare prefix or an id with an empty
-// segment: either would MERGE unrelated candidates onto one shared node.
-func TestConstructorsRejectBlankSegments(t *testing.T) {
+// A name or environment containing a colon is rejected: the readable
+// composite has no parser, and a colon inside a segment would make the key
+// ambiguous to a human reader (compatibility doc decision "Colon rejection").
+// The repository segment is exempt: canonical repo ids carry their own prefix
+// (repository:r_<hex>), so the scoped key embeds colons by construction.
+func TestConstructorsRejectColonSegments(t *testing.T) {
 	cases := []struct {
 		name string
 		got  string
 	}{
-		{"blank workload name", NewWorkloadID("repo:alpha", "   ").String()},
-		{"empty workload name", NewWorkloadID("repo:alpha", "").String()},
-		{"blank environment", NewWorkloadInstanceID("repo:alpha", "checkout", "  ").String()},
-		{"blank name on instance", NewWorkloadInstanceID("repo:alpha", "", "production").String()},
+		{"colon in workload name", NewWorkloadID("repo:alpha", "check:out").String()},
+		{"colon in instance name", NewWorkloadInstanceID("repo:alpha", "check:out", "prod").String()},
+		{"colon in environment", NewWorkloadInstanceID("repo:alpha", "checkout", "pro:d").String()},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -110,5 +110,78 @@ func TestConstructorsRejectBlankSegments(t *testing.T) {
 				t.Fatalf("expected empty id, got %q", tc.got)
 			}
 		})
+	}
+	if got := NewWorkloadID("repository:r_a", "checkout").String(); got != "workload:repository:r_a:checkout" {
+		t.Fatalf("repo-id colons are structural, got %q", got)
+	}
+}
+
+// A blank segment must not produce a bare prefix or an id with an empty
+// segment: either would MERGE unrelated candidates onto one shared node.
+// A blank repository fails closed to the empty id for the same reason: the
+// repository is the scoping segment, so an unscoped key is a collision.
+func TestConstructorsRejectBlankSegments(t *testing.T) {
+	cases := []struct {
+		name string
+		got  string
+	}{
+		{"blank workload name", NewWorkloadID("repo:alpha", "   ").String()},
+		{"empty workload name", NewWorkloadID("repo:alpha", "").String()},
+		{"blank repository", NewWorkloadID("   ", "checkout").String()},
+		{"empty repository", NewWorkloadID("", "checkout").String()},
+		{"blank environment", NewWorkloadInstanceID("repo:alpha", "checkout", "  ").String()},
+		{"blank name on instance", NewWorkloadInstanceID("repo:alpha", "", "production").String()},
+		{"blank repository on instance", NewWorkloadInstanceID("", "checkout", "production").String()},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.got != "" {
+				t.Fatalf("expected empty id, got %q", tc.got)
+			}
+		})
+	}
+}
+
+// TestClassifyRejections pins the tally attribution: blank segments group
+// under blank_segment, a colon-bearing name under colon_in_name, and a
+// colon-bearing environment under colon_in_environment. The emission test in
+// the reducer package proves these labels reach the counter verbatim.
+func TestClassifyRejections(t *testing.T) {
+	t.Parallel()
+	if got := ClassifyWorkloadRejection("", "checkout"); got != RejectionBlankSegment {
+		t.Errorf("ClassifyWorkloadRejection blank repo = %q, want blank_segment", got)
+	}
+	if got := ClassifyWorkloadRejection("repo:alpha", ""); got != RejectionBlankSegment {
+		t.Errorf("ClassifyWorkloadRejection blank name = %q, want blank_segment", got)
+	}
+	if got := ClassifyWorkloadRejection("repo:alpha", "api:v2"); got != RejectionColonInName {
+		t.Errorf("ClassifyWorkloadRejection colon name = %q, want colon_in_name", got)
+	}
+	if got := ClassifyInstanceRejection("repo:alpha", "checkout", ""); got != RejectionBlankSegment {
+		t.Errorf("ClassifyInstanceRejection blank env = %q, want blank_segment", got)
+	}
+	if got := ClassifyInstanceRejection("repo:alpha", "api:v2", "prod"); got != RejectionColonInName {
+		t.Errorf("ClassifyInstanceRejection colon name = %q, want colon_in_name", got)
+	}
+	if got := ClassifyInstanceRejection("repo:alpha", "checkout", "us:east"); got != RejectionColonInEnvironment {
+		t.Errorf("ClassifyInstanceRejection colon env = %q, want colon_in_environment", got)
+	}
+}
+
+// TestRejectionTallyNoteNilSafe pins the nil-tally contract read-only row
+// rebuilds rely on: notes are discarded, never panicking.
+func TestRejectionTallyNoteNilSafe(t *testing.T) {
+	t.Parallel()
+	var tally *RejectionTally
+	tally.Note(RejectionBlankSegment)
+	tally.Note(RejectionColonInName)
+	tally.Note(RejectionColonInEnvironment)
+	var zero RejectionTally
+	if !zero.Empty() {
+		t.Error("zero RejectionTally Empty() = false, want true")
+	}
+	zero.Note(RejectionBlankSegment)
+	if zero.Empty() || zero.BlankSegment != 1 {
+		t.Errorf("noted tally = %+v, want one blank_segment", zero)
 	}
 }

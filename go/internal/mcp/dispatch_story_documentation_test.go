@@ -18,7 +18,7 @@ func TestDispatchToolServiceStoryPreservesTargetDocumentationReadback(t *testing
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v0/services/payments-api/story", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v0/services/workload:payments-api/story", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.Header.Get("Accept"), query.EnvelopeMIMEType; got != want {
 			t.Fatalf("Accept = %q, want %q", got, want)
 		}
@@ -62,7 +62,7 @@ func TestDispatchToolServiceStoryPreservesMissingDocumentationReadback(t *testin
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v0/services/payments-api/story", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /api/v0/services/workload:payments-api/story", func(w http.ResponseWriter, _ *http.Request) {
 		writeMCPStoryDocumentationEnvelope(w, map[string]any{
 			"documentation_overview": map[string]any{
 				"target_documentation": map[string]any{
@@ -103,7 +103,7 @@ func TestDispatchToolServiceStoryPreservesSourceOnlyDocumentationReadback(t *tes
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v0/services/payments-api/story", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /api/v0/services/workload:payments-api/story", func(w http.ResponseWriter, _ *http.Request) {
 		writeMCPStoryDocumentationEnvelope(w, map[string]any{
 			"documentation_overview": map[string]any{
 				"documentation_file_count": 2,
@@ -194,7 +194,7 @@ func TestDispatchToolServiceStoryPreservesTargetSupportReadback(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v0/services/payments-api/story", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v0/services/workload:payments-api/story", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.Header.Get("Accept"), query.EnvelopeMIMEType; got != want {
 			t.Fatalf("Accept = %q, want %q", got, want)
 		}

@@ -252,6 +252,11 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX workload_instance_environment IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.environment)",
 	"CREATE INDEX workload_instance_workload_id IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.workload_id)",
 	"CREATE INDEX workload_instance_repo_id IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.repo_id)",
+	// endpoint_repo_id backs the #5385 retirement cascade's Endpoint leg
+	// (`MATCH (n:Endpoint {repo_id: r.id}) DETACH DELETE n`): without it the
+	// leg falls back to an Endpoint label scan on every path-conflict
+	// retirement.
+	"CREATE INDEX endpoint_repo_id IF NOT EXISTS FOR (e:Endpoint) ON (e.repo_id)",
 	"CREATE INDEX container_image_digest IF NOT EXISTS FOR (i:ContainerImage) ON (i.digest)",
 	"CREATE INDEX container_image_index_digest IF NOT EXISTS FOR (i:ContainerImageIndex) ON (i.digest)",
 	"CREATE INDEX container_image_descriptor_digest IF NOT EXISTS FOR (d:ContainerImageDescriptor) ON (d.digest)",

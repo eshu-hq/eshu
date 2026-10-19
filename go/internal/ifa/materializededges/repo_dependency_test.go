@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 // TestResolveRepoDependencyMaterializedEdgesReproducesExpectedSet pins the
@@ -97,7 +98,7 @@ func TestRepoDependencyFamilyRunsOnPrerequisites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("repoDependencyFamilyRunsOnPrerequisites() error = %v, want nil", err)
 	}
-	if want := "workload-instance:" + ifa.RepoDependencyFamilySourceName + ":" + ifa.RepoDependencyFamilyEnvironment; instanceID != want {
+	if want := workloadid.NewWorkloadInstanceID(ifa.RepoDependencyFamilySourceRepoID, ifa.RepoDependencyFamilySourceName, ifa.RepoDependencyFamilyEnvironment).String(); instanceID != want {
 		t.Fatalf("instance id = %q, want %q", instanceID, want)
 	}
 	if want := "platform:kubernetes:none:cluster/" + ifa.RepoDependencyFamilyDestinationName + ":none:none"; platformID != want {

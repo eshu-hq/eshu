@@ -254,15 +254,22 @@ func buildReducerService(
 			IncompleteScopesLookup:    incompleteScopes,
 			ResolutionProducerLookup:  resolutionProducer,
 		},
-		WorkloadDependencyLookup:           neo4jWorkloadDependencyLookup{reader: graphReader},
-		InstanceRetractionLookup:           neo4jWorkloadInstanceRetractionLookup{reader: graphReader},
-		RepositoryEdgeReader:               graphReader,
-		WorkloadIdentityWriter:             reducer.PostgresWorkloadIdentityWriter{DB: database},
-		CloudAssetResolutionWriter:         cloudasset.PostgresCloudAssetResolutionWriter{DB: database},
-		PlatformMaterializationWriter:      reducer.PostgresPlatformMaterializationWriter{DB: database},
-		PlatformGraphLocker:                platformGraphLockerForReducer(database),
-		WorkloadMaterializationReplayer:    workQueue,
-		WorkloadMaterializer:               newProbedWorkloadMaterializer(cypherExec, logger, instruments),
+		WorkloadDependencyLookup:        neo4jWorkloadDependencyLookup{reader: graphReader},
+		InstanceRetractionLookup:        neo4jWorkloadInstanceRetractionLookup{reader: graphReader},
+		RepositoryEdgeReader:            graphReader,
+		WorkloadIdentityWriter:          reducer.PostgresWorkloadIdentityWriter{DB: database},
+		CloudAssetResolutionWriter:      cloudasset.PostgresCloudAssetResolutionWriter{DB: database},
+		PlatformMaterializationWriter:   reducer.PostgresPlatformMaterializationWriter{DB: database},
+		PlatformGraphLocker:             platformGraphLockerForReducer(database),
+		WorkloadMaterializationReplayer: workQueue,
+		WorkloadMaterializer:            newProbedWorkloadMaterializer(cypherExec, logger, instruments, neo4jWorkloadSiblingLookup{reader: graphReader}),
+		// WorkloadSiblingLookup feeds the #5385 handle ladder in the four
+		// provider-asserted consumers (cloud USES, documentation,
+		// service-catalog, supply-chain impact). A nil graphReader lists
+		// nothing, so every selector resolves as a miss and each writer's
+		// exact MATCH stays a no-op — the same posture as the materializer
+		// above.
+		WorkloadSiblingLookup:              neo4jWorkloadSiblingLookup{reader: graphReader},
 		InfrastructurePlatformMaterializer: reducer.NewInfrastructurePlatformMaterializer(cypherExec),
 		InfrastructurePlatformLookup:       reducer.GraphInfrastructurePlatformLookup{Graph: graphReader},
 		// The value-flow refresh emit gate (#6785) reads each producer's

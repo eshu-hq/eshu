@@ -14,6 +14,7 @@ import (
 	repositorycontract "github.com/eshu-hq/eshu/go/internal/query/querycontract/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 // fetchWorkloadContext queries graph-backed workload context with a custom
@@ -35,16 +36,23 @@ func (h *Handler) fetchServiceWorkloadContext(ctx context.Context, serviceName s
 		return nil, nil
 	}
 	operation = workloadContextOperation(operation)
-	params := map[string]any{"service_name": serviceName}
-	result, nameDenied, err := h.fetchWorkloadContextDecision(ctx, "w.name = $service_name", params, operation)
+	// #5385 flip wave: the MCP service-context route forwards a workload:
+	// handle whole as the service_name path segment, so the name-first
+	// lookup probes the stripped bare name (node names never carry the
+	// prefix). The id rung keeps the raw input so full scoped ids and any
+	// legacy handle-shaped node id still match exactly; only the name rung
+	// strips, so bare names behave exactly as before.
+	nameParams := map[string]any{"service_name": workloadid.StripWorkloadHandlePrefix(serviceName)}
+	result, nameDenied, err := h.fetchWorkloadContextDecision(ctx, "w.name = $service_name", nameParams, operation)
 	if err != nil || result != nil {
 		return result, err
 	}
+	params := map[string]any{"service_name": serviceName}
 	result, idDenied, err := h.fetchWorkloadContextDecision(ctx, "w.id = $service_name", params, operation)
 	if err != nil || result != nil {
 		return result, err
 	}
-	result, err = h.FetchServiceReadModelWorkloadContext(ctx, serviceName)
+	result, err = h.FetchServiceReadModelWorkloadContext(ctx, workloadid.StripWorkloadHandlePrefix(serviceName))
 	if err == nil && result == nil && (nameDenied || idDenied) {
 		h.recordScopedGrantDenied(ctx, operation, "grant_denied")
 	}
@@ -285,8 +293,22 @@ func (h *Handler) FetchServiceReadModelWorkloadContext(ctx context.Context, serv
 			limitations = append(limitations, repository.RelationshipsReadDegradedReason)
 		}
 	}
+	// The id is synthesized from (repo_id, name) through the same
+	// workloadid constructor the graph write path uses, so this identity-only
+	// row agrees with the materialized node id for the same pair (the graph
+	// path above emits the node's id property directly). The separate handle
+	// keeps the stable public workload:<name> string existing clients
+	// display (#5385 compatibility doc section 1.4). A name the constructor
+	// refuses (colon-bearing) mints no id: the fallback answers not-found
+	// like the other no-identity arms above rather than serving an empty id
+	// that matches no node.
+	id := workloadid.NewWorkloadID(repo.ID, workloadName).String()
+	if id == "" {
+		return nil, nil
+	}
 	return map[string]any{
-		"id":                     "workload:" + workloadName,
+		"id":                     id,
+		"handle":                 workloadid.FormatWorkloadHandle(workloadName),
 		"name":                   workloadName,
 		"kind":                   "service",
 		"repo_id":                repo.ID,

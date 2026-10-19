@@ -206,7 +206,8 @@ func TestResolveRunsInMaterializedEdgesRejectsWrongSourceEntityID(t *testing.T) 
 // source-id test for the Workload target id: a wrong workload id must fail
 // the same way, naming both the bogus expectation and the real edge the
 // projection actually produced. Unlike HANDLES_ROUTE's Endpoint hash, RUNS_IN's
-// workload id ("workload:symbolruntime") is a non-hashed literal, so this
+// workload id ("workload:repo-ifa-symbol-runtime-family:symbolruntime") is a
+// non-hashed literal, so this
 // uses corruptTargetEntityID rather than flipOneHexChar.
 func TestResolveRunsInMaterializedEdgesRejectsWrongTargetEntityID(t *testing.T) {
 	t.Parallel()
