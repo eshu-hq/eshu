@@ -439,7 +439,7 @@ No-Observability-Change: the change touches only test-stack wiring. It adds no r
   profile switch exposed now pass: `compare_code_paths` answers the typed
   `not_found` for the unseeded endpoints (was HTTP 500), and
   `investigate_code_divergence` answers `not_found`.
-- **No-Regression Evidence:** baseline is the `2eb226f58` full-surface run
+- No-Regression Evidence: baseline is the `2eb226f58` full-surface run
   above (167 tools listed, 167/167). After this change the sweep lists the
   same full surface (167 tools) and passes 168/168 on the same Neo4j digest.
   The compose keys render `ESHU_QUERY_PROFILE: ""` by default (checked with
@@ -454,7 +454,7 @@ No-Observability-Change: the change touches only test-stack wiring. It adds no r
   Cypher, worker, queue, lease, or knob changed, and no route was added or
   moved: the exhaustiveness gate still reports 164 distinct dispatched
   routes (162 allowlisted, 2 shared-key-only, Group B empty).
-- **No-Observability-Change:** the 404 reuses the existing `WriteError`
+- No-Observability-Change: the 404 reuses the existing `WriteError`
   envelope path the divergence routes already answer; no new span, metric,
   log key, status field, or worker behaviour (the compare handler carries
   no span by design, as noted in code). Sweep results flow through the
