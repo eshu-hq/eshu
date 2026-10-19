@@ -6,6 +6,7 @@ package codemodel
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"testing"
 
@@ -212,5 +213,21 @@ func TestScoreCodeWindowServesRepeatWindowFromCache(t *testing.T) {
 	}
 	if spans != 1 {
 		t.Fatalf("hybrid_rerank spans = %d, want 1 (the repeat window must not re-score)", spans)
+	}
+}
+
+// TestMapIntSaturatesUint64Overflow is the regression test for the
+// gosec G115 finding on mapInt: a decoded uint64 wider than math.MaxInt
+// must saturate instead of wrapping on conversion to int.
+func TestMapIntSaturatesUint64Overflow(t *testing.T) {
+	got := mapInt(map[string]any{"start_line": uint64(math.MaxInt) + 1}, "start_line")
+	if got != math.MaxInt {
+		t.Fatalf("mapInt(uint64 over MaxInt) = %d, want %d (saturate, no wrap)", got, math.MaxInt)
+	}
+	if got := mapInt(map[string]any{"start_line": uint64(41)}, "start_line"); got != 41 {
+		t.Fatalf("mapInt(uint64 41) = %d, want 41", got)
+	}
+	if got := mapInt(map[string]any{"missing": uint64(7)}, "start_line"); got != 0 {
+		t.Fatalf("mapInt(absent key) = %d, want 0", got)
 	}
 }

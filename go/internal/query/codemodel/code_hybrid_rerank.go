@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -317,6 +318,11 @@ func mapInt(values map[string]any, key string) int {
 	case uint32:
 		return int(raw)
 	case uint64:
+		// Row numbers are small, but a decoded uint64 wider than
+		// math.MaxInt must saturate instead of wrapping (gosec G115).
+		if raw > uint64(math.MaxInt) {
+			return math.MaxInt
+		}
 		return int(raw)
 	case float32:
 		return int(raw)
