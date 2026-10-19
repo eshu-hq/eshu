@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	entity "github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 // semanticEntityContainmentVariantRelPath is the NornicDB expected-edge
@@ -62,12 +62,12 @@ func TestSemanticEntityContainmentVariantMirrorsBasePairs(t *testing.T) {
 	for _, e := range variant {
 		stamp := e.Properties["evidence_source"]
 		if e.TargetEntityID == variableTarget {
-			if stamp != sourcecypher.SemanticEntityEvidenceSource {
-				t.Errorf("variable edge stamp = %q, want semantic %q", stamp, sourcecypher.SemanticEntityEvidenceSource)
+			if stamp != entity.SemanticEntityEvidenceSource {
+				t.Errorf("variable edge stamp = %q, want semantic %q", stamp, entity.SemanticEntityEvidenceSource)
 			}
 			continue
 		}
-		if stamp == sourcecypher.SemanticEntityEvidenceSource {
+		if stamp == entity.SemanticEntityEvidenceSource {
 			t.Errorf("canonical-owned edge %s->%s keeps the semantic stamp; want the canonical writer's stamp", e.SourceEntityID, e.TargetEntityID)
 		}
 		// No hermetic pin from the variant stamp back to the canonical
@@ -78,8 +78,8 @@ func TestSemanticEntityContainmentVariantMirrorsBasePairs(t *testing.T) {
 	}
 
 	for _, e := range base {
-		if stamp := e.Properties["evidence_source"]; stamp != sourcecypher.SemanticEntityEvidenceSource {
-			t.Errorf("base edge %s->%s stamp = %q, want all-semantic %q", e.SourceEntityID, e.TargetEntityID, stamp, sourcecypher.SemanticEntityEvidenceSource)
+		if stamp := e.Properties["evidence_source"]; stamp != entity.SemanticEntityEvidenceSource {
+			t.Errorf("base edge %s->%s stamp = %q, want all-semantic %q", e.SourceEntityID, e.TargetEntityID, stamp, entity.SemanticEntityEvidenceSource)
 		}
 	}
 }
