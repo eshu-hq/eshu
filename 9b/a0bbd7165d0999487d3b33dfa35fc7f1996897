@@ -1,0 +1,28 @@
+docs/public/languages/c.md
+  h_78a442cba0b3e6 22
+docs/public/languages/elixir.md
+  h_78a442cba0b3e6 20,23-24,28
+go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.json
+  h_78a442cba0b3e6 3
+go/internal/projector/AGENTS.md
+  h_78a442cba0b3e6 112
+scripts/moved-file-refs-allowlist.txt
+  h_78a442cba0b3e6 362-377
+sdk/go/factschema/decode_packageregistry.go
+  h_78a442cba0b3e6 95
+sdk/go/factschema/decode_packageregistry_test.go
+  h_78a442cba0b3e6 29
+sdk/go/factschema/packageregistry/v1/doc.go
+  h_78a442cba0b3e6 99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9ba0bbd7165d0999487d3b33dfa35fc7f1996897",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
