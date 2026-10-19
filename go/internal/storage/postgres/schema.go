@@ -22,7 +22,8 @@ import (
 type Definition = migrations.Definition
 
 // BootstrapOptions controls deferred content indexes, migration progress
-// logs, and how the migrator waits on other sessions (#6956).
+// logs, and how the migrator waits on other sessions (#6956) and on
+// conflicting table locks (#6738 fix 4).
 type BootstrapOptions struct {
 	DeferContentSearchIndexes bool
 	Logger                    *slog.Logger
@@ -34,6 +35,13 @@ type BootstrapOptions struct {
 	// spend retrying after lock_timeout (SQLSTATE 55P03) before the
 	// migrator fails. Zero means defaultSchemaLockRetryBudget.
 	LockRetryBudget time.Duration
+	// LockTimeout bounds each migration statement's lock acquisition
+	// (Postgres lock_timeout). Zero means defaultSchemaLockTimeout. A
+	// longer value lets DDL queue for a lock gap instead of failing fast
+	// at 5 s; every failed attempt still consumes the shared retry
+	// budget, and a bare CREATE/DROP INDEX CONCURRENTLY statement still
+	// runs with lock_timeout disabled (#7004).
+	LockTimeout time.Duration
 }
 
 type schemaLockTimeoutExecutor interface {
@@ -177,13 +185,16 @@ const (
 	// LockRetryBudgetEnv bounds the total backoff one migration statement may
 	// spend retrying after lock_timeout.
 	LockRetryBudgetEnv = "ESHU_SCHEMA_LOCK_RETRY_BUDGET" // #nosec G101 -- environment variable name, not a credential value
+	// LockTimeoutEnv bounds each migration statement's lock acquisition
+	// (Postgres lock_timeout, #6738 fix 4).
+	LockTimeoutEnv = "ESHU_SCHEMA_LOCK_TIMEOUT" // #nosec G101 -- environment variable name, not a credential value
 )
 
-// BootstrapOptionsFromEnv returns options whose OwnershipWait and
-// LockRetryBudget come from the environment. An unset variable leaves the
-// package default in force; a value that does not parse as a duration or is
-// not strictly positive is refused by name, so a typo cannot disable a
-// bound.
+// BootstrapOptionsFromEnv returns options whose OwnershipWait,
+// LockRetryBudget, and LockTimeout come from the environment. An unset
+// variable leaves the package default in force; a value that does not parse
+// as a duration or is not strictly positive is refused by name, so a typo
+// cannot disable a bound.
 func BootstrapOptionsFromEnv(getenv func(string) string) (BootstrapOptions, error) {
 	ownershipWait, err := optionalPositiveDuration(getenv, OwnershipWaitEnv)
 	if err != nil {
@@ -193,7 +204,11 @@ func BootstrapOptionsFromEnv(getenv func(string) string) (BootstrapOptions, erro
 	if err != nil {
 		return BootstrapOptions{}, err
 	}
-	return BootstrapOptions{OwnershipWait: ownershipWait, LockRetryBudget: lockRetryBudget}, nil
+	lockTimeout, err := optionalPositiveDuration(getenv, LockTimeoutEnv)
+	if err != nil {
+		return BootstrapOptions{}, err
+	}
+	return BootstrapOptions{OwnershipWait: ownershipWait, LockRetryBudget: lockRetryBudget, LockTimeout: lockTimeout}, nil
 }
 
 func optionalPositiveDuration(getenv func(string) string, env string) (time.Duration, error) {
@@ -236,6 +251,7 @@ func ApplyBootstrapWithOptions(ctx context.Context, exec db.Executor, options Bo
 	return applyBootstrapDefinitionsWith(ctx, exec, definitions, logger, schemaBootstrapCoordination{
 		ownershipWait:   options.OwnershipWait,
 		lockRetryBudget: options.LockRetryBudget,
+		lockTimeout:     options.LockTimeout,
 	})
 }
 
@@ -254,7 +270,7 @@ func applyBootstrapDefinitionsWith(
 		return locker.withSchemaBootstrapLock(ctx, logger, coordination.ownershipWait, func(locked db.Executor) error {
 			if tracker, ok := locked.(schemaMigrationTracker); ok {
 				return tracker.applyTrackedDefinitions(ctx, definitions, schemaStatementBounds{
-					lockTimeout:     defaultSchemaLockTimeout,
+					lockTimeout:     coordination.lockTimeout,
 					lockRetryBudget: coordination.lockRetryBudget,
 				}, logger)
 			}

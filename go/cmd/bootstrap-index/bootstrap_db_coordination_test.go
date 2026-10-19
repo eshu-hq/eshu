@@ -98,13 +98,15 @@ func TestSchemaOptionsFromEnvThreadsKnobsAndLogger(t *testing.T) {
 			return "2m"
 		case postgres.LockRetryBudgetEnv:
 			return "45s"
+		case postgres.LockTimeoutEnv:
+			return "30s"
 		}
 		return ""
 	}, logger)
 	if err != nil {
 		t.Fatalf("schemaOptionsFromEnv: %v", err)
 	}
-	if options.OwnershipWait != 2*time.Minute || options.LockRetryBudget != 45*time.Second || !options.DeferContentSearchIndexes || options.Logger != logger {
-		t.Fatalf("options = %+v, want 2m / 45s / deferred indexes / the given logger", options)
+	if options.OwnershipWait != 2*time.Minute || options.LockRetryBudget != 45*time.Second || options.LockTimeout != 30*time.Second || !options.DeferContentSearchIndexes || options.Logger != logger {
+		t.Fatalf("options = %+v, want 2m / 45s / 30s / deferred indexes / the given logger", options)
 	}
 }

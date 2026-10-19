@@ -40,6 +40,8 @@ func TestApplyPostgresSchemaReachesTheMigratorWithAcceptedKnobs(t *testing.T) {
 			return "2m"
 		case postgres.LockRetryBudgetEnv:
 			return "45s"
+		case postgres.LockTimeoutEnv:
+			return "30s"
 		}
 		return ""
 	}, testLogger(t))

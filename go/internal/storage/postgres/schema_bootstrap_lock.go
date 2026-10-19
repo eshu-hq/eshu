@@ -69,6 +69,9 @@ const (
 type schemaBootstrapCoordination struct {
 	ownershipWait   time.Duration
 	lockRetryBudget time.Duration
+	// lockTimeout bounds each migration statement's lock acquisition
+	// (#6738 fix 4). Zero means defaultSchemaLockTimeout.
+	lockTimeout time.Duration
 }
 
 func (c schemaBootstrapCoordination) withDefaults() schemaBootstrapCoordination {
@@ -77,6 +80,9 @@ func (c schemaBootstrapCoordination) withDefaults() schemaBootstrapCoordination 
 	}
 	if c.lockRetryBudget <= 0 {
 		c.lockRetryBudget = defaultSchemaLockRetryBudget
+	}
+	if c.lockTimeout <= 0 {
+		c.lockTimeout = defaultSchemaLockTimeout
 	}
 	return c
 }
