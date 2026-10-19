@@ -3,11 +3,14 @@
 
 import sys
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
-from gha_census import aggregate, dedupe, render_markdown  # noqa: E402
+import gha_census  # noqa: E402
+from gha_census import aggregate, dedupe, fetch_window, render_markdown  # noqa: E402
 
 
 def run(rid, workflow, conclusion, created, updated, status="completed"):
@@ -60,6 +63,41 @@ class TestGhaCensus(unittest.TestCase):
         self.assertIn("6 runs", text)
         self.assertIn("Build Test", text)
         self.assertIn("40.0%", text)
+
+
+class TestFetchWindow(unittest.TestCase):
+    """Slice assembly against a capped, newest-first fake endpoint.
+
+    The fake mimics the real cap behavior that broke the first version:
+    each call returns at most N rows, newest first, from within the
+    requested bounds. A fetch that undercounts old slices fails here.
+    """
+
+    def test_capped_slices_still_collect_every_hour(self):
+        base = datetime(2026, 10, 19, tzinfo=timezone.utc)
+        # 3 runs per hour for 3 hours; fake cap of 2 forces subdivision.
+        all_runs = []
+        rid = 0
+        for hour in range(3):
+            for minute in (5, 25, 45):
+                rid += 1
+                created = base + timedelta(hours=hour, minutes=minute)
+                all_runs.append({
+                    "databaseId": rid, "workflowName": "W",
+                    "createdAt": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                })
+
+        def fake(start, end):
+            in_range = [r for r in all_runs
+                        if start.strftime("%Y-%m-%dT%H:%M:%SZ")
+                        <= r["createdAt"] < end.strftime("%Y-%m-%dT%H:%M:%SZ")]
+            return sorted(in_range, key=lambda r: r["createdAt"],
+                          reverse=True)[:2]
+
+        with mock.patch.object(gha_census, "_SLICE_LIMIT", 2), \
+                mock.patch.object(gha_census, "_gh_run_list", fake):
+            got = fetch_window(base, base + timedelta(hours=3))
+        self.assertEqual({r["databaseId"] for r in got}, set(range(1, 10)))
 
 
 if __name__ == "__main__":

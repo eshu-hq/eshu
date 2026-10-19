@@ -117,32 +117,39 @@ def render_markdown(report: dict[str, Any], start: str, end: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _gh_run_list(created_from: datetime) -> list[Run]:
-    """One capped run-list query for runs created at or after a time."""
+def _gh_run_list(start: datetime, end: datetime) -> list[Run]:
+    """One capped run-list query bounded to [start, end) server-side.
+
+    The bound must be in the query: results are newest-first, so an
+    unbounded ">= start" query against a day of traffic returns only the
+    newest page and a client-side end filter then keeps almost nothing
+    for older slices.
+    """
+    fmt = "%Y-%m-%dT%H:%M:%SZ"
+    created = f"{start.strftime(fmt)}..{end.strftime(fmt)}"
     out = subprocess.run(
         ["gh", "run", "list", "--limit", str(_SLICE_LIMIT),
-         "--created", f">={created_from.strftime('%Y-%m-%dT%H:%M:%SZ')}",
-         "--json", _FIELDS],
+         "--created", created, "--json", _FIELDS],
         capture_output=True, text=True, check=True, timeout=300)
     return json.loads(out.stdout)
 
 
+def _fetch_slice(start: datetime, end: datetime, depth: int = 0) -> list[Run]:
+    """Fetch one bounded slice, subdividing while it comes back capped."""
+    rows = _gh_run_list(start, end)
+    if len(rows) < _SLICE_LIMIT or depth >= 3:
+        return rows
+    mid = start + (end - start) / 2
+    return _fetch_slice(start, mid, depth + 1) + _fetch_slice(mid, end, depth + 1)
+
+
 def fetch_window(start: datetime, end: datetime) -> list[Run]:
-    """Fetch every run created in [start, end), subdividing capped slices."""
+    """Fetch every run created in [start, end) in hourly bounded slices."""
     collected: list[Run] = []
-    slices = [(start + timedelta(hours=i), start + timedelta(hours=i + 1))
-              for i in range(int((end - start).total_seconds() // 3600))]
-    for slice_start, slice_end in slices:
-        rows = [r for r in _gh_run_list(slice_start)
-                if r["createdAt"] < slice_end.strftime("%Y-%m-%dT%H:%M:%SZ")]
-        if len(rows) >= _SLICE_LIMIT:  # capped: subdivide into 10-minute slices
-            rows = []
-            for j in range(6):
-                sub_start = slice_start + timedelta(minutes=10 * j)
-                sub_end = sub_start + timedelta(minutes=10)
-                rows += [r for r in _gh_run_list(sub_start)
-                         if r["createdAt"] < sub_end.strftime("%Y-%m-%dT%H:%M:%SZ")]
-        collected += rows
+    hours = int((end - start).total_seconds() // 3600)
+    for i in range(hours):
+        collected += _fetch_slice(
+            start + timedelta(hours=i), start + timedelta(hours=i + 1))
     return dedupe(collected)
 
 
