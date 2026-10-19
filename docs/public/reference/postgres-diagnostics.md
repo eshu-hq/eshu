@@ -145,7 +145,8 @@ commands, because Postgres can keep literal values in the text of those. It
 also leaves out the report's own queries, Eshu's own metadata probes (the
 normalized statements that read pg_control_system), and the report's own
 I/O-timing probe. A user statement that merely mentions current_setting is
-listed. The report script and the module do not send data to any other
+listed, unless it has the exact probe shape current_setting('name') = 'value',
+which stays hidden. The report script and the module do not send data to any other
 system. Treat saved reports as internal data anyway: table and column names
 are visible.
 

@@ -231,8 +231,8 @@ both arms, so the A/B deltas are apples-to-apples while the absolute s/txn
 depends on the boundary.
 
 `track_io_timing`: 6 rounds, median latency delta 0.00 percent (rounds 3-6
-identical; rounds 1-2 are the warmup transient at -88.37 and +22.22
-percent). `pg_test_timing -d 5` in the measurement container reports 24.32
+identical; rounds 1-2 are the warmup transient at +764.29 and +22.22
+percent latency). `pg_test_timing -d 5` in the measurement container reports 24.32
 ns per loop (`7650-pg-test-timing-ns`). The clock is fast and the steady
 state shows no cost, but with only 6 rounds the setting stays opt-in.
 
