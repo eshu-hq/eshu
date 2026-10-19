@@ -47,4 +47,22 @@ func TestPadQueueFakeRowRules(t *testing.T) {
 	if len(got) != 10 {
 		t.Fatalf("PadQueueFakeRow(6-wide, 10) width = %d, want 10", len(got))
 	}
+
+	row10 := []any{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	got = PadQueueFakeRow(row10, 11)
+	if len(got) != 11 {
+		t.Fatalf("PadQueueFakeRow(10-wide, 11) width = %d, want 11", len(got))
+	}
+	if got[9] != 9 {
+		t.Errorf("PadQueueFakeRow(10-wide, 11)[9] = %v, want duplicated row[8] as last_attempt_at token", got[9])
+	}
+
+	row9 := []any{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	got = PadQueueFakeRow(row9, 10)
+	if len(got) != 10 {
+		t.Fatalf("PadQueueFakeRow(9-wide, 10) width = %d, want 10", len(got))
+	}
+	if got[9] != false {
+		t.Errorf("PadQueueFakeRow(9-wide, 10)[9] = %v, want zero-filled delta_protected flag", got[9])
+	}
 }

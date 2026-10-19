@@ -12,8 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fixtures"
 )
 
-// The parser-shaped config builders live in facthelpers (issue #8552); the
-// remaining fixtures below are tfstate-only shapes.
+// The parser-shaped config builders live in the fixtures leaf (issue
+// #8552); the remaining fixtures below are tfstate-only shapes.
 
 // fixtureStatePayload returns the JSON shape the collector emits for one
 // terraform_state_resource fact, mirroring
