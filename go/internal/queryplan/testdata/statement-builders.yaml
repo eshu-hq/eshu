@@ -64,7 +64,7 @@ builders:
           operation: sourcecypher.OperationCanonicalUpsert
           variants:
             - template: 'MERGE (f:File {path: $file_path}) SET f.repo_id = $repo_id, f.language = $language, f.lang = $language'
-          source_sha256: 508f3c6cdf2fc527200a1fba7deda569388807c71a8dc938f2457a41fd0911a8
+          source_sha256: b92eb2292c22b8f722c9674a48f2cf356890dfca81dbe58b98cd240495577fe8
           exempt: test-corpus helper; the File seed for the semantic Module cases, whose other statements come from the production SemanticEntityWriter and the canonical Module upsert; exercised by TestLiveBackendConformance on nornicdb and neo4j
     - file: internal/backendconformance/corpus_value_flow.go
       builders:
