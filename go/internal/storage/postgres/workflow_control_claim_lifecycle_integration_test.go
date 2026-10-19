@@ -212,7 +212,14 @@ func TestWorkflowControlStoreIntegrationReapExpiredClaimsLeavesActiveClaimsUntou
 	mustWorkItemState(t, db, activeItem.WorkItemID, workflow.WorkItemStatusClaimed, activeClaim.ClaimID, activeClaim.FencingToken)
 }
 
-func TestWorkflowControlStoreIntegrationClaimOrderRemainsFifoWithinCollectorInstance(t *testing.T) {
+// TestWorkflowControlStoreIntegrationClaimOrdersWithinKeyOldestFirst pins
+// the #8469 claim contract: rotation picks the fairness key, but the row
+// offered per key is always that key's oldest eligible row. Three rows
+// under one key grant oldest-first whatever the salt; three rows under
+// three keys all grant (work-conserving) with the key order left to the
+// draw. This replaces the pre-#8469 global-FIFO assertion, which the
+// rotation deliberately ends.
+func TestWorkflowControlStoreIntegrationClaimOrdersWithinKeyOldestFirst(t *testing.T) {
 	_, store := openWorkflowControlIntegrationStore(t)
 
 	ctx := context.Background()
@@ -232,7 +239,7 @@ func TestWorkflowControlStoreIntegrationClaimOrderRemainsFifoWithinCollectorInst
 			CollectorKind:       scope.CollectorGit,
 			CollectorInstanceID: "collector-git-default",
 			ScopeID:             "scope-fifo-1",
-			FairnessKey:         "zzz-late-lexical",
+			FairnessKey:         "shared-key",
 			Status:              workflow.WorkItemStatusPending,
 			CreatedAt:           now,
 			UpdatedAt:           now,
@@ -243,7 +250,7 @@ func TestWorkflowControlStoreIntegrationClaimOrderRemainsFifoWithinCollectorInst
 			CollectorKind:       scope.CollectorGit,
 			CollectorInstanceID: "collector-git-default",
 			ScopeID:             "scope-fifo-2",
-			FairnessKey:         "aaa-early-lexical",
+			FairnessKey:         "shared-key",
 			Status:              workflow.WorkItemStatusPending,
 			CreatedAt:           now.Add(time.Second),
 			UpdatedAt:           now.Add(time.Second),
@@ -254,7 +261,7 @@ func TestWorkflowControlStoreIntegrationClaimOrderRemainsFifoWithinCollectorInst
 			CollectorKind:       scope.CollectorGit,
 			CollectorInstanceID: "collector-git-default",
 			ScopeID:             "scope-fifo-3",
-			FairnessKey:         "mmm-middle-lexical",
+			FairnessKey:         "shared-key",
 			Status:              workflow.WorkItemStatusPending,
 			CreatedAt:           now.Add(2 * time.Second),
 			UpdatedAt:           now.Add(2 * time.Second),

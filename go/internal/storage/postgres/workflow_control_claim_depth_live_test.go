@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8468 claim-issuance-under-depth harness proofs on real PostgreSQL: eight concurrent claimers on eight distinct pinned backends drain a seeded workflow backlog exactly once (no duplicate work-item or claim grant under SKIP LOCKED and the Read Committed EvalPlanQual recheck, one completed claim row per item), and the starvation probe records the shipped FIFO floor (a small fairness key seeded behind a 500-item large key is first granted only at or after grant 493, 500 - 8 + 1) so a pacing or fairness mechanism that engages and never releases small keys fails here instead of shipping unseen; isolated schema from ESHU_POSTGRES_DSN with the full bootstrap applied by the harness opener; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8468 claim-issuance-under-depth harness proofs on real PostgreSQL: eight concurrent claimers on eight distinct pinned backends drain a seeded workflow backlog exactly once (no duplicate work-item or claim grant under SKIP LOCKED and the Read Committed EvalPlanQual recheck, one completed claim row per item), and the #8469 fair-rotation bound proves every key of a skewed backlog is first granted within the first draws (small keys no longer wait for the 500-item large key to drain); isolated schema from ESHU_POSTGRES_DSN with the full bootstrap applied by the harness opener; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -64,25 +64,17 @@ SELECT
 		len(seeded), claimDepthClaimers, result.Duration, result.ClaimsPerSecond(), result.EmptyAttempts, result.BackendPIDs)
 }
 
-// TestWorkflowClaimDepthStarvationProbeMeasuresFIFOFloor records today's
-// small-key first-claim latency under a large-key backlog. The shipped
-// selector is pure FIFO inside one (kind, instance) and never reads
-// fairness_key, so a small key seeded behind the large key cannot be
-// granted until the large backlog is claimed. The probe asserts only that
-// current truth, in grant order: every small key's first grant lands after
-// the large backlog (minus the grants that can be in flight when Seq is
-// assigned). #8469 must flip this floor; when it does, this test fails and
-// is rewritten to the fair bound in the same change.
-//
-// This is also the stuck-pacing case #8468 requires to fail before any
-// pacing code exists: asserting the fair bound (small-key first grant
-// before the large backlog drains) against the shipped selector fails on
-// real Postgres today (measured: first small grants land only after all
-// 500 large grants, at or past the FIFO floor of 493, which is
-// largeCount - claimers + 1), so a pacing or fairness
-// mechanism that engages and never releases small keys is caught here
-// instead of shipping unseen.
-func TestWorkflowClaimDepthStarvationProbeMeasuresFIFOFloor(t *testing.T) {
+// TestWorkflowClaimDepthFairRotationServesSmallKeysEarly is the #8469 fair
+// bound the FIFO-floor probe was rewritten into when the
+// priority-then-rotation selector landed. Same skewed backlog (a 500-item
+// large key, four 20-item small keys one second younger, one priority
+// class), eight concurrent claimers: every key's first grant must land
+// within the first draws, not after the large backlog drains. The bound
+// keeps slack for the grants that can be in flight when Seq is assigned
+// (at most claimers-1): a key missing from the first 8 draws has
+// probability (4/5)^8 ≈ 2.6e-6 under the uniform rotation, so Seq 15 is a
+// failure, not noise.
+func TestWorkflowClaimDepthFairRotationServesSmallKeysEarly(t *testing.T) {
 	database, store, ctx, poolLimit := openClaimDepthHarness(t, claimDepthClaimers)
 	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
 	const largeCount = 500
@@ -104,31 +96,27 @@ func TestWorkflowClaimDepthStarvationProbeMeasuresFIFOFloor(t *testing.T) {
 	assertClaimDepthConcurrency(t, result, claimDepthClaimers)
 	assertClaimDepthExactlyOnce(t, seeded, result)
 
+	const fairFirstGrantSeqBound = int64(claimDepthClaimers + 7)
 	first := claimDepthFirstByKey(result.Records)
-	largeFirst, ok := first[largeKey]
-	if !ok {
-		t.Fatalf("no grant recorded for large key %q", largeKey)
+	assertClaimDepthMinGrantsPerOwner(t, result, claimDepthClaimers, 10)
+	// The anti-serialization gate from the claim-pacing design: a fairness
+	// change that fixes the tail by throttling the burst lowers aggregate
+	// throughput and fails here. The 119 floor is the shipped FIFO rate on
+	// the reference machine; this drain must hold it with all 8 claimers.
+	if got := result.ClaimsPerSecond(); got < 119 {
+		t.Fatalf("skew drain throughput = %.1f claims/s, want >= 119 (design floor)", got)
 	}
-	// Seq is assigned on grant return, so up to claimers-1 large grants can
-	// be recorded after the first small grant even though they were granted
-	// before it. The floor keeps exactly that slack and no more.
-	floor := int64(largeCount - claimDepthClaimers + 1)
-	for _, small := range smallKeys {
-		record, ok := first[small]
+	for _, key := range append([]string{largeKey}, smallKeys...) {
+		record, ok := first[key]
 		if !ok {
-			t.Fatalf("no grant recorded for small key %q", small)
+			t.Fatalf("no grant recorded for key %q", key)
 		}
-		if record.Seq < floor {
-			t.Fatalf("small key %q first grant seq = %d, want >= %d under today's FIFO selector "+
-				"(if fairness landed, rewrite this floor per #8469)", small, record.Seq, floor)
+		if record.Seq > fairFirstGrantSeqBound {
+			t.Fatalf("key %q first grant seq = %d, want <= %d under the fair rotation",
+				key, record.Seq, fairFirstGrantSeqBound)
 		}
-		if record.Elapsed < largeFirst.Elapsed {
-			t.Fatalf("small key %q first grant elapsed %s precedes large key first grant %s",
-				small, record.Elapsed, largeFirst.Elapsed)
-		}
-		t.Logf("skew first-claim key=%s seq=%d elapsed=%s", small, record.Seq, record.Elapsed)
+		t.Logf("skew first-claim key=%s seq=%d elapsed=%s", key, record.Seq, record.Elapsed)
 	}
-	t.Logf("skew first-claim key=%s seq=%d elapsed=%s", largeKey, largeFirst.Seq, largeFirst.Elapsed)
 	t.Logf("skew drain items=%d claimers=%d duration=%s claims_per_second=%.1f empty_attempts=%d backends=%v",
 		len(seeded), claimDepthClaimers, result.Duration, result.ClaimsPerSecond(), result.EmptyAttempts, result.BackendPIDs)
 }

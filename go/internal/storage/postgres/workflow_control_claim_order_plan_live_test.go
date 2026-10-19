@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8469 step 1 claim-index proof on real PostgreSQL: the shipped claim candidate SELECT (derived from the production claimNextWorkflowWorkItemQuery constant, never hand-copied) plans as a first-row serve from workflow_work_items_claim_order_idx with no Sort node over a seeded backlog, so claim cost stays flat in backlog size; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8469 step 3 claim-plan proof on real PostgreSQL: the priority-then-rotation candidate SELECT (derived from the production claimNextWorkflowWorkItemQuery constant, never hand-copied) plans as loose distinct-pair probes from workflow_work_items_fair_claim_idx with no sequential scan of the backlog, so claim cost scales with distinct keys rather than backlog size; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -17,31 +17,29 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-// TestWorkflowClaimCandidateUsesClaimOrderIndex proves #8469 step 1: the
-// claim candidate plans as an index serve, not a scan plus sort. The
+// TestWorkflowClaimCandidateUsesFairClaimIndex proves #8469 step 3: the
+// fair-claim candidate plans as index probes, never as a backlog scan. The
 // EXPLAINed statement is derived from the shipped claim constant by
 // truncating at the candidate CTE boundary, so the proof tracks production
-// SQL instead of a hand-frozen copy. It fails on the base tree (no
-// supporting index: the plan carries a Sort over every eligible row) and
-// passes with migration 200 applied.
-func TestWorkflowClaimCandidateUsesClaimOrderIndex(t *testing.T) {
+// SQL instead of a hand-frozen copy.
+func TestWorkflowClaimCandidateUsesFairClaimIndex(t *testing.T) {
 	database, store := openWorkflowControlIntegrationStore(t)
 	ctx := context.Background()
 	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
-	seedClaimDepthBacklog(t, store, ctx, "claim-order-index", base, []claimDepthKeyBacklog{
-		{FairnessKey: "claim-order-index:alpha", Count: 500},
-		{FairnessKey: "claim-order-index:beta", Count: 500},
+	seeded := seedClaimDepthBacklog(t, store, ctx, "claim-fair-index", base, []claimDepthKeyBacklog{
+		{FairnessKey: "claim-fair-index:alpha", Count: 500},
+		{FairnessKey: "claim-fair-index:beta", Count: 500},
 	})
 	// Bulk seeding leaves the table without planner statistics, and without
-	// them the planner prefers a scan plus sort even with the index present
-	// (verified on a scratch table). Production tables carry autovacuum
+	// them the planner prefers scans even with the index present (verified
+	// on a scratch table in step 1). Production tables carry autovacuum
 	// statistics, so ANALYZE here proves the steady-state plan, not the
 	// unanalyzed transient.
 	if _, err := database.ExecContext(ctx, `ANALYZE workflow_work_items`); err != nil {
 		t.Fatalf("ANALYZE workflow_work_items: %v", err)
 	}
 
-	const candidateMarker = "WITH candidate AS ("
+	const candidateMarker = "WITH RECURSIVE keys AS ("
 	trimmed := strings.TrimLeft(claimNextWorkflowWorkItemQuery, "\n")
 	head, ok := strings.CutPrefix(trimmed, candidateMarker)
 	if !ok {
@@ -57,6 +55,11 @@ func TestWorkflowClaimCandidateUsesClaimOrderIndex(t *testing.T) {
 	}
 	explainQuery := "EXPLAIN (COSTS OFF) " + candidateMarker + candidate + ") SELECT work_item_id FROM candidate"
 
+	// database/sql binds positionally, so the sparse $7 has no slot: the
+	// test fixes the draw salt to a literal in the derived text and binds
+	// only $1-$3. The salt value is not the contract under proof (the
+	// rotation tests prove the draw honors it); the plan shape is.
+	explainQuery = strings.ReplaceAll(explainQuery, "$7", "'claim-fair-index-plan'")
 	rows, err := database.QueryContext(
 		ctx,
 		explainQuery,
@@ -79,20 +82,21 @@ func TestWorkflowClaimCandidateUsesClaimOrderIndex(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("read EXPLAIN rows: %v", err)
 	}
-	if got := plan.String(); !strings.Contains(got, "Index Scan using workflow_work_items_claim_order_idx") {
-		t.Fatalf("claim candidate plan misses the claim-order index:\n%s", got)
+	if got := plan.String(); !strings.Contains(got, "Index Scan using workflow_work_items_fair_claim_idx") {
+		t.Fatalf("fair-claim candidate plan misses the fair-claim index:\n%s", got)
 	}
-	if got := plan.String(); strings.Contains(got, "Sort") {
-		t.Fatalf("claim candidate plan still sorts the eligible backlog:\n%s", got)
+	if got := plan.String(); strings.Contains(got, "Seq Scan on workflow_work_items") {
+		t.Fatalf("fair-claim candidate plan sequentially scans the backlog:\n%s", got)
 	}
 
-	// Order-equivalence spot check: with the index in place the granted row
-	// is still the FIFO head, so the index changes cost, not behavior.
+	// Liveness spot check: the rewritten claim still grants from the seeded
+	// backlog instead of returning empty while eligible work exists.
 	item, _, found, err := store.ClaimNextEligible(ctx, workflow.ClaimSelector{
 		CollectorKind:       scope.CollectorGit,
 		CollectorInstanceID: "claim-depth-instance",
-		OwnerID:             "claim-order-index-owner",
-		ClaimID:             "claim-order-index-0",
+		OwnerID:             "claim-fair-index-owner",
+		ClaimID:             "claim-fair-index-0",
+		RotationSalt:        "claim-fair-index-spot",
 	}, base.Add(time.Hour).UTC(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("ClaimNextEligible error = %v, want nil", err)
@@ -100,7 +104,14 @@ func TestWorkflowClaimCandidateUsesClaimOrderIndex(t *testing.T) {
 	if !found {
 		t.Fatalf("ClaimNextEligible found = false, want a grant from the seeded backlog")
 	}
-	if !strings.HasSuffix(item.WorkItemID, ":claim-order-index:alpha:0000") {
-		t.Fatalf("first grant = %q, want the oldest seeded row (FIFO head)", item.WorkItemID)
+	known := false
+	for _, id := range seeded {
+		if id == item.WorkItemID {
+			known = true
+			break
+		}
+	}
+	if !known {
+		t.Fatalf("granted %q, want a seeded backlog row", item.WorkItemID)
 	}
 }

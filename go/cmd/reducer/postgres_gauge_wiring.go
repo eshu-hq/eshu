@@ -262,12 +262,13 @@ func registerPostgresBackedGauges(
 	queueObs telemetry.QueueObserver,
 	acceptanceObs telemetry.AcceptanceObserver,
 	workflowObs telemetry.WorkflowFamilyQueueDepthObserver,
+	fairnessObs telemetry.WorkflowFairnessKeyDepthObserver,
 	activeGenObs telemetry.ActiveGenerationAgeObserver,
 	poisonObs telemetry.PoisonLivenessObserver,
 	getenv func(string) string,
 	logger *slog.Logger,
 ) (*snapshot.Refresher, error) {
-	if queueObs == nil && acceptanceObs == nil && workflowObs == nil && activeGenObs == nil && poisonObs == nil {
+	if queueObs == nil && acceptanceObs == nil && workflowObs == nil && fairnessObs == nil && activeGenObs == nil && poisonObs == nil {
 		return nil, nil
 	}
 	refresher, err := snapshot.New(snapshot.Config{
@@ -312,6 +313,21 @@ func registerPostgresBackedGauges(
 		}
 		if err := telemetry.RegisterWorkflowFamilyQueueDepthObservableGauge(instruments, meter, cachedWorkflowFamilyQueueDepthObserver{source: family}); err != nil {
 			return nil, fmt.Errorf("register workflow family queue depth observable gauge: %w", err)
+		}
+	}
+	if fairnessObs != nil {
+		fairness, err := refresher.Register(gaugeWorkflowFairnessKeyDepth, func(ctx context.Context) (map[string]int64, error) {
+			depths, err := fairnessObs.WorkflowFairnessKeyDepths(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return flattenFairnessDepths(depths), nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("register workflow fairness key depth snapshot source: %w", err)
+		}
+		if err := telemetry.RegisterWorkflowFairnessKeyDepthObservableGauges(instruments, meter, cachedWorkflowFairnessKeyDepthObserver{source: fairness}); err != nil {
+			return nil, fmt.Errorf("register workflow fairness key depth observable gauges: %w", err)
 		}
 	}
 	if activeGenObs != nil {

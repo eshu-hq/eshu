@@ -288,6 +288,39 @@
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Fair-Claim Rotation (per tier, per key)",
+      "description": "Issue #8469: per-second claim grants by priority tier (a stalled tier shows here first), pending depth of the top fairness keys per collector family, and the distinct pending key count per family (the denominator of the round-robin wait bound).",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 87},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(rate(${FAIR_CLAIM_TOTAL}[5m])) by (claim_priority)",
+          "legendFormat": "tier {{claim_priority}} grants/s",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "topk(5, ${FAIRNESS_KEY_DEPTH})",
+          "legendFormat": "{{collector_kind}}/{{collector_instance_id}} {{fairness_key}}",
+          "refId": "B"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(${FAIRNESS_KEY_COUNT}) by (collector_kind, collector_instance_id)",
+          "legendFormat": "{{collector_kind}}/{{collector_instance_id}} distinct keys",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "short", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
       "id": 28,
       "type": "timeseries",
       "title": "Lock-Only Gate Lock Wait p95 (per family)",

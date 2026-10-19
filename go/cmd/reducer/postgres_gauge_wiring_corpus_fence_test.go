@@ -44,7 +44,7 @@ func TestPostgresBackedGaugesServeCorpusFenceSnapshot(t *testing.T) {
 	store := &scriptedCorpusFenceStore{}
 	instruments := &telemetry.Instruments{}
 	refresher, err := registerPostgresBackedGauges(
-		instruments, provider.Meter("test"), store, nil, nil, nil, nil, getenv, nil,
+		instruments, provider.Meter("test"), store, nil, nil, nil, nil, nil, getenv, nil,
 	)
 	if err != nil {
 		t.Fatalf("registerPostgresBackedGauges() error = %v", err)
@@ -92,7 +92,7 @@ func TestCorpusFenceGaugesAbsentWithoutObserver(t *testing.T) {
 	instruments := &telemetry.Instruments{}
 	getenv := func(string) string { return "" }
 	if _, err := registerPostgresBackedGauges(
-		instruments, provider.Meter("test"), scriptedPostgresGauges{}, nil, nil, nil, nil, getenv, nil,
+		instruments, provider.Meter("test"), scriptedPostgresGauges{}, nil, nil, nil, nil, nil, getenv, nil,
 	); err != nil {
 		t.Fatalf("registerPostgresBackedGauges() error = %v", err)
 	}

@@ -17,6 +17,11 @@ type ClaimSelector struct {
 	CollectorInstanceID string
 	OwnerID             string
 	ClaimID             string
+	// RotationSalt seeds the fair-claim rotation draw for this call. Callers
+	// that need reproducible picks (tests) pass a fixed salt; production
+	// callers leave it empty and the statement draws server-side randomness
+	// per head row, keeping every claim an independent shuffle.
+	RotationSalt string
 }
 
 // ClaimMutation carries the fenced mutation arguments for one claim epoch.

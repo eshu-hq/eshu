@@ -88,6 +88,36 @@ type WorkflowFamilyQueueDepthObserver interface {
 	WorkflowFamilyQueueDepths(ctx context.Context) (map[string]map[string]map[string]int64, error)
 }
 
+// WorkflowFairnessTopKeys bounds the per-family key series on the fairness
+// depth gauge. The observer enforces it in SQL; the gauge never sees an
+// unbounded key set.
+const WorkflowFairnessTopKeys = 10
+
+// WorkflowFairnessFamilyDepth is the pending-depth picture for one
+// (collector_kind, collector_instance_id): the distinct pending key count
+// (the denominator of the round-robin wait bound) and the top keys by
+// pending depth (what separates "one account is enormous" from
+// "everything is behind").
+type WorkflowFairnessFamilyDepth struct {
+	DistinctKeys int64
+	Top          []WorkflowFairnessKeyPending
+}
+
+// WorkflowFairnessKeyPending is one top key's pending depth.
+type WorkflowFairnessKeyPending struct {
+	Key     string
+	Pending int64
+}
+
+// WorkflowFairnessKeyDepthObserver provides pending fairness-key depth
+// grouped by collector family, backing the fairness depth and key-count
+// gauges. Keys: collector_kind -> collector_instance_id -> family depth.
+// It is intentionally separate from WorkflowFamilyQueueDepthObserver so
+// existing implementers are not forced to provide it.
+type WorkflowFairnessKeyDepthObserver interface {
+	WorkflowFairnessKeyDepths(ctx context.Context) (map[string]map[string]WorkflowFairnessFamilyDepth, error)
+}
+
 // WorkerObserver provides active worker counts for observable gauges.
 type WorkerObserver interface {
 	// ActiveWorkers returns the current active count per worker pool.
@@ -2610,6 +2640,20 @@ type Instruments struct {
 	// WorkflowFamilyQueueDepth reports outstanding claim-aware collector queue
 	// depth by collector_kind, source_system, and status (issue #2699/#2857).
 	WorkflowFamilyQueueDepth metric.Int64ObservableGauge
+	// WorkflowFairClaimsTotal counts granted workflow claims by
+	// collector_kind and claim_priority (#8469). The tier share proves the
+	// rotation serves every priority class; a stalled tier shows here
+	// first. Owned by the collector claim path; nil-tolerant.
+	WorkflowFairClaimsTotal metric.Int64Counter
+	// WorkflowFairnessKeyDepth reports pending work-item depth for the top
+	// WorkflowFairnessTopKeys fairness keys per collector family (#8469).
+	// It separates "one account is enormous" from "everything is behind".
+	WorkflowFairnessKeyDepth metric.Int64ObservableGauge
+	// WorkflowFairnessKeyCount reports distinct pending fairness-key counts
+	// per collector family (#8469): the denominator of the round-robin wait
+	// bound, and the only signal separating "fairness is working and there
+	// are simply many keys" from "fairness is broken".
+	WorkflowFairnessKeyCount metric.Int64ObservableGauge
 	// EdgesBySourceTool reports bounded graph edge counts by source_tool. The
 	// only metric label is source_tool; values not in the sourcetool.Canonical
 	// set are coerced to "unknown" before the label reaches the metric (#3997).
@@ -5084,6 +5128,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register WorkflowClaimWaitDuration histogram: %w", err)
 	}
 
+	inst.WorkflowFairClaimsTotal, err = meter.Int64Counter(
+		"eshu_dp_workflow_fair_claims_total",
+		metric.WithDescription("Granted workflow claims by collector kind and claim priority tier"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowFairClaimsTotal counter: %w", err)
+	}
+
 	tfstateClaimWaitBuckets := workflowClaimWaitBuckets
 	inst.TerraformStateClaimWaitDuration, err = meter.Float64Histogram(
 		"eshu_dp_tfstate_claim_wait_seconds",
@@ -7361,6 +7413,79 @@ func RegisterWorkflowFamilyQueueDepthObservableGauge(inst *Instruments, meter me
 	return nil
 }
 
+// RegisterWorkflowFairnessKeyDepthObservableGauges registers the per-key
+// pending-depth gauge and the distinct-key-count gauge from one observer
+// callback, so one Postgres read feeds both series. The callback runs
+// read-only on the meter collection goroutine. It is a no-op when observer
+// is nil so binaries without a workflow control store skip it. The depth
+// gauge carries at most WorkflowFairnessTopKeys key series per collector
+// family; the observer enforces that bound in SQL.
+func RegisterWorkflowFairnessKeyDepthObservableGauges(inst *Instruments, meter metric.Meter, observer WorkflowFairnessKeyDepthObserver) error {
+	if inst == nil {
+		return errors.New("instruments are required")
+	}
+	if meter == nil {
+		return errors.New("meter is required")
+	}
+	if observer == nil {
+		return nil
+	}
+
+	var err error
+	inst.WorkflowFairnessKeyDepth, err = meter.Int64ObservableGauge(
+		"eshu_dp_workflow_fairness_key_depth",
+		metric.WithDescription("Pending workflow work-item depth for the top fairness keys per collector family"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			depths, err := observer.WorkflowFairnessKeyDepths(ctx)
+			if err != nil {
+				return err
+			}
+			for collectorKind, instances := range depths {
+				for instanceID, family := range instances {
+					top := family.Top
+					if len(top) > WorkflowFairnessTopKeys {
+						top = top[:WorkflowFairnessTopKeys]
+					}
+					for _, key := range top {
+						o.Observe(key.Pending, metric.WithAttributes(
+							AttrCollectorKind(collectorKind),
+							AttrCollectorInstanceID(instanceID),
+							AttrFairnessKey(key.Key),
+						))
+					}
+				}
+			}
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register WorkflowFairnessKeyDepth gauge: %w", err)
+	}
+	inst.WorkflowFairnessKeyCount, err = meter.Int64ObservableGauge(
+		"eshu_dp_workflow_fairness_key_count",
+		metric.WithDescription("Distinct pending fairness-key count per collector family"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			depths, err := observer.WorkflowFairnessKeyDepths(ctx)
+			if err != nil {
+				return err
+			}
+			for collectorKind, instances := range depths {
+				for instanceID, family := range instances {
+					o.Observe(family.DistinctKeys, metric.WithAttributes(
+						AttrCollectorKind(collectorKind),
+						AttrCollectorInstanceID(instanceID),
+					))
+				}
+			}
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register WorkflowFairnessKeyCount gauge: %w", err)
+	}
+	return nil
+}
+
 // RegisterAWSClaimConcurrencyGauge registers the AWS active-claim gauge.
 func RegisterAWSClaimConcurrencyGauge(
 	inst *Instruments,
@@ -7440,6 +7565,29 @@ func AttrGenerationID(v string) attribute.KeyValue {
 // AttrCollectorKind returns a collector_kind attribute for metric recording.
 func AttrCollectorKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionCollectorKind, v)
+}
+
+// AttrCollectorInstanceID returns a collector_instance_id attribute for
+// metric recording. Callers MUST pass an operator-configured instance id,
+// never a row-derived identifier.
+func AttrCollectorInstanceID(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionCollectorInstanceID, v)
+}
+
+// AttrClaimPriority returns a claim_priority attribute for metric recording.
+// Callers MUST pass the scheduler target-class rank (0-4), never a raw
+// target class string or row data.
+func AttrClaimPriority(v int) attribute.KeyValue {
+	return attribute.Int(MetricDimensionClaimPriority, v)
+}
+
+// AttrFairnessKey returns a fairness_key attribute for span or structured
+// log recording. It is NOT a general metric label: raw keys embed account
+// and provider identifiers. The bounded top-N depth gauge is the only
+// metric that carries key values, capped at WorkflowFairnessTopKeys series
+// per collector family at the emission site.
+func AttrFairnessKey(v string) attribute.KeyValue {
+	return attribute.String(LogKeyFairnessKey, v)
 }
 
 // AttrAnalyzer returns an analyzer attribute for scanner-worker metrics.

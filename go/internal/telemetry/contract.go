@@ -30,7 +30,21 @@ const (
 	MetricDimensionSource        = "source"
 	MetricDimensionSourceSystem  = "source_system"
 	MetricDimensionCollectorKind = "collector_kind"
-	MetricDimensionDomain        = "domain"
+	// MetricDimensionCollectorInstanceID labels per-family instruments with
+	// the collector instance. The value space is the operator-configured
+	// instance set, so it stays low-cardinality.
+	MetricDimensionCollectorInstanceID = "collector_instance_id"
+	// MetricDimensionClaimPriority labels fair-claim instruments with the
+	// scheduler target-class rank (0-4, see schedule.TargetClassRank). The
+	// value space is the closed rank set, so it stays low-cardinality.
+	MetricDimensionClaimPriority = "claim_priority"
+	// MetricDimensionFairnessKey labels the bounded top-N per-key depth
+	// gauge only (at most WorkflowFairnessTopKeys series per collector
+	// family, enforced at the emission site). Raw fairness keys embed
+	// account and provider identifiers and are otherwise unbounded: they
+	// belong on spans and logs, never on any other metric label.
+	MetricDimensionFairnessKey = "fairness_key"
+	MetricDimensionDomain      = "domain"
 	// MetricDimensionExecutionMode labels shared-edge write instruments
 	// with the closed execution-mode set ("group", "artifact-sequential").
 	// Producers must never use raw statement text or row data here.
@@ -731,10 +745,14 @@ const (
 // Log keys define the structured logging contract for terminal failures and
 // retryable failure classification.
 const (
-	LogKeyScopeID                = "scope_id"
-	LogKeyScopeKind              = "scope_kind"
-	LogKeySourceSystem           = "source_system"
-	LogKeyGenerationID           = "generation_id"
+	LogKeyScopeID      = "scope_id"
+	LogKeyScopeKind    = "scope_kind"
+	LogKeySourceSystem = "source_system"
+	LogKeyGenerationID = "generation_id"
+	// LogKeyFairnessKey carries the raw fairness key on spans and logs.
+	// MetricDimensionFairnessKey names the only metric label allowed to
+	// carry key values (the bounded top-N depth gauge).
+	LogKeyFairnessKey            = "fairness_key"
 	LogKeyRefusedGenerationID    = "refused_generation_id"
 	LogKeyHealedGenerationID     = "healed_generation_id"
 	LogKeyOutcome                = "outcome"

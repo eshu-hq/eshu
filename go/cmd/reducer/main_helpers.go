@@ -179,7 +179,7 @@ func registerReducerObservableGauges(
 	poisonObserver := poisonLivenessObserverFor(postgres.SQLDB{DB: database})
 	postgresRefresher, err = registerPostgresBackedGauges(
 		instruments, meter, queueObserver, acceptanceObserver,
-		workflowFamilyQueueObserver, activeGenerationObserver, poisonObserver,
+		workflowFamilyQueueObserver, workflowFamilyQueueObserver, activeGenerationObserver, poisonObserver,
 		getenv, logger,
 	)
 	if err != nil {

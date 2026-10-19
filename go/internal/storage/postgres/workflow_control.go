@@ -168,6 +168,7 @@ func (s *WorkflowControlStore) ClaimNextEligible(
 		selector.OwnerID,
 		selector.ClaimID,
 		now.UTC().Add(effectiveLeaseTTL),
+		selector.RotationSalt,
 	)
 	if err != nil {
 		return workflow.WorkItem{}, workflow.Claim{}, false, fmt.Errorf("claim workflow work item: %w", err)
