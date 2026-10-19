@@ -18,6 +18,8 @@
         run: GOBIN="${RUNNER_TEMP}" scripts/ci/go-install-retry.sh github.com/google/go-containerregistry/cmd/crane@v0.20.6
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Test publisher safety contract
         run: bash scripts/dev/test-publish-ci-image-mirrors.sh
       - name: Log in to GHCR
