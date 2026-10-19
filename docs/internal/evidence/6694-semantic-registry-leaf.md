@@ -44,6 +44,18 @@ writer contract changes.
   `TestSemanticEntityWriterSkipsOversizedIndexKeysInEveryWriteMode`, which
   moved into the entity leaf and drives the production writer over the same
   shapes without a live backend. No copied Cypher fixtures were introduced.
+  Why the dropped live stage is not restored here (owner P2 on #8596): the
+  raw-rejection half proved a backend property (schema and backend
+  unchanged; the canonical half keeps its own raw-rejection trial in the
+  same test), the writer-skip half is pinned per write mode by the
+  always-on leaf unit test, and normal semantic live writes stay covered by
+  `semantic_entity_live_test.go`. A root live stage through the leaf writer
+  does not compile in place: the entity leaf imports the parent for the
+  Executor seam, so `package cypher` test files importing the leaf are an
+  import cycle (`import cycle not allowed in test`, proven with a scratch
+  import), and the external-test variant would need copied scaffolding for
+  a follow-up-grade gap. CI live lanes still run the canonical half and
+  the semantic live tests.
 - DSN-gated live tests that need the root bolt harness stay in the root as
   `package cypher_test` importing the leaf (the edge-slice precedent); the
   entity leaf carries its own copy of the bolt harness for its containment

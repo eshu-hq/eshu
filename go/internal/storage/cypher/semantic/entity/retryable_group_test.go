@@ -110,8 +110,8 @@ func TestClassifyRetryableGraphWriteGroupErrorRetriesIdempotentRetractWithMerge(
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if got := sourcecypher.ClassifyRetryableGraphWriteGroupError(err, stmts); got != "commit_unique_conflict" { // sourcecypher.graphWriteRetryReasonUniqueConflict
-				t.Fatalf("classify = %q, want %q", got, "commit_unique_conflict")
+			if got := sourcecypher.ClassifyRetryableGraphWriteGroupError(err, stmts); got != sourcecypher.GraphWriteRetryReasonUniqueConflict {
+				t.Fatalf("classify = %q, want %q", got, sourcecypher.GraphWriteRetryReasonUniqueConflict)
 			}
 		})
 	}

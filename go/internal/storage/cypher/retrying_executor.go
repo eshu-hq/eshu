@@ -342,6 +342,11 @@ func ClassifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 	return classifyRetryableGraphWriteGroupError(err, stmts)
 }
 
+// GraphWriteRetryReasonUniqueConflict is the exported form of the
+// unique-conflict retry reason. Leaf writer packages (semantic/entity)
+// assert against it so a rename stays compiler-checked.
+const GraphWriteRetryReasonUniqueConflict = graphWriteRetryReasonUniqueConflict
+
 func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string {
 	var exhausted *neo4jdriver.TransactionExecutionLimit
 	if errors.As(err, &exhausted) {
