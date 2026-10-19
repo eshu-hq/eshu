@@ -24,3 +24,11 @@ tests:
     tag: ~
     class: scheduled
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+  - file: go/internal/storage/postgres/workflow_control_quota_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8471 per-component generation-quota proofs on real PostgreSQL (idle throttle with window-roll release, blocker-serialized 8-replica race, restart durability, floor fallback); untagged live proof gated by env Skip, about 8 s locally; readiness enrollment deferred: the per-package generated inventory module is at the 500-line cap and the generator has no split mechanism"
+  - file: go/internal/storage/postgres/workflow_control_quota_plan_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8471 quota-gated claim plan proof on real PostgreSQL (fair-claim index walk, quota PK pre-filter, no backlog scan, liveness spot check); untagged live proof gated by env Skip, about 2 s locally; readiness enrollment deferred: the per-package generated inventory module is at the 500-line cap and the generator has no split mechanism"
