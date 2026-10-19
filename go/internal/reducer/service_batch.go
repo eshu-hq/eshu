@@ -131,6 +131,26 @@ func (s Service) runBatchConcurrent(
 				continue
 			}
 
+			if ctx.Err() != nil {
+				// The claim won a race with shutdown: the batch is claimed
+				// but no worker may start heartbeat-owned work on a
+				// cancelled run. Never execute or ack it — the unrenewed
+				// lease expires for reclaim (#4464) — and record the unknown
+				// outcome so the claimed batch stays observable instead of
+				// vanishing between claim and handoff (#8623).
+				claimElapsed := time.Since(claimStart).Seconds()
+				droppedAt := time.Now()
+				for _, intent := range intents {
+					s.recordBatchAckOutcome(ctx, batchAckItem{
+						intent:    intent,
+						queueWait: reducerQueueWaitSeconds(droppedAt, intent.AvailableAt),
+						duration:  claimElapsed,
+						workerID:  -1,
+					}, ackStatusOutcomeUnknown, ctx.Err())
+				}
+				return
+			}
+
 			for _, intent := range intents {
 				select {
 				case workCh <- workItem{intent: intent}:
