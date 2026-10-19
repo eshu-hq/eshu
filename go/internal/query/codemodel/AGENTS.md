@@ -89,6 +89,8 @@ without moving its staying callers first.
   `WriteComplexityAmbiguousError`, `ValidateReadOnlyCypher`,
   `NewCodeHybridRanker`, `CodeHybridRanker` (+`LocalEmbedder`),
   `CodeResultReranker`, `EntityIDFromDocument`,
+  `WindowScoreCache`, `NewWindowScoreCache`, `WindowScoreRow`,
+  `KeyWindowScores` (rank-walk window score cache shared with contentread),
   `CodeFlowFunctionFromPayload`, `CallGraphMetricIdentity`.
 - `NewPostgresCodeFlowStoreWithReadStore` accepts the guarded business read
   port for API/MCP wiring; legacy `NewPostgresCodeFlowStore` remains compatible.

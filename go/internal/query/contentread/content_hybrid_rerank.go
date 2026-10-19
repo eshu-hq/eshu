@@ -88,6 +88,11 @@ type ContentHybridRanker struct {
 	// tracer records the query.hybrid_rerank stage span. Nil means the shared
 	// query tracer; in-package tests set a recording tracer here.
 	tracer trace.Tracer
+	// windowScores caches whole-window scores across rank_cursor pages
+	// (#8216), shared with the find_code lane through codemodel. The
+	// ranker is built once per process, so the cache lives as long as
+	// the identical windows it serves.
+	windowScores *codemodel.WindowScoreCache
 }
 
 // NewContentHybridRanker builds a content-search hybrid re-ranker. It owns a
@@ -96,7 +101,7 @@ type ContentHybridRanker struct {
 // cannot be built, both Rerank methods are no-ops and the caller keeps the
 // lexical order.
 func NewContentHybridRanker(enabled bool) *ContentHybridRanker {
-	ranker := &ContentHybridRanker{enabled: enabled}
+	ranker := &ContentHybridRanker{enabled: enabled, windowScores: codemodel.NewWindowScoreCache(0)}
 	if !enabled {
 		return ranker
 	}

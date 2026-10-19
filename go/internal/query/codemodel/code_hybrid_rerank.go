@@ -61,6 +61,11 @@ type CodeHybridRanker struct {
 	// query tracer; in-package tests set a recording tracer here instead of
 	// swapping a package-level var.
 	tracer trace.Tracer
+	// windowScores caches whole-window scores across rank_cursor pages
+	// (#8216). The ranker is built once per process (see
+	// cmd/api/semantic_search_vector_wiring.go), so the cache lives as
+	// long as the identical windows it serves.
+	windowScores *WindowScoreCache
 }
 
 // NewCodeHybridRanker builds a find_code hybrid re-ranker. It owns a
@@ -68,7 +73,7 @@ type CodeHybridRanker struct {
 // text never egresses on this path. When enabled is false, or the local embedder
 // cannot be built, Rerank is a no-op and the caller keeps the lexical order.
 func NewCodeHybridRanker(enabled bool) *CodeHybridRanker {
-	ranker := &CodeHybridRanker{enabled: enabled}
+	ranker := &CodeHybridRanker{enabled: enabled, windowScores: NewWindowScoreCache(0)}
 	if !enabled {
 		return ranker
 	}
@@ -233,12 +238,23 @@ func (r *CodeHybridRanker) ScoreCodeWindow(
 	if len(rows) < 2 {
 		return scores, nil
 	}
+	// A walk re-reads its whole window on every page (#8216). The scores
+	// are a deterministic function of the key below, so a repeat window
+	// skips the projection, index build, and ranking, and rank.Walk still
+	// checks the live window basis and order: exactly-once and the 409
+	// behavior are unchanged. A hit emits no query.hybrid_rerank span; a
+	// served page without that span is the operator-visible hit signal.
+	key := KeyWindowScores(CodeRankerIdentity, repoID, query, codeWindowScoreRows(rows))
+	if cached, ok := r.windowScores.Get(key); ok {
+		return cached, nil
+	}
 	ctx, finish := tracing.StartHybridRerankSpan(ctx, r.stageTracer(), tracing.HybridRerankToolFindCode, len(rows))
 	applied := false
 	defer func() { finish(applied) }()
 
 	docByID, order := projectCodeResultDocuments(repoID, rows)
 	if len(docByID) == 0 {
+		r.windowScores.Put(key, scores)
 		return scores, nil
 	}
 	candidates, err := r.rankDocuments(ctx, repoID, query, docByID, order)
@@ -252,7 +268,63 @@ func (r *CodeHybridRanker) ScoreCodeWindow(
 		}
 	}
 	applied = rank.AnyScored(scores)
+	r.windowScores.Put(key, scores)
 	return scores, nil
+}
+
+// codeWindowScoreRows maps window rows to the cache key fields
+// ScoreCodeWindow scores by. It must cover every field
+// projectCodeResultDocuments reads (entity_id, repo_id, file_path,
+// entity_type, entity_name, name, language, source_cache): a field the
+// projection reads but the key misses would serve a stale score after an
+// edit rank.Walk would otherwise refuse with 409 basis_changed. Line
+// numbers ride along so the key stays a pure function of the row.
+func codeWindowScoreRows(rows []map[string]any) []WindowScoreRow {
+	keyed := make([]WindowScoreRow, 0, len(rows))
+	for _, row := range rows {
+		keyed = append(keyed, WindowScoreRow{
+			EntityID:   mapString(row, "entity_id"),
+			RepoID:     mapString(row, "repo_id"),
+			Path:       mapString(row, "file_path"),
+			EntityType: mapString(row, "entity_type"),
+			EntityName: mapString(row, "entity_name"),
+			AltName:    mapString(row, "name"),
+			Language:   mapString(row, "language"),
+			StartLine:  mapInt(row, "start_line"),
+			EndLine:    mapInt(row, "end_line"),
+			Body:       mapString(row, "source_cache"),
+		})
+	}
+	return keyed
+}
+
+// mapInt reads a decoded row number (int or float64 from a JSON or
+// Postgres decode) as an int, or 0 when absent.
+func mapInt(values map[string]any, key string) int {
+	switch raw := values[key].(type) {
+	case int:
+		return raw
+	case int8:
+		return int(raw)
+	case int16:
+		return int(raw)
+	case int32:
+		return int(raw)
+	case int64:
+		return int(raw)
+	case uint:
+		return int(raw)
+	case uint32:
+		return int(raw)
+	case uint64:
+		return int(raw)
+	case float32:
+		return int(raw)
+	case float64:
+		return int(raw)
+	default:
+		return 0
+	}
 }
 
 // projectCodeResultDocuments builds curated search documents keyed by entity id

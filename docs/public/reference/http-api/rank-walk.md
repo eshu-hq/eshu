@@ -116,14 +116,24 @@ It never adds `next_offset` to a walk page.
 
 ## Cost and signals
 
-A `hybrid` page scores the whole 200-row window, the same scoring work as one
-`limit=200` ranked offset page. A walk pays it once per page, so a walk at
-page size L does about 200/L scoring passes (4 at `limit=50`). The scorer
-reads the full stored body, so the cost grows with body size: on linux/arm64
+The first `hybrid` page scores the whole 200-row window, the same scoring work as one
+`limit=200` ranked offset page. Later pages reuse that window score while the
+window and the ranker are unchanged (#8216): the cache key covers the ranker
+identity, the repository, the query, and every scoring input byte of every
+window row in order, so any edit, scope, query, ranker, or reorder change
+re-scores instead of serving a stale order. A full walk at page size L
+therefore runs 1 scoring pass instead of about 200/L (4 at `limit=50`). A
+served page with no `query.hybrid_rerank` span was served from the cached
+score. The scorer still reads the full stored body on a miss, so a cold page
+cost grows with body size: on linux/arm64
 a whole page measured about 18.8 ms and 23.7 MB at 3 KB bodies, and 23.7 ms
 and 31.6 MB at 4,090-byte bodies. A `graph_name` or `lexical` page scores
-nothing and costs about 0.9 ms and 2.5 MB for the walk work. Bounding the
-scoring input is a possible follow-up, not part of this change. Store reads
+nothing and costs about 0.9 ms and 2.5 MB for the walk work. On linux/arm64,
+BenchmarkFindCodeRankWalkPage (count=5) measured a repeat-window page at
+about 3.1 MB and 3,840 allocs at 3 KB bodies (23.7 MB and 14,462 allocs when
+every page re-scored), and about 3.0 MB and 3,638 allocs at 4,090-byte bodies
+(31.6 MB and 14,791 allocs before). Wall times on the shared host are
+non-gating; the byte and alloc figures are the load-independent change. Store reads
 equal the same lane's offset page with a 201-row limit. The
 scoring pass emits the `query.hybrid_rerank` span with `search.rerank.rows`
 equal to the window size. Each walk request records

@@ -69,12 +69,23 @@ func (r *ContentHybridRanker) ScoreEntityWindow(
 	if len(rows) < 2 {
 		return scores, nil
 	}
+	// A walk re-reads its whole window on every page (#8216). The scores
+	// are a deterministic function of the key below, so a repeat window
+	// skips the projection, index build, and ranking, and rank.Walk still
+	// checks the live window basis and order: exactly-once and the 409
+	// behavior are unchanged. A hit emits no query.hybrid_rerank span; a
+	// served page without that span is the operator-visible hit signal.
+	key := codemodel.KeyWindowScores(contentRankerIdentity, repoID, query, entityWindowScoreRows(repoID, rows))
+	if cached, ok := r.windowScores.Get(key); ok {
+		return cached, nil
+	}
 	ctx, finish := tracing.StartHybridRerankSpan(ctx, r.stageTracer(), tracing.HybridRerankToolSearchEntityContent, len(rows))
 	applied := false
 	defer func() { finish(applied) }()
 
 	docByID, order := projectEntityContentDocuments(repoID, rows)
 	if len(docByID) == 0 {
+		r.windowScores.Put(key, scores)
 		return scores, nil
 	}
 	candidates, err := r.rankDocumentsErr(ctx, repoID, query, docByID, order)
@@ -88,7 +99,35 @@ func (r *ContentHybridRanker) ScoreEntityWindow(
 		}
 	}
 	applied = rank.AnyScored(scores)
+	r.windowScores.Put(key, scores)
 	return scores, nil
+}
+
+// entityWindowScoreRows maps entity rows to the cache key fields
+// ScoreEntityWindow scores by. It must cover every field
+// projectEntityContentDocuments reads (entity id, repo id, relative path,
+// entity type and name, start and end lines, language, source cache): a
+// field the projection reads but the key misses would serve a stale score
+// after an edit rank.Walk would otherwise refuse with 409 basis_changed.
+func entityWindowScoreRows(repoID string, rows []querycontract.EntityContent) []codemodel.WindowScoreRow {
+	keyed := make([]codemodel.WindowScoreRow, 0, len(rows))
+	for _, row := range rows {
+		if strings.TrimSpace(row.RepoID) == "" {
+			row.RepoID = repoID
+		}
+		keyed = append(keyed, codemodel.WindowScoreRow{
+			EntityID:   row.EntityID,
+			RepoID:     row.RepoID,
+			Path:       row.RelativePath,
+			EntityType: row.EntityType,
+			EntityName: row.EntityName,
+			Language:   row.Language,
+			StartLine:  row.StartLine,
+			EndLine:    row.EndLine,
+			Body:       row.SourceCache,
+		})
+	}
+	return keyed
 }
 
 // writeRankError records the rank-walk outcome for err and answers with it.
