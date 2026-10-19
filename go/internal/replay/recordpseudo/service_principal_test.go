@@ -49,9 +49,12 @@ func TestServicePrincipalLabelIsNeverRewritten(t *testing.T) {
 }
 
 // TestVerifyAdmitsServicePrincipals: <label>.amazonaws.com with exactly one
-// label is an AWS service principal and passes Verify by shape.
+// label is an AWS service principal and passes Verify by shape. The exact
+// EKS Pod Identity principal pods.eks.amazonaws.com passes too: it is the
+// gate's literal branch for the AWS-owned eks.amazonaws.com zone, mirrored
+// here (the committed slice-A trust-policy cassettes carry it).
 func TestVerifyAdmitsServicePrincipals(t *testing.T) {
-	doc := []byte(`{"a":"states.amazonaws.com","b":"ecs-tasks.amazonaws.com","c":"Service: monitoring.amazonaws.com"}`)
+	doc := []byte(`{"a":"states.amazonaws.com","b":"ecs-tasks.amazonaws.com","c":"Service: monitoring.amazonaws.com","d":"pods.eks.amazonaws.com"}`)
 	if err := recordpseudo.Verify(doc, recordpseudo.Set{}); err != nil {
 		t.Fatalf("service principals refused: %v", err)
 	}
@@ -59,5 +62,11 @@ func TestVerifyAdmitsServicePrincipals(t *testing.T) {
 	err := recordpseudo.Verify([]byte(`{"a":"orders-api.team-b.amazonaws.com"}`), recordpseudo.Set{})
 	if err == nil || !strings.Contains(err.Error(), "alternative hostname") {
 		t.Fatalf("a two-label raw host under amazonaws.com passed: %v", err)
+	}
+	// The EKS admission is an exact match, like the gate's literal branch:
+	// a sibling label under the same zone is still refused.
+	err = recordpseudo.Verify([]byte(`{"a":"api.eks.amazonaws.com"}`), recordpseudo.Set{})
+	if err == nil || !strings.Contains(err.Error(), "alternative hostname") {
+		t.Fatalf("a sibling label under eks.amazonaws.com passed: %v", err)
 	}
 }
