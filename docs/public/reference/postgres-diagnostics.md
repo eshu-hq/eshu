@@ -153,27 +153,42 @@ are visible.
 
 The module adds bookkeeping to every statement. Eshu measured the four default
 settings (preload, `compute_query_id`, `pg_stat_statements.max`, and
-`track = top`) on a private native Postgres 18.6 on one host. This is a local
-measurement on a loaded host. It is not a measurement of the reference
-deployment.
+`track = top`) on private containerized Postgres 18.6 servers on one quiet
+host. This is a local measurement. It is not a measurement of the reference
+deployment. (An earlier loaded-host run was inside its noise floor; its raw
+rounds stay in the evidence note for the record.)
 
-- Method: `pgbench -S -c2 -j2 -T10`, seven rounds. Each round ran one server
-  without the module and one server with it, and the server that went first
-  alternated. Each round also ran the server without the module twice, as a
-  null pair that sets the noise floor.
-- Result: the median change in `tps` with the module was -2.2 percent (mean -4.2
-  percent, spread of 10.2 percent standard deviation, range -25.0 to +8.1
-  percent).
-- Noise floor: the null pairs moved by 19.8 percent standard deviation (range
-  -18.4 to +45.0 percent), because other jobs shared the host.
-- Reading: the estimate is inside the noise floor of the harness. It is not
-  evidence of zero cost, and it is not a confirmed loss. The point estimates are
-  a drop of 2 to 4 percent. A select-only run sends one statement shape at a high
-  rate, so every transaction updates the same statistics entry. Eshu expects that
-  to be a hard case for the module, but it did not compare a mixed workload.
+- Method: fixed-work `pgbench` at scale 10, twelve interleaved rounds per
+  mix. Each round ran one server without the module and one server with it,
+  and the server that went first alternated. Each round also ran the server
+  without the module twice, as a null pair that sets the noise floor. No
+  round was recorded while the host load average was at or above 8.
+- Result, select-only (`-S -c1 -j1 -t 30000`): the median change in
+  `latency average` (seconds per transaction at fixed work) with the module
+  was +8.51 percent (mean +11.16 percent, +8.39 percent without the round-1
+  warmup transient). The median change in `tps` was -7.65 percent.
+- Result, write-heavy TPC-B-like mix (`-c4 -j4 -t 2000`): the median change
+  in `latency average` was +10.94 percent (mean +12.02 percent, standard
+  deviation 3.10 percent, every round positive). The median change in `tps`
+  was -9.71 percent.
+- Noise floor: the null pairs moved by 5.63 percent standard deviation on
+  latency (select) and 7.33 percent (write). The 8 to 11 percent effect sits
+  cleanly above it.
+- Reading: the module costs about 8 to 11 percent per transaction in this
+  buffer-resident loopback microbenchmark. Client-observed seconds per
+  transaction include loopback and client overhead (about 20 microseconds on
+  the measurement host; backend execution was about 5 microseconds), so the
+  absolute figures depend on the boundary while the A/B deltas do not. A
+  single-shape run at a high rate sends every transaction to the same
+  statistics entry, which Eshu expects to be a hard case for the module.
+  Eshu's real workload is mixed and far lower-rate, where the overhead
+  matters less in absolute milliseconds.
 - Raw rounds, harness, and caveats: `docs/internal/evidence/7596-pg-stat-statements-overhead.md`.
-  Ledger rows: `7596-ab-delta-median-pct`, `7596-ab-delta-mean-pct`,
-  `7596-ab-delta-sd-pct`, `7596-null-delta-sd-pct`, and `7596-null-delta-mean-pct`.
+  Ledger rows: `7650-select-lat-delta-median-pct`,
+  `7650-select-lat-delta-mean-pct`, `7650-select-lat-delta-sd-pct`,
+  `7650-write-lat-delta-median-pct`, `7650-write-lat-delta-mean-pct`,
+  `7650-write-lat-delta-sd-pct`, `7650-select-null-lat-sd-pct`, and
+  `7650-write-null-lat-sd-pct`.
 
 Three more Compose stacks get these settings through `extends` of the base
 postgres service: `docker-compose.e2e.yaml`, `docker-compose.demo.corpus.yaml`,
@@ -183,11 +198,18 @@ when you compare it with a baseline from before the change.
 
 Measure again on your own hardware before you rely on the figure: start two
 servers with the same data, one with the [server settings](#server-settings),
-alternate `pgbench -S` runs between them, and include a null pair.
+alternate fixed-work `pgbench` runs (`-t` transactions, one client, compare
+`latency average`) between them, include a null pair, and record nothing
+while the host is busy.
 
-`track_io_timing` is not part of that measurement. It adds a clock read to every
-block read, and it is off in the Compose stacks. Run `pg_test_timing` and measure
-before you turn it on.
+`track_io_timing` stays off in the Compose stacks. Eshu measured it separately:
+six select-only rounds of the with-module server against the same server with
+`track_io_timing = on`, median latency change 0.00 percent (rounds 3-6
+identical; rounds 1-2 are a warmup transient). `pg_test_timing` in the
+measurement container reports 24.32 ns per loop, so the clock is fast there.
+Ledger rows: `7650-iotiming-lat-delta-median-pct` and
+`7650-pg-test-timing-ns`. With only six rounds it stays an opt-in setting:
+run `pg_test_timing` and measure on your own hardware before you turn it on.
 
 ## Latency Gate
 
