@@ -14,6 +14,6 @@ Production filter cleanup lives in the sibling `filters` package.
 
 ## Contents
 
-- `fixtures.go` — `FixtureConfigParserRow` / `FixtureConfigResourcesArray`
+- `fixtures.go` — `ConfigParserRow` / `ConfigResourcesArray`
   (parser `terraform_resources` row shape) and `PadQueueFakeRow`
   (queue-fake width adaptation for newer scan shapes). Test use only.

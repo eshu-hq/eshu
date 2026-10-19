@@ -17,7 +17,7 @@ import (
 // array. This helper mirrors fixtureConfigResourcesArray for the prior-gen
 // shape.
 func fixturePriorConfigAddressesArray(rows ...string) []byte {
-	return fixtures.FixtureConfigResourcesArray(rows...)
+	return fixtures.ConfigResourcesArray(rows...)
 }
 
 func TestPostgresDriftEvidenceLoaderPriorConfigDeclarationActivatesRemovedFromConfig(t *testing.T) {
@@ -55,7 +55,7 @@ func TestPostgresDriftEvidenceLoaderPriorConfigDeclarationActivatesRemovedFromCo
 			// 7. prior-config addresses walk. The prior gen DID declare this address.
 			{rows: [][]any{{
 				"gen-a1",
-				fixturePriorConfigAddressesArray(fixtures.FixtureConfigParserRow("aws_iam_policy", "legacy")),
+				fixturePriorConfigAddressesArray(fixtures.ConfigParserRow("aws_iam_policy", "legacy")),
 			}}},
 			// 8. prior-generation terraform_modules walk: no module calls in this fixture.
 			{rows: [][]any{}},
@@ -166,7 +166,7 @@ func TestPostgresDriftEvidenceLoaderPriorConfigOutsideDepthWindowLeavesFlagFalse
 			// prior-config walk with depth=1: most recent prior gen has no entry for this address.
 			{rows: [][]any{{
 				"gen-a1",
-				fixturePriorConfigAddressesArray(fixtures.FixtureConfigParserRow("aws_iam_role", "unrelated")),
+				fixturePriorConfigAddressesArray(fixtures.ConfigParserRow("aws_iam_role", "unrelated")),
 			}}},
 			// prior-generation terraform_modules walk: no module calls in this fixture.
 			{rows: [][]any{}},

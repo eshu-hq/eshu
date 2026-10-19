@@ -89,7 +89,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderAzureStateCaseInsensitiveJo
 			{rows: [][]any{}},
 			// Config-side terraform_resources rows: empty, so the Azure address is
 			// not declared and the joined resource reads as unmanaged.
-			{rows: [][]any{{fixtures.FixtureConfigResourcesArray()}}},
+			{rows: [][]any{{fixtures.ConfigResourcesArray()}}},
 		},
 	}
 	resolver := &stubAWSRuntimeDriftConfigResolver{

@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-// TestFixtureConfigParserRowShape pins the parser row shape both drift-evidence
+// TestConfigParserRowShape pins the parser row shape both drift-evidence
 // families share: one copy here, imported at every use site.
-func TestFixtureConfigParserRowShape(t *testing.T) {
-	row := FixtureConfigParserRow("aws_instance", "web")
+func TestConfigParserRowShape(t *testing.T) {
+	row := ConfigParserRow("aws_instance", "web")
 	for _, want := range []string{
 		`"name":"aws_instance.web"`,
 		`"resource_type":"aws_instance"`,
@@ -20,12 +20,12 @@ func TestFixtureConfigParserRowShape(t *testing.T) {
 		`"lang":"hcl"`,
 	} {
 		if !strings.Contains(row, want) {
-			t.Errorf("FixtureConfigParserRow() = %s, missing %s", row, want)
+			t.Errorf("ConfigParserRow() = %s, missing %s", row, want)
 		}
 	}
-	arr := FixtureConfigResourcesArray(row, row)
+	arr := ConfigResourcesArray(row, row)
 	if !strings.HasPrefix(string(arr), "[") || !strings.HasSuffix(string(arr), "]") {
-		t.Errorf("FixtureConfigResourcesArray() = %s, want JSON array shape", arr)
+		t.Errorf("ConfigResourcesArray() = %s, want JSON array shape", arr)
 	}
 }
 

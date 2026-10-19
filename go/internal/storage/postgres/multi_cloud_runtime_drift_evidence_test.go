@@ -80,7 +80,7 @@ func TestPostgresMultiCloudRuntimeDriftEvidenceLoaderJoinsObservedStateConfigByU
 			// Config-side terraform_resources rows. Only the Azure managed state
 			// address is declared; GCP stays cloud+state without config.
 			{rows: [][]any{{
-				fixtures.FixtureConfigResourcesArray(fixtures.FixtureConfigParserRow("azurerm_virtual_machine", "managed")),
+				fixtures.ConfigResourcesArray(fixtures.ConfigParserRow("azurerm_virtual_machine", "managed")),
 			}}},
 		},
 	}

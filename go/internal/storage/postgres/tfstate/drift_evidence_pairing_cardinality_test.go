@@ -283,7 +283,7 @@ func TestLoadDriftEvidencePairsSpuriousMismatchAcrossModuleResolutionFailure(t *
 			// 2. terraform_resources: a real resource physically declared
 			//    under that same directory. The loader emits it at the
 			//    fallback ROOT address "aws_instance.web".
-			{rows: [][]any{{fixtures.FixtureConfigResourcesArray(
+			{rows: [][]any{{fixtures.ConfigResourcesArray(
 				fixtureConfigParserRowAtPath("aws_instance", "web", "terraform-aws-modules/vpc/aws/main.tf"),
 			)}}},
 			// 3. snapshot serial=0.

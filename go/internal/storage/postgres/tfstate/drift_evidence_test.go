@@ -63,7 +63,7 @@ func TestPostgresDriftEvidenceLoaderConfigOnlyAddress(t *testing.T) {
 			{rows: [][]any{}},
 			// 2. config-side query: one terraform_resources file with one entry.
 			{rows: [][]any{{
-				fixtures.FixtureConfigResourcesArray(fixtures.FixtureConfigParserRow("aws_iam_role", "svc")),
+				fixtures.ConfigResourcesArray(fixtures.ConfigParserRow("aws_iam_role", "svc")),
 			}}},
 			// 3. current snapshot lookup: serial=0 (no prior possible).
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 0, "gen-state-current")}},
@@ -174,7 +174,7 @@ func TestPostgresDriftEvidenceLoaderPriorGenerationFetched(t *testing.T) {
 			{rows: [][]any{}},
 			// config-side: lambda still declared.
 			{rows: [][]any{{
-				fixtures.FixtureConfigResourcesArray(fixtures.FixtureConfigParserRow("aws_lambda_function", "worker")),
+				fixtures.ConfigResourcesArray(fixtures.ConfigParserRow("aws_lambda_function", "worker")),
 			}}},
 			// snapshot: serial=5 (prior possible).
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 5, "gen-state-current")}},
@@ -233,7 +233,7 @@ func TestPostgresDriftEvidenceLoaderLineageRotationFlagged(t *testing.T) {
 			// terraform_modules walk (#169): no module calls in this fixture.
 			{rows: [][]any{}},
 			{rows: [][]any{{
-				fixtures.FixtureConfigResourcesArray(fixtures.FixtureConfigParserRow("aws_lambda_function", "worker")),
+				fixtures.ConfigResourcesArray(fixtures.ConfigParserRow("aws_lambda_function", "worker")),
 			}}},
 			// snapshot: lineage-2 current.
 			{rows: [][]any{fixtureSnapshotRow("lineage-2", 5, "gen-state-current")}},

@@ -91,7 +91,7 @@ func TestPostgresAWSCloudRuntimeDriftEvidenceLoaderJoinsCloudStateAndConfig(t *t
 			// Config-side terraform_resources rows. Only the managed state
 			// address is declared; unmanaged stays cloud+state without config.
 			{rows: [][]any{{
-				fixtures.FixtureConfigResourcesArray(fixtures.FixtureConfigParserRow("aws_s3_bucket", "managed")),
+				fixtures.ConfigResourcesArray(fixtures.ConfigParserRow("aws_s3_bucket", "managed")),
 			}}},
 		},
 	}
