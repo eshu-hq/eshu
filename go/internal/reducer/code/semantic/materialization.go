@@ -199,6 +199,7 @@ func (h Handler) Handle(
 		rowsAttemptedByLabel:    writeResult.RowsAttemptedByLabel,
 		rowsMatchedByLabel:      writeResult.RowsMatchedByLabel,
 		unmatchedUIDCount:       len(writeResult.UnmatchedEntityIDs),
+		failed:                  unmatched,
 		skipRetract:             skipRetract,
 		deltaProjection:         deltaScope.Delta,
 		deltaFileCount:          len(deltaScope.FilePaths),
@@ -234,6 +235,7 @@ type semanticEntityMaterializationTiming struct {
 	rowsAttemptedByLabel    map[string]int
 	rowsMatchedByLabel      map[string]int
 	unmatchedUIDCount       int
+	failed                  bool
 	skipRetract             bool
 	deltaProjection         bool
 	deltaFileCount          int
@@ -263,6 +265,7 @@ func logSemanticEntityMaterializationCompleted(
 		slog.Any("rows_attempted_by_label", timing.rowsAttemptedByLabel),
 		slog.Any("rows_matched_by_label", timing.rowsMatchedByLabel),
 		slog.Int("unmatched_uid_count", timing.unmatchedUIDCount),
+		slog.Bool("failed", timing.failed),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Bool("delta_projection", timing.deltaProjection),
 		slog.Int("delta_file_count", timing.deltaFileCount),

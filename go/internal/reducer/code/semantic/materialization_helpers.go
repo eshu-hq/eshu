@@ -52,6 +52,16 @@ func (e *semanticEntityIdentityDivergentError) FailureClass() string {
 	return string(projfailure.TriageClassProjectionBug)
 }
 
+// Retryable reports that an identity-divergent uid is terminal: the
+// projector provably never derives it, so replaying the item unchanged can
+// never succeed and it must dead-letter, not re-enter the queue. Explicit
+// rather than relying on the IsRetryable default, matching FactDecodeError,
+// so the poison-pill reasoning stays visible on the type if retry semantics
+// ever change.
+func (e *semanticEntityIdentityDivergentError) Retryable() bool {
+	return false
+}
+
 func newSemanticEntityIdentityDivergentError(writeResult EntityWriteResult) error {
 	uids := writeResult.UnmatchedEntityIDs
 	shown, truncated := truncateSemanticUIDsForReport(uids)
