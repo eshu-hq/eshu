@@ -34,9 +34,6 @@ const (
 	// SecretsIAMIdentityTrustChainFactKind identifies one reducer-owned
 	// identity trust-chain read-model fact.
 	SecretsIAMIdentityTrustChainFactKind = secretsIAMIdentityTrustChainFactKind
-	// SecretsIAMSecretAccessPathFactKind identifies one reducer-owned secret
-	// access-path read-model fact.
-	SecretsIAMSecretAccessPathFactKind = secretsIAMSecretAccessPathFactKind
 )
 
 // PostgresSecretsIAMTrustChainWriter stores secrets/IAM reducer read models in
