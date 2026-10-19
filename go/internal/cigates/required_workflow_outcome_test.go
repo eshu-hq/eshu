@@ -35,6 +35,7 @@ const fixtureCaseBlock = `          case "${AGGREGATE_CODE}" in
             10) state=failure; description='A required gate failed' ;;
             11) exit 0 ;;
             13) state=error; description='A required gate was cancelled' ;;
+            14) state=success; description='Reuse: verdict copied from a previous head' ;;
             *) state=error; description='Aggregation broke' ;;
           esac
 `
@@ -61,7 +62,7 @@ func realShapedPublisher(t *testing.T, lead, arm string) string {
               0) state=success; description='All gates passed' ;;
               10) state=failure; description='A required gate failed' ;;
               11) exit 0 ;;
-` + arm + `              *) state=error; description='Aggregation broke' ;;
+` + arm + reusedArm + `              *) state=error; description='Aggregation broke' ;;
             esac
           fi
 `
@@ -75,6 +76,11 @@ func realShapedPublisher(t *testing.T, lead, arm string) string {
 // cancelledArm is the arm the real workflow ships, in realShapedPublisher's
 // indentation.
 const cancelledArm = "              13) state=error; description='A required gate was cancelled' ;;\n"
+
+// reusedArm is the #8617 arm the real workflow ships alongside the
+// cancelled arm. realShapedPublisher always carries it, so the publisher
+// contract's reuse row is exercised against every attack shape below.
+const reusedArm = "              14) state=success; description='Reuse: verdict copied from a previous head' ;;\n"
 
 // injectBeforePublish puts lines between the publisher's branch and its `gh`
 // call -- the gap round 3 closed with a textual anchor and round 4 walked

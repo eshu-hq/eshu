@@ -33,6 +33,12 @@ const (
 	awaitExitStillRunningCode  = 11
 	awaitExitBrokenCode        = 12
 	awaitExitGateCancelledCode = 13
+	// awaitExitReusedCode is the #8617 step-4b outcome: the verdict was
+	// transferred from a tree-identical previous head instead of freshly
+	// produced. It publishes success, but its description must never read
+	// the same as a fresh pass, or a copied verdict becomes
+	// indistinguishable from gates that just ran.
+	awaitExitReusedCode = 14
 )
 
 // validateTerminalPublisher checks the terminal required-status step: that it

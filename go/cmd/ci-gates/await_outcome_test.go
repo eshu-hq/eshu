@@ -85,9 +85,14 @@ func TestAwaitOutcomeForAggregationBreakage(t *testing.T) {
 func TestAwaitOutcomeForReuse(t *testing.T) {
 	t.Parallel()
 
-	got := classifyAwaitOutcome(errReuseProven)
+	// Production wraps the sentinel (await.go annotates source and tree),
+	// so pin the wrapped shape: a bare-%v wrap that dropped the chain
+	// would misclassify reuse as broken here instead of staying green in
+	// a test that only feeds the bare sentinel.
+	wrapped := fmt.Errorf("%w: source abc123 tree def456", errReuseProven)
+	got := classifyAwaitOutcome(wrapped)
 	if got != awaitOutcomeReused {
-		t.Fatalf("classifyAwaitOutcome(errReuseProven) = %v, want %v", got, awaitOutcomeReused)
+		t.Fatalf("classifyAwaitOutcome(wrapped reuse) = %v, want %v", got, awaitOutcomeReused)
 	}
 	if got.exitCode() != 14 {
 		t.Fatalf("reused exit code = %d, want 14", got.exitCode())

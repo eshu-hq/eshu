@@ -43,7 +43,10 @@
 // (#6189) -- CANCELLED, STALE, SKIPPED because the workflow run that owned the
 // job was cancelled, or MISSING because that run was cancelled before the job
 // was created at all. That is infrastructure state, not a gate result, so
-// it publishes `error`. A gate GitHub skipped for its own reasons is NOT in
+// it publishes `error`. 14 is the #8617 tree-identical reuse outcome: the
+// verdict was transferred from a previous head, so it publishes `success`
+// with a description that names the transfer instead of claiming a fresh
+// run. A gate GitHub skipped for its own reasons is NOT in
 // that set and still publishes `failure`; separating the two is the one thing
 // await needs the `actions: read` scope for, and a failed lookup keeps the
 // skip a failure. With --event merge_group, Await instead aggregates a

@@ -105,6 +105,7 @@ func TestPublisherMirrorsEveryAwaitExitCode(t *testing.T) {
 		"awaitExitStillRunningCode":  awaitExitStillRunning,
 		"awaitExitBrokenCode":        awaitExitBroken,
 		"awaitExitGateCancelledCode": awaitExitGateCancelled,
+		"awaitExitReusedCode":        awaitExitReused,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

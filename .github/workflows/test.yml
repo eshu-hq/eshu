@@ -110,8 +110,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          echo "reuse=false" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           (cd go && go build -o "${RUNNER_TEMP}/ci-gates-bin" ./cmd/ci-gates)
@@ -120,7 +120,9 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --pr "${PR_NUMBER}" \
             --head-sha "${HEAD_SHA}" | tee "${RUNNER_TEMP}/reuse.out" || true
-          grep -E '^(reuse|source_sha|tree)=' "${RUNNER_TEMP}/reuse.out" >> "$GITHUB_OUTPUT" || true
+          if ! grep -E '^(reuse|source_sha|tree)=' "${RUNNER_TEMP}/reuse.out" >> "$GITHUB_OUTPUT"; then
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
+          fi
   markdown-file-cap:
     needs: queue-selection
     runs-on: ubuntu-latest
