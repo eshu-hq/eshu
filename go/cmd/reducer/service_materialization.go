@@ -5,6 +5,7 @@ package main
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
@@ -35,12 +36,12 @@ func reducerBeginner(database db.ExecQueryer) db.Beginner {
 // generation lineage writer (#1943) over the shared reducer database. When the
 // database does not expose a transaction beginner the writer is nil, so the
 // service-catalog correlation handler keeps its existing behavior unchanged.
-func serviceMaterializationWriterFor(database db.ExecQueryer) reducer.ServiceMaterializationWriter {
+func serviceMaterializationWriterFor(database db.ExecQueryer) servicecatalog.ServiceMaterializationWriter {
 	beginner := reducerBeginner(database)
 	if beginner == nil {
 		return nil
 	}
-	return reducer.PostgresServiceMaterializationWriter{
+	return servicecatalog.PostgresServiceMaterializationWriter{
 		DB: postgres.ServiceMaterializationBeginner{Beginner: beginner},
 	}
 }
@@ -72,7 +73,7 @@ func containerImageIdentityWriterFor(
 // prior service evidence families.
 func serviceDocumentationEvidenceLoaderFor(
 	database db.ExecQueryer,
-) reducer.ServiceScopedDocumentationEvidenceLoader {
+) servicecatalog.ServiceScopedDocumentationEvidenceLoader {
 	if database == nil {
 		return nil
 	}
@@ -86,7 +87,7 @@ func serviceDocumentationEvidenceLoaderFor(
 // families.
 func serviceIncidentEvidenceLoaderFor(
 	database db.ExecQueryer,
-) reducer.ServiceScopedIncidentEvidenceLoader {
+) servicecatalog.ServiceScopedIncidentEvidenceLoader {
 	if database == nil {
 		return nil
 	}

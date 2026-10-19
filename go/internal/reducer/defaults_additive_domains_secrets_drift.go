@@ -6,6 +6,7 @@ package reducer
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 )
 
 // appendSecretsAndDriftAdditiveDomains registers the secrets/IAM trust and
@@ -18,8 +19,8 @@ import (
 // not runtime-observable.
 func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handlers DefaultHandlers) []DomainDefinition {
 	if handlers.SecretsIAMTrustChainEvidenceLoader != nil && handlers.SecretsIAMTrustChainWriter != nil {
-		secretsIAM := secretsIAMTrustChainDomainDefinition()
-		secretsIAM.Handler = SecretsIAMTrustChainHandler{
+		secretsIAM := secretsiam.TrustChainDomainDefinition()
+		secretsIAM.Handler = secretsiam.SecretsIAMTrustChainHandler{
 			EvidenceLoader: handlers.SecretsIAMTrustChainEvidenceLoader,
 			Writer:         handlers.SecretsIAMTrustChainWriter,
 			Instruments:    handlers.Instruments,
@@ -27,8 +28,8 @@ func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handle
 		definitions = append(definitions, secretsIAM)
 	}
 	if handlers.FactLoader != nil && handlers.SecretsIAMGraphWriter != nil {
-		secretsIAMGraph := secretsIAMGraphProjectionDomainDefinition()
-		secretsIAMGraph.Handler = SecretsIAMGraphProjectionHandler{
+		secretsIAMGraph := secretsiam.GraphProjectionDomainDefinition()
+		secretsIAMGraph.Handler = secretsiam.SecretsIAMGraphProjectionHandler{
 			FactLoader:           handlers.FactLoader,
 			Writer:               handlers.SecretsIAMGraphWriter,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,

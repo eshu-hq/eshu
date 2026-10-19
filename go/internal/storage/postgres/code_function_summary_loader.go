@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/code"
 )
 
-// LoadCodeFunctionSummaryFacts implements reducer.CodeFunctionSummaryLoader by
+// LoadCodeFunctionSummaryFacts implements summary.Loader by
 // scanning the raw code_function_summary fact envelopes for one scope
 // generation. The reducer handler decodes them through the typed contracts
 // seam (ExtractEffects /
@@ -26,7 +26,7 @@ func (s FactStore) LoadCodeFunctionSummaryFacts(
 	return s.ListFactsByKind(ctx, scopeID, generationID, []string{code.FunctionSummaryFactKind})
 }
 
-// LoadCodeFunctionGraphIDFacts implements reducer.CodeFunctionGraphIDLoader by
+// LoadCodeFunctionGraphIDFacts implements summary.GraphIDLoader by
 // scanning the same raw code_function_summary fact envelopes
 // LoadCodeFunctionSummaryFacts returns; the reducer handler derives the
 // FunctionID->graph-uid map from them. It is a distinct method so the graph-id

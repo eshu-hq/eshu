@@ -42,15 +42,17 @@
 // WithQuarantineWriter, which Service stashes on the execution context,
 // the factload stanza of compat_decode.go's FactLoader, which internal/storage/cypher's
 // edge/writer/unusable_delta_fail_closed_test.go names to type its
-// materialization-handler test harness, and the secrets stanza of
-// compat_projection.go's SecretsIAMGraphWriter and PostgresSecretsIAMTrustChainWriter, which
-// cmd/reducer wires, SecretsIAMEndpointNotReadyFailureClass and
-// SecretsIAMTrustChainLoadStats, which internal/storage/postgres' readiness
-// claim gate and evidence loader name, and SecretsIAMGraphProjectionHandler,
-// which internal/replay/costcounting's cost test constructs, and
-// the iam-escalation stanza of compat_projection.go's
-// IAMEscalationNodesNotReadyFailureClass, which
-// internal/storage/postgres' readiness claim gate also names.
+// materialization-handler test harness, and the retired secrets stanza of
+// compat_projection.go (secretsiam.SecretsIAMGraphWriter and
+// secretsiam.PostgresSecretsIAMTrustChainWriter, which cmd/reducer wires,
+// secretsiam.SecretsIAMEndpointNotReadyFailureClass and
+// secretsiam.SecretsIAMTrustChainLoadStats, which internal/storage/postgres'
+// readiness claim gate and evidence loader name, and
+// secretsiam.SecretsIAMGraphProjectionHandler, which
+// internal/replay/costcounting's cost test constructs), and the retired
+// iam-escalation stanza of compat_projection.go
+// (iamescalation.IAMEscalationNodesNotReadyFailureClass, which
+// internal/storage/postgres' readiness claim gate also names).
 // ParseDomain accepts the known reducer validation identifiers, including the
 // three reserved non-registrable identifiers. Shared-projection constants
 // remain runner names and are not admitted into the durable queue.
@@ -273,17 +275,17 @@
 // IncidentRoutingEvidence graph rows only for safe declared/applied/live
 // convergence or live-only no-IaC routing evidence; unsafe routing outcomes
 // remain provenance-only.
-// PostgresServiceMaterializationWriter commits the additive per-service
+// servicecatalog.PostgresServiceMaterializationWriter commits the additive per-service
 // evidence generation lineage (#1943, #1985, #1986, #1987, #1988, #1989) the service-scope
 // changed-since delta diffs: one active service_materialization_generations row
 // per service_id (conflict key service_id, single active row enforced by a
 // partial unique index) plus generation-stable service_evidence_snapshots rows
 // keyed by a generation-independent service_evidence_key. Each generation
 // snapshots every evidence family the writer knows: ownership
-// (ServiceEvidenceFamilyOwnership, keyed by ServiceOwnershipEvidenceKey),
+// (servicecatalog.ServiceEvidenceFamilyOwnership, keyed by servicecatalog.ServiceOwnershipEvidenceKey),
 // deployment (servicecatalog.ServiceEvidenceFamilyDeployment, keyed by ServiceDeploymentEvidenceKey
 // over the resolved deployment relationship's generation-independent natural
-// key), runtime (ServiceEvidenceFamilyRuntime, keyed by ServiceRuntimeEvidenceKey
+// key), runtime (servicecatalog.ServiceEvidenceFamilyRuntime, keyed by servicecatalog.ServiceRuntimeEvidenceKey
 // over the durable platform/environment/workload identity of each materialized
 // runtime instance), and dependencies (servicecatalog.ServiceEvidenceFamilyDependencies, keyed
 // by ServiceDependencyEvidenceKey over the resolved dependency relationship's
@@ -305,7 +307,7 @@
 // generation-bearing FactID). The generation id is deterministic in the full
 // evidence set, so an identical re-materialization is a no-op and a change in any
 // family flips the generation; a dropped evidence row is tombstoned, never
-// silently absent. It is wired into ServiceCatalogCorrelationHandler as an
+// silently absent. It is wired into servicecatalog.ServiceCatalogCorrelationHandler as an
 // optional MaterializationWriter (with an optional corpus-fenced
 // DeploymentRelationshipLoader feeding both the deployment and dependencies
 // families from one bounded load read before any write, deferring with

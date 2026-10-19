@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 // runtimeInstanceGraphStub answers the loader's two scalar queries: the
@@ -251,10 +252,10 @@ func TestServiceCatalogHandlerMaterializesRuntimeFromGraphReads(t *testing.T) {
 		},
 	}
 	materialization := newFakeServiceMaterializationStore()
-	handler := ServiceCatalogCorrelationHandler{
+	handler := servicecatalog.ServiceCatalogCorrelationHandler{
 		FactLoader:            loader,
 		Writer:                &recordingServiceCatalogCorrelationWriter{},
-		MaterializationWriter: PostgresServiceMaterializationWriter{DB: materialization, Now: time.Now},
+		MaterializationWriter: servicecatalog.PostgresServiceMaterializationWriter{DB: materialization, Now: time.Now},
 		RuntimeInstanceLoader: GraphServiceRuntimeInstanceLoader{Graph: graph},
 	}
 
@@ -268,7 +269,7 @@ func TestServiceCatalogHandlerMaterializesRuntimeFromGraphReads(t *testing.T) {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
 
-	wantInstance := ServiceRuntimeInstance{
+	wantInstance := servicecatalog.ServiceRuntimeInstance{
 		PlatformKind: "kubernetes",
 		Environment:  "prod",
 		WorkloadRef:  "workload-instance:checkout:prod",
@@ -277,7 +278,7 @@ func TestServiceCatalogHandlerMaterializesRuntimeFromGraphReads(t *testing.T) {
 	var foundRuntime bool
 	for _, rows := range materialization.snapshots {
 		for _, row := range rows {
-			if !strings.HasPrefix(row.evidenceKey, ServiceEvidenceFamilyRuntime+":") {
+			if !strings.HasPrefix(row.evidenceKey, servicecatalog.ServiceEvidenceFamilyRuntime+":") {
 				continue
 			}
 			foundRuntime = true
@@ -285,7 +286,7 @@ func TestServiceCatalogHandlerMaterializesRuntimeFromGraphReads(t *testing.T) {
 				t.Fatalf("runtime evidence key %q embeds a generation-bearing token", row.evidenceKey)
 			}
 			// The service id is the correlated service entity ref.
-			wantKey = ServiceRuntimeEvidenceKey(serviceIDFromKey(row.evidenceKey), wantInstance)
+			wantKey = servicecatalog.ServiceRuntimeEvidenceKey(serviceIDFromKey(row.evidenceKey), wantInstance)
 			if row.evidenceKey != wantKey {
 				t.Fatalf("runtime evidence key = %q, want graph-derived %q", row.evidenceKey, wantKey)
 			}
@@ -300,7 +301,7 @@ func TestServiceCatalogHandlerMaterializesRuntimeFromGraphReads(t *testing.T) {
 // runtime:<service_id>:<identity> evidence key so the test can recompute the
 // expected key without hardcoding the correlation's service id derivation.
 func serviceIDFromKey(evidenceKey string) string {
-	rest := strings.TrimPrefix(evidenceKey, ServiceEvidenceFamilyRuntime+":")
+	rest := strings.TrimPrefix(evidenceKey, servicecatalog.ServiceEvidenceFamilyRuntime+":")
 	// identity begins at platform_kind ("kubernetes:prod:workload-instance:...");
 	// the service id is everything before that durable identity prefix.
 	marker := ":kubernetes:"
@@ -330,10 +331,10 @@ func TestServiceCatalogHandlerEmitsNoRuntimeWhenGraphEmpty(t *testing.T) {
 	// Graph has no WorkloadInstance nodes for the repo: the loader returns none.
 	graph := &runtimeInstanceGraphStub{}
 	materialization := newFakeServiceMaterializationStore()
-	handler := ServiceCatalogCorrelationHandler{
+	handler := servicecatalog.ServiceCatalogCorrelationHandler{
 		FactLoader:            loader,
 		Writer:                &recordingServiceCatalogCorrelationWriter{},
-		MaterializationWriter: PostgresServiceMaterializationWriter{DB: materialization, Now: time.Now},
+		MaterializationWriter: servicecatalog.PostgresServiceMaterializationWriter{DB: materialization, Now: time.Now},
 		RuntimeInstanceLoader: GraphServiceRuntimeInstanceLoader{Graph: graph},
 	}
 
@@ -349,10 +350,10 @@ func TestServiceCatalogHandlerEmitsNoRuntimeWhenGraphEmpty(t *testing.T) {
 	var sawRuntime, sawOwnership bool
 	for _, rows := range materialization.snapshots {
 		for _, row := range rows {
-			if strings.HasPrefix(row.evidenceKey, ServiceEvidenceFamilyRuntime+":") {
+			if strings.HasPrefix(row.evidenceKey, servicecatalog.ServiceEvidenceFamilyRuntime+":") {
 				sawRuntime = true
 			}
-			if strings.HasPrefix(row.evidenceKey, ServiceEvidenceFamilyOwnership+":") {
+			if strings.HasPrefix(row.evidenceKey, servicecatalog.ServiceEvidenceFamilyOwnership+":") {
 				sawOwnership = true
 			}
 		}

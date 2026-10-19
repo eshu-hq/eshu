@@ -111,7 +111,7 @@ func supplyChainSummary(subject ReportSubject, count int) string {
 
 // IncidentRecord is the minimal durable, service-scoped incident evidence the
 // report's incidents_support section needs. Callers map their source records (for
-// example the durable reducer.ServiceIncidentRecord loaded via the
+// example the durable servicecatalog.ServiceIncidentRecord loaded via the
 // incident-repository correlation join) onto it, so this package stays decoupled
 // from the storage and reducer layers and never reclassifies the join.
 type IncidentRecord struct {

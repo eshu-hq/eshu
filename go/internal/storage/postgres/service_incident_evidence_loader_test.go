@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
@@ -202,7 +202,7 @@ func TestServiceIncidentEvidenceForServicesBoundedNonPositiveLimitIsNoOp(t *test
 	}
 }
 
-var _ reducer.ServiceScopedIncidentEvidenceLoader = ServiceIncidentEvidenceLoader{}
+var _ servicecatalog.ServiceScopedIncidentEvidenceLoader = ServiceIncidentEvidenceLoader{}
 
 func jsonTagNameForField[T any](t *testing.T, fieldName string) string {
 	t.Helper()

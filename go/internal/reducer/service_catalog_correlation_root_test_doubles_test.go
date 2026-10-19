@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 // This file is a local copy of test fixtures and doubles the
@@ -64,17 +65,17 @@ func (s *stubServiceCatalogCorrelationFactLoader) ListActiveRepositoryFacts(
 // recordingServiceCatalogCorrelationWriter is a local copy of
 // internal/reducer/servicecatalog's own fixture.
 type recordingServiceCatalogCorrelationWriter struct {
-	write ServiceCatalogCorrelationWrite
+	write servicecatalog.ServiceCatalogCorrelationWrite
 	calls int
 }
 
 func (w *recordingServiceCatalogCorrelationWriter) WriteServiceCatalogCorrelations(
 	_ context.Context,
-	write ServiceCatalogCorrelationWrite,
-) (ServiceCatalogCorrelationWriteResult, error) {
+	write servicecatalog.ServiceCatalogCorrelationWrite,
+) (servicecatalog.ServiceCatalogCorrelationWriteResult, error) {
 	w.calls++
 	w.write = write
-	return ServiceCatalogCorrelationWriteResult{
+	return servicecatalog.ServiceCatalogCorrelationWriteResult{
 		FactsWritten: len(write.Decisions),
 	}, nil
 }
@@ -82,16 +83,16 @@ func (w *recordingServiceCatalogCorrelationWriter) WriteServiceCatalogCorrelatio
 // fakeServiceScopedIncidentLoader is a local copy of
 // internal/reducer/servicecatalog's own fixture.
 type fakeServiceScopedIncidentLoader struct {
-	byService map[string][]ServiceIncidentRecord
+	byService map[string][]servicecatalog.ServiceIncidentRecord
 	calls     int
 }
 
 func (f *fakeServiceScopedIncidentLoader) GetIncidentEvidenceForServices(
 	_ context.Context,
 	serviceIDs []string,
-) (map[string][]ServiceIncidentRecord, error) {
+) (map[string][]servicecatalog.ServiceIncidentRecord, error) {
 	f.calls++
-	out := map[string][]ServiceIncidentRecord{}
+	out := map[string][]servicecatalog.ServiceIncidentRecord{}
 	for _, serviceID := range serviceIDs {
 		out[serviceID] = f.byService[serviceID]
 	}
@@ -203,7 +204,7 @@ func newFakeServiceMaterializationStore() *fakeServiceMaterializationStore {
 
 func (f *fakeServiceMaterializationStore) BeginServiceMaterializationTx(
 	context.Context,
-) (ServiceMaterializationTx, error) {
+) (servicecatalog.ServiceMaterializationTx, error) {
 	return &fakeServiceMaterializationTx{store: f}, nil
 }
 
@@ -227,13 +228,13 @@ func (t *fakeServiceMaterializationTx) ExecContext(
 		// UPDATE, mirroring the single-active-per-service ordering the SQL enforces.
 		t.store.generations[generationID] = &fakeServiceGeneration{
 			serviceID: serviceID,
-			status:    ServiceMaterializationStatusPending,
+			status:    servicecatalog.ServiceMaterializationStatusPending,
 		}
 		return fakeServiceMaterializationResult{affected: 1}, nil
 	case strings.Contains(query, "SET status = 'active'"):
 		generationID := args[1].(string)
-		if gen, ok := t.store.generations[generationID]; ok && gen.status == ServiceMaterializationStatusPending {
-			gen.status = ServiceMaterializationStatusActive
+		if gen, ok := t.store.generations[generationID]; ok && gen.status == servicecatalog.ServiceMaterializationStatusPending {
+			gen.status = servicecatalog.ServiceMaterializationStatusActive
 			return fakeServiceMaterializationResult{affected: 1}, nil
 		}
 		return fakeServiceMaterializationResult{affected: 0}, nil
@@ -253,12 +254,12 @@ func (t *fakeServiceMaterializationTx) QueryRowContext(
 	_ context.Context,
 	_ string,
 	args ...any,
-) ServiceMaterializationRow {
+) servicecatalog.ServiceMaterializationRow {
 	serviceID := args[0].(string)
 	newGeneration := args[1].(string)
 	for id, gen := range t.store.generations {
-		if gen.serviceID == serviceID && gen.status == ServiceMaterializationStatusActive && id != newGeneration {
-			gen.status = ServiceMaterializationStatusSuperseded
+		if gen.serviceID == serviceID && gen.status == servicecatalog.ServiceMaterializationStatusActive && id != newGeneration {
+			gen.status = servicecatalog.ServiceMaterializationStatusSuperseded
 			return fakeServiceMaterializationRow{value: id}
 		}
 	}

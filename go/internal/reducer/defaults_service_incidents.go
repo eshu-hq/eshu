@@ -3,6 +3,10 @@
 
 package reducer
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
+)
+
 // serviceCatalogIncidentEvidenceLoader returns the service-scoped incident
 // routing evidence loader used to materialize the service incidents evidence
 // family (#1989), or nil when the family cannot be sourced. The family is only
@@ -11,7 +15,7 @@ package reducer
 // and never blocks the ownership/deployment/runtime/dependencies/docs lineage.
 func serviceCatalogIncidentEvidenceLoader(
 	handlers DefaultHandlers,
-) ServiceScopedIncidentEvidenceLoader {
+) servicecatalog.ServiceScopedIncidentEvidenceLoader {
 	if handlers.ServiceMaterializationWriter == nil || handlers.ServiceIncidentEvidenceLoader == nil {
 		return nil
 	}

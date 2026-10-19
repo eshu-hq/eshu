@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/serviceintel"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -164,13 +164,13 @@ func (f fakeCatalogResolver) ResolveCatalogServiceID(context.Context, string) (s
 }
 
 type fakeEvidenceLoader struct {
-	byService map[string][]reducer.ServiceIncidentRecord
+	byService map[string][]servicecatalog.ServiceIncidentRecord
 	err       error
 	gotIDs    []string
 	gotLimit  int
 }
 
-func (f *fakeEvidenceLoader) GetIncidentEvidenceForServicesBounded(_ context.Context, serviceIDs []string, rowLimit int) (map[string][]reducer.ServiceIncidentRecord, error) {
+func (f *fakeEvidenceLoader) GetIncidentEvidenceForServicesBounded(_ context.Context, serviceIDs []string, rowLimit int) (map[string][]servicecatalog.ServiceIncidentRecord, error) {
 	f.gotIDs = serviceIDs
 	f.gotLimit = rowLimit
 	return f.byService, f.err
@@ -179,7 +179,7 @@ func (f *fakeEvidenceLoader) GetIncidentEvidenceForServicesBounded(_ context.Con
 func TestDurableIncidentEvidenceSourceResolvesLoadsAndMaps(t *testing.T) {
 	t.Parallel()
 
-	loader := &fakeEvidenceLoader{byService: map[string][]reducer.ServiceIncidentRecord{
+	loader := &fakeEvidenceLoader{byService: map[string][]servicecatalog.ServiceIncidentRecord{
 		"component:default/checkout": {
 			{Provider: "pagerduty", ProviderIncidentID: "INC-1", TruthLabel: "exact"},
 			{Provider: "pagerduty", ProviderIncidentID: "INC-2", TruthLabel: "exact"},

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 )
 
@@ -53,7 +53,7 @@ func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *t
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], reducer.SecretsIAMEndpointNotReadyFailureClass; got != want {
+	if got, want := db.execs[0].args[1], secretsiam.SecretsIAMEndpointNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	// Exponential backoff (#4450): AttemptCount=42 (a non-counting readiness
@@ -143,5 +143,5 @@ func (secretsIAMEndpointNotReadyTestError) Retryable() bool {
 }
 
 func (secretsIAMEndpointNotReadyTestError) FailureClass() string {
-	return reducer.SecretsIAMEndpointNotReadyFailureClass
+	return secretsiam.SecretsIAMEndpointNotReadyFailureClass
 }

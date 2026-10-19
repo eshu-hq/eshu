@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -100,7 +100,7 @@ func TestDeployableConfigGoldenFixtureProducesExactRepoLocalCorrelation(t *testi
 		}
 	}
 
-	decisions := reducer.BuildServiceCatalogCorrelationDecisions(envelopes)
+	decisions := servicecatalog.BuildServiceCatalogCorrelationDecisions(envelopes)
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("correlation decision count = %d, want %d", got, want)
 	}
@@ -122,8 +122,8 @@ func TestDeployableConfigGoldenFixtureProducesExactRepoLocalCorrelation(t *testi
 			t.Errorf("decision %s = %q, want %q", field, got, want)
 		}
 	}
-	if decision.Outcome != reducer.ServiceCatalogCorrelationExact {
-		t.Errorf("decision Outcome = %q, want %q", decision.Outcome, reducer.ServiceCatalogCorrelationExact)
+	if decision.Outcome != servicecatalog.ServiceCatalogCorrelationExact {
+		t.Errorf("decision Outcome = %q, want %q", decision.Outcome, servicecatalog.ServiceCatalogCorrelationExact)
 	}
 	if decision.ProvenanceOnly {
 		t.Error("decision ProvenanceOnly = true, want false after exact repository admission")
@@ -139,13 +139,13 @@ func TestDeployableConfigGoldenFixtureProducesExactRepoLocalCorrelation(t *testi
 	}
 	goldenRequireEvidenceFactIDs(t, decision.EvidenceFactIDs, entity.FactID, ownership.FactID, repositoryFacts[0].FactID)
 
-	withoutRepository := reducer.BuildServiceCatalogCorrelationDecisions(goldenFactsWithoutKind(envelopes, "repository"))
+	withoutRepository := servicecatalog.BuildServiceCatalogCorrelationDecisions(goldenFactsWithoutKind(envelopes, "repository"))
 	if got, want := len(withoutRepository), 1; got != want {
 		t.Fatalf("correlation decision count without repository evidence = %d, want %d", got, want)
 	}
 	unresolved := withoutRepository[0]
-	if unresolved.Outcome != reducer.ServiceCatalogCorrelationUnresolved {
-		t.Errorf("decision without repository evidence Outcome = %q, want %q", unresolved.Outcome, reducer.ServiceCatalogCorrelationUnresolved)
+	if unresolved.Outcome != servicecatalog.ServiceCatalogCorrelationUnresolved {
+		t.Errorf("decision without repository evidence Outcome = %q, want %q", unresolved.Outcome, servicecatalog.ServiceCatalogCorrelationUnresolved)
 	}
 	if !unresolved.ProvenanceOnly {
 		t.Error("decision without repository evidence ProvenanceOnly = false, want true")

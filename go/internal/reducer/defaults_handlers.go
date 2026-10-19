@@ -6,8 +6,11 @@ package reducer
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/function/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
@@ -211,7 +214,7 @@ type CrossplaneHandlers struct {
 type SupplyChainSecurityHandlers struct {
 	// SBOMAttestationAttachmentWriter persists SBOM and attestation document
 	// attachment decisions for digest-keyed image evidence.
-	SBOMAttestationAttachmentWriter SBOMAttestationAttachmentWriter
+	SBOMAttestationAttachmentWriter sbomattest.SBOMAttestationAttachmentWriter
 
 	// SupplyChainImpactWriter persists vulnerability impact findings with
 	// explicit package, SBOM, image, and repository evidence paths.
@@ -232,11 +235,11 @@ type SupplyChainSecurityHandlers struct {
 	// SecretsIAMTrustChainEvidenceLoader loads the bounded AWS IAM,
 	// Kubernetes, and Vault source-fact packet used by the secrets/IAM reducer
 	// read-model domain.
-	SecretsIAMTrustChainEvidenceLoader SecretsIAMTrustChainEvidenceLoader
+	SecretsIAMTrustChainEvidenceLoader secretsiam.SecretsIAMTrustChainEvidenceLoader
 
 	// SecretsIAMTrustChainWriter persists identity-trust-chain,
 	// privilege-posture, secret-access-path, and posture-gap reducer facts.
-	SecretsIAMTrustChainWriter SecretsIAMTrustChainWriter
+	SecretsIAMTrustChainWriter secretsiam.SecretsIAMTrustChainWriter
 
 	// SecretsIAMGraphWriter projects exact reducer-owned secrets/IAM
 	// read-model rows (identity_trust_chain, secret_access_path) into the four
@@ -247,7 +250,7 @@ type SupplyChainSecurityHandlers struct {
 	// It defaults to nil: live graph writes stay OFF until the target-bound
 	// activation record binds approval to one deployment and captures flag-on
 	// proof before cmd/reducer's opt-in flag is set.
-	SecretsIAMGraphWriter SecretsIAMGraphWriter
+	SecretsIAMGraphWriter secretsiam.SecretsIAMGraphWriter
 
 	// EndpointPresenceWriter records uid-exact presence for committed
 	// CloudResource and KubernetesWorkload nodes so the cross-scope secrets/IAM
@@ -341,34 +344,34 @@ type CodeEvidenceHandlers struct {
 	// CodeFunctionSummaryLoader loads value-flow Effects from
 	// code_function_summary facts. Non-nil alongside the writer to register
 	// DomainCodeFunctionSummary.
-	CodeFunctionSummaryLoader CodeFunctionSummaryLoader
+	CodeFunctionSummaryLoader summary.Loader
 
 	// CodeFunctionSummaryWriter persists the resolved function-summary snapshot to
 	// the durable store for cross-repo composition.
-	CodeFunctionSummaryWriter CodeFunctionSummaryWriter
+	CodeFunctionSummaryWriter summary.Writer
 
 	// CodeFunctionSourceLoader loads param-level taint sources from
 	// code_function_source facts. Optional; when present alongside the source
 	// writer, the function-summary handler also persists sources.
-	CodeFunctionSourceLoader CodeFunctionSourceLoader
+	CodeFunctionSourceLoader summary.SourceLoader
 
 	// CodeFunctionSourceWriter persists param-level taint sources to the durable
 	// store for the cross-repo fixpoint.
-	CodeFunctionSourceWriter CodeFunctionSourceWriter
+	CodeFunctionSourceWriter summary.SourceWriter
 
 	// CodeFunctionGraphIDLoader loads the FunctionID->graph-uid map from
 	// code_function_summary facts. Optional; when present alongside the graph-id
 	// writer, the function-summary handler also persists the uid map.
-	CodeFunctionGraphIDLoader CodeFunctionGraphIDLoader
+	CodeFunctionGraphIDLoader summary.GraphIDLoader
 
 	// CodeFunctionGraphIDWriter persists the FunctionID->graph-uid map to the
 	// durable store for the cross-repo fixpoint's TAINT_FLOWS_TO projection.
-	CodeFunctionGraphIDWriter CodeFunctionGraphIDWriter
+	CodeFunctionGraphIDWriter summary.GraphIDWriter
 
 	// ValueFlowFixpointProjector projects durable value-flow fixpoint findings.
 	// Fed only to the #6785 refresh singleton (code_function_summary stopped
 	// solving it inline in issue #6923).
-	ValueFlowFixpointProjector ValueFlowFixpointProjector
+	ValueFlowFixpointProjector summary.ValueFlowFixpointProjector
 
 	// ValueFlowInputsLiveness answers the #6923 value-flow refresh singleton's
 	// pre-load fence: whether every active-generation writer of the

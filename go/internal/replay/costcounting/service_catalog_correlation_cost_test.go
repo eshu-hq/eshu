@@ -11,7 +11,7 @@ import (
 
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 // serviceCatalogCorrelationBudgetRelPath is the committed cost budget for the
@@ -35,21 +35,21 @@ const serviceCatalogCorrelationCostIntentID = "intent-service-catalog-correlatio
 // ci_cd_run_correlation/sbom_attestation_attachment already use, so two
 // decisions fit in one 1000-row chunk and cost exactly one ExecContext
 // round-trip.
-func serviceCatalogCorrelationFixtureDecisions() []reducer.ServiceCatalogCorrelationDecision {
-	row := func(id string) reducer.ServiceCatalogCorrelationDecision {
-		return reducer.ServiceCatalogCorrelationDecision{
+func serviceCatalogCorrelationFixtureDecisions() []servicecatalog.ServiceCatalogCorrelationDecision {
+	row := func(id string) servicecatalog.ServiceCatalogCorrelationDecision {
+		return servicecatalog.ServiceCatalogCorrelationDecision{
 			Provider:     "backstage",
 			EntityRef:    "component:default/api-" + id,
 			EntityType:   "component",
 			DisplayName:  "api-" + id,
 			RepositoryID: "repo:team-api-" + id,
 			ServiceID:    "service:api-" + id,
-			Outcome:      reducer.ServiceCatalogCorrelationExact,
+			Outcome:      servicecatalog.ServiceCatalogCorrelationExact,
 			Lifecycle:    "production",
 			Tier:         "1",
 		}
 	}
-	return []reducer.ServiceCatalogCorrelationDecision{row("a"), row("b")}
+	return []servicecatalog.ServiceCatalogCorrelationDecision{row("a"), row("b")}
 }
 
 // TestCostBudget_ServiceCatalogCorrelation is the positive cost-counting gate
@@ -73,12 +73,12 @@ func TestCostBudget_ServiceCatalogCorrelation(t *testing.T) {
 	budget := loadBudgetFrom(t, serviceCatalogCorrelationBudgetRelPath)
 	fake := &countingExecQueryer{}
 	db, reader := newInstrumentedReducerDB(t, fake)
-	writer := reducer.PostgresServiceCatalogCorrelationWriter{
+	writer := servicecatalog.PostgresServiceCatalogCorrelationWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
-	result, err := writer.WriteServiceCatalogCorrelations(context.Background(), reducer.ServiceCatalogCorrelationWrite{
+	result, err := writer.WriteServiceCatalogCorrelations(context.Background(), servicecatalog.ServiceCatalogCorrelationWrite{
 		IntentID:     serviceCatalogCorrelationCostIntentID,
 		ScopeID:      "repo:team-api",
 		GenerationID: "generation-service-catalog-correlation-cost",
@@ -151,19 +151,19 @@ func TestCostBudget_ServiceCatalogCorrelation_N1_ExceedsBudget(t *testing.T) {
 
 	fake := &countingExecQueryer{}
 	db, reader := newInstrumentedReducerDB(t, fake)
-	writer := reducer.PostgresServiceCatalogCorrelationWriter{
+	writer := servicecatalog.PostgresServiceCatalogCorrelationWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
 	for _, decision := range decisions {
-		if _, err := writer.WriteServiceCatalogCorrelations(context.Background(), reducer.ServiceCatalogCorrelationWrite{
+		if _, err := writer.WriteServiceCatalogCorrelations(context.Background(), servicecatalog.ServiceCatalogCorrelationWrite{
 			IntentID:     serviceCatalogCorrelationCostIntentID,
 			ScopeID:      "repo:team-api",
 			GenerationID: "generation-service-catalog-correlation-cost",
 			SourceSystem: "backstage",
 			Cause:        "reducer/service_catalog_correlation",
-			Decisions:    []reducer.ServiceCatalogCorrelationDecision{decision},
+			Decisions:    []servicecatalog.ServiceCatalogCorrelationDecision{decision},
 		}); err != nil {
 			t.Fatalf("N+1 WriteServiceCatalogCorrelations() error = %v", err)
 		}

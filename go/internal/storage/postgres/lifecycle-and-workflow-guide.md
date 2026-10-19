@@ -449,7 +449,7 @@ compatibility handoff cannot complete.
 `service_materialization_generations` is the per-service generation lineage and
 `service_evidence_snapshots` the generation-stable evidence snapshot the
 service-scope changed-since delta diffs. The reducer commits them through
-`reducer.PostgresServiceMaterializationWriter` (over the instrumented reducer DB
+`servicecatalog.PostgresServiceMaterializationWriter` (over the instrumented reducer DB
 via `ServiceMaterializationBeginner`); the read path is
 `StatusStore.ComputeServiceChangedSinceDelta`. This is additive: the existing
 `reducer_service_catalog_correlation` fact and its `stable_fact_key` are

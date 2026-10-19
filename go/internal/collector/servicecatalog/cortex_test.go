@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 func cortexContext() FixtureContext {
@@ -281,13 +281,13 @@ func TestCortexManifestReducerRoundTrip(t *testing.T) {
 		activeRepositoryFact("repo-ledger", "https://github.com/eshu-hq/ledger.git", false),
 	}
 
-	decisions := reducer.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
+	decisions := servicecatalog.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
 	byEntity := decisionsByEntity(decisions)
 
-	assertOutcome(t, byEntity, "service:cortex/checkout-api", reducer.ServiceCatalogCorrelationExact)
-	assertOutcome(t, byEntity, "service:cortex/ledger", reducer.ServiceCatalogCorrelationDerived)
-	assertOutcome(t, byEntity, "service:cortex/notifications", reducer.ServiceCatalogCorrelationUnresolved)
-	assertOutcome(t, byEntity, "service:cortex/search", reducer.ServiceCatalogCorrelationRejected)
+	assertOutcome(t, byEntity, "service:cortex/checkout-api", servicecatalog.ServiceCatalogCorrelationExact)
+	assertOutcome(t, byEntity, "service:cortex/ledger", servicecatalog.ServiceCatalogCorrelationDerived)
+	assertOutcome(t, byEntity, "service:cortex/notifications", servicecatalog.ServiceCatalogCorrelationUnresolved)
+	assertOutcome(t, byEntity, "service:cortex/search", servicecatalog.ServiceCatalogCorrelationRejected)
 
 	// Non-over-admission: provenance-only entities never carry canonical ids.
 	for _, ref := range []string{"service:cortex/notifications", "service:cortex/search"} {
@@ -306,7 +306,7 @@ func TestCortexManifestReducerRoundTrip(t *testing.T) {
 	}
 
 	// Dependency facts are carried but must not change the entity outcome.
-	if byEntity["service:cortex/checkout-api"].Outcome != reducer.ServiceCatalogCorrelationExact {
+	if byEntity["service:cortex/checkout-api"].Outcome != servicecatalog.ServiceCatalogCorrelationExact {
 		t.Fatalf("dependency facts must not alter checkout-api outcome")
 	}
 }
@@ -328,11 +328,11 @@ func TestCortexManifestStaleAndAmbiguous(t *testing.T) {
 		activeRepositoryFact("repo-ledger", "https://github.com/eshu-hq/ledger.git", true),
 	}
 
-	decisions := reducer.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
+	decisions := servicecatalog.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...))
 	byEntity := decisionsByEntity(decisions)
 
-	assertOutcome(t, byEntity, "service:cortex/checkout-api", reducer.ServiceCatalogCorrelationAmbiguous)
-	assertOutcome(t, byEntity, "service:cortex/ledger", reducer.ServiceCatalogCorrelationStale)
+	assertOutcome(t, byEntity, "service:cortex/checkout-api", servicecatalog.ServiceCatalogCorrelationAmbiguous)
+	assertOutcome(t, byEntity, "service:cortex/ledger", servicecatalog.ServiceCatalogCorrelationStale)
 }
 
 func TestCortexManifestPartialDocumentsWarnNotDrop(t *testing.T) {

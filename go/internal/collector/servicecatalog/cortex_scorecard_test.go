@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 // TestCortexScorecardEnvelopesEmitsCarriedFacts proves the scorecard descriptor
@@ -71,9 +71,9 @@ func TestCortexScorecardResultsDoNotChangeCorrelation(t *testing.T) {
 		activeRepositoryFact("repo-checkout", "https://github.com/eshu-hq/checkout-api", false),
 	}
 
-	withoutScorecards := decisionsByEntity(reducer.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...)))
+	withoutScorecards := decisionsByEntity(servicecatalog.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...)))
 	combined := append(append([]facts.Envelope{}, catalog...), scorecards...)
-	withScorecards := decisionsByEntity(reducer.BuildServiceCatalogCorrelationDecisions(append(combined, repos...)))
+	withScorecards := decisionsByEntity(servicecatalog.BuildServiceCatalogCorrelationDecisions(append(combined, repos...)))
 
 	if len(withoutScorecards) != len(withScorecards) {
 		t.Fatalf("scorecard facts changed decision count: %d vs %d", len(withoutScorecards), len(withScorecards))

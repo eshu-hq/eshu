@@ -105,10 +105,9 @@ type GraphIDWriter interface {
 
 // ValueFlowFixpointProjector projects durable cross-repo value-flow findings.
 // Retained here (rather than removed with #6923's inline solve, below) only
-// because go/internal/reducer/compat_decode.go aliases it as the root
-// reducer.ValueFlowFixpointProjector type, which
-// defaults_handlers.go.ValueFlowFixpointProjector and
-// go/cmd/reducer/value_flow_wiring.go still depend on to feed the #6785
+// because defaults_handlers.go's ValueFlowFixpointProjector field and
+// go/cmd/reducer/value_flow_wiring.go still name this interface directly as
+// summary.ValueFlowFixpointProjector to feed the #6785
 // refresh singleton (code/value/refresh.Handler.Fixpoint). This Handler no
 // longer holds a field of this type: the summary handler stopped solving
 // inline and became the fifth refresh producer instead (issue #6923).

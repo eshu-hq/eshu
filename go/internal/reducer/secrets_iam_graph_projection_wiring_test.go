@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -99,7 +100,7 @@ func TestAppendAdditiveDomainsWiresSecretsIAMGraphProjection(t *testing.T) {
 	if !ok {
 		t.Fatal("secrets_iam_graph_projection not registered when FactLoader and writer are wired")
 	}
-	handler, ok := def.Handler.(SecretsIAMGraphProjectionHandler)
+	handler, ok := def.Handler.(secretsiam.SecretsIAMGraphProjectionHandler)
 	if !ok {
 		t.Fatalf("handler type = %T, want SecretsIAMGraphProjectionHandler", def.Handler)
 	}

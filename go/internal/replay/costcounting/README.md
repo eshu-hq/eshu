@@ -31,9 +31,9 @@ graph writer:
 | `incident_routing_materialization` | `incident_routing_evidence_cost_test.go` | `storage/cypher.IncidentRoutingEvidenceWriter` | `eshu_dp_neo4j_batches_executed_total` |
 | `container_image_identity` | `container_image_identity_cost_test.go` | `reducer.PostgresContainerImageIdentityWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `ci_cd_run_correlation` | `ci_cd_run_correlation_cost_test.go` | `reducer.PostgresCICDRunCorrelationWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
-| `sbom_attestation_attachment` | `sbom_attestation_attachment_cost_test.go` | `reducer.PostgresSBOMAttestationAttachmentWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `sbom_attestation_attachment` | `sbom_attestation_attachment_cost_test.go` | `sbomattest.PostgresSBOMAttestationAttachmentWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `cloud_asset_resolution` | `cloud_asset_resolution_cost_test.go` | `reducer/cloudasset.PostgresCloudAssetResolutionWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
-| `service_catalog_correlation` | `service_catalog_correlation_cost_test.go` | `reducer.PostgresServiceCatalogCorrelationWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `service_catalog_correlation` | `service_catalog_correlation_cost_test.go` | `servicecatalog.PostgresServiceCatalogCorrelationWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `security_alert_reconciliation` | `security_alert_reconciliation_cost_test.go` | `reducer/securityalert.PostgresSecurityAlertReconciliationWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `supply_chain_impact` | `supply_chain_impact_cost_test.go` | `reducer.PostgresSupplyChainImpactWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `incident_repository_correlation` | `incident_repository_correlation_cost_test.go` | `reducer/incident.PostgresIncidentRepositoryCorrelationWriter` (per-row, exact budget) | `eshu_dp_postgres_query_duration_seconds` (observation count) |

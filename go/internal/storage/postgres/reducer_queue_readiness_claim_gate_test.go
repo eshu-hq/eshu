@@ -13,6 +13,8 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
@@ -197,7 +199,7 @@ var readinessClassOwningDomain = map[string]string{
 	// Handler-only gate — no row in reducerClaimReadinessRequirementsSQL. This
 	// is the entry whose absence made the known-gap set look complete when it
 	// was not.
-	reducer.SecretsIAMEndpointNotReadyFailureClass: string(reducer.DomainSecretsIAMGraphProjection),
+	secretsiam.SecretsIAMEndpointNotReadyFailureClass: string(reducer.DomainSecretsIAMGraphProjection),
 
 	// Deliberately owned by NO single domain: this is the shared readiness a
 	// consumer in any domain returns while a producer in another scope is still
@@ -244,8 +246,8 @@ var readinessClassOwningDomain = map[string]string{
 	// scope's cloud_resource_uid claim row. The awaited endpoint lives in
 	// another scope (sibling-service targets, repository WorkloadInstance), so
 	// no claim-time row can express it; the handler defer is bounded instead.
-	reducer.IAMCanPerformTargetNotReadyFailureClass: string(reducer.DomainIAMCanPerformMaterialization),
-	workloadinstance.NotReadyFailureClass:           string(reducer.DomainWorkloadCloudRelationshipMaterialization),
+	iamcan.IAMCanPerformTargetNotReadyFailureClass: string(reducer.DomainIAMCanPerformMaterialization),
+	workloadinstance.NotReadyFailureClass:          string(reducer.DomainWorkloadCloudRelationshipMaterialization),
 	// #6887: the cloud-resource retract's admission-drain fence. Returned by
 	// the aws_, gcp_ and azure_resource_materialization handlers alike, and
 	// the awaited condition is deployment-wide (no scope's active generation
