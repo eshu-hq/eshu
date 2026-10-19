@@ -79,9 +79,9 @@ Diff audit: filtering out qualifier swaps leaves only import blocks, the
 deleted alias file, the hand fixes above, the guard, the docs, and this
 note. Any other non-scripted hunk is a review finding.
 
-Deliberate remainders: the Repair family (above); 20 `docs/` records
-still quoting retired spellings in prose (18 `docs/internal`
-design/evidence/architecture-review records plus ledger-style prose in
+Deliberate remainders: the Repair family (above); 16 `docs/` records
+still quoting retired spellings in prose (14 `docs/internal`
+design/evidence records plus ledger-style prose in
 `docs/public/observability/telemetry-coverage.md` and
 `docs/public/reference/azure-cloud-collector-contract.md`) — all
 historical, immutable. 9 struct fields in the three touched structs
