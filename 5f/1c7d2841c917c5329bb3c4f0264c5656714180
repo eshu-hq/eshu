@@ -1,0 +1,24 @@
+go/internal/reducer/compat_alias_retirement_bucket4_test.go
+  h_78a442cba0b3e6 1-91
+go/internal/reducer/compat_cloud.go
+  h_78a442cba0b3e6 255-258
+go/internal/reducer/evidence-6626-batch6-bucket4-k8s-correlation.md
+  h_78a442cba0b3e6 1-64
+go/internal/reducer/kubernetes_correlation_readiness_seam_test.go
+  h_78a442cba0b3e6 149-150
+go/internal/storage/postgres/reducer_queue_kubernetes_correlation_readiness_test.go
+  h_78a442cba0b3e6 18,146,193
+go/internal/storage/postgres/reducer_queue_readiness_sql.go
+  h_78a442cba0b3e6 19,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5f1c7d2841c917c5329bb3c4f0264c5656714180",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
