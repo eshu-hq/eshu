@@ -178,10 +178,10 @@ func (h Handler) Handle(
 	// are deterministic, never races: the projector provably never derives
 	// that uid (canonical projection writes synchronously before this
 	// domain's intent is enqueued), so no retry can heal them. The error
-	// type carries no Retryable() method — IsRetryable defaults false —
-	// and reports the projection_bug triage class, so the queue
-	// dead-letters the item once as manual-review poison instead of
-	// retry-looping it. Matched rows already landed; the counts say how many.
+	// type's explicit Retryable() reports false and it reports the
+	// projection_bug triage class, so the queue dead-letters the item
+	// once as manual-review poison instead of retry-looping it. Matched
+	// rows already landed; the counts say how many.
 	unmatched := len(writeResult.UnmatchedEntityIDs) > 0
 	if unmatched {
 		logSemanticEntityUnmatchedUIDs(ctx, intent, writeResult)

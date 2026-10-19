@@ -30,10 +30,9 @@ func truncateSemanticUIDsForReport(uids []string) (shown []string, truncated int
 }
 
 // semanticEntityIdentityDivergentError is the non-retryable work-item failure
-// for admitted rows that matched no canonical node identity (#8587). It does
-// not implement Retryable(): reducercontract.IsRetryable defaults to false
-// for errors that do not opt in, so the queue dead-letters the item once
-// instead of retry-looping. That is the poison-pill guard: an
+// for admitted rows that matched no canonical node identity (#8587). Its
+// explicit Retryable() reports false, so the queue dead-letters the item
+// once instead of retry-looping. That is the poison-pill guard: an
 // identity-divergent uid can never heal on retry — the projector provably
 // never derives it — so any retry is pure waste. FailureClass reports the
 // projection_bug triage class so the telemetry failure_class attribute agrees
