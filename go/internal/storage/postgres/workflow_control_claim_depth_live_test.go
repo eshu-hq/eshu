@@ -71,9 +71,11 @@ SELECT
 // class), eight concurrent claimers: every key's first grant must land
 // within the first draws, not after the large backlog drains. The bound
 // keeps slack for the grants that can be in flight when Seq is assigned
-// (at most claimers-1): a key missing from the first 8 draws has
-// probability (4/5)^8 ≈ 2.6e-6 under the uniform rotation, so Seq 15 is a
-// failure, not noise.
+// (at most claimers-1): a given key misses the first N draws with
+// probability 0.8^N (≈ 0.17 at N=8, ≈ 0.035 at N=15, ≈ 1.5e-6 at N=60),
+// so the bound below is far above noise yet far below the ≈ 493 FIFO
+// floor. (Union bound: P(any of 5 keys missing from the first 60) <=
+// 5*0.8^60 ≈ 8e-6.)
 func TestWorkflowClaimDepthFairRotationServesSmallKeysEarly(t *testing.T) {
 	database, store, ctx, poolLimit := openClaimDepthHarness(t, claimDepthClaimers)
 	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
@@ -96,7 +98,7 @@ func TestWorkflowClaimDepthFairRotationServesSmallKeysEarly(t *testing.T) {
 	assertClaimDepthConcurrency(t, result, claimDepthClaimers)
 	assertClaimDepthExactlyOnce(t, seeded, result)
 
-	const fairFirstGrantSeqBound = int64(claimDepthClaimers + 7)
+	const fairFirstGrantSeqBound = int64(60)
 	first := claimDepthFirstByKey(result.Records)
 	assertClaimDepthMinGrantsPerOwner(t, result, claimDepthClaimers, 10)
 	// The anti-serialization gate from the claim-pacing design: a fairness

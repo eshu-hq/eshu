@@ -34,8 +34,10 @@ throwaway 18.6 container via `ESHU_POSTGRES_DSN`.
   `TestWorkflowFairClaim*`, `TestWorkflowClaimCandidateUsesFairClaimIndex`):
   eight claimers drain 580 skewed items exactly once at 490.6 claims/s
   (design floor 119; even 320-item drain 328.4/s, unregressed against the
-  315.5/s FIFO floor), every key first-granted at sequence <= 15 (small keys
-  previously at >= 493, first-claim latency 25.26 s down to 4-21 ms),
+  315.5/s FIFO floor), every key first-granted at sequence <= 15 in the
+  recorded run against the 60-draw gate bound (union-bound flake ≈ 8e-6;
+  small keys previously at >= 493, first-claim latency 25.26 s down to
+  4-21 ms),
   priority tiers drain strictly tier by tier, and a 40-claim fixed-salt
   lottery grants exactly the independently simulated draw sequence
   (9/6/9/10/6). No serialization: all eight backends pinned, minimum ten
