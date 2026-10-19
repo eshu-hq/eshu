@@ -1,0 +1,18 @@
+docs/internal/evidence/6694-semantic-registry-leaf.md
+  h_78a442cba0b3e6 47-58
+go/internal/storage/cypher/retrying_executor.go
+  h_78a442cba0b3e6 345-349
+go/internal/storage/cypher/semantic/entity/retryable_group_test.go
+  h_78a442cba0b3e6 113-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d303d44b299b5305cbdfaa9cceaec65195e0842c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
