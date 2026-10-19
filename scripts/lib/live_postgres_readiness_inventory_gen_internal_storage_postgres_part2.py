@@ -15,6 +15,8 @@ TABLE = {
             "TestWorkflowClaimPacingGlobalCeiling",
             "TestWorkflowClaimPacingIdleDrainHoldsFloor",
             "TestWorkflowClaimPacingEngagedDrainCompletesExactlyOnce",
+            "TestWorkflowClaimPacingSwitchPreservesEngagedAt",
+            "TestWorkflowClaimPacingDepthCacheReuse",
         ),
         "go/internal/storage/postgres/workflow_control_fair_claim_live_test.go": (
             "TestWorkflowFairClaimLotteryMatchesSimulatedDraw",

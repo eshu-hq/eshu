@@ -35,3 +35,8 @@ depth query never paces (fail open), so pacing on a missing reading cannot
 convert a metrics outage into an intake outage. The fail-open consult emits
 only a debug record (`pacing consult failed open`, naming the error), so a
 dead depth signal stays diagnosable without paging.
+
+The active gauge is process-local: after a restart it starts at 0, so a
+release with no matching engagement in this process reads -1 until the next
+transition. Latch truth stays correct in the shared row; only the gauge
+needs one transition to converge.

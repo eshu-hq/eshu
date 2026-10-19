@@ -8,6 +8,8 @@ package postgres
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"testing"
 	"time"
@@ -300,4 +302,176 @@ func TestWorkflowClaimPacingEngagedDrainCompletesExactlyOnce(t *testing.T) {
 	}
 	t.Logf("pacing-engaged drain items=%d claimers=%d duration=%s claims_per_second=%.1f paced_waits=%d backends=%v",
 		len(seeded), claimDepthClaimers, result.Duration, result.ClaimsPerSecond(), pacedWaits.count(), result.BackendPIDs)
+}
+
+// seedClaimPacingLatchRow plants one latch row through the production upsert
+// so switch tests start from an exact shared-storage state.
+func seedClaimPacingLatchRow(
+	t *testing.T,
+	database *sql.DB,
+	ctx context.Context,
+	signal, domain string,
+	engaged bool,
+	at, now time.Time,
+) {
+	t.Helper()
+	var engagedAt any
+	if engaged {
+		engagedAt = at.UTC()
+	}
+	if _, err := database.ExecContext(ctx, claimPacingLatchUpsert,
+		signal, domain, engaged, engagedAt, now.UTC()); err != nil {
+		t.Fatalf("seed latch row %s/%q: %v", signal, domain, err)
+	}
+}
+
+// readClaimPacingLatchRows returns every latch row keyed by signal/domain.
+func readClaimPacingLatchRows(
+	t *testing.T,
+	database *sql.DB,
+	ctx context.Context,
+) map[string]claimPacingLatchRow {
+	t.Helper()
+	rows, err := database.QueryContext(ctx,
+		`SELECT signal, domain, engaged, engaged_at FROM workflow_claim_pacing`)
+	if err != nil {
+		t.Fatalf("read latch rows: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]claimPacingLatchRow{}
+	for rows.Next() {
+		var signal, domain string
+		var engaged bool
+		var at sql.NullTime
+		if err := rows.Scan(&signal, &domain, &engaged, &at); err != nil {
+			t.Fatalf("scan latch row: %v", err)
+		}
+		if at.Valid {
+			out[signal+"/"+domain] = claimPacingLatchRow{engaged: engaged, engagedAt: at.Time}
+		} else {
+			out[signal+"/"+domain] = claimPacingLatchRow{engaged: engaged}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows latch rows: %v", err)
+	}
+	return out
+}
+
+// TestWorkflowClaimPacingSwitchPreservesEngagedAt proves a switch onto an
+// already-engaged latch row keeps its engaged_at: with the domain and global
+// rows both engaged, a consult that switches to global releases the domain
+// row but must not rewrite the global row's engagement start, or the stuck
+// bound restarts on every switch and a flap postpones stuck_total forever.
+func TestWorkflowClaimPacingSwitchPreservesEngagedAt(t *testing.T) {
+	database, store, ctx, _ := openClaimDepthHarness(t, 1)
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	keys := make([]claimDepthKeyBacklog, 0, 20)
+	for i := 0; i < 20; i++ {
+		keys = append(keys, claimDepthKeyBacklog{
+			FairnessKey: fmt.Sprintf("pacing:switch-%d", i),
+			Count:       30,
+		})
+	}
+	seedClaimDepthBacklog(t, store, ctx, "pacing-switch", base, keys)
+	cfg := testClaimPacingConfig()
+	// The shared instance carries 600 pending: raise the domain band so the
+	// seeded domain engagement releases on depth while the global ceiling
+	// holds, forcing the domain-to-global switch.
+	cfg.DomainHigh = 10000
+	cfg.DomainLow = 9000
+	cfg.MaxEngagement = time.Hour
+	selector := workflow.ClaimSelector{
+		CollectorKind:       scope.CollectorGit,
+		CollectorInstanceID: "claim-depth-instance",
+		OwnerID:             "pacing-owner",
+		ClaimID:             "pacing-claim-1",
+	}
+	now := time.Now().UTC()
+	globalAt := now.Add(-10 * time.Minute).Truncate(time.Second)
+	domainAt := now.Add(-5 * time.Minute).Truncate(time.Second)
+	seedClaimPacingLatchRow(t, database, ctx, "global", "", true, globalAt, now)
+	seedClaimPacingLatchRow(t, database, ctx, "domain", "git/claim-depth-instance", true, domainAt, now)
+
+	decision, err := store.CheckClaimPacing(ctx, selector, cfg, now)
+	if err != nil {
+		t.Fatalf("CheckClaimPacing() error = %v, want nil", err)
+	}
+	if !decision.Paced || decision.Signal != workflow.ClaimPacingSignalGlobal {
+		t.Fatalf("switch = %+v, want paced on global (domain cool, ceiling hot)", decision)
+	}
+	latch := readClaimPacingLatchRows(t, database, ctx)
+	global, ok := latch["global/"]
+	if !ok || !global.engaged {
+		t.Fatalf("global latch row = %+v, want engaged (switch must not release it)", global)
+	}
+	if !global.engagedAt.Equal(globalAt) {
+		t.Fatalf("global engaged_at = %s, want %s (switch must not restart the stuck bound)", global.engagedAt, globalAt)
+	}
+	if domain, ok := latch["domain/git/claim-depth-instance"]; !ok || domain.engaged {
+		t.Fatalf("domain latch row = %+v, want released (domain cooled below low)", domain)
+	}
+}
+
+// TestWorkflowClaimPacingDepthCacheReuse proves the depth cache contract:
+// within DepthCacheTTL a consult reuses the cached observation even as the
+// backlog grows, and past the TTL it reads fresh depth. A zero TTL would
+// pace the second consult, so the reuse assertion is sensitive to caching.
+func TestWorkflowClaimPacingDepthCacheReuse(t *testing.T) {
+	_, store, ctx, _ := openClaimDepthHarness(t, 1)
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	cfg := testClaimPacingConfig()
+	cfg.DepthCacheTTL = time.Second
+	selector := workflow.ClaimSelector{
+		CollectorKind:       scope.CollectorGit,
+		CollectorInstanceID: "claim-depth-instance",
+		OwnerID:             "pacing-owner",
+		ClaimID:             "pacing-claim-1",
+	}
+
+	// Quiet family: fills the cache with a below-low observation. The
+	// family must be present in the cached group-by for the hit branch to
+	// engage; an absent family misses into a fresh read by design.
+	seedClaimDepthBacklog(t, store, ctx, "pacing-cache-quiet", base,
+		[]claimDepthKeyBacklog{{FairnessKey: "pacing:quiet", Count: 10}})
+	first, err := store.CheckClaimPacing(ctx, selector, cfg, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("fill CheckClaimPacing() error = %v, want nil", err)
+	}
+	if first.Paced {
+		t.Fatalf("fill CheckClaimPacing() = %+v, want unpaced (quiet family)", first)
+	}
+
+	// Grow past the domain high within the TTL: the cached quiet
+	// observation still governs, so the grant claims normally.
+	seedClaimDepthBacklog(t, store, ctx, "pacing-cache", base,
+		[]claimDepthKeyBacklog{{FairnessKey: "pacing:hot", Count: 50}})
+	cached, err := store.CheckClaimPacing(ctx, selector, cfg, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("reuse CheckClaimPacing() error = %v, want nil", err)
+	}
+	if cached.Paced {
+		t.Fatalf("reuse CheckClaimPacing() = %+v, want unpaced (TTL observation still quiet)", cached)
+	}
+
+	// Past the TTL the fresh 60-deep observation paces on domain.
+	time.Sleep(3 * cfg.DepthCacheTTL)
+	fresh, err := store.CheckClaimPacing(ctx, selector, cfg, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("expiry CheckClaimPacing() error = %v, want nil", err)
+	}
+	if !fresh.Paced || fresh.Signal != workflow.ClaimPacingSignalDomain {
+		t.Fatalf("expiry CheckClaimPacing() = %+v, want paced on domain (fresh depth over high)", fresh)
+	}
+
+	// A family absent from the cache misses into a fresh read.
+	other := selector
+	other.CollectorInstanceID = "claim-depth-other"
+	miss, err := store.CheckClaimPacing(ctx, other, cfg, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("miss CheckClaimPacing() error = %v, want nil", err)
+	}
+	if miss.Paced {
+		t.Fatalf("miss CheckClaimPacing() = %+v, want unpaced (other family is empty)", miss)
+	}
 }

@@ -91,21 +91,39 @@ func (s *WorkflowControlStore) CheckClaimPacing(
 	if err != nil {
 		return workflow.ClaimPacingDecision{}, fmt.Errorf("claim pacing depths: %w", err)
 	}
-	latch, engagedAt, err := s.claimPacingLatch(ctx, domainKey)
+	latch, err := s.claimPacingLatch(ctx, domainKey)
 	if err != nil {
 		return workflow.ClaimPacingDecision{}, fmt.Errorf("claim pacing latch: %w", err)
 	}
 	var engagedFor time.Duration
-	if latch.Engaged && !engagedAt.IsZero() && now.After(engagedAt) {
-		engagedFor = now.Sub(engagedAt)
+	if latch.verdict.Engaged && !latch.engagedAt.IsZero() && now.After(latch.engagedAt) {
+		engagedFor = now.Sub(latch.engagedAt)
 	}
-	decision := workflow.DecideClaimPacing(cfg, depths, latch, engagedFor)
+	decision := workflow.DecideClaimPacing(cfg, depths, latch.verdict, engagedFor)
 	decision.Domain = pacingDecisionDomain(decision.Signal, domainKey)
-	if err := s.advanceClaimPacingLatch(ctx, domainKey, latch, engagedAt, decision, now); err != nil {
+	if err := s.advanceClaimPacingLatch(ctx, domainKey, latch, decision, now); err != nil {
 		return workflow.ClaimPacingDecision{}, fmt.Errorf("claim pacing latch advance: %w", err)
 	}
-	s.recordClaimPacing(ctx, domainKey, latch, decision)
+	s.recordClaimPacing(ctx, domainKey, latch.verdict, decision)
 	return decision, nil
+}
+
+// claimPacingLatchRow is one shared-storage latch row: whether the signal
+// is engaged and since when. A missing row reads as disengaged.
+type claimPacingLatchRow struct {
+	engaged   bool
+	engagedAt time.Time
+}
+
+// claimPacingLatchState is one consult's shared-storage latch read: the
+// collapsed verdict the pacing decision consumes (the domain row wins when
+// both claim engagement) plus every row the advance consults, so a switch
+// onto an already-engaged row keeps its engaged_at instead of restarting
+// the stuck bound.
+type claimPacingLatchState struct {
+	verdict   workflow.ClaimPacingLatch
+	engagedAt time.Time
+	rows      map[workflow.ClaimPacingSignal]claimPacingLatchRow
 }
 
 // recordClaimPacing emits the operator signals for one pacing verdict: the
@@ -241,12 +259,13 @@ func (s *WorkflowControlStore) claimPacingDepths(
 func (s *WorkflowControlStore) claimPacingLatch(
 	ctx context.Context,
 	domainKey string,
-) (workflow.ClaimPacingLatch, time.Time, error) {
-	latch := workflow.ClaimPacingLatch{}
-	var engagedAt time.Time
+) (claimPacingLatchState, error) {
+	state := claimPacingLatchState{
+		rows: map[workflow.ClaimPacingSignal]claimPacingLatchRow{},
+	}
 	rows, err := s.database.QueryContext(ctx, claimPacingLatchQuery, domainKey)
 	if err != nil {
-		return latch, engagedAt, err
+		return claimPacingLatchState{}, err
 	}
 	defer func() { _ = rows.Close() }()
 	for rows.Next() {
@@ -254,31 +273,40 @@ func (s *WorkflowControlStore) claimPacingLatch(
 		var engaged bool
 		var at sql.NullTime
 		if err := rows.Scan(&signal, &engaged, &at); err != nil {
-			return latch, engagedAt, err
+			return claimPacingLatchState{}, err
 		}
-		switch workflow.ClaimPacingSignal(signal) {
-		case workflow.ClaimPacingSignalDomain, workflow.ClaimPacingSignalGlobal:
+		var name workflow.ClaimPacingSignal
+		switch signal {
+		case string(workflow.ClaimPacingSignalDomain):
+			name = workflow.ClaimPacingSignalDomain
+		case string(workflow.ClaimPacingSignalGlobal):
+			name = workflow.ClaimPacingSignalGlobal
 		default:
 			continue
 		}
+		row := claimPacingLatchRow{engaged: engaged}
+		if at.Valid {
+			row.engagedAt = at.Time
+		}
+		state.rows[name] = row
 		if !engaged {
 			continue
 		}
 		// The domain row wins when both rows claim engagement: per-domain
 		// depth is consulted first, and the advance below converges the
 		// stale row back to disengaged.
-		if !latch.Engaged || workflow.ClaimPacingSignal(signal) == workflow.ClaimPacingSignalDomain {
-			latch.Engaged = true
-			latch.Signal = workflow.ClaimPacingSignal(signal)
+		if !state.verdict.Engaged || name == workflow.ClaimPacingSignalDomain {
+			state.verdict.Engaged = true
+			state.verdict.Signal = name
 			if at.Valid {
-				engagedAt = at.Time
+				state.engagedAt = at.Time
 			}
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return workflow.ClaimPacingLatch{}, time.Time{}, err
+		return claimPacingLatchState{}, err
 	}
-	return latch, engagedAt, nil
+	return state, nil
 }
 
 // advanceClaimPacingLatch writes the latch rows whose desired state changed.
@@ -287,8 +315,7 @@ func (s *WorkflowControlStore) claimPacingLatch(
 func (s *WorkflowControlStore) advanceClaimPacingLatch(
 	ctx context.Context,
 	domainKey string,
-	prior workflow.ClaimPacingLatch,
-	priorAt time.Time,
+	prior claimPacingLatchState,
 	decision workflow.ClaimPacingDecision,
 	now time.Time,
 ) error {
@@ -296,12 +323,8 @@ func (s *WorkflowControlStore) advanceClaimPacingLatch(
 	if decision.Paced {
 		desired[decision.Signal] = true
 	}
-	stored := map[workflow.ClaimPacingSignal]bool{}
-	if prior.Engaged {
-		stored[prior.Signal] = true
-	}
 	for _, signal := range []workflow.ClaimPacingSignal{workflow.ClaimPacingSignalDomain, workflow.ClaimPacingSignalGlobal} {
-		if desired[signal] == stored[signal] {
+		if desired[signal] == prior.rows[signal].engaged {
 			continue
 		}
 		domain := ""
@@ -311,6 +334,8 @@ func (s *WorkflowControlStore) advanceClaimPacingLatch(
 		// Writes happen only on transitions, so an engagement always
 		// starts its stuck bound here, and steady-state consults leave
 		// engaged_at alone. A re-engagement after release restarts it.
+		// A switch onto an already-engaged row is not a transition: the
+		// desired state matches storage, so no write restarts its bound.
 		var engagedAt any
 		if desired[signal] {
 			engagedAt = now.UTC()
