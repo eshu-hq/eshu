@@ -105,6 +105,12 @@ func openFingerprintReapLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	if err := ApplyDefinitions(ctx, SQLDB{DB: database}, definitions); err != nil {
 		t.Fatalf("apply isolated Postgres schema: %v", err)
 	}
+	// #7760 tagged content_files rows with generation_id (migration 169);
+	// the subset above predates it. Align the test table with the
+	// definition: TEXT NULL, no default, no foreign key (the 169 backfill
+	// needs ingestion_scopes/scope_generations, which this schema omits;
+	// test schemas start empty, so there is nothing to backfill).
+	mustExecLive(ctx, t, database, "ALTER TABLE content_files ADD COLUMN IF NOT EXISTS generation_id TEXT NULL")
 	for _, table := range []string{"content_entities", "code_function_fingerprint", "code_fingerprint_band"} {
 		mustExecLive(ctx, t, database, "ALTER TABLE "+table+" SET (autovacuum_enabled = false)")
 	}
