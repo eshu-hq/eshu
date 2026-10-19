@@ -122,6 +122,39 @@ func stripRetirementDiagnosticParams(stmt Statement) Statement {
 	return stmt
 }
 
+// TestStripRetirementDiagnosticParamsMirrorsLeaf pins the white-box fake's
+// stripRetirementDiagnosticParams to the phase/group leaf's
+// SanitizeStatementParameters rule (strip `_`-prefixed diagnostic keys, keep
+// real parameters). The test cannot import the leaf (the leaf imports this
+// package), so a future narrowing or widening of either rule must fail here
+// instead of silently diverging from the production Bolt executors.
+func TestStripRetirementDiagnosticParamsMirrorsLeaf(t *testing.T) {
+	t.Parallel()
+
+	stmt := Statement{Parameters: map[string]any{
+		"repo_id":         "r1",
+		"generation_id":   "g2",
+		"directory_paths": []string{"/a", "/b"},
+		"_phase":          "retract",
+		"_summary":        "phase=retract",
+	}}
+	got := stripRetirementDiagnosticParams(stmt)
+
+	for _, key := range []string{"_phase", "_summary"} {
+		if _, ok := got.Parameters[key]; ok {
+			t.Errorf("diagnostic key %q must be stripped, but it survived", key)
+		}
+	}
+	for _, key := range []string{"repo_id", "generation_id", "directory_paths"} {
+		if _, ok := got.Parameters[key]; !ok {
+			t.Errorf("real Cypher parameter %q must be preserved, but it was dropped", key)
+		}
+	}
+	if got.Cypher != stmt.Cypher || got.Operation != stmt.Operation {
+		t.Error("only Parameters may change; Cypher and Operation must pass through")
+	}
+}
+
 // retirementHarness captures the writer's JSON logs and metrics.
 type retirementHarness struct {
 	logs        *bytes.Buffer
