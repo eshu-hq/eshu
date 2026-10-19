@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // at cap: #6626 phase-bucket import add on a 500-line file; split out of scope for this rename
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 )
 
@@ -45,7 +46,7 @@ const deployableUnitCorrelationFallbackThreshold = 0.90
 type DeployableUnitCorrelationHandler struct {
 	FactLoader              FactLoader
 	ResolvedLoader          ResolvedRelationshipLoader
-	PhasePublisher          GraphProjectionPhasePublisher
+	PhasePublisher          gpphase.PhasePublisher
 	EdgeWriter              SharedProjectionEdgeWriter
 	AdmissionDecisionWriter admissiondecision.AdmissionDecisionWriter
 	AdmissionDecisionNow    func() time.Time
@@ -182,8 +183,8 @@ func (h DeployableUnitCorrelationHandler) Handle(
 			ctx,
 			h.PhasePublisher,
 			intent,
-			GraphProjectionKeyspaceDeployableUnitUID,
-			GraphProjectionPhaseDeployableUnitCorrelation,
+			gpphase.KeyspaceDeployableUnitUID,
+			gpphase.PhaseDeployableUnitCorrelation,
 			time.Now().UTC(),
 		); err != nil {
 			return reducercontract.Result{}, err
@@ -222,8 +223,8 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		ctx,
 		h.PhasePublisher,
 		intent,
-		GraphProjectionKeyspaceDeployableUnitUID,
-		GraphProjectionPhaseDeployableUnitCorrelation,
+		gpphase.KeyspaceDeployableUnitUID,
+		gpphase.PhaseDeployableUnitCorrelation,
 		time.Now().UTC(),
 	); err != nil {
 		return reducercontract.Result{}, err

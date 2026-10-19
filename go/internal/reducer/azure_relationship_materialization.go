@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -52,7 +53,7 @@ func AzureRelationshipEvidenceSource() string { return azureRelationshipEvidence
 type AzureRelationshipMaterializationHandler struct {
 	FactLoader           FactLoader
 	EdgeWriter           CloudResourceEdgeWriter
-	ReadinessLookup      GraphProjectionReadinessLookup
+	ReadinessLookup      gpphase.ReadinessLookup
 	PriorGenerationCheck PriorGenerationCheck
 	// Ledger records and enumerates source CloudResource uids of projected
 	// Azure relationship edges so retraction can enumerate uids from the
@@ -207,11 +208,11 @@ func (h AzureRelationshipMaterializationHandler) canonicalNodesReady(intent redu
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(intent, GraphProjectionKeyspaceCloudResourceUID, GraphProjectionPhaseCanonicalNodesCommitted, time.Now().UTC())
+	state, ok := graphProjectionPhaseStateForIntent(intent, gpphase.KeyspaceCloudResourceUID, gpphase.PhaseCanonicalNodesCommitted, time.Now().UTC())
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 

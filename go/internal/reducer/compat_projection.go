@@ -37,6 +37,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
@@ -400,9 +401,9 @@ func ProcessPartitionOnce(
 	edgeWriter SharedProjectionEdgeWriter,
 	acceptedGen AcceptedGenerationLookup,
 	prefetch AcceptedGenerationPrefetch,
-	readinessLookup GraphProjectionReadinessLookup,
-	readinessPrefetch GraphProjectionReadinessPrefetch,
-	endpointPresence EndpointPresenceLookup,
+	readinessLookup gpphase.ReadinessLookup,
+	readinessPrefetch gpphase.ReadinessPrefetch,
+	endpointPresence gpphase.EndpointPresenceLookup,
 	refreshFence worker.RefreshFenceLookup,
 	firstProjection FirstProjectionLookup,
 	unroutableWriter worker.UnroutableWriter,

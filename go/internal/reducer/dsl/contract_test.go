@@ -6,7 +6,7 @@ package dsl
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestDefaultRuntimeContract(t *testing.T) {
@@ -16,10 +16,10 @@ func TestDefaultRuntimeContract(t *testing.T) {
 	if err := contract.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v, want nil", err)
 	}
-	if got, want := contract.Checkpoints[0].Phase, reducer.GraphProjectionPhaseCrossSourceAnchorReady; got != want {
+	if got, want := contract.Checkpoints[0].Phase, gpphase.PhaseCrossSourceAnchorReady; got != want {
 		t.Fatalf("Checkpoints[0].Phase = %q, want %q", got, want)
 	}
-	if got, want := contract.Checkpoints[len(contract.Checkpoints)-1].Phase, reducer.GraphProjectionPhaseWorkloadMaterialization; got != want {
+	if got, want := contract.Checkpoints[len(contract.Checkpoints)-1].Phase, gpphase.PhaseWorkloadMaterialization; got != want {
 		t.Fatalf("last checkpoint phase = %q, want %q", got, want)
 	}
 }
@@ -30,15 +30,15 @@ func TestRuntimeContractTemplateReturnsClonedSlices(t *testing.T) {
 	contract := RuntimeContractTemplate()
 	contract.Components[0] = "mutated"
 	contract.Checkpoints[0] = PublishedCheckpoint{
-		Keyspace: reducer.GraphProjectionKeyspaceServiceUID,
-		Phase:    reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+		Keyspace: gpphase.KeyspaceServiceUID,
+		Phase:    gpphase.PhaseCanonicalNodesCommitted,
 	}
 
 	fresh := RuntimeContractTemplate()
 	if got, want := fresh.Components[0], "evaluator"; got != want {
 		t.Fatalf("fresh Components[0] = %q, want %q", got, want)
 	}
-	if got, want := fresh.Checkpoints[0].Phase, reducer.GraphProjectionPhaseCrossSourceAnchorReady; got != want {
+	if got, want := fresh.Checkpoints[0].Phase, gpphase.PhaseCrossSourceAnchorReady; got != want {
 		t.Fatalf("fresh Checkpoints[0].Phase = %q, want %q", got, want)
 	}
 }

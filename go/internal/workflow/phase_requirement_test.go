@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // TestPhaseRequirementValidate guards the #4459 DeadLetterDomain validation
@@ -28,8 +29,8 @@ func TestPhaseRequirementValidate(t *testing.T) {
 		{
 			name: "blank DeadLetterDomain is valid (not bridged)",
 			requirement: PhaseRequirement{
-				Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-				PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+				Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+				PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				Required:  true,
 			},
 			wantErr: false,
@@ -37,8 +38,8 @@ func TestPhaseRequirementValidate(t *testing.T) {
 		{
 			name: "known DeadLetterDomain is valid",
 			requirement: PhaseRequirement{
-				Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
-				PhaseName:        reducer.GraphProjectionPhaseDeploymentMapping,
+				Keyspace:         gpphase.KeyspaceServiceUID,
+				PhaseName:        gpphase.PhaseDeploymentMapping,
 				Required:         true,
 				DeadLetterDomain: reducer.DomainDeploymentMapping,
 			},
@@ -47,8 +48,8 @@ func TestPhaseRequirementValidate(t *testing.T) {
 		{
 			name: "unknown DeadLetterDomain is rejected",
 			requirement: PhaseRequirement{
-				Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
-				PhaseName:        reducer.GraphProjectionPhaseWorkloadMaterialization,
+				Keyspace:         gpphase.KeyspaceServiceUID,
+				PhaseName:        gpphase.PhaseWorkloadMaterialization,
 				Required:         true,
 				DeadLetterDomain: reducercontract.Domain("not_a_real_reducer_domain"),
 			},

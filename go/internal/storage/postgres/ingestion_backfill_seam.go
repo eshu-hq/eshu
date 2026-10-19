@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill/targeted"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -388,13 +388,13 @@ func backwardEvidencePhaseCommitted(
 	database db.ExecQueryer,
 	partition backfill.ScopeGenerationPartition,
 ) (bool, error) {
-	ready, found, err := NewGraphProjectionPhaseStateStore(database).Lookup(ctx, reducer.GraphProjectionPhaseKey{
+	ready, found, err := NewGraphProjectionPhaseStateStore(database).Lookup(ctx, gpphase.PhaseKey{
 		ScopeID:          partition.ScopeID,
 		AcceptanceUnitID: partition.ScopeID,
 		SourceRunID:      partition.GenerationID,
 		GenerationID:     partition.GenerationID,
-		Keyspace:         reducer.GraphProjectionKeyspaceCrossRepoEvidence,
-	}, reducer.GraphProjectionPhaseBackwardEvidenceCommitted)
+		Keyspace:         gpphase.KeyspaceCrossRepoEvidence,
+	}, gpphase.PhaseBackwardEvidenceCommitted)
 	if err != nil {
 		return false, fmt.Errorf("read backward evidence phase for %q/%q: %w", partition.ScopeID, partition.GenerationID, err)
 	}

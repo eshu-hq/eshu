@@ -29,7 +29,7 @@ func repoWorkloadPresenceKey(repoID string) string {
 // this is a no-op, so the hot workload commit path carries zero extra write.
 func publishRepoWorkloadPresence(
 	ctx context.Context,
-	writer EndpointPresenceWriter,
+	writer gpphase.EndpointPresenceWriter,
 	scopeID string,
 	generationID string,
 	workloadRows []WorkloadRow,
@@ -38,7 +38,7 @@ func publishRepoWorkloadPresence(
 	if writer == nil || len(workloadRows) == 0 {
 		return nil
 	}
-	rows := make([]EndpointPresenceRow, 0, len(workloadRows))
+	rows := make([]gpphase.EndpointPresenceRow, 0, len(workloadRows))
 	seen := make(map[string]struct{}, len(workloadRows))
 	repoIDs := make([]string, 0, len(workloadRows))
 	for _, workload := range workloadRows {
@@ -51,8 +51,8 @@ func publishRepoWorkloadPresence(
 		}
 		seen[uid] = struct{}{}
 		repoIDs = append(repoIDs, uid) // repo-workload uid IS the repo_id
-		rows = append(rows, EndpointPresenceRow{
-			Keyspace:         GraphProjectionKeyspaceRepoWorkloadPresence,
+		rows = append(rows, gpphase.EndpointPresenceRow{
+			Keyspace:         gpphase.KeyspaceRepoWorkloadPresence,
 			UID:              uid,
 			ScopeID:          scopeID,
 			RepoID:           uid,
@@ -73,7 +73,7 @@ func publishRepoWorkloadPresence(
 	// resolve an edge against a Workload that no longer exists) and is left to the
 	// scope/generation-retention lifecycle.
 	return writer.RetractStaleRepoGenerations(
-		ctx, GraphProjectionKeyspaceRepoWorkloadPresence, scopeID, generationID, repoIDs,
+		ctx, gpphase.KeyspaceRepoWorkloadPresence, scopeID, generationID, repoIDs,
 	)
 }
 

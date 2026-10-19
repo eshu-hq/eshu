@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -103,8 +103,8 @@ SELECT scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, pha
 FROM graph_projection_phase_state
 WHERE keyspace = $1 AND phase = $2`,
 			args: []any{
-				string(reducer.GraphProjectionKeyspaceCrossRepoEvidence),
-				string(reducer.GraphProjectionPhaseBackwardEvidenceCommitted),
+				string(gpphase.KeyspaceCrossRepoEvidence),
+				string(gpphase.PhaseBackwardEvidenceCommitted),
 			},
 		},
 		{
@@ -219,8 +219,8 @@ WHERE keyspace = $1 AND phase = $2
 EXCEPT
 SELECT scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase
 FROM %s`, relationshipFamilyExpectedReadinessTable),
-		string(reducer.GraphProjectionKeyspaceCrossRepoEvidence),
-		string(reducer.GraphProjectionPhaseBackwardEvidenceCommitted))
+		string(gpphase.KeyspaceCrossRepoEvidence),
+		string(gpphase.PhaseBackwardEvidenceCommitted))
 	assertRelationshipFamilyBinaryProofSQLDiff(t, ctx, db, `readiness inverse`, fmt.Sprintf(`
 SELECT scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase
 FROM %s
@@ -228,8 +228,8 @@ EXCEPT
 SELECT scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase
 FROM graph_projection_phase_state
 WHERE keyspace = $1 AND phase = $2`, relationshipFamilyExpectedReadinessTable),
-		string(reducer.GraphProjectionKeyspaceCrossRepoEvidence),
-		string(reducer.GraphProjectionPhaseBackwardEvidenceCommitted))
+		string(gpphase.KeyspaceCrossRepoEvidence),
+		string(gpphase.PhaseBackwardEvidenceCommitted))
 	assertRelationshipFamilyBinaryProofSQLDiff(t, ctx, db, `memos`, fmt.Sprintf(`
 SELECT scope_id, generation_id, catalog_fingerprint
 FROM deferred_backfill_partition_memo

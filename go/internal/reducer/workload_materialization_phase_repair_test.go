@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestWorkloadMaterializationHandlerEnqueuesRepairWhenIntentPhasePublishFails(t *testing.T) {
@@ -62,8 +63,8 @@ func TestWorkloadMaterializationHandlerEnqueuesRepairWhenIntentPhasePublishFails
 	}
 	wantState, ok := graphProjectionPhaseStateForIntent(
 		intent,
-		GraphProjectionKeyspaceServiceUID,
-		GraphProjectionPhaseWorkloadMaterialization,
+		gpphase.KeyspaceServiceUID,
+		gpphase.PhaseWorkloadMaterialization,
 		time.Time{},
 	)
 	if !ok {
@@ -140,8 +141,8 @@ func TestWorkloadMaterializationHandlerEnqueuesRepoReadinessRepairWhenIntentPubl
 	}
 	wantIntentState, ok := graphProjectionPhaseStateForIntent(
 		intent,
-		GraphProjectionKeyspaceServiceUID,
-		GraphProjectionPhaseWorkloadMaterialization,
+		gpphase.KeyspaceServiceUID,
+		gpphase.PhaseWorkloadMaterialization,
 		time.Time{},
 	)
 	if !ok {
@@ -225,8 +226,8 @@ func TestWorkloadMaterializationHandlerEnqueuesRepairWhenRepoReadinessPublishFai
 	if gotRepair.Key != wantKey {
 		t.Fatalf("repair key = %+v, want %+v", gotRepair.Key, wantKey)
 	}
-	if gotRepair.Phase != GraphProjectionPhaseWorkloadMaterialization {
-		t.Fatalf("repair phase = %q, want %q", gotRepair.Phase, GraphProjectionPhaseWorkloadMaterialization)
+	if gotRepair.Phase != gpphase.PhaseWorkloadMaterialization {
+		t.Fatalf("repair phase = %q, want %q", gotRepair.Phase, gpphase.PhaseWorkloadMaterialization)
 	}
 }
 
@@ -288,15 +289,15 @@ func TestWorkloadMaterializationHandlerEnqueuesRepairWhenZeroCandidateRepoReadin
 }
 
 type sequenceGraphProjectionPhasePublisher struct {
-	calls  [][]GraphProjectionPhaseState
+	calls  [][]gpphase.PhaseState
 	errors []error
 }
 
 func (p *sequenceGraphProjectionPhasePublisher) PublishGraphProjectionPhases(
 	_ context.Context,
-	rows []GraphProjectionPhaseState,
+	rows []gpphase.PhaseState,
 ) error {
-	cloned := make([]GraphProjectionPhaseState, len(rows))
+	cloned := make([]gpphase.PhaseState, len(rows))
 	copy(cloned, rows)
 	p.calls = append(p.calls, cloned)
 	idx := len(p.calls) - 1
@@ -314,17 +315,17 @@ func graphProjectionPhaseRepairsForTest(calls [][]GraphProjectionPhaseRepair) []
 	return repairs
 }
 
-func graphProjectionPhaseRepairKeysContain(repairs []GraphProjectionPhaseRepair, key GraphProjectionPhaseKey) bool {
+func graphProjectionPhaseRepairKeysContain(repairs []GraphProjectionPhaseRepair, key gpphase.PhaseKey) bool {
 	for _, repair := range repairs {
-		if repair.Key == key && repair.Phase == GraphProjectionPhaseWorkloadMaterialization {
+		if repair.Key == key && repair.Phase == gpphase.PhaseWorkloadMaterialization {
 			return true
 		}
 	}
 	return false
 }
 
-func graphProjectionPhaseRepairKeysForTest(repairs []GraphProjectionPhaseRepair) []GraphProjectionPhaseKey {
-	keys := make([]GraphProjectionPhaseKey, 0, len(repairs))
+func graphProjectionPhaseRepairKeysForTest(repairs []GraphProjectionPhaseRepair) []gpphase.PhaseKey {
+	keys := make([]gpphase.PhaseKey, 0, len(repairs))
 	for _, repair := range repairs {
 		keys = append(keys, repair.Key)
 	}

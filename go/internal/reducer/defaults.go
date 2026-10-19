@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
@@ -94,10 +95,10 @@ type DefaultHandlers struct {
 
 	// GraphProjectionPhasePublisher persists durable graph-readiness publications
 	// for canonical and semantic node writers.
-	GraphProjectionPhasePublisher GraphProjectionPhasePublisher
+	GraphProjectionPhasePublisher gpphase.PhasePublisher
 	GraphProjectionRepairQueue    GraphProjectionPhaseRepairQueue
-	ReadinessLookup               GraphProjectionReadinessLookup
-	ReadinessPrefetch             GraphProjectionReadinessPrefetch
+	ReadinessLookup               gpphase.ReadinessLookup
+	ReadinessPrefetch             gpphase.ReadinessPrefetch
 
 	// CodeCallEdgeWriter is retained for compatibility with older reducer tests
 	// and wiring. Code-call materialization no longer uses it directly.

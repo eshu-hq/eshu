@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -288,10 +289,10 @@ func TestWorkloadMaterializationHandlerPublishesPhaseWhenNoCandidates(t *testing
 	if got, want := len(publisher.calls), 2; got != want {
 		t.Fatalf("publisher call count = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.Keyspace, GraphProjectionKeyspaceServiceUID; got != want {
+	if got, want := publisher.calls[0][0].Key.Keyspace, gpphase.KeyspaceServiceUID; got != want {
 		t.Fatalf("published keyspace = %q, want %q", got, want)
 	}
-	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseWorkloadMaterialization; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseWorkloadMaterialization; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
 	// The additive batch carries the deterministic per-repo readiness key the

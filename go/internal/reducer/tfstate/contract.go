@@ -8,14 +8,14 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // PublishedCheckpoint identifies one reducer readiness row this package will
 // own once the Terraform state projector family is implemented.
 type PublishedCheckpoint struct {
-	Keyspace reducer.GraphProjectionKeyspace
-	Phase    reducer.GraphProjectionPhase
+	Keyspace gpphase.Keyspace
+	Phase    gpphase.Phase
 }
 
 // RuntimeContract captures the accepted Terraform state reducer scaffold.
@@ -32,12 +32,12 @@ var defaultRuntimeContract = RuntimeContract{
 	},
 	Checkpoints: []PublishedCheckpoint{
 		{
-			Keyspace: reducer.GraphProjectionKeyspaceTerraformResourceUID,
-			Phase:    reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			Keyspace: gpphase.KeyspaceTerraformResourceUID,
+			Phase:    gpphase.PhaseCanonicalNodesCommitted,
 		},
 		{
-			Keyspace: reducer.GraphProjectionKeyspaceTerraformModuleUID,
-			Phase:    reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			Keyspace: gpphase.KeyspaceTerraformModuleUID,
+			Phase:    gpphase.PhaseCanonicalNodesCommitted,
 		},
 	},
 }

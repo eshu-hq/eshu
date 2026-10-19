@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // OutputKind identifies the canonical DSL-owned output family.
@@ -29,8 +29,8 @@ const (
 // substrate intends to publish after a bounded evaluation pass completes.
 type Publication struct {
 	AcceptanceUnitID string
-	Keyspace         reducer.GraphProjectionKeyspace
-	Phase            reducer.GraphProjectionPhase
+	Keyspace         gpphase.Keyspace
+	Phase            gpphase.Phase
 	OutputKind       OutputKind
 }
 
@@ -91,7 +91,7 @@ func (r EvaluationResult) PhaseStates(
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
-) ([]reducer.GraphProjectionPhaseState, error) {
+) ([]gpphase.PhaseState, error) {
 	scopeID = strings.TrimSpace(scopeID)
 	if scopeID == "" {
 		return nil, fmt.Errorf("scope_id must not be blank")
@@ -110,12 +110,12 @@ func (r EvaluationResult) PhaseStates(
 
 	type publicationKey struct {
 		acceptanceUnitID string
-		keyspace         reducer.GraphProjectionKeyspace
-		phase            reducer.GraphProjectionPhase
+		keyspace         gpphase.Keyspace
+		phase            gpphase.Phase
 	}
 
 	seen := make(map[publicationKey]struct{}, len(r.Publications))
-	states := make([]reducer.GraphProjectionPhaseState, 0, len(r.Publications))
+	states := make([]gpphase.PhaseState, 0, len(r.Publications))
 	for _, publication := range r.Publications {
 		key := publicationKey{
 			acceptanceUnitID: publication.AcceptanceUnitID,
@@ -126,8 +126,8 @@ func (r EvaluationResult) PhaseStates(
 			continue
 		}
 		seen[key] = struct{}{}
-		states = append(states, reducer.GraphProjectionPhaseState{
-			Key: reducer.GraphProjectionPhaseKey{
+		states = append(states, gpphase.PhaseState{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeID,
 				AcceptanceUnitID: publication.AcceptanceUnitID,
 				SourceRunID:      generationID,
@@ -140,7 +140,7 @@ func (r EvaluationResult) PhaseStates(
 		})
 	}
 
-	slices.SortFunc(states, func(left, right reducer.GraphProjectionPhaseState) int {
+	slices.SortFunc(states, func(left, right gpphase.PhaseState) int {
 		if cmp := strings.Compare(left.Key.AcceptanceUnitID, right.Key.AcceptanceUnitID); cmp != 0 {
 			return cmp
 		}
@@ -157,7 +157,7 @@ func (r EvaluationResult) PhaseStates(
 // and publishes them through the shared graph-projection publisher.
 func PublishEvaluationResult(
 	ctx context.Context,
-	publisher reducer.GraphProjectionPhasePublisher,
+	publisher gpphase.PhasePublisher,
 	scopeID string,
 	generationID string,
 	result EvaluationResult,

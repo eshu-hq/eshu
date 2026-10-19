@@ -374,7 +374,7 @@
 // ReducerInputInvalidFactStore persists durable reducer_input_invalid_facts
 // rows (issue #4630) and implements reducer.QuarantinedFactWriter directly,
 // mirroring GraphProjectionPhaseStateStore's direct implementation of
-// reducer.GraphProjectionPhasePublisher. WriteQuarantinedFacts batches records
+// gpphase.PhasePublisher. WriteQuarantinedFacts batches records
 // into bounded multi-row INSERT statements with an ON CONFLICT (scope_id,
 // generation_id, fact_id, missing_field) DO NOTHING clause, so replaying the
 // same reduction (a retried intent or a re-projected generation) converges on

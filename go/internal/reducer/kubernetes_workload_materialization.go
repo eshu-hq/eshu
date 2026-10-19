@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -81,13 +82,13 @@ type KubernetesWorkloadMaterializationHandler struct {
 	// PhasePublisher records the canonical-nodes-committed readiness phase that
 	// gates the live-workload edge projection. A nil publisher is a no-op so the
 	// additive domain stays safe to register before the edge slice is wired.
-	PhasePublisher GraphProjectionPhasePublisher
+	PhasePublisher gpphase.PhasePublisher
 	// PresenceWriter records uid-exact endpoint presence for committed
 	// KubernetesWorkload nodes so the cross-scope secrets/IAM projection gate can
 	// prove a specific node committed (issue #1380). It is nil unless the
 	// secrets/IAM graph projection feature is enabled, so the default hot path
 	// carries no extra write.
-	PresenceWriter EndpointPresenceWriter
+	PresenceWriter gpphase.EndpointPresenceWriter
 	// Instruments records the nodes-materialized counter. Nil-safe.
 	Instruments *telemetry.Instruments
 }
@@ -153,7 +154,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 		// exist. Flag-gated: a nil PresenceWriter (the default) makes this a no-op.
 		if err := publishEndpointPresence(
 			ctx, h.PresenceWriter,
-			GraphProjectionKeyspaceKubernetesWorkloadUID, intent.ScopeID, rows, time.Now().UTC(),
+			gpphase.KeyspaceKubernetesWorkloadUID, intent.ScopeID, rows, time.Now().UTC(),
 		); err != nil {
 			return reducercontract.Result{}, fmt.Errorf("record kubernetes workload endpoint presence: %w", err)
 		}
@@ -169,8 +170,8 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 		ctx,
 		h.PhasePublisher,
 		intent,
-		GraphProjectionKeyspaceKubernetesWorkloadUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceKubernetesWorkloadUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
 		return reducercontract.Result{}, fmt.Errorf("publish canonical kubernetes workload nodes phase: %w", err)

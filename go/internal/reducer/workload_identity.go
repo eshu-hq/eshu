@@ -10,6 +10,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -44,7 +45,7 @@ type WorkloadIdentityWriter interface {
 // canonical write request.
 type WorkloadIdentityHandler struct {
 	Writer         WorkloadIdentityWriter
-	PhasePublisher GraphProjectionPhasePublisher
+	PhasePublisher gpphase.PhasePublisher
 }
 
 // workloadIdentityTiming records success-path stage timings for the
@@ -91,8 +92,8 @@ func (h WorkloadIdentityHandler) Handle(
 		ctx,
 		h.PhasePublisher,
 		intent,
-		GraphProjectionKeyspaceServiceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceServiceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
 		return reducercontract.Result{}, err

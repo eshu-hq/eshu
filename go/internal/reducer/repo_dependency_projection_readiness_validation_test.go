@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestRepoDependencyProjectionRunnerValidationRequiresWorkloadReadinessDependencies(t *testing.T) {
@@ -77,10 +79,10 @@ func (legacyWorkloadMaterializationReplayer) ReplayWorkloadMaterialization(
 
 func readyRepoDependencyWorkloadPrefetch(
 	_ context.Context,
-	_ []GraphProjectionPhaseKey,
-	_ GraphProjectionPhase,
-) (GraphProjectionReadinessLookup, error) {
-	return func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+	_ []gpphase.PhaseKey,
+	_ gpphase.Phase,
+) (gpphase.ReadinessLookup, error) {
+	return func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return true, true
 	}, nil
 }

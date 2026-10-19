@@ -8,7 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
@@ -26,7 +26,7 @@ import (
 //
 // Returning nil when a concern is disabled keeps its producers and gate at the
 // pre-gate behavior with zero extra write.
-func endpointPresenceWiring(enabled bool, database db.ExecQueryer) (reducer.EndpointPresenceWriter, reducer.EndpointPresenceLookup) {
+func endpointPresenceWiring(enabled bool, database db.ExecQueryer) (gpphase.EndpointPresenceWriter, gpphase.EndpointPresenceLookup) {
 	if !enabled {
 		return nil, nil
 	}
@@ -55,10 +55,10 @@ func handlesRouteEndpointPresenceGateEnabled(getenv func(string) string) bool {
 // gated separately: the secrets/IAM uid pair (#1380) and the handles_route
 // (repo_id, path) pair (#2809) must never be coupled.
 type endpointPresenceWirings struct {
-	secretsIAMWriter   reducer.EndpointPresenceWriter
-	secretsIAMLookup   reducer.EndpointPresenceLookup
-	handlesRouteWriter reducer.EndpointPresenceWriter
-	handlesRouteLookup reducer.EndpointPresenceLookup
+	secretsIAMWriter   gpphase.EndpointPresenceWriter
+	secretsIAMLookup   gpphase.EndpointPresenceLookup
+	handlesRouteWriter gpphase.EndpointPresenceWriter
+	handlesRouteLookup gpphase.EndpointPresenceLookup
 }
 
 // newEndpointPresenceWirings builds both presence pairs from their independent

@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // gcpResourceEnvelope builds a gcp_cloud_resource fact envelope for tests from
@@ -446,10 +447,10 @@ func TestGCPResourceMaterializationHandlePublishesCanonicalNodesCommittedPhase(t
 	if len(rows) != 1 {
 		t.Fatalf("published rows = %d, want 1", len(rows))
 	}
-	if got, want := rows[0].Key.Keyspace, GraphProjectionKeyspaceCloudResourceUID; got != want {
+	if got, want := rows[0].Key.Keyspace, gpphase.KeyspaceCloudResourceUID; got != want {
 		t.Fatalf("keyspace = %q, want %q", got, want)
 	}
-	if got, want := rows[0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := rows[0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("phase = %q, want %q", got, want)
 	}
 	if got, want := rows[0].Key.AcceptanceUnitID, "gcp_resource_materialization:scope-1"; got != want {
@@ -493,7 +494,7 @@ func TestGCPResourceMaterializationHandlePublishesPhaseOnEmptyGeneration(t *test
 	if len(publisher.calls) != 1 {
 		t.Fatalf("publisher.calls = %d, want 1 (empty generation must still unblock the edge projection)", len(publisher.calls))
 	}
-	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("phase = %q, want %q", got, want)
 	}
 }

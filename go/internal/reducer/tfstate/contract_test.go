@@ -6,7 +6,7 @@ package tfstate
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestDefaultRuntimeContract(t *testing.T) {
@@ -19,10 +19,10 @@ func TestDefaultRuntimeContract(t *testing.T) {
 	if got, want := len(contract.Checkpoints), 2; got != want {
 		t.Fatalf("len(Checkpoints) = %d, want %d", got, want)
 	}
-	if got, want := contract.Checkpoints[0].Keyspace, reducer.GraphProjectionKeyspaceTerraformResourceUID; got != want {
+	if got, want := contract.Checkpoints[0].Keyspace, gpphase.KeyspaceTerraformResourceUID; got != want {
 		t.Fatalf("Checkpoints[0].Keyspace = %q, want %q", got, want)
 	}
-	if got, want := contract.Checkpoints[1].Keyspace, reducer.GraphProjectionKeyspaceTerraformModuleUID; got != want {
+	if got, want := contract.Checkpoints[1].Keyspace, gpphase.KeyspaceTerraformModuleUID; got != want {
 		t.Fatalf("Checkpoints[1].Keyspace = %q, want %q", got, want)
 	}
 }
@@ -33,15 +33,15 @@ func TestRuntimeContractTemplateReturnsClonedSlices(t *testing.T) {
 	contract := RuntimeContractTemplate()
 	contract.Components[0] = "mutated"
 	contract.Checkpoints[0] = PublishedCheckpoint{
-		Keyspace: reducer.GraphProjectionKeyspaceServiceUID,
-		Phase:    reducer.GraphProjectionPhaseDeploymentMapping,
+		Keyspace: gpphase.KeyspaceServiceUID,
+		Phase:    gpphase.PhaseDeploymentMapping,
 	}
 
 	fresh := RuntimeContractTemplate()
 	if got, want := fresh.Components[0], "resource_projector"; got != want {
 		t.Fatalf("fresh Components[0] = %q, want %q", got, want)
 	}
-	if got, want := fresh.Checkpoints[0].Keyspace, reducer.GraphProjectionKeyspaceTerraformResourceUID; got != want {
+	if got, want := fresh.Checkpoints[0].Keyspace, gpphase.KeyspaceTerraformResourceUID; got != want {
 		t.Fatalf("fresh Checkpoints[0].Keyspace = %q, want %q", got, want)
 	}
 }

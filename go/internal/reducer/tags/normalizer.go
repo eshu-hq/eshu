@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // Normalizer describes the reducer-owned tag normalization seam.
@@ -62,7 +62,7 @@ func (r NormalizationResult) PhaseStates(
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
-) ([]reducer.GraphProjectionPhaseState, error) {
+) ([]gpphase.PhaseState, error) {
 	scopeID = strings.TrimSpace(scopeID)
 	if scopeID == "" {
 		return nil, fmt.Errorf("scope_id must not be blank")
@@ -80,27 +80,27 @@ func (r NormalizationResult) PhaseStates(
 	observedAt = observedAt.UTC()
 
 	seen := make(map[string]struct{}, len(r.Resources))
-	states := make([]reducer.GraphProjectionPhaseState, 0, len(r.Resources))
+	states := make([]gpphase.PhaseState, 0, len(r.Resources))
 	for _, resource := range r.Resources {
 		if _, ok := seen[resource.CanonicalResourceID]; ok {
 			continue
 		}
 		seen[resource.CanonicalResourceID] = struct{}{}
-		states = append(states, reducer.GraphProjectionPhaseState{
-			Key: reducer.GraphProjectionPhaseKey{
+		states = append(states, gpphase.PhaseState{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeID,
 				AcceptanceUnitID: resource.CanonicalResourceID,
 				SourceRunID:      generationID,
 				GenerationID:     generationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceCloudResourceUID,
+				Keyspace:         gpphase.KeyspaceCloudResourceUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			Phase:       gpphase.PhaseCanonicalNodesCommitted,
 			CommittedAt: observedAt,
 			UpdatedAt:   observedAt,
 		})
 	}
 
-	slices.SortFunc(states, func(left, right reducer.GraphProjectionPhaseState) int {
+	slices.SortFunc(states, func(left, right gpphase.PhaseState) int {
 		return strings.Compare(left.Key.AcceptanceUnitID, right.Key.AcceptanceUnitID)
 	})
 	return states, nil
@@ -110,7 +110,7 @@ func (r NormalizationResult) PhaseStates(
 // readiness rows and publishes them through the shared phase publisher.
 func PublishNormalizationResult(
 	ctx context.Context,
-	publisher reducer.GraphProjectionPhasePublisher,
+	publisher gpphase.PhasePublisher,
 	scopeID string,
 	generationID string,
 	result NormalizationResult,

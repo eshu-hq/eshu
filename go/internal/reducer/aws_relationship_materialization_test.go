@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -79,8 +80,8 @@ func (w *recordingCloudResourceEdgeWriter) RetractCloudResourceEdgesByUIDs(
 	return w.retractByUIDsErr
 }
 
-func readyLookup(ready, found bool) GraphProjectionReadinessLookup {
-	return func(_ GraphProjectionPhaseKey, _ GraphProjectionPhase) (bool, bool) {
+func readyLookup(ready, found bool) gpphase.ReadinessLookup {
+	return func(_ gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
 		return ready, found
 	}
 }

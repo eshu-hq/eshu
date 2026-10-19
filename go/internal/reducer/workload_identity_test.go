@@ -10,6 +10,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestWorkloadIdentityHandlerBuildsCanonicalWriteRequest(t *testing.T) {
@@ -163,10 +164,10 @@ func TestWorkloadIdentityHandlerPublishesServiceCanonicalPhase(t *testing.T) {
 	if got, want := len(publisher.calls[0]), 1; got != want {
 		t.Fatalf("published state count = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.Keyspace, GraphProjectionKeyspaceServiceUID; got != want {
+	if got, want := publisher.calls[0][0].Key.Keyspace, gpphase.KeyspaceServiceUID; got != want {
 		t.Fatalf("published keyspace = %q, want %q", got, want)
 	}
-	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
 }

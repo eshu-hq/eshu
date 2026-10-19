@@ -9,6 +9,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // TestWorkloadMaterializationHandlerPublishesEndpointRepoPathPresence proves the
@@ -66,7 +67,7 @@ func TestWorkloadMaterializationHandlerPublishesEndpointRepoPathPresence(t *test
 	found := false
 	for _, batch := range presenceWriter.upserts {
 		for _, row := range batch {
-			if row.Keyspace == GraphProjectionKeyspaceAPIEndpointRepoPath && row.UID == wantUID {
+			if row.Keyspace == gpphase.KeyspaceAPIEndpointRepoPath && row.UID == wantUID {
 				found = true
 				if row.ScopeID != "scope-service" {
 					t.Fatalf("presence scope = %q, want scope-service", row.ScopeID)

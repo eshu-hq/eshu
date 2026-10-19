@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	lockstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
@@ -116,8 +116,8 @@ func sortedPublishedScopes(phases *recordingPhaseStore) []string {
 	defer phases.mu.Unlock()
 	scopes := make([]string, 0, len(phases.rows))
 	for _, row := range phases.rows {
-		if row.Key.Keyspace != reducer.GraphProjectionKeyspaceCrossRepoEvidence ||
-			row.Phase != reducer.GraphProjectionPhaseBackwardEvidenceCommitted {
+		if row.Key.Keyspace != gpphase.KeyspaceCrossRepoEvidence ||
+			row.Phase != gpphase.PhaseBackwardEvidenceCommitted {
 			continue
 		}
 		scopes = append(scopes, row.Key.ScopeID)

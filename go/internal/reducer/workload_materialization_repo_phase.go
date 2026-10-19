@@ -19,7 +19,7 @@ import (
 
 // workloadMaterializationRepoReadinessKey forwards to
 // [gpphase.WorkloadMaterializationRepoReadinessKey].
-func workloadMaterializationRepoReadinessKey(scopeID, repoID, generationID string) GraphProjectionPhaseKey {
+func workloadMaterializationRepoReadinessKey(scopeID, repoID, generationID string) gpphase.PhaseKey {
 	return gpphase.WorkloadMaterializationRepoReadinessKey(scopeID, repoID, generationID)
 }
 
@@ -34,21 +34,21 @@ func repoReadinessPhaseStates(
 	scopeID, generationID string,
 	repoIDs []string,
 	observedAt time.Time,
-) []GraphProjectionPhaseState {
+) []gpphase.PhaseState {
 	if observedAt.IsZero() {
 		observedAt = time.Now().UTC()
 	}
 	observedAt = observedAt.UTC()
 
-	states := make([]GraphProjectionPhaseState, 0, len(repoIDs))
+	states := make([]gpphase.PhaseState, 0, len(repoIDs))
 	for _, repoID := range repoIDs {
 		key := workloadMaterializationRepoReadinessKey(scopeID, repoID, generationID)
 		if err := key.Validate(); err != nil {
 			continue
 		}
-		states = append(states, GraphProjectionPhaseState{
+		states = append(states, gpphase.PhaseState{
 			Key:         key,
-			Phase:       GraphProjectionPhaseWorkloadMaterialization,
+			Phase:       gpphase.PhaseWorkloadMaterialization,
 			CommittedAt: observedAt,
 			UpdatedAt:   observedAt,
 		})
@@ -60,9 +60,9 @@ func repoReadinessPhaseStates(
 // stale rows must be cleared before a repo's workload-materialization phase gate
 // is opened: the (repo_id, path) endpoint presence the handles_route gate reads,
 // and the repo→workload presence the runs_in gate reads.
-var repoReadinessPresenceKeyspaces = []GraphProjectionKeyspace{
-	GraphProjectionKeyspaceAPIEndpointRepoPath,
-	GraphProjectionKeyspaceRepoWorkloadPresence,
+var repoReadinessPresenceKeyspaces = []gpphase.Keyspace{
+	gpphase.KeyspaceAPIEndpointRepoPath,
+	gpphase.KeyspaceRepoWorkloadPresence,
 }
 
 // publishRepoReadinessPhases publishes the repo-keyed workload-materialization
@@ -87,8 +87,8 @@ var repoReadinessPresenceKeyspaces = []GraphProjectionKeyspace{
 // presence writer (gate off) skips the retract.
 func publishRepoReadinessPhases(
 	ctx context.Context,
-	publisher GraphProjectionPhasePublisher,
-	presenceWriter EndpointPresenceWriter,
+	publisher gpphase.PhasePublisher,
+	presenceWriter gpphase.EndpointPresenceWriter,
 	scopeID, generationID string,
 	repoIDs []string,
 	observedAt time.Time,
@@ -98,9 +98,9 @@ func publishRepoReadinessPhases(
 
 func publishRepoReadinessPhasesWithRepair(
 	ctx context.Context,
-	publisher GraphProjectionPhasePublisher,
+	publisher gpphase.PhasePublisher,
 	repairQueue GraphProjectionPhaseRepairQueue,
-	presenceWriter EndpointPresenceWriter,
+	presenceWriter gpphase.EndpointPresenceWriter,
 	scopeID, generationID string,
 	repoIDs []string,
 	observedAt time.Time,
@@ -123,7 +123,7 @@ func publishRepoReadinessPhasesWithRepair(
 
 func publishRepoDependencyReadinessFenceWithRepair(
 	ctx context.Context,
-	publisher GraphProjectionPhasePublisher,
+	publisher gpphase.PhasePublisher,
 	repairQueue GraphProjectionPhaseRepairQueue,
 	intent reducercontract.Intent,
 	observedAt time.Time,
@@ -146,9 +146,9 @@ func publishRepoDependencyReadinessFenceWithRepair(
 	if observedAt.IsZero() {
 		observedAt = time.Now().UTC()
 	}
-	state := GraphProjectionPhaseState{
+	state := gpphase.PhaseState{
 		Key:         key,
-		Phase:       GraphProjectionPhaseWorkloadMaterialization,
+		Phase:       gpphase.PhaseWorkloadMaterialization,
 		CommittedAt: observedAt.UTC(),
 		UpdatedAt:   observedAt.UTC(),
 	}
@@ -156,7 +156,7 @@ func publishRepoDependencyReadinessFenceWithRepair(
 		ctx,
 		publisher,
 		repairQueue,
-		[]GraphProjectionPhaseState{state},
+		[]gpphase.PhaseState{state},
 	); err != nil {
 		return fmt.Errorf("publish repo dependency workload readiness fence: %w", err)
 	}
@@ -166,7 +166,7 @@ func publishRepoDependencyReadinessFenceWithRepair(
 func enqueueRepoReadinessPhaseRepairs(
 	ctx context.Context,
 	repairQueue GraphProjectionPhaseRepairQueue,
-	presenceWriter EndpointPresenceWriter,
+	presenceWriter gpphase.EndpointPresenceWriter,
 	scopeID, generationID string,
 	repoIDs []string,
 	observedAt time.Time,
@@ -195,7 +195,7 @@ func enqueueRepoReadinessPhaseRepairs(
 
 func retractStaleRepoReadinessPresence(
 	ctx context.Context,
-	presenceWriter EndpointPresenceWriter,
+	presenceWriter gpphase.EndpointPresenceWriter,
 	scopeID, generationID string,
 	repoIDs []string,
 ) error {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -19,10 +20,10 @@ func TestCollectorContractForGitIncludesAcceptedCanonicalKeyspaces(t *testing.T)
 	if !ok {
 		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorGit)
 	}
-	want := []reducer.GraphProjectionKeyspace{
-		reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-		reducer.GraphProjectionKeyspaceDeployableUnitUID,
-		reducer.GraphProjectionKeyspaceServiceUID,
+	want := []gpphase.Keyspace{
+		gpphase.KeyspaceCodeEntitiesUID,
+		gpphase.KeyspaceDeployableUnitUID,
+		gpphase.KeyspaceServiceUID,
 	}
 	if !reflect.DeepEqual(contract.CanonicalKeyspaces, want) {
 		t.Fatalf("CanonicalKeyspaces = %#v, want %#v", contract.CanonicalKeyspaces, want)
@@ -35,34 +36,34 @@ func TestRequiredPhasesForCollectorIncludesGitDeployableUnitGate(t *testing.T) {
 	requirements := RequiredPhasesForCollector(scope.CollectorGit)
 	want := []PhaseRequirement{
 		{
-			Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-			PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+			PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 			Required:  true,
 		},
 		{
-			Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-			PhaseName: reducer.GraphProjectionPhaseSemanticNodesCommitted,
+			Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+			PhaseName: gpphase.PhaseSemanticNodesCommitted,
 			Required:  true,
 		},
 		{
-			Keyspace:  reducer.GraphProjectionKeyspaceDeployableUnitUID,
-			PhaseName: reducer.GraphProjectionPhaseDeployableUnitCorrelation,
+			Keyspace:  gpphase.KeyspaceDeployableUnitUID,
+			PhaseName: gpphase.PhaseDeployableUnitCorrelation,
 			Required:  true,
 		},
 		{
-			Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-			PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			Keyspace:  gpphase.KeyspaceServiceUID,
+			PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 			Required:  true,
 		},
 		{
-			Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
-			PhaseName:        reducer.GraphProjectionPhaseDeploymentMapping,
+			Keyspace:         gpphase.KeyspaceServiceUID,
+			PhaseName:        gpphase.PhaseDeploymentMapping,
 			Required:         true,
 			DeadLetterDomain: reducer.DomainDeploymentMapping,
 		},
 		{
-			Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
-			PhaseName:        reducer.GraphProjectionPhaseWorkloadMaterialization,
+			Keyspace:         gpphase.KeyspaceServiceUID,
+			PhaseName:        gpphase.PhaseWorkloadMaterialization,
 			Required:         true,
 			DeadLetterDomain: reducer.DomainWorkloadMaterialization,
 		},
@@ -162,13 +163,13 @@ func TestRequiredPhasesForCollectorIncludesWebhookAnchorGate(t *testing.T) {
 	requirements := RequiredPhasesForCollector(scope.CollectorWebhook)
 	want := []PhaseRequirement{
 		{
-			Keyspace:  reducer.GraphProjectionKeyspaceWebhookEventUID,
-			PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			Keyspace:  gpphase.KeyspaceWebhookEventUID,
+			PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 			Required:  true,
 		},
 		{
-			Keyspace:  reducer.GraphProjectionKeyspaceWebhookEventUID,
-			PhaseName: reducer.GraphProjectionPhaseCrossSourceAnchorReady,
+			Keyspace:  gpphase.KeyspaceWebhookEventUID,
+			PhaseName: gpphase.PhaseCrossSourceAnchorReady,
 			Required:  true,
 		},
 	}
@@ -184,8 +185,8 @@ func TestCollectorContractForWebhookIncludesAcceptedCanonicalKeyspaces(t *testin
 	if !ok {
 		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorWebhook)
 	}
-	want := []reducer.GraphProjectionKeyspace{
-		reducer.GraphProjectionKeyspaceWebhookEventUID,
+	want := []gpphase.Keyspace{
+		gpphase.KeyspaceWebhookEventUID,
 	}
 	if !reflect.DeepEqual(contract.CanonicalKeyspaces, want) {
 		t.Fatalf("CanonicalKeyspaces = %#v, want %#v", contract.CanonicalKeyspaces, want)
@@ -361,10 +362,10 @@ func TestCollectorContractForReturnsClonedSlices(t *testing.T) {
 	if !ok {
 		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorGit)
 	}
-	contract.CanonicalKeyspaces[0] = reducer.GraphProjectionKeyspaceCloudResourceUID
+	contract.CanonicalKeyspaces[0] = gpphase.KeyspaceCloudResourceUID
 	contract.RequiredPhases[0] = PhaseRequirement{
-		Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-		PhaseName: reducer.GraphProjectionPhaseSemanticNodesCommitted,
+		Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+		PhaseName: gpphase.PhaseSemanticNodesCommitted,
 		Required:  true,
 	}
 
@@ -372,10 +373,10 @@ func TestCollectorContractForReturnsClonedSlices(t *testing.T) {
 	if !ok {
 		t.Fatalf("CollectorContractFor(%q) fresh found = false, want true", scope.CollectorGit)
 	}
-	if got, want := fresh.CanonicalKeyspaces[0], reducer.GraphProjectionKeyspaceCodeEntitiesUID; got != want {
+	if got, want := fresh.CanonicalKeyspaces[0], gpphase.KeyspaceCodeEntitiesUID; got != want {
 		t.Fatalf("fresh CanonicalKeyspaces[0] = %q, want %q", got, want)
 	}
-	if got, want := fresh.RequiredPhases[0].PhaseName, reducer.GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := fresh.RequiredPhases[0].PhaseName, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("fresh RequiredPhases[0].PhaseName = %q, want %q", got, want)
 	}
 }
@@ -388,8 +389,8 @@ func TestCollectorKindsRequiringPhaseCodeCanonicalNodes(t *testing.T) {
 	t.Parallel()
 
 	got := CollectorKindsRequiringPhase(
-		reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-		reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCodeEntitiesUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 	)
 	if want := []scope.CollectorKind{scope.CollectorGit}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("CollectorKindsRequiringPhase(code_entities_uid, canonical_nodes_committed) = %#v, want %#v", got, want)
@@ -405,8 +406,8 @@ func TestCollectorKindsRequiringPhaseCodeCanonicalNodes(t *testing.T) {
 		requires := false
 		for _, requirement := range RequiredPhasesForCollector(kind) {
 			if requirement.Required &&
-				requirement.Keyspace == reducer.GraphProjectionKeyspaceCodeEntitiesUID &&
-				requirement.PhaseName == reducer.GraphProjectionPhaseCanonicalNodesCommitted {
+				requirement.Keyspace == gpphase.KeyspaceCodeEntitiesUID &&
+				requirement.PhaseName == gpphase.PhaseCanonicalNodesCommitted {
 				requires = true
 			}
 		}
@@ -419,7 +420,7 @@ func TestCollectorKindsRequiringPhaseCodeCanonicalNodes(t *testing.T) {
 func TestCollectorKindsRequiringPhaseUnknownPhaseIsEmpty(t *testing.T) {
 	t.Parallel()
 
-	got := CollectorKindsRequiringPhase(reducer.GraphProjectionKeyspace("no_such_keyspace"), reducer.GraphProjectionPhaseCanonicalNodesCommitted)
+	got := CollectorKindsRequiringPhase(gpphase.Keyspace("no_such_keyspace"), gpphase.PhaseCanonicalNodesCommitted)
 	if len(got) != 0 {
 		t.Fatalf("CollectorKindsRequiringPhase(unknown) = %#v, want empty", got)
 	}

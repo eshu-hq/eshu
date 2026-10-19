@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -356,8 +356,8 @@ SELECT count(*)
 FROM graph_projection_phase_state
 WHERE keyspace = $1 AND phase = $2
 `,
-		string(reducer.GraphProjectionKeyspaceCrossRepoEvidence),
-		string(reducer.GraphProjectionPhaseBackwardEvidenceCommitted),
+		string(gpphase.KeyspaceCrossRepoEvidence),
+		string(gpphase.PhaseBackwardEvidenceCommitted),
 	).Scan(&count); err != nil {
 		t.Fatalf("count backward-evidence readiness: %v", err)
 	}

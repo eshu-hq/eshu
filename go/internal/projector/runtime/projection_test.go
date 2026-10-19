@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	projectorentity "github.com/eshu-hq/eshu/go/internal/projector/semantic/entity"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -490,7 +491,7 @@ func TestRuntimeProjectPublishesCanonicalNodesCommittedAfterCanonicalWrite(t *te
 	if got, want := len(publisher.calls[0]), 1; got != want {
 		t.Fatalf("published rows = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Phase, reducer.GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
 	if got, want := publisher.calls[0][0].Key.SourceRunID, "run-123"; got != want {
@@ -551,19 +552,19 @@ func TestRuntimeProjectPublishesTerraformStateWarningOnlyCanonicalPhases(t *test
 		t.Fatalf("published rows = %d, want %d", got, want)
 	}
 
-	keyspaces := make(map[reducer.GraphProjectionKeyspace]reducer.GraphProjectionPhaseState, len(publisher.calls[0]))
+	keyspaces := make(map[gpphase.Keyspace]gpphase.PhaseState, len(publisher.calls[0]))
 	for _, row := range publisher.calls[0] {
 		keyspaces[row.Key.Keyspace] = row
 	}
-	for _, keyspace := range []reducer.GraphProjectionKeyspace{
-		reducer.GraphProjectionKeyspaceTerraformResourceUID,
-		reducer.GraphProjectionKeyspaceTerraformModuleUID,
+	for _, keyspace := range []gpphase.Keyspace{
+		gpphase.KeyspaceTerraformResourceUID,
+		gpphase.KeyspaceTerraformModuleUID,
 	} {
 		row, ok := keyspaces[keyspace]
 		if !ok {
 			t.Fatalf("published keyspaces = %#v, missing %q", keyspaces, keyspace)
 		}
-		if got, want := row.Phase, reducer.GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+		if got, want := row.Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 			t.Fatalf("phase for %q = %q, want %q", keyspace, got, want)
 		}
 		if got, want := row.Key.AcceptanceUnitID, scopeValue.ScopeID; got != want {
@@ -641,7 +642,7 @@ func TestRuntimeProjectEnqueuesCanonicalRepairWhenPublishFails(t *testing.T) {
 	if len(repairQueue.calls[0]) != 1 {
 		t.Fatalf("repair rows = %d, want 1", len(repairQueue.calls[0]))
 	}
-	if got, want := repairQueue.calls[0][0].Phase, reducer.GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := repairQueue.calls[0][0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("repair phase = %q, want %q", got, want)
 	}
 }
@@ -902,11 +903,11 @@ func (w *recordingIntentWriter) Enqueue(_ context.Context, intents []ReducerInte
 }
 
 type recordingGraphProjectionPhasePublisher struct {
-	calls [][]reducer.GraphProjectionPhaseState
+	calls [][]gpphase.PhaseState
 }
 
-func (p *recordingGraphProjectionPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []reducer.GraphProjectionPhaseState) error {
-	cloned := make([]reducer.GraphProjectionPhaseState, len(rows))
+func (p *recordingGraphProjectionPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []gpphase.PhaseState) error {
+	cloned := make([]gpphase.PhaseState, len(rows))
 	copy(cloned, rows)
 	p.calls = append(p.calls, cloned)
 	return nil
@@ -916,7 +917,7 @@ type failingGraphProjectionPhasePublisher struct {
 	err error
 }
 
-func (p *failingGraphProjectionPhasePublisher) PublishGraphProjectionPhases(_ context.Context, _ []reducer.GraphProjectionPhaseState) error {
+func (p *failingGraphProjectionPhasePublisher) PublishGraphProjectionPhases(_ context.Context, _ []gpphase.PhaseState) error {
 	return p.err
 }
 

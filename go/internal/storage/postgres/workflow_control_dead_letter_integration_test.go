@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -125,64 +126,64 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsTerminalDeadLetterB
 	// Publish every required phase except workload_materialization: its
 	// reducer intent dead-lettered terminally and will never publish.
 	phaseStore := NewGraphProjectionPhaseStateStore(SQLDB{DB: db})
-	if err := phaseStore.Upsert(ctx, []reducer.GraphProjectionPhaseState{
+	if err := phaseStore.Upsert(ctx, []gpphase.PhaseState{
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-dlq",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+				Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			Phase:       gpphase.PhaseCanonicalNodesCommitted,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-dlq",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+				Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseSemanticNodesCommitted,
+			Phase:       gpphase.PhaseSemanticNodesCommitted,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-dlq",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceDeployableUnitUID,
+				Keyspace:         gpphase.KeyspaceDeployableUnitUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseDeployableUnitCorrelation,
+			Phase:       gpphase.PhaseDeployableUnitCorrelation,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-dlq",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
+				Keyspace:         gpphase.KeyspaceServiceUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			Phase:       gpphase.PhaseCanonicalNodesCommitted,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-dlq",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
+				Keyspace:         gpphase.KeyspaceServiceUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseDeploymentMapping,
+			Phase:       gpphase.PhaseDeploymentMapping,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
@@ -213,8 +214,8 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsTerminalDeadLetterB
 		db,
 		run.RunID,
 		string(scope.CollectorGit),
-		string(reducer.GraphProjectionKeyspaceServiceUID),
-		string(reducer.GraphProjectionPhaseWorkloadMaterialization),
+		string(gpphase.KeyspaceServiceUID),
+		string(gpphase.PhaseWorkloadMaterialization),
 		workflow.CompletenessStatusBlocked,
 	)
 }
@@ -301,8 +302,8 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsRetryingDeadLetterD
 		db,
 		run.RunID,
 		string(scope.CollectorGit),
-		string(reducer.GraphProjectionKeyspaceServiceUID),
-		string(reducer.GraphProjectionPhaseWorkloadMaterialization),
+		string(gpphase.KeyspaceServiceUID),
+		string(gpphase.PhaseWorkloadMaterialization),
 		workflow.CompletenessStatusPending,
 	)
 }

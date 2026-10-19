@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -19,10 +20,10 @@ import (
 // keyspace) match the production Postgres lookup performs — unlike the
 // always-ready stubs, it returns found only for keys actually published.
 type keyedPhaseLookup struct {
-	ready map[GraphProjectionPhaseKey]GraphProjectionPhase
+	ready map[gpphase.PhaseKey]gpphase.Phase
 }
 
-func (l keyedPhaseLookup) lookup(key GraphProjectionPhaseKey, phase GraphProjectionPhase) (bool, bool) {
+func (l keyedPhaseLookup) lookup(key gpphase.PhaseKey, phase gpphase.Phase) (bool, bool) {
 	got, ok := l.ready[key]
 	if !ok || got != phase {
 		return false, false
@@ -56,8 +57,8 @@ func TestWorkloadMaterializationRepoReadinessKeyRoundTrips(t *testing.T) {
 	if publisherKey.GenerationID != generationID {
 		t.Fatalf("generation = %q, want %q", publisherKey.GenerationID, generationID)
 	}
-	if publisherKey.Keyspace != GraphProjectionKeyspaceServiceUID {
-		t.Fatalf("keyspace = %q, want %q", publisherKey.Keyspace, GraphProjectionKeyspaceServiceUID)
+	if publisherKey.Keyspace != gpphase.KeyspaceServiceUID {
+		t.Fatalf("keyspace = %q, want %q", publisherKey.Keyspace, gpphase.KeyspaceServiceUID)
 	}
 	if err := publisherKey.Validate(); err != nil {
 		t.Fatalf("readiness key invalid: %v", err)
@@ -99,8 +100,8 @@ func TestFilterRowsByReadinessHandlesRouteResolvesViaRepoKey(t *testing.T) {
 
 	// Publish ONLY the repo-keyed phase row the workload handler now emits.
 	repoKey := workloadMaterializationRepoReadinessKey(scopeID, repoID, generationID)
-	lookup := keyedPhaseLookup{ready: map[GraphProjectionPhaseKey]GraphProjectionPhase{
-		repoKey: GraphProjectionPhaseWorkloadMaterialization,
+	lookup := keyedPhaseLookup{ready: map[gpphase.PhaseKey]gpphase.Phase{
+		repoKey: gpphase.PhaseWorkloadMaterialization,
 	}}
 
 	// Presence has the endpoint committed so the second gate passes it through.
@@ -159,15 +160,15 @@ func TestFilterRowsByReadinessHandlesRouteOldStyleKeyStillMisses(t *testing.T) {
 
 	// Old-style phase row: workload-intent acceptance unit form + srun=gen, which
 	// is NOT the repo-keyed row the consumer reconstructs.
-	oldStyleKey := GraphProjectionPhaseKey{
+	oldStyleKey := gpphase.PhaseKey{
 		ScopeID:          scopeID,
 		AcceptanceUnitID: "repo:r_858f75b9",
 		SourceRunID:      generationID,
 		GenerationID:     generationID,
-		Keyspace:         GraphProjectionKeyspaceServiceUID,
+		Keyspace:         gpphase.KeyspaceServiceUID,
 	}
-	lookup := keyedPhaseLookup{ready: map[GraphProjectionPhaseKey]GraphProjectionPhase{
-		oldStyleKey: GraphProjectionPhaseWorkloadMaterialization,
+	lookup := keyedPhaseLookup{ready: map[gpphase.PhaseKey]gpphase.Phase{
+		oldStyleKey: gpphase.PhaseWorkloadMaterialization,
 	}}
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{}}
 
@@ -210,12 +211,12 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 		CreatedAt:        time.Now().UTC(),
 	}
 
-	intentKey, ok := worker.GraphProjectionPhaseKeyForRow(row, generationID, GraphProjectionKeyspaceCodeEntitiesUID)
+	intentKey, ok := worker.GraphProjectionPhaseKeyForRow(row, generationID, gpphase.KeyspaceCodeEntitiesUID)
 	if !ok {
 		t.Fatal("code_calls intent key not derivable")
 	}
-	lookup := keyedPhaseLookup{ready: map[GraphProjectionPhaseKey]GraphProjectionPhase{
-		intentKey: GraphProjectionPhaseCanonicalNodesCommitted,
+	lookup := keyedPhaseLookup{ready: map[gpphase.PhaseKey]gpphase.Phase{
+		intentKey: gpphase.PhaseCanonicalNodesCommitted,
 	}}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
@@ -232,8 +233,8 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 	// The repo-keyed row must NOT resolve code_calls: its key derivation is
 	// unchanged, so a row keyed only by the new helper stays blocked.
 	repoKey := workloadMaterializationRepoReadinessKey(scopeID, repoID, generationID)
-	repoOnly := keyedPhaseLookup{ready: map[GraphProjectionPhaseKey]GraphProjectionPhase{
-		repoKey: GraphProjectionPhaseCanonicalNodesCommitted,
+	repoOnly := keyedPhaseLookup{ready: map[gpphase.PhaseKey]gpphase.Phase{
+		repoKey: gpphase.PhaseCanonicalNodesCommitted,
 	}}
 	ready, blocked, _, err = worker.FilterRowsByReadiness(
 		context.Background(), DomainCodeCalls,
@@ -368,10 +369,10 @@ func TestWorkloadMaterializationHandlerPublishesRepoKeyedPhaseOnZeroCandidatePat
 
 // publishedReadinessKey reports whether any published phase row carries the exact
 // readiness key at the workload-materialization phase.
-func publishedReadinessKey(p *recordingGraphProjectionPhasePublisher, key GraphProjectionPhaseKey) bool {
+func publishedReadinessKey(p *recordingGraphProjectionPhasePublisher, key gpphase.PhaseKey) bool {
 	for _, batch := range p.calls {
 		for _, row := range batch {
-			if row.Key == key && row.Phase == GraphProjectionPhaseWorkloadMaterialization {
+			if row.Key == key && row.Phase == gpphase.PhaseWorkloadMaterialization {
 				return true
 			}
 		}
@@ -402,16 +403,16 @@ func TestPublishRepoReadinessPhasesRetractsStalePresenceBeforeOpeningGate(t *tes
 
 	// Stale presence retracted for BOTH symbol→runtime keyspaces, scoped to this
 	// generation and these repos.
-	byKeyspace := make(map[GraphProjectionKeyspace]staleRepoGenerationRetract)
+	byKeyspace := make(map[gpphase.Keyspace]staleRepoGenerationRetract)
 	for _, r := range presence.staleRetract {
 		if r.scopeID != "scope-1" || r.generationID != "gen-1" {
 			t.Fatalf("stale-retract scope/gen = %s/%s, want scope-1/gen-1", r.scopeID, r.generationID)
 		}
 		byKeyspace[r.keyspace] = r
 	}
-	for _, ks := range []GraphProjectionKeyspace{
-		GraphProjectionKeyspaceAPIEndpointRepoPath,
-		GraphProjectionKeyspaceRepoWorkloadPresence,
+	for _, ks := range []gpphase.Keyspace{
+		gpphase.KeyspaceAPIEndpointRepoPath,
+		gpphase.KeyspaceRepoWorkloadPresence,
 	} {
 		r, ok := byKeyspace[ks]
 		if !ok {

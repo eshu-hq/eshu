@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestEvaluationResultPhaseStatesBuildsStableStates(t *testing.T) {
@@ -19,14 +19,14 @@ func TestEvaluationResultPhaseStatesBuildsStableStates(t *testing.T) {
 		Publications: []Publication{
 			{
 				AcceptanceUnitID: "service:sample-service-api",
-				Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
-				Phase:            reducer.GraphProjectionPhaseDeploymentMapping,
+				Keyspace:         gpphase.KeyspaceServiceUID,
+				Phase:            gpphase.PhaseDeploymentMapping,
 				OutputKind:       OutputKindResolvedRelationship,
 			},
 			{
 				AcceptanceUnitID: "terraform:stack/app",
-				Keyspace:         reducer.GraphProjectionKeyspaceTerraformResourceUID,
-				Phase:            reducer.GraphProjectionPhaseCrossSourceAnchorReady,
+				Keyspace:         gpphase.KeyspaceTerraformResourceUID,
+				Phase:            gpphase.PhaseCrossSourceAnchorReady,
 				OutputKind:       OutputKindResolvedRelationship,
 			},
 		},
@@ -42,13 +42,13 @@ func TestEvaluationResultPhaseStatesBuildsStableStates(t *testing.T) {
 	if gotKey, want := got[0].Key.AcceptanceUnitID, "service:sample-service-api"; gotKey != want {
 		t.Fatalf("first AcceptanceUnitID = %q, want %q", gotKey, want)
 	}
-	if gotPhase, want := got[0].Phase, reducer.GraphProjectionPhaseDeploymentMapping; gotPhase != want {
+	if gotPhase, want := got[0].Phase, gpphase.PhaseDeploymentMapping; gotPhase != want {
 		t.Fatalf("first Phase = %q, want %q", gotPhase, want)
 	}
 	if gotKey, want := got[1].Key.AcceptanceUnitID, "terraform:stack/app"; gotKey != want {
 		t.Fatalf("second AcceptanceUnitID = %q, want %q", gotKey, want)
 	}
-	if gotPhase, want := got[1].Phase, reducer.GraphProjectionPhaseCrossSourceAnchorReady; gotPhase != want {
+	if gotPhase, want := got[1].Phase, gpphase.PhaseCrossSourceAnchorReady; gotPhase != want {
 		t.Fatalf("second Phase = %q, want %q", gotPhase, want)
 	}
 }
@@ -60,14 +60,14 @@ func TestEvaluationResultPhaseStatesDedupesDuplicatePublications(t *testing.T) {
 		Publications: []Publication{
 			{
 				AcceptanceUnitID: "terraform:stack/app",
-				Keyspace:         reducer.GraphProjectionKeyspaceTerraformResourceUID,
-				Phase:            reducer.GraphProjectionPhaseCrossSourceAnchorReady,
+				Keyspace:         gpphase.KeyspaceTerraformResourceUID,
+				Phase:            gpphase.PhaseCrossSourceAnchorReady,
 				OutputKind:       OutputKindResolvedRelationship,
 			},
 			{
 				AcceptanceUnitID: "terraform:stack/app",
-				Keyspace:         reducer.GraphProjectionKeyspaceTerraformResourceUID,
-				Phase:            reducer.GraphProjectionPhaseCrossSourceAnchorReady,
+				Keyspace:         gpphase.KeyspaceTerraformResourceUID,
+				Phase:            gpphase.PhaseCrossSourceAnchorReady,
 				OutputKind:       OutputKindDriftObservation,
 			},
 		},
@@ -90,8 +90,8 @@ func TestPublishEvaluationResultPublishesStates(t *testing.T) {
 		Publications: []Publication{
 			{
 				AcceptanceUnitID: "cloud:lambda:sample-service-api",
-				Keyspace:         reducer.GraphProjectionKeyspaceCloudResourceUID,
-				Phase:            reducer.GraphProjectionPhaseCrossSourceAnchorReady,
+				Keyspace:         gpphase.KeyspaceCloudResourceUID,
+				Phase:            gpphase.PhaseCrossSourceAnchorReady,
 				OutputKind:       OutputKindDriftObservation,
 			},
 		},
@@ -111,10 +111,10 @@ func TestPublishEvaluationResultPublishesStates(t *testing.T) {
 	if got, want := len(publisher.calls), 1; got != want {
 		t.Fatalf("publisher calls = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.Keyspace, reducer.GraphProjectionKeyspaceCloudResourceUID; got != want {
+	if got, want := publisher.calls[0][0].Key.Keyspace, gpphase.KeyspaceCloudResourceUID; got != want {
 		t.Fatalf("published keyspace = %q, want %q", got, want)
 	}
-	if got, want := publisher.calls[0][0].Phase, reducer.GraphProjectionPhaseCrossSourceAnchorReady; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseCrossSourceAnchorReady; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
 }
@@ -130,8 +130,8 @@ func TestPublishEvaluationResultRejectsInvalidPublication(t *testing.T) {
 		EvaluationResult{
 			Publications: []Publication{{
 				AcceptanceUnitID: "",
-				Keyspace:         reducer.GraphProjectionKeyspaceCloudResourceUID,
-				Phase:            reducer.GraphProjectionPhaseCrossSourceAnchorReady,
+				Keyspace:         gpphase.KeyspaceCloudResourceUID,
+				Phase:            gpphase.PhaseCrossSourceAnchorReady,
 				OutputKind:       OutputKindResolvedRelationship,
 			}},
 		},
@@ -143,11 +143,11 @@ func TestPublishEvaluationResultRejectsInvalidPublication(t *testing.T) {
 }
 
 type recordingPhasePublisher struct {
-	calls [][]reducer.GraphProjectionPhaseState
+	calls [][]gpphase.PhaseState
 }
 
-func (r *recordingPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []reducer.GraphProjectionPhaseState) error {
-	cloned := make([]reducer.GraphProjectionPhaseState, len(rows))
+func (r *recordingPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []gpphase.PhaseState) error {
+	cloned := make([]gpphase.PhaseState, len(rows))
 	copy(cloned, rows)
 	r.calls = append(r.calls, cloned)
 	return nil

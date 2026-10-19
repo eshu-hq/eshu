@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -89,10 +89,10 @@ func TestReducerGraphDrainHasUncommittedCanonicalCodeScopes(t *testing.T) {
 	if got, want := len(args), 4; got != want {
 		t.Fatalf("query args = %d, want %d: %v", got, want, args)
 	}
-	if got, want := args[0], string(reducer.GraphProjectionKeyspaceCodeEntitiesUID); got != want {
+	if got, want := args[0], string(gpphase.KeyspaceCodeEntitiesUID); got != want {
 		t.Fatalf("keyspace arg = %v, want %v", got, want)
 	}
-	if got, want := args[1], string(reducer.GraphProjectionPhaseCanonicalNodesCommitted); got != want {
+	if got, want := args[1], string(gpphase.PhaseCanonicalNodesCommitted); got != want {
 		t.Fatalf("phase arg = %v, want %v", got, want)
 	}
 	// #7133: only code-bearing collectors, derived from the workflow

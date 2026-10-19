@@ -7,12 +7,14 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // recordingPresenceWriter captures Upsert/RetractScope/RetractStaleRepoGenerations
 // calls for assertions.
 type recordingPresenceWriter struct {
-	upserts      [][]EndpointPresenceRow
+	upserts      [][]gpphase.EndpointPresenceRow
 	retracts     [][]string
 	staleRetract []staleRepoGenerationRetract
 	err          error
@@ -20,13 +22,13 @@ type recordingPresenceWriter struct {
 
 // staleRepoGenerationRetract records one RetractStaleRepoGenerations call (#2842).
 type staleRepoGenerationRetract struct {
-	keyspace     GraphProjectionKeyspace
+	keyspace     gpphase.Keyspace
 	scopeID      string
 	generationID string
 	repoIDs      []string
 }
 
-func (w *recordingPresenceWriter) Upsert(_ context.Context, rows []EndpointPresenceRow) error {
+func (w *recordingPresenceWriter) Upsert(_ context.Context, rows []gpphase.EndpointPresenceRow) error {
 	if w.err != nil {
 		return w.err
 	}
@@ -41,7 +43,7 @@ func (w *recordingPresenceWriter) RetractScope(_ context.Context, scopeIDs []str
 
 func (w *recordingPresenceWriter) RetractStaleRepoGenerations(
 	_ context.Context,
-	keyspace GraphProjectionKeyspace,
+	keyspace gpphase.Keyspace,
 	scopeID, generationID string,
 	repoIDs []string,
 ) error {
@@ -63,7 +65,7 @@ func TestPublishEndpointPresenceNilWriterIsNoOp(t *testing.T) {
 	// The flag-off path: a nil writer must never touch presence, so the hot
 	// materializer paths carry zero extra work when the feature is disabled.
 	if err := publishEndpointPresence(context.Background(), nil,
-		GraphProjectionKeyspaceCloudResourceUID, "scope-1",
+		gpphase.KeyspaceCloudResourceUID, "scope-1",
 		[]map[string]any{{"uid": "cr-1"}}, time.Unix(1700000000, 0).UTC()); err != nil {
 		t.Fatalf("nil writer error = %v, want nil", err)
 	}
@@ -75,7 +77,7 @@ func TestPublishEndpointPresenceUpsertsNodeUIDs(t *testing.T) {
 	writer := &recordingPresenceWriter{}
 	rows := []map[string]any{{"uid": "cr-1"}, {"uid": ""}, {"uid": "cr-2"}, {"other": "x"}}
 	if err := publishEndpointPresence(context.Background(), writer,
-		GraphProjectionKeyspaceCloudResourceUID, "scope-1", rows, time.Unix(1700000000, 0).UTC()); err != nil {
+		gpphase.KeyspaceCloudResourceUID, "scope-1", rows, time.Unix(1700000000, 0).UTC()); err != nil {
 		t.Fatalf("Upsert error = %v", err)
 	}
 	if len(writer.upserts) != 1 {
@@ -86,7 +88,7 @@ func TestPublishEndpointPresenceUpsertsNodeUIDs(t *testing.T) {
 		t.Fatalf("presence rows = %d, want 2 (blank/uid-less rows skipped)", len(got))
 	}
 	for _, r := range got {
-		if r.Keyspace != GraphProjectionKeyspaceCloudResourceUID || r.ScopeID != "scope-1" || r.UID == "" {
+		if r.Keyspace != gpphase.KeyspaceCloudResourceUID || r.ScopeID != "scope-1" || r.UID == "" {
 			t.Fatalf("malformed presence row: %+v", r)
 		}
 	}
@@ -97,7 +99,7 @@ func TestPublishEndpointPresenceEmptyRowsNoCall(t *testing.T) {
 
 	writer := &recordingPresenceWriter{}
 	if err := publishEndpointPresence(context.Background(), writer,
-		GraphProjectionKeyspaceKubernetesWorkloadUID, "scope-1", nil, time.Now().UTC()); err != nil {
+		gpphase.KeyspaceKubernetesWorkloadUID, "scope-1", nil, time.Now().UTC()); err != nil {
 		t.Fatalf("empty rows error = %v", err)
 	}
 	if len(writer.upserts) != 0 {

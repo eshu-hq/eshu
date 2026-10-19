@@ -12,7 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -109,38 +109,38 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUpdatesRunAndCompleteness(t *t
 				rows: [][]any{
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
-						string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+						string(gpphase.KeyspaceCodeEntitiesUID),
+						string(gpphase.PhaseCanonicalNodesCommitted),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
-						string(reducer.GraphProjectionPhaseSemanticNodesCommitted),
+						string(gpphase.KeyspaceCodeEntitiesUID),
+						string(gpphase.PhaseSemanticNodesCommitted),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceDeployableUnitUID),
-						string(reducer.GraphProjectionPhaseDeployableUnitCorrelation),
+						string(gpphase.KeyspaceDeployableUnitUID),
+						string(gpphase.PhaseDeployableUnitCorrelation),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceServiceUID),
-						string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+						string(gpphase.KeyspaceServiceUID),
+						string(gpphase.PhaseCanonicalNodesCommitted),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceServiceUID),
-						string(reducer.GraphProjectionPhaseDeploymentMapping),
+						string(gpphase.KeyspaceServiceUID),
+						string(gpphase.PhaseDeploymentMapping),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceServiceUID),
-						string(reducer.GraphProjectionPhaseWorkloadMaterialization),
+						string(gpphase.KeyspaceServiceUID),
+						string(gpphase.PhaseWorkloadMaterialization),
 						1,
 					},
 				},
@@ -167,7 +167,7 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUpdatesRunAndCompleteness(t *t
 	if !strings.Contains(db.execs[1].query, "INSERT INTO workflow_run_completeness") {
 		t.Fatalf("second exec missing workflow_run_completeness upsert: %s", db.execs[1].query)
 	}
-	if got, want := db.execs[1].args[2], string(reducer.GraphProjectionKeyspaceCodeEntitiesUID); got != want {
+	if got, want := db.execs[1].args[2], string(gpphase.KeyspaceCodeEntitiesUID); got != want {
 		t.Fatalf("first completeness keyspace arg = %v, want %q", got, want)
 	}
 }
@@ -278,38 +278,38 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUsesTransactionWhenAvailable(t
 				rows: [][]any{
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
-						string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+						string(gpphase.KeyspaceCodeEntitiesUID),
+						string(gpphase.PhaseCanonicalNodesCommitted),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
-						string(reducer.GraphProjectionPhaseSemanticNodesCommitted),
+						string(gpphase.KeyspaceCodeEntitiesUID),
+						string(gpphase.PhaseSemanticNodesCommitted),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceDeployableUnitUID),
-						string(reducer.GraphProjectionPhaseDeployableUnitCorrelation),
+						string(gpphase.KeyspaceDeployableUnitUID),
+						string(gpphase.PhaseDeployableUnitCorrelation),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceServiceUID),
-						string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+						string(gpphase.KeyspaceServiceUID),
+						string(gpphase.PhaseCanonicalNodesCommitted),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceServiceUID),
-						string(reducer.GraphProjectionPhaseDeploymentMapping),
+						string(gpphase.KeyspaceServiceUID),
+						string(gpphase.PhaseDeploymentMapping),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceServiceUID),
-						string(reducer.GraphProjectionPhaseWorkloadMaterialization),
+						string(gpphase.KeyspaceServiceUID),
+						string(gpphase.PhaseWorkloadMaterialization),
 						1,
 					},
 				},
@@ -362,7 +362,7 @@ func TestWorkflowControlStoreReconcileWorkflowRunsUsesTransactionWhenAvailable(t
 	if !strings.Contains(tx.execs[1].query, "INSERT INTO workflow_run_completeness") {
 		t.Fatalf("second tx exec missing workflow_run_completeness upsert: %s", tx.execs[1].query)
 	}
-	if got, want := tx.execs[1].args[2], string(reducer.GraphProjectionKeyspaceCodeEntitiesUID); got != want {
+	if got, want := tx.execs[1].args[2], string(gpphase.KeyspaceCodeEntitiesUID); got != want {
 		t.Fatalf("first transactional completeness keyspace arg = %v, want %q", got, want)
 	}
 }
@@ -428,38 +428,38 @@ func workflowRunReconciliationTx() *fakeTx {
 				rows: [][]any{
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
-						string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+						string(gpphase.KeyspaceCodeEntitiesUID),
+						string(gpphase.PhaseCanonicalNodesCommitted),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
-						string(reducer.GraphProjectionPhaseSemanticNodesCommitted),
+						string(gpphase.KeyspaceCodeEntitiesUID),
+						string(gpphase.PhaseSemanticNodesCommitted),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceDeployableUnitUID),
-						string(reducer.GraphProjectionPhaseDeployableUnitCorrelation),
+						string(gpphase.KeyspaceDeployableUnitUID),
+						string(gpphase.PhaseDeployableUnitCorrelation),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceServiceUID),
-						string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+						string(gpphase.KeyspaceServiceUID),
+						string(gpphase.PhaseCanonicalNodesCommitted),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceServiceUID),
-						string(reducer.GraphProjectionPhaseDeploymentMapping),
+						string(gpphase.KeyspaceServiceUID),
+						string(gpphase.PhaseDeploymentMapping),
 						1,
 					},
 					{
 						string(scope.CollectorGit),
-						string(reducer.GraphProjectionKeyspaceServiceUID),
-						string(reducer.GraphProjectionPhaseWorkloadMaterialization),
+						string(gpphase.KeyspaceServiceUID),
+						string(gpphase.PhaseWorkloadMaterialization),
 						1,
 					},
 				},

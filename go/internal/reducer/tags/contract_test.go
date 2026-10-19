@@ -6,7 +6,7 @@ package tags
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestDefaultRuntimeContract(t *testing.T) {
@@ -16,7 +16,7 @@ func TestDefaultRuntimeContract(t *testing.T) {
 	if err := contract.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v, want nil", err)
 	}
-	if got, want := contract.CanonicalKeyspaces[0], reducer.GraphProjectionKeyspaceCloudResourceUID; got != want {
+	if got, want := contract.CanonicalKeyspaces[0], gpphase.KeyspaceCloudResourceUID; got != want {
 		t.Fatalf("CanonicalKeyspaces[0] = %q, want %q", got, want)
 	}
 }
@@ -26,13 +26,13 @@ func TestRuntimeContractTemplateReturnsClonedSlices(t *testing.T) {
 
 	contract := RuntimeContractTemplate()
 	contract.Components[0] = "mutated"
-	contract.CanonicalKeyspaces[0] = reducer.GraphProjectionKeyspaceServiceUID
+	contract.CanonicalKeyspaces[0] = gpphase.KeyspaceServiceUID
 
 	fresh := RuntimeContractTemplate()
 	if got, want := fresh.Components[0], "normalizer"; got != want {
 		t.Fatalf("fresh Components[0] = %q, want %q", got, want)
 	}
-	if got, want := fresh.CanonicalKeyspaces[0], reducer.GraphProjectionKeyspaceCloudResourceUID; got != want {
+	if got, want := fresh.CanonicalKeyspaces[0], gpphase.KeyspaceCloudResourceUID; got != want {
 		t.Fatalf("fresh CanonicalKeyspaces[0] = %q, want %q", got, want)
 	}
 }

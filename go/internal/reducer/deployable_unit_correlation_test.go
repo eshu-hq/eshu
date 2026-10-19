@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -169,10 +170,10 @@ func TestDeployableUnitCorrelationHandleReturnsNoCandidates(t *testing.T) {
 	if got, want := len(publisher.calls), 1; got != want {
 		t.Fatalf("publisher calls = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.Keyspace, GraphProjectionKeyspaceDeployableUnitUID; got != want {
+	if got, want := publisher.calls[0][0].Key.Keyspace, gpphase.KeyspaceDeployableUnitUID; got != want {
 		t.Fatalf("published keyspace = %q, want %q", got, want)
 	}
-	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseDeployableUnitCorrelation; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseDeployableUnitCorrelation; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
 }
@@ -315,10 +316,10 @@ func TestDeployableUnitCorrelationHandlePublishesPhaseForAdmittedCandidate(t *te
 	if got, want := len(publisher.calls), 1; got != want {
 		t.Fatalf("publisher calls = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.Keyspace, GraphProjectionKeyspaceDeployableUnitUID; got != want {
+	if got, want := publisher.calls[0][0].Key.Keyspace, gpphase.KeyspaceDeployableUnitUID; got != want {
 		t.Fatalf("published keyspace = %q, want %q", got, want)
 	}
-	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseDeployableUnitCorrelation; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseDeployableUnitCorrelation; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
 	// Acceptance-unit ids track the selecting entity key, which is id-based

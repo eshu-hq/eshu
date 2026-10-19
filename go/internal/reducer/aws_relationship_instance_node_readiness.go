@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // relationshipTypeEC2InstanceUsesAMI is the one AWS relationship whose SOURCE
@@ -103,14 +104,14 @@ func (h AWSRelationshipMaterializationHandler) ec2InstanceNodesReady(intent redu
 	}
 	state, ok := graphProjectionPhaseStateForIntent(
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	)
 	if !ok {
 		return false
 	}
 	state.Key.AcceptanceUnitID = ec2InstanceNodeAcceptanceUnitPrefix + strings.TrimSpace(intent.ScopeID)
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }

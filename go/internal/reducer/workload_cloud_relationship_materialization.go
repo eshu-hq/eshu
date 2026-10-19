@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -60,7 +61,7 @@ type WorkloadCloudRelationshipEdgeWriter interface {
 type WorkloadCloudRelationshipMaterializationHandler struct {
 	FactLoader           FactLoader
 	EdgeWriter           WorkloadCloudRelationshipEdgeWriter
-	ReadinessLookup      GraphProjectionReadinessLookup
+	ReadinessLookup      gpphase.ReadinessLookup
 	PriorGenerationCheck PriorGenerationCheck
 	// WorkloadInstanceExistence reports which (workload, environment) anchors
 	// already have a materialized WorkloadInstance. When set, the handler
@@ -202,21 +203,21 @@ func (h WorkloadCloudRelationshipMaterializationHandler) endpointsReady(intent r
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	cloudKey := GraphProjectionPhaseKey{
+	cloudKey := gpphase.PhaseKey{
 		ScopeID:          intent.ScopeID,
 		AcceptanceUnitID: "aws_resource_materialization:" + intent.ScopeID,
 		SourceRunID:      intent.GenerationID,
 		GenerationID:     intent.GenerationID,
-		Keyspace:         GraphProjectionKeyspaceCloudResourceUID,
+		Keyspace:         gpphase.KeyspaceCloudResourceUID,
 	}
 	if len(intent.EntityKeys) > 0 && intent.EntityKeys[0] != "" {
 		cloudKey.AcceptanceUnitID = intent.EntityKeys[0]
 	}
 	states := []struct {
-		key   GraphProjectionPhaseKey
-		phase GraphProjectionPhase
+		key   gpphase.PhaseKey
+		phase gpphase.Phase
 	}{
-		{key: cloudKey, phase: GraphProjectionPhaseCanonicalNodesCommitted},
+		{key: cloudKey, phase: gpphase.PhaseCanonicalNodesCommitted},
 	}
 	for _, state := range states {
 		state.key.GenerationID = intent.GenerationID

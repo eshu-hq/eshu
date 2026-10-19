@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -23,8 +23,8 @@ const (
 // PhaseRequirement identifies one reducer-owned phase the coordinator must
 // observe before a bounded collector slice may be considered complete.
 type PhaseRequirement struct {
-	Keyspace  reducer.GraphProjectionKeyspace
-	PhaseName reducer.GraphProjectionPhase
+	Keyspace  gpphase.Keyspace
+	PhaseName gpphase.Phase
 	Required  bool
 	// DeadLetterDomain names the reducer Domain that owns writing this phase,
 	// when exactly one reducer domain is responsible for its publication
@@ -38,8 +38,8 @@ type PhaseRequirement struct {
 
 // PhasePublicationKey identifies one published reducer checkpoint.
 type PhasePublicationKey struct {
-	Keyspace  reducer.GraphProjectionKeyspace
-	PhaseName reducer.GraphProjectionPhase
+	Keyspace  gpphase.Keyspace
+	PhaseName gpphase.Phase
 }
 
 // Validate checks that the phase requirement is well formed. DeadLetterDomain

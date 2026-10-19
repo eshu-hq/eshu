@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -71,11 +72,11 @@ type GCPResourceMaterializationHandler struct {
 	// PhasePublisher records the canonical-nodes-committed readiness phase that
 	// gates the GCP relationship edge projection. A nil publisher is a no-op so
 	// the additive domain stays safe to register before the edge stage is wired.
-	PhasePublisher GraphProjectionPhasePublisher
+	PhasePublisher gpphase.PhasePublisher
 	// PresenceWriter records uid-exact endpoint presence for committed
 	// CloudResource nodes so a cross-scope projection gate can prove a specific
 	// node committed. It is nil on the default hot path, making presence a no-op.
-	PresenceWriter EndpointPresenceWriter
+	PresenceWriter gpphase.EndpointPresenceWriter
 	// Instruments records bounded Prometheus counters and histograms for GCP
 	// resource materialization. Nil preserves existing no-metric behavior.
 	Instruments *telemetry.Instruments
@@ -149,7 +150,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 		// a nil PresenceWriter (the default) makes this a no-op.
 		if err := publishEndpointPresence(
 			ctx, h.PresenceWriter,
-			GraphProjectionKeyspaceCloudResourceUID, intent.ScopeID, rows, time.Now().UTC(),
+			gpphase.KeyspaceCloudResourceUID, intent.ScopeID, rows, time.Now().UTC(),
 		); err != nil {
 			return reducercontract.Result{}, fmt.Errorf("record cloud resource endpoint presence: %w", err)
 		}
@@ -192,8 +193,8 @@ func (h GCPResourceMaterializationHandler) Handle(
 		ctx,
 		h.PhasePublisher,
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
 		return reducercontract.Result{}, fmt.Errorf("publish canonical cloud resource nodes phase: %w", err)

@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 const (
@@ -151,12 +151,12 @@ func (s *GraphEndpointPresenceStore) EnsureSchema(ctx context.Context) error {
 // Upsert writes endpoint-presence rows in idempotent batches. Rows with a blank
 // keyspace, uid, or scope_id are skipped because they cannot key a presence row;
 // an empty input is a no-op.
-func (s *GraphEndpointPresenceStore) Upsert(ctx context.Context, rows []reducer.EndpointPresenceRow) error {
+func (s *GraphEndpointPresenceStore) Upsert(ctx context.Context, rows []gpphase.EndpointPresenceRow) error {
 	if len(rows) == 0 {
 		return nil
 	}
 
-	cleaned := make([]reducer.EndpointPresenceRow, 0, len(rows))
+	cleaned := make([]gpphase.EndpointPresenceRow, 0, len(rows))
 	for _, row := range rows {
 		if strings.TrimSpace(string(row.Keyspace)) == "" ||
 			strings.TrimSpace(row.UID) == "" ||
@@ -205,7 +205,7 @@ func (s *GraphEndpointPresenceStore) RetractScope(ctx context.Context, scopeIDs 
 // behavior, only growing the table).
 func (s *GraphEndpointPresenceStore) RetractStaleRepoGenerations(
 	ctx context.Context,
-	keyspace reducer.GraphProjectionKeyspace,
+	keyspace gpphase.Keyspace,
 	scopeID, generationID string,
 	repoIDs []string,
 ) error {
@@ -234,7 +234,7 @@ func (s *GraphEndpointPresenceStore) RetractStaleRepoGenerations(
 // query.
 func (s *GraphEndpointPresenceStore) MissingUIDs(
 	ctx context.Context,
-	keyspace reducer.GraphProjectionKeyspace,
+	keyspace gpphase.Keyspace,
 	uids []string,
 ) ([]string, error) {
 	keyspaceValue := strings.TrimSpace(string(keyspace))
@@ -277,7 +277,7 @@ func (s *GraphEndpointPresenceStore) MissingUIDs(
 	return missing, nil
 }
 
-func upsertGraphEndpointPresenceBatch(ctx context.Context, database db.ExecQueryer, batch []reducer.EndpointPresenceRow) error {
+func upsertGraphEndpointPresenceBatch(ctx context.Context, database db.ExecQueryer, batch []gpphase.EndpointPresenceRow) error {
 	if len(batch) == 0 {
 		return nil
 	}

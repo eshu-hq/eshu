@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -80,13 +81,13 @@ func TestRepoDependencyProjectionRunnerReplaysFencedWhenCompletedRunsOnCreatedAt
 		WorkloadMaterializationReplayer: replayer,
 		WorkloadReadinessPrefetch: func(
 			_ context.Context,
-			keys []GraphProjectionPhaseKey,
-			_ GraphProjectionPhase,
-		) (GraphProjectionReadinessLookup, error) {
+			keys []gpphase.PhaseKey,
+			_ gpphase.Phase,
+		) (gpphase.ReadinessLookup, error) {
 			if len(keys) != 1 || keys[0] != newFence.readinessKey {
 				t.Fatalf("readiness keys = %#v, want only the new-epoch key %#v", keys, newFence.readinessKey)
 			}
-			return func(key GraphProjectionPhaseKey, _ GraphProjectionPhase) (bool, bool) {
+			return func(key gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
 				// Readiness published for the older epoch stays true and must not
 				// satisfy the new token.
 				if key == oldFence.readinessKey {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // DomainAWSRelationshipMaterialization gates on the canonical-nodes phase
@@ -56,8 +57,8 @@ func ec2AMIRelationshipEnvelope() facts.Envelope {
 // perUnitReadyLookup answers readiness per acceptance unit, so a test can commit
 // one node phase and withhold the other. readyLookup cannot express that: it
 // returns the same answer for every key.
-func perUnitReadyLookup(readyUnits map[string]bool) GraphProjectionReadinessLookup {
-	return func(key GraphProjectionPhaseKey, _ GraphProjectionPhase) (bool, bool) {
+func perUnitReadyLookup(readyUnits map[string]bool) gpphase.ReadinessLookup {
+	return func(key gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
 		ready, found := readyUnits[key.AcceptanceUnitID]
 		return ready, found
 	}

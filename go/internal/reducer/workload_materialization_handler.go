@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // at cap: #6626 phase-bucket import add on a 500-line file; split out of scope for this rename
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -129,7 +130,7 @@ type WorkloadMaterializationHandler struct {
 	// stale ids and issues no DELETE in steady state. Nil runs the keep-list
 	// deletes unconditionally (correct, but a zero-row DELETE per run).
 	RepositoryEdgeReader retract.Reader
-	PhasePublisher       GraphProjectionPhasePublisher
+	PhasePublisher       gpphase.PhasePublisher
 	// RepairQueue captures exact workload-materialization phase rows when graph
 	// writes have committed but phase publication fails.
 	RepairQueue GraphProjectionPhaseRepairQueue
@@ -138,7 +139,7 @@ type WorkloadMaterializationHandler struct {
 	// gate can prove a specific endpoint exists (#2809). A nil writer (the
 	// default) makes presence publication a no-op, keeping the hot workload
 	// materialization path byte-identical.
-	EndpointPresenceWriter EndpointPresenceWriter
+	EndpointPresenceWriter gpphase.EndpointPresenceWriter
 	// AffectedGraph runs the value-flow refresh emit gate over the repos this
 	// projection materialized. Nil skips the gate and reports affected (fail
 	// open); production wires the graph query runner.
@@ -211,8 +212,8 @@ func (h WorkloadMaterializationHandler) Handle(
 			h.PhasePublisher,
 			h.RepairQueue,
 			intent,
-			GraphProjectionKeyspaceServiceUID,
-			GraphProjectionPhaseWorkloadMaterialization,
+			gpphase.KeyspaceServiceUID,
+			gpphase.PhaseWorkloadMaterialization,
 			time.Now().UTC(),
 		); err != nil {
 			if repairErr := enqueueRepoReadinessPhaseRepairs(
@@ -419,8 +420,8 @@ func (h WorkloadMaterializationHandler) Handle(
 		h.PhasePublisher,
 		h.RepairQueue,
 		intent,
-		GraphProjectionKeyspaceServiceUID,
-		GraphProjectionPhaseWorkloadMaterialization,
+		gpphase.KeyspaceServiceUID,
+		gpphase.PhaseWorkloadMaterialization,
 		time.Now().UTC(),
 	); err != nil {
 		if repairErr := enqueueRepoReadinessPhaseRepairs(

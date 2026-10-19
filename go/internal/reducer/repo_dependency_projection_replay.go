@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -36,7 +37,7 @@ type workloadMaterializationFenceRequest struct {
 	workloadMaterializationReplayRequest
 	repoID       string
 	fence        string
-	readinessKey GraphProjectionPhaseKey
+	readinessKey gpphase.PhaseKey
 }
 
 // WorkloadMaterializationFenceReplayer schedules a workload replay carrying a
@@ -429,14 +430,14 @@ func (r *RepoDependencyProjectionRunner) ensureRunsOnWorkloadReadiness(
 	if len(requests) == 0 {
 		return true, 0, 0, nil
 	}
-	keys := make([]GraphProjectionPhaseKey, 0, len(requests))
+	keys := make([]gpphase.PhaseKey, 0, len(requests))
 	for _, request := range requests {
 		keys = append(keys, request.readinessKey)
 	}
 	lookup, err := r.WorkloadReadinessPrefetch(
 		ctx,
 		keys,
-		GraphProjectionPhaseWorkloadMaterialization,
+		gpphase.PhaseWorkloadMaterialization,
 	)
 	if err != nil {
 		return false, 0, 0, fmt.Errorf("prefetch repo dependency RUNS_ON workload readiness: %w", err)
@@ -446,7 +447,7 @@ func (r *RepoDependencyProjectionRunner) ensureRunsOnWorkloadReadiness(
 	}
 	missing := make([]workloadMaterializationFenceRequest, 0, len(requests))
 	for _, request := range requests {
-		ready, found := lookup(request.readinessKey, GraphProjectionPhaseWorkloadMaterialization)
+		ready, found := lookup(request.readinessKey, gpphase.PhaseWorkloadMaterialization)
 		if ready && found {
 			continue
 		}

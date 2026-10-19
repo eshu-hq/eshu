@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -250,8 +251,8 @@ func TestRepoDependencyRunsOnFencedReplaySkipsRetiredGeneration(t *testing.T) {
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
 		WorkloadReadinessPrefetch: func(
-			context.Context, []GraphProjectionPhaseKey, GraphProjectionPhase,
-		) (GraphProjectionReadinessLookup, error) {
+			context.Context, []gpphase.PhaseKey, gpphase.Phase,
+		) (gpphase.ReadinessLookup, error) {
 			t.Fatal("readiness prefetch ran for a retired generation, want no wait on it")
 			return nil, nil
 		},
@@ -306,9 +307,9 @@ func TestRepoDependencyRunsOnFencedReplayStillFailsClosedOnActiveGeneration(t *t
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
 		WorkloadReadinessPrefetch: func(
-			_ context.Context, keys []GraphProjectionPhaseKey, _ GraphProjectionPhase,
-		) (GraphProjectionReadinessLookup, error) {
-			return func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) { return false, false }, nil
+			_ context.Context, keys []gpphase.PhaseKey, _ gpphase.Phase,
+		) (gpphase.ReadinessLookup, error) {
+			return func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) { return false, false }, nil
 		},
 		GenerationFreshness: freshness.check,
 		AcceptedGen:         acceptByRunSuffix,
@@ -350,9 +351,9 @@ func TestRepoDependencyRunsOnFencedReplaySkipsWhenSupersedeLandsBetweenCheckAndR
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
 		WorkloadReadinessPrefetch: func(
-			context.Context, []GraphProjectionPhaseKey, GraphProjectionPhase,
-		) (GraphProjectionReadinessLookup, error) {
-			return func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) { return false, false }, nil
+			context.Context, []gpphase.PhaseKey, gpphase.Phase,
+		) (gpphase.ReadinessLookup, error) {
+			return func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) { return false, false }, nil
 		},
 		GenerationFreshness: freshness.check,
 		AcceptedGen:         acceptByRunSuffix,

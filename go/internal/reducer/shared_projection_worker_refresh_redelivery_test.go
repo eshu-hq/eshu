@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
@@ -183,7 +184,7 @@ func drainSQLRefreshFencePartitions(
 	edges *sqlRelationshipStateWriter,
 	lease *stubLeaseManager,
 	accepted AcceptedGenerationLookup,
-	readiness GraphProjectionReadinessLookup,
+	readiness gpphase.ReadinessLookup,
 ) {
 	t.Helper()
 	for pass := 0; pass < partitionCount+2; pass++ {
@@ -210,7 +211,7 @@ func processSQLRefreshFencePartition(
 	edges *sqlRelationshipStateWriter,
 	lease *stubLeaseManager,
 	accepted AcceptedGenerationLookup,
-	readiness GraphProjectionReadinessLookup,
+	readiness gpphase.ReadinessLookup,
 ) PartitionProcessResult {
 	t.Helper()
 	result, err := ProcessPartitionOnce(

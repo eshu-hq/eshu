@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -295,19 +295,19 @@ func TestRuntimeProjectPublishesTerraformStateCanonicalCheckpoints(t *testing.T)
 		t.Fatalf("published rows = %d, want %d", got, want)
 	}
 
-	gotKeyspaces := map[reducer.GraphProjectionKeyspace]bool{}
+	gotKeyspaces := map[gpphase.Keyspace]bool{}
 	for _, row := range publisher.calls[0] {
 		gotKeyspaces[row.Key.Keyspace] = true
-		if got, want := row.Phase, reducer.GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+		if got, want := row.Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 			t.Fatalf("published phase = %q, want %q", got, want)
 		}
 		if got, want := row.Key.AcceptanceUnitID, "tf-scope-1"; got != want {
 			t.Fatalf("published acceptance unit = %q, want %q", got, want)
 		}
 	}
-	for _, want := range []reducer.GraphProjectionKeyspace{
-		reducer.GraphProjectionKeyspaceTerraformResourceUID,
-		reducer.GraphProjectionKeyspaceTerraformModuleUID,
+	for _, want := range []gpphase.Keyspace{
+		gpphase.KeyspaceTerraformResourceUID,
+		gpphase.KeyspaceTerraformModuleUID,
 	} {
 		if !gotKeyspaces[want] {
 			t.Fatalf("published keyspaces = %#v, missing %q", gotKeyspaces, want)
@@ -337,19 +337,19 @@ func TestRuntimeProjectPublishesTerraformStateCanonicalCheckpointsForSnapshotOnl
 		t.Fatalf("published rows = %d, want %d", got, want)
 	}
 
-	gotKeyspaces := map[reducer.GraphProjectionKeyspace]bool{}
+	gotKeyspaces := map[gpphase.Keyspace]bool{}
 	for _, row := range publisher.calls[0] {
 		gotKeyspaces[row.Key.Keyspace] = true
-		if got, want := row.Phase, reducer.GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+		if got, want := row.Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 			t.Fatalf("published phase = %q, want %q", got, want)
 		}
 		if got, want := row.Key.AcceptanceUnitID, "tf-scope-1"; got != want {
 			t.Fatalf("published acceptance unit = %q, want %q", got, want)
 		}
 	}
-	for _, want := range []reducer.GraphProjectionKeyspace{
-		reducer.GraphProjectionKeyspaceTerraformResourceUID,
-		reducer.GraphProjectionKeyspaceTerraformModuleUID,
+	for _, want := range []gpphase.Keyspace{
+		gpphase.KeyspaceTerraformResourceUID,
+		gpphase.KeyspaceTerraformModuleUID,
 	} {
 		if !gotKeyspaces[want] {
 			t.Fatalf("published keyspaces = %#v, missing %q", gotKeyspaces, want)

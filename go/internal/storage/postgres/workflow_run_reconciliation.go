@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -268,7 +269,7 @@ func (s *WorkflowControlStore) recordTerminalDeadLetterBlocks(
 		counts := deadLetterCountsByCollector[string(state.CollectorKind)]
 		key := workflow.PhasePublicationKey{
 			Keyspace:  state.Keyspace,
-			PhaseName: reducer.GraphProjectionPhase(state.PhaseName),
+			PhaseName: gpphase.Phase(state.PhaseName),
 		}
 		if counts[key] <= 0 {
 			// Blocked for a different reason (terminal collector failure),
@@ -303,9 +304,9 @@ func (s *WorkflowControlStore) recordTerminalDeadLetterBlocks(
 // if that coincidence ever changes.
 func workflowReducerDeadLetterDomainForPhase(phaseName string) string {
 	switch phaseName {
-	case string(reducer.GraphProjectionPhaseDeploymentMapping):
+	case string(gpphase.PhaseDeploymentMapping):
 		return string(reducer.DomainDeploymentMapping)
-	case string(reducer.GraphProjectionPhaseWorkloadMaterialization):
+	case string(gpphase.PhaseWorkloadMaterialization):
 		return string(reducer.DomainWorkloadMaterialization)
 	default:
 		return phaseName
@@ -381,8 +382,8 @@ func (s *WorkflowControlStore) listWorkflowCollectorPhaseCounts(
 			phaseCounts[collectorKind] = make(map[workflow.PhasePublicationKey]int)
 		}
 		phaseCounts[collectorKind][workflow.PhasePublicationKey{
-			Keyspace:  reducer.GraphProjectionKeyspace(strings.TrimSpace(keyspace)),
-			PhaseName: reducer.GraphProjectionPhase(strings.TrimSpace(phaseName)),
+			Keyspace:  gpphase.Keyspace(strings.TrimSpace(keyspace)),
+			PhaseName: gpphase.Phase(strings.TrimSpace(phaseName)),
 		}] = publishedCount
 	}
 	if err := rows.Err(); err != nil {
@@ -422,8 +423,8 @@ func (s *WorkflowControlStore) listWorkflowCollectorTerminalDeadLetterCounts(
 			deadLetterCounts[collectorKind] = make(map[workflow.PhasePublicationKey]int)
 		}
 		deadLetterCounts[collectorKind][workflow.PhasePublicationKey{
-			Keyspace:  reducer.GraphProjectionKeyspace(strings.TrimSpace(keyspace)),
-			PhaseName: reducer.GraphProjectionPhase(strings.TrimSpace(phaseName)),
+			Keyspace:  gpphase.Keyspace(strings.TrimSpace(keyspace)),
+			PhaseName: gpphase.Phase(strings.TrimSpace(phaseName)),
 		}] = deadLetteredCount
 	}
 	if err := rows.Err(); err != nil {

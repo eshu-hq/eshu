@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestGraphProjectionPhaseRepairQueueStoreEnqueueAndListDue(t *testing.T) {
@@ -23,14 +24,14 @@ func TestGraphProjectionPhaseRepairQueueStoreEnqueueAndListDue(t *testing.T) {
 	store := NewGraphProjectionPhaseRepairQueueStore(database)
 	now := time.Date(2026, time.April, 17, 11, 0, 0, 0, time.UTC)
 	repair := reducer.GraphProjectionPhaseRepair{
-		Key: reducer.GraphProjectionPhaseKey{
+		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
 			SourceRunID:      "run-1",
 			GenerationID:     "gen-1",
-			Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+			Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 		},
-		Phase:         reducer.GraphProjectionPhaseSemanticNodesCommitted,
+		Phase:         gpphase.PhaseSemanticNodesCommitted,
 		CommittedAt:   now.Add(-time.Minute),
 		EnqueuedAt:    now,
 		NextAttemptAt: now,
@@ -48,7 +49,7 @@ func TestGraphProjectionPhaseRepairQueueStoreEnqueueAndListDue(t *testing.T) {
 	if len(repairs) != 1 {
 		t.Fatalf("len(repairs) = %d, want 1", len(repairs))
 	}
-	if got, want := repairs[0].Phase, reducer.GraphProjectionPhaseSemanticNodesCommitted; got != want {
+	if got, want := repairs[0].Phase, gpphase.PhaseSemanticNodesCommitted; got != want {
 		t.Fatalf("repairs[0].Phase = %q, want %q", got, want)
 	}
 }
@@ -60,14 +61,14 @@ func TestGraphProjectionPhaseRepairQueueStoreDelete(t *testing.T) {
 	store := NewGraphProjectionPhaseRepairQueueStore(database)
 	now := time.Date(2026, time.April, 17, 11, 0, 0, 0, time.UTC)
 	repair := reducer.GraphProjectionPhaseRepair{
-		Key: reducer.GraphProjectionPhaseKey{
+		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
 			SourceRunID:      "run-1",
 			GenerationID:     "gen-1",
-			Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+			Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 		},
-		Phase:         reducer.GraphProjectionPhaseSemanticNodesCommitted,
+		Phase:         gpphase.PhaseSemanticNodesCommitted,
 		CommittedAt:   now.Add(-time.Minute),
 		EnqueuedAt:    now,
 		NextAttemptAt: now,
@@ -96,14 +97,14 @@ func TestGraphProjectionPhaseRepairQueueStoreMarkFailed(t *testing.T) {
 	store := NewGraphProjectionPhaseRepairQueueStore(database)
 	now := time.Date(2026, time.April, 17, 11, 0, 0, 0, time.UTC)
 	repair := reducer.GraphProjectionPhaseRepair{
-		Key: reducer.GraphProjectionPhaseKey{
+		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
 			SourceRunID:      "run-1",
 			GenerationID:     "gen-1",
-			Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+			Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 		},
-		Phase:         reducer.GraphProjectionPhaseSemanticNodesCommitted,
+		Phase:         gpphase.PhaseSemanticNodesCommitted,
 		CommittedAt:   now.Add(-time.Minute),
 		EnqueuedAt:    now,
 		NextAttemptAt: now,
@@ -277,8 +278,8 @@ func (r *graphProjectionPhaseRepairQueueRows) Scan(dest ...any) error {
 	*dest[1].(*string) = row.acceptanceUnitID
 	*dest[2].(*string) = row.sourceRunID
 	*dest[3].(*string) = row.generationID
-	*dest[4].(*reducer.GraphProjectionKeyspace) = reducer.GraphProjectionKeyspace(row.keyspace)
-	*dest[5].(*reducer.GraphProjectionPhase) = reducer.GraphProjectionPhase(row.phase)
+	*dest[4].(*gpphase.Keyspace) = gpphase.Keyspace(row.keyspace)
+	*dest[5].(*gpphase.Phase) = gpphase.Phase(row.phase)
 	*dest[6].(*time.Time) = row.committedAt
 	*dest[7].(*time.Time) = row.enqueuedAt
 	*dest[8].(*time.Time) = row.nextAttemptAt

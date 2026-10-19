@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -99,8 +100,8 @@ func TestPublishAPIEndpointRepoPathPresenceUpsertsRepoPathKeys(t *testing.T) {
 		t.Fatalf("presence rows = %d, want 2 (blank repo/path skipped)", len(got))
 	}
 	for _, r := range got {
-		if r.Keyspace != GraphProjectionKeyspaceAPIEndpointRepoPath {
-			t.Fatalf("keyspace = %q, want %q", r.Keyspace, GraphProjectionKeyspaceAPIEndpointRepoPath)
+		if r.Keyspace != gpphase.KeyspaceAPIEndpointRepoPath {
+			t.Fatalf("keyspace = %q, want %q", r.Keyspace, gpphase.KeyspaceAPIEndpointRepoPath)
 		}
 		if r.ScopeID != "scope-1" || r.UID == "" {
 			t.Fatalf("malformed presence row: %+v", r)
@@ -115,7 +116,7 @@ func TestPublishAPIEndpointRepoPathPresenceUpsertsRepoPathKeys(t *testing.T) {
 	if len(writer.staleRetract) != 1 {
 		t.Fatalf("stale-retract calls = %d, want 1", len(writer.staleRetract))
 	}
-	if sr := writer.staleRetract[0]; sr.keyspace != GraphProjectionKeyspaceAPIEndpointRepoPath ||
+	if sr := writer.staleRetract[0]; sr.keyspace != gpphase.KeyspaceAPIEndpointRepoPath ||
 		sr.scopeID != "scope-1" || sr.generationID != "gen-1" ||
 		len(sr.repoIDs) != 1 || sr.repoIDs[0] != "repo-1" {
 		t.Fatalf("stale-retract args = %+v, want api_endpoint_repo_path/scope-1/gen-1/[repo-1]", writer.staleRetract[0])
@@ -191,7 +192,7 @@ func TestFilterRowsByReadinessHandlesRouteTerminatesAbsentEndpoint(t *testing.T)
 		handlesRouteIntentRow("absent", "repo-1", "/absent"),
 	}
 	// Phase gate is satisfied (workload materialization committed) for both.
-	phaseReady := func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+	phaseReady := func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return true, true
 	}
 	// Presence has only the "/present" endpoint committed.
@@ -232,7 +233,7 @@ func TestFilterRowsByReadinessHandlesRoutePhaseBlockedStaysDeferred(t *testing.T
 		handlesRouteIntentRow("waiting", "repo-1", "/waiting"),
 	}
 	// Phase gate not yet satisfied for any row.
-	phaseNotReady := func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+	phaseNotReady := func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return false, true
 	}
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{}}
@@ -266,7 +267,7 @@ func TestFilterRowsByReadinessHandlesRouteProjectsWhenPresent(t *testing.T) {
 		handlesRouteIntentRow("a", "repo-1", "/a"),
 		handlesRouteIntentRow("b", "repo-1", "/b"),
 	}
-	phaseReady := func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+	phaseReady := func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return true, true
 	}
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{
@@ -301,7 +302,7 @@ func TestFilterRowsByReadinessHandlesRouteNilPresenceIsTodaysBehavior(t *testing
 		handlesRouteIntentRow("a", "repo-1", "/a"),
 		handlesRouteIntentRow("b", "repo-1", "/b"),
 	}
-	phaseReady := func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+	phaseReady := func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return true, true
 	}
 
@@ -337,7 +338,7 @@ func TestFilterRowsByReadinessNonHandlesRouteIgnoresPresence(t *testing.T) {
 			CreatedAt:        time.Now().UTC(),
 		},
 	}
-	phaseReady := func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+	phaseReady := func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return true, true
 	}
 	// Presence lookup reports EVERYTHING missing; if code_calls consulted it the
@@ -367,7 +368,7 @@ type fakeRepoPathPresenceLookup struct {
 }
 
 func (l *fakeRepoPathPresenceLookup) MissingUIDs(
-	_ context.Context, _ GraphProjectionKeyspace, uids []string,
+	_ context.Context, _ gpphase.Keyspace, uids []string,
 ) ([]string, error) {
 	l.calls++
 	if l.err != nil {
