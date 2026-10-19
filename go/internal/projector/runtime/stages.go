@@ -106,12 +106,20 @@ func (r Runtime) writeCanonicalProjection(
 		// input counts so an operator can tell the two apart without
 		// recounting facts.
 		if r.Logger != nil && len(inputFacts) > 0 {
-			r.Logger.WarnContext(ctx, "projector canonical materialization empty with input facts; no graph nodes will be written",
+			attrs := []any{
 				slog.String("scope_id", scopeValue.ScopeID),
 				slog.String("generation_id", generationID),
 				slog.Int("fact_count", len(inputFacts)),
 				slog.Int("file_fact_count", len(decode.FilterFileFacts(inputFacts))),
-			)
+			}
+			// File-bearing generations are the tripwire: every file row was
+			// dropped upstream. Fact shapes with no file rows (unknown-kind
+			// only, tombstone-only) are legitimate canonical-empty.
+			if len(decode.FilterFileFacts(inputFacts)) > 0 {
+				r.Logger.WarnContext(ctx, "projector canonical materialization empty with input facts; no graph nodes will be written", attrs...)
+			} else {
+				r.Logger.DebugContext(ctx, "projector canonical materialization empty with input facts; no graph nodes will be written", attrs...)
+			}
 		}
 		if err := r.publishCanonicalGraphPhases(ctx, generationID, inputFacts); err != nil {
 			return fmt.Errorf("publish canonical graph phases: %w", err)
