@@ -15,7 +15,7 @@ from ifa_scheduled_manifest import NORNIC_DIGEST, POSTGRES_DIGEST
 INVENTORY = Path(__file__).with_name("ifa_scheduled_inventory.json")
 RUNNER = Path("scripts/run-ifa-scheduled-proofs.sh")
 WORKFLOW = Path(".github/workflows/ifa-scheduled-proofs.yml")
-WORKFLOW_SHA256 = "b66acbd6dda3cda184b99160a8f5e4165b5765815cd6c1a6c011a8d25df1a5cd"
+WORKFLOW_SHA256 = "4ece5cbe35066011cecce0c095269c6e03bc3a79a49931b1518cd56a4e44120f"
 RUNNER_SHA256 = "63e6573b21b77cdab837b15080672368f53d97d47d6cb903c6037f663576a03e"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 SOURCE_PATHS = frozenset((
