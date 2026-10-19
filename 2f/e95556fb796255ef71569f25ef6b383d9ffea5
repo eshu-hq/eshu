@@ -1,0 +1,18 @@
+docs/internal/design/reducer-target-tree.md
+  h_78a442cba0b3e6 176
+go/internal/reducer/compat_alias_retirement_bucket6_test.go
+  h_78a442cba0b3e6 16
+go/internal/reducer/evidence-6626-batch6-bucket6-intent.md
+  h_78a442cba0b3e6 5-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2fe95556fb796255ef71569f25ef6b383d9ffea5",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
