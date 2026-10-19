@@ -154,9 +154,9 @@ does not replace existing route fields. The companion is currently emitted by:
 | `evidence_handles` | Bounded handles already present in the route payload, normalized to citation-compatible keys when possible. |
 | `missing_evidence` | Structured missing evidence rows or slots. Reason-only rows are allowed for incident-style missing path slots. |
 | `limitations` | Bounded caveats from route limitations, identity limitations, or truncation. |
-| `truncated` | `true` when the route, coverage, or result-limit metadata reports truncation. |
+| `truncated` | `true` when the route, coverage, or result-limit metadata reports truncation, including a bounded candidate-pool stop reported as `coverage.candidate_pool_truncated` even when the returned page fits (`#8543`). |
 | `coverage` | The route's existing `coverage`, `coverage_summary`, or `result_limits` block copied as normalized coverage. |
-| `partial_reasons` | Stable reason codes derived from truncation, missing evidence, non-complete coverage state, and limitation kinds. |
+| `partial_reasons` | Stable reason codes derived from truncation, missing evidence, non-complete coverage state, and limitation kinds. A pool-stop page carries `result_truncated` (`#8543`). |
 | `recommended_next_calls` | Existing route follow-up calls copied without adding new graph or content reads. |
 
 ### Migration guidance
