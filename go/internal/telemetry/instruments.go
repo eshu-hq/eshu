@@ -2697,6 +2697,14 @@ type Instruments struct {
 	// WorkflowClaimPacingDelayDuration reports the grant delay a paced claim
 	// carries (#8470). Owned by the workflow control store; nil-tolerant.
 	WorkflowClaimPacingDelayDuration metric.Float64Histogram
+	// WorkflowClaimPacingDepthPending reports the pending work-item depth
+	// behind one pacing consult (#8472): the claiming family's depth with
+	// the domain label (the operator-configured family set, so the label
+	// stays bounded) and the system-wide depth without it. It is recorded
+	// from the same depth observation that feeds the pacing verdict, so an
+	// operator can see why pacing engaged from metrics alone. Owned by the
+	// workflow control store; nil-tolerant.
+	WorkflowClaimPacingDepthPending metric.Int64Gauge
 	// EdgesBySourceTool reports bounded graph edge counts by source_tool. The
 	// only metric label is source_tool; values not in the sourcetool.Canonical
 	// set are coerced to "unknown" before the label reaches the metric (#3997).
@@ -5251,6 +5259,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register WorkflowClaimPacingDelayDuration histogram: %w", err)
+	}
+
+	inst.WorkflowClaimPacingDepthPending, err = meter.Int64Gauge(
+		"eshu_dp_workflow_claim_pacing_depth_pending",
+		metric.WithDescription("Pending work-item depth behind one pacing consult: the claiming family with the domain label, system-wide without it (issue #8472)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimPacingDepthPending gauge: %w", err)
 	}
 
 	tfstateClaimWaitBuckets := workflowClaimWaitBuckets

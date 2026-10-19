@@ -703,8 +703,8 @@
     {
       "id": 31,
       "type": "timeseries",
-      "title": "Claim Pacing (engaged, active, stuck)",
-      "description": "Issue #8470: latch engagements per signal, whether pacing is on right now, engagements wedged past the bound (stuck is loud, never silently released), and the grant delay paced claims carry. A paced system is otherwise indistinguishable from a slow one.",
+      "title": "Claim Pacing (engaged, active, stuck, depth)",
+      "description": "Issue #8470: latch engagements per signal, whether pacing is on right now, engagements wedged past the bound (stuck is loud, never silently released), and the grant delay paced claims carry. Issue #8472: the pending depth behind each consult, per family and system-wide. A paced system is otherwise indistinguishable from a slow one.",
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 95},
       "targets": [
@@ -731,6 +731,18 @@
           "expr": "histogram_quantile(0.95, sum(rate(eshu_dp_workflow_claim_pacing_delay_seconds_bucket[5m])) by (le, pacing_signal))",
           "legendFormat": "{{pacing_signal}} grant delay p95",
           "refId": "D"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(eshu_dp_workflow_claim_pacing_depth_pending{domain!=\"\"}) by (domain)",
+          "legendFormat": "pending {{domain}}",
+          "refId": "E"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(eshu_dp_workflow_claim_pacing_depth_pending{domain=\"\"})",
+          "legendFormat": "pending system-wide",
+          "refId": "F"
         }
       ],
       "fieldConfig": {
