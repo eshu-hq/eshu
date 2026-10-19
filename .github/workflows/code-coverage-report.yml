@@ -68,6 +68,8 @@ jobs:
       # tests fail closed and the report goes red on every main push (#7111).
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Generate advisory Go coverage report
         env:
           ESHU_CODE_COVERAGE_PROFILE_OUT: ${{ github.workspace }}/go-code-coverage.out

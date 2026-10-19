@@ -175,6 +175,8 @@ jobs:
       - name: Install ripgrep for readiness self-test checks
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Check runner fail-closed behavior
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
@@ -280,6 +282,8 @@ jobs:
       - name: Install ripgrep for readiness fixture checks
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Check physical-standby fixture fail-closed behavior
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}

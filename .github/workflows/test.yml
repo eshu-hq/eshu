@@ -79,6 +79,8 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'markdown-file-cap')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Verify Markdown file cap (go/ and docs/)
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'markdown-file-cap')) }}
         run: |
@@ -151,6 +153,8 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Pre-warm Go modules
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'merge-group-slim')) }}
         run: scripts/ci/go-mod-download-retry.sh
@@ -201,6 +205,8 @@ jobs:
       - name: Install ripgrep and jq
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep jq
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Pre-warm Go modules
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'verify-contracts')) }}
         run: scripts/ci/go-mod-download-retry.sh
@@ -318,6 +324,8 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Verify CI apt/ripgrep installer test mirror
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core'))) && (!cancelled()) }}
         run: bash scripts/test-ci-install-apt-packages.sh
@@ -418,6 +426,8 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Run Go tests with race detector (shard ${{ matrix.shard }}/${{ strategy.job-total }})
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         working-directory: go
@@ -480,6 +490,8 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Verify docs-only CI carve-out wiring
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'docs-helm-hygiene')) }}
         run: |

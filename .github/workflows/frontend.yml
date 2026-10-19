@@ -154,6 +154,8 @@ jobs:
       - name: Install live harness dependencies
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Verify live console harness contracts
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: |
@@ -206,6 +208,8 @@ jobs:
       - name: Install ripgrep
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Verify the auth E2E CLI build contract
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'SSO auth E2E (browser, fresh stack)')) }}
         run: bash scripts/test-auth-e2e-cli.sh

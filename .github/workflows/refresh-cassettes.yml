@@ -98,6 +98,8 @@ jobs:
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing as a cassette-refresh
@@ -170,6 +172,8 @@ jobs:
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing as a build failure
