@@ -121,7 +121,16 @@ download_ripgrep_via_gh() {
     return 1
   fi
   echo "install-apt-packages: anonymous download failed; retrying via gh release download (authenticated)" >&2
-  if GH_TOKEN="${token}" gh release download "${ESHU_CI_APT_PINNED_RIPGREP_TAG}" \
+  # Bound the fallback like curl's --max-time: the same knob, so a stalled
+  # api.github.com cannot ride to the job timeout on this path either.
+  # timeout(1) is GNU coreutils (present on the runners); where it is
+  # absent (macOS dev machines) the fallback runs unbounded rather than
+  # not at all -- the install path that matters is the runner's.
+  local bound=()
+  if command -v timeout >/dev/null 2>&1; then
+    bound=(timeout "${ESHU_CI_APT_RIPGREP_DOWNLOAD_MAX_TIME:-120}")
+  fi
+  if GH_TOKEN="${token}" ${bound[@]+"${bound[@]}"} gh release download "${ESHU_CI_APT_PINNED_RIPGREP_TAG}" \
     --repo "${ESHU_CI_APT_PINNED_RIPGREP_REPO}" \
     --pattern "${ESHU_CI_APT_PINNED_RIPGREP_ASSET}" \
     --output "${dest}" --clobber && [ -s "${dest}" ]; then
