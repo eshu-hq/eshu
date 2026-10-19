@@ -161,8 +161,11 @@ func TestProbeReuse_RejectsNonSHAHead(t *testing.T) {
 
 	runner := &mappedGHRunner{}
 	_, err := probeReuse(context.Background(), runner, "eshu-hq/eshu", 42, "../statuses", []string{"required-gates-complete"})
-	if err == nil {
-		t.Fatal("probeReuse must reject a non-SHA head")
+	if err == nil || !strings.Contains(err.Error(), "invalid --head-sha") {
+		t.Fatalf("probeReuse error = %v; want the head-SHA shape rejection", err)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("probeReuse made %d gh calls before rejecting the head SHA", len(runner.calls))
 	}
 }
 
