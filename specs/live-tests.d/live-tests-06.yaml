@@ -131,6 +131,10 @@ tests:
     class: verified_scheduled
     reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; infra inventory 32 named tests in 19 files, 109.448s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/infra/inventory/retention_probe_timeout_diagnosis_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "drive 8285: prune-timeout pg_stat_activity/lock-blocker diagnostic for the retention lock probe; untagged live proof gated by env Skip"
   - file: go/internal/storage/postgres/flux_cross_repo_ordering_live_test.go
     tag: ~
     class: scheduled
