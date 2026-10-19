@@ -225,13 +225,13 @@ paths:
               example:
                 error: "invalid request body: unexpected EOF"
         "422":
-          description: Validation or replay request failure.
+          description: Filter validation failure. The body keeps the caller-actionable validation text.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
-                error: "replay collector generations: collector generation replay requires collector_kind"
+                error: "collector generation replay requires collector_kind"
         "405":
           description: Unsupported method.
           headers:
@@ -239,6 +239,27 @@ paths:
               schema:
                 type: string
               example: POST
+        "499":
+          description: >
+            The caller canceled the request. Not a server fault; the body is
+            the same fixed message as the 500 answer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "collector generation replay failed"
+        "500":
+          description: >
+            Store failure. The body is the fixed message
+            (`collector generation replay failed`) and never carries the store
+            error text; the error is logged server-side.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "collector generation replay failed"
 components:
   schemas:
     ErrorResponse:

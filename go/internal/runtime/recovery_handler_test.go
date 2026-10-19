@@ -8,8 +8,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -103,10 +105,15 @@ func TestRecoveryHandlerReplayRejectsInvalidStage(t *testing.T) {
 	}
 }
 
-func TestRecoveryHandlerReplayPropagatesStoreError(t *testing.T) {
+// TestRecoveryHandlerReplayStoreErrorAnswersFixedMessage is the #8394
+// regression test for the replay site: a store failure must answer a fixed
+// message, never the store error text (which quotes SQL, hosts, and driver
+// state), with the cause on the request span and in the server log.
+func TestRecoveryHandlerReplayStoreErrorAnswersFixedMessage(t *testing.T) {
 	t.Parallel()
 
-	store := &fakeRecoveryStore{replayErr: errors.New("database down")}
+	const storeErr = `replay failed work items: pq: relation "projector_work_items" does not exist (SQLSTATE 42P01) host=db-primary:5432`
+	store := &fakeRecoveryStore{replayErr: errors.New(storeErr)}
 	handler := mustNewRecoveryHandler(t, store)
 
 	body := mustMarshal(t, replayRequest{Stage: "projector"})
@@ -115,9 +122,243 @@ func TestRecoveryHandlerReplayPropagatesStoreError(t *testing.T) {
 
 	handler.handleReplay(recorder, request)
 
-	if got, want := recorder.Code, http.StatusUnprocessableEntity; got != want {
+	if got, want := recorder.Code, http.StatusInternalServerError; got != want {
 		t.Fatalf("POST /admin/replay store error status = %d, want %d", got, want)
 	}
+	assertFixedErrorBody(t, recorder.Body.Bytes(), "replay failed", []string{`pq:`, `projector_work_items`, `SQLSTATE`, `db-primary`})
+}
+
+// TestRecoveryHandlerReplayCollectorGenerationsStoreErrorAnswersFixedMessage
+// is the #8394 regression test for the collector-generations site.
+func TestRecoveryHandlerReplayCollectorGenerationsStoreErrorAnswersFixedMessage(t *testing.T) {
+	t.Parallel()
+
+	const storeErr = `collector generation replay: dial tcp 10.0.4.15:5432: connect: connection refused host=db-replica`
+	store := &fakeRecoveryStore{collectorGenerationReplayErr: errors.New(storeErr)}
+	handler := mustNewRecoveryHandler(t, store)
+
+	body := mustMarshal(t, collectorGenerationReplayRequest{CollectorKind: "git"})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/admin/replay-collector-generations", bytes.NewReader(body))
+
+	handler.handleReplayCollectorGenerations(recorder, request)
+
+	if got, want := recorder.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("POST /admin/replay-collector-generations store error status = %d, want %d", got, want)
+	}
+	assertFixedErrorBody(t, recorder.Body.Bytes(), "collector generation replay failed", []string{`10.0.4.15`, `connection refused`, `db-replica`})
+}
+
+// TestRecoveryHandlerRefinalizeStoreErrorAnswersFixedMessage is the #8394
+// regression test for the refinalize site.
+func TestRecoveryHandlerRefinalizeStoreErrorAnswersFixedMessage(t *testing.T) {
+	t.Parallel()
+
+	const storeErr = `refinalize scope projections: pq: duplicate key value violates unique constraint "reducer_work_pkey" host=db-primary`
+	store := &fakeRecoveryStore{refinalizeErr: errors.New(storeErr)}
+	handler := mustNewRecoveryHandler(t, store)
+
+	body := mustMarshal(t, refinalizeRequest{ScopeIDs: []string{"s1"}})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/admin/refinalize", bytes.NewReader(body))
+
+	handler.handleRefinalize(recorder, request)
+
+	if got, want := recorder.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("POST /admin/refinalize store error status = %d, want %d", got, want)
+	}
+	assertFixedErrorBody(t, recorder.Body.Bytes(), "refinalize failed", []string{`duplicate key`, `reducer_work_pkey`, `db-primary`})
+}
+
+// TestRecoveryHandlerValidationErrorsKeepTheirText pins the #8394 validation
+// contract: a caller-actionable filter rejection keeps its text (the caller
+// can act on it), still answered 422.
+func TestRecoveryHandlerValidationErrorsKeepTheirText(t *testing.T) {
+	t.Parallel()
+
+	t.Run("replay invalid stage", func(t *testing.T) {
+		t.Parallel()
+
+		handler := mustNewRecoveryHandler(t, &fakeRecoveryStore{})
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/admin/replay",
+			bytes.NewReader(mustMarshal(t, replayRequest{Stage: "bogus"})))
+
+		handler.handleReplay(recorder, request)
+
+		if got, want := recorder.Code, http.StatusUnprocessableEntity; got != want {
+			t.Fatalf("status = %d, want %d", got, want)
+		}
+		if got := decodeErrorBody(t, recorder.Body.Bytes()); !strings.Contains(got, `replay filter requires a valid stage, got "bogus"`) {
+			t.Fatalf("body error = %q, want it to keep the validation text", got)
+		}
+	})
+
+	t.Run("collector generations blank kind", func(t *testing.T) {
+		t.Parallel()
+
+		handler := mustNewRecoveryHandler(t, &fakeRecoveryStore{})
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/admin/replay-collector-generations",
+			bytes.NewReader(mustMarshal(t, collectorGenerationReplayRequest{ScopeIDs: []string{"s1"}})))
+
+		handler.handleReplayCollectorGenerations(recorder, request)
+
+		if got, want := recorder.Code, http.StatusUnprocessableEntity; got != want {
+			t.Fatalf("status = %d, want %d", got, want)
+		}
+		if got := decodeErrorBody(t, recorder.Body.Bytes()); !strings.Contains(got, "collector generation replay requires collector_kind") {
+			t.Fatalf("body error = %q, want it to keep the validation text", got)
+		}
+	})
+
+	t.Run("refinalize empty scopes", func(t *testing.T) {
+		t.Parallel()
+
+		handler := mustNewRecoveryHandler(t, &fakeRecoveryStore{})
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/admin/refinalize",
+			bytes.NewReader(mustMarshal(t, refinalizeRequest{ScopeIDs: []string{}})))
+
+		handler.handleRefinalize(recorder, request)
+
+		if got, want := recorder.Code, http.StatusUnprocessableEntity; got != want {
+			t.Fatalf("status = %d, want %d", got, want)
+		}
+		if got := decodeErrorBody(t, recorder.Body.Bytes()); !strings.Contains(got, "at least one scope_id") {
+			t.Fatalf("body error = %q, want it to keep the validation text", got)
+		}
+	})
+}
+
+// TestRecoveryHandlerClientCancelAnswers499 pins the #8394 cancel contract: a
+// caller that walks away from its own request answers 499 with the fixed
+// message, not a server fault, and the store text still stays out of the body.
+func TestRecoveryHandlerClientCancelAnswers499(t *testing.T) {
+	t.Parallel()
+
+	const storeErr = "tcp read host=db-primary: i/o timeout"
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	for _, site := range []struct {
+		name    string
+		store   *fakeRecoveryStore
+		path    string
+		body    []byte
+		serve   func(h *RecoveryHandler, w http.ResponseWriter, r *http.Request)
+		message string
+	}{
+		{
+			name:    "replay",
+			store:   &fakeRecoveryStore{replayErr: fmt.Errorf("replay failed work items: %w: %s", context.Canceled, storeErr)},
+			path:    "/admin/replay",
+			body:    mustMarshal(t, replayRequest{Stage: "projector"}),
+			serve:   func(h *RecoveryHandler, w http.ResponseWriter, r *http.Request) { h.handleReplay(w, r) },
+			message: "replay failed",
+		},
+		{
+			name:  "collector generations",
+			store: &fakeRecoveryStore{collectorGenerationReplayErr: fmt.Errorf("collector generation replay: %w: %s", context.Canceled, storeErr)},
+			path:  "/admin/replay-collector-generations",
+			body:  mustMarshal(t, collectorGenerationReplayRequest{CollectorKind: "git"}),
+			serve: func(h *RecoveryHandler, w http.ResponseWriter, r *http.Request) {
+				h.handleReplayCollectorGenerations(w, r)
+			},
+			message: "collector generation replay failed",
+		},
+		{
+			name:    "refinalize",
+			store:   &fakeRecoveryStore{refinalizeErr: fmt.Errorf("refinalize scope projections: %w: %s", context.Canceled, storeErr)},
+			path:    "/admin/refinalize",
+			body:    mustMarshal(t, refinalizeRequest{ScopeIDs: []string{"s1"}}),
+			serve:   func(h *RecoveryHandler, w http.ResponseWriter, r *http.Request) { h.handleRefinalize(w, r) },
+			message: "refinalize failed",
+		},
+	} {
+		site := site
+		t.Run(site.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := mustNewRecoveryHandler(t, site.store)
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodPost, site.path, bytes.NewReader(site.body)).WithContext(canceled)
+
+			site.serve(handler, recorder, request)
+
+			if got, want := recorder.Code, 499; got != want {
+				t.Fatalf("POST %s canceled status = %d, want %d", site.path, got, want)
+			}
+			assertFixedErrorBody(t, recorder.Body.Bytes(), site.message, []string{"db-primary", "i/o timeout"})
+		})
+	}
+}
+
+// TestRecoveryHandlerInnerCancelOnLiveRequestIsAFault pins that a
+// context.Canceled from an inner context on a live request is a server fault
+// (500), not a client cancel: only a canceled request context answers 499.
+func TestRecoveryHandlerInnerCancelOnLiveRequestIsAFault(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeRecoveryStore{replayErr: fmt.Errorf("replay failed work items: %w", context.Canceled)}
+	handler := mustNewRecoveryHandler(t, store)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/admin/replay",
+		bytes.NewReader(mustMarshal(t, replayRequest{Stage: "projector"})))
+
+	handler.handleReplay(recorder, request)
+
+	if got, want := recorder.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("POST /admin/replay inner-cancel status = %d, want %d", got, want)
+	}
+	assertFixedErrorBody(t, recorder.Body.Bytes(), "replay failed", []string{"canceled"})
+}
+
+// TestRecoveryHandlerRefinalizeClaimFenceBusyAnswersConflict pins that the
+// refinalize claim-fence contention verdict keeps its 409 signal with the
+// fixed sentinel text, matching the /api/v0/admin/refinalize surface.
+func TestRecoveryHandlerRefinalizeClaimFenceBusyAnswersConflict(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeRecoveryStore{refinalizeErr: recovery.ErrRefinalizeClaimFenceBusy}
+	handler := mustNewRecoveryHandler(t, store)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/admin/refinalize",
+		bytes.NewReader(mustMarshal(t, refinalizeRequest{ScopeIDs: []string{"s1"}})))
+
+	handler.handleRefinalize(recorder, request)
+
+	if got, want := recorder.Code, http.StatusConflict; got != want {
+		t.Fatalf("POST /admin/refinalize claim-fence-busy status = %d, want %d", got, want)
+	}
+	assertFixedErrorBody(t, recorder.Body.Bytes(), "blocked/claim_fence_busy", nil)
+}
+
+// assertFixedErrorBody checks the #8394 body contract: the error is exactly
+// the fixed message, and none of the leak markers (store error fragments)
+// appear anywhere in the body.
+func assertFixedErrorBody(t *testing.T, body []byte, message string, leakMarkers []string) {
+	t.Helper()
+
+	if got := decodeErrorBody(t, body); got != message {
+		t.Fatalf("body error = %q, want fixed message %q", got, message)
+	}
+	for _, marker := range leakMarkers {
+		if strings.Contains(string(body), marker) {
+			t.Fatalf("body leaks store text %q: %s", marker, body)
+		}
+	}
+}
+
+// decodeErrorBody extracts the error text from a JSON error body.
+func decodeErrorBody(t *testing.T, body []byte) string {
+	t.Helper()
+
+	var resp jsonErrorResponse
+	mustUnmarshal(t, body, &resp)
+	return resp.Error
 }
 
 func TestRecoveryHandlerReplayCollectorGenerationsReturnsReplayRequests(t *testing.T) {

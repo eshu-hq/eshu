@@ -4,11 +4,18 @@
 package runtime
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/recovery"
+	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
 // RecoveryHandler provides HTTP endpoints for write-plane recovery operations.
@@ -33,6 +40,23 @@ func (h *RecoveryHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("/admin/replay-collector-generations", h.handleReplayCollectorGenerations)
 	mux.HandleFunc("/admin/refinalize", h.handleRefinalize)
 }
+
+// Fixed client-facing messages for the recovery admin routes (#8394). A store
+// error quotes SQL, hosts, and constraint names, so err.Error() never reaches
+// a response body: each route answers exactly one of these. The cause is
+// recorded on the request span and logged server-side instead.
+const (
+	// replayFailedMessage answers a failed /admin/replay store read or write.
+	replayFailedMessage = "replay failed"
+
+	// collectorGenerationReplayFailedMessage answers a failed
+	// /admin/replay-collector-generations store read or write.
+	collectorGenerationReplayFailedMessage = "collector generation replay failed"
+
+	// refinalizeFailedMessage answers a failed /admin/refinalize store
+	// transaction.
+	refinalizeFailedMessage = "refinalize failed"
+)
 
 type replayRequest struct {
 	Stage        string   `json:"stage"`
@@ -72,9 +96,17 @@ func (h *RecoveryHandler) handleReplay(w http.ResponseWriter, r *http.Request) {
 		Limit:        req.Limit,
 	}
 
+	// A filter rejection is caller-actionable, so it keeps its text (422).
+	// Anything the domain reports past this point is a store failure: it
+	// answers the fixed message, never the store error text (#8394).
+	if err := filter.Validate(); err != nil {
+		writeJSONError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
 	result, err := h.handler.ReplayFailed(r.Context(), filter)
 	if err != nil {
-		writeJSONError(w, http.StatusUnprocessableEntity, err.Error())
+		writeRecoveryFailure(w, r, err, replayFailedMessage)
 		return
 	}
 
@@ -116,14 +148,24 @@ func (h *RecoveryHandler) handleReplayCollectorGenerations(w http.ResponseWriter
 		return
 	}
 
-	result, err := h.handler.ReplayCollectorGenerations(r.Context(), recovery.CollectorGenerationReplayFilter{
+	collectorFilter := recovery.CollectorGenerationReplayFilter{
 		ScopeIDs:      req.ScopeIDs,
 		FailureClass:  req.FailureClass,
 		CollectorKind: req.CollectorKind,
 		Limit:         req.Limit,
-	})
-	if err != nil {
+	}
+
+	// A filter rejection is caller-actionable, so it keeps its text (422).
+	// Anything the domain reports past this point is a store failure: it
+	// answers the fixed message, never the store error text (#8394).
+	if err := collectorFilter.Validate(); err != nil {
 		writeJSONError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	result, err := h.handler.ReplayCollectorGenerations(r.Context(), collectorFilter)
+	if err != nil {
+		writeRecoveryFailure(w, r, err, collectorGenerationReplayFailedMessage)
 		return
 	}
 
@@ -184,9 +226,24 @@ func (h *RecoveryHandler) handleRefinalize(w http.ResponseWriter, r *http.Reques
 		ScopeIDs: req.ScopeIDs,
 	}
 
+	// A filter rejection is caller-actionable, so it keeps its text (422).
+	// Anything the domain reports past this point is a store failure: it
+	// answers the fixed message, never the store error text (#8394).
+	if err := filter.Validate(); err != nil {
+		writeJSONError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
 	result, err := h.handler.Refinalize(r.Context(), filter)
 	if err != nil {
-		writeJSONError(w, http.StatusUnprocessableEntity, err.Error())
+		// Claim-fence contention is a retry verdict, not a fault: it keeps
+		// its 409 signal with the fixed sentinel text, matching the
+		// /api/v0/admin/refinalize surface.
+		if errors.Is(err, recovery.ErrRefinalizeClaimFenceBusy) {
+			writeJSONError(w, http.StatusConflict, recovery.ErrRefinalizeClaimFenceBusy.Error())
+			return
+		}
+		writeRecoveryFailure(w, r, err, refinalizeFailedMessage)
 		return
 	}
 
@@ -217,4 +274,35 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeJSONError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, jsonErrorResponse{Error: message})
+}
+
+// writeRecoveryFailure answers a failed recovery store call with the fixed
+// message body, so SQL, hosts, and constraint names never reach the client
+// (#8394). The response envelope stays the JSON error the routes always
+// answered; only the message is fixed and the status now names the cause.
+//
+// message is the only text the client sees: never pass err.Error() or a string
+// formatted with err. A server fault answers 500, records err on the request
+// span (exception event and Error status), and logs err server-side so an
+// operator can find it.
+//
+// A client cancel answers statuspkg.StatusClientClosedRequest (499) with the
+// same fixed body: err is not recorded or logged, the span status stays unset,
+// and only the client-canceled event is added. It counts as a client cancel
+// only when err wraps context.Canceled AND r.Context() itself is canceled; a
+// context.Canceled from some inner context on a live request is a fault. This
+// mirrors status.WriteReadFailure, which the recovery routes cannot reuse
+// directly because it answers a plain-text body.
+func writeRecoveryFailure(w http.ResponseWriter, r *http.Request, err error, message string) {
+	ctx := r.Context()
+	span := trace.SpanFromContext(ctx)
+	if errors.Is(err, context.Canceled) && errors.Is(ctx.Err(), context.Canceled) {
+		span.AddEvent(statuspkg.ClientCanceledEvent)
+		writeJSONError(w, statuspkg.StatusClientClosedRequest, message)
+		return
+	}
+	span.RecordError(err)
+	span.SetStatus(codes.Error, message)
+	slog.ErrorContext(ctx, message, "path", r.URL.Path, "error", err)
+	writeJSONError(w, http.StatusInternalServerError, message)
 }
