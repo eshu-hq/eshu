@@ -24,11 +24,15 @@ probe below has re-run it on fix-500.
 - Relationship retract was inert on pr290
   (`ledger:5385-retract-rebuild-relationship-inert`). Its behaviour on
   fix-500 is **unverified on the current pin**; probe P1 settles it for all
-  six measured shapes plus the cloud-`USES` scope-wide retract. Nothing in the
-  cutover depends on the answer, but the staleness path in the compatibility
-  doc (§2.3) chooses between a relationship retract and an instance rebuild on
-  it, and if retract is inert the stale-`USES` hazard is recorded as open or
-  the writer retracts by node.
+  six measured shapes plus the cloud-`USES` scope-wide retract. The Neo4j leg
+  of P1 has run on the pinned `neo4j:2026-community` backend: every shape is
+  effective (bare `DELETE` and production retract both clear; see
+  `docs/internal/evidence/8517-retract-proof-neo4j2026.md` and the
+  `8517-retract-*-neo4j2026` ledger rows). The fix-500 NornicDB leg is still
+  open. Nothing in the cutover depends on the answer, but the staleness path
+  in the compatibility doc (§2.3) chooses between a relationship retract and
+  an instance rebuild on it, and if retract is inert the stale-`USES` hazard
+  is recorded as open or the writer retracts by node.
 - The 908-repository graph held 40 `Workload` and 33 `WorkloadInstance`
   nodes (key doc §3.1, unledgered). That is the population of the deleted
   labels, not a statement about rebuild cost: re-materialization re-runs
@@ -408,7 +412,7 @@ run; each records a ledger row when it does.
 
 | Probe | What it settles | Pass shape |
 | --- | --- | --- |
-| P1 | Relationship `DELETE` effectiveness on `fix-500-e022384c` for all six shapes the pr290 ledger row measured (bare `DELETE`, `RetractSingleRepoRunsOnEdgesCypher`, `DEFINES`, `DEPENDS_ON`, `RUNS_IN`, `DOCUMENTS`) plus the cloud-`USES` scope-wide retract (`RetractWorkloadCloudRelationshipEdgesCypher` as `commitEdges` dispatches it in `workload_cloud_relationship_materialization.go`), Neo4j control, settling loop. Until it runs, both documents say "unverified on the current pin". | 1 → 0 on both backends; if any shape is inert, the stale-`USES` hazard is recorded as open on the issue or the writer retracts by node |
+| P1 | Relationship `DELETE` effectiveness on `fix-500-e022384c` for all six shapes the pr290 ledger row measured (bare `DELETE`, `RetractSingleRepoRunsOnEdgesCypher`, `DEFINES`, `DEPENDS_ON`, `RUNS_IN`, `DOCUMENTS`) plus the cloud-`USES` scope-wide retract (`RetractWorkloadCloudRelationshipEdgesCypher` as `commitEdges` dispatches it in `workload_cloud_relationship_materialization.go`), Neo4j control, settling loop. Until it runs, both documents say "unverified on the current pin". | 1 → 0 on both backends; if any shape is inert, the stale-`USES` hazard is recorded as open on the issue or the writer retracts by node. **Neo4j leg run (#8517):** all six shapes plus the cloud-`USES` retract clear on the pinned `neo4j:2026-community` backend — bare `DELETE` 1 → 0 per shape (2 → 1 with keep surviving for `DEFINES`) and production retract 1 → 0 (2 → 1 for `DEFINES`, sibling scope surviving for cloud-`USES`); no inert shape, so no hazard entry. See `docs/internal/evidence/8517-retract-proof-neo4j2026.md` and the `8517-retract-*-neo4j2026` ledger rows. The fix-500 NornicDB leg is still open. |
 | P2 | `PROFILE` of the Go-paired `SAME_NAME` `MERGE` (compatibility doc §1.3) against the rejected inline-plus-`WHERE` shape, and of one handle lookup, with the `workload_name` index present. Also `PROFILE` of the §2 cascade shape, `MATCH (r:Repository {path: $path}) WHERE r.id <> $repo_id MATCH (n:<Label> {repo_id: r.id}) DETACH DELETE n`, once per label against a seeded retired repository: it is a new hot-path graph write whose correlated property match feeds a `DETACH DELETE`, and the grouped-`DETACH DELETE` under-apply that `docs/public/reference/nornicdb-pitfalls.md` records as a v1.1.11 defect must be shown absent on the current pin, so the shape is measured before it ships rather than left to T4 | the paired shape seeks the index and writes the expected rows; the rejected shape is recorded as the pitfall predicts; the cascade seeks `workload_repo_id` and `workload_instance_repo_id`, deletes exactly the retired repository's nodes on both backends, and its `Endpoint`-leg cost feeds the P3 index decision |
 | P3 | `DETACH DELETE` of the three labels plus the step 7 `recover-generations` re-run: wall time on the 908-repo store at the current pin, with the §4 per-family count assertion on the result. The rebuild runbook's latest measured clean run (`docs/public/operate/graph-rebuild-from-facts.md`, "What the rebuild does not restore") came back short one `WorkloadInstance`, its `Platform`, and four relationships, which is inside the labels this cutover deletes and is unexplained | exact seconds and a human duration, with the stated bound; every family count equal, or the delta root-caused before the live run |
 | P4 | Re-prove the `FetchWorkloadRuntimeTopology` pin (`go/internal/query/entity/workload_runtime_topology.go`; `go/internal/queryplan/testdata/hot-cypher.yaml`, whose caveats retain the #5272 "about 75 times slower" repository-first finding and the Neo4j-only `NodeIndexSeek` proof) under the new `workload_id` values | pin updated; the `WorkloadInstance.workload_id` anchor still seeks; the 75x finding re-measured, not assumed |
