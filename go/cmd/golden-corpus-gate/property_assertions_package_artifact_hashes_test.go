@@ -110,7 +110,7 @@ func TestCheckGraphPackageArtifactHashesWrongDigestFails(t *testing.T) {
 const packageArtifactHashesCassetteStableKey = "package_registry:go:github.com/acme/lib-common:artifact:lib-common-1.0.0.tar.gz"
 
 // packageArtifactHashSegmentEscape mirrors packageRegistryEscapeHashSegment
-// (go/internal/storage/cypher/package_registry_artifact_writer.go)
+// (go/internal/storage/cypher/package/registry/artifact_writer.go)
 // byte-for-byte: it backslash-escapes every literal '\' and ':' in raw so the
 // segment can sit on either side of the ':' separator without being mistaken
 // for it. Duplicated rather than imported because packageRegistryEscapeHashSegment
@@ -157,7 +157,7 @@ func TestPackageArtifactHashSegmentEscapeAllocatesOnce(t *testing.T) {
 // hashes property value straight off the recorded package_registry cassette,
 // joining its "hashes" map as sorted "algorithm:digest" pairs with "|" —
 // mirroring packageRegistryHashPairs
-// (go/internal/storage/cypher/package_registry_artifact_writer.go), including
+// (go/internal/storage/cypher/package/registry/artifact_writer.go), including
 // its packageRegistryEscapeHashSegment escaping and strings.TrimSpace on the
 // digest, and boltPropertyString's list join (graph.go). Applying the same
 // escape/trim here (rather than a bare "algorithm:digest" join) matters for a

@@ -10,7 +10,7 @@ import "testing"
 // `hashes` required_nodes assertion (testdata/golden/e2e-20repo-snapshot.json)
 // asserts a LIST-typed property (a sorted "algorithm:digest" string list,
 // packageRegistryHashPairs in
-// go/internal/storage/cypher/package_registry_artifact_writer.go). Before this
+// go/internal/storage/cypher/package/registry/artifact_writer.go). Before this
 // fix, boltPropertyString returned "" for anything that was not already a
 // scalar Go string, so ListNodeProperty/EvaluateNodeProperty would see every
 // PackageArtifact node as NOT carrying `hashes` and the assertion would fail

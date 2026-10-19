@@ -11,7 +11,7 @@ Every write path that touches the graph backend goes through this package.
 flowchart LR
   A["internal/projector\nCanonicalWriter"] --> B["cypher.CanonicalNodeWriter"]
   C["internal/reducer\nSharedProjectionEdgeWriter"] --> D["cypher.EdgeWriter"]
-  E["internal/reducer\nSemanticEntityMaterialization"] --> F["cypher.SemanticEntityWriter"]
+  E["internal/reducer\nSemanticEntityMaterialization"] --> F["entity.SemanticEntityWriter"]
   O["internal/reducer\nGraphOrphanSweepRunner"] --> OS["orphan.OrphanSweepStore"]
   B --> G["cypher.Executor\n(backend seam)"]
   D --> G
@@ -39,7 +39,7 @@ flowchart TB
 Callers build `Statement` values via statement builder functions
 (`BuildCanonicalWorkloadUpsert` and related, `BuildRetractRepoDependencyEdges` and
 related, `BuildPlan`) and pass them to a writer
-(`CanonicalNodeWriter`, `EdgeWriter`, `SemanticEntityWriter`) or directly to
+(`CanonicalNodeWriter`, `EdgeWriter`, `entity.SemanticEntityWriter`) or directly to
 an `Executor`.
 
 `RetractableNodeEntityLabels()` exposes the canonical retract phase's node label
@@ -464,7 +464,7 @@ Package-version artifact rows (#5458) are written as
 `PackageArtifact`/`PackageRegistryPackageArtifact` nodes keyed by `uid` (the
 artifact fact's `stable_fact_key`), carrying `artifact_key`, `artifact_type`,
 `artifact_url`, `size_bytes`, `classifier`, `platform_tags`, and `hashes` — a
-sorted `algorithm:digest` string list (`package_registry_artifact_writer.go`'s
+sorted `algorithm:digest` string list (`package/registry/artifact_writer.go`'s
 `packageRegistryHashPairs`), since Cypher node properties cannot hold a nested
 map. This closes the gap the owning `PackageVersion` node's
 `checksum_algorithms` property left: that property keeps only algorithm
@@ -1198,7 +1198,7 @@ backend-specific branch.
   `label=CloudResource:EC2BlockDeviceKMSPosture`) ride each statement for the
   existing graph query duration and batch-size metrics. Durable benchmark
   evidence lives in `docs/public/reference/local-performance-envelope.md`.
-- `SemanticEntityWriter` — writes semantic entity (Annotation, Module, etc.)
+- `entity.SemanticEntityWriter` (semantic/entity leaf) — writes semantic entity (Annotation, Module, etc.)
   nodes; five constructors select the Cypher row shape
 
 **Statement builders**
@@ -1491,7 +1491,7 @@ committed zero nodes.
   that the relationship writer no longer dominates `phase=oci_registry`.
 - Package-registry writes must keep `MERGE` anchored on `uid` for `Package`,
   `PackageVersion`, and `PackageDependency` labels. Do not add `Repository`
-  matches or ownership edges to `package_registry_canonical_writer.go`; source
+  matches or ownership edges to `package/registry/canonical_writer.go`; source
   hints need reducer admission first.
 - Orphan sweep statements must stay on the closed label set and must never
   contain a relationship-existence predicate (`NOT (n)--()`, `(n)--()`, or

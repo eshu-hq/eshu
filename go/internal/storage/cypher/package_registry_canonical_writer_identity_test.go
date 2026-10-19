@@ -14,8 +14,8 @@ import (
 
 // This file holds the package_registry canonical writer's identity/dedup
 // tests and the packageRegistryPhaseGroupIndex helper, split out of
-// package_registry_canonical_writer_test.go to stay under the package's
-// 500-line-per-file convention. package_registry_canonical_writer_test.go
+// canonical_writer_test.go to stay under the package's
+// 500-line-per-file convention. canonical_writer_test.go
 // keeps the statement-shape and phase-ordering tests
 // (TestCanonicalNodeWriterBuildsPackageRegistryStatements,
 // TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups) and calls
@@ -177,7 +177,7 @@ func TestCanonicalNodeWriterDeduplicatesPackageRegistryPackages(t *testing.T) {
 // row.package_id alongside uid: row.version_id on the same MATCH means a
 // mismatched pair finds no PackageVersion row, so no edge is written. This
 // also proves the edge row's package_id parameter is the artifact's OWN
-// claimed package_id (packageRegistryArtifactRows), not derived from
+// claimed package_id (registry.ArtifactRows), not derived from
 // version_id, which is what makes the predicate meaningful rather than
 // tautological.
 func TestCanonicalNodeWriterArtifactEdgeCypherPinsPackageIDOnVersionMatch(t *testing.T) {
@@ -227,7 +227,7 @@ func TestCanonicalNodeWriterArtifactEdgeCypherPinsPackageIDOnVersionMatch(t *tes
 // Pinning package_id: row.package_id alongside uid: row.version_id on the
 // same MATCH means a mismatched pair finds no PackageVersion row, so no edge
 // is written. This also proves the edge row's package_id parameter is the
-// event's OWN claimed package_id (packageRegistryEventRows), not derived from
+// event's OWN claimed package_id (registry.EventRows), not derived from
 // version_id, which is what makes the predicate meaningful rather than
 // tautological.
 func TestCanonicalNodeWriterEventEdgeCypherPinsPackageIDOnVersionMatch(t *testing.T) {

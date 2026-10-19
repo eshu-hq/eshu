@@ -118,7 +118,7 @@ SET ko.base_refs = row.base_refs`
 // collectKustomizeOverlayEntities extracts KustomizeOverlay rows from the
 // materialization's touched entities, mirroring collectGitlabJobEntities:
 // label-filtered first (a Class row's unrelated "bases" metadata is never
-// read on this path), then base_refs coerced with semanticMetadataStringSlice
+// read on this path), then base_refs coerced with kustomizeMetadataStringSlice
 // -- NOT metadataString, which only handles a plain string and would
 // silently drop the []any shape "bases" arrives as after the fact
 // envelope's JSON round trip.
@@ -131,10 +131,57 @@ func collectKustomizeOverlayEntities(entities []canonical.EntityRow) []Kustomize
 		rows = append(rows, KustomizeOverlayRow{
 			UID:      entity.EntityID,
 			Path:     entity.FilePath,
-			BaseRefs: semanticMetadataStringSlice(entity.Metadata, "bases"),
+			BaseRefs: kustomizeMetadataStringSlice(entity.Metadata, "bases"),
 		})
 	}
 	return rows
+}
+
+// kustomizeMetadataStringSlice coerces one metadata value to a trimmed,
+// non-empty string list. It is a copy of the semantic entity leaf's
+// metadata-string-slice coercion (semantic/entity/metadata.go): the leaf
+// imports this package, so this file cannot import the leaf back, and the
+// root PayloadStringSlice differs (it returns []string untrimmed and
+// fmt.Sprint-coerces non-strings instead of skipping them). Keep the two in
+// sync; the leaf's round-trip and row tests pin its copy.
+func kustomizeMetadataStringSlice(metadata map[string]any, key string) []string {
+	if metadata == nil {
+		return nil
+	}
+	value, ok := metadata[key]
+	if !ok || value == nil {
+		return nil
+	}
+	switch typed := value.(type) {
+	case []string:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if trimmed := strings.TrimSpace(item); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			text, ok := item.(string)
+			if !ok {
+				continue
+			}
+			if trimmed := strings.TrimSpace(text); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 // kustomizeOverlayDeletedFilePaths filters a materialization's

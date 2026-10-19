@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 const semanticEntityNornicDBLiveEnv = "ESHU_SEMANTIC_ENTITY_NORNICDB_LIVE"
@@ -79,7 +80,7 @@ func TestSemanticEntityWriterLiveNornicDBConcurrentDistinctRepos(t *testing.T) {
 		MaxRetries: 3,
 		BaseDelay:  5 * time.Millisecond,
 	}
-	writer := cypher.NewSemanticEntityWriterWithCanonicalNodeRows(
+	writer := entity.NewSemanticEntityWriterWithCanonicalNodeRows(
 		cypher.ExecuteOnlyExecutor{Inner: retrying},
 		10,
 	).WithLabelScopedRetract()

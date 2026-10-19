@@ -9,7 +9,7 @@
 // content-entity projection deliberately skips it
 // (internal/projector/canonical/builder.go), so the content_entity retract
 // cassette in delta_tier_entity_retract_live_test.go cannot cover it. This test
-// drives the production cypher.SemanticEntityWriter directly: it upserts a
+// drives the production entity.SemanticEntityWriter directly: it upserts a
 // Variable node (gen1), then delta-retracts it by file path (gen2, the file
 // absent from the new generation), and proves the in-scope Variable is gone
 // while a same-label Variable in another file survives — a genuine
@@ -37,6 +37,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 const (
@@ -89,7 +90,7 @@ func TestReducerSemanticVariableRetractGraphTruth(t *testing.T) {
 	// Production semantic writer for the NornicDB path: canonical-node-rows mode
 	// + label-scoped retract, exactly as semanticEntityWriterForGraphBackend
 	// wires it for NornicDB. Retract and upsert share one grouped transaction.
-	writer := cypher.NewSemanticEntityWriterWithCanonicalNodeRows(exec, 500).
+	writer := entity.NewSemanticEntityWriterWithCanonicalNodeRows(exec, 500).
 		WithLabelScopedRetract()
 
 	variableRow := func(uid, file string) semantic.EntityRow {

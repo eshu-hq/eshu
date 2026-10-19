@@ -100,7 +100,7 @@ func TestBuildCanonicalMaterializationQuarantinesPackageRegistryArtifactMissingI
 // hashes.additionalProperties accepts any string key). The fix moves
 // unambiguity from rejection to a lossless escaping scheme in the canonical
 // graph writer (packageRegistryHashPairs in
-// go/internal/storage/cypher/package_registry_artifact_writer.go), so a
+// go/internal/storage/cypher/package/registry/artifact_writer.go), so a
 // colon-bearing algorithm name now projects cleanly all the way through the
 // row builder instead of quarantining.
 func TestBuildCanonicalMaterializationExtractsPackageRegistryArtifactColonBearingHashAlgorithm(t *testing.T) {

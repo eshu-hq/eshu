@@ -1219,8 +1219,8 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	// PackageArtifact, PackageRegistryPackageArtifact, RegistryEvent, and
 	// PackageRegistryRegistryEvent are materialized directly by the dedicated
 	// package_registry canonical writer
-	// (storage/cypher/package_registry_artifact_writer.go and
-	// storage/cypher/package_registry_event_writer.go) from typed
+	// (storage/cypher/package/registry/artifact_writer.go and
+	// storage/cypher/package/registry/event_writer.go) from typed
 	// package_registry.package_artifact and package_registry.registry_event
 	// facts respectively (#5458), the same pattern TerraformStateResource above
 	// uses for its own dedicated writer — NOT through the generic

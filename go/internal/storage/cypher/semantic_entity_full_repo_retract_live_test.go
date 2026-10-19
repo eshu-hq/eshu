@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 // TestSemanticEntityWriterLiveNornicDBFullRepoRetractRecreatesSameUID measures
@@ -97,7 +98,7 @@ SET f.repo_id = $repo_id`,
 	}
 
 	retrying := &cypher.RetryingExecutor{Inner: exec, MaxRetries: 3, BaseDelay: 5 * time.Millisecond}
-	writer := cypher.NewSemanticEntityWriterWithCanonicalNodeRows(retrying, 100).WithLabelScopedRetract()
+	writer := entity.NewSemanticEntityWriterWithCanonicalNodeRows(retrying, 100).WithLabelScopedRetract()
 
 	variableRow := func(uid, path, relative, name, value string) semantic.EntityRow {
 		return semantic.EntityRow{

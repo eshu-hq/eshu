@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/package/registry"
 )
 
 // TestCanonicalNodeWriterDirectoryDepthOrder proves directory writes are split
@@ -115,7 +116,7 @@ func TestDirectoryEdgesStayInlineOnAtomicPath(t *testing.T) {
 		{name: CanonicalPhaseDirectories, statements: []Statement{{Cypher: "dir-node"}}},
 		{name: CanonicalPhaseDirectoryEdges, statements: []Statement{{Cypher: "dir-edge"}}},
 		{name: CanonicalPhaseFiles, statements: []Statement{{Cypher: "file-node"}}},
-		{name: canonicalPhasePackageRegistryVersionEdges, statements: []Statement{{Cypher: "pkg-edge"}}},
+		{name: registry.PhaseVersionEdges, statements: []Statement{{Cypher: "pkg-edge"}}},
 	}
 
 	main, deferred := partitionDeferredPackageRegistryEdgePhases(phases)

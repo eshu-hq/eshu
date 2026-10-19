@@ -14,7 +14,7 @@ import (
 // The semantic_entity_containment family Odù (#8359, split out of #6228).
 //
 // A DIRECT-materialization family: the reducer's semantic-entity handler
-// writes straight to cypher.SemanticEntityWriter through the
+// writes straight to entity.SemanticEntityWriter through the
 // WriteSemanticEntities port. The relationship type is CONTAINS, read off
 // the writer templates' `MERGE (f)-[rel:CONTAINS]->(n)` — never derived
 // from the port name, which is named for entities. CONTAINS is shared with

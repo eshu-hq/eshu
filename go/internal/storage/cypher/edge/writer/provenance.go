@@ -22,7 +22,7 @@ import (
 // (PackageRegistryPackage/PackageRegistryPackageVersion, OciImageManifest).
 // NornicDB does not make a node MERGE'd with multiple labels in one atomic
 // transaction visible to a later same-transaction UNWIND-driven MATCH
-// (package_registry_edge_writer.go), so these edge writes must run in a
+// (package/registry/edge_writer.go), so these edge writes must run in a
 // transaction that starts after the node-owning transaction commits. This
 // writer dispatches through its own Executor call rather than joining the
 // ingestion CanonicalNodeWriter's atomic group, and reducer correlation

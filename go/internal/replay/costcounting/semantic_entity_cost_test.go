@@ -13,11 +13,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 // semanticEntityBudgetRelPath is the committed cost budget for the
 // semantic-entity-materialization scenario. Unlike the nested-directory-tree
-// scenario, this projection has no committed cassette: cypher.SemanticEntityWriter
+// scenario, this projection has no committed cassette: entity.SemanticEntityWriter
 // operates over flat semantic.EntityRow values, not a
 // CanonicalMaterialization, so the fixture rows live inline in this file (the
 // same convention semantic_entity_test.go already uses) and the budget records
@@ -30,7 +31,7 @@ var semanticEntityBudgetRelPath = filepath.Join(
 // and N+1 scenarios: two rows of the SAME semantic entity label (Annotation)
 // in one repository, matching the reducer_domain semantic_entity_materialization
 // (specs/fact-kind-registry.v1.yaml "semantic" family). Same-label rows are
-// required, not incidental: cypher.SemanticEntityWriter batches same-label rows
+// required, not incidental: entity.SemanticEntityWriter batches same-label rows
 // from one WriteSemanticEntities call into a single UNWIND statement, so the
 // positive (one call, two rows) and N+1 (two calls, one row each) scenarios
 // only diverge on eshu_dp_neo4j_batches_executed_total when both fixture rows
@@ -72,7 +73,7 @@ func semanticEntityFixtureRows() []semantic.EntityRow {
 }
 
 // newInstrumentedSemanticEntityWriter builds the production
-// cypher.SemanticEntityWriter using the same constructor
+// entity.SemanticEntityWriter using the same constructor
 // (NewSemanticEntityWriterWithCanonicalNodeRows + WithLabelScopedRetract) the
 // NornicDB deployment path selects (go/cmd/reducer/neo4j_wiring.go
 // semanticEntityWriterForGraphBackend), wired over a groupCountingExecutor
@@ -84,7 +85,7 @@ func semanticEntityFixtureRows() []semantic.EntityRow {
 // recordStatementBatchMetrics helper — the PRIMARY instrument this scenario
 // asserts, not a hand-counted statement slice.
 func newInstrumentedSemanticEntityWriter(t *testing.T) (
-	writer *cypher.SemanticEntityWriter,
+	writer *entity.SemanticEntityWriter,
 	exec *groupCountingExecutor,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -93,14 +94,14 @@ func newInstrumentedSemanticEntityWriter(t *testing.T) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	writer = cypher.NewSemanticEntityWriterWithCanonicalNodeRows(instrumented, 500).WithLabelScopedRetract()
+	writer = entity.NewSemanticEntityWriterWithCanonicalNodeRows(instrumented, 500).WithLabelScopedRetract()
 	return writer, exec, manualReader
 }
 
 // TestCostBudget_SemanticEntityMaterialization is the positive cost-counting
 // gate for the semantic_entity_materialization reducer projection (the
 // "semantic" family in specs/fact-kind-registry.v1.yaml, C-14 issue #4367). It
-// drives the production cypher.SemanticEntityWriter.WriteSemanticEntities over
+// drives the production entity.SemanticEntityWriter.WriteSemanticEntities over
 // two deterministic rows through a real InstrumentedExecutor-backed
 // sdkmetric.ManualReader, then asserts eshu_dp_neo4j_batches_executed_total is
 // within the committed budget.

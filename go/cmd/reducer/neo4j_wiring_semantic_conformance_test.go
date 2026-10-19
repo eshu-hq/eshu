@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/backendconformance"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 // TestSemanticModuleConformanceCasesUseTheReducerWiring pins the writer
@@ -33,7 +34,7 @@ func TestSemanticModuleConformanceCasesUseTheReducerWiring(t *testing.T) {
 		t.Run(string(tc.backend), func(t *testing.T) {
 			t.Parallel()
 
-			production := func(executor sourcecypher.Executor) *sourcecypher.SemanticEntityWriter {
+			production := func(executor sourcecypher.Executor) *entity.SemanticEntityWriter {
 				writer, err := semanticEntityWriterForGraphBackend(executor, tc.neo4jBatchSz, tc.backend, func(string) string { return "" })
 				if err != nil {
 					t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)

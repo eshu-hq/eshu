@@ -27,7 +27,7 @@ type recordedWrite struct {
 var canonicalWrites = []recordedWrite{
 	{"UNWIND $rows AS row MERGE (n:Function {uid: row.uid}) SET n.id = row.uid, n.name = row.name", `{"rows":[]}`, "storage/cypher/canonical/node/templates.go:build"},
 	{"MERGE (r:Repository {id: $repo_id}) SET r.name = $name", `{"repo_id":"r"}`, "storage/cypher/canonical.go:build"},
-	{"UNWIND $rows AS row MERGE (n:Class {uid: row.entity_id}) SET n.id = row.entity_id, n += row.properties", `{"rows":[]}`, "storage/cypher/semantic_entity_statements.go:build"},
+	{"UNWIND $rows AS row MERGE (n:Class {uid: row.entity_id}) SET n.id = row.entity_id, n += row.properties", `{"rows":[]}`, "storage/cypher/semantic/entity/statements.go:build"},
 	{"MATCH (n:Function {uid: $uid}) RETURN n", `{"uid":"u"}`, ""},
 }
 

@@ -20,7 +20,7 @@ import (
 //
 // An edge is in scope iff its TARGET node's repo_id equals the fixture repo
 // (the writer sets n.repo_id on the entity node --
-// cypher/semantic_entity_statements.go -- while the File source node is a
+// cypher/semantic/entity/statements.go -- while the File source node is a
 // canonical node this family does not own, so filtering on the source side
 // would fence on another writer's property) OR either endpoint resolves to
 // an expected endpoint identity (the rationale-pattern fallback, keeping

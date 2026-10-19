@@ -55,7 +55,7 @@ type PackageRegistryArtifactRow struct {
 //
 // Hashes is a sorted "algorithm:digest" string list on the graph node (Cypher
 // properties cannot hold a nested map); packageRegistryHashPairs in
-// go/internal/storage/cypher/package_registry_artifact_writer.go escapes each
+// go/internal/storage/cypher/package/registry/artifact_writer.go escapes each
 // algorithm/digest so that encoding stays unambiguous even for a colon- or
 // backslash-bearing algorithm name, rather than this seam rejecting one (#5820
 // P2 review finding: rejection had silently narrowed the public v1 contract).

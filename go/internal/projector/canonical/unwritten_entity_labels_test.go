@@ -124,7 +124,7 @@ func TestCanonicalPhaseESkipsAreDeclared(t *testing.T) {
 //
 // "Source-local" is load-bearing, and the failure text below repeats it rather
 // than saying "no graph writer". SemanticEntityWriter
-// (go/internal/storage/cypher/semantic_entity.go) does write Variable nodes,
+// (go/internal/storage/cypher/semantic/entity/writer.go) does write Variable nodes,
 // for Elixir module attributes and TSX component-type assertions, and it does
 // so for repos read straight off the filesystem: the .ex parser stamps
 // attribute_kind=module_attribute and the .tsx parser stamps

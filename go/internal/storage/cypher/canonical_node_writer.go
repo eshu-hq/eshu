@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/package/registry"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -30,7 +31,7 @@ type CanonicalNodeWriter struct {
 	entityContainmentBatchAcrossFiles bool
 	tracer                            trace.Tracer
 	instruments                       *telemetry.Instruments
-	packageRegistryLocks              *packageRegistryIdentityLocks
+	packageRegistryLocks              *registry.IdentityLocks
 	tfStateOwnershipResolver          TerraformStateOwnershipResolver
 	tfStateConfigMatchResolver        TerraformStateConfigMatchResolver
 	kustomizeOverlayResolver          KustomizeOverlayResolver
@@ -98,7 +99,7 @@ func newCanonicalNodeWriter(
 		executor:             executor,
 		batchSize:            batchSize,
 		instruments:          instruments,
-		packageRegistryLocks: newPackageRegistryIdentityLocks(),
+		packageRegistryLocks: registry.NewIdentityLocks(),
 		searchKey:            searchKey,
 	}
 }
@@ -191,7 +192,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 		writeSpan.SetAttributes(attribute.Int("oversized_index_keys_skipped", oversizedSkipped))
 	}
 	packageRegistryLock := w.lockPackageRegistryIdentities(mat)
-	defer packageRegistryLock.unlock()
+	defer packageRegistryLock.Unlock()
 	recordPackageRegistryIdentityLock(ctx, writeSpan, mat, packageRegistryLock)
 
 	// Atomic path: single transaction for all node phases, then a deferred
@@ -380,12 +381,12 @@ func (w *CanonicalNodeWriter) buildPhases(mat canonical.CanonicalMaterialization
 		{name: "entity_containment", statements: w.buildEntityContainmentStatements(mat)},
 		{name: canonicalPhaseTerraformState, statements: w.buildTerraformStateStatements(mat)},
 		{name: canonicalPhaseOCIRegistry, statements: w.buildOCIRegistryStatements(mat)},
-		{name: canonicalPhasePackageRegistryPackages, statements: w.buildPackageRegistryPackageStatements(mat)},
-		{name: canonicalPhasePackageRegistryVersions, statements: w.buildPackageRegistryVersionStatements(mat)},
-		{name: canonicalPhasePackageRegistryDependencyTargets, statements: w.buildPackageRegistryDependencyPackageStatements(mat)},
-		{name: canonicalPhasePackageRegistryDependencies, statements: w.buildPackageRegistryDependencyStatements(mat)},
-		{name: canonicalPhasePackageRegistryArtifacts, statements: w.buildPackageRegistryArtifactStatements(mat)},
-		{name: canonicalPhasePackageRegistryEvents, statements: w.buildPackageRegistryEventStatements(mat)},
+		{name: registry.PhasePackages, statements: w.buildPackageRegistryPackageStatements(mat)},
+		{name: registry.PhaseVersions, statements: w.buildPackageRegistryVersionStatements(mat)},
+		{name: registry.PhaseDependencyTargets, statements: w.buildPackageRegistryDependencyPackageStatements(mat)},
+		{name: registry.PhaseDependencies, statements: w.buildPackageRegistryDependencyStatements(mat)},
+		{name: registry.PhaseArtifacts, statements: w.buildPackageRegistryArtifactStatements(mat)},
+		{name: registry.PhaseEvents, statements: w.buildPackageRegistryEventStatements(mat)},
 		{name: "modules", statements: w.buildModuleStatements(mat)},
 		{name: CanonicalPhaseStructuralEdges, statements: w.buildStructuralEdgeStatements(mat)},
 		// Deferred package_registry edge phases. These MUST run after the
@@ -396,10 +397,10 @@ func (w *CanonicalNodeWriter) buildPhases(mat canonical.CanonicalMaterialization
 		// dispatches these as a second ExecuteGroup after the node group
 		// commits; in the per-phase paths they run last, after every node phase
 		// has committed.
-		{name: canonicalPhasePackageRegistryVersionEdges, statements: w.buildPackageRegistryVersionEdgeStatements(mat)},
-		{name: canonicalPhasePackageRegistryDependencyEdges, statements: w.buildPackageRegistryDependencyEdgeStatements(mat)},
-		{name: canonicalPhasePackageRegistryArtifactEdges, statements: w.buildPackageRegistryArtifactEdgeStatements(mat)},
-		{name: canonicalPhasePackageRegistryEventEdges, statements: w.buildPackageRegistryEventEdgeStatements(mat)},
+		{name: registry.PhaseVersionEdges, statements: w.buildPackageRegistryVersionEdgeStatements(mat)},
+		{name: registry.PhaseDependencyEdges, statements: w.buildPackageRegistryDependencyEdgeStatements(mat)},
+		{name: registry.PhaseArtifactEdges, statements: w.buildPackageRegistryArtifactEdgeStatements(mat)},
+		{name: registry.PhaseEventEdges, statements: w.buildPackageRegistryEventEdgeStatements(mat)},
 	}
 }
 
@@ -413,10 +414,10 @@ func (w *CanonicalNodeWriter) buildPhases(mat canonical.CanonicalMaterialization
 // read-your-writes within one atomic group and stay in the main group.
 func isDeferredPackageRegistryEdgePhase(name string) bool {
 	switch name {
-	case canonicalPhasePackageRegistryVersionEdges,
-		canonicalPhasePackageRegistryDependencyEdges,
-		canonicalPhasePackageRegistryArtifactEdges,
-		canonicalPhasePackageRegistryEventEdges:
+	case registry.PhaseVersionEdges,
+		registry.PhaseDependencyEdges,
+		registry.PhaseArtifactEdges,
+		registry.PhaseEventEdges:
 		return true
 	default:
 		return false

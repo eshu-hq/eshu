@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
-	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -63,64 +62,6 @@ func recordedStatements(r *recordingGroupExecutor) []Statement {
 		all = append(all, group...)
 	}
 	return all
-}
-
-func semanticIndexKeyWrite() semantic.EntityWrite {
-	row := func(id, typ, name string) semantic.EntityRow {
-		return semantic.EntityRow{
-			RepoID: "repo-1", EntityID: id, EntityType: typ, EntityName: name,
-			FilePath: "/repo/src/a.ts", RelativePath: "src/a.ts", Language: "typescript",
-			StartLine: 1, EndLine: 2,
-		}
-	}
-	return semantic.EntityWrite{
-		RepoIDs: []string{"repo-1"},
-		Rows: []semantic.EntityRow{
-			row("fn-ok", "Function", "render"),
-			row("fn-big", "Function", oversizedIndexValue),
-			row("ann-big", "Annotation", oversizedIndexValue),
-			row("var-big", "Variable", oversizedIndexValue),
-		},
-	}
-}
-
-// TestSemanticEntityWriterSkipsOversizedIndexKeysInEveryWriteMode is the F1
-// regression: the reducer's semantic-entity writer (legacy rows on Neo4j,
-// canonical-node rows on NornicDB) MERGEs Function, Annotation, Variable and
-// other labels from facts, outside the canonical materialization guard. Every
-// write mode must reach the backend without the oversized rows once it runs
-// through InstrumentedExecutor, as it does in production.
-func TestSemanticEntityWriterSkipsOversizedIndexKeysInEveryWriteMode(t *testing.T) {
-	modes := map[string]func(Executor, int) *SemanticEntityWriter{
-		"legacy_rows":         NewSemanticEntityWriter,
-		"parameterized_rows":  NewSemanticEntityWriterWithParameterizedRows,
-		"batched_properties":  NewSemanticEntityWriterWithBatchedProperties,
-		"merge_first_rows":    NewSemanticEntityWriterWithMergeFirstRows,
-		"canonical_node_rows": NewSemanticEntityWriterWithCanonicalNodeRows,
-	}
-	for name, newWriter := range modes {
-		t.Run(name, func(t *testing.T) {
-			instruments, reader := newIndexKeyTestInstruments(t)
-			recorder := &recordingGroupExecutor{}
-			writer := newWriter(&InstrumentedExecutor{Inner: recorder, Instruments: instruments}, 0)
-
-			if _, err := writer.WriteSemanticEntities(context.Background(), semanticIndexKeyWrite()); err != nil {
-				t.Fatalf("WriteSemanticEntities() error = %v", err)
-			}
-			stmts := recordedStatements(recorder)
-			if statementsCarry(t, stmts, oversizedIndexValue) {
-				t.Fatal("an oversized semantic entity value reached the backend")
-			}
-			if !statementsCarry(t, stmts, `"render"`) {
-				t.Fatal("the normal Function row is missing from the write")
-			}
-			for _, label := range []string{"Function", "Annotation", "Variable"} {
-				if got := oversizedSkips(t, reader, label); got != 1 {
-					t.Errorf("skips{node_label=%s} = %d, want 1", label, got)
-				}
-			}
-		})
-	}
 }
 
 // TestCanonicalNodeWriterSkipsOversizedTerraformStateAndKindKeys is the F2

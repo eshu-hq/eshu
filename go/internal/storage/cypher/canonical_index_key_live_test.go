@@ -12,7 +12,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
-	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 )
 
 const (
@@ -36,8 +35,10 @@ const (
 )
 
 // indexKeyLiveSchemaLabels are the labels whose production schema the test
-// applies: every label the canonical, tfstate, and semantic writes below
-// MERGE with an indexed value.
+// applies: every label the canonical and tfstate writes below MERGE with an
+// indexed value. (Function and Annotation stay listed: canonical entities
+// still MERGE Functions here, and the semantic/entity leaf's writer covers
+// the semantic labels against the same schema.)
 var indexKeyLiveSchemaLabels = []string{
 	"Module", "Function", "File", "Repository", "Directory", "Annotation",
 	"TerraformStateResource", "TerraformModule",
@@ -81,14 +82,17 @@ func (e indexKeyAtomicExecutor) ExecuteGroup(ctx context.Context, stmts []Statem
 // backend with the production schema for the touched labels, that one
 // oversized indexed value no longer fails an atomic graph write (#7058).
 //
-// It first shows the backend rejects the raw Module and semantic Function rows
-// on their own (the failure the trial hit, and review F1's one stage later).
-// It then drives, through InstrumentedExecutor as production does, the
-// canonical write (code entities, Terraform state resources and modules) and
-// the reducer's Neo4j semantic-entity writer (legacy rows) with 9000-byte
-// values, a value between the guard bound and Neo4j's limit, and normal rows,
-// for two generations. Every normal node and edge must land and no oversized
-// or mid-range value may.
+// It first shows the backend rejects the raw Module row on its own (the
+// failure the trial hit, and review F1's one stage later). It then drives,
+// through InstrumentedExecutor as production does, the canonical write (code
+// entities, Terraform state resources and modules) with 9000-byte values, a
+// value between the guard bound and Neo4j's limit, and normal rows, for two
+// generations. Every normal node and edge must land and no oversized or
+// mid-range value may. The reducer's semantic-entity writer moved to the
+// semantic/entity leaf (#6694); its oversized-index proof is the always-on
+// TestSemanticEntityWriterSkipsOversizedIndexKeysInEveryWriteMode in that
+// leaf, which drives the production writer (all five write modes) over the
+// same oversized shapes.
 //
 // Gate: ESHU_CYPHER_BOLT_DSN must point at a Neo4j backend (the rejection step
 // is Neo4j-only; set ESHU_CYPHER_BOLT_DATABASE=neo4j). openBoltTestRunner
@@ -126,25 +130,11 @@ func TestLiveCanonicalWriteSkipsOversizedIndexKeys(t *testing.T) {
 
 	exec := &InstrumentedExecutor{Inner: indexKeyAtomicExecutor{runner: runner}}
 	canonicalWriter := NewCanonicalNodeWriter(exec, 500, nil)
-	semanticWriter := NewSemanticEntityWriter(exec, 0) // the reducer's Neo4j wiring (neo4j_wiring.go)
 
 	for gen, generation := range []string{"gen-7058-indexkey-1", "gen-7058-indexkey-2"} {
 		mat := indexKeyLiveMaterialization(generation, gen == 0, bigModule, bigName, midName)
 		if err := canonicalWriter.Write(ctx, mat); err != nil {
 			t.Fatalf("%s canonical Write() error = %v, want nil: one oversized value must not fail the repository", generation, err)
-		}
-		if gen == 0 {
-			// The File the semantic rows attach to now exists, so a raw
-			// semantic write fails only on the index key.
-			rawErr = boltWriteStatement(ctx, runner, semanticFunctionUpsertCypher, map[string]any{"rows": []map[string]any{
-				{"entity_id": indexKeyLiveUIDPrefix + "raw", "entity_name": bigName, "file_path": indexKeyLiveFilePath, "start_line": 1},
-			}})
-			if rawErr == nil || !strings.Contains(rawErr.Error(), "too large to index") {
-				t.Fatalf("raw oversized semantic Function upsert error = %v, want 'too large to index'", rawErr)
-			}
-		}
-		if _, err := semanticWriter.WriteSemanticEntities(ctx, indexKeyLiveSemanticWrite(bigName, midName)); err != nil {
-			t.Fatalf("%s semantic WriteSemanticEntities() error = %v, want nil: the semantic stage must not dead-letter", generation, err)
 		}
 		assertIndexKeyLiveGraph(ctx, t, runner, generation)
 	}
@@ -231,24 +221,6 @@ func indexKeyLiveMaterialization(generation string, first bool, bigModule, bigNa
 	}
 }
 
-func indexKeyLiveSemanticWrite(bigName, midName string) semantic.EntityWrite {
-	row := func(uid, typ, name string, line int) semantic.EntityRow {
-		return semantic.EntityRow{
-			RepoID: indexKeyLiveRepoID, EntityID: indexKeyLiveUIDPrefix + uid, EntityType: typ, EntityName: name,
-			FilePath: indexKeyLiveFilePath, RelativePath: "a.ts", Language: "typescript", StartLine: line, EndLine: line + 1,
-		}
-	}
-	return semantic.EntityWrite{
-		RepoIDs: []string{indexKeyLiveRepoID},
-		Rows: []semantic.EntityRow{
-			row("sem-ok", "Function", "semanticOK7058", 40),
-			row("sem-big", "Function", bigName, 41),
-			row("sem-mid", "Function", midName, 42),
-			row("ann-big", "Annotation", bigName, 43),
-		},
-	}
-}
-
 func assertIndexKeyLiveGraph(ctx context.Context, t *testing.T, runner *boltRetractTestRunner, generation string) {
 	t.Helper()
 	for _, check := range []struct {
@@ -265,10 +237,8 @@ func assertIndexKeyLiveGraph(ctx context.Context, t *testing.T, runner *boltRetr
 		{"at-limit function", `MATCH (fn:Function) WHERE fn.name STARTS WITH $limit RETURN count(fn) AS count`, 1},
 		{"normal tfstate resource", `MATCH (r:TerraformStateResource {uid: $uid + 'tf-ok'}) RETURN count(r) AS count`, 1},
 		{"normal tfstate module", `MATCH (m:TerraformModule {uid: $uid + 'mod-ok'}) RETURN count(m) AS count`, 1},
-		{"normal semantic function", `MATCH (:File {path: $file})-[:CONTAINS]->(fn:Function {uid: $uid + 'sem-ok'}) RETURN count(fn) AS count`, 1},
 		{"oversized module", `MATCH (m:Module) WHERE m.name STARTS WITH $prefix RETURN count(m) AS count`, 0},
 		{"oversized or mid function", `MATCH (fn:Function) WHERE fn.name STARTS WITH $prefix OR fn.name STARTS WITH $mid RETURN count(fn) AS count`, 0},
-		{"oversized annotation", `MATCH (a:Annotation {uid: $uid + 'ann-big'}) RETURN count(a) AS count`, 0},
 		{"oversized tfstate", `MATCH (n) WHERE n.uid IN [$uid + 'tf-big', $uid + 'mod-big'] RETURN count(n) AS count`, 0},
 	} {
 		got, err := boltCount(ctx, runner, check.cypher, map[string]any{

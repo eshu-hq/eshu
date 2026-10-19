@@ -508,7 +508,7 @@ linters:
       - path: 'internal/status/health\.go'
         linters:
           - funlen
-      - path: 'internal/storage/cypher/semantic_entity\.go'
+      - path: 'internal/storage/cypher/semantic/entity/writer\.go'
         linters:
           - funlen
       - path: 'internal/storage/postgres/content_writer\.go'

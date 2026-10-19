@@ -5,7 +5,7 @@ package materialized
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 // Endpoint-label constraints for materialized-edge families whose relationship
@@ -161,9 +161,9 @@ var materializedEdgeEndpointsByFamily = map[string]map[string]MaterializedEdgeEn
 	// invariant to assert.
 	"semantic_entity_containment": {
 		"CONTAINS": {
-			FromLabels:     sourcecypher.SemanticEntityContainmentSourceLabels(),
-			ToLabels:       sourcecypher.SemanticEntityContainmentTargetLabels(),
-			EvidenceSource: sourcecypher.SemanticEntityEvidenceSource,
+			FromLabels:     entity.SemanticEntityContainmentSourceLabels(),
+			ToLabels:       entity.SemanticEntityContainmentTargetLabels(),
+			EvidenceSource: entity.SemanticEntityEvidenceSource,
 		},
 	},
 }
