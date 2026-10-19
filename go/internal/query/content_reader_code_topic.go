@@ -42,7 +42,12 @@ func codeTopicCandidateCap(termCount int) int {
 // and content_files (path/content), scoped by repo or caller grant. It serves
 // CodeHandler and change-surface fast paths; a missing store fails closed.
 //
-// #7008: entity_probe caps indexed OR matches per term with LATERAL.
+// #7008: entity_probe caps matches per term with LATERAL.
+// #7033: the lateral probes narrow entity_name first and reads TOASTed
+// source_cache only for the remaining per-term budget, excluding name hits.
+// A runtime LIKE pattern defeats pg_trgm extraction, so the old name-OR-source
+// scan detoasted source_cache per examined row; the split keeps the exact OR
+// multiset when uncapped and selects name-priority when capped.
 // file_probe uses independent UNION branches: LATERAL serialized content scans
 // (>35s for nine terms), while top-level branches measured ~16-23s.
 // A materialized path pool sets remaining content capacity; the content branch
@@ -134,13 +139,26 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 		         m.entity_name, m.entity_type, m.language, m.start_line, m.end_line
 		  FROM terms
 		  CROSS JOIN LATERAL (
-		    SELECT e.repo_id, e.relative_path, e.entity_id, e.entity_name, e.entity_type,
-		           coalesce(e.language, '') AS language, e.start_line, e.end_line
-		    FROM content_entities e
-		    WHERE (e.entity_name ILIKE '%%' || terms.term || '%%'
-		           OR e.source_cache ILIKE '%%' || terms.term || '%%')
-		    %[2]s
-		    LIMIT %[3]d
+		    WITH name_pool AS MATERIALIZED (
+		      SELECT e.repo_id, e.relative_path, e.entity_id, e.entity_name, e.entity_type,
+		             coalesce(e.language, '') AS language, e.start_line, e.end_line
+		      FROM content_entities e
+		      WHERE e.entity_name ILIKE '%%' || terms.term || '%%'
+		      %[2]s
+		      LIMIT %[3]d
+		    ),
+		    source_pool AS (
+		      SELECT e.repo_id, e.relative_path, e.entity_id, e.entity_name, e.entity_type,
+		             coalesce(e.language, '') AS language, e.start_line, e.end_line
+		      FROM content_entities e
+		      WHERE e.source_cache ILIKE '%%' || terms.term || '%%'
+		        AND e.entity_name NOT ILIKE '%%' || terms.term || '%%'
+		      %[2]s
+		      LIMIT (SELECT %[3]d - count(*) FROM name_pool)
+		    )
+		    SELECT * FROM name_pool
+		    UNION ALL
+		    SELECT * FROM source_pool
 		  ) m
 		),
 		entity_matches AS (

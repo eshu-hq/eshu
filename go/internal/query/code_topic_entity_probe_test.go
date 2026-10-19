@@ -62,12 +62,19 @@ func TestInvestigateCodeTopicScopedOneTermHidesTermFromEntityProbe(t *testing.T)
 	probe := entityProbeSection(t, query)
 	for _, want := range []string{
 		"FROM terms\n",
+		"name_pool AS MATERIALIZED",
+		"source_pool AS (",
 		"e.entity_name ILIKE '%' || terms.term || '%'",
 		"e.source_cache ILIKE '%' || terms.term || '%'",
+		"e.entity_name NOT ILIKE '%' || terms.term || '%'",
+		"LIMIT (SELECT 4000 - count(*) FROM name_pool)",
 	} {
 		if !strings.Contains(probe, want) {
 			t.Fatalf("entity_probe missing %q: %s", want, probe)
 		}
+	}
+	if strings.Contains(probe, "OR e.source_cache ILIKE") {
+		t.Fatalf("entity_probe keeps the unbounded name-OR-source scan: %s", probe)
 	}
 	if strings.Contains(probe, "ILIKE '%' || $") {
 		t.Fatalf("entity_probe binds the term parameter directly: %s", probe)
