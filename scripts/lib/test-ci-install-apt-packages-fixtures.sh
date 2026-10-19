@@ -74,6 +74,65 @@ build_ripgrep_fixture() {
 	sha256_of "${tarball}"
 }
 
+# Case: anonymous release download rate-limited (curl 403 from the shared
+# runner egress IP, #8617), authenticated gh available -> the gh fallback
+# installs the same pinned archive, still checksum-verified. The pinned URL
+# stays in play (only the sha is pointed at the fixture), curl and gh are
+# PATH stubs, uname is stubbed to x86_64 so the arch guard passes on any
+# host. Lives in this lib because the mirror file is at its line cap.
+test_gh_fallback_installs_after_curl_failure() {
+	local case_dir="${tmp_root}/gh-fallback" bin_dir stub_bin sha256 out rc=0
+	bin_dir="${case_dir}/dest"
+	stub_bin="${case_dir}/stubbin"
+	mkdir -p "${case_dir}" "${bin_dir}" "${stub_bin}"
+	sha256="$(build_ripgrep_fixture "${case_dir}")"
+	printf '#!/usr/bin/env bash\nexit 22\n' >"${stub_bin}/curl"
+	printf '#!/usr/bin/env bash\nif [ "${1:-}" = "-m" ]; then echo x86_64; else exec /usr/bin/uname "$@"; fi\n' >"${stub_bin}/uname"
+	cat >"${stub_bin}/gh" <<STUB
+#!/usr/bin/env bash
+echo "\$*" >"${case_dir}/gh-args.log"
+out=""
+while [ "\$#" -gt 0 ]; do
+	if [ "\$1" = "--output" ]; then out="\$2"; fi
+	shift
+done
+cp "${case_dir}/ripgrep.tar.gz" "\${out}"
+STUB
+	chmod +x "${stub_bin}/curl" "${stub_bin}/gh" "${stub_bin}/uname"
+	out="${case_dir}/out.log"
+	PATH="${stub_bin}:${PATH}" GH_TOKEN="fake-token" \
+		ESHU_CI_APT_FORCE_INSTALL=1 ESHU_CI_APT_NO_SUDO=1 \
+		ESHU_CI_APT_BIN_DIR="${bin_dir}" ESHU_CI_APT_RIPGREP_SHA256="${sha256}" \
+		ESHU_CI_APT_RIPGREP_DOWNLOAD_ATTEMPTS=1 ESHU_CI_APT_RIPGREP_DOWNLOAD_RETRY_DELAY=0 \
+		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
+	assert_exit_zero "${rc}" "gh-fallback: exits 0 via gh after curl 403" \
+		"gh-fallback: exited nonzero. output:
+$(cat "${out}")"
+	assert_path_present "${bin_dir}/rg" \
+		"gh-fallback: rg installed from the gh-downloaded archive" \
+		"gh-fallback: ${bin_dir}/rg missing. output:
+$(cat "${out}")"
+	assert_output_has "${out}" "gh release download" \
+		"gh-fallback: output names the fallback" \
+		"gh-fallback: fallback not named. output:
+$(cat "${out}")"
+
+	# Same setup, no token: gh must NOT be invoked and the failure stays loud.
+	rm -f "${bin_dir}/rg" "${case_dir}/gh-args.log"
+	rc=0
+	PATH="${stub_bin}:${PATH}" GH_TOKEN= GITHUB_TOKEN= \
+		ESHU_CI_APT_FORCE_INSTALL=1 ESHU_CI_APT_NO_SUDO=1 \
+		ESHU_CI_APT_BIN_DIR="${bin_dir}" ESHU_CI_APT_RIPGREP_SHA256="${sha256}" \
+		ESHU_CI_APT_RIPGREP_DOWNLOAD_ATTEMPTS=1 ESHU_CI_APT_RIPGREP_DOWNLOAD_RETRY_DELAY=0 \
+		"${helper}" ripgrep >"${out}" 2>&1 || rc=$?
+	assert_exit_nonzero "${rc}" "gh-fallback: no token still fails loudly (rc=${rc})" \
+		"gh-fallback: exited 0 without a token. output:
+$(cat "${out}")"
+	assert_path_absent "${case_dir}/gh-args.log" \
+		"gh-fallback: gh not invoked without a token" \
+		"gh-fallback: gh was invoked without a token"
+}
+
 # assert_exit_zero records pass/fail for an exit status already captured in
 # $1 (via `cmd || rc=$?`) -- pass iff it is exactly 0. $3 is used verbatim as
 # the fail message, so callers append any $(cat "${out}") themselves.

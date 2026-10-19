@@ -2,15 +2,12 @@
 #
 # test-ci-install-apt-packages.sh - hermetic checks for scripts/ci/install-apt-packages.sh.
 #
-# ripgrep is installed from a pinned, checksum-verified GitHub release binary
-# instead of apt (apt-get intermittently hangs until job timeout on the
-# runners; ripgrep was the only package that actually triggered apt -- jq is
-# always preinstalled). Every other requested package still goes through the
-# original apt path unchanged. These tests run entirely off the network: the
-# ripgrep cases build their own fixture tarball and point the script at it via
-# ESHU_CI_APT_RIPGREP_URL (curl fetches file:// URLs locally, no network
-# needed), and the apt-path cases use ESHU_CI_APT_SKIP_INSTALL /
-# ESHU_CI_APT_NO_SUDO so apt-get and sudo are never invoked.
+# ripgrep is installed from a pinned, checksum-verified GitHub release
+# binary instead of apt (apt-get intermittently hangs until job timeout).
+# Every other package still takes the original apt path. Tests are hermetic:
+# fixture tarballs via ESHU_CI_APT_RIPGREP_URL (file://), PATH stubs for
+# curl/gh/uname, and ESHU_CI_APT_SKIP_INSTALL / ESHU_CI_APT_NO_SUDO so
+# apt-get and sudo are never invoked.
 # shellcheck disable=SC1091,SC2154  # helpers and tmp_root come from the lib sourced below; `shellcheck -x` is clean.
 set -euo pipefail
 
@@ -486,6 +483,7 @@ test_checksum_mismatch_fails_closed
 test_non_ripgrep_package_still_takes_apt_path
 test_skip_install_skips_pinned_ripgrep
 test_download_failure_exhausts_retries_and_fails_loudly
+test_gh_fallback_installs_after_curl_failure
 test_download_bounds_transfer_not_just_connect
 test_mirror_is_wired_into_ci
 test_missing_sha256_tool_fails_closed
