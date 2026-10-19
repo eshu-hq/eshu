@@ -1,9 +1,11 @@
 # #8216: cache the hybrid rank_cursor window score across pages
 
 Child of #8017. Branch `drive/8216-rank-walk-window`, base `origin/main` at
-`abb5cae71` (plus prerequisite commit `823ccd540`, which qualifies two
-`Result{}` leftovers from the #6626 alias retirement and changes no
-behavior).
+`d76b2aeea` (reattached from `abb5cae71`; prerequisite commit `823ccd540`,
+which qualifies two `Result{}` leftovers from the #6626 alias retirement
+and changes no behavior, was skipped in the rebase as redundant — both of
+its hunks are byte-identical to `d76b2aeea`-era main, which absorbed the
+same qualification upstream, and it never touched the scoring path).
 
 ## Problem
 
@@ -45,8 +47,11 @@ variance can never mix. Both lanes share it: find_code through
 
 ## Performance Evidence: one scoring pass per walk instead of one per page
 
-`BenchmarkFindCodeRankWalkPage` before (count=3, commit `823ccd540`) and
-after (count=5, commit `05aea699a`), linux/arm64, go1.26.9, shared host (wall
+`BenchmarkFindCodeRankWalkPage` before (count=3, `d76b2aeea`-era content:
+measured at prereq `823ccd540`; the only scoring-package drift to the
+rebased base is one unrelated new test file, no benchmark bytes) and
+after (count=5, branch head with the window-score cache),
+linux/arm64, go1.26.9, shared host (wall
 times non-gating; byte and alloc figures are the load-independent change).
 Ledger rows: `docs/internal/measurements.jsonl`, ids `8216-rankwalk-*`.
 The before run reproduces the #7746 baseline shape on this host
