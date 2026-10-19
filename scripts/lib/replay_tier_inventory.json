@@ -120,7 +120,7 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_semantic_variable_retract_live_test.go": {
-      "sha256": "94c5b5d7cc21cce3096ed0d2ac0c099558f2d22f95ea669cf9bc0f4ea0f37736",
+      "sha256": "ffef4ed2b30c99303e2c8b612a9b0d6d0a75089adab223c134e8192a215f6244",
       "tests": [
         "TestReducerSemanticVariableRetractGraphTruth"
       ]
