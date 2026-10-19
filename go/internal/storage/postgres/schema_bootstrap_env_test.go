@@ -13,17 +13,23 @@ import (
 	"time"
 )
 
-// TestBootstrapOptionsFromEnv pins the #6956 knob contract for BOTH
+// TestBootstrapOptionsFromEnv pins the #6956 knob contract for ALL THREE
 // variables: unset leaves the package default (zero) in force, a duration
 // is honored, and garbage, zero, and negative values are refused by name.
+// LockTimeoutEnv (#6738 fix 4) bounds each statement's lock acquisition;
+// the other two bound bootstrapper coordination around those statements.
 func TestBootstrapOptionsFromEnv(t *testing.T) {
 	t.Parallel()
-	for _, env := range []string{OwnershipWaitEnv, LockRetryBudgetEnv} {
+	for _, env := range []string{OwnershipWaitEnv, LockRetryBudgetEnv, LockTimeoutEnv} {
 		pick := func(options BootstrapOptions) time.Duration {
-			if env == OwnershipWaitEnv {
+			switch env {
+			case OwnershipWaitEnv:
 				return options.OwnershipWait
+			case LockRetryBudgetEnv:
+				return options.LockRetryBudget
+			default:
+				return options.LockTimeout
 			}
-			return options.LockRetryBudget
 		}
 		for _, tc := range []struct {
 			name   string
@@ -57,18 +63,20 @@ func TestBootstrapOptionsFromEnv(t *testing.T) {
 			})
 		}
 	}
-	// Both set at once thread independently.
+	// All set at once thread independently.
 	got, err := BootstrapOptionsFromEnv(func(key string) string {
 		switch key {
 		case OwnershipWaitEnv:
 			return "2m"
 		case LockRetryBudgetEnv:
 			return "45s"
+		case LockTimeoutEnv:
+			return "30s"
 		}
 		return ""
 	})
-	if err != nil || got.OwnershipWait != 2*time.Minute || got.LockRetryBudget != 45*time.Second {
-		t.Fatalf("both set: got %+v, %v", got, err)
+	if err != nil || got.OwnershipWait != 2*time.Minute || got.LockRetryBudget != 45*time.Second || got.LockTimeout != 30*time.Second {
+		t.Fatalf("all set: got %+v, %v", got, err)
 	}
 }
 

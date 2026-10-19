@@ -86,11 +86,15 @@ failed try and then every 15 s with the holder's pid, state, connection age
 and application name (when the client set one), and gives up only after
 `ESHU_SCHEMA_BOOTSTRAP_OWNERSHIP_WAIT` (default 3 m). Waiters are not
 queued: when the lock frees they race for it, each bounded by its own wait.
-A migration statement that hits `lock_timeout` (5 s, SQLSTATE 55P03)
+A migration statement that hits `lock_timeout` (default 5 s via
+`ESHU_SCHEMA_LOCK_TIMEOUT`, SQLSTATE 55P03)
 because another session holds a conflicting table lock, such as an
 anti-wraparound autovacuum, applied nothing and is retried with doubling
 backoff (5 s up to 15 s) against one shared `ESHU_SCHEMA_LOCK_RETRY_BUDGET`
-(default 3 m) for the run. Failed-attempt duration and backoff consume this
+(default 3 m) for the run. A longer `ESHU_SCHEMA_LOCK_TIMEOUT` lets DDL queue
+for a lock gap instead of failing fast; every failed attempt still consumes
+the retry budget, so the longer timeout does not add wall clock outside that
+allowance. Failed-attempt duration and backoff consume this
 allowance; successful migration execution time does not. This keeps long
 successful migrations from using up retry allowance needed by a later lock
 race, and contended statements cannot each receive a fresh allowance. PostgreSQL
@@ -102,8 +106,8 @@ wall-clock deadline. Each retry logs
 and the eventual success logs `bootstrap.postgres.migration.lock_recovered`
 with the attempt count. Any other statement failure still fails the
 bootstrap on the first attempt. `db-migrate` (`eshu-bootstrap-data-plane`)
-and `bootstrap-index` both read the two variables; the local supervisor
-applies its schema without the ownership lock and is unaffected. The two
+and `bootstrap-index` both read the three variables; the local supervisor
+applies its schema without the ownership lock and is unaffected. The two wait
 defaults sum to 6 m, leaving a 4 m planning floor under the schema
 bootstrap Job's `activeDeadlineSeconds` (600 in the chart) for pod start,
 migration execution and the graph schema. The Job deadline is the outer bound
