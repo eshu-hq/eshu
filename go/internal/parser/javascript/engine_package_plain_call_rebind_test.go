@@ -10,8 +10,9 @@ import (
 
 // TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports pins the #8310
 // repros for the #7601 plain-call keys: an import alias, a using declaration,
-// a block let, or a sloppy-mode eval var rebinds the import name where the
-// open redeclaredImportNames rule does not look, so the plain `Logger()` call
+// a block let, a `\u` escape, or a sloppy-mode eval var rebinds the import
+// name where the open redeclaredImportNames rule does not look, so the plain
+// `Logger()` call
 // must stay unkeyed. Each case starts with the package import; the sloppy eval
 // case is a script (.js), where eval shares the function scope. The member
 // `Logger.create()` call of the same files must stay unkeyed too under its
@@ -27,6 +28,7 @@ func TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports(t *testing.T) {
 		{"import alias", ".ts", "namespace N {\n  import Logger = Other.Thing;\n  Logger.create();\n  Logger();\n}\n"},
 		{"using declaration", ".ts", "{\n  using Logger = res();\n  Logger.create();\n  Logger();\n}\n"},
 		{"block let", ".ts", "{\n  let Logger = other;\n  Logger.create();\n  Logger();\n}\n"},
+		{"unicode escape", ".ts", "{\n  let \\u004cogger = other;\n  Logger.create();\n  Logger();\n}\n"},
 		{"sloppy eval var", ".js", "function g() {\n  eval(\"var Logger = other\");\n  Logger.create();\n  Logger();\n}\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -127,7 +129,9 @@ func TestDefaultEngineParsePathKeepsPlainCallsOnlyUnderTheClosedRule(t *testing.
 // redeclaredImportNames rule does not look. The closed plain rule drops every
 // plain key of that name file-wide, so both the inner call (which reads the
 // local module) and the outer call stay unkeyed; the outer drop is the stated
-// recall cost of closing the rule.
+// recall cost of closing the rule. See also
+// TestDefaultEngineParsePathDropsPlainCallsFileWideOnRebind, which pins the
+// same module-fmt fixture with a trailing member call.
 func TestDefaultEngineParsePathSkipsNamespaceMemberCallsOfModuleReboundImports(t *testing.T) {
 	t.Parallel()
 
@@ -148,6 +152,6 @@ func TestDefaultEngineParsePathSkipsNamespaceMemberCallsOfModuleReboundImports(t
 		}
 	}
 	if seen != 2 {
-		t.Errorf("fmt.f() call count = %d, want 2: the repro must cover both the inner and the outer call", seen)
+		t.Fatalf("found %d fmt.f() calls, want 2: the repro must cover both the inner and the outer call", seen)
 	}
 }
