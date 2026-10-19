@@ -12,7 +12,7 @@ flowchart LR
   TagSource["Cloud resource\nobserver (future)"] -->|ObservationBatch| Normalizer["Normalizer.Normalize()"]
   Normalizer --> Result["NormalizationResult\n{Resources}"]
   Result -->|PhaseStates| PhaseRows["cloud_resource_uid\ncanonical_nodes_committed rows"]
-  PhaseRows -->|PublishNormalizationResult| Publisher["reducer.GraphProjectionPhasePublisher"]
+  PhaseRows -->|PublishNormalizationResult| Publisher["gpphase.PhasePublisher"]
   Publisher --> PhaseTable["graph_projection_phase_state\n(Postgres)"]
   PhaseTable --> DownstreamEdges["DSL evaluator\nedge domains"]
 ```
@@ -33,7 +33,7 @@ Pin two contracts:
   result shapes, and the result-to-phase conversion plus publish helper.
 - Does not own: a concrete normalizer. The substrate lands elsewhere.
 - Does not write to the graph. Phase rows go through
-  `reducer.GraphProjectionPhasePublisher`.
+  `gpphase.PhasePublisher`.
 
 ## Exported surface
 

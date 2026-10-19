@@ -158,7 +158,7 @@ the concrete adapters stay here.
 - `GraphProjectionPhaseRepairQueueStore` / `NewGraphProjectionPhaseRepairQueueStore`
   — repair queue for phase re-publish
 - `NewGraphProjectionReadinessLookup` / `NewGraphProjectionReadinessPrefetch`
-  — implement `reducer.GraphProjectionReadinessLookup`
+  — implement `gpphase.ReadinessLookup`
 
 **Shared projection**
 

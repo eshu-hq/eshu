@@ -57,16 +57,15 @@ to be justified in the PR, not a convenience.
 **Constant string values are a storage/query contract, not just a Go
 identifier.** `Keyspace` and `Phase` constants are persisted in Postgres and
 compared against in Cypher by their literal string value (e.g.
-`"cross_repo_evidence"`). Renaming the Go identifier is fine as long as the
-alias in the root stays in sync; changing the string value orphans every
-already-published readiness row under the old string.
+`"cross_repo_evidence"`). Renaming the Go identifier is fine (every call
+site spells the single `gpphase` name); changing the string value orphans
+every already-published readiness row under the old string.
 
 ## Adding a new Keyspace or Phase
 
 Adding a constant is safe. Removing or renaming one requires grepping the
-full tree for the exact name first — the root's aliases mean both the
-`gpphase.KeyspaceFoo` and `reducer.GraphProjectionKeyspaceFoo` spellings are
-live call sites, and a family subpackage may reference either.
+full tree for the exact name first — every call site spells the single
+`gpphase` name, and a family subpackage may reference it from anywhere.
 
 ## `PhaseKey.Validate`
 

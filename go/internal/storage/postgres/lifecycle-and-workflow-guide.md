@@ -331,7 +331,7 @@ delivery without serializing unrelated repositories or partitions.
 `GraphProjectionPhaseStateStore` persists `canonical_nodes_committed` phase
 markers after `cypher.CanonicalNodeWriter.Write` completes. The
 `NewGraphProjectionReadinessLookup` and `NewGraphProjectionReadinessPrefetch`
-factories return `reducer.GraphProjectionReadinessLookup` implementations used
+factories return `gpphase.ReadinessLookup` implementations used
 by edge-domain reducer workers to gate on canonical node availability before
 writing edges.
 
