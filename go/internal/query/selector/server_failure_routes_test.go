@@ -36,11 +36,10 @@ func (m resolveFailureMounter) Mount(mux *http.ServeMux) {
 func TestWriteResolveFailureLookupBranchAnswersOnTheHelper(t *testing.T) {
 	t.Parallel()
 	failure.Run(t, failure.Suite{Routes: []failure.Route{{
-		Name:          "selector lookup failure",
-		Path:          "/resolve",
-		Message:       LookupFailureMessage,
-		CancelMessage: LookupFailureMessage,
-		PlainDetail:   true,
+		Name:        "selector lookup failure",
+		Path:        "/resolve",
+		Message:     LookupFailureMessage,
+		PlainDetail: true,
 		Handler: func(err error) failure.Mounter {
 			mapped := err
 			if !errors.Is(err, context.Canceled) && !errors.Is(err, db.ErrReaderStale) {
