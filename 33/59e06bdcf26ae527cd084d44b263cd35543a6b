@@ -1,0 +1,14 @@
+go/internal/storage/cypher/provenance_counts_test.go
+  h_78a442cba0b3e6 286-321
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3359e06bdcf26ae527cd084d44b263cd35543a6b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
