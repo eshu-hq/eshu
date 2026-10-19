@@ -45,11 +45,13 @@ var catalogSeed = []familyodu.CatalogOdu{
 	familyodu.SymbolRuntimeFamilyOdu(),
 	// The DIRECT-materialization families (#6228). Every entry
 	// above belongs to reducer.MaterializedEdgeFamilies(); these belong
-	// to reducer.DirectMaterializedEdgeFamilies(). Since #6309 two of them
-	// carry coverage rows in specs/ifa-materialized-edge-coverage-direct.v1.yaml
+	// to reducer.DirectMaterializedEdgeFamilies(). Six of them carry
+	// coverage rows in specs/ifa-materialized-edge-coverage-direct.v1.yaml
 	// because both live matrices drive them; workload_cloud_relationship,
-	// iam_can_assume, iam_can_perform, iam_escalation, ec2_uses_profile,
-	// and s3_logs_to still carry their waiver rows.
+	// iam_escalation, kubernetes_correlation, semantic_entity_containment,
+	// security_group_sg_rule, security_group_rule_endpoint,
+	// s3_external_principal_grant, and uses_service_account still carry
+	// their waiver rows.
 	// Being cataloged is one of the four conditions a coverage row asserts,
 	// not the whole of it, so none gets a coverage row on the strength of
 	// appearing here.
@@ -64,6 +66,9 @@ var catalogSeed = []familyodu.CatalogOdu{
 	familyodu.KubernetesCorrelationFamilyOdu(),
 	familyodu.SemanticEntityContainmentFamilyOdu(),
 	familyodu.CloudResourceFamilyOdu(),
+	familyodu.SecurityGroupReachabilityFamilyOdu(),
+	familyodu.S3ExternalPrincipalGrantFamilyOdu(),
+	familyodu.UsesServiceAccountFamilyOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds

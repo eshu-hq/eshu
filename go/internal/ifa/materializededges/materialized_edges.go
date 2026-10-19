@@ -153,7 +153,7 @@ func materializedEdgeScenarioRequirements(families []string) []replaycoverage.Sc
 // materialized_edges:<family> surfaces (#5351). Every entry it resolves must
 // use the odu scenario; resolution then dispatches to the family's own
 // vacuity guard.
-// Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, invokes_cloud_action, and the direct-materialization guards kubernetes_namespace_environment, iam_instance_profile_role, workload_cloud_relationship, and iam_can_assume.
+// Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, invokes_cloud_action, and the direct-materialization guards kubernetes_namespace_environment, iam_instance_profile_role, workload_cloud_relationship, iam_can_assume, iam_can_perform, iam_escalation, ec2_uses_profile, s3_logs_to, kubernetes_correlation, semantic_entity_containment, security_group_sg_rule, security_group_rule_endpoint, s3_external_principal_grant, and uses_service_account.
 // A family with no registered vacuity guard cannot resolve covered even if a
 // manifest row names one — this is deliberate: "add a domain = DATA ONLY"
 // (design §3) covers the fixture and manifest rows, but a NEW family's first
@@ -218,16 +218,16 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveInvokesCloudActionMaterializedEdges(odu, invokesCloudActionExpectedEdgesPath(r.RepoRoot))
 	// The DIRECT-materialization families (#6228). Every arm above is a
 	// reducer.MaterializedEdgeFamilies() entry reaching the graph through the
-	// shared-projection intent path; the ten below are
+	// shared-projection intent path; the fifteen below are
 	// reducer.DirectMaterializedEdgeFamilies() entries whose reducer port
 	// writes straight to a storage/cypher writer with no intent row between.
 	//
-	// A registered guard is NOT a coverage claim. Since #6309 two of the
-	// eight families carry coverage rows instead of waivers in
+	// A registered guard is NOT a coverage claim. Six of the fifteen
+	// families carry coverage rows instead of waivers in
 	// specs/ifa-materialized-edge-coverage-direct.v1.yaml because both live
-	// matrices drive them; workload_cloud_relationship, iam_can_assume,
-	// iam_can_perform, iam_escalation, ec2_uses_profile, and s3_logs_to
-	// still carry their waiver rows.
+	// matrices drive them; every other family below — including the four
+	// guarded by the #6228 slice-B change, whose live matrices are still
+	// outstanding — still carries its waiver rows.
 	// What these arms buy is that a coverage row COULD resolve, which is one
 	// of the three things those waiver reasons said was missing.
 	case kubernetesNamespaceEnvironmentFamily:
@@ -252,6 +252,14 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveSemanticEntityContainmentMaterializedEdges(odu, semanticEntityContainmentExpectedEdgesPath(r.RepoRoot))
 	case cloudResourceFamily:
 		return resolveCloudResourceMaterializedEdges(odu, cloudResourceExpectedEdgesPath(r.RepoRoot))
+	case securityGroupSGRuleFamily:
+		return resolveSecurityGroupSGRuleMaterializedEdges(odu, securityGroupSGRuleExpectedEdgesPath(r.RepoRoot))
+	case securityGroupRuleEndpointFamily:
+		return resolveSecurityGroupRuleEndpointMaterializedEdges(odu, securityGroupRuleEndpointExpectedEdgesPath(r.RepoRoot))
+	case s3ExternalPrincipalGrantFamily:
+		return resolveS3ExternalPrincipalGrantMaterializedEdges(odu, s3ExternalPrincipalGrantExpectedEdgesPath(r.RepoRoot))
+	case usesServiceAccountFamily:
+		return resolveUsesServiceAccountMaterializedEdges(odu, usesServiceAccountExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}

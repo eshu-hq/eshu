@@ -1,0 +1,46 @@
+{
+  "odu": "odu:ifa-security-group-reachability-family",
+  "note": "Hand-derived from canonicalSecurityGroupToEdgeUpsertCypherFormat (go/internal/storage/cypher/cloud/aws/security/group/security_reachability_edge_writer.go): `MATCH (rule:SecurityGroupRule {uid: row.rule_uid}) MATCH (target:%s {uid: row.target_uid}) MERGE (rule)-[rel:TO]->(target)`. The relationship type is the static TO token; the one %s fills the target-node MATCH label per row from the closed endpoint vocabulary screened by validateSecurityGroupEndpointLabel (CidrBlock, PrefixList, CloudResource), never the relationship type, so TO is the only type this writer can emit. Each source is the same port-precise SecurityGroupRule uid the sibling SG-rule fixture targets: the five live rules resolve in both families. Each target is the endpoint uid the extractor recomputes with the same funcs the endpoint materializers used: CidrBlock uids fold address family plus canonical CIDR (10.0.0.0/8 shared by both web-sg rules, so two distinct rule nodes point at one CidrBlock node; 2001:db8::/32 masked for the IPv6 rule), the PrefixList uid folds account, region, and pl-0abc123def456789a, and the referenced-group target is the CloudResource uid of scanned sg-0ref123456789abcd. Exactly five edges covering all three endpoint labels. The other four rules contribute nothing on purpose -- one anchored to unscanned ghost-sg, one referencing unscanned ghost-sg, one with unknown source, and one tombstoned. The MERGE keys on its two endpoint nodes alone, so there is no identity block; target_label fills the MATCH label position (heterogeneous but closed), so it is asserted as a mutable property -- the edge key cannot see it, and a regression resolving the right uid under the wrong label would otherwise pass on identity alone while the writer's MATCH no-ops live.",
+  "edges": [
+    {
+      "relationship_type": "TO",
+      "source_entity_id": "18fc9e87e015f05ba883c63b719991ad8845bf40c64498f5c5afdabccb2c40c8",
+      "target_entity_id": "756a64029ed1f70b5a01695718b7daf94e7c8df932a8f580a1d617797493dcb2",
+      "properties": {
+        "target_label": "CidrBlock"
+      }
+    },
+    {
+      "relationship_type": "TO",
+      "source_entity_id": "72b8b0b553d9576dabcbf58294b3fb6051296bb284086a795c9208c113af2251",
+      "target_entity_id": "8f9713edbc08b4b937cfe9fa10f7f78f3c7b36cfc29ac93b8fa36f498081d6a3",
+      "properties": {
+        "target_label": "CloudResource"
+      }
+    },
+    {
+      "relationship_type": "TO",
+      "source_entity_id": "91f3f557f98ef57990c79f8d6a3514051aa1b125c217ac5dc43c0c8e715e3973",
+      "target_entity_id": "a344fe417f9064f9a9c9cd25085679b17d320c726c8dab820189112cd1a1af80",
+      "properties": {
+        "target_label": "CidrBlock"
+      }
+    },
+    {
+      "relationship_type": "TO",
+      "source_entity_id": "957b5c8d30dff26cc1d05efe35545a3d5b1c776eee2e577dda138d6a2b6a9ecd",
+      "target_entity_id": "8f898ac8ceb6974f68f3a1af95014fc2453d0b4de00acc440d8e306abb8333d6",
+      "properties": {
+        "target_label": "PrefixList"
+      }
+    },
+    {
+      "relationship_type": "TO",
+      "source_entity_id": "dc723bfcc234a3cd09aaa67f1f1f84cf8b98da38d8618409037a1bc2bee6dce9",
+      "target_entity_id": "756a64029ed1f70b5a01695718b7daf94e7c8df932a8f580a1d617797493dcb2",
+      "properties": {
+        "target_label": "CidrBlock"
+      }
+    }
+  ]
+}

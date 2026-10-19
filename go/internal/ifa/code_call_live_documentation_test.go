@@ -118,7 +118,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 		{
 			path: filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges.go"),
 			required: []string{
-				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, invokes_cloud_action, and the direct-materialization guards kubernetes_namespace_environment, iam_instance_profile_role, workload_cloud_relationship, and iam_can_assume.",
+				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, invokes_cloud_action, and the direct-materialization guards kubernetes_namespace_environment, iam_instance_profile_role, workload_cloud_relationship, iam_can_assume, iam_can_perform, iam_escalation, ec2_uses_profile, s3_logs_to, kubernetes_correlation, semantic_entity_containment, security_group_sg_rule, security_group_rule_endpoint, s3_external_principal_grant, and uses_service_account.",
 			},
 			prohibited: []string{
 				"for \"sql_relationships\" today",

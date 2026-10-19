@@ -46,6 +46,29 @@ WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
+// Registry-contract holders for the #6228 materialized-edge retract registry
+// (docs/internal/design/6228-materialized-edge-retract-registry-contract.md).
+// The registry in go/internal/storage/cypher/edge/materialized must hold the
+// production consts themselves, never a copy of their text.
+//
+// No Cypher statement changes here: these aliases hold the existing production
+// templates unchanged, so the write shape (MATCH source CloudResource by uid,
+// MERGE ExternalPrincipal by uid, MERGE on endpoints plus the static
+// GRANTS_ACCESS_TO token), cardinality (one edge per resolved grant), and
+// idempotent identity are exactly what the writer already executes and its
+// unit tests prove.
+const (
+	// CanonicalS3ExternalPrincipalGrantUpsertCypherFormat is the production
+	// write template. The one %s fills from the closed single-member
+	// vocabulary screened per row by
+	// validateS3ExternalPrincipalGrantRelationshipType, so GRANTS_ACCESS_TO
+	// is the only type this writer can emit.
+	CanonicalS3ExternalPrincipalGrantUpsertCypherFormat = canonicalS3ExternalPrincipalGrantUpsertCypherFormat
+	// RetractS3ExternalPrincipalGrantEdgesCypher is the production
+	// GRANTS_ACCESS_TO retract.
+	RetractS3ExternalPrincipalGrantEdgesCypher = retractS3ExternalPrincipalGrantEdgesCypher
+)
+
 // S3ExternalPrincipalGrantWriter materializes metadata-only S3 bucket-policy
 // external-principal grant facts into ExternalPrincipal nodes and
 // GRANTS_ACCESS_TO edges. It never creates CloudResource nodes; missing source
