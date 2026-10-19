@@ -171,7 +171,7 @@ results are derived from the inputs rather than written by hand. See
 
 - `ifa-determinism` (blocking): Runs each Ifá scenario (Odù) at 1, 2 and 4 workers on real Postgres and NornicDB and fails if the resulting graph differs.
 - `ifa-dead-letter-matrix` (blocking): Drives a deliberately malformed Odù cassette at 1, 2, and 4 workers and fails if the dead-letter row set ever differs.
-- `ifa-fault-injection` (blocking): Verifies Ifá's fault-injection matrix recovers deterministically from injected failures across graph-write families. Local run needs Docker and a toolchain.
+- `ifa-fault-injection` (blocking): Verifies Ifá's fault-injection matrix recovers deterministically from injected failures across graph-write families. Live cells need Docker and a toolchain.
 - `ifa-static-mirror` (advisory): Runs the three Ifa static mirror scripts in one CI job so a stale hand-kept copy of a production value shows red on the PR. Advisory: never holds a merge.
 - `parserfixture-tests` (blocking): Replays recorded parser fixtures against the real parser to prove its output stays deterministic.
 - `replay-tier` (blocking): Replays recorded ingest/projector cassettes offline and checks the results match the real NornicDB backend.

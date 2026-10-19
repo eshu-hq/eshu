@@ -5,7 +5,7 @@ gates:
     name: Ifa P6 deterministic fault-injection matrix (in-binary decorator, real recovery)
     category: exactness
     layer: replay
-    purpose: "Verifies Ifá's fault-injection matrix recovers deterministically from injected failures across graph-write families. Local run needs Docker and a toolchain."
+    purpose: "Verifies Ifá's fault-injection matrix recovers deterministically from injected failures across graph-write families. Live cells need Docker and a toolchain."
     tier: pre-pr
     blocking: true
     triggers:
