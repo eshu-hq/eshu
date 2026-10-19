@@ -3,6 +3,10 @@
 
 package poison_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8302 disposable PostgreSQL 18 proof that CountDeadLetters detects exactly the dead_letter-with-no-newer-generation scopes the generation-liveness gauge misses, that the bounded arm increments poison_recovery_attempts to its ceiling then leaves the row for an operator, and that the gauge EXPLAIN uses fact_work_items_dead_letter_poison_idx; bootstrap-derived isolated schemas; enrolled in the live-postgres-readiness runner; local run passed in 3.2s of test time on postgres:18.6 on 2026-10-19; wall time is logged, not gated
+//eshu:readiness:env ESHU_POISON_LIVENESS_PROOF_DSN
+
 import (
 	"context"
 	"os"
@@ -17,7 +21,8 @@ import (
 // TestPoisonLivenessIntegration exercises CountDeadLetters and
 // RecoverDeadLetters against a real Postgres instance. Set
 // ESHU_POISON_LIVENESS_PROOF_DSN to a Postgres DSN to run the suite; it is
-// skipped otherwise, matching the sibling generation-liveness proof.
+// skipped otherwise. The live-postgres-readiness runner always sets the DSN,
+// so a skip there fails the run instead of passing silently.
 //
 // Scenario 1 (Detection) proves the gap this ticket closes: three poison
 // scopes (dead_letter with no newer generation) are NOT detected by the
@@ -48,6 +53,16 @@ func TestPoisonLivenessIntegration(t *testing.T) {
 		// RED proof: the existing generation-liveness gauge does not count any
 		// of the 3 poison scopes because they have no ACTIVE generation at all
 		// (their newest generation status is 'failed', not 'active').
+		//
+		// The proof schema is the production bootstrap, which seeds one
+		// perpetually-active background generation outside the fixture: the
+		// eshu:global genesis singleton (migration 115, activated_at NULL,
+		// hence the fresh bucket). The expected buckets are therefore the
+		// fixture's one healed active generation (aging: activated an hour
+		// ago) plus that singleton (fresh), and zero stuck. Any poison
+		// scope surfacing in the gauge would push one of these buckets
+		// above its expected value, so the exact-bucket assertion pins
+		// their absence.
 		livenessStore := postgres.NewGenerationLivenessStore(postgres.SQLDB{DB: db})
 		activeCounts, err := livenessStore.CountActiveGenerationsByAge(ctx, postgres.GenerationLivenessPolicy{
 			ActivationDeadline: 30 * time.Minute,
@@ -55,12 +70,15 @@ func TestPoisonLivenessIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CountActiveGenerationsByAge() error = %v", err)
 		}
-		if got := activeCounts["stuck"] + activeCounts["aging"] + activeCounts["fresh"]; got != 1 {
-			t.Fatalf(
-				"existing gauge active-generation total = %d, want 1 (only scope-healed-decoy's newer active generation; "+
-					"the 3 poison scopes and the superseded-decoy generation must NOT surface here)",
-				got,
-			)
+		for bucket, want := range map[string]int64{"fresh": 1, "aging": 1, "stuck": 0, "draining": 0} {
+			if got := activeCounts[bucket]; got != want {
+				t.Fatalf(
+					"existing gauge bucket %q = %d, want %d (fresh: the 115 global-genesis singleton; aging: "+
+						"scope-healed-decoy's newer active generation; the 3 poison scopes and the superseded-decoy "+
+						"generation must NOT surface in any bucket)",
+					bucket, got, want,
+				)
+			}
 		}
 
 		// GREEN proof: the new poison gauge counts exactly the 3 poison scopes

@@ -38,9 +38,14 @@
 ## Common changes
 
 - Budget or batch default changes need a bounded-arm proof update
-  (`liveness_integration_test.go`, `BoundedArmIncrementsThenZero`): the test
-  pins the increment, ceiling, and no-op-at-ceiling behavior.
+  (`liveness_integration_live_test.go`, `BoundedArmIncrementsThenZero`): the
+  test pins the increment, ceiling, and no-op-at-ceiling behavior.
 - Predicate changes need the detection-gap proof (`DetectionGapAndGauge`) and
-  the write-time race proof (`liveness_write_time_race_test.go`) to keep
-  passing unmodified in intent; all three need
-  `ESHU_POISON_LIVENESS_PROOF_DSN` against local Docker Postgres.
+  the write-time race proof (`liveness_write_time_race_live_test.go`) to keep
+  passing unmodified in intent; the live-postgres-readiness runner sets
+  `ESHU_POISON_LIVENESS_PROOF_DSN` in CI, while local runs need it against
+  local Docker Postgres.
+- The proof schema derives from the production bootstrap
+  (`provisionPoisonLivenessSchema` in `liveness_integration_helpers_test.go`),
+  never from hand-written DDL: a hand-built schema silently falls behind the
+  next migration the recovery statement reads (#8302).

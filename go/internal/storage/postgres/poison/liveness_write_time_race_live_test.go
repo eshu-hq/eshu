@@ -3,6 +3,10 @@
 
 package poison_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8302 disposable PostgreSQL 18 proof that RecoverDeadLettersQuery never clobbers a concurrent reclaim: the sweep blocks on the reclaim-held row lock, then the write-time status guard skips the now-claimed row with its budget untouched; bootstrap-derived isolated schema; enrolled in the live-postgres-readiness runner; local run passed in 1.2s of test time on postgres:18.6 on 2026-10-19; wall time is logged, not gated
+//eshu:readiness:env ESHU_POISON_LIVENESS_PROOF_DSN
+
 import (
 	"context"
 	"database/sql"
@@ -17,7 +21,8 @@ import (
 // TestRecoverPoisonDeadLettersQueryDoesNotClobberConcurrentReclaim proves the
 // #4464-grade write-time re-verify guard against a real Postgres instance, not
 // just the SQL text. Set ESHU_POISON_LIVENESS_PROOF_DSN to run it; skipped
-// otherwise, mirroring generation_liveness_write_time_race_test.go. The test
+// otherwise. The live-postgres-readiness runner always sets the DSN, so a
+// skip there fails the run instead of passing silently. The test
 // keeps its name (it pins the shipped RecoverDeadLettersQuery statement); the
 // method under proof is now Store.RecoverDeadLetters.
 //
