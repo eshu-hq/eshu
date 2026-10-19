@@ -23,6 +23,10 @@ const UpsertObservationsQuery = upsertObservationsQuery
 // external tests can assert on its expiry predicate and locking.
 const DeleteExpiredObservationsQuery = deleteExpiredObservationsQuery
 
+// UpsertSelectorCycleQuery exposes upsertSelectorCycleQuery so external
+// tests can assert on its advance-only predicate.
+const UpsertSelectorCycleQuery = upsertSelectorCycleQuery
+
 // ExpiredSweepBatchSize and ExpiredSweepMaxBatches expose the sweep bounds.
 const (
 	ExpiredSweepBatchSize  = expiredSweepBatchSize

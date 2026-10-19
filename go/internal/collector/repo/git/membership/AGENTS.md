@@ -17,9 +17,14 @@
   past their window plus `ExpiredObservationGrace`, run at most once per cycle on the
   request marked `SweepExpired` after any outcome but a store error,
   including a truncated listing, so a held-low repo limit cannot stop it.
-  It never deletes `not_listed` rows: the mass-miss guard reads them, and
-  deleting them can hold a recovered selector's guard tripped forever. Do not
-  remove that exclusion, and keep exactly one `SweepExpired` request per cycle that issues any.
+  A `not_listed` row is deleted only for an abandoned selector (#7840): the
+  mass-miss guard reads them, and deleting them for a live selector can hold
+  a recovered selector's guard tripped forever. Every cycle must therefore
+  advance the selector's marker via `Store.UpsertSelectorCycle` -- including
+  guard-tripped cycles, before the sweep -- and the sweep may reclaim a
+  `not_listed` row only when that marker is missing or older than the row's
+  window plus grace. Do not weaken that pairing, and keep exactly one
+  `SweepExpired` request per cycle that issues any.
 - A sweep failure is the `expired_sweep` failure class and never changes the
   cycle's outcome.
 - The state set, `Live`, and the uniform `Confirmed` rule live in

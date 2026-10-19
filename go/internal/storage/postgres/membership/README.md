@@ -10,8 +10,11 @@ once per githubOrg or gitlabGroup cycle (once per owner for an explicit list),
 on shard 0 only. The rows are evidence; nothing deletes, hides, or retires a
 scope because of them. The only rows this package deletes are observation
 rows that stayed expired for a grace (`membership.ExpiredObservationGrace`,
-7 days) past their own liveness window (#7774), and never `not_listed` rows,
-which the mass-miss guard reads.
+7 days) past their own liveness window (#7774). A `not_listed` row, which
+the mass-miss guard reads, is deleted only when its selector is abandoned:
+every cycle advances the selector's `repository_selectors.last_cycle_at`
+marker (migration 200, #7840), and the sweep reclaims the row only when
+that marker is missing or older than the row's window plus grace.
 
 ## Ownership boundary
 
@@ -29,7 +32,8 @@ native selector, which observes in githubOrg, gitlabGroup, and explicit mode.
 
 - `ObservationStore` with `NewObservationStore(database db.ExecQueryer)`.
 - `KnownScopes`, `Observations`, `UpsertObservations`,
-  `UpsertClassifications` (#8454), `DeleteExpiredObservations`.
+  `UpsertClassifications` (#8454), `DeleteExpiredObservations`,
+  `UpsertSelectorCycle` (#7840).
 
 See `doc.go` for the godoc contract.
 
@@ -46,9 +50,12 @@ None of its own. Store errors return to `membership.Observer`, which logs
 for a failed verdict write, which leaves the outcome `evaluated`) and counts
 `eshu_dp_collector_repository_selection_evaluations_total{outcome="store_error"}`.
 A sweep error logs `failure_class=expired_sweep` without changing the outcome,
-and the rows deleted count on
-`eshu_dp_collector_repository_selection_observations_deleted_total`. The
-collector cycle continues.
+the rows deleted count on
+`eshu_dp_collector_repository_selection_observations_deleted_total`, and the
+reclaimed `not_listed` subset counts on
+`eshu_dp_collector_repository_selection_not_listed_reclaimed_total` (#7840).
+A failed marker write logs `failure_class=selector_cycle_upsert`, also
+without changing the outcome. The collector cycle continues.
 
 ## Gotchas / invariants
 
@@ -69,18 +76,23 @@ collector cycle continues.
   one statement cannot update a row twice (SQLSTATE 21000).
 - The sweep predicate is strict (`< now`) and uses each row's own
   `liveness_window_seconds`, so a row at the boundary or with a longer window
-  stays. `state <> $4`, bound to `membership.StateNotListed`, keeps every
-  `not_listed` row: deleting one could make the mass-miss guard count an
+  stays. A `not_listed` row (`$4`, bound to `membership.StateNotListed`) is
+  deleted only when its selector's `repository_selectors` marker is missing
+  or older than the row's window plus grace (#7840): deleting the row of a
+  selector that still cycles could make the mass-miss guard count an
   already-confirmed missing scope as newly unlisted and trip forever. Each
-  batch is one statement selected `FOR UPDATE SKIP LOCKED`, so a row an
-  upsert holds is skipped. `FOR UPDATE` rechecks the whole predicate,
-  including the state, against the newest version, so a row renewed before
-  the lock is kept. An upsert that collides with an in-flight delete waits,
-  then inserts a fresh row. The live test covers all of these and fails the
-  `not_listed`, window, boundary, grace, and lock-wait mutants.
-- Abandoned selectors' `not_listed` rows are never reclaimed. They are
-  bounded by the selectors ever created times the scopes each had unlisted;
-  freshness reads only live rows and `Evaluate` reads only its own selector.
+  batch is one statement selected `FOR UPDATE OF o SKIP LOCKED`, so a row an
+  upsert holds is skipped. `FOR UPDATE` rechecks the expiry predicate
+  against the newest row version, so a row renewed before the lock is kept;
+  the marker side reads the statement snapshot (see the query comment for
+  the revive-in-the-same-instant bound). An upsert that collides with an
+  in-flight delete waits, then inserts a fresh row. The live test covers all
+  of these and fails the `not_listed`, window, boundary, grace, and lock-wait
+  mutants.
+- The marker write is advance-only (`last_cycle_at < EXCLUDED.last_cycle_at`),
+  like the observation upsert: a lagging replica never rewinds freshness.
+  Marker rows are never deleted; they are bounded by the selectors ever
+  created, and a missing marker reads as abandoned.
 
 ### Expired-row sweep
 
@@ -132,6 +144,37 @@ without changing the evaluation outcome.
 the observer adds is the value `DeleteExpiredObservations` returns, and
 `TestObservationStoreSweepLive` asserts that value against the rows actually
 removed (10 of 30 in the guard-history case).
+
+Performance Evidence (#7840): the reclaim predicate was proven before the
+change and re-measured with the shipped statement after it, on PostgreSQL
+18.6 with 200,000 rows (184,000 live `selected`, 8,000 abandoned
+`not_listed` with a stale marker, 8,000 `not_listed` of a still-cycling
+selector with a fresh marker; 1h windows, 7-day grace, pinned `now`). Before
+(#7774 predicate, `state <> 'not_listed'`): the steady-state probe took
+19.1 ms (seq scan, 2,874 buffers, 0 rows) and the abandoned `not_listed`
+rows were never selected. After (shipped `LEFT JOIN repository_selectors`
+batch with `FOR UPDATE OF o SKIP LOCKED ... RETURNING o.state`): one batch
+deleted 500 abandoned `not_listed` rows in 16.7 ms, and the steady-state
+probe after the drain took 15.7 ms (0 rows; the still-cycling selector's
+8,000 rows filtered by the marker arm). The plan is the same sequential scan
+plus a hash of the one-row-per-selector marker table, so the probe cost does
+not grow with kept `not_listed` rows of live selectors beyond the scan the
+#7774 predicate already paid. No new index, for the same reason as #7774.
+Migration 200's backfill stamps pre-existing selectors at
+`clock_timestamp()` once (`ON CONFLICT DO NOTHING`), verified idempotent on
+re-apply against the same table.
+
+Observability Evidence (#7840): reclaimed rows count on
+`eshu_dp_collector_repository_selection_not_listed_reclaimed_total{collector_kind}`
+in addition to the deleted total, the INFO `git_repository_selection_evaluated`
+log carries `not_listed_reclaimed_count` next to `expired_deleted_count`, and
+a failed marker write logs `git_repository_selection_store_failed` with
+`failure_class=selector_cycle_upsert` without changing the outcome.
+`TestObserverReportsReclaimedNotListed`,
+`TestObserverTouchesSelectorCycleOnEveryOutcome`,
+`TestObserverSelectorTouchFailureKeepsOutcomeAndLogsClass`, and the
+`assertAbandonedNotListedRowsAreReclaimed` leg of
+`TestObservationStoreSweepLive` pin these.
 
 ## Evidence
 

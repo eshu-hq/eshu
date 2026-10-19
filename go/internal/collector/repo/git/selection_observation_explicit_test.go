@@ -187,8 +187,12 @@ func (s *ownerKnownStore) UpsertObservations(_ context.Context, batch membership
 	return nil
 }
 
-func (*ownerKnownStore) DeleteExpiredObservations(context.Context, time.Time, time.Duration) (int64, error) {
-	return 0, nil
+func (*ownerKnownStore) DeleteExpiredObservations(context.Context, time.Time, time.Duration) (membership.SweepCounts, error) {
+	return membership.SweepCounts{}, nil
+}
+
+func (*ownerKnownStore) UpsertSelectorCycle(context.Context, membership.Selector, time.Time, time.Duration) error {
+	return nil
 }
 
 func (*ownerKnownStore) UpsertClassifications(context.Context, string, []membership.ClassificationRow, time.Time) error {

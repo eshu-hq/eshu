@@ -1985,6 +1985,14 @@ type Instruments struct {
 	// deleted (#7774), by collector_kind.
 	RepositorySelectionObservationsDeleted metric.Int64Counter
 
+	// RepositorySelectionNotListedReclaimed counts the subset of
+	// RepositorySelectionObservationsDeleted that were abandoned selectors'
+	// not_listed rows (#7840), by collector_kind: a nonzero value means a
+	// selector stopped cycling for longer than its rows' window plus grace
+	// (credential rotation, rules change, owner change, or a dead
+	// collector).
+	RepositorySelectionNotListedReclaimed metric.Int64Counter
+
 	// RepositoryListingRequests counts git collector repository listing
 	// requests (#7765) by collector_kind, provider, and a closed outcome
 	// (success, retried, rate_limited, http_error, transport_error,

@@ -62,8 +62,12 @@ func (s *recordingBatchStore) UpsertObservations(_ context.Context, batch member
 	return nil
 }
 
-func (*recordingBatchStore) DeleteExpiredObservations(context.Context, time.Time, time.Duration) (int64, error) {
-	return 0, nil
+func (*recordingBatchStore) DeleteExpiredObservations(context.Context, time.Time, time.Duration) (membership.SweepCounts, error) {
+	return membership.SweepCounts{}, nil
+}
+
+func (*recordingBatchStore) UpsertSelectorCycle(context.Context, membership.Selector, time.Time, time.Duration) error {
+	return nil
 }
 
 func (*recordingBatchStore) UpsertClassifications(context.Context, string, []membership.ClassificationRow, time.Time) error {

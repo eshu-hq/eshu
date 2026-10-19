@@ -123,9 +123,15 @@ func registerRepositorySelection(meter metric.Meter, inst *Instruments) error {
 	}
 	if inst.RepositorySelectionObservationsDeleted, err = meter.Int64Counter(
 		"eshu_dp_collector_repository_selection_observations_deleted_total",
-		metric.WithDescription("Expired repository_selection_observations rows deleted by the git collector's sweep, by collector_kind; a row is deleted only after its liveness window plus the expired-observation grace, and a not_listed row never (#7774)"),
+		metric.WithDescription("Expired repository_selection_observations rows deleted by the git collector's sweep, by collector_kind; a row is deleted only after its liveness window plus the expired-observation grace, and a not_listed row only once its selector's cycle marker is older than that too (#7774, #7840)"),
 	); err != nil {
 		return fmt.Errorf("register RepositorySelectionObservationsDeleted counter: %w", err)
+	}
+	if inst.RepositorySelectionNotListedReclaimed, err = meter.Int64Counter(
+		"eshu_dp_collector_repository_selection_not_listed_reclaimed_total",
+		metric.WithDescription("Abandoned selectors' not_listed repository_selection_observations rows reclaimed by the git collector's sweep, by collector_kind; a subset of eshu_dp_collector_repository_selection_observations_deleted_total, counted when the selector's cycle marker is missing or older than the row's liveness window plus the expired-observation grace (#7840)"),
+	); err != nil {
+		return fmt.Errorf("register RepositorySelectionNotListedReclaimed counter: %w", err)
 	}
 	return nil
 }
