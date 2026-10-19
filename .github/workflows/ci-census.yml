@@ -1,0 +1,50 @@
+name: CI Census
+
+# Daily GitHub Actions census (#8617 step 8): the same numbers the revamp
+# is judged against, recomputed every day so nobody re-derives them by
+# hand. Telemetry only -- it writes a job summary and a JSON artifact,
+# never a status anything merges on.
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "Lookback window in hours"
+        required: false
+        default: "24"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ci-census
+  cancel-in-progress: false
+
+jobs:
+  census:
+    name: Daily CI census
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Test census aggregation
+        run: python3 scripts/test-gha-census.py
+      - name: Run census
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOURS: ${{ inputs.hours || '24' }}
+        run: |
+          python3 scripts/lib/gha_census.py --hours "${HOURS}" \
+            --json-out "${RUNNER_TEMP}/census.json" | tee "${RUNNER_TEMP}/census.md"
+          cat "${RUNNER_TEMP}/census.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload census report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-census
+          path: |
+            ${{ runner.temp }}/census.json
+            ${{ runner.temp }}/census.md
+          retention-days: 30
