@@ -86,8 +86,9 @@ type FenceBlockedError struct {
 	Reason string
 	// RepoIDs are the request's repositories, sorted.
 	RepoIDs []string
-	// Generations and ReducerRows carry the precheck sums on a
-	// request_too_large refusal.
+	// Generations and ReducerRows carry the refusal sums on a
+	// request_too_large refusal: the precheck snapshot, or the under-lock
+	// recount over the locked scopes.
 	Generations int64
 	ReducerRows int64
 	// PerRepo counts generations and 7d-predicate rows by repository on a
@@ -195,8 +196,11 @@ func (o FenceOptions) withDefaults() FenceOptions {
 // locks held, then steps 3 to 8 in one transaction (advisory key, scope
 // rows, EXCLUSIVE table lock, tuned marks, marker, assertion, commit).
 // Useful concurrency is preserved: only the retiring repositories'
-// commits queue behind the per-repository exclusive key, and the 1s LOCK
-// TABLE wait plus restart never serializes unrelated workers.
+// commits queue behind the per-repository exclusive key. The 1s LOCK
+// TABLE wait is budget-bounded and restarts at step 1 on timeout, so no
+// convoy forms — but while the EXCLUSIVE lock is held through the marks,
+// marker write, and assertion, every fact_work_items writer cluster-wide
+// stalls behind it.
 type RetirementFencer struct {
 	queryer  db.Queryer
 	beginner db.Beginner

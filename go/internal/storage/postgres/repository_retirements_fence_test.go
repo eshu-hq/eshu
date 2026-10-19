@@ -211,6 +211,115 @@ func TestFenceRepositoryRefusesOverBudgetBeforeLocking(t *testing.T) {
 	}
 }
 
+// TestFenceRepositoryRefusesOverBudgetUnderLockWithPerRepo proves the
+// step-4 recheck refusal carries the per-repository breakdown: a pair set
+// grown past the ceiling between precheck and lock refuses with
+// request_too_large, and Generations, ReducerRows, and PerRepo describe
+// the locked scopes (#8610 review P2).
+func TestFenceRepositoryRefusesOverBudgetUnderLockWithPerRepo(t *testing.T) {
+	t.Parallel()
+
+	over := int(RetirementFenceMaxGenerations) + 1
+	pairs := make([][]any, 0, over)
+	for i := 0; i < over; i++ {
+		pairs = append(pairs, []any{"fence-scope-main", "fence-gen-overflow"})
+	}
+	tx := &fakeTx{}
+	database := &fakeTransactionalDB{
+		tx: tx,
+		queryResponses: []queueFakeRows{
+			// Precheck under budget: resolve, 2 generations, 1 reducer row, drains.
+			{rows: [][]any{{"fence-scope-main", "PARTITION:fence-repo"}}},
+			{rows: [][]any{{"PARTITION:fence-repo", int64(2)}}},
+			{rows: [][]any{{"PARTITION:fence-repo", int64(1)}}},
+			{rows: [][]any{}},
+			{rows: [][]any{}},
+		},
+	}
+	tx.queryResponses = []queueFakeRows{
+		// Scope row lock, then the grown pair set.
+		{rows: [][]any{{"fence-scope-main"}}},
+		{rows: pairs},
+		// Under-lock budget recount, grouped by repository.
+		{rows: [][]any{{"PARTITION:fence-repo", int64(over)}}},
+		{rows: [][]any{{"PARTITION:fence-repo", int64(7)}}},
+	}
+	fencer := NewRetirementFencer(database, database)
+	_, err := fencer.FenceRepository(context.Background(), fenceTestRequest())
+	if err == nil {
+		t.Fatal("over-budget fence succeeded, want request_too_large refusal")
+	}
+	var blocked *FenceBlockedError
+	if !errors.As(err, &blocked) {
+		t.Fatalf("error type = %T, want *FenceBlockedError", err)
+	}
+	if blocked.Reason != FenceReasonRequestTooLarge {
+		t.Fatalf("reason = %q, want %q", blocked.Reason, FenceReasonRequestTooLarge)
+	}
+	if blocked.Generations != int64(over) || blocked.ReducerRows != 7 {
+		t.Fatalf("sums = %d/%d, want %d/7", blocked.Generations, blocked.ReducerRows, over)
+	}
+	budget, ok := blocked.PerRepo["PARTITION:fence-repo"]
+	if !ok {
+		t.Fatalf("per-repo missing PARTITION:fence-repo: %+v", blocked.PerRepo)
+	}
+	if budget.Generations != int64(over) || budget.ReducerRows != 7 {
+		t.Fatalf("per-repo = %+v, want %d/7", budget, over)
+	}
+}
+
+// TestFenceRepositoryRefusesReducerOverBudgetUnderLockWithPerRepo proves
+// the reducer-row recheck refusal carries the same breakdown: the
+// single-count recheck trips first, and the recount fills Generations,
+// ReducerRows, and PerRepo over the locked scopes (#8610 review P2).
+func TestFenceRepositoryRefusesReducerOverBudgetUnderLockWithPerRepo(t *testing.T) {
+	t.Parallel()
+
+	tx := &fakeTx{}
+	database := &fakeTransactionalDB{
+		tx: tx,
+		queryResponses: []queueFakeRows{
+			// Precheck under budget: resolve, 2 generations, 1 reducer row, drains.
+			{rows: [][]any{{"fence-scope-main", "PARTITION:fence-repo"}}},
+			{rows: [][]any{{"PARTITION:fence-repo", int64(2)}}},
+			{rows: [][]any{{"PARTITION:fence-repo", int64(1)}}},
+			{rows: [][]any{}},
+			{rows: [][]any{}},
+		},
+	}
+	tx.queryResponses = []queueFakeRows{
+		// Scope row lock, small pair set, then the tripped single count.
+		{rows: [][]any{{"fence-scope-main"}}},
+		{rows: [][]any{{"fence-scope-main", "fence-gen-1"}, {"fence-scope-main", "fence-gen-2"}}},
+		{rows: [][]any{{int64(RetirementFenceMaxReducerRows + 1)}}},
+		// Under-lock budget recount, grouped by repository.
+		{rows: [][]any{{"PARTITION:fence-repo", int64(2)}}},
+		{rows: [][]any{{"PARTITION:fence-repo", int64(RetirementFenceMaxReducerRows + 1)}}},
+	}
+	fencer := NewRetirementFencer(database, database)
+	_, err := fencer.FenceRepository(context.Background(), fenceTestRequest())
+	if err == nil {
+		t.Fatal("over-budget fence succeeded, want request_too_large refusal")
+	}
+	var blocked *FenceBlockedError
+	if !errors.As(err, &blocked) {
+		t.Fatalf("error type = %T, want *FenceBlockedError", err)
+	}
+	if blocked.Reason != FenceReasonRequestTooLarge {
+		t.Fatalf("reason = %q, want %q", blocked.Reason, FenceReasonRequestTooLarge)
+	}
+	if blocked.Generations != 2 || blocked.ReducerRows != RetirementFenceMaxReducerRows+1 {
+		t.Fatalf("sums = %d/%d, want 2/%d", blocked.Generations, blocked.ReducerRows, RetirementFenceMaxReducerRows+1)
+	}
+	budget, ok := blocked.PerRepo["PARTITION:fence-repo"]
+	if !ok {
+		t.Fatalf("per-repo missing PARTITION:fence-repo: %+v", blocked.PerRepo)
+	}
+	if budget.Generations != 2 || budget.ReducerRows != RetirementFenceMaxReducerRows+1 {
+		t.Fatalf("per-repo = %+v, want 2/%d", budget, RetirementFenceMaxReducerRows+1)
+	}
+}
+
 // TestFenceRepositoryRetriesLockTimeoutAtStepOne proves the 1s LOCK TABLE
 // wait plus retry: a 55P03 on the fence section rolls back and restarts at
 // step 1, and the retry then commits.

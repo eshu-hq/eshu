@@ -38,6 +38,26 @@ const (
 		WHERE scope_id = ANY($1) AND stage = 'reducer'
 			AND (status IN ('pending', 'retrying', 'failed', 'dead_letter')
 				OR (status IN ('claimed', 'running') AND claim_until <= clock_timestamp()))`
+	// fenceUnderLockGenerationsQuery recounts the step-4 pair set per
+	// repository over the locked scopes, so an under-lock
+	// request_too_large refusal carries the same PerRepo breakdown the
+	// precheck refusal promises. Same predicate as the pairs query, plus
+	// the scope-to-repository join.
+	fenceUnderLockGenerationsQuery = `SELECT s.partition_key, count(g.generation_id)
+		FROM ingestion_scopes AS s
+		LEFT JOIN scope_generations AS g ON g.scope_id = s.scope_id
+			AND g.status IN ('pending', 'active', 'failed')
+		WHERE s.scope_id = ANY($1) GROUP BY s.partition_key`
+	// fenceUnderLockReducerRowsQuery recounts the 7d-predicate reducer
+	// rows per repository over the locked scopes. Same predicate as the
+	// single-count recheck, grouped.
+	fenceUnderLockReducerRowsQuery = `SELECT s.partition_key, count(w.work_item_id)
+		FROM ingestion_scopes AS s
+		LEFT JOIN fact_work_items AS w ON w.scope_id = s.scope_id
+			AND w.stage = 'reducer'
+			AND (w.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+				OR (w.status IN ('claimed', 'running') AND w.claim_until <= clock_timestamp()))
+		WHERE s.scope_id = ANY($1) GROUP BY s.partition_key`
 	fenceLockTableQuery         = `LOCK TABLE fact_work_items IN EXCLUSIVE MODE`
 	fenceRecheckLiveLeasesQuery = `SELECT work_item_id FROM fact_work_items
 		WHERE scope_id = ANY($1) AND stage IN ('projector', 'reducer')

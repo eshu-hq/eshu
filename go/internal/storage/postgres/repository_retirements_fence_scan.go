@@ -137,6 +137,54 @@ func scanGenerationPairs(ctx context.Context, tx db.Transaction, query string, s
 	return pairs, rows.Err()
 }
 
+// scanUnderLockBudgets recounts generations and 7d-predicate reducer rows
+// per repository over the locked scopes, so an under-lock
+// request_too_large refusal carries the same PerRepo breakdown the
+// precheck refusal promises. Both sums cover exactly the locked scope
+// set the refusal reports on.
+func scanUnderLockBudgets(
+	ctx context.Context,
+	tx db.Transaction,
+	scopeIDs []string,
+) (map[string]FenceRepoBudget, int64, int64, error) {
+	budgets := make(map[string]FenceRepoBudget)
+	var generations, reducerRows int64
+	for _, query := range []struct {
+		text    string
+		reducer bool
+	}{
+		{text: fenceUnderLockGenerationsQuery},
+		{text: fenceUnderLockReducerRowsQuery, reducer: true},
+	} {
+		rows, err := tx.QueryContext(ctx, query.text, scopeIDs)
+		if err != nil {
+			return nil, 0, 0, fmt.Errorf("retirement fence under-lock budget: %w", err)
+		}
+		for rows.Next() {
+			var repoID string
+			var count int64
+			if err := rows.Scan(&repoID, &count); err != nil {
+				_ = rows.Close()
+				return nil, 0, 0, fmt.Errorf("retirement fence under-lock budget scan: %w", err)
+			}
+			budget := budgets[repoID]
+			if query.reducer {
+				budget.ReducerRows = count
+				reducerRows += count
+			} else {
+				budget.Generations = count
+				generations += count
+			}
+			budgets[repoID] = budget
+		}
+		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, 0, 0, fmt.Errorf("retirement fence under-lock budget: %w", err)
+		}
+	}
+	return budgets, generations, reducerRows, nil
+}
+
 // scanSingleCount scans one count row.
 func scanSingleCount(ctx context.Context, tx db.Transaction, query string, scopeIDs []string) (int64, error) {
 	rows, err := tx.QueryContext(ctx, query, scopeIDs)

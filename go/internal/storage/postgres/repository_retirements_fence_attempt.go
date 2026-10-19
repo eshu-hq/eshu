@@ -149,10 +149,14 @@ func (f RetirementFencer) fenceAcquire(
 		return fenceAcquired{}, false, err
 	}
 	if int64(len(pairs)) > RetirementFenceMaxGenerations {
+		budgets, generations, reducerRows, err := scanUnderLockBudgets(ctx, tx, scopeIDs)
+		if err != nil {
+			return fenceAcquired{}, false, err
+		}
 		return fenceAcquired{}, false, &FenceBlockedError{
 			Reason: FenceReasonRequestTooLarge, RepoIDs: repoIDs,
-			Generations: int64(len(pairs)),
-			Detail:      "under-lock generation set exceeds the request budget",
+			Generations: generations, ReducerRows: reducerRows, PerRepo: budgets,
+			Detail: "under-lock generation set exceeds the request budget",
 		}
 	}
 	reducerRows, err := scanSingleCount(ctx, tx, fenceReducerRowCountQuery, scopeIDs)
@@ -160,10 +164,14 @@ func (f RetirementFencer) fenceAcquire(
 		return fenceAcquired{}, false, err
 	}
 	if reducerRows > RetirementFenceMaxReducerRows {
+		budgets, generations, budgetRows, err := scanUnderLockBudgets(ctx, tx, scopeIDs)
+		if err != nil {
+			return fenceAcquired{}, false, err
+		}
 		return fenceAcquired{}, false, &FenceBlockedError{
 			Reason: FenceReasonRequestTooLarge, RepoIDs: repoIDs,
-			ReducerRows: reducerRows,
-			Detail:      "under-lock reducer row set exceeds the request budget",
+			Generations: generations, ReducerRows: budgetRows, PerRepo: budgets,
+			Detail: "under-lock reducer row set exceeds the request budget",
 		}
 	}
 
