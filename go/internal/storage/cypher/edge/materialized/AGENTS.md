@@ -7,6 +7,8 @@
 3. `families.go` for the family registries,
    `direct_families.go` for the multi-type DIRECT
    table (`RetractKind`, `RetractVariants`),
+   `family_identity.go` for the identity and
+   enumeration accessors over those tables,
    `endpoints.go` for endpoints, and
    `repo_dependency.go` for the alternation and split
    retract builder.

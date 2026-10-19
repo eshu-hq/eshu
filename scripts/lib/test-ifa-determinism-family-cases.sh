@@ -269,10 +269,11 @@ require_shell_exec_lib "shell-exec assert is exact-set, not a digest" '-expected
 # kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume,
 # iam_can_perform, workload_cloud_relationship, and iam_escalation (#6228):
 # the DIRECT-materialization families in the shared cell. They share ONE lib
-# file (scripts/lib/ifa_direct_family_live.sh) because their drive and assert
-# bodies differ only in a cassette path and a domain, but each needle below
-# names its OWN domain, so the shared file cannot let one family's wiring pass
-# for another's.
+# file (scripts/lib/ifa_direct_family_live.sh, plus the cloud_resource sibling
+# scripts/lib/ifa_direct_family_live_cloud_resource.sh split out under the
+# 500-line cap) because their drive and assert bodies differ only in a
+# cassette path and a domain, but each needle below names its OWN domain, so
+# the shared file cannot let one family's wiring pass for another's.
 #
 # The exact-set assert carries more weight for these seven than for most. All
 # seven fixtures are built around edges that must NOT exist -- two namespaces
@@ -308,6 +309,8 @@ require_direct_family_lib "s3-logs-to assert-edges domain" "-domain s3_logs_to"
 require_direct_family_lib "s3-logs-to drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "kubernetes-correlation assert-edges domain" "-domain kubernetes_correlation"
 require_direct_family_lib "kubernetes-correlation drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_direct_family_lib "cloud-resource assert-edges domain" "-domain cloud_resource"
+require_direct_family_lib "cloud-resource drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "workload-cloud-relationship drive seeds the positive anchor endpoints" 'materialize-workload-endpoints'
 require_direct_family_lib "workload-cloud-relationship seed keys the Odùs own positive anchor" '-workload-id workload:orders-api -environment prod'
 # The seed's ids must come from the committed cassette's own positive anchor,
@@ -357,6 +360,7 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[ec2_uses_profile]="-domain ec2_uses_profile"
 	[s3_logs_to]="-domain s3_logs_to"
 	[kubernetes_correlation]="-domain kubernetes_correlation"
+	[cloud_resource]="-domain cloud_resource"
 )
 # First, the map value must literally be this family's own `-domain
 # <family>` flag -- never a bare placeholder like `1` and never another
@@ -382,7 +386,7 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 	rg --fixed-strings --quiet -- "${domain_needle}" \
 		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
 		"${submodule_pin_lib}" "${inheritance_lib}" "${shell_exec_lib}" "${symbol_runtime_lib}" \
-		"${direct_family_lib}" \
+		"${direct_family_lib}" "${direct_family_cloud_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh
@@ -428,14 +432,14 @@ done
 # re-assertion of any kind, so neither ifa_submodule_pin_drive nor
 # ifa_submodule_pin_assert has a legitimate bare-name call anywhere in the
 # gate; dispatch is entirely through the registry loop for this family.
-# The nine DIRECT families (#6228) join the drive half of this list only. All
-# nine are dispatched into every N cell through the registry loop, so no
+# The ten DIRECT families (#6228/#8358) join the drive half of this list only. All
+# ten are dispatched into every N cell through the registry loop, so no
 # drive function has a legitimate bare-name call in the gate -- but each
 # ASSERT function does have exactly one (the post-delta re-assertion pinned
 # below), so the asserts take a count pin instead of a place here.
 for leftover_fn in ifa_det_drive_sql_baseline ifa_code_call_drive ifa_documentation_drive ifa_rationale_drive \
 	ifa_codeowners_drive ifa_submodule_pin_drive ifa_submodule_pin_assert \
-	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive ifa_iam_can_perform_drive ifa_workload_cloud_relationship_drive ifa_iam_escalation_drive ifa_ec2_uses_profile_drive ifa_s3_logs_to_drive ifa_kubernetes_correlation_drive \
+	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive ifa_iam_can_perform_drive ifa_workload_cloud_relationship_drive ifa_iam_escalation_drive ifa_ec2_uses_profile_drive ifa_s3_logs_to_drive ifa_kubernetes_correlation_drive ifa_cloud_resource_drive \
 	ifa_det_assert_sql_baseline ifa_rationale_assert; do
 	if rg --fixed-strings --quiet -- "${leftover_fn} \"" "${script}"; then
 		fail "leftover literal per-family call survives outside the registry loop: ${leftover_fn} (would double-drive/assert that family and change what every N-loop digest covers)"
@@ -459,7 +463,7 @@ codeowners_assert_count="$(rg --count --fixed-strings -- 'ifa_codeowners_assert 
 [[ "${codeowners_assert_count}" -eq 1 ]] \
 	|| fail "expected exactly 1 occurrence of ifa_codeowners_assert (the post-delta re-assertion) outside the registry loop; found ${codeowners_assert_count} -- an extra occurrence would double-assert this family in every N-loop cell"
 
-# The nine DIRECT families post-delta ordering cases live in a sourced
+# The ten DIRECT families post-delta ordering cases live in a sourced
 # sibling so this module stays below the 500-line cap (the same split the
 # maintenance-backed families took once this file crossed the cap).
 # run_ifa_determinism_post_delta_cases takes the gate script path plus the

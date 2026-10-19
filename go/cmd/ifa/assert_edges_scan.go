@@ -33,18 +33,42 @@ type endpointPairCount struct {
 	sources []string
 }
 
+// scanMaterializedEdges streams the graph and counts the family-owned
+// edges. A finite-set family selects by edgeTypes (plus any per-type
+// endpoint constraints); a predicate-scoped family (#8358, predicate
+// non-nil) selects by the registered predicate — same-writer (type prefix,
+// evidence_source) pairing plus endpoint labels — evaluated here over the
+// graph dump, so no backend ever evaluates a STARTS WITH type predicate.
 func scanMaterializedEdges(
 	ctx context.Context,
 	reader graphdump.Reader,
 	edgeTypes map[string]struct{},
+	predicate *materialized.PredicateScopedEdgeFamily,
 	endpoints map[string]materialized.MaterializedEdgeEndpoint,
 	identity map[string][]string,
 	expectedPropertyKeys map[string][]string,
 	labels map[string]string,
+	scopeIDs map[string]struct{},
 ) (materializedEdgeScan, error) {
 	scan := materializedEdgeScan{counts: make(map[string]int), pairs: make(map[string]*endpointPairCount)}
 	err := reader.StreamEdges(ctx, func(edge graphdump.Edge) error {
-		if _, ok := edgeTypes[edge.Type]; !ok {
+		if predicate != nil {
+			stamp, _ := edge.Props["evidence_source"].(string)
+			if !predicate.Matches(edge.Type, stamp, edge.FromLabels, edge.ToLabels) {
+				return nil
+			}
+			// Cassette scoping (#8358): the shared cell graph holds ambient
+			// edges with the same (prefix, stamp, endpoints) shape, so a
+			// predicate-scoped assert narrows to the cassette's scope_ids.
+			// Empty preserves current behavior; non-predicate families
+			// ignore the set entirely.
+			if len(scopeIDs) > 0 {
+				scope, _ := edge.Props["scope_id"].(string)
+				if _, ok := scopeIDs[scope]; !ok {
+					return nil
+				}
+			}
+		} else if _, ok := edgeTypes[edge.Type]; !ok {
 			return nil
 		}
 		// A constrained type must match its endpoint labels too. Only families
@@ -155,6 +179,24 @@ func (s *materializedEdgeScan) recordEndpointDefect(edge graphdump.Edge, fromUID
 		"%s edge whose %s endpoint carries none of uid, id, a CodeownerTeam endpoint's ref, or an Environment endpoint's name (from=%q to=%q) — an unmaterialized endpoint node",
 		edge.Type, missing, fromUID, toUID,
 	))
+}
+
+// parseScopeSet splits a comma-separated -scopes value into a set, trimming
+// spaces and dropping empties. Empty input yields nil (no filtering).
+func parseScopeSet(raw string) map[string]struct{} {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	out := make(map[string]struct{})
+	for _, part := range strings.Split(raw, ",") {
+		if s := strings.TrimSpace(part); s != "" {
+			out[s] = struct{}{}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func readExpectedProperties(edgeProps map[string]any, keys []string) (map[string]string, []string) {

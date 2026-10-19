@@ -51,6 +51,7 @@ const (
 	s3LogsToFamilyCassettePath                       = "testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json"
 	kubernetesCorrelationFamilyCassettePath          = "testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
 	semanticEntityContainmentFamilyCassettePath      = "testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
+	cloudResourceFamilyCassettePath                  = "testdata/cassettes/cloudresource/ifa-cloud-resource-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -73,35 +74,40 @@ func IAMInstanceProfileRoleFamilyCassetteFullPath(repoRoot string) string {
 // would fail the load rather than being ignored -- and a field declared here
 // but not projected is a deliberate exclusion, documented at the projection.
 type directFamilyCassetteFile struct {
-	Collector     string `json:"collector"`
-	SchemaVersion string `json:"schema_version"`
-	Scopes        []struct {
-		ScopeID       string            `json:"scope_id"`
-		SourceSystem  string            `json:"source_system"`
-		ScopeKind     string            `json:"scope_kind"`
-		CollectorKind string            `json:"collector_kind"`
-		PartitionKey  string            `json:"partition_key"`
-		Metadata      map[string]string `json:"metadata"`
-		GenerationID  string            `json:"generation_id"`
-		ObservedAt    string            `json:"observed_at"`
-		TriggerKind   string            `json:"trigger_kind"`
-		Facts         []struct {
-			FactKind         string `json:"fact_kind"`
-			StableFactKey    string `json:"stable_fact_key"`
-			SchemaVersion    string `json:"schema_version"`
-			CollectorKind    string `json:"collector_kind"`
-			FencingToken     int64  `json:"fencing_token"`
-			SourceConfidence string `json:"source_confidence"`
-			IsTombstone      bool   `json:"is_tombstone,omitempty"`
-			// SourceURI is projected (unlike the transport fields below)
-			// because the semantic extractor reads the entity's file path
-			// from it: dropping it would make the semantic family's
-			// cassette extract zero rows while its compiled Odù extracts
-			// the fixture set.
-			SourceURI string         `json:"source_uri,omitempty"`
-			Payload   map[string]any `json:"payload"`
-		} `json:"facts"`
-	} `json:"scopes"`
+	Collector     string                      `json:"collector"`
+	SchemaVersion string                      `json:"schema_version"`
+	Scopes        []directFamilyCassetteScope `json:"scopes"`
+}
+
+// directFamilyCassetteScope is one scope entry of directFamilyCassetteFile,
+// named so the single-scope and cloud_resource multi-scope projections share
+// one per-scope envelope projection instead of two copies.
+type directFamilyCassetteScope struct {
+	ScopeID       string            `json:"scope_id"`
+	SourceSystem  string            `json:"source_system"`
+	ScopeKind     string            `json:"scope_kind"`
+	CollectorKind string            `json:"collector_kind"`
+	PartitionKey  string            `json:"partition_key"`
+	Metadata      map[string]string `json:"metadata"`
+	GenerationID  string            `json:"generation_id"`
+	ObservedAt    string            `json:"observed_at"`
+	TriggerKind   string            `json:"trigger_kind"`
+	Facts         []struct {
+		FactKind         string `json:"fact_kind"`
+		StableFactKey    string `json:"stable_fact_key"`
+		SchemaVersion    string `json:"schema_version"`
+		CollectorKind    string `json:"collector_kind"`
+		FencingToken     int64  `json:"fencing_token"`
+		SourceConfidence string `json:"source_confidence"`
+		IsTombstone      bool   `json:"is_tombstone,omitempty"`
+		// SourceURI is projected (unlike the transport fields below)
+		// because the semantic extractor reads the entity's file path
+		// from it: dropping it would make the semantic family's
+		// cassette extract zero rows while its compiled Odù extracts
+		// the fixture set.
+		SourceURI string         `json:"source_uri,omitempty"`
+		Payload   map[string]any `json:"payload"`
+	} `json:"facts"`
 }
 
 // LoadKubernetesNamespaceEnvironmentFamilyOdu reads the committed cassette and
@@ -228,11 +234,44 @@ func LoadKubernetesCorrelationFamilyOdu(cassettePath string) (familyodu.Odu, err
 	return loadDirectFamilyOdu(cassettePath, KubernetesCorrelationFamilyOduName)
 }
 
-// loadDirectFamilyOdu is the shared strict projection behind all nine loaders.
+// CloudResourceFamilyCassetteFullPath joins repoRoot onto the committed
+// cloud_resource family cassette path.
+func CloudResourceFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, cloudResourceFamilyCassettePath)
+}
+
+// LoadCloudResourceFamilyOdu reads the committed cassette and projects it
+// onto the fact envelopes the three extractors consume.
 //
-// It fails closed on an empty scope or fact list: an Odù carrying no facts
-// makes every downstream assertion vacuous, which is the failure mode the whole
-// exhaustiveness effort exists to remove.
+// Unlike every sibling loader it REQUIRES multiple scopes — exactly three,
+// one per provider — because the family is three writers behind one port and
+// each handler loads its own scope generation (#8358). The single-scope
+// loaders reject that shape as ambiguous; here the scope is carried on every
+// projected envelope, so which scope produced an edge stays unambiguous, and
+// the guard partitions by fact kind and asserts one scope per provider.
+// The strict decode and fail-closed emptiness rules are the shared ones.
+func LoadCloudResourceFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	parsed, err := parseDirectFamilyCassette(cassettePath, CloudResourceFamilyOduName)
+	if err != nil {
+		return familyodu.Odu{}, err
+	}
+	if len(parsed.Scopes) != 3 {
+		return familyodu.Odu{}, fmt.Errorf(
+			"ifa: %s cassette %s declares %d scopes, want exactly 3 (one per provider writer); a missing scope would silently drop one writer's pairing from the proof",
+			CloudResourceFamilyOduName, cassettePath, len(parsed.Scopes),
+		)
+	}
+	var envelopes []facts.Envelope
+	for _, scope := range parsed.Scopes {
+		if len(scope.Facts) == 0 {
+			return familyodu.Odu{}, fmt.Errorf("ifa: %s cassette %s scope %q carries no facts; an empty provider scope makes that writer's assertion vacuous", CloudResourceFamilyOduName, cassettePath, scope.ScopeID)
+		}
+		envelopes = append(envelopes, projectDirectFamilyScopeFacts(scope)...)
+	}
+	return familyodu.Odu{Name: CloudResourceFamilyOduName, Facts: envelopes}, nil
+}
+
+// parseDirectFamilyCassette is the shared strict decode behind the loaders.
 //
 // The decoder disallows unknown fields, so a typo anywhere in the envelope
 // (e.g. "fact_knd" for "fact_kind") fails loudly at load time instead of
@@ -240,35 +279,29 @@ func LoadKubernetesCorrelationFamilyOdu(cassettePath string) (familyodu.Odu, err
 // cassette whose green gate run would then attest to something it never said.
 // json.Decoder.Decode reads exactly one JSON value and stops, so the second
 // Decode requiring io.EOF closes the trailing-content gap.
-func loadDirectFamilyOdu(cassettePath, oduName string) (familyodu.Odu, error) {
+func parseDirectFamilyCassette(cassettePath, oduName string) (directFamilyCassetteFile, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
-		return familyodu.Odu{}, fmt.Errorf("ifa: read %s cassette %s: %w", oduName, cassettePath, err)
+		return directFamilyCassetteFile{}, fmt.Errorf("ifa: read %s cassette %s: %w", oduName, cassettePath, err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	var parsed directFamilyCassetteFile
 	if err := decoder.Decode(&parsed); err != nil {
-		return familyodu.Odu{}, fmt.Errorf("ifa: parse %s cassette %s: %w", oduName, cassettePath, err)
+		return directFamilyCassetteFile{}, fmt.Errorf("ifa: parse %s cassette %s: %w", oduName, cassettePath, err)
 	}
 	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
-		return familyodu.Odu{}, fmt.Errorf("ifa: %s cassette %s has trailing content after its JSON object", oduName, cassettePath)
+		return directFamilyCassetteFile{}, fmt.Errorf("ifa: %s cassette %s has trailing content after its JSON object", oduName, cassettePath)
 	}
-	if len(parsed.Scopes) != 1 {
-		return familyodu.Odu{}, fmt.Errorf(
-			"ifa: %s cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge",
-			oduName, cassettePath, len(parsed.Scopes),
-		)
-	}
-	scope := parsed.Scopes[0]
-	if len(scope.Facts) == 0 {
-		return familyodu.Odu{}, fmt.Errorf("ifa: %s cassette %s carries no facts; an empty Odù makes every assertion vacuous", oduName, cassettePath)
-	}
+	return parsed, nil
+}
 
-	// FencingToken and the scope descriptors are deliberately not projected:
-	// the compiled Odù does not carry them, they are replay-transport concerns
-	// rather than fixture truth, and projecting them would make the lockstep
-	// comparison fail on fields no extractor reads.
+// projectDirectFamilyScopeFacts projects one cassette scope onto fact
+// envelopes. FencingToken and the scope descriptors are deliberately not
+// projected: the compiled Odù does not carry them, they are replay-transport
+// concerns rather than fixture truth, and projecting them would make the
+// lockstep comparison fail on fields no extractor reads.
+func projectDirectFamilyScopeFacts(scope directFamilyCassetteScope) []facts.Envelope {
 	envelopes := make([]facts.Envelope, 0, len(scope.Facts))
 	for _, fact := range scope.Facts {
 		envelopes = append(envelopes, facts.Envelope{
@@ -284,5 +317,27 @@ func loadDirectFamilyOdu(cassettePath, oduName string) (familyodu.Odu, error) {
 			Payload:          fact.Payload,
 		})
 	}
-	return familyodu.Odu{Name: oduName, Facts: envelopes}, nil
+	return envelopes
+}
+
+// loadDirectFamilyOdu is the shared strict projection behind the
+// single-scope loaders. It fails closed on an empty scope or fact list: an
+// Odù carrying no facts makes every downstream assertion vacuous, which is
+// the failure mode the whole exhaustiveness effort exists to remove.
+func loadDirectFamilyOdu(cassettePath, oduName string) (familyodu.Odu, error) {
+	parsed, err := parseDirectFamilyCassette(cassettePath, oduName)
+	if err != nil {
+		return familyodu.Odu{}, err
+	}
+	if len(parsed.Scopes) != 1 {
+		return familyodu.Odu{}, fmt.Errorf(
+			"ifa: %s cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge",
+			oduName, cassettePath, len(parsed.Scopes),
+		)
+	}
+	scope := parsed.Scopes[0]
+	if len(scope.Facts) == 0 {
+		return familyodu.Odu{}, fmt.Errorf("ifa: %s cassette %s carries no facts; an empty Odù makes every assertion vacuous", oduName, cassettePath)
+	}
+	return familyodu.Odu{Name: oduName, Facts: projectDirectFamilyScopeFacts(scope)}, nil
 }

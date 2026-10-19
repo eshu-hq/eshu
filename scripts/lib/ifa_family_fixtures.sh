@@ -183,6 +183,11 @@ kubernetes_correlation_expected_edges="${repo_root}/go/internal/ifa/testdata/kub
 # from, and the six content entities the semantic subset admits four of.
 semantic_entity_containment_cassette="${repo_root}/testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
 semantic_entity_containment_expected_edges="${repo_root}/go/internal/ifa/testdata/semanticentitycontainment/ifa-semantic-entity-containment-family-expected-edges.json"
+# cloud_resource (#8358) is the predicate-scoped direct family: one cassette
+# carrying THREE scope generations (one per provider writer), each owning
+# its scope like every sibling above.
+cloud_resource_cassette="${repo_root}/testdata/cassettes/cloudresource/ifa-cloud-resource-family.json"
+cloud_resource_expected_edges="${repo_root}/go/internal/ifa/testdata/cloudresource/ifa-cloud-resource-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -241,6 +246,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${kubernetes_correlation_expected_edges}" ]] || { echo "${gate}: kubernetes-correlation expected-edge set not found: ${kubernetes_correlation_expected_edges}" >&2; exit 1; }
 	[[ -f "${semantic_entity_containment_cassette}" ]] || { echo "${gate}: semantic-entity-containment cassette not found: ${semantic_entity_containment_cassette}" >&2; exit 1; }
 	[[ -f "${semantic_entity_containment_expected_edges}" ]] || { echo "${gate}: semantic-entity-containment expected-edge set not found: ${semantic_entity_containment_expected_edges}" >&2; exit 1; }
+	[[ -f "${cloud_resource_cassette}" ]] || { echo "${gate}: cloud-resource cassette not found: ${cloud_resource_cassette}" >&2; exit 1; }
+	[[ -f "${cloud_resource_expected_edges}" ]] || { echo "${gate}: cloud-resource expected-edge set not found: ${cloud_resource_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
 	# stamps fact.source_system from the scope, and the
 	# container-image-identity loader the handler reads only accepts OCI

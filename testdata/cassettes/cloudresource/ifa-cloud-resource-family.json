@@ -1,0 +1,329 @@
+{
+  "collector": "multi-cloud",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "aws:eshu-fixture-cloud-resource-account",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:eshu-fixture-cloud-resource-account",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1"
+      },
+      "generation_id": "gen-ifa-cloud-resource-family-aws-1",
+      "observed_at": "2026-10-17T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_lambda_function:eshu-fixture-fn",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:lambda:us-east-1:123456789012:function:eshu-fixture-fn",
+            "region": "us-east-1",
+            "resource_id": "eshu-fixture-fn",
+            "resource_type": "aws_lambda_function"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_iam_role:eshu-fixture-fn-role",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/eshu-fixture-fn-role",
+            "region": "us-east-1",
+            "resource_id": "eshu-fixture-fn-role",
+            "resource_type": "aws_iam_role"
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_ec2_subnet:subnet-eshufixt1",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:ec2:us-east-1:123456789012:subnet/subnet-eshufixt1",
+            "region": "us-east-1",
+            "resource_id": "subnet-eshufixt1",
+            "resource_type": "aws_ec2_subnet"
+          }
+        },
+        {
+          "fact_kind": "aws_relationship",
+          "stable_fact_key": "aws:123456789012:us-east-1:relationship:lambda_function_uses_execution_role:eshu-fixture-fn->eshu-fixture-fn-role:0",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "relationship_type": "lambda_function_uses_execution_role",
+            "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:eshu-fixture-fn",
+            "source_resource_id": "eshu-fixture-fn",
+            "target_arn": "arn:aws:iam::123456789012:role/eshu-fixture-fn-role",
+            "target_resource_id": "eshu-fixture-fn-role",
+            "target_type": "aws_iam_role"
+          }
+        },
+        {
+          "fact_kind": "aws_relationship",
+          "stable_fact_key": "aws:123456789012:us-east-1:relationship:lambda_function_uses_execution_role:eshu-fixture-fn->eshu-fixture-fn-role:1",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "relationship_type": "lambda_function_uses_execution_role",
+            "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:eshu-fixture-fn",
+            "source_resource_id": "eshu-fixture-fn",
+            "target_arn": "arn:aws:iam::123456789012:role/eshu-fixture-fn-role",
+            "target_resource_id": "eshu-fixture-fn-role",
+            "target_type": "aws_iam_role"
+          }
+        },
+        {
+          "fact_kind": "aws_relationship",
+          "stable_fact_key": "aws:123456789012:us-east-1:relationship:lambda_function_uses_subnet:eshu-fixture-fn->subnet-eshufixt1:2",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "relationship_type": "lambda_function_uses_subnet",
+            "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:eshu-fixture-fn",
+            "source_resource_id": "eshu-fixture-fn",
+            "target_arn": "arn:aws:ec2:us-east-1:123456789012:subnet/subnet-eshufixt1",
+            "target_resource_id": "subnet-eshufixt1",
+            "target_type": "aws_ec2_subnet"
+          }
+        },
+        {
+          "fact_kind": "aws_relationship",
+          "stable_fact_key": "aws:123456789012:us-east-1:relationship:lambda_function_uses_subnet:eshu-fixture-fn->subnet-neverscanned:3",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "relationship_type": "lambda_function_uses_subnet",
+            "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:eshu-fixture-fn",
+            "source_resource_id": "eshu-fixture-fn",
+            "target_arn": "arn:aws:ec2:us-east-1:123456789012:subnet/subnet-neverscanned",
+            "target_resource_id": "subnet-neverscanned",
+            "target_type": "aws_ec2_subnet"
+          }
+        },
+        {
+          "fact_kind": "aws_relationship",
+          "stable_fact_key": "aws:123456789012:us-east-1:relationship:lambda_function_uses_execution_role:eshu-fixture-fn->eshu-fixture-fn:4",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "relationship_type": "lambda_function_uses_execution_role",
+            "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:eshu-fixture-fn",
+            "source_resource_id": "eshu-fixture-fn",
+            "target_arn": "arn:aws:lambda:us-east-1:123456789012:function:eshu-fixture-fn",
+            "target_resource_id": "eshu-fixture-fn",
+            "target_type": "aws_lambda_function"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "gcp:project:eshu-fixture-project",
+      "source_system": "gcp",
+      "scope_kind": "account",
+      "collector_kind": "gcp",
+      "partition_key": "gcp:project:eshu-fixture-project",
+      "metadata": {
+        "project_id": "eshu-fixture-project",
+        "project_number": "123456789"
+      },
+      "generation_id": "gen-ifa-cloud-resource-family-gcp-1",
+      "observed_at": "2026-10-17T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:eshu-fixture-project:compute.googleapis.com/Instance://compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/instances/eshu-fixture-vm",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "asset_type": "compute.googleapis.com/Instance",
+            "full_resource_name": "//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/instances/eshu-fixture-vm",
+            "location": "us-central1-a",
+            "project_id": "eshu-fixture-project"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_resource",
+          "stable_fact_key": "gcp:project:eshu-fixture-project:compute.googleapis.com/Disk://compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/disks/eshu-fixture-disk",
+          "schema_version": "1.1.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "asset_type": "compute.googleapis.com/Disk",
+            "full_resource_name": "//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/disks/eshu-fixture-disk",
+            "location": "us-central1-a",
+            "project_id": "eshu-fixture-project"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:eshu-fixture-project:relationship:instance_uses_disk://compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/instances/eshu-fixture-vm->//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/disks/eshu-fixture-disk:0",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "relationship_type": "instance_uses_disk",
+            "source_asset_type": "compute.googleapis.com/Instance",
+            "source_full_resource_name": "//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/instances/eshu-fixture-vm",
+            "support_state": "supported",
+            "target_asset_type": "compute.googleapis.com/Disk",
+            "target_full_resource_name": "//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/disks/eshu-fixture-disk"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:eshu-fixture-project:relationship:instance_uses_disk://compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/instances/eshu-fixture-vm->//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/disks/partial-disk:1",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "relationship_type": "instance_uses_disk",
+            "source_asset_type": "compute.googleapis.com/Instance",
+            "source_full_resource_name": "//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/instances/eshu-fixture-vm",
+            "support_state": "partial",
+            "target_asset_type": "compute.googleapis.com/Disk",
+            "target_full_resource_name": "//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/disks/partial-disk"
+          }
+        },
+        {
+          "fact_kind": "gcp_cloud_relationship",
+          "stable_fact_key": "gcp:project:eshu-fixture-project:relationship:instance_uses_disk://compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/instances/eshu-fixture-vm->//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/disks/never-scanned-disk:2",
+          "schema_version": "1.0.0",
+          "collector_kind": "gcp",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "relationship_type": "instance_uses_disk",
+            "source_asset_type": "compute.googleapis.com/Instance",
+            "source_full_resource_name": "//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/instances/eshu-fixture-vm",
+            "support_state": "supported",
+            "target_asset_type": "compute.googleapis.com/Disk",
+            "target_full_resource_name": "//compute.googleapis.com/projects/eshu-fixture-project/zones/us-central1-a/disks/never-scanned-disk"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "azure:eshu-fixture-tenant:subscription:eshu-fixture-rg",
+      "source_system": "azure",
+      "scope_kind": "account",
+      "collector_kind": "azure",
+      "partition_key": "azure:eshu-fixture-tenant:subscription:eshu-fixture-rg",
+      "metadata": {
+        "subscription_id": "eshu-fixture-subscription",
+        "tenant_id": "eshu-fixture-tenant"
+      },
+      "generation_id": "gen-ifa-cloud-resource-family-azure-1",
+      "observed_at": "2026-10-17T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "azure_cloud_resource",
+          "stable_fact_key": "azure:eshu-fixture-subscription:microsoft.compute/virtualmachines:/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.Compute/virtualMachines/eshu-fixture-vm",
+          "schema_version": "1.0.0",
+          "collector_kind": "azure",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arm_resource_id": "/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.Compute/virtualMachines/eshu-fixture-vm",
+            "location": "eastus",
+            "normalized_resource_id": "/subscriptions/eshu-fixture-subscription/resourcegroups/eshu-fixture-rg/providers/microsoft.compute/virtualmachines/eshu-fixture-vm",
+            "resource_type": "microsoft.compute/virtualmachines",
+            "subscription_id": "eshu-fixture-subscription"
+          }
+        },
+        {
+          "fact_kind": "azure_cloud_resource",
+          "stable_fact_key": "azure:eshu-fixture-subscription:microsoft.managedidentity/userassignedidentities:/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/eshu-fixture-id",
+          "schema_version": "1.0.0",
+          "collector_kind": "azure",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arm_resource_id": "/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/eshu-fixture-id",
+            "location": "eastus",
+            "normalized_resource_id": "/subscriptions/eshu-fixture-subscription/resourcegroups/eshu-fixture-rg/providers/microsoft.managedidentity/userassignedidentities/eshu-fixture-id",
+            "resource_type": "microsoft.managedidentity/userassignedidentities",
+            "subscription_id": "eshu-fixture-subscription"
+          }
+        },
+        {
+          "fact_kind": "azure_cloud_relationship",
+          "stable_fact_key": "azure:eshu-fixture-subscription:relationship:managed_by:/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.Compute/virtualMachines/eshu-fixture-vm->/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/eshu-fixture-id:0",
+          "schema_version": "1.0.0",
+          "collector_kind": "azure",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "relationship_type": "managed_by",
+            "source_arm_resource_id": "/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.Compute/virtualMachines/eshu-fixture-vm",
+            "source_normalized_resource_id": "/subscriptions/eshu-fixture-subscription/resourcegroups/eshu-fixture-rg/providers/microsoft.compute/virtualmachines/eshu-fixture-vm",
+            "support_state": "supported",
+            "target_arm_resource_id": "/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/eshu-fixture-id",
+            "target_normalized_resource_id": "/subscriptions/eshu-fixture-subscription/resourcegroups/eshu-fixture-rg/providers/microsoft.managedidentity/userassignedidentities/eshu-fixture-id",
+            "target_resource_type": "microsoft.managedidentity/userassignedidentities"
+          }
+        },
+        {
+          "fact_kind": "azure_cloud_relationship",
+          "stable_fact_key": "azure:eshu-fixture-subscription:relationship:depends_on:/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.Compute/virtualMachines/eshu-fixture-vm->/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/eshu-fixture-id:1",
+          "schema_version": "1.0.0",
+          "collector_kind": "azure",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "relationship_type": "depends_on",
+            "source_arm_resource_id": "/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.Compute/virtualMachines/eshu-fixture-vm",
+            "source_normalized_resource_id": "/subscriptions/eshu-fixture-subscription/resourcegroups/eshu-fixture-rg/providers/microsoft.compute/virtualmachines/eshu-fixture-vm",
+            "support_state": "supported",
+            "target_arm_resource_id": "/subscriptions/eshu-fixture-subscription/resourceGroups/eshu-fixture-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/eshu-fixture-id",
+            "target_normalized_resource_id": "/subscriptions/eshu-fixture-subscription/resourcegroups/eshu-fixture-rg/providers/microsoft.managedidentity/userassignedidentities/eshu-fixture-id",
+            "target_resource_type": "microsoft.managedidentity/userassignedidentities"
+          }
+        }
+      ]
+    }
+  ]
+}

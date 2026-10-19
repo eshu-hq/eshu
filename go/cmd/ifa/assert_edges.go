@@ -20,8 +20,7 @@ import (
 // assertEdgesOptions holds the parsed command-line inputs for one
 // "ifa assert-edges" run.
 type assertEdgesOptions struct {
-	domain   string
-	expected string
+	domain, expected, scopes string
 }
 
 // openAssertEdgesReader is the command's narrow graph-reader seam. Production
@@ -42,6 +41,7 @@ func parseAssertEdgesFlags(args []string, stderr io.Writer) (assertEdgesOptions,
 	var o assertEdgesOptions
 	fs.StringVar(&o.domain, "domain", "", "materialized-edge family to assert (e.g. sql_relationships)")
 	fs.StringVar(&o.expected, "expected", "", "path to the hand-derived expected-edge-set JSON fixture")
+	fs.StringVar(&o.scopes, "scopes", "", "comma-separated scope_id set; predicate-scoped families only count edges whose scope_id is listed (empty preserves current behavior)")
 	if err := fs.Parse(args); err != nil {
 		return assertEdgesOptions{}, err //nolint:wrapcheck // flag errors are self-describing.
 	}
@@ -83,9 +83,21 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 		return err
 	}
 
-	edgeTypes, err := materializededges.MaterializedEdgeDomainEdgeTypes(o.domain)
-	if err != nil {
-		return fmt.Errorf("ifa assert-edges: %w", err)
+	// A predicate-scoped family (#8358) has no finite type set: its writers
+	// prefix an open verb vocabulary, so the scan scopes by the registered
+	// predicate (type prefix + evidence_source + endpoint labels) instead.
+	// Finite-set families resolve through MaterializedEdgeDomainEdgeTypes as
+	// before; a family resolving neither way fails closed before the backend
+	// opens.
+	var predicate *materialized.PredicateScopedEdgeFamily
+	var edgeTypes map[string]struct{}
+	if scoped, ok := materializededges.MaterializedEdgeDomainPredicate(o.domain); ok {
+		predicate = &scoped
+	} else {
+		edgeTypes, err = materializededges.MaterializedEdgeDomainEdgeTypes(o.domain)
+		if err != nil {
+			return fmt.Errorf("ifa assert-edges: %w", err)
+		}
 	}
 	// Resolved before the backend opens, fail-closed like MaterializedEdgeDomainEdgeTypes
 	// above: an unregistered family (materialized.MaterializedEdgeIdentityProperties)
@@ -133,6 +145,11 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: %w", err)
 	}
+	if predicate != nil {
+		if err := validatePredicateExpectedEdges(o.domain, *predicate, expected); err != nil {
+			return fmt.Errorf("ifa assert-edges: %w", err)
+		}
+	}
 
 	reader, closeFn, err := openAssertEdgesReader(ctx)
 	if err != nil {
@@ -146,7 +163,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 	// than a silent match-nothing.
 	endpoints, _ := materialized.MaterializedEdgeEndpointLabels(o.domain)
 
-	if err := assertMaterializedEdges(ctx, reader, o.domain, edgeTypes, endpoints, identity, expected); err != nil {
+	if err := assertMaterializedEdgesScoped(ctx, reader, o.domain, edgeTypes, predicate, endpoints, identity, expected, parseScopeSet(o.scopes)); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "ifa assert-edges: domain=%s expected=%d edges matched exactly\n", o.domain, len(expected))
@@ -237,6 +254,9 @@ func expectedEdgeLabel(e materializededges.ExpectedEdge) string {
 	return b.String()
 }
 
+// assertMaterializedEdges is assertMaterializedEdgesScoped for a finite-set
+// family (nil predicate). It keeps the long-standing signature the hermetic
+// tests call.
 func assertMaterializedEdges(
 	ctx context.Context,
 	reader graphdump.Reader,
@@ -245,6 +265,23 @@ func assertMaterializedEdges(
 	endpoints map[string]materialized.MaterializedEdgeEndpoint,
 	identity map[string][]string,
 	expected []materializededges.ExpectedEdge,
+) error {
+	return assertMaterializedEdgesScoped(ctx, reader, domain, edgeTypes, nil, endpoints, identity, expected, nil)
+}
+
+// assertMaterializedEdgesScoped is the exact-set assertion behind
+// runAssertEdgesCommand. predicate is non-nil only for a predicate-scoped
+// family (#8358), in which case edgeTypes and endpoints are unused and the
+// scan selects edges by the predicate instead.
+func assertMaterializedEdgesScoped(
+	ctx context.Context,
+	reader graphdump.Reader,
+	domain string,
+	edgeTypes map[string]struct{},
+	predicate *materialized.PredicateScopedEdgeFamily,
+	endpoints map[string]materialized.MaterializedEdgeEndpoint,
+	identity map[string][]string,
+	expected []materializededges.ExpectedEdge, scopeIDs map[string]struct{},
 ) error {
 	expectedPropertyKeys, err := indexExpectedPropertyKeys(expected)
 	if err != nil {
@@ -271,7 +308,7 @@ func assertMaterializedEdges(
 		labels[key] = expectedEdgeLabel(e)
 	}
 
-	scan, err := scanMaterializedEdges(ctx, reader, edgeTypes, endpoints, identity, expectedPropertyKeys, labels)
+	scan, err := scanMaterializedEdges(ctx, reader, edgeTypes, predicate, endpoints, identity, expectedPropertyKeys, labels, scopeIDs)
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: stream %s edges: %w", domain, err)
 	}

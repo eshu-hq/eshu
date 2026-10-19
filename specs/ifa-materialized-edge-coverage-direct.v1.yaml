@@ -99,9 +99,11 @@
 # 2026-10-18 owner direction NornicDB is out of scope and the family stays
 # waived; Neo4j proof goes through the corpus/live-backend gates.
 # cloud_resource stays UNCOVERED by design as the sole genuinely open family:
-# unblock only by closing the vocabulary upstream or by a predicate-scoped
-# assert-edges scan (follow-up issue); registering an observed-type list is
-# rejected. CORRECTION to the old prose this replaces: only cloud_resource has
+# the #8358 route-2 predicate-scoped assert-edges scan, Odu, expected-edge-set
+# fixture, predicate registration, and live-matrix wiring have landed, but no
+# live matrix has driven it yet, so its waiver rows stand until that proof
+# lands; registering an observed-type list is rejected. CORRECTION to the old
+# prose this replaces: only cloud_resource has
 # an open vocabulary. observability_coverage (5 closed AWS_COVERS_* types) and
 # security_group_sg_rule (ALLOWS_INGRESS|ALLOWS_EGRESS) are closed and screened
 # per row in code today; their old "open" claim was false.
@@ -238,12 +240,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCloudResourceEdges -> cypher/{aws,azure,gcp}_cloud_resource_edge_writer.go merges a per-row AWS_<relationship_type> from an OPEN per-provider vocabulary; split verdict D: UNCOVERED by design as the sole genuinely open family (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Unblock only by closing the vocabulary upstream or by a predicate-scoped assert-edges scan (follow-up issue); registering an observed-type list is rejected. Stays waived: no Odu, expected-edge-set fixture, registered edge types, or live matrix yet"
+    reason: "WriteCloudResourceEdges -> cypher/cloud/{resource/edge_writer,azure/relationship/azure_cloud_resource_edge_writer,gcp/relationship/gcp_cloud_resource_edge_writer}.go merges a per-row <PREFIX>_<relationship_type> from an OPEN per-provider vocabulary; split verdict D: UNCOVERED by design as the sole genuinely open family (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Route 2 (#8358) landed the predicate-scoped scan, Odu, expected-edge-set fixture, predicate registration, and matrix wiring; registering an observed-type list is rejected. Stays waived: no live matrix has driven it yet"
   - surface: "materialized_edges:cloud_resource"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCloudResourceEdges -> cypher/{aws,azure,gcp}_cloud_resource_edge_writer.go merges a per-row AWS_<relationship_type> from an OPEN per-provider vocabulary; split verdict D: UNCOVERED by design as the sole genuinely open family (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Unblock only by closing the vocabulary upstream or by a predicate-scoped assert-edges scan (follow-up issue); registering an observed-type list is rejected. Stays waived: no Odu, expected-edge-set fixture, registered edge types, or live matrix yet"
+    reason: "WriteCloudResourceEdges -> cypher/cloud/{resource/edge_writer,azure/relationship/azure_cloud_resource_edge_writer,gcp/relationship/gcp_cloud_resource_edge_writer}.go merges a per-row <PREFIX>_<relationship_type> from an OPEN per-provider vocabulary; split verdict D: UNCOVERED by design as the sole genuinely open family (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Route 2 (#8358) landed the predicate-scoped scan, Odu, expected-edge-set fixture, predicate registration, and matrix wiring; registering an observed-type list is rejected. Stays waived: no live matrix has driven it yet"
   - surface: "materialized_edges:cloud_resource_container_image"
     proof_gate: ifa-determinism
     issue: "#6228"

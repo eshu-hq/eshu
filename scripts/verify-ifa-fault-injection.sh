@@ -25,7 +25,7 @@
 # The shard mirror derives the current cell count from its hand-authored
 # roster and cross-checks this script's dispatch block. Cell libraries are
 # split by family under scripts/lib/ifa_fault_injection_*_cells.sh; the
-# symbol-runtime library owns cells 55-61 for issues #5995/#6000/#5997.
+# symbol-runtime library owns cells 58-64 for issues #5995/#6000/#5997.
 # The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #
@@ -60,9 +60,9 @@
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
-#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53
-#   - an exact runner-waiter proof for cells 59/60/61
-#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/56/57/58
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56
+#   - an exact runner-waiter proof for cells 62/63/64
+#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/59/60/61
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
@@ -129,8 +129,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/56/57/58's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56) and the default 30s (+jitter)
+# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/59/60/61's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
@@ -155,84 +155,11 @@ source "${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 : "${SYNTH_MULTISCOPE_PROJECTS:=8}"
 : "${SYNTH_MULTISCOPE_RESOURCES:=64}"
 
-# The CloudResource MERGE anchor cell_failgraphwrite (cell 4) targets
-# (go/internal/storage/cypher/cloud/resource/node_writer.go's
-# baseCloudResourceUpsertCypher): a fixed, grep-stable substring regardless of
-# this run's own call interleaving, unlike a statement_ordinal.
-cloud_resource_operation_match="MERGE (r:CloudResource"
-
-# The SQL edge MERGE anchor cell_failgraphwrite_sql (cell 12, #5555) targets:
-# go/internal/storage/cypher/canonical.go's batchCanonicalSQLQueriesTableUpsertCypher
-# and edge_writer_sql.go's buildLabelScopedSQLRelationshipCypher both emit
-# this exact MERGE clause text for a QUERIES_TABLE edge regardless of which
-# source/target node labels the label-scoped writer path picks (only the
-# preceding MATCH clauses vary by label) -- a fixed, grep-stable substring,
-# same rationale as cloud_resource_operation_match above. QUERIES_TABLE is
-# one of the SQL family's nine materialized edge types and is present in the
-# committed sql_cassette, so this fault genuinely fires during that drive.
-sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
-codeowners_edge_operation_match="MERGE (repo)-[rel:DECLARES_CODEOWNER"  # PREFIX, verified vs canonical_codeowners_edges.go:35; see the cells lib header
-submodule_pin_edge_operation_match="MERGE (parent)-[rel:PINS_SUBMODULE"  # PREFIX, verified vs canonical_submodule_edges.go:32; see the cells lib header
-
-# The TARGETS_ENVIRONMENT MERGE anchor cell_failgraphwrite_kubernetes_namespace_environment
-# (#6309) targets: go/internal/storage/cypher/kubernetes_namespace_node_writer.go:90 emits
-# this exact MERGE clause text -- read off the writer's executed statement, same
-# rationale as cloud_resource_operation_match above.
-kubernetes_namespace_environment_edge_operation_match="MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)"
-# The HAS_ROLE MERGE anchor cell_failgraphwrite_iam_instance_profile_role (#6309)
-# targets: go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go:24
-# emits MERGE (profile)-[rel:%s]->(role), filled from a closed single-member
-# vocabulary, so the anchor carries the INTERPOLATED type. A literal %s would
-# match no executed statement and the fault would never fire. It is NOT
-# IAM_INSTANCE_PROFILE_HAS_ROLE, which is statement metadata beside the query.
-iam_instance_profile_role_edge_operation_match="MERGE (profile)-[rel:HAS_ROLE]->(role)"
-# The CAN_ASSUME MERGE anchor cell_failgraphwrite_iam_can_assume (#6228 fault
-# half) targets: go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go:45
-# emits MERGE (principal)-[rel:%s]->(role), filled from a closed
-# single-member vocabulary, so the anchor carries the INTERPOLATED type. A
-# literal %s would match no executed statement and the fault would never
-# fire. It is NOT IAM_CAN_ASSUME, which is statement metadata beside the
-# query.
-iam_can_assume_edge_operation_match="MERGE (principal)-[rel:CAN_ASSUME]->(role)"
-# The CAN_PERFORM MERGE anchor cell_failgraphwrite_iam_can_perform (#6228
-# fault half) targets: go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go:49
-# bakes the static CAN_PERFORM token directly into the template
-# (CanonicalIAMCanPerformEdgeUpsertCypher carries no %s to fill), so the
-# anchor carries the literal. A `%s` form would match no executed statement
-# and the fault would never fire. It is NOT IAM_CAN_PERFORM, which appears
-# nowhere in code.
-iam_can_perform_edge_operation_match="MERGE (p)-[rel:CAN_PERFORM]->(r)"
-# The USES_PROFILE MERGE anchor cell_failgraphwrite_ec2_uses_profile (#6228
-# fault half) targets: go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go:47
-# emits MERGE (source)-[rel:%s]->(target), filled per row from a closed
-# single-member vocabulary screened by validateEC2UsesProfileRelationshipType,
-# so the anchor carries the INTERPOLATED type. A literal %s would match no
-# executed statement and the fault would never fire. It is NOT
-# EC2_USES_PROFILE, which is statement metadata beside the query.
-ec2_uses_profile_edge_operation_match="MERGE (source)-[rel:USES_PROFILE]->(target)"
-# The LOGS_TO MERGE anchor cell_failgraphwrite_s3_logs_to (#6228 fault
-# half) targets: go/internal/storage/cypher/cloud/aws/s3/logs_to_edge_writer.go:45
-# emits MERGE (source)-[rel:%s]->(target), filled from a closed
-# single-member vocabulary, so the anchor carries the INTERPOLATED type. A
-# literal %s would match no executed statement and the fault would never
-# fire. It is NOT S3_LOGS_TO, which is statement metadata beside the
-# query.
-s3_logs_to_edge_operation_match="MERGE (source)-[rel:LOGS_TO]->(target)"
-
-# The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
-# go/internal/storage/cypher/canonical_documentation_edges.go's
-# batchCanonicalDocumentationEntityEdgeCypher emits this exact MERGE clause
-# text regardless of which target label (Function/Class/.../SqlTable) the
-# preceding MATCH picked -- a fixed, grep-stable substring, same rationale as
-# cloud_resource_operation_match/sql_edge_operation_match above.
-documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"
-
-# The CORRELATES_DEPLOYABLE_UNIT MERGE anchor cell_failgraphwrite_deployable_unit
-# (#5993) targets: go/internal/storage/cypher/canonical_deployable_unit_edges.go's
-# batchCanonicalDeployableUnitCorrelationUpsertCypher emits this exact MERGE
-# clause text -- a fixed, grep-stable substring, same rationale as
-# cloud_resource_operation_match above. Byte-exact copy of that file's line 9.
-deployable_unit_edge_operation_match="MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)"
+# Edge-operation MERGE anchors (one per fail-graph-write cell family) live in
+# scripts/lib/ifa_fault_injection_edge_anchors.sh -- extracted when this gate
+# hit its 500-line cap. Sourced here, before any cell reads them.
+# shellcheck source=scripts/lib/ifa_fault_injection_edge_anchors.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_edge_anchors.sh"
 
 ifa_fault_shard_parse_args "${BASH_SOURCE[0]}" "$@"
 
@@ -454,6 +381,12 @@ ifa_fault_shard_run cell_failgraphwrite_ec2_uses_profile
 ifa_fault_shard_run cell_baseline_s3_logs_to
 ifa_fault_shard_run cell_killworker_s3_logs_to
 ifa_fault_shard_run cell_failgraphwrite_s3_logs_to
+# cloud_resource (#8358): the predicate-scoped direct family. Baseline
+# first (sole writer of the family digest and the
+# aws_relationship_materialization retry baseline), same trio shape.
+ifa_fault_shard_run cell_baseline_cloud_resource
+ifa_fault_shard_run cell_killworker_cloud_resource
+ifa_fault_shard_run cell_failgraphwrite_cloud_resource
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,
@@ -466,7 +399,7 @@ ifa_fault_shard_run cell_killworker_shell_exec
 ifa_fault_shard_run cell_failgraphwrite_shell_exec
 
 # workload_dependency (#6003, cells 52-54) and the handles_route/runs_in/
-# invokes_cloud_action trio (#5995/#6000/#5997, cells 55-61,
+# invokes_cloud_action trio (#5995/#6000/#5997, cells 58-64,
 # scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh): each baseline
 # must run before its recovery cells in the same atomic shard group. The
 # trio's runner-lease kill cells follow the three graph-write cells.

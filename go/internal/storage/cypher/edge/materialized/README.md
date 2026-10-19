@@ -32,3 +32,8 @@ contract.
   design, leave it false.
 - Keep the repo-dependency alternation derived, not relisted
   (`TestRepoDependencyRegistryDerivesTheAlternationRatherThanRelistingIt`).
+- The predicate-scoped family (`predicate_families.go`, #8358) holds writer
+  prefix consts, handler evidence-source values, and production templates —
+  never copies. Its exactness rests on the sole-creator census in
+  `internal/ifa/materializededges`; a new prefixed-type creator or stamp
+  must register a pairing here first.

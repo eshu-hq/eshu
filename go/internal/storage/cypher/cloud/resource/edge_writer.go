@@ -16,6 +16,29 @@ import (
 // phase for grouped-backend statement metadata and diagnostics.
 const canonicalPhaseCloudResourceEdge = "cloud_resource_edge"
 
+// AWSRelationshipCypherTypePrefix is the relationship-type prefix every AWS
+// cloud-resource edge type carries: canonicalAWSRelationshipCypherType
+// prepends it to the per-row relationship_type token. The Ifá
+// predicate-scoped family registry (#8358) holds this const rather than a
+// copy of the literal, so the prefix the gate scans for can never drift from
+// the prefix this writer emits.
+const AWSRelationshipCypherTypePrefix = "AWS_"
+
+// Exported aliases of the production templates above, held by the Ifá
+// materialized-edge family registry so its drift guards read the executed
+// Cypher rather than a copy of its text (#8358, following the
+// RetractIAMCanAssumeEdgesCypher precedent).
+const (
+	// CanonicalCloudResourceEdgeUpsertCypherFormat is
+	// canonicalCloudResourceEdgeUpsertCypherFormat.
+	CanonicalCloudResourceEdgeUpsertCypherFormat = canonicalCloudResourceEdgeUpsertCypherFormat
+	// RetractCloudResourceEdgesCypher is retractCloudResourceEdgesCypher.
+	RetractCloudResourceEdgesCypher = retractCloudResourceEdgesCypher
+	// RetractCloudResourceEdgesByUIDsCypher is
+	// retractCloudResourceEdgesByUIDsCypher.
+	RetractCloudResourceEdgesByUIDsCypher = retractCloudResourceEdgesByUIDsCypher
+)
+
 // canonicalCloudResourceEdgeUpsertCypherFormat batches AWS relationship edge
 // upserts between two already-materialized CloudResource nodes. The Cypher
 // relationship type is a sanitized static token derived from the observed AWS
@@ -173,7 +196,7 @@ func canonicalAWSRelationshipCypherType(row map[string]any) (string, error) {
 		}
 		return "", fmt.Errorf("aws relationship_type %q contains unsupported character %q", raw, ch)
 	}
-	return "AWS_" + raw, nil
+	return AWSRelationshipCypherTypePrefix + raw, nil
 }
 
 // RetractCloudResourceEdges removes this reducer's AWS relationship edges for

@@ -151,6 +151,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.SemanticEntityContainmentFamilyCassetteFullPath,
 			load:         ifa.LoadSemanticEntityContainmentFamilyOdu,
 		},
+		{
+			name:         ifa.CloudResourceFamilyOduName,
+			compiled:     ifa.CloudResourceFamilyOdu,
+			cassettePath: ifa.CloudResourceFamilyCassetteFullPath,
+			load:         ifa.LoadCloudResourceFamilyOdu,
+		},
 	}
 }
 
