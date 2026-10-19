@@ -187,7 +187,11 @@ func (trace retentionPhaseTrace) finish(activePhase string, failed bool) {
 //     moment, which must not wait.
 //
 // It asserts correctness only (every pruned row leaves the read model), not a
-// latency threshold. Run it alone against a database with no other
+// latency threshold. Each round carries its own 3m bounded wait
+// (newRetentionProbeRoundContext); a prune that fails with that wait expired
+// appends a pg_stat_activity, lock-blocker, and bloat snapshot
+// (snapshotRetentionTimeoutDiagnosis) so the failure names what stuck it.
+// Run it alone against a database with no other
 // advisory-lock traffic:
 //
 //	ESHU_POSTGRES_DSN=... go test ./internal/storage/postgres/infra/inventory \
@@ -218,7 +222,7 @@ func runRetentionProbeRound(t *testing.T, sqlDB *sql.DB, other string, round int
 	activePhase = "drain"
 	phaseStarted := time.Now()
 	trace.mark(activePhase, "start", phaseStarted, "running")
-	drainRetention(t, ctx, store)
+	drainRetention(t, ctx, store, sqlDB)
 	trace.mark(activePhase, "end", phaseStarted, "ok")
 	activePhase = "round"
 	// Retention alone, to sample the lock hold.
@@ -247,7 +251,7 @@ func runRetentionProbeRound(t *testing.T, sqlDB *sql.DB, other string, round int
 	}
 	trace.markAt(activePhase, "end", phaseStarted, outcome, pruneEnded)
 	if err != nil {
-		t.Fatalf("PruneSupersededGenerations() error = %v", err)
+		t.Fatalf("PruneSupersededGenerations() error = %v%s", err, retentionTimeoutReport(t, ctx, sqlDB, activePhase))
 	}
 	activePhase = "check_first"
 	phaseStarted = time.Now()
@@ -315,7 +319,7 @@ func runRetentionProbeRound(t *testing.T, sqlDB *sql.DB, other string, round int
 	phaseStarted = time.Now()
 	trace.mark(activePhase, "start", phaseStarted, "running")
 	if retentionErr != nil {
-		t.Fatalf("PruneSupersededGenerations() error = %v", retentionErr)
+		t.Fatalf("PruneSupersededGenerations() error = %v%s", retentionErr, retentionTimeoutReport(t, ctx, sqlDB, "prune_second"))
 	}
 	if rows := tableRows(t, ctx, sqlDB, repo); len(rows) != 0 {
 		t.Fatalf("round %d: %d read-model rows survived retention, want 0", round, len(rows))
@@ -329,12 +333,12 @@ func runRetentionProbeRound(t *testing.T, sqlDB *sql.DB, other string, round int
 // drainRetention prunes every eligible generation left by an earlier aborted
 // probe run, so each measured batch is exactly this round's repository. Only
 // this probe seeds superseded_at, so nothing else is eligible.
-func drainRetention(t *testing.T, ctx context.Context, store postgres.GenerationRetentionStore) {
+func drainRetention(t *testing.T, ctx context.Context, store postgres.GenerationRetentionStore, sqlDB *sql.DB) {
 	t.Helper()
 	for {
 		result, err := store.PruneSupersededGenerations(ctx, probeRetentionPolicy())
 		if err != nil {
-			t.Fatalf("drain retention: %v", err)
+			t.Fatalf("drain retention: %v%s", err, retentionTimeoutReport(t, ctx, sqlDB, "drain"))
 		}
 		if result.GenerationsPruned == 0 {
 			return
