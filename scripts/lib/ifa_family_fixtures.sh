@@ -169,6 +169,8 @@ ec2_uses_profile_cassette="${repo_root}/testdata/cassettes/ec2usesprofile/ifa-ec
 ec2_uses_profile_expected_edges="${repo_root}/go/internal/ifa/testdata/ec2usesprofile/ifa-ec2-uses-profile-family-expected-edges.json"
 s3_logs_to_cassette="${repo_root}/testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json"
 s3_logs_to_expected_edges="${repo_root}/go/internal/ifa/testdata/s3logsto/ifa-s3-logs-to-family-expected-edges.json"
+authenticates_vault_role_cassette="${repo_root}/testdata/cassettes/authenticatesvaultrole/ifa-authenticates-vault-role-family.json"
+authenticates_vault_role_expected_edges="${repo_root}/go/internal/ifa/testdata/authenticatesvaultrole/ifa-authenticates-vault-role-family-expected-edges.json"
 kubernetes_correlation_cassette="${repo_root}/testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
 kubernetes_correlation_expected_edges="${repo_root}/go/internal/ifa/testdata/kubernetescorrelation/ifa-kubernetes-correlation-family-expected-edges.json"
 # semantic_entity_containment family cassette (#8359, #6228 arbiter verdict
@@ -244,6 +246,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${ec2_uses_profile_expected_edges}" ]] || { echo "${gate}: ec2-uses-profile expected-edge set not found: ${ec2_uses_profile_expected_edges}" >&2; exit 1; }
 	[[ -f "${s3_logs_to_cassette}" ]] || { echo "${gate}: s3-logs-to cassette not found: ${s3_logs_to_cassette}" >&2; exit 1; }
 	[[ -f "${s3_logs_to_expected_edges}" ]] || { echo "${gate}: s3-logs-to expected-edge set not found: ${s3_logs_to_expected_edges}" >&2; exit 1; }
+	[[ -f "${authenticates_vault_role_cassette}" ]] || { echo "${gate}: authenticates-vault-role cassette not found: ${authenticates_vault_role_cassette}" >&2; exit 1; }
+	[[ -f "${authenticates_vault_role_expected_edges}" ]] || { echo "${gate}: authenticates-vault-role expected-edge set not found: ${authenticates_vault_role_expected_edges}" >&2; exit 1; }
 	[[ -f "${kubernetes_correlation_cassette}" ]] || { echo "${gate}: kubernetes-correlation cassette not found: ${kubernetes_correlation_cassette}" >&2; exit 1; }
 	[[ -f "${kubernetes_correlation_expected_edges}" ]] || { echo "${gate}: kubernetes-correlation expected-edge set not found: ${kubernetes_correlation_expected_edges}" >&2; exit 1; }
 	[[ -f "${semantic_entity_containment_cassette}" ]] || { echo "${gate}: semantic-entity-containment cassette not found: ${semantic_entity_containment_cassette}" >&2; exit 1; }

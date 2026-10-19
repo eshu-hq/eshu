@@ -90,6 +90,7 @@ IFA_FAMILY_PINS_NAMES=(
 	iam_escalation
 	ec2_uses_profile
 	s3_logs_to
+	authenticates_vault_role
 	kubernetes_correlation
 	cloud_resource
 	semantic_entity_containment

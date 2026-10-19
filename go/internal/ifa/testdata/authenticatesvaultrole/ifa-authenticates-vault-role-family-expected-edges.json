@@ -1,0 +1,16 @@
+{
+  "odu": "odu:ifa-authenticates-vault-role-family",
+  "note": "Hand-derived from secretsIAMAuthenticatesVaultRoleEdgeUpsertCypher (go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go), NOT from the port or family name. The template is `MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid}) MATCH (v:SecretsIAMVaultAuthRole {uid: row.vault_auth_role_uid}) MERGE (s)-[rel:SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE]->(v)`, and the token is static in the template (no %s: no value is ever encoded into a relationship type). The relationship MERGEs on its two endpoint nodes alone, so there is no identity block and no plain-string SET property: scope_id, generation_id, confidence, and evidence_fact_ids are per-run or data-carried values, and evidence_source is the writer's stamp. Exactly two edges: lane A resolves an IRSA web-identity exact chain (service account sa-auth-app-a through role auth-app-a to Vault role auth-vault-role-1) and lane B an EKS Pod Identity exact chain (sa-auth-app-b through role auth-app-b to auth-vault-role-2), so both identity mechanisms prove the Vault hop. The other five lanes contribute nothing on purpose -- lane C carries a full chain without any Vault role bound to its service account, the ghost role binds a service account nobody observed, lane D's wildcard web-identity subject never matches exactly, lane E's wildcard Vault bound-service-account selector refuses the exact join, and lane F's Deny trust statement grants nothing.",
+  "edges": [
+    {
+      "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
+      "source_entity_id": "sha256:sa-auth-app-a",
+      "target_entity_id": "sha256:auth-vault-role-1"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE",
+      "source_entity_id": "sha256:sa-auth-app-b",
+      "target_entity_id": "sha256:auth-vault-role-2"
+    }
+  ]
+}

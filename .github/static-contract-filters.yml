@@ -60,9 +60,8 @@ skill:
   - 'go/internal/extensions/skillgen/**'
   - '.agents/skills/**'
   - 'skill-fragments/**'
-  # The gate compares fragments against this baseline, so a PR that
-  # touches only expected/ must still create the named check; the
-  # registry selects it and the two must not disagree.
+  # The gate compares fragments against this baseline: a PR touching only
+  # expected/ must still create the named check; the two must not disagree.
   - 'expected/**'
   - 'scripts/*verify-skill-roundtrip*.sh'
 skillworkflowrefs:
@@ -195,6 +194,7 @@ ifa:
   - 'testdata/cassettes/iamcanassume/**'
   - 'testdata/cassettes/iamcanperform/**'
   - 'testdata/cassettes/iamescalation/**'
+  - 'testdata/cassettes/authenticatesvaultrole/**'
   - 'testdata/cassettes/ec2usesprofile/**'
   - 'testdata/cassettes/cloudresource/**'
   - 'testdata/cassettes/kubernetesnamespaceenvironment/**'

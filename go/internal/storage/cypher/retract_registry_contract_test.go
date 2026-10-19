@@ -112,15 +112,19 @@ func TestContractFamilyDerivedTypesAreCanonicalEdgeTypes(t *testing.T) {
 // AST-based, not a raw-text scan: only *ast.BasicLit STRING nodes are
 // inspected, so a doc comment or a test-helper regex that quotes example
 // Cypher can never be mistaken for a production template.
-var evidenceNodeCreatorPattern = regexp.MustCompile(`(?:MERGE|CREATE)\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*(CodeTaintEvidence|IncidentRoutingEvidence)\b`)
+var evidenceNodeCreatorPattern = regexp.MustCompile(`(?:MERGE|CREATE)\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*(CodeTaintEvidence|IncidentRoutingEvidence|SecretsIAMServiceAccount|SecretsIAMVaultAuthRole|SecretsIAMVaultPolicy|SecretsIAMSecretMetadataPath)\b`)
 
 // evidenceNodeSoleCreators allowlists the single production file that may
 // create nodes of each private evidence label. A second creator must turn the
 // build red here: DETACH DELETE retracts are only safe while no other
 // writer's edges can hang off these nodes.
 var evidenceNodeSoleCreators = map[string]string{
-	"CodeTaintEvidence":       "code_taint_evidence_writer.go",
-	"IncidentRoutingEvidence": "incident_routing_evidence_writer.go",
+	"CodeTaintEvidence":            "code_taint_evidence_writer.go",
+	"IncidentRoutingEvidence":      "incident_routing_evidence_writer.go",
+	"SecretsIAMServiceAccount":     "secrets_graph_writer.go",
+	"SecretsIAMVaultAuthRole":      "secrets_graph_writer.go",
+	"SecretsIAMVaultPolicy":        "secrets_graph_writer.go",
+	"SecretsIAMSecretMetadataPath": "secrets_graph_writer.go",
 }
 
 // scanEvidenceNodeCreators walks root for non-test .go files and returns the
@@ -194,7 +198,7 @@ var evidenceEdgeAttachPattern = regexp.MustCompile(`(?:MERGE|CREATE)\s*\([^)]*\)
 // either private evidence label. The colon keeps prose mentions such as
 // "CodeTaintEvidenceWriter" in a description string from anchoring the scan;
 // only a real node-pattern reference counts.
-var evidenceLabelAnchorPattern = regexp.MustCompile(`:\s*(CodeTaintEvidence|IncidentRoutingEvidence)\b`)
+var evidenceLabelAnchorPattern = regexp.MustCompile(`:\s*(CodeTaintEvidence|IncidentRoutingEvidence|SecretsIAMServiceAccount|SecretsIAMVaultAuthRole|SecretsIAMVaultPolicy|SecretsIAMSecretMetadataPath)\b`)
 
 // scanEvidenceEdgeAttachers walks root for non-test .go files and returns the
 // files attaching edges to each evidence label, keyed by label with sorted,
@@ -343,11 +347,13 @@ func TestEvidenceNodeSoleCreatorsCensusSeededPair(t *testing.T) {
 
 	const taintWriterBody = "package seeded\nconst seededWriteCypher = `UNWIND $rows AS row\nMERGE (ev:CodeTaintEvidence {uid: row.uid})`\n"
 	const routingWriterBody = "package seeded\nconst seededRoutingWriteCypher = `UNWIND $rows AS row\nMERGE (routing:IncidentRoutingEvidence {uid: row.uid})`\n"
+	const secretsWriterBody = "package seeded\nconst seededSecretsWriteCypher = `UNWIND $rows AS row\nMERGE (sa:SecretsIAMServiceAccount {uid: row.uid})\nMERGE (vr:SecretsIAMVaultAuthRole {uid: row.uid})\nMERGE (pol:SecretsIAMVaultPolicy {uid: row.uid})\nMERGE (path:SecretsIAMSecretMetadataPath {uid: row.uid})`\n"
 	const secondCreatorBody = "package seeded\nconst sneakyWriteCypher = `UNWIND $rows AS row\nMERGE (ev:CodeTaintEvidence {uid: row.uid})`\n"
 
 	clean := t.TempDir()
 	writeSeededGoFile(t, clean, "code_taint_evidence_writer.go", taintWriterBody)
 	writeSeededGoFile(t, clean, "incident_routing_evidence_writer.go", routingWriterBody)
+	writeSeededGoFile(t, clean, "secrets_graph_writer.go", secretsWriterBody)
 	if violations := checkEvidenceNodeSoleCreators(scanEvidenceNodeCreators(t, clean)); len(violations) != 0 {
 		t.Fatalf("clean tree reported violations, want none: %v", violations)
 	}
@@ -355,6 +361,7 @@ func TestEvidenceNodeSoleCreatorsCensusSeededPair(t *testing.T) {
 	planted := t.TempDir()
 	writeSeededGoFile(t, planted, "code_taint_evidence_writer.go", taintWriterBody)
 	writeSeededGoFile(t, planted, "incident_routing_evidence_writer.go", routingWriterBody)
+	writeSeededGoFile(t, planted, "secrets_graph_writer.go", secretsWriterBody)
 	writeSeededGoFile(t, planted, "second_creator.go", secondCreatorBody)
 	violations := checkEvidenceNodeSoleCreators(scanEvidenceNodeCreators(t, planted))
 	if len(violations) == 0 {
@@ -385,10 +392,12 @@ func TestEvidenceEdgeAttachersCensusSeededPair(t *testing.T) {
 
 	const taintWriterBody = "package seeded\nconst seededWriteCypher = `UNWIND $rows AS row\nMATCH (f:Function {uid: row.function_uid})\nMERGE (ev:CodeTaintEvidence {uid: row.uid})\nMERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(ev)`\n"
 	const routingWriterBody = "package seeded\nconst seededRoutingWriteCypher = `UNWIND $rows AS row\nMERGE (incident:IncidentRoutingEvidence {uid: row.incident_uid})\nMERGE (routing:IncidentRoutingEvidence {uid: row.uid})\nMERGE (incident)-[rel:HAS_INTENDED_ROUTING]->(routing)`\n"
+	const secretsWriterBody = "package seeded\nconst seededSecretsWriteCypher = `UNWIND $rows AS row\nMERGE (sa:SecretsIAMServiceAccount {uid: row.uid})\nMERGE (vr:SecretsIAMVaultAuthRole {uid: row.uid})\nMERGE (pol:SecretsIAMVaultPolicy {uid: row.uid})\nMERGE (path:SecretsIAMSecretMetadataPath {uid: row.uid})\nMERGE (sa)-[rel:SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE]->(vr)`\n"
 
 	clean := t.TempDir()
 	writeSeededGoFile(t, clean, "code_taint_evidence_writer.go", taintWriterBody)
 	writeSeededGoFile(t, clean, "incident_routing_evidence_writer.go", routingWriterBody)
+	writeSeededGoFile(t, clean, "secrets_graph_writer.go", secretsWriterBody)
 	if violations := checkEvidenceEdgeAttachers(scanEvidenceEdgeAttachers(t, clean)); len(violations) != 0 {
 		t.Fatalf("clean tree reported violations, want none: %v", violations)
 	}
@@ -420,6 +429,7 @@ func TestEvidenceEdgeAttachersCensusSeededPair(t *testing.T) {
 			dir := t.TempDir()
 			writeSeededGoFile(t, dir, "code_taint_evidence_writer.go", taintWriterBody)
 			writeSeededGoFile(t, dir, "incident_routing_evidence_writer.go", routingWriterBody)
+			writeSeededGoFile(t, dir, "secrets_graph_writer.go", secretsWriterBody)
 			writeSeededGoFile(t, dir, p.file, p.body)
 			violations := checkEvidenceEdgeAttachers(scanEvidenceEdgeAttachers(t, dir))
 			if len(violations) == 0 {
