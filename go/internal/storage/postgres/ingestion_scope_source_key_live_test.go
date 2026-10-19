@@ -70,7 +70,7 @@ func TestIngestionScopeSourceKeyMatchesCatalogIDExprLiveDB(t *testing.T) {
 		TriggerKind:  scope.TriggerKindSnapshot,
 	}
 
-	if err := upsertIngestionScope(ctx, SQLDB{DB: db}, scopeValue, generation); err != nil {
+	if _, _, err := upsertIngestionScope(ctx, SQLDB{DB: db}, scopeValue, generation); err != nil {
 		t.Fatalf("upsertIngestionScope() error = %v, want nil", err)
 	}
 

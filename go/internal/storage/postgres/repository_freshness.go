@@ -69,6 +69,42 @@ func (s RepositoryFreshnessStore) ReadRepositoryFreshness(ctx context.Context, r
 	return snapshot, err
 }
 
+// retirementFreshnessTombstoneQuery reads the repository's retirement
+// tombstone evidence (#7766) ahead of scope resolution: an open
+// non-complete row answers retiring, a complete row answers retired. The
+// predicate matches the partial open-row index exactly, so the verdict's
+// rule-0 input costs one index probe. A purged repository has no scope
+// left to resolve, so the caller keeps the tombstone on the unresolved
+// snapshot rather than failing.
+const retirementFreshnessTombstoneQuery = `SELECT state, retirement_id
+	FROM repository_retirements WHERE repo_id = $1 AND readmitted_at IS NULL LIMIT 1`
+
+// readRetirementTombstone returns the repository's tombstone evidence, or
+// nil when no row is open or complete for it.
+func (s RepositoryFreshnessStore) readRetirementTombstone(
+	ctx context.Context,
+	repoID string,
+) (*statuspkg.RepositoryFreshnessRetirement, error) {
+	rows, err := s.queryer.QueryContext(ctx, retirementFreshnessTombstoneQuery, repoID)
+	if err != nil {
+		return nil, fmt.Errorf("read repository freshness: retirement tombstone: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return nil, rows.Err()
+	}
+	retirement := &statuspkg.RepositoryFreshnessRetirement{}
+	var retirementID string
+	if err := rows.Scan(&retirement.State, &retirementID); err != nil {
+		return nil, fmt.Errorf("read repository freshness: retirement tombstone scan: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read repository freshness: retirement tombstone rows: %w", err)
+	}
+	retirement.RetirementID = retirementID
+	return retirement, nil
+}
+
 func (s RepositoryFreshnessStore) readRepositoryFreshness(ctx context.Context, repoID string) (statuspkg.RepositoryFreshnessSnapshot, error) {
 	snapshot := statuspkg.RepositoryFreshnessSnapshot{RepositoryID: repoID}
 	if s.queryer == nil {
@@ -78,6 +114,12 @@ func (s RepositoryFreshnessStore) readRepositoryFreshness(ctx context.Context, r
 	if repoID == "" {
 		return snapshot, nil
 	}
+
+	retirement, err := s.readRetirementTombstone(ctx, repoID)
+	if err != nil {
+		return snapshot, err
+	}
+	snapshot.Retirement = retirement
 
 	scopeID, generationID, resolved, err := s.resolveScope(ctx, repoID)
 	if err != nil {

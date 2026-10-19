@@ -167,16 +167,23 @@ func TestIngestionStoreCommitScopeGenerationContinuesWhenActiveFingerprintDiffer
 	if got, want := len(db.queries), 3; got != want {
 		t.Fatalf("base query count = %d, want %d", got, want)
 	}
-	if got, want := len(db.tx.queries), 1; got != want {
+	// The gated scope upsert (#7766) runs before the catalog load, so the
+	// transaction now carries the gate query first.
+	if got, want := len(db.tx.queries), 2; got != want {
 		t.Fatalf("transaction query count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.tx.queries[0].query, "fact_kind = 'repository'") {
-		t.Fatalf("transaction query = %q, want repository catalog load", db.tx.queries[0].query)
+	if !strings.Contains(db.tx.queries[0].query, "WITH gate AS") {
+		t.Fatalf("transaction query[0] = %q, want the gated scope upsert first", db.tx.queries[0].query)
+	}
+	if !strings.Contains(db.tx.queries[1].query, "fact_kind = 'repository'") {
+		t.Fatalf("transaction query[1] = %q, want repository catalog load", db.tx.queries[1].query)
 	}
 	if got, want := db.beginCalls, 1; got != want {
 		t.Fatalf("begin call count = %d, want %d", got, want)
 	}
-	if got, want := len(db.tx.execs), 5; got != want {
+	// The gated scope upsert (#7766) runs as a query, not an exec, so the
+	// nil-stream commit carries one fewer exec than before.
+	if got, want := len(db.tx.execs), 4; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	if got, want := telemetry.SkippedRefreshCount(), uint64(0); got != want {

@@ -16,7 +16,8 @@ import (
 // evidence fully built.
 type RepositoryFreshnessVerdict string
 
-// The six verdicts a repository freshness read can render. See
+// The eight verdicts a repository freshness read can render, including the
+// two retirement verdicts (#7766). See
 // ComputeRepositoryFreshnessVerdict for the precedence between them.
 const (
 	RepositoryFreshnessCurrent     RepositoryFreshnessVerdict = "current"
@@ -140,6 +141,11 @@ type RepositoryFreshnessSnapshot struct {
 	// and empty when the read stopped before the selection lookup
 	// (unresolved or ungenerated); neither changes the verdict.
 	Selection RepositoryFreshnessSelection
+	// Retirement is the repository's retirement tombstone evidence
+	// (#7766), read before scope resolution. Nil when no tombstone row
+	// is open or complete for the repository. A non-nil value decides
+	// the verdict as rule 0, ahead of every rule below.
+	Retirement *RepositoryFreshnessRetirement
 }
 
 // ComputeRepositoryFreshnessVerdict derives the coarse verdict from a
@@ -150,6 +156,10 @@ type RepositoryFreshnessSnapshot struct {
 //
 // Precedence (evaluated top to bottom; the first matching rule wins):
 //
+//  0. retiring/retired (#7766): the snapshot carries a retirement
+//     tombstone. An open non-complete row answers retiring, a complete
+//     row answers retired, even when no scope or generation resolved
+//     (a purged repository has no scope left to resolve).
 //  1. unknown: no scope/generation resolved for this repository, or the
 //     resolved scope is not a git ("repository") scope and carries no
 //     commit -- freshness-by-commit is not a meaningful question for it.
@@ -183,6 +193,12 @@ type RepositoryFreshnessSnapshot struct {
 func ComputeRepositoryFreshnessVerdict(snapshot RepositoryFreshnessSnapshot, expectedCommit string) RepositoryFreshnessVerdict {
 	expectedCommit = strings.TrimSpace(expectedCommit)
 
+	if snapshot.Retirement != nil {
+		if snapshot.Retirement.IsComplete() {
+			return RepositoryFreshnessRetired
+		}
+		return RepositoryFreshnessRetiring
+	}
 	if !snapshot.Resolved || !snapshot.HasGeneration {
 		return RepositoryFreshnessUnknown
 	}

@@ -123,8 +123,22 @@ func repositoryFreshnessToMap(
 		"shared_enrichment":    repositoryFreshnessSharedEnrichmentToMap(snapshot.SharedEnrichment),
 		"unobserved_push":      repositoryFreshnessUnobservedPushToMap(snapshot.UnobservedPush),
 		"selection":            repositoryFreshnessSelectionToMap(snapshot.Selection),
+		"retirement":           repositoryFreshnessRetirementToMap(snapshot.Retirement),
 		"as_of":                asOf.Format(time.RFC3339),
 		"scoped":               scoped,
+	}
+}
+
+// repositoryFreshnessRetirementToMap renders the bounded retirement
+// tombstone evidence (#7766): the tombstone state and row. Nil renders
+// untyped nil, never an empty object and never a typed nil map.
+func repositoryFreshnessRetirementToMap(retirement *status.RepositoryFreshnessRetirement) any {
+	if retirement == nil {
+		return nil
+	}
+	return map[string]any{
+		"state":         retirement.State,
+		"retirement_id": retirement.RetirementID,
 	}
 }
 

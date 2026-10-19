@@ -26,10 +26,13 @@ var indexStatusScopedPaths = []string{"/api/v0/index-status", "/api/v0/status/in
 
 // indexStatusScopedWithheld is the exact section list a scoped caller is told
 // was withheld: every key of the unscoped payload except the two a scoped
-// caller receives.
+// caller receives. It MUST mirror indexStatusWithheldSections in
+// status_scoped.go; update both together when deployment-wide sections
+// change.
 var indexStatusScopedWithheld = []string{
 	"status", "reasons", "queue", "queue_blockages", "coordinator",
 	"scope_activity", "aws_materialization", "semantic_extraction", "terraform_state",
+	"repository_count_by_state", "repository_retirements",
 }
 
 type indexStatusGraphCall struct {
@@ -47,7 +50,16 @@ type indexStatusRepoGraph struct {
 	calls []indexStatusGraphCall
 }
 
-func (g *indexStatusRepoGraph) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
+func (g *indexStatusRepoGraph) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.calls = append(g.calls, indexStatusGraphCall{cypher: cypher, params: params})
+	if strings.Contains(cypher, "evidence_source") {
+		// The double holds no per-repository evidence source: every held
+		// repository reads canonically evidenced, and the stub side
+		// zero-fills in the handler.
+		return []map[string]any{{"idx": true, "count": int64(len(g.repos))}}, nil
+	}
 	return nil, nil
 }
 
@@ -208,6 +220,7 @@ func TestServeIndexStatusScopedBodyWithholdsDeploymentWideSections(t *testing.T)
 	handler := &StatusHandler{
 		StatusReader: fakeStatusReader{snapshot: indexStatusOtherTenantSnapshot(time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC))},
 		Neo4j:        graph,
+		Retirements:  &stubIndexRetirementReader{summary: statuspkg.RetirementSummary{CountsByState: map[string]int64{}}},
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -337,6 +350,7 @@ func TestServeIndexStatusSharedCallerPayloadUnchanged(t *testing.T) {
 	handler := &StatusHandler{
 		StatusReader: fakeStatusReader{snapshot: indexStatusOtherTenantSnapshot(time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC))},
 		Neo4j:        graph,
+		Retirements:  &stubIndexRetirementReader{summary: statuspkg.RetirementSummary{CountsByState: map[string]int64{}}},
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -359,8 +373,8 @@ func TestServeIndexStatusSharedCallerPayloadUnchanged(t *testing.T) {
 			t.Errorf("unscoped payload gained scoped-only key %q", key)
 		}
 	}
-	if len(graph.calls) != 1 || strings.Contains(graph.calls[0].cypher, "$allowed_") {
-		t.Fatalf("unscoped count statement = %#v, want the ungranted count", graph.calls)
+	if len(graph.calls) != 2 || strings.Contains(graph.calls[0].cypher, "$allowed_") || strings.Contains(graph.calls[1].cypher, "$allowed_") {
+		t.Fatalf("unscoped count statements = %#v, want the ungranted count plus the ungranted by-state split", graph.calls)
 	}
 }
 

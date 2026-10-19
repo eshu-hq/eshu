@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -108,18 +109,32 @@ type RetirementPreview struct {
 
 // RetirementStore owns the repository_retirements tombstone rows. It writes
 // no other table and reads only the four preview tables, so the fence, the
-// runner, and the admin surface share one query contract.
+// runner, and the admin surface share one query contract. The store only
+// reads (QueryContext): the phase-1 fence writes through the fence
+// transaction, never through this handle, so wiring passes the read store.
 type RetirementStore struct {
-	database db.ExecQueryer
+	database db.Queryer
 }
 
 // NewRetirementStore binds the tombstone queries to the database.
-func NewRetirementStore(database db.ExecQueryer) RetirementStore {
+func NewRetirementStore(database db.Queryer) RetirementStore {
 	return RetirementStore{database: database}
 }
 
 // retirementRecordColumns is the scan order InsertPending and GetOpen share.
 const retirementRecordColumns = "retirement_id, repo_id, scope_id, state, phase"
+
+// retirementInsertPendingSQL opens one pending/fenced tombstone row.
+// InsertPending and the phase-1 fence marker share it so the two writers
+// can never drift apart.
+const retirementInsertPendingSQL = `INSERT INTO repository_retirements
+		(retirement_id, repo_id, scope_id, state, phase, reason_code, reason_hash,
+		 actor_class, actor_id_hash, idempotency_key_hash, scope_id_hash,
+		 generation_ids_hash, requested_at, updated_at)
+		VALUES ($1, $2, $3, 'pending', 'fenced', $4, $5, $6, $7, $8, '', '', NOW(), NOW())
+		ON CONFLICT (repo_id, idempotency_key_hash) WHERE readmitted_at IS NULL
+		DO UPDATE SET updated_at = NOW()
+		RETURNING ` + retirementRecordColumns
 
 // InsertPending opens a pending/fenced tombstone row for the request. A
 // repeated call with the same idempotency key returns the existing open row
@@ -141,15 +156,7 @@ func (s RetirementStore) InsertPending(ctx context.Context, req RetirementReques
 	if req.ReasonCode != RetirementReasonOperatorRetired {
 		return RetirementRecord{}, fmt.Errorf("retirement insert: reason %q is not operator-driven", req.ReasonCode)
 	}
-	const insert = `INSERT INTO repository_retirements
-		(retirement_id, repo_id, scope_id, state, phase, reason_code, reason_hash,
-		 actor_class, actor_id_hash, idempotency_key_hash, scope_id_hash,
-		 generation_ids_hash, requested_at, updated_at)
-		VALUES ($1, $2, $3, 'pending', 'fenced', $4, $5, $6, $7, $8, '', '', NOW(), NOW())
-		ON CONFLICT (repo_id, idempotency_key_hash) WHERE readmitted_at IS NULL
-		DO UPDATE SET updated_at = NOW()
-		RETURNING ` + retirementRecordColumns
-	rows, err := s.database.QueryContext(ctx, insert,
+	rows, err := s.database.QueryContext(ctx, retirementInsertPendingSQL,
 		req.RetirementID, req.RepoID, req.ScopeID, req.ReasonCode,
 		req.ReasonHash, req.ActorClass, req.ActorIDHash, req.IdempotencyKeyHash)
 	if err != nil {
@@ -190,6 +197,25 @@ func (s RetirementStore) GetOpen(ctx context.Context, repoID string) (*Retiremen
 		return nil, fmt.Errorf("retirement lookup scan: %w", err)
 	}
 	return &rec, nil
+}
+
+// stampRetirementReadmitted stamps readmitted_at on a complete tombstone
+// row, re-admitting the repository as a fresh first generation (#7766). It
+// reports whether this call won the stamp: two concurrent re-admitting
+// commits serialize on the row and only one stamps it. The caller issues it
+// inside the admitting commit transaction, so a rollback undoes both.
+func stampRetirementReadmitted(ctx context.Context, database db.ExecQueryer, retirementID string, now time.Time) (bool, error) {
+	const stamp = `UPDATE repository_retirements SET readmitted_at = $2, updated_at = $2
+		WHERE retirement_id = $1 AND readmitted_at IS NULL AND state = 'complete'`
+	result, err := database.ExecContext(ctx, stamp, retirementID, now.UTC())
+	if err != nil {
+		return false, fmt.Errorf("stamp retirement readmission: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("stamp retirement readmission rows: %w", err)
+	}
+	return affected == 1, nil
 }
 
 // Preview returns the dry-run counts for the repository and scopes. It

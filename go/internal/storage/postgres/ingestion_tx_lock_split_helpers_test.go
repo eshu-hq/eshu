@@ -199,7 +199,7 @@ func seedAnchorMatchingCorpus(t *testing.T, ctx context.Context, adapter SQLDB, 
 		Status:       scope.GenerationStatusActive,
 		TriggerKind:  scope.TriggerKindSnapshot,
 	}
-	if err := upsertIngestionScope(ctx, adapter, knownScopeValue, knownGen); err != nil {
+	if _, _, err := upsertIngestionScope(ctx, adapter, knownScopeValue, knownGen); err != nil {
 		t.Fatalf("seed anchor-matching corpus: upsertIngestionScope() error = %v, want nil", err)
 	}
 	if err := upsertScopeGeneration(ctx, adapter, knownGen); err != nil {
@@ -284,7 +284,7 @@ func insertNewRepoCatalogFact(t *testing.T, ctx context.Context, adapter SQLDB, 
 		Status:       scope.GenerationStatusActive,
 		TriggerKind:  scope.TriggerKindSnapshot,
 	}
-	if err := upsertIngestionScope(ctx, adapter, scopeValue, gen); err != nil {
+	if _, _, err := upsertIngestionScope(ctx, adapter, scopeValue, gen); err != nil {
 		t.Fatalf("insert new-repo catalog fact: upsertIngestionScope() error = %v, want nil", err)
 	}
 	if err := upsertScopeGeneration(ctx, adapter, gen); err != nil {

@@ -267,7 +267,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: ed6267c1d2e458c4261e4f72baaed28ac87c8bd7721afdfce642d53021fe24c4
+          source_sha256: bf36028c6b02122c6f97d613aaab6b2aa2f0881ee11bb424123dad7e43b5df77
           label: "Repository"
           max_results: 501
       - symbol: "queryRepositoryTotal"
@@ -364,7 +364,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 2224794d40b60eaebee47fb7300dabb3ae6d60fdeee298325a5de1b39f608097
+          source_sha256: 7d458e4c42ade50368757d8b7426acdf6d932195f4211b4908b615d48e92a028
           label: "Repository"
           max_results: 1
   - file: status_hosted_readiness.go
@@ -377,6 +377,15 @@ source_coverage:
         non_hot:
           class: label_inventory
           source_sha256: 82227dbfc08fd95d601559e377248cfd2bae7aab143017e8dd306043584f4933
+          label: "Repository"
+          max_results: 1
+  - file: status_index_retirement.go
+    calls:
+      - symbol: "indexStatusRepositoryCountByState"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 267d9f3b990b7527fc1ad1e45e66329aabfe34dd1514ff38f4400dc26c09b953
           label: "Repository"
           max_results: 1
   - file: supply/chain/kubernetes_runtime_probe_fair.go

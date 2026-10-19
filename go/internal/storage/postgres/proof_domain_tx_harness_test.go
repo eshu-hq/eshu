@@ -74,35 +74,7 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		}
 		return nil, fmt.Errorf("projector work item not found for scope=%s generation=%s", args[1].(string), args[2].(string))
 	case strings.Contains(query, "INSERT INTO ingestion_scopes"):
-		metadata := map[string]string{}
-		if payload, err := payloadstore.UnmarshalPayload(args[11].([]byte)); err == nil {
-			for key, value := range payload {
-				if text, ok := value.(string); ok && text != "" {
-					metadata[key] = text
-				}
-			}
-		}
-		scopeID := args[0].(string)
-		incomingStatus := args[9].(string)
-		incomingActiveGenerationID := stringFromAny(args[10])
-		if existingActiveGenerationID := tx.state.activeGenerations[scopeID]; existingActiveGenerationID != "" && incomingActiveGenerationID == "" && incomingStatus == "pending" {
-			incomingStatus = tx.state.scopeStatuses[scopeID]
-			incomingActiveGenerationID = existingActiveGenerationID
-		}
-		scopeValue := scope.IngestionScope{
-			ScopeID:       scopeID,
-			ScopeKind:     scope.ScopeKind(args[1].(string)),
-			SourceSystem:  args[2].(string),
-			ParentScopeID: stringFromAny(args[4]),
-			CollectorKind: scope.CollectorKind(args[5].(string)),
-			PartitionKey:  args[6].(string),
-			Metadata:      metadata,
-		}
-		tx.state.scopes[scopeValue.ScopeID] = scopeValue
-		tx.state.scopeStatuses[scopeValue.ScopeID] = incomingStatus
-		if incomingActiveGenerationID != "" {
-			tx.state.activeGenerations[scopeValue.ScopeID] = incomingActiveGenerationID
-		}
+		proofApplyIngestionScopeUpsert(tx.state, args)
 		return proofResult{}, nil
 	case strings.Contains(query, "INSERT INTO scope_generations"):
 		generation := scope.ScopeGeneration{
@@ -210,8 +182,51 @@ func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...a
 			return nil, err
 		}
 		return newProofRows(accepted), nil
+	case strings.Contains(query, "WITH gate AS") && strings.Contains(query, "INSERT INTO ingestion_scopes"):
+		// The proof domain models no retirement tombstone, so the folded
+		// marker gate always admits (#7766). The scope write rides along:
+		// apply it to the proof state exactly as the pre-gate exec did.
+		proofApplyIngestionScopeUpsert(tx.state, args)
+		return newProofRows([][]any{{nil, nil}}), nil
 	default:
 		return nil, errors.New("unexpected query in transaction")
+	}
+}
+
+// proofApplyIngestionScopeUpsert applies the scope upsert's write to the
+// proof state, exactly as the pre-gate exec did. Both the legacy exec case
+// and the folded gate query case call it: the statement moved from Exec to
+// Query when #7766 folded the retirement marker gate into it, but the write
+// it carries is unchanged.
+func proofApplyIngestionScopeUpsert(state proofState, args []any) {
+	metadata := map[string]string{}
+	if payload, err := payloadstore.UnmarshalPayload(args[11].([]byte)); err == nil {
+		for key, value := range payload {
+			if text, ok := value.(string); ok && text != "" {
+				metadata[key] = text
+			}
+		}
+	}
+	scopeID := args[0].(string)
+	incomingStatus := args[9].(string)
+	incomingActiveGenerationID := stringFromAny(args[10])
+	if existingActiveGenerationID := state.activeGenerations[scopeID]; existingActiveGenerationID != "" && incomingActiveGenerationID == "" && incomingStatus == "pending" {
+		incomingStatus = state.scopeStatuses[scopeID]
+		incomingActiveGenerationID = existingActiveGenerationID
+	}
+	scopeValue := scope.IngestionScope{
+		ScopeID:       scopeID,
+		ScopeKind:     scope.ScopeKind(args[1].(string)),
+		SourceSystem:  args[2].(string),
+		ParentScopeID: stringFromAny(args[4]),
+		CollectorKind: scope.CollectorKind(args[5].(string)),
+		PartitionKey:  args[6].(string),
+		Metadata:      metadata,
+	}
+	state.scopes[scopeValue.ScopeID] = scopeValue
+	state.scopeStatuses[scopeValue.ScopeID] = incomingStatus
+	if incomingActiveGenerationID != "" {
+		state.activeGenerations[scopeValue.ScopeID] = incomingActiveGenerationID
 	}
 }
 

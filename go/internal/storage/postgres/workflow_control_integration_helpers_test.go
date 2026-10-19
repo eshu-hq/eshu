@@ -48,7 +48,7 @@ func mustCreateRun(t *testing.T, store *WorkflowControlStore, ctx context.Contex
 
 func mustUpsertScopeBoundary(t *testing.T, db *sql.DB, scopeValue scope.IngestionScope, generation scope.ScopeGeneration) {
 	t.Helper()
-	if err := upsertIngestionScope(context.Background(), SQLDB{DB: db}, scopeValue, generation); err != nil {
+	if _, _, err := upsertIngestionScope(context.Background(), SQLDB{DB: db}, scopeValue, generation); err != nil {
 		t.Fatalf("upsertIngestionScope() error = %v, want nil", err)
 	}
 	if err := upsertScopeGeneration(context.Background(), SQLDB{DB: db}, generation); err != nil {

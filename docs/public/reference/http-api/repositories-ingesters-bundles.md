@@ -118,6 +118,16 @@ render repository groups without repository-name rules:
 - `group_kind`: `cluster`, `source`, `dependency`, or `unknown`
 - `group_reason`: bounded explanation for the assignment or missing evidence
 
+Each repository row also carries its bounded retirement label (#7766):
+
+- `index_state`: `indexed`, `stub`, `retiring`, or `retired`. An open
+  non-complete tombstone reads `retiring`, a complete tombstone `retired`;
+  otherwise canonical projector evidence reads `indexed` and its absence
+  `stub`. Retiring and retired rows stay in the list, never dropped.
+- `retirement`: the tombstone state, retirement id, and completion
+  timestamp (null until complete) for `retiring` and `retired` rows; null
+  otherwise.
+
 Repositories that participate in a `(:Repository)-[:DEPENDS_ON]->(:Repository)`
 edge group by **dependency cluster**: a connected-components pass (union-find)
 over the undirected dependency graph assigns every repository in a component the

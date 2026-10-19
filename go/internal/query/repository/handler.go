@@ -45,8 +45,13 @@ type Handler struct {
 	// unknown, matching the freshness block for a scope with no live
 	// selector.
 	Selections PageSelectionReader
-	Profile    querycontract.QueryProfile
-	Logger     *slog.Logger
+	// Retirements annotates GET /api/v0/repositories entries with the
+	// bounded retirement label (#7766): retiring and retired rows stay in
+	// the list, labelled, never dropped. Nil derives index_state from the
+	// row's evidence source alone.
+	Retirements PageRetirementReader
+	Profile     querycontract.QueryProfile
+	Logger      *slog.Logger
 	// Instruments records eshu_dp_config_artifact_candidates_total for the
 	// story and context deployment-artifact loads (#7951). Nil records none.
 	Instruments *telemetry.Instruments
@@ -160,9 +165,10 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 		// Capture total before paging so it reflects the full filtered set.
 		total := len(repos)
 		repos, truncated := readmodel.PageRepositoryMaps(repos, page)
-		repos, err = annotateListRepositoriesWithSelection(r.Context(), h.Selections, repos)
+		var stage listAnnotationStage
+		repos, stage, err = annotateListPageWithSelectionAndRetirement(r.Context(), h.Selections, h.Retirements, repos)
 		if err != nil {
-			writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryListSelectionFailedMessage)
+			writeReadFailure(w, r, err, "platform_impact.context_overview", stage.failureMessage())
 			return
 		}
 		querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisContentIndex, "resolved from bounded repository content catalog"))
@@ -182,10 +188,14 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The page carries evidence_source alongside the shared projection so
+	// the retirement annotation can derive indexed versus stub without a
+	// second graph round trip (#7766). The shared RepoProjection is
+	// untouched: only this list page needs the anchor.
 	cypher := fmt.Sprintf(`
 		MATCH (r:Repository)
 		%s
-		RETURN %s
+		RETURN %s, coalesce(r.evidence_source, '') as evidence_source
 		ORDER BY r.name, r.id
 		SKIP $offset
 		LIMIT $limit
@@ -211,49 +221,29 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 		id := querycontract.StringVal(row, "id")
 		_, isDependency := evidence.Targets[id]
 		repo := map[string]any{
-			"id":            id,
-			"name":          querycontract.StringVal(row, "name"),
-			"path":          querycontract.StringVal(row, "path"),
-			"local_path":    querycontract.StringVal(row, "local_path"),
-			"remote_url":    querycontract.StringVal(row, "remote_url"),
-			"repo_slug":     querycontract.StringVal(row, "repo_slug"),
-			"has_remote":    querycontract.BoolVal(row, "has_remote"),
-			"is_dependency": isDependency,
+			"id":              id,
+			"name":            querycontract.StringVal(row, "name"),
+			"path":            querycontract.StringVal(row, "path"),
+			"local_path":      querycontract.StringVal(row, "local_path"),
+			"remote_url":      querycontract.StringVal(row, "remote_url"),
+			"repo_slug":       querycontract.StringVal(row, "repo_slug"),
+			"has_remote":      querycontract.BoolVal(row, "has_remote"),
+			"is_dependency":   isDependency,
+			"evidence_source": querycontract.StringVal(row, "evidence_source"),
 		}
 		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, evidence.Clusters))
 	}
 
-	repos, err = annotateListRepositoriesWithSelection(r.Context(), h.Selections, repos)
+	var stage listAnnotationStage
+	repos, stage, err = annotateListPageWithSelectionAndRetirement(r.Context(), h.Selections, h.Retirements, repos)
 	if err != nil {
-		writeReadFailure(w, r, err, "platform_impact.context_overview", repositoryListSelectionFailedMessage)
+		writeReadFailure(w, r, err, "platform_impact.context_overview", stage.failureMessage())
 		return
 	}
 
 	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total, evidence.ExtraPartialReasons...), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 }
 
-func (h *Handler) listRepositoriesFromContent(ctx context.Context) ([]map[string]any, error) {
-	if h == nil || h.Content == nil {
-		return []map[string]any{}, nil
-	}
-
-	entries, err := h.Content.ListRepositories(ctx)
-	if err != nil {
-		return nil, err
-	}
-	repos := make([]map[string]any, 0, len(entries))
-	for _, entry := range entries {
-		repos = append(repos, repositoryCatalogMap(entry))
-	}
-	return repos, nil
-}
-
-// getRepositoryContext returns repository metadata with graph statistics and
-// enriched context including entry points, infrastructure entities, language
-// distribution, cross-repo relationships, and consumer repositories.
-// GetRepositoryStory serves the repository story response. It forwards to
-// getRepositoryStory; exported for #6060 so the cross-family endpoint
-// contract test in package query can name it from outside this package.
 func (h *Handler) GetRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	h.getRepositoryStory(w, r)
 }

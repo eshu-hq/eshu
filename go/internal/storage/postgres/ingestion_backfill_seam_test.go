@@ -122,19 +122,22 @@ func TestIngestionStoreCommitScopeGenerationExcludesBackfillFromMainTransaction(
 	// Issue #3481/#3521: the repository catalog loads through the shared
 	// cache, and the cold load runs on the OPEN ingestion transaction's
 	// connection (so a single-connection pool cannot deadlock). Issue #4451
-	// removes the in-TX backfill call, so the main commit transaction's only
-	// reads are that catalog load and the fact_records upsert's RETURNING
-	// fact_id query (issue #4444 review, codex P1); it must never see a
-	// second repository-catalog reload or an evidence query, even though
-	// repo-123 is new.
-	if got, want := len(commitTx.queries), 2; got != want {
+	// removes the in-TX backfill call, so the main commit transaction's
+	// reads are the gated scope upsert (#7766), that catalog load, and the
+	// fact_records upsert's RETURNING fact_id query (issue #4444 review,
+	// codex P1); it must never see a second repository-catalog reload or
+	// an evidence query, even though repo-123 is new.
+	if got, want := len(commitTx.queries), 3; got != want {
 		t.Fatalf("main commit transaction query count = %d, want %d: %#v", got, want, commitTx.queries)
 	}
-	if !strings.Contains(commitTx.queries[0].query, "fact_kind = 'repository'") {
-		t.Fatalf("transaction query[0] = %q, want repository catalog load first", commitTx.queries[0].query)
+	if !strings.Contains(commitTx.queries[0].query, "WITH gate AS") {
+		t.Fatalf("transaction query[0] = %q, want the gated scope upsert first", commitTx.queries[0].query)
 	}
-	if !strings.Contains(commitTx.queries[1].query, "INSERT INTO fact_records") {
-		t.Fatalf("transaction query[1] = %q, want fact_records upsert", commitTx.queries[1].query)
+	if !strings.Contains(commitTx.queries[1].query, "fact_kind = 'repository'") {
+		t.Fatalf("transaction query[1] = %q, want repository catalog load second", commitTx.queries[1].query)
+	}
+	if !strings.Contains(commitTx.queries[2].query, "INSERT INTO fact_records") {
+		t.Fatalf("transaction query[2] = %q, want fact_records upsert", commitTx.queries[2].query)
 	}
 	if got, want := len(database.queries), 0; got != want {
 		t.Fatalf("base connection query count = %d, want %d (catalog must not use a second connection)", got, want)

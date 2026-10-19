@@ -59,6 +59,8 @@ func TestOpenAPIRepositoryFreshnessVerdictEnumMatchesStatus(t *testing.T) {
 		string(status.RepositoryFreshnessUnobserved),
 		string(status.RepositoryFreshnessNotSelected),
 		string(status.RepositoryFreshnessUnknown),
+		string(status.RepositoryFreshnessRetiring),
+		string(status.RepositoryFreshnessRetired),
 	}
 	slices.Sort(want)
 	if got, _ := stringEnum(t, testutil.MustMapField(t, properties, "verdict")); !slices.Equal(got, want) {

@@ -25,6 +25,9 @@ const (
 	// repositoryListSelectionFailedMessage covers the #8454 selection
 	// annotation read: entries never serve with evidence silently missing.
 	repositoryListSelectionFailedMessage = "repository list selection annotation failed"
+	// repositoryListRetirementFailedMessage covers the #7766 retirement
+	// annotation read, under the same never-silently-missing contract.
+	repositoryListRetirementFailedMessage = "repository list retirement annotation failed"
 
 	catalogContentRepositoriesFailedMessage = "catalog content repository read failed"
 	catalogRepositoriesFailedMessage        = "catalog repository query failed"

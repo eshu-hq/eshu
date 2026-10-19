@@ -54,9 +54,14 @@ var errIndexStatusRepositoryCountNoRow = errors.New("index status repository cou
 
 // StatusHandler provides HTTP endpoints for pipeline status queries.
 type StatusHandler struct {
-	Neo4j           GraphQuery
-	DB              *sql.DB
-	StatusReader    status.Reader
+	Neo4j        GraphQuery
+	DB           *sql.DB
+	StatusReader status.Reader
+	// Retirements reads the tombstone aggregate behind the index-status
+	// repository_retirements block (#7766). Nil omits both retirement
+	// blocks and skips the by-state graph read, keeping the historical
+	// payload exactly.
+	Retirements     status.IndexRetirementReader
 	GovernanceAudit GovernanceAuditSummaryReader
 	Profile         QueryProfile
 	Governance      GovernanceStatusConfig
@@ -311,6 +316,30 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 		"scope_activity":      scopeActivityToMap(report.ScopeActivity),
 		"aws_materialization": awsMaterializationStatusToMap(raw.DomainBacklogs, raw.QueueBlockages),
 		"semantic_extraction": semanticExtractionStatusToMap(report.SemanticExtraction),
+	}
+
+	// Retirement surfaces (#7766, Deliverable 1): the graph count split
+	// by evidence source plus the tombstone aggregate. Counts only, no
+	// ids. A failed by-state count surfaces like the repository count
+	// (#8395): a partial state breakdown is worse than an error. A
+	// failed tombstone aggregate likewise fails the read rather than
+	// omitting retirements silently.
+	if h.Retirements != nil {
+		byState, err := indexStatusRepositoryCountByState(r.Context(), h.Neo4j)
+		if err != nil {
+			if WriteGraphReadError(w, r, err, indexStatusCapability) {
+				return
+			}
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, indexStatusRepositoryCountFailedMessage)
+			return
+		}
+		payload["repository_count_by_state"] = byState
+		summary, err := h.Retirements.ReadRetirementSummary(r.Context())
+		if err != nil {
+			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, indexStatusReadFailedMessage)
+			return
+		}
+		payload["repository_retirements"] = indexRetirementSummaryToMap(summary)
 	}
 	payload["terraform_state"] = terraformStateStatusToMap(report.TerraformState)
 	withActiveWorkSource(payload, report.ActiveWorkSource)

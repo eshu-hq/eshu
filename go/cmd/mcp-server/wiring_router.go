@@ -147,6 +147,7 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 			// this tool live against this binary.
 			Freshness:   pgstatus.NewInstrumentedRepositoryFreshnessStore(reader, instruments),
 			Selections:  pgstatus.NewPageSelectionStore(reader),
+			Retirements: pgstatus.NewRetirementStore(reader),
 			Profile:     queryProfile,
 			Instruments: instruments,
 		},
@@ -330,6 +331,7 @@ func newMCPQueryRouterWithSemanticEmbeddingWithReadStore(
 			Neo4j:           neo4jReader,
 			DB:              writer,
 			StatusReader:    statusReader,
+			Retirements:     pgstatus.NewRetirementStore(reader),
 			GovernanceAudit: auditRead,
 			Profile:         queryProfile,
 			Governance:      governanceStatus,

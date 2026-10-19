@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -21,12 +22,16 @@ func TestIngestionStoreCommitScopeGenerationSkipsStreamingGCPRelationshipEvidenc
 	now := time.Date(2026, time.June, 13, 14, 30, 0, 0, time.UTC)
 	db := &fakeTransactionalDB{
 		tx: &fakeTx{
-			queryResponses: []queueFakeRows{{
-				rows: [][]any{
-					{[]byte(`{"repo_id":"repo-orders","name":"order-gateway"}`), catalogFakeObservedAt},
-					{[]byte(`{"repo_id":"repo-payments","name":"payments-service"}`), catalogFakeObservedAt},
+			queryResponses: []queueFakeRows{
+				// The folded marker gate admits: no tombstone is open.
+				{rows: [][]any{{sql.NullString{}, sql.NullString{}}}},
+				{
+					rows: [][]any{
+						{[]byte(`{"repo_id":"repo-orders","name":"order-gateway"}`), catalogFakeObservedAt},
+						{[]byte(`{"repo_id":"repo-payments","name":"payments-service"}`), catalogFakeObservedAt},
+					},
 				},
-			}},
+			},
 		},
 	}
 	store := NewIngestionStore(db)

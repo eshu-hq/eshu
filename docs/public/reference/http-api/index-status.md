@@ -9,9 +9,13 @@ queue came from the stored summary or the live statement, and a
 for the `terraform_state` section. A scoped caller gets neither.
 
 A shared-key caller receives the full deployment-wide report: `status`,
-`reasons`, `repository_count`, `queue`, `queue_blockages`, `coordinator`,
-`scope_activity`, `aws_materialization`, `semantic_extraction`, and
-`terraform_state`. A scoped-token caller (#5167) receives only:
+`reasons`, `repository_count`, `repository_count_by_state` (the graph count
+split into `indexed` versus `stub` by evidence source),
+`repository_retirements` (the tombstone aggregate: per-state open-row
+counts, the oldest pending age, and the last completion; counts only, no
+ids), `queue`, `queue_blockages`, `coordinator`, `scope_activity`,
+`aws_materialization`, `semantic_extraction`, and `terraform_state`. A
+scoped-token caller (#5167) receives only:
 
 ```json
 {
@@ -21,9 +25,15 @@ A shared-key caller receives the full deployment-wide report: `status`,
   "completeness_state": "scoped_repository_count_only",
   "withheld_sections": ["status", "reasons", "queue", "queue_blockages",
     "coordinator", "scope_activity", "aws_materialization",
-    "semantic_extraction", "terraform_state"]
+    "semantic_extraction", "terraform_state", "repository_count_by_state",
+    "repository_retirements"]
 }
 ```
+
+The retirement blocks are deployment-wide aggregates that cannot be
+attributed to a grant, so scoped callers are told they were withheld. A
+scoped caller's own retiring repositories still surface through the
+grant-bound repositories list (`index_state`) and freshness verdicts.
 
 `repository_count` is counted over the caller's granted repositories and
 ingestion scopes inside the graph query, and a caller with no grant gets `0`
