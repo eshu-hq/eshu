@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ARG GO_VERSION=1.26.9
 ARG RIPGREP_VERSION=15.2.0
+# Minimum supported yq is 4.44.3 (#8397): the oldest release the gate scripts'
+# strenv(TAB) rows are proven on (4.44.3/4.49.2/4.54.1). CI runs the pin below.
 ARG YQ_VERSION=4.54.1
 ARG DOCKER_VERSION=29.1.3
 ARG COMPOSE_VERSION=2.40.3

@@ -243,7 +243,7 @@
   "tools": {
     "destination": "ghcr.io/eshu-hq/ci-tools",
     "digest": "sha256:05ab9636508dd971fc39f532e5b13ef7088209f89be30172e403c98e9fab1738",
-    "recipe_sha256": "ec146e6b17cadff102494e2a43c3743b83117b7e57a9517e59fe643b26806dbc",
+    "recipe_sha256": "aef0a8c34e01c0be290bc1625c87b363ac4d9ac2d63b2bcb799a4601c2dcc7e3",
     "platforms": ["linux/amd64", "linux/arm64"],
     "inventories": {
       "linux/amd64": {
