@@ -9,7 +9,7 @@ package postgres
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"testing"
@@ -20,9 +20,9 @@ import (
 )
 
 // lotteryWinner predicts the rotation draw for one claim: the eligible key
-// with the smallest md5(key || salt), exactly the ordered CTE's rule, over
-// the caller-supplied per-key queues. It is the independent model the live
-// proof checks the statement against.
+// with the smallest sha256(key || salt) hex digest, exactly the ordered
+// CTE's rule, over the caller-supplied per-key queues. It is the independent
+// model the live proof checks the statement against.
 func lotteryWinner(queues map[string][]string, salt string) string {
 	winner := ""
 	best := ""
@@ -30,7 +30,7 @@ func lotteryWinner(queues map[string][]string, salt string) string {
 		if len(queue) == 0 {
 			continue
 		}
-		sum := md5.Sum([]byte(key + salt))
+		sum := sha256.Sum256([]byte(key + salt))
 		draw := hex.EncodeToString(sum[:])
 		if winner == "" || draw < best {
 			winner, best = key, draw

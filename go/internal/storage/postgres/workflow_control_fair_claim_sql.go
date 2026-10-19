@@ -103,7 +103,7 @@ heads AS (
 ),
 ordered AS (
     SELECT work_item_id, claim_priority,
-        md5(fairness_key || COALESCE(NULLIF($7, ''), random()::text)) AS draw
+        encode(sha256(convert_to(fairness_key || COALESCE(NULLIF($7, ''), random()::text), 'UTF8')), 'hex') AS draw
     FROM heads WHERE work_item_id IS NOT NULL
 ),
 -- Selection is lock-free; acquisition locks exactly one row. An earlier

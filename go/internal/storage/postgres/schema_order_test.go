@@ -498,4 +498,21 @@ var orderedBootstrapDefinitionNames = []string{
 	// expired-observation sweep joins to reclaim abandoned not_listed
 	// rows. No read path change.
 	"repository_selectors",
+	// Migration 201 (#8469 step 2) adds the fair-claim priority and
+	// ecosystem columns to workflow_work_items with a backfill from the
+	// old four-segment fairness key. There is no migration 200 on this
+	// lane: the lane's own step-1 200 created the FIFO claim-order index
+	// that step 3 drops in 203, and a create the drop file removes would
+	// rebuild that index on every untracked replay (the 101/102 shape);
+	// the create is gone and 203's drop alone converges the installs
+	// that already built it. (Main's 200 is #7840's repository_selectors,
+	// kept above; sequence gaps are tolerated.)
+	"workflow_work_items_claim_class_columns",
+	// Migration 202 (#8469 step 3) builds the priority-then-rotation claim
+	// index under a new name, served by the rewritten candidate.
+	"workflow_work_items_fair_claim_idx",
+	// Migration 203 (#8469 step 3) drops the step-1 FIFO order index the
+	// rewritten candidate cannot serve. Nothing creates that name any
+	// more, so the drop converges once and is a no-op on every replay.
+	"workflow_work_items_claim_order_idx_drop",
 }
