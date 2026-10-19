@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -75,9 +76,10 @@ func apiRequestMetrics() *apiRequestInstruments {
 // registered routes rather than the unbounded concrete request paths. Requests
 // that match no route are labeled "unmatched".
 //
-// It also exposes the per-request handler total as a Server-Timing trailer
-// ("Server-Timing: total;dur=<ms>") so a slow call can be attributed without
-// guessing (issue #7733). A trailer, not a response header, is deliberate:
+// It also exposes per-request stage timings as a Server-Timing trailer
+// ("Server-Timing: total;dur=<ms>, pg;dur=<ms>, graph;dur=<ms>") so a slow
+// call can be attributed to Postgres versus the graph without guessing
+// (issue #7733). A trailer, not a response header, is deliberate:
 // net/http flushes response headers on the handler's first body Write, so a
 // header set after mux.ServeHTTP returns is silently dropped on the wire,
 // while an announced trailer is delivered for buffered and streaming (SSE)
@@ -86,9 +88,13 @@ func apiRequestMetrics() *apiRequestInstruments {
 // Node-based proxies (Vite died with ERR_HTTP_TRAILER_INVALID on a 204 in
 // the SSO E2E gate), so 1xx/204/304, HEAD, and handlers that return without
 // writing never announce — the value lands as a plain header, or nowhere for
-// 204/304. The trailer carries only the total this seam brackets; the
-// middleware cannot split Postgres versus graph time without invasive
-// per-store plumbing, so no finer stage is reported.
+// 204/304. The total is the handler wall time this seam brackets; pg and
+// graph are the request's accumulated Postgres and graph store-call time,
+// recorded by the search seams through the context-carried stage clock the
+// middleware installs below. Each stage sums its own calls, so parallel
+// store calls add and pg+graph may exceed the total; see querycontract
+// RequestStages for the overlap accounting. A request whose seams record
+// nothing reports pg and graph as zero.
 //
 // It wraps the application mux only; the admin surface (probes, /metrics) is
 // served by a separate mux and is intentionally not counted.
@@ -111,28 +117,49 @@ func RequestMiddleware(mux *http.ServeMux) http.Handler {
 			// otherwise the headers are already on the wire and it drops.
 			recorder.suppressTrailer = true
 		}
+		// The stage clock rides the request context so the Postgres and graph
+		// store seams can accumulate their own time without new plumbing or
+		// metric labels. WithValue chains the caller's context, so trace and
+		// auth values stay intact.
+		stageCtx, stages := querycontract.WithRequestStages(r.Context())
+		routeReq := r.WithContext(stageCtx)
 		start := time.Now()
-		mux.ServeHTTP(recorder, r)
+		mux.ServeHTTP(recorder, routeReq)
 		elapsed := time.Since(start)
-		w.Header().Set("Server-Timing", formatServerTiming(elapsed))
-		recordAPIRequest(r, route, recorder.status, elapsed)
+		w.Header().Set("Server-Timing", formatServerTiming(elapsed, stages.PG(), stages.Graph()))
+		recordAPIRequest(routeReq, route, recorder.status, elapsed)
 	})
 }
 
-// serverTimingStageTotal is the only Server-Timing stage RequestMiddleware
-// reports: the handler total in milliseconds. The name set stays fixed at
-// one stage so clients can parse it without negotiation.
-const serverTimingStageTotal = "total"
+// Server-Timing stage names RequestMiddleware reports. The set stays fixed
+// at these three so clients can parse it without negotiation; total leads
+// so a total-only reader keeps working on the value prefix.
+const (
+	serverTimingStageTotal = "total"
+	serverTimingStagePG    = "pg"
+	serverTimingStageGraph = "graph"
+)
 
 // formatServerTiming renders the Server-Timing field value for one handler
-// total, e.g. "total;dur=12.3". Durations live only in this field, never in
-// metric labels, so no cardinality grows with request traffic.
-func formatServerTiming(elapsed time.Duration) string {
-	ms := elapsed.Seconds() * 1000
+// total with its accumulated pg and graph stages, e.g.
+// "total;dur=12.3, pg;dur=4.1, graph;dur=7.9". Durations live only in this
+// field, never in metric labels, so no cardinality grows with request
+// traffic.
+func formatServerTiming(elapsed, pg, graph time.Duration) string {
+	return fmt.Sprintf("%s;dur=%.1f, %s;dur=%.1f, %s;dur=%.1f",
+		serverTimingStageTotal, serverTimingMillis(elapsed),
+		serverTimingStagePG, serverTimingMillis(pg),
+		serverTimingStageGraph, serverTimingMillis(graph))
+}
+
+// serverTimingMillis renders one stage duration in milliseconds, clamping
+// negative observations to zero so the wire value stays well-formed.
+func serverTimingMillis(d time.Duration) float64 {
+	ms := d.Seconds() * 1000
 	if ms < 0 {
 		ms = 0
 	}
-	return fmt.Sprintf("%s;dur=%.1f", serverTimingStageTotal, ms)
+	return ms
 }
 
 // recordAPIRequest records the request duration and, for server errors, a

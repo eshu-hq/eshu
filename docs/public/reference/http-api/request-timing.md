@@ -1,15 +1,36 @@
 # Request Timing (Server-Timing Trailer)
 
 Every `/api/v0` application response that reaches the handler carries a
-`Server-Timing` trailer with the handler total, for example:
+`Server-Timing` trailer with the handler total and its Postgres and graph
+stages, for example:
 
 ```http
-Server-Timing: total;dur=8730.0
+Server-Timing: total;dur=8730.0, pg;dur=8710.5, graph;dur=3.2
 ```
 
-`dur` is milliseconds with one decimal. The only stage today is `total`: the
-time the request-metrics middleware brackets around the handler. It does not
-split Postgres versus graph time. The value travels as a trailer rather than
+`dur` is milliseconds with one decimal. The stage set is fixed at three and
+`total` leads, so a total-only reader keeps working on the value prefix:
+
+- `total`: the handler wall time the request-metrics middleware brackets
+  around the handler.
+- `pg`: time attributed to the request's Postgres search phase, recorded
+  by the search seams through the request's stage clock. The span brackets
+  the seam body: store reads plus grant checks and in-handler merge shaping.
+- `graph`: accumulated graph store-call time on the request, recorded the
+  same way.
+
+Only the search seams record today, so any route reaching them reports
+nonzero `pg`/`graph`: `POST /api/v0/code/search` and
+`POST /api/v0/content/entities/search` (including their rank-walk and
+unscoped shapes), and any other route sharing a seam such as
+`POST /api/v0/code/symbols/search`. Routes that never reach a recording
+seam report zero. Selector-resolution reads are not attributed.
+
+Each stage sums its own calls, so store calls that run in
+parallel add rather than union: `pg`+`graph` may exceed `total`, and that is
+expected accounting, not clock skew. `total` stays wall time either way.
+
+The value travels as a trailer rather than
 a response header because response headers flush on the handler's first body
 write; trailers are delivered for buffered and streaming (SSE) responses
 alike. Read it after consuming the full body (with curl, `curl -v` shows the

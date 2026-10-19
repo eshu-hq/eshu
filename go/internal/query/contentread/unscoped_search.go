@@ -6,6 +6,7 @@ package contentread
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/tracing"
@@ -113,7 +114,9 @@ func (h *ContentHandler) searchEntitiesUnscoped(
 		return
 	}
 	cursor := req.cursor()
+	pgStart := time.Now()
 	page, err := searcher.SearchEntitiesUnscoped(ctx, req.pattern(), req.limit(), req.offset(), cursor)
+	querycontract.ObservePG(ctx, time.Since(pgStart))
 	if err != nil {
 		h.writeEntitySearchError(w, r, err)
 		return

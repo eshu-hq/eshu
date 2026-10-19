@@ -35,12 +35,23 @@ metric API.
 instruments resolve inside a `sync.Once` on first use, not in a package var,
 so a test that installs its own meter provider first still records to it.
 Unchanged by the #6642 move. The middleware also announces and sets a
-`Server-Timing: total;dur=<ms>` trailer per request (a trailer, not a header,
-because headers flush on the handler's first Write); see `request.go` and
-`request_timing_test.go` (#7733). The announcement is gated: 1xx/204/304,
-HEAD, and handlers that return without writing never announce, because a
-`Trailer` header on a bodyless response crashes Node-based proxies
-(`ERR_HTTP_TRAILER_INVALID`, seen on a 204 in the SSO E2E gate).
+`Server-Timing: total;dur=<ms>, pg;dur=<ms>, graph;dur=<ms>` trailer per
+request (a trailer, not a header, because headers flush on the handler's
+first Write); see `request.go` and `request_timing_test.go` (#7733). The
+announcement is gated: 1xx/204/304, HEAD, and handlers that return without
+writing never announce, because a `Trailer` header on a bodyless response
+crashes Node-based proxies (`ERR_HTTP_TRAILER_INVALID`, seen on a 204 in
+the SSO E2E gate). The `total` stage is the handler wall time; `pg` and
+`graph` are the request's accumulated content-store and graph store-call
+time, recorded through the context-carried stage clock
+(`querycontract.RequestStages`, installed by the middleware) by the search
+seams on `POST /api/v0/code/search` and
+`POST /api/v0/content/entities/search` (including any other route sharing
+a seam, such as `POST /api/v0/code/symbols/search`). Stage semantics: each stage sums
+its own calls, so parallel store calls add and `pg`+`graph` may exceed
+`total`; durations never enter metric labels, so no label cardinality grows
+with traffic. Full operator semantics live in
+`docs/public/reference/http-api/request-timing.md`.
 
 ## Gotchas / invariants
 
