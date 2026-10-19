@@ -51,6 +51,13 @@ type Config struct {
 	ExtensionEgressPolicy   egress.ExtensionPolicy
 	TenantBoundary          WorkflowTenantBoundary
 	CollectorInstances      []workflow.DesiredCollectorInstance
+	// QuotaLookup resolves the enforced per-component generation quota for
+	// a collector kind (#8471, #8561). It is built from the admitted
+	// component manifests with the operator override applied per field,
+	// and run() passes it straight into the WorkflowControlStore. It is
+	// always non-nil; with nothing to enforce every kind reports
+	// unthrottled and claims keep the plain statement.
+	QuotaLookup workflow.QuotaLookup
 }
 
 // LoadConfig parses the workflow coordinator config from environment without
@@ -155,11 +162,19 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	if err != nil {
 		return Config{}, fmt.Errorf("parse ESHU_COLLECTOR_INSTANCES_JSON: %w", err)
 	}
-	componentInstances, err := componentCollectorInstancesFromEnv(getenv, observer)
+	componentInstances, admittedManifests, err := componentCollectorInstancesFromEnv(getenv, observer)
 	if err != nil {
 		return Config{}, err
 	}
 	instances, err = mergeCollectorInstances(instances, componentInstances)
+	if err != nil {
+		return Config{}, err
+	}
+	quotaOverride, err := componentQuotaOverrideFromEnv(getenv)
+	if err != nil {
+		return Config{}, err
+	}
+	quotaLookup, err := buildComponentQuotaLookup(admittedManifests, quotaOverride)
 	if err != nil {
 		return Config{}, err
 	}
@@ -181,6 +196,7 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 		ExtensionEgressPolicy:          extensionEgressPolicy,
 		TenantBoundary:                 tenantBoundary,
 		CollectorInstances:             instances,
+		QuotaLookup:                    quotaLookup,
 	}
 	cfg = cfg.withDefaults()
 	if err := cfg.Validate(); err != nil {

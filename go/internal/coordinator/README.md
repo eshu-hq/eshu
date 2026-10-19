@@ -106,7 +106,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `Config` — runtime settings: `DeploymentMode`, `ClaimsEnabled`,
   `ReconcileInterval`, `RunReconcileInterval`, `ReapInterval`,
   `ClaimLeaseTTL`, `HeartbeatInterval`, `ExpiredClaimLimit`,
-  `ExpiredClaimRequeueDelay`, `CollectorEgressPolicy`, `CollectorInstances`.
+  `ExpiredClaimRequeueDelay`, `CollectorEgressPolicy`, `CollectorInstances`, `QuotaLookup`.
 - `LoadConfig(getenv)` — parses all `ESHU_WORKFLOW_COORDINATOR_*` and
   `ESHU_COLLECTOR_INSTANCES_JSON` env vars into a validated `Config`. `LoadConfigObserved(getenv, observer)` also reports component grant decisions (#7153; see `doc.go`).
 - `MetricPrefix` — the OTEL instrument namespace

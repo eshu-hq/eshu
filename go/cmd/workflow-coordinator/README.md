@@ -106,6 +106,13 @@ for the full list. Key env vars:
   `policy_revision_hash`; when set, planned work must intersect an active
   tenant scope grant before any claimable row is created
 - ESHU_COLLECTOR_INSTANCES_JSON — JSON array of collector instance objects
+- ESHU_COMPONENT_QUOTA_MAX_GENERATIONS_PER_HOUR — optional uniform operator
+  override for the per-component generations-per-hour claim quota (#8561);
+  wins over every admitted manifest declaration, blank keeps the manifests,
+  and a set-but-invalid value fails startup
+- ESHU_COMPONENT_QUOTA_MAX_FACTS_PER_GENERATION — optional uniform operator
+  override for the per-component facts-per-generation quota (#8561); declared
+  and validated today, not runtime-enforced, blank keeps the manifests
 - ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED — turns the egress-gated
   semantic-provider execution worker claim loop on; default `false` (no-op when
   unset)

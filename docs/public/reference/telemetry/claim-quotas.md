@@ -6,6 +6,18 @@ A component's `spec.quotas.maxGenerationsPerHour` bound is enforced per
 with items in N scopes can grant up to N times the limit per hour. An
 over-quota scope is throttled even on an idle system, and the reservation
 shares the grant transaction so concurrent coordinators cannot overshoot.
+
+The coordinator builds its claim-path lookup at startup from the admitted
+component manifests (#8561): one manifest fans out to every collector kind
+it declares, and one kind gets one budget — conflicting declarations for
+the same kind fail startup with the kind named. The uniform operator
+override wins per field over every admitted manifest:
+`ESHU_COMPONENT_QUOTA_MAX_GENERATIONS_PER_HOUR` (and
+`ESHU_COMPONENT_QUOTA_MAX_FACTS_PER_GENERATION`, declared and validated
+today but not runtime-enforced). Blank keeps the manifests; a set-but-invalid
+value fails startup. Manifest or override changes need a coordinator
+restart, since the lookup is built once at startup.
+
 Two signals make a throttled system distinguishable from a slow one.
 
 - `eshu_dp_workflow_claim_quota_exceeded_total` — counter of claims that found
