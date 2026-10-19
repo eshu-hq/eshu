@@ -199,8 +199,9 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/reducer/workload/retract/delete_effectiveness_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged #8517 P1 live proof gated by env Skip (ESHU_CYPHER_BOLT_DSN/ESHU_NEO4J_URI); six retract shapes 1 -> 0 on neo4j:2026-community in 0.208 s local — promote to blocking with CI timing evidence"
+    class: ci
+    reason: "deterministic nonce-scoped #8517 P1 proof: bare DELETE and the production retract clear all six shapes (RUNS_ON single-repo, DEFINES via RepositoryEdges, DEPENDS_ON, RUNS_IN, DOCUMENTS, cloud-USES scope-wide via the commitEdges writer path) with a settling loop on every read; local neo4j:2026-community run took 0.208 s on a shared host; pinned to Neo4j, the supported graph backend, since relationship DELETE is inert on NornicDB"
+    backends: neo4j
   - file: go/internal/reducer/regeneration_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
