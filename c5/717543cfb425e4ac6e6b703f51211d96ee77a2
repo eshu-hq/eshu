@@ -1,0 +1,14 @@
+go/internal/reducer/evidence-6626-tail-bucket1-service-catalogidu.md
+  h_78a442cba0b3e6 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c5717543cfb425e4ac6e6b703f51211d96ee77a2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
