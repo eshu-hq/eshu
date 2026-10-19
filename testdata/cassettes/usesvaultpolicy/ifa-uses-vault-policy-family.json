@@ -62,11 +62,16 @@
           "fact_kind": "aws_iam_trust_policy",
           "fencing_token": 1,
           "payload": {
+            "account_id": "123456789012",
             "actions": [
               "sts:assumerolewithwebidentity"
             ],
+            "collector_instance_id": "collector-secrets-iam-fixture",
             "effect": "Allow",
+            "policy_source": "trust",
             "provider": "aws_iam",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "region": "us-east-1",
             "role_arn": "arn:aws:iam::123456789012:role/uses-app-a",
             "web_identity_subject_fingerprints": [
               "sha256:uses-web-identity-subject-a"
@@ -153,14 +158,19 @@
           "fact_kind": "aws_iam_trust_policy",
           "fencing_token": 1,
           "payload": {
+            "account_id": "123456789012",
             "actions": [
               "sts:AssumeRole"
             ],
             "assume_principals": [
               "pods.eks.amazonaws.com"
             ],
+            "collector_instance_id": "collector-secrets-iam-fixture",
             "effect": "Allow",
+            "policy_source": "trust",
             "provider": "aws_iam",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "region": "us-east-1",
             "role_arn": "arn:aws:iam::123456789012:role/uses-app-b"
           },
           "schema_version": "1.0.0",
@@ -243,11 +253,16 @@
           "fact_kind": "aws_iam_trust_policy",
           "fencing_token": 1,
           "payload": {
+            "account_id": "123456789012",
             "actions": [
               "sts:assumerolewithwebidentity"
             ],
+            "collector_instance_id": "collector-secrets-iam-fixture",
             "effect": "Allow",
+            "policy_source": "trust",
             "provider": "aws_iam",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "region": "us-east-1",
             "role_arn": "arn:aws:iam::123456789012:role/uses-app-c",
             "web_identity_subject_fingerprints": [
               "sha256:uses-web-identity-subject-c"
@@ -331,11 +346,16 @@
           "fact_kind": "aws_iam_trust_policy",
           "fencing_token": 1,
           "payload": {
+            "account_id": "123456789012",
             "actions": [
               "sts:assumerolewithwebidentity"
             ],
+            "collector_instance_id": "collector-secrets-iam-fixture",
             "effect": "Allow",
+            "policy_source": "trust",
             "provider": "aws_iam",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "region": "us-east-1",
             "role_arn": "arn:aws:iam::123456789012:role/uses-app-d",
             "web_identity_subject_fingerprints": [
               "sha256:uses-web-identity-subject-d"
@@ -402,14 +422,19 @@
           "fact_kind": "aws_iam_trust_policy",
           "fencing_token": 1,
           "payload": {
+            "account_id": "123456789012",
             "actions": [
               "sts:AssumeRole"
             ],
             "assume_principals": [
               "pods.eks.amazonaws.com"
             ],
+            "collector_instance_id": "collector-secrets-iam-fixture",
             "effect": "Allow",
+            "policy_source": "trust",
             "provider": "aws_iam",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "region": "us-east-1",
             "role_arn": "arn:aws:iam::123456789012:role/uses-app-e"
           },
           "schema_version": "1.0.0",
@@ -489,11 +514,16 @@
           "fact_kind": "aws_iam_trust_policy",
           "fencing_token": 1,
           "payload": {
+            "account_id": "123456789012",
             "actions": [
               "sts:assumerolewithwebidentity"
             ],
+            "collector_instance_id": "collector-secrets-iam-fixture",
             "effect": "Deny",
+            "policy_source": "trust",
             "provider": "aws_iam",
+            "redaction_policy_version": "secrets_iam_posture_v1",
+            "region": "us-east-1",
             "role_arn": "arn:aws:iam::123456789012:role/uses-app-f",
             "web_identity_subject_fingerprints": [
               "sha256:uses-web-identity-subject-f"

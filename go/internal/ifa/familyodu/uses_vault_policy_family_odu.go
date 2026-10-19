@@ -22,9 +22,8 @@ import (
 //
 // Facts are built as typed secretsiamv1 / iamv1 values and encoded through
 // the shared fixture seam, never as hand-built maps (Contract System v1).
-// The aws_iam_trust_policy facts have no typed struct yet, so they stay raw
-// maps read the way the reducer reads them -- that is the incremental
-// migration, not a violation.
+// The aws_iam_trust_policy facts use the secretsiamv1.AWSIAMTrustPolicy
+// struct with the full source context the schema requires.
 //
 // Every fact shares one scope generation: the trust-chain handler loads one
 // scope generation's source facts, so a fixture spanning scopes would not
@@ -110,6 +109,50 @@ func appendUsesVaultPolicyVaultRole(factsForOdu *[]facts.Envelope, oduName, scop
 	))
 }
 
+// appendUsesWebIdentityTrust appends the aws_iam_trust_policy fact carrying
+// the web-identity subject the reducer's exactWebIdentityTrust reads, with
+// the full source context the schema requires.
+func appendUsesWebIdentityTrust(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, roleARN, subject, effect string, wildcard bool) {
+	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
+		oduName, factsidentity.AWSIAMTrustPolicyFactKind,
+		scopeID, generationID, roleARN+":"+effect,
+		mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.AWSIAMTrustPolicy{
+			AccountID:                      "123456789012",
+			Region:                         "us-east-1",
+			Provider:                       "aws_iam",
+			CollectorInstanceID:            "collector-secrets-iam-fixture",
+			RedactionPolicyVersion:         "secrets_iam_posture_v1",
+			RoleARN:                        roleARN,
+			PolicySource:                   "trust",
+			Effect:                         effect,
+			Actions:                        []string{"sts:assumerolewithwebidentity"},
+			WebIdentitySubjectFingerprints: []string{subject},
+			WebIdentitySubjectWildcard:     &wildcard,
+		}),
+	))
+}
+
+// appendUsesPodIdentityTrust appends the Pod Identity trust fact with the
+// full source context the schema requires.
+func appendUsesPodIdentityTrust(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, roleARN string) {
+	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
+		oduName, factsidentity.AWSIAMTrustPolicyFactKind,
+		scopeID, generationID, roleARN+":pod-identity",
+		mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.AWSIAMTrustPolicy{
+			AccountID:              "123456789012",
+			Region:                 "us-east-1",
+			Provider:               "aws_iam",
+			CollectorInstanceID:    "collector-secrets-iam-fixture",
+			RedactionPolicyVersion: "secrets_iam_posture_v1",
+			RoleARN:                roleARN,
+			PolicySource:           "trust",
+			Effect:                 "Allow",
+			Actions:                []string{"sts:AssumeRole"},
+			AssumePrincipals:       []string{"pods.eks.amazonaws.com"},
+		}),
+	))
+}
+
 // UsesVaultPolicyFamilyOdu builds the cataloged Odù for the
 // uses_vault_policy direct-materialization family.
 //
@@ -181,43 +224,13 @@ func UsesVaultPolicyFamilyOdu() CatalogOdu {
 			}),
 		))
 	}
-	// addWebIdentityTrust appends a raw-map aws_iam_trust_policy fact: the
-	// kind has no typed struct yet, so the map mirrors exactly what the
-	// reducer's exactWebIdentityTrust reads.
-	addWebIdentityTrust := func(roleARN, subject, effect string, wildcard bool) {
-		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
-			oduName, factsidentity.AWSIAMTrustPolicyFactKind,
-			scopeID, generationID, roleARN+":"+effect,
-			map[string]any{
-				"provider":                          "aws_iam",
-				"role_arn":                          roleARN,
-				"effect":                            effect,
-				"actions":                           []string{"sts:assumerolewithwebidentity"},
-				"web_identity_subject_fingerprints": []string{subject},
-				"web_identity_subject_wildcard":     wildcard,
-			},
-		))
-	}
-	addPodIdentityTrust := func(roleARN string) {
-		factsForOdu = append(factsForOdu, newSecretsIAMFixtureEnvelope(
-			oduName, factsidentity.AWSIAMTrustPolicyFactKind,
-			scopeID, generationID, roleARN+":pod-identity",
-			map[string]any{
-				"provider":          "aws_iam",
-				"role_arn":          roleARN,
-				"effect":            "Allow",
-				"actions":           []string{"sts:AssumeRole"},
-				"assume_principals": []string{"pods.eks.amazonaws.com"},
-			},
-		))
-	}
 	// Lane A, EDGES: IRSA web-identity exact chain whose role carries two
 	// token policies, fanning out to two uses edges.
 	addServiceAccount(usesFamilyServiceAccountA)
 	addWorkloadUse(usesFamilyServiceAccountA, "a")
 	addIRSA(usesFamilyServiceAccountA, usesFamilyRoleARNA, usesFamilySubjectA)
 	addPrincipal(usesFamilyRoleARNA)
-	addWebIdentityTrust(usesFamilyRoleARNA, usesFamilySubjectA, "Allow", false)
+	appendUsesWebIdentityTrust(&factsForOdu, oduName, scopeID, generationID, usesFamilyRoleARNA, usesFamilySubjectA, "Allow", false)
 	appendUsesVaultPolicyVaultRole(&factsForOdu, oduName, scopeID, generationID,
 		usesFamilyVaultRole1, []string{usesFamilyServiceAccountA}, false,
 		[]string{usesFamilyVaultPolicy1, usesFamilyVaultPolicy2})
@@ -228,7 +241,7 @@ func UsesVaultPolicyFamilyOdu() CatalogOdu {
 	addWorkloadUse(usesFamilyServiceAccountB, "b")
 	addPodIdentity(usesFamilyServiceAccountB, usesFamilyRoleARNB)
 	addPrincipal(usesFamilyRoleARNB)
-	addPodIdentityTrust(usesFamilyRoleARNB)
+	appendUsesPodIdentityTrust(&factsForOdu, oduName, scopeID, generationID, usesFamilyRoleARNB)
 	appendUsesVaultPolicyVaultRole(&factsForOdu, oduName, scopeID, generationID,
 		usesFamilyVaultRole2, []string{usesFamilyServiceAccountB}, false,
 		[]string{usesFamilyVaultPolicy3})
@@ -239,7 +252,7 @@ func UsesVaultPolicyFamilyOdu() CatalogOdu {
 	addWorkloadUse(usesFamilyServiceAccountC, "c")
 	addIRSA(usesFamilyServiceAccountC, usesFamilyRoleARNC, usesFamilySubjectC)
 	addPrincipal(usesFamilyRoleARNC)
-	addWebIdentityTrust(usesFamilyRoleARNC, usesFamilySubjectC, "Allow", false)
+	appendUsesWebIdentityTrust(&factsForOdu, oduName, scopeID, generationID, usesFamilyRoleARNC, usesFamilySubjectC, "Allow", false)
 
 	// NO EDGE: a Vault role bound to a service account nobody observed
 	// never joins any chain.
@@ -252,7 +265,7 @@ func UsesVaultPolicyFamilyOdu() CatalogOdu {
 	addWorkloadUse(usesFamilyServiceAccountD, "d")
 	addIRSA(usesFamilyServiceAccountD, usesFamilyRoleARND, usesFamilySubjectD)
 	addPrincipal(usesFamilyRoleARND)
-	addWebIdentityTrust(usesFamilyRoleARND, usesFamilySubjectD, "Allow", true)
+	appendUsesWebIdentityTrust(&factsForOdu, oduName, scopeID, generationID, usesFamilyRoleARND, usesFamilySubjectD, "Allow", true)
 
 	// Lane E, NO EDGE: a wildcard Vault bound-service-account selector
 	// refuses the exact join, so the role contributes no chain.
@@ -260,7 +273,7 @@ func UsesVaultPolicyFamilyOdu() CatalogOdu {
 	addWorkloadUse(usesFamilyServiceAccountE, "e")
 	addPodIdentity(usesFamilyServiceAccountE, usesFamilyRoleARNE)
 	addPrincipal(usesFamilyRoleARNE)
-	addPodIdentityTrust(usesFamilyRoleARNE)
+	appendUsesPodIdentityTrust(&factsForOdu, oduName, scopeID, generationID, usesFamilyRoleARNE)
 	appendUsesVaultPolicyVaultRole(&factsForOdu, oduName, scopeID, generationID,
 		usesFamilyVaultRole4, []string{usesFamilyServiceAccountE}, true, nil)
 
@@ -269,7 +282,7 @@ func UsesVaultPolicyFamilyOdu() CatalogOdu {
 	addWorkloadUse(usesFamilyServiceAccountF, "f")
 	addIRSA(usesFamilyServiceAccountF, usesFamilyRoleARNF, usesFamilySubjectF)
 	addPrincipal(usesFamilyRoleARNF)
-	addWebIdentityTrust(usesFamilyRoleARNF, usesFamilySubjectF, "Deny", false)
+	appendUsesWebIdentityTrust(&factsForOdu, oduName, scopeID, generationID, usesFamilyRoleARNF, usesFamilySubjectF, "Deny", false)
 	appendUsesVaultPolicyVaultRole(&factsForOdu, oduName, scopeID, generationID,
 		usesFamilyVaultRole5, []string{usesFamilyServiceAccountF}, false, nil)
 

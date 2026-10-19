@@ -22,9 +22,8 @@ import (
 //
 // Facts are built as typed secretsiamv1 / iamv1 values and encoded through
 // the shared fixture seam, never as hand-built maps (Contract System v1).
-// The aws_iam_trust_policy facts have no typed struct yet, so they stay raw
-// maps read the way the reducer reads them -- that is the incremental
-// migration, not a violation.
+// The aws_iam_trust_policy facts use the secretsiamv1.AWSIAMTrustPolicy
+// struct with the full source context the schema requires.
 //
 // Every fact shares one scope generation: the trust-chain handler loads one
 // scope generation's source facts, so a fixture spanning scopes would not
@@ -154,36 +153,47 @@ func appendAuthPrincipal(factsForOdu *[]facts.Envelope, oduName, scopeID, genera
 	))
 }
 
-// appendAuthWebIdentityTrust appends a raw-map aws_iam_trust_policy fact: the
-// kind has no typed struct yet, so the map mirrors exactly what the
-// reducer's exactWebIdentityTrust reads.
+// appendAuthWebIdentityTrust appends the aws_iam_trust_policy fact carrying
+// the web-identity subject the reducer's exactWebIdentityTrust reads, with
+// the full source context the schema requires.
 func appendAuthWebIdentityTrust(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, roleARN, subject, effect string, wildcard bool) {
 	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
 		oduName, factsidentity.AWSIAMTrustPolicyFactKind,
 		scopeID, generationID, roleARN+":"+effect,
-		map[string]any{
-			"provider":                          "aws_iam",
-			"role_arn":                          roleARN,
-			"effect":                            effect,
-			"actions":                           []string{"sts:assumerolewithwebidentity"},
-			"web_identity_subject_fingerprints": []string{subject},
-			"web_identity_subject_wildcard":     wildcard,
-		},
+		mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.AWSIAMTrustPolicy{
+			AccountID:                      "123456789012",
+			Region:                         "us-east-1",
+			Provider:                       "aws_iam",
+			CollectorInstanceID:            "collector-secrets-iam-fixture",
+			RedactionPolicyVersion:         "secrets_iam_posture_v1",
+			RoleARN:                        roleARN,
+			PolicySource:                   "trust",
+			Effect:                         effect,
+			Actions:                        []string{"sts:assumerolewithwebidentity"},
+			WebIdentitySubjectFingerprints: []string{subject},
+			WebIdentitySubjectWildcard:     &wildcard,
+		}),
 	))
 }
 
-// appendAuthPodIdentityTrust appends the raw-map Pod Identity trust fact.
+// appendAuthPodIdentityTrust appends the Pod Identity trust fact with the
+// full source context the schema requires.
 func appendAuthPodIdentityTrust(factsForOdu *[]facts.Envelope, oduName, scopeID, generationID, roleARN string) {
 	*factsForOdu = append(*factsForOdu, newSecretsIAMFixtureEnvelope(
 		oduName, factsidentity.AWSIAMTrustPolicyFactKind,
 		scopeID, generationID, roleARN+":pod-identity",
-		map[string]any{
-			"provider":          "aws_iam",
-			"role_arn":          roleARN,
-			"effect":            "Allow",
-			"actions":           []string{"sts:AssumeRole"},
-			"assume_principals": []string{"pods.eks.amazonaws.com"},
-		},
+		mustEncodeSecretsIAMFixturePayload(oduName, secretsiamv1.AWSIAMTrustPolicy{
+			AccountID:              "123456789012",
+			Region:                 "us-east-1",
+			Provider:               "aws_iam",
+			CollectorInstanceID:    "collector-secrets-iam-fixture",
+			RedactionPolicyVersion: "secrets_iam_posture_v1",
+			RoleARN:                roleARN,
+			PolicySource:           "trust",
+			Effect:                 "Allow",
+			Actions:                []string{"sts:AssumeRole"},
+			AssumePrincipals:       []string{"pods.eks.amazonaws.com"},
+		}),
 	))
 }
 
