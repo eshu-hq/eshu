@@ -114,6 +114,23 @@ for tool_script in scripts/verify-runtime-image-tools.sh scripts/test-verify-run
   rg -q '^chart=false$' "${scratch}/output"
   rg -q '^apkfloors=false$' "${scratch}/output"
 done
+# The reproducibility build asserts the canonical mirror digests from
+# specs/ci-images.v1.json and feeds them to the runtime image build, so a
+# change to either file must select the image lane (whose
+# verify-reproducibility job consumes both). Otherwise the registry selects
+# docker-image-reproducibility while every publish job skips, and the
+# aggregator fails closed (#8397).
+for repro_file in specs/ci-images.v1.json scripts/ci/build-reproducibility-image.sh; do
+  repro_base="$(git -C "${repo}" rev-parse HEAD)"
+  mkdir -p "${repo}/$(dirname "${repro_file}")"
+  printf '# repro\n' > "${repo}/${repro_file}"
+  git -C "${repo}" add "${repro_file}"
+  git -C "${repo}" commit -qm "${repro_file##*/}"
+  run_selection pull_request "$(git -C "${repo}" rev-parse HEAD)" "${repro_base}"
+  rg -q '^image=true$' "${scratch}/output"
+  rg -q '^chart=false$' "${scratch}/output"
+  rg -q '^apkfloors=false$' "${scratch}/output"
+done
 printf 'version: 1.2.3\n' > "${repo}/deploy/helm/eshu/Chart.yaml"
 printf 'chart bytes\n' > "${repo}/dist/eshu-1.2.3.tgz"
 cat > "${scratch}/helm" <<'STUB'

@@ -48,6 +48,14 @@ while IFS= read -r path; do
     scripts/verify-runtime-image-tools.sh|scripts/test-verify-runtime-image-tools.sh)
       image=true
       ;;
+    # The reproducibility build asserts the canonical mirror digests from
+    # specs/ci-images.v1.json and feeds them to the runtime image build, so a
+    # change to either file must run the image lane (build + reproducibility).
+    # Without this the registry selects docker-image-reproducibility while
+    # every publish job skips, and the aggregator fails closed.
+    specs/ci-images.v1.json|scripts/ci/build-reproducibility-image.sh)
+      image=true
+      ;;
     go/*)
       if [[ "${merge_group_lane}" == false ]]; then
         image=true
