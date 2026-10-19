@@ -411,3 +411,51 @@ all-scope controls (granted-repository not_found rows):
 No-Regression Evidence: `docker-compose.e2e.yaml` is the test-only stack behind the auth, MCP and SSO e2e suites. It is not a runtime deployment profile. It now runs `neo4j:2026-community` (digest-pinned through `docker-compose.neo4j.yml`) in place of NornicDB. These results are author-reported from live runs on that stack. At `7664283f3` the full auth/MCP suite passed 40/40 and the SSO suite passed 24/24. Both runs predate the healthcheck window (`start_period: 120s`, `retries: 30`); the sensitivity gate passed after it was added. At `2eb226f58` the catalog sweep passed 167/167 twice and the full suite passed 40/40 (the earlier 166/167 at `136d75646` failed only on `count_infra_resources`, fixed by #7239). The sweep cases were restated for route promotions, as the sections above describe. Besides the backend swap, the stack drops the host graph ports, renames the graph volume and gives db-migrate a neo4j dependency. It changes no production path.
 
 No-Observability-Change: the change touches only test-stack wiring. It adds no runtime metric, span, log key, status field or worker behaviour. Suite results are reported through the existing e2e runner report and step lines.
+
+## Run at `eeaa4d6bcc` (sweep gate): 168/168 on Neo4j
+
+- **Stack commit:** `eeaa4d6bcc` (branch `feat/5167-scoped-routes`): new
+  `scripts/verify-scoped-route-catalog-sweep.sh` gate (+ hermetic mirror),
+  `ESHU_QUERY_PROFILE` interpolation (empty default) for the eshu and
+  mcp-server services in `docker-compose.e2e.yaml`, the typed 404 for
+  unresolvable compare endpoints, and two `not_found` sweep accepts. The
+  graph is **Neo4j** (`neo4j:2026-community` native arm64, same digest as
+  above); Postgres `postgres:18-alpine`; Eshu and MCP images built from that
+  commit by `up --build`. Host: linux arm64, 16 CPUs, load average about 20
+  during the run (shared host; step times are not comparable to idle hosts).
+  The stack was torn down with `down -v` by the runner.
+- **Command:** `bash scripts/verify-scoped-route-catalog-sweep.sh` (exit 0).
+  It runs `scripts/run-auth-mcp-e2e.sh --module catalog-sweep` with
+  `ESHU_QUERY_PROFILE=local_full_stack`, then re-judges
+  `e2e-artifacts/auth-mcp-e2e-catalog-sweep.json` and exits nonzero on any
+  undocumented 403.
+- **Exit:** 0. 10/10 steps in 13.8 s (per-tool step 6.9 s).
+- **Result:** `PASS exercised=168 routes=164 refused=2 strict=135 tolerant=31
+  errors=0`: 167 tools listed to the scoped token, 168/168 calls passed
+  (135 `ok`, 31 tolerant with 7 all-scope controls SAME, 2 shared-key-only
+  disclosed 403s, pending_row_filtering 0). The token resolved through roles
+  `["e2e_catalog_sweep_reader","owner"]` with the permission catalog
+  enforced, and the negative control passed unchanged. The two rows the
+  profile switch exposed now pass: `compare_code_paths` answers the typed
+  `not_found` for the unseeded endpoints (was HTTP 500), and
+  `investigate_code_divergence` answers `not_found`.
+- **No-Regression Evidence:** baseline is the `2eb226f58` full-surface run
+  above (167 tools listed, 167/167). After this change the sweep lists the
+  same full surface (167 tools) and passes 168/168 on the same Neo4j digest.
+  The compose keys render `ESHU_QUERY_PROFILE: ""` by default (checked with
+  `docker compose -f docker-compose.e2e.yaml config` with and without the
+  variable), so every other suite keeps the production default byte for
+  byte; only the sweep run exports `local_full_stack`. The handler change
+  short-circuits the previously-500 miss path to a 404 before any graph
+  work is issued, so it cannot add load to the hot path. `go test
+  ./internal/mcp ./internal/query/codequery` is green, including the new
+  `TestCodeHandlerCompareCodePathsUnseededEndpointsAreNotFound` (failed with
+  500 before the fix) and the unchanged reason-guard RED/GREEN pairs. No
+  Cypher, worker, queue, lease, or knob changed, and no route was added or
+  moved: the exhaustiveness gate still reports 164 distinct dispatched
+  routes (162 allowlisted, 2 shared-key-only, Group B empty).
+- **No-Observability-Change:** the 404 reuses the existing `WriteError`
+  envelope path the divergence routes already answer; no new span, metric,
+  log key, status field, or worker behaviour (the compare handler carries
+  no span by design, as noted in code). Sweep results flow through the
+  existing runner report plus the new wrapper's stdout counts.
