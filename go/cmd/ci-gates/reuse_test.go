@@ -169,6 +169,28 @@ func TestProbeReuse_RejectsNonSHAHead(t *testing.T) {
 	}
 }
 
+// The repo gate is the only thing between --repo and REST path
+// interpolation: dot segments must not pass as an owner or name.
+func TestValidRepoName(t *testing.T) {
+	t.Parallel()
+
+	for repo, want := range map[string]bool{
+		"eshu-hq/eshu":    true,
+		"owner.name/repo": true,
+		"../x":            false,
+		"x/..":            false,
+		"./x":             false,
+		"a../x":           false,
+		"noslash":         false,
+		"a/b/c":           false,
+		"":                false,
+	} {
+		if got := validRepoName(repo); got != want {
+			t.Errorf("validRepoName(%q) = %v, want %v", repo, got, want)
+		}
+	}
+}
+
 func TestProbeReuse_GHErrorFailsClosed(t *testing.T) {
 	t.Parallel()
 
