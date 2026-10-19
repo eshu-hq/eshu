@@ -59,6 +59,8 @@ func main() {
 		err = runCompare(args)
 	case "review-attest":
 		err = runReviewAttest(args)
+	case "reuse":
+		err = runReuse(args)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "ci-gates: unknown subcommand %q\n", sub)
 		usage(os.Stderr)

@@ -17,9 +17,10 @@
 //	ci-gates uncovered — print changed paths without local category coverage
 //	ci-gates layers   — print the "Gates by layer" section of the gates reference
 //	ci-gates review-attest — bind and verify the exact inputs of a semantic review
+//	ci-gates reuse    — probe whether a previous PR head already proved this tree green
 //
 // The backing registry is specs/ci-gates.v1.yaml, loaded and validated by the
-// internal/cigates package. Await and queue-select use GitHub APIs; the other
+// internal/cigates package. Await, queue-select, and reuse use GitHub APIs; the other
 // subcommands are credential-free and work offline once the repo is cloned.
 // No subcommand requires Docker directly.
 //
@@ -137,4 +138,15 @@
 // gate already runs, so it races exactly those without double-racing
 // registry-owned packages. A CI-only gate (no local command) does not count as
 // covering.
+//
+// # reuse
+//
+// Probes whether a previous head of the same pull request already proved the
+// current head's exact git tree green on every required status context
+// (#8617). Candidates are the head a force-push replaced and the first
+// parent; tree equality plus a success verdict from every reporting source
+// (latest check run and latest commit status per context) is required, and
+// anything else fails closed. It prints reuse/source_sha/tree/reason lines
+// for workflow outputs and is bounded to two minutes: probe failure means
+// "run the gates", never a verdict.
 package main
