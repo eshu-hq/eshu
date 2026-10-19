@@ -94,7 +94,13 @@ func contentFileCopyRows(rows []ContentFileSeedRow, now time.Time) [][]any {
 	out := make([][]any, 0, len(rows))
 	for _, row := range rows {
 		sum := sha256.Sum256([]byte(row.RepoID + "\x00" + row.RelativePath + "\x00" + row.Content))
-		lines := strings.Count(row.Content, "\n") + 1
+		// Mirror the production writer rule (content_writer_upserts.go):
+		// a trailing newline terminates the last line instead of
+		// starting a new one.
+		lines := strings.Count(row.Content, "\n")
+		if row.Content != "" && !strings.HasSuffix(row.Content, "\n") {
+			lines++
+		}
 		out = append(out, []any{
 			row.RepoID, row.RelativePath, "seed",
 			row.Content, fmt.Sprintf("%x", sum), lines,

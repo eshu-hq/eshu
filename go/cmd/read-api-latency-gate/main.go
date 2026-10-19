@@ -370,7 +370,7 @@ func seed(ctx context.Context, opts runOptions) error {
 	}
 	fmt.Fprintf(os.Stderr, "read-api-latency-gate: finalizing deferred content search indexes after the bulk content drain\n")
 	if err := finalizeContentSearchIndexes(ctx, opts.postgresDSN); err != nil {
-		return fmt.Errorf("finalize content search indexes: %w", err)
+		return fmt.Errorf("seed content search index finalization: %w", err)
 	}
 	if err := VerifyContentSearchReadiness(ctx, pool); err != nil {
 		return fmt.Errorf("verify content search readiness: %w", err)

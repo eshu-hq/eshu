@@ -200,13 +200,13 @@ func gatedFixture(n int) ([]File, []int) {
 }
 
 // TestChunkedReadKeepsAtMostEightChunksInFlight proves the fan-out bound on a
-// call with more chunks than the bound (400 paths, 8 fifty-path chunks): the
-// pass reaches eight reads at once and never nine.
+// call with more chunks than the bound (450 paths, 9 fifty-path chunks):
+// eight reads start, the ninth must wait, and the peak never exceeds 8.
 func TestChunkedReadKeepsAtMostEightChunksInFlight(t *testing.T) {
 	t.Parallel()
 
 	store := newGatedBatchStore()
-	files, indexes := gatedFixture(400)
+	files, indexes := gatedFixture(450)
 	var stats ReadStats
 	done := make(chan error, 1)
 	go func() {
@@ -226,8 +226,8 @@ func TestChunkedReadKeepsAtMostEightChunksInFlight(t *testing.T) {
 	if store.peak != 8 {
 		t.Fatalf("peak concurrent reads = %d, want 8", store.peak)
 	}
-	if store.calls != 8 || stats.BatchStatements != 8 {
-		t.Fatalf("statements = %d (stats %d), want 8 chunks", store.calls, stats.BatchStatements)
+	if store.calls != 9 || stats.BatchStatements != 9 {
+		t.Fatalf("statements = %d (stats %d), want 9 chunks", store.calls, stats.BatchStatements)
 	}
 	if stats.BatchChunksInFlightMax != 8 {
 		t.Fatalf("stats.BatchChunksInFlightMax = %d, want 8", stats.BatchChunksInFlightMax)

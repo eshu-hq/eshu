@@ -59,10 +59,27 @@ func TestPilotOperationsAreImplementedInventoryRoutes(t *testing.T) {
 	if got := operations["GET /api/v0/repositories/{repo_id}/story"].Path; got != "/api/v0/repositories/"+SeedStoryAnchorID+"/story" {
 		t.Fatalf("story path = %q, want the seeded anchor", got)
 	}
+	toolNames := map[string]bool{}
+	for _, surface := range inventory.Surfaces {
+		if surface.Category == capabilitycatalog.SurfaceMCPTool && surface.Readiness == capabilitycatalog.ReadinessImplemented {
+			toolNames[surface.Name] = true
+		}
+	}
 	for _, id := range []string{"MCP search_file_content", "MCP search_entity_content"} {
 		op, ok := operations[id]
 		if !ok || !op.MCP || op.Path != "/mcp/message" || op.Expect == "" {
 			t.Fatalf("pilot %s = %+v, want an MCP operation with an Expect contract", id, op)
+		}
+		var envelope struct {
+			Params struct {
+				Name string `json:"name"`
+			} `json:"params"`
+		}
+		if err := json.Unmarshal([]byte(op.Body), &envelope); err != nil {
+			t.Fatalf("pilot %s Body is not JSON: %v", id, err)
+		}
+		if !toolNames[envelope.Params.Name] {
+			t.Fatalf("pilot %s tool %q is not an implemented inventory MCP tool", id, envelope.Params.Name)
 		}
 	}
 }

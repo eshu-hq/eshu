@@ -169,8 +169,10 @@ func TestContentFileCopyRowsShapeOneRow(t *testing.T) {
 	if len(rows) != 1 || len(rows[0]) != len(contentFileColumns) {
 		t.Fatalf("shaped row = %v, want %d columns", rows, len(contentFileColumns))
 	}
-	if rows[0][5] != 3 {
-		t.Errorf("line_count = %v, want 3", rows[0][5])
+	// Two newlines with a trailing newline is two lines under the
+	// production writer rule, not three.
+	if rows[0][5] != 2 {
+		t.Errorf("line_count = %v, want 2", rows[0][5])
 	}
 	if rows[0][8] != now {
 		t.Errorf("indexed_at = %v, want %v", rows[0][8], now)
