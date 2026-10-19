@@ -20,7 +20,11 @@ const (
 	// 12,000. The anchor repository draws from E first, and the 1.5x sizing
 	// covers the related set only, so an anchor with many candidates leaves
 	// less for the related set; the deployed read measures the whole-request
-	// draw. Provisional until the deployed read confirms it.
+	// draw. Confirmed for R1 by the deployed read 2026-10-19 on QA image
+	// sha-aefdc43b28: 15,997 whole-request draw with zero unhydrated and no
+	// budget-capped repository. The 1.5x census sizing is not re-proven
+	// (related set drifts; extra_used unobservable); any future bite
+	// self-discloses via CandidatesBudgetReachedReason.
 	CandidateHydrationBudget = 12000
 
 	// CandidatesBudgetReachedReason names a response whose config-artifact
