@@ -1,0 +1,14 @@
+go/internal/storage/cypher/module_concurrency_live_test.go
+  h_78a442cba0b3e6 207-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e9562e1fe10be48dbe7e595afee2f7174f38717",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,32 @@
+.github/workflows/ifa-determinism-gate.yml
+  h_78a442cba0b3e6 30
+docs/internal/evidence/module-node-identity-name-and-language.md
+  h_78a442cba0b3e6 109
+docs/public/reference/nornicdb-pitfalls.md
+  h_78a442cba0b3e6 339
+docs/public/reference/nornicdb-tuning.md
+  h_78a442cba0b3e6 358
+go/internal/storage/cypher/evidence-5147-orphan-sweep-antijoin.md
+  h_78a442cba0b3e6 195
+scripts/lib/ifa_live_gate_selector_cases.sh
+  h_78a442cba0b3e6 82
+specs/ci-gates.d/gates-11.yaml
+  h_78a442cba0b3e6 24
+specs/ci-gates.d/gates-12.yaml
+  h_78a442cba0b3e6 22
+specs/ci-gates.d/gates-13.yaml
+  h_78a442cba0b3e6 23
+specs/live-tests.d/live-tests-04.yaml
+  h_78a442cba0b3e6 75,79,83,87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "559aaf5a6cde65523500455271fe8bd180dae632",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

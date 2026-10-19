@@ -1,0 +1,14 @@
+go/internal/storage/cypher/canonical_node_writer_repository_retirement_test.go
+  h_78a442cba0b3e6 125-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d1d8f0a58379d563b4e673ab345f70037030f37",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

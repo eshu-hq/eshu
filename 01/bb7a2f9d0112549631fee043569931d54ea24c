@@ -1,0 +1,14 @@
+go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_fence_live_test.go
+  h_78a442cba0b3e6 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "01bb7a2f9d0112549631fee043569931d54ea24c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
