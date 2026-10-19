@@ -191,7 +191,7 @@ if has "s.query ~* '^\\s*(select|insert|update|delete|merge|with)\\M'" "${log_fi
 else
   record_fail "SQL filters to normalized statement kinds"
 fi
-if has "s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|pg_control_system|current_setting\\(\\$[0-9]+\\) *= *\\$[0-9]+" "${log_file}"; then
+if has "s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|pg_control_system|current_setting\\([$][0-9]+\\) *= *[$][0-9]+" "${log_file}"; then
   record_pass "SQL excludes the report's own queries and Eshu metadata probes"
 else
   record_fail "SQL excludes the report's own queries and Eshu metadata probes"

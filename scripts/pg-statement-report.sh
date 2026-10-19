@@ -184,7 +184,7 @@ SQL
   cat <<SQL
  WHERE s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
    AND s.query ~* '^\s*(select|insert|update|delete|merge|with)\M'
-   AND s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|pg_control_system|current_setting\(\\$[0-9]+\) *= *\\$[0-9]+'
+   AND s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|pg_control_system|current_setting\([$][0-9]+\) *= *[$][0-9]+'
    $2
  ORDER BY $1 DESC
  LIMIT ${TOP_N};
