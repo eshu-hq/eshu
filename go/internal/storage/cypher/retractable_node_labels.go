@@ -3,7 +3,11 @@
 
 package cypher
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
+)
 
 // fileAndDirectoryRetractLabels are the structural graph node labels the retract
 // phase tombstones outside the per-domain entity-label sets: File (via
@@ -38,7 +42,7 @@ var terraformStateRetractLabels = []string{"TerraformStateResource"}
 // to a retract set therefore makes the gate demand a new delta scenario for it
 // (the #4186 directory-tombstone class), instead of the gap going unseen.
 func RetractableNodeEntityLabels() []string {
-	labels := canonicalNodeRetractEntityLabels()
+	labels := node.RetractEntityLabels()
 	labels = append(labels, fileAndDirectoryRetractLabels...)
 	labels = append(labels, terraformStateRetractLabels...)
 	sort.Strings(labels)

@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -180,13 +181,13 @@ func TestWriteEdgesCountsRepositoryStubsPerStatementShape(t *testing.T) {
 		{
 			name: "submodule_pin atomic group", domain: reducer.DomainSubmodulePinEdges,
 			rows:   []sharedintent.Row{stubSubmodulePinRow("repository:retired")},
-			cypher: sourcecypher.BatchCanonicalSubmodulePinEdgeCypher, grouped: true,
+			cypher: node.BatchCanonicalSubmodulePinEdgeCypher, grouped: true,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterSubmodulePin, want: 1,
 		},
 		{
 			name: "submodule_pin sequential", domain: reducer.DomainSubmodulePinEdges,
 			rows:    []sharedintent.Row{stubSubmodulePinRow("repository:retired")},
-			cypher:  sourcecypher.BatchCanonicalSubmodulePinEdgeCypher,
+			cypher:  node.BatchCanonicalSubmodulePinEdgeCypher,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterSubmodulePin, want: 1,
 		},
 		{

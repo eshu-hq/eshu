@@ -400,8 +400,8 @@ func TestBuildRetractCodeCallEdgesStatement(t *testing.T) {
 	t.Parallel()
 
 	stmts := BuildRetractCodeCallEdgeStatements([]string{"repo-1"}, "parser/code-calls")
-	if len(stmts) != len(CodeCallRetractSourceLabels) {
-		t.Fatalf("statements = %d, want %d (one per source label)", len(stmts), len(CodeCallRetractSourceLabels))
+	if len(stmts) != len(node.CodeCallRetractSourceLabels) {
+		t.Fatalf("statements = %d, want %d (one per source label)", len(stmts), len(node.CodeCallRetractSourceLabels))
 	}
 	var joined strings.Builder
 	for _, stmt := range stmts {
@@ -429,8 +429,8 @@ func TestBuildRetractCodeCallEdgesMetaclassStatement(t *testing.T) {
 	t.Parallel()
 
 	stmts := BuildRetractCodeCallEdgeStatements([]string{"repo-1"}, "parser/python-metaclass")
-	if len(stmts) != len(codeCallMetaclassRetractSourceLabels) {
-		t.Fatalf("statements = %d, want %d (one per source label)", len(stmts), len(codeCallMetaclassRetractSourceLabels))
+	if len(stmts) != len(node.CodeCallMetaclassRetractSourceLabels) {
+		t.Fatalf("statements = %d, want %d (one per source label)", len(stmts), len(node.CodeCallMetaclassRetractSourceLabels))
 	}
 	for _, stmt := range stmts {
 		if stmt.Operation != OperationCanonicalRetract {

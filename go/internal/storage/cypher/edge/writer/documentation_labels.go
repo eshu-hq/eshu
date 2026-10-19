@@ -5,6 +5,7 @@ package writer
 
 import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // buildDocumentationRowMap routes a documentation DOCUMENTS edge row (issue
@@ -37,12 +38,12 @@ func buildDocumentationRowMap(
 
 	switch sourcecypher.PayloadString(payload, "target_kind") {
 	case "workload":
-		return sourcecypher.BatchCanonicalDocumentationWorkloadEdgeCypher, rowMap, true
+		return node.BatchCanonicalDocumentationWorkloadEdgeCypher, rowMap, true
 	case "service":
 		// No Service graph node exists; never fabricate one.
 		return "", nil, false
 	default:
-		return sourcecypher.BatchCanonicalDocumentationEntityEdgeCypher, rowMap, true
+		return node.BatchCanonicalDocumentationEntityEdgeCypher, rowMap, true
 	}
 }
 
@@ -52,7 +53,7 @@ func buildDocumentationRowMap(
 func BuildRetractDocumentationEdges(scopeIDs []string, evidenceSource string) sourcecypher.Statement {
 	return sourcecypher.Statement{
 		Operation: sourcecypher.OperationCanonicalRetract,
-		Cypher:    sourcecypher.RetractDocumentationEdgesCypher,
+		Cypher:    node.RetractDocumentationEdgesCypher,
 		Parameters: map[string]any{
 			"scope_ids":       scopeIDs,
 			"evidence_source": evidenceSource,
@@ -69,7 +70,7 @@ func BuildRetractDocumentationEdgesByDocumentID(
 ) sourcecypher.Statement {
 	return sourcecypher.Statement{
 		Operation: sourcecypher.OperationCanonicalRetract,
-		Cypher:    sourcecypher.RetractDocumentationEdgesByDocumentCypher,
+		Cypher:    node.RetractDocumentationEdgesByDocumentCypher,
 		Parameters: map[string]any{
 			"scope_ids":       scopeIDs,
 			"document_ids":    documentIDs,
@@ -87,7 +88,7 @@ func BuildRetractDocumentationEdgesBySectionUID(
 ) sourcecypher.Statement {
 	return sourcecypher.Statement{
 		Operation: sourcecypher.OperationCanonicalRetract,
-		Cypher:    sourcecypher.RetractDocumentationEdgesBySectionCypher,
+		Cypher:    node.RetractDocumentationEdgesBySectionCypher,
 		Parameters: map[string]any{
 			"scope_ids":       scopeIDs,
 			"section_uids":    sectionUIDs,

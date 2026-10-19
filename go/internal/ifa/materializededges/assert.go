@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
 	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -299,7 +300,7 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 	case "sql_relationships":
 		return edgeTypeSet(edgewriter.SQLRelationshipMaterializedEdgeTypes()), nil
 	case "code_calls":
-		return edgeTypeSet(cypher.CodeCallMaterializedEdgeTypes()), nil
+		return edgeTypeSet(node.CodeCallMaterializedEdgeTypes()), nil
 	case "inheritance_edges":
 		return edgeTypeSet(inheritance.MaterializedEdgeTypes()), nil
 	case "repo_dependency":

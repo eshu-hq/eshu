@@ -27,7 +27,7 @@ IFA_FAMILY_PIN_BLOCKER_KIND="shared_intent_lock"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="code_call_materialization"
 
-# go/internal/storage/cypher/canonical_code_call_edges.go:67-75
+# go/internal/storage/cypher/canonical/node/code_call_edges.go:67-75
 # (batchCanonicalCodeCallUpsertCypher) is the live CALLS write template;
 # canonical.go:121-126's single-row canonicalCodeCallUpsertCypher is
 # explicitly commented "legacy... has no production caller" at that same

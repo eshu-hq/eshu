@@ -294,7 +294,7 @@ _ifa_symbol_runtime_cell_failgraphwrite() {
 }
 
 # cell_failgraphwrite_handles_route: anchored to
-# go/internal/storage/cypher/canonical_handles_route_edges.go:19's
+# go/internal/storage/cypher/canonical/node/handles_route_edges.go:19's
 # HANDLES_ROUTE MERGE.
 cell_failgraphwrite_handles_route() {
 	_ifa_symbol_runtime_cell_failgraphwrite handles_route \
@@ -303,7 +303,7 @@ cell_failgraphwrite_handles_route() {
 }
 
 # cell_failgraphwrite_runs_in: anchored to
-# go/internal/storage/cypher/canonical_runs_in_edges.go:27's RUNS_IN MERGE.
+# go/internal/storage/cypher/canonical/node/runs_in_edges.go:27's RUNS_IN MERGE.
 cell_failgraphwrite_runs_in() {
 	_ifa_symbol_runtime_cell_failgraphwrite runs_in \
 		"MERGE (func)-[rel:RUNS_IN]->(workload)" \
@@ -311,7 +311,7 @@ cell_failgraphwrite_runs_in() {
 }
 
 # cell_failgraphwrite_invokes_cloud_action: anchored to
-# go/internal/storage/cypher/canonical_invokes_cloud_action_edges.go:22's
+# go/internal/storage/cypher/canonical/node/invokes_cloud_action_edges.go:22's
 # INVOKES_CLOUD_ACTION MERGE.
 cell_failgraphwrite_invokes_cloud_action() {
 	_ifa_symbol_runtime_cell_failgraphwrite invokes_cloud_action \

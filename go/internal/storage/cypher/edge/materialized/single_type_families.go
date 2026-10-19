@@ -8,6 +8,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/crossplane"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/ec2"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/image"
@@ -45,45 +46,45 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	},
 	"deployable_unit_edges": {
 		EdgeTypes:      map[string]string{"CORRELATES_DEPLOYABLE_UNIT": "deployable-unit correlation (BatchCanonicalDeployableUnitCorrelationUpsertCypher)"},
-		RetractCypher:  sourcecypher.RetractDeployableUnitCorrelationEdgesCypher,
-		IdentityCypher: sourcecypher.BatchCanonicalDeployableUnitCorrelationUpsertCypher,
+		RetractCypher:  node.RetractDeployableUnitCorrelationEdgesCypher,
+		IdentityCypher: node.BatchCanonicalDeployableUnitCorrelationUpsertCypher,
 	},
 	"handles_route": {
 		EdgeTypes:      map[string]string{"HANDLES_ROUTE": "handler-to-route binding (BatchCanonicalHandlesRouteEdgeUpsertCypher)"},
-		RetractCypher:  sourcecypher.RetractHandlesRouteEdgesCypher,
-		IdentityCypher: sourcecypher.BatchCanonicalHandlesRouteEdgeUpsertCypher,
+		RetractCypher:  node.RetractHandlesRouteEdgesCypher,
+		IdentityCypher: node.BatchCanonicalHandlesRouteEdgeUpsertCypher,
 	},
 	"runs_in": {
 		EdgeTypes:      map[string]string{"RUNS_IN": "entity-runs-in-workload edge (BatchCanonicalRunsInEdgeUpsertCypher)"},
-		RetractCypher:  sourcecypher.RetractRunsInEdgesCypher,
-		IdentityCypher: sourcecypher.BatchCanonicalRunsInEdgeUpsertCypher,
+		RetractCypher:  node.RetractRunsInEdgesCypher,
+		IdentityCypher: node.BatchCanonicalRunsInEdgeUpsertCypher,
 	},
 	"invokes_cloud_action": {
 		EdgeTypes:      map[string]string{"INVOKES_CLOUD_ACTION": "code-to-cloud-action invocation (BatchCanonicalInvokesCloudActionUpsertCypher)"},
-		RetractCypher:  sourcecypher.RetractInvokesCloudActionEdgesCypher,
-		IdentityCypher: sourcecypher.BatchCanonicalInvokesCloudActionUpsertCypher,
+		RetractCypher:  node.RetractInvokesCloudActionEdgesCypher,
+		IdentityCypher: node.BatchCanonicalInvokesCloudActionUpsertCypher,
 	},
 	"codeowners_ownership_edges": {
 		EdgeTypes:          map[string]string{"DECLARES_CODEOWNER": "CODEOWNERS ownership declaration (BatchCanonicalCodeownersOwnershipEdgeCypher)"},
-		RetractCypher:      sourcecypher.RetractCodeownersOwnershipEdgesCypher,
-		IdentityCypher:     sourcecypher.BatchCanonicalCodeownersOwnershipEdgeCypher,
+		RetractCypher:      node.RetractCodeownersOwnershipEdgesCypher,
+		IdentityCypher:     node.BatchCanonicalCodeownersOwnershipEdgeCypher,
 		IdentityProperties: []string{"pattern", "source_path"},
 	},
 	"submodule_pin_edges": {
 		EdgeTypes:          map[string]string{"PINS_SUBMODULE": "submodule commit pin (BatchCanonicalSubmodulePinEdgeCypher)"},
-		RetractCypher:      sourcecypher.RetractSubmodulePinEdgesCypher,
-		IdentityCypher:     sourcecypher.BatchCanonicalSubmodulePinEdgeCypher,
+		RetractCypher:      node.RetractSubmodulePinEdgesCypher,
+		IdentityCypher:     node.BatchCanonicalSubmodulePinEdgeCypher,
 		IdentityProperties: []string{"path"},
 	},
 	"documentation_edges": {
 		EdgeTypes:      map[string]string{"DOCUMENTS": "doc-section-to-entity edge (BatchCanonicalDocumentationEntityEdgeCypher)"},
-		RetractCypher:  sourcecypher.RetractDocumentationEdgesCypher,
-		IdentityCypher: sourcecypher.BatchCanonicalDocumentationEntityEdgeCypher,
+		RetractCypher:  node.RetractDocumentationEdgesCypher,
+		IdentityCypher: node.BatchCanonicalDocumentationEntityEdgeCypher,
 	},
 	"rationale_edges": {
 		EdgeTypes:      map[string]string{"EXPLAINS": "rationale-to-entity edge (BatchCanonicalRationaleExplainsEdgeCypher)"},
-		RetractCypher:  sourcecypher.RetractRationaleEdgesCypher,
-		IdentityCypher: sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher,
+		RetractCypher:  node.RetractRationaleEdgesCypher,
+		IdentityCypher: node.BatchCanonicalRationaleExplainsEdgeCypher,
 	},
 	// The fifteen DIRECT-materialization families registered here (#6228;
 	// #8359 for semantic_entity_containment).

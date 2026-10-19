@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 func crossRepoRunsOnReplayGroup() []Statement {
@@ -23,10 +24,10 @@ func crossRepoRunsOnReplayGroup() []Statement {
 		}
 	}
 	return []Statement{
-		statement(BatchCanonicalRunsOnLegacyIdentityCleanupCypher, rows[0]),
-		statement(BatchCanonicalRunsOnLegacyIdentityCleanupCypher, rows[1]),
-		statement(BatchCanonicalRunsOnUpsertCypher, rows[0]),
-		statement(BatchCanonicalRunsOnUpsertCypher, rows[1]),
+		statement(node.BatchCanonicalRunsOnLegacyIdentityCleanupCypher, rows[0]),
+		statement(node.BatchCanonicalRunsOnLegacyIdentityCleanupCypher, rows[1]),
+		statement(node.BatchCanonicalRunsOnUpsertCypher, rows[0]),
+		statement(node.BatchCanonicalRunsOnUpsertCypher, rows[1]),
 		{
 			Operation: OperationCanonicalUpsert,
 			Cypher:    BatchCanonicalRepoDependencyUpsertCypher,

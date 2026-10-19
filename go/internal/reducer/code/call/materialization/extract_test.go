@@ -121,7 +121,7 @@ func TestExtractSymbolRuntimeIntentRowsHandlesRouteHappyPath(t *testing.T) {
 	}
 
 	row := edgeRows[0]
-	// Assert every payload field canonical_handles_route_edges.go's row-map
+	// Assert every payload field canonical/node/handles_route_edges.go's row-map
 	// builder reads: function_entity_id/repo_id/path feed the two MATCH
 	// clauses' identity, the rest are SET-only relationship properties.
 	if got, want := payloadcore.PayloadStr(row.Payload, "function_entity_id"), "content-entity:gw"; got != want {
@@ -162,7 +162,7 @@ func TestExtractSymbolRuntimeIntentRowsHandlesRouteHappyPath(t *testing.T) {
 // (handles_route_intents.go:101).
 //
 // This matters because the graph-write MERGE identity
-// (canonical_handles_route_edges.go:16-24) is only the
+// (canonical/node/handles_route_edges.go:16-24) is only the
 // (Function, HANDLES_ROUTE, Endpoint) node pair -- no relationship property,
 // including http_method, participates in the MERGE. So both rows MERGE the
 // same relationship instance at write time and each SETs rel.http_method to

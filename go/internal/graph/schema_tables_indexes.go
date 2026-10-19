@@ -338,8 +338,8 @@ var nornicDBMergeLookupIndexes = []string{
 
 // neo4jUIDLookupIndexes are uid RANGE indexes applied on Neo4j only, the
 // mirror of the NornicDB-only lookup lists above. Rationale and
-// DocumentationSection are MERGEd on uid (canonical_rationale_edges.go,
-// canonical_documentation_edges.go) but carry no uid uniqueness constraint.
+// DocumentationSection are MERGEd on uid (canonical/node/rationale_edges.go,
+// canonical/node/documentation_edges.go) but carry no uid uniqueness constraint.
 // Their uids reach API callers as the source_id of EXPLAINS / DOCUMENTS
 // neighbours on the relationships row, and the Neo4j entity-id anchor
 // (codemodel.Neo4jEntityIDAnchor) seeks them through these indexes instead of

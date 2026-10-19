@@ -3,38 +3,33 @@
 
 package cypher
 
-import "fmt"
+import (
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
+)
 
-// InheritanceRetractChildLabels lists the child node labels an inheritance edge
-// (INHERITS/OVERRIDES/ALIASES/IMPLEMENTS) can originate from.
-var InheritanceRetractChildLabels = []string{"Function", "Class", "Interface", "Trait", "Struct", "Enum", "Protocol"}
+// This file is a thin adapter over the canonical/inheritance leaf: it owns
+// the Statement wrapping for the inheritance edge retract, while the leaf
+// owns the child-label list, the per-label fan-out, and the statement-free
+// parts (inheritance.InheritanceRetractParts). The Ifá live baseline gate
+// reads inheritance.MaterializedEdgeTypes; the root registry test
+// (TestInheritanceRegistryMatchesRetractDisjunction) keeps binding that
+// registry to the retract disjunction through buildInheritanceRetractStatements
+// below, unchanged.
 
-// buildInheritanceRetractStatements emits one retract statement per child label.
-//
-// A single statement cannot bind all child labels on NornicDB: a node-label
-// disjunction MATCH (child:Function|Class|...) matches zero rows, and on
-// NornicDB v1.1.11 an unlabeled MATCH (child) scan is unreliable — it silently
-// drops some child labels. Single-label MATCH is the only shape that reliably
-// matches every child on both pinned versions, so the retract fans out to one
-// statement per label (#5116/#4367). The relationship-type disjunction and the
-// scope predicate are unchanged per statement. scopeField is the child property
-// the retract binds ("repo_id" or "path"); scopeParam is the Cypher parameter
-// key carrying scopeValues. The statements run sequentially, not grouped (see
-// executeInheritanceRetractStatements).
+// buildInheritanceRetractStatements emits one retract statement per child
+// label by mapping the leaf's parts onto Statements.
 func buildInheritanceRetractStatements(scopeField, scopeParam string, scopeValues []string, evidenceSource string) []Statement {
-	stmts := make([]Statement, 0, len(InheritanceRetractChildLabels))
-	for _, label := range InheritanceRetractChildLabels {
-		cypher := fmt.Sprintf(
-			"MATCH (child:%s)-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()\nWHERE child.%s IN $%s\n  AND rel.evidence_source = $evidence_source\nDELETE rel",
-			label, scopeField, scopeParam,
-		)
+	parts := inheritance.InheritanceRetractParts(scopeField, scopeParam, scopeValues, evidenceSource)
+	stmts := make([]Statement, 0, len(parts))
+	for _, part := range parts {
+		operation := OperationCanonicalUpsert
+		if part.IsRetract {
+			operation = OperationCanonicalRetract
+		}
 		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    cypher,
-			Parameters: map[string]any{
-				scopeParam:        scopeValues,
-				"evidence_source": evidenceSource,
-			},
+			Operation:  operation,
+			Cypher:     part.Cypher,
+			Parameters: part.Parameters,
 		})
 	}
 	return stmts

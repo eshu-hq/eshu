@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -18,7 +19,7 @@ import (
 func TestBatchCanonicalCodeownersOwnershipEdgeCypherShape(t *testing.T) {
 	t.Parallel()
 
-	cypher := sourcecypher.BatchCanonicalCodeownersOwnershipEdgeCypher
+	cypher := node.BatchCanonicalCodeownersOwnershipEdgeCypher
 	if !strings.Contains(cypher, "MERGE (team:CodeownerTeam {ref:") {
 		t.Errorf("template missing CodeownerTeam MERGE: %q", cypher)
 	}
@@ -55,7 +56,7 @@ func TestBuildCodeownersOwnershipRowMap(t *testing.T) {
 	if !ok {
 		t.Fatal("BuildCodeownersOwnershipRowMap ok = false, want true")
 	}
-	if cypher != sourcecypher.BatchCanonicalCodeownersOwnershipEdgeCypher {
+	if cypher != node.BatchCanonicalCodeownersOwnershipEdgeCypher {
 		t.Errorf("cypher = %q, want the codeowners ownership edge template", cypher)
 	}
 	want := map[string]any{
@@ -311,7 +312,7 @@ func TestEdgeWriterWriteEdgesCodeownersOwnershipRoutesTemplate(t *testing.T) {
 	if got, want := len(executor.calls), 1; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
-	if executor.calls[0].Cypher != sourcecypher.BatchCanonicalCodeownersOwnershipEdgeCypher {
+	if executor.calls[0].Cypher != node.BatchCanonicalCodeownersOwnershipEdgeCypher {
 		t.Fatalf("cypher = %q, want the codeowners ownership edge template", executor.calls[0].Cypher)
 	}
 }

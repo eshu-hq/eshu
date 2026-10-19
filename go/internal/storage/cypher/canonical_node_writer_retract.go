@@ -124,7 +124,7 @@ func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat canonical.Canonic
 	if mat.DeltaProjection {
 		return buildDeltaEntityRetractStatements(mat)
 	}
-	labels := canonicalNodeRetractEntityLabels()
+	labels := node.RetractEntityLabels()
 	stmts := make([]Statement, 0, len(labels))
 	for _, label := range labels {
 		// Drain=true: unbounded full-refresh entity DETACH DELETE per label
@@ -163,31 +163,6 @@ func dedupeStringValues(values []string) []string {
 		deduped = append(deduped, value)
 	}
 	return deduped
-}
-
-func canonicalNodeRetractEntityLabels() []string {
-	labels := make(map[string]struct{})
-	for _, family := range []map[string]struct{}{
-		node.RetractCodeEntityLabels,
-		node.RetractInfraEntityLabels,
-		node.RetractTerraformEntityLabels,
-		node.RetractCloudFormationEntityLabels,
-		node.RetractSQLEntityLabels,
-		node.RetractDataEntityLabels,
-		node.RetractOCIEntityLabels,
-		node.RetractPackageRegistryEntityLabels,
-	} {
-		for label := range family {
-			labels[label] = struct{}{}
-		}
-	}
-
-	sorted := make([]string, 0, len(labels))
-	for label := range labels {
-		sorted = append(sorted, label)
-	}
-	sort.Strings(sorted)
-	return sorted
 }
 
 func buildStringSliceRetractStatements(cypher string, paramName string, values []string, batchSize int) []Statement {

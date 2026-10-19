@@ -12,6 +12,7 @@ import (
 	"time"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -123,10 +124,10 @@ func TestEdgeWriterMixedRepoDependencyRunsOnGroupReplaysWholeCommit(t *testing.T
 	// artifacts follow sequentially after the main group commits, so the
 	// group holds exactly the four main routes in order.
 	wantQueries := []string{
-		sourcecypher.BatchCanonicalRunsOnLegacyIdentityCleanupCypher,
-		sourcecypher.BatchCanonicalRunsOnUpsertCypher,
+		node.BatchCanonicalRunsOnLegacyIdentityCleanupCypher,
+		node.BatchCanonicalRunsOnUpsertCypher,
 		sourcecypher.BatchCanonicalRepoDependencyUpsertCypher,
-		sourcecypher.BatchCanonicalDeploysFromRepoRelationshipUpsertCypher,
+		node.BatchCanonicalDeploysFromRepoRelationshipUpsertCypher,
 	}
 	if len(group) != len(wantQueries) {
 		t.Fatalf("group statements = %d, want %d", len(group), len(wantQueries))
@@ -147,7 +148,7 @@ func TestEdgeWriterMixedRepoDependencyRunsOnGroupReplaysWholeCommit(t *testing.T
 	// The artifact batch follows as one sequential statement carrying the
 	// dependency evidence identity.
 	single := inner.singleWrites[0]
-	if single.Cypher != sourcecypher.BatchCanonicalRepoEvidenceArtifactUpsertCypher || single.Operation != sourcecypher.OperationCanonicalUpsert {
+	if single.Cypher != node.BatchCanonicalRepoEvidenceArtifactUpsertCypher || single.Operation != sourcecypher.OperationCanonicalUpsert {
 		t.Fatalf("artifact single = operation %q, query %q; want the artifact upsert", single.Operation, single.Cypher)
 	}
 	assertMixedRunsOnRouteRow(t, single, "service-repo", "target_repo_id", "dependency-repo")

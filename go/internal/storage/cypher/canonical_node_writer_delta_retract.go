@@ -259,7 +259,7 @@ func buildDeltaEntityRetractStatements(mat canonical.CanonicalMaterialization) [
 	if len(filePaths) == 0 {
 		return nil
 	}
-	labels := canonicalNodeRetractEntityLabels()
+	labels := node.RetractEntityLabels()
 	stmts := make([]Statement, 0, len(labels))
 	for _, label := range labels {
 		stmts = append(stmts, Statement{

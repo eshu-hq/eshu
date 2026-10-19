@@ -9,7 +9,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // bootstrapKustomizeOverlayListCypher lists every KustomizeOverlay node in
@@ -25,7 +25,7 @@ WHERE ko.repo_id = $repo_id
 RETURN ko.uid AS uid, ko.path AS path, ko.base_refs AS base_refs`
 
 // bootstrapKustomizeOverlayResolver adapts a read-only Bolt session to
-// sourcecypher.KustomizeOverlayResolver (#5445 slice 3), so
+// node.KustomizeOverlayResolver (#5445 slice 3), so
 // bootstrap-index's canonical writer can rebuild the #5445 EXTENDS_BASE edge
 // set for a repo's FULL KustomizeOverlay set every cycle that touches or
 // delta-deletes any of them, not only the entities present in the current
@@ -37,14 +37,14 @@ type bootstrapKustomizeOverlayResolver struct {
 	databaseName string
 }
 
-// ListKustomizeOverlays implements sourcecypher.KustomizeOverlayResolver. A
+// ListKustomizeOverlays implements node.KustomizeOverlayResolver. A
 // query failure returns the error unchanged so the caller fails closed for
 // the whole repo's EXTENDS_BASE rebuild this cycle rather than write a
 // partial or wrong edge set.
 func (r bootstrapKustomizeOverlayResolver) ListKustomizeOverlays(
 	ctx context.Context,
 	repoID string,
-) ([]sourcecypher.KustomizeOverlayRow, error) {
+) ([]node.KustomizeOverlayRow, error) {
 	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{
 		AccessMode:   neo4jdriver.AccessModeRead,
 		DatabaseName: r.databaseName,
@@ -60,7 +60,7 @@ func (r bootstrapKustomizeOverlayResolver) ListKustomizeOverlays(
 		return nil, fmt.Errorf("collect kustomize overlay list: %w", err)
 	}
 
-	rows := make([]sourcecypher.KustomizeOverlayRow, 0, len(records))
+	rows := make([]node.KustomizeOverlayRow, 0, len(records))
 	for _, record := range records {
 		uidValue, _ := record.Get("uid")
 		pathValue, _ := record.Get("path")
@@ -70,7 +70,7 @@ func (r bootstrapKustomizeOverlayResolver) ListKustomizeOverlays(
 			continue
 		}
 		path, _ := pathValue.(string)
-		rows = append(rows, sourcecypher.KustomizeOverlayRow{
+		rows = append(rows, node.KustomizeOverlayRow{
 			UID:      uid,
 			Path:     path,
 			BaseRefs: bootstrapKustomizeOverlayBaseRefsFromBoltValue(baseRefsValue),

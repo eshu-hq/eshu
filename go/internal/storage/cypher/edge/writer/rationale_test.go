@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -27,7 +27,7 @@ func TestBuildRationaleRowMapRoutesExplainsEdge(t *testing.T) {
 	if !ok {
 		t.Fatal("buildRationaleRowMap ok = false, want true")
 	}
-	if cypher != sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher {
+	if cypher != node.BatchCanonicalRationaleExplainsEdgeCypher {
 		t.Errorf("expected EXPLAINS template, got %q", cypher)
 	}
 	if !strings.Contains(cypher, "rel:EXPLAINS") || !strings.Contains(cypher, "MERGE (rationale:Rationale") {
@@ -141,10 +141,10 @@ func TestBuildRetractRationaleEdgeStatementsByFilePath(t *testing.T) {
 	t.Parallel()
 
 	stmts := BuildRetractRationaleEdgeStatementsByFilePath([]string{"/repo/src/handler.go"}, "reducer/rationale")
-	if got, want := len(stmts), len(sourcecypher.RationaleExplainsTargetLabels); got != want {
+	if got, want := len(stmts), len(node.RationaleExplainsTargetLabels); got != want {
 		t.Fatalf("statement count = %d, want %d (one per target label)", got, want)
 	}
-	for _, label := range sourcecypher.RationaleExplainsTargetLabels {
+	for _, label := range node.RationaleExplainsTargetLabels {
 		want := "MATCH (rationale:Rationale)-[rel:EXPLAINS]->(target:" + label + ")"
 		found := false
 		for _, stmt := range stmts {
@@ -196,13 +196,13 @@ func TestBuildRetractRationaleEdgeStatementsByFilePath(t *testing.T) {
 func TestRationaleRetractCoversEveryWriteTargetLabel(t *testing.T) {
 	t.Parallel()
 
-	wantDisjunction := "MATCH (target:" + strings.Join(sourcecypher.RationaleExplainsTargetLabels, "|") + " {uid: row.target_entity_id})"
-	if !strings.Contains(sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher, wantDisjunction) {
+	wantDisjunction := "MATCH (target:" + strings.Join(node.RationaleExplainsTargetLabels, "|") + " {uid: row.target_entity_id})"
+	if !strings.Contains(node.BatchCanonicalRationaleExplainsEdgeCypher, wantDisjunction) {
 		t.Fatalf("write template target disjunction diverged from RationaleExplainsTargetLabels:\nwant %q\nin %q",
-			wantDisjunction, sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher)
+			wantDisjunction, node.BatchCanonicalRationaleExplainsEdgeCypher)
 	}
 	stmts := BuildRetractRationaleEdgeStatementsByFilePath([]string{"p"}, "reducer/rationale")
-	if got, want := len(stmts), len(sourcecypher.RationaleExplainsTargetLabels); got != want {
+	if got, want := len(stmts), len(node.RationaleExplainsTargetLabels); got != want {
 		t.Fatalf("retract statements = %d, want %d (one per write-capable target label)", got, want)
 	}
 }
@@ -235,7 +235,7 @@ func TestEdgeWriterRetractEdgesRationaleDeltaCleansCanonicalAndLegacySourcesSequ
 	if got := len(executor.groupCalls); got != 0 {
 		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
 	}
-	if got, want := len(executor.calls), len(sourcecypher.RationaleExplainsTargetLabels); got != want {
+	if got, want := len(executor.calls), len(node.RationaleExplainsTargetLabels); got != want {
 		t.Fatalf("Execute calls = %d, want %d (one combined-source statement per target label)", got, want)
 	}
 	for _, stmt := range executor.calls {
@@ -287,7 +287,7 @@ func TestEdgeWriterRetractEdgesRationaleDeltaDoesNotBroadenUnknownEvidenceSource
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, source); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), len(sourcecypher.RationaleExplainsTargetLabels); got != want {
+	if got, want := len(executor.calls), len(node.RationaleExplainsTargetLabels); got != want {
 		t.Fatalf("Execute calls = %d, want %d exact-source per-label retracts", got, want)
 	}
 	for _, stmt := range executor.calls {

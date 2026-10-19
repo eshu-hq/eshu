@@ -9,6 +9,7 @@ import (
 	"time"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	phasegroup "github.com/eshu-hq/eshu/go/internal/storage/cypher/phase/group"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
@@ -45,7 +46,7 @@ func BuildRepoDependencySplitRetractStatements(repoIDs []string, evidenceSource 
 				Parameters: repoDependencyRetractParameters(
 					repoIDs,
 					evidenceSource,
-					repoDependencyRetractSummary("repository_relationship_edges", sourcecypher.RepoDependencyRelationshipEdgeTypes),
+					repoDependencyRetractSummary("repository_relationship_edges", node.RepoDependencyRelationshipEdgeTypes),
 				),
 			},
 		},
@@ -106,23 +107,23 @@ func validateRepoDependencySourceRows(
 
 func repoDependencyRelationshipRetractCypher(repoIDs []string) string {
 	if len(repoIDs) == 1 {
-		return sourcecypher.RetractSingleRepoRelationshipEdgesCypher
+		return node.RetractSingleRepoRelationshipEdgesCypher
 	}
-	return sourcecypher.RetractRepoRelationshipEdgesCypher
+	return node.RetractRepoRelationshipEdgesCypher
 }
 
 func repoDependencyRunsOnRetractCypher(repoIDs []string) string {
 	if len(repoIDs) == 1 {
-		return sourcecypher.RetractSingleRepoRunsOnEdgesCypher
+		return node.RetractSingleRepoRunsOnEdgesCypher
 	}
-	return sourcecypher.RetractRepoRunsOnEdgesCypher
+	return node.RetractRepoRunsOnEdgesCypher
 }
 
 func repoDependencyEvidenceArtifactRetractCypher(repoIDs []string) string {
 	if len(repoIDs) == 1 {
-		return sourcecypher.RetractSingleRepoEvidenceArtifactsCypher
+		return node.RetractSingleRepoEvidenceArtifactsCypher
 	}
-	return sourcecypher.RetractRepoEvidenceArtifactsCypher
+	return node.RetractRepoEvidenceArtifactsCypher
 }
 
 func repoDependencyRetractParameters(repoIDs []string, evidenceSource string, summary string) map[string]any {

@@ -30,8 +30,8 @@ cloud_resource_operation_match="MERGE (r:CloudResource"
 # one of the SQL family's nine materialized edge types and is present in the
 # committed sql_cassette, so this fault genuinely fires during that drive.
 sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
-codeowners_edge_operation_match="MERGE (repo)-[rel:DECLARES_CODEOWNER"  # PREFIX, verified vs canonical_codeowners_edges.go:35; see the cells lib header
-submodule_pin_edge_operation_match="MERGE (parent)-[rel:PINS_SUBMODULE"  # PREFIX, verified vs canonical_submodule_edges.go:32; see the cells lib header
+codeowners_edge_operation_match="MERGE (repo)-[rel:DECLARES_CODEOWNER"  # PREFIX, verified vs canonical/node/codeowners_edges.go:35; see the cells lib header
+submodule_pin_edge_operation_match="MERGE (parent)-[rel:PINS_SUBMODULE"  # PREFIX, verified vs canonical/node/submodule_edges.go:32; see the cells lib header
 
 # The TARGETS_ENVIRONMENT MERGE anchor cell_failgraphwrite_kubernetes_namespace_environment
 # (#6309) targets: go/internal/storage/cypher/kubernetes_namespace_node_writer.go:90 emits
@@ -107,7 +107,7 @@ authenticates_vault_role_edge_operation_match="MERGE (s)-[rel:SECRETS_IAM_AUTHEN
 uses_vault_policy_edge_operation_match="MERGE (v)-[rel:SECRETS_IAM_USES_VAULT_POLICY]->(p)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
-# go/internal/storage/cypher/canonical_documentation_edges.go's
+# go/internal/storage/cypher/canonical/node/documentation_edges.go's
 # batchCanonicalDocumentationEntityEdgeCypher emits this exact MERGE clause
 # text regardless of which target label (Function/Class/.../SqlTable) the
 # preceding MATCH picked -- a fixed, grep-stable substring, same rationale as
@@ -115,7 +115,7 @@ uses_vault_policy_edge_operation_match="MERGE (v)-[rel:SECRETS_IAM_USES_VAULT_PO
 documentation_edge_operation_match="MERGE (section)-[rel:DOCUMENTS]->(target)"
 
 # The CORRELATES_DEPLOYABLE_UNIT MERGE anchor cell_failgraphwrite_deployable_unit
-# (#5993) targets: go/internal/storage/cypher/canonical_deployable_unit_edges.go's
+# (#5993) targets: go/internal/storage/cypher/canonical/node/deployable_unit_edges.go's
 # batchCanonicalDeployableUnitCorrelationUpsertCypher emits this exact MERGE
 # clause text -- a fixed, grep-stable substring, same rationale as
 # cloud_resource_operation_match above. Byte-exact copy of that file's line 9.

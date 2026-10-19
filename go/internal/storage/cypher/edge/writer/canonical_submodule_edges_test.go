@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -18,7 +19,7 @@ import (
 func TestBatchCanonicalSubmodulePinEdgeCypherShape(t *testing.T) {
 	t.Parallel()
 
-	cypher := sourcecypher.BatchCanonicalSubmodulePinEdgeCypher
+	cypher := node.BatchCanonicalSubmodulePinEdgeCypher
 	if !strings.Contains(cypher, "MERGE (parent:Repository {id: row.parent_repo_id})") {
 		t.Errorf("template missing parent Repository MERGE: %q", cypher)
 	}
@@ -54,7 +55,7 @@ func TestBuildSubmodulePinRowMap(t *testing.T) {
 	if !ok {
 		t.Fatal("BuildSubmodulePinRowMap ok = false, want true")
 	}
-	if cypher != sourcecypher.BatchCanonicalSubmodulePinEdgeCypher {
+	if cypher != node.BatchCanonicalSubmodulePinEdgeCypher {
 		t.Errorf("cypher = %q, want the submodule pin edge template", cypher)
 	}
 	want := map[string]any{
@@ -241,7 +242,7 @@ func TestEdgeWriterWriteEdgesSubmodulePinRoutesTemplate(t *testing.T) {
 	if got, want := len(executor.calls), 1; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
-	if executor.calls[0].Cypher != sourcecypher.BatchCanonicalSubmodulePinEdgeCypher {
+	if executor.calls[0].Cypher != node.BatchCanonicalSubmodulePinEdgeCypher {
 		t.Fatalf("cypher = %q, want the submodule pin edge template", executor.calls[0].Cypher)
 	}
 }

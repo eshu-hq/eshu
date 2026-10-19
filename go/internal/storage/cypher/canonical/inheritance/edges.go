@@ -15,8 +15,8 @@ package inheritance
 // from the write path but absent here is a live edge the baseline gate ignores.
 //
 // Four types, not one. Three are written by templates in this file and IMPLEMENTS
-// by implements.go; the retract remains in canonical_inheritance_retract.go
-// deletes the same four as INHERITS|OVERRIDES|ALIASES|IMPLEMENTS, and
+// by implements.go; the retract in retract.go deletes the same four as
+// INHERITS|OVERRIDES|ALIASES|IMPLEMENTS, and
 // inheritanceRelationshipSummary enumerates them for telemetry. Reading only the
 // first MERGE below yields INHERITS alone and undercounts the family fourfold —
 // TestInheritanceRegistryMatchesRetractDisjunction pins the lists together.

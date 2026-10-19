@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // TestEvidenceArtifactEnvironmentRowDropsWholeRow pins what an oversized value
@@ -19,7 +20,7 @@ func TestEvidenceArtifactEnvironmentRowDropsWholeRow(t *testing.T) {
 		{"repo_id": "r1", "target_repo_id": "r2", "artifact_id": "artifact-ok", "environment": "prod"},
 		{"repo_id": "r1", "target_repo_id": "r2", "artifact_id": "artifact-big", "environment": strings.Repeat("e", 9000)},
 	}
-	out, dropped, skip := graph.GuardIndexKeyWrites(BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher, map[string]any{"rows": rows})
+	out, dropped, skip := graph.GuardIndexKeyWrites(node.BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher, map[string]any{"rows": rows})
 	if skip {
 		t.Fatal("skip = true, want row-level drop")
 	}
@@ -30,7 +31,7 @@ func TestEvidenceArtifactEnvironmentRowDropsWholeRow(t *testing.T) {
 	if len(kept) != 1 || kept[0]["artifact_id"] != "artifact-ok" {
 		t.Fatalf("kept rows = %+v, want only artifact-ok: the artifact-big row (artifact node and both edges) must go with its Environment", kept)
 	}
-	if refs, _ := graph.UnanalyzedIndexWrites(BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher); len(refs) != 0 {
+	if refs, _ := graph.UnanalyzedIndexWrites(node.BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher); len(refs) != 0 {
 		t.Fatalf("production statement reported unanalyzed: %+v", refs)
 	}
 }
@@ -42,7 +43,7 @@ func TestCanonicalRationaleUIDRowDropsWholeRow(t *testing.T) {
 		{"rationale_uid": "rationale:ok", "target_entity_id": "entity:ok"},
 		{"rationale_uid": strings.Repeat("r", graph.MaxIndexKeyBytes+1), "target_entity_id": "entity:big"},
 	}
-	out, dropped, skip := graph.GuardIndexKeyWrites(BatchCanonicalRationaleExplainsEdgeCypher, map[string]any{"rows": rows})
+	out, dropped, skip := graph.GuardIndexKeyWrites(node.BatchCanonicalRationaleExplainsEdgeCypher, map[string]any{"rows": rows})
 	if skip {
 		t.Fatal("skip = true, want row-level drop")
 	}
@@ -53,7 +54,7 @@ func TestCanonicalRationaleUIDRowDropsWholeRow(t *testing.T) {
 	if len(kept) != 1 || kept[0]["rationale_uid"] != "rationale:ok" {
 		t.Fatalf("kept rows = %+v, want only rationale:ok", kept)
 	}
-	if refs, _ := graph.UnanalyzedIndexWrites(BatchCanonicalRationaleExplainsEdgeCypher); len(refs) != 0 {
+	if refs, _ := graph.UnanalyzedIndexWrites(node.BatchCanonicalRationaleExplainsEdgeCypher); len(refs) != 0 {
 		t.Fatalf("production statement reported unanalyzed: %+v", refs)
 	}
 }

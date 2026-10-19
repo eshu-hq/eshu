@@ -48,7 +48,7 @@ var runtimeWriterClasses = map[string]runtimeWriterClass{
 	// source resolver/cross-repo) adds RUNS_ON to an existing WorkloadInstance.
 	// Its queue is shared_projection_intents, so the fence waits on its pending
 	// RUNS_ON intents (#8169).
-	"internal/storage/cypher/canonical_relationships.go": {
+	"internal/storage/cypher/canonical/node/relationships_edges.go": {
 		sharedIntentProducer: reducercontract.DomainRepoDependency,
 	},
 	"internal/storage/cypher/canonical.go": {
@@ -237,11 +237,11 @@ func TestRuntimeProducerSetGuardFailsOnSeededDrift(t *testing.T) {
 	}
 	write("internal/reducer/materializer_templates.go", "package reducer\nconst q = `MERGE (i:WorkloadInstance {id: row.instance_id})`\n")
 	write("internal/storage/cypher/canonical.go", "package cypher\nconst q = `MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)`\nfunc BuildCanonicalWorkloadInstanceUpsert() {}\n")
-	write("internal/storage/cypher/canonical_relationships.go", "package cypher\nconst q = `MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)`\n")
+	write("internal/storage/cypher/canonical/node/relationships_edges.go", "package cypher\nconst q = `MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)`\n")
 	classes := map[string]runtimeWriterClass{
-		"internal/reducer/materializer_templates.go":         runtimeWriterClasses["internal/reducer/materializer_templates.go"],
-		"internal/storage/cypher/canonical.go":               runtimeWriterClasses["internal/storage/cypher/canonical.go"],
-		"internal/storage/cypher/canonical_relationships.go": runtimeWriterClasses["internal/storage/cypher/canonical_relationships.go"],
+		"internal/reducer/materializer_templates.go":                    runtimeWriterClasses["internal/reducer/materializer_templates.go"],
+		"internal/storage/cypher/canonical.go":                          runtimeWriterClasses["internal/storage/cypher/canonical.go"],
+		"internal/storage/cypher/canonical/node/relationships_edges.go": runtimeWriterClasses["internal/storage/cypher/canonical/node/relationships_edges.go"],
 	}
 	producers := []reducercontract.Domain{reducercontract.DomainWorkloadMaterialization}
 	shared := []reducercontract.Domain{reducercontract.DomainRepoDependency}
@@ -281,7 +281,7 @@ func TestRuntimeProducerSetGuardFailsOnSeededDrift(t *testing.T) {
 			seed:      func() {},
 			producers: producers,
 			shared:    nil,
-			want:      "shared intent producer domain repo_dependency of internal/storage/cypher/canonical_relationships.go is not in runtimeSharedIntentProducerDomains",
+			want:      "shared intent producer domain repo_dependency of internal/storage/cypher/canonical/node/relationships_edges.go is not in runtimeSharedIntentProducerDomains",
 		},
 	}
 	for name, tc := range cases {

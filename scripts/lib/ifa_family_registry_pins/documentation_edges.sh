@@ -38,7 +38,7 @@ IFA_FAMILY_PIN_BLOCKER_KIND="ack_barrier"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="documentation_materialization"
 
-# go/internal/storage/cypher/canonical_documentation_edges.go:17-32 (entity
+# go/internal/storage/cypher/canonical/node/documentation_edges.go:17-32 (entity
 # target) and :34-49 (workload target) are the two DOCUMENTS write
 # templates; both end in the IDENTICAL final MERGE line, so the substring is
 # unambiguous across either template (matches

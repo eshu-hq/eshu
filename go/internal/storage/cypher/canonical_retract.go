@@ -4,11 +4,11 @@
 package cypher
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // BuildCanonicalWorkloadDependencyUpsert builds a Workload DEPENDS_ON edge
@@ -83,81 +83,17 @@ func BuildRetractWorkloadDependencyEdges(repoIDs []string, evidenceSource string
 	}
 }
 
-// CodeCallRetractSourceLabels lists the source node labels a code-call edge
-// (CALLS/REFERENCES/INSTANTIATES) can originate from.
-var CodeCallRetractSourceLabels = []string{"Function", "Class", "Struct", "Interface", "TypeAlias", "File"}
-
-// codeCallMetaclassRetractSourceLabels lists the source labels a USES_METACLASS
-// edge can originate from — a narrower set than the code-call edges.
-var codeCallMetaclassRetractSourceLabels = []string{"Function", "Class", "File"}
-
-// codeCallRetractRelTypes returns the relationship-type disjunction the retract
-// deletes for the given evidence source. Relationship-type disjunction is
-// supported on NornicDB; node-label disjunction is not (#5116).
-func codeCallRetractRelTypes(evidenceSource string) string {
-	switch evidenceSource {
-	case "parser/code-calls":
-		return "CALLS|REFERENCES|INSTANTIATES"
-	case "parser/python-metaclass":
-		return "USES_METACLASS"
-	default:
-		return "CALLS|REFERENCES|USES_METACLASS|INSTANTIATES"
-	}
-}
-
-// codeCallRetractSourceLabelsFor returns the source labels the retract must
-// cover for the given evidence source.
-func codeCallRetractSourceLabelsFor(evidenceSource string) []string {
-	if evidenceSource == "parser/python-metaclass" {
-		return codeCallMetaclassRetractSourceLabels
-	}
-	return CodeCallRetractSourceLabels
-}
-
-// buildCodeCallRetractStatements emits one retract statement per source label.
-//
-// A single statement cannot bind all source labels on NornicDB: a node-label
-// disjunction MATCH (source:Function|Class|...) matches zero rows, and on
-// NornicDB v1.1.11 an unlabeled MATCH (source) scan is unreliable — it silently
-// drops some source labels (e.g. File-sourced REFERENCES), inconsistently by
-// internal label-iteration state (#5116). Single-label MATCH is the only shape
-// that reliably matches every source on both pinned versions, so the retract
-// fans out to one statement per label. The relationship-type disjunction and the
-// scope predicate are unchanged per statement. scopeField is the source property
-// the retract binds ("repo_id" or "path"); scopeParam is the Cypher parameter
-// key carrying scopeValues.
-func buildCodeCallRetractStatements(scopeField, scopeParam string, scopeValues []string, evidenceSource string) []Statement {
-	relTypes := codeCallRetractRelTypes(evidenceSource)
-	labels := codeCallRetractSourceLabelsFor(evidenceSource)
-	stmts := make([]Statement, 0, len(labels))
-	for _, label := range labels {
-		cypher := fmt.Sprintf(
-			"MATCH (source:%s)-[rel:%s]->()\nWHERE source.%s IN $%s\n  AND rel.evidence_source = $evidence_source\nDELETE rel",
-			label, relTypes, scopeField, scopeParam,
-		)
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
-			Cypher:    cypher,
-			Parameters: map[string]any{
-				scopeParam:        scopeValues,
-				"evidence_source": evidenceSource,
-			},
-		})
-	}
-	return stmts
-}
-
 // BuildRetractCodeCallEdgeStatements builds per-source-label code-intel edge
 // retraction statements for all source entities owned by the given repositories.
 func BuildRetractCodeCallEdgeStatements(repoIDs []string, evidenceSource string) []Statement {
-	return buildCodeCallRetractStatements("repo_id", "repo_ids", repoIDs, evidenceSource)
+	return wrapNodeEdgeParts(node.BuildCodeCallRetractParts("repo_id", "repo_ids", repoIDs, evidenceSource))
 }
 
 // BuildRetractCodeCallEdgeStatementsByFilePath builds per-source-label code-intel
 // edge retraction statements for source entities owned by the given
 // repo-qualified file paths.
 func BuildRetractCodeCallEdgeStatementsByFilePath(filePaths []string, evidenceSource string) []Statement {
-	return buildCodeCallRetractStatements("path", "file_paths", filePaths, evidenceSource)
+	return wrapNodeEdgeParts(node.BuildCodeCallRetractParts("path", "file_paths", filePaths, evidenceSource))
 }
 
 // SQL relationship edge retraction is built per source label by
@@ -202,7 +138,7 @@ func isCrossRepoRunsOnReplaySafeGroup(stmts []Statement) bool {
 	lastCleanup, firstUpsert := -1, len(stmts)
 	for index, stmt := range stmts {
 		switch stmt.Cypher {
-		case BatchCanonicalRunsOnLegacyIdentityCleanupCypher:
+		case node.BatchCanonicalRunsOnLegacyIdentityCleanupCypher:
 			if stmt.Operation != OperationCanonicalUpsert {
 				return false
 			}
@@ -212,7 +148,7 @@ func isCrossRepoRunsOnReplaySafeGroup(stmts []Statement) bool {
 			}
 			cleanupRows = append(cleanupRows, rows)
 			lastCleanup = index
-		case BatchCanonicalRunsOnUpsertCypher:
+		case node.BatchCanonicalRunsOnUpsertCypher:
 			if stmt.Operation != OperationCanonicalUpsert {
 				return false
 			}
@@ -258,13 +194,13 @@ func isCanonicalRepoDependencyReplayStatement(stmt Statement) bool {
 	}
 	switch stmt.Cypher {
 	case BatchCanonicalRepoDependencyUpsertCypher,
-		BatchCanonicalDeploysFromRepoRelationshipUpsertCypher,
-		batchCanonicalDiscoversConfigInRepoRelationshipUpsertCypher,
-		batchCanonicalProvisionsDependencyForRepoRelationshipUpsertCypher,
-		batchCanonicalUsesModuleRepoRelationshipUpsertCypher,
-		batchCanonicalReadsConfigFromRepoRelationshipUpsertCypher,
-		BatchCanonicalRepoEvidenceArtifactUpsertCypher,
-		BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher:
+		node.BatchCanonicalDeploysFromRepoRelationshipUpsertCypher,
+		node.BatchCanonicalDiscoversConfigInRepoRelationshipUpsertCypher,
+		node.BatchCanonicalProvisionsDependencyForRepoRelationshipUpsertCypher,
+		node.BatchCanonicalUsesModuleRepoRelationshipUpsertCypher,
+		node.BatchCanonicalReadsConfigFromRepoRelationshipUpsertCypher,
+		node.BatchCanonicalRepoEvidenceArtifactUpsertCypher,
+		node.BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher:
 		return true
 	default:
 		return false

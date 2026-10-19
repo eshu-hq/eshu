@@ -3,6 +3,10 @@
 
 package node
 
+import (
+	"sort"
+)
+
 // --- Phase A: Retract stale nodes ---
 //
 // These label sets group the entity labels the canonical retract phase scans by
@@ -153,4 +157,34 @@ var RetractPackageRegistryEntityLabels = map[string]struct{}{
 	"PackageRegistryPackageDependency": {},
 	"PackageRegistryPackageVersion":    {},
 	"PackageVersion":                   {},
+}
+
+// RetractEntityLabels returns the sorted union of every entity label family
+// the canonical retract phase scans. It lives here beside the family sets it
+// unions so a label that materializes but is missing from every family is
+// caught at the source: delta and reconciliation projections would otherwise
+// strand the previous generation's nodes.
+func RetractEntityLabels() []string {
+	labels := make(map[string]struct{})
+	for _, family := range []map[string]struct{}{
+		RetractCodeEntityLabels,
+		RetractInfraEntityLabels,
+		RetractTerraformEntityLabels,
+		RetractCloudFormationEntityLabels,
+		RetractSQLEntityLabels,
+		RetractDataEntityLabels,
+		RetractOCIEntityLabels,
+		RetractPackageRegistryEntityLabels,
+	} {
+		for label := range family {
+			labels[label] = struct{}{}
+		}
+	}
+
+	sorted := make([]string, 0, len(labels))
+	for label := range labels {
+		sorted = append(sorted, label)
+	}
+	sort.Strings(sorted)
+	return sorted
 }

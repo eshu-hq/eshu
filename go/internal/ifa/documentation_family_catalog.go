@@ -44,7 +44,7 @@ const (
 // documentationFamilyOdu carries one document section whose mentions cover the
 // extractor's full decision surface: three edges that must exist (a Function,
 // a Class, and a SqlTable target -- the SqlTable case closes #5994's
-// production-truth gap in canonical_documentation_edges.go's MATCH label
+// production-truth gap in canonical/node/documentation_edges.go's MATCH label
 // alternation), and five mentions that must NOT produce one.
 //
 // The negative cases are the point. Each corresponds to a distinct early

@@ -8,6 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 )
 
@@ -109,9 +110,9 @@ func (w *CanonicalNodeWriter) WithTerraformStateConfigMatchResolver(resolver Ter
 // default) means the base_refs node property still gets written for touched
 // overlays, but no EXTENDS_BASE edge is ever written or retracted -- a safe,
 // honest "edge rebuild not resolved" state rather than a wrong or partial
-// edge set. See KustomizeOverlayResolver and kustomizeExtendsBaseEdgeStatements
+// edge set. See node.KustomizeOverlayResolver and kustomizeExtendsBaseEdgeStatements
 // (canonical_kustomize_edges.go).
-func (w *CanonicalNodeWriter) WithKustomizeOverlayResolver(resolver KustomizeOverlayResolver) *CanonicalNodeWriter {
+func (w *CanonicalNodeWriter) WithKustomizeOverlayResolver(resolver node.KustomizeOverlayResolver) *CanonicalNodeWriter {
 	if w == nil {
 		return nil
 	}

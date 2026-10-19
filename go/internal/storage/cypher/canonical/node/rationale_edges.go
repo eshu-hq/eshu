@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package node
 
 // Batched UNWIND Cypher for rationale EXPLAINS edges (issue #2230).
 //

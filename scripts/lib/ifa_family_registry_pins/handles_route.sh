@@ -27,7 +27,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="runner"
 # domain.
 IFA_FAMILY_PIN_WAIT_KEY="handles_route"
 
-# go/internal/storage/cypher/canonical_handles_route_edges.go:19. Single
+# go/internal/storage/cypher/canonical/node/handles_route_edges.go:19. Single
 # relationship type, so this anchor covers the family's whole write surface.
 IFA_FAMILY_PIN_ANCHOR="MERGE (f)-[rel:HANDLES_ROUTE]->(e)"
 # shared_cell: a plain reducer family needing no maintenance pass (same

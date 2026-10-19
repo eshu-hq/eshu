@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -30,7 +30,7 @@ func TestBuildDocumentationRowMapRoutesEntityTarget(t *testing.T) {
 	if !ok {
 		t.Fatal("buildDocumentationRowMap ok = false, want true")
 	}
-	if cypher != sourcecypher.BatchCanonicalDocumentationEntityEdgeCypher {
+	if cypher != node.BatchCanonicalDocumentationEntityEdgeCypher {
 		t.Errorf("expected entity edge template, got %q", cypher)
 	}
 	if !strings.Contains(cypher, "rel:DOCUMENTS") || !strings.Contains(cypher, "MERGE (section:DocumentationSection") {
@@ -52,7 +52,7 @@ func TestBuildDocumentationRowMapRoutesWorkloadTarget(t *testing.T) {
 	if !ok {
 		t.Fatal("buildDocumentationRowMap ok = false, want true")
 	}
-	if cypher != sourcecypher.BatchCanonicalDocumentationWorkloadEdgeCypher {
+	if cypher != node.BatchCanonicalDocumentationWorkloadEdgeCypher {
 		t.Errorf("expected workload edge template, got %q", cypher)
 	}
 	if !strings.Contains(cypher, "MATCH (target:Workload {id: row.target_entity_id})") {

@@ -229,7 +229,7 @@ func TestCanonicalNodeWriterRetractCoversProjectableEntityLabels(t *testing.T) {
 		}
 	}
 	retractLabels := make(map[string]struct{})
-	for _, label := range canonicalNodeRetractEntityLabels() {
+	for _, label := range node.RetractEntityLabels() {
 		retractLabels[label] = struct{}{}
 	}
 
@@ -269,14 +269,14 @@ func TestCanonicalNodeWriterRetractRetainsCrossplaneClaimForLegacySweep(t *testi
 		t.Fatal("node.RetractInfraEntityLabels must retain CrossplaneClaim to sweep legacy pre-#5347 nodes (issue #5478)")
 	}
 	found := false
-	for _, label := range canonicalNodeRetractEntityLabels() {
+	for _, label := range node.RetractEntityLabels() {
 		if label == "CrossplaneClaim" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatal("canonicalNodeRetractEntityLabels() must retain CrossplaneClaim to sweep legacy pre-#5347 nodes (issue #5478)")
+		t.Fatal("node.RetractEntityLabels() must retain CrossplaneClaim to sweep legacy pre-#5347 nodes (issue #5478)")
 	}
 	found = false
 	for _, label := range RetractableNodeEntityLabels() {
