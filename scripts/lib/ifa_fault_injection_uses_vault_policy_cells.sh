@@ -154,8 +154,11 @@ cell_baseline_uses_vault_policy() {
 	local projector_pid reducer_pid
 	ifa_det_start_bg "${log_dir}" "projector-baseline_uses_vault_policy" projector_pid "${bin_dir}/eshu-projector"
 	ifa_uses_vault_policy_run_trust_chain_stage "baseline_uses_vault_policy"
+	# Drain reducer is flag-on but UNSCOPED like the sibling kill/failgraphwrite
+	# cells: run_drain_gate requires global residual=0, and a CLAIM_DOMAIN
+	# here would leave every other domain's rows unclaimable by construction.
 	ifa_det_start_bg "${log_dir}" "reducer-baseline_uses_vault_policy" reducer_pid \
-		env "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED=true" "ESHU_REDUCER_CLAIM_DOMAIN=secrets_iam_graph_projection" "${bin_dir}/eshu-reducer"
+		env "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED=true" "${bin_dir}/eshu-reducer"
 	run_drain_gate baseline_uses_vault_policy
 	assert_no_dead_letters baseline_uses_vault_policy
 	ifa_uses_vault_policy_assert "baseline_uses_vault_policy" "${bin_dir}" "${uses_vault_policy_expected_edges}" \

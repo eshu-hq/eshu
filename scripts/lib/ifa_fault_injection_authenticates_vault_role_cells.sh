@@ -231,8 +231,11 @@ cell_baseline_authenticates_vault_role() {
 	local projector_pid reducer_pid
 	ifa_det_start_bg "${log_dir}" "projector-baseline_authenticates_vault_role" projector_pid "${bin_dir}/eshu-projector"
 	ifa_authenticates_vault_role_run_trust_chain_stage "baseline_authenticates_vault_role"
+	# Drain reducer is flag-on but UNSCOPED like the sibling kill/failgraphwrite
+	# cells: run_drain_gate requires global residual=0, and a CLAIM_DOMAIN
+	# here would leave every other domain's rows unclaimable by construction.
 	ifa_det_start_bg "${log_dir}" "reducer-baseline_authenticates_vault_role" reducer_pid \
-		env "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED=true" "ESHU_REDUCER_CLAIM_DOMAIN=secrets_iam_graph_projection" "${bin_dir}/eshu-reducer"
+		env "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED=true" "${bin_dir}/eshu-reducer"
 	run_drain_gate baseline_authenticates_vault_role
 	assert_no_dead_letters baseline_authenticates_vault_role
 	ifa_authenticates_vault_role_assert "baseline_authenticates_vault_role" "${bin_dir}" "${authenticates_vault_role_expected_edges}" \
