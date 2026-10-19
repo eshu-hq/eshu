@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -92,7 +92,7 @@ func TestWorkflowControlStoreUpsertCompletenessStatesExecutesUpsert(t *testing.T
 	err := store.UpsertCompletenessStates(context.Background(), []workflow.CompletenessState{{
 		RunID:         "run-1",
 		CollectorKind: scope.CollectorGit,
-		Keyspace:      reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+		Keyspace:      gpphase.KeyspaceCodeEntitiesUID,
 		PhaseName:     "canonical_nodes_committed",
 		Required:      true,
 		Status:        "ready",
@@ -108,7 +108,7 @@ func TestWorkflowControlStoreUpsertCompletenessStatesExecutesUpsert(t *testing.T
 	if !strings.Contains(db.execs[0].query, "INSERT INTO workflow_run_completeness") {
 		t.Fatalf("query missing workflow_run_completeness upsert: %s", db.execs[0].query)
 	}
-	if got, want := db.execs[0].args[2], string(reducer.GraphProjectionKeyspaceCodeEntitiesUID); got != want {
+	if got, want := db.execs[0].args[2], string(gpphase.KeyspaceCodeEntitiesUID); got != want {
 		t.Fatalf("keyspace arg = %v, want %q", got, want)
 	}
 }

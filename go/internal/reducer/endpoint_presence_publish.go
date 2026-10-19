@@ -19,8 +19,8 @@ import (
 // idempotency contract.
 func publishEndpointPresence(
 	ctx context.Context,
-	writer EndpointPresenceWriter,
-	keyspace GraphProjectionKeyspace,
+	writer gpphase.EndpointPresenceWriter,
+	keyspace gpphase.Keyspace,
 	scopeID string,
 	nodeRows []map[string]any,
 	committedAt time.Time,

@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestGraphProjectionPhaseStateStoreUpsertAndLookup(t *testing.T) {
@@ -23,17 +23,17 @@ func TestGraphProjectionPhaseStateStoreUpsertAndLookup(t *testing.T) {
 	store := NewGraphProjectionPhaseStateStore(database)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	key := reducer.GraphProjectionPhaseKey{
+	key := gpphase.PhaseKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
 		GenerationID:     "gen-1",
-		Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+		Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 	}
 
-	err := store.Upsert(ctx, []reducer.GraphProjectionPhaseState{{
+	err := store.Upsert(ctx, []gpphase.PhaseState{{
 		Key:         key,
-		Phase:       reducer.GraphProjectionPhaseSemanticNodesCommitted,
+		Phase:       gpphase.PhaseSemanticNodesCommitted,
 		CommittedAt: now,
 		UpdatedAt:   now,
 	}})
@@ -41,7 +41,7 @@ func TestGraphProjectionPhaseStateStoreUpsertAndLookup(t *testing.T) {
 		t.Fatalf("Upsert() error = %v", err)
 	}
 
-	ready, found, err := store.Lookup(ctx, key, reducer.GraphProjectionPhaseSemanticNodesCommitted)
+	ready, found, err := store.Lookup(ctx, key, gpphase.PhaseSemanticNodesCommitted)
 	if err != nil {
 		t.Fatalf("Lookup() error = %v", err)
 	}
@@ -58,15 +58,15 @@ func TestGraphProjectionPhaseStateStoreLookupNotFound(t *testing.T) {
 
 	database := newGraphProjectionPhaseStateTestDB()
 	store := NewGraphProjectionPhaseStateStore(database)
-	key := reducer.GraphProjectionPhaseKey{
+	key := gpphase.PhaseKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
 		GenerationID:     "gen-1",
-		Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+		Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 	}
 
-	ready, found, err := store.Lookup(context.Background(), key, reducer.GraphProjectionPhaseSemanticNodesCommitted)
+	ready, found, err := store.Lookup(context.Background(), key, gpphase.PhaseSemanticNodesCommitted)
 	if err != nil {
 		t.Fatalf("Lookup() error = %v", err)
 	}

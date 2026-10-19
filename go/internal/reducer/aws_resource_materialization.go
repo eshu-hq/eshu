@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -79,13 +80,13 @@ type AWSResourceMaterializationHandler struct {
 	// PhasePublisher records the canonical-nodes-committed readiness phase that
 	// gates the AWS relationship edge projection. A nil publisher is a no-op so
 	// the additive domain stays safe to register before Stage B is wired.
-	PhasePublisher GraphProjectionPhasePublisher
+	PhasePublisher gpphase.PhasePublisher
 	// PresenceWriter records uid-exact endpoint presence for committed
 	// CloudResource nodes so the cross-scope secrets/IAM projection gate can prove
 	// a specific node committed (issue #1380). It is nil unless the secrets/IAM
 	// graph projection feature is enabled, so the default hot path carries no
 	// extra write.
-	PresenceWriter EndpointPresenceWriter
+	PresenceWriter gpphase.EndpointPresenceWriter
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
 	// when an aws_resource fact is quarantined as input_invalid during node
 	// extraction. Optional: a nil pointer skips the counter (the structured
@@ -168,7 +169,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 		// Flag-gated: a nil PresenceWriter (the default) makes this a no-op.
 		if err := publishEndpointPresence(
 			ctx, h.PresenceWriter,
-			GraphProjectionKeyspaceCloudResourceUID, intent.ScopeID, rows, time.Now().UTC(),
+			gpphase.KeyspaceCloudResourceUID, intent.ScopeID, rows, time.Now().UTC(),
 		); err != nil {
 			return reducercontract.Result{}, fmt.Errorf("record cloud resource endpoint presence: %w", err)
 		}
@@ -213,8 +214,8 @@ func (h AWSResourceMaterializationHandler) Handle(
 		ctx,
 		h.PhasePublisher,
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
 		return reducercontract.Result{}, fmt.Errorf("publish canonical cloud resource nodes phase: %w", err)

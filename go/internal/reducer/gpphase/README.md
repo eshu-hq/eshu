@@ -167,12 +167,12 @@ that orphans every already-published readiness row under the old string.
 **Adding a new `Keyspace` or `Phase` constant is safe.** Removing or
 renaming one that a domain family or the phase-publish machinery still
 references is not — grep the full tree for the exact constant name before
-touching it, since the alias means both the `gpphase.` and `reducer.`
-spellings are live call sites.
+touching it; every call site spells the single `gpphase` name since
+#6626 bucket 9 retired the root aliases.
 
 ## Related docs
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
-- `go/internal/reducer/graph_projection_phase.go` — the root aliases for `PhaseState` and `PhasePublisher`, and the phase-publish machinery
+- `go/internal/reducer/gpphase` — the canonical `PhaseState` and `PhasePublisher` declarations and the phase-publish machinery
 - `docs/internal/design/package-restructure.md` — the #6061 restructure and this hoist's no-regression evidence
 - `docs/public/observability/telemetry-coverage.md` — the coverage row for this package

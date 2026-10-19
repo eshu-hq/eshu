@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestGraphProjectionPhaseRepairerRunOnceRepublishesMissingReadiness(t *testing.T) {
@@ -57,7 +59,7 @@ func TestGraphProjectionPhaseRepairerRunOnceRepublishesWorkloadReadinessWithoutA
 	now := time.Date(2026, time.June, 18, 12, 0, 0, 0, time.UTC)
 	repair := GraphProjectionPhaseRepair{
 		Key:           workloadMaterializationRepoReadinessKey("scope-a", "repository:r_1", "gen-1"),
-		Phase:         GraphProjectionPhaseWorkloadMaterialization,
+		Phase:         gpphase.PhaseWorkloadMaterialization,
 		CommittedAt:   now.Add(-time.Minute),
 		EnqueuedAt:    now.Add(-30 * time.Second),
 		NextAttemptAt: now,
@@ -172,14 +174,14 @@ func TestGraphProjectionPhaseRepairerRunOnceMarksFailedPublicationForRetry(t *te
 
 func newGraphProjectionPhaseRepairForTest(now time.Time) GraphProjectionPhaseRepair {
 	return GraphProjectionPhaseRepair{
-		Key: GraphProjectionPhaseKey{
+		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
 			SourceRunID:      "run-1",
 			GenerationID:     "gen-1",
-			Keyspace:         GraphProjectionKeyspaceCodeEntitiesUID,
+			Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 		},
-		Phase:         GraphProjectionPhaseSemanticNodesCommitted,
+		Phase:         gpphase.PhaseSemanticNodesCommitted,
 		CommittedAt:   now.Add(-time.Minute),
 		EnqueuedAt:    now.Add(-30 * time.Second),
 		NextAttemptAt: now,
@@ -223,12 +225,12 @@ func (f *fakeGraphProjectionPhaseRepairQueue) MarkFailed(_ context.Context, repa
 }
 
 type recordingGraphProjectionPhasePublisher struct {
-	calls [][]GraphProjectionPhaseState
+	calls [][]gpphase.PhaseState
 	err   error
 }
 
-func (r *recordingGraphProjectionPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []GraphProjectionPhaseState) error {
-	cloned := make([]GraphProjectionPhaseState, len(rows))
+func (r *recordingGraphProjectionPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []gpphase.PhaseState) error {
+	cloned := make([]gpphase.PhaseState, len(rows))
 	copy(cloned, rows)
 	r.calls = append(r.calls, cloned)
 	return r.err
@@ -240,7 +242,7 @@ type fakeGraphProjectionPhaseStateLookup struct {
 	err   error
 }
 
-func (f fakeGraphProjectionPhaseStateLookup) Lookup(_ context.Context, _ GraphProjectionPhaseKey, _ GraphProjectionPhase) (bool, bool, error) {
+func (f fakeGraphProjectionPhaseStateLookup) Lookup(_ context.Context, _ gpphase.PhaseKey, _ gpphase.Phase) (bool, bool, error) {
 	return f.ready, f.found, f.err
 }
 

@@ -19,7 +19,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -152,7 +152,7 @@ ANALYZE graph_projection_phase_state;
 	})
 
 	t.Run("readiness", func(t *testing.T) {
-		var keys []reducer.GraphProjectionPhaseKey
+		var keys []gpphase.PhaseKey
 		scopes := make([]string, 0, 500)
 		units := make([]string, 0, 500)
 		runs := make([]string, 0, 500)
@@ -163,9 +163,9 @@ ANALYZE graph_projection_phase_state;
 			if i%2 == 1 {
 				gen = fmt.Sprintf("gen-missing-%d", i)
 			}
-			key := reducer.GraphProjectionPhaseKey{
+			key := gpphase.PhaseKey{
 				ScopeID: fmt.Sprintf("scope-%d", i%10), AcceptanceUnitID: fmt.Sprintf("unit-%d", i*20),
-				SourceRunID: "run-1", GenerationID: gen, Keyspace: reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+				SourceRunID: "run-1", GenerationID: gen, Keyspace: gpphase.KeyspaceCodeEntitiesUID,
 			}
 			keys = append(keys, key)
 			scopes = append(scopes, key.ScopeID)
@@ -176,11 +176,11 @@ ANALYZE graph_projection_phase_state;
 		}
 
 		plan := explainQuery(t, ctx, sqldb, lookupGraphProjectionPhaseStateBatchSQL,
-			scopes, units, runs, generations, keyspaces, string(reducer.GraphProjectionPhaseCanonicalNodesCommitted))
+			scopes, units, runs, generations, keyspaces, string(gpphase.PhaseCanonicalNodesCommitted))
 		assertIndexPlan(t, "readiness batch", plan, "graph_projection_phase_state")
 
 		store := NewGraphProjectionPhaseStateStore(database)
-		got, err := store.LookupBatch(ctx, keys, reducer.GraphProjectionPhaseCanonicalNodesCommitted)
+		got, err := store.LookupBatch(ctx, keys, gpphase.PhaseCanonicalNodesCommitted)
 		if err != nil {
 			t.Fatalf("LookupBatch() error = %v", err)
 		}

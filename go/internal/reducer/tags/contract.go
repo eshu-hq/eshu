@@ -8,21 +8,21 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // RuntimeContract captures the accepted tag-normalization reducer scaffold.
 type RuntimeContract struct {
 	Components         []string
-	CanonicalKeyspaces []reducer.GraphProjectionKeyspace
+	CanonicalKeyspaces []gpphase.Keyspace
 }
 
 var defaultRuntimeContract = RuntimeContract{
 	Components: []string{
 		"normalizer",
 	},
-	CanonicalKeyspaces: []reducer.GraphProjectionKeyspace{
-		reducer.GraphProjectionKeyspaceCloudResourceUID,
+	CanonicalKeyspaces: []gpphase.Keyspace{
+		gpphase.KeyspaceCloudResourceUID,
 	},
 }
 

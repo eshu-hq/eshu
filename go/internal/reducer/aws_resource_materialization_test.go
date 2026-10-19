@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // recordingCloudResourceNodeWriter captures the rows handed to the node writer
@@ -406,10 +407,10 @@ func TestAWSResourceMaterializationHandlePublishesCanonicalNodesCommittedPhase(t
 	if len(rows) != 1 {
 		t.Fatalf("published rows = %d, want 1", len(rows))
 	}
-	if got, want := rows[0].Key.Keyspace, GraphProjectionKeyspaceCloudResourceUID; got != want {
+	if got, want := rows[0].Key.Keyspace, gpphase.KeyspaceCloudResourceUID; got != want {
 		t.Fatalf("keyspace = %q, want %q", got, want)
 	}
-	if got, want := rows[0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := rows[0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("phase = %q, want %q", got, want)
 	}
 	if got, want := rows[0].Key.ScopeID, "scope-1"; got != want {
@@ -470,8 +471,8 @@ func TestAWSResourceMaterializationPublishesPhaseOnPoisonedGeneration(t *testing
 	if len(publisher.calls) != 1 {
 		t.Fatalf("publisher.calls = %d, want 1; the readiness phase must publish on a poisoned generation to unblock downstream", len(publisher.calls))
 	}
-	if got := publisher.calls[0][0].Phase; got != GraphProjectionPhaseCanonicalNodesCommitted {
-		t.Fatalf("published phase = %q, want %q", got, GraphProjectionPhaseCanonicalNodesCommitted)
+	if got := publisher.calls[0][0].Phase; got != gpphase.PhaseCanonicalNodesCommitted {
+		t.Fatalf("published phase = %q, want %q", got, gpphase.PhaseCanonicalNodesCommitted)
 	}
 
 	// The valid fact still materialized exactly one node; the malformed one did not.
@@ -517,7 +518,7 @@ func TestAWSResourceMaterializationHandlePublishesPhaseOnEmptyGeneration(t *test
 	if len(publisher.calls) != 1 {
 		t.Fatalf("publisher.calls = %d, want 1 (empty generation must still unblock Stage B)", len(publisher.calls))
 	}
-	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("phase = %q, want %q", got, want)
 	}
 }

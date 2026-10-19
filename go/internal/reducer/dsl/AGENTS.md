@@ -26,11 +26,9 @@ it before touching any file in this directory.
   output order is deterministic by `(AcceptanceUnitID, Keyspace, Phase)`;
   callers must not depend on insertion order.
 - **`cross_source_anchor_ready` is reserved** —
-  `internal/reducer/gpphase` declares it as `gpphase.PhaseCrossSourceAnchorReady`;
-  the root aliases that under the longer name
-  `GraphProjectionPhaseCrossSourceAnchorReady` in
-  `internal/reducer/graph_projection_phase.go`. Use the leaf name from a leaf
-  package, the alias from root callers; publish only from DSL
+  `internal/reducer/gpphase` declares it as `gpphase.PhaseCrossSourceAnchorReady`
+  (root alias retired in #6626 bucket 9). Use the leaf name everywhere;
+  publish only from DSL
   substrate code, not from canonical projectors or other reducer handlers.
 - **`PublishEvaluationResult` is nil-safe** — `evaluator.go:163`; a nil
   `publisher` is silently a no-op. This is intentional for test scaffolding
@@ -61,8 +59,8 @@ it before touching any file in this directory.
 - The evaluator belongs in a separate package, not here. It must satisfy
   the `Evaluator` interface (`evaluator.go:41`) and return an
   `EvaluationResult` whose `Publications` use only keyspaces and phases
-  declared in `internal/reducer/gpphase` (aliased at the root in
-  `internal/reducer/graph_projection_phase.go`).
+  declared in `internal/reducer/gpphase` (root alias retired in #6626
+  bucket 9).
 
 ## Failure modes
 

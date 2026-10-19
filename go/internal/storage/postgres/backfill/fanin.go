@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -358,15 +358,15 @@ func (s Store) publishDeferredBackfillPartition(
 	}
 
 	now := s.now()
-	phaseRow := reducer.GraphProjectionPhaseState{
-		Key: reducer.GraphProjectionPhaseKey{
+	phaseRow := gpphase.PhaseState{
+		Key: gpphase.PhaseKey{
 			ScopeID:          partition.ScopeID,
 			AcceptanceUnitID: partition.ScopeID,
 			SourceRunID:      partition.GenerationID,
 			GenerationID:     partition.GenerationID,
-			Keyspace:         reducer.GraphProjectionKeyspaceCrossRepoEvidence,
+			Keyspace:         gpphase.KeyspaceCrossRepoEvidence,
 		},
-		Phase:       reducer.GraphProjectionPhaseBackwardEvidenceCommitted,
+		Phase:       gpphase.PhaseBackwardEvidenceCommitted,
 		CommittedAt: now,
 		UpdatedAt:   now,
 	}
@@ -374,7 +374,7 @@ func (s Store) publishDeferredBackfillPartition(
 		return deferredFanInOutcome{}, fmt.Errorf("phase store constructor is required for deferred backfill readiness publication")
 	}
 	if err := s.NewPhaseStore(tx).PublishGraphProjectionPhases(
-		ctx, []reducer.GraphProjectionPhaseState{phaseRow},
+		ctx, []gpphase.PhaseState{phaseRow},
 	); err != nil {
 		return deferredFanInOutcome{}, fmt.Errorf("publish backward evidence readiness: %w", err)
 	}

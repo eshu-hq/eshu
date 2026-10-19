@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // recordingKubernetesWorkloadNodeWriter captures the rows handed to the node
@@ -385,10 +386,10 @@ func TestKubernetesWorkloadMaterializationHandlePublishesCanonicalNodesCommitted
 	if len(rows) != 1 {
 		t.Fatalf("published rows = %d, want 1", len(rows))
 	}
-	if got, want := rows[0].Key.Keyspace, GraphProjectionKeyspaceKubernetesWorkloadUID; got != want {
+	if got, want := rows[0].Key.Keyspace, gpphase.KeyspaceKubernetesWorkloadUID; got != want {
 		t.Fatalf("keyspace = %q, want %q", got, want)
 	}
-	if got, want := rows[0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := rows[0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("phase = %q, want %q", got, want)
 	}
 	if got, want := rows[0].Key.ScopeID, "scope-1"; got != want {
@@ -430,10 +431,10 @@ func TestKubernetesWorkloadMaterializationHandlePublishesPhaseOnEmptyGeneration(
 	if len(publisher.calls) != 1 {
 		t.Fatalf("publisher.calls = %d, want 1 (empty generation must still unblock the edge slice)", len(publisher.calls))
 	}
-	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("phase = %q, want %q", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.Keyspace, GraphProjectionKeyspaceKubernetesWorkloadUID; got != want {
+	if got, want := publisher.calls[0][0].Key.Keyspace, gpphase.KeyspaceKubernetesWorkloadUID; got != want {
 		t.Fatalf("keyspace = %q, want %q", got, want)
 	}
 }

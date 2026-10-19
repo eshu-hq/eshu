@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -24,19 +24,19 @@ func TestGraphProjectionReadinessPrefetchSingleQueryPerRound(t *testing.T) {
 
 	const distinct = 500
 	database := newBatchReadinessTestDB()
-	var keys []reducer.GraphProjectionPhaseKey
+	var keys []gpphase.PhaseKey
 	for i := 0; i < distinct; i++ {
 		key := readinessTestKey(i)
 		database.rows[graphProjectionPhaseStateCompositeKey(graphProjectionPhaseStateRow{
 			scopeID: key.ScopeID, acceptanceUnitID: key.AcceptanceUnitID, sourceRunID: key.SourceRunID,
 			generationID: key.GenerationID, keyspace: string(key.Keyspace),
-			phase: string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+			phase: string(gpphase.PhaseCanonicalNodesCommitted),
 		})] = graphProjectionPhaseStateRow{scopeID: key.ScopeID}
 		keys = append(keys, key, key)
 	}
 
 	prefetch := NewGraphProjectionReadinessPrefetch(database)
-	lookup, err := prefetch(context.Background(), keys, reducer.GraphProjectionPhaseCanonicalNodesCommitted)
+	lookup, err := prefetch(context.Background(), keys, gpphase.PhaseCanonicalNodesCommitted)
 	if err != nil {
 		t.Fatalf("prefetch() error = %v", err)
 	}
@@ -45,7 +45,7 @@ func TestGraphProjectionReadinessPrefetchSingleQueryPerRound(t *testing.T) {
 		t.Fatalf("prefetch() issued %d queries for %d distinct keys, want 1", database.queryCount, distinct)
 	}
 	for i := 0; i < distinct; i++ {
-		ready, found := lookup(readinessTestKey(i), reducer.GraphProjectionPhaseCanonicalNodesCommitted)
+		ready, found := lookup(readinessTestKey(i), gpphase.PhaseCanonicalNodesCommitted)
 		if !found || !ready {
 			t.Fatalf("lookup(key %d) = (%v, %v), want (true, true)", i, ready, found)
 		}
@@ -59,13 +59,13 @@ func TestGraphProjectionReadinessPrefetchChunksAtOneThousand(t *testing.T) {
 
 	const distinct = 2500
 	database := newBatchReadinessTestDB()
-	var keys []reducer.GraphProjectionPhaseKey
+	var keys []gpphase.PhaseKey
 	for i := 0; i < distinct; i++ {
 		keys = append(keys, readinessTestKey(i))
 	}
 
 	prefetch := NewGraphProjectionReadinessPrefetch(database)
-	if _, err := prefetch(context.Background(), keys, reducer.GraphProjectionPhaseCanonicalNodesCommitted); err != nil {
+	if _, err := prefetch(context.Background(), keys, gpphase.PhaseCanonicalNodesCommitted); err != nil {
 		t.Fatalf("prefetch() error = %v", err)
 	}
 
@@ -86,15 +86,15 @@ func TestGraphProjectionReadinessPrefetchNormalizesWhitespace(t *testing.T) {
 	database := newBatchReadinessTestDB()
 	database.rows[graphProjectionPhaseStateCompositeKey(graphProjectionPhaseStateRow{
 		scopeID: "scope-a", acceptanceUnitID: "unit-a", sourceRunID: "run-1",
-		generationID: "gen-1", keyspace: string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
-		phase: string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+		generationID: "gen-1", keyspace: string(gpphase.KeyspaceCodeEntitiesUID),
+		phase: string(gpphase.PhaseCanonicalNodesCommitted),
 	})] = graphProjectionPhaseStateRow{scopeID: "scope-a"}
 
 	prefetch := NewGraphProjectionReadinessPrefetch(database)
-	lookup, err := prefetch(context.Background(), []reducer.GraphProjectionPhaseKey{{
+	lookup, err := prefetch(context.Background(), []gpphase.PhaseKey{{
 		ScopeID: "  scope-a ", AcceptanceUnitID: "\tunit-a", SourceRunID: "run-1 ",
-		GenerationID: "gen-1", Keyspace: reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-	}}, reducer.GraphProjectionPhaseCanonicalNodesCommitted)
+		GenerationID: "gen-1", Keyspace: gpphase.KeyspaceCodeEntitiesUID,
+	}}, gpphase.PhaseCanonicalNodesCommitted)
 	if err != nil {
 		t.Fatalf("prefetch() error = %v", err)
 	}
@@ -106,10 +106,10 @@ func TestGraphProjectionReadinessPrefetchNormalizesWhitespace(t *testing.T) {
 			}
 		}
 	}
-	ready, found := lookup(reducer.GraphProjectionPhaseKey{
+	ready, found := lookup(gpphase.PhaseKey{
 		ScopeID: "scope-a ", AcceptanceUnitID: " unit-a", SourceRunID: "run-1",
-		GenerationID: " gen-1 ", Keyspace: reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-	}, reducer.GraphProjectionPhaseCanonicalNodesCommitted)
+		GenerationID: " gen-1 ", Keyspace: gpphase.KeyspaceCodeEntitiesUID,
+	}, gpphase.PhaseCanonicalNodesCommitted)
 	if !found || !ready {
 		t.Fatalf("lookup(padded key) = (%v, %v), want (true, true)", ready, found)
 	}
@@ -123,34 +123,34 @@ func TestGraphProjectionReadinessPrefetchMatchesPerKeyLookup(t *testing.T) {
 	t.Parallel()
 
 	database := newBatchReadinessTestDB()
-	seedReadinessRow(database, "scope-a", "unit-a", "run-1", "gen-1", reducer.GraphProjectionPhaseCanonicalNodesCommitted)
-	seedReadinessRow(database, "scope-a", "unit-a", "run-1", "gen-1", reducer.GraphProjectionPhaseSemanticNodesCommitted)
-	keys := []reducer.GraphProjectionPhaseKey{
-		{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1", Keyspace: reducer.GraphProjectionKeyspaceCodeEntitiesUID},
-		{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1", Keyspace: reducer.GraphProjectionKeyspaceCodeEntitiesUID},
-		{ScopeID: "scope-missing", AcceptanceUnitID: "unit-missing", SourceRunID: "run-1", GenerationID: "gen-x", Keyspace: reducer.GraphProjectionKeyspaceCodeEntitiesUID},
-		{ScopeID: "", AcceptanceUnitID: "", SourceRunID: "", GenerationID: "", Keyspace: reducer.GraphProjectionKeyspaceCodeEntitiesUID},
+	seedReadinessRow(database, "scope-a", "unit-a", "run-1", "gen-1", gpphase.PhaseCanonicalNodesCommitted)
+	seedReadinessRow(database, "scope-a", "unit-a", "run-1", "gen-1", gpphase.PhaseSemanticNodesCommitted)
+	keys := []gpphase.PhaseKey{
+		{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1", Keyspace: gpphase.KeyspaceCodeEntitiesUID},
+		{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1", Keyspace: gpphase.KeyspaceCodeEntitiesUID},
+		{ScopeID: "scope-missing", AcceptanceUnitID: "unit-missing", SourceRunID: "run-1", GenerationID: "gen-x", Keyspace: gpphase.KeyspaceCodeEntitiesUID},
+		{ScopeID: "", AcceptanceUnitID: "", SourceRunID: "", GenerationID: "", Keyspace: gpphase.KeyspaceCodeEntitiesUID},
 	}
 
 	ctx := context.Background()
 	prefetch := NewGraphProjectionReadinessPrefetch(database)
-	lookup, err := prefetch(ctx, keys, reducer.GraphProjectionPhaseCanonicalNodesCommitted)
+	lookup, err := prefetch(ctx, keys, gpphase.PhaseCanonicalNodesCommitted)
 	if err != nil {
 		t.Fatalf("prefetch() error = %v", err)
 	}
 
 	store := NewGraphProjectionPhaseStateStore(database)
 	probes := []struct {
-		key   reducer.GraphProjectionPhaseKey
-		phase reducer.GraphProjectionPhase
+		key   gpphase.PhaseKey
+		phase gpphase.Phase
 	}{
-		{keys[0], reducer.GraphProjectionPhaseCanonicalNodesCommitted},
-		{keys[0], reducer.GraphProjectionPhaseSemanticNodesCommitted},
-		{keys[2], reducer.GraphProjectionPhaseCanonicalNodesCommitted},
-		{keys[3], reducer.GraphProjectionPhaseCanonicalNodesCommitted},
+		{keys[0], gpphase.PhaseCanonicalNodesCommitted},
+		{keys[0], gpphase.PhaseSemanticNodesCommitted},
+		{keys[2], gpphase.PhaseCanonicalNodesCommitted},
+		{keys[3], gpphase.PhaseCanonicalNodesCommitted},
 		{
-			key:   reducer.GraphProjectionPhaseKey{ScopeID: "scope-never-queried", AcceptanceUnitID: "unit-z", SourceRunID: "run-9", GenerationID: "gen-z", Keyspace: reducer.GraphProjectionKeyspaceCodeEntitiesUID},
-			phase: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			key:   gpphase.PhaseKey{ScopeID: "scope-never-queried", AcceptanceUnitID: "unit-z", SourceRunID: "run-9", GenerationID: "gen-z", Keyspace: gpphase.KeyspaceCodeEntitiesUID},
+			phase: gpphase.PhaseCanonicalNodesCommitted,
 		},
 	}
 	for _, probe := range probes {
@@ -161,7 +161,7 @@ func TestGraphProjectionReadinessPrefetchMatchesPerKeyLookup(t *testing.T) {
 		// The prefetch only resolves the keys and phase it was called
 		// with; anything outside that set answers not-found, mirroring
 		// the old loop exactly.
-		prefetched := probe.phase == reducer.GraphProjectionPhaseCanonicalNodesCommitted && probe.key.Validate() == nil
+		prefetched := probe.phase == gpphase.PhaseCanonicalNodesCommitted && probe.key.Validate() == nil
 		if prefetched {
 			seen := false
 			for _, key := range keys {
@@ -189,7 +189,7 @@ func TestGraphProjectionReadinessPrefetchErrorFailsSelection(t *testing.T) {
 	t.Parallel()
 
 	prefetch := NewGraphProjectionReadinessPrefetch(&acceptanceStoreErrorDB{})
-	lookup, err := prefetch(context.Background(), []reducer.GraphProjectionPhaseKey{readinessTestKey(0)}, reducer.GraphProjectionPhaseCanonicalNodesCommitted)
+	lookup, err := prefetch(context.Background(), []gpphase.PhaseKey{readinessTestKey(0)}, gpphase.PhaseCanonicalNodesCommitted)
 	if err == nil {
 		t.Fatal("prefetch() error = nil on store failure, want error")
 	}
@@ -204,16 +204,16 @@ func TestGraphProjectionReadinessPrefetchRecordsStats(t *testing.T) {
 	t.Parallel()
 
 	database := newBatchReadinessTestDB()
-	seedReadinessRow(database, "scope-a", "unit-a", "run-1", "gen-1", reducer.GraphProjectionPhaseCanonicalNodesCommitted)
-	keys := []reducer.GraphProjectionPhaseKey{
-		{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1", Keyspace: reducer.GraphProjectionKeyspaceCodeEntitiesUID},
-		{ScopeID: "scope-missing", AcceptanceUnitID: "unit-missing", SourceRunID: "run-1", GenerationID: "gen-x", Keyspace: reducer.GraphProjectionKeyspaceCodeEntitiesUID},
+	seedReadinessRow(database, "scope-a", "unit-a", "run-1", "gen-1", gpphase.PhaseCanonicalNodesCommitted)
+	keys := []gpphase.PhaseKey{
+		{ScopeID: "scope-a", AcceptanceUnitID: "unit-a", SourceRunID: "run-1", GenerationID: "gen-1", Keyspace: gpphase.KeyspaceCodeEntitiesUID},
+		{ScopeID: "scope-missing", AcceptanceUnitID: "unit-missing", SourceRunID: "run-1", GenerationID: "gen-x", Keyspace: gpphase.KeyspaceCodeEntitiesUID},
 	}
 
 	var stats sharedintent.PrefetchStats
 	ctx := sharedintent.ContextWithPrefetchStats(context.Background(), &stats)
 	prefetch := NewGraphProjectionReadinessPrefetch(database)
-	if _, err := prefetch(ctx, keys, reducer.GraphProjectionPhaseCanonicalNodesCommitted); err != nil {
+	if _, err := prefetch(ctx, keys, gpphase.PhaseCanonicalNodesCommitted); err != nil {
 		t.Fatalf("prefetch() error = %v", err)
 	}
 
@@ -232,34 +232,34 @@ func TestGraphProjectionReadinessPrefetchEmptyIssuesNoQuery(t *testing.T) {
 
 	database := newBatchReadinessTestDB()
 	prefetch := NewGraphProjectionReadinessPrefetch(database)
-	lookup, err := prefetch(context.Background(), []reducer.GraphProjectionPhaseKey{
+	lookup, err := prefetch(context.Background(), []gpphase.PhaseKey{
 		{ScopeID: "", AcceptanceUnitID: "", SourceRunID: "", GenerationID: ""},
-	}, reducer.GraphProjectionPhaseCanonicalNodesCommitted)
+	}, gpphase.PhaseCanonicalNodesCommitted)
 	if err != nil {
 		t.Fatalf("prefetch() error = %v", err)
 	}
 	if database.queryCount != 0 {
 		t.Fatalf("prefetch() issued %d queries for invalid keys, want 0", database.queryCount)
 	}
-	if _, found := lookup(readinessTestKey(0), reducer.GraphProjectionPhaseCanonicalNodesCommitted); found {
+	if _, found := lookup(readinessTestKey(0), gpphase.PhaseCanonicalNodesCommitted); found {
 		t.Fatal("lookup() found a key with no rows, want not-found")
 	}
 }
 
-func readinessTestKey(i int) reducer.GraphProjectionPhaseKey {
-	return reducer.GraphProjectionPhaseKey{
+func readinessTestKey(i int) gpphase.PhaseKey {
+	return gpphase.PhaseKey{
 		ScopeID:          fmt.Sprintf("scope-%d", i),
 		AcceptanceUnitID: fmt.Sprintf("unit-%d", i),
 		SourceRunID:      "run-1",
 		GenerationID:     fmt.Sprintf("gen-%d", i),
-		Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+		Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 	}
 }
 
-func seedReadinessRow(database *batchReadinessTestDB, scope, unit, run, gen string, phase reducer.GraphProjectionPhase) {
+func seedReadinessRow(database *batchReadinessTestDB, scope, unit, run, gen string, phase gpphase.Phase) {
 	database.rows[graphProjectionPhaseStateCompositeKey(graphProjectionPhaseStateRow{
 		scopeID: scope, acceptanceUnitID: unit, sourceRunID: run, generationID: gen,
-		keyspace: string(reducer.GraphProjectionKeyspaceCodeEntitiesUID), phase: string(phase),
+		keyspace: string(gpphase.KeyspaceCodeEntitiesUID), phase: string(phase),
 	})] = graphProjectionPhaseStateRow{scopeID: scope}
 }
 

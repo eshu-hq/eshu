@@ -21,9 +21,8 @@ import (
 // workload_materialization_repo_phase.go), so importing it would violate the
 // rule that a family subpackage never imports the reducer root (issue #6061).
 // The field set matches root's struct field for field. The text is not
-// identical: Key and Phase are spelled gpphase.PhaseKey and gpphase.Phase here
-// where root spells them GraphProjectionPhaseKey and GraphProjectionPhase --
-// the same types through root's aliases.
+// identical: Key and Phase are spelled gpphase.PhaseKey and gpphase.Phase here,
+// matching the root since #6626 bucket 9 retired the root aliases.
 type GraphProjectionPhaseRepair struct {
 	Key           gpphase.PhaseKey
 	Phase         gpphase.Phase
@@ -61,8 +60,8 @@ type GraphProjectionPhaseRepairQueue interface {
 // GraphProjectionPhaseRepairsFromStates (graph_projection_phase_repair.go),
 // which this package cannot import for the same reason as above. The
 // signature differs: the name is unexported here, and the parameter is spelled
-// []gpphase.PhaseState rather than []GraphProjectionPhaseState -- the same
-// type through the root's alias.
+// []gpphase.PhaseState, matching the root since the root alias retired
+// (#6626 bucket 9).
 func graphProjectionPhaseRepairsFromStates(
 	states []gpphase.PhaseState,
 	lastError string,

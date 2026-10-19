@@ -41,7 +41,7 @@ func apiEndpointRepoPathPresenceKey(repoID, path string) string {
 // already succeeded.
 func publishAPIEndpointRepoPathPresence(
 	ctx context.Context,
-	writer EndpointPresenceWriter,
+	writer gpphase.EndpointPresenceWriter,
 	scopeID string,
 	generationID string,
 	endpointRows []APIEndpointRow,
@@ -50,7 +50,7 @@ func publishAPIEndpointRepoPathPresence(
 	if writer == nil || len(endpointRows) == 0 {
 		return nil
 	}
-	rows := make([]EndpointPresenceRow, 0, len(endpointRows))
+	rows := make([]gpphase.EndpointPresenceRow, 0, len(endpointRows))
 	seen := make(map[string]struct{}, len(endpointRows))
 	repoIDs := make([]string, 0, len(endpointRows))
 	repoSeen := make(map[string]struct{}, len(endpointRows))
@@ -68,8 +68,8 @@ func publishAPIEndpointRepoPathPresence(
 			continue
 		}
 		seen[uid] = struct{}{}
-		rows = append(rows, EndpointPresenceRow{
-			Keyspace:         GraphProjectionKeyspaceAPIEndpointRepoPath,
+		rows = append(rows, gpphase.EndpointPresenceRow{
+			Keyspace:         gpphase.KeyspaceAPIEndpointRepoPath,
 			UID:              uid,
 			ScopeID:          scopeID,
 			RepoID:           repoID,
@@ -87,7 +87,7 @@ func publishAPIEndpointRepoPathPresence(
 	// repos just materialized, so a removed or re-pathed route stops being reported
 	// present (#2842). Race-free: only OTHER generations' rows are deleted.
 	return writer.RetractStaleRepoGenerations(
-		ctx, GraphProjectionKeyspaceAPIEndpointRepoPath, scopeID, generationID, repoIDs,
+		ctx, gpphase.KeyspaceAPIEndpointRepoPath, scopeID, generationID, repoIDs,
 	)
 }
 

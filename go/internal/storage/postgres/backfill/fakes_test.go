@@ -20,7 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -258,10 +258,10 @@ func (r *recordingEvidenceStore) UpsertEvidenceFactsCounted(ctx context.Context,
 // so unit tests prove per-partition publication without a database.
 type recordingPhaseStore struct {
 	mu   sync.Mutex
-	rows []reducer.GraphProjectionPhaseState
+	rows []gpphase.PhaseState
 }
 
-func (r *recordingPhaseStore) PublishGraphProjectionPhases(_ context.Context, rows []reducer.GraphProjectionPhaseState) error {
+func (r *recordingPhaseStore) PublishGraphProjectionPhases(_ context.Context, rows []gpphase.PhaseState) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.rows = append(r.rows, rows...)

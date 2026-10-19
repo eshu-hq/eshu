@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -95,7 +95,7 @@ type RunAdmission struct {
 type CompletenessState struct {
 	RunID         string
 	CollectorKind scope.CollectorKind
-	Keyspace      reducer.GraphProjectionKeyspace
+	Keyspace      gpphase.Keyspace
 	PhaseName     string
 	Required      bool
 	Status        string

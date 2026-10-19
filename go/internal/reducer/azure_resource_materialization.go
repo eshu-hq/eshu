@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -43,8 +44,8 @@ const azureResourceEvidenceSource = "reducer/azure-resources"
 type AzureResourceMaterializationHandler struct {
 	FactLoader     FactLoader
 	NodeWriter     CloudResourceNodeWriter
-	PhasePublisher GraphProjectionPhasePublisher
-	PresenceWriter EndpointPresenceWriter
+	PhasePublisher gpphase.PhasePublisher
+	PresenceWriter gpphase.EndpointPresenceWriter
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
 	// for a per-fact quarantined azure_cloud_resource decode failure. A nil
 	// Instruments only skips the counter increment; the quarantine and
@@ -103,7 +104,7 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 			return reducercontract.Result{}, fmt.Errorf("write canonical azure cloud resource nodes: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
-		if err := publishEndpointPresence(ctx, h.PresenceWriter, GraphProjectionKeyspaceCloudResourceUID, intent.ScopeID, rows, time.Now().UTC()); err != nil {
+		if err := publishEndpointPresence(ctx, h.PresenceWriter, gpphase.KeyspaceCloudResourceUID, intent.ScopeID, rows, time.Now().UTC()); err != nil {
 			return reducercontract.Result{}, fmt.Errorf("record azure cloud resource endpoint presence: %w", err)
 		}
 	}
@@ -136,7 +137,7 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 	retractDuration := time.Since(retractStart)
 
 	phasePublishStart := time.Now()
-	if err := publishIntentGraphPhase(ctx, h.PhasePublisher, intent, GraphProjectionKeyspaceCloudResourceUID, GraphProjectionPhaseCanonicalNodesCommitted, time.Now().UTC()); err != nil {
+	if err := publishIntentGraphPhase(ctx, h.PhasePublisher, intent, gpphase.KeyspaceCloudResourceUID, gpphase.PhaseCanonicalNodesCommitted, time.Now().UTC()); err != nil {
 		return reducercontract.Result{}, fmt.Errorf("publish canonical azure cloud resource nodes phase: %w", err)
 	}
 	phasePublishDuration := time.Since(phasePublishStart)

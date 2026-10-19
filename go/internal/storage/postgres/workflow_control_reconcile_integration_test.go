@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -63,76 +63,76 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsUsesReducerPhaseTru
 	})
 
 	phaseStore := NewGraphProjectionPhaseStateStore(SQLDB{DB: db})
-	if err := phaseStore.Upsert(ctx, []reducer.GraphProjectionPhaseState{
+	if err := phaseStore.Upsert(ctx, []gpphase.PhaseState{
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-1",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+				Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			Phase:       gpphase.PhaseCanonicalNodesCommitted,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-1",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+				Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseSemanticNodesCommitted,
+			Phase:       gpphase.PhaseSemanticNodesCommitted,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-1",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceDeployableUnitUID,
+				Keyspace:         gpphase.KeyspaceDeployableUnitUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseDeployableUnitCorrelation,
+			Phase:       gpphase.PhaseDeployableUnitCorrelation,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-1",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
+				Keyspace:         gpphase.KeyspaceServiceUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+			Phase:       gpphase.PhaseCanonicalNodesCommitted,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-1",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
+				Keyspace:         gpphase.KeyspaceServiceUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseDeploymentMapping,
+			Phase:       gpphase.PhaseDeploymentMapping,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
 		{
-			Key: reducer.GraphProjectionPhaseKey{
+			Key: gpphase.PhaseKey{
 				ScopeID:          scopeValue.ScopeID,
 				AcceptanceUnitID: "integration-repo-1",
 				SourceRunID:      generation.GenerationID,
 				GenerationID:     generation.GenerationID,
-				Keyspace:         reducer.GraphProjectionKeyspaceServiceUID,
+				Keyspace:         gpphase.KeyspaceServiceUID,
 			},
-			Phase:       reducer.GraphProjectionPhaseWorkloadMaterialization,
+			Phase:       gpphase.PhaseWorkloadMaterialization,
 			CommittedAt: now,
 			UpdatedAt:   now,
 		},
@@ -153,7 +153,7 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsUsesReducerPhaseTru
 		db,
 		run.RunID,
 		string(scope.CollectorGit),
-		string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
+		string(gpphase.KeyspaceCodeEntitiesUID),
 		"canonical_nodes_committed",
 		workflow.CompletenessStatusReady,
 	)
@@ -162,7 +162,7 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsUsesReducerPhaseTru
 		db,
 		run.RunID,
 		string(scope.CollectorGit),
-		string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
+		string(gpphase.KeyspaceCodeEntitiesUID),
 		"semantic_nodes_committed",
 		workflow.CompletenessStatusReady,
 	)
@@ -171,8 +171,8 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsUsesReducerPhaseTru
 		db,
 		run.RunID,
 		string(scope.CollectorGit),
-		string(reducer.GraphProjectionKeyspaceDeployableUnitUID),
-		string(reducer.GraphProjectionPhaseDeployableUnitCorrelation),
+		string(gpphase.KeyspaceDeployableUnitUID),
+		string(gpphase.PhaseDeployableUnitCorrelation),
 		workflow.CompletenessStatusReady,
 	)
 	mustCompletenessStatus(
@@ -180,8 +180,8 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsUsesReducerPhaseTru
 		db,
 		run.RunID,
 		string(scope.CollectorGit),
-		string(reducer.GraphProjectionKeyspaceServiceUID),
-		string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+		string(gpphase.KeyspaceServiceUID),
+		string(gpphase.PhaseCanonicalNodesCommitted),
 		workflow.CompletenessStatusReady,
 	)
 	mustCompletenessStatus(
@@ -189,8 +189,8 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsUsesReducerPhaseTru
 		db,
 		run.RunID,
 		string(scope.CollectorGit),
-		string(reducer.GraphProjectionKeyspaceServiceUID),
-		string(reducer.GraphProjectionPhaseDeploymentMapping),
+		string(gpphase.KeyspaceServiceUID),
+		string(gpphase.PhaseDeploymentMapping),
 		workflow.CompletenessStatusReady,
 	)
 	mustCompletenessStatus(
@@ -198,8 +198,8 @@ func TestWorkflowControlStoreIntegrationReconcileWorkflowRunsUsesReducerPhaseTru
 		db,
 		run.RunID,
 		string(scope.CollectorGit),
-		string(reducer.GraphProjectionKeyspaceServiceUID),
-		string(reducer.GraphProjectionPhaseWorkloadMaterialization),
+		string(gpphase.KeyspaceServiceUID),
+		string(gpphase.PhaseWorkloadMaterialization),
 		workflow.CompletenessStatusReady,
 	)
 }

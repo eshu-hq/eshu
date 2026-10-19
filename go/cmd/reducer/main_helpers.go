@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
@@ -345,7 +346,7 @@ func newRepoDependencyProjectionRunner(
 	workQueue postgres.ReducerQueue,
 	relationshipGenerationActive accepted.RelationshipGenerationActiveLookup,
 	acceptedGenerationPrefetch reducer.AcceptedGenerationPrefetch,
-	workloadReadinessPrefetch reducer.GraphProjectionReadinessPrefetch,
+	workloadReadinessPrefetch gpphase.ReadinessPrefetch,
 	repoDependencyCfg reducer.RepoDependencyProjectionRunnerConfig,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,

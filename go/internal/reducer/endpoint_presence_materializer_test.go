@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func presenceIntent(domain reducercontract.Domain) reducercontract.Intent {
@@ -51,7 +52,7 @@ func TestAWSResourceMaterializationRecordsEndpointPresenceWhenEnabled(t *testing
 		t.Fatalf("presence rows = %d, want 2 (one per committed node uid)", len(rows))
 	}
 	for _, r := range rows {
-		if r.Keyspace != GraphProjectionKeyspaceCloudResourceUID || r.ScopeID != "scope-1" || r.UID == "" {
+		if r.Keyspace != gpphase.KeyspaceCloudResourceUID || r.ScopeID != "scope-1" || r.UID == "" {
 			t.Fatalf("bad presence row: %+v", r)
 		}
 	}
@@ -96,7 +97,7 @@ func TestKubernetesWorkloadMaterializationRecordsEndpointPresenceWhenEnabled(t *
 		t.Fatalf("presence upsert calls = %d, want 1", len(presence.upserts))
 	}
 	for _, r := range presence.upserts[0] {
-		if r.Keyspace != GraphProjectionKeyspaceKubernetesWorkloadUID || r.ScopeID != "scope-1" || r.UID == "" {
+		if r.Keyspace != gpphase.KeyspaceKubernetesWorkloadUID || r.ScopeID != "scope-1" || r.UID == "" {
 			t.Fatalf("bad presence row: %+v", r)
 		}
 	}

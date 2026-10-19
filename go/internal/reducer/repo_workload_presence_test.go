@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -76,8 +77,8 @@ func TestPublishRepoWorkloadPresenceDeduplicatesByRepo(t *testing.T) {
 		t.Fatalf("presence rows = %d, want 2 (repo-1 collapsed, blank skipped)", len(got))
 	}
 	for _, r := range got {
-		if r.Keyspace != GraphProjectionKeyspaceRepoWorkloadPresence {
-			t.Fatalf("keyspace = %q, want %q", r.Keyspace, GraphProjectionKeyspaceRepoWorkloadPresence)
+		if r.Keyspace != gpphase.KeyspaceRepoWorkloadPresence {
+			t.Fatalf("keyspace = %q, want %q", r.Keyspace, gpphase.KeyspaceRepoWorkloadPresence)
 		}
 		if r.ScopeID != "scope-1" || r.UID == "" {
 			t.Fatalf("malformed presence row: %+v", r)
@@ -94,7 +95,7 @@ func TestPublishRepoWorkloadPresenceDeduplicatesByRepo(t *testing.T) {
 		t.Fatalf("stale-retract calls = %d, want 1", len(writer.staleRetract))
 	}
 	sr := writer.staleRetract[0]
-	if sr.keyspace != GraphProjectionKeyspaceRepoWorkloadPresence || sr.scopeID != "scope-1" || sr.generationID != "gen-1" {
+	if sr.keyspace != gpphase.KeyspaceRepoWorkloadPresence || sr.scopeID != "scope-1" || sr.generationID != "gen-1" {
 		t.Fatalf("stale-retract args = %+v, want repo_workload/scope-1/gen-1", sr)
 	}
 	if len(sr.repoIDs) != 2 {
@@ -124,7 +125,7 @@ func TestFilterRowsByReadinessRunsInTerminatesAbsentWorkload(t *testing.T) {
 		runsInIntentRow("present", "repo-with-workload"),
 		runsInIntentRow("absent", "repo-no-workload"),
 	}
-	phaseReady := func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+	phaseReady := func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return true, true
 	}
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{
@@ -160,7 +161,7 @@ func TestFilterRowsByReadinessRunsInProjectsWhenWorkloadPresent(t *testing.T) {
 		runsInIntentRow("a", "repo-1"),
 		runsInIntentRow("b", "repo-1"),
 	}
-	phaseReady := func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+	phaseReady := func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return true, true
 	}
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{
@@ -187,7 +188,7 @@ func TestFilterRowsByReadinessRunsInNilPresenceIsTodaysBehavior(t *testing.T) {
 		runsInIntentRow("a", "repo-1"),
 		runsInIntentRow("b", "repo-2"),
 	}
-	phaseReady := func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+	phaseReady := func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return true, true
 	}
 
@@ -312,7 +313,7 @@ func TestWorkloadMaterializationHandlerPublishesRepoWorkloadPresence(t *testing.
 	found := false
 	for _, batch := range presenceWriter.upserts {
 		for _, row := range batch {
-			if row.Keyspace == GraphProjectionKeyspaceRepoWorkloadPresence && row.UID == wantUID {
+			if row.Keyspace == gpphase.KeyspaceRepoWorkloadPresence && row.UID == wantUID {
 				found = true
 				if row.ScopeID != "scope-service" {
 					t.Fatalf("presence scope = %q, want scope-service", row.ScopeID)

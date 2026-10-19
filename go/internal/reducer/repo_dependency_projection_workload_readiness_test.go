@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -66,16 +67,16 @@ func TestRepoDependencyProjectionRunnerDefersRunsOnUntilWorkloadReady(t *testing
 		WorkloadMaterializationReplayer: replayer,
 		WorkloadReadinessPrefetch: func(
 			_ context.Context,
-			keys []GraphProjectionPhaseKey,
-			phase GraphProjectionPhase,
-		) (GraphProjectionReadinessLookup, error) {
-			if got, want := phase, GraphProjectionPhaseWorkloadMaterialization; got != want {
+			keys []gpphase.PhaseKey,
+			phase gpphase.Phase,
+		) (gpphase.ReadinessLookup, error) {
+			if got, want := phase, gpphase.PhaseWorkloadMaterialization; got != want {
 				t.Fatalf("readiness phase = %q, want %q", got, want)
 			}
-			if got, want := keys, []GraphProjectionPhaseKey{wantReadinessKey}; !reflect.DeepEqual(got, want) {
+			if got, want := keys, []gpphase.PhaseKey{wantReadinessKey}; !reflect.DeepEqual(got, want) {
 				t.Fatalf("readiness keys = %#v, want %#v", got, want)
 			}
-			return func(key GraphProjectionPhaseKey, _ GraphProjectionPhase) (bool, bool) {
+			return func(key gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
 				if key == legacyReadinessKey {
 					return true, true
 				}
@@ -206,10 +207,10 @@ func TestRepoDependencyProjectionRunnerRejectsUnschedulableRunsOnReplay(t *testi
 		WorkloadMaterializationReplayer: &recordingWorkloadMaterializationReplayer{reject: true},
 		WorkloadReadinessPrefetch: func(
 			context.Context,
-			[]GraphProjectionPhaseKey,
-			GraphProjectionPhase,
-		) (GraphProjectionReadinessLookup, error) {
-			return func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+			[]gpphase.PhaseKey,
+			gpphase.Phase,
+		) (gpphase.ReadinessLookup, error) {
+			return func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 				return false, false
 			}, nil
 		},

@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -161,8 +161,8 @@ const excludedCanonicalCodeScopeKind = string(scope.KindRepositoryRef)
 // the workflow collector contracts rather than kept by hand.
 var canonicalCodeCollectorKinds = func() []string {
 	kinds := workflow.CollectorKindsRequiringPhase(
-		reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-		reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCodeEntitiesUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 	)
 	out := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
@@ -174,8 +174,8 @@ var canonicalCodeCollectorKinds = func() []string {
 // canonicalCodeQuiescenceArgs returns the shared $1..$4 arguments.
 func canonicalCodeQuiescenceArgs() []any {
 	return []any{
-		string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
-		string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+		string(gpphase.KeyspaceCodeEntitiesUID),
+		string(gpphase.PhaseCanonicalNodesCommitted),
 		canonicalCodeCollectorKinds,
 		excludedCanonicalCodeScopeKind,
 	}

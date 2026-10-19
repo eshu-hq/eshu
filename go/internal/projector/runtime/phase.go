@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func (r Runtime) publishCanonicalGraphPhases(ctx context.Context, generationID string, inputFacts []facts.Envelope) error {
@@ -38,9 +39,9 @@ func (r Runtime) publishCanonicalGraphPhases(ctx context.Context, generationID s
 	return nil
 }
 
-func canonicalGraphPhaseStates(ctx context.Context, logger *slog.Logger, generationID string, inputFacts []facts.Envelope) []reducer.GraphProjectionPhaseState {
+func canonicalGraphPhaseStates(ctx context.Context, logger *slog.Logger, generationID string, inputFacts []facts.Envelope) []gpphase.PhaseState {
 	seen := make(map[string]struct{})
-	rows := make([]reducer.GraphProjectionPhaseState, 0)
+	rows := make([]gpphase.PhaseState, 0)
 
 	log := logger
 	if log == nil {
@@ -58,14 +59,14 @@ func canonicalGraphPhaseStates(ctx context.Context, logger *slog.Logger, generat
 				seen,
 				generationID,
 				fact,
-				reducer.GraphProjectionKeyspaceTerraformResourceUID,
+				gpphase.KeyspaceTerraformResourceUID,
 			)
 			rows = appendTerraformStateGraphPhase(
 				rows,
 				seen,
 				generationID,
 				fact,
-				reducer.GraphProjectionKeyspaceTerraformModuleUID,
+				gpphase.KeyspaceTerraformModuleUID,
 			)
 		case cloud.TerraformStateResourceFactKind:
 			rows = appendTerraformStateGraphPhase(
@@ -73,7 +74,7 @@ func canonicalGraphPhaseStates(ctx context.Context, logger *slog.Logger, generat
 				seen,
 				generationID,
 				fact,
-				reducer.GraphProjectionKeyspaceTerraformResourceUID,
+				gpphase.KeyspaceTerraformResourceUID,
 			)
 		case cloud.TerraformStateModuleFactKind:
 			rows = appendTerraformStateGraphPhase(
@@ -81,7 +82,7 @@ func canonicalGraphPhaseStates(ctx context.Context, logger *slog.Logger, generat
 				seen,
 				generationID,
 				fact,
-				reducer.GraphProjectionKeyspaceTerraformModuleUID,
+				gpphase.KeyspaceTerraformModuleUID,
 			)
 		}
 	}
@@ -92,11 +93,11 @@ func canonicalGraphPhaseStates(ctx context.Context, logger *slog.Logger, generat
 func appendCanonicalRepositoryGraphPhase(
 	ctx context.Context,
 	log *slog.Logger,
-	rows []reducer.GraphProjectionPhaseState,
+	rows []gpphase.PhaseState,
 	seen map[string]struct{},
 	generationID string,
 	fact facts.Envelope,
-) []reducer.GraphProjectionPhaseState {
+) []gpphase.PhaseState {
 	repository, err := decode.CodegraphRepository(fact)
 	if err != nil {
 		// Already quarantined and logged upstream during BuildMaterialization;
@@ -124,26 +125,26 @@ func appendCanonicalRepositoryGraphPhase(
 		return rows
 	}
 
-	return appendCanonicalGraphPhase(rows, seen, reducer.GraphProjectionPhaseKey{
+	return appendCanonicalGraphPhase(rows, seen, gpphase.PhaseKey{
 		ScopeID:          fact.ScopeID,
 		AcceptanceUnitID: repoID,
 		SourceRunID:      sourceRunID,
 		GenerationID:     generationID,
-		Keyspace:         reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+		Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 	}, fact.ObservedAt)
 }
 
 func appendTerraformStateGraphPhase(
-	rows []reducer.GraphProjectionPhaseState,
+	rows []gpphase.PhaseState,
 	seen map[string]struct{},
 	generationID string,
 	fact facts.Envelope,
-	keyspace reducer.GraphProjectionKeyspace,
-) []reducer.GraphProjectionPhaseState {
+	keyspace gpphase.Keyspace,
+) []gpphase.PhaseState {
 	if strings.TrimSpace(fact.ScopeID) == "" || strings.TrimSpace(generationID) == "" {
 		return rows
 	}
-	return appendCanonicalGraphPhase(rows, seen, reducer.GraphProjectionPhaseKey{
+	return appendCanonicalGraphPhase(rows, seen, gpphase.PhaseKey{
 		ScopeID:          fact.ScopeID,
 		AcceptanceUnitID: fact.ScopeID,
 		SourceRunID:      generationID,
@@ -153,11 +154,11 @@ func appendTerraformStateGraphPhase(
 }
 
 func appendCanonicalGraphPhase(
-	rows []reducer.GraphProjectionPhaseState,
+	rows []gpphase.PhaseState,
 	seen map[string]struct{},
-	key reducer.GraphProjectionPhaseKey,
+	key gpphase.PhaseKey,
 	observedAt time.Time,
-) []reducer.GraphProjectionPhaseState {
+) []gpphase.PhaseState {
 	composite := strings.Join([]string{
 		key.ScopeID,
 		key.AcceptanceUnitID,
@@ -169,9 +170,9 @@ func appendCanonicalGraphPhase(
 		return rows
 	}
 	seen[composite] = struct{}{}
-	rows = append(rows, reducer.GraphProjectionPhaseState{
+	rows = append(rows, gpphase.PhaseState{
 		Key:         key,
-		Phase:       reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+		Phase:       gpphase.PhaseCanonicalNodesCommitted,
 		CommittedAt: observedAt,
 		UpdatedAt:   observedAt,
 	})

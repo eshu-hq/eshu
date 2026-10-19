@@ -9,7 +9,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -29,8 +29,8 @@ var activeGenerationForRequestedScope = strings.Replace(
 // cross-repo backward-evidence readiness row is absent, generation_advanced
 // when the scope's active generation is no longer the requested one. $1 and $2
 // are the zipped scope and generation arrays; $3 and $4 are the keyspace and
-// phase the fan-in writes (reducer.GraphProjectionKeyspaceCrossRepoEvidence
-// and reducer.GraphProjectionPhaseBackwardEvidenceCommitted), passed as
+// phase the fan-in writes (gpphase.KeyspaceCrossRepoEvidence
+// and gpphase.PhaseBackwardEvidenceCommitted), passed as
 // parameters so the check cannot drift from the writer. The readiness probe is
 // a NOT EXISTS expression in the inner select list, and its predicates name
 // every graph_projection_phase_state primary-key column, so the planner picks
@@ -203,8 +203,8 @@ func loadUnchangedPartitionsNeedingPublication(
 	}
 	rows, err := queryer.QueryContext(ctx, ListUnchangedPartitionsNeedingPublicationQuery,
 		array.StringArray(scopeIDs), array.StringArray(generationIDs),
-		string(reducer.GraphProjectionKeyspaceCrossRepoEvidence),
-		string(reducer.GraphProjectionPhaseBackwardEvidenceCommitted),
+		string(gpphase.KeyspaceCrossRepoEvidence),
+		string(gpphase.PhaseBackwardEvidenceCommitted),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list unchanged partitions needing publication: %w", err)

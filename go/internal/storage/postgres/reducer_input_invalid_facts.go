@@ -68,7 +68,7 @@ ON CONFLICT (scope_id, generation_id, fact_id, missing_field, domain) DO NOTHING
 // ReducerInputInvalidFactStore persists durable reducer_input_invalid_facts
 // rows and implements reducer.QuarantinedFactWriter directly (mirroring
 // GraphProjectionPhaseStateStore's direct implementation of
-// reducer.GraphProjectionPhasePublisher): the reducer package's DTOs
+// gpphase.PhasePublisher): the reducer package's DTOs
 // (reducer.QuarantinedFactRecord) are used as-is, with no separate cmd/reducer
 // adapter required.
 type ReducerInputInvalidFactStore struct {

@@ -435,7 +435,7 @@ type (
 	GraphProjectionPhaseRepairer       = repair.Repairer
 )
 
-func GraphProjectionPhaseRepairsFromStates(states []GraphProjectionPhaseState, lastError string, enqueuedAt time.Time) []GraphProjectionPhaseRepair {
+func GraphProjectionPhaseRepairsFromStates(states []gpphase.PhaseState, lastError string, enqueuedAt time.Time) []GraphProjectionPhaseRepair {
 	return gpphase.PhaseRepairsFromStates(states, lastError, enqueuedAt)
 }
 

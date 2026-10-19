@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
@@ -253,12 +254,12 @@ type SupplyChainSecurityHandlers struct {
 	// projection gate can prove an endpoint committed (issue #1380). It is nil
 	// unless the secrets/IAM graph projection feature is enabled, so the default
 	// hot materializer paths carry no extra write.
-	EndpointPresenceWriter EndpointPresenceWriter
+	EndpointPresenceWriter gpphase.EndpointPresenceWriter
 
 	// EndpointPresenceLookup answers uid-exact cross-scope endpoint readiness for
 	// the secrets/IAM projection gate (issue #1380). Nil disables gating; it is
 	// wired only when the projection feature is enabled.
-	EndpointPresenceLookup EndpointPresenceLookup
+	EndpointPresenceLookup gpphase.EndpointPresenceLookup
 
 	// APIEndpointRepoPathPresenceWriter records property-keyed (repo_id, path)
 	// :Endpoint presence after workload materialization commits, so the
@@ -268,14 +269,14 @@ type SupplyChainSecurityHandlers struct {
 	// materialization handler — the cloud/Kubernetes materializers must never
 	// receive it, so they emit no uid presence unless secrets/IAM is enabled. Nil
 	// (the default when the gate is off) makes presence publication a no-op.
-	APIEndpointRepoPathPresenceWriter EndpointPresenceWriter
+	APIEndpointRepoPathPresenceWriter gpphase.EndpointPresenceWriter
 
 	// APIEndpointRepoPathPresenceLookup answers property-keyed (repo_id, path)
 	// :Endpoint presence for the handles_route readiness gate (#2809). It is
 	// independent of EndpointPresenceLookup so the handles_route gate is toggled
 	// solely by its own kill switch, never by the secrets/IAM flag. Nil disables
 	// the gate, leaving handles_route byte-identical to its pre-#2809 behavior.
-	APIEndpointRepoPathPresenceLookup EndpointPresenceLookup
+	APIEndpointRepoPathPresenceLookup gpphase.EndpointPresenceLookup
 }
 
 // IncidentRoutingHandlers groups the PagerDuty incident-routing materialization

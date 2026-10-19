@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 )
 
@@ -21,8 +22,8 @@ import (
 // the comparable GraphProjectionPhaseKey struct, so a drift in the
 // gpphase.AcceptanceUnitID derivation on either side changes the key and the
 // lookup misses.
-func readinessLookupFromStates(states []GraphProjectionPhaseState) GraphProjectionReadinessLookup {
-	return func(key GraphProjectionPhaseKey, phase GraphProjectionPhase) (bool, bool) {
+func readinessLookupFromStates(states []gpphase.PhaseState) gpphase.ReadinessLookup {
+	return func(key gpphase.PhaseKey, phase gpphase.Phase) (bool, bool) {
 		for _, state := range states {
 			if state.Key == key && state.Phase == phase {
 				return true, true
@@ -66,7 +67,7 @@ func runKubernetesCorrelationSeam(t *testing.T, workloadEntityKey string) (int, 
 		t.Fatalf("workload Handle returned error: %v", err)
 	}
 
-	var states []GraphProjectionPhaseState
+	var states []gpphase.PhaseState
 	for _, call := range publisher.calls {
 		states = append(states, call...)
 	}

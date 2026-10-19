@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -100,8 +100,8 @@ func TestReconcileRunProgressReducerConverging(t *testing.T) {
 			CompletedWorkItems: 2,
 			PublishedPhaseCounts: map[PhasePublicationKey]int{
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+					Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+					PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				}: 2,
 			},
 		}},
@@ -115,7 +115,7 @@ func TestReconcileRunProgressReducerConverging(t *testing.T) {
 	if got, want := completeness[0].Status, CompletenessStatusReady; got != want {
 		t.Fatalf("first phase status = %q, want %q", got, want)
 	}
-	if got, want := completeness[0].Keyspace, reducer.GraphProjectionKeyspaceCodeEntitiesUID; got != want {
+	if got, want := completeness[0].Keyspace, gpphase.KeyspaceCodeEntitiesUID; got != want {
 		t.Fatalf("first phase keyspace = %q, want %q", got, want)
 	}
 	if got, want := completeness[1].Status, CompletenessStatusPending; got != want {
@@ -141,28 +141,28 @@ func TestReconcileRunProgressComplete(t *testing.T) {
 			CompletedWorkItems: 1,
 			PublishedPhaseCounts: map[PhasePublicationKey]int{
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+					Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+					PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-					PhaseName: reducer.GraphProjectionPhaseSemanticNodesCommitted,
+					Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+					PhaseName: gpphase.PhaseSemanticNodesCommitted,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceDeployableUnitUID,
-					PhaseName: reducer.GraphProjectionPhaseDeployableUnitCorrelation,
+					Keyspace:  gpphase.KeyspaceDeployableUnitUID,
+					PhaseName: gpphase.PhaseDeployableUnitCorrelation,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+					Keyspace:  gpphase.KeyspaceServiceUID,
+					PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-					PhaseName: reducer.GraphProjectionPhaseDeploymentMapping,
+					Keyspace:  gpphase.KeyspaceServiceUID,
+					PhaseName: gpphase.PhaseDeploymentMapping,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-					PhaseName: reducer.GraphProjectionPhaseWorkloadMaterialization,
+					Keyspace:  gpphase.KeyspaceServiceUID,
+					PhaseName: gpphase.PhaseWorkloadMaterialization,
 				}: 1,
 			},
 		}},
@@ -265,8 +265,8 @@ func TestReconcileRunProgressFailed(t *testing.T) {
 			FailedTerminalItems: 1,
 			PublishedPhaseCounts: map[PhasePublicationKey]int{
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+					Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+					PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				}: 1,
 			},
 		}},
@@ -312,20 +312,20 @@ func TestReconcileRunProgressTerminalReducerDeadLetterBlocksConvergence(t *testi
 			CompletedWorkItems: 1,
 			PublishedPhaseCounts: map[PhasePublicationKey]int{
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+					Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+					PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-					PhaseName: reducer.GraphProjectionPhaseSemanticNodesCommitted,
+					Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+					PhaseName: gpphase.PhaseSemanticNodesCommitted,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceDeployableUnitUID,
-					PhaseName: reducer.GraphProjectionPhaseDeployableUnitCorrelation,
+					Keyspace:  gpphase.KeyspaceDeployableUnitUID,
+					PhaseName: gpphase.PhaseDeployableUnitCorrelation,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+					Keyspace:  gpphase.KeyspaceServiceUID,
+					PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				}: 1,
 				// deployment_mapping and workload_materialization are
 				// intentionally absent: their reducer intents dead-lettered
@@ -333,8 +333,8 @@ func TestReconcileRunProgressTerminalReducerDeadLetterBlocksConvergence(t *testi
 			},
 			TerminalDeadLetterCounts: map[PhasePublicationKey]int{
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-					PhaseName: reducer.GraphProjectionPhaseDeploymentMapping,
+					Keyspace:  gpphase.KeyspaceServiceUID,
+					PhaseName: gpphase.PhaseDeploymentMapping,
 				}: 1,
 			},
 		}},
@@ -351,8 +351,8 @@ func TestReconcileRunProgressTerminalReducerDeadLetterBlocksConvergence(t *testi
 
 	var sawBlockedDeploymentMapping bool
 	for _, state := range completeness {
-		if state.Keyspace == reducer.GraphProjectionKeyspaceServiceUID &&
-			state.PhaseName == string(reducer.GraphProjectionPhaseDeploymentMapping) {
+		if state.Keyspace == gpphase.KeyspaceServiceUID &&
+			state.PhaseName == string(gpphase.PhaseDeploymentMapping) {
 			sawBlockedDeploymentMapping = true
 			if got, want := state.Status, CompletenessStatusBlocked; got != want {
 				t.Fatalf("deployment_mapping completeness status = %q, want %q", got, want)
@@ -392,20 +392,20 @@ func TestReconcileRunProgressRetryableDeadLetterDoesNotBlockConvergence(t *testi
 			CompletedWorkItems: 1,
 			PublishedPhaseCounts: map[PhasePublicationKey]int{
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+					Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+					PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-					PhaseName: reducer.GraphProjectionPhaseSemanticNodesCommitted,
+					Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+					PhaseName: gpphase.PhaseSemanticNodesCommitted,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceDeployableUnitUID,
-					PhaseName: reducer.GraphProjectionPhaseDeployableUnitCorrelation,
+					Keyspace:  gpphase.KeyspaceDeployableUnitUID,
+					PhaseName: gpphase.PhaseDeployableUnitCorrelation,
 				}: 1,
 				{
-					Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-					PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+					Keyspace:  gpphase.KeyspaceServiceUID,
+					PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				}: 1,
 				// deployment_mapping/workload_materialization still
 				// legitimately in flight (retrying, not dead-lettered).
@@ -423,8 +423,8 @@ func TestReconcileRunProgressRetryableDeadLetterDoesNotBlockConvergence(t *testi
 		t.Fatal("run.FinishedAt = non-zero, want zero for a still-converging run")
 	}
 	for _, state := range completeness {
-		if state.Keyspace == reducer.GraphProjectionKeyspaceServiceUID &&
-			state.PhaseName == string(reducer.GraphProjectionPhaseDeploymentMapping) {
+		if state.Keyspace == gpphase.KeyspaceServiceUID &&
+			state.PhaseName == string(gpphase.PhaseDeploymentMapping) {
 			if got, want := state.Status, CompletenessStatusPending; got != want {
 				t.Fatalf("deployment_mapping completeness status = %q, want %q (must not false-block on non-terminal work)", got, want)
 			}
@@ -439,22 +439,22 @@ func TestRequiredPhasesForCollectorIncludesGitSecondPassGates(t *testing.T) {
 	if got, want := len(requirements), 6; got != want {
 		t.Fatalf("collector %q requirements = %d, want %d", scope.CollectorGit, got, want)
 	}
-	if got, want := requirements[2].Keyspace, reducer.GraphProjectionKeyspaceDeployableUnitUID; got != want {
+	if got, want := requirements[2].Keyspace, gpphase.KeyspaceDeployableUnitUID; got != want {
 		t.Fatalf("deployable unit keyspace = %q, want %q", got, want)
 	}
-	if got, want := requirements[2].PhaseName, reducer.GraphProjectionPhaseDeployableUnitCorrelation; got != want {
+	if got, want := requirements[2].PhaseName, gpphase.PhaseDeployableUnitCorrelation; got != want {
 		t.Fatalf("deployable unit phase = %q, want %q", got, want)
 	}
-	if got, want := requirements[3].Keyspace, reducer.GraphProjectionKeyspaceServiceUID; got != want {
+	if got, want := requirements[3].Keyspace, gpphase.KeyspaceServiceUID; got != want {
 		t.Fatalf("service canonical keyspace = %q, want %q", got, want)
 	}
-	if got, want := requirements[3].PhaseName, reducer.GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := requirements[3].PhaseName, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("service canonical phase = %q, want %q", got, want)
 	}
-	if got, want := requirements[4].PhaseName, reducer.GraphProjectionPhaseDeploymentMapping; got != want {
+	if got, want := requirements[4].PhaseName, gpphase.PhaseDeploymentMapping; got != want {
 		t.Fatalf("deployment mapping phase = %q, want %q", got, want)
 	}
-	if got, want := requirements[5].PhaseName, reducer.GraphProjectionPhaseWorkloadMaterialization; got != want {
+	if got, want := requirements[5].PhaseName, gpphase.PhaseWorkloadMaterialization; got != want {
 		t.Fatalf("workload materialization phase = %q, want %q", got, want)
 	}
 }

@@ -8,14 +8,14 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // PublishedCheckpoint identifies one reducer readiness row the DSL-owned
 // correlation layer is expected to publish once implemented.
 type PublishedCheckpoint struct {
-	Keyspace reducer.GraphProjectionKeyspace
-	Phase    reducer.GraphProjectionPhase
+	Keyspace gpphase.Keyspace
+	Phase    gpphase.Phase
 }
 
 // RuntimeContract captures the accepted DSL reducer scaffold.
@@ -33,24 +33,24 @@ var defaultRuntimeContract = RuntimeContract{
 	},
 	Checkpoints: []PublishedCheckpoint{
 		{
-			Keyspace: reducer.GraphProjectionKeyspaceTerraformResourceUID,
-			Phase:    reducer.GraphProjectionPhaseCrossSourceAnchorReady,
+			Keyspace: gpphase.KeyspaceTerraformResourceUID,
+			Phase:    gpphase.PhaseCrossSourceAnchorReady,
 		},
 		{
-			Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID,
-			Phase:    reducer.GraphProjectionPhaseCrossSourceAnchorReady,
+			Keyspace: gpphase.KeyspaceCloudResourceUID,
+			Phase:    gpphase.PhaseCrossSourceAnchorReady,
 		},
 		{
-			Keyspace: reducer.GraphProjectionKeyspaceWebhookEventUID,
-			Phase:    reducer.GraphProjectionPhaseCrossSourceAnchorReady,
+			Keyspace: gpphase.KeyspaceWebhookEventUID,
+			Phase:    gpphase.PhaseCrossSourceAnchorReady,
 		},
 		{
-			Keyspace: reducer.GraphProjectionKeyspaceServiceUID,
-			Phase:    reducer.GraphProjectionPhaseDeploymentMapping,
+			Keyspace: gpphase.KeyspaceServiceUID,
+			Phase:    gpphase.PhaseDeploymentMapping,
 		},
 		{
-			Keyspace: reducer.GraphProjectionKeyspaceServiceUID,
-			Phase:    reducer.GraphProjectionPhaseWorkloadMaterialization,
+			Keyspace: gpphase.KeyspaceServiceUID,
+			Phase:    gpphase.PhaseWorkloadMaterialization,
 		},
 	},
 }

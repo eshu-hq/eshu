@@ -7,7 +7,7 @@ package backfill
 // dup-key bug found by a live Ifá gate run.
 //
 // The original defect: writeDeferredBackfillBatch (ingestion_backfill.go)
-// looped per repository and appended one reducer.GraphProjectionPhaseState and
+// looped per repository and appended one gpphase.PhaseState and
 // one ScopeGenerationPartition memo candidate per repo.
 // graph_projection_phase_state's conflict target (scope_id,
 // acceptance_unit_id, source_run_id, generation_id, keyspace, phase) and

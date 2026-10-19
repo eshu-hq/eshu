@@ -19,7 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
@@ -296,7 +296,7 @@ func awaitQuietExactPhase(t *testing.T, ctx context.Context, phaseStore *postgre
 	defer ticker.Stop()
 	for {
 		ready, found, err := phaseStore.Lookup(ctx, quietBackwardPhaseKey(quietSourceScope, quietNewID),
-			reducer.GraphProjectionPhaseBackwardEvidenceCommitted)
+			gpphase.PhaseBackwardEvidenceCommitted)
 		if err != nil {
 			t.Fatalf("lookup update-generation backward phase: %v", err)
 		}
@@ -346,7 +346,7 @@ func assertQuietBackwardPhase(
 ) {
 	t.Helper()
 	ready, found, err := store.Lookup(ctx, quietBackwardPhaseKey(scopeID, generationID),
-		reducer.GraphProjectionPhaseBackwardEvidenceCommitted)
+		gpphase.PhaseBackwardEvidenceCommitted)
 	if err != nil {
 		t.Fatalf("lookup backward evidence phase for (%q, %q): %v", scopeID, generationID, err)
 	}
@@ -393,12 +393,12 @@ func (s *quietGenerationSource) Next(ctx context.Context) (collector.CollectedGe
 	}
 }
 
-func quietBackwardPhaseKey(scopeID, generationID string) reducer.GraphProjectionPhaseKey {
-	return reducer.GraphProjectionPhaseKey{
+func quietBackwardPhaseKey(scopeID, generationID string) gpphase.PhaseKey {
+	return gpphase.PhaseKey{
 		ScopeID:          scopeID,
 		AcceptanceUnitID: scopeID,
 		SourceRunID:      generationID,
 		GenerationID:     generationID,
-		Keyspace:         reducer.GraphProjectionKeyspaceCrossRepoEvidence,
+		Keyspace:         gpphase.KeyspaceCrossRepoEvidence,
 	}
 }

@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestGraphEndpointPresenceStoreUpsertIsIdempotent(t *testing.T) {
@@ -25,18 +25,18 @@ func TestGraphEndpointPresenceStoreUpsertIsIdempotent(t *testing.T) {
 	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	row := reducer.EndpointPresenceRow{
-		Keyspace:    reducer.GraphProjectionKeyspaceKubernetesWorkloadUID,
+	row := gpphase.EndpointPresenceRow{
+		Keyspace:    gpphase.KeyspaceKubernetesWorkloadUID,
 		UID:         "workload-1",
 		ScopeID:     "scope-cluster",
 		CommittedAt: now,
 	}
 
-	if err := store.Upsert(ctx, []reducer.EndpointPresenceRow{row}); err != nil {
+	if err := store.Upsert(ctx, []gpphase.EndpointPresenceRow{row}); err != nil {
 		t.Fatalf("Upsert() error = %v", err)
 	}
 	// Re-upsert the same (keyspace, uid) — must converge on one row.
-	if err := store.Upsert(ctx, []reducer.EndpointPresenceRow{row}); err != nil {
+	if err := store.Upsert(ctx, []gpphase.EndpointPresenceRow{row}); err != nil {
 		t.Fatalf("second Upsert() error = %v", err)
 	}
 
@@ -52,11 +52,11 @@ func TestGraphEndpointPresenceStoreUpsertSkipsBlankIdentity(t *testing.T) {
 	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 
-	rows := []reducer.EndpointPresenceRow{
+	rows := []gpphase.EndpointPresenceRow{
 		{Keyspace: "", UID: "a", ScopeID: "s"},
-		{Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID, UID: " ", ScopeID: "s"},
-		{Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID, UID: "cr-1", ScopeID: ""},
-		{Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID, UID: "cr-1", ScopeID: "s"},
+		{Keyspace: gpphase.KeyspaceCloudResourceUID, UID: " ", ScopeID: "s"},
+		{Keyspace: gpphase.KeyspaceCloudResourceUID, UID: "cr-1", ScopeID: ""},
+		{Keyspace: gpphase.KeyspaceCloudResourceUID, UID: "cr-1", ScopeID: "s"},
 	}
 	if err := store.Upsert(ctx, rows); err != nil {
 		t.Fatalf("Upsert() error = %v", err)
@@ -77,10 +77,10 @@ func TestGraphEndpointPresenceStoreUpsertBatchBoundary(t *testing.T) {
 	ctx := context.Background()
 
 	const total = graphEndpointPresenceBatchSize*2 + 7
-	rows := make([]reducer.EndpointPresenceRow, 0, total)
+	rows := make([]gpphase.EndpointPresenceRow, 0, total)
 	for i := 0; i < total; i++ {
-		rows = append(rows, reducer.EndpointPresenceRow{
-			Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID,
+		rows = append(rows, gpphase.EndpointPresenceRow{
+			Keyspace: gpphase.KeyspaceCloudResourceUID,
 			UID:      fmt.Sprintf("cr-%d", i),
 			ScopeID:  "scope-aws",
 		})
@@ -103,10 +103,10 @@ func TestGraphEndpointPresenceStoreRetractScope(t *testing.T) {
 	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 
-	rows := []reducer.EndpointPresenceRow{
-		{Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID, UID: "cr-1", ScopeID: "scope-a"},
-		{Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID, UID: "cr-2", ScopeID: "scope-a"},
-		{Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID, UID: "cr-3", ScopeID: "scope-b"},
+	rows := []gpphase.EndpointPresenceRow{
+		{Keyspace: gpphase.KeyspaceCloudResourceUID, UID: "cr-1", ScopeID: "scope-a"},
+		{Keyspace: gpphase.KeyspaceCloudResourceUID, UID: "cr-2", ScopeID: "scope-a"},
+		{Keyspace: gpphase.KeyspaceCloudResourceUID, UID: "cr-3", ScopeID: "scope-b"},
 	}
 	if err := store.Upsert(ctx, rows); err != nil {
 		t.Fatalf("Upsert() error = %v", err)
@@ -139,15 +139,15 @@ func TestGraphEndpointPresenceStoreRetractStaleRepoGenerations(t *testing.T) {
 	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 
-	ks := reducer.GraphProjectionKeyspaceAPIEndpointRepoPath
-	rows := []reducer.EndpointPresenceRow{
+	ks := gpphase.KeyspaceAPIEndpointRepoPath
+	rows := []gpphase.EndpointPresenceRow{
 		// repo-1: a stale gen-1 endpoint and a current gen-2 endpoint.
 		{Keyspace: ks, UID: "u-old", ScopeID: "scope-a", RepoID: "repo-1", SourceGeneration: "gen-1"},
 		{Keyspace: ks, UID: "u-new", ScopeID: "scope-a", RepoID: "repo-1", SourceGeneration: "gen-2"},
 		// repo-2: an unchanged repo still at gen-1 that this intent did NOT touch.
 		{Keyspace: ks, UID: "u-other", ScopeID: "scope-a", RepoID: "repo-2", SourceGeneration: "gen-1"},
 		// a different keyspace must never be touched.
-		{Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID, UID: "cr-1", ScopeID: "scope-a", RepoID: "repo-1", SourceGeneration: "gen-1"},
+		{Keyspace: gpphase.KeyspaceCloudResourceUID, UID: "cr-1", ScopeID: "scope-a", RepoID: "repo-1", SourceGeneration: "gen-1"},
 	}
 	if err := store.Upsert(ctx, rows); err != nil {
 		t.Fatalf("Upsert() error = %v", err)
@@ -196,11 +196,11 @@ func TestGraphEndpointPresenceStoreMissingUIDs(t *testing.T) {
 	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 
-	present := []reducer.EndpointPresenceRow{
-		{Keyspace: reducer.GraphProjectionKeyspaceKubernetesWorkloadUID, UID: "w-present-1", ScopeID: "s"},
-		{Keyspace: reducer.GraphProjectionKeyspaceKubernetesWorkloadUID, UID: "w-present-2", ScopeID: "s"},
+	present := []gpphase.EndpointPresenceRow{
+		{Keyspace: gpphase.KeyspaceKubernetesWorkloadUID, UID: "w-present-1", ScopeID: "s"},
+		{Keyspace: gpphase.KeyspaceKubernetesWorkloadUID, UID: "w-present-2", ScopeID: "s"},
 		// Same uid string in a different keyspace must not satisfy a workload lookup.
-		{Keyspace: reducer.GraphProjectionKeyspaceCloudResourceUID, UID: "w-missing-1", ScopeID: "s"},
+		{Keyspace: gpphase.KeyspaceCloudResourceUID, UID: "w-missing-1", ScopeID: "s"},
 	}
 	if err := store.Upsert(ctx, present); err != nil {
 		t.Fatalf("Upsert() error = %v", err)
@@ -208,35 +208,35 @@ func TestGraphEndpointPresenceStoreMissingUIDs(t *testing.T) {
 
 	cases := []struct {
 		name     string
-		keyspace reducer.GraphProjectionKeyspace
+		keyspace gpphase.Keyspace
 		uids     []string
 		want     []string
 		wantQ    int
 	}{
 		{
 			name:     "all present",
-			keyspace: reducer.GraphProjectionKeyspaceKubernetesWorkloadUID,
+			keyspace: gpphase.KeyspaceKubernetesWorkloadUID,
 			uids:     []string{"w-present-1", "w-present-2"},
 			want:     nil,
 			wantQ:    1,
 		},
 		{
 			name:     "all missing",
-			keyspace: reducer.GraphProjectionKeyspaceKubernetesWorkloadUID,
+			keyspace: gpphase.KeyspaceKubernetesWorkloadUID,
 			uids:     []string{"w-missing-1", "w-missing-2"},
 			want:     []string{"w-missing-1", "w-missing-2"},
 			wantQ:    1,
 		},
 		{
 			name:     "mixed and deduped",
-			keyspace: reducer.GraphProjectionKeyspaceKubernetesWorkloadUID,
+			keyspace: gpphase.KeyspaceKubernetesWorkloadUID,
 			uids:     []string{"w-present-1", "w-missing-1", "w-missing-1", "w-present-2", ""},
 			want:     []string{"w-missing-1"},
 			wantQ:    1,
 		},
 		{
 			name:     "empty input issues no query",
-			keyspace: reducer.GraphProjectionKeyspaceKubernetesWorkloadUID,
+			keyspace: gpphase.KeyspaceKubernetesWorkloadUID,
 			uids:     []string{"", "  "},
 			want:     nil,
 			wantQ:    0,

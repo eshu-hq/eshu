@@ -168,7 +168,6 @@ ifa_live_gate_common_seams=(
 	# Previously-listed literals, now covered by the glob.
 	'go/internal/reducer/**|go/internal/reducer/intent.go'
 	'go/internal/reducer/**|go/internal/reducer/contract/domain.go'
-	'go/internal/reducer/**|go/internal/reducer/graph_projection_phase.go'
 	'go/internal/reducer/**|go/internal/reducer/schemadecode/factschema_decode_submodule.go'
 	# go/internal/reducer/contract/ is a subpackage, and it arrived on main as
 	# its own literal trigger (#6222) while this branch was open. The glob

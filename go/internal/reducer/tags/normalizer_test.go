@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestNormalizationResultPhaseStatesBuildsCanonicalCloudStates(t *testing.T) {
@@ -37,7 +37,7 @@ func TestNormalizationResultPhaseStatesBuildsCanonicalCloudStates(t *testing.T) 
 	if gotID, want := got[0].Key.AcceptanceUnitID, "cloud:ecs-service:sample-service-api"; gotID != want {
 		t.Fatalf("AcceptanceUnitID = %q, want %q", gotID, want)
 	}
-	if gotPhase, want := got[0].Phase, reducer.GraphProjectionPhaseCanonicalNodesCommitted; gotPhase != want {
+	if gotPhase, want := got[0].Phase, gpphase.PhaseCanonicalNodesCommitted; gotPhase != want {
 		t.Fatalf("Phase = %q, want %q", gotPhase, want)
 	}
 }
@@ -85,7 +85,7 @@ func TestPublishNormalizationResultPublishesCanonicalStates(t *testing.T) {
 	if got, want := len(publisher.calls), 1; got != want {
 		t.Fatalf("publisher calls = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.Keyspace, reducer.GraphProjectionKeyspaceCloudResourceUID; got != want {
+	if got, want := publisher.calls[0][0].Key.Keyspace, gpphase.KeyspaceCloudResourceUID; got != want {
 		t.Fatalf("published keyspace = %q, want %q", got, want)
 	}
 }
@@ -109,11 +109,11 @@ func TestPublishNormalizationResultRejectsInvalidResource(t *testing.T) {
 }
 
 type recordingTagPhasePublisher struct {
-	calls [][]reducer.GraphProjectionPhaseState
+	calls [][]gpphase.PhaseState
 }
 
-func (r *recordingTagPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []reducer.GraphProjectionPhaseState) error {
-	cloned := make([]reducer.GraphProjectionPhaseState, len(rows))
+func (r *recordingTagPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []gpphase.PhaseState) error {
+	cloned := make([]gpphase.PhaseState, len(rows))
 	copy(cloned, rows)
 	r.calls = append(r.calls, cloned)
 	return nil

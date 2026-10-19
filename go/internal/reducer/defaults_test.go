@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -341,10 +342,10 @@ func TestDefaultHandlersWiresCrossRepoResolver(t *testing.T) {
 func TestNewDefaultRegistryWiresCrossRepoReadinessDependencies(t *testing.T) {
 	t.Parallel()
 
-	readinessLookup := func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
+	readinessLookup := func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return false, false
 	}
-	readinessPrefetch := func(_ context.Context, _ []GraphProjectionPhaseKey, _ GraphProjectionPhase) (GraphProjectionReadinessLookup, error) {
+	readinessPrefetch := func(_ context.Context, _ []gpphase.PhaseKey, _ gpphase.Phase) (gpphase.ReadinessLookup, error) {
 		return readinessLookup, nil
 	}
 
@@ -733,7 +734,7 @@ func TestNewDefaultRegistryWiresHandlesRoutePresenceWriterIndependently(t *testi
 	if !ok {
 		t.Fatalf("handler type = %T, want WorkloadMaterializationHandler", def.Handler)
 	}
-	if handler.EndpointPresenceWriter != EndpointPresenceWriter(handlesRouteWriter) {
+	if handler.EndpointPresenceWriter != gpphase.EndpointPresenceWriter(handlesRouteWriter) {
 		t.Fatalf("workload handler presence writer = %p, want the handles_route writer %p (not the secrets/IAM writer %p)",
 			handler.EndpointPresenceWriter, handlesRouteWriter, secretsIAMWriter)
 	}

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -18,7 +18,7 @@ func TestCompletenessStateValidateAcceptsValidCheckpoint(t *testing.T) {
 	state := CompletenessState{
 		RunID:         "run-1",
 		CollectorKind: scope.CollectorGit,
-		Keyspace:      reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+		Keyspace:      gpphase.KeyspaceCodeEntitiesUID,
 		PhaseName:     "canonical_nodes_committed",
 		Required:      true,
 		Status:        "ready",
@@ -38,7 +38,7 @@ func TestCompletenessStateValidateRejectsBlankStatus(t *testing.T) {
 	state := CompletenessState{
 		RunID:         "run-1",
 		CollectorKind: scope.CollectorGit,
-		Keyspace:      reducer.GraphProjectionKeyspaceCodeEntitiesUID,
+		Keyspace:      gpphase.KeyspaceCodeEntitiesUID,
 		PhaseName:     "canonical_nodes_committed",
 		ObservedAt:    now,
 		UpdatedAt:     now,

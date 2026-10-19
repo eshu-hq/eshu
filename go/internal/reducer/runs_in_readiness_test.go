@@ -6,6 +6,7 @@ package reducer
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
@@ -16,8 +17,8 @@ func TestRunsInReadinessGatesOnWorkloadMaterialization(t *testing.T) {
 	if !gated {
 		t.Fatalf("DomainRunsIn must be readiness-gated")
 	}
-	if phase != GraphProjectionPhaseWorkloadMaterialization {
-		t.Fatalf("readiness phase = %q, want %q", phase, GraphProjectionPhaseWorkloadMaterialization)
+	if phase != gpphase.PhaseWorkloadMaterialization {
+		t.Fatalf("readiness phase = %q, want %q", phase, gpphase.PhaseWorkloadMaterialization)
 	}
 }
 
@@ -29,8 +30,8 @@ func TestRunsInReadinessKeyspaceMatchesWorkloadPublication(t *testing.T) {
 	// published under the service_uid keyspace (see WorkloadMaterializationHandler),
 	// so the readiness gate must look it up under the same keyspace or the edge is
 	// never drained — exactly like handles_route.
-	if got := worker.ReadinessKeyspace(DomainRunsIn); got != GraphProjectionKeyspaceServiceUID {
-		t.Fatalf("runs_in readiness keyspace = %q, want %q", got, GraphProjectionKeyspaceServiceUID)
+	if got := worker.ReadinessKeyspace(DomainRunsIn); got != gpphase.KeyspaceServiceUID {
+		t.Fatalf("runs_in readiness keyspace = %q, want %q", got, gpphase.KeyspaceServiceUID)
 	}
 }
 

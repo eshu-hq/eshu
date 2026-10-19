@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
@@ -14,14 +15,14 @@ func TestGraphProjectionPhaseRepairValidate(t *testing.T) {
 	t.Parallel()
 
 	repair := GraphProjectionPhaseRepair{
-		Key: GraphProjectionPhaseKey{
+		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
 			SourceRunID:      "run-1",
 			GenerationID:     "gen-1",
-			Keyspace:         GraphProjectionKeyspaceCodeEntitiesUID,
+			Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 		},
-		Phase:         GraphProjectionPhaseSemanticNodesCommitted,
+		Phase:         gpphase.PhaseSemanticNodesCommitted,
 		CommittedAt:   time.Date(2026, time.April, 17, 10, 0, 0, 0, time.UTC),
 		EnqueuedAt:    time.Date(2026, time.April, 17, 10, 0, 1, 0, time.UTC),
 		NextAttemptAt: time.Date(2026, time.April, 17, 10, 0, 1, 0, time.UTC),
@@ -35,12 +36,12 @@ func TestGraphProjectionPhaseRepairValidateRejectsBlankPhase(t *testing.T) {
 	t.Parallel()
 
 	repair := GraphProjectionPhaseRepair{
-		Key: GraphProjectionPhaseKey{
+		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
 			SourceRunID:      "run-1",
 			GenerationID:     "gen-1",
-			Keyspace:         GraphProjectionKeyspaceCodeEntitiesUID,
+			Keyspace:         gpphase.KeyspaceCodeEntitiesUID,
 		},
 		CommittedAt:   time.Date(2026, time.April, 17, 10, 0, 0, 0, time.UTC),
 		EnqueuedAt:    time.Date(2026, time.April, 17, 10, 0, 1, 0, time.UTC),
@@ -70,7 +71,7 @@ func TestSharedProjectionReadinessPhaseUsesCanonicalNodesForCodeCalls(t *testing
 			if !gated {
 				t.Fatal("gated = false, want true")
 			}
-			if got, want := phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+			if got, want := phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 				t.Fatalf("phase = %q, want %q", got, want)
 			}
 		})
@@ -90,7 +91,7 @@ func TestSharedProjectionReadinessPhaseUsesSemanticNodesForSemanticEdgeDomains(t
 			if !gated {
 				t.Fatal("gated = false, want true")
 			}
-			if got, want := phase, GraphProjectionPhaseSemanticNodesCommitted; got != want {
+			if got, want := phase, gpphase.PhaseSemanticNodesCommitted; got != want {
 				t.Fatalf("phase = %q, want %q", got, want)
 			}
 		})

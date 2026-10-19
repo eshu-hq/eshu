@@ -18,7 +18,7 @@ pack. The code source of truth is `go/internal/reducer/tags`.
   (`normalizer`) and one canonical keyspace (`cloud_resource_uid`).
 - `PublishNormalizationResult`, which converts normalized resources into
   `(cloud_resource_uid, canonical_nodes_committed)` readiness rows through
-  `reducer.GraphProjectionPhasePublisher`.
+  `gpphase.PhasePublisher`.
 
 It does not currently ship a concrete first-party alias pack, override file
 schema, tag-distribution fact family, or `/admin/status` `tag_taxonomy` response

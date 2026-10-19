@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -483,10 +484,10 @@ func runRepoDependencyIfaRunner(
 
 func repoDependencyIfaWorkloadReady(
 	_ context.Context,
-	_ []reducer.GraphProjectionPhaseKey,
-	_ reducer.GraphProjectionPhase,
-) (reducer.GraphProjectionReadinessLookup, error) {
-	return func(reducer.GraphProjectionPhaseKey, reducer.GraphProjectionPhase) (bool, bool) {
+	_ []gpphase.PhaseKey,
+	_ gpphase.Phase,
+) (gpphase.ReadinessLookup, error) {
+	return func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
 		return true, true
 	}, nil
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -91,7 +92,7 @@ type AWSRelationshipMaterializationHandler struct {
 	// ReadinessLookup reports whether the canonical-nodes-committed phase has
 	// been published for the intent's scope generation. A nil lookup keeps the
 	// gate open (test wiring); production wires the durable Postgres lookup.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has a generation strictly older than the given generation.
 	// Nil keeps retract behavior conservative (always retract before write).
 	PriorGenerationCheck PriorGenerationCheck
@@ -289,14 +290,14 @@ func (h AWSRelationshipMaterializationHandler) canonicalNodesReady(intent reduce
 	}
 	state, ok := graphProjectionPhaseStateForIntent(
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 

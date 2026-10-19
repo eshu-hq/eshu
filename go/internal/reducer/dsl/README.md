@@ -10,7 +10,7 @@ The package owns the contract; it does not own an evaluator implementation.
 flowchart LR
   DSLSubstrate["DSL evaluator\n(future implementation)"] -->|Evaluator.Evaluate| Result["EvaluationResult\n{Publications}"]
   Result -->|PhaseStates| PhaseRows["GraphProjectionPhaseState rows"]
-  PhaseRows -->|PublishEvaluationResult| Publisher["reducer.GraphProjectionPhasePublisher"]
+  PhaseRows -->|PublishEvaluationResult| Publisher["gpphase.PhasePublisher"]
   Publisher --> PhaseTable["graph_projection_phase_state\n(Postgres)"]
   PhaseTable --> DownstreamDomains["deployment_mapping\nworkload_materialization\nedge domains"]
 ```
@@ -35,7 +35,7 @@ Pin two contracts:
 - Does not own: an evaluator implementation. Concrete DSL substrates land
   elsewhere.
 - Does not write to the graph. Phase rows are forwarded through
-  `reducer.GraphProjectionPhasePublisher`, wired by the parent reducer.
+  `gpphase.PhasePublisher`, wired by the parent reducer.
 
 ## Exported surface
 
@@ -102,9 +102,8 @@ in `go/internal/telemetry/instruments.go`.
   order.
 - **`cross_source_anchor_ready` is reserved for the DSL layer** —
   `gpphase.PhaseCrossSourceAnchorReady` is defined in
-  `internal/reducer/gpphase`, aliased at the root as
-  `GraphProjectionPhaseCrossSourceAnchorReady` in
-  `internal/reducer/graph_projection_phase.go`; publish only from DSL
+  `internal/reducer/gpphase` (root alias retired in #6626 bucket 9);
+  publish only from DSL
   substrate code, not from canonical projectors or other reducer handlers.
 - **`PublishEvaluationResult` is a no-op when `publisher` is nil or when
   the result produces zero phase states** — `evaluator.go:163–168`.

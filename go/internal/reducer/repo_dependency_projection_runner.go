@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -50,7 +51,7 @@ type RepoDependencyProjectionRunner struct {
 	WorkloadMaterializationReplayer WorkloadMaterializationReplayer
 	// WorkloadReadinessPrefetch reports whether RUNS_ON endpoint materialization
 	// committed before the repo-dependency acceptance unit may write its edges.
-	WorkloadReadinessPrefetch GraphProjectionReadinessPrefetch
+	WorkloadReadinessPrefetch gpphase.ReadinessPrefetch
 	AcceptedGen               AcceptedGenerationLookup
 	AcceptedGenPrefetch       AcceptedGenerationPrefetch
 	// GenerationFreshness reports whether a replay request's generation is

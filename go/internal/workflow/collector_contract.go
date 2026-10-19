@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -14,42 +15,42 @@ import (
 // collector family.
 type CollectorContract struct {
 	CollectorKind      scope.CollectorKind
-	CanonicalKeyspaces []reducer.GraphProjectionKeyspace
+	CanonicalKeyspaces []gpphase.Keyspace
 	RequiredPhases     []PhaseRequirement
 }
 
 var collectorContracts = map[scope.CollectorKind]CollectorContract{
 	scope.CollectorGit: {
 		CollectorKind: scope.CollectorGit,
-		CanonicalKeyspaces: []reducer.GraphProjectionKeyspace{
-			reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-			reducer.GraphProjectionKeyspaceDeployableUnitUID,
-			reducer.GraphProjectionKeyspaceServiceUID,
+		CanonicalKeyspaces: []gpphase.Keyspace{
+			gpphase.KeyspaceCodeEntitiesUID,
+			gpphase.KeyspaceDeployableUnitUID,
+			gpphase.KeyspaceServiceUID,
 		},
 		RequiredPhases: []PhaseRequirement{
 			{
-				Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-				PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+				Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+				PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				Required:  true,
 			},
 			{
-				Keyspace:  reducer.GraphProjectionKeyspaceCodeEntitiesUID,
-				PhaseName: reducer.GraphProjectionPhaseSemanticNodesCommitted,
+				Keyspace:  gpphase.KeyspaceCodeEntitiesUID,
+				PhaseName: gpphase.PhaseSemanticNodesCommitted,
 				Required:  true,
 			},
 			{
-				Keyspace:  reducer.GraphProjectionKeyspaceDeployableUnitUID,
-				PhaseName: reducer.GraphProjectionPhaseDeployableUnitCorrelation,
+				Keyspace:  gpphase.KeyspaceDeployableUnitUID,
+				PhaseName: gpphase.PhaseDeployableUnitCorrelation,
 				Required:  true,
 			},
 			{
-				Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-				PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+				Keyspace:  gpphase.KeyspaceServiceUID,
+				PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				Required:  true,
 			},
 			{
-				Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-				PhaseName: reducer.GraphProjectionPhaseDeploymentMapping,
+				Keyspace:  gpphase.KeyspaceServiceUID,
+				PhaseName: gpphase.PhaseDeploymentMapping,
 				Required:  true,
 				// DomainDeploymentMapping is the sole reducer domain that
 				// publishes this phase (reducer/platformfam/platform_materialization.go),
@@ -59,8 +60,8 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 				DeadLetterDomain: reducer.DomainDeploymentMapping,
 			},
 			{
-				Keyspace:  reducer.GraphProjectionKeyspaceServiceUID,
-				PhaseName: reducer.GraphProjectionPhaseWorkloadMaterialization,
+				Keyspace:  gpphase.KeyspaceServiceUID,
+				PhaseName: gpphase.PhaseWorkloadMaterialization,
 				Required:  true,
 				// DomainWorkloadMaterialization is the sole reducer domain
 				// that publishes this phase
@@ -72,19 +73,19 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 	},
 	scope.CollectorTerraformState: {
 		CollectorKind: scope.CollectorTerraformState,
-		CanonicalKeyspaces: []reducer.GraphProjectionKeyspace{
-			reducer.GraphProjectionKeyspaceTerraformResourceUID,
-			reducer.GraphProjectionKeyspaceTerraformModuleUID,
+		CanonicalKeyspaces: []gpphase.Keyspace{
+			gpphase.KeyspaceTerraformResourceUID,
+			gpphase.KeyspaceTerraformModuleUID,
 		},
 		RequiredPhases: []PhaseRequirement{
 			{
-				Keyspace:  reducer.GraphProjectionKeyspaceTerraformResourceUID,
-				PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+				Keyspace:  gpphase.KeyspaceTerraformResourceUID,
+				PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				Required:  true,
 			},
 			{
-				Keyspace:  reducer.GraphProjectionKeyspaceTerraformModuleUID,
-				PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+				Keyspace:  gpphase.KeyspaceTerraformModuleUID,
+				PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				Required:  true,
 			},
 		},
@@ -116,18 +117,18 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 	},
 	scope.CollectorWebhook: {
 		CollectorKind: scope.CollectorWebhook,
-		CanonicalKeyspaces: []reducer.GraphProjectionKeyspace{
-			reducer.GraphProjectionKeyspaceWebhookEventUID,
+		CanonicalKeyspaces: []gpphase.Keyspace{
+			gpphase.KeyspaceWebhookEventUID,
 		},
 		RequiredPhases: []PhaseRequirement{
 			{
-				Keyspace:  reducer.GraphProjectionKeyspaceWebhookEventUID,
-				PhaseName: reducer.GraphProjectionPhaseCanonicalNodesCommitted,
+				Keyspace:  gpphase.KeyspaceWebhookEventUID,
+				PhaseName: gpphase.PhaseCanonicalNodesCommitted,
 				Required:  true,
 			},
 			{
-				Keyspace:  reducer.GraphProjectionKeyspaceWebhookEventUID,
-				PhaseName: reducer.GraphProjectionPhaseCrossSourceAnchorReady,
+				Keyspace:  gpphase.KeyspaceWebhookEventUID,
+				PhaseName: gpphase.PhaseCrossSourceAnchorReady,
 				Required:  true,
 			},
 		},
@@ -203,7 +204,7 @@ func CollectorContractFor(kind scope.CollectorKind) (CollectorContract, bool) {
 
 // CanonicalKeyspacesForCollector returns the accepted canonical keyspaces for
 // one collector family.
-func CanonicalKeyspacesForCollector(kind scope.CollectorKind) []reducer.GraphProjectionKeyspace {
+func CanonicalKeyspacesForCollector(kind scope.CollectorKind) []gpphase.Keyspace {
 	contract, ok := CollectorContractFor(kind)
 	if !ok {
 		return nil
@@ -228,8 +229,8 @@ func RequiredPhasesForCollector(kind scope.CollectorKind) []PhaseRequirement {
 // lane (#7133): only a scope whose collector is contracted to publish that
 // phase can ever release the gate, so no other scope may hold it.
 func CollectorKindsRequiringPhase(
-	keyspace reducer.GraphProjectionKeyspace,
-	phase reducer.GraphProjectionPhase,
+	keyspace gpphase.Keyspace,
+	phase gpphase.Phase,
 ) []scope.CollectorKind {
 	kinds := make([]scope.CollectorKind, 0, 1)
 	for kind, contract := range collectorContracts {

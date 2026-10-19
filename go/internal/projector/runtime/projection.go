@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package runtime
+package runtime //nolint:filelength // at cap: #6626 phase-bucket import add on a 500-line file; split out of scope for this rename
 
 import (
 	"context"
@@ -25,6 +25,7 @@ import (
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	projectorentity "github.com/eshu-hq/eshu/go/internal/projector/semantic/entity"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -42,7 +43,7 @@ type Runtime struct {
 	CanonicalWriter CanonicalWriter // replaces GraphWriter — canonical graph projection
 	ContentWriter   content.Writer
 	IntentWriter    ReducerIntentWriter
-	PhasePublisher  reducer.GraphProjectionPhasePublisher
+	PhasePublisher  gpphase.PhasePublisher
 	RepairQueue     reducer.GraphProjectionPhaseRepairQueue
 	RetryInjector   failure.RetryInjector
 	// PackageRegistryIdentityLocker coordinates package UID writes across

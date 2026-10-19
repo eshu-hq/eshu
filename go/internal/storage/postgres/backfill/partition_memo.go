@@ -98,7 +98,7 @@ func (s *deferredBackfillPartitionMemoStore) EnsureSchema(ctx context.Context) e
 // BackwardEvidenceCommitted phase last published for (ScopeID, GenerationID).
 //
 // The phase is the subject deliberately, not a count of evidence rows. It names
-// reducer.GraphProjectionPhaseBackwardEvidenceCommitted, whose key is exactly
+// gpphase.PhaseBackwardEvidenceCommitted, whose key is exactly
 // this row's (ScopeID, GenerationID). A pass can publish that phase and stamp
 // this memo for a partition even when it wrote no new evidence rows for it
 // (writeDeferredBackfillBatch records a partition contribution whether or not

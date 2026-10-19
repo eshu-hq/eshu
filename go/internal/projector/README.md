@@ -170,8 +170,8 @@ See `doc.go` for the full godoc contract.
 - `internal/facts` — `facts.Envelope`; the durable fact model projector reads
 - `internal/queue` — `queue.FailureRecord`; `ClassifyFailure.ToFailureRecord`
   converts to this for queue persistence
-- `internal/reducer` / `internal/reducer/contract` — `reducercontract.Domain`, `reducer.GraphProjectionPhasePublisher`,
-  `reducer.GraphProjectionPhaseRepairQueue`, `reducer.GraphProjectionPhaseState`,
+- `internal/reducer` / `internal/reducer/contract` — `reducercontract.Domain`, `gpphase.PhasePublisher`,
+  `reducer.GraphProjectionPhaseRepairQueue`, `gpphase.PhaseState`,
   `reducer.DomainSemanticEntityMaterialization`; projector emits intents and
   phase state that reducer consumes
 - `internal/scope` — `scope.IngestionScope`, `scope.ScopeGeneration`; scope

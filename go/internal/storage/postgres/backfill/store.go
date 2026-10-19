@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -32,7 +32,7 @@ type EvidenceStore interface {
 // own graph-projection phase store. *postgres.GraphProjectionPhaseStateStore
 // satisfies it.
 type PhaseStore interface {
-	PublishGraphProjectionPhases(ctx context.Context, rows []reducer.GraphProjectionPhaseState) error
+	PublishGraphProjectionPhases(ctx context.Context, rows []gpphase.PhaseState) error
 }
 
 // CatalogLoader loads the deduplicated repository identity catalog plus each

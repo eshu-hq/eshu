@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -111,7 +111,7 @@ func (s *GraphProjectionPhaseStateStore) EnsureSchema(ctx context.Context) error
 }
 
 // Upsert writes readiness rows in batches.
-func (s *GraphProjectionPhaseStateStore) Upsert(ctx context.Context, rows []reducer.GraphProjectionPhaseState) error {
+func (s *GraphProjectionPhaseStateStore) Upsert(ctx context.Context, rows []gpphase.PhaseState) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -132,8 +132,8 @@ func (s *GraphProjectionPhaseStateStore) Upsert(ctx context.Context, rows []redu
 // Lookup reports whether the exact bounded readiness phase exists.
 func (s *GraphProjectionPhaseStateStore) Lookup(
 	ctx context.Context,
-	key reducer.GraphProjectionPhaseKey,
-	phase reducer.GraphProjectionPhase,
+	key gpphase.PhaseKey,
+	phase gpphase.Phase,
 ) (bool, bool, error) {
 	rows, err := s.database.QueryContext(
 		ctx,
@@ -164,17 +164,17 @@ func (s *GraphProjectionPhaseStateStore) Lookup(
 	return ready, true, rows.Err()
 }
 
-// PublishGraphProjectionPhases implements reducer.GraphProjectionPhasePublisher.
-func (s *GraphProjectionPhaseStateStore) PublishGraphProjectionPhases(ctx context.Context, rows []reducer.GraphProjectionPhaseState) error {
+// PublishGraphProjectionPhases implements gpphase.PhasePublisher.
+func (s *GraphProjectionPhaseStateStore) PublishGraphProjectionPhases(ctx context.Context, rows []gpphase.PhaseState) error {
 	return s.Upsert(ctx, rows)
 }
 
 // NewGraphProjectionReadinessLookup performs exact readiness lookup against the
 // durable graph projection phase table.
-func NewGraphProjectionReadinessLookup(database db.ExecQueryer) reducer.GraphProjectionReadinessLookup {
+func NewGraphProjectionReadinessLookup(database db.ExecQueryer) gpphase.ReadinessLookup {
 	store := NewGraphProjectionPhaseStateStore(database)
 
-	return func(key reducer.GraphProjectionPhaseKey, phase reducer.GraphProjectionPhase) (bool, bool) {
+	return func(key gpphase.PhaseKey, phase gpphase.Phase) (bool, bool) {
 		ready, found, err := store.Lookup(context.Background(), key, phase)
 		if err != nil {
 			return false, false
@@ -202,17 +202,17 @@ func NewGraphProjectionReadinessLookup(database db.ExecQueryer) reducer.GraphPro
 // PrefetchStats when the caller attached one.
 func (s *GraphProjectionPhaseStateStore) LookupBatch(
 	ctx context.Context,
-	keys []reducer.GraphProjectionPhaseKey,
-	phase reducer.GraphProjectionPhase,
-) ([]reducer.GraphProjectionPhaseKey, error) {
+	keys []gpphase.PhaseKey,
+	phase gpphase.Phase,
+) ([]gpphase.PhaseKey, error) {
 	seen := make(map[string]struct{}, len(keys))
-	distinct := make([]reducer.GraphProjectionPhaseKey, 0, len(keys))
+	distinct := make([]gpphase.PhaseKey, 0, len(keys))
 	for _, key := range keys {
 		key.ScopeID = strings.TrimSpace(key.ScopeID)
 		key.AcceptanceUnitID = strings.TrimSpace(key.AcceptanceUnitID)
 		key.SourceRunID = strings.TrimSpace(key.SourceRunID)
 		key.GenerationID = strings.TrimSpace(key.GenerationID)
-		key.Keyspace = reducer.GraphProjectionKeyspace(strings.TrimSpace(string(key.Keyspace)))
+		key.Keyspace = gpphase.Keyspace(strings.TrimSpace(string(key.Keyspace)))
 		if err := key.Validate(); err != nil {
 			continue
 		}
@@ -228,7 +228,7 @@ func (s *GraphProjectionPhaseStateStore) LookupBatch(
 	}
 
 	start := time.Now()
-	found := make([]reducer.GraphProjectionPhaseKey, 0, len(distinct))
+	found := make([]gpphase.PhaseKey, 0, len(distinct))
 	queries := 0
 	for i := 0; i < len(distinct); i += graphProjectionPhaseStateLookupChunkSize {
 		end := i + graphProjectionPhaseStateLookupChunkSize
@@ -251,9 +251,9 @@ func (s *GraphProjectionPhaseStateStore) LookupBatch(
 // phase with a single UNNEST/JOIN query and returns the present keys.
 func (s *GraphProjectionPhaseStateStore) lookupPhaseChunk(
 	ctx context.Context,
-	chunk []reducer.GraphProjectionPhaseKey,
-	phase reducer.GraphProjectionPhase,
-) ([]reducer.GraphProjectionPhaseKey, error) {
+	chunk []gpphase.PhaseKey,
+	phase gpphase.Phase,
+) ([]gpphase.PhaseKey, error) {
 	scopes := make([]string, len(chunk))
 	units := make([]string, len(chunk))
 	runs := make([]string, len(chunk))
@@ -274,18 +274,18 @@ func (s *GraphProjectionPhaseStateStore) lookupPhaseChunk(
 		return nil, fmt.Errorf("query graph projection phase state batch (%d keys): %w", len(chunk), err)
 	}
 	defer func() { _ = rows.Close() }()
-	var found []reducer.GraphProjectionPhaseKey
+	var found []gpphase.PhaseKey
 	for rows.Next() {
 		var scopeID, acceptanceUnitID, sourceRunID, generationID, keyspace string
 		if err := rows.Scan(&scopeID, &acceptanceUnitID, &sourceRunID, &generationID, &keyspace); err != nil {
 			return nil, fmt.Errorf("scan graph projection phase state batch: %w", err)
 		}
-		found = append(found, reducer.GraphProjectionPhaseKey{
+		found = append(found, gpphase.PhaseKey{
 			ScopeID:          strings.TrimSpace(scopeID),
 			AcceptanceUnitID: strings.TrimSpace(acceptanceUnitID),
 			SourceRunID:      strings.TrimSpace(sourceRunID),
 			GenerationID:     strings.TrimSpace(generationID),
-			Keyspace:         reducer.GraphProjectionKeyspace(strings.TrimSpace(keyspace)),
+			Keyspace:         gpphase.Keyspace(strings.TrimSpace(keyspace)),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -302,10 +302,10 @@ func (s *GraphProjectionPhaseStateStore) lookupPhaseChunk(
 // former one-Lookup-per-key loop. Per-key found/not-found semantics,
 // TrimSpace normalization, and the batch-error-fails-selection contract
 // are unchanged.
-func NewGraphProjectionReadinessPrefetch(database db.ExecQueryer) reducer.GraphProjectionReadinessPrefetch {
+func NewGraphProjectionReadinessPrefetch(database db.ExecQueryer) gpphase.ReadinessPrefetch {
 	store := NewGraphProjectionPhaseStateStore(database)
 
-	return func(ctx context.Context, keys []reducer.GraphProjectionPhaseKey, phase reducer.GraphProjectionPhase) (reducer.GraphProjectionReadinessLookup, error) {
+	return func(ctx context.Context, keys []gpphase.PhaseKey, phase gpphase.Phase) (gpphase.ReadinessLookup, error) {
 		found, err := store.LookupBatch(ctx, keys, phase)
 		if err != nil {
 			return nil, err
@@ -315,7 +315,7 @@ func NewGraphProjectionReadinessPrefetch(database db.ExecQueryer) reducer.GraphP
 			readyByKey[graphProjectionReadinessCompositeKey(key, phase)] = true
 		}
 
-		return func(key reducer.GraphProjectionPhaseKey, phase reducer.GraphProjectionPhase) (bool, bool) {
+		return func(key gpphase.PhaseKey, phase gpphase.Phase) (bool, bool) {
 			composite := graphProjectionReadinessCompositeKey(key, phase)
 			ready, ok := readyByKey[composite]
 			return ready, ok
@@ -323,7 +323,7 @@ func NewGraphProjectionReadinessPrefetch(database db.ExecQueryer) reducer.GraphP
 	}
 }
 
-func upsertGraphProjectionPhaseStateBatch(ctx context.Context, database db.ExecQueryer, batch []reducer.GraphProjectionPhaseState) error {
+func upsertGraphProjectionPhaseStateBatch(ctx context.Context, database db.ExecQueryer, batch []gpphase.PhaseState) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -374,7 +374,7 @@ func upsertGraphProjectionPhaseStateBatch(ctx context.Context, database db.ExecQ
 	return nil
 }
 
-func graphProjectionReadinessCompositeKey(key reducer.GraphProjectionPhaseKey, phase reducer.GraphProjectionPhase) string {
+func graphProjectionReadinessCompositeKey(key gpphase.PhaseKey, phase gpphase.Phase) string {
 	return strings.Join([]string{
 		strings.TrimSpace(key.ScopeID),
 		strings.TrimSpace(key.AcceptanceUnitID),

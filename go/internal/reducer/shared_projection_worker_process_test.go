@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -61,9 +62,9 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 			}
 		},
 		nil,
-		func(key GraphProjectionPhaseKey, phase GraphProjectionPhase) (bool, bool) {
-			if phase != GraphProjectionPhaseSemanticNodesCommitted {
-				t.Fatalf("phase = %q, want %q", phase, GraphProjectionPhaseSemanticNodesCommitted)
+		func(key gpphase.PhaseKey, phase gpphase.Phase) (bool, bool) {
+			if phase != gpphase.PhaseSemanticNodesCommitted {
+				t.Fatalf("phase = %q, want %q", phase, gpphase.PhaseSemanticNodesCommitted)
 			}
 			if key.AcceptanceUnitID == "repo-ready" {
 				return true, true

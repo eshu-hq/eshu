@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
@@ -187,8 +188,8 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 				t.Fatalf("seed RUNS_ON intent: %v", err)
 			}
 			phaseStore := NewGraphProjectionPhaseStateStore(SQLDB{DB: database})
-			legacyKey := reducer.GraphProjectionPhaseKey{ScopeID: scopeID, AcceptanceUnitID: repoID, SourceRunID: generationID, GenerationID: generationID, Keyspace: reducer.GraphProjectionKeyspaceServiceUID}
-			if err := phaseStore.Upsert(ctx, []reducer.GraphProjectionPhaseState{{Key: legacyKey, Phase: reducer.GraphProjectionPhaseWorkloadMaterialization, CommittedAt: now, UpdatedAt: now}}); err != nil {
+			legacyKey := gpphase.PhaseKey{ScopeID: scopeID, AcceptanceUnitID: repoID, SourceRunID: generationID, GenerationID: generationID, Keyspace: gpphase.KeyspaceServiceUID}
+			if err := phaseStore.Upsert(ctx, []gpphase.PhaseState{{Key: legacyKey, Phase: gpphase.PhaseWorkloadMaterialization, CommittedAt: now, UpdatedAt: now}}); err != nil {
 				t.Fatalf("seed stale workload phase: %v", err)
 			}
 
