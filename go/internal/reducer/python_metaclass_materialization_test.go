@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestPythonMetaclassMaterializationHandlerWritesCanonicalEdges(t *testing.T) {
@@ -57,7 +58,7 @@ func TestPythonMetaclassMaterializationHandlerWritesCanonicalEdges(t *testing.T)
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-python-metaclass-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",

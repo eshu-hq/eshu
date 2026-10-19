@@ -15,12 +15,13 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 type batchAckItem struct {
-	intent    Intent
+	intent    reducercontract.Intent
 	result    Result
 	duration  float64
 	queueWait float64
@@ -42,7 +43,7 @@ func (s Service) runBatchConcurrent(
 	batchSize := s.batchClaimSize()
 
 	type workItem struct {
-		intent Intent
+		intent reducercontract.Intent
 	}
 
 	workCh := make(chan workItem)
@@ -222,7 +223,7 @@ func (s Service) runBatchConcurrent(
 				return
 			}
 
-			intents := make([]Intent, len(pending))
+			intents := make([]reducercontract.Intent, len(pending))
 			results := make([]Result, len(pending))
 			for i, item := range pending {
 				intents[i] = item.intent
@@ -308,7 +309,7 @@ func (s Service) recordBatchAckOutcome(ctx context.Context, item batchAckItem, s
 
 func (s Service) ackReducerWork(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	result Result,
 	duration float64,
 	queueWait float64,
@@ -345,7 +346,7 @@ func (s Service) ackReducerWork(
 
 func (s Service) logReducerAckClaimRejected(
 	ctx context.Context,
-	intent *Intent,
+	intent *reducercontract.Intent,
 	batchSize int,
 	err error,
 ) {
@@ -392,7 +393,7 @@ func (s Service) logReducerAckClaimRejected(
 // actually succeeded and the row is still claimed. The per-item path in
 // service.go holds the same contract by returning early after its own Fail
 // call.
-func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID int) (batchAckItem, bool, error) {
+func (s Service) executeAndReport(ctx context.Context, intent reducercontract.Intent, workerID int) (batchAckItem, bool, error) {
 	start := time.Now()
 	queueWait := reducerQueueWaitSeconds(start, intent.AvailableAt)
 

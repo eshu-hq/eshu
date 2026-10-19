@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerQueueAckBindsContainerImageIdentityClaimEpoch(t *testing.T) {
@@ -25,7 +26,7 @@ func TestReducerQueueAckBindsContainerImageIdentityClaimEpoch(t *testing.T) {
 	}
 	if err := queue.Ack(
 		context.Background(),
-		reducer.Intent{
+		reducercontract.Intent{
 			IntentID:     "intent-5854-single",
 			Domain:       reducer.DomainContainerImageIdentity,
 			AttemptCount: 7,
@@ -63,7 +64,7 @@ func TestReducerQueueAckLeavesUnrelatedAndEmptyDomainsOnLegacyQuery(t *testing.T
 		}
 		if err := queue.Ack(
 			context.Background(),
-			reducer.Intent{
+			reducercontract.Intent{
 				IntentID: "intent-5854-legacy-dispatch",
 				Domain:   domain,
 			},
@@ -84,13 +85,13 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 
 	for _, test := range []struct {
 		name        string
-		intents     []reducer.Intent
+		intents     []reducercontract.Intent
 		wantCapable bool
 		wantMixed   bool
 	}{
 		{
 			name: "target only",
-			intents: []reducer.Intent{
+			intents: []reducercontract.Intent{
 				{
 					IntentID:     "intent-5854-batch-target-a",
 					Domain:       reducer.DomainContainerImageIdentity,
@@ -108,7 +109,7 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 		},
 		{
 			name: "mixed",
-			intents: []reducer.Intent{
+			intents: []reducercontract.Intent{
 				{
 					IntentID:     "intent-5854-batch-mixed-target",
 					Domain:       reducer.DomainContainerImageIdentity,
@@ -127,7 +128,7 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 		},
 		{
 			name: "unrelated only",
-			intents: []reducer.Intent{
+			intents: []reducercontract.Intent{
 				{
 					IntentID: "intent-5854-batch-unrelated-a",
 					Domain:   reducer.DomainOwnership,
@@ -140,7 +141,7 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 		},
 		{
 			name: "empty domains",
-			intents: []reducer.Intent{
+			intents: []reducercontract.Intent{
 				{IntentID: "intent-5854-batch-empty-a"},
 				{IntentID: "intent-5854-batch-empty-b"},
 			},

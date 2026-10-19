@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // seedAWSResourceFactMinimal inserts a bare aws_resource fact (arn +
@@ -136,7 +137,7 @@ func TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive(t *testing.T
 		// ReadinessChecker deliberately nil: byte-identical to pre-#5848.
 		FencingTokenIssuer: fencingTokenIssuer,
 	}
-	beforeResult, err := beforeHandler.Handle(ctx, reducer.Intent{
+	beforeResult, err := beforeHandler.Handle(ctx, reducercontract.Intent{
 		IntentID:     "intent-before-" + suffix,
 		ScopeID:      beforeScopeID,
 		GenerationID: beforeGenerationID,
@@ -175,7 +176,7 @@ func TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive(t *testing.T
 		ReadinessChecker:   readinessChecker,
 		FencingTokenIssuer: fencingTokenIssuer,
 	}
-	_, err = afterHandler.Handle(ctx, reducer.Intent{
+	_, err = afterHandler.Handle(ctx, reducercontract.Intent{
 		IntentID:     "intent-after-defer-" + suffix,
 		ScopeID:      afterScopeID,
 		GenerationID: afterGenerationID,
@@ -217,7 +218,7 @@ func TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive(t *testing.T
 		"aws_lambda_function.after", "aws_lambda_function", afterARN, now,
 	)
 
-	afterResult, err := afterHandler.Handle(ctx, reducer.Intent{
+	afterResult, err := afterHandler.Handle(ctx, reducercontract.Intent{
 		IntentID:     "intent-after-retry-" + suffix,
 		ScopeID:      afterScopeID,
 		GenerationID: afterGenerationID,

@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	freshnesslinks "github.com/eshu-hq/eshu/go/internal/reducer/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/evidence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/infra"
@@ -35,34 +36,34 @@ const defaultPollInterval = time.Second
 
 // WorkSource claims one reducer intent at a time.
 type WorkSource interface {
-	Claim(context.Context) (Intent, bool, error)
+	Claim(context.Context) (reducercontract.Intent, bool, error)
 }
 
 // Executor executes one claimed reducer intent.
 type Executor interface {
-	Execute(context.Context, Intent) (Result, error)
+	Execute(context.Context, reducercontract.Intent) (Result, error)
 }
 
 // WorkSink acknowledges or fails one claimed reducer intent.
 type WorkSink interface {
-	Ack(context.Context, Intent, Result) error
-	Fail(context.Context, Intent, error) error
+	Ack(context.Context, reducercontract.Intent, Result) error
+	Fail(context.Context, reducercontract.Intent, error) error
 }
 
 // WorkHeartbeater extends the claim on one long-running reducer intent.
 type WorkHeartbeater interface {
-	Heartbeat(context.Context, Intent) error
+	Heartbeat(context.Context, reducercontract.Intent) error
 }
 
 // BatchWorkSource claims up to N reducer intents in a single Postgres
 // round-trip. Implementations MUST use FOR UPDATE SKIP LOCKED semantics.
 type BatchWorkSource interface {
-	ClaimBatch(ctx context.Context, limit int) ([]Intent, error)
+	ClaimBatch(ctx context.Context, limit int) ([]reducercontract.Intent, error)
 }
 
 // BatchWorkSink acknowledges multiple intents in one round-trip.
 type BatchWorkSink interface {
-	AckBatch(ctx context.Context, intents []Intent, results []Result) error
+	AckBatch(ctx context.Context, intents []reducercontract.Intent, results []Result) error
 }
 
 // Service coordinates reducer polling and one-intent-at-a-time execution.
@@ -388,7 +389,7 @@ func (s Service) validate() error {
 	return nil
 }
 
-func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, workerID int) error {
+func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontract.Intent, workerID int) error {
 	start := time.Now()
 	queueWait := reducerQueueWaitSeconds(start, intent.AvailableAt)
 

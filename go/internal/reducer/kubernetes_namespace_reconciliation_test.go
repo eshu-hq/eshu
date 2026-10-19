@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestKubernetesNamespaceMaterializationCompleteEmptySnapshotRetractsStaleNodes(t *testing.T) {
@@ -23,7 +24,7 @@ func TestKubernetesNamespaceMaterializationCompleteEmptySnapshotRetractsStaleNod
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-empty-complete",
 		ScopeID:      "kubernetes_live:scope-prod",
 		GenerationID: "generation-empty-complete",
@@ -69,7 +70,7 @@ func TestKubernetesNamespaceMaterializationCompleteSnapshotUpsertsBeforeRetract(
 		NodeWriter: writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-complete",
 		ScopeID:      "kubernetes_live:scope-prod",
 		GenerationID: "generation-current",
@@ -107,7 +108,7 @@ func TestKubernetesNamespaceMaterializationRetractFailureFailsIntent(t *testing.
 		NodeWriter: writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-complete",
 		ScopeID:      "kubernetes_live:scope-prod",
 		GenerationID: "generation-current",
@@ -138,7 +139,7 @@ func TestKubernetesNamespaceMaterializationCompleteSnapshotWithInvalidFactDoesNo
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-complete-invalid",
 		ScopeID:      "kubernetes_live:scope-prod",
 		GenerationID: "generation-current",
@@ -175,7 +176,7 @@ func TestKubernetesNamespaceMaterializationRejectsCompleteSnapshotClusterMismatc
 		NodeWriter: writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-complete-mismatch",
 		ScopeID:      "kubernetes_live:scope-prod",
 		GenerationID: "generation-current",

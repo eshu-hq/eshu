@@ -12,12 +12,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // cloudInventoryAdmissionIntent returns the canonical admission intent under
 // test, bound to one scope generation.
-func cloudInventoryAdmissionIntent() reducer.Intent {
-	return reducer.Intent{
+func cloudInventoryAdmissionIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-cloud-inventory-1",
 		ScopeID:      "cloud:tenant-1",
 		GenerationID: "gen-1",

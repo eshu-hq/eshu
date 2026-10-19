@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestWorkloadMaterializationHandlerPublishesEndpointRepoPathPresence proves the
@@ -40,7 +42,7 @@ func TestWorkloadMaterializationHandlerPublishesEndpointRepoPathPresence(t *test
 		EndpointPresenceWriter: presenceWriter,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-endpoint-presence",
 		ScopeID:         "scope-service",
 		GenerationID:    "gen-1",
@@ -102,7 +104,7 @@ func TestWorkloadMaterializationHandlerNilPresenceWriterNoOp(t *testing.T) {
 		// EndpointPresenceWriter nil
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-nil-presence",
 		ScopeID:         "scope-service",
 		GenerationID:    "gen-1",

@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
@@ -176,7 +177,7 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 			CanonicalWrite: true,
 		},
 		TruthContract: testReducerTruthContract("workload_identity"),
-		Handler: reducer.HandlerFunc(func(context.Context, reducer.Intent) (reducer.Result, error) {
+		Handler: reducer.HandlerFunc(func(context.Context, reducercontract.Intent) (reducer.Result, error) {
 			return reducer.Result{
 				Status:          reducer.ResultStatusSucceeded,
 				EvidenceSummary: "workload identity canonicalized",

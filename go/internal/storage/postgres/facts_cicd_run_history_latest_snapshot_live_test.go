@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestCICDRunCorrelationArtifactPatchUsesLatestRunSnapshot(t *testing.T) {
@@ -160,7 +161,7 @@ func runCICDRunSnapshotPatchHandler(t *testing.T, ctx context.Context, db *sql.D
 			},
 		},
 	}
-	if _, err := handler.Handle(ctx, reducer.Intent{
+	if _, err := handler.Handle(ctx, reducercontract.Intent{
 		IntentID:     intentID,
 		ScopeID:      "scope-ci",
 		GenerationID: "gen-3",
@@ -224,7 +225,7 @@ INSERT INTO scope_generations (
 			},
 		},
 	}
-	if _, err := handler.Handle(ctx, reducer.Intent{
+	if _, err := handler.Handle(ctx, reducercontract.Intent{
 		IntentID:     "intent-latest-run-snapshot",
 		ScopeID:      "scope-ci",
 		GenerationID: "gen-3",

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const (
@@ -60,8 +61,8 @@ func azureManagedBy(supportState string) facts.Envelope {
 	})
 }
 
-func azureRelationshipIntent() Intent {
-	return Intent{
+func azureRelationshipIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-azure-edges-1",
 		ScopeID:      "scope-azure-1",
 		GenerationID: "gen-azure-1",

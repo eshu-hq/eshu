@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -109,7 +110,7 @@ func TestWorkloadMaterializationHandlerReconcilesWorkloadDependencies(t *testing
 		WorkloadDependencyEdgeWriter: edgeWriter,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-wm-deps",
 		ScopeID:      "scope-service-a",
 		GenerationID: "gen-1",

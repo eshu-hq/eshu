@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // supplyChainImpactWriteSupersededTestError stands in for the writer's
@@ -47,7 +48,7 @@ func TestReducerQueueFailDefersSupplyChainImpactWriteSupersededPastAttemptBudget
 		MaxAttempts:   3,
 		Now:           func() time.Time { return now },
 	}
-	intent := reducer.Intent{IntentID: "intent-impact-write-superseded-1", AttemptCount: 42}
+	intent := reducercontract.Intent{IntentID: "intent-impact-write-superseded-1", AttemptCount: 42}
 
 	if err := queue.Fail(context.Background(), intent, supplyChainImpactWriteSupersededTestError{}); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)

@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestServiceRunClaimsExecutesAndAcknowledges(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -30,7 +31,7 @@ func TestServiceRunClaimsExecutesAndAcknowledges(t *testing.T) {
 		Status:          IntentStatusPending,
 	}
 
-	source := &stubReducerWorkSource{intents: []Intent{intent}}
+	source := &stubReducerWorkSource{intents: []reducercontract.Intent{intent}}
 	executor := &stubReducerExecutor{
 		result: Result{
 			IntentID: intent.IntentID,
@@ -69,7 +70,7 @@ func TestServiceRunClaimsExecutesAndAcknowledges(t *testing.T) {
 func TestServiceRunMarksFailureWhenExecutionFails(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -86,7 +87,7 @@ func TestServiceRunMarksFailureWhenExecutionFails(t *testing.T) {
 	wantErr := errors.New("execution failed")
 	service := Service{
 		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:   &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:     &stubReducerExecutor{executeErr: wantErr},
 		WorkSink:     &stubReducerWorkSink{},
 		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
@@ -112,7 +113,7 @@ func TestServiceRunMarksFailureWhenExecutionFails(t *testing.T) {
 func TestServiceDoesNotMutateQueueAfterExecutionClaimRejected(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-stale",
 		ScopeID:         "scope-stale",
 		GenerationID:    "generation-stale",
@@ -308,7 +309,7 @@ func TestServiceRunWorksWithoutSharedProjectionRunner(t *testing.T) {
 func TestIntentValidateAllowsSourceNeutralRelatedScopes(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-aws-1",
 		ScopeID:         "account-123456789012",
 		GenerationID:    "generation-aws-1",
@@ -330,7 +331,7 @@ func TestIntentValidateAllowsSourceNeutralRelatedScopes(t *testing.T) {
 func TestIntentValidateRejectsDuplicateRelatedScopes(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-state-1",
 		ScopeID:         "state-snapshot-prod",
 		GenerationID:    "generation-state-1",
@@ -352,15 +353,15 @@ func TestIntentValidateRejectsDuplicateRelatedScopes(t *testing.T) {
 type stubReducerWorkSource struct {
 	mu         sync.Mutex
 	claimCalls int
-	intents    []Intent
+	intents    []reducercontract.Intent
 }
 
-func (s *stubReducerWorkSource) Claim(context.Context) (Intent, bool, error) {
+func (s *stubReducerWorkSource) Claim(context.Context) (reducercontract.Intent, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.claimCalls++
 	if len(s.intents) == 0 {
-		return Intent{}, false, nil
+		return reducercontract.Intent{}, false, nil
 	}
 
 	intent := s.intents[0]
@@ -375,7 +376,7 @@ type stubReducerExecutor struct {
 	executeErr   error
 }
 
-func (s *stubReducerExecutor) Execute(context.Context, Intent) (Result, error) {
+func (s *stubReducerExecutor) Execute(context.Context, reducercontract.Intent) (Result, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.executeCalls++
@@ -411,14 +412,14 @@ type stubReducerWorkSink struct {
 	ackErr     error
 }
 
-func (s *stubReducerWorkSink) Ack(context.Context, Intent, Result) error {
+func (s *stubReducerWorkSink) Ack(context.Context, reducercontract.Intent, Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ackCalls++
 	return s.ackErr
 }
 
-func (s *stubReducerWorkSink) Fail(_ context.Context, _ Intent, err error) error {
+func (s *stubReducerWorkSink) Fail(_ context.Context, _ reducercontract.Intent, err error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failCalls++

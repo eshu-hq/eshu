@@ -10,21 +10,23 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // fakeBatchWorkSource implements both WorkSource (single) and BatchWorkSource.
 type fakeBatchWorkSource struct {
 	mu      sync.Mutex
-	intents []Intent
+	intents []reducercontract.Intent
 	claimed int
 	limits  []int
 }
 
-func (f *fakeBatchWorkSource) Claim(ctx context.Context) (Intent, bool, error) {
+func (f *fakeBatchWorkSource) Claim(ctx context.Context) (reducercontract.Intent, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if len(f.intents) == 0 {
-		return Intent{}, false, nil
+		return reducercontract.Intent{}, false, nil
 	}
 	intent := f.intents[0]
 	f.intents = f.intents[1:]
@@ -32,7 +34,7 @@ func (f *fakeBatchWorkSource) Claim(ctx context.Context) (Intent, bool, error) {
 	return intent, true, nil
 }
 
-func (f *fakeBatchWorkSource) ClaimBatch(_ context.Context, limit int) ([]Intent, error) {
+func (f *fakeBatchWorkSource) ClaimBatch(_ context.Context, limit int) ([]reducercontract.Intent, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.limits = append(f.limits, limit)
@@ -43,7 +45,7 @@ func (f *fakeBatchWorkSource) ClaimBatch(_ context.Context, limit int) ([]Intent
 	if end > len(f.intents) {
 		end = len(f.intents)
 	}
-	batch := make([]Intent, end)
+	batch := make([]reducercontract.Intent, end)
 	copy(batch, f.intents[:end])
 	f.intents = f.intents[end:]
 	f.claimed += end
@@ -79,7 +81,7 @@ func TestBatchServiceDoesNotMutateQueueAfterExecutionClaimRejected(t *testing.T)
 		Executor: &stubReducerExecutor{executeErr: ErrExecutionClaimRejected},
 		WorkSink: sink,
 	}
-	result, needsAck, err := service.executeAndReport(context.Background(), Intent{
+	result, needsAck, err := service.executeAndReport(context.Background(), reducercontract.Intent{
 		IntentID:     "stale-batch-intent",
 		ScopeID:      "stale-batch-scope",
 		GenerationID: "stale-batch-generation",
@@ -100,7 +102,7 @@ func TestBatchServiceDoesNotMutateQueueAfterExecutionClaimRejected(t *testing.T)
 	}
 }
 
-func (f *fakeBatchWorkSink) Ack(_ context.Context, intent Intent, _ Result) error {
+func (f *fakeBatchWorkSink) Ack(_ context.Context, intent reducercontract.Intent, _ Result) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.acked++
@@ -108,7 +110,7 @@ func (f *fakeBatchWorkSink) Ack(_ context.Context, intent Intent, _ Result) erro
 	return nil
 }
 
-func (f *fakeBatchWorkSink) Fail(_ context.Context, intent Intent, _ error) error {
+func (f *fakeBatchWorkSink) Fail(_ context.Context, intent reducercontract.Intent, _ error) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.failed++
@@ -116,7 +118,7 @@ func (f *fakeBatchWorkSink) Fail(_ context.Context, intent Intent, _ error) erro
 	return nil
 }
 
-func (f *fakeBatchWorkSink) AckBatch(_ context.Context, intents []Intent, _ []Result) error {
+func (f *fakeBatchWorkSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []Result) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.acked += len(intents)
@@ -130,7 +132,7 @@ type countingExecutor struct {
 	count atomic.Int64
 }
 
-func (e *countingExecutor) Execute(_ context.Context, intent Intent) (Result, error) {
+func (e *countingExecutor) Execute(_ context.Context, intent reducercontract.Intent) (Result, error) {
 	e.count.Add(1)
 	return Result{
 		IntentID: intent.IntentID,
@@ -141,7 +143,7 @@ func (e *countingExecutor) Execute(_ context.Context, intent Intent) (Result, er
 
 type batchQuarantineExecutor struct{}
 
-func (batchQuarantineExecutor) Execute(ctx context.Context, intent Intent) (Result, error) {
+func (batchQuarantineExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	recordQuarantinedFacts(ctx, nil, intent.Domain, intent.ScopeID, intent.GenerationID, []quarantinedFact{{
 		FactID:         "fact-1",
 		FactKind:       "vulnerability.suppression",
@@ -155,10 +157,10 @@ func (batchQuarantineExecutor) Execute(ctx context.Context, intent Intent) (Resu
 	}, nil
 }
 
-func makeTestIntents(n int) []Intent {
-	intents := make([]Intent, n)
+func makeTestIntents(n int) []reducercontract.Intent {
+	intents := make([]reducercontract.Intent, n)
 	for i := range intents {
-		intents[i] = Intent{
+		intents[i] = reducercontract.Intent{
 			IntentID:        fmt.Sprintf("intent-%d", i),
 			ScopeID:         "scope-1",
 			GenerationID:    "gen-1",
@@ -268,7 +270,7 @@ func TestServiceFallsBackToPerItemWhenNoBatchInterface(t *testing.T) {
 func TestServiceRunBatchConcurrentHeartbeatsLongRunningReducerWork(t *testing.T) {
 	t.Parallel()
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-batch-heartbeat",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
@@ -302,7 +304,7 @@ func TestServiceRunBatchConcurrentHeartbeatsLongRunningReducerWork(t *testing.T)
 
 	service := Service{
 		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &fakeBatchWorkSource{intents: []Intent{intent}},
+		WorkSource:        &fakeBatchWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:          executor,
 		WorkSink:          sink,
 		Heartbeater:       heartbeater,
@@ -389,7 +391,7 @@ type blockingManyReducerExecutor struct {
 	started chan string
 }
 
-func (b *blockingManyReducerExecutor) Execute(ctx context.Context, intent Intent) (Result, error) {
+func (b *blockingManyReducerExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	b.count.Add(1)
 	select {
 	case b.started <- intent.IntentID:
@@ -411,14 +413,14 @@ func (b *blockingManyReducerExecutor) Execute(ctx context.Context, intent Intent
 // nonBatchWorkSource only implements WorkSource, not BatchWorkSource.
 type nonBatchWorkSource struct {
 	mu      sync.Mutex
-	intents []Intent
+	intents []reducercontract.Intent
 }
 
-func (f *nonBatchWorkSource) Claim(_ context.Context) (Intent, bool, error) {
+func (f *nonBatchWorkSource) Claim(_ context.Context) (reducercontract.Intent, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if len(f.intents) == 0 {
-		return Intent{}, false, nil
+		return reducercontract.Intent{}, false, nil
 	}
 	intent := f.intents[0]
 	f.intents = f.intents[1:]
@@ -431,13 +433,13 @@ type nonBatchWorkSink struct {
 	acked int
 }
 
-func (f *nonBatchWorkSink) Ack(_ context.Context, _ Intent, _ Result) error {
+func (f *nonBatchWorkSink) Ack(_ context.Context, _ reducercontract.Intent, _ Result) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.acked++
 	return nil
 }
 
-func (f *nonBatchWorkSink) Fail(_ context.Context, _ Intent, _ error) error {
+func (f *nonBatchWorkSink) Fail(_ context.Context, _ reducercontract.Intent, _ error) error {
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/schedulereplay"
 )
 
@@ -120,7 +121,7 @@ type crashingSource struct {
 // Claim panics with crashSentinel at the scripted clean boundary; otherwise it
 // delegates to the durable store. The completed-item count drives the trigger,
 // read from the store so it reflects durable acks rather than claim attempts.
-func (s *crashingSource) Claim(ctx context.Context) (reducer.Intent, bool, error) {
+func (s *crashingSource) Claim(ctx context.Context) (reducercontract.Intent, bool, error) {
 	if s.crash.tryFire(CrashBeforeClaim, s.inner.ackedCount()) {
 		panic(crashSentinel)
 	}
@@ -149,7 +150,7 @@ type graphExecutor struct {
 // post-lease-pre-complete state recovery must repair. The crash decision uses
 // the count of items applied so far, so After completed applies precede the
 // crash item.
-func (e *graphExecutor) Execute(ctx context.Context, intent reducer.Intent) (reducer.Result, error) {
+func (e *graphExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := ctx.Err(); err != nil {

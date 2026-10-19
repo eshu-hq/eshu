@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
 )
@@ -73,7 +74,7 @@ func runtimeFenceProducerAttempt(
 	p *runtimeFenceProof,
 	createdAgo, claimedAgo, retryDelay, lease time.Duration,
 	cause error,
-) reducer.Intent {
+) reducercontract.Intent {
 	t.Helper()
 	setRuntimeFenceProducerCreated(t, ctx, p, createdAgo, "pending")
 	claimClock := time.Now().UTC().Add(-claimedAgo)
@@ -125,7 +126,7 @@ func requireRuntimeFenceRetryAnchor(t *testing.T, ctx context.Context, p *runtim
 }
 
 // claimAndHandleRuntimeFence claims the catalog row and runs the real handler.
-func claimAndHandleRuntimeFence(t *testing.T, ctx context.Context, p *runtimeFenceProof, queue ReducerQueue) (reducer.Intent, error) {
+func claimAndHandleRuntimeFence(t *testing.T, ctx context.Context, p *runtimeFenceProof, queue ReducerQueue) (reducercontract.Intent, error) {
 	t.Helper()
 	intent, claimed, err := queue.Claim(ctx)
 	if err != nil || !claimed {
@@ -138,7 +139,7 @@ func claimAndHandleRuntimeFence(t *testing.T, ctx context.Context, p *runtimeFen
 // requireRuntimeFenceDeferral asserts a non-counting deferral that wrote and
 // read nothing, then fails the row back to the queue and checks it kept its
 // attempt budget.
-func requireRuntimeFenceDeferral(t *testing.T, ctx context.Context, p *runtimeFenceProof, queue ReducerQueue, intent reducer.Intent, handleErr error) {
+func requireRuntimeFenceDeferral(t *testing.T, ctx context.Context, p *runtimeFenceProof, queue ReducerQueue, intent reducercontract.Intent, handleErr error) {
 	t.Helper()
 	var classified interface{ FailureClass() string }
 	if !errors.As(handleErr, &classified) || classified.FailureClass() != servicecatalog.RuntimeNotReadyFailureClass {
@@ -160,7 +161,7 @@ func requireRuntimeFenceDeferral(t *testing.T, ctx context.Context, p *runtimeFe
 
 // requireRuntimeFenceCommit asserts the handler proceeded past the bound,
 // committed the (empty) family it read, and that the Ack succeeds.
-func requireRuntimeFenceCommit(t *testing.T, ctx context.Context, p *runtimeFenceProof, queue ReducerQueue, intent reducer.Intent, handleErr error) {
+func requireRuntimeFenceCommit(t *testing.T, ctx context.Context, p *runtimeFenceProof, queue ReducerQueue, intent reducercontract.Intent, handleErr error) {
 	t.Helper()
 	if handleErr != nil {
 		t.Fatalf("Handle() error = %v, want nil: every in-flight producer is past its bound", handleErr)

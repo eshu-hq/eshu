@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
@@ -231,7 +232,7 @@ func TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive(t *testin
 	now := time.Date(2026, time.August, 2, 11, 30, 0, 0, time.UTC)
 	const owner = "batch-completion-owner"
 
-	intents := make([]reducer.Intent, 0, 4)
+	intents := make([]reducercontract.Intent, 0, 4)
 	for index := range 2 {
 		scopeID := fmt.Sprintf("repository:5740-batch-identity-%d", index)
 		generation := fmt.Sprintf("generation:5740-batch-identity-%d", index)
@@ -245,7 +246,7 @@ func TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive(t *testin
 		// #7691: stamp the synthetic claim the way a real claim would; the
 		// seed predates the ack attempt fence.
 		claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
-		intents = append(intents, reducer.Intent{
+		intents = append(intents, reducercontract.Intent{
 			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
 			ClaimEpoch: claimEpoch, ClaimedAt: &claimedAt,
 		})
@@ -261,7 +262,7 @@ func TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive(t *testin
 			reducer.DomainCICDRunCorrelation, owner, now,
 		)
 		claimedAt, _ := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
-		intents = append(intents, reducer.Intent{
+		intents = append(intents, reducercontract.Intent{
 			IntentID: workItemID, Domain: reducer.DomainCICDRunCorrelation,
 			ClaimedAt: &claimedAt,
 		})

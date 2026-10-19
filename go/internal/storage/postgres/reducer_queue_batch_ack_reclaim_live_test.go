@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -96,7 +97,7 @@ WHERE stage = 'reducer' AND status IN ('claimed', 'running')
 			}
 
 			// (1) The superseded claim on its own has no authority.
-			staleOnlyErr := queue.AckBatch(ctx, []reducer.Intent{stale}, nil)
+			staleOnlyErr := queue.AckBatch(ctx, []reducercontract.Intent{stale}, nil)
 			if !errors.Is(staleOnlyErr, reducer.ErrExecutionClaimRejected) {
 				t.Fatalf("superseded-only AckBatch() = %v, want a claim rejection", staleOnlyErr)
 			}
@@ -109,9 +110,9 @@ WHERE stage = 'reducer' AND status IN ('claimed', 'running')
 			}
 
 			// (2) and (3) The batch carrying both claims, in either order.
-			batch := []reducer.Intent{stale, fresh}
+			batch := []reducercontract.Intent{stale, fresh}
 			if !order.staleFirst {
-				batch = []reducer.Intent{fresh, stale}
+				batch = []reducercontract.Intent{fresh, stale}
 			}
 			batchErr := queue.AckBatch(ctx, batch, nil)
 			if !errors.Is(batchErr, reducer.ErrExecutionClaimRejected) {
@@ -139,7 +140,7 @@ func claimOneReducerAckReclaimIntent(
 	ctx context.Context,
 	queue ReducerQueue,
 	workItemID string,
-) reducer.Intent {
+) reducercontract.Intent {
 	t.Helper()
 	intents, err := queue.ClaimBatch(ctx, 8)
 	if err != nil {
@@ -151,7 +152,7 @@ func claimOneReducerAckReclaimIntent(
 		}
 	}
 	t.Fatalf("claim batch returned %d intents, none of them %s", len(intents), workItemID)
-	return reducer.Intent{}
+	return reducercontract.Intent{}
 }
 
 func readReducerAckReclaimWorkItem(
@@ -319,7 +320,7 @@ func TestReducerQueueExpiryInterleaveLive(t *testing.T) {
 				close(entered)
 				select {
 				case <-release:
-					acked <- queue.AckBatch(ctx, []reducer.Intent{stale}, nil)
+					acked <- queue.AckBatch(ctx, []reducercontract.Intent{stale}, nil)
 				case <-ctx.Done():
 					acked <- ctx.Err()
 				}
@@ -367,11 +368,11 @@ func TestReducerQueueExpiryInterleaveLive(t *testing.T) {
 			if err != nil || len(intents) != 2 {
 				t.Fatalf("competing claim: intents=%d err=%v", len(intents), err)
 			}
-			var fresh reducer.Intent
+			var fresh reducercontract.Intent
 			for _, intent := range intents {
 				if intent.IntentID == "expiry-target" {
 					fresh = intent
-				} else if err := queue.AckBatch(ctx, []reducer.Intent{intent}, nil); err != nil {
+				} else if err := queue.AckBatch(ctx, []reducercontract.Intent{intent}, nil); err != nil {
 					t.Fatalf("control ACK: %v", err)
 				}
 			}
@@ -395,7 +396,7 @@ func TestReducerQueueExpiryInterleaveLive(t *testing.T) {
 			if eventsAfter != eventsBefore {
 				t.Fatalf("stale ACK changed cross_scope_completion_events: before=%d after=%d", eventsBefore, eventsAfter)
 			}
-			if err := queue.AckBatch(ctx, []reducer.Intent{fresh}, nil); err != nil {
+			if err := queue.AckBatch(ctx, []reducercontract.Intent{fresh}, nil); err != nil {
 				t.Fatalf("fresh ACK: %v", err)
 			}
 			status, owner := readReducerAckReclaimWorkItem(t, ctx, db, "expiry-target")

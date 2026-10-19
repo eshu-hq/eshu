@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -51,7 +52,7 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
 
-	_, execErr := service.Executor.Execute(context.Background(), reducer.Intent{
+	_, execErr := service.Executor.Execute(context.Background(), reducercontract.Intent{
 		IntentID:       "cross-scope-readiness-wiring",
 		Domain:         reducer.DomainCICDRunCorrelation,
 		ScopeID:        "scope-123",
@@ -138,7 +139,7 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
 
-	_, execErr := service.Executor.Execute(context.Background(), reducer.Intent{
+	_, execErr := service.Executor.Execute(context.Background(), reducercontract.Intent{
 		IntentID:       "cross-scope-readiness-wiring-supply-chain",
 		Domain:         reducer.DomainSupplyChainImpact,
 		ScopeID:        "scope-123",

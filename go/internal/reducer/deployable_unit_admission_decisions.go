@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -90,7 +91,7 @@ func logDeployableUnitUnverifiedRun(logger *slog.Logger, reason string) {
 
 func (h DeployableUnitCorrelationHandler) writeDeployableUnitAdmissionDecisions(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	evaluation engine.Evaluation,
 	canonicalWrites int,
 ) error {
@@ -124,7 +125,7 @@ func (h DeployableUnitCorrelationHandler) writeDeployableUnitAdmissionDecisions(
 }
 
 func deployableUnitAdmissionDecision(
-	intent Intent,
+	intent reducercontract.Intent,
 	candidate correlationmodel.Candidate,
 	repoID string,
 	deploymentRepoID string,

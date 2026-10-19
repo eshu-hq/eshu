@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
 	"github.com/eshu-hq/eshu/go/internal/replay/schedulereplay"
 )
@@ -39,7 +40,7 @@ func afterClaimsScript(n int) faultreplay.Script {
 func TestFaultingWorkSourceKillWorkerRedeliversAfterNthClaim(t *testing.T) {
 	t.Parallel()
 
-	schedule := []reducer.Intent{{IntentID: "a"}, {IntentID: "b"}, {IntentID: "c"}}
+	schedule := []reducercontract.Intent{{IntentID: "a"}, {IntentID: "b"}, {IntentID: "c"}}
 	inner := schedulereplay.NewScheduledWorkSource(schedule)
 
 	src, err := faultreplay.NewFaultingWorkSource(inner, afterClaimsScript(2))
@@ -86,7 +87,7 @@ func TestFaultingWorkSourceKillWorkerRedeliversAfterNthClaim(t *testing.T) {
 func TestFaultingWorkSourceKillWorkerAfterLastClaimStillDrains(t *testing.T) {
 	t.Parallel()
 
-	schedule := []reducer.Intent{{IntentID: "a"}, {IntentID: "b"}}
+	schedule := []reducercontract.Intent{{IntentID: "a"}, {IntentID: "b"}}
 	inner := schedulereplay.NewScheduledWorkSource(schedule)
 
 	src, err := faultreplay.NewFaultingWorkSource(inner, afterClaimsScript(2))
@@ -122,14 +123,14 @@ func TestFaultingWorkSourceKillWorkerAfterLastClaimStillDrains(t *testing.T) {
 func TestFaultingWorkSourceMidHandlerRendezvousBlocksUntilClaimed(t *testing.T) {
 	t.Parallel()
 
-	schedule := []reducer.Intent{{IntentID: "a"}}
+	schedule := []reducercontract.Intent{{IntentID: "a"}}
 	inner := schedulereplay.NewScheduledWorkSource(schedule)
 	src, err := faultreplay.NewFaultingWorkSource(inner, faultreplay.Script{Version: faultreplay.CurrentVersion})
 	if err != nil {
 		t.Fatalf("NewFaultingWorkSource: %v", err)
 	}
 
-	target := reducer.Intent{IntentID: "a"}
+	target := reducercontract.Intent{IntentID: "a"}
 	released := src.ArmMidHandlerDuplicate(target)
 
 	select {
@@ -166,7 +167,7 @@ func TestFaultingWorkSourceUnfiredFaults(t *testing.T) {
 
 	t.Run("never fires", func(t *testing.T) {
 		t.Parallel()
-		schedule := []reducer.Intent{{IntentID: "a"}, {IntentID: "b"}}
+		schedule := []reducercontract.Intent{{IntentID: "a"}, {IntentID: "b"}}
 		inner := schedulereplay.NewScheduledWorkSource(schedule)
 		src, err := faultreplay.NewFaultingWorkSource(inner, afterClaimsScript(50))
 		if err != nil {
@@ -192,7 +193,7 @@ func TestFaultingWorkSourceUnfiredFaults(t *testing.T) {
 
 	t.Run("fires", func(t *testing.T) {
 		t.Parallel()
-		schedule := []reducer.Intent{{IntentID: "a"}, {IntentID: "b"}}
+		schedule := []reducercontract.Intent{{IntentID: "a"}, {IntentID: "b"}}
 		inner := schedulereplay.NewScheduledWorkSource(schedule)
 		src, err := faultreplay.NewFaultingWorkSource(inner, afterClaimsScript(1))
 		if err != nil {

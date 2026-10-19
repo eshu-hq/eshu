@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -132,9 +133,9 @@ func rationaleRepositoryContextFact(sourceRunID string) facts.Envelope {
 	return facts.Envelope{FactKind: factKindRepository, ScopeID: "scope-code", Payload: payload}
 }
 
-func rationaleMaterializationIntent() Intent {
+func rationaleMaterializationIntent() reducercontract.Intent {
 	now := time.Date(2026, time.August, 15, 10, 0, 0, 0, time.UTC)
-	return Intent{
+	return reducercontract.Intent{
 		IntentID: "intent-rationale-zero", ScopeID: "scope-code", GenerationID: "gen-2",
 		SourceSystem: "git", Domain: DomainRationaleMaterialization,
 		EnqueuedAt: now, AvailableAt: now, Status: IntentStatusPending,

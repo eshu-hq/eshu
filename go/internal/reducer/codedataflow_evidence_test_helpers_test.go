@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // This file holds the reducer root's own copies of test doubles the moved
@@ -103,8 +104,8 @@ func codeTaintEvidenceEnvelope(in taint.EvidenceInput) facts.Envelope {
 	}
 }
 
-func codeTaintEvidenceIntent() Intent {
-	return Intent{
+func codeTaintEvidenceIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-taint-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -252,8 +253,8 @@ func codeInterprocEvidenceEnvelope(in taint.InterprocEvidenceInput) facts.Envelo
 	}
 }
 
-func codeInterprocEvidenceIntent() Intent {
-	return Intent{
+func codeInterprocEvidenceIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-interproc-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

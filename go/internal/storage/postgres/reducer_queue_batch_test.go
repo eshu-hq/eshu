@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestClaimBatchValidationRejectsEmptyQueue(t *testing.T) {
@@ -26,7 +27,7 @@ func TestAckBatchValidationRejectsEmptyQueue(t *testing.T) {
 	t.Parallel()
 
 	q := ReducerQueue{}
-	err := q.AckBatch(context.Background(), []reducer.Intent{{IntentID: "test"}}, nil)
+	err := q.AckBatch(context.Background(), []reducercontract.Intent{{IntentID: "test"}}, nil)
 	if err == nil {
 		t.Fatal("AckBatch() with zero-value queue should fail validation")
 	}
@@ -54,7 +55,7 @@ func TestAckBatchClearsProvenanceEdgeIdentityUpgradeFence(t *testing.T) {
 	containerQuery, _ := ackContainerImageIdentityReducerWorkBatchQuery(
 		now,
 		"upgrade-worker",
-		[]reducer.Intent{{
+		[]reducercontract.Intent{{
 			IntentID:   "container-upgrade",
 			Domain:     reducer.DomainContainerImageIdentity,
 			ClaimEpoch: 1,

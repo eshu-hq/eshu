@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestAzureResourceMaterializationRetractsDeletedUIDs is the #6887 Azure
@@ -48,7 +49,7 @@ func TestAzureResourceMaterializationRetractsDeletedUIDs(t *testing.T) {
 		NodeRetracter:   retracter,
 		PriorGeneration: func(context.Context, string, string) (string, bool, error) { return "gen-1", true, nil },
 	}
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-azure-retract",
 		ScopeID:      "scope-azure-1",
 		GenerationID: "gen-2",

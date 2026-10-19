@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const (
@@ -52,7 +54,7 @@ func (deployableUnitCorrelationCanonicalNodesNotReadyError) FailureClass() strin
 func deployableUnitCanonicalReposReady(
 	ctx context.Context,
 	checker CanonicalCodeQuiescenceChecker,
-	intent Intent,
+	intent reducercontract.Intent,
 	hasCandidates bool,
 ) error {
 	if checker == nil || !hasCandidates {

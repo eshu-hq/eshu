@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
@@ -76,7 +77,7 @@ func TestCodeImportRepoEdgeHandlerProjectsEdgeForExternalImport(t *testing.T) {
 		Now:                        func() time.Time { return observedAt },
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-code-import",
 		ScopeID:      "git:consumer-repo",
 		GenerationID: "gen-1",
@@ -142,7 +143,7 @@ func TestCodeImportRepoEdgeHandlerQuarantinesMalformedOwnershipCorrelation(t *te
 		Now:                        func() time.Time { return observedAt },
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-code-import",
 		ScopeID:      "git:consumer-repo",
 		GenerationID: "gen-1",
@@ -176,7 +177,7 @@ func TestCodeImportRepoEdgeHandlerRejectsWrongDomain(t *testing.T) {
 		OwnershipLoader:            &stubCodeImportFactLoader{},
 		RepoDependencyIntentWriter: &recordingRepoDependencyIntentWriter{},
 	}
-	if _, err := handler.Handle(context.Background(), Intent{Domain: DomainPackageSourceCorrelation}); err == nil {
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{Domain: DomainPackageSourceCorrelation}); err == nil {
 		t.Fatal("Handle() error = nil, want non-nil for wrong domain")
 	}
 }
@@ -197,7 +198,7 @@ func TestCodeImportRepoEdgeHandlerNoOpWithoutWiring(t *testing.T) {
 		OwnershipLoader: loader,
 		// RepoDependencyIntentWriter intentionally nil.
 	}
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-noop",
 		ScopeID:      "git:consumer-repo",
 		GenerationID: "gen-1",
@@ -235,7 +236,7 @@ func TestCodeImportRepoEdgeHandlerSkipsUnresolvedImport(t *testing.T) {
 		RepoDependencyIntentWriter: intentWriter,
 		Now:                        func() time.Time { return observedAt },
 	}
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-unresolved",
 		ScopeID:      "git:consumer-repo",
 		GenerationID: "gen-1",
@@ -288,7 +289,7 @@ func TestCodeImportRepoEdgeHandlerEmitsRefreshIntentWhenOwnerlessFullSnapshot(t 
 		Now:                        func() time.Time { return observedAt },
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-refresh",
 		ScopeID:      "git:consumer-repo",
 		GenerationID: "gen-refresh",

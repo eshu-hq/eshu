@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -106,7 +107,7 @@ func TestAdditiveDomainsWireRefreshAffectedGraph(t *testing.T) {
 		byDomain[def.Domain] = def
 	}
 	ctx := context.Background()
-	intent := Intent{ScopeID: "wiring-proof", GenerationID: "genesis"}
+	intent := reducercontract.Intent{ScopeID: "wiring-proof", GenerationID: "genesis"}
 
 	workload, ok := byDomain[DomainWorkloadMaterialization].Handler.(WorkloadMaterializationHandler)
 	if !ok {
@@ -197,7 +198,7 @@ func TestAdditiveDomainsWireRefreshGateTracer(t *testing.T) {
 	})
 	byDomain := unwiredByDomain(defs)
 	ctx := context.Background()
-	intent := Intent{ScopeID: "tracer-proof", GenerationID: "genesis"}
+	intent := reducercontract.Intent{ScopeID: "tracer-proof", GenerationID: "genesis"}
 
 	workload, ok := byDomain[DomainWorkloadMaterialization].Handler.(WorkloadMaterializationHandler)
 	if !ok {

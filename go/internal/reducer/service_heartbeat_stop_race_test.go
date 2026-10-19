@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // tickHeartbeater lets the pre-heartbeat succeed, then holds the first
@@ -26,7 +28,7 @@ func newTickHeartbeater(tickErr error) *tickHeartbeater {
 	return &tickHeartbeater{tickEntry: make(chan struct{}), tickErr: tickErr}
 }
 
-func (h *tickHeartbeater) Heartbeat(ctx context.Context, _ Intent) error {
+func (h *tickHeartbeater) Heartbeat(ctx context.Context, _ reducercontract.Intent) error {
 	h.mu.Lock()
 	h.calls++
 	call := h.calls
@@ -55,7 +57,7 @@ type afterTickExecutor struct {
 	tickEntry <-chan struct{}
 }
 
-func (e *afterTickExecutor) Execute(ctx context.Context, intent Intent) (Result, error) {
+func (e *afterTickExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	select {
 	case <-e.tickEntry:
 		return Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: ResultStatusSucceeded}, nil
@@ -64,8 +66,8 @@ func (e *afterTickExecutor) Execute(ctx context.Context, intent Intent) (Result,
 	}
 }
 
-func stopRaceIntent() Intent {
-	return Intent{
+func stopRaceIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-stop-race",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -94,7 +96,7 @@ func stopRaceShapes() []stopRaceShape {
 			sink := &stubReducerWorkSink{}
 			return Service{
 					PollInterval:      10 * time.Millisecond,
-					WorkSource:        &stubReducerWorkSource{intents: []Intent{intent}},
+					WorkSource:        &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 					Executor:          exec,
 					WorkSink:          sink,
 					Heartbeater:       hb,
@@ -115,7 +117,7 @@ func stopRaceShapes() []stopRaceShape {
 			sink := &fakeBatchWorkSink{}
 			return Service{
 					PollInterval:      10 * time.Millisecond,
-					WorkSource:        &fakeBatchWorkSource{intents: []Intent{intent}},
+					WorkSource:        &fakeBatchWorkSource{intents: []reducercontract.Intent{intent}},
 					Executor:          exec,
 					WorkSink:          sink,
 					Heartbeater:       hb,

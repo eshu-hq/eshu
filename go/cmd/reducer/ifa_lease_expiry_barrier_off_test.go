@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -19,7 +20,7 @@ func (ifaLeaseOffGraphExecutor) Execute(context.Context, sourcecypher.Statement)
 
 type ifaLeaseOffReducerExecutor struct{}
 
-func (ifaLeaseOffReducerExecutor) Execute(context.Context, reducer.Intent) (reducer.Result, error) {
+func (ifaLeaseOffReducerExecutor) Execute(context.Context, reducercontract.Intent) (reducer.Result, error) {
 	return reducer.Result{}, nil
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func seedValueFlowRefreshAckWorkItem(
@@ -67,8 +68,8 @@ WHERE producer_domain = $1
 	return events, items
 }
 
-func refreshAckIntent(workItemID string, domain reducer.Domain, claimedAt time.Time) reducer.Intent {
-	return reducer.Intent{IntentID: workItemID, Domain: domain, ClaimedAt: &claimedAt}
+func refreshAckIntent(workItemID string, domain reducer.Domain, claimedAt time.Time) reducercontract.Intent {
+	return reducercontract.Intent{IntentID: workItemID, Domain: domain, ClaimedAt: &claimedAt}
 }
 
 func refreshAckResult(writes int, signals map[string]float64) reducer.Result {
@@ -205,7 +206,7 @@ func TestValueFlowRefreshAckBatchEmitsOnlyForGatedItemsLive(t *testing.T) {
 		scopeID, "generation:6785-refresh-emit-batch", owner, now.Add(time.Minute), now,
 	)
 	queue := valueFlowRefreshAckQueue(db, owner, now)
-	intents := []reducer.Intent{
+	intents := []reducercontract.Intent{
 		refreshAckIntent("reducer_6785_refresh_batch_emit", reducer.DomainWorkloadCloudRelationshipMaterialization, now),
 		refreshAckIntent("reducer_6785_refresh_batch_hold", reducer.DomainWorkloadCloudRelationshipMaterialization, now),
 	}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -135,7 +136,7 @@ VALUES ($1, $2, $3, 'aws_resource', $4, '1.0.0',
 		PriorGeneration: postgres.NewPriorGenerationID(sqldb),
 		PhasePublisher:  noopPhaseProbe{},
 	}
-	result, err := handler.Handle(ctx, reducer.Intent{
+	result, err := handler.Handle(ctx, reducercontract.Intent{
 		IntentID:     prefix + "-intent",
 		ScopeID:      scope,
 		GenerationID: gen7,

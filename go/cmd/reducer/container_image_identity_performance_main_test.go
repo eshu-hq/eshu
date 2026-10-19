@@ -7,13 +7,14 @@ package main
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const containerImageIdentityPerfHeadVariant = false
 
-func containerImageIdentityPerfPrepareIntent(intent *reducer.Intent) {
+func containerImageIdentityPerfPrepareIntent(intent *reducercontract.Intent) {
 	// The shared handler now validates the queue claim token before dispatching
 	// either writer. The legacy writer does not consume it.
 	intent.ClaimEpoch = 1

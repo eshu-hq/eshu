@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestWorkloadMaterializationHandlerEnqueuesRepairWhenIntentPhasePublishFails(t *testing.T) {
@@ -38,7 +39,7 @@ func TestWorkloadMaterializationHandlerEnqueuesRepairWhenIntentPhasePublishFails
 		RepairQueue:    repairQueue,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-wm-zero",
 		ScopeID:      "scope-routes",
 		GenerationID: "gen-1",
@@ -116,7 +117,7 @@ func TestWorkloadMaterializationHandlerEnqueuesRepoReadinessRepairWhenIntentPubl
 		RepairQueue:    repairQueue,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-wm-repo-key",
 		ScopeID:      "scope-payments",
 		GenerationID: "gen-1",
@@ -196,7 +197,7 @@ func TestWorkloadMaterializationHandlerEnqueuesRepairWhenRepoReadinessPublishFai
 		RepairQueue:    repairQueue,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-wm-repo-key",
 		ScopeID:      "scope-payments",
 		GenerationID: "gen-1",
@@ -257,7 +258,7 @@ func TestWorkloadMaterializationHandlerEnqueuesRepairWhenZeroCandidateRepoReadin
 		RepairQueue:    repairQueue,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-wm-zero",
 		ScopeID:      "scope-routes",
 		GenerationID: "gen-1",

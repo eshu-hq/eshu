@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-func presenceIntent(domain Domain) Intent {
-	return Intent{
+func presenceIntent(domain Domain) reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

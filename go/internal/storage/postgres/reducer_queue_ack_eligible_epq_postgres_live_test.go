@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // A heartbeat changes the tuple version while keeping the exact ACK eligible.
@@ -52,7 +53,7 @@ func TestReducerContentionGateAckEligibleEPQLive(t *testing.T) {
 			if err := worker.Conn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&workerPID); err != nil {
 				t.Fatal(err)
 			}
-			query, args := eligibleEPQAckQuery(now, owner, reducer.Intent{IntentID: id, Domain: domain, ClaimEpoch: 1, ClaimedAt: &now})
+			query, args := eligibleEPQAckQuery(now, owner, reducercontract.Intent{IntentID: id, Domain: domain, ClaimEpoch: 1, ClaimedAt: &now})
 			type outcome struct {
 				result sql.Result
 				err    error
@@ -94,14 +95,14 @@ func TestReducerContentionGateAckEligibleEPQLive(t *testing.T) {
 	}
 }
 
-func eligibleEPQAckQuery(now time.Time, owner string, intent reducer.Intent) (string, []any) {
+func eligibleEPQAckQuery(now time.Time, owner string, intent reducercontract.Intent) (string, []any) {
 	switch intent.Domain {
 	case reducer.DomainContainerImageIdentity:
-		return ackContainerImageIdentityReducerWorkBatchQuery(now, owner, []reducer.Intent{intent})
+		return ackContainerImageIdentityReducerWorkBatchQuery(now, owner, []reducercontract.Intent{intent})
 	case reducer.DomainCICDRunCorrelation:
 		// Repeated input must still ACK the updated tuple and emit one producer
 		// item. Exercise SQL deduplication together with the real heartbeat race.
-		return ackCICDRunCorrelationReducerWorkBatchQuery(now, owner, []reducer.Intent{intent, intent})
+		return ackCICDRunCorrelationReducerWorkBatchQuery(now, owner, []reducercontract.Intent{intent, intent})
 	default:
 		return ackReducerWorkBatchQuery(), []any{now, owner, []string{intent.IntentID}, []time.Time{claimedAtValue(intent)}}
 	}

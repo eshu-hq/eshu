@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type sqlConnExecQueryer struct {
@@ -51,9 +52,9 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 	// carry: the fence matches last_attempt_at, a live claim_until, and the
 	// post-stamp claim epoch, so a hand-built intent without them is
 	// legitimately rejected.
-	stampAttemptBoundIntent := func(workItemID string) reducer.Intent {
+	stampAttemptBoundIntent := func(workItemID string) reducercontract.Intent {
 		claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, database, workItemID)
-		return reducer.Intent{
+		return reducercontract.Intent{
 			IntentID:     workItemID,
 			Domain:       reducer.DomainContainerImageIdentity,
 			AttemptCount: 1,

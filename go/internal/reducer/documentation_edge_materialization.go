@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -35,7 +36,7 @@ type DocumentationEdgeMaterializationHandler struct {
 }
 
 // Handle executes the documentation edge materialization path.
-func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	if intent.Domain != DomainDocumentationMaterialization {
 		return Result{}, fmt.Errorf(
 			"documentation materialization handler does not accept domain %q",
@@ -116,7 +117,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 	}, nil
 }
 
-func (h DocumentationEdgeMaterializationHandler) shouldSkipDocumentationRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h DocumentationEdgeMaterializationHandler) shouldSkipDocumentationRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}

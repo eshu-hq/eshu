@@ -32,7 +32,7 @@ func TestReducerQueueFailDefersCloudAdmissionReadinessPastAttemptBudget(t *testi
 		MaxAttempts:   3,
 		Now:           func() time.Time { return now },
 	}
-	intent := reducer.Intent{IntentID: "intent-aws-resource-1", AttemptCount: 42}
+	intent := reducercontract.Intent{IntentID: "intent-aws-resource-1", AttemptCount: 42}
 	cause := reducer.ClassifyCloudRetractError(fmt.Errorf("retract dead cloud resource nodes: %w: scope-b/gen-2=pending",
 		reducercontract.ErrCloudAdmissionUndrained))
 

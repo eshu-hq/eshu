@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
@@ -50,7 +51,7 @@ func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 				store := completionstore.NewCrossScopeCompletionStore(worker)
 				store.Now = func() time.Time { return now }
 				lease := reducer.CrossScopeCompletionLease{EventID: claimed, ProducerDomain: domain, LeaseOwner: "horizon-fanout", ClaimEpoch: 1}
-				intents := []reducer.Intent{{IntentID: "horizon-producer", Domain: domain, ClaimEpoch: 1, ClaimedAt: &now}}
+				intents := []reducercontract.Intent{{IntentID: "horizon-producer", Domain: domain, ClaimEpoch: 1, ClaimedAt: &now}}
 				type outcome struct {
 					result reducer.CrossScopeCompletionResult
 					err    error
@@ -100,7 +101,7 @@ func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 					consumerQueue := ReducerQueue{database: consumerConn, LeaseOwner: "consumer-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
 					consumerDone = make(chan error, 1)
 					go func() {
-						consumerDone <- consumerQueue.AckBatch(ctx, []reducer.Intent{{IntentID: "horizon-consumer", Domain: reducer.DomainSupplyChainImpact, ClaimedAt: &now}}, nil)
+						consumerDone <- consumerQueue.AckBatch(ctx, []reducercontract.Intent{{IntentID: "horizon-consumer", Domain: reducer.DomainSupplyChainImpact, ClaimedAt: &now}}, nil)
 					}()
 					waitForReducerRowLockWaiter(t, ctx, db, consumerPID, fanoutPID)
 					if err := tx.Commit(); err != nil {

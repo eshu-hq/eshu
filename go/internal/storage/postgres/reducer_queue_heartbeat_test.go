@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerQueueHeartbeatRenewsClaim(t *testing.T) {
@@ -25,7 +25,7 @@ func TestReducerQueueHeartbeatRenewsClaim(t *testing.T) {
 		Now:           func() time.Time { return now },
 	}
 
-	err := queue.Heartbeat(context.Background(), reducer.Intent{IntentID: "intent-1"})
+	err := queue.Heartbeat(context.Background(), reducercontract.Intent{IntentID: "intent-1"})
 	if err != nil {
 		t.Fatalf("Heartbeat() error = %v, want nil", err)
 	}
@@ -70,7 +70,7 @@ func TestReducerQueueHeartbeatRejectsMissingClaim(t *testing.T) {
 		LeaseDuration: time.Minute,
 	}
 
-	err := queue.Heartbeat(context.Background(), reducer.Intent{IntentID: "intent-1"})
+	err := queue.Heartbeat(context.Background(), reducercontract.Intent{IntentID: "intent-1"})
 	if err == nil {
 		t.Fatal("Heartbeat() error = nil, want non-nil")
 	}

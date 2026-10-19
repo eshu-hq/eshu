@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // gcpResourceEnvelope builds a gcp_cloud_resource fact envelope for tests from
@@ -29,7 +30,7 @@ func TestGCPResourceMaterializationRejectsMismatchedDomain(t *testing.T) {
 		NodeWriter: &recordingCloudResourceNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -49,7 +50,7 @@ func TestGCPResourceMaterializationRequiresFactLoader(t *testing.T) {
 		NodeWriter: &recordingCloudResourceNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -69,7 +70,7 @@ func TestGCPResourceMaterializationRequiresNodeWriter(t *testing.T) {
 		FactLoader: &stubFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -351,7 +352,7 @@ func TestGCPResourceMaterializationHandleWritesNodes(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -388,7 +389,7 @@ func TestGCPResourceMaterializationHandleNoFactsIsNoOp(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -424,7 +425,7 @@ func TestGCPResourceMaterializationHandlePublishesCanonicalNodesCommittedPhase(t
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -474,7 +475,7 @@ func TestGCPResourceMaterializationHandlePublishesPhaseOnEmptyGeneration(t *test
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

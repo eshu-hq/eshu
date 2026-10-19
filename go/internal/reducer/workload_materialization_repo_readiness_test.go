@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -288,7 +289,7 @@ func TestWorkloadMaterializationHandlerPublishesRepoKeyedPhaseOnCandidatePath(t 
 		PhasePublisher: publisher,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-repo-key",
 		ScopeID:         "scope-payments",
 		GenerationID:    "gen-1",
@@ -341,7 +342,7 @@ func TestWorkloadMaterializationHandlerPublishesRepoKeyedPhaseOnZeroCandidatePat
 		PhasePublisher: publisher,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-zero",
 		ScopeID:         "scope-routes",
 		GenerationID:    "gen-1",

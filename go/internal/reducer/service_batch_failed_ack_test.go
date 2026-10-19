@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // deferringExecutor stands in for a cross-scope consumer whose declared
@@ -17,12 +19,12 @@ import (
 // so the item is terminalized by WorkSink.Fail and retried later.
 type deferringExecutor struct{}
 
-func (deferringExecutor) Execute(_ context.Context, _ Intent) (Result, error) {
+func (deferringExecutor) Execute(_ context.Context, _ reducercontract.Intent) (Result, error) {
 	return Result{}, errors.New("cross-scope consumer deferred: producer scopes have not activated")
 }
 
-func failedAckTestIntent(id string, domain Domain) Intent {
-	return Intent{
+func failedAckTestIntent(id string, domain Domain) reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:        id,
 		ScopeID:         "ci_cd_run:github_actions:eshu-hq:supply-chain-demo",
 		GenerationID:    "gen-1",
@@ -64,7 +66,7 @@ func TestServiceRunBatchDoesNotAckIntentsItAlreadyFailed(t *testing.T) {
 			t.Parallel()
 
 			intent := failedAckTestIntent("intent-failed-1", domain)
-			source := &fakeBatchWorkSource{intents: []Intent{intent}}
+			source := &fakeBatchWorkSource{intents: []reducercontract.Intent{intent}}
 			sink := &fakeBatchWorkSink{}
 
 			svc := Service{
@@ -107,7 +109,7 @@ func TestServiceRunBatchStillAcksSucceededSiblingsOfAFailedIntent(t *testing.T) 
 	failing := failedAckTestIntent("intent-failing", DomainCICDRunCorrelation)
 	succeeding := failedAckTestIntent("intent-succeeding", DomainCICDRunCorrelation)
 
-	source := &fakeBatchWorkSource{intents: []Intent{failing, succeeding}}
+	source := &fakeBatchWorkSource{intents: []reducercontract.Intent{failing, succeeding}}
 	sink := &fakeBatchWorkSink{}
 
 	svc := Service{
@@ -143,7 +145,7 @@ type selectivelyFailingExecutor struct {
 	failIntentID string
 }
 
-func (e selectivelyFailingExecutor) Execute(_ context.Context, intent Intent) (Result, error) {
+func (e selectivelyFailingExecutor) Execute(_ context.Context, intent reducercontract.Intent) (Result, error) {
 	if intent.IntentID == e.failIntentID {
 		return Result{}, errors.New("cross-scope consumer deferred: producer scopes have not activated")
 	}

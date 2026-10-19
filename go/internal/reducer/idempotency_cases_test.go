@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/refresh"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -226,9 +227,9 @@ func sharedIntentRows(rows []sharedintent.Row) []idempotencyRow {
 	return out
 }
 
-func replayIntent(domain Domain, scopeID string, keys []string) Intent {
+func replayIntent(domain Domain, scopeID string, keys []string) reducercontract.Intent {
 	now := time.Date(2026, time.June, 28, 12, 0, 0, 0, time.UTC)
-	return Intent{
+	return reducercontract.Intent{
 		IntentID:        "intent-replay-" + string(domain),
 		ScopeID:         scopeID,
 		GenerationID:    "gen-1",

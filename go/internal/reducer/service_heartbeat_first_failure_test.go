@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // slowFailingHeartbeater succeeds on the pre-heartbeat, fails the first
@@ -23,7 +25,7 @@ type slowFailingHeartbeater struct {
 	tickFails chan struct{} // closed as the first periodic tick returns its error
 }
 
-func (h *slowFailingHeartbeater) Heartbeat(ctx context.Context, _ Intent) error {
+func (h *slowFailingHeartbeater) Heartbeat(ctx context.Context, _ reducercontract.Intent) error {
 	h.mu.Lock()
 	h.calls++
 	call := h.calls

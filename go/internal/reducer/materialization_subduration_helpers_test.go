@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // ---------------------------------------------------------------------------
@@ -169,8 +170,8 @@ func codeCallContextOnlyEnvelopes() []facts.Envelope {
 
 // mustHandle runs a handler and fails the test on error, returning the Result.
 func mustHandle(t *testing.T, handler interface {
-	Handle(context.Context, Intent) (Result, error)
-}, intent Intent,
+	Handle(context.Context, reducercontract.Intent) (Result, error)
+}, intent reducercontract.Intent,
 ) Result {
 	t.Helper()
 	result, err := handler.Handle(context.Background(), intent)

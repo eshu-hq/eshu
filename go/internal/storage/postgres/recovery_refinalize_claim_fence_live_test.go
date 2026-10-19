@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit(t *testing.T) {
@@ -154,7 +155,7 @@ func TestConcurrentRefinalizesSerializeWithoutDeadlock(t *testing.T) {
 }
 
 type claimBatchResult struct {
-	intents []reducer.Intent
+	intents []reducercontract.Intent
 	err     error
 }
 

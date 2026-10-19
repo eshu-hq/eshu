@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/clock"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/schedulereplay"
 )
 
@@ -37,7 +38,7 @@ const (
 // detectable even if a fencing bug re-handed it and flipped its phase back to
 // claimed.
 type itemState struct {
-	intent        reducer.Intent
+	intent        reducercontract.Intent
 	phase         itemPhase
 	leaseEnd      time.Time
 	attempt       int
@@ -105,7 +106,7 @@ func newDurableStore(items []schedulereplay.WorkItem, clk clock.Clock, leaseTTL 
 		}
 		store.order = append(store.order, item.IntentID)
 		store.items[item.IntentID] = &itemState{
-			intent: reducer.Intent{
+			intent: reducercontract.Intent{
 				IntentID:     item.IntentID,
 				ScopeID:      "replay-crash",
 				GenerationID: "replay-gen",
@@ -127,7 +128,7 @@ func newDurableStore(items []schedulereplay.WorkItem, clk clock.Clock, leaseTTL 
 // lease and increments the fencing token (attempt count); the returned intent
 // carries that attempt count. Completed items are never returned — the fencing
 // guarantee.
-func (s *durableStore) Claim(_ context.Context) (reducer.Intent, bool, error) {
+func (s *durableStore) Claim(_ context.Context) (reducercontract.Intent, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := s.clk.Now()
@@ -161,7 +162,7 @@ func (s *durableStore) Claim(_ context.Context) (reducer.Intent, bool, error) {
 		intent.ClaimedAt = &claimedAt
 		return intent, true, nil
 	}
-	return reducer.Intent{}, false, nil
+	return reducercontract.Intent{}, false, nil
 }
 
 // Ack marks an intent durably completed. Acking an item that was already
@@ -170,7 +171,7 @@ func (s *durableStore) Claim(_ context.Context) (reducer.Intent, bool, error) {
 // left observable rather than silently ignored; the run report asserts the count
 // is zero. Correct fencing means Claim never re-hands a completed item, so this
 // stays 0.
-func (s *durableStore) Ack(_ context.Context, intent reducer.Intent, _ reducer.Result) error {
+func (s *durableStore) Ack(_ context.Context, intent reducercontract.Intent, _ reducer.Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st, ok := s.items[intent.IntentID]
@@ -191,7 +192,7 @@ func (s *durableStore) Ack(_ context.Context, intent reducer.Intent, _ reducer.R
 // Fail releases the lease on a non-completed intent so it returns to the
 // claimable pool. Crash recovery does not exercise this path (a crash never acks
 // or fails — it just drops the worker), but the work sink contract requires it.
-func (s *durableStore) Fail(_ context.Context, intent reducer.Intent, _ error) error {
+func (s *durableStore) Fail(_ context.Context, intent reducercontract.Intent, _ error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st, ok := s.items[intent.IntentID]

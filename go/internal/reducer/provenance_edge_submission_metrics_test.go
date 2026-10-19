@@ -49,7 +49,7 @@ func (w *recordingPackageProvenanceEdgeWriter) RetractPublishesEdges(
 
 func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testing.T) {
 	reader, instruments := newProvenanceEdgeMetricReader(t)
-	intent := Intent{ScopeID: "scope-1", GenerationID: "generation-1"}
+	intent := reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"}
 
 	packageWriter := &recordingPackageProvenanceEdgeWriter{}
 	packageHandler := correlation.PackageSourceHandler{
@@ -174,7 +174,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 				return (ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectContainerImageBuiltFromRowsForTest(
 						context.Background(),
-						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						[]map[string]any{{"digest": "sha256:child", "repository_id": "repository-1"}},
 					)
 			},
@@ -187,7 +187,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectCICDWorkflowImageBuiltFromEdges(
 						context.Background(),
-						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						[]CICDRunCorrelationDecision{{
 							Provider:        "github_actions",
 							RepositoryID:    "repository-1",
@@ -207,7 +207,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 				return (ContainerImageIdentityHandler{DerivedFromEdgeWriter: writer, Instruments: instruments}).
 					ProjectContainerImageDerivedFromRowsForTest(
 						context.Background(),
-						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						[]map[string]any{{"digest": "sha256:child", "base_digest": "sha256:base"}},
 					)
 			},
@@ -220,7 +220,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 				return (ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectContainerImageBuiltFromRowsForTest(
 						context.Background(),
-						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						[]map[string]any{{"digest": "sha256:child", "repository_id": "repository-1"}},
 					)
 			},
@@ -233,7 +233,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectCICDWorkflowImageBuiltFromEdges(
 						context.Background(),
-						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						nil,
 					)
 			},
@@ -245,7 +245,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 				return (ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectContainerImageBuiltFromRowsForTest(
 						context.Background(),
-						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						nil,
 					)
 			},
@@ -257,7 +257,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectCICDWorkflowImageBuiltFromEdges(
 						context.Background(),
-						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						nil,
 					)
 			},
@@ -267,7 +267,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			run: func(instruments *telemetry.Instruments) error {
 				return (ContainerImageIdentityHandler{Instruments: instruments}).ProjectContainerImageBuiltFromEdgesForTest(
 					context.Background(),
-					Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+					reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 					[]ContainerImageIdentityDecision{{
 						Digest:                       "sha256:child",
 						BuildProvenanceRepositoryIDs: []string{"repository-1"},
@@ -281,7 +281,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			run: func(instruments *telemetry.Instruments) error {
 				return (CICDRunCorrelationHandler{Instruments: instruments}).ProjectCICDWorkflowImageBuiltFromEdges(
 					context.Background(),
-					Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+					reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 					[]CICDRunCorrelationDecision{{
 						Provider:        "github_actions",
 						RepositoryID:    "repository-1",

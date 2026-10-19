@@ -13,6 +13,7 @@ import (
 
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -100,7 +101,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderRejectsDockerfileOnlyCandidate(t
 		},
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-correlation-1",
 		ScopeID:         "scope-service",
 		GenerationID:    "gen-1",
@@ -171,7 +172,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderAdmitsResolvedDeploymentEvidence
 		},
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-correlation-2",
 		ScopeID:         "scope-service",
 		GenerationID:    "gen-1",
@@ -268,7 +269,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderCollapsesDockerSupportVariantsTo
 		},
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-correlation-sample-service",
 		ScopeID:         "scope-service",
 		GenerationID:    "gen-1",
@@ -377,7 +378,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderEnrichesDeploymentRepoEnvironmen
 		},
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-cross-repo-env",
 		ScopeID:         "scope-app",
 		GenerationID:    "gen-1",
@@ -527,7 +528,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderEnrichesProvisioningRepoEnvironm
 		},
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-provisioning-env",
 		ScopeID:         "scope-app",
 		GenerationID:    "gen-1",
@@ -643,7 +644,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderUsesRepoScopedIncomingProvisioni
 		},
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-incoming-provisioning",
 		ScopeID:         "scope-app",
 		GenerationID:    "gen-app-1",
@@ -724,7 +725,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderSkipsCrossRepoWhenResolverNil(t 
 		// ScopeResolver intentionally nil.
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-no-resolver",
 		ScopeID:         "scope-app",
 		GenerationID:    "gen-1",
@@ -795,7 +796,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderSkipsSameRepoDeployment(t *testi
 		ScopeResolver: resolver,
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-self-deploy",
 		ScopeID:         "scope-app",
 		GenerationID:    "gen-1",

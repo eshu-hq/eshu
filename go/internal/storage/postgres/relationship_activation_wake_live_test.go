@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 )
 
@@ -110,12 +111,12 @@ func seedWakeFixture(t *testing.T, ctx context.Context, db *sql.DB, at time.Time
 // activationPath runs one of the three production activation writers.
 type activationPath struct {
 	name     string
-	activate func(t *testing.T, ctx context.Context, db *sql.DB, clock *time.Time, f wakeFixture) reducer.Intent
+	activate func(t *testing.T, ctx context.Context, db *sql.DB, clock *time.Time, f wakeFixture) reducercontract.Intent
 }
 
 func activationPaths() []activationPath {
 	return []activationPath{
-		{"ActivateResolutionGenerationForClaim", func(t *testing.T, ctx context.Context, db *sql.DB, clock *time.Time, f wakeFixture) reducer.Intent {
+		{"ActivateResolutionGenerationForClaim", func(t *testing.T, ctx context.Context, db *sql.DB, clock *time.Time, f wakeFixture) reducercontract.Intent {
 			dm, ok, err := newOwnGateQueue(db, clock, reducer.DomainDeploymentMapping).Claim(ctx)
 			if err != nil || !ok {
 				t.Fatalf("claim deployment_mapping: ok=%v err=%v", ok, err)
@@ -126,13 +127,13 @@ func activationPaths() []activationPath {
 			}
 			return dm
 		}},
-		{"ActivateResolutionGeneration", func(t *testing.T, ctx context.Context, db *sql.DB, _ *time.Time, f wakeFixture) reducer.Intent {
+		{"ActivateResolutionGeneration", func(t *testing.T, ctx context.Context, db *sql.DB, _ *time.Time, f wakeFixture) reducercontract.Intent {
 			if err := NewRelationshipStore(SQLDB{DB: db}).ActivateResolutionGeneration(ctx, f.gen, f.scope); err != nil {
 				t.Fatalf("activate: %v", err)
 			}
-			return reducer.Intent{}
+			return reducercontract.Intent{}
 		}},
-		{"CommitGeneration", func(t *testing.T, ctx context.Context, db *sql.DB, _ *time.Time, f wakeFixture) reducer.Intent {
+		{"CommitGeneration", func(t *testing.T, ctx context.Context, db *sql.DB, _ *time.Time, f wakeFixture) reducercontract.Intent {
 			if _, err := db.ExecContext(ctx, `INSERT INTO relationship_generations (generation_id, scope, status, created_at)
 VALUES ($1, $2, 'pending', now())`, f.gen, f.scope); err != nil {
 				t.Fatalf("seed pending relationship generation: %v", err)
@@ -140,7 +141,7 @@ VALUES ($1, $2, 'pending', now())`, f.gen, f.scope); err != nil {
 			if err := NewRelationshipStore(SQLDB{DB: db}).CommitGeneration(ctx, f.gen, f.scope); err != nil {
 				t.Fatalf("commit generation: %v", err)
 			}
-			return reducer.Intent{}
+			return reducercontract.Intent{}
 		}},
 	}
 }

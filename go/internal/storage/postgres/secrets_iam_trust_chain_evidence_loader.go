@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
@@ -75,7 +76,7 @@ LIMIT $11
 // generations.
 func (s FactStore) LoadSecretsIAMTrustChainEvidence(
 	ctx context.Context,
-	intent reducer.Intent,
+	intent reducercontract.Intent,
 ) ([]facts.Envelope, reducer.SecretsIAMTrustChainLoadStats, error) {
 	if s.database == nil {
 		return nil, reducer.SecretsIAMTrustChainLoadStats{}, fmt.Errorf("fact store database is required")

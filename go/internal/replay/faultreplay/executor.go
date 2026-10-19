@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/schedulereplay"
 )
 
@@ -29,7 +30,7 @@ type onceThenSucceedFault struct {
 
 // matches reports whether the callOrdinal-th Execute call, for intent, is the
 // one this fault targets.
-func (f *onceThenSucceedFault) matches(callOrdinal int, intent reducer.Intent) bool {
+func (f *onceThenSucceedFault) matches(callOrdinal int, intent reducercontract.Intent) bool {
 	if f == nil {
 		return false
 	}
@@ -178,7 +179,7 @@ func resolveIntentID(t Trigger, items []schedulereplay.WorkItem) (string, error)
 //  3. fail-graph-write-once-then-succeed: on the callOrdinal-th (or
 //     OperationMatch-matching) Execute call, fire exactly once per its lane
 //     (see onceThenSucceedFault), then fall through to inner.
-func (e *FaultingExecutor) Execute(ctx context.Context, intent reducer.Intent) (reducer.Result, error) {
+func (e *FaultingExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 	callOrdinal := int(e.callOrdinal.Add(1))
 
 	if fired, terminal := e.terminal[intent.IntentID]; terminal {

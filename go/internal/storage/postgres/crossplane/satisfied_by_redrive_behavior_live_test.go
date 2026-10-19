@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
@@ -104,7 +105,7 @@ func TestCrossplaneSatisfiedByRedriveClosesXRDLagWindowLive(t *testing.T) {
 		FactLoader: factStore,
 		EdgeWriter: &crossplaneRedriveSpyEdgeWriter{},
 	}
-	claimIntent := reducer.Intent{
+	claimIntent := reducercontract.Intent{
 		IntentID:     "intent-claim-behavior-1",
 		ScopeID:      claimScopeID,
 		GenerationID: claimGenerationID,

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -121,9 +122,9 @@ func rationaleHandlerBenchmarkFacts(positiveEvery int) []facts.Envelope {
 	return envelopes
 }
 
-func rationaleBenchmarkMaterializationIntent() Intent {
+func rationaleBenchmarkMaterializationIntent() reducercontract.Intent {
 	now := time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC)
-	return Intent{
+	return reducercontract.Intent{
 		IntentID: "intent-rationale-benchmark", ScopeID: "scope-rationale-benchmark",
 		GenerationID: "gen-rationale-benchmark", SourceSystem: "git",
 		Domain: DomainRationaleMaterialization, EnqueuedAt: now, AvailableAt: now,

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 )
 
@@ -53,7 +54,7 @@ func runKubernetesCorrelationSeam(t *testing.T, workloadEntityKey string) (int, 
 		NodeWriter:     &recordingKubernetesWorkloadNodeWriter{},
 		PhasePublisher: publisher,
 	}
-	if _, err := workload.Handle(context.Background(), Intent{
+	if _, err := workload.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "wl-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

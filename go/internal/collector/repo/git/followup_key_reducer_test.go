@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -72,14 +73,14 @@ func displayNamedGeneration(t *testing.T) (facts.Envelope, map[string]facts.Enve
 
 // reducerIntentFromFollowup runs the real projector conversion and returns the
 // intent shape the reducer queue hands a handler (one entity key per intent).
-func reducerIntentFromFollowup(t *testing.T, envelope facts.Envelope) reducer.Intent {
+func reducerIntentFromFollowup(t *testing.T, envelope facts.Envelope) reducercontract.Intent {
 	t.Helper()
 
 	built, ok := projectorruntime.BuildReducerIntent(envelope)
 	if !ok {
 		t.Fatalf("BuildReducerIntent(%v) ok = false", envelope.Payload["reducer_domain"])
 	}
-	return reducer.Intent{
+	return reducercontract.Intent{
 		IntentID:     "intent-" + string(built.Domain),
 		ScopeID:      built.ScopeID,
 		GenerationID: built.GenerationID,
@@ -174,7 +175,7 @@ func (g *edgeGraph) sorted() []string {
 	return edges
 }
 
-func runDeployableUnit(t *testing.T, graph *edgeGraph, repository facts.Envelope, deployable bool, intent reducer.Intent) {
+func runDeployableUnit(t *testing.T, graph *edgeGraph, repository facts.Envelope, deployable bool, intent reducercontract.Intent) {
 	t.Helper()
 
 	handler := reducer.DeployableUnitCorrelationHandler{

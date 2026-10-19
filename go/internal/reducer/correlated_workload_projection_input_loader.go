@@ -25,7 +25,7 @@ import (
 func loadResolvedRelationshipsForIntent(
 	ctx context.Context,
 	loader ResolvedRelationshipLoader,
-	intent Intent,
+	intent reducercontract.Intent,
 ) ([]relationships.ResolvedRelationship, error) {
 	if generationScoped, ok := loader.(GenerationScopedResolvedRelationshipLoader); ok {
 		return generationScoped.GetResolvedRelationshipsForGeneration(
@@ -137,7 +137,7 @@ type CorrelatedWorkloadProjectionInputLoader struct {
 // selected by the intent's entity keys.
 func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) ([]WorkloadCandidate, map[string][]string, error) {
 	inputs, err := l.LoadWorkloadProjectionScopeInputs(ctx, intent)
 	if err != nil {
@@ -154,7 +154,7 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 // admission produced (#7285 retract-scope ruling).
 func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInputs(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (WorkloadProjectionInputs, error) {
 	if l.FactLoader == nil {
 		return WorkloadProjectionInputs{}, fmt.Errorf("correlated workload projection fact loader is required")
@@ -303,7 +303,7 @@ func readCorpusFencedResolvedRelationships(
 	ctx context.Context,
 	loader ResolvedRelationshipLoader,
 	completeLookup accepted.RelationshipGenerationsCompleteLookup,
-	intent Intent,
+	intent reducercontract.Intent,
 	candidates []WorkloadCandidate,
 ) (corpusFencedResolvedRead, error) {
 	if fenced, ok := loader.(CorpusFencedResolvedRelationshipLoader); ok && len(candidates) > 0 {
@@ -340,7 +340,7 @@ func readCorpusFencedResolvedRelationships(
 func finishFusedResolvedRead(
 	ctx context.Context,
 	loader ResolvedRelationshipLoader,
-	intent Intent,
+	intent reducercontract.Intent,
 	repoResolved []relationships.ResolvedRelationship,
 	complete bool,
 ) (corpusFencedResolvedRead, error) {
@@ -360,7 +360,7 @@ func finishFusedResolvedRead(
 func loadWorkloadResolvedRelationships(
 	ctx context.Context,
 	loader ResolvedRelationshipLoader,
-	intent Intent,
+	intent reducercontract.Intent,
 	candidates []WorkloadCandidate,
 ) ([]relationships.ResolvedRelationship, error) {
 	resolved, err := loadResolvedRelationshipsForIntent(ctx, loader, intent)
@@ -423,7 +423,7 @@ func resolvedRelationshipMergeKey(relationship relationships.ResolvedRelationshi
 }
 
 func admittedCorrelatedWorkloadCandidates(
-	intent Intent,
+	intent reducercontract.Intent,
 	candidates []WorkloadCandidate,
 ) ([]WorkloadCandidate, error) {
 	admitted := make([]WorkloadCandidate, 0, len(candidates))

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestReducerAckCoalescesPendingCompletionEventsPerDomainLive(t *testing.T) {
@@ -38,7 +39,7 @@ func TestReducerAckCoalescesPendingCompletionEventsPerDomainLive(t *testing.T) {
 		// seed predates the ack attempt fence, so without the stamp the ack
 		// below is rejected on last_attempt_at and the expired lease.
 		claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
-		if err := queue.Ack(ctx, reducer.Intent{
+		if err := queue.Ack(ctx, reducercontract.Intent{
 			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
 			ClaimEpoch: claimEpoch, ClaimedAt: &claimedAt,
 		}, reducer.Result{}); err != nil {
@@ -104,7 +105,7 @@ FOR EACH ROW EXECUTE FUNCTION reject_completion_event()
 	// Without the stamp the fence rejects first and this proof passes without
 	// ever exercising the rollback it names.
 	claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
-	err := queue.Ack(ctx, reducer.Intent{
+	err := queue.Ack(ctx, reducercontract.Intent{
 		IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
 		ClaimEpoch: claimEpoch, ClaimedAt: &claimedAt,
 	}, reducer.Result{})

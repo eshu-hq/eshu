@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workloadid"
@@ -50,9 +51,9 @@ func repoEdgeRetractCandidate(repoID, name string) WorkloadCandidate {
 	}
 }
 
-func repoEdgeRetractTestIntent() Intent {
+func repoEdgeRetractTestIntent() reducercontract.Intent {
 	now := time.Now().UTC()
-	return Intent{
+	return reducercontract.Intent{
 		IntentID: "intent-wm-7285", ScopeID: "scope-payments", GenerationID: "gen-2",
 		SourceSystem: "git", Domain: DomainWorkloadMaterialization, Cause: "facts projected",
 		EntityKeys: []string{repoEdgeRetractRepoID}, RelatedScopeIDs: []string{"scope-payments"},

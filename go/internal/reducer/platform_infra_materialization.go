@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -36,7 +37,7 @@ type PlatformInfraMaterializationHandler struct {
 }
 
 // Handle executes the platform infrastructure materialization path.
-func (h PlatformInfraMaterializationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+func (h PlatformInfraMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	if intent.Domain != DomainPlatformInfraMaterialization {
 		return Result{}, fmt.Errorf(
 			"platform infra materialization handler does not accept domain %q",
@@ -148,7 +149,7 @@ func infrastructurePlatformLockIDs(rows []InfrastructurePlatformRow) []string {
 }
 
 type platformInfraMaterializationTiming struct {
-	intent               Intent
+	intent               reducercontract.Intent
 	factCount            int
 	platformRowCount     int
 	platformEdgesWritten int

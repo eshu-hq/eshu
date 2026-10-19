@@ -3,7 +3,11 @@
 
 package reducer
 
-import "testing"
+import (
+	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+)
 
 func TestDeployableUnitRulePackSelectsSupportedFamilyPacks(t *testing.T) {
 	t.Parallel()
@@ -94,7 +98,7 @@ func TestDeployableUnitStructuralEvidenceMapsAdditionalSupportedFamilies(t *test
 				Confidence:   0.9,
 				WorkloadName: "service-a",
 			}
-			evidence := deployableUnitStructuralEvidence(Intent{
+			evidence := deployableUnitStructuralEvidence(reducercontract.Intent{
 				IntentID:     "intent-1",
 				SourceSystem: "git",
 				ScopeID:      "scope-1",

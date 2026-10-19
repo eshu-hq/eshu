@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -84,8 +85,8 @@ func readyLookup(ready, found bool) GraphProjectionReadinessLookup {
 	}
 }
 
-func awsRelationshipIntent() Intent {
-	return Intent{
+func awsRelationshipIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-edges-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

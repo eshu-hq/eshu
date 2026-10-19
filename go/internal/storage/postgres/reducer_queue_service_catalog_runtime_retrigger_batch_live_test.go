@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -43,7 +44,7 @@ func TestReducerContentionGateServiceCatalogRetriggerBatchAckAndTelemetry(t *tes
 	q.Instruments = instruments
 	q.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
 
-	var intents []reducer.Intent
+	var intents []reducercontract.Intent
 	for _, id := range []string{"wm-checkout-8169-a", "wm-checkout-8169-b", "wm-checkout-8169-c"} {
 		p.addProducer(t, ctx, id)
 		intent, claimed, err := q.Claim(ctx)

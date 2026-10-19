@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -46,7 +47,7 @@ func TestBuildReducerServiceWiresDeployableUnitBoundExpiryLogger(t *testing.T) {
 	}
 
 	pastBound := time.Now().UTC().Add(-crossscope.ProducerReadinessMaxWait - time.Minute)
-	_, execErr := service.Executor.Execute(context.Background(), reducer.Intent{
+	_, execErr := service.Executor.Execute(context.Background(), reducercontract.Intent{
 		IntentID:        "deployable-unit-target-bound-wiring",
 		Domain:          reducer.DomainDeployableUnitCorrelation,
 		ScopeID:         "repository:test-scope",

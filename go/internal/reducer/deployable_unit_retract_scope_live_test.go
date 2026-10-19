@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -70,7 +71,7 @@ func (l *repoRetryLive) handleDUIntent(ctx context.Context, repo, gen string, de
 		EdgeWriter:     edgewriter.NewEdgeWriter(l.exec, 0),
 	}
 	now := time.Now().UTC()
-	_, err := handler.Handle(ctx, reducer.Intent{
+	_, err := handler.Handle(ctx, reducercontract.Intent{
 		IntentID: fmt.Sprintf("intent-%s-%s-%s", repo, gen, key), ScopeID: "git-repository-scope:" + l.repoID(repo),
 		GenerationID: gen, SourceSystem: "git", Domain: reducer.DomainDeployableUnitCorrelation,
 		Cause: "facts committed", EntityKeys: []string{key}, EnqueuedAt: now, AvailableAt: now,

@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -238,7 +239,7 @@ func deployableUnitAssertAdmittedEdgeProperties(oduName string, admitted []share
 	return fmt.Sprintf("odù %q: admitted edge non-identity properties do not match: %s", oduName, strings.Join(mismatches, ", "))
 }
 
-// deployableUnitFamilyIntentFromOdu derives the reducer.Intent the pure
+// deployableUnitFamilyIntentFromOdu derives the reducercontract.Intent the pure
 // extraction seam needs from the Odù's own facts, never a hard-coded
 // literal: every repository fact's graph_id becomes an EntityKey, so
 // filterDeployableUnitCandidates admits every workload candidate the Odù's
@@ -246,9 +247,9 @@ func deployableUnitAssertAdmittedEdgeProperties(oduName string, admitted []share
 // selects (selection is id-only, #7384). ScopeID/GenerationID/SourceSystem
 // come from the facts themselves so the guard stays correct if the catalog's
 // scope or generation identifiers ever change.
-func deployableUnitFamilyIntentFromOdu(odu ifa.Odu) (reducer.Intent, error) {
+func deployableUnitFamilyIntentFromOdu(odu ifa.Odu) (reducercontract.Intent, error) {
 	if len(odu.Facts) == 0 {
-		return reducer.Intent{}, fmt.Errorf("ifa: odù %q carries no facts", odu.Name)
+		return reducercontract.Intent{}, fmt.Errorf("ifa: odù %q carries no facts", odu.Name)
 	}
 	var entityKeys []string
 	for _, envelope := range odu.Facts {
@@ -262,10 +263,10 @@ func deployableUnitFamilyIntentFromOdu(odu ifa.Odu) (reducer.Intent, error) {
 		}
 	}
 	if len(entityKeys) == 0 {
-		return reducer.Intent{}, fmt.Errorf("ifa: odù %q carries no repository facts to derive entity keys from", odu.Name)
+		return reducercontract.Intent{}, fmt.Errorf("ifa: odù %q carries no repository facts to derive entity keys from", odu.Name)
 	}
 	first := odu.Facts[0]
-	return reducer.Intent{
+	return reducercontract.Intent{
 		IntentID:     "ifa:" + odu.Name,
 		ScopeID:      first.ScopeID,
 		GenerationID: first.GenerationID,

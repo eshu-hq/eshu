@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
@@ -81,7 +82,7 @@ WHERE work_item_id = $2
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
 	}
-	identity := reducer.Intent{
+	identity := reducercontract.Intent{
 		IntentID:   identityID,
 		Domain:     reducer.DomainContainerImageIdentity,
 		ClaimEpoch: 2,
@@ -127,7 +128,7 @@ WHERE work_item_id IN ($1, $4)
 `, cicdID, leaseOwner, downstreamClaimedAt, supplyID); err != nil {
 		t.Fatalf("claim synthetic downstream intents: %v", err)
 	}
-	if err := queue.Ack(ctx, reducer.Intent{
+	if err := queue.Ack(ctx, reducercontract.Intent{
 		IntentID:  cicdID,
 		Domain:    reducer.DomainCICDRunCorrelation,
 		ClaimedAt: &downstreamClaimedAt,
@@ -144,7 +145,7 @@ WHERE work_item_id IN ($1, $4)
 		t.Fatalf("CI/CD fanout = %+v, want events=1 intents=1", second)
 	}
 	assertCrossScopeConsumerState(t, ctx, db, supplyID, "running", true)
-	if err := queue.Ack(ctx, reducer.Intent{
+	if err := queue.Ack(ctx, reducercontract.Intent{
 		IntentID:  supplyID,
 		Domain:    reducer.DomainSupplyChainImpact,
 		ClaimedAt: &downstreamClaimedAt,
@@ -164,7 +165,7 @@ WHERE work_item_id = $1
 `, supplyID, leaseOwner, replayClaimedAt); err != nil {
 		t.Fatalf("claim required supply replay: %v", err)
 	}
-	if err := queue.Ack(ctx, reducer.Intent{
+	if err := queue.Ack(ctx, reducercontract.Intent{
 		IntentID:  supplyID,
 		Domain:    reducer.DomainSupplyChainImpact,
 		ClaimedAt: &replayClaimedAt,

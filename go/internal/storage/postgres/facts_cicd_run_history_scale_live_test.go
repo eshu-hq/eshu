@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const cicdRunHistoryScaleBudget = 5 * time.Second
@@ -109,7 +110,7 @@ func TestCICDRunCorrelationArtifactPatchAtRetainedHistoryScale(t *testing.T) {
 	}
 
 	started := time.Now()
-	_, err := handler.Handle(ctx, reducer.Intent{
+	_, err := handler.Handle(ctx, reducercontract.Intent{
 		IntentID:     "intent-artifact-patch-scale",
 		ScopeID:      "scope-ci-scale",
 		GenerationID: "perf-gen-25",

@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -159,7 +160,7 @@ func TestProofDomainCloudAssetResolutionFlowsCollectorToReducerIntent(t *testing
 				truth.LayerObservedResource,
 			},
 		},
-		Handler: reducer.HandlerFunc(func(context.Context, reducer.Intent) (reducer.Result, error) {
+		Handler: reducer.HandlerFunc(func(context.Context, reducercontract.Intent) (reducer.Result, error) {
 			return reducer.Result{
 				Status:          reducer.ResultStatusSucceeded,
 				EvidenceSummary: "cloud asset canonicalized",

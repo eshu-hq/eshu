@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -121,7 +122,7 @@ func refineCandidateSelectionReason(
 func logDeployableUnitCorrelationCompleted(
 	ctx context.Context,
 	logger *slog.Logger,
-	intent Intent,
+	intent reducercontract.Intent,
 	selection CandidateSelectionReport,
 	edgeRowCount int,
 ) {

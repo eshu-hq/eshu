@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // absentTargetProber reports every graph existence probe as a miss, the state
@@ -67,7 +68,7 @@ func TestReducerQueueFailDefersDeploymentSourceTargetMissPastAttemptBudget(t *te
 		MaxAttempts:   3,
 		Now:           func() time.Time { return now },
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-workload-materialization-1",
 		AttemptCount: 42,
 	}

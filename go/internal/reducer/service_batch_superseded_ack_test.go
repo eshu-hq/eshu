@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // supersededAckBatchSink replays the #8007 shape: the queue committed the
@@ -22,15 +24,15 @@ type supersededAckBatchSink struct {
 	failCalls int
 }
 
-func (*supersededAckBatchSink) Ack(context.Context, Intent, Result) error { return nil }
+func (*supersededAckBatchSink) Ack(context.Context, reducercontract.Intent, Result) error { return nil }
 
-func (s *supersededAckBatchSink) AckBatch(_ context.Context, intents []Intent, _ []Result) error {
+func (s *supersededAckBatchSink) AckBatch(_ context.Context, intents []reducercontract.Intent, _ []Result) error {
 	s.ackCalls++
 	s.ackSizes = append(s.ackSizes, len(intents))
 	return s.err
 }
 
-func (s *supersededAckBatchSink) Fail(context.Context, Intent, error) error {
+func (s *supersededAckBatchSink) Fail(context.Context, reducercontract.Intent, error) error {
 	s.failCalls++
 	return nil
 }
@@ -47,7 +49,7 @@ func TestServiceBatchSupersededClaimAckSplitsTelemetry(t *testing.T) {
 	const intentID = "intent-8007-superseded-ack"
 	staleClaim := time.Date(2026, time.October, 12, 12, 0, 0, 0, time.UTC)
 	freshClaim := staleClaim.Add(900 * time.Millisecond)
-	stale := Intent{
+	stale := reducercontract.Intent{
 		IntentID:        intentID,
 		ScopeID:         "scope-8007",
 		GenerationID:    "gen-8007",
@@ -68,14 +70,14 @@ func TestServiceBatchSupersededClaimAckSplitsTelemetry(t *testing.T) {
 	instruments, reader := batchTelemetry(t)
 	sink := &supersededAckBatchSink{
 		err: &BatchAckSupersededError{
-			Superseded:    []Intent{stale},
+			Superseded:    []reducercontract.Intent{stale},
 			KeptCommitted: true,
 		},
 	}
 	var logs bytes.Buffer
 	service := Service{
 		PollInterval:   time.Millisecond,
-		WorkSource:     &fakeBatchWorkSource{intents: []Intent{stale, fresh}},
+		WorkSource:     &fakeBatchWorkSource{intents: []reducercontract.Intent{stale, fresh}},
 		Executor:       &countingExecutor{},
 		WorkSink:       sink,
 		Workers:        2,

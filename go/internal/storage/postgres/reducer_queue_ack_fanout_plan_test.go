@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
@@ -17,7 +18,7 @@ import (
 // each shipped statement against that same state, rolling back before the next
 // plan or race. Run this helper unchanged with baseline production files for a
 // comparable BEFORE plan; ESHU_ACK_FANOUT_PLAN_ONLY=1 omits contention trials.
-func explainAckFanoutProbe(t *testing.T, ctx context.Context, db *sql.DB, now time.Time, intents []reducer.Intent, lease reducer.CrossScopeCompletionLease) {
+func explainAckFanoutProbe(t *testing.T, ctx context.Context, db *sql.DB, now time.Time, intents []reducercontract.Intent, lease reducer.CrossScopeCompletionLease) {
 	t.Helper()
 	ids := make([]string, 0, len(intents))
 	claimedAt := make([]time.Time, 0, len(intents))

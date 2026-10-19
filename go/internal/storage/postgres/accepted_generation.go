@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -428,7 +429,7 @@ func sqlStringList(values []string) string {
 // row stays dead-lettered and a later activation or replay reopens it.
 func (q ReducerQueue) wakeAfterProducerTerminalDeadLetter(
 	ctx context.Context,
-	intent reducer.Intent,
+	intent reducercontract.Intent,
 	failureClass string,
 	now time.Time,
 ) {

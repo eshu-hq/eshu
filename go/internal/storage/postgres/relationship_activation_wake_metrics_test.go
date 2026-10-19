@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -117,7 +118,7 @@ func TestFailSideWakeCountsEveryOutcome(t *testing.T) {
 	dead := crossrepo.EvaluateOwnGate(context.Background(), func(string) (bool, error) { return false, nil },
 		func(context.Context, string, string) (crossrepo.ProducerState, error) {
 			return crossrepo.ProducerState{ScopeActiveGenerationID: "gen-1", WorkItemID: "dm-1", Status: "dead_letter"}, nil
-		}, reducer.Intent{ScopeID: "scope-1", GenerationID: "gen-1", Domain: reducer.DomainDeployableUnitCorrelation},
+		}, reducercontract.Intent{ScopeID: "scope-1", GenerationID: "gen-1", Domain: reducer.DomainDeployableUnitCorrelation},
 		true, time.Now()).Err
 	for _, script := range []*wakeScriptDB{
 		{wakeRows: 1}, {wakeRows: 0}, {wakeErr: errors.New("wake failed")},
@@ -126,7 +127,7 @@ func TestFailSideWakeCountsEveryOutcome(t *testing.T) {
 			database: script, LeaseOwner: "w", LeaseDuration: time.Minute, MaxAttempts: 3,
 			Instruments: instruments, Now: time.Now,
 		}
-		intent := reducer.Intent{IntentID: "c-1", ScopeID: "scope-1", GenerationID: "gen-1", AttemptCount: 3}
+		intent := reducercontract.Intent{IntentID: "c-1", ScopeID: "scope-1", GenerationID: "gen-1", AttemptCount: 3}
 		if err := q.Fail(context.Background(), intent, dead); err != nil {
 			t.Fatalf("Fail: %v (a wake failure must not fail the committed dead letter)", err)
 		}

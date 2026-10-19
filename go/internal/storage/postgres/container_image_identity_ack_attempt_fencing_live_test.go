@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestContainerImageIdentityAckAttemptFenceSurvivesSameOwnerReclaimAndReplayLive(
@@ -78,7 +79,7 @@ WHERE work_item_id = $4
 		t.Fatalf("same-owner reclaim = %+v ok=%t, want attempt 2", reclaimed, ok)
 	}
 
-	staleFirstAttempt := reducer.Intent{
+	staleFirstAttempt := reducercontract.Intent{
 		IntentID:     workItemID,
 		Domain:       reducer.DomainContainerImageIdentity,
 		AttemptCount: 1,

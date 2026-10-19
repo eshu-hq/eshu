@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -66,7 +67,7 @@ type CodeImportRepoEdgeHandler struct {
 }
 
 // Handle executes code-import repo-edge projection for one git-repository scope.
-func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	if intent.Domain != DomainCodeImportRepoEdge {
 		return Result{}, fmt.Errorf(
 			"code_import_repo_edge handler does not accept domain %q",
@@ -172,7 +173,7 @@ func (h CodeImportRepoEdgeHandler) now() time.Time {
 	return time.Now().UTC()
 }
 
-func (h CodeImportRepoEdgeHandler) skippedResult(intent Intent, reason string) Result {
+func (h CodeImportRepoEdgeHandler) skippedResult(intent reducercontract.Intent, reason string) Result {
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainCodeImportRepoEdge,
@@ -182,7 +183,7 @@ func (h CodeImportRepoEdgeHandler) skippedResult(intent Intent, reason string) R
 }
 
 func (h CodeImportRepoEdgeHandler) succeededResult(
-	intent Intent,
+	intent reducercontract.Intent,
 	counts codeImportEdgeCounts,
 	written int,
 	inputInvalidCount int,
@@ -256,7 +257,7 @@ func (h CodeImportRepoEdgeHandler) emitRefreshCounter(ctx context.Context, count
 
 func (h CodeImportRepoEdgeHandler) logCompleted(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	counts codeImportEdgeCounts,
 	written int,
 ) {

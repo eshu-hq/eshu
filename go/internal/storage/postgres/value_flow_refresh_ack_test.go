@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestSplitValueFlowRefreshAckIntentsFailsOpenOnMissingResult is the #6884 P2
@@ -21,10 +22,10 @@ import (
 func TestSplitValueFlowRefreshAckIntentsFailsOpenOnMissingResult(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC().Truncate(time.Second)
-	intent := func(id string, domain reducer.Domain) reducer.Intent {
-		return reducer.Intent{IntentID: id, Domain: domain, ClaimedAt: &now}
+	intent := func(id string, domain reducer.Domain) reducercontract.Intent {
+		return reducercontract.Intent{IntentID: id, Domain: domain, ClaimedAt: &now}
 	}
-	intents := []reducer.Intent{
+	intents := []reducercontract.Intent{
 		intent("w-paired-emit", reducer.DomainWorkloadMaterialization),
 		intent("w-paired-hold", reducer.DomainWorkloadMaterialization),
 		intent("w-missing-result", reducer.DomainWorkloadMaterialization),
@@ -68,10 +69,10 @@ func TestSplitValueFlowRefreshAckIntentsFailsOpenOnMissingResult(t *testing.T) {
 func TestSplitValueFlowRefreshAckIntentsRoutesCodeFunctionSummary(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC().Truncate(time.Second)
-	intent := func(id string, domain reducer.Domain) reducer.Intent {
-		return reducer.Intent{IntentID: id, Domain: domain, ClaimedAt: &now}
+	intent := func(id string, domain reducer.Domain) reducercontract.Intent {
+		return reducercontract.Intent{IntentID: id, Domain: domain, ClaimedAt: &now}
 	}
-	intents := []reducer.Intent{
+	intents := []reducercontract.Intent{
 		intent("s-paired-emit", reducer.DomainCodeFunctionSummary),
 		intent("s-missing-result", reducer.DomainCodeFunctionSummary),
 		intent("w-unrelated", reducer.DomainCICDRunCorrelation),

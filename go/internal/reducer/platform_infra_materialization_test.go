@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func platformInfraTerraformEnvelopes() []facts.Envelope {
@@ -57,7 +58,7 @@ func TestPlatformInfraMaterializationHandler_WritesProvisionsPlatform(t *testing
 		InfrastructureMaterializer: NewInfrastructurePlatformMaterializer(executor),
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		Domain:       DomainPlatformInfraMaterialization,
 		ScopeID:      "scope-infra-eks",
@@ -98,7 +99,7 @@ func TestPlatformInfraMaterializationHandler_RejectsWrongDomain(t *testing.T) {
 		FactLoader:                 &stubFactLoader{},
 		InfrastructureMaterializer: NewInfrastructurePlatformMaterializer(&recordingCypherExecutor{}),
 	}
-	if _, err := handler.Handle(context.Background(), Intent{Domain: DomainCodeCallMaterialization}); err == nil {
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{Domain: DomainCodeCallMaterialization}); err == nil {
 		t.Fatal("expected error for wrong domain, got nil")
 	}
 }
@@ -123,7 +124,7 @@ func TestPlatformInfraMaterializationHandler_NoTerraformSignals(t *testing.T) {
 		InfrastructureMaterializer: NewInfrastructurePlatformMaterializer(executor),
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		Domain:       DomainPlatformInfraMaterialization,
 		ScopeID:      "scope-plain",

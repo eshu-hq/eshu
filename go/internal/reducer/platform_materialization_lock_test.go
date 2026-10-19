@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestPlatformInfraMaterializationHandlerLocksInfrastructurePlatformIDs(t *testing.T) {
@@ -47,7 +48,7 @@ func TestPlatformInfraMaterializationHandlerLocksInfrastructurePlatformIDs(t *te
 		PlatformGraphLocker:        locker,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-platform-lock",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",

@@ -82,7 +82,7 @@ func (erroringFingerprintEdgeWriter) WriteEdges(
 	return SharedProjectionWriteReport{}, errors.New("graph write failed")
 }
 
-func claimedDeployableUnitIntent(claimedAt time.Time) Intent {
+func claimedDeployableUnitIntent(claimedAt time.Time) reducercontract.Intent {
 	intent := deployableUnitIntent("repo:repo-edge-api")
 	intent.ClaimedAt = &claimedAt
 	return intent
@@ -165,21 +165,21 @@ func TestDeployableUnitCorrelationRecordsNoFingerprintWithoutSuccess(t *testing.
 	for _, tc := range []struct {
 		name    string
 		wantErr bool
-		mutate  func(*DeployableUnitCorrelationHandler, *Intent)
+		mutate  func(*DeployableUnitCorrelationHandler, *reducercontract.Intent)
 	}{
-		{"own_gate_closed", true, func(h *DeployableUnitCorrelationHandler, _ *Intent) {
+		{"own_gate_closed", true, func(h *DeployableUnitCorrelationHandler, _ *reducercontract.Intent) {
 			h.ResolutionActiveLookup = stubResolutionActiveLookup(map[string]bool{})
 		}},
-		{"canonical_nodes_not_ready", true, func(h *DeployableUnitCorrelationHandler, _ *Intent) {
+		{"canonical_nodes_not_ready", true, func(h *DeployableUnitCorrelationHandler, _ *reducercontract.Intent) {
 			h.CanonicalQuiescence = staticReducerGraphDrain{uncommittedCanonical: true}
 		}},
-		{"corpus_fence_incomplete", true, func(h *DeployableUnitCorrelationHandler, _ *Intent) {
+		{"corpus_fence_incomplete", true, func(h *DeployableUnitCorrelationHandler, _ *reducercontract.Intent) {
 			h.ResolvedLoader = &fingerprintedResolvedLoader{resolved: edgeAPIDeploysFrom(), fingerprint: read}
 		}},
-		{"edge_write_failed", true, func(h *DeployableUnitCorrelationHandler, _ *Intent) {
+		{"edge_write_failed", true, func(h *DeployableUnitCorrelationHandler, _ *reducercontract.Intent) {
 			h.EdgeWriter = erroringFingerprintEdgeWriter{}
 		}},
-		{"unclaimed_run", false, func(_ *DeployableUnitCorrelationHandler, intent *Intent) {
+		{"unclaimed_run", false, func(_ *DeployableUnitCorrelationHandler, intent *reducercontract.Intent) {
 			intent.ClaimedAt = nil
 		}},
 	} {

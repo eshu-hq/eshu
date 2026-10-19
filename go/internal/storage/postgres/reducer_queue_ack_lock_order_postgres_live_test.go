@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
@@ -47,10 +48,10 @@ func TestReducerContentionGateAckFanoutLockOrderLive(t *testing.T) {
 			if _, err := db.ExecContext(ctx, `UPDATE ingestion_scopes SET active_generation_id=$2 WHERE scope_id=$1`, scope, generation); err != nil {
 				t.Fatal(err)
 			}
-			intents := []reducer.Intent{}
+			intents := []reducercontract.Intent{}
 			for _, id := range []string{"order-z", "order-a"} {
 				insertCrossScopeCompletionBaseConsumer(t, ctx, db, id, scope, generation, variant.domain, now)
-				intents = append(intents, reducer.Intent{IntentID: id, Domain: variant.domain, ClaimEpoch: 1, ClaimedAt: &now})
+				intents = append(intents, reducercontract.Intent{IntentID: id, Domain: variant.domain, ClaimEpoch: 1, ClaimedAt: &now})
 			}
 			if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running', lease_owner='order-owner', claim_until=$1, last_attempt_at=$2, container_image_identity_claim_epoch=1`, now.Add(time.Hour), now); err != nil {
 				t.Fatal(err)
@@ -207,7 +208,7 @@ func TestReducerContentionGateAckBatchDeadlockRetryLive(t *testing.T) {
 
 			queue := ReducerQueue{database: SQLDB{DB: db}, LeaseOwner: owner, LeaseDuration: time.Minute}
 			sink := &deadlockAckRecorder{ReducerQueue: queue}
-			executor := &deadlockAckBarrierExecutor{arrived: make(chan reducer.Intent, 2), release: make(chan struct{})}
+			executor := &deadlockAckBarrierExecutor{arrived: make(chan reducercontract.Intent, 2), release: make(chan struct{})}
 			service := reducer.Service{
 				PollInterval: 10 * time.Millisecond, WorkSource: queue, Executor: executor,
 				WorkSink: sink, Workers: 2, BatchClaimSize: 2,
@@ -219,7 +220,7 @@ func TestReducerContentionGateAckBatchDeadlockRetryLive(t *testing.T) {
 
 			// Hold both executions until the blocker owns the later key, so the
 			// ACK meets it as one two-row batch.
-			claimed := map[string]reducer.Intent{}
+			claimed := map[string]reducercontract.Intent{}
 			for len(claimed) < 2 {
 				select {
 				case intent := <-executor.arrived:
@@ -282,7 +283,7 @@ RETURNING last_attempt_at`, first).Scan(&reclaimedAt); err != nil {
 			if len(calls) != 2 {
 				t.Fatalf("AckBatch calls = %+v, want the deadlock then exactly one retry", calls)
 			}
-			stale := []reducer.Intent{claimed[first], claimed[second]}
+			stale := []reducercontract.Intent{claimed[first], claimed[second]}
 			if variant.reclaim {
 				if !errors.Is(calls[1].err, ErrReducerClaimRejected) {
 					t.Fatalf("retried ACK after reclaim = %v, want %v", calls[1].err, ErrReducerClaimRejected)
@@ -332,7 +333,7 @@ type deadlockAckCall struct {
 	err  error
 }
 
-func (r *deadlockAckRecorder) AckBatch(ctx context.Context, intents []reducer.Intent, results []reducer.Result) error {
+func (r *deadlockAckRecorder) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []reducer.Result) error {
 	err := r.ReducerQueue.AckBatch(ctx, intents, results)
 	r.mu.Lock()
 	r.calls = append(r.calls, deadlockAckCall{size: len(intents), err: err})
@@ -348,11 +349,11 @@ func (r *deadlockAckRecorder) snapshot() []deadlockAckCall {
 
 // deadlockAckBarrierExecutor reports each claim, then succeeds on release.
 type deadlockAckBarrierExecutor struct {
-	arrived chan reducer.Intent
+	arrived chan reducercontract.Intent
 	release chan struct{}
 }
 
-func (e *deadlockAckBarrierExecutor) Execute(ctx context.Context, intent reducer.Intent) (reducer.Result, error) {
+func (e *deadlockAckBarrierExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 	e.arrived <- intent
 	select {
 	case <-e.release:

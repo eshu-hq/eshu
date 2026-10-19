@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -69,7 +70,7 @@ type AzureRelationshipMaterializationHandler struct {
 }
 
 // Handle executes one Azure relationship materialization intent.
-func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainAzureRelationshipMaterialization {
 		return Result{}, fmt.Errorf("azure relationship materialization handler does not accept domain %q", intent.Domain)
@@ -202,7 +203,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 	}, nil
 }
 
-func (h AzureRelationshipMaterializationHandler) canonicalNodesReady(intent Intent) bool {
+func (h AzureRelationshipMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
@@ -214,7 +215,7 @@ func (h AzureRelationshipMaterializationHandler) canonicalNodesReady(intent Inte
 	return found && ready
 }
 
-func (h AzureRelationshipMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h AzureRelationshipMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -267,7 +268,7 @@ func (azureRelationshipNodesNotReadyError) FailureClass() string {
 }
 
 type azureRelationshipMaterializationTiming struct {
-	intent            Intent
+	intent            reducercontract.Intent
 	resourceFactCount int
 	relationshipCount int
 	edgeCount         int

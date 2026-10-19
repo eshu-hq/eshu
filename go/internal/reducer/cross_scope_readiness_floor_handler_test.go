@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // fixedCrossScopeReadiness answers the readiness question with a canned result
@@ -200,7 +201,7 @@ func TestCICDRunCorrelationDefersWhenIdentityProducerScopeHasNotActivated(t *tes
 		Logger:            slog.New(slog.NewTextHandler(logs, nil)),
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:       "intent-cicd-early",
 		ScopeID:        "ci://github-actions/acme/api",
 		GenerationID:   "run-early:1",
@@ -274,7 +275,7 @@ func TestCICDRunCorrelationDefersDespiteProducerActivatingDuringTheLoad(t *testi
 		ProducerReadiness: readiness,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:       "intent-cicd-race",
 		ScopeID:        "ci://github-actions/acme/api",
 		GenerationID:   "run-race:1",
@@ -311,7 +312,7 @@ func TestCICDRunCorrelationDoesNotDeferARunWithNoImageArtifacts(t *testing.T) {
 		ProducerReadiness: readiness,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:       "intent-cicd-no-image",
 		ScopeID:        "ci://github-actions/acme/api",
 		GenerationID:   "run-no-image:1",
@@ -353,7 +354,7 @@ func TestCICDRunCorrelationDoesNotDeferWithoutTheCrossScopeLoaderSeam(t *testing
 		ProducerReadiness: readiness,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:       "intent-cicd-no-seam",
 		ScopeID:        "ci://github-actions/acme/api",
 		GenerationID:   "run-no-seam:1",
@@ -463,7 +464,7 @@ func runCICDBatchUnderTheFloor(
 		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:       "intent-cicd-mixed-batch",
 		ScopeID:        "ci://github-actions/acme/api",
 		GenerationID:   "run-mixed:1",
@@ -504,7 +505,7 @@ func TestCICDRunCorrelationStillWritesWhenIdentityHasCommitted(t *testing.T) {
 		ProducerReadiness: readiness,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:       "intent-cicd-ready",
 		ScopeID:        "ci://github-actions/acme/api",
 		GenerationID:   "run-exact:1",

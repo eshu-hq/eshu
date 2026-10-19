@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndFencesLegacyCallbacksLive(
@@ -67,7 +68,7 @@ func TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndFencesLegacyCall
 		ClaimDomain:    reducer.DomainContainerImageIdentity,
 	}
 	executor := &containerImageIdentityClaimLatchServiceExecutor{
-		started: make(chan reducer.Intent, 1),
+		started: make(chan reducercontract.Intent, 1),
 		release: make(chan struct{}),
 	}
 	serviceCtx, stopService := context.WithCancel(ctx)
@@ -86,7 +87,7 @@ func TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndFencesLegacyCall
 		serviceDone <- service.Run(serviceCtx)
 	}()
 
-	var claimed reducer.Intent
+	var claimed reducercontract.Intent
 	select {
 	case claimed = <-executor.started:
 	case <-ctx.Done():
@@ -162,13 +163,13 @@ WHERE work_item_id = $4
 }
 
 type containerImageIdentityClaimLatchServiceExecutor struct {
-	started chan reducer.Intent
+	started chan reducercontract.Intent
 	release chan struct{}
 }
 
 func (e *containerImageIdentityClaimLatchServiceExecutor) Execute(
 	ctx context.Context,
-	intent reducer.Intent,
+	intent reducercontract.Intent,
 ) (reducer.Result, error) {
 	select {
 	case e.started <- intent:

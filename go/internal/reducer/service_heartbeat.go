@@ -16,6 +16,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -63,7 +64,7 @@ func (e *reducerPreHeartbeatFailure) Unwrap() error { return e.err }
 // handler work has run yet, so there is nothing to execute or dead-letter.
 func (s Service) startHeartbeat(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	workerID int,
 ) (context.Context, reducerHeartbeatStop) {
 	if s.Heartbeater == nil || s.HeartbeatInterval <= 0 {
@@ -143,7 +144,7 @@ func (s Service) startHeartbeat(
 // came from the immediate pre-heartbeat or a later periodic tick.
 func (s Service) recordReducerHeartbeatMissed(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	workerID int,
 	heartbeatErr error,
 ) {
@@ -176,7 +177,7 @@ func (s Service) recordReducerHeartbeatMissed(
 // heartbeat tick was interrupted by the worker's own stop and its
 // context-canceled error was dropped rather than treated as a lease failure.
 // It is not counted as a missed heartbeat: the lease was not lost.
-func (s Service) logReducerHeartbeatStopRace(ctx context.Context, intent Intent, workerID int) {
+func (s Service) logReducerHeartbeatStopRace(ctx context.Context, intent reducercontract.Intent, workerID int) {
 	if s.Logger == nil {
 		return
 	}
@@ -195,7 +196,7 @@ func (s Service) logReducerHeartbeatStopRace(ctx context.Context, intent Intent,
 	s.Logger.DebugContext(ctx, "reducer lease heartbeat tick cancelled by stop; ignored", logAttrs...)
 }
 
-func firstReducerPartitionKey(intent Intent) string {
+func firstReducerPartitionKey(intent reducercontract.Intent) string {
 	if len(intent.EntityKeys) == 0 {
 		return ""
 	}
@@ -291,7 +292,7 @@ type handlerOutcome struct {
 func (s Service) executeHandler(
 	execCtx context.Context,
 	shutdownCtx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (result Result, err error, abandoned bool) {
 	done := make(chan handlerOutcome, 1)
 	go func() {
@@ -333,7 +334,7 @@ func (s Service) executeHandler(
 // non-enforcing measurement histogram. Abandoned handlers never return, so
 // they are counted on ReducerHandlerAbandoned instead; their elapsed time is
 // visible on the abandonment log line.
-func (s Service) recordReducerHandlerDuration(ctx context.Context, intent Intent, seconds float64) {
+func (s Service) recordReducerHandlerDuration(ctx context.Context, intent reducercontract.Intent, seconds float64) {
 	if s.Instruments == nil {
 		return
 	}
@@ -346,7 +347,7 @@ func (s Service) recordReducerHandlerDuration(ctx context.Context, intent Intent
 // structured log line for the abandonment is the recordReducerResult "failed"
 // line the caller emits with the same error, which carries the domain, the
 // intent id, and the failure class.
-func (s Service) recordReducerHandlerAbandoned(ctx context.Context, intent Intent) {
+func (s Service) recordReducerHandlerAbandoned(ctx context.Context, intent reducercontract.Intent) {
 	if s.Instruments == nil {
 		return
 	}
@@ -367,7 +368,7 @@ func (s Service) recordReducerHandlerAbandoned(ctx context.Context, intent Inten
 // silently dropping the item.
 func (s Service) failAbandonedHandler(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	shutdownErr error,
 	start time.Time,
 	execStart time.Time,
@@ -410,7 +411,7 @@ func (s Service) failAbandonedHandler(
 // the executeAndReport contract.
 func (s Service) failAbandonedBatchHandler(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	shutdownErr error,
 	start time.Time,
 	execStart time.Time,

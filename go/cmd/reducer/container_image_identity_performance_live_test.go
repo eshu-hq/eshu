@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -189,7 +190,7 @@ func runContainerImageIdentityPerfCase(
 				Add(time.Duration(tick) * time.Microsecond)
 		},
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-5854-performance",
 		Domain:       reducer.DomainContainerImageIdentity,
 		ScopeID:      containerImageIdentityPerfRepoScope,

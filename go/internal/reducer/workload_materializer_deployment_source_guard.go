@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -265,7 +266,7 @@ func (e *deploymentSourceTargetWaitExceededError) Retryable() bool { return true
 // (see crossscope.ReadinessCycleAnchor).
 func boundDeploymentSourceDeferral(
 	err error,
-	intent Intent,
+	intent reducercontract.Intent,
 	now time.Time,
 	materializer *WorkloadMaterializer,
 ) error {
@@ -299,7 +300,7 @@ func boundDeploymentSourceDeferral(
 // infinite, so it never expires (see crossscope.ReadinessCycleAnchor). The
 // bound is elapsed time because a non-counting class freezes attempt_count,
 // so an attempt comparison could never fire.
-func targetDeferralExpired(intent Intent, now time.Time, maxWait time.Duration) (time.Duration, bool) {
+func targetDeferralExpired(intent reducercontract.Intent, now time.Time, maxWait time.Duration) (time.Duration, bool) {
 	anchor := crossscope.ReadinessCycleAnchor(intent)
 	if anchor.IsZero() {
 		return 0, false
@@ -350,7 +351,7 @@ func (e *sharedEdgeTargetWaitExceededError) Retryable() bool { return true }
 // other error, including the writer's classless probe fault, and a deferral
 // inside the bound or with an unknown anchor, is returned unchanged. A nil
 // logger uses slog.Default().
-func boundSharedEdgeTargetDeferral(err error, intent Intent, now time.Time, logger *slog.Logger) error {
+func boundSharedEdgeTargetDeferral(err error, intent reducercontract.Intent, now time.Time, logger *slog.Logger) error {
 	var classed interface{ FailureClass() string }
 	if !errors.As(err, &classed) || classed.FailureClass() != SharedEdgeTargetNotReadyFailureClass {
 		return err

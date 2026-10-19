@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -208,7 +209,7 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget(t 
 	producerQueue := runtimeFenceQueue(p.db, "workload-worker", reducer.DomainWorkloadMaterialization, now)
 	handler := p.handler(p.db)
 
-	var producerIntent reducer.Intent
+	var producerIntent reducercontract.Intent
 	for cycle := 1; cycle <= 5; cycle++ {
 		if cycle == 3 {
 			// The producer is claimed from here on: claimed counts as in flight.

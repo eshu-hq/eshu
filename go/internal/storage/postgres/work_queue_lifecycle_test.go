@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
@@ -35,7 +36,7 @@ func TestReducerQueueFailClassifiesGraphWriteTimeoutAfterAttemptBudget(t *testin
 		MaxAttempts:   3,
 		Now:           func() time.Time { return now },
 	}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-1",
 		AttemptCount: 3,
 	}
@@ -77,7 +78,7 @@ func TestReducerQueueAckAndFailUpdateClaimedWork(t *testing.T) {
 		Now:           func() time.Time { return now },
 	}
 
-	intent := reducer.Intent{IntentID: "intent-1"}
+	intent := reducercontract.Intent{IntentID: "intent-1"}
 	if err := queue.Ack(context.Background(), intent, reducer.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}

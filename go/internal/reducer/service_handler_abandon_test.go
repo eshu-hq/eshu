@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -87,7 +88,7 @@ type abandonObservingHeartbeater struct {
 	state *sharedAbandonState
 }
 
-func (h *abandonObservingHeartbeater) Heartbeat(context.Context, Intent) error {
+func (h *abandonObservingHeartbeater) Heartbeat(context.Context, reducercontract.Intent) error {
 	h.state.recordBeat()
 	return nil
 }
@@ -103,14 +104,14 @@ type abandonSingleSink struct {
 	state      *sharedAbandonState
 }
 
-func (s *abandonSingleSink) Ack(context.Context, Intent, Result) error {
+func (s *abandonSingleSink) Ack(context.Context, reducercontract.Intent, Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ackCalls++
 	return nil
 }
 
-func (s *abandonSingleSink) Fail(_ context.Context, _ Intent, err error) error {
+func (s *abandonSingleSink) Fail(_ context.Context, _ reducercontract.Intent, err error) error {
 	s.mu.Lock()
 	s.failCalls++
 	s.failedWith = err
@@ -135,7 +136,7 @@ type abandonBatchSink struct {
 	state      *sharedAbandonState
 }
 
-func (s *abandonBatchSink) Fail(_ context.Context, intent Intent, err error) error {
+func (s *abandonBatchSink) Fail(_ context.Context, intent reducercontract.Intent, err error) error {
 	_ = s.fakeBatchWorkSink.Fail(context.Background(), intent, err)
 	s.mu.Lock()
 	s.failedWith = err
@@ -157,7 +158,7 @@ type ignoringReducerExecutor struct {
 	calls atomic.Int64
 }
 
-func (e *ignoringReducerExecutor) Execute(context.Context, Intent) (Result, error) {
+func (e *ignoringReducerExecutor) Execute(context.Context, reducercontract.Intent) (Result, error) {
 	e.calls.Add(1)
 	select {}
 }
@@ -169,14 +170,14 @@ type ctxDoneReducerExecutor struct {
 	calls atomic.Int64
 }
 
-func (e *ctxDoneReducerExecutor) Execute(ctx context.Context, _ Intent) (Result, error) {
+func (e *ctxDoneReducerExecutor) Execute(ctx context.Context, _ reducercontract.Intent) (Result, error) {
 	e.calls.Add(1)
 	<-ctx.Done()
 	return Result{}, ctx.Err()
 }
 
-func abandonTestIntent(id string) Intent {
-	return Intent{
+func abandonTestIntent(id string) reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     id,
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
@@ -231,7 +232,7 @@ func TestServiceRunAbandonsStuckHandlerAtShutdown(t *testing.T) {
 
 	service := Service{
 		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:        &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:          executor,
 		WorkSink:          sink,
 		Heartbeater:       &abandonObservingHeartbeater{state: state},
@@ -287,7 +288,7 @@ func TestServiceRunKeepsCooperativeShutdownFailOnce(t *testing.T) {
 
 	service := Service{
 		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &stubReducerWorkSource{intents: []Intent{intent}},
+		WorkSource:        &stubReducerWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:          executor,
 		WorkSink:          sink,
 		Heartbeater:       &abandonObservingHeartbeater{state: state},
@@ -336,7 +337,7 @@ func TestServiceRunBatchAbandonsStuckHandlerAtShutdown(t *testing.T) {
 
 	svc := Service{
 		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &fakeBatchWorkSource{intents: []Intent{intent}},
+		WorkSource:        &fakeBatchWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:          executor,
 		WorkSink:          sink,
 		Heartbeater:       &abandonObservingHeartbeater{state: state},
@@ -450,11 +451,11 @@ type orderObservingSink struct {
 	stopReturnedBeforeFail atomic.Bool
 }
 
-func (s *orderObservingSink) Ack(ctx context.Context, intent Intent, result Result) error {
+func (s *orderObservingSink) Ack(ctx context.Context, intent reducercontract.Intent, result Result) error {
 	return s.inner.Ack(ctx, intent, result)
 }
 
-func (s *orderObservingSink) Fail(ctx context.Context, intent Intent, err error) error {
+func (s *orderObservingSink) Fail(ctx context.Context, intent reducercontract.Intent, err error) error {
 	s.fails.Add(1)
 	s.stopReturnedBeforeFail.Store(s.stop.returned.Load())
 	return s.inner.Fail(ctx, intent, err)
@@ -608,7 +609,7 @@ func TestServiceRunBatchKeepsCooperativeShutdownFailOnce(t *testing.T) {
 
 	svc := Service{
 		PollInterval:      10 * time.Millisecond,
-		WorkSource:        &fakeBatchWorkSource{intents: []Intent{intent}},
+		WorkSource:        &fakeBatchWorkSource{intents: []reducercontract.Intent{intent}},
 		Executor:          executor,
 		WorkSink:          sink,
 		Heartbeater:       &abandonObservingHeartbeater{state: state},
@@ -655,7 +656,7 @@ type panickingReducerExecutor struct {
 	value any
 }
 
-func (e *panickingReducerExecutor) Execute(context.Context, Intent) (Result, error) {
+func (e *panickingReducerExecutor) Execute(context.Context, reducercontract.Intent) (Result, error) {
 	panic(e.value)
 }
 
@@ -687,7 +688,7 @@ type releaseThenPanicReducerExecutor struct {
 	exited  chan struct{}
 }
 
-func (e *releaseThenPanicReducerExecutor) Execute(context.Context, Intent) (Result, error) {
+func (e *releaseThenPanicReducerExecutor) Execute(context.Context, reducercontract.Intent) (Result, error) {
 	defer close(e.exited)
 	<-e.release
 	panic("late panic after abandonment")

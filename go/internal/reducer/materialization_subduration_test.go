@@ -36,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 )
 
@@ -280,9 +281,9 @@ func fixedTestTime() time.Time {
 	return time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 }
 
-func platformIntent(id string, entityKeys []string) Intent {
+func platformIntent(id string, entityKeys []string) reducercontract.Intent {
 	now := fixedTestTime()
-	return Intent{
+	return reducercontract.Intent{
 		IntentID:        id,
 		ScopeID:         "scope-pm",
 		GenerationID:    "gen-pm",
@@ -297,9 +298,9 @@ func platformIntent(id string, entityKeys []string) Intent {
 	}
 }
 
-func workloadIdentityIntent(id string, entityKeys []string) Intent {
+func workloadIdentityIntent(id string, entityKeys []string) reducercontract.Intent {
 	now := fixedTestTime()
-	return Intent{
+	return reducercontract.Intent{
 		IntentID:        id,
 		ScopeID:         "scope-wi",
 		GenerationID:    "gen-wi",
@@ -314,9 +315,9 @@ func workloadIdentityIntent(id string, entityKeys []string) Intent {
 	}
 }
 
-func inheritanceIntent(id string) Intent {
+func inheritanceIntent(id string) reducercontract.Intent {
 	now := fixedTestTime()
-	return Intent{
+	return reducercontract.Intent{
 		IntentID:        id,
 		ScopeID:         "scope-im",
 		GenerationID:    "gen-im",
@@ -331,9 +332,9 @@ func inheritanceIntent(id string) Intent {
 	}
 }
 
-func codeCallIntent(id string) Intent {
+func codeCallIntent(id string) reducercontract.Intent {
 	now := fixedTestTime()
-	return Intent{
+	return reducercontract.Intent{
 		IntentID:        id,
 		ScopeID:         "scope-ccm",
 		GenerationID:    "gen-ccm",

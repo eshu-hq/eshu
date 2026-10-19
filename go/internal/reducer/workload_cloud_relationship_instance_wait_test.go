@@ -157,7 +157,7 @@ func TestWorkloadCloudRelationshipInstanceWaitSettlesAcrossGenerations(t *testin
 	handler.Instruments = instruments
 	handler.Now = func() time.Time { return clock }
 
-	gen := func(id string, cycle time.Time) Intent {
+	gen := func(id string, cycle time.Time) reducercontract.Intent {
 		intent := instanceReadinessIntent(cycle)
 		intent.GenerationID = id
 		return intent

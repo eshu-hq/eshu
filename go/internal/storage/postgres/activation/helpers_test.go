@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/parserfixture"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
@@ -230,7 +231,7 @@ func setupActivationConsumer(t *testing.T, prefix string) (
 // deployment_mapping row is returned, recording every other claim.
 func claimTargetReducerIntent(t *testing.T, ctx context.Context, queue postgres.ReducerQueue,
 	scopeID, generationID string,
-) reducer.Intent {
+) reducercontract.Intent {
 	t.Helper()
 	claimed := make([]string, 0, 8)
 	for attempt := 0; attempt < 8; attempt++ {
@@ -248,7 +249,7 @@ func claimTargetReducerIntent(t *testing.T, ctx context.Context, queue postgres.
 		}
 	}
 	t.Fatalf("target reducer work not claimed; prior=%v", claimed)
-	return reducer.Intent{}
+	return reducercontract.Intent{}
 }
 
 func assertActivationTargetRetry(t *testing.T, ctx context.Context, database *sql.DB,

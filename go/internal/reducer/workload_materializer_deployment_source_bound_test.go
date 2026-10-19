@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -61,7 +62,7 @@ func handleWithAbsentDeploymentSource(t *testing.T, cycleStartedAt, enqueuedAt t
 		Materializer:   materializer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-wm-deploy-source-bound",
 		ScopeID:         "scope-service-edge-api",
 		GenerationID:    "gen-1",

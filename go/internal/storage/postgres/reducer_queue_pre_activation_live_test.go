@@ -214,7 +214,7 @@ func newPreActivationProofEnv(t *testing.T, db *sql.DB, calls *int) preActivatio
 		Summary:       "pre-activation proof handler",
 		Ownership:     reducer.OwnershipShape{CrossSource: true, CrossScope: true, CanonicalWrite: true},
 		TruthContract: testReducerTruthContract("workload"),
-		Handler: reducer.HandlerFunc(func(_ context.Context, intent reducer.Intent) (reducer.Result, error) {
+		Handler: reducer.HandlerFunc(func(_ context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 			*calls++
 			return reducer.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: reducer.ResultStatusSucceeded}, nil
 		}),

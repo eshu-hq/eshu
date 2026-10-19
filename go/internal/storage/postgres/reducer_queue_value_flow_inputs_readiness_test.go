@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 )
 
@@ -34,7 +34,7 @@ func TestReducerQueueFailDefersValueFlowInputsReadinessPastAttemptBudget(t *test
 		MaxAttempts:   3,
 		Now:           func() time.Time { return now },
 	}
-	intent := reducer.Intent{IntentID: "intent-value-flow-refresh-global", AttemptCount: 42}
+	intent := reducercontract.Intent{IntentID: "intent-value-flow-refresh-global", AttemptCount: 42}
 	cause := crossscope.WrapValueFlowInputsUndrained([]string{"scope-a/gen-1=code_function_summary:running"})
 
 	if err := queue.Fail(context.Background(), intent, cause); err != nil {

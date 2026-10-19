@@ -142,7 +142,7 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 			t.Fatalf("Enqueue(%s): %v", generation, err)
 		}
 	}
-	claim := func(wantGeneration string) reducer.Intent {
+	claim := func(wantGeneration string) reducercontract.Intent {
 		t.Helper()
 		intent, ok, err := queue.Claim(ctx)
 		if err != nil || !ok {
@@ -178,7 +178,7 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 		Now:               func() time.Time { return clock },
 		Instruments:       instruments,
 	}
-	handle := func(intent reducer.Intent) error {
+	handle := func(intent reducercontract.Intent) error {
 		t.Helper()
 		_, handleErr := handler.Handle(ctx, intent)
 		if handleErr == nil {

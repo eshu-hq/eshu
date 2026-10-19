@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestExtractDocumentationEdgeRowsQuarantinesMissingDocumentID proves the
@@ -242,7 +243,7 @@ func TestDocumentationMaterializationHandlerRecordsQuarantinedMentionInputInvali
 		},
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-doc-quarantine",
 		ScopeID:      "scope-docs",
 		GenerationID: "gen-1",

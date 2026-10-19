@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
@@ -18,7 +19,7 @@ import (
 func publishIntentGraphPhase(
 	ctx context.Context,
 	publisher GraphProjectionPhasePublisher,
-	intent Intent,
+	intent reducercontract.Intent,
 	keyspace GraphProjectionKeyspace,
 	phase GraphProjectionPhase,
 	observedAt time.Time,
@@ -32,7 +33,7 @@ func publishIntentGraphPhaseWithRepair(
 	ctx context.Context,
 	publisher GraphProjectionPhasePublisher,
 	repairQueue GraphProjectionPhaseRepairQueue,
-	intent Intent,
+	intent reducercontract.Intent,
 	keyspace GraphProjectionKeyspace,
 	phase GraphProjectionPhase,
 	observedAt time.Time,
@@ -59,7 +60,7 @@ func publishGraphProjectionPhaseStatesWithRepair(
 // publish a state) can call [gpphase.KeyFromScope] directly instead of
 // importing the root.
 func graphProjectionPhaseStateForIntent(
-	intent Intent,
+	intent reducercontract.Intent,
 	keyspace GraphProjectionKeyspace,
 	phase GraphProjectionPhase,
 	observedAt time.Time,

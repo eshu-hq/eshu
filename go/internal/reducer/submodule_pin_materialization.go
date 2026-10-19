@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -38,7 +39,7 @@ type SubmodulePinEdgeMaterializationHandler struct {
 }
 
 // Handle executes the submodule pin edge materialization path.
-func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
 	if intent.Domain != DomainSubmodulePin {
 		return Result{}, fmt.Errorf(
 			"submodule pin materialization handler does not accept domain %q",
@@ -117,7 +118,7 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 	}, nil
 }
 
-func (h SubmodulePinEdgeMaterializationHandler) shouldSkipSubmodulePinRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h SubmodulePinEdgeMaterializationHandler) shouldSkipSubmodulePinRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}

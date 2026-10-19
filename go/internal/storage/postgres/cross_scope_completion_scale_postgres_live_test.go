@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
@@ -292,9 +293,9 @@ func ackCrossScopeCompletionScaleDomain(
 	claimedAt time.Time,
 ) []time.Duration {
 	t.Helper()
-	intents := make([]reducer.Intent, itemCount)
+	intents := make([]reducercontract.Intent, itemCount)
 	for index := range itemCount {
-		intents[index] = reducer.Intent{
+		intents[index] = reducercontract.Intent{
 			IntentID:  fmt.Sprintf("reducer_5740_scale_%s_%d", domain, index+1),
 			Domain:    domain,
 			ClaimedAt: &claimedAt,

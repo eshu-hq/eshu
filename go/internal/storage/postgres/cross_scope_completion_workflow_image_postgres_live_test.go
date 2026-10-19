@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
@@ -83,7 +84,7 @@ func TestWorkflowImageCompletionForcedOrderConvergesLive(t *testing.T) {
 	}
 	writer := &workflowImageForcedOrderWriter{}
 	handler := reducer.CICDRunCorrelationHandler{FactLoader: loader, Writer: writer}
-	intent := reducer.Intent{
+	intent := reducercontract.Intent{
 		IntentID:     correlationID,
 		ScopeID:      ciScopeID,
 		GenerationID: ciGeneration,
@@ -119,7 +120,7 @@ func TestWorkflowImageCompletionForcedOrderConvergesLive(t *testing.T) {
 	// #7691: stamp the synthetic claim the way a real claim would; the seed
 	// predates the ack attempt fence.
 	identityClaimedAt, identityEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, identityID)
-	identityIntent := reducer.Intent{
+	identityIntent := reducercontract.Intent{
 		IntentID:   identityID,
 		Domain:     reducer.DomainContainerImageIdentity,
 		ClaimEpoch: identityEpoch,

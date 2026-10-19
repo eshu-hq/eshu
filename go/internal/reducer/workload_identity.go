@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -58,7 +59,7 @@ type workloadIdentityTiming struct {
 // Handle executes the workload identity reduction path.
 func (h WorkloadIdentityHandler) Handle(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (Result, error) {
 	totalStarted := time.Now()
 	var timing workloadIdentityTiming
@@ -139,7 +140,7 @@ func workloadIdentitySubDurations(t workloadIdentityTiming) map[string]float64 {
 	}
 }
 
-func workloadIdentityWriteFromIntent(intent Intent) (WorkloadIdentityWrite, error) {
+func workloadIdentityWriteFromIntent(intent reducercontract.Intent) (WorkloadIdentityWrite, error) {
 	entityKeys := uniqueSortedStrings(intent.EntityKeys)
 	if len(entityKeys) == 0 {
 		return WorkloadIdentityWrite{}, fmt.Errorf(

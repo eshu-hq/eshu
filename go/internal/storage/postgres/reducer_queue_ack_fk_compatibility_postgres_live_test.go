@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 )
 
@@ -83,7 +84,7 @@ SELECT EXISTS (
 				assertCrossScopeConsumerState(t, ctx, db, id, "running", true)
 			} else {
 				queue := ReducerQueue{database: worker, LeaseOwner: "fk-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
-				if err := queue.AckBatch(ctx, []reducer.Intent{{IntentID: id, Domain: variant.domain, ClaimEpoch: 1, ClaimedAt: &now}}, nil); err != nil {
+				if err := queue.AckBatch(ctx, []reducercontract.Intent{{IntentID: id, Domain: variant.domain, ClaimEpoch: 1, ClaimedAt: &now}}, nil); err != nil {
 					t.Fatalf("ACK blocked by audit FK KEY SHARE: %v", err)
 				}
 				assertCrossScopeConsumerState(t, ctx, db, id, "succeeded", false)

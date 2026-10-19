@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // recordingCloudResourceNodeWriter captures the rows handed to the node writer
@@ -49,7 +50,7 @@ func TestAWSResourceMaterializationRejectsMismatchedDomain(t *testing.T) {
 		NodeWriter: &recordingCloudResourceNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -69,7 +70,7 @@ func TestAWSResourceMaterializationRequiresFactLoader(t *testing.T) {
 		NodeWriter: &recordingCloudResourceNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -89,7 +90,7 @@ func TestAWSResourceMaterializationRequiresNodeWriter(t *testing.T) {
 		FactLoader: &stubFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -241,7 +242,7 @@ func TestAWSResourceMaterializationHandleWritesNodes(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -295,8 +296,8 @@ func productiveAWSResourceGateHandler(graph *stubAffectedGraph) (AWSResourceMate
 	}, writer
 }
 
-func awsResourceGateIntent() Intent {
-	return Intent{
+func awsResourceGateIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-gate",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -350,7 +351,7 @@ func TestAWSResourceMaterializationHandleNoFactsIsNoOp(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -387,7 +388,7 @@ func TestAWSResourceMaterializationHandlePublishesCanonicalNodesCommittedPhase(t
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -453,7 +454,7 @@ func TestAWSResourceMaterializationPublishesPhaseOnPoisonedGeneration(t *testing
 		PhasePublisher: publisher,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-poison",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-poison",
@@ -499,7 +500,7 @@ func TestAWSResourceMaterializationHandlePublishesPhaseOnEmptyGeneration(t *test
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
@@ -543,7 +544,7 @@ func TestAWSResourceMaterializationHandleDoesNotPublishPhaseOnWriteFailure(t *te
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",

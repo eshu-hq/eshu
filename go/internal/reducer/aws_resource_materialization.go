@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -109,7 +110,7 @@ type AWSResourceMaterializationHandler struct {
 // Handle executes one AWS resource materialization intent.
 func (h AWSResourceMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainAWSResourceMaterialization {
@@ -409,7 +410,7 @@ func cloudResourceUIDForResource(resource awsv1.Resource) (string, bool) {
 // can identify whether AWS resource work is fact loading, extraction, or graph
 // backend time.
 type awsResourceMaterializationTiming struct {
-	intent               Intent
+	intent               reducercontract.Intent
 	factCount            int
 	nodeCount            int
 	loadDuration         time.Duration

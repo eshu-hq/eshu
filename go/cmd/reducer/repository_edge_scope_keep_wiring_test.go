@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/workloadid"
@@ -44,7 +45,7 @@ func TestBuildReducerServiceKeepsScopeWorkloadsForForeignKeyedIntent(t *testing.
 	}
 
 	now := time.Now().UTC()
-	if _, err := service.Executor.Execute(context.Background(), reducer.Intent{
+	if _, err := service.Executor.Execute(context.Background(), reducercontract.Intent{
 		IntentID:        "scope-keep-wiring",
 		Domain:          reducer.DomainWorkloadMaterialization,
 		ScopeID:         "repository:test-scope",

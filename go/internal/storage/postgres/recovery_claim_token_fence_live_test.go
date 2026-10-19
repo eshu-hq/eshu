@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -114,7 +115,7 @@ func TestReducerExactClaimFenceAckBatchRejectsPartialStaleSet(t *testing.T) {
 
 	err := queue.AckBatch(
 		ctx,
-		[]reducer.Intent{firstByID[idA], firstByID[idB]},
+		[]reducercontract.Intent{firstByID[idA], firstByID[idB]},
 		[]reducer.Result{{}, {}},
 	)
 	if !errors.Is(err, ErrReducerClaimRejected) {
@@ -282,7 +283,7 @@ func seedClaimTokenDeploymentWork(
 	return reducerWorkItemID(intent)
 }
 
-func claimTokenClaimOne(t *testing.T, ctx context.Context, queue ReducerQueue) reducer.Intent {
+func claimTokenClaimOne(t *testing.T, ctx context.Context, queue ReducerQueue) reducercontract.Intent {
 	t.Helper()
 	intents := claimTokenClaimMany(t, ctx, queue, 1)
 	if len(intents) != 1 {
@@ -291,7 +292,7 @@ func claimTokenClaimOne(t *testing.T, ctx context.Context, queue ReducerQueue) r
 	return intents[0]
 }
 
-func claimTokenClaimMany(t *testing.T, ctx context.Context, queue ReducerQueue, limit int) []reducer.Intent {
+func claimTokenClaimMany(t *testing.T, ctx context.Context, queue ReducerQueue, limit int) []reducercontract.Intent {
 	t.Helper()
 	intents, err := queue.ClaimBatch(ctx, limit)
 	if err != nil {
@@ -300,9 +301,9 @@ func claimTokenClaimMany(t *testing.T, ctx context.Context, queue ReducerQueue, 
 	return intents
 }
 
-func claimTokenIntentsByID(t *testing.T, intents []reducer.Intent, ids ...string) map[string]reducer.Intent {
+func claimTokenIntentsByID(t *testing.T, intents []reducercontract.Intent, ids ...string) map[string]reducercontract.Intent {
 	t.Helper()
-	byID := make(map[string]reducer.Intent, len(intents))
+	byID := make(map[string]reducercontract.Intent, len(intents))
 	for _, intent := range intents {
 		byID[intent.IntentID] = intent
 	}

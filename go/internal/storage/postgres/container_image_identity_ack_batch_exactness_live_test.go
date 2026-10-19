@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
@@ -23,7 +24,7 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 		t.Run(fmt.Sprintf("target batch %d", batchSize), func(t *testing.T) {
 			owner := fmt.Sprintf("reducer-5854-ack-exact-%d", batchSize)
 
-			intents := make([]reducer.Intent, batchSize)
+			intents := make([]reducercontract.Intent, batchSize)
 			for index := range batchSize {
 				scopeID := fmt.Sprintf(
 					"repository:5854-ack-exact-%d-%02d",
@@ -56,7 +57,7 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 					scopeID,
 					generationID,
 				)
-				intents[index] = reducer.Intent{
+				intents[index] = reducercontract.Intent{
 					IntentID:     workItemID,
 					Domain:       reducer.DomainContainerImageIdentity,
 					AttemptCount: 1,
@@ -189,7 +190,7 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now },
 		}
-		intents := []reducer.Intent{
+		intents := []reducercontract.Intent{
 			{
 				IntentID: unrelatedID, Domain: reducer.DomainOwnership,
 				AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &unrelatedClaimedAt,
@@ -289,7 +290,7 @@ WHERE work_item_id = $1
 			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 		}
-		err := queue.AckBatch(ctx, []reducer.Intent{{
+		err := queue.AckBatch(ctx, []reducercontract.Intent{{
 			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
 			AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &staleClaimedAt,
 		}}, nil)
@@ -354,7 +355,7 @@ WHERE work_item_id = $1
 			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 		}
-		err := queue.AckBatch(ctx, []reducer.Intent{
+		err := queue.AckBatch(ctx, []reducercontract.Intent{
 			{
 				IntentID: targetID, Domain: reducer.DomainContainerImageIdentity,
 				AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &targetClaimedAt,
@@ -421,7 +422,7 @@ WHERE work_item_id = $1
 			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 		}
-		if err := queue.AckBatch(ctx, []reducer.Intent{
+		if err := queue.AckBatch(ctx, []reducercontract.Intent{
 			{
 				IntentID: validID, Domain: reducer.DomainContainerImageIdentity,
 				AttemptCount: 1, ClaimEpoch: validEpoch, ClaimedAt: &validClaimedAt,
@@ -466,15 +467,15 @@ WHERE work_item_id = $1
 			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 		}
-		stale := reducer.Intent{
+		stale := reducercontract.Intent{
 			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
 			AttemptCount: 1, ClaimEpoch: 1, ClaimedAt: &staleClaimedAt,
 		}
-		latest := reducer.Intent{
+		latest := reducercontract.Intent{
 			IntentID: workItemID, Domain: reducer.DomainContainerImageIdentity,
 			AttemptCount: 2, ClaimEpoch: latestEpoch, ClaimedAt: &latestClaimedAt,
 		}
-		err := queue.AckBatch(ctx, []reducer.Intent{stale, latest}, nil)
+		err := queue.AckBatch(ctx, []reducercontract.Intent{stale, latest}, nil)
 		assertCommittedSupersededClaim(t, err, stale, latest)
 		assertContainerImageIdentityAckWorkItemState(
 			t, ctx, db, workItemID, "succeeded", "",

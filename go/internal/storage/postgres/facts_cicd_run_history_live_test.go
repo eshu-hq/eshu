@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type cicdRunHistoryLiveLoader struct {
@@ -130,7 +131,7 @@ func TestCICDRunCorrelationArtifactPatchAgainstRealPostgres(t *testing.T) {
 			},
 		},
 	}
-	result, err := handler.Handle(ctx, reducer.Intent{
+	result, err := handler.Handle(ctx, reducercontract.Intent{
 		IntentID:     "intent-artifact-patch",
 		ScopeID:      "scope-ci",
 		GenerationID: "gen-3",
@@ -145,7 +146,7 @@ func TestCICDRunCorrelationArtifactPatchAgainstRealPostgres(t *testing.T) {
 		t.Fatalf("input_invalid_facts = %v, want only the malformed live artifact", got)
 	}
 	first := loadCICDRunHistoryLiveCorrelations(t, ctx, db)
-	_, err = handler.Handle(ctx, reducer.Intent{
+	_, err = handler.Handle(ctx, reducercontract.Intent{
 		IntentID:     "intent-artifact-patch",
 		ScopeID:      "scope-ci",
 		GenerationID: "gen-3",

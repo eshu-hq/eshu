@@ -64,8 +64,8 @@ func (s *stubCloudInventoryAdmissionWriter) WriteCloudInventoryAdmission(
 // cloudInventoryIntent builds a staying-root admission intent for the moved
 // handler. The family's own helper moved with it; this local copy keeps the
 // same field values so staying assertions observe identical behavior.
-func cloudInventoryIntent() Intent {
-	return Intent{
+func cloudInventoryIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:        "intent-cloud-inventory",
 		ScopeID:         "gcp:org:eshu:project:prod",
 		GenerationID:    "generation-1",

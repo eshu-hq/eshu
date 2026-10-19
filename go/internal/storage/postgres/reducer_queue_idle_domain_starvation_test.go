@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestClaimReducerWorkBatchQueryOrdersIdleDomainsBeforeBusyBacklog is the
@@ -186,7 +187,7 @@ func TestClaimBatchIdleDomainPriorityHoldsUnderConcurrentClaimers(t *testing.T) 
 	markReducerFairnessWorkClaimed(t, ctx, db, "busy-worker", claimAt.Add(time.Hour), "conc-busy-000")
 
 	type claimResult struct {
-		intents []reducer.Intent
+		intents []reducercontract.Intent
 		err     error
 	}
 	results := make([]claimResult, claimers)

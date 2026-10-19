@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // Real-queue proof for the #7268 shared-edge target deferral on
@@ -82,7 +83,7 @@ func TestReducerContentionGateSharedEdgeTargetDeferralKeepsItsAttemptBudget(t *t
 		ClaimDomains:  []reducer.Domain{reducer.DomainDeployableUnitCorrelation},
 		Now:           func() time.Time { return clock },
 	}
-	claim := func(phase string, cycle int) reducer.Intent {
+	claim := func(phase string, cycle int) reducercontract.Intent {
 		t.Helper()
 		intent, claimed, err := queue.Claim(ctx)
 		if err != nil {

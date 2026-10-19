@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestContainerImageIdentityFailureStatusAuthorizationLive(t *testing.T) {
@@ -68,7 +69,7 @@ func TestContainerImageIdentityFailureStatusAuthorizationLive(t *testing.T) {
 			// the claim epoch, so a hand-built intent is legitimately
 			// rejected. The stamp advances the epoch 1 to 2.
 			claimedAt, claimEpoch := stampContainerImageIdentityAckClaim(t, ctx, db, workItemID)
-			intent := reducer.Intent{
+			intent := reducercontract.Intent{
 				IntentID:     workItemID,
 				Domain:       reducer.DomainContainerImageIdentity,
 				AttemptCount: 1,
@@ -116,7 +117,7 @@ WHERE work_item_id = $1
 		}
 		err := queue.Fail(
 			ctx,
-			reducer.Intent{
+			reducercontract.Intent{
 				IntentID:     workItemID,
 				Domain:       reducer.DomainContainerImageIdentity,
 				AttemptCount: 1,

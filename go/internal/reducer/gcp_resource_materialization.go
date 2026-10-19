@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -90,7 +91,7 @@ type GCPResourceMaterializationHandler struct {
 // Handle executes one GCP resource materialization intent.
 func (h GCPResourceMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainGCPResourceMaterialization {
@@ -416,7 +417,7 @@ func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, 
 // can identify whether GCP resource work is fact loading, extraction, or graph
 // backend time.
 type gcpResourceMaterializationTiming struct {
-	intent               Intent
+	intent               reducercontract.Intent
 	factCount            int
 	nodeCount            int
 	loadDuration         time.Duration

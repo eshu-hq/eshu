@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -58,7 +59,7 @@ func TestDeployableUnitCorrelationHandleRejectsWrongDomain(t *testing.T) {
 		FactLoader: &stubDeployableUnitFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "repository:service-gha",
 		GenerationID:    "generation-1",
@@ -104,7 +105,7 @@ func TestDeployableUnitCorrelationHandleRequiresFactLoader(t *testing.T) {
 
 	handler := DeployableUnitCorrelationHandler{}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "repository:service-gha",
 		GenerationID:    "generation-1",
@@ -126,7 +127,7 @@ func TestDeployableUnitCorrelationHandleRequiresEntityKeys(t *testing.T) {
 		FactLoader: &stubDeployableUnitFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "repository:service-gha",
 		GenerationID:    "generation-1",
@@ -440,8 +441,8 @@ func TestDeployableUnitCorrelationHandleFactLoaderError(t *testing.T) {
 	}
 }
 
-func deployableUnitIntent(entityKeys ...string) Intent {
-	return Intent{
+func deployableUnitIntent(entityKeys ...string) reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:        "intent-1",
 		ScopeID:         "repository:test-scope",
 		GenerationID:    "generation-1",

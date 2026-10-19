@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -93,7 +94,7 @@ type WorkloadCloudRelationshipMaterializationHandler struct {
 
 func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (Result, error) {
 	if intent.Domain != DomainWorkloadCloudRelationshipMaterialization {
 		return Result{}, fmt.Errorf(
@@ -190,7 +191,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 	})
 }
 
-func (h WorkloadCloudRelationshipMaterializationHandler) endpointsReady(intent Intent) bool {
+func (h WorkloadCloudRelationshipMaterializationHandler) endpointsReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
@@ -237,7 +238,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) instanceWait() workload
 // commitEdges retracts this scope's USES edges and rewrites every row. The
 // retract is skipped only for the first commit of a scope's first generation;
 // recommit (an earlier commit of this generation is in the ledger) forces it.
-func (h WorkloadCloudRelationshipMaterializationHandler) commitEdges(ctx context.Context, intent Intent, rows []map[string]any, recommit bool) error {
+func (h WorkloadCloudRelationshipMaterializationHandler) commitEdges(ctx context.Context, intent reducercontract.Intent, rows []map[string]any, recommit bool) error {
 	skipRetract := false
 	if !recommit {
 		var err error
@@ -274,7 +275,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) commitEdges(ctx context
 // signal, and returns the not-ready error when the wait continues.
 func (h WorkloadCloudRelationshipMaterializationHandler) finishInstanceWait(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	wait workloadinstance.Wait,
 	eval workloadinstance.Evaluation,
 	committed bool,
@@ -304,7 +305,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) recordReadinessWait(ctx
 	))
 }
 
-func (h WorkloadCloudRelationshipMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h WorkloadCloudRelationshipMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}

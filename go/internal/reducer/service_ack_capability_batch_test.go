@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type ackFenceRejectingBatchSink struct {
@@ -21,7 +23,7 @@ type ackFenceRejectingBatchSink struct {
 
 func (s *ackFenceRejectingBatchSink) Ack(
 	context.Context,
-	Intent,
+	reducercontract.Intent,
 	Result,
 ) error {
 	s.mu.Lock()
@@ -32,7 +34,7 @@ func (s *ackFenceRejectingBatchSink) Ack(
 
 func (s *ackFenceRejectingBatchSink) AckBatch(
 	_ context.Context,
-	intents []Intent,
+	intents []reducercontract.Intent,
 	_ []Result,
 ) error {
 	s.mu.Lock()
@@ -43,7 +45,7 @@ func (s *ackFenceRejectingBatchSink) AckBatch(
 
 func (s *ackFenceRejectingBatchSink) Fail(
 	context.Context,
-	Intent,
+	reducercontract.Intent,
 	error,
 ) error {
 	s.mu.Lock()

@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // instanceEdgeKey identifies one edge incident to a WorkloadInstance node in
@@ -146,7 +148,7 @@ func TestWorkloadMaterializationHandlerRetractsSupersededPreCanonicalInstance(t 
 	}
 
 	now := time.Now().UTC()
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-instance-retract",
 		ScopeID:         "scope-api",
 		GenerationID:    "gen-2",
@@ -302,7 +304,7 @@ func TestWorkloadMaterializationHandlerNoInstanceRetractionLookupIsNoop(t *testi
 	}
 
 	now := time.Now().UTC()
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:        "intent-wm-instance-retract-noop",
 		ScopeID:         "scope-api",
 		GenerationID:    "gen-1",

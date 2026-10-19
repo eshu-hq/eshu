@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
@@ -42,7 +43,7 @@ func TestSQLRelationshipHandlerUsesKindFilteredFactLoader(t *testing.T) {
 		IntentWriter: writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-sql-kind-filter",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
@@ -109,7 +110,7 @@ func TestSemanticEntityMaterializationHandlerUsesKindFilteredFactLoader(t *testi
 		PhasePublisher:       publisher,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-semantic-kind-filter",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
@@ -167,7 +168,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderUsesKindFilteredFactLoader(t *te
 	}
 	inputLoader := CorrelatedWorkloadProjectionInputLoader{FactLoader: loader}
 
-	candidates, _, err := inputLoader.LoadWorkloadProjectionInputs(context.Background(), Intent{
+	candidates, _, err := inputLoader.LoadWorkloadProjectionInputs(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-workload-kind-filter",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
@@ -229,7 +230,7 @@ func TestPlatformMaterializationHandlerUsesKindFilteredFactLoaderForInfrastructu
 		InfrastructureMaterializer: NewInfrastructurePlatformMaterializer(&recordingCypherExecutor{}),
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-platform-kind-filter",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
@@ -288,7 +289,7 @@ func TestCodeCallMaterializationHandlerUsesKindFilteredFactLoader(t *testing.T) 
 		IntentWriter: writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-code-call-kind-filter",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
@@ -357,7 +358,7 @@ func TestDeployableUnitCorrelationHandlerUsesKindFilteredFactLoader(t *testing.T
 	}
 	handler := DeployableUnitCorrelationHandler{FactLoader: loader}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-deployable-kind-filter",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
@@ -396,7 +397,7 @@ func TestInheritanceMaterializationHandlerUsesKindFilteredFactLoader(t *testing.
 		IntentWriter: writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-inheritance-kind-filter",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",

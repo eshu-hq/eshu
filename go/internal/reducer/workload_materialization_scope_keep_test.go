@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
@@ -80,9 +81,9 @@ func scopeKeepFacts(withWorkload bool) []facts.Envelope {
 	)
 }
 
-func scopeKeepIntent(keys []string) Intent {
+func scopeKeepIntent(keys []string) reducercontract.Intent {
 	now := time.Now().UTC()
-	return Intent{
+	return reducercontract.Intent{
 		IntentID: "intent-scope-keep", ScopeID: scopeKeepScopeID, GenerationID: "gen-2",
 		SourceSystem: "git", Domain: DomainWorkloadMaterialization, Cause: "facts projected",
 		EntityKeys: keys, RelatedScopeIDs: []string{scopeKeepScopeID},
@@ -373,7 +374,7 @@ func TestProjectionWorkloadAndEndpointIDsIgnoreEnvironmentsAndPlatforms(t *testi
 // no scope truth to build a keep-list from.
 type intentOnlyInputLoader struct{ candidates []WorkloadCandidate }
 
-func (l intentOnlyInputLoader) LoadWorkloadProjectionInputs(context.Context, Intent) ([]WorkloadCandidate, map[string][]string, error) {
+func (l intentOnlyInputLoader) LoadWorkloadProjectionInputs(context.Context, reducercontract.Intent) ([]WorkloadCandidate, map[string][]string, error) {
 	return l.candidates, nil, nil
 }
 

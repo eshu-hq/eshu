@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestWorkloadMaterializationHandlerLogsStageTiming(t *testing.T) {
@@ -53,7 +54,7 @@ func TestWorkloadMaterializationHandlerLogsStageTiming(t *testing.T) {
 		Materializer: NewWorkloadMaterializer(&recordingCypherExecutor{}),
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-wm-observe",
 		ScopeID:         "scope-payments",
 		GenerationID:    "gen-1",

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
@@ -35,7 +36,7 @@ func TestInheritanceMaterializationHandlerUsesPayloadFilteredContentEntities(t *
 		IntentWriter: writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-inheritance-payload-filter",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",
@@ -97,7 +98,7 @@ func TestSQLRelationshipHandlerUsesPayloadFilteredContentEntities(t *testing.T) 
 		IntentWriter: writer,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-sql-payload-filter",
 		ScopeID:      "scope-1",
 		GenerationID: "generation-1",

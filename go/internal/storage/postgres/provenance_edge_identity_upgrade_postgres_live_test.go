@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestProvenanceEdgeIdentityUpgradeSeedsCurrentReplayOnceLive proves migration
@@ -190,7 +191,7 @@ WHERE work_item_id = $1
 		MaxAttempts:   1,
 		Now:           func() time.Time { return now.Add(time.Minute) },
 	}
-	if err := newFailureQueue.Fail(ctx, reducer.Intent{
+	if err := newFailureQueue.Fail(ctx, reducercontract.Intent{
 		IntentID:     identityID,
 		Domain:       reducer.DomainContainerImageIdentity,
 		AttemptCount: 1,
@@ -236,7 +237,7 @@ WHERE work_item_id = $1
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now.Add(2 * time.Minute) },
 	}
-	if err := newSuccessQueue.Ack(ctx, reducer.Intent{
+	if err := newSuccessQueue.Ack(ctx, reducercontract.Intent{
 		IntentID:   packageID,
 		Domain:     reducer.DomainPackageSourceCorrelation,
 		ClaimEpoch: successClaimEpoch,
@@ -327,7 +328,7 @@ WHERE work_item_id = $1
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
 	}
-	if err := queue.AckBatch(ctx, []reducer.Intent{{
+	if err := queue.AckBatch(ctx, []reducercontract.Intent{{
 		IntentID:   workItemID,
 		Domain:     domain,
 		ClaimEpoch: claimEpoch,

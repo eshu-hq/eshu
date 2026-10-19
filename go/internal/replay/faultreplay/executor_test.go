@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
 	"github.com/eshu-hq/eshu/go/internal/replay/schedulereplay"
 )
@@ -21,7 +22,7 @@ type countingInner struct {
 	calls atomic.Int64
 }
 
-func (c *countingInner) Execute(_ context.Context, intent reducer.Intent) (reducer.Result, error) {
+func (c *countingInner) Execute(_ context.Context, intent reducercontract.Intent) (reducer.Result, error) {
 	c.calls.Add(1)
 	return reducer.Result{IntentID: intent.IntentID, Status: reducer.ResultStatusSucceeded}, nil
 }
@@ -36,12 +37,12 @@ type stubRedeliverer struct {
 	lastRedelivered    atomic.Value // string
 }
 
-func (s *stubRedeliverer) ArmMidHandlerDuplicate(reducer.Intent) <-chan struct{} {
+func (s *stubRedeliverer) ArmMidHandlerDuplicate(reducercontract.Intent) <-chan struct{} {
 	s.armCalls.Add(1)
 	return s.armCh
 }
 
-func (s *stubRedeliverer) RedeliverOnce(intent reducer.Intent) {
+func (s *stubRedeliverer) RedeliverOnce(intent reducercontract.Intent) {
 	s.redeliverOnceCalls.Add(1)
 	s.lastRedelivered.Store(intent.IntentID)
 }
@@ -79,7 +80,7 @@ func TestFaultingExecutorFailTerminalNeverCallsInner(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		_, err := exec.Execute(context.Background(), reducer.Intent{IntentID: id})
+		_, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: id})
 		if err == nil {
 			t.Fatalf("attempt %d: expected fail-terminal error, got nil", i)
 		}
@@ -107,7 +108,7 @@ func TestFaultingExecutorOnceThenSucceedExecutorRetryNeverErrors(t *testing.T) {
 		t.Fatalf("NewFaultingExecutor: %v", err)
 	}
 
-	result, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "x"})
+	result, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: "x"})
 	if err != nil {
 		t.Fatalf("Execute: unexpected error %v (executor-retry must never surface to the caller)", err)
 	}
@@ -125,7 +126,7 @@ func TestFaultingExecutorOnceThenSucceedExecutorRetryNeverErrors(t *testing.T) {
 	}
 
 	// The second call (a different statement ordinal) must not re-fire.
-	if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "x"}); err != nil {
+	if _, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: "x"}); err != nil {
 		t.Fatalf("second Execute: unexpected error %v", err)
 	}
 	if inner.calls.Load() != 2 {
@@ -148,7 +149,7 @@ func TestFaultingExecutorOnceThenSucceedQueueRetryFailsThenRedelivers(t *testing
 		t.Fatalf("NewFaultingExecutor: %v", err)
 	}
 
-	_, err = exec.Execute(context.Background(), reducer.Intent{IntentID: "y"})
+	_, err = exec.Execute(context.Background(), reducercontract.Intent{IntentID: "y"})
 	if err == nil {
 		t.Fatal("expected a queue-retry error on the targeted call, got nil")
 	}
@@ -166,7 +167,7 @@ func TestFaultingExecutorOnceThenSucceedQueueRetryFailsThenRedelivers(t *testing
 	}
 
 	// The redelivered (second) attempt must succeed and delegate to inner.
-	result, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "y"})
+	result, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: "y"})
 	if err != nil {
 		t.Fatalf("redelivered Execute: unexpected error %v", err)
 	}
@@ -203,7 +204,7 @@ func TestFaultingExecutorMidHandlerBlocksUntilReleased(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: id}); err != nil {
+		if _, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: id}); err != nil {
 			t.Errorf("Execute: unexpected error %v", err)
 		}
 	}()
@@ -255,7 +256,7 @@ func TestFaultingExecutorMidHandlerRespectsContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 
-	_, err = exec.Execute(ctx, reducer.Intent{IntentID: id})
+	_, err = exec.Execute(ctx, reducercontract.Intent{IntentID: id})
 	if err == nil {
 		t.Fatal("expected a context-cancellation error, got nil")
 	}
@@ -286,7 +287,7 @@ func TestFaultingExecutorUnfiredFaults(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewFaultingExecutor: %v", err)
 		}
-		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "x"}); err != nil {
+		if _, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: "x"}); err != nil {
 			t.Fatalf("Execute(x): unexpected error %v", err)
 		}
 		if unfired := exec.UnfiredFaults(); len(unfired) != 1 {
@@ -308,7 +309,7 @@ func TestFaultingExecutorUnfiredFaults(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewFaultingExecutor: %v", err)
 		}
-		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: id}); err == nil {
+		if _, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: id}); err == nil {
 			t.Fatal("Execute: expected the terminal failure, got nil")
 		}
 		if unfired := exec.UnfiredFaults(); len(unfired) != 0 {
@@ -330,7 +331,7 @@ func TestFaultingExecutorUnfiredFaults(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewFaultingExecutor: %v", err)
 		}
-		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "x"}); err != nil {
+		if _, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: "x"}); err != nil {
 			t.Fatalf("Execute(x): unexpected error %v", err)
 		}
 		if unfired := exec.UnfiredFaults(); len(unfired) != 1 {
@@ -354,7 +355,7 @@ func TestFaultingExecutorUnfiredFaults(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewFaultingExecutor: %v", err)
 		}
-		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: id}); err != nil {
+		if _, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: id}); err != nil {
 			t.Fatalf("Execute: unexpected error %v", err)
 		}
 		if unfired := exec.UnfiredFaults(); len(unfired) != 0 {
@@ -370,7 +371,7 @@ func TestFaultingExecutorUnfiredFaults(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewFaultingExecutor: %v", err)
 		}
-		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "x"}); err != nil {
+		if _, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: "x"}); err != nil {
 			t.Fatalf("Execute(x): unexpected error %v", err)
 		}
 		if unfired := exec.UnfiredFaults(); len(unfired) != 1 {
@@ -385,7 +386,7 @@ func TestFaultingExecutorUnfiredFaults(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewFaultingExecutor: %v", err)
 		}
-		if _, err := exec.Execute(context.Background(), reducer.Intent{IntentID: "y"}); err == nil {
+		if _, err := exec.Execute(context.Background(), reducercontract.Intent{IntentID: "y"}); err == nil {
 			t.Fatal("Execute: expected the queue-retry error, got nil")
 		}
 		if unfired := exec.UnfiredFaults(); len(unfired) != 0 {

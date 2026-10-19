@@ -91,7 +91,7 @@ type DeployableUnitCorrelationHandler struct {
 // Handle executes the deployable-unit correlation reduction path.
 func (h DeployableUnitCorrelationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 ) (Result, error) {
 	if intent.Domain != DomainDeployableUnitCorrelation {
 		return Result{}, fmt.Errorf(
@@ -248,7 +248,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 }
 
 func evaluateDeployableUnitCandidates(
-	intent Intent,
+	intent reducercontract.Intent,
 	candidates []WorkloadCandidate,
 ) (engine.Evaluation, error) {
 	var merged engine.Evaluation
@@ -316,7 +316,7 @@ func deployableUnitRulePack(candidate WorkloadCandidate) rules.RulePack {
 }
 
 func deployableUnitModelCandidates(
-	intent Intent,
+	intent reducercontract.Intent,
 	candidate WorkloadCandidate,
 ) []correlationmodel.Candidate {
 	unitKeys := deployableUnitKeys(candidate)
@@ -328,7 +328,7 @@ func deployableUnitModelCandidates(
 }
 
 func deployableUnitModelCandidate(
-	intent Intent,
+	intent reducercontract.Intent,
 	candidate WorkloadCandidate,
 	unitKey string,
 	ambiguous bool,
@@ -413,7 +413,7 @@ func deployableUnitModelCandidate(
 }
 
 func deployableUnitStructuralEvidence(
-	intent Intent,
+	intent reducercontract.Intent,
 	candidate WorkloadCandidate,
 	unitKey string,
 	confidence float64,
@@ -485,7 +485,7 @@ func deployableUnitStructuralEvidence(
 // nothing: without a claim there is nothing to fence the write on.
 func (h DeployableUnitCorrelationHandler) recordReopenFingerprint(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	read corpusFencedResolvedRead,
 ) error {
 	if h.ReopenFingerprintRecorder == nil || !read.fingerprinted || intent.ClaimedAt == nil {

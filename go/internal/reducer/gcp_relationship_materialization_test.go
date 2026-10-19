@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -26,8 +27,8 @@ func gcpRelationshipEnvelope(payload map[string]any) facts.Envelope {
 	}
 }
 
-func gcpRelationshipIntent() Intent {
-	return Intent{
+func gcpRelationshipIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-gcp-edges-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
