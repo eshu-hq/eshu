@@ -66,6 +66,15 @@ to.
   a scope-wide reading; `extractSemanticDeltaProjectionScope` reads each
   generation's repository fact for `delta_generation`,
   `delta_relative_paths`, and `delta_deleted_relative_paths` per repo.
+- **The freshness fence probes twice and fails closed.** `Handle` calls
+  `fenceSemanticPreWrite` before the graph write and
+  `resolveSemanticUnmatchedOutcome` before the identity-divergence failure
+  (`generation_gates.go`, #8611). A fence error (including
+  `GenerationNotYetActiveError`) must propagate wrapped with `%w`, never
+  become a superseded exit; only `(false, nil)` supersedes. A nil
+  `GenerationCheck` keeps the legacy run-to-completion path — add no
+  second wiring knob. `materialization.go` sits near the 500-line cap, so
+  new fence logic goes in `generation_gates.go`, never inline in `Handle`.
 - **`GraphProjectionPhaseRepairQueue` here is intentionally narrower than the
   root's.** It declares only `Enqueue`. Do not widen it to mirror the root's
   full interface unless this package actually starts calling

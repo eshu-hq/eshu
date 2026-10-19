@@ -99,6 +99,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				FactLoader:           handlers.FactLoader,
 				Writer:               handlers.SemanticEntityWriter,
 				PriorGenerationCheck: handlers.PriorGenerationCheck,
+				GenerationCheck:      handlers.GenerationCheck,
 				PhasePublisher:       handlers.GraphProjectionPhasePublisher,
 			}
 			// RepairQueue is an interface (#6061), so assigning a

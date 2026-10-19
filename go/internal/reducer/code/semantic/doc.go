@@ -32,7 +32,8 @@
 // the parent internal/reducer package. The dependency runs the other way —
 // the root's handler catalog constructs [Handler]
 // and wires its FactLoader, Writer,
-// PriorGenerationCheck and PhasePublisher, and its RepairQueue when the root
+// PriorGenerationCheck, GenerationCheck and PhasePublisher, and its
+// RepairQueue when the root
 // repair queue is present. See AGENTS.md in this
 // directory before adding an import.
 //
@@ -62,5 +63,7 @@
 // "semantic entity materialization completed" structured log carrying
 // fact_count, repo_count, row_count, skip_retract, delta_projection,
 // delta_file_count, and the per-stage wall-time fields named in that log
-// call.
+// call. When GenerationCheck is wired, each superseded fence exit emits a
+// "semantic entity materialization skipped: generation superseded" Info log
+// carrying scope_id, generation_id, domain, and phase (pre_write/post_write).
 package semantic
