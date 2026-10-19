@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fixtures"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/migrations"
 )
 
@@ -97,7 +98,7 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 	if r.index >= len(r.rows) {
 		return errors.New("scan called without row")
 	}
-	row := padQueueFakeRow(r.rows[r.index], len(dest))
+	row := fixtures.PadQueueFakeRow(r.rows[r.index], len(dest))
 	if len(dest) != len(row) {
 		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))
 	}
@@ -195,39 +196,9 @@ func (r *queueFakeRows) Err() error { return nil }
 
 func (r *queueFakeRows) Close() error { return nil }
 
-// padQueueFakeRow widens a staged queueFakeRows row to the column count a
-// newer query scans, so older fixtures keep exercising the behavior they
-// were written for. Copied with the fixtures from the postgres root's
-// work_queue_fake_row_padding_test.go; the reducer-claim branches below are
-// no-ops for tfstate shapes but keep Scan byte-faithful to the root fake.
-func padQueueFakeRow(row []any, columns int) []any {
-	// Reducer claim rows gained a target-only claim epoch between attempt_count
-	// and created_at. Older unrelated-domain fixtures intentionally omit it;
-	// synthesize the zero opt-out value while target-domain fixtures exercise
-	// the explicit ninth column.
-	if columns == 9 && len(row) == 8 {
-		row = append(row[:5:5], append([]any{int64(0)}, row[5:]...)...)
-	}
-	// Reducer claim rows now also return the persisted last_attempt_at token
-	// between cycle_started_at and payload. Older fixtures predate that output;
-	// use their cycle anchor as an explicit timestamp so they remain focused on
-	// the queue behavior they were written to cover. Dedicated claim-fence tests
-	// provide a distinct token and assert it exactly.
-	if columns == 11 && len(row) == 10 {
-		row = append(row[:9:9], append([]any{row[8]}, row[9:]...)...)
-	}
-	// Retention candidate rows carry ten columns: the #7981 identity triple
-	// then the #7802 delta_protected flag. Six-column fixtures zero-fill the
-	// triple (a zero identity never matches) and the flag; nine-column
-	// fixtures staged before the flag existed zero-fill only the flag.
-	if columns == 10 && len(row) == 6 {
-		row = append(row[:6:6], "", false, "", false)
-	}
-	if columns == 10 && len(row) == 9 {
-		row = append(row[:9:9], false)
-	}
-	return row
-}
+// Row padding for the fakes above is fixtures.PadQueueFakeRow (issue
+// #8552): the reducer-claim branches are no-ops for tfstate shapes but keep
+// Scan byte-faithful to the root fake through the single shared copy.
 
 // tfstateSQLDB adapts a *sql.DB to db.Queryer for the family's live-Postgres
 // tests. It replaces the root's SQLDB adapter, which stays in the parent

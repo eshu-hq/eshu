@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/filters"
 )
 
 // listFactsByKindPageSize matches factBatchSize so reducer handlers avoid
@@ -148,7 +149,7 @@ func (s FactStore) ListFactsByKind(
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
-	factKinds = cleanFactKinds(factKinds)
+	factKinds = filters.CleanFactKinds(factKinds)
 	if len(factKinds) == 0 {
 		return nil, nil
 	}
@@ -190,7 +191,7 @@ func (s FactStore) ListFactsByKindAndPayloadValue(
 
 	factKind = strings.TrimSpace(factKind)
 	payloadKey = strings.TrimSpace(payloadKey)
-	payloadValues = cleanFactKinds(payloadValues)
+	payloadValues = filters.CleanFactKinds(payloadValues)
 	if factKind == "" || payloadKey == "" || len(payloadValues) == 0 {
 		return nil, nil
 	}
@@ -322,23 +323,4 @@ func (s FactStore) listFactsByKindAndPayloadValuePage(
 	}
 
 	return loaded, nil
-}
-
-// cleanFactKinds removes empty fact-kind filters while preserving first-seen
-// order so tests and query plans stay stable.
-func cleanFactKinds(factKinds []string) []string {
-	cleaned := make([]string, 0, len(factKinds))
-	seen := make(map[string]struct{}, len(factKinds))
-	for _, factKind := range factKinds {
-		factKind = strings.TrimSpace(factKind)
-		if factKind == "" {
-			continue
-		}
-		if _, ok := seen[factKind]; ok {
-			continue
-		}
-		seen[factKind] = struct{}{}
-		cleaned = append(cleaned, factKind)
-	}
-	return cleaned
 }

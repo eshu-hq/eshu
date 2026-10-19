@@ -8,15 +8,16 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fixtures"
 )
 
 // fixturePriorConfigAddressesArray wraps one or more parser rows into the JSON
 // array shape returned by listPriorConfigAddressesQuery. The query SELECTs the
 // terraform_resources array per file, so each row in the result is one such
-// array. This helper mirrors fixtureConfigResourcesArray for the prior-gen
+// array. This helper mirrors fixtures.ConfigResourcesArray for the prior-gen
 // shape.
 func fixturePriorConfigAddressesArray(rows ...string) []byte {
-	return fixtureConfigResourcesArray(rows...)
+	return fixtures.ConfigResourcesArray(rows...)
 }
 
 func TestPostgresDriftEvidenceLoaderPriorConfigDeclarationActivatesRemovedFromConfig(t *testing.T) {
@@ -54,7 +55,7 @@ func TestPostgresDriftEvidenceLoaderPriorConfigDeclarationActivatesRemovedFromCo
 			// 7. prior-config addresses walk. The prior gen DID declare this address.
 			{rows: [][]any{{
 				"gen-a1",
-				fixturePriorConfigAddressesArray(fixtureConfigParserRow("aws_iam_policy", "legacy")),
+				fixturePriorConfigAddressesArray(fixtures.ConfigParserRow("aws_iam_policy", "legacy")),
 			}}},
 			// 8. prior-generation terraform_modules walk: no module calls in this fixture.
 			{rows: [][]any{}},
@@ -165,7 +166,7 @@ func TestPostgresDriftEvidenceLoaderPriorConfigOutsideDepthWindowLeavesFlagFalse
 			// prior-config walk with depth=1: most recent prior gen has no entry for this address.
 			{rows: [][]any{{
 				"gen-a1",
-				fixturePriorConfigAddressesArray(fixtureConfigParserRow("aws_iam_role", "unrelated")),
+				fixturePriorConfigAddressesArray(fixtures.ConfigParserRow("aws_iam_role", "unrelated")),
 			}}},
 			// prior-generation terraform_modules walk: no module calls in this fixture.
 			{rows: [][]any{}},

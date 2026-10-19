@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fixtures"
 )
 
 // Integration tests for module-aware drift joining (issue #169 / ADR
@@ -37,7 +38,7 @@ func TestLoadConfigByAddressAppliesModulePrefixForCalleeFiles(t *testing.T) {
 				fixtureModuleCallRow("vpc", "./modules/vpc", "main.tf"),
 			)}}},
 			// 2. terraform_resources: one resource inside the callee.
-			{rows: [][]any{{fixtureConfigResourcesArray(
+			{rows: [][]any{{fixtures.ConfigResourcesArray(
 				fixtureConfigParserRowAtPath("aws_instance", "web", "modules/vpc/main.tf"),
 			)}}},
 			// 3. snapshot serial=0.
@@ -85,7 +86,7 @@ func TestLoadConfigByAddressExpandsSameCalleeForMultipleCallers(t *testing.T) {
 				fixtureModuleCallRow("vpc_b", "./modules/vpc", "main.tf"),
 			)}}},
 			// 2. terraform_resources: ONE entry under the shared callee.
-			{rows: [][]any{{fixtureConfigResourcesArray(
+			{rows: [][]any{{fixtures.ConfigResourcesArray(
 				fixtureConfigParserRowAtPath("aws_instance", "web", "modules/vpc/main.tf"),
 			)}}},
 			// 3. snapshot serial=0.
@@ -126,7 +127,7 @@ func TestLoadConfigByAddressNestedChainProducesMultiLevelAddress(t *testing.T) {
 				{fixtureModuleCallsArray(fixtureModuleCallRow("vpc", "./vpc", "modules/platform/main.tf"))},
 			}},
 			// 2. Resource inside the inner callee.
-			{rows: [][]any{{fixtureConfigResourcesArray(
+			{rows: [][]any{{fixtures.ConfigResourcesArray(
 				fixtureConfigParserRowAtPath("aws_instance", "web", "modules/platform/vpc/main.tf"),
 			)}}},
 			// 3-4. snapshot empty path.
@@ -163,7 +164,7 @@ func TestLoadConfigByAddressRootModuleResourcesKeepIdenticalAddress(t *testing.T
 			// 1. terraform_modules: empty.
 			{rows: [][]any{}},
 			// 2. resource at repo root.
-			{rows: [][]any{{fixtureConfigResourcesArray(
+			{rows: [][]any{{fixtures.ConfigResourcesArray(
 				fixtureConfigParserRowAtPath("aws_iam_role", "svc", "main.tf"),
 			)}}},
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 0, "gen-state-current")}},
@@ -207,7 +208,7 @@ func TestLoadConfigByAddressMissingTerraformModulesFactDegradesGracefully(t *tes
 			// terraform_modules: empty (the bug case).
 			{rows: [][]any{}},
 			// resource that "should" be prefixed if we had module facts.
-			{rows: [][]any{{fixtureConfigResourcesArray(
+			{rows: [][]any{{fixtures.ConfigResourcesArray(
 				fixtureConfigParserRowAtPath("aws_instance", "web", "modules/vpc/main.tf"),
 			)}}},
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 0, "gen-state-current")}},
@@ -311,7 +312,7 @@ func TestLoadPriorConfigAddressesUsesPriorGenerationModulePrefixOnRename(t *test
 			)}}},
 			// 2. config-side CURRENT gen: same callee resource now projects to
 			//    module.network.aws_instance.web.
-			{rows: [][]any{{fixtureConfigResourcesArray(
+			{rows: [][]any{{fixtures.ConfigResourcesArray(
 				fixtureConfigParserRowAtPath("aws_instance", "web", "modules/vpc/main.tf"),
 			)}}},
 			// 3. snapshot serial=5.

@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fixtures"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -372,7 +373,7 @@ func (r *queueFakeRows) Scan(dest ...any) error {
 	if r.index >= len(r.rows) {
 		return errors.New("scan called without row")
 	}
-	row := padQueueFakeRow(r.rows[r.index], len(dest))
+	row := fixtures.PadQueueFakeRow(r.rows[r.index], len(dest))
 	if len(dest) != len(row) {
 		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))
 	}

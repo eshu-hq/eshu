@@ -9,35 +9,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fixtures"
 )
 
-// fixtureConfigParserRow mirrors the parser's parsed_file_data.terraform_resources
-// row shape from hclBasePayload in go/internal/parser/hcl/parser.go. The loader
-// reconstructs the canonical address from resource_type + resource_name (the
-// parser does not emit a single "address" key on the config side).
-func fixtureConfigParserRow(resourceType, resourceName string) string {
-	return `{
-		"name":"` + resourceType + `.` + resourceName + `",
-		"resource_type":"` + resourceType + `",
-		"resource_name":"` + resourceName + `",
-		"path":"main.tf",
-		"lang":"hcl",
-		"line_number":1
-	}`
-}
-
-// fixtureConfigResourcesArray wraps one or more parser rows into the JSON
-// array shape stored at parsed_file_data.terraform_resources.
-func fixtureConfigResourcesArray(rows ...string) []byte {
-	out := "["
-	for i, row := range rows {
-		if i > 0 {
-			out += ","
-		}
-		out += row
-	}
-	return []byte(out + "]")
-}
+// The parser-shaped config builders live in the fixtures leaf (issue
+// #8552); the remaining fixtures below are tfstate-only shapes.
 
 // fixtureStatePayload returns the JSON shape the collector emits for one
 // terraform_state_resource fact, mirroring
@@ -87,7 +63,7 @@ func TestPostgresDriftEvidenceLoaderConfigOnlyAddress(t *testing.T) {
 			{rows: [][]any{}},
 			// 2. config-side query: one terraform_resources file with one entry.
 			{rows: [][]any{{
-				fixtureConfigResourcesArray(fixtureConfigParserRow("aws_iam_role", "svc")),
+				fixtures.ConfigResourcesArray(fixtures.ConfigParserRow("aws_iam_role", "svc")),
 			}}},
 			// 3. current snapshot lookup: serial=0 (no prior possible).
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 0, "gen-state-current")}},
@@ -198,7 +174,7 @@ func TestPostgresDriftEvidenceLoaderPriorGenerationFetched(t *testing.T) {
 			{rows: [][]any{}},
 			// config-side: lambda still declared.
 			{rows: [][]any{{
-				fixtureConfigResourcesArray(fixtureConfigParserRow("aws_lambda_function", "worker")),
+				fixtures.ConfigResourcesArray(fixtures.ConfigParserRow("aws_lambda_function", "worker")),
 			}}},
 			// snapshot: serial=5 (prior possible).
 			{rows: [][]any{fixtureSnapshotRow("lineage-1", 5, "gen-state-current")}},
@@ -257,7 +233,7 @@ func TestPostgresDriftEvidenceLoaderLineageRotationFlagged(t *testing.T) {
 			// terraform_modules walk (#169): no module calls in this fixture.
 			{rows: [][]any{}},
 			{rows: [][]any{{
-				fixtureConfigResourcesArray(fixtureConfigParserRow("aws_lambda_function", "worker")),
+				fixtures.ConfigResourcesArray(fixtures.ConfigParserRow("aws_lambda_function", "worker")),
 			}}},
 			// snapshot: lineage-2 current.
 			{rows: [][]any{fixtureSnapshotRow("lineage-2", 5, "gen-state-current")}},

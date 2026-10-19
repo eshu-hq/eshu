@@ -49,11 +49,12 @@ metric, span, or log name changes.
   own issue with EXPLAIN proof per `eshu-postgres-rigor`.
 - `flattenStateAttributes` must agree with the parser's
   `ctyValueToDriftString` at the leaf level (cross-package encoding test).
-- `cleanFactKinds` here is a copy of the root's copy in
-  `facts_filtered.go`; keep the two identical or hoist to a leaf package.
-- `fixtureConfigParserRow` / `fixtureConfigResourcesArray` exist in both
-  this package's tests and the root's `runtime_drift_config_fixtures_test.go`
-  (test files cannot be imported); keep them identical.
+- Filter cleanup is `filters.CleanFactKinds` (issue #8552): do not
+  reintroduce a local copy; the root imports this package, so a shared
+  helper must live in the leaf.
+- Parser-shape config fixtures are `fixtures.ConfigParserRow` /
+  `fixtures.ConfigResourcesArray` (issue #8552); the remaining
+  fixtures in this package's tests are tfstate-only shapes.
 - Do not import the parent `postgres` package: that is an import cycle.
 
 No-Regression Evidence: `go test ./internal/storage/postgres/...` green on
