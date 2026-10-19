@@ -13,9 +13,10 @@ import (
 // against the node identity its upsert statement will address (#8359). A
 // MATCH-miss no-ops silently with a success status, so the writer reports
 // per-label attempted-vs-matched counts and the unmatched uids; the handler
-// WARNs on them without failing the work item (projector-to-reducer ordering
-// is not proven total, so a miss can be a race rather than a defect — the
-// hard-error question is tracked separately).
+// WARNs on them and fails the work item non-retryably (#8587). Unmatched
+// uids are deterministic identity divergences, never races: canonical
+// projection writes synchronously before this domain's intent is enqueued,
+// so the projector provably never derives a missed uid.
 //
 // The check is pure Go over admitted rows: no backend read, no statement
 // change. A row counts as matched when its statement cannot miss — a

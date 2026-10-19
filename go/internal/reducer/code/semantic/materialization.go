@@ -174,19 +174,22 @@ func (h Handler) Handle(
 		summary = fmt.Sprintf("retracted semantic entities across %d repositories", len(repoIDs))
 	}
 
-	if len(writeResult.UnmatchedEntityIDs) > 0 {
+	// Identity-divergent rows fail the work item (#8587). Unmatched uids
+	// are deterministic, never races: the projector provably never derives
+	// that uid (canonical projection writes synchronously before this
+	// domain's intent is enqueued), so no retry can heal them. The error
+	// type carries no Retryable() method — IsRetryable defaults false —
+	// and reports the projection_bug triage class, so the queue
+	// dead-letters the item once as manual-review poison instead of
+	// retry-looping it. Matched rows already landed; the counts say how many.
+	unmatched := len(writeResult.UnmatchedEntityIDs) > 0
+	if unmatched {
 		logSemanticEntityUnmatchedUIDs(ctx, intent, writeResult)
-		// Identity-divergent rows fail the work item (#8587). Unmatched uids
-		// are deterministic, never races: the projector provably never
-		// derives that uid (canonical projection writes synchronously before
-		// this domain's intent is enqueued), so no retry can heal them. The
-		// error is deliberately NOT retryable — IsRetryable defaults false
-		// for plain errors — so the queue dead-letters the item once instead
-		// of retry-looping a poison pill. Matched rows already landed; the
-		// counts below say exactly how many.
-		return reducercontract.Result{}, semanticEntityIdentityDivergentError(writeResult)
 	}
 
+	// The completion record emits on the failure path too: dashboards keyed
+	// on it must not go blind on exactly the poison-pill cases, and the
+	// attempted-vs-matched counts are the operator's proof of what landed.
 	logSemanticEntityMaterializationCompleted(ctx, semanticEntityMaterializationTiming{
 		intent:                  intent,
 		factCount:               len(envelopes),
@@ -206,6 +209,10 @@ func (h Handler) Handle(
 		phasePublishDuration:    phasePublishDuration,
 		totalDuration:           time.Since(totalStart),
 	})
+
+	if unmatched {
+		return reducercontract.Result{}, newSemanticEntityIdentityDivergentError(writeResult)
+	}
 
 	return reducercontract.Result{
 		IntentID:        intent.IntentID,

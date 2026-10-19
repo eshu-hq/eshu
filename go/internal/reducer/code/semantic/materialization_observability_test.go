@@ -6,6 +6,8 @@ package semantic
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -218,6 +220,46 @@ func TestSemanticEntityMaterializationHandlerFailsOnIdentityDivergentUIDs(t *tes
 	}
 	if reducercontract.IsRetryable(err) {
 		t.Errorf("Handle() error is retryable; an identity-divergent uid can never heal on retry (poison pill)")
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(err, &classified) {
+		t.Fatalf("Handle() error %T carries no FailureClass(); telemetry would log reducer_failure instead of projection_bug", err)
+	}
+	if classified.FailureClass() != "projection_bug" {
+		t.Errorf("Handle() error FailureClass() = %q, want projection_bug (manual-review poison bucket)", classified.FailureClass())
+	}
+}
+
+// TestSemanticEntityIdentityDivergentErrorTruncatesUIDs pins the P3 bound:
+// past maxSemanticUnmatchedUIDsLogged uids the message names the capped
+// prefix and reports the overflow count instead of growing unbounded.
+func TestSemanticEntityIdentityDivergentErrorTruncatesUIDs(t *testing.T) {
+	uids := make([]string, 0, maxSemanticUnmatchedUIDsLogged+2)
+	for i := 0; i < maxSemanticUnmatchedUIDsLogged+2; i++ {
+		uids = append(uids, fmt.Sprintf("uid-%d", i))
+	}
+	err := newSemanticEntityIdentityDivergentError(EntityWriteResult{
+		RowsAttemptedByLabel: map[string]int{"Function": len(uids)},
+		RowsMatchedByLabel:   map[string]int{},
+		UnmatchedEntityIDs:   uids,
+	})
+	if err == nil {
+		t.Fatalf("newSemanticEntityIdentityDivergentError() = nil, want failure")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "uid-0") {
+		t.Errorf("error message = %q, must name the capped uid prefix", msg)
+	}
+	for _, overflow := range []string{
+		fmt.Sprintf("uid-%d", maxSemanticUnmatchedUIDsLogged),
+		fmt.Sprintf("uid-%d", maxSemanticUnmatchedUIDsLogged+1),
+	} {
+		if strings.Contains(msg, overflow+" ") || strings.Contains(msg, overflow+"]") {
+			t.Errorf("error message = %q, must not name overflow %s", msg, overflow)
+		}
+	}
+	if !strings.Contains(msg, "truncated=2") {
+		t.Errorf("error message = %q, must report truncated=2", msg)
 	}
 }
 

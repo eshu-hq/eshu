@@ -3,22 +3,25 @@
 ## Change
 
 `go/internal/reducer/code/semantic/materialization.go`: after the
-`logSemanticEntityUnmatchedUIDs` WARN, `Handle` returns
-`semanticEntityIdentityDivergentError(writeResult)` (new constructor in
-`materialization_helpers.go`) instead of succeeding. A plain `fmt.Errorf`
-is deliberate: `reducercontract.IsRetryable` defaults false for errors
-that do not opt in, so the queue dead-letters the item once
-(projection_bug/manual-review bucket) instead of retry-looping a
-poison pill. No Cypher change, no queue/lease change, no new retry
-machinery; race-plausible rows (verify counts them matched) still
-succeed WARN-free.
+`logSemanticEntityUnmatchedUIDs` WARN, `Handle` emits the completion
+record and returns `newSemanticEntityIdentityDivergentError(writeResult)`
+(new typed error in `materialization_helpers.go`) instead of succeeding.
+The type carries no `Retryable()` method:
+`reducercontract.IsRetryable` defaults false, so the queue dead-letters
+the item once instead of retry-looping a poison pill. `FailureClass()`
+reports the `projection_bug` triage class, so the telemetry
+`failure_class` attribute agrees with the durable dead-letter row
+(`ClassifyFailure` defaults unclassified errors to the same bucket) and
+the backlog drain keeps refusing the row as manual-review poison. No
+Cypher change, no queue/lease change, no new retry machinery;
+race-plausible rows (verify counts them matched) still succeed WARN-free.
 
 ## Ordering proof (criterion 1)
 
 Within-generation ordering is total by construction:
 `go/internal/projector/runtime/projection.go` runs `writeCanonicalProjection`
 (line 206, synchronously MERGEs canonical nodes via `CanonicalNodeWriter`)
-before `IntentWriter.Enqueue` (line 218). A derivation-agreeing row's node
+before `IntentWriter.Enqueue` (line 230). A derivation-agreeing row's node
 therefore exists before its semantic work item can run. Residual windows
 are stale-side only: no freshness gate on the semantic handler means a
 superseded generation can still write (last-writer-wins on cleared
