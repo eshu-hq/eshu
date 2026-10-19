@@ -309,11 +309,8 @@ require_direct_family_lib "ec2-uses-profile assert-edges domain" "-domain ec2_us
 require_direct_family_lib "ec2-uses-profile drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "s3-logs-to assert-edges domain" "-domain s3_logs_to"
 require_direct_family_lib "s3-logs-to drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
-# The three vault families (#6228 slice A) share ONE lib file of their own
-# (scripts/lib/ifa_vault_family_live.sh, split under the tooling line cap),
-# so one helper covers all three. Their needles still name each family's own
-# domain, so the shared file cannot let one family's wiring pass for
-# another's.
+# The vault families share one lib file (ifa_vault_family_live.sh); needles
+# still name each family's own domain, so one family's wiring cannot pass for another's.
 require_vault_family_lib() {
 	local label="$1" needle="$2"
 	[[ "$(_ifa_det_count_code_matches "${needle}" "${vault_family_lib}")" -ge 1 ]] \
