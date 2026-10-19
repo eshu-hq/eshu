@@ -50,7 +50,7 @@ passed only in its folded form. The rows below are the bars each deliverable
 owes. Results are in [Prove-First Results](#prove-first-results).
 
 **Rule for every owed bar** (round 4): P1', P1'', P1''', P2', P1q, P9a to P9d,
-and P10' are each measured by a live test or benchmark committed in the
+P10', and P11 are each measured by a live test or benchmark committed in the
 implementing PR's tree and cited there by name, never by scratch code. The
 scratch harness behind the first-run results is not committed, and a bar that
 rested on it could not be re-run. P2' already said this for PR 3; it now applies
@@ -81,9 +81,10 @@ Checked in the PR that builds the piece: P6 (index-status grouping) and P8
 | P1q | 2q step B is a short fenced section and the fleet keeps moving | On Ww5000 after step A has run, time step B (lock, mark residual, recheck, commit); time step A per 10,000-row chunk with `EXPLAIN (ANALYZE, BUFFERS)`; run claim-, heartbeat-, and enqueue-shaped statements on unrelated scopes across the step B sections | Step B p99 ≤ 250 ms (the fenced pass touches only the residual); step A ≤ 1 s per chunk, index scan on `fact_work_items_scope_generation_idx` (its leading column is `scope_id`, `migrations/005_fact_work_items.sql:30-31`); and the F11 fleet-throughput bar: unrelated claim throughput during the step B sections ≥ 90% of the no-retirement baseline over the whole run, with the per-statement max (unrelated `UPDATE` p99 ≤ 1.3 s, as P1'') as the second bar | Smaller step A chunks; lower the residual; shorten the step B wait |
 | P9a | The 2b' predicate holds a pre-barrier writer | RED/GREEN on real Postgres, P9H shape: a 4 s write, barrier at t=300 ms; 20 runs | The predicate stays > 0 until release (about 4 s) and reads 0 within one poll after; a cycle claimed after the barrier does not block it; no false pass | Revisit the barrier |
 | P9b | The `claimed_at` arm is free on the heartbeat path | `ClaimPartitionLease` benchmark before and after the arm | Median ns/op delta ≤ 1% | Move the epoch out of the claim statement |
-| P9c | The 2b deletes use their indexes | `EXPLAIN` of both 2b deletes at 3x QA scale | Index scans on the named indexes; ≤ 1 s per 10,000-row chunk; 0 rows remain | Add index (new proof) |
+| P9c | The 2b deletes use their indexes | `EXPLAIN` of the 2b intent deletes and the `source_repo_id` relationship deletes at 3x QA scale (only `resolved_relationships` has that index today) | Index scans on the named indexes; ≤ 1 s per 10,000-row chunk; 0 rows remain | Add index (new proof) |
 | P9d | 2b' latency is known | p99 cycle time per shared domain on the QA shape | State it. If > 5 min, the readback already names the partition | Runbook step for the operator |
-| P10' | The runtime 2z graph census is index-anchored | `PROFILE` of the 2z census statements, including the G5p `Parameter` count | db hits ≤ 2x at 10x store | Restrict the census to the label and edge families in the runner's plan table |
+| P10' | The runtime 2z census is index-anchored | `PROFILE` of the 2z graph census, including the G5p `Parameter` count, and `EXPLAIN` of the 2z Postgres counts by scope, `repository_id`, and `source_repo_id` | db hits ≤ 2x at 10x store; index scans for the Postgres counts | Restrict the census to the label and edge families in the runner's plan table; add index (new proof) |
+| P11 | The new filters and indexes are cheap on the write path | Benchmark the per-commit backfill with the open-retirement filter in its `LatestGenerationCTE` loaders, and the canonical File and Parameter upserts with the `File.repo_id` and `Parameter.path` range indexes, on Neo4j | Median delta ≤ 1% each, at least 6 runs | Filter in Go from a cached open set; drop an index and anchor differently |
 
 Checked in the PR that builds the piece:
 
@@ -177,7 +178,7 @@ Real-Postgres tests run in the `reducer-contention` gate. Graph tests run under
 | Concurrent re-admitting commits stamp once | `TestReadmissionStampsOnce` |
 | Webhook, backfill, replay, and reindex during retiring | `TestWebhookTriggerFailsRepositoryRetiring`, `TestBackfillSkipsRetiringRepo`, `TestDeadLetterReplayCannotResurrectRetiringWork`, `TestReindexRefusesRetiringRepository` |
 | Dry run counts the four grant tables and sets `will_drop_grants` | `TestRetirementDryRunReportsGrantCounts` |
-| From phase 1 on, a per-commit backfill skips the retiring repository's facts, and the resolver refuses intents whose acceptance unit is retiring | `TestRetirementFencesCrossRepoSources` |
+| From phase 1 on, a per-commit backfill skips the retiring repository's facts as a source | `TestRetirementFencesCrossRepoSources` |
 | A re-admitted repository reads `indexed` on the list, index-status, and freshness surfaces | `TestReadmittedRepositoryReadsIndexed` |
 
 ### Deliverable 2
@@ -254,7 +255,7 @@ Gates are from `specs/ci-gates.v1.yaml`.
 | --- | --- | --- |
 | 1 | These design files, the evidence note (`docs/internal/evidence/7766-retirement-prove-first-results.md`), and its raw outputs, SQL, and shell wrappers (`docs/internal/evidence/7766-retirement-prove-first/`) | markdown-file-cap, docs-*, doc-citations, measurement-citations |
 | 2 | Refactor: move the retention prune steps and SQL to a leaf under `storage/postgres/retention/` (it holds only `statements/` today) with no behavior change, so the runner can call the same step list. `generation_retention.go` is 474 lines against the 500-line cap at `f4f14a4096`. Moving files out of `storage/postgres` needs no dirgate action; growth needs a `Dirgate-Growth:` commit trailer (`go/cmd/dirgate`). Deliverable 2 consumes it; Deliverable 1 does not depend on it. | go-file-cap, go-dir-gate, reducer-contention, package-docs |
-| 3 | Marker migration (`repository_retirements`, number 207 at this check) + leaf `storage/postgres/retirement` (marker store, folded commit gate, commit-path benchmark for P2'); gates in `ingestion.go` (499 lines at `f4f14a4096`, one under the cap: extract the finalized-skip rollback helper first and share it), backfill, recovery skip reasons, reindex refusal; refusal counter. No `claimed_at` change. | migration-immutability, reducer-contention, telemetry-coverage, go-file-cap |
+| 3 | Marker migration (`repository_retirements`, number 207 at this check) + leaf `storage/postgres/retirement` (marker store, folded commit gate, commit-path benchmark for P2'); gates in `ingestion.go` (499 lines at `f4f14a4096`, one under the cap: extract the finalized-skip rollback helper first and share it), backfill (the deferred engine, the targeted pass, and the per-commit source filter, with P11), recovery skip reasons, reindex refusal; refusal counter. No `claimed_at` change. | migration-immutability, reducer-contention, telemetry-coverage, go-file-cap |
 | 4 | Webhook handoff gate (`collector/repo/git`, edits only; 70 non-test files) | go-dir-gate, telemetry-coverage |
 | 4a | `Fail` lock-order fix: take the scope row first under a `lock_timeout`, defer-retry on `55P03`, correct the comment at `projector_queue_ack.go:65-73`. Projector code, not retirement code. Must land before PR 5. | reducer-contention, go-file-cap |
 | 5 | `repositoryretirement` service; phase 1 with the precheck, the deadline, 7d as a mark, the projector-lease wait and recheck (I0), and the scope-bound drain and recheck in `rebuild/reset` on top of the extracted #7852 acquisition and a generic retry wrapper; admin leaf routes (create, get, list, dry run with grant counts); audit EventType; OpenAPI fragment | openapi-surface, route-coverage, reducer-contention, telemetry-coverage |
@@ -270,7 +271,7 @@ can follow PR 3.
 
 | PR | Content | Gates |
 | --- | --- | --- |
-| 6 | Graph library: retract plan, G5f, G5p, demotion, coverage test, live Neo4j test; Neo4j range indexes on `Parameter.path` and `File.repo_id` | race-graph-writes, query-plan-regression |
+| 6 | Graph library: retract plan, G5f, G5p, demotion, coverage test, live Neo4j test; Neo4j range indexes on `Parameter.path` and `File.repo_id`, with P11 | race-graph-writes, query-plan-regression |
 | 6a | `claimed_at` migration and the `claimPartitionLeaseSQL` epoch arm with the P9b benchmark; the lease-domain test | migration-immutability, reducer-contention |
 | 7 | Reducer runner (2a, 2q, 2b, 2b', 2c, 2d, 2d', 2e, 2z, phase 3) in `reducer/retirement` + `cmd/reducer` wiring; the table census test; grants pre-count; 2q and 2z telemetry | reducer-contention, race-graph-writes, telemetry-coverage, env-registry-doc |
 

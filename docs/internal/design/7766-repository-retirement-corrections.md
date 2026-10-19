@@ -304,11 +304,16 @@ in the page named:
 - F1 (P1): G5p could delete a live repository's Parameters when a stale scope
   shares its root after a re-key. A shared root now skips G5p, and G5f retracts
   the retired id's Files when its Repository node is gone (runner).
-- F2 (P1): other repositories' per-commit backfill and resolver could keep
-  writing intents keyed to the retiring repository after 2b. Both are fenced
-  from phase 1, 2b deletes the sourced relationship rows first, and 2z counts by
-  `repository_id` and resumes Postgres residue at 2b (main design, concurrency,
-  runner, census).
+- F2 (raised as P1, re-graded P2 in round 2): other repositories' per-commit
+  backfill could keep writing relationship rows sourced from the retiring
+  repository after 2b. The round-1 claim that their resolvers would also emit
+  intents keyed to it was withdrawn: `partitionResolvedOwnership` keeps only
+  edges sourced in the resolving scope. The backfill source is fenced from phase
+  1, 2b deletes the sourced relationship rows first, and 2z counts them and
+  resumes Postgres residue at 2b (main design, concurrency, runner, census).
+- Round 2 (P2): bars for the new deletes, filters, and indexes; the barrier
+  re-stamp on a 2b re-run; the refusal-counter labels and the `lock_timeout`
+  error; and the resolver gate, dropped as unneeded. Three P3s were fixed inline.
 - F3 to F8 (P2): the evidence note's name repeated its directory; five
   citations did not support their claims; the #7852 reuse section contradicted
   itself; steps 5, 7, and 8 ran under step 3's long `lock_timeout`; a re-admitted

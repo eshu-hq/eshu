@@ -90,7 +90,9 @@ shared, code_calls, and repo_dependency).
   `scope_id` leading). The same for `shared_projection_unroutable_intents`.
   Assert 0 rows remain by both predicates, and commit. Then, in a later
   statement, `UPDATE repository_retirements SET intent_barrier_at =
-  clock_timestamp()`. The barrier must postdate the delete's commit.
+  clock_timestamp()`. The barrier must postdate the delete's commit. A re-run of
+  2b that deletes rows sets it again the same way; it only ever moves later, so
+  the re-run 2b' waits for every lease claimed before the new delete.
 - **2b', lease-epoch wait.** The row stays `state=blocked`,
   `blocked_reason=shared_lease_live`, until this returns 0:
 
@@ -208,15 +210,18 @@ at all, so the restriction removes nothing 2b' could have protected.
   deletes acceptance rows of superseded generations. That is harmless: the
   retention transaction deletes the generation's intents first
   (`generation_retention.go:405-406`), so it creates no orphan.
-- **I4.** Other repositories' reducers can still emit `repo_dependency`
-  intents keyed to the retired repository (`RepositoryID` and
-  `AcceptanceUnitID` are the source repository,
-  `reducer/crossrepo/cross_repo_intent_row.go:132-142`), from evidence that a
-  per-commit backfill sourced from it. From phase 1 on, the backfill source
-  filter and the resolver gate refuse new ones (writer table in the main
-  design); 2b deletes the evidence and the intents already written; 2z counts
-  intents by `repository_id`. An edge written for the retired repository by a
-  pre-barrier cycle is harmless: 2c retracts it, and that cycle's `MarkIntentsCompleted` matches 0
+- **I4.** Other repositories' work can still write Postgres rows sourced from
+  the retired repository: a per-commit backfill writes evidence sourced from it
+  under the onboarding repository's generation, and candidates are stored
+  without an ownership filter. It cannot turn them into `repo_dependency` edges
+  for the retired repository: the resolver keeps only edges whose source is one
+  of its own scope's repositories (`partitionResolvedOwnership`,
+  `reducer/crossrepo/cross_repo_resolution_ownership.go:71-92`, on whenever the
+  generation has a git `repository` fact; wired at `cmd/reducer/main.go:312`).
+  From phase 1 on, the backfill source filter stops new evidence (writer table
+  in the main design); 2b deletes the rows already written; 2z counts them by
+  `source_repo_id`, and intents by `repository_id`. An edge written for the
+  retired repository by a pre-barrier cycle is harmless: 2c retracts it, and that cycle's `MarkIntentsCompleted` matches 0
   rows for the intents 2b deleted. Since #7853 the call returns that count and
   the worker logs that it marked fewer intents than requested. That WARN is
   expected during 2b and 2b'.
@@ -252,9 +257,9 @@ process 0.
 
 With 2b first and I3, retirement creates no orphans. 2q runs before 2b so no
 reducer handler can emit shared intents for the scopes after 2b's delete: 2q
-ends only when no reducer row of the scopes is claimable or leased. Handlers of
-other scopes can still emit intents keyed to the repository; I4 names their
-fence. The
+ends only when no reducer row of the scopes is claimable or leased. Other
+scopes can still write relationship rows sourced from the repository; I4 names
+their fence. The
 zero-count assertion after 2b is the #7766 guard. A drain for orphans that
 already exist is a separate pre-existing bug (Out Of Scope in the corrections
 file).

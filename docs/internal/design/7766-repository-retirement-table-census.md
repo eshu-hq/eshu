@@ -172,9 +172,9 @@ The three relationship tables need both predicates:
   hand. Each 2d batch deletes the three tables' rows `WHERE generation_id =
   ANY($batch_generation_ids)` in its own transaction. Retention has no such
   step, so this is a runner statement, not part of the ADR 2248 cascade. The
-  `source_repo_id` rows go earlier, at 2b, before the intent delete: they are
-  what other repositories' resolvers would turn into new intents keyed to the
-  retired repository (concurrency, I4). 2e then deletes the rest `WHERE
+  `source_repo_id` rows go earlier, at 2b, before the intent delete, so the
+  Postgres residue census finds none; other repositories' backfills write them
+  under their own generations (concurrency, I4). 2e then deletes the rest `WHERE
   source_repo_id = $repo OR generation_id IN (SELECT generation_id FROM
   relationship_generations WHERE scope = ANY($scopes))`, and deletes
   `relationship_generations` last, because it is the only surviving map from

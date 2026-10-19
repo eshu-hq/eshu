@@ -20,7 +20,7 @@ Deliverable 2 completes what Deliverable 1 starts. Deliverable 1 leaves the
 scope `pending`, fenced, and reported `retiring`. The runner takes it through
 the graph retraction, the purge, the residue census, and phase 3, so the
 tombstone reaches `complete` and the repository reports `retired`. It needs
-P1q, P9a to P9d, and P10' before code lands (see the
+P1q, P9a to P9d, P10', and P11 before code lands (see the
 [prove-first table](7766-repository-retirement-proof-and-rollout.md#prove-first-table)).
 
 ## Phase 2: Graph, Then Bounded Purge
@@ -179,8 +179,9 @@ resumes at `phase` and the cursor:
 - the settle rides in the last 2d batch's transaction, so a crash resumes at
   `census` with `next_attempt_at` already set and the lease wait is not skipped;
 - a graph statement re-run deletes nothing;
-- 2q and 2b re-run to zero. `intent_barrier_at` is set once, after the delete
-  commits, and a re-run never moves it earlier;
+- 2q and 2b re-run to zero. `intent_barrier_at` is set after a delete
+  commits. A re-run of 2b that deletes rows sets it again, so it only moves
+  later, and a re-run never moves it earlier;
 - graph counts are at most once, because a statement that commits before its
   cursor persists is not re-counted. This is the same caveat as 7324.
 
@@ -257,7 +258,8 @@ DETACH DELETE p
   Parameters sit under the same root. When another Repository's `path` equals
   the root or is a parent of it, the runner skips G5p and the 2z Parameter
   count, and records `parameter_retract=skipped_root_shared` with the other
-  repository id in the census. Parameters that only the retired copy wrote stay;
+  repository id in `failure_details`, which a `complete` row keeps. The check
+  runs before each G5p batch, with the nested-root read. Parameters that only the retired copy wrote stay;
   no key reaches them, and they are a stated residual.
 - **`$nested_root_prefixes`** is `path + '/'` of every other Repository whose
   `path` starts with `$root_prefix`, read just before each G5p batch through the
