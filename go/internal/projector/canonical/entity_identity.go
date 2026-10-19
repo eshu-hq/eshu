@@ -53,7 +53,6 @@ var canonicalNamePathLineEntityLabels = map[string]struct{}{
 	"Trait":                   {},
 	"TypeAnnotation":          {},
 	"Union":                   {},
-	"Variable":                {},
 }
 
 func canonicalGraphEntityID(

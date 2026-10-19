@@ -47,10 +47,26 @@ func TestBuildCanonicalMaterializationCanonicalizesDuplicateCodeEntityIdentity(t
 	}
 }
 
+// TestVariableIdentityIsSingularlySemanticOwned pins the #8588 ruling: the
+// semantic writer owns Variable under the canonical derivation, so the
+// canonical name-path-line set must not contain the label. Re-adding it
+// resurrects the double identity (a canonical derived uid beside the
+// semantic MERGEd uid), and this test fails first.
+func TestVariableIdentityIsSingularlySemanticOwned(t *testing.T) {
+	t.Parallel()
+
+	if _, ok := canonicalNamePathLineEntityLabels["Variable"]; ok {
+		t.Fatal("Variable is in canonicalNamePathLineEntityLabels: the canonical path would derive a second uid beside the semantic writer's")
+	}
+	if got := canonicalGraphEntityID("Variable", "repo-abc", "src/a.ts", "Variable", "x", 1, "incoming-id"); got != "incoming-id" {
+		t.Fatalf("canonicalGraphEntityID(Variable) = %q, want incoming ID preserved (semantic owns the uid)", got)
+	}
+}
+
 func TestCanonicalGraphEntityIDPreservesIncomingIDForNonNamePathLineLabels(t *testing.T) {
 	t.Parallel()
 
-	for _, label := range []string{"K8sResource", "TerraformModule", "Module", "Parameter"} {
+	for _, label := range []string{"K8sResource", "TerraformModule", "Module", "Parameter", "Variable"} {
 		got := canonicalGraphEntityID(
 			label,
 			"repo-abc",

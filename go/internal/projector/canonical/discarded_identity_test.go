@@ -29,10 +29,11 @@ func TestDiscardsIncomingEntityID(t *testing.T) {
 		{entityType: "TypeAlias", want: false},
 		{entityType: "Component", want: false},
 		{entityType: "Module", want: false},
-		// Variable sits in the canonical set even though phase E skips the
-		// label (see the entityTypeLabelMap comment): the predicate reports
-		// the set, not the phase skip.
-		{entityType: "Variable", want: true},
+		// Variable is semantic-owned (#8588): phase E skips the label and the
+		// semantic writer MERGEs it under the incoming uid, so the projector
+		// preserves rather than re-derives. Flagging it must-derive would be
+		// MATCH-miss telemetry noise.
+		{entityType: "Variable", want: false},
 		{entityType: "Bogus", want: false},
 		{entityType: "", want: false},
 	}
