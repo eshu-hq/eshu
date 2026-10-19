@@ -115,3 +115,34 @@ func TestDefaultEngineParsePathKeepsPlainCallsOnlyUnderTheClosedRule(t *testing.
 		})
 	}
 }
+
+// TestDefaultEngineParsePathSkipsNamespaceMemberCallsOfModuleReboundImports
+// pins the #8310 comment repro for the #7601 namespace-member keys: a
+// `module fmt` declaration rebinds the `import * as fmt` name where the open
+// redeclaredImportNames rule does not look. The closed plain rule drops every
+// plain key of that name file-wide, so both the inner call (which reads the
+// local module) and the outer call stay unkeyed; the outer drop is the stated
+// recall cost of closing the rule.
+func TestDefaultEngineParsePathSkipsNamespaceMemberCallsOfModuleReboundImports(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	writeTestFile(t, filepath.Join(repoRoot, "package.json"), `{"name": "consumer-app", "dependencies": {"@acme/log": "1"}}`)
+	filePath := filepath.Join(repoRoot, "src", "repro.ts")
+	writeTestFile(t, filePath, "import * as fmt from \"@acme/log\";\nnamespace N {\n  module fmt { export function f() {} }\n  fmt.f();\n}\nfmt.f();\n")
+	got := parsePackageKeyFixture(t, repoRoot, filePath)
+	calls, _ := got["function_calls"].([]map[string]any)
+	seen := 0
+	for _, call := range calls {
+		if call["full_name"] != "fmt.f" {
+			continue
+		}
+		seen++
+		if key, _ := call["package_export_symbol"].(string); key != "" {
+			t.Errorf("fmt.f() package_export_symbol = %q, want none: the import name is rebound by module fmt", key)
+		}
+	}
+	if seen != 2 {
+		t.Errorf("fmt.f() call count = %d, want 2: the repro must cover both the inner and the outer call", seen)
+	}
+}
