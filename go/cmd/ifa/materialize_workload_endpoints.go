@@ -31,15 +31,26 @@ import (
 // land fails here instead of surfacing later as zero assert-edges edges.
 //
 // It is NOT invented truth: the seeded identity is the Odù's own positive
-// anchor (workload:orders-api in prod), keyed by the single source of truth
-// the guard mapper shares (materializededges
+// anchor (workload:repo-orders:orders-api in prod), keyed by the single
+// source of truth the guard mapper shares (materializededges
 // .WorkloadCloudRelationshipInstanceID). The negative and ambiguous anchors
 // get no nodes, so the extractor's drop-never-invent restraint still has
 // something to prove live.
+//
+// The identity is the ladder-resolved scoped id, not the cassette's bare
+// anchor: after the #5385 flip the writer only ever MATCHes resolved scoped
+// ids, so a bare-handle node is one the edges never attach to. The name and
+// repo_id properties are what the sibling lookup reads to resolve the
+// cassette's bare anchor to this node, mirroring the production workload
+// pipeline's node shape.
 
 const workloadEndpointsSeedCypher = `MERGE (w:Workload {id: $workload_id})
+SET w.name = $workload_name,
+    w.repo_id = $repo_id
 MERGE (i:WorkloadInstance {id: $instance_id})
-SET i.environment = $environment
+SET i.environment = $environment,
+    i.workload_id = $workload_id,
+    i.repo_id = $repo_id
 MERGE (i)-[:INSTANCE_OF]->(w)`
 
 const (
@@ -49,8 +60,28 @@ const (
 )
 
 type workloadEndpointsOptions struct {
-	workloadID  string
-	environment string
+	workloadID   string
+	workloadName string
+	repoID       string
+	environment  string
+}
+
+// splitScopedWorkloadID parses a repository-scoped workload node id
+// (workload:<repo_id>:<name>) into its repository and name segments, which
+// the seed SETs on the node for the sibling lookup. A legacy bare handle
+// carries no repository segment, so the seeded node would not be an id the
+// post-#5385 writer ever matches; reject it here instead of seeding nodes
+// the edges never attach to.
+func splitScopedWorkloadID(workloadID string) (repoID, name string, err error) {
+	rest, ok := strings.CutPrefix(workloadID, "workload:")
+	if !ok {
+		return "", "", fmt.Errorf("ifa materialize-workload-endpoints: -workload-id must be a repository-scoped id (workload:<repo_id>:<name>), got %q: the writer only ever MATCHes resolved scoped ids", workloadID)
+	}
+	repo, workloadName, ok := strings.Cut(rest, ":")
+	if !ok || strings.TrimSpace(repo) == "" || strings.TrimSpace(workloadName) == "" || strings.Contains(workloadName, ":") {
+		return "", "", fmt.Errorf("ifa materialize-workload-endpoints: -workload-id must be a repository-scoped id (workload:<repo_id>:<name>), got %q: the writer only ever MATCHes resolved scoped ids", workloadID)
+	}
+	return repo, workloadName, nil
 }
 
 type workloadEndpointsBackend interface {
@@ -98,7 +129,7 @@ func parseMaterializeWorkloadEndpointsFlags(args []string, stderr io.Writer) (wo
 	fs := flag.NewFlagSet("ifa materialize-workload-endpoints", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var options workloadEndpointsOptions
-	fs.StringVar(&options.workloadID, "workload-id", "", "Workload node id (workload:<name>) whose instance to seed")
+	fs.StringVar(&options.workloadID, "workload-id", "", "Workload node id (workload:<repo_id>:<name>) whose instance to seed")
 	fs.StringVar(&options.environment, "environment", "", "instance environment (matched by the writer)")
 	if err := fs.Parse(args); err != nil {
 		return workloadEndpointsOptions{}, err //nolint:wrapcheck // flag errors are self-describing.
@@ -114,6 +145,12 @@ func parseMaterializeWorkloadEndpointsFlags(args []string, stderr io.Writer) (wo
 	if options.environment == "" {
 		return workloadEndpointsOptions{}, fmt.Errorf("ifa materialize-workload-endpoints: -environment is required")
 	}
+	repoID, workloadName, err := splitScopedWorkloadID(options.workloadID)
+	if err != nil {
+		return workloadEndpointsOptions{}, err
+	}
+	options.repoID = repoID
+	options.workloadName = workloadName
 	return options, nil
 }
 
@@ -154,15 +191,29 @@ func materializeWorkloadEndpoints(
 	options workloadEndpointsOptions,
 	backend workloadEndpointsBackend,
 ) (string, error) {
+	// The segments normally arrive parsed from flag validation; derive them
+	// here as well so a programmatic caller cannot seed a node missing the
+	// name and repo_id the sibling lookup reads. A legacy bare handle fails
+	// here rather than seeding nodes the writer never matches.
+	if options.repoID == "" || options.workloadName == "" {
+		repoID, workloadName, err := splitScopedWorkloadID(options.workloadID)
+		if err != nil {
+			return "", err
+		}
+		options.repoID = repoID
+		options.workloadName = workloadName
+	}
 	instanceID := materializededges.WorkloadCloudRelationshipInstanceID(options.workloadID, options.environment)
 	if instanceID == "" || options.workloadID == "" || options.environment == "" {
 		return "", fmt.Errorf("derive instance id: insufficient identity input")
 	}
 
 	if err := backend.ExecuteCypher(ctx, workloadEndpointsSeedCypher, map[string]any{
-		"workload_id": options.workloadID,
-		"instance_id": instanceID,
-		"environment": options.environment,
+		"workload_id":   options.workloadID,
+		"workload_name": options.workloadName,
+		"repo_id":       options.repoID,
+		"instance_id":   instanceID,
+		"environment":   options.environment,
 	}); err != nil {
 		return "", newWorkloadEndpointsBackendError("seed workload endpoints", err)
 	}

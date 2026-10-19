@@ -52,12 +52,20 @@ func (b *recordingWorkloadEndpointsBackend) CountInstanceOf(_ context.Context, _
 // INSTANCE_OF -- and nothing else: the negative and ambiguous anchors get
 // no nodes, so the extractor's restraint (drop, never invent) still has
 // something to prove live.
+//
+// The seed keys the ladder-resolved scoped identity (#8516), not the
+// cassette's bare anchor: after the #5385 flip the writer only ever MATCHes
+// resolved scoped ids, so a bare-handle node is one the edges never attach
+// to. The name and repo_id properties are what the sibling lookup reads to
+// resolve the cassette's bare anchor to this node.
 func TestMaterializeWorkloadEndpointsMergesExactNodes(t *testing.T) {
 	t.Parallel()
 	backend := &recordingWorkloadEndpointsBackend{workload: 1, instance: 1, edge: 1}
 	instanceID, err := materializeWorkloadEndpoints(context.Background(), workloadEndpointsOptions{
-		workloadID:  "workload:orders-api",
-		environment: "prod",
+		workloadID:   "workload:repo-orders:orders-api",
+		workloadName: "orders-api",
+		repoID:       "repo-orders",
+		environment:  "prod",
 	}, backend)
 	if err != nil {
 		t.Fatalf("materializeWorkloadEndpoints() error = %v", err)
@@ -66,25 +74,9 @@ func TestMaterializeWorkloadEndpointsMergesExactNodes(t *testing.T) {
 	// the guard mapper (materializededges): the writer MATCHes the instance,
 	// so a seed that disagreed with the mapper would key nodes the edges
 	// never attach to.
-	const wantInstanceID = "workload-instance:orders-api:prod"
+	const wantInstanceID = "workload-instance:repo-orders:orders-api:prod"
 	if instanceID != wantInstanceID {
 		t.Fatalf("instanceID = %q, want %q", instanceID, wantInstanceID)
-	}
-	// A scoped workload id passes its scope through the same derivation:
-	// the mapper is a pure format-preserving mapping, and the reducer
-	// ladder resolves handles to scoped ids server-side before any write,
-	// so scoped input must yield the scoped instance id (#5385). A fresh
-	// backend keeps the exact-one-MERGE assertion below about this call.
-	scopedBackend := &recordingWorkloadEndpointsBackend{workload: 1, instance: 1, edge: 1}
-	scopedID, err := materializeWorkloadEndpoints(context.Background(), workloadEndpointsOptions{
-		workloadID:  "workload:repo-orders:orders-api",
-		environment: "prod",
-	}, scopedBackend)
-	if err != nil {
-		t.Fatalf("materializeWorkloadEndpoints(scoped) error = %v", err)
-	}
-	if want := "workload-instance:repo-orders:orders-api:prod"; scopedID != want {
-		t.Fatalf("scoped instanceID = %q, want %q", scopedID, want)
 	}
 	if len(backend.executed) != 1 {
 		t.Fatalf("ExecuteCypher calls = %d, want exactly 1 idempotent MERGE", len(backend.executed))
@@ -95,14 +87,62 @@ func TestMaterializeWorkloadEndpointsMergesExactNodes(t *testing.T) {
 			t.Errorf("seed cypher missing %q:\n%s", want, exec.cypher)
 		}
 	}
-	if got := exec.params["workload_id"]; got != "workload:orders-api" {
-		t.Errorf("workload_id param = %v, want workload:orders-api", got)
+	// The sibling lookup resolves the cassette's bare anchor by name over
+	// candidates carrying id, name, and repo_id: a seeded node missing any
+	// of the three is invisible to the ladder and the row stays a bare
+	// handle the writer never matches.
+	for _, want := range []string{"w.name = $workload_name", "w.repo_id = $repo_id"} {
+		if !strings.Contains(exec.cypher, want) {
+			t.Errorf("seed cypher missing %q:\n%s", want, exec.cypher)
+		}
+	}
+	if got := exec.params["workload_id"]; got != "workload:repo-orders:orders-api" {
+		t.Errorf("workload_id param = %v, want workload:repo-orders:orders-api", got)
+	}
+	if got := exec.params["workload_name"]; got != "orders-api" {
+		t.Errorf("workload_name param = %v, want orders-api", got)
+	}
+	if got := exec.params["repo_id"]; got != "repo-orders" {
+		t.Errorf("repo_id param = %v, want repo-orders", got)
 	}
 	if got := exec.params["instance_id"]; got != wantInstanceID {
 		t.Errorf("instance_id param = %v, want %q", got, wantInstanceID)
 	}
 	if got := exec.params["environment"]; got != "prod" {
 		t.Errorf("environment param = %v, want prod", got)
+	}
+}
+
+// TestParseMaterializeWorkloadEndpointsFlagsRejectsBareHandle proves the
+// seed fails closed on the legacy shape (#8516): a bare handle carries no
+// repository segment, so the seeded node is not an id the post-#5385 writer
+// ever matches and the cell would fail later with zero edges and no pointer
+// back here. The rejection happens at flag parse, before any backend I/O.
+func TestParseMaterializeWorkloadEndpointsFlagsRejectsBareHandle(t *testing.T) {
+	t.Parallel()
+	for _, id := range []string{"workload:orders-api", "orders-api", "workload:", "workload::orders-api", "workload:repo-orders:", "workload:repo-orders:or:ders"} {
+		options, err := parseMaterializeWorkloadEndpointsFlags([]string{"-workload-id", id, "-environment", "prod"}, io.Discard)
+		if err == nil {
+			t.Errorf("parseMaterializeWorkloadEndpointsFlags(-workload-id %q) = %+v, want scoped-id error", id, options)
+			continue
+		}
+		if !strings.Contains(err.Error(), "workload:<repo_id>:<name>") {
+			t.Errorf("parseMaterializeWorkloadEndpointsFlags(-workload-id %q) error = %v, want it to name the scoped shape", id, err)
+		}
+	}
+}
+
+// TestParseMaterializeWorkloadEndpointsFlagsSplitsScopedID proves a scoped
+// id parses to the repository and name segments the seed cypher SETs on the
+// node for the sibling lookup.
+func TestParseMaterializeWorkloadEndpointsFlagsSplitsScopedID(t *testing.T) {
+	t.Parallel()
+	options, err := parseMaterializeWorkloadEndpointsFlags([]string{"-workload-id", "workload:repo-orders:orders-api", "-environment", "prod"}, io.Discard)
+	if err != nil {
+		t.Fatalf("parseMaterializeWorkloadEndpointsFlags(scoped) error = %v", err)
+	}
+	if options.repoID != "repo-orders" || options.workloadName != "orders-api" {
+		t.Fatalf("options = %+v, want repoID repo-orders workloadName orders-api", options)
 	}
 }
 
@@ -114,8 +154,10 @@ func TestMaterializeWorkloadEndpointsFailsWhenVerifySeesNoInstance(t *testing.T)
 	t.Parallel()
 	backend := &recordingWorkloadEndpointsBackend{workload: 1, instance: 0, edge: 0}
 	_, err := materializeWorkloadEndpoints(context.Background(), workloadEndpointsOptions{
-		workloadID:  "workload:orders-api",
-		environment: "prod",
+		workloadID:   "workload:repo-orders:orders-api",
+		workloadName: "orders-api",
+		repoID:       "repo-orders",
+		environment:  "prod",
 	}, backend)
 	if err == nil {
 		t.Fatal("materializeWorkloadEndpoints() with 0 verified instances = nil, want error")
@@ -132,9 +174,10 @@ func TestMaterializeWorkloadEndpointsRejectsInvalidInputBeforeOpeningBackend(t *
 	t.Parallel()
 	for _, args := range [][]string{
 		{},
-		{"-workload-id", "workload:orders-api"},
+		{"-workload-id", "workload:repo-orders:orders-api"},
 		{"-environment", "prod"},
 		{"-workload-id", "  ", "-environment", "prod"},
+		{"-workload-id", "workload:orders-api", "-environment", "prod"},
 	} {
 		if _, err := parseMaterializeWorkloadEndpointsFlags(args, io.Discard); err == nil {
 			t.Errorf("parseMaterializeWorkloadEndpointsFlags(%v) = nil, want error", args)
@@ -174,7 +217,7 @@ func TestRunMaterializeWorkloadEndpointsRedactsBackendConnectionTarget(t *testin
 		return nil, func() {}, errTestWorkloadEndpointsBackendDown
 	}
 	defer func() { openWorkloadEndpointsBackend = open }()
-	err := runMaterializeWorkloadEndpointsCommand(context.Background(), []string{"-workload-id", "workload:orders-api", "-environment", "prod"}, io.Discard, io.Discard)
+	err := runMaterializeWorkloadEndpointsCommand(context.Background(), []string{"-workload-id", "workload:repo-orders:orders-api", "-environment", "prod"}, io.Discard, io.Discard)
 	if err == nil {
 		t.Fatal("runMaterializeWorkloadEndpointsCommand() with down backend = nil, want error")
 	}

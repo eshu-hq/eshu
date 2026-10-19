@@ -248,14 +248,13 @@ ifa_iam_can_perform_assert() {
 # the writer MATCHes (workload:Workload)<-[:INSTANCE_OF]-(instance) and the
 # handler fails instances_not_ready without them (observed live 2026-09-27).
 # The seed creates exactly the Odù's own positive anchor
-# (workload:orders-api in prod; instance id derived by the single source of
-# truth the guard mapper shares) and nothing else: the service-name-only,
+# (workload:repo-orders:orders-api in prod; instance id from the guard
+# mapper's single source of truth) and nothing else: the service-name-only,
 # ambiguous, and environment-less anchors get no nodes, so the extractor's
-# drop-never-invent restraint still has something to prove live. Follows the
-# repo_dependency materialize-platform-prerequisite precedent (seed + exact
-# output check), not a new idea: MERGEs make it idempotent under handler
-# retries and repeated N-cell drives, and a seed/output drift fails here,
-# not later as zero assert-edges edges.
+# drop-never-invent restraint still has something to prove live. The scoped
+# id is what the post-#5385 writer MATCHes; the seeded name/repo_id are what
+# the sibling lookup resolves the bare anchor through -- a seed/output drift
+# fails here, not later as zero assert-edges edges.
 ifa_workload_cloud_relationship_drive() {
 	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
 	_ifa_direct_family_drive workload-cloud-relationship \
@@ -266,9 +265,9 @@ ifa_workload_cloud_relationship_drive() {
 ifa_workload_cloud_relationship_seed_endpoints() {
 	local bin_dir="$1" output
 	output="$("${bin_dir}/eshu-ifa" materialize-workload-endpoints \
-		-workload-id workload:orders-api -environment prod)" || return 1
+		-workload-id workload:repo-orders:orders-api -environment prod)" || return 1
 	printf '%s\n' "${output}"
-	[[ "${output}" == 'instance_id=workload-instance:orders-api:prod verified=1' ]]
+	[[ "${output}" == 'instance_id=workload-instance:repo-orders:orders-api:prod verified=1' ]]
 }
 
 # ifa_workload_cloud_relationship_assert pins the two-edge exact set. Called
@@ -278,7 +277,7 @@ ifa_workload_cloud_relationship_seed_endpoints() {
 #
 # Both edges are explicit_workload_anchor in prod off ONE workload
 # (orders-api): the ssm parameter and the sqs queue, each resolving the same
-# workload-instance:orders-api:prod source to its own CloudResource target. A
+# workload-instance:repo-orders:orders-api:prod source to its own CloudResource target. A
 # regression that emitted one edge per anchor attribute instead of one per
 # resolved (instance, resource) pair would still produce "some edges" and fail
 # only against an exact set. The fixture's other three resources -- the

@@ -46,7 +46,9 @@
 //
 // `ifa materialize-workload-endpoints -workload-id ID -environment ENV`
 // prepares the two endpoint nodes the workload_cloud_relationship writer
-// MATCHes for a live conformance cell (#6228). It derives the instance id
+// MATCHes for a live conformance cell (#6228). ID must be repository-scoped
+// (workload:<repo_id>:<name>); a bare handle is rejected because the writer
+// only ever MATCHes resolved scoped ids (#8516). It derives the instance id
 // with the single source of truth the guard mapper shares
 // (materializededges.WorkloadCloudRelationshipInstanceID), MERGEs one
 // Workload node, one WorkloadInstance node, and their INSTANCE_OF edge, and
