@@ -27,6 +27,11 @@ const (
 	AuthenticatesVaultRoleFamilyOduName         = familyodu.AuthenticatesVaultRoleFamilyOduName
 	CodeownersFamilyOduName                     = familyodu.CodeownersFamilyOduName
 	CodeCallFamilyOduName                       = familyodu.CodeCallFamilyOduName
+	BuiltFromFamilyOduName                      = familyodu.BuiltFromFamilyOduName
+	DerivedFromFamilyOduName                    = familyodu.DerivedFromFamilyOduName
+	PublishesFamilyOduName                      = familyodu.PublishesFamilyOduName
+	CloudResourceContainerImageFamilyOduName    = familyodu.CloudResourceContainerImageFamilyOduName
+	CrossplaneSatisfiedByFamilyOduName          = familyodu.CrossplaneSatisfiedByFamilyOduName
 	ContentEntityFactKind                       = familyodu.ContentEntityFactKind
 	ContentFactKind                             = familyodu.ContentFactKind
 	DeployableUnitFamilyOduName                 = familyodu.DeployableUnitFamilyOduName
@@ -235,6 +240,25 @@ func UsesServiceAccountFamilyOdu() CatalogOdu { return familyodu.UsesServiceAcco
 func WorkloadCloudRelationshipFamilyOdu() CatalogOdu {
 	return familyodu.WorkloadCloudRelationshipFamilyOdu()
 }
+
+// CrossplaneSatisfiedByFamilyOdu returns the cataloged crossplane-satisfied-by family Odù.
+func CrossplaneSatisfiedByFamilyOdu() CatalogOdu {
+	return familyodu.CrossplaneSatisfiedByFamilyOdu()
+}
+
+// CloudResourceContainerImageFamilyOdu returns the cataloged cloud-resource-container-image family Odù.
+func CloudResourceContainerImageFamilyOdu() CatalogOdu {
+	return familyodu.CloudResourceContainerImageFamilyOdu()
+}
+
+// BuiltFromFamilyOdu returns the cataloged built-from family Odù.
+func BuiltFromFamilyOdu() CatalogOdu { return familyodu.BuiltFromFamilyOdu() }
+
+// DerivedFromFamilyOdu returns the cataloged derived-from family Odù.
+func DerivedFromFamilyOdu() CatalogOdu { return familyodu.DerivedFromFamilyOdu() }
+
+// PublishesFamilyOdu returns the cataloged publishes family Odù.
+func PublishesFamilyOdu() CatalogOdu { return familyodu.PublishesFamilyOdu() }
 
 // LoadCodeCallFamilyOdu loads the code-call family Odù from cassettePath.
 func LoadCodeCallFamilyOdu(cassettePath string) (Odu, error) {

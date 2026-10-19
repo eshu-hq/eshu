@@ -338,3 +338,34 @@ func TestProvenanceEdgeWriterWriteUsesAtomicGroupWhenAvailable(t *testing.T) {
 		t.Fatalf("executeCalls = %d, want 0 when GroupExecutor is available for upserts", len(executor.executeCalls))
 	}
 }
+
+// TestProvenancePublishesTemplatesShareMergeIdentity pins that the Package
+// and PackageVersion upsert templates MERGE the identical PUBLISHES
+// relationship identity: the same `-[rel:PUBLISHES {...}]->(target)` block,
+// byte for byte. The materialized-edge registry holds the Package template
+// as the publishes family's IdentityCypher and declares that identity once;
+// a future edit giving the twin a different MERGE map would silently change
+// half the family's identity while the registry kept asserting the other
+// half, so it reds here instead.
+func TestProvenancePublishesTemplatesShareMergeIdentity(t *testing.T) {
+	t.Parallel()
+
+	mergeBlock := func(cypher string) string {
+		const marker = "MERGE (repo)-[rel:PUBLISHES"
+		start := strings.Index(cypher, marker)
+		if start < 0 {
+			t.Fatalf("template has no PUBLISHES relationship MERGE:\n%s", cypher)
+		}
+		rest := cypher[start:]
+		end := strings.Index(rest, "]->(target)")
+		if end < 0 {
+			t.Fatalf("PUBLISHES MERGE never closes on its target:\n%s", cypher)
+		}
+		return rest[:end+len("]->(target)")]
+	}
+	packageMerge := mergeBlock(canonicalProvenancePublishesPackageCypher)
+	versionMerge := mergeBlock(canonicalProvenancePublishesPackageVersionCypher)
+	if packageMerge != versionMerge {
+		t.Fatalf("PUBLISHES templates MERGE different identity:\npackage: %q\nversion: %q", packageMerge, versionMerge)
+	}
+}

@@ -153,7 +153,7 @@ func materializedEdgeScenarioRequirements(families []string) []replaycoverage.Sc
 // materialized_edges:<family> surfaces (#5351). Every entry it resolves must
 // use the odu scenario; resolution then dispatches to the family's own
 // vacuity guard.
-// Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, invokes_cloud_action, and the direct-materialization guards kubernetes_namespace_environment, iam_instance_profile_role, workload_cloud_relationship, iam_can_assume, iam_can_perform, iam_escalation, ec2_uses_profile, s3_logs_to, kubernetes_correlation, semantic_entity_containment, security_group_sg_rule, security_group_rule_endpoint, s3_external_principal_grant, and uses_service_account.
+// Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, invokes_cloud_action, and the direct-materialization guards kubernetes_namespace_environment, iam_instance_profile_role, workload_cloud_relationship, iam_can_assume, iam_can_perform, iam_escalation, ec2_uses_profile, s3_logs_to, kubernetes_correlation, semantic_entity_containment, security_group_sg_rule, security_group_rule_endpoint, s3_external_principal_grant, uses_service_account, crossplane_satisfied_by, cloud_resource_container_image, built_from, derived_from, and publishes.
 // A family with no registered vacuity guard cannot resolve covered even if a
 // manifest row names one — this is deliberate: "add a domain = DATA ONLY"
 // (design §3) covers the fixture and manifest rows, but a NEW family's first
@@ -264,6 +264,16 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveAuthenticatesVaultRoleMaterializedEdges(odu, authenticatesVaultRoleExpectedEdgesPath(r.RepoRoot))
 	case usesVaultPolicyFamily:
 		return resolveUsesVaultPolicyMaterializedEdges(odu, usesVaultPolicyExpectedEdgesPath(r.RepoRoot))
+	case crossplaneSatisfiedByFamily:
+		return resolveCrossplaneSatisfiedByMaterializedEdges(odu, crossplaneSatisfiedByExpectedEdgesPath(r.RepoRoot))
+	case cloudResourceContainerImageFamily:
+		return resolveCloudResourceContainerImageMaterializedEdges(odu, cloudResourceContainerImageExpectedEdgesPath(r.RepoRoot))
+	case builtFromFamily:
+		return resolveBuiltFromMaterializedEdges(odu, builtFromExpectedEdgesPath(r.RepoRoot))
+	case derivedFromFamily:
+		return resolveDerivedFromMaterializedEdges(odu, derivedFromExpectedEdgesPath(r.RepoRoot))
+	case publishesFamily:
+		return resolvePublishesMaterializedEdges(odu, publishesExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}

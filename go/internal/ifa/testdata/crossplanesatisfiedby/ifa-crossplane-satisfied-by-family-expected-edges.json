@@ -1,0 +1,26 @@
+{
+  "odu": "odu:ifa-crossplane-satisfied-by-family",
+  "note": "Hand-derived from SatisfiedByEdgeUpsertCypher (go/internal/storage/cypher/canonical/crossplane/edges.go), whose MERGE is `(claim)-[rel:SATISFIED_BY]->(xrd)` on the two endpoint nodes alone with no property map: `UNWIND $rows AS row MATCH (claim:K8sResource {uid: row.claim_uid}) MATCH (xrd:CrossplaneXRD {uid: row.xrd_uid}) MERGE (claim)-[rel:SATISFIED_BY]->(xrd) SET ...`. SATISFIED_BY is the only type this writer can emit (single-member writeReasons screened by the static token, no %s). resolution_mode, claim_group and claim_kind are SET after the MERGE and pinned per edge; scope_id, generation_id and evidence_source are stamped by the WRITER from its own arguments and never asserted here. Exactly two edges: k8s:claim-orders-db and k8s:claim-billing-db each join (database.example.com, PostgreSQL) against the single xrd:postgresql XRD. The other five candidates contribute nothing on purpose -- k8s:claim-cache matches two XRDs (ambiguous, never a fabricated pick), k8s:deploy-orders-api matches zero (an ordinary object, not a Claim), k8s:config-app carries a core-group apiVersion with no group segment, xrd:cluster-scoped carries no claim_kind so it never enters the join index, and k8s:claim-retired-db is tombstoned.",
+  "edges": [
+    {
+      "relationship_type": "SATISFIED_BY",
+      "source_entity_id": "k8s:claim-billing-db",
+      "target_entity_id": "xrd:postgresql",
+      "properties": {
+        "resolution_mode": "group_claim_kind",
+        "claim_group": "database.example.com",
+        "claim_kind": "PostgreSQL"
+      }
+    },
+    {
+      "relationship_type": "SATISFIED_BY",
+      "source_entity_id": "k8s:claim-orders-db",
+      "target_entity_id": "xrd:postgresql",
+      "properties": {
+        "resolution_mode": "group_claim_kind",
+        "claim_group": "database.example.com",
+        "claim_kind": "PostgreSQL"
+      }
+    }
+  ]
+}

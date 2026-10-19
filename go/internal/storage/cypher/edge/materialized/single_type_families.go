@@ -7,8 +7,10 @@ import (
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/ec2"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/image"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/relationship"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
@@ -382,5 +384,78 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractKind:    retractKindEvidenceNodeDetach,
 		RetractCypher:  iam.SecretsIAMVaultPolicyNodeRetractCypher,
 		IdentityCypher: iam.SecretsIAMVaultPolicyNodeUpsertCypher,
+	},
+	// built_from is the first single-type family whose relationship MERGE
+	// keys on more than its two endpoint nodes: the template MERGEs
+	// `-[rel:BUILT_FROM {scope_id, evidence_source}]->`, so the canonical
+	// identity includes both and IdentityProperties declares them (the
+	// identity scan reads them straight out of the held const). Two
+	// writers share this type — container-image-identity and the exact
+	// workflow-image slice of ci_cd_run_correlation — but both MERGE the
+	// same identity shape with their own evidence_source, so one row
+	// covers both; the retract scopes by scope+evidence_source per
+	// writer. The PUBLISHES twin below shares the shape.
+	"built_from": {
+		EdgeTypes:          map[string]string{"BUILT_FROM": "container image to builder repository (CanonicalProvenanceBuiltFromCypher)"},
+		RetractCypher:      edgewriter.RetractProvenanceBuiltFromEdgesCypher,
+		IdentityCypher:     edgewriter.CanonicalProvenanceBuiltFromCypher,
+		IdentityProperties: []string{"evidence_source", "scope_id"},
+	},
+	// publishes shares built_from's property-keyed MERGE shape on both its
+	// templates: the Package and PackageVersion upserts MERGE the identical
+	// `-[rel:PUBLISHES {scope_id, evidence_source}]->` identity, so one
+	// held const plus this comment covers both and IdentityProperties
+	// declares them once. The Package template stands as the held const;
+	// its twin (CanonicalProvenancePublishesPackageVersionCypher) is named
+	// here so a future divergence between the two has somewhere to land
+	// instead of silently changing half the family's identity.
+	"publishes": {
+		EdgeTypes:          map[string]string{"PUBLISHES": "repository to owned package or published version (CanonicalProvenancePublishesPackageCypher, twin CanonicalProvenancePublishesPackageVersionCypher)"},
+		RetractCypher:      edgewriter.RetractProvenancePublishesEdgesCypher,
+		IdentityCypher:     edgewriter.CanonicalProvenancePublishesPackageCypher,
+		IdentityProperties: []string{"evidence_source", "scope_id"},
+	},
+	// derived_from shares built_from's property-keyed MERGE shape: the
+	// template MERGEs `-[rel:DERIVED_FROM {scope_id, evidence_source}]->`,
+	// so the canonical identity includes both and IdentityProperties
+	// declares them. attribution_basis rides SET-only beside the MERGE and
+	// is a fixture pin, never identity.
+	"derived_from": {
+		EdgeTypes:          map[string]string{"DERIVED_FROM": "built container image to Dockerfile-declared base image (CanonicalProvenanceDerivedFromCypher)"},
+		RetractCypher:      edgewriter.RetractProvenanceDerivedFromEdgesCypher,
+		IdentityCypher:     edgewriter.CanonicalProvenanceDerivedFromCypher,
+		IdentityProperties: []string{"evidence_source", "scope_id"},
+	},
+	// cloud_resource_container_image follows the same single-vocabulary shape
+	// as iam_instance_profile_role: IdentityCypher holds the %s FORMAT const
+	// unformatted, and the token substituted into it comes from
+	// cloudResourceContainerImageRelationshipVocabulary, a closed
+	// single-member set screened per row by
+	// validateCloudResourceContainerImageRelationshipType, so
+	// AWS_lambda_function_uses_image is the only type this writer can emit.
+	// The template MERGEs on its two endpoint nodes alone (both are MATCHed,
+	// never merged), so the identity scan yields nothing whether or not the
+	// %s has been substituted.
+	// cloudResourceContainerImageEdgeLabel ("AWS_LAMBDA_FUNCTION_USES_IMAGE")
+	// is statement metadata carried beside the query, not a graph
+	// relationship type -- the same #6181-shaped trap
+	// iam_instance_profile_role documents one level below the port name.
+	"cloud_resource_container_image": {
+		EdgeTypes:      map[string]string{"AWS_lambda_function_uses_image": "Lambda-function to container-image attachment (CanonicalCloudResourceContainerImageEdgeUpsertCypherFormat)"},
+		RetractCypher:  image.RetractCloudResourceContainerImageEdgesCypher,
+		IdentityCypher: image.CanonicalCloudResourceContainerImageEdgeUpsertCypherFormat,
+	},
+	// crossplane_satisfied_by follows the same static-token shape as
+	// kubernetes_correlation: the write template MERGEs the static
+	// SATISFIED_BY token on its two endpoint nodes alone (both are MATCHed,
+	// never merged), so IdentityProperties stays nil — the identity scan
+	// yields nothing. crossplaneSatisfiedByEdgeLabel IS "SATISFIED_BY" here
+	// (the leaf const doubles as the relationship type and the
+	// statement-metadata tag); the type is read off the template, never
+	// derived from the port or family name.
+	"crossplane_satisfied_by": {
+		EdgeTypes:      map[string]string{"SATISFIED_BY": "Crossplane Claim to XRD classification (SatisfiedByEdgeUpsertCypher)"},
+		RetractCypher:  crossplane.RetractSatisfiedByEdgesCypher,
+		IdentityCypher: crossplane.SatisfiedByEdgeUpsertCypher,
 	},
 }

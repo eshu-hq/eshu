@@ -1,0 +1,30 @@
+{
+  "odu": "odu:ifa-derived-from-family",
+  "note": "Hand-derived from canonicalProvenanceDerivedFromCypher (go/internal/storage/cypher/edge/writer/derived_from.go): `UNWIND $rows AS row MATCH (img:ContainerImage {digest: row.digest}) MATCH (base:ContainerImage {digest: row.base_digest}) MERGE (img)-[rel:DERIVED_FROM {scope_id: row.scope_id, evidence_source: row.evidence_source}]->(base) SET ...`. DERIVED_FROM is the only type this writer can emit (fixed template, no vocabulary substitution). The source is the built child digest, the target the Dockerfile-declared base digest. scope_id and evidence_source are MERGE identity the WRITER stamps per run, so the fixture pins the live contract the guard reproduces: scope_id is the owning repository's scope (the writing intent's scope), evidence_source the container-image-base-image domain. The live cell must drive the writing intent in this scope with this evidence source, or update these pins -- the guard test reds on a mismatch either way. Exactly two edges: the two children the owning repository built from its single declared base, both with attribution_basis repository_single_base (the Dockerfile-only inference seam). The base itself contributes nothing on purpose -- its decision carries both the base anchor and build provenance, and an image is never its own ancestor or CVE lineage traversal would cycle. The third-party digest contributes nothing -- exact_digest the repository merely deploys, never derivation evidence.",
+  "edges": [
+    {
+      "relationship_type": "DERIVED_FROM",
+      "source_entity_id": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "target_entity_id": "sha256:b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "identity": {
+        "evidence_source": "reducer/container-image-base-image",
+        "scope_id": "git-repository-scope:repository:eshu-fixture-lineage-app"
+      },
+      "properties": {
+        "attribution_basis": "repository_single_base"
+      }
+    },
+    {
+      "relationship_type": "DERIVED_FROM",
+      "source_entity_id": "sha256:c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+      "target_entity_id": "sha256:b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "identity": {
+        "evidence_source": "reducer/container-image-base-image",
+        "scope_id": "git-repository-scope:repository:eshu-fixture-lineage-app"
+      },
+      "properties": {
+        "attribution_basis": "repository_single_base"
+      }
+    }
+  ]
+}

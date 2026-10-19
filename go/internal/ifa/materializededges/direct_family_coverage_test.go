@@ -154,6 +154,31 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes:  []string{"SECRETS_IAM_USES_VAULT_POLICY"},
 		LiveProven: true,
 	},
+	{
+		Family:    crossplaneSatisfiedByFamily,
+		OduName:   ifa.CrossplaneSatisfiedByFamilyOduName,
+		EdgeTypes: []string{"SATISFIED_BY"},
+	},
+	{
+		Family:    cloudResourceContainerImageFamily,
+		OduName:   ifa.CloudResourceContainerImageFamilyOduName,
+		EdgeTypes: []string{"AWS_lambda_function_uses_image"},
+	},
+	{
+		Family:    builtFromFamily,
+		OduName:   ifa.BuiltFromFamilyOduName,
+		EdgeTypes: []string{"BUILT_FROM"},
+	},
+	{
+		Family:    derivedFromFamily,
+		OduName:   ifa.DerivedFromFamilyOduName,
+		EdgeTypes: []string{"DERIVED_FROM"},
+	},
+	{
+		Family:    publishesFamily,
+		OduName:   ifa.PublishesFamilyOduName,
+		EdgeTypes: []string{"PUBLISHES"},
+	},
 }
 
 // guardedDirectFamilyCoverageEntry builds the coverage entry a ledger row for

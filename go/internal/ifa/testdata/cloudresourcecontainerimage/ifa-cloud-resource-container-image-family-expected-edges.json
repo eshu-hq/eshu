@@ -1,0 +1,22 @@
+{
+  "odu": "odu:ifa-cloud-resource-container-image-family",
+  "note": "Hand-derived from canonicalCloudResourceContainerImageEdgeUpsertCypherFormat (go/internal/storage/cypher/cloud/aws/image/container_edge_writer.go) with the fixed AWS_lambda_function_uses_image token substituted into its one %s, NOT from the port or family name: `UNWIND $rows AS row MATCH (source:CloudResource {uid: row.source_uid}) MATCH (target:ContainerImage {uid: row.target_uid}) MERGE (source)-[rel:AWS_lambda_function_uses_image]->(target) SET ...`. The row's relationship_type carries the RAW lambda_function_uses_image verb (screened per row against the closed single-member vocabulary, then mapped to the AWS_-namespaced graph token); AWS_LAMBDA_FUNCTION_USES_IMAGE is statement metadata, not a graph relationship type. Each source_uid is a payloadcore.CloudResourceUID = sha256 over account_id 123456789012, region us-east-1, resource_type aws_lambda_function and the function ARN; the target_uid is the oci-descriptor uid computed from the resolved_image_uri (oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:aaaa...). Exactly two edges: fn-demo and fn-worker resolve the same exact digest, and the dedup key is (source, target) so a shared image fans out to one edge per function. The other five relationships contribute nothing on purpose -- one tag-only ECS reference (EXACT-ONLY policy: stays Postgres-only), one zip-packaged function with no resolved digest, one tag-only resolved reference (unparseable as a digest ref), one unscanned ghost function (source_unresolved), and one foreign verb outside this domain's scope.",
+  "edges": [
+    {
+      "relationship_type": "AWS_lambda_function_uses_image",
+      "source_entity_id": "755756bfb1b04a619bae060b6ac39cbcd91bb802bd3c472bc86ace6616e38dd7",
+      "target_entity_id": "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "properties": {
+        "resolution_mode": "container_image_digest"
+      }
+    },
+    {
+      "relationship_type": "AWS_lambda_function_uses_image",
+      "source_entity_id": "1f68970c3960482b4671726bbc8a1d9b1072676bb21832389e5f7f7d175efacc",
+      "target_entity_id": "oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "properties": {
+        "resolution_mode": "container_image_digest"
+      }
+    }
+  ]
+}
