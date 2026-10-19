@@ -9,11 +9,37 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
 type resolutionClaim struct {
 	workItemID string
 	claimedAt  time.Time
+}
+
+// ResolutionPersister persists resolution outputs (candidates and resolved
+// relationships) for audit trail and activates the generation so downstream
+// consumers (e.g. workload materialization) can query resolved relationships.
+type ResolutionPersister interface {
+	UpsertCandidates(ctx context.Context, generationID string, candidates []relationships.Candidate) error
+	UpsertResolved(
+		ctx context.Context,
+		generationID string,
+		resolved []relationships.ResolvedRelationship,
+	) (ResolvedUpsertResult, error)
+	ActivateResolutionGeneration(ctx context.Context, generationID, scopeID string) error
+}
+
+// ClaimFencedResolutionPersister publishes a generation only while the exact
+// reducer claim that computed it remains live.
+type ClaimFencedResolutionPersister interface {
+	ActivateResolutionGenerationForClaim(
+		ctx context.Context,
+		generationID string,
+		scopeID string,
+		workItemID string,
+		claimedAt time.Time,
+	) error
 }
 
 // Resolve executes the cross-repo relationship resolution pipeline for one

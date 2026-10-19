@@ -280,6 +280,15 @@ type AssertionLoader = crossrepo.AssertionLoader
 // Alias for [crossrepo.ResolutionPersister].
 type ResolutionPersister = crossrepo.ResolutionPersister
 
+// ResolvedUpsertResult reports what one UpsertResolved call actually wrote.
+// Alias for [crossrepo.ResolvedUpsertResult].
+type ResolvedUpsertResult = crossrepo.ResolvedUpsertResult
+
+// DeployableUnitCorrelationWaker reopens succeeded
+// deployable_unit_correlation items whose recorded input could have changed.
+// Alias for [crossrepo.DeployableUnitCorrelationWaker].
+type DeployableUnitCorrelationWaker = crossrepo.DeployableUnitCorrelationWaker
+
 // ScopeRepositoryReader lists a scope generation's git repository IDs.
 // Alias for [crossrepo.ScopeRepositoryReader].
 type ScopeRepositoryReader = crossrepo.ScopeRepositoryReader

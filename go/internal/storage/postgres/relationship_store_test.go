@@ -173,7 +173,7 @@ func TestRelationshipStoreUpsertAndGetResolved(t *testing.T) {
 		},
 	}
 
-	if err := store.UpsertResolved(ctx, genID, resolved); err != nil {
+	if _, err := store.UpsertResolved(ctx, genID, resolved); err != nil {
 		t.Fatalf("UpsertResolved: %v", err)
 	}
 
@@ -276,7 +276,7 @@ func TestRelationshipStoreGetResolvedRelationshipsForGeneration(t *testing.T) {
 	if err := store.ActivateResolutionGeneration(ctx, "gen-old", "repo_deps"); err != nil {
 		t.Fatalf("ActivateResolutionGeneration(old): %v", err)
 	}
-	if err := store.UpsertResolved(ctx, "gen-old", []relationships.ResolvedRelationship{
+	if _, err := store.UpsertResolved(ctx, "gen-old", []relationships.ResolvedRelationship{
 		{
 			SourceRepoID:     "repo-old",
 			TargetRepoID:     "repo-api",
@@ -294,7 +294,7 @@ func TestRelationshipStoreGetResolvedRelationshipsForGeneration(t *testing.T) {
 	if err := store.ActivateResolutionGeneration(ctx, "gen-new", "repo_deps"); err != nil {
 		t.Fatalf("ActivateResolutionGeneration(new): %v", err)
 	}
-	if err := store.UpsertResolved(ctx, "gen-new", []relationships.ResolvedRelationship{
+	if _, err := store.UpsertResolved(ctx, "gen-new", []relationships.ResolvedRelationship{
 		{
 			SourceRepoID:     "repo-new",
 			TargetRepoID:     "repo-api",
@@ -332,7 +332,7 @@ func TestRelationshipStoreGetResolvedRelationshipsForRepos(t *testing.T) {
 	if err := store.ActivateResolutionGeneration(ctx, "gen-infra", "scope-infra"); err != nil {
 		t.Fatalf("ActivateResolutionGeneration(infra): %v", err)
 	}
-	if err := store.UpsertResolved(ctx, "gen-infra", []relationships.ResolvedRelationship{
+	if _, err := store.UpsertResolved(ctx, "gen-infra", []relationships.ResolvedRelationship{
 		{
 			SourceRepoID:     "repo-infra",
 			TargetRepoID:     "repo-api",
@@ -359,7 +359,7 @@ func TestRelationshipStoreGetResolvedRelationshipsForRepos(t *testing.T) {
 	if err := store.ActivateResolutionGeneration(ctx, "gen-delivery", "scope-delivery"); err != nil {
 		t.Fatalf("ActivateResolutionGeneration(delivery): %v", err)
 	}
-	if err := store.UpsertResolved(ctx, "gen-delivery", []relationships.ResolvedRelationship{
+	if _, err := store.UpsertResolved(ctx, "gen-delivery", []relationships.ResolvedRelationship{
 		{
 			SourceRepoID:     "repo-api",
 			TargetRepoID:     "repo-payments",
@@ -549,7 +549,7 @@ func TestRelationshipStoreEmptyUpserts(t *testing.T) {
 	if err := store.UpsertCandidates(ctx, "gen-1", nil); err != nil {
 		t.Errorf("UpsertCandidates(nil): %v", err)
 	}
-	if err := store.UpsertResolved(ctx, "gen-1", nil); err != nil {
+	if _, err := store.UpsertResolved(ctx, "gen-1", nil); err != nil {
 		t.Errorf("UpsertResolved(nil): %v", err)
 	}
 }

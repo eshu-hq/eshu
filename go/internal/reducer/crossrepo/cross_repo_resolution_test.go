@@ -48,9 +48,27 @@ func (f *fakeResolutionPersister) UpsertCandidates(_ context.Context, _ string, 
 	return nil
 }
 
-func (f *fakeResolutionPersister) UpsertResolved(_ context.Context, _ string, resolved []relationships.ResolvedRelationship) error {
+func (f *fakeResolutionPersister) UpsertResolved(
+	_ context.Context,
+	_ string,
+	resolved []relationships.ResolvedRelationship,
+) (ResolvedUpsertResult, error) {
 	f.resolved = append(f.resolved, resolved...)
-	return nil
+	repos := make([]string, 0)
+	seen := map[string]struct{}{}
+	for _, r := range resolved {
+		for _, repoID := range []string{r.SourceRepoID, r.TargetRepoID} {
+			if repoID == "" {
+				continue
+			}
+			if _, ok := seen[repoID]; ok {
+				continue
+			}
+			seen[repoID] = struct{}{}
+			repos = append(repos, repoID)
+		}
+	}
+	return ResolvedUpsertResult{Inserted: int64(len(resolved)), RepoIDs: repos}, nil
 }
 
 func (f *fakeResolutionPersister) ActivateResolutionGeneration(_ context.Context, generationID, _ string) error {
