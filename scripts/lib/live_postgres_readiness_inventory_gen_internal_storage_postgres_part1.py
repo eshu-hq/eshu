@@ -483,11 +483,5 @@ TABLE = {
         "go/internal/storage/postgres/workflow_control_claim_order_plan_live_test.go": (
             "TestWorkflowClaimCandidateUsesFairClaimIndex",
         ),
-        "go/internal/storage/postgres/workflow_control_fair_claim_live_test.go": (
-            "TestWorkflowFairClaimLotteryMatchesSimulatedDraw",
-            "TestWorkflowFairClaimPriorityPrecedesRotation",
-            "TestWorkflowFairnessKeyDepthsReportsTopKeysAndDistinctCount",
-            "TestWorkflowClaimDepthStaggeredStartHoldsGates",
-        ),
     },
 }

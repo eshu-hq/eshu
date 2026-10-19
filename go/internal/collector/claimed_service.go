@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -87,6 +88,9 @@ type ClaimedService struct {
 	Clock       func() time.Time
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
+	// Logger records fail-open pacing consults on the undispatched grant
+	// path. Optional — nil means no structured logging.
+	Logger *slog.Logger
 }
 
 // Run claims bounded work, emits facts through the existing commit boundary,

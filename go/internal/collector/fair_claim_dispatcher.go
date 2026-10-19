@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +42,9 @@ type FairClaimDispatcher struct {
 	// consult.
 	pacingChecker ClaimPacingChecker
 	pacingConfig  workflow.ClaimPacingConfig
+	// pacingLogger, when set with WithPacingLogger, records fail-open
+	// pacing consults. Nil (the default) keeps the consult silent.
+	pacingLogger *slog.Logger
 }
 
 // WithClaimPacing paces the dispatcher's grants through checker under cfg
@@ -57,6 +61,18 @@ func (d *FairClaimDispatcher) WithClaimPacing(
 	defer d.mu.Unlock()
 	d.pacingChecker = checker
 	d.pacingConfig = cfg
+	return d
+}
+
+// WithPacingLogger records fail-open pacing consults on logger and returns
+// the dispatcher for chaining. A nil logger keeps the consult silent.
+func (d *FairClaimDispatcher) WithPacingLogger(logger *slog.Logger) *FairClaimDispatcher {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.pacingLogger = logger
 	return d
 }
 
@@ -116,7 +132,7 @@ func (d *FairClaimDispatcher) ClaimNext(
 	if claimID == "" {
 		return workflow.WorkItem{}, workflow.Claim{}, workflow.ClaimTarget{}, false, errors.New("claim id is required")
 	}
-	checker, pacingConfig := d.pacingConsult()
+	checker, pacingConfig, pacingLogger := d.pacingConsult()
 	var deferral *workflow.ClaimPacingDeferral
 	for i := 0; i < d.targetCount; i++ {
 		target, ok := d.nextTarget()
@@ -137,7 +153,13 @@ func (d *FairClaimDispatcher) ClaimNext(
 			}
 			// A pacing consult failure fails open: an unavailable depth
 			// signal is not evidence of a backlog, so the target claims
-			// normally.
+			// normally. The debug record keeps the silence diagnosable.
+			if err != nil && pacingLogger != nil {
+				pacingLogger.DebugContext(ctx, "pacing consult failed open",
+					slog.String("domain", string(target.CollectorKind)+"/"+target.CollectorInstanceID),
+					slog.String("error", err.Error()),
+				)
+			}
 		}
 		item, claim, found, err := d.controlStore.ClaimNextEligible(ctx, selector, now, leaseTTL)
 		if err != nil {
@@ -154,15 +176,15 @@ func (d *FairClaimDispatcher) ClaimNext(
 	return workflow.WorkItem{}, workflow.Claim{}, workflow.ClaimTarget{}, false, nil
 }
 
-// pacingConsult snapshots the pacing consult pair. A nil checker or a
+// pacingConsult snapshots the pacing consult triple. A nil checker or a
 // disabled config claims with no pacing consult.
-func (d *FairClaimDispatcher) pacingConsult() (ClaimPacingChecker, workflow.ClaimPacingConfig) {
+func (d *FairClaimDispatcher) pacingConsult() (ClaimPacingChecker, workflow.ClaimPacingConfig, *slog.Logger) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.pacingChecker == nil || !d.pacingConfig.Enabled() {
-		return nil, workflow.ClaimPacingConfig{}
+		return nil, workflow.ClaimPacingConfig{}, nil
 	}
-	return d.pacingChecker, d.pacingConfig
+	return d.pacingChecker, d.pacingConfig, d.pacingLogger
 }
 
 // pacingLongestDeferral keeps the longest grant delay across paced targets,

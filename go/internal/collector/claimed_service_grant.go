@@ -6,6 +6,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -64,7 +65,19 @@ func (s ClaimedService) pacingGrantDeferral(
 		return nil
 	}
 	decision, err := checker.CheckClaimPacing(ctx, selector, *s.ClaimPacing, s.now())
-	if err != nil || !decision.Paced {
+	if err != nil {
+		// A pacing consult failure fails open: an unavailable depth signal
+		// is not evidence of a backlog, so the grant claims normally. The
+		// debug record keeps the silence diagnosable.
+		if s.Logger != nil {
+			s.Logger.DebugContext(ctx, "pacing consult failed open",
+				slog.String("domain", string(selector.CollectorKind)+"/"+selector.CollectorInstanceID),
+				slog.String("error", err.Error()),
+			)
+		}
+		return nil
+	}
+	if !decision.Paced {
 		return nil
 	}
 	return &workflow.ClaimPacingDeferral{

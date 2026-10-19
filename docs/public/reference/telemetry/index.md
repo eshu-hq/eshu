@@ -748,10 +748,10 @@ without touching individual collector packages:
   per run, from `CollectedGeneration.FactCount`. Labels: `collector_kind`,
   `source_system`. Recorded on the success path only.
 - `eshu_dp_workflow_fair_claims_total` — counter of granted claims (#8469),
-  labeled `collector_kind` and `claim_priority` (scheduler target-class rank); pacing adds `..._claim_pacing_{engaged_total,active,stuck_total,delay_seconds}` labeled `pacing_signal` (#8470; [Claim-Pacing Signals](claim-pacing.md)).
+  labeled `collector_kind` and `claim_priority` (scheduler target-class rank; pacing ships its own series: [Claim-Pacing Signals](claim-pacing.md)).
 
 All chokepoint labels stay bounded: fixed `collector_kind`/`source_system` sets
-and the 0-4 `claim_priority` rank — no repo, scope, generation, or instance identifiers.
+and the 0-4 `claim_priority` rank — no repo, scope, generation, or instance identifiers (pacing's `domain` family label is scoped separately in [Claim-Pacing Signals](claim-pacing.md)).
 The matching trace span is `collector.claimed_run`, carrying the same
 attributes plus the raw `fairness_key` and `claim_priority` so a trace
 correlates with the duration histogram ([Fair-Claim Rotation Signals](fair-claim-rotation.md)).

@@ -1034,6 +1034,11 @@ tests:
     class: postgres_ci
     reason: "#8469 step 3 claim-plan proof on real PostgreSQL: the priority-then-rotation candidate SELECT (derived from the production claimNextWorkflowWorkItemQuery constant, never hand-copied) plans as loose distinct-pair probes from workflow_work_items_fair_claim_idx with no sequential scan of the backlog, so claim cost scales with distinct keys rather than backlog size; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/workflow_control_claim_pacing_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8470 depth-pacing proofs on real PostgreSQL: pacing engages on per-domain/global depth with hysteresis behind a shared latch, releases below the low watermark, fails open when the depth query fails, and emits a stuck signal instead of releasing blindly; pacing-configured drains hold the anti-serialization floor"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/workflow_control_fair_claim_live_test.go
     tag: ~
     class: postgres_ci
