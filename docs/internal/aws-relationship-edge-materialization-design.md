@@ -86,7 +86,6 @@ Stage B is strictly ordered after Stage A within a scope generation: edges can
 only be resolved against nodes that the same generation already committed. The
 reducer queue already gives us this ordering primitive via the
 `GraphProjectionPhase` readiness gate (see
-`go/internal/reducer/graph_projection_phase.go` and
 `sharedProjectionReadinessPhase`, now `worker.ReadinessPhase`); PR #2's edge domain gates on the
 "AWS canonical nodes committed" phase the node writer publishes in PR #1.
 

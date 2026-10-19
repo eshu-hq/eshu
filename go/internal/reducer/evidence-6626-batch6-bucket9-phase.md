@@ -2,8 +2,8 @@
 
 ## What changed
 
-`go/internal/reducer/graph_projection_phase.go` (10 type aliases + 20
-const aliases, all `=` into `go/internal/reducer/gpphase`) is deleted,
+The deleted phase alias file (10 type aliases + 20
+const aliases, all `=` into `go/internal/reducer/gpphase`) is gone,
 and every caller now spells the canonical `gpphase.*` name. One PR for
 the whole bucket per arbiter ruling (consts travel with their types; a
 five-slice split would re-touch ~186 files through mixed-spelling
