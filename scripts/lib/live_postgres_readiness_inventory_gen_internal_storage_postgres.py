@@ -476,5 +476,8 @@ TABLE = {
             "TestWorkflowClaimDepthStarvationProbeMeasuresFIFOFloor",
             "TestClaimDepthAnalysisHelpers",
         ),
+        "go/internal/storage/postgres/workflow_control_claim_order_plan_live_test.go": (
+            "TestWorkflowClaimCandidateUsesClaimOrderIndex",
+        ),
     },
 }
