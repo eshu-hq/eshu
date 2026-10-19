@@ -260,6 +260,8 @@ func TestWorkflowClaimPacingIdleDrainHoldsFloor(t *testing.T) {
 	if got := idle.count(); got != 0 {
 		t.Fatalf("pacing-idle paced waits = %d, want 0 (backlog below every threshold)", got)
 	}
+	t.Logf("pacing-idle drain items=%d claimers=%d duration=%s claims_per_second=%.1f empty_attempts=%d backends=%v",
+		len(seeded), claimDepthClaimers, result.Duration, result.ClaimsPerSecond(), result.EmptyAttempts, result.BackendPIDs)
 }
 
 // TestWorkflowClaimPacingEngagedDrainCompletesExactlyOnce proves pacing
@@ -296,4 +298,6 @@ func TestWorkflowClaimPacingEngagedDrainCompletesExactlyOnce(t *testing.T) {
 	if got := pacedWaits.count(); got == 0 {
 		t.Fatal("paced waits = 0, want the engaged drain to actually pace grants")
 	}
+	t.Logf("pacing-engaged drain items=%d claimers=%d duration=%s claims_per_second=%.1f paced_waits=%d backends=%v",
+		len(seeded), claimDepthClaimers, result.Duration, result.ClaimsPerSecond(), pacedWaits.count(), result.BackendPIDs)
 }

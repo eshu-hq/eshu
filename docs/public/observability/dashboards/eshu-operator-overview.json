@@ -701,6 +701,45 @@
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Claim Pacing (engaged, active, stuck)",
+      "description": "Issue #8470: latch engagements per signal, whether pacing is on right now, engagements wedged past the bound (stuck is loud, never silently released), and the grant delay paced claims carry. A paced system is otherwise indistinguishable from a slow one.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 95},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(rate(eshu_dp_workflow_claim_pacing_engaged_total[5m])) by (pacing_signal)",
+          "legendFormat": "{{pacing_signal}} engagements/s",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(eshu_dp_workflow_claim_pacing_active) by (pacing_signal)",
+          "legendFormat": "{{pacing_signal}} active",
+          "refId": "B"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum(rate(eshu_dp_workflow_claim_pacing_stuck_total[5m])) by (pacing_signal)",
+          "legendFormat": "{{pacing_signal}} stuck/s",
+          "refId": "C"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.95, sum(rate(eshu_dp_workflow_claim_pacing_delay_seconds_bucket[5m])) by (le, pacing_signal))",
+          "legendFormat": "{{pacing_signal}} grant delay p95",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "short", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}},
+        "overrides": []
+      },
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
       "id": 28,
       "type": "timeseries",
       "title": "Lock-Only Gate Lock Wait p95 (per family)",
