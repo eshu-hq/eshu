@@ -1,0 +1,14 @@
+go/internal/ifa/materializededges/semantic_entity_containment_variant_test.go
+  h_78a442cba0b3e6 10,65-66,70,81-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "25fd0cd0abc2d3b0c1287b55fe053932cfd6eb8e",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
