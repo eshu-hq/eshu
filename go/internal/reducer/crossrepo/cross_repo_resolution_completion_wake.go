@@ -36,9 +36,11 @@ type CompletionWakeResult struct {
 // DeployableUnitCorrelationWaker reopens the
 // deployable_unit_correlation items whose recorded input no longer holds
 // after a resolution pass over the given repositories: succeeded items
-// return to pending, claimed/running items are flagged to replay after
-// their ACK. The wake is fingerprint-gated, so re-running it over the same
-// repositories reopens nothing further.
+// return to pending, claimed/running items with a recorded fingerprint are
+// flagged to replay after their ACK. A claimed/running item with no recorded
+// fingerprint is mid-first-execution and is left alone: there is no recorded
+// input to prove stale. The wake is fingerprint-gated, so re-running it over
+// the same repositories reopens nothing further.
 //
 // Ownership: the trigger lives in this package (the resolution flow knows
 // when it appended), the queue write lives in go/internal/storage/postgres

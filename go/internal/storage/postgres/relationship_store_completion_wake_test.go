@@ -174,6 +174,52 @@ func TestReopenDeployableUnitCorrelationsForReposReopensOverlappingSucceeded(t *
 	}
 }
 
+// The in-flight flag arm must require a recorded fingerprint row: a
+// claimed/running item with no fingerprint row is mid-first-execution (its
+// handler records the fingerprint only after the admission write, so a
+// blocked or killed-then-reclaimed claim has none yet). Flagging it forces a
+// redundant replay, and the migration 093 ACK trigger's attempt reset then
+// erases the replacement's reclaim evidence, failing the kill-worker
+// fault cell's killed-claims-reexecuted proof (want attempt_count above the
+// kill-time value; got the reset). The succeeded arm still reopens missing
+// fingerprints (pinned by the live missing_fingerprint_row_reopens proof);
+// only the in-flight arm needs recorded input to prove staleness.
+func TestCompletionWakeFlagArmRequiresRecordedFingerprint(t *testing.T) {
+	t.Parallel()
+
+	database := &fakeBeginnerExecQueryer{fakeExecQueryer: fakeExecQueryer{
+		execResults: []sql.Result{
+			fakeResultWithRowsAffected{rowsAffected: 0}, // set lock_timeout
+			fakeResultWithRowsAffected{rowsAffected: 0}, // in-flight flag arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // succeeded reopen arm
+		},
+	}}
+	store := NewRelationshipStore(database)
+
+	if _, err := store.ReopenDeployableUnitCorrelationsForRepos(
+		context.Background(), []string{"repo-a"},
+	); err != nil {
+		t.Fatalf("ReopenDeployableUnitCorrelationsForRepos() error = %v", err)
+	}
+	if len(database.execs) != 3 {
+		t.Fatalf("wake issued %d statements, want 3 (lock_timeout, flag arm, reopen arm)", len(database.execs))
+	}
+	flagQuery := database.execs[1].query
+	if !strings.Contains(flagQuery, "fingerprint.work_item_id IS NOT NULL") {
+		t.Fatalf("flag arm does not require a recorded fingerprint row; "+
+			"a claimed/running item with no fingerprint row would be flagged:\n%s", flagQuery)
+	}
+	for _, want := range []string{
+		"work.status IN ('claimed', 'running')",
+		"NOT work.cross_scope_replay_required",
+		"repo_ids &&",
+	} {
+		if !strings.Contains(flagQuery, want) {
+			t.Fatalf("flag arm missing %q:\n%s", want, flagQuery)
+		}
+	}
+}
+
 // The wake reuses the shared succeeded-to-pending SET clause (#7731) so it
 // resets every state column the reducer claim path reads. A drift between the
 // wake and the shared clause fails here instead of silently narrowing a reopen.

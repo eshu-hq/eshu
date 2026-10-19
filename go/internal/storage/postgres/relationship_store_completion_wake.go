@@ -48,10 +48,15 @@ var completionWakeInputChanged = `(fingerprint.work_item_id IS NULL
 // set is the at-or-above-floor items only — never the accumulated succeeded
 // history below each scope's floor. A fingerprinted item must overlap the
 // wake's repositories; an item with no fingerprint row has no recorded set
-// to overlap, and maintenance treats missing as always-reopen, so the floor
-// alone bounds that arm. Both arms additionally require the
-// changed-evidence verdict, which is what makes a re-run wake a no-op. Rows
-// lock FOR UPDATE in work_item_id C order, the order every multi-row
+// to overlap, and the succeeded arm keeps maintenance's missing-as-always-
+// reopen treatment for it, so the floor alone bounds that arm. The in-flight
+// arm additionally requires a recorded fingerprint row (see the flag query):
+// without recorded input there is nothing to prove stale, and flagging a
+// mid-first-execution claim forces a redundant replay whose ACK the
+// migration 093 trigger diverts to pending with attempt_count reset —
+// erasing a killed claim's reclaim evidence. Both arms additionally require
+// the changed-evidence verdict, which is what makes a re-run wake a no-op.
+// Rows lock FOR UPDATE in work_item_id C order, the order every multi-row
 // reducer locker uses, so two ordered lockers cannot form a lock cycle;
 // under Read Committed the lock rechecks this level's quals
 // (EvalPlanQual), so a row another transaction reopened, claimed, or
@@ -74,19 +79,27 @@ FOR UPDATE OF work`
 }
 
 // flagInflightDeployableUnitCorrelationsQuery is the wake's in-flight arm:
-// a claimed/running item that read the pre-append input keeps its exact
-// lease and gains cross_scope_replay_required, so the migration 093 ACK
-// trigger returns it to pending instead of landing it succeeded on stale
+// a claimed/running item whose recorded input no longer holds keeps its
+// exact lease and gains cross_scope_replay_required, so the migration 093
+// ACK trigger returns it to pending instead of landing it succeeded on stale
 // input. The SET list names no status column: the trigger fires BEFORE
 // UPDATE OF status, and this statement must not trip it early. Items
 // already flagged are excluded so a repeat wake neither locks nor rewrites
-// them.
+// them. Items with no fingerprint row are excluded too: with no recorded
+// input there is nothing to prove stale — the running execution is the
+// first derivation and records its fingerprint on success — and flagging it
+// would force a redundant replay whose diverted ACK resets attempt_count,
+// erasing kill-recovery reclaim evidence (fault-injection shard 3/4
+// killworkerdeployableunit: a pass that inserted nothing flagged the
+// admission-blocked victim, and the replacement's reclaimed attempt read
+// back as the reset instead of above the kill-time value).
 var flagInflightDeployableUnitCorrelationsQuery = backfill.ScopeReplayFloorCTE + `UPDATE fact_work_items
 SET cross_scope_replay_required = TRUE,
     updated_at = $1
 WHERE work_item_id IN (` +
 	completionWakeCandidateIDsSQL(`work.status IN ('claimed', 'running')
-  AND NOT work.cross_scope_replay_required`) + `
+  AND NOT work.cross_scope_replay_required
+  AND fingerprint.work_item_id IS NOT NULL`) + `
 )
 `
 
@@ -132,18 +145,20 @@ func classifyCompletionWakeError(err error) error {
 
 // ReopenDeployableUnitCorrelationsForRepos is the completion-driven wake
 // (#8294): one lock_timeout-bounded transaction that flags in-flight
-// deployable_unit_correlation items for replay after their ACK, then
-// reopens the succeeded ones, over the resolution pass's repository scope.
-// Both arms are bounded by the scope replay floor and the #8283
-// changed-evidence verdict, so the wake is runnable on any resolution pass
-// — including a retry that inserted nothing — and converges: an item that
-// already re-read the appended rows has a matching fingerprint and is left
-// alone. The in-flight arm runs first and locks its rows, so an ACK that
-// would land between the two arms waits on the lock and then sees the
-// replay flag; an item that ACKed before the wake is succeeded and the
-// second arm reopens it. Empty input reopens nothing without touching the
-// database. No worker count, batch size, or claim shape changes: this is
-// one extra transaction per resolution pass that resolved rows.
+// deployable_unit_correlation items with recorded input for replay after
+// their ACK, then reopens the succeeded ones, over the resolution pass's
+// repository scope. Both arms are bounded by the scope replay floor and the
+// #8283 changed-evidence verdict, so the wake is runnable on any resolution
+// pass — including a retry that inserted nothing — and converges: an item
+// that already re-read the appended rows has a matching fingerprint and is
+// left alone, as is an in-flight item with no recorded fingerprint (its
+// running execution is the first derivation). The in-flight arm runs first
+// and locks its rows, so an ACK that would land between the two arms waits
+// on the lock and then sees the replay flag; an item that ACKed before the
+// wake is succeeded and the second arm reopens it. Empty input reopens
+// nothing without touching the database. No worker count, batch size, or
+// claim shape changes: this is one extra transaction per resolution pass
+// that resolved rows.
 //
 // Telemetry: one eshu_dp_reducer_completion_wake_total increment per
 // transaction by outcome, plus the reopened row count on

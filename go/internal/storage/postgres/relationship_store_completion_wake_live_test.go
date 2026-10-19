@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8294 completion-driven deployable_unit_correlation wake on the full bootstrap schema through the production RelationshipStore: the scope replay floor leaves below-floor succeeded history succeeded while an at-floor item reopens (EXPLAIN of the production statement locks only the at-floor row), a missing fingerprint row reopens, an unchanged fingerprint stays succeeded on a retry wake, a live re-run of UpsertResolved reports Inserted=0 yet the retry wake still reopens and then converges, and a running item keeps its lease with cross_scope_replay_required set so its ACK returns it to pending; isolated schema per subtest from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 15 s for the file on local PostgreSQL 18 on 2026-10-19; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8294 completion-driven deployable_unit_correlation wake on the full bootstrap schema through the production RelationshipStore: the scope replay floor leaves below-floor succeeded history succeeded while an at-floor item reopens (EXPLAIN of the production statement locks only the at-floor row), a missing fingerprint row reopens, an unchanged fingerprint stays succeeded on a retry wake, a live re-run of UpsertResolved reports Inserted=0 yet the retry wake still reopens and then converges, a running item with a recorded fingerprint keeps its lease with cross_scope_replay_required set so its ACK returns it to pending, and a claimed item with no recorded fingerprint is left unflagged (kill-worker reclaim evidence); isolated schema per subtest from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; about 15 s for the file on local PostgreSQL 18 on 2026-10-19; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -206,6 +206,46 @@ func TestCompletionWakeRunningItemReplayBitLive(t *testing.T) {
 	}
 	if workItemReplayBit(t, ctx, db, "duc-run") {
 		t.Fatal("duc-run cross_scope_replay_required still true after ACK trigger consumed it")
+	}
+}
+
+// TestCompletionWakeClaimedMissingFingerprintNotFlaggedLive is the
+// kill-worker regression proof (#8294 fault-injection shard 3/4
+// killworkerdeployableunit): duc-first is mid-first-execution — claimed but
+// with no fingerprint recorded yet, because the handler records it only
+// after the admission write — when a resolution pass appends and wakes. The
+// wake must not flag it: with no recorded input there is nothing to prove
+// stale, and the flag would divert its (or its replacement's, after a kill)
+// ACK to pending with attempt_count reset, erasing the reclaim evidence the
+// fault cell asserts. On the pre-fix statement this fails with
+// ReplayFlagged=1 and the replay bit set.
+func TestCompletionWakeClaimedMissingFingerprintNotFlaggedLive(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #8294 completion wake proof")
+	}
+	ctx := context.Background()
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	w := seedFingerprintGateWorld(t, ctx, db)
+
+	claimFingerprintGateItem(t, ctx, db, "duc-first", w.a.scopeID, w.a.genID,
+		reducer.DomainDeployableUnitCorrelation, w.at)
+	// No fingerprint is recorded for duc-first: it is still running its
+	// first derivation, exactly like a claim blocked on the admission write.
+	upsertFingerprintGateDeploysFrom(t, ctx, db, w.b.genID, "repo-b-worker", "repo-a")
+	woken, err := completionWakeStore(db).ReopenDeployableUnitCorrelationsForRepos(
+		ctx, []string{"repo-a", "repo-b-worker"})
+	if err != nil {
+		t.Fatalf("completion wake: %v", err)
+	}
+	if woken.ReplayFlagged != 0 {
+		t.Fatalf("wake flagged a claimed item with no recorded fingerprint: %+v, want ReplayFlagged=0", woken)
+	}
+	if got := workItemStatus(t, ctx, db, "duc-first"); got != "running" {
+		t.Fatalf("duc-first status after wake = %q, want running (lease kept, untouched)", got)
+	}
+	if workItemReplayBit(t, ctx, db, "duc-first") {
+		t.Fatal("duc-first cross_scope_replay_required = true after wake, want false (no recorded input to prove stale)")
 	}
 }
 
