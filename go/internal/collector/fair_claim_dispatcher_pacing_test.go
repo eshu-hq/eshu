@@ -19,7 +19,6 @@ import (
 // fails every pacing consult to prove fail-open.
 type pacingDispatcherChecker struct {
 	mu           sync.Mutex
-	cfg          workflow.ClaimPacingConfig
 	pacedTargets map[string]workflow.ClaimPacingDecision
 	checkErr     error
 	calls        int
@@ -65,7 +64,6 @@ func TestFairClaimDispatcherSkipsPacedTargets(t *testing.T) {
 		},
 	}
 	checker := &pacingDispatcherChecker{
-		cfg: pacingDispatcherConfig(),
 		pacedTargets: map[string]workflow.ClaimPacingDecision{
 			"aws:aws-primary": {
 				Paced:      true,
@@ -116,7 +114,6 @@ func TestFairClaimDispatcherDefersWhenAllTargetsPaced(t *testing.T) {
 		results: map[string][]fairDispatcherClaimResult{},
 	}
 	checker := &pacingDispatcherChecker{
-		cfg: pacingDispatcherConfig(),
 		pacedTargets: map[string]workflow.ClaimPacingDecision{
 			"aws:aws-primary": {
 				Paced:      true,
@@ -224,10 +221,8 @@ func pacingDispatcherConfig() workflow.ClaimPacingConfig {
 // pacingOnceChecker paces the first consult with delay, then claims normally.
 type pacingOnceChecker struct {
 	mu    sync.Mutex
-	cfg   workflow.ClaimPacingConfig
 	delay time.Duration
 	paced bool
-	calls int
 }
 
 func (c *pacingOnceChecker) CheckClaimPacing(
@@ -238,7 +233,6 @@ func (c *pacingOnceChecker) CheckClaimPacing(
 ) (workflow.ClaimPacingDecision, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.calls++
 	if !c.paced {
 		c.paced = true
 		return workflow.ClaimPacingDecision{
@@ -279,7 +273,7 @@ func TestClaimedServiceBacksOffGrantDelayOnPacingDeferral(t *testing.T) {
 			return nil
 		},
 	}
-	checker := &pacingOnceChecker{cfg: pacingDispatcherConfig(), delay: 100 * time.Millisecond}
+	checker := &pacingOnceChecker{delay: 100 * time.Millisecond}
 	dispatcher, err := NewFairClaimDispatcher(store, []workflow.FairnessCandidate{
 		{CollectorKind: scope.CollectorAWS, CollectorInstanceID: "aws-primary", Weight: 1},
 	})
