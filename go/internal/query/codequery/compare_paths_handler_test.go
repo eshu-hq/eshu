@@ -62,7 +62,7 @@ type comparePathsEnvelope struct {
 	} `json:"truth"`
 }
 
-func postComparePaths(t *testing.T, handler *CodeHandler, body string) (int, comparePathsEnvelope) {
+func postComparePaths(t *testing.T, handler *CodeHandler, body string) (int, comparePathsEnvelope, string) {
 	t.Helper()
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -78,7 +78,7 @@ func postComparePaths(t *testing.T, handler *CodeHandler, body string) (int, com
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v body=%s", err, rec.Body.String())
 	}
-	return rec.Code, envelope
+	return rec.Code, envelope, rec.Body.String()
 }
 
 func compareHandler(graph compareGraphFixture, backend GraphBackend) *CodeHandler {
@@ -100,7 +100,7 @@ func TestCodeHandlerCompareCodePathsDiamond(t *testing.T) {
 		t.Run(string(backend), func(t *testing.T) {
 			t.Parallel()
 			handler := compareHandler(diamondCompareGraph(), backend)
-			code, envelope := postComparePaths(t, handler,
+			code, envelope, _ := postComparePaths(t, handler,
 				`{"repo_id":"repo-x","start_entity_id":"a","end_entity_id":"e","max_depth":4,"max_paths":5}`)
 			if code != http.StatusOK {
 				t.Fatalf("status = %d, want %d", code, http.StatusOK)
@@ -153,9 +153,31 @@ func TestCodeHandlerCompareCodePathsValidation(t *testing.T) {
 		`{"start_entity_id":"a","end_entity_id":"e"}`,
 		`{"repo_id":"repo-x","start_entity_id":"a","end_entity_id":"e","cross_repo":true}`,
 	} {
-		code, _ := postComparePaths(t, handler, body)
+		code, _, _ := postComparePaths(t, handler, body)
 		if code != http.StatusBadRequest {
 			t.Errorf("body %s status = %d, want 400", body, code)
 		}
+	}
+}
+
+// TestCodeHandlerCompareCodePathsUnseededEndpointsAreNotFound pins the #5167
+// sweep contract: endpoint names that resolve to zero candidates must answer
+// the typed 404, not the BFS 500. Zero candidates resolve to (nil, nil),
+// which is not an error, so the empty ids used to slip past endpoint failure
+// into bfsComparePaths' "requires resolved start and end entity ids" error
+// and the live sweep saw HTTP 500 "code path comparison graph read failed".
+func TestCodeHandlerCompareCodePathsUnseededEndpointsAreNotFound(t *testing.T) {
+	t.Parallel()
+
+	handler := compareHandler(diamondCompareGraph(), GraphBackendNeo4j)
+	code, _, raw := postComparePaths(t, handler,
+		`{"repo_id":"repo-x","start":"sweepStart","end":"sweepEnd","max_depth":3,"max_paths":3}`)
+	if code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d (typed not_found for unresolvable endpoints)", code, http.StatusNotFound)
+	}
+	// The sweep classifier keys not_found on the JSON body shape, not the
+	// status alone: a future body change that keeps 404 must fail here.
+	if !strings.Contains(raw, `"error":"Not Found"`) {
+		t.Fatalf("body = %s, want the JSON Not Found shape the sweep classifier keys on", raw)
 	}
 }

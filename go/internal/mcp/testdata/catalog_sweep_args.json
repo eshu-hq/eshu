@@ -256,9 +256,10 @@
         },
         "accept": [
           "ok",
-          "unsupported_capability"
+          "unsupported_capability",
+          "not_found"
         ],
-        "acceptReason": "start sweepStart and end sweepEnd name no seeded code entities, and code path comparison needs authoritative graph mode"
+        "acceptReason": "start sweepStart and end sweepEnd name no seeded code entities, so the route answers the typed not_found; stacks without path-comparison support answer unsupported_capability instead, which needs authoritative graph mode"
       }
     ],
     "dispatch_cfg_summary": [
@@ -478,7 +479,7 @@
           "ok",
           "unsupported_capability"
         ],
-        "acceptReason": "code divergence findings require a query profile the sweep stack does not run"
+        "acceptReason": "code divergence findings need a query profile with divergence support; profiles without it answer unsupported_capability"
       }
     ],
     "investigate_code_divergence": [
@@ -491,9 +492,10 @@
         },
         "accept": [
           "ok",
-          "unsupported_capability"
+          "unsupported_capability",
+          "not_found"
         ],
-        "acceptReason": "fingerprint sweep-fingerprint names no seeded divergence finding, and code divergence needs a query profile the sweep stack does not run"
+        "acceptReason": "fingerprint sweep-fingerprint names no seeded divergence finding, so the route answers the typed not_found; stacks without divergence support answer unsupported_capability instead"
       }
     ],
     "report_code_divergence": [
@@ -507,7 +509,7 @@
           "ok",
           "unsupported_capability"
         ],
-        "acceptReason": "the code divergence report requires a query profile the sweep stack does not run"
+        "acceptReason": "the code divergence report needs a query profile with divergence support; profiles without it answer unsupported_capability"
       }
     ],
     "trace_exposure_path": [
