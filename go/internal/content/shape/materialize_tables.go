@@ -35,7 +35,7 @@ var contentEntityBuckets = []entityBucketMapping{
 	// go/internal/projector/semantic/entity/intents.go, the same two predicates
 	// in go/internal/reducer/code/semantic/materialization_helpers.go, and the
 	// MERGE (n:Variable {uid}) in
-	// go/internal/storage/cypher/semantic_entity_statements.go. Full reasoning:
+	// go/internal/storage/cypher/semantic/entity/statements.go. Full reasoning:
 	// go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md. The
 	// pinned set is canonicalEntityPhaseSkipOwners in
 	// go/internal/projector/canonical/unwritten_entity_labels_test.go (#6206),

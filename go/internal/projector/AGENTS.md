@@ -109,7 +109,7 @@ editing inside it. Three rules that are easy to get wrong from here:
   algorithm name, which silently narrowed the public v1 contract without a
   major bump; #5820 P2 review finding). The graph writer's `algorithm:digest`
   flattening (`packageRegistryHashPairs`,
-  `go/internal/storage/cypher/package_registry_artifact_writer.go`) escapes
+  `go/internal/storage/cypher/package/registry/artifact_writer.go`) escapes
   both segments instead, keeping the split unambiguous for any input.
   `packageRegistryTrimmedStringMap` (shared with `.package_version`'s
   `checksums`) also sorts its input keys before iterating so a whitespace

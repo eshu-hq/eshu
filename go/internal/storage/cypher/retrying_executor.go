@@ -334,6 +334,19 @@ func classifyRetryableGraphWriteError(err error, stmt Statement) string {
 // parser interval race (#8190) is also shape-independent for the same reason:
 // it fails at parse time inside that transaction (see
 // detectNeo4jParserIntervalRace).
+// ClassifyRetryableGraphWriteGroupError is the exported form of the
+// group-retry classifier. Leaf writer packages (semantic/entity) call it to
+// pin that their real retract+upsert statements classify retryable; the
+// doc comment on the implementation below is the contract.
+func ClassifyRetryableGraphWriteGroupError(err error, stmts []Statement) string {
+	return classifyRetryableGraphWriteGroupError(err, stmts)
+}
+
+// GraphWriteRetryReasonUniqueConflict is the exported form of the
+// unique-conflict retry reason. Leaf writer packages (semantic/entity)
+// assert against it so a rename stays compiler-checked.
+const GraphWriteRetryReasonUniqueConflict = graphWriteRetryReasonUniqueConflict
+
 func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string {
 	var exhausted *neo4jdriver.TransactionExecutionLimit
 	if errors.As(err, &exhausted) {

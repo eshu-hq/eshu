@@ -238,7 +238,7 @@ func (b *boltGraphCounter) CountSelfLoopEdges(ctx context.Context, label, relati
 // A Bolt LIST property (for example PackageArtifact.hashes, a sorted
 // "algorithm:digest" string list -- Cypher node properties cannot hold a
 // nested map, see packageRegistryHashPairs in
-// go/internal/storage/cypher/package_registry_artifact_writer.go) decodes off
+// go/internal/storage/cypher/package/registry/artifact_writer.go) decodes off
 // the wire as []any of strings, mirroring edgeEvidenceContainsAll's handling
 // of the evidence_kinds property below. Joining its elements with "|" lets
 // ListNodeProperty/ListCorrelationEdgeProperty apply the same

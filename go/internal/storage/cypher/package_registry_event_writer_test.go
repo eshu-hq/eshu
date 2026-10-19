@@ -10,14 +10,15 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/package/registry"
 )
 
 // This file holds the package_registry.registry_event-specific canonical
 // writer tests, in its own file (rather than folded into
-// package_registry_canonical_writer_test.go, already at the package's
+// canonical_writer_test.go, already at the package's
 // 500-line-per-file convention boundary) mirroring the projector-side split
 // in package_registry_canonical_event_test.go. packageRegistryPhaseGroupIndex
-// is defined in package_registry_canonical_writer_identity_test.go and reused
+// is defined in canonical_writer_identity_test.go and reused
 // here since both files are part of package cypher.
 
 func TestCanonicalNodeWriterBuildsPackageRegistryEventStatements(t *testing.T) {
@@ -61,7 +62,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryEventStatements(t *testing.T) {
 	if strings.Contains(event.Cypher, "MATCH (") {
 		t.Fatalf("event NODE Cypher = %q, must not MATCH PackageVersion (deferred to edge phase)", event.Cypher)
 	}
-	if got, want := event.Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryEvents; got != want {
+	if got, want := event.Parameters[StatementMetadataPhaseKey], registry.PhaseEvents; got != want {
 		t.Fatalf("event phase = %#v, want %#v", got, want)
 	}
 	eventRows, ok := event.Parameters["rows"].([]map[string]any)
@@ -111,7 +112,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryEventStatements(t *testing.T) {
 			t.Fatalf("event EDGE Cypher = %q, want fragment %q", eventEdges[0].Cypher, fragment)
 		}
 	}
-	if got, want := eventEdges[0].Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryEventEdges; got != want {
+	if got, want := eventEdges[0].Parameters[StatementMetadataPhaseKey], registry.PhaseEventEdges; got != want {
 		t.Fatalf("event edge phase = %#v, want %#v", got, want)
 	}
 }

@@ -359,3 +359,19 @@ docs/internal/evidence/7212-schema-closed-anchor.md:go/internal/storage/cypher/c
 docs/internal/evidence/7380-entity-context-single-anchor.md:go/internal/storage/cypher/canonical_node_cypher.go
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/canonical_node_cypher.go
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/canonical_node_writer_retract_labels.go
+
+# Dated records of the tree as it stood when the semantic-entity and
+# package-registry writers still lived in the cypher root (#6694 semantic
+# slice moved them to semantic/entity/ and package/registry/): dated
+# evidence notes and the B-12 golden snapshot's recorded descriptions, which
+# must stay byte-identical. Repointing any of them would rewrite history.
+testdata/golden/e2e-20repo-snapshot.json:go/internal/storage/cypher/package_registry_artifact_writer.go
+testdata/golden/e2e-20repo-snapshot.json:go/internal/storage/cypher/package_registry_canonical_writer.go
+testdata/golden/e2e-20repo-snapshot.json:go/internal/storage/cypher/package_registry_event_writer.go
+docs/internal/evidence/6738-semantic-grouped-writes.md:go/internal/storage/cypher/semantic_entity.go
+docs/internal/evidence/6738-semantic-grouped-writes.md:go/internal/storage/cypher/semantic_entity_group_split_test.go
+docs/internal/evidence/6782-slice3-differential-oracle.md:go/internal/storage/cypher/semantic_entity_statements.go
+docs/internal/evidence/8359-semantic-contains-edge-retract.md:go/internal/storage/cypher/semantic_entity.go
+go/internal/storage/cypher/evidence-4367-semantic-retract-dispatch.md:go/internal/storage/cypher/semantic_entity.go
+go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/semantic_entity_statements.go
+go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/semantic_entity_nornicdb_test.go

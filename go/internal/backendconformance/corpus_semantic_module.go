@@ -11,13 +11,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	phasegroup "github.com/eshu-hq/eshu/go/internal/storage/cypher/phase/group"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 // The semantic Module cases pin what the production semantic-entity write does
 // to :Module on each backend (#6965 Phase 4, root cause owned by #6968).
 //
 // The two backends receive different Cypher for the same write. The reducer
-// wires a MATCH-first writer for Neo4j (sourcecypher.NewSemanticEntityWriter)
+// wires a MATCH-first writer for Neo4j (entity.NewSemanticEntityWriter)
 // and a MERGE-first writer for NornicDB
 // (NewSemanticEntityWriterWithCanonicalNodeRows + WithLabelScopedRetract,
 // go/cmd/reducer/neo4j_wiring.go). Module is not canonical-node-owned, so on
@@ -91,7 +92,7 @@ const (
 
 // SemanticEntityWriterFactory builds the semantic-entity writer a backend runs,
 // over the executor the case builder records through.
-type SemanticEntityWriterFactory func(sourcecypher.Executor) *sourcecypher.SemanticEntityWriter
+type SemanticEntityWriterFactory func(sourcecypher.Executor) *entity.SemanticEntityWriter
 
 // SemanticEntityWriterFor returns the writer construction the reducer wires for
 // backend (go/cmd/reducer/neo4j_wiring.go semanticEntityWriterForGraphBackend,
@@ -101,12 +102,12 @@ type SemanticEntityWriterFactory func(sourcecypher.Executor) *sourcecypher.Seman
 func SemanticEntityWriterFor(backend BackendID) (SemanticEntityWriterFactory, error) {
 	switch backend {
 	case BackendNornicDB:
-		return func(executor sourcecypher.Executor) *sourcecypher.SemanticEntityWriter {
-			return sourcecypher.NewSemanticEntityWriterWithCanonicalNodeRows(executor, 0).WithLabelScopedRetract()
+		return func(executor sourcecypher.Executor) *entity.SemanticEntityWriter {
+			return entity.NewSemanticEntityWriterWithCanonicalNodeRows(executor, 0).WithLabelScopedRetract()
 		}, nil
 	case BackendNeo4j:
-		return func(executor sourcecypher.Executor) *sourcecypher.SemanticEntityWriter {
-			return sourcecypher.NewSemanticEntityWriter(executor, 0)
+		return func(executor sourcecypher.Executor) *entity.SemanticEntityWriter {
+			return entity.NewSemanticEntityWriter(executor, 0)
 		}, nil
 	default:
 		return nil, fmt.Errorf("no semantic entity writer wiring for backend %q", backend)

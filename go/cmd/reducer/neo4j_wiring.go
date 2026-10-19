@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -335,8 +336,8 @@ func semanticEntityWriterForGraphBackend(
 	batchSize int,
 	graphBackend runtimecfg.GraphBackend,
 	getenv func(string) string,
-) (*sourcecypher.SemanticEntityWriter, error) {
-	writer := sourcecypher.NewSemanticEntityWriter(executor, batchSize)
+) (*entity.SemanticEntityWriter, error) {
+	writer := entity.NewSemanticEntityWriter(executor, batchSize)
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		// NornicDB's batch executor is template-sensitive: putting MATCH before
 		// MERGE is indexed but misses the generalized UNWIND/MERGE hot path.
@@ -344,7 +345,7 @@ func semanticEntityWriterForGraphBackend(
 		// projection retain ownership of File CONTAINS edges for canonical entity
 		// labels. That avoids repeated relationship-existence checks as the graph
 		// grows while still preserving Module's semantic-owned uid nodes.
-		writer = sourcecypher.NewSemanticEntityWriterWithCanonicalNodeRows(executor, batchSize).
+		writer = entity.NewSemanticEntityWriterWithCanonicalNodeRows(executor, batchSize).
 			WithLabelScopedRetract()
 		labelBatchSizes, err := nornicDBSemanticEntityLabelBatchSizes(getenv, effectiveNeo4jBatchSize(batchSize))
 		if err != nil {

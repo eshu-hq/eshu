@@ -26,7 +26,7 @@ func fullPackageArtifactPayload() map[string]any {
 // of this decode rejected a colon-bearing hashes algorithm name as
 // input_invalid, reasoning that the graph writer flattens Hashes into a sorted
 // "algorithm:digest" string list (packageRegistryHashPairs in
-// go/internal/storage/cypher/package_registry_artifact_writer.go) and a colon
+// go/internal/storage/cypher/package/registry/artifact_writer.go) and a colon
 // inside the algorithm name would make that split ambiguous. But
 // package_registry.package_artifact.v1.schema.json's hashes.additionalProperties
 // accepts ANY string key, and this same schema version previously decoded

@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 // semanticEntityContainmentFamily is the materialized-edge family key this
@@ -87,7 +87,7 @@ func resolveSemanticEntityContainmentMaterializedEdges(odu ifa.Odu, expectedEdge
 			SourceEntityID:   row.RepoID + ":" + row.RelativePath,
 			TargetEntityID:   row.EntityID,
 			Properties: map[string]string{
-				"evidence_source": sourcecypher.SemanticEntityEvidenceSource,
+				"evidence_source": entity.SemanticEntityEvidenceSource,
 			},
 		})
 	}

@@ -30,7 +30,7 @@
 //     projection_hook), so this scenario also backs the projection:code_graph_projection
 //     coverage claim without needing a second test.
 //   - semantic_entity_materialization (semantic_entity_cost_test.go) drives
-//     [storage/cypher.SemanticEntityWriter.WriteSemanticEntities] over two
+//     [storage/cypher/semantic/entity.SemanticEntityWriter.WriteSemanticEntities] over two
 //     in-package fixture rows through a [storage/cypher.InstrumentedExecutor] —
 //     the same wrapper go/cmd/reducer/observed_service_wiring.go applies to
 //     the real Neo4j/NornicDB executor.

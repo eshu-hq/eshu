@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/relationship"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 // The single-type registry table lives here rather than in families.go so
@@ -288,14 +289,14 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// unheld (they delete nodes, never edges). Endpoint labels plus the rel
 	// stamp fence the canonical population out — see endpoints.go.
 	"semantic_entity_containment": {
-		EdgeTypes:     map[string]string{"CONTAINS": "file/impl-block to semantic entity containment (semantic entity writer templates in semantic_entity_statements.go)"},
-		RetractCypher: sourcecypher.RetractSemanticEntityContainmentEdgesCypher,
+		EdgeTypes:     map[string]string{"CONTAINS": "file/impl-block to semantic entity containment (semantic entity writer templates in semantic/entity/statements.go)"},
+		RetractCypher: entity.RetractSemanticEntityContainmentEdgesCypher,
 		RetractVariants: []string{
-			sourcecypher.RetractSemanticEntityContainmentNodeScopedEdgesCypher,
-			sourcecypher.RetractSemanticEntityContainmentDeltaEdgesCypher,
-			sourcecypher.RetractSemanticEntityContainmentDeltaNodeScopedEdgesCypher,
+			entity.RetractSemanticEntityContainmentNodeScopedEdgesCypher,
+			entity.RetractSemanticEntityContainmentDeltaEdgesCypher,
+			entity.RetractSemanticEntityContainmentDeltaNodeScopedEdgesCypher,
 		},
-		IdentityCypher: sourcecypher.SemanticEntityContainmentUpsertCypher,
+		IdentityCypher: entity.SemanticEntityContainmentUpsertCypher,
 	},
 	// security_group_rule_endpoint is the single-type TO sibling of the
 	// multi-type security_group_sg_rule family (#6228): the rule -> endpoint

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/package/registry"
 )
 
 func TestCanonicalNodeWriterSerializesConcurrentDuplicatePackageUIDs(t *testing.T) {
@@ -193,7 +194,7 @@ func TestPackageRegistryIdentityLockKeysCoverPackageSources(t *testing.T) {
 		}},
 	}
 
-	got := uniqueSortedPackageRegistryIdentityKeys(packageRegistryIdentityLockKeys(mat))
+	got := registry.UniqueSortedIdentityKeys(registry.LockKeys(mat))
 	want := []string{
 		"npm://registry.npmjs.org/@aws-sdk/property-provider",
 		"npm://registry.npmjs.org/@aws-sdk/util-utf8-browser",
@@ -291,14 +292,7 @@ func packageRegistryIdentityRefCount(writer *CanonicalNodeWriter, key string) in
 	if writer == nil || writer.packageRegistryLocks == nil {
 		return 0
 	}
-	writer.packageRegistryLocks.mu.Lock()
-	defer writer.packageRegistryLocks.mu.Unlock()
-
-	lock := writer.packageRegistryLocks.locks[key]
-	if lock == nil {
-		return 0
-	}
-	return lock.refs
+	return writer.packageRegistryLocks.RefCount(key)
 }
 
 func (e *blockingPackageUIDExecutor) Execute(context.Context, Statement) error {

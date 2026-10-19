@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
 // TestSemanticEntityWriterLiveNornicDBMaterializesVariableNodes is the live
@@ -100,7 +101,7 @@ SET f.repo_id = $repo_id`,
 		MaxRetries: 3,
 		BaseDelay:  5 * time.Millisecond,
 	}
-	writer := cypher.NewSemanticEntityWriterWithCanonicalNodeRows(retryingExec, 100).WithLabelScopedRetract()
+	writer := entity.NewSemanticEntityWriterWithCanonicalNodeRows(retryingExec, 100).WithLabelScopedRetract()
 
 	// 1. Write the control repo's Variable row first so a later in-scope
 	// retract has an out-of-scope survivor to prove scoping against.

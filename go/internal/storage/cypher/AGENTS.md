@@ -123,7 +123,7 @@
   return path in `CanonicalNodeWriter.Write` (atomic group, phase group, and
   sequential) routes its error through `WrapRetryableNeo4jError`, matching every
   other graph writer in this package (`edge/writer/writer.go`, `cloud/resource/node_writer.go`,
-  the EC2/IAM/S3 writers, `semantic_entity.go`). Without this, transient NornicDB
+  the EC2/IAM/S3 writers, `semantic/entity/writer.go`). Without this, transient NornicDB
   failures (driver retry-budget exhaustion `*TransactionExecutionLimit`,
   `*ConnectivityError`, and the codes in `retryableNeo4jCodes`) reach the
   projector queue as a non-`projector.RetryableError` and dead-letter at

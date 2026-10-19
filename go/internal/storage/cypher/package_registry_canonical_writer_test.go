@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/package/registry"
 )
 
 func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
@@ -129,7 +130,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	if strings.Contains(pkg.Cypher, "Repository") {
 		t.Fatalf("package Cypher = %q, must not infer repository ownership", pkg.Cypher)
 	}
-	if got, want := pkg.Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryPackages; got != want {
+	if got, want := pkg.Parameters[StatementMetadataPhaseKey], registry.PhasePackages; got != want {
 		t.Fatalf("package phase = %#v, want %#v", got, want)
 	}
 	packageRows := pkg.Parameters["rows"].([]map[string]any)
@@ -227,7 +228,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	if strings.Contains(artifact.Cypher, "MATCH (") {
 		t.Fatalf("artifact NODE Cypher = %q, must not MATCH PackageVersion (deferred to edge phase)", artifact.Cypher)
 	}
-	if got, want := artifact.Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryArtifacts; got != want {
+	if got, want := artifact.Parameters[StatementMetadataPhaseKey], registry.PhaseArtifacts; got != want {
 		t.Fatalf("artifact phase = %#v, want %#v", got, want)
 	}
 	artifactRows := artifact.Parameters["rows"].([]map[string]any)
@@ -274,7 +275,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 			t.Fatalf("artifact EDGE Cypher = %q, want fragment %q", artifactEdges[0].Cypher, fragment)
 		}
 	}
-	if got, want := artifactEdges[0].Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryArtifactEdges; got != want {
+	if got, want := artifactEdges[0].Parameters[StatementMetadataPhaseKey], registry.PhaseArtifactEdges; got != want {
 		t.Fatalf("artifact edge phase = %#v, want %#v", got, want)
 	}
 
@@ -293,7 +294,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 			t.Fatalf("version EDGE Cypher = %q, want fragment %q", versionEdges[0].Cypher, fragment)
 		}
 	}
-	if got, want := versionEdges[0].Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryVersionEdges; got != want {
+	if got, want := versionEdges[0].Parameters[StatementMetadataPhaseKey], registry.PhaseVersionEdges; got != want {
 		t.Fatalf("version edge phase = %#v, want %#v", got, want)
 	}
 
@@ -314,7 +315,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 			t.Fatalf("dependency EDGE Cypher = %q, want fragment %q", dependencyEdges[0].Cypher, fragment)
 		}
 	}
-	if got, want := dependencyEdges[0].Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryDependencyEdges; got != want {
+	if got, want := dependencyEdges[0].Parameters[StatementMetadataPhaseKey], registry.PhaseDependencyEdges; got != want {
 		t.Fatalf("dependency edge phase = %#v, want %#v", got, want)
 	}
 }
@@ -421,5 +422,5 @@ func TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups(t *testing.T) {
 // The identity/dedup tests (duplicate dependency-target and package UIDs)
 // and the packageRegistryPhaseGroupIndex helper this file's
 // TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups uses live in
-// package_registry_canonical_writer_identity_test.go, split out to stay
+// canonical_writer_identity_test.go, split out to stay
 // under the package's 500-line-per-file convention.
