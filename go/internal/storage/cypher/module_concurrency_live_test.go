@@ -204,8 +204,9 @@ func moduleConcurrencyStatements(writer *CanonicalNodeWriter, prefix, filePath s
 // SanitizeStatements rule (strip `_`-prefixed diagnostic parameters, keep real
 // parameters, preserve order, never mutate the input). This file cannot import
 // the leaf (the leaf imports this package), so a future narrowing or widening
-// of either rule must fail TestSanitizeConcurrencyStatementsMirrorsLeaf
-// instead of silently diverging from the production Bolt executors.
+// of this twin must fail TestSanitizeConcurrencyStatementsMirrorsLeaf instead
+// of silently diverging from the production Bolt executors. (Leaf-side drift
+// cannot fail that test; the leaf's own tests pin the reference rule.)
 func sanitizeConcurrencyStatements(stmts []Statement) []Statement {
 	sanitized := make([]Statement, len(stmts))
 	for i, stmt := range stmts {
