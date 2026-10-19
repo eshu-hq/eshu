@@ -8,14 +8,18 @@ in-repo record specific to this change rather than relying on PR prose.
 
 ## Change shape
 
-Additive only: new edge writers under
-`go/internal/storage/cypher/edge/writer/` (derived_from, provenance) and
-`go/internal/storage/cypher/cloud/aws/image/`, new registry rows in
-`direct_families.go`, plus Odu/guard/fixture test code. No existing writer,
-query, batch size, worker knob, lease, retry, or queue path is modified. New
-writers emit bounded exact sets per fixture (2-edge and 3-edge sets listed in
-the PR body); the twin-template publishes path reuses one MERGE identity
-instead of duplicating writes.
+Additive only: exported alias consts in the existing writer files
+`go/internal/storage/cypher/edge/writer/derived_from.go`,
+`go/internal/storage/cypher/edge/writer/provenance.go`, and
+`go/internal/storage/cypher/cloud/aws/image/container_edge_writer.go`, new
+registry rows in
+`go/internal/storage/cypher/edge/materialized/single_type_families.go`, new
+family guard files under `go/internal/ifa/materializededges/`, plus
+Odu/guard/fixture test code. No existing writer, query, batch size, worker
+knob, lease, retry, or queue path is modified. The new family guards
+reproduce bounded exact sets per fixture (2-edge and 3-edge sets listed in
+the PR body); the publishes registry row holds one MERGE identity const for
+the twin templates instead of duplicating the literal.
 
 ## Performance Evidence:
 
@@ -38,12 +42,12 @@ instead of duplicating writes.
 
 ## No-Regression Evidence:
 
-The change adds new write paths; no existing hot path changed shape, so no
+The change adds no new production write path; no existing hot path changed shape, so no
 existing budget holder can regress. Backend/version: no Cypher text of an
 existing writer altered, no batch size or worker knob changed. Input shape:
-fixture-bounded 2-edge/3-edge sets. Live proof (Neo4j projection of the new
-writers at corpus scale) belongs to the CI live matrices at landing; waivers
-stand with `LiveProven` false.
+fixture-bounded 2-edge/3-edge sets. Live proof (Neo4j projection of these
+families at corpus scale) belongs to the CI live matrices at landing; waivers
+stand with `LiveProven` unset.
 
 ## No-Observability-Change:
 

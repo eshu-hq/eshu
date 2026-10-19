@@ -271,12 +271,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteBuiltFromEdges -> cypher/provenance_edge_writer.go merges BUILT_FROM; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteBuiltFromEdges -> cypher/provenance_edge_writer.go merges BUILT_FROM; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:built_from"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteBuiltFromEdges -> cypher/provenance_edge_writer.go merges BUILT_FROM; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteBuiltFromEdges -> cypher/provenance_edge_writer.go merges BUILT_FROM; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:cloud_resource"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -291,12 +291,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCloudResourceContainerImageEdges -> cypher/cloud_resource_container_image_edge_writer.go merges lambda_function_uses_image; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteCloudResourceContainerImageEdges -> cypher/cloud_resource_container_image_edge_writer.go merges lambda_function_uses_image; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:cloud_resource_container_image"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCloudResourceContainerImageEdges -> cypher/cloud_resource_container_image_edge_writer.go merges lambda_function_uses_image; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteCloudResourceContainerImageEdges -> cypher/cloud_resource_container_image_edge_writer.go merges lambda_function_uses_image; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:code_interproc_evidence"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -321,22 +321,22 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCrossplaneSatisfiedByEdges -> cypher/crossplane_satisfied_by_edge_writer.go merges SATISFIED_BY; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteCrossplaneSatisfiedByEdges -> cypher/crossplane_satisfied_by_edge_writer.go merges SATISFIED_BY; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:crossplane_satisfied_by"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCrossplaneSatisfiedByEdges -> cypher/crossplane_satisfied_by_edge_writer.go merges SATISFIED_BY; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteCrossplaneSatisfiedByEdges -> cypher/crossplane_satisfied_by_edge_writer.go merges SATISFIED_BY; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:derived_from"
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteDerivedFromEdges -> cypher/derived_from_edge_writer.go merges DERIVED_FROM; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteDerivedFromEdges -> cypher/derived_from_edge_writer.go merges DERIVED_FROM; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:derived_from"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteDerivedFromEdges -> cypher/derived_from_edge_writer.go merges DERIVED_FROM; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteDerivedFromEdges -> cypher/derived_from_edge_writer.go merges DERIVED_FROM; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:grants_secret_read"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -381,12 +381,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WritePublishesEdges -> cypher/provenance_edge_writer.go merges PUBLISHES; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WritePublishesEdges -> cypher/provenance_edge_writer.go merges PUBLISHES; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:publishes"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WritePublishesEdges -> cypher/provenance_edge_writer.go merges PUBLISHES; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WritePublishesEdges -> cypher/provenance_edge_writer.go merges PUBLISHES; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:s3_external_principal_grant"
     proof_gate: ifa-determinism
     issue: "#6228"
