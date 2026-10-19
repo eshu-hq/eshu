@@ -1019,6 +1019,11 @@ tests:
     class: postgres_ci
     reason: "#7795 disposable PostgreSQL proof that an ignored redelivery demotes the queued row to ignored, that a stale claimed row with an ignored decision fails with the ignored_decision class instead of requeueing and stays terminal across reaps, and that the same-tick ignored-decision fail is decision-guarded and returns only the rows it terminated; runs in isolated disposable schemas gated by the ESHU_WEBHOOK_CLAIM_LEASE_PROOF_DSN env Skip; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/workflow_control_claim_class_columns_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8469 step 2 normalisation proof on real PostgreSQL: three-segment fairness keys with target class in claim_priority and the ecosystem in claim_ecosystem round-trip through enqueue and claim, the registry status surface counts rows by the real column, and migration 201 backfill classifies a legacy four-segment row; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/workflow_control_claim_depth_live_test.go
     tag: ~
     class: postgres_ci

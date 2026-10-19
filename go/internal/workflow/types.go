@@ -171,6 +171,16 @@ type WorkItem struct {
 	SourceRunID         string
 	GenerationID        string
 	FairnessKey         string
+	// ClaimPriority orders claims across target classes before any
+	// round-robin rotation: lower claims first. It carries the scheduler's
+	// target-class rank (see schedule.TargetClassRank), replacing the
+	// microsecond spacing inside created_at that used to encode priority.
+	ClaimPriority int
+	// ClaimEcosystem is the operator-facing ecosystem label for the work
+	// item (package registry ecosystem, vulnerability source ecosystem).
+	// It retires the positional SPLIT_PART(fairness_key, ':', 4) parse the
+	// registry status surface used to read.
+	ClaimEcosystem      string
 	Status              WorkItemStatus
 	AttemptCount        int
 	CurrentClaimID      string

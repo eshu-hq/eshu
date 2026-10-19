@@ -218,7 +218,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"FROM fact_work_items",
 		"(conflict_domain, conflict_key) IN (SELECT conflict_domain, conflict_key FROM inflight_leases)",
 		"failure_details",
-		"SPLIT_PART(fairness_key, ':', 4)",
+		"claim_ecosystem",
 		"FROM aws_scan_status",
 		"FROM aws_freshness_triggers",
 		"recent_failed_runs",

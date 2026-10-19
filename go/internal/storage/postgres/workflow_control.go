@@ -17,7 +17,7 @@ import (
 
 const (
 	workflowEnqueueBatchSize                = 250
-	workflowColumnsPerWorkItem              = 27
+	workflowColumnsPerWorkItem              = 29
 	DefaultWorkflowClaimLeaseTTL            = 60 * time.Second
 	DefaultWorkflowClaimHeartbeatInterval   = 20 * time.Second
 	DefaultWorkflowExpiredClaimRequeueDelay = 5 * time.Second

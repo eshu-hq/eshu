@@ -208,4 +208,34 @@ ALTER TABLE workflow_claims
     ADD COLUMN IF NOT EXISTS failure_operation TEXT,
     ADD COLUMN IF NOT EXISTS failure_status_code INTEGER,
     ADD COLUMN IF NOT EXISTS failure_terminal BOOLEAN;
+
+-- #8469 step 2 fair-claim priority and ecosystem columns, mirroring
+-- migration 201. Written once at enqueue by the schedulers and never
+-- touched by the claim path. The backfill classes pre-existing backlog
+-- from the old four-segment key exactly as the migration does, so
+-- EnsureSchema-upgraded databases agree with migration-upgraded ones.
+ALTER TABLE workflow_work_items
+    ADD COLUMN IF NOT EXISTS claim_priority INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS claim_ecosystem TEXT NOT NULL DEFAULT '';
+
+UPDATE workflow_work_items
+SET claim_ecosystem = NULLIF(BTRIM(SPLIT_PART(fairness_key, ':', 4)), '')
+WHERE collector_kind = 'package_registry'
+  AND claim_ecosystem = ''
+  AND NULLIF(BTRIM(SPLIT_PART(fairness_key, ':', 4)), '') IS NOT NULL;
+
+UPDATE workflow_work_items
+SET claim_priority = CASE BTRIM(SPLIT_PART(fairness_key, ':', 3))
+    WHEN 'configured_direct' THEN 0
+    WHEN 'owned_package' THEN 1
+    WHEN 'installed_os_package' THEN 2
+    WHEN 'sbom_component' THEN 2
+    WHEN 'broad' THEN 3
+    ELSE 4
+END
+WHERE collector_kind IN ('package_registry', 'vulnerability_intelligence')
+  AND claim_priority = 0
+  AND fairness_key IS NOT NULL
+  AND SPLIT_PART(fairness_key, ':', 3) <> ''
+  AND SPLIT_PART(fairness_key, ':', 4) <> '';
 `

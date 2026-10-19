@@ -91,7 +91,7 @@ func TestReadRegistryCollectorSnapshotsUsesBoundedStatusOnly(t *testing.T) {
 	for _, want := range []string{
 		"updated_at >= $1::timestamptz - INTERVAL '24 hours'",
 		"DISTINCT ON (collector_kind)",
-		"SPLIT_PART(fairness_key, ':', 4)",
+		"claim_ecosystem",
 		"registry_rate_limited",
 	} {
 		if !strings.Contains(joinedQueries, want) {

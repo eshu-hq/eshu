@@ -47,8 +47,14 @@ func TestPackageRegistryWorkPlannerPlansOneWorkItemPerTarget(t *testing.T) {
 	if got, want := item.ScopeID, "package-registry://jfrog/generic/team-api"; got != want {
 		t.Fatalf("ScopeID = %q, want %q", got, want)
 	}
-	if got, want := item.FairnessKey, "package_registry:collector-package-registry:configured_direct:generic"; got != want {
+	if got, want := item.FairnessKey, "package_registry:collector-package-registry:generic"; got != want {
 		t.Fatalf("FairnessKey = %q, want %q", got, want)
+	}
+	if got, want := item.ClaimPriority, 0; got != want {
+		t.Fatalf("ClaimPriority = %d, want %d (configured_direct ranks first)", got, want)
+	}
+	if got, want := item.ClaimEcosystem, "generic"; got != want {
+		t.Fatalf("ClaimEcosystem = %q, want %q", got, want)
 	}
 	if item.GenerationID == "" || item.GenerationID != item.SourceRunID {
 		t.Fatalf("GenerationID = %q SourceRunID = %q, want same nonblank value", item.GenerationID, item.SourceRunID)
