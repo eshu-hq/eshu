@@ -126,7 +126,7 @@ func runModuleConcurrencyIteration(
 
 	statements := make([][]Statement, workers)
 	for w := 0; w < workers; w++ {
-		statements[w] = SanitizeStatements(moduleConcurrencyStatements(writer, prefix, paths[w], w%2 == 1))
+		statements[w] = sanitizeConcurrencyStatements(moduleConcurrencyStatements(writer, prefix, paths[w], w%2 == 1))
 	}
 
 	var (
@@ -198,6 +198,75 @@ func moduleConcurrencyStatements(writer *CanonicalNodeWriter, prefix, filePath s
 		})
 	}
 	return append(writer.buildModuleStatements(mat), writer.buildStructuralEdgeStatements(mat)...)
+}
+
+// sanitizeConcurrencyStatements mirrors the phase/group leaf's
+// SanitizeStatements rule (strip `_`-prefixed diagnostic parameters, keep real
+// parameters, preserve order, never mutate the input). This file cannot import
+// the leaf (the leaf imports this package), so a future narrowing or widening
+// of either rule must fail TestSanitizeConcurrencyStatementsMirrorsLeaf
+// instead of silently diverging from the production Bolt executors.
+func sanitizeConcurrencyStatements(stmts []Statement) []Statement {
+	sanitized := make([]Statement, len(stmts))
+	for i, stmt := range stmts {
+		params := stmt.Parameters
+		if len(params) != 0 {
+			hasDiagnostics := false
+			for key := range params {
+				if strings.HasPrefix(key, "_") {
+					hasDiagnostics = true
+					break
+				}
+			}
+			if hasDiagnostics {
+				clean := make(map[string]any, len(params))
+				for key, value := range params {
+					if strings.HasPrefix(key, "_") {
+						continue
+					}
+					clean[key] = value
+				}
+				params = clean
+			}
+		}
+		stmt.Parameters = params
+		sanitized[i] = stmt
+	}
+	return sanitized
+}
+
+// TestSanitizeConcurrencyStatementsMirrorsLeaf pins sanitizeConcurrencyStatements
+// to the phase/group leaf's SanitizeStatementParameters rule.
+func TestSanitizeConcurrencyStatementsMirrorsLeaf(t *testing.T) {
+	t.Parallel()
+
+	stmts := []Statement{{
+		Cypher: "CREATE (:File {path: $path})",
+		Parameters: map[string]any{
+			"path":   "/a",
+			"_phase": "load",
+		},
+	}}
+
+	got := sanitizeConcurrencyStatements(stmts)
+
+	if len(got) != 1 {
+		t.Fatalf("sanitized %d statements, want 1", len(got))
+	}
+	for _, key := range []string{"_phase"} {
+		if _, ok := got[0].Parameters[key]; ok {
+			t.Errorf("diagnostic key %q must be stripped, but it survived", key)
+		}
+	}
+	if got[0].Parameters["path"] != "/a" {
+		t.Error("real Cypher parameter \"path\" must be preserved, but it was dropped")
+	}
+	if got[0].Cypher != stmts[0].Cypher || got[0].Operation != stmts[0].Operation {
+		t.Error("only Parameters may change; Cypher and Operation must pass through")
+	}
+	if _, ok := stmts[0].Parameters["_phase"]; !ok {
+		t.Error("input slice must not be mutated; the diagnostic key must still be present in the input")
+	}
 }
 
 // runExplicitTransaction runs stmts in one explicit transaction and commits it
