@@ -4,7 +4,7 @@
 
 New `go/internal/storage/postgres/filters` (production `CleanFactKinds`)
 and `go/internal/storage/postgres/fixtures` (test-only
-`FixtureConfigParserRow`/`ConfigResourcesArray`/`PadQueueFakeRow`),
+`ConfigParserRow`/`ConfigResourcesArray`/`PadQueueFakeRow`),
 each with `doc.go`, `README.md`, `AGENTS.md`, and behavior tests. Root and
 tfstate call sites rewired; `runtime_drift_config_fixtures_test.go` and
 `work_queue_fake_row_padding_test.go` deleted. Two single-word packages

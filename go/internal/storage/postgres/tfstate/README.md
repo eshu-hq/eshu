@@ -52,8 +52,8 @@ metric, span, or log name changes.
 - Filter cleanup is `filters.CleanFactKinds` (issue #8552): do not
   reintroduce a local copy; the root imports this package, so a shared
   helper must live in the leaf.
-- Parser-shape config fixtures are `fixtures.FixtureConfigParserRow` /
-  `fixtures.FixtureConfigResourcesArray` (issue #8552); the remaining
+- Parser-shape config fixtures are `fixtures.ConfigParserRow` /
+  `fixtures.ConfigResourcesArray` (issue #8552); the remaining
   fixtures in this package's tests are tfstate-only shapes.
 - Do not import the parent `postgres` package: that is an import cycle.
 

@@ -14,7 +14,7 @@ import (
 // fixturePriorConfigAddressesArray wraps one or more parser rows into the JSON
 // array shape returned by listPriorConfigAddressesQuery. The query SELECTs the
 // terraform_resources array per file, so each row in the result is one such
-// array. This helper mirrors fixtureConfigResourcesArray for the prior-gen
+// array. This helper mirrors fixtures.ConfigResourcesArray for the prior-gen
 // shape.
 func fixturePriorConfigAddressesArray(rows ...string) []byte {
 	return fixtures.ConfigResourcesArray(rows...)
