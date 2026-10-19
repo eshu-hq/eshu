@@ -1,0 +1,20 @@
+go/internal/reducer/AGENTS.md
+  h_78a442cba0b3e6 139
+go/internal/reducer/README.md
+  h_78a442cba0b3e6 190
+go/internal/reducer/code/semantic/graph_ports.go
+  h_78a442cba0b3e6 24-25,63-64
+go/internal/reducer/evidence-6626-batch6-bucket9-phase.md
+  h_78a442cba0b3e6 69-73,76,82-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2e17cbc1275970568bd829c3db18fd082b31a7ae",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
