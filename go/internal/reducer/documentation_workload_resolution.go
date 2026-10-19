@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 )
 
@@ -17,7 +18,7 @@ import (
 // closed for retry.
 func (h DocumentationEdgeMaterializationHandler) resolveWorkloadTargets(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	rows []map[string]any,
 ) ([]map[string]any, error) {
 	if h.WorkloadLookup == nil {

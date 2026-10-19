@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -67,7 +68,7 @@ func TestLiveWorkloadRegenerationSurvivesScopedIdentity(t *testing.T) {
 			RepositoryEdgeReader: live.edgeReader(),
 		}
 		now := time.Now().UTC()
-		if _, err := handler.Handle(ctx, reducer.Intent{
+		if _, err := handler.Handle(ctx, reducercontract.Intent{
 			IntentID: fmt.Sprintf("intent-%s-%s", repo, gen), ScopeID: "git-repository-scope:" + repoID,
 			GenerationID: gen, SourceSystem: "git", Domain: reducer.DomainWorkloadMaterialization,
 			Cause: "facts projected", EntityKeys: []string{repoID}, EnqueuedAt: now, AvailableAt: now,
