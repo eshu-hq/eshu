@@ -219,7 +219,7 @@ jobs:
           # probe confirms it: a program calling os.Exit(10) surfaces as shell
           # status 1 through `go run`, and as 10 when the built binary is
           # executed. Reading $? after `go run` would collapse every classified
-          # code (10/11/12/13/14) to 1, so the publisher below would never reach
+          # code (10/11/12/13/14/15) to 1, so the publisher below would never reach
           # its failure, still-running, or cancelled arms and would label
           # everything `error` -- reintroducing the #6075 bug under a
           # different status.
@@ -252,7 +252,8 @@ jobs:
           # needs (#6075): 0 passed, 10 a selected gate failed, 11 gates still
           # running, 12 aggregation itself broke, 13 every selected gate is
           # terminal and at least one was cancelled (#6189), 14 verdict
-          # transferred from a tree-identical previous head (#8617). Codes start at 10
+          # transferred from a tree-identical previous head, 15 smoke subset
+          # passed on a clean rebase (#8617). Codes start at 10
           # so a `go run` build failure (1) or usage error (2) cannot be
           # mistaken for a gate result.
           echo "code=${code}" >> "${GITHUB_OUTPUT}"
@@ -374,6 +375,9 @@ jobs:
               # the verdict transfers. The await log names the source SHA
               # and tree; this description must not claim the gates ran now.
               14) state=success; description='Tree-identical reuse: verdict copied from a previous head (see run log)' ;;
+              # 15 (#8617 step 5): clean rebase, disjoint base delta; the
+              # fast subset ran and passed, heavy verdicts transferred.
+              15) state=success; description='Smoke subset passed on a clean rebase; heavy verdicts transferred (see run log)' ;;
               # An empty code is not a broken aggregator: the aggregate step
               # produced no verdict. Two things do that. A step before it failed,
               # so GitHub skipped it -- `continue-on-error` does not add
