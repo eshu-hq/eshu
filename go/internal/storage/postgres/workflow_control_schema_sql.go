@@ -240,6 +240,14 @@ WHERE collector_kind IN ('package_registry', 'vulnerability_intelligence')
   AND SPLIT_PART(fairness_key, ':', 3) <> ''
   AND SPLIT_PART(fairness_key, ':', 4) <> '';
 
+UPDATE workflow_work_items
+SET claim_priority = 4
+WHERE collector_kind IN ('package_registry', 'vulnerability_intelligence')
+  AND claim_priority = 0
+  AND fairness_key IS NOT NULL
+  AND BTRIM(SPLIT_PART(fairness_key, ':', 3)) = ''
+  AND SPLIT_PART(fairness_key, ':', 4) <> '';
+
 -- #8469 step 3 fair-claim rotation index, mirroring migration 202. The
 -- priority-then-rotation claim's loose distinct-pair walk and per-pair head
 -- probe depend on this composite; without it the claim falls back to

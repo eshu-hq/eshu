@@ -16,6 +16,14 @@
 -- enqueue after 201 carry their class at write time and never match either
 -- predicate.
 --
+-- Empty-class sink: a legacy row whose third segment is empty or blank
+-- matches neither the CASE above (guarded by a raw <> '') nor any known
+-- class, so without the pass below it keeps the 201 default priority 0 --
+-- the top tier -- while the rank function maps every unrecognized class
+-- last. The sink UPDATE moves exactly those rows (fourth segment present,
+-- so new three-segment rows stay untouched; still 0, so replays stay
+-- idempotent) to 4.
+--
 -- Locking: this is a file of its own, so the runner's single simple-query
 -- string holds no table-locking DDL alongside the backfill (#7961). Each
 -- UPDATE takes ROW EXCLUSIVE on workflow_work_items -- readers are not
@@ -42,4 +50,12 @@ WHERE collector_kind IN ('package_registry', 'vulnerability_intelligence')
   AND claim_priority = 0
   AND fairness_key IS NOT NULL
   AND SPLIT_PART(fairness_key, ':', 3) <> ''
+  AND SPLIT_PART(fairness_key, ':', 4) <> '';
+
+UPDATE workflow_work_items
+SET claim_priority = 4
+WHERE collector_kind IN ('package_registry', 'vulnerability_intelligence')
+  AND claim_priority = 0
+  AND fairness_key IS NOT NULL
+  AND BTRIM(SPLIT_PART(fairness_key, ':', 3)) = ''
   AND SPLIT_PART(fairness_key, ':', 4) <> '';

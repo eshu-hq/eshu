@@ -104,7 +104,9 @@ func TestWorkflowClaimClassColumnsRoundTrip(t *testing.T) {
 // TestWorkflowClaimClassColumnsBackfill proves migration 204 keeps
 // pre-normalisation backlog classed: a legacy four-segment row inserted at
 // column defaults is invisible to the ecosystem status surface until the
-// migration's own backfill UPDATEs run, and classified after. The UPDATEs
+// migration's own backfill UPDATEs run, and classified after; a legacy row
+// with an empty class segment sinks to priority 4 (unknown ranks last)
+// instead of floating at the 201 default 0. The UPDATEs
 // are read from the migration file, never hand-copied, so the proof tracks
 // the shipped backfill instead of a frozen copy.
 func TestWorkflowClaimClassColumnsBackfill(t *testing.T) {
@@ -133,7 +135,14 @@ func TestWorkflowClaimClassColumnsBackfill(t *testing.T) {
 		CreatedAt:           base,
 		UpdatedAt:           base,
 	}
-	if err := store.EnqueueWorkItems(ctx, []workflow.WorkItem{legacy}); err != nil {
+	legacyEmptyClass := legacy
+	legacyEmptyClass.WorkItemID = "legacy-empty-class-row"
+	legacyEmptyClass.ScopeID = "scope-legacy-empty"
+	legacyEmptyClass.AcceptanceUnitID = "scope-legacy-empty"
+	legacyEmptyClass.SourceRunID = "legacy-empty-generation"
+	legacyEmptyClass.GenerationID = "legacy-empty-generation"
+	legacyEmptyClass.FairnessKey = "package_registry:registry-instance::rubygems"
+	if err := store.EnqueueWorkItems(ctx, []workflow.WorkItem{legacy, legacyEmptyClass}); err != nil {
 		t.Fatalf("EnqueueWorkItems error = %v, want nil", err)
 	}
 
@@ -173,8 +182,18 @@ func TestWorkflowClaimClassColumnsBackfill(t *testing.T) {
 		}
 		applied++
 	}
-	if applied != 2 {
-		t.Fatalf("applied %d backfill UPDATEs from migration 204, want 2", applied)
+	if applied != 3 {
+		t.Fatalf("applied %d backfill UPDATEs from migration 204, want 3", applied)
+	}
+
+	var emptyPriority int
+	var emptyEcosystem string
+	if err := database.QueryRowContext(ctx, `SELECT claim_priority, claim_ecosystem FROM workflow_work_items WHERE work_item_id = 'legacy-empty-class-row'`).Scan(&emptyPriority, &emptyEcosystem); err != nil {
+		t.Fatalf("read empty-class row: %v", err)
+	}
+	if emptyPriority != 4 || emptyEcosystem != "rubygems" {
+		t.Fatalf("empty-class backfill ClaimPriority/ClaimEcosystem = %d/%q, want 4/rubygems",
+			emptyPriority, emptyEcosystem)
 	}
 
 	granted, _, found, err := store.ClaimNextEligible(ctx, workflow.ClaimSelector{

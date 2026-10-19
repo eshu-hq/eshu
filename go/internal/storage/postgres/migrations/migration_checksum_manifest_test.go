@@ -250,7 +250,7 @@ var migrationShippedChecksums = map[string]string{
 	"201_workflow_work_items_claim_class_columns.sql":                        "c786a32db2ef86d7c3945e3e4dae44b7eb216c60bdfe6c205fcb18822fcb1214",
 	"202_workflow_work_items_fair_claim_idx.sql":                             "315d17d93779c73fb6402c31bfb67affe203d3a0b52b33c46d6e53bf483ef188",
 	"203_workflow_work_items_claim_order_idx_drop.sql":                       "d213b724d99cb0445fdc0449e266bb98b6b5678afac379c275489f8d4d3ca38a",
-	"204_workflow_work_items_claim_class_backfill.sql":                       "401eb22de54dd3f08aaac4e42cbaf2870139f3b7be815b76bac3712a9844c1ca",
+	"204_workflow_work_items_claim_class_backfill.sql":                       "33d4e82ba8e1491de4bdb258e54d947eb99d15eb8699d647a1f74db39f7d4aaa",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

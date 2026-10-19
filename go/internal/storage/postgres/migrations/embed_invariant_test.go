@@ -105,8 +105,10 @@ import (
 // half: no file holds a table lock through bulk DML, #7961; the lane's own
 // step-1 200_workflow_work_items_claim_order_idx.sql create is gone under
 // the 101/102 shape, so the lane holds no 200 of its own; main's 200 is
-// #7840's repository_selectors above; gaps are tolerated).
-const goldenBootstrapDefinitionsDigest = "eb16c02edae9e6f021aca00315b4a7ee0b4934b75487183de31fa5875290c48f"
+// #7840's repository_selectors above; gaps are tolerated); #8469 revises
+// unshipped 204 in-lane with the empty-class sink pass (owner P2: blank
+// class segments sink to 4 instead of floating at the 201 default 0).
+const goldenBootstrapDefinitionsDigest = "46ba68873c35bcede5dab98e39a21b2e3475f48a0bba84ee58dea7019cf54e28"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
