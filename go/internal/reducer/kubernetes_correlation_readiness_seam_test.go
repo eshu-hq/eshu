@@ -146,7 +146,7 @@ func TestKubernetesCorrelationNodesNotReadyExposesFailureClass(t *testing.T) {
 	if !errors.As(err, &classified) {
 		t.Fatalf("readiness-miss error does not expose FailureClass(): %v", err)
 	}
-	if got := classified.FailureClass(); got != KubernetesCorrelationNodesNotReadyFailureClass {
-		t.Fatalf("FailureClass() = %q, want %q", got, KubernetesCorrelationNodesNotReadyFailureClass)
+	if got := classified.FailureClass(); got != kubernetescorrelation.KubernetesCorrelationNodesNotReadyFailureClass {
+		t.Fatalf("FailureClass() = %q, want %q", got, kubernetescorrelation.KubernetesCorrelationNodesNotReadyFailureClass)
 	}
 }

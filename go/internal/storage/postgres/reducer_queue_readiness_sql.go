@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
+	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
@@ -41,7 +42,7 @@ const (
 // between them.
 var nonCountingReducerRetryFailureClasses = []string{
 	reducer.SecretsIAMEndpointNotReadyFailureClass,
-	reducer.KubernetesCorrelationNodesNotReadyFailureClass,
+	kubernetescorrelation.KubernetesCorrelationNodesNotReadyFailureClass,
 	reducer.GCPRelationshipNodesNotReadyFailureClass,
 	ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass,
 	// #5717: an ec2_instance_uses_ami edge deferred until the EC2 instance node
