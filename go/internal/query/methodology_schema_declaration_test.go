@@ -35,12 +35,12 @@ import (
 var methodologyCommittedSchemaDeclaration = methodologyRewriteDeclaration{
 	Issue:  5385,
 	Reason: "Repository-scoped workload identity re-key: new endpoint repo_id index DDL plus corrected compatibility predecessor literals; the paired Base/Candidate sides in this run both measure candidate schema and no pinned reader changes.",
+	// Production sources only: the pin inventory excludes *_test.go, so the
+	// declaration names exactly the differing non-test schema files.
 	Paths: []string{
 		"go/internal/graph/schema_application.go",
-		"go/internal/graph/schema_application_test.go",
 		"go/internal/graph/schema_predecessors.go",
 		"go/internal/graph/schema_tables_indexes.go",
-		"go/internal/graph/schema_test.go",
 	},
 }
 
