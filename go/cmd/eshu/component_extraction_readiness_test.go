@@ -131,8 +131,17 @@ func TestExtractionReadinessJSON(t *testing.T) {
 	if payload.Rows[0].Family != "git" || payload.Rows[0].Classification != "keep_in_tree" {
 		t.Fatalf("json row = %+v, want git keep_in_tree", payload.Rows[0])
 	}
-	if len(payload.Rows[0].Criteria) != 7 {
-		t.Fatalf("json criteria = %d, want 7", len(payload.Rows[0].Criteria))
+	if len(payload.Rows[0].Criteria) != 8 {
+		t.Fatalf("json criteria = %d, want 8", len(payload.Rows[0].Criteria))
+	}
+	foundTyped := false
+	for _, c := range payload.Rows[0].Criteria {
+		if c.Criterion == "payload_schemas_typed" {
+			foundTyped = true
+		}
+	}
+	if !foundTyped {
+		t.Fatalf("json criteria = %+v, want payload_schemas_typed row", payload.Rows[0].Criteria)
 	}
 }
 

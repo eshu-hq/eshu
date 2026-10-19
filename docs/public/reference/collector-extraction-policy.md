@@ -58,6 +58,7 @@ proven.
 | Runtime safety | Claims are bounded; credentials are read-only where possible; retries, cancellation, dead letters, and partial failures are deterministic. |
 | Trust and release | Artifact identity, publisher, compatible core range, immutable digest, revocation, vulnerability response, and ownership are recorded. |
 | Truth proof | Fixtures agree with reducer, graph, API, and MCP truth before support is claimed. |
+| Typed payload schemas | Every fact kind the family emits has a registered typed payload schema, so an extracted producer's payloads validate fail-closed. |
 | Operations | Health, readiness, metrics, traces, structured logs, status, resource bounds, and operator procedures are proven. |
 | Rollback | Authority can return to the prior supported producer without duplicate authority, lost facts, or an ambiguous generation. |
 

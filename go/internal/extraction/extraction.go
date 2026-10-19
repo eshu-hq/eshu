@@ -66,6 +66,11 @@ const (
 	// ProofSurface: fixture conformance, remote Compose proof, reducer admission,
 	// graph/query truth, and private-data handling all pass.
 	ProofSurface Criterion = "proof_surface"
+	// PayloadSchemasTyped: every fact kind the family emits has a registered
+	// typed payload schema (a typed struct plus its JSON Schema artifact), so
+	// an extracted producer's payloads validate fail-closed instead of
+	// flowing through untyped key lookups.
+	PayloadSchemasTyped Criterion = "payload_schemas_typed"
 )
 
 // orderedCriteria is the canonical, stable order criteria are reported in.
@@ -77,6 +82,7 @@ var orderedCriteria = []Criterion{
 	RuntimeBehavior,
 	ReleaseCadence,
 	ProofSurface,
+	PayloadSchemasTyped,
 }
 
 // Criteria returns the canonical extraction criteria in stable reporting order.

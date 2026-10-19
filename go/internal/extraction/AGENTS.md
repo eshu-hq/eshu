@@ -19,7 +19,7 @@ Scoped rules for editing the advisory extraction-readiness engine.
   criterion to `met` without real, citable repo evidence (a landed proof, test,
   or script). Over-claiming here misleads contributors about what is safe to
   extract.
-- Criteria are the seven policy rows in `orderedCriteria`. If the policy table
+- Criteria are the eight policy rows in `orderedCriteria`. If the policy table
   changes, change `orderedCriteria` and every `Profile` together, then update the
   policy doc in the same PR.
 
@@ -29,7 +29,7 @@ Scoped rules for editing the advisory extraction-readiness engine.
   `catalog.go`, update the expected classification in `catalog_test.go`, and cite
   the proof in the profile `Detail`/`Rationale`.
 - Add a tracked family: add a `Profile` whose `Family` is a real
-  `scope.CollectorKind`, ensure `Validate` passes (all seven criteria once), and
+  `scope.CollectorKind`, ensure `Validate` passes (all eight criteria once), and
   add it to the policy doc's keep-in-tree or candidate list.
 
 ## Verification

@@ -139,8 +139,17 @@ func TestCollectorExtractionReadinessFamilyDrilldown(t *testing.T) {
 	if data.Family.Family != "pagerduty" || data.Family.Classification != "extraction_candidate" {
 		t.Fatalf("family = %+v, want pagerduty extraction_candidate", data.Family)
 	}
-	if len(data.Family.Criteria) != 7 {
-		t.Fatalf("criteria = %d, want 7", len(data.Family.Criteria))
+	if len(data.Family.Criteria) != 8 {
+		t.Fatalf("criteria = %d, want 8", len(data.Family.Criteria))
+	}
+	foundTyped := false
+	for _, c := range data.Family.Criteria {
+		if string(c.Criterion) == "payload_schemas_typed" {
+			foundTyped = true
+		}
+	}
+	if !foundTyped {
+		t.Fatalf("criteria = %+v, want payload_schemas_typed row", data.Family.Criteria)
 	}
 }
 
