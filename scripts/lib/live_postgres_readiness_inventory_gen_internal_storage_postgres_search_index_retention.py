@@ -17,6 +17,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/search/index/retention/foreign_key_drop_appliers_live_test.go": (
             "TestTermsForeignKeyDropLiveTwoAppliersBothSucceed",
+            "TestTermsForeignKeyDropLiveApplierRetriesAmbientLockTimeout",
         ),
         "go/internal/storage/postgres/search/index/retention/foreign_key_drop_contention_live_test.go": (
             "TestTermsForeignKeyDropLiveBoundsConcurrentWriters",
