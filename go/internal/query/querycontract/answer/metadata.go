@@ -52,10 +52,20 @@ func BuildAnswerMetadata(data map[string]any) AnswerMetadata {
 	coverage := answerMetadataCoverage(data)
 	// A bounded per-term pool stop (#7008) truncates the answer even when
 	// the returned page fits, so the coverage pool marker counts alongside
-	// the route and coverage page-trim flags. The page-trim fields stay
+	// the route and coverage page-trim flags. A bounded deadline partial
+	// (#7008, #8558) truncates the same way through the existing
+	// deadline_truncated producer signal, read at both the route and
+	// coverage levels: the code.topic packet keys its partial off the
+	// route-level marker, so reading both levels here means every producer
+	// setting either level lands in both companions and the packet and the
+	// metadata cannot disagree afterward. data.truncated stays
+	// page-trim-only, no new key is invented, and families without a
+	// deadline marker are unaffected. The page-trim fields stay
 	// authoritative for paging; only the companions widen.
 	truncated := querycontract.BoolVal(data, "truncated") || querycontract.BoolVal(coverage, "truncated") ||
-		querycontract.BoolVal(coverage, "candidate_pool_truncated")
+		querycontract.BoolVal(coverage, "candidate_pool_truncated") ||
+		querycontract.BoolVal(data, "deadline_truncated") ||
+		querycontract.BoolVal(coverage, "deadline_truncated")
 	metadata := AnswerMetadata{
 		SchemaVersion:        answerMetadataSchemaVersion,
 		EvidenceHandles:      answerMetadataEvidenceHandles(data),
