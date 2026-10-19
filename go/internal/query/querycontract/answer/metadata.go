@@ -55,10 +55,10 @@ func BuildAnswerMetadata(data map[string]any) AnswerMetadata {
 	// the route and coverage page-trim flags. A bounded deadline partial
 	// (#7008, #8558) truncates the same way through the existing
 	// deadline_truncated producer signal, read at both the route and
-	// coverage levels: the code.topic packet keys its partial off the
-	// route-level marker, so reading both levels here means every producer
-	// setting either level lands in both companions and the packet and the
-	// metadata cannot disagree afterward. data.truncated stays
+	// coverage levels: code.topic is the sole producer and sets both
+	// levels from one bool, and its packet keys partial off the
+	// route-level marker, so on every live response the packet and the
+	// metadata agree. data.truncated stays
 	// page-trim-only, no new key is invented, and families without a
 	// deadline marker are unaffected. The page-trim fields stay
 	// authoritative for paging; only the companions widen.
