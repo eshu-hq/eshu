@@ -7,7 +7,7 @@
 # WIRED: scripts/verify-ifa-fault-injection.sh sources this file (through
 # scripts/lib/ifa_fault_injection_sources.sh) and runs all three cells
 # (baseline_cloud_resource, killworker_cloud_resource,
-# failgraphwrite_cloud_resource) against a live Postgres + NornicDB stack.
+# failgraphwrite_cloud_resource) against a live Postgres + Neo4j stack.
 # The cells rely on the driver's strict mode and globals (bin_dir,
 # tagged_bin_dir, log_dir, work_dir, use_compose, compose_file,
 # FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN, CLAIMED_ROW_WAIT_TIMEOUT,
