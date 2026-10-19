@@ -1,0 +1,234 @@
+go/cmd/reducer/endpoint_presence_wiring.go
+  h_78a442cba0b3e6 11,29,58-61
+go/cmd/reducer/main_helpers.go
+  h_78a442cba0b3e6 24,349
+go/internal/projector/runtime/phase.go
+  h_78a442cba0b3e6 18,42,44,62,69,77,85,96,100,128,133,138,142-143,147,157,159,161,173,175
+go/internal/projector/runtime/projection.go
+  h_78a442cba0b3e6 4,28,46
+go/internal/projector/runtime/projection_test.go
+  h_78a442cba0b3e6 25,494,555,559-561,567,645,906,909-910,920
+go/internal/projector/runtime/terraform_state_projection_test.go
+  h_78a442cba0b3e6 15,298,301,308-310,340,343,350-352
+go/internal/reducer/acceptance_test_helpers_test.go
+  h_78a442cba0b3e6 6-9,16-17
+go/internal/reducer/aws_relationship_instance_node_readiness.go
+  h_78a442cba0b3e6 13,107-108,115
+go/internal/reducer/aws_relationship_instance_node_readiness_test.go
+  h_78a442cba0b3e6 13,60-61
+go/internal/reducer/aws_relationship_materialization.go
+  h_78a442cba0b3e6 20,95,293-294,300
+go/internal/reducer/aws_relationship_materialization_test.go
+  h_78a442cba0b3e6 17,83-84
+go/internal/reducer/aws_resource_materialization.go
+  h_78a442cba0b3e6 19,83,89,172,217-218
+go/internal/reducer/aws_resource_materialization_test.go
+  h_78a442cba0b3e6 16,410,413,474-475,521
+go/internal/reducer/azure_relationship_materialization.go
+  h_78a442cba0b3e6 18,56,211,215
+go/internal/reducer/azure_resource_materialization.go
+  h_78a442cba0b3e6 16,47-48,107,140
+go/internal/reducer/cloud_relationship_resolution.go
+  h_78a442cba0b3e6 9,20
+go/internal/reducer/compat_correlation.go
+  h_78a442cba0b3e6 438
+go/internal/reducer/compat_projection.go
+  h_78a442cba0b3e6 40,404-406
+go/internal/reducer/defaults.go
+  h_78a442cba0b3e6 18,98,100-101
+go/internal/reducer/defaults_handlers.go
+  h_78a442cba0b3e6 19,257,262,272,279
+go/internal/reducer/defaults_test.go
+  h_78a442cba0b3e6 16,345,348,737
+go/internal/reducer/defaults_workload_handle_wiring_test.go
+  h_78a442cba0b3e6 10,56,70,133
+go/internal/reducer/deployable_unit_correlation.go
+  h_78a442cba0b3e6 4,20,49,186-187,226-227
+go/internal/reducer/deployable_unit_correlation_test.go
+  h_78a442cba0b3e6 17,173,176,319,322
+go/internal/reducer/documentation_edge_materialization.go
+  h_78a442cba0b3e6 78
+go/internal/reducer/documentation_workload_resolution.go
+  h_78a442cba0b3e6 10,21
+go/internal/reducer/dsl/contract.go
+  h_78a442cba0b3e6 11,17-18,36-37,40-41,44-45,48-49,52-53
+go/internal/reducer/dsl/contract_test.go
+  h_78a442cba0b3e6 9,19,22,33-34,41
+go/internal/reducer/dsl/doc.go
+  h_78a442cba0b3e6 12
+go/internal/reducer/dsl/evaluator.go
+  h_78a442cba0b3e6 13,32-33,94,113-114,118,129-130,143,160
+go/internal/reducer/dsl/evaluator_test.go
+  h_78a442cba0b3e6 11,22-23,28-29,45,51,63-64,69-70,93-94,114,117,133-134,146,149-150
+go/internal/reducer/endpoint_presence_materializer_test.go
+  h_78a442cba0b3e6 13,55,100
+go/internal/reducer/endpoint_presence_publish.go
+  h_78a442cba0b3e6 22-23
+go/internal/reducer/endpoint_presence_publish_test.go
+  h_78a442cba0b3e6 10-11,17,25,31,46,68,80,91,102
+go/internal/reducer/endpoint_repo_path_presence.go
+  h_78a442cba0b3e6 44,53,71-72,90
+go/internal/reducer/gcp_relationship_materialization.go
+  h_78a442cba0b3e6 19,79,281-282,288
+go/internal/reducer/gcp_resource_materialization.go
+  h_78a442cba0b3e6 16,75,79,153,196-197
+go/internal/reducer/gcp_resource_materialization_test.go
+  h_78a442cba0b3e6 14,450,453,497
+go/internal/reducer/graph_projection_phase_publish.go
+  h_78a442cba0b3e6 21,23-24,34,37-38,48,50,64-65,67
+go/internal/reducer/graph_projection_phase_repair_test.go
+  h_78a442cba0b3e6 11-12,62,177,182,184,228,232-233,245
+go/internal/reducer/graph_projection_phase_test.go
+  h_78a442cba0b3e6 10,18,23,25,39,44,74,94
+go/internal/reducer/handles_route_endpoint_presence_handler_test.go
+  h_78a442cba0b3e6 12,70
+go/internal/reducer/handles_route_endpoint_presence_test.go
+  h_78a442cba0b3e6 12,103-104,119,195,236,270,305,341,371
+go/internal/reducer/handles_route_readiness_test.go
+  h_78a442cba0b3e6 9,20-21,31-32,34-35
+go/internal/reducer/kubernetes_correlation_readiness_seam_test.go
+  h_78a442cba0b3e6 14,25-26,70
+go/internal/reducer/kubernetes_workload_materialization.go
+  h_78a442cba0b3e6 19,85,91,157,173-174
+go/internal/reducer/kubernetes_workload_materialization_test.go
+  h_78a442cba0b3e6 15,389,392,434,437
+go/internal/reducer/repo_dependency_projection_created_at_fence_test.go
+  h_78a442cba0b3e6 11,84-86,90
+go/internal/reducer/repo_dependency_projection_readiness_validation_test.go
+  h_78a442cba0b3e6 10-11,82-85
+go/internal/reducer/repo_dependency_projection_replay.go
+  h_78a442cba0b3e6 15,40,433,440,450
+go/internal/reducer/repo_dependency_projection_replay_fence_outcome_test.go
+  h_78a442cba0b3e6 12,39-41,87-89,130-132
+go/internal/reducer/repo_dependency_projection_replay_generation_test.go
+  h_78a442cba0b3e6 14,254-255,310-312,354-356
+go/internal/reducer/repo_dependency_projection_runner.go
+  h_78a442cba0b3e6 20,54
+go/internal/reducer/repo_dependency_projection_workload_readiness_test.go
+  h_78a442cba0b3e6 13,70-73,76,79,210-213
+go/internal/reducer/repo_workload_presence.go
+  h_78a442cba0b3e6 32,41,54-55,76
+go/internal/reducer/repo_workload_presence_test.go
+  h_78a442cba0b3e6 13,80-81,98,128,164,191,316
+go/internal/reducer/runs_in_readiness_test.go
+  h_78a442cba0b3e6 9,20-21,33-34
+go/internal/reducer/shared_projection_worker_process_test.go
+  h_78a442cba0b3e6 11,65-67
+go/internal/reducer/shared_projection_worker_refresh_redelivery_test.go
+  h_78a442cba0b3e6 13,187,214
+go/internal/reducer/tags/contract.go
+  h_78a442cba0b3e6 11,17,24-25
+go/internal/reducer/tags/contract_test.go
+  h_78a442cba0b3e6 9,19,29,35
+go/internal/reducer/tags/doc.go
+  h_78a442cba0b3e6 10
+go/internal/reducer/tags/normalizer.go
+  h_78a442cba0b3e6 13,65,83,89-90,95,97,103,113
+go/internal/reducer/tags/normalizer_test.go
+  h_78a442cba0b3e6 11,40,88,112,115-116
+go/internal/reducer/tfstate/contract.go
+  h_78a442cba0b3e6 11,17-18,35-36,39-40
+go/internal/reducer/tfstate/contract_test.go
+  h_78a442cba0b3e6 9,22,25,36-37,44
+go/internal/reducer/workload_cloud_relationship_materialization.go
+  h_78a442cba0b3e6 21,64,162,206,211,217-218,220
+go/internal/reducer/workload_identity.go
+  h_78a442cba0b3e6 13,48,95-96
+go/internal/reducer/workload_identity_test.go
+  h_78a442cba0b3e6 13,167,170
+go/internal/reducer/workload_materialization_handler.go
+  h_78a442cba0b3e6 4,15,133,142,215-216,423-424
+go/internal/reducer/workload_materialization_handler_test.go
+  h_78a442cba0b3e6 16,292,295
+go/internal/reducer/workload_materialization_phase_repair_test.go
+  h_78a442cba0b3e6 14,66-67,144-145,229-230,292,298,300,318,320,327-328
+go/internal/reducer/workload_materialization_repo_phase.go
+  h_78a442cba0b3e6 22,37,43,49,51,63-65,90-91,101,103,126,149,151,159,169,198
+go/internal/reducer/workload_materialization_repo_readiness_test.go
+  h_78a442cba0b3e6 13,23,26,60-61,103-104,163,168,170-171,214,218-219,236-237,372,375,406,413-415
+go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_live_test.go
+  h_78a442cba0b3e6 21,487-490
+go/internal/storage/postgres/activation/quiet_generation_live_test.go
+  h_78a442cba0b3e6 22,299,349,396-397,402
+go/internal/storage/postgres/backfill/fakes_test.go
+  h_78a442cba0b3e6 23,261,264
+go/internal/storage/postgres/backfill/fanin.go
+  h_78a442cba0b3e6 14,361-362,367,369,377
+go/internal/storage/postgres/backfill/fanin_unchanged.go
+  h_78a442cba0b3e6 12,32-33,206-207
+go/internal/storage/postgres/backfill/fanin_unchanged_test.go
+  h_78a442cba0b3e6 18,119-120
+go/internal/storage/postgres/backfill/partition_memo.go
+  h_78a442cba0b3e6 101
+go/internal/storage/postgres/backfill/shared_partition_dupkey_test.go
+  h_78a442cba0b3e6 10
+go/internal/storage/postgres/backfill/store.go
+  h_78a442cba0b3e6 13,35
+go/internal/storage/postgres/doc.go
+  h_78a442cba0b3e6 377
+go/internal/storage/postgres/graph_endpoint_presence.go
+  h_78a442cba0b3e6 14,154,159,208,237,280
+go/internal/storage/postgres/graph_endpoint_presence_test.go
+  h_78a442cba0b3e6 18,28-29,35,39,55,57-59,80,82-83,106-109,142-143,150,199-201,203,211,218,225,232,239
+go/internal/storage/postgres/graph_projection_phase_repair_queue_test.go
+  h_78a442cba0b3e6 17,27,32,34,52,64,69,71,100,105,107,281-282
+go/internal/storage/postgres/graph_projection_phase_state.go
+  h_78a442cba0b3e6 15,114,135-136,167-168,174,177,205-207,209,215,231,254-256,277,283,288,305,308,318,326,377
+go/internal/storage/postgres/graph_projection_phase_state_test.go
+  h_78a442cba0b3e6 16,26,31,34,36,44,61,66,69
+go/internal/storage/postgres/ingestion_backfill_seam.go
+  h_78a442cba0b3e6 23,391,396-397
+go/internal/storage/postgres/prefetch_batch_plan_live_test.go
+  h_78a442cba0b3e6 22,155,166,168,179,183
+go/internal/storage/postgres/projection_phase_batch_test.go
+  h_78a442cba0b3e6 15,27,33,39,48,62,68,89-90,94,96-97,109,111-112,126-132,137,144-145,147-150,152-153,164,192,207-210,216,235,237,244,249-250,255,259,262
+go/internal/storage/postgres/reducer_graph_drain.go
+  h_78a442cba0b3e6 12,164-165,177-178
+go/internal/storage/postgres/reducer_graph_drain_test.go
+  h_78a442cba0b3e6 12,92,95
+go/internal/storage/postgres/reducer_input_invalid_facts.go
+  h_78a442cba0b3e6 71
+go/internal/storage/postgres/relationship_family_binary_proof_manifest_test.go
+  h_78a442cba0b3e6 14,106-107,222-223,231-232
+go/internal/storage/postgres/relationship_family_binary_proof_test.go
+  h_78a442cba0b3e6 18,359-360
+go/internal/storage/postgres/repo_dependency_acceptance_gate_expiry_test.go
+  h_78a442cba0b3e6 20,191-192
+go/internal/storage/postgres/workflow_control_dead_letter_integration_test.go
+  h_78a442cba0b3e6 13,129,131,136,138,143,148,150,155,160,162,167,172,174,179,184,186,217-218,305-306
+go/internal/storage/postgres/workflow_control_reconcile_integration_test.go
+  h_78a442cba0b3e6 11,66,68,73,75,80,85,87,92,97,99,104,109,111,116,121,123,128,133,135,156,165,174-175,183-184,192-193,201-202
+go/internal/storage/postgres/workflow_coordinator_state_test.go
+  h_78a442cba0b3e6 13,95,111
+go/internal/storage/postgres/workflow_run_reconciliation.go
+  h_78a442cba0b3e6 21,272,307,309,385-386,426-427
+go/internal/storage/postgres/workflow_run_reconciliation_integration_test.go
+  h_78a442cba0b3e6 11,74,76,81,83,88,93,95,100,105,107,112,117,119,124,129,131,136,141,143,164-165,173-174,182-183,191-192,200-201,209-210
+go/internal/storage/postgres/workflow_run_reconciliation_test.go
+  h_78a442cba0b3e6 15,112-113,118-119,124-125,130-131,136-137,142-143,170,281-282,287-288,293-294,299-300,305-306,311-312,365,431-432,437-438,443-444,449-450,455-456,461-462
+go/internal/workflow/collector_contract.go
+  h_78a442cba0b3e6 10,18,25-28,32-33,37-38,42-43,47-48,52-53,63-64,76-78,82-83,87-88,120-121,125-126,130-131,207,232-233
+go/internal/workflow/collector_contract_test.go
+  h_78a442cba0b3e6 11,23-26,39-40,44-45,49-50,54-55,59-60,65-66,166-167,171-172,188-189,365,367-368,376,379,392-393,409-410,423
+go/internal/workflow/completeness_test.go
+  h_78a442cba0b3e6 10,21,41
+go/internal/workflow/phase_requirement_test.go
+  h_78a442cba0b3e6 11,32-33,41-42,51-52
+go/internal/workflow/progress.go
+  h_78a442cba0b3e6 13,26-27,41-42
+go/internal/workflow/progress_test.go
+  h_78a442cba0b3e6 11,103-104,118,144-145,148-149,152-153,156-157,160-161,164-165,268-269,315-316,319-320,323-324,327-328,336-337,354-355,395-396,399-400,403-404,407-408,426-427,442,445,448,451,454,457
+go/internal/workflow/store.go
+  h_78a442cba0b3e6 10,98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d707f22eb810d1e90f5344e05af29894ec13c33",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
