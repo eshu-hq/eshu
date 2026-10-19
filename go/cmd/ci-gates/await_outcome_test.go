@@ -78,6 +78,22 @@ func TestAwaitOutcomeForAggregationBreakage(t *testing.T) {
 
 // TestAwaitOutcomeForSuccess pins the happy path and its exit code, so a
 // refactor cannot make success indistinguishable from "still running".
+// A tree-identical reuse verdict is its own outcome (#8617 step 4b): the
+// publisher needs to say "copied from a previous head", not claim the
+// gates just ran, and it must never collapse into passed (0) where the
+// distinction would vanish from the status description.
+func TestAwaitOutcomeForReuse(t *testing.T) {
+	t.Parallel()
+
+	got := classifyAwaitOutcome(errReuseProven)
+	if got != awaitOutcomeReused {
+		t.Fatalf("classifyAwaitOutcome(errReuseProven) = %v, want %v", got, awaitOutcomeReused)
+	}
+	if got.exitCode() != 14 {
+		t.Fatalf("reused exit code = %d, want 14", got.exitCode())
+	}
+}
+
 func TestAwaitOutcomeForSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -103,6 +119,7 @@ func TestAwaitOutcomeExitCodesAreDistinct(t *testing.T) {
 		awaitOutcomeStillRunning,
 		awaitOutcomeBroken,
 		awaitOutcomeGateCancelled,
+		awaitOutcomeReused,
 	} {
 		if prev, dup := seen[o.exitCode()]; dup {
 			t.Fatalf("outcomes %v and %v share exit code %d", prev, o, o.exitCode())

@@ -219,7 +219,7 @@ jobs:
           # probe confirms it: a program calling os.Exit(10) surfaces as shell
           # status 1 through `go run`, and as 10 when the built binary is
           # executed. Reading $? after `go run` would collapse every classified
-          # code (10/11/12/13) to 1, so the publisher below would never reach
+          # code (10/11/12/13/14) to 1, so the publisher below would never reach
           # its failure, still-running, or cancelled arms and would label
           # everything `error` -- reintroducing the #6075 bug under a
           # different status.
@@ -368,6 +368,11 @@ jobs:
                 exit 0
                 ;;
               13) state=error; description='A required gate was cancelled or never ran; re-run it (no gate failed)' ;;
+              # 14 (#8617 step 4b): a previous head of this same PR already
+              # proved this exact tree green on every required context, so
+              # the verdict transfers. The await log names the source SHA
+              # and tree; this description must not claim the gates ran now.
+              14) state=success; description='Tree-identical reuse: verdict copied from a previous head (see run log)' ;;
               # An empty code is not a broken aggregator: the aggregate step
               # produced no verdict. Two things do that. A step before it failed,
               # so GitHub skipped it -- `continue-on-error` does not add

@@ -60,6 +60,21 @@ func runAwait(args []string) error {
 	if err := verifyPRHead(ctx, runner, *repo, *pr, *headSHA); err != nil {
 		return err
 	}
+	// Tree-identical reuse (#8617 step 4b): a reword-only force-push lands
+	// here with a new head SHA over a byte-identical tree. If a previous
+	// head of this same PR already proved that tree green on every
+	// required context, the verdict transfers and no gate needs to run
+	// again for THIS status. The probe is an optimization only: its own
+	// failure falls through to the normal await, never to a verdict.
+	if verdict, probeErr := probeReuseForAwait(ctx, runner, reg, *repo, *pr, *headSHA); probeErr != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "required-gates: reuse probe failed (%v); awaiting gates normally\n", probeErr)
+	} else if verdict.Reuse {
+		_, _ = fmt.Fprintf(os.Stdout, "required-gates: reuse source=%s tree=%s (%s)\n", verdict.SourceSHA, verdict.Tree, verdict.Reason)
+		if err := verifyPRHead(ctx, runner, *repo, *pr, *headSHA); err != nil {
+			return err
+		}
+		return fmt.Errorf("%w: source %s tree %s", errReuseProven, verdict.SourceSHA, verdict.Tree)
+	}
 	paths, truncated, err := changedPathsForPR(ctx, runner, *repo, *pr)
 	if err != nil {
 		return err
