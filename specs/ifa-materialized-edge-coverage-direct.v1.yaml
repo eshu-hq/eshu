@@ -95,9 +95,10 @@
 # semantic_entity_containment was EXCLUDED under that verdict — its
 # node-label-alternation DETACH DELETE deleted shared nodes and foreign edges
 # with them — until #8359 gave it a dedicated [rel:CONTAINS] edge retract
-# scoped by evidence_source and endpoint labels (registered). Per the
-# 2026-10-18 owner direction NornicDB is out of scope and the family stays
-# waived; Neo4j proof goes through the corpus/live-backend gates.
+# scoped by evidence_source and endpoint labels (registered; the #8359
+# arbiter verdict (a) further settled its cell design — shared N={1,2,4}
+# cell, fixture-repo-scoped exact set, registry row 22 — so it stays waived
+# pending the first live drive, not pending a decision).
 # cloud_resource stays UNCOVERED by design as the sole genuinely open family:
 # the #8358 route-2 predicate-scoped assert-edges scan, Odu, expected-edge-set
 # fixture, predicate registration, and live-matrix wiring have landed, but no
@@ -390,12 +391,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization; the dedicated [rel:CONTAINS] edge retract, registered edge types, endpoint-label + stamp fence, offline Odu, vacuity guard, expected-edge-set fixture, and cassette landed in the #8359 change (foreign-edge survival proven live on pinned Neo4j). Per the 2026-10-18 owner direction NornicDB is out of scope and the family stays fully waived for NornicDB legs; Neo4j proof goes through the corpus/live-backend gates"
+    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization; the dedicated [rel:CONTAINS] edge retract, registered edge types, endpoint-label + stamp fence, offline Odu, vacuity guard, expected-edge-set fixture, and cassette landed in the #8359 change (foreign-edge survival proven live on pinned Neo4j). The shared-cell question is settled by the #8359 arbiter verdict (a): shared N={1,2,4} cell with the exact-set assert scoped to the family's own fixture repo — no sibling subtraction, no dedicated cell — wired through registry row 22 plus the shared direct-family drive/assert. Stays waived until the first live drive records the actual stamped population on NornicDB, the fixture is reconciled to that measured truth, and the determinism gate goes green at N=1,2,4"
   - surface: "materialized_edges:semantic_entity_containment"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization; dedicated edge retract + registration + offline Odu/guard/fixture/cassette landed in the #8359 change. Per the 2026-10-18 owner direction NornicDB is out of scope and the family stays fully waived for NornicDB legs; Neo4j proof goes through the corpus/live-backend gates"
+    reason: "WriteSemanticEntities -> cypher/semantic_entity_statements.go merges CONTAINS; direct materialization; dedicated edge retract + registration + offline Odu/guard/fixture/cassette landed in the #8359 change (family stays waived: no fault cells and no live determinism drive yet)"
   - surface: "materialized_edges:uses_service_account"
     proof_gate: ifa-determinism
     issue: "#6228"
