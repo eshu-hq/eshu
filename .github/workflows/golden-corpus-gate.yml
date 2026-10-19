@@ -7,6 +7,7 @@ name: Golden Corpus Gate
 on:
   # Merge-queue entries (#7111): every job runs, publication stays off, and
   # required-gates.yml aggregates the merge_group check rows.
+  # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
   merge_group:
     types: [checks_requested]
   push:
