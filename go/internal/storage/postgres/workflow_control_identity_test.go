@@ -83,6 +83,26 @@ func TestWorkflowControlSchemaIndexesFamilyQueueDepth(t *testing.T) {
 	}
 }
 
+// TestWorkflowControlSchemaIndexesFairClaim locks the composite index the
+// priority-then-rotation claim's loose distinct-pair walk and per-pair head
+// probe depend on (#8469 step 3, migration 202). Without it an
+// EnsureSchema-provisioned database serves the claim off claimable_idx with
+// per-pair backlog scans and sorts instead of distinct-key index probes.
+func TestWorkflowControlSchemaIndexesFairClaim(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"workflow_work_items_fair_claim_idx",
+		"claim_priority,",
+		"(COALESCE(fairness_key, '')),",
+		"(COALESCE(visible_at, created_at)),",
+	} {
+		if !strings.Contains(workflowControlSchemaSQL, want) {
+			t.Fatalf("workflowControlSchemaSQL missing fair-claim index marker %q", want)
+		}
+	}
+}
+
 func TestWorkflowControlClaimNextEligibleRequiresCompleteIdentity(t *testing.T) {
 	t.Parallel()
 

@@ -239,4 +239,23 @@ WHERE collector_kind IN ('package_registry', 'vulnerability_intelligence')
   AND fairness_key IS NOT NULL
   AND SPLIT_PART(fairness_key, ':', 3) <> ''
   AND SPLIT_PART(fairness_key, ':', 4) <> '';
+
+-- #8469 step 3 fair-claim rotation index, mirroring migration 202. The
+-- priority-then-rotation claim's loose distinct-pair walk and per-pair head
+-- probe depend on this composite; without it the claim falls back to
+-- per-pair backlog scans and sorts off claimable_idx. Plain CREATE INDEX,
+-- not CONCURRENTLY: EnsureSchema runs once at provisioning time with no
+-- concurrent writers, and CONCURRENTLY cannot run inside a transaction
+-- block. Placed after the 201 columns so the indexed columns exist.
+CREATE INDEX IF NOT EXISTS workflow_work_items_fair_claim_idx
+    ON workflow_work_items (
+        collector_kind,
+        collector_instance_id,
+        status,
+        claim_priority,
+        (COALESCE(fairness_key, '')),
+        (COALESCE(visible_at, created_at)),
+        created_at,
+        work_item_id
+    );
 `
