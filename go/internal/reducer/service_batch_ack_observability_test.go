@@ -28,6 +28,18 @@ type observingBatchSink struct {
 	failCalls int
 }
 
+// mutexGuardedBuffer serializes concurrent slog writes into one buffer.
+type mutexGuardedBuffer struct {
+	mu  *sync.Mutex
+	buf *bytes.Buffer
+}
+
+func (w *mutexGuardedBuffer) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.Write(p)
+}
+
 func (*observingBatchSink) Ack(context.Context, reducercontract.Intent, reducercontract.Result) error {
 	return nil
 }
@@ -253,6 +265,11 @@ func TestServiceBatchCanceledMidHandoffRecordsRemainder(t *testing.T) {
 	instruments, reader := batchTelemetry(t)
 	sink := &fakeBatchWorkSink{}
 	var logs bytes.Buffer
+	// Locked: the claimer and both abandoning workers log concurrently
+	// after cancel; an unguarded Buffer would race (see #8625 review F1).
+	// (The live-tree lockedWriter precedent sits behind a live build tag
+	// in an external test package, so this test owns its own guard.)
+	logOut := &mutexGuardedBuffer{mu: &sync.Mutex{}, buf: &logs}
 	intents := makeTestIntents(3)
 	source := &overLimitBatchWorkSource{intents: intents}
 	executor := &releaseGatedExecutor{release: make(chan struct{})}
@@ -263,7 +280,7 @@ func TestServiceBatchCanceledMidHandoffRecordsRemainder(t *testing.T) {
 		WorkSink:       sink,
 		Workers:        2,
 		BatchClaimSize: 2,
-		Logger:         slog.New(slog.NewJSONHandler(&logs, nil)),
+		Logger:         slog.New(slog.NewJSONHandler(logOut, nil)),
 		Instruments:    instruments,
 	}
 
