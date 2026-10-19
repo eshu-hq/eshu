@@ -177,7 +177,7 @@ FROM ${ESHU_ALPINE_IMAGE} AS runtime
 # floor above. scripts/verify-runtime-image-tools.sh asserts git, ssh, and
 # curl are present in the built image.
 RUN apk add --no-cache git openssh-client curl "c-ares>=1.34.8-r0" \
-    "libexpat>=2.8.4-r0" "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2"
+    "libexpat>=2.9.0-r0" "libssl3>=3.3.7-r2" "libcrypto3>=3.3.7-r2"
 
 # Copy Go binaries
 COPY --from=builder /go-bin/ /usr/local/bin/
