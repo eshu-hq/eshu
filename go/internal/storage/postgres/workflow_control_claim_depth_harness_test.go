@@ -182,6 +182,14 @@ func seedClaimDepthBacklog(
 	return seeded
 }
 
+// claimDepthPacingHook, when non-nil, paces one drain claim attempt: it
+// observes the attempt's store, selector, and timestamp and returns the
+// grant delay the claimer must wait before claiming, or zero to claim
+// immediately. Nil (the default) claims with no pacing consult, which is the
+// shape every pre-pacing drain asserts on. #8470 sets it to consult
+// CheckClaimPacing the way the production runner does.
+var claimDepthPacingHook func(store *WorkflowControlStore, selector workflow.ClaimSelector, now time.Time) time.Duration
+
 // claimDepthConn adapts one pinned *sql.Conn to the store's ExecQueryer
 // surface, mirroring SQLDB for a single connection.
 type claimDepthConn struct {
@@ -260,12 +268,18 @@ func drainClaimDepthBacklog(
 			}
 			consecutiveEmpties := 0
 			for attempt := 0; ; attempt++ {
-				item, claim, found, err := store.ClaimNextEligible(ctx, workflow.ClaimSelector{
+				selector := workflow.ClaimSelector{
 					CollectorKind:       scope.CollectorGit,
 					CollectorInstanceID: "claim-depth-instance",
 					OwnerID:             owner,
 					ClaimID:             fmt.Sprintf("claim-depth-%d-%d", claimer, attempt),
-				}, time.Now().UTC(), 5*time.Minute)
+				}
+				if claimDepthPacingHook != nil {
+					if delay := claimDepthPacingHook(store, selector, time.Now().UTC()); delay > 0 {
+						time.Sleep(delay)
+					}
+				}
+				item, claim, found, err := store.ClaimNextEligible(ctx, selector, time.Now().UTC(), 5*time.Minute)
 				if err != nil {
 					errs <- fmt.Errorf("claimer %d ClaimNextEligible attempt %d: %w", claimer, attempt, err)
 					break

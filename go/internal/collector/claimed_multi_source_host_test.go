@@ -5,7 +5,9 @@ package collector
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -316,5 +318,43 @@ func TestNewMultiSourceCollectorHostIgnoresDisabledInstances(t *testing.T) {
 	}
 	if host == nil {
 		t.Fatal("host = nil, want a runnable host")
+	}
+}
+
+// TestMultiSourceCollectorHostWiresPacingLogger proves the host threads its
+// pacing logger into the shared dispatcher: a failing depth consult on the
+// primary multi-source path claims normally and leaves the fail-open debug
+// record the pacing reference promises.
+func TestMultiSourceCollectorHostWiresPacingLogger(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.June, 17, 21, 0, 0, 0, time.UTC)
+	store := &pacingStubClaimStore{consultErr: errors.New("depth unavailable")}
+	buf, logger := consultLogSink()
+	host, err := NewMultiSourceCollectorHost(MultiSourceCollectorHostConfig{
+		Template: ClaimedService{ControlStore: store},
+		Sources: []ClaimSourceRegistration{
+			wildcardSourceRegistration(scope.CollectorGit, &recordingClaimedSource{}),
+		},
+		Instances: []workflow.CollectorInstance{
+			enabledCollectorInstance(scope.CollectorGit, "git-primary"),
+		},
+		ClaimPacing:  pacingPtr(pacingDispatcherConfig()),
+		PacingLogger: logger,
+	})
+	if err != nil {
+		t.Fatalf("NewMultiSourceCollectorHost() error = %v, want nil", err)
+	}
+
+	_, _, _, found, err := host.dispatcher.ClaimNext(context.Background(), "owner-1", "claim-1", now, time.Minute)
+	if err != nil {
+		t.Fatalf("ClaimNext() error = %v, want nil (pacing failure fails open)", err)
+	}
+	if found {
+		t.Fatal("ClaimNext() found = true, want false (stub store holds no claims)")
+	}
+	if logged := buf.String(); !strings.Contains(logged, "pacing consult failed open") ||
+		!strings.Contains(logged, "depth unavailable") {
+		t.Fatalf("consult log = %q, want fail-open record naming the error", logged)
 	}
 }

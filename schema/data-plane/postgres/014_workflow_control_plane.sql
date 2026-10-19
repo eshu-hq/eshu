@@ -260,3 +260,16 @@ CREATE INDEX IF NOT EXISTS workflow_work_items_fair_claim_idx
         created_at,
         work_item_id
     );
+
+-- #8470 claim-pacing latch table, mirroring migration 205. The depth-pacing
+-- verdict's hysteresis bit lives here in shared storage so coordinators
+-- cannot disagree about whether pacing is on. Rows appear only through
+-- runtime upserts after a first engagement; no backfill exists to mirror.
+CREATE TABLE IF NOT EXISTS workflow_claim_pacing (
+    signal TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    engaged BOOLEAN NOT NULL DEFAULT FALSE,
+    engaged_at TIMESTAMPTZ NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (signal, domain)
+);

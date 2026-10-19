@@ -45,6 +45,10 @@ const (
 	// belong on spans and logs, never on any other metric label.
 	MetricDimensionFairnessKey = "fairness_key"
 	MetricDimensionDomain      = "domain"
+	// MetricDimensionPacingSignal labels claim-pacing instruments (#8470)
+	// with the engaging depth signal. The value space is the closed pair
+	// "domain" / "global", so it stays low-cardinality.
+	MetricDimensionPacingSignal = "pacing_signal"
 	// MetricDimensionExecutionMode labels shared-edge write instruments
 	// with the closed execution-mode set ("group", "artifact-sequential").
 	// Producers must never use raw statement text or row data here.

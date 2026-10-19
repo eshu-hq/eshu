@@ -21,6 +21,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionClaimPriority,
 	MetricDimensionFairnessKey,
 	MetricDimensionDomain,
+	MetricDimensionPacingSignal,
 	MetricDimensionExecutionMode,
 	MetricDimensionPartitionKey,
 	MetricDimensionPartitionID,

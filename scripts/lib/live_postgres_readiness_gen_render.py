@@ -27,6 +27,9 @@ DSN_VALUE = ("postgres://postgres:local-proof-only@127.0.0.1:15432"
 READER_VALUE = ("postgres://postgres:local-proof-only@127.0.0.1:15433"
                 "/postgres?sslmode=disable")
 MAX_GENERATED_LINES = 500
+# Lines reserved below the cap per shard so later enrollments grow the last
+# shard instead of flipping the shard count on every addition.
+SHARD_HEADROOM_LINES = 20
 WORKFLOW_BEGIN = ("# BEGIN GENERATED READINESS ENV "
                   "(scripts/generate-live-postgres-readiness.py; "
                   "do not hand-edit)")
@@ -80,7 +83,12 @@ def render_pkg_module(package: str, files: dict) -> str:
 
 
 def render_assembler(modules: list[str]) -> str:
-    """Render the PACKAGES assembler over the per-package tables."""
+    """Render the PACKAGES assembler over the per-package tables.
+
+    Tables deep-merge per package: shards of one package combine instead
+    of overwriting each other under their shared package key, which a
+    shallow {**a, **b} merge would let the last shard win.
+    """
     lines = [
         "#!/usr/bin/env python3",
         '"""Assembled PACKAGES for live-postgres-readiness (generated).',
@@ -92,10 +100,15 @@ def render_assembler(modules: list[str]) -> str:
     ]
     for index, module in enumerate(modules):
         lines.append(f"from {module} import TABLE as _TABLE_{index:02d}")
-    lines += ["", "", "PACKAGES = {"]
+    lines += ["", "", "PACKAGES = {}", "for _table in ("]
     for index in range(len(modules)):
-        lines.append(f"    **_TABLE_{index:02d},")
-    lines += ["}", ""]
+        lines.append(f"    _TABLE_{index:02d},")
+    lines += [
+        "):",
+        "    for _package, _files in _table.items():",
+        "        PACKAGES.setdefault(_package, {}).update(_files)",
+        "",
+    ]
     return "\n".join(lines)
 
 
@@ -220,6 +233,39 @@ def check_line_cap(rel: str, content: str) -> None:
         raise fail(f"generated {rel} has {count} lines; split it first")
 
 
+def shard_package(module: str, package: str, files: dict,
+                    taken: set[str]) -> list[tuple[str, dict]]:
+    """Split an over-cap package into sequential _partN shards.
+
+    Single-shard output is byte-identical to render_pkg_module: sharding
+    only engages when one module would exceed the cap. Files stay in
+    LC_ALL=C order across shards so later enrollments append to the last
+    shard instead of reshuffling. Shard names that collide with a real
+    package module fail closed like package slug collisions.
+    """
+    names = sorted(files)
+    sizes = {rel: 2 + len(files[rel]) for rel in names}
+    shards: list[list[str]] = [[]]
+    used = 0
+    limit = MAX_GENERATED_LINES - SHARD_HEADROOM_LINES
+    for rel in names:
+        if shards[0] and used + sizes[rel] > limit:
+            shards.append([])
+            used = 0
+        shards[-1].append(rel)
+        used += sizes[rel]
+    if len(shards) == 1:
+        return [(module, files)]
+    out = []
+    for index, chunk in enumerate(shards, start=1):
+        name = f"{module}_part{index}"
+        if name in taken:
+            raise fail(f"module shard collision: {name}")
+        taken.add(name)
+        out.append((name, {rel: files[rel] for rel in chunk}))
+    return out
+
+
 def generated_outputs(root: pathlib.Path, enrolled: dict, binding: dict,
                       required: list[str], optional: list[str]
                       ) -> list[tuple[str, str]]:
@@ -229,11 +275,15 @@ def generated_outputs(root: pathlib.Path, enrolled: dict, binding: dict,
                     render_fragment(enrolled, binding)))
     modules = []
     packages = packages_of(enrolled)
+    taken = {f"live_postgres_readiness_inventory_gen_{slug(p)}"
+             for p in packages}
     for package in sorted(packages):
         module = f"live_postgres_readiness_inventory_gen_{slug(package)}"
-        modules.append(module)
-        outputs.append((f"scripts/lib/{module}.py",
-                        render_pkg_module(package, packages[package])))
+        for shard, subset in shard_package(module, package,
+                                           packages[package], taken):
+            modules.append(shard)
+            outputs.append((f"scripts/lib/{shard}.py",
+                            render_pkg_module(package, subset)))
     outputs.append(("scripts/lib/live_postgres_readiness_inventory_generated.py",
                     render_assembler(modules)))
     consumer_tests = enrolled[binding["consumer"]]["tests"]

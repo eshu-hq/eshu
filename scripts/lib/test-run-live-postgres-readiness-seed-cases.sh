@@ -14,7 +14,9 @@ for location in empty malformed; do
   cp "${repo_root}/scripts/lib/live_postgres_readiness_records.py" "${seed_dir}/${location}/"
   cp "${repo_root}"/scripts/lib/live_postgres_readiness_inventory*.py "${seed_dir}/${location}/"
 done
-sed '/^PACKAGES = {/,/^}/c\PACKAGES = {}' "${repo_root}/scripts/lib/live_postgres_readiness_inventory_generated.py" \
+# The assembler deep-merges per-package tables (sharded packages share one
+# key), so emptying means dropping the merge loop, not a brace block.
+sed '/^PACKAGES = {}$/,$c\PACKAGES = {}' "${repo_root}/scripts/lib/live_postgres_readiness_inventory_generated.py" \
   >"${seed_dir}/empty/live_postgres_readiness_inventory_generated.py"
 cmp -s "${repo_root}/scripts/lib/live_postgres_readiness_inventory_generated.py" "${seed_dir}/empty/live_postgres_readiness_inventory_generated.py" && fail "empty seed changed nothing"
 out="$(python3 "${seed_dir}/empty/live_postgres_readiness_results.py" list-packages 2>&1)" && fail "empty PACKAGES listed"

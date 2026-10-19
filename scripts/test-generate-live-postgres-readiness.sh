@@ -98,6 +98,28 @@ python3 "${generator}" --root "${scratch}" >/dev/null ||
 git -C "${scratch}" add -A
 git -C "${scratch}" -c user.email=t@t -c user.name=t commit -qm reseeded >/dev/null
 
+# shard-complete: every yaml-enrolled file is present in the assembled
+# runner PACKAGES. Shards of one package must deep-merge: a shallow
+# {**a, **b} assembler lets the last shard's table overwrite the earlier
+# shards under their shared package key and silently drops most of the
+# package from the runner (and from EXPECTED).
+out="$(SCRATCH="${scratch}" PYTHONPATH="${scratch}/scripts/lib" python3 -c '
+import os, re, sys
+root = os.environ["SCRATCH"]
+sys.path.insert(0, os.path.join(root, "scripts", "lib"))
+from live_postgres_readiness_inventory_generated import PACKAGES
+from live_postgres_readiness_inventory_helpers import HELPER_PROOFS
+yaml_text = open(os.path.join(root, "specs", "live-tests.d", "live-tests-readiness.generated.yaml")).read()
+enrolled = set(re.findall(r"- file: (\S+)", yaml_text))
+covered = {path for files in PACKAGES.values() for path in files}
+missing = sorted(enrolled - covered - set(HELPER_PROOFS))
+if missing:
+    print(f"shard-complete: {len(missing)} enrolled files missing from PACKAGES, first: {missing[:5]}")
+    sys.exit(1)
+print(f"shard-complete: {len(enrolled)} enrolled files all present in PACKAGES")
+' 2>&1)" || fail "${out}"
+[[ "${out}" == *"all present"* ]] || fail "shard-complete acknowledgement missing: ${out}"
+
 # unregistered-red: a live test with no marker and no ledger row fails the
 # chained ledger validator as unclassified (never silently unenrolled).
 unreg_file="${seed_dir}/seeded_unregistered_probe_live_test.go"
@@ -145,4 +167,4 @@ out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "quoted reason 
 [[ "${out}" == *"${quote_file##*/}"* ]] || fail "quoted reason not named: ${out}"
 rm "${quote_file}"
 
-printf 'test-generate-live-postgres-readiness: GREEN (clean, idempotent, stale/unregistered/orphan/quote RED)\n'
+printf 'test-generate-live-postgres-readiness: GREEN (clean, idempotent, shard-complete, stale/unregistered/orphan/quote RED)\n'

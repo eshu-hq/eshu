@@ -520,4 +520,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// holds only the two idempotent UPDATEs, so no file holds a table lock
 	// through bulk DML.
 	"workflow_work_items_claim_class_backfill",
+	// Migration 205 (#8470) creates the claim-pacing latch table. It holds
+	// only DDL; latch rows appear through runtime upserts, so no backfill
+	// can stall writers.
+	"workflow_claim_pacing",
 }

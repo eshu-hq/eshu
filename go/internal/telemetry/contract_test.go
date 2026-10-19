@@ -25,6 +25,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"claim_priority",
 		"fairness_key",
 		"domain",
+		"pacing_signal",
 		"execution_mode",
 		"partition_key",
 		"partition_id",
