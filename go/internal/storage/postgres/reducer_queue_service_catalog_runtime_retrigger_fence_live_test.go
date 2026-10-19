@@ -64,7 +64,7 @@ INSERT INTO shared_projection_intents (
 	if reopened, err := producerQueue.ReopenSucceeded(ctx, "wm-checkout-8169"); err != nil || !reopened {
 		t.Fatalf("ReopenSucceeded() = %v, %v", reopened, err)
 	}
-	if err := NewSharedIntentStore(SQLDB{DB: p.db}).MarkIntentsCompleted(ctx, []string{intentID}, p.clock); err != nil {
+	if _, err := NewSharedIntentStore(SQLDB{DB: p.db}).MarkIntentsCompleted(ctx, []string{intentID}, p.clock); err != nil {
 		t.Fatalf("MarkIntentsCompleted() error = %v", err)
 	}
 	p.runProducer(t, ctx, p.db, "workload-worker")
