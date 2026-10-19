@@ -46,7 +46,8 @@ the SSO E2E gate). The `total` stage is the handler wall time; `pg` and
 time, recorded through the context-carried stage clock
 (`querycontract.RequestStages`, installed by the middleware) by the search
 seams on `POST /api/v0/code/search` and
-`POST /api/v0/content/entities/search`. Stage semantics: each stage sums
+`POST /api/v0/content/entities/search` (including any other route sharing
+a seam, such as `POST /api/v0/code/symbols/search`). Stage semantics: each stage sums
 its own calls, so parallel store calls add and `pg`+`graph` may exceed
 `total`; durations never enter metric labels, so no label cardinality grows
 with traffic. Full operator semantics live in
