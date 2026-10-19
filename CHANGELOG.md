@@ -813,7 +813,7 @@ recent shipped work grouped by feature area.
   A new `moduleResolutionConfidenceMap`
   (`go/internal/storage/postgres/tfstate/drift_evidence_module_confidence.go`)
   tracks both failure shapes as a directory-keyed low-confidence signal,
-  populated by `buildModulePrefixMap` alongside the real `modulePrefixMap`.
+  populated by `BuildModulePrefixMap` alongside the real `modulePrefixMap`.
   `ResourceRow.ModuleResolutionReason` carries it onto the config-side row;
   `BuildCandidates` attaches a new `terraform_module_resolution_confidence`
   evidence atom when present; the reducer writer's `moduleResolutionOutcome`
@@ -934,7 +934,7 @@ recent shipped work grouped by feature area.
   prior-config walk that powers `removed_from_config`
   (`PostgresDriftEvidenceLoader.loadPriorConfigAddresses`) built its own
   `moduleResolutionConfidenceMap` per prior generation and discarded it
-  (`priorPrefixMap, _, err := l.buildModulePrefixMap(...)`), so a
+  (`priorPrefixMap, _, err := l.BuildModulePrefixMap(...)`), so a
   `removed_from_config` finding promoted from a low-confidence prior-config
   address also stayed `"exact"`.
 
