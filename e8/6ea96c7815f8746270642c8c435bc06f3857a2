@@ -1,0 +1,20 @@
+go/internal/reducer/dsl/AGENTS.md
+  h_78a442cba0b3e6 29-31,62-63
+go/internal/reducer/dsl/README.md
+  h_78a442cba0b3e6 105-106
+go/internal/reducer/evidence-6626-batch6-bucket9-phase.md
+  h_78a442cba0b3e6 5-6
+go/internal/reducer/gpphase/README.md
+  h_78a442cba0b3e6 170-171,176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e86ea96c7815f8746270642c8c435bc06f3857a2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
