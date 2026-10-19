@@ -16,6 +16,13 @@ loop. Migration 191 (#7427 PR3) dropped the terms generation foreign key,
 so the census and sweep are what remove terms rows a late writer leaves for
 a pruned generation; the documents key stays, so its census reads 0.
 
+It also runs the flagged superseded sweep (#8231): it lists still-existing
+superseded generations the fact-history hold keeps and deletes their terms,
+documents, and stats rows with fail-closed batches, oldest first, without
+changing the hold. The sweep runs only when the retention runner's
+`SearchIndexSupersededSweepEnabled` policy is set (off by default); see
+`SweepSuperseded` and the runbook section below.
+
 ## Ownership boundary
 
 This leaf owns the batch loop, its SQL, and the per-generation advisory lock
@@ -48,6 +55,11 @@ sequenceDiagram
 - `Drain(ctx, db.Beginner, Generation, *Budget) (Report, error)`
 - `Pass`, `NewPass`, `(*Pass).Run`, `Drained`, `Report`, `Totals`, `Ran`
 - `Budget` (`RowCap`, `Deadline`, `Exhausted`, `Batches`, `Rows`)
+- `SweepSuperseded(ctx, Database, deadline, rowCap, logger)
+  (SupersededSweep, error)`, `SupersededSweep` (`Candidates`, `RowsSwept` by
+  table including `eshu_search_index_stats`, `Batches`, `Unswept`),
+  `NewSupersededPass`, `SupersededSweepRowCap` (2,000,000),
+  `SupersededSweepCandidateLimit` (1,000), `StatsTable`
 - `Generation`, `Report`, `Outcome` and its closed constants
 - `TryLockGenerations(ctx, db.Queryer, ids)` for the prune transaction
 - `BatchRows` (20,000) and `LockClass` (7427)
@@ -110,6 +122,10 @@ sequenceDiagram
   generation did not drain, debug for an empty drained generation.
 - Logs: `generation retention search index orphan generation swept` per
   orphan generation, same fields.
+- Logs: `generation retention search index superseded batch committed` per
+  committed batch (#8231: scope_id, generation_id, table, batch_rows_deleted),
+  `generation retention search index superseded generation swept` per
+  generation, same fields as the pre-delete line plus the stats rows.
 - Metrics are emitted by the retention runner from the store's result:
   phases `predelete_search_index` and `sweep_search_index` on
   `eshu_dp_generation_retention_phase_duration_seconds`, rows on

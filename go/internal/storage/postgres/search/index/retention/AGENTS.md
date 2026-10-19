@@ -31,6 +31,15 @@
   pre-delete's page and DELETE body; change both together.
 - The census stays a loose index scan per terms leaf, never `DISTINCT` over
   a table (`TestCensusStatementWalksThePrimaryKeyPrefix`).
+- The #8231 superseded sweep (`sweep.go`) lists still-existing superseded
+  generations oldest first (cap `SupersededSweepCandidateLimit`) and drains
+  each with the fail-closed batches plus its single stats row. Its
+  eligibility CTE mirrors `eligibleGenerationCTE` and additionally requires
+  `scope.active_generation_id IS NOT NULL`; keep the shared page and DELETE
+  bodies identical (`TestSupersededSweepStatementsFailClosed`,
+  `TestSupersededSweepCandidatesListOnlySweepableGenerations`). It runs only
+  through the runner's off-by-default flag; never default it on, and never
+  enable it until the issue's gate-(b) dead-tuple/bloat evidence lands.
 - Never run the census or the sweep inside a retention transaction.
 - The root retention store (`generation_retention_policy.go`) runs this
   leaf's batches before it opens the prune transaction, and admits only

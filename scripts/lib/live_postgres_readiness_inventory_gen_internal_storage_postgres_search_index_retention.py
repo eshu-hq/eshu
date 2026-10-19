@@ -34,5 +34,9 @@ TABLE = {
             "TestOrphanSweepLiveSweepsALateWriter",
             "TestOrphanLiveUnknownScopeWriteIsRejected",
         ),
+        "go/internal/storage/postgres/search/index/retention/sweep_live_test.go": (
+            "TestSweepSupersededLiveKeepsTheActiveReaderUnchanged",
+            "TestSweepSupersededLiveSkipsPinnedAndInflight",
+        ),
     },
 }

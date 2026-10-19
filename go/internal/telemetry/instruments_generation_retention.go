@@ -76,6 +76,13 @@ func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instr
 	); err != nil {
 		return fmt.Errorf("register SearchIndexOrphanRowsSwept counter: %w", err)
 	}
+	if inst.SearchIndexSupersededRowsSwept, err = meter.Int64Counter(
+		"eshu_dp_search_index_superseded_rows_swept_total",
+		metric.WithDescription("Search index rows the superseded sweep deleted from a still-existing superseded generation whose facts stay held, by table"),
+		metric.WithUnit("{row}"),
+	); err != nil {
+		return fmt.Errorf("register SearchIndexSupersededRowsSwept counter: %w", err)
+	}
 	return nil
 }
 

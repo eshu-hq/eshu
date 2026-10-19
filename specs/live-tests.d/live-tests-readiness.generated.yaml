@@ -949,6 +949,11 @@ tests:
     class: postgres_ci
     reason: "#7427 PR2 disposable PostgreSQL 18 proof of the search index orphan census and sweep: the census reads 0 on a clean tree (terms generation foreign key dropped by migration 191, documents key present), and with the documents key also dropped inside the isolated test schema only a generation missing from scope_generations loses rows while active, pending, superseded and dangling-active-pointer generations keep every row, a second sweep is a no-op, two concurrent sweeps delete each row once without deadlock, a late writer's row is swept by the re-sweep or the next census, and the retained scope_id foreign key rejects a row for an unknown scope; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed all 6 tests in 11.4s of test time on PostgreSQL 18.6 on 2026-10-16"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/search/index/retention/sweep_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8231 disposable PostgreSQL 18 proof of the superseded-generation search index sweep: only a superseded generation with a live active pointer elsewhere loses rows while the active generation's rows and its active-generation reader view stay byte-identical, and generations with running work, a NULL active pointer, a missing generation row, or the active pointer itself lose nothing; enrolled in the live-postgres-readiness runner; reads ESHU_GENERATION_RETENTION_PROOF_DSN (with its DISPOSABLE flag) and creates one isolated bootstrapped schema per test. local run passed both tests in 6.5s wall on PostgreSQL 18 (container postgres:18) on 2026-10-18; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/service_catalog_runtime_producer_store_live_test.go
     tag: ~
     class: postgres_ci

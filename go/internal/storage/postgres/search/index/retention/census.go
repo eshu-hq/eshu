@@ -13,10 +13,14 @@ import (
 )
 
 // Search index table names, the closed `table` label set of the orphan
-// census gauge and the swept-rows counter.
+// census gauge and the swept-rows counters. The orphan census walks only the
+// terms leaves and the documents table; the #8231 superseded sweep also
+// deletes each swept generation's single stats row, which its counter
+// reports under StatsTable.
 const (
 	TermsTable     = "eshu_search_index_terms"
 	DocumentsTable = "eshu_search_index_documents"
+	StatsTable     = "eshu_search_index_stats"
 )
 
 // OrphanListLimit is the most orphan pairs one census lists per relation (a

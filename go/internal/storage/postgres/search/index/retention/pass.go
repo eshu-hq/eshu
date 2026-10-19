@@ -51,6 +51,32 @@ func NewOrphanPass(rowCap int64, deadline time.Time, logger *slog.Logger) *Pass 
 	return pass
 }
 
+// NewSupersededPass returns a pass that sweeps #8231 superseded generations
+// with drainSuperseded under the same budget rules as NewPass: terms and
+// documents in committed keyset batches plus the stats row. Its
+// per-generation log line is "generation retention search index superseded
+// generation swept". When logger is non-nil every committed batch also logs
+// one "generation retention search index superseded batch committed" line,
+// so an operator can see a large generation's progress at 3 AM.
+func NewSupersededPass(rowCap int64, deadline time.Time, logger *slog.Logger) *Pass {
+	pass := NewPass(rowCap, deadline, logger)
+	pass.drain = drainSuperseded
+	pass.message = "generation retention search index superseded generation swept"
+	if logger != nil {
+		pass.budget.onBatch = func(ctx context.Context, generation Generation, table string, deleted int64) {
+			logger.InfoContext(ctx,
+				"generation retention search index superseded batch committed",
+				slog.String(telemetry.LogKeyScopeID, generation.ScopeID),
+				slog.String(telemetry.LogKeyGenerationID, generation.GenerationID),
+				slog.String("table", table),
+				slog.Int64("batch_rows_deleted", deleted),
+				telemetry.PhaseAttr(telemetry.PhaseReduction),
+			)
+		}
+	}
+	return pass
+}
+
 // Run drains generations in the given order, which must be oldest first, so
 // a spent budget leaves the newest undrained. A generation the budget never
 // reaches stays undrained. It returns the first error a batch returns, after
@@ -95,6 +121,19 @@ func (p *Pass) Report(generationID string) (Report, bool) {
 	}
 	report, ok := p.reports[generationID]
 	return report, ok
+}
+
+// StatsDeleted sums the #8231 stats rows the pass removed. Totals covers
+// only the keyset tables; the stats row follows the drain in sweepStats, so
+// it is reported apart.
+func (p *Pass) StatsDeleted() (stats int64) {
+	if p == nil {
+		return 0
+	}
+	for _, report := range p.reports {
+		stats += report.StatsDeleted
+	}
+	return stats
 }
 
 // Totals sums the pass: rows deleted per table, committed batch transactions,

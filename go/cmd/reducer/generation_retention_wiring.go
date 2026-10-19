@@ -50,6 +50,9 @@ func loadGenerationRetentionConfig(getenv func(string) string) generationRetenti
 				BatchRowLimit:            loadPositiveIntOrDefault(getenv, generationRetentionBatchRowLimitEnv, defaults.BatchRowLimit),
 				PolicyScope:              loadStringOrDefault(getenv, generationRetentionPolicyScopeEnv, defaults.PolicyScope),
 				PolicyRevision:           loadStringOrDefault(getenv, generationRetentionPolicyRevisionEnv, defaults.PolicyRevision),
+				// Off by default (#8231): an unset or unparsable value leaves
+				// the superseded sweep off and issuing no SQL.
+				SearchIndexSupersededSweepEnabled: loadBoolOrDefault(getenv, generationRetentionSearchIndexSupersededSweepEnabledEnv, false),
 			},
 		},
 		HardMaxSupersededAgeLifted: lifted,
@@ -125,10 +128,12 @@ func generationRetentionRunnerFor(
 		},
 		Config: cfg.Runner,
 	}
-	// The search index orphan sweep (#7427 PR2) runs its batches in their own
-	// transactions, so it needs a database that can begin them.
+	// The search index orphan sweep (#7427 PR2) and the superseded sweep
+	// (#8231) run their batches in their own transactions, so they need a
+	// database that can begin them.
 	if sweepDatabase, ok := database.(indexretention.Database); ok {
 		runner.OrphanSweeper = searchIndexOrphanSweeper{database: sweepDatabase, logger: logger}
+		runner.SupersededSweeper = searchIndexSupersededSweeper{database: sweepDatabase, logger: logger}
 	}
 	return runner
 }
@@ -162,6 +167,37 @@ func (s searchIndexOrphanSweeper) SweepSearchIndexOrphans(
 		Unswept:           sweep.Unswept,
 		CensusDuration:    sweep.CensusDuration,
 		SweepDuration:     sweep.SweepDuration,
+	}, err
+}
+
+// searchIndexSupersededSweeper adapts the indexretention superseded sweep to
+// the retention runner's contract.
+type searchIndexSupersededSweeper struct {
+	database indexretention.Database
+	logger   *slog.Logger
+}
+
+// SweepSearchIndexSuperseded runs one superseded listing and sweep, its
+// batches bounded by deadline from now (none when deadline is not positive)
+// and its rows by rowCap, the policy's search index row cap (the sweep's
+// 2,000,000-row default when not positive).
+func (s searchIndexSupersededSweeper) SweepSearchIndexSuperseded(
+	ctx context.Context,
+	deadline time.Duration,
+	rowCap int64,
+) (retention.SupersededSweepResult, error) {
+	var until time.Time
+	if deadline > 0 {
+		until = time.Now().Add(deadline)
+	}
+	sweep, err := indexretention.SweepSuperseded(ctx, s.database, until, rowCap, s.logger)
+	return retention.SupersededSweepResult{
+		Candidates:    sweep.Candidates,
+		RowsSwept:     sweep.RowsSwept,
+		Batches:       sweep.Batches,
+		Unswept:       sweep.Unswept,
+		ListDuration:  sweep.ListDuration,
+		SweepDuration: sweep.SweepDuration,
 	}, err
 }
 
