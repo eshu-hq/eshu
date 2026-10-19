@@ -14,6 +14,7 @@
 #   RED a: an allowlisted row answering route_denied_403 (undocumented 403).
 #   RED b: a ledger row refused without disclosure.
 #   RED c: a dropped result row (coverage mismatch with the policy).
+#   RED d: a JSON null actual FAILs naming the row instead of raising.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -89,4 +90,23 @@ EOF
 rc=0; out="$(judge)" || rc=$?
 [[ $rc -ne 0 ]] || fail "judge accepted a report missing a policy row: ${out}"
 
-printf 'test-verify-scoped-route-catalog-sweep: PASS (1 green, 3 red pairs)\n'
+# ── RED d: a malformed row (JSON null actual) FAILs naming the row ──────────
+# A null actual must not raise AttributeError/TypeError out of the gate.
+write_fixtures
+python3 - "$fx" <<'EOF'
+import json, sys
+fx = sys.argv[1]
+rep = json.load(open(fx + "/report.json"))
+rep["results"][0]["actual"] = None
+rep["results"][0]["pass"] = False
+open(fx + "/report.json", "w").write(json.dumps(rep))
+EOF
+rc=0; out="$(judge)" || rc=$?
+[[ $rc -ne 0 ]] || fail "judge accepted a row with null actual: ${out}"
+combined="${out}$(cat "$fx/stderr.txt")"
+[[ "${combined}" =~ list_indexed_repositories ]] ||
+	fail "rejection names no offending tool: ${combined}"
+[[ "${combined}" != *"Traceback"* ]] ||
+	fail "judge raised instead of FAILing cleanly: ${combined}"
+
+printf 'test-verify-scoped-route-catalog-sweep: PASS (1 green, 4 red pairs)\n'

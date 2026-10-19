@@ -36,7 +36,8 @@ def main() -> int:
     ledger_classes = {"shared_key_only", "pending_row_filtering"}
 
     def is_refusal(actual):
-        return actual in refusal_actuals or actual.startswith("http_403")
+        return isinstance(actual, str) and (
+            actual in refusal_actuals or actual.startswith("http_403"))
 
     if policy is not None and report is not None:
         policy_rows = {(r["tool"], r["label"]): r for r in policy.get("rows", [])}
@@ -55,7 +56,9 @@ def main() -> int:
                 errors += 1
                 continue
             routes.add(res.get("route", ""))
-            actual = res.get("actual", "")
+            # A malformed row (JSON null actual) must FAIL naming the row,
+            # never raise AttributeError/TypeError out of the gate.
+            actual = res.get("actual", "") or ""
             passed = res.get("pass") is True
             cls = row.get("class", "")
             if cls in ledger_classes:
