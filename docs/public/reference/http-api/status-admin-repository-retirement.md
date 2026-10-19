@@ -41,8 +41,10 @@ with `retirement_id`, `repository_id`, `scope_id`, and `outcome`:
   `terminal_not_reached` names live generations only a new fence can move;
   re-POST (same key resumes) after fencing again. `scope_lock_busy` names
   reducer-retention contention; retry the fenced row.
-- `refused` / `failed` — the fence or a step error stopped the request
-  before any purge; see [Admin Route Failures](admin-failures.md).
+- `refused` — the fence or the mark stopped the request before any purge;
+  see [Admin Route Failures](admin-failures.md).
+- `failed` — a step error: the purge attempt rolled back and the tombstone
+  stays open; retry with the same key.
 
 `duplicate: true` means the idempotency key resumed an open retirement
 instead of opening a new one. A `409` names the fence refusal reason
