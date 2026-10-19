@@ -81,7 +81,7 @@ The A/B delta is `(tps on - tps off) / tps off`. The null delta is
 | Mean | -4.2 percent | +4.5 percent | `7596-ab-delta-mean-pct`, `7596-null-delta-mean-pct` |
 | Standard deviation | 10.2 percent | 19.8 percent | `7596-ab-delta-sd-pct`, `7596-null-delta-sd-pct` |
 | Range | -25.0 to +8.1 percent | -18.4 to +45.0 percent | (in the variant text) |
-| Mean tps | 27591 off, 26377 on | | `7596-ab-mean-tps-off`, `7596-ab-mean-tps-on` |
+| Mean tps | 27591 off, 26377.57 on | | `7596-ab-mean-tps-off`, `7596-ab-mean-tps-on-corrected` (`7596-ab-mean-tps-on` keeps the truncated 26377; the ledger is append-only) |
 
 ## Caveats
 
