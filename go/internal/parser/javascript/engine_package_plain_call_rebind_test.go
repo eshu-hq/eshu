@@ -13,7 +13,9 @@ import (
 // a block let, or a sloppy-mode eval var rebinds the import name where the
 // open redeclaredImportNames rule does not look, so the plain `Logger()` call
 // must stay unkeyed. Each case starts with the package import; the sloppy eval
-// case is a script (.js), where eval shares the function scope.
+// case is a script (.js), where eval shares the function scope. The member
+// `Logger.create()` call of the same files must stay unkeyed too under its
+// own closed rule, so each row pins both shapes.
 func TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports(t *testing.T) {
 	t.Parallel()
 
@@ -37,6 +39,9 @@ func TestDefaultEngineParsePathSkipsPlainCallsOfReboundImports(t *testing.T) {
 			got := parsePackageKeyFixture(t, repoRoot, filePath)
 			if key := callPackageKey(t, got, "Logger", "function_call"); key != "" {
 				t.Errorf("Logger() package_export_symbol = %q, want none: the import name is rebound by %s", key, tc.name)
+			}
+			if key := callPackageKey(t, got, "Logger.create", "function_call"); key != "" {
+				t.Errorf("Logger.create package_export_symbol = %q, want none: the import name is rebound by %s", key, tc.name)
 			}
 		})
 	}
