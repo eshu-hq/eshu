@@ -17,7 +17,7 @@ import (
 // secrets/IAM graph writer through the WriteAuthenticatesVaultRoleEdges port
 // of the DomainSecretsIAMGraphProjection handler. The relationship type is
 // SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE, read off
-// secretsIAMAuthenticatesVaultRoleEdgeUpsertCypher's MERGE, never derived
+// SecretsIAMAuthenticatesVaultRoleEdgeUpsertCypher's MERGE, never derived
 // from the port or family name.
 //
 // Facts are built as typed secretsiamv1 / iamv1 values and encoded through

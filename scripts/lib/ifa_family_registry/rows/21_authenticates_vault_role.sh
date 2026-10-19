@@ -18,7 +18,7 @@
 #
 # TWO-STAGE CHAIN, one reducer with the flag on for that cell only. The
 # family's edges are written by the DomainSecretsIAMGraphProjection handler
-# (secretsIAMAuthenticatesVaultRoleEdgeUpsertCypher in
+# (SecretsIAMAuthenticatesVaultRoleEdgeUpsertCypher in
 # go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go), which
 # reads reducer-owned read-model facts -- so the live cells run the
 # trust-chain stage first (trust-chain-scoped reducer, flag on), then the

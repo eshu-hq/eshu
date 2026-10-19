@@ -17,7 +17,7 @@ import (
 const authenticatesVaultRoleFamily = "authenticates_vault_role"
 
 // authenticatesVaultRoleRelationshipType is the single relationship type
-// secretsIAMAuthenticatesVaultRoleEdgeUpsertCypher MERGEs. There is no %s to
+// SecretsIAMAuthenticatesVaultRoleEdgeUpsertCypher MERGEs. There is no %s to
 // fill: the token is static in the template.
 //
 // Duplicated here as a plain literal rather than imported, and it fails
