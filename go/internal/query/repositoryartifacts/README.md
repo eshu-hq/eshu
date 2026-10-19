@@ -175,6 +175,29 @@ The metric and log fields are in
 [Telemetry metrics](../../../../docs/public/reference/telemetry/metrics.md) and
 [Telemetry logs](../../../../docs/public/reference/telemetry/logs.md).
 
+### Hydration chunk width ten to fifty (#7009)
+
+Benchmark Evidence (#7009): the hydrate pass reads one `GetFileContents`
+statement per fifty paths instead of ten. Baseline is the width-10 tree with
+the same candidate budgets; after the change 60 candidates cost 2 statements
+for 60 rows instead of 6, pinned by
+`TestAnchorHydrationReadsWholeCandidateWindow`, and the config-artifact
+fan-out keeps the row and whole digests byte-identical while
+`BatchStatements` moves 28 to 6 and `BatchChunkSize` 10 to 50, pinned by
+`TestConfigArtifactFanOutMatchesSequentialDigests`. Statement shape is proved
+on the in-memory `fakeContentStore` and `meetingStore` fakes (`go test`, no
+live backend); the #7009 shim behind `ReadChunkSize` (120 repositories, 60
+two-KiB consumed files each) drops the hydrate wall from 6.8 ms to 3.0 ms per
+repository while a 21 MB twenty-file repository reads in one 58 ms statement.
+The 5,000-file window bounds the worst case at 100 statements, the 8-in-flight
+bound is unchanged (pinned by
+`TestChunkedReadKeepsAtMostEightChunksInFlight` at 400 paths and peak 8), and
+row semantics are unchanged, so the change is safe.
+
+No-Observability-Change (#7009): no new metric, span, log field, or
+stage-line field. Statement counts move inside the existing
+`BatchStatements`/`BatchChunkSize` stats the stage lines already carry.
+
 ### Anchor fallback truncation flag (#8157)
 
 No-Regression Evidence (#8157): the flag adds one bool to existing returns

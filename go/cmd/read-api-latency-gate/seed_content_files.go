@@ -5,7 +5,7 @@ package main
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"fmt"
 	"strings"
 	"time"
@@ -93,7 +93,7 @@ type ContentFileSeedRow struct {
 func contentFileCopyRows(rows []ContentFileSeedRow, now time.Time) [][]any {
 	out := make([][]any, 0, len(rows))
 	for _, row := range rows {
-		sum := md5.Sum([]byte(row.RepoID + "\x00" + row.RelativePath + "\x00" + row.Content))
+		sum := sha256.Sum256([]byte(row.RepoID + "\x00" + row.RelativePath + "\x00" + row.Content))
 		lines := strings.Count(row.Content, "\n") + 1
 		out = append(out, []any{
 			row.RepoID, row.RelativePath, "seed",
@@ -221,7 +221,7 @@ func BuildSearchContentRows() []ContentFileSeedRow {
 		for g := 0; g < SeedSearchFilesPerRepo; g++ {
 			var body strings.Builder
 			for k := 0; k < 60; k++ {
-				sum := md5.Sum([]byte(fmt.Sprintf("%d:%d:%d", r, g, k)))
+				sum := sha256.Sum256([]byte(fmt.Sprintf("%d:%d:%d", r, g, k)))
 				fmt.Fprintf(&body, "%x ", sum)
 			}
 			if (g*7+r)%10 < 3 {
