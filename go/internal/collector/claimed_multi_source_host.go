@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -87,6 +88,10 @@ type MultiSourceCollectorHostConfig struct {
 	// CheckClaimPacing (WorkflowControlStore does). Nil (the default)
 	// claims with no pacing consult.
 	ClaimPacing *workflow.ClaimPacingConfig
+	// PacingLogger, when set with an enabled ClaimPacing, records
+	// fail-open pacing consults on the shared dispatcher. Nil (the
+	// default) keeps them silent.
+	PacingLogger *slog.Logger
 }
 
 type hostTargetKey struct {
@@ -165,6 +170,9 @@ func NewMultiSourceCollectorHost(cfg MultiSourceCollectorHostConfig) (*MultiSour
 				return nil, errors.New("claim pacing requires a control store that serves CheckClaimPacing")
 			}
 			dispatcher.WithClaimPacing(checker, *cfg.ClaimPacing)
+			if cfg.PacingLogger != nil {
+				dispatcher.WithPacingLogger(cfg.PacingLogger)
+			}
 		}
 	}
 
