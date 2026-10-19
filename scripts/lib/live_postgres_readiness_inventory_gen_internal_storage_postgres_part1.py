@@ -173,6 +173,9 @@ TABLE = {
             "TestIdentityEpochIgnoresSupersededGenerationRowsLive",
             "TestIdentityPageQueryServesOnlyActiveGenerationsLive",
         ),
+        "go/internal/storage/postgres/identity_epoch_empty_set_live_test.go": (
+            "TestProbeIdentityEpochEmptySetLive",
+        ),
         "go/internal/storage/postgres/identity_page_plan_live_test.go": (
             "TestIdentityPageQueryPlanRidesOrderedIndexLive",
         ),
@@ -482,10 +485,6 @@ TABLE = {
         ),
         "go/internal/storage/postgres/trigger_bootstrap_parity_live_test.go": (
             "TestWebhookTriggerStoreRunsOnBootstrapSchemaLive",
-        ),
-        "go/internal/storage/postgres/workflow_control_claim_class_columns_live_test.go": (
-            "TestWorkflowClaimClassColumnsRoundTrip",
-            "TestWorkflowClaimClassColumnsBackfill",
         ),
     },
 }
