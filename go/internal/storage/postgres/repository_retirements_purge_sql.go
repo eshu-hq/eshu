@@ -55,11 +55,23 @@ const (
 	purgeDeleteContentReferencesQuery = `DELETE FROM content_file_references WHERE repo_id = $1`
 	purgeDeleteRepositoryRefsQuery    = `DELETE FROM repository_refs WHERE repo_id = $1`
 
+	// purgeScopeGenerationIDsQuery lists every generation of the purge
+	// scopes so the key sidecar prune covers exactly the facts the scope
+	// delete cascades. Facts are generation-scoped and every key writer
+	// copies the fact's scope and generation (facts/keys.DeleteGenerations
+	// premise), so pruning per (scope, generation) removes exactly the
+	// sidecar rows the per-fact cascade would orphan.
+	purgeScopeGenerationIDsQuery = `SELECT scope_id, generation_id FROM scope_generations
+		WHERE scope_id = ANY($1) ORDER BY scope_id, generation_id`
+
 	// purgeDeleteScopesQuery deletes the scope rows. The scope_id
 	// generation foreign key cascades scope_generations, and through it
 	// every generation-FK table; every scope-FK table cascades directly.
 	// There is no self-FK on ingestion_scopes, so delete order among the
-	// scopes is unobservable and one statement deletes them all.
+	// scopes is unobservable and one statement deletes them all. The key
+	// sidecar rows do NOT cascade: purgeOne prunes them first with
+	// factkeys.DeleteGenerations (paired classification, see the delete
+	// guard), or orphaned sidecar rows would survive the retirement.
 	purgeDeleteScopesQuery = `DELETE FROM ingestion_scopes WHERE scope_id = ANY($1)`
 
 	// purgeCompleteTombstoneQuery writes the tombstone: the terminal

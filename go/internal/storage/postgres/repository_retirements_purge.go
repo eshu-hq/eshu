@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -223,6 +224,24 @@ func (p RetirementPurger) purgeOne(
 	if err != nil {
 		return "", nil, err
 	}
+	// The scope delete cascades generations and their fact rows, but the
+	// per-fact key sidecars do not cascade: prune them first, in Deletes
+	// order, so no orphaned sidecar row survives the retirement. The
+	// pruned counts join the tombstone ledger beside the cascade
+	// pre-counts. This DeleteGenerations call must stay textually before
+	// the scope delete in this function: the fact-delete guard pairs
+	// purgeDeleteScopesQuery with DeleteGenerations by call order.
+	genScopeIDs, generationIDs, err := listPurgeGenerationIDs(ctx, tx, scopeIDs)
+	if err != nil {
+		return "", nil, err
+	}
+	pruned := make(map[string]int64)
+	if err := factkeys.DeleteGenerations(ctx, tx, genScopeIDs, generationIDs, pruned); err != nil {
+		return "", nil, fmt.Errorf("retirement purge prune fact keys: %w", err)
+	}
+	for table, count := range pruned {
+		ledger[table] += count
+	}
 	scopes, err := execCount(ctx, tx, purgeDeleteScopesQuery, scopeIDs)
 	if err != nil {
 		return "", nil, fmt.Errorf("retirement purge delete scopes: %w", err)
@@ -364,6 +383,32 @@ func deletePurgeLeftovers(
 		ledger[keyed.table] = deleted
 	}
 	return ledger, nil
+}
+
+// listPurgeGenerationIDs returns the parallel (scope, generation) pairs
+// covering every generation of the purge scopes, in scope then generation
+// order. The terminal gate already passed, so these are all terminal; the
+// sidecar prune needs every pair regardless of status.
+func listPurgeGenerationIDs(
+	ctx context.Context,
+	tx db.Transaction,
+	scopeIDs []string,
+) ([]string, []string, error) {
+	rows, err := tx.QueryContext(ctx, purgeScopeGenerationIDsQuery, scopeIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("retirement purge list generations: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var genScopeIDs, generationIDs []string
+	for rows.Next() {
+		var scopeID, generationID string
+		if err := rows.Scan(&scopeID, &generationID); err != nil {
+			return nil, nil, fmt.Errorf("retirement purge list generations scan: %w", err)
+		}
+		genScopeIDs = append(genScopeIDs, scopeID)
+		generationIDs = append(generationIDs, generationID)
+	}
+	return genScopeIDs, generationIDs, rows.Err()
 }
 
 // scanGrantCounts pre-counts the four scope-FK grant tables the scope

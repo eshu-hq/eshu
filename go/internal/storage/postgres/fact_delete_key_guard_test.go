@@ -51,6 +51,11 @@ var factDeleteSites = map[string]factDeleteSite{
 	"internal/storage/postgres:deleteScopeGenerationsForRetentionQuery": {pairedWith: "DeleteGenerations"},
 	// Retention site B: the #7981 over-limit chunk page.
 	"internal/storage/postgres:generationRetentionChunkDeleteFactsQuery": {pairedWith: "DeletePage"},
+	// Retirement purge site (#7766): the scope-row delete cascades
+	// generations and facts; purgeOne prunes the key sidecars first with
+	// factkeys.DeleteGenerations and merges the counts into the tombstone
+	// ledger.
+	"internal/storage/postgres:purgeDeleteScopesQuery": {pairedWith: "DeleteGenerations"},
 	// Reducer retires of reducer-owned kinds.
 	"internal/reducer/containerimage:containerImageIdentityPublishAndLegacyCleanupQuery": {kindLiteral: "reducer_container_image_identity"},
 	"internal/reducer/containerimage:containerImageIdentityCompletedCutoverWriteQuery":   {kindLiteral: "reducer_container_image_identity"},

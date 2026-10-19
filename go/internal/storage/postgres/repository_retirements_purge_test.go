@@ -31,6 +31,8 @@ func stagePurgeScriptedDB() (*fakeTransactionalDB, *fakeTx) {
 			{rows: [][]any{}},
 			// Grant pre-counts (scope, repository, role-scope, role-repository).
 			{rows: [][]any{{int64(1), int64(0), int64(2), int64(0)}}},
+			// Sidecar prune generation listing (scope_id, generation_id).
+			{rows: [][]any{{"purge-scope-main", "gen-1"}, {"purge-scope-ref", "gen-2"}}},
 		},
 	}
 	database := &fakeTransactionalDB{tx: tx}
@@ -85,6 +87,9 @@ func TestPurgeRetiredRunsDesignedStepOrder(t *testing.T) {
 		"FOR UPDATE",
 		"FOR NO KEY UPDATE",
 		"FROM scope_generations",
+		"DELETE FROM relationship_reference_candidate_keys",
+		"DELETE FROM package_manifest_consumption_keys",
+		"DELETE FROM package_registry_identity_keys",
 		"DELETE FROM content_files",
 		"DELETE FROM content_entities",
 		"DELETE FROM content_file_references",
@@ -110,6 +115,21 @@ func TestPurgeRetiredRunsDesignedStepOrder(t *testing.T) {
 		if strings.Contains(joined, banned) {
 			t.Fatalf("purge sequence must never contain %q:\n%s", banned, joined)
 		}
+	}
+	// The key sidecar prune must run before the scope-row delete it
+	// protects: an orphaned sidecar row would otherwise survive the
+	// retirement.
+	firstSidecar, scopeDelete := -1, -1
+	for i, stmt := range stmts {
+		if strings.Contains(stmt, "DELETE FROM relationship_reference_candidate_keys") && firstSidecar < 0 {
+			firstSidecar = i
+		}
+		if strings.Contains(stmt, "DELETE FROM ingestion_scopes") {
+			scopeDelete = i
+		}
+	}
+	if firstSidecar < 0 || scopeDelete < 0 || firstSidecar > scopeDelete {
+		t.Fatalf("sidecar prune (idx %d) must precede scope delete (idx %d):\n%s", firstSidecar, scopeDelete, joined)
 	}
 	if !tx.committed {
 		t.Fatal("purge transaction committed = false, want true")
