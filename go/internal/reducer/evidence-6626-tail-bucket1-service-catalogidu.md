@@ -52,8 +52,12 @@ gofmt and gofumpt clean; `go test -count=1` green over every touched
 package tree; guard RED (seeded re-declaration fails) / GREEN (clean
 tree passes); `scripts/test-verify-golden-corpus-gate.sh` pass;
 `ci-gates validate --drift` pass; telemetry-coverage row check pass;
-`git diff --check` clean. `rg "reducer\.(ServiceCatalogCorrelation|ServiceMaterialization|SBOMAttestationAttachment|CodeFunctionSummary|IAMCan|SecretsIAM)"`
-over Go sources returns zero hits outside the compat buckets.
+`git diff --check` clean. `rg` for `reducer.<name>` for every name
+in the guard test's retired-name list, over all Go sources: exit 1,
+zero hits (the sweep covers the full retired set, including the
+SBOM-verified, IAMEscalation-failure-class, ServiceOwnership,
+ServiceEvidence, RepositoryScoped, ServiceRuntime, ServiceScoped,
+and ServiceRecord names a prefix pattern would miss).
 Baseline: parent base build/test state; after: this head; backend n/a
 (pure compile-time spelling change, no query or driver path touched);
 input shape n/a (no fixture or row-shape change).
