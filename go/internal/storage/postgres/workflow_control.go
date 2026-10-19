@@ -49,6 +49,21 @@ type WorkflowControlStore struct {
 	// ReconcileWorkflowRuns (#4459). Nil is a no-op, so binaries without a
 	// wired meter provider are unaffected.
 	Instruments *telemetry.Instruments
+	// QuotaLookup resolves the enforced per-component generation quota
+	// (#8471). Nil means quotas are not configured and every claim takes
+	// the plain statement, exactly as before.
+	QuotaLookup workflow.QuotaLookup
+	// QuotaFloorGrantsPerHour bounds degraded-mode grants per component
+	// per coordinator-hour when the quota state is unreadable. A
+	// non-positive value selects DefaultQuotaFloorGrantsPerHour.
+	QuotaFloorGrantsPerHour int
+	// quotaFloorMu serializes degraded-mode floor claims within one
+	// coordinator; the quota-gated path never takes it.
+	quotaFloorMu sync.Mutex
+	// quotaFloorUsed counts consumed floor grants per component window,
+	// reset on the coordinator-hour roll. quotaFloorMu guards both.
+	quotaFloorUsed   map[quotaFloorKey]int
+	quotaFloorWindow time.Time
 }
 
 // NewWorkflowControlStore constructs a Postgres-backed workflow control store.
@@ -164,6 +179,9 @@ func (s *WorkflowControlStore) ClaimNextEligible(
 	if err != nil {
 		return workflow.WorkItem{}, workflow.Claim{}, false, err
 	}
+	if quota, ok := s.effectiveClaimQuota(selector.CollectorKind); ok {
+		return s.claimNextEligibleWithQuota(ctx, selector, now, effectiveLeaseTTL, quota)
+	}
 
 	rows, err := s.database.QueryContext(
 		ctx,
@@ -176,8 +194,15 @@ func (s *WorkflowControlStore) ClaimNextEligible(
 		now.UTC().Add(effectiveLeaseTTL),
 		selector.RotationSalt,
 	)
-	if err != nil {
-		return workflow.WorkItem{}, workflow.Claim{}, false, fmt.Errorf("claim workflow work item: %w", err)
+	return finishWorkflowClaim(rows, err)
+}
+
+// finishWorkflowClaim scans one claim-statement result set. No rows means no
+// eligible work, never an error; both the plain and the quota-gated claim
+// statements share this shape so their results stay interchangeable.
+func finishWorkflowClaim(rows db.Rows, queryErr error) (workflow.WorkItem, workflow.Claim, bool, error) {
+	if queryErr != nil {
+		return workflow.WorkItem{}, workflow.Claim{}, false, fmt.Errorf("claim workflow work item: %w", queryErr)
 	}
 	defer func() { _ = rows.Close() }()
 

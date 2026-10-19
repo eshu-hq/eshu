@@ -1,0 +1,24 @@
+# Claim Quota Signals
+
+A component's `spec.quotas.maxGenerationsPerHour` bound is enforced when the
+workflow coordinator grants a claim (#8471): an over-quota component is
+throttled even on an idle system, and the reservation shares the grant
+transaction so concurrent coordinators cannot overshoot. Two signals make a
+throttled system distinguishable from a slow one.
+
+- `eshu_dp_workflow_claim_quota_exceeded_total` — counter of claims that found
+  eligible work but granted nothing because the quota blocked them. Labels:
+  `collector_kind`, `quota_kind` (`generations_per_hour`, the only
+  runtime-enforced kind today). A climbing series beside a flat grant rate
+  means the component hit its hourly budget; the budget releases when the
+  database-side hour window rolls.
+- `eshu_dp_workflow_claim_quota_unreadable_fallback_total` — counter of claims
+  that took the floor-rate fallback because the quota state was unreadable.
+  Labels: `collector_kind`. A nonzero rate means quota protection is degraded
+  to the floor budget (60 grants per component per coordinator-hour by
+  default): healthy collectors keep moving, but a runaway is no longer
+  precisely bounded. Each tick also logs a WARN line with
+  `quota.collector_kind` and `quota.limit`.
+
+`scope_id` never appears on either label — per-operator scope values are
+unbounded. It rides only the fallback log line.

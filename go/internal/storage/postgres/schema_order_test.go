@@ -524,4 +524,10 @@ var orderedBootstrapDefinitionNames = []string{
 	// only DDL; latch rows appear through runtime upserts, so no backfill
 	// can stall writers.
 	"workflow_claim_pacing",
+	// Migration 206 (#8471, renumbered from 205: base took 205) creates the
+	// per-component generation-quota usage windows the quota-gated claim
+	// statement reserves in the same statement that grants the claim. DDL
+	// only, no backfill: usage rows are created lazily by the grant upsert
+	// itself.
+	"component_quota_windows",
 }

@@ -335,6 +335,24 @@ func registerServiceChangedSince() {
 	spanNames = append(spanNames, contract.SpanQueryFreshnessServiceChangedSince)
 }
 
+// registerClaimQuota appends the claim-quota dimension and log keys (#8471).
+// It adds no span names (quota decisions are counters and log lines on the
+// claim path, not spans), so it only extends metricDimensionKeys and logKeys,
+// unconditionally at the end and independent of every earlier step.
+func registerClaimQuota() {
+	metricDimensionKeys = append(
+		metricDimensionKeys,
+		contract.MetricDimensionQuotaKind,
+	)
+	logKeys = append(
+		logKeys,
+		contract.LogKeyQuotaCollectorKind,
+		contract.LogKeyQuotaKind,
+		contract.LogKeyQuotaLimit,
+		contract.LogKeyQuotaScope,
+	)
+}
+
 // registerProducerGrant appends the producer-grant decision log keys (#6726).
 // It adds no metric dimension keys (decision, stage, reason, and fact_kind are
 // already registered) and no span names (the decision is a span event on the

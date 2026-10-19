@@ -110,13 +110,16 @@ import (
 // class segments sink to 4 instead of floating at the 201 default 0);
 // #8470 adds 205_workflow_claim_pacing.sql (claim-pacing latch table, DDL
 // only: latch rows appear through runtime upserts, no backfill).
-const goldenBootstrapDefinitionsDigest = "6a0fd60b91554ff4ccd957c18581a025cf5364f5b37fff2b083acabdca18bd61"
+// #8471 adds 206_component_quota_windows.sql (renumbered from 205: base took
+// 205 for claim pacing; DDL only, usage rows created lazily by the grant
+// upsert, so no backfill half exists).
+const goldenBootstrapDefinitionsDigest = "fbf6d7fe7663b8cc69a0e8e9deec0c9c07211dfc33d49bbda64713b7d75f7202"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 223
+const goldenBootstrapDefinitionsCount = 224
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

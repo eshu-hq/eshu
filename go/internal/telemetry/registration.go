@@ -73,6 +73,7 @@ var registrationSteps = []func(){
 	registerOwnGateWake,
 	registerInfraSearchKey,
 	registerConfigArtifactDerives,
+	registerClaimQuota,
 }
 
 func init() {

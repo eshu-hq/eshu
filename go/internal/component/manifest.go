@@ -73,6 +73,10 @@ type Spec struct {
 	EmittedFacts      []FactFamily      `yaml:"emittedFacts" json:"emittedFacts"`
 	ConsumerContracts ConsumerContracts `yaml:"consumerContracts" json:"consumerContracts"`
 	Telemetry         Telemetry         `yaml:"telemetry" json:"telemetry"`
+	// Quotas declares the component author's per-component governance
+	// bounds (#8471). Absent means unlimited; the operator override
+	// (Quota.Resolve) wins per field.
+	Quotas Quota `yaml:"quotas,omitempty" json:"quotas,omitempty"`
 }
 
 // RuntimeContract declares the public SDK protocol and host adapter a
@@ -222,6 +226,9 @@ func (m Manifest) validateIdentity() error {
 		}
 	}
 	if err := m.Spec.Runtime.Validate(); err != nil {
+		return err
+	}
+	if err := m.Spec.Quotas.Validate(); err != nil {
 		return err
 	}
 	if len(m.Spec.Artifacts) == 0 {

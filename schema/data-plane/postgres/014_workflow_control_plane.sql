@@ -273,3 +273,15 @@ CREATE TABLE IF NOT EXISTS workflow_claim_pacing (
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (signal, domain)
 );
+-- #8471 per-component generation-quota usage windows, mirroring migration
+-- 206. One row per (component, scope, hour window) counts grants issued in
+-- that window; the quota-gated claim statement upserts it in the same
+-- statement that grants the claim.
+CREATE TABLE IF NOT EXISTS component_quota_windows (
+    component TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    window_start TIMESTAMPTZ NOT NULL,
+    grants INTEGER NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (component, scope_id, window_start)
+);

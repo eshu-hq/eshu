@@ -115,6 +115,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"site",
 		"search_path",
 		"trigger",
+		"quota_kind",
 	}
 
 	got := MetricDimensionKeys()
@@ -382,6 +383,10 @@ func TestLogKeys(t *testing.T) {
 		"producer_grant.stage",
 		"producer_grant.reason",
 		"producer_grant.fact_kind",
+		"quota.collector_kind",
+		"quota.quota_kind",
+		"quota.limit",
+		"quota.scope_id",
 	}
 
 	got := LogKeys()

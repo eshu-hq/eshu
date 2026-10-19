@@ -344,6 +344,7 @@ nav:
       - Graph-Backed Gauge Snapshots: reference/telemetry/graph-gauge-snapshots.md
       - Fair-Claim Rotation Signals: reference/telemetry/fair-claim-rotation.md
       - Claim-Pacing Signals: reference/telemetry/claim-pacing.md
+      - Claim Quota Signals: reference/telemetry/claim-quotas.md
       - Id-Anchor Census: reference/telemetry/id-anchor-census.md
       - Traces: reference/telemetry/traces.md
       - Code-Topic Probe Traces: reference/telemetry/code-topic-probes.md
