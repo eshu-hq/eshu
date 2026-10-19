@@ -157,6 +157,13 @@ esac
 # Postgres normalizes those, while a utility command can keep literal values in
 # its stored text. A statement that starts with an opening parenthesis, VALUES,
 # or TABLE does not match the filter and is left out of the lists.
+#
+# The self-exclusion below hides the report's own queries and Eshu's own
+# metadata probes, and nothing else. The probes read pg_control_system()
+# (go/internal/runtime/postgres/reader.go, checkpoint.go, physical.go), and the
+# io-timing probe above normalizes to current_setting($N) = $M with a second
+# current_setting call, so those two shapes are excluded. A user statement that
+# merely mentions current_setting is listed.
 statement_sql() {
   cat <<SQL
 SELECT s.calls,
@@ -177,7 +184,7 @@ SQL
   cat <<SQL
  WHERE s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
    AND s.query ~* '^\s*(select|insert|update|delete|merge|with)\M'
-   AND s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|current_setting'
+   AND s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|pg_control_system|current_setting\([$][0-9]+\) *= *[$][0-9]+'
    $2
  ORDER BY $1 DESC
  LIMIT ${TOP_N};
