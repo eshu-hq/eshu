@@ -75,7 +75,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 	}
 	rows, err = h.resolveWorkloadTargets(ctx, intent, rows)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	quarantined := append(deltaQuarantined, mentionQuarantined...)
 	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainDocumentationMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
