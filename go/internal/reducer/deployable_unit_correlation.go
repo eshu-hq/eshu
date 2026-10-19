@@ -92,21 +92,21 @@ type DeployableUnitCorrelationHandler struct {
 func (h DeployableUnitCorrelationHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) (Result, error) {
+) (reducercontract.Result, error) {
 	if intent.Domain != DomainDeployableUnitCorrelation {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"deployable unit correlation handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("deployable unit correlation fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("deployable unit correlation fact loader is required")
 	}
 
 	// Fail fast and retain the ownership key used by empty-result retraction.
 	entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 
 	envelopes, err := loadFactsForKinds(
@@ -117,7 +117,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		[]string{factKindRepository, factKindFile},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for deployable unit correlation: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for deployable unit correlation: %w", err)
 	}
 
 	// Extracted once and reused for both the resolved-relationship lookup and
@@ -133,24 +133,24 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	gate := crossrepo.EvaluateOwnGate(ctx, h.ResolutionActiveLookup, h.ResolutionProducerLookup,
 		intent, len(candidates) > 0, time.Now().UTC())
 	if gate.Err != nil {
-		return Result{}, gate.Err
+		return reducercontract.Result{}, gate.Err
 	}
 	if !gate.Ready {
-		return Result{}, deployableUnitCorrelationResolutionNotReadyError{
+		return reducercontract.Result{}, deployableUnitCorrelationResolutionNotReadyError{
 			scopeID: intent.ScopeID, generationID: intent.GenerationID, producerDetail: gate.ProducerDetail,
 		}
 	}
 	if err := deployableUnitCanonicalReposReady(ctx, h.CanonicalQuiescence, intent, len(candidates) > 0); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// The corpus fence and the foreign read share one statement snapshot when
 	// the store offers it (#6740); see the workload loader for the rationale.
 	read, err := readDeployableUnitResolvedInput(ctx, h.ResolvedLoader, h.ResolutionsCompleteLookup, intent, candidates)
 	if err != nil {
-		return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
 	}
 	if err := deployableUnitCorpusFenceDeferral(ctx, h.IncompleteScopesLookup, intent, read); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	resolved := read.resolved
 	if h.ResolvedLoader != nil {
@@ -169,14 +169,14 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	// must stay unaffected by this row's CreatedAt).
 	edgeRows, evaluation, selection, err := ExtractDeployableUnitCorrelationRows(intent, candidates, resolved, nil)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	if len(evaluation.Results) == 0 {
 		if err := h.retractDeployableUnitEdges(
 			ctx,
 			deployableUnitRetractRowsFromFacts(intent, envelopes, entityKeys),
 		); err != nil {
-			return Result{}, err
+			return reducercontract.Result{}, err
 		}
 		if err := publishIntentGraphPhase(
 			ctx,
@@ -186,10 +186,10 @@ func (h DeployableUnitCorrelationHandler) Handle(
 			GraphProjectionPhaseDeployableUnitCorrelation,
 			time.Now().UTC(),
 		); err != nil {
-			return Result{}, err
+			return reducercontract.Result{}, err
 		}
 		if err := h.recordReopenFingerprint(ctx, intent, read); err != nil {
-			return Result{}, err
+			return reducercontract.Result{}, err
 		}
 		// Refine the raw filter reason before logging so a foreign-key zero
 		// reads as foreign_key_expected, mirroring the workload-materialization
@@ -197,7 +197,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		// caller holding the scope repository set can tell the two apart.
 		selection.Reason = refineCandidateSelectionReason(selection, intent.EntityKeys, repositoryGraphIDsFromEnvelopes(envelopes))
 		logDeployableUnitCorrelationCompleted(ctx, h.Logger, intent, selection, 0)
-		return Result{
+		return reducercontract.Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainDeployableUnitCorrelation,
 			Status:          ResultStatusSucceeded,
@@ -209,14 +209,14 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	evaluatedCandidateCount := len(evaluation.Results)
 	canonicalWrites, err := h.materializeDeployableUnitEdges(ctx, edgeRows)
 	if err != nil {
-		return Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), h.Logger)
+		return reducercontract.Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), h.Logger)
 	}
 	verified, err := h.verifyDeployableUnitEdges(ctx, edgeRows)
 	if err != nil {
-		return Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), h.Logger)
+		return reducercontract.Result{}, boundSharedEdgeTargetDeferral(err, intent, time.Now().UTC(), h.Logger)
 	}
 	if err := h.writeDeployableUnitAdmissionDecisions(ctx, intent, evaluation, canonicalWrites); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	if err := publishIntentGraphPhase(
 		ctx,
@@ -226,11 +226,11 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		GraphProjectionPhaseDeployableUnitCorrelation,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	if verified {
 		if err := h.recordReopenFingerprint(ctx, intent, read); err != nil {
-			return Result{}, err
+			return reducercontract.Result{}, err
 		}
 	}
 
@@ -238,7 +238,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	// at both log call sites so the two cannot drift apart.
 	selection.Reason = refineCandidateSelectionReason(selection, intent.EntityKeys, repositoryGraphIDsFromEnvelopes(envelopes))
 	logDeployableUnitCorrelationCompleted(ctx, h.Logger, intent, selection, len(edgeRows))
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainDeployableUnitCorrelation,
 		Status:          ResultStatusSucceeded,

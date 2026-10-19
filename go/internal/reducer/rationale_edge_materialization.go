@@ -44,18 +44,18 @@ type RationaleEdgeMaterializationHandler struct {
 }
 
 // Handle executes the rationale edge materialization path.
-func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.Domain != DomainRationaleMaterialization {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"rationale materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("rationale materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("rationale materialization fact loader is required")
 	}
 	if h.IntentWriter == nil {
-		return Result{}, fmt.Errorf("rationale materialization intent writer is required")
+		return reducercontract.Result{}, fmt.Errorf("rationale materialization intent writer is required")
 	}
 
 	slog.InfoContext(
@@ -67,7 +67,7 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 
 	envelopes, err := loadRationaleMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for rationale materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for rationale materialization: %w", err)
 	}
 
 	deltaScope := buildRationaleDeltaScope(envelopes)
@@ -84,7 +84,7 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 	// source_run_id, so this does not manufacture refreshes for malformed input.
 	repoIDs = mergeRationaleRepositoryIDs(repoIDs, contextRepoIDs)
 	if len(repoIDs) == 0 || len(contextByRepoID) == 0 {
-		return Result{
+		return reducercontract.Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainRationaleMaterialization,
 			Status:          ResultStatusSucceeded,
@@ -100,7 +100,7 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 	intentRows := buildRationaleSharedIntentRows(rows, deltaScope, repoIDs, contextByRepoID, createdAt)
 	if len(intentRows) > 0 {
 		if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
-			return Result{}, fmt.Errorf("write rationale intents: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write rationale intents: %w", err)
 		}
 	}
 
@@ -113,7 +113,7 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 		slog.Int("repo_count", len(repoIDs)),
 	)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainRationaleMaterialization,
 		Status:   ResultStatusSucceeded,

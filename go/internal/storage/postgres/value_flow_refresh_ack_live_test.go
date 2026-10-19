@@ -72,8 +72,8 @@ func refreshAckIntent(workItemID string, domain reducercontract.Domain, claimedA
 	return reducercontract.Intent{IntentID: workItemID, Domain: domain, ClaimedAt: &claimedAt}
 }
 
-func refreshAckResult(writes int, signals map[string]float64) reducer.Result {
-	return reducer.Result{CanonicalWrites: writes, SubSignals: signals}
+func refreshAckResult(writes int, signals map[string]float64) reducercontract.Result {
+	return reducercontract.Result{CanonicalWrites: writes, SubSignals: signals}
 }
 
 // TestValueFlowRefreshAckEmitsEventWhenGatePassesLive is the GREEN side: a
@@ -210,7 +210,7 @@ func TestValueFlowRefreshAckBatchEmitsOnlyForGatedItemsLive(t *testing.T) {
 		refreshAckIntent("reducer_6785_refresh_batch_emit", reducer.DomainWorkloadCloudRelationshipMaterialization, now),
 		refreshAckIntent("reducer_6785_refresh_batch_hold", reducer.DomainWorkloadCloudRelationshipMaterialization, now),
 	}
-	results := []reducer.Result{
+	results := []reducercontract.Result{
 		refreshAckResult(4, map[string]float64{affected.RefreshAffectedReposSignal: 1}),
 		refreshAckResult(4, map[string]float64{affected.RefreshAffectedReposSignal: 0}),
 	}

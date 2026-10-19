@@ -218,7 +218,7 @@ func TestReducerQueueAckBatchPairsTheSurvivingClaimsResult(t *testing.T) {
 			},
 		},
 		// The superseded run wrote nothing; the surviving run wrote rows.
-		[]reducer.Result{
+		[]reducercontract.Result{
 			{IntentID: intentID, CanonicalWrites: 0},
 			{IntentID: intentID, CanonicalWrites: 7},
 		},

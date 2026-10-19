@@ -150,7 +150,7 @@ type graphExecutor struct {
 // post-lease-pre-complete state recovery must repair. The crash decision uses
 // the count of items applied so far, so After completed applies precede the
 // crash item.
-func (e *graphExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
+func (e *graphExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -174,7 +174,7 @@ func (e *graphExecutor) Execute(ctx context.Context, intent reducercontract.Inte
 	}
 	e.apply(e.graph, item)
 	e.applies++
-	return reducer.Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
 		Status:   reducer.ResultStatusSucceeded,

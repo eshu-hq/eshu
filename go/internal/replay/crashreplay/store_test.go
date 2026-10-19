@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/clock"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/replay/schedulereplay"
 )
 
@@ -48,7 +48,7 @@ func TestDurableStoreNeverRehandsCompleted(t *testing.T) {
 		if err != nil || !ok {
 			t.Fatalf("Claim: ok=%v err=%v", ok, err)
 		}
-		if err := store.Ack(ctx, intent, reducer.Result{}); err != nil {
+		if err := store.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 			t.Fatalf("Ack(%s): %v", intent.IntentID, err)
 		}
 	}
@@ -76,12 +76,12 @@ func TestDurableStoreAckTwiceIsCounted(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Claim: ok=%v err=%v", ok, err)
 	}
-	if err := store.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := store.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("first Ack: %v", err)
 	}
 	// Re-ack the same intent, simulating a worker that completed work the fence
 	// should have prevented it from re-claiming.
-	if err := store.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := store.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("second Ack: %v", err)
 	}
 	if store.doubleAckCount() != 1 {

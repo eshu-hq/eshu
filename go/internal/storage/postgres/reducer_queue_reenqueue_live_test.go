@@ -71,9 +71,9 @@ func TestReducerQueueReprojectionReEnqueueAdmitsNothingLive(t *testing.T) {
 	if len(claimed) != len(intents) {
 		t.Fatalf("claimed %d reducer rows, want %d", len(claimed), len(intents))
 	}
-	results := make([]reducer.Result, len(claimed))
+	results := make([]reducercontract.Result, len(claimed))
 	for i, intent := range claimed {
-		results[i] = reducer.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: reducer.ResultStatusSucceeded}
+		results[i] = reducercontract.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: reducer.ResultStatusSucceeded}
 	}
 	if err := queue.AckBatch(ctx, claimed, results); err != nil {
 		t.Fatalf("AckBatch() error = %v", err)

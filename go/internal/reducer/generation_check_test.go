@@ -16,7 +16,7 @@ func TestRuntimeExecuteSkipsStaleGeneration(t *testing.T) {
 	t.Parallel()
 
 	handler := &stubHandler{
-		result: Result{
+		result: reducercontract.Result{
 			IntentID:        "intent-1",
 			Domain:          DomainWorkloadIdentity,
 			Status:          ResultStatusSucceeded,
@@ -87,7 +87,7 @@ func TestRuntimeExecuteProceedsForCurrentGeneration(t *testing.T) {
 	t.Parallel()
 
 	handler := &stubHandler{
-		result: Result{
+		result: reducercontract.Result{
 			IntentID:        "intent-1",
 			Domain:          DomainWorkloadIdentity,
 			Status:          ResultStatusSucceeded,
@@ -155,7 +155,7 @@ func TestRuntimeExecuteProceedsWhenGenerationCheckNil(t *testing.T) {
 	t.Parallel()
 
 	handler := &stubHandler{
-		result: Result{
+		result: reducercontract.Result{
 			IntentID:        "intent-1",
 			Domain:          DomainWorkloadIdentity,
 			Status:          ResultStatusSucceeded,
@@ -215,7 +215,7 @@ func TestRuntimeExecutePropagatesGenerationCheckError(t *testing.T) {
 	t.Parallel()
 
 	handler := &stubHandler{
-		result: Result{Status: ResultStatusSucceeded},
+		result: reducercontract.Result{Status: ResultStatusSucceeded},
 	}
 
 	registry := NewRegistry()
@@ -272,11 +272,11 @@ func TestRuntimeExecutePropagatesGenerationCheckError(t *testing.T) {
 // stubHandler is a minimal Handler for generation guard tests.
 type stubHandler struct {
 	handleCalls int
-	result      Result
+	result      reducercontract.Result
 	err         error
 }
 
-func (h *stubHandler) Handle(_ context.Context, _ reducercontract.Intent) (Result, error) {
+func (h *stubHandler) Handle(_ context.Context, _ reducercontract.Intent) (reducercontract.Result, error) {
 	h.handleCalls++
 	return h.result, h.err
 }
@@ -288,7 +288,7 @@ func (h *stubHandler) Handle(_ context.Context, _ reducercontract.Intent) (Resul
 func TestRuntimeExecuteDefersNotYetActiveGeneration(t *testing.T) {
 	t.Parallel()
 
-	handler := &stubHandler{result: Result{IntentID: "intent-1", Domain: DomainWorkloadIdentity, Status: ResultStatusSucceeded}}
+	handler := &stubHandler{result: reducercontract.Result{IntentID: "intent-1", Domain: DomainWorkloadIdentity, Status: ResultStatusSucceeded}}
 	registry := NewRegistry()
 	if err := registry.Register(DomainDefinition{
 		Domain:        DomainWorkloadIdentity,

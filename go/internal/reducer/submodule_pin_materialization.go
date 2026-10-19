@@ -39,18 +39,18 @@ type SubmodulePinEdgeMaterializationHandler struct {
 }
 
 // Handle executes the submodule pin edge materialization path.
-func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.Domain != DomainSubmodulePin {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"submodule pin materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("submodule pin materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("submodule pin materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("submodule pin materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("submodule pin materialization edge writer is required")
 	}
 
 	slog.InfoContext(
@@ -62,13 +62,13 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 
 	envelopes, err := loadSubmodulePinMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for submodule pin materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for submodule pin materialization: %w", err)
 	}
 
 	deltaScope := buildSubmodulePinDeltaScope(envelopes)
 	rows, quarantined, err := ExtractSubmodulePinEdgeRowsWithQuarantine(envelopes, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("extract submodule pin edge rows: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("extract submodule pin edge rows: %w", err)
 	}
 	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSubmodulePin, intent.ScopeID, intent.GenerationID, quarantined)
 
@@ -76,7 +76,7 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 
 	skipRetract, err := h.shouldSkipSubmodulePinRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	if !skipRetract {
 		retractRows := buildSubmodulePinRetractRows(repositoryIDs, deltaScope)
@@ -84,7 +84,7 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 			if err := h.EdgeWriter.RetractEdges(
 				ctx, DomainSubmodulePinEdges, retractRows, submodulePinEvidenceSource,
 			); err != nil {
-				return Result{}, fmt.Errorf("retract canonical submodule pin edges: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("retract canonical submodule pin edges: %w", err)
 			}
 		}
 	}
@@ -97,7 +97,7 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 			writeRows,
 			submodulePinEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical submodule pin edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical submodule pin edges: %w", err)
 		}
 	}
 
@@ -108,7 +108,7 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 		slog.Int("edge_count", len(writeRows)),
 	)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainSubmodulePin,
 		Status:          ResultStatusSucceeded,

@@ -113,7 +113,7 @@ func TestReducerContentionGateServiceCatalogConcurrentAcksReopenOnce(t *testing.
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			errs <- queues[i].Ack(ctx, intents[i], reducer.Result{})
+			errs <- queues[i].Ack(ctx, intents[i], reducercontract.Result{})
 		}(i)
 	}
 	close(start)

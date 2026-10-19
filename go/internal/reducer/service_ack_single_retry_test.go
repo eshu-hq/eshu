@@ -33,7 +33,7 @@ type transientSingleAckSink struct {
 	onAck     func()
 }
 
-func (s *transientSingleAckSink) Ack(_ context.Context, intent reducercontract.Intent, _ Result) error {
+func (s *transientSingleAckSink) Ack(_ context.Context, intent reducercontract.Intent, _ reducercontract.Result) error {
 	s.mu.Lock()
 	s.ackCalls++
 	call := s.ackCalls
@@ -104,7 +104,7 @@ func runSingleAckFrom(
 	svc := Service{
 		PollInterval: time.Millisecond,
 		WorkSource:   source,
-		Executor: &stubReducerExecutor{result: Result{
+		Executor: &stubReducerExecutor{result: reducercontract.Result{
 			Domain: DomainRepoDependency,
 			Status: ResultStatusSucceeded,
 		}},

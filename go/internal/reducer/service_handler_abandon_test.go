@@ -104,7 +104,7 @@ type abandonSingleSink struct {
 	state      *sharedAbandonState
 }
 
-func (s *abandonSingleSink) Ack(context.Context, reducercontract.Intent, Result) error {
+func (s *abandonSingleSink) Ack(context.Context, reducercontract.Intent, reducercontract.Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ackCalls++
@@ -158,7 +158,7 @@ type ignoringReducerExecutor struct {
 	calls atomic.Int64
 }
 
-func (e *ignoringReducerExecutor) Execute(context.Context, reducercontract.Intent) (Result, error) {
+func (e *ignoringReducerExecutor) Execute(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
 	e.calls.Add(1)
 	select {}
 }
@@ -170,10 +170,10 @@ type ctxDoneReducerExecutor struct {
 	calls atomic.Int64
 }
 
-func (e *ctxDoneReducerExecutor) Execute(ctx context.Context, _ reducercontract.Intent) (Result, error) {
+func (e *ctxDoneReducerExecutor) Execute(ctx context.Context, _ reducercontract.Intent) (reducercontract.Result, error) {
 	e.calls.Add(1)
 	<-ctx.Done()
-	return Result{}, ctx.Err()
+	return reducercontract.Result{}, ctx.Err()
 }
 
 func abandonTestIntent(id string) reducercontract.Intent {
@@ -451,7 +451,7 @@ type orderObservingSink struct {
 	stopReturnedBeforeFail atomic.Bool
 }
 
-func (s *orderObservingSink) Ack(ctx context.Context, intent reducercontract.Intent, result Result) error {
+func (s *orderObservingSink) Ack(ctx context.Context, intent reducercontract.Intent, result reducercontract.Result) error {
 	return s.inner.Ack(ctx, intent, result)
 }
 
@@ -656,7 +656,7 @@ type panickingReducerExecutor struct {
 	value any
 }
 
-func (e *panickingReducerExecutor) Execute(context.Context, reducercontract.Intent) (Result, error) {
+func (e *panickingReducerExecutor) Execute(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
 	panic(e.value)
 }
 
@@ -688,7 +688,7 @@ type releaseThenPanicReducerExecutor struct {
 	exited  chan struct{}
 }
 
-func (e *releaseThenPanicReducerExecutor) Execute(context.Context, reducercontract.Intent) (Result, error) {
+func (e *releaseThenPanicReducerExecutor) Execute(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
 	defer close(e.exited)
 	<-e.release
 	panic("late panic after abandonment")

@@ -38,7 +38,7 @@ func isValueFlowRefreshProducer(domain reducercontract.Domain) bool {
 // shouldEmitValueFlowRefresh applies the affected-repo emit gate to one
 // producer run: positive canonical writes plus an absent (fail-open) or
 // positive affected-repo signal.
-func shouldEmitValueFlowRefresh(result reducer.Result) bool {
+func shouldEmitValueFlowRefresh(result reducercontract.Result) bool {
 	return affected.ShouldEmitRefresh(result.CanonicalWrites, result.SubSignals)
 }
 
@@ -195,7 +195,7 @@ type valueFlowRefreshAckGroup struct {
 // fail-open when the entry is missing.
 func splitValueFlowRefreshAckIntents(
 	unrelated []reducercontract.Intent,
-	resultByID map[string]reducer.Result,
+	resultByID map[string]reducercontract.Result,
 ) ([]reducercontract.Intent, []valueFlowRefreshAckGroup) {
 	kept := make([]reducercontract.Intent, 0, len(unrelated))
 	byDomain := make(map[reducercontract.Domain]*valueFlowRefreshAckGroup)

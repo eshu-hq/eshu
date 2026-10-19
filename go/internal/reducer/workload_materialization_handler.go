@@ -169,33 +169,33 @@ type workloadMaterializationTiming struct {
 func (h WorkloadMaterializationHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) (Result, error) {
+) (reducercontract.Result, error) {
 	totalStarted := time.Now()
 	var timing workloadMaterializationTiming
 
 	if intent.Domain != DomainWorkloadMaterialization {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"workload materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("workload materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("workload materialization fact loader is required")
 	}
 	if h.Materializer == nil {
-		return Result{}, fmt.Errorf("workload materialization materializer is required")
+		return reducercontract.Result{}, fmt.Errorf("workload materialization materializer is required")
 	}
 
 	loadStarted := time.Now()
 	inputs, keep, err := h.loadProjectionInputs(ctx, intent)
 	timing.loadInputsDuration = time.Since(loadStarted)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	candidates, deploymentEnvironments := inputs.Candidates, inputs.DeploymentEnvironments
 	repositoryFacts, err := loadScopeRepositoryFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	if len(candidates) == 0 {
 		phaseStarted := time.Now()
@@ -203,7 +203,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		// No candidate for this intent's keys; the scope keep-list still holds
 		// what sibling intents wrote (#7285).
 		if _, err := h.retractStaleRepositoryEdges(ctx, intent, repositoryFacts, keep); err != nil {
-			return Result{}, fmt.Errorf("retract stale repository edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract stale repository edges: %w", err)
 		}
 		if err := publishIntentGraphPhaseWithRepair(
 			ctx,
@@ -224,9 +224,9 @@ func (h WorkloadMaterializationHandler) Handle(
 				time.Now().UTC(),
 				err,
 			); repairErr != nil {
-				return Result{}, fmt.Errorf("%w (enqueue repo readiness repairs: %v)", err, repairErr)
+				return reducercontract.Result{}, fmt.Errorf("%w (enqueue repo readiness repairs: %v)", err, repairErr)
 			}
-			return Result{}, err
+			return reducercontract.Result{}, err
 		}
 		// Also publish the deterministic per-repo readiness row (#2891) for every
 		// repo in scope so a route-only repo — one with framework routes but no
@@ -243,7 +243,7 @@ func (h WorkloadMaterializationHandler) Handle(
 			repoIDs,
 			time.Now().UTC(),
 		); err != nil {
-			return Result{}, err
+			return reducercontract.Result{}, err
 		}
 		if err := publishRepoDependencyReadinessFenceWithRepair(
 			ctx,
@@ -252,14 +252,14 @@ func (h WorkloadMaterializationHandler) Handle(
 			intent,
 			time.Now().UTC(),
 		); err != nil {
-			return Result{}, err
+			return reducercontract.Result{}, err
 		}
 		timing.phasePublishDuration = time.Since(phaseStarted)
 		timing.totalDuration = time.Since(totalStarted)
 		zeroSelection := inputs.Selection
 		zeroSelection.Reason = refineCandidateSelectionReason(zeroSelection, intent.EntityKeys, repoIDs)
 		logWorkloadMaterializationCompleted(ctx, intent, candidates, zeroSelection, nil, MaterializeResult{}, timing, 0, 0, 0)
-		return Result{
+		return reducercontract.Result{
 			IntentID:        intent.IntentID,
 			Domain:          DomainWorkloadMaterialization,
 			Status:          ResultStatusSucceeded,
@@ -271,7 +271,7 @@ func (h WorkloadMaterializationHandler) Handle(
 	buildStarted := time.Now()
 	infrastructurePlatforms, err := h.loadInfrastructurePlatforms(ctx, candidates)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	projection := BuildProjectionRowsWithInfrastructurePlatforms(
 		candidates,
@@ -284,7 +284,7 @@ func (h WorkloadMaterializationHandler) Handle(
 	materializeResult, err := h.Materializer.Materialize(ctx, projection)
 	timing.graphWriteDuration = time.Since(graphStarted)
 	if err != nil {
-		return Result{}, fmt.Errorf("materialize workloads: %w", boundDeploymentSourceDeferral(err, intent, time.Now(), h.Materializer))
+		return reducercontract.Result{}, fmt.Errorf("materialize workloads: %w", boundDeploymentSourceDeferral(err, intent, time.Now(), h.Materializer))
 	}
 
 	// Record property-keyed (repo_id, path) presence for the committed :Endpoint
@@ -300,7 +300,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		projection.EndpointRows,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, fmt.Errorf("record api endpoint repo/path presence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("record api endpoint repo/path presence: %w", err)
 	}
 
 	// Record repo-keyed presence for the committed :Workload nodes so the runs_in
@@ -316,7 +316,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		projection.WorkloadRows,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, fmt.Errorf("record repo workload presence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("record repo workload presence: %w", err)
 	}
 
 	totalWrites := materializeResult.WorkloadsWritten +
@@ -336,7 +336,7 @@ func (h WorkloadMaterializationHandler) Handle(
 			h.InstanceRetractionLookup,
 		)
 		if err != nil {
-			return Result{}, fmt.Errorf("reconcile workload instance retraction: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("reconcile workload instance retraction: %w", err)
 		}
 		if len(supersededInstanceIDs) > 0 {
 			// instanceRetractRepoIDs is the exact scope ReconcileWorkloadInstanceRetraction
@@ -350,7 +350,7 @@ func (h WorkloadMaterializationHandler) Handle(
 				instanceRetractRepoIDs,
 				EvidenceSourceWorkloads,
 			); err != nil {
-				return Result{}, fmt.Errorf("retract superseded workload instances: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("retract superseded workload instances: %w", err)
 			}
 			instanceRetractRows = len(supersededInstanceIDs)
 			totalWrites += instanceRetractRows
@@ -369,7 +369,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		)
 		timing.dependencyReconcile = time.Since(reconcileStarted)
 		if err != nil {
-			return Result{}, fmt.Errorf("reconcile workload dependencies: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("reconcile workload dependencies: %w", err)
 		}
 		if len(retractRows) > 0 {
 			retractStarted := time.Now()
@@ -379,7 +379,7 @@ func (h WorkloadMaterializationHandler) Handle(
 				retractRows,
 				EvidenceSourceWorkloads,
 			); err != nil {
-				return Result{}, fmt.Errorf("retract workload dependencies: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("retract workload dependencies: %w", err)
 			}
 			timing.dependencyRetract = time.Since(retractStarted)
 			dependencyRetractRows = len(retractRows)
@@ -393,7 +393,7 @@ func (h WorkloadMaterializationHandler) Handle(
 				writeRows,
 				EvidenceSourceWorkloads,
 			); err != nil {
-				return Result{}, fmt.Errorf("write workload dependencies: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("write workload dependencies: %w", err)
 			}
 			timing.dependencyWrite = time.Since(writeStarted)
 			dependencyWriteRows = len(writeRows)
@@ -404,7 +404,7 @@ func (h WorkloadMaterializationHandler) Handle(
 	// edges above committed, and only for full-generation repositories (#7285).
 	repositoryEdgeRetract, err := h.retractStaleRepositoryEdges(ctx, intent, repositoryFacts, keep)
 	if err != nil {
-		return Result{}, fmt.Errorf("retract stale repository edges: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("retract stale repository edges: %w", err)
 	}
 	totalWrites += int(repositoryEdgeRetract.DefinesDeleted + repositoryEdgeRetract.EndpointEdgesDeleted)
 	phaseStarted := time.Now()
@@ -427,9 +427,9 @@ func (h WorkloadMaterializationHandler) Handle(
 			time.Now().UTC(),
 			err,
 		); repairErr != nil {
-			return Result{}, fmt.Errorf("%w (enqueue repo readiness repairs: %v)", err, repairErr)
+			return reducercontract.Result{}, fmt.Errorf("%w (enqueue repo readiness repairs: %v)", err, repairErr)
 		}
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Also publish the deterministic per-repo readiness row (#2891) for every repo
 	// whose endpoints/workloads this projection materialized — the same repos that
@@ -447,7 +447,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		repoReadinessRepoIDs,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	if err := publishRepoDependencyReadinessFenceWithRepair(
 		ctx,
@@ -456,7 +456,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		intent,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	timing.phasePublishDuration = time.Since(phaseStarted)
 	timing.totalDuration = time.Since(totalStarted)
@@ -475,7 +475,7 @@ func (h WorkloadMaterializationHandler) Handle(
 		dependencyWriteRows,
 	)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainWorkloadMaterialization,
 		Status:   ResultStatusSucceeded,

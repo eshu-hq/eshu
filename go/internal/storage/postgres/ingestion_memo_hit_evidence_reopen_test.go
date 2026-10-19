@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // memoHitReopenWorkStatus returns the status of one work item.
@@ -184,7 +185,7 @@ func TestMemoHitPartitionWithNewInboundEvidenceReopensRelationshipItems(t *testi
 		if !claimed {
 			break
 		}
-		if err := queue.Ack(p.Ctx, intent, reducer.Result{}); err != nil {
+		if err := queue.Ack(p.Ctx, intent, reducercontract.Result{}); err != nil {
 			t.Fatalf("drain Ack(%s) error = %v", intent.IntentID, err)
 		}
 	}

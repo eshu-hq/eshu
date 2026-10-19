@@ -275,7 +275,7 @@ func TestReducerClaimFencedSiblingBecomesClaimableAfterAck(t *testing.T) {
 	}
 
 	// Ack the first item; its lease is released and the sibling must now drain.
-	if err := queue.Ack(ctx, first, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, first, reducercontract.Result{}); err != nil {
 		t.Fatalf("Ack(first) error = %v", err)
 	}
 

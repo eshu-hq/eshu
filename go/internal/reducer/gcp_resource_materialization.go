@@ -92,19 +92,19 @@ type GCPResourceMaterializationHandler struct {
 func (h GCPResourceMaterializationHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) (Result, error) {
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainGCPResourceMaterialization {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"gcp resource materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("gcp resource materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("gcp resource materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("gcp resource materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("gcp resource materialization node writer is required")
 	}
 
 	loadStart := time.Now()
@@ -116,7 +116,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 		[]string{cloud.GCPCloudResourceFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for gcp resource materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for gcp resource materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -126,7 +126,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed gcp_cloud_resource fact (a missing required
 	// identity field) is quarantined as a visible input_invalid dead-letter —
@@ -140,7 +140,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 	if len(rows) > 0 {
 		writeStart := time.Now()
 		if err := h.NodeWriter.WriteCloudResourceNodes(ctx, rows, gcpResourceEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical cloud resource nodes: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical cloud resource nodes: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 
@@ -151,7 +151,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 			ctx, h.PresenceWriter,
 			GraphProjectionKeyspaceCloudResourceUID, intent.ScopeID, rows, time.Now().UTC(),
 		); err != nil {
-			return Result{}, fmt.Errorf("record cloud resource endpoint presence: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("record cloud resource endpoint presence: %w", err)
 		}
 	}
 
@@ -183,7 +183,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 		gcpResourceEvidenceSource,
 	)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	retractDuration := time.Since(retractStart)
 
@@ -196,7 +196,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 		GraphProjectionPhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, fmt.Errorf("publish canonical cloud resource nodes phase: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("publish canonical cloud resource nodes phase: %w", err)
 	}
 	phasePublishDuration := time.Since(phasePublishStart)
 
@@ -215,7 +215,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 	logGCPResourceMaterializationCompleted(ctx, timing)
 	h.recordMetrics(ctx, timing)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainGCPResourceMaterialization,
 		Status:   ResultStatusSucceeded,

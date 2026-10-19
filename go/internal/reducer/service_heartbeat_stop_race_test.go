@@ -57,12 +57,12 @@ type afterTickExecutor struct {
 	tickEntry <-chan struct{}
 }
 
-func (e *afterTickExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (e *afterTickExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	select {
 	case <-e.tickEntry:
-		return Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: ResultStatusSucceeded}, nil
+		return reducercontract.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: ResultStatusSucceeded}, nil
 	case <-ctx.Done():
-		return Result{}, ctx.Err()
+		return reducercontract.Result{}, ctx.Err()
 	}
 }
 

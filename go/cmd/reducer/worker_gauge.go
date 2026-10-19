@@ -36,7 +36,7 @@ func newActiveWorkerExecutor(inner reducer.Executor, active *atomic.Int64) reduc
 
 // Execute increments the active-worker counter for the duration of the inner
 // execution.
-func (e *activeWorkerExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
+func (e *activeWorkerExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	e.active.Add(1)
 	defer e.active.Add(-1)
 	return e.inner.Execute(ctx, intent)

@@ -96,7 +96,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 	if err := connQueue.Ack(
 		ctx,
 		stampAttemptBoundIntent("ack-5854-reset-1"),
-		reducer.Result{},
+		reducercontract.Result{},
 	); err != nil {
 		t.Fatalf("autocommit attempt-bound ACK: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		Now:           func() time.Time { return now },
 	}
 	reset3 := stampAttemptBoundIntent("ack-5854-reset-3")
-	if err := rollbackQueue.Ack(ctx, reset3, reducer.Result{}); err != nil {
+	if err := rollbackQueue.Ack(ctx, reset3, reducercontract.Result{}); err != nil {
 		_ = rollbackTx.Rollback()
 		t.Fatalf("attempt-bound ACK before rollback: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 	if err := commitQueue.Ack(
 		ctx,
 		stampAttemptBoundIntent("ack-5854-reset-4"),
-		reducer.Result{},
+		reducercontract.Result{},
 	); err != nil {
 		_ = commitTx.Rollback()
 		t.Fatalf("attempt-bound ACK before commit: %v", err)
@@ -188,7 +188,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		Now:           func() time.Time { return now },
 	}
 	reset6 := stampAttemptBoundIntent("ack-5854-reset-6")
-	if err := savepointQueue.Ack(ctx, reset6, reducer.Result{}); err != nil {
+	if err := savepointQueue.Ack(ctx, reset6, reducercontract.Result{}); err != nil {
 		t.Fatalf("attempt-bound ACK inside savepoint: %v", err)
 	}
 	if _, err := savepointTx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT before_capable_ack"); err != nil {

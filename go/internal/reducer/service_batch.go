@@ -22,7 +22,7 @@ import (
 
 type batchAckItem struct {
 	intent    reducercontract.Intent
-	result    Result
+	result    reducercontract.Result
 	duration  float64
 	queueWait float64
 	workerID  int
@@ -224,7 +224,7 @@ func (s Service) runBatchConcurrent(
 			}
 
 			intents := make([]reducercontract.Intent, len(pending))
-			results := make([]Result, len(pending))
+			results := make([]reducercontract.Result, len(pending))
 			for i, item := range pending {
 				intents[i] = item.intent
 				results[i] = item.result
@@ -302,7 +302,7 @@ func (s Service) runBatchConcurrent(
 func (s Service) recordBatchAckOutcome(ctx context.Context, item batchAckItem, status string, ackErr error) {
 	result := item.result
 	if status != "succeeded" {
-		result = Result{}
+		result = reducercontract.Result{}
 	}
 	s.recordReducerResult(ctx, item.intent, result, item.duration, item.queueWait, status, item.workerID, ackErr)
 }
@@ -310,7 +310,7 @@ func (s Service) recordBatchAckOutcome(ctx context.Context, item batchAckItem, s
 func (s Service) ackReducerWork(
 	ctx context.Context,
 	intent reducercontract.Intent,
-	result Result,
+	result reducercontract.Result,
 	duration float64,
 	queueWait float64,
 	status string,
@@ -322,25 +322,25 @@ func (s Service) ackReducerWork(
 		return nil
 	}
 	if errors.Is(err, ErrExecutionClaimRejected) {
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_claim_rejected", workerID, err)
+		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "ack_claim_rejected", workerID, err)
 		s.logReducerAckClaimRejected(ctx, &intent, 0, err)
 		return nil
 	}
 	if errors.Is(err, errAckAbandonedToLeaseExpiry) {
 		// The claim stays leased and is reclaimed at lease expiry, so the
 		// run keeps draining (#7444); the retrier already logged the attempt.
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, ackStatusAbandonedToLeaseExpiry, workerID, err)
+		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, ackStatusAbandonedToLeaseExpiry, workerID, err)
 		return nil
 	}
 	if errors.Is(err, errAckRetryInterrupted) {
 		// Shutdown interrupted the retry backoff: the ack did not commit and
 		// the claim expires for reclaim, which is a stopping process rather
 		// than a failed run, matching the batch path.
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, ackStatusOutcomeUnknown, workerID, err)
+		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, ackStatusOutcomeUnknown, workerID, err)
 		return nil
 	}
 
-	s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, err)
+	s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "ack_failed", workerID, err)
 	return fmt.Errorf("ack reducer work: %w", err)
 }
 
@@ -421,7 +421,7 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 			err = errors.Join(err, heartbeatErr)
 		}
 		if errors.Is(err, ErrExecutionClaimRejected) {
-			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, err)
+			s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, err)
 			return batchAckItem{}, false, nil
 		}
 		failErr := s.WorkSink.Fail(ctx, intent, err)
@@ -429,10 +429,10 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 			// A Fail rejected by the lease fence is a lost claim, not a broken
 			// sink: record it once, drop the item and keep the batch draining
 			// (#7142).
-			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
+			s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
 			return batchAckItem{}, false, nil
 		}
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "failed", workerID, err)
+		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "failed", workerID, err)
 		if failErr != nil {
 			return batchAckItem{}, false, errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
 		}
@@ -440,7 +440,7 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 	}
 
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, heartbeatErr)
+		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "ack_failed", workerID, heartbeatErr)
 		return batchAckItem{}, false, fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
 	}
 

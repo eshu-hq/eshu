@@ -33,7 +33,7 @@ func reducerQueueWaitSeconds(start time.Time, availableAt time.Time) float64 {
 	return wait.Seconds()
 }
 
-func (s Service) recordReducerResult(ctx context.Context, intent reducercontract.Intent, result Result, duration float64, queueWait float64, status string, workerID int, execErr error) {
+func (s Service) recordReducerResult(ctx context.Context, intent reducercontract.Intent, result reducercontract.Result, duration float64, queueWait float64, status string, workerID int, execErr error) {
 	if status == "failed" && s.isDeferredFailure(execErr) {
 		status = executionStatusDeferred
 	}
@@ -208,7 +208,7 @@ func (s Service) ackBatchRetryingTransient(
 	ctx context.Context,
 	sink BatchWorkSink,
 	intents []reducercontract.Intent,
-	results []Result,
+	results []reducercontract.Result,
 ) error {
 	return s.retryTransientAck(ctx, len(intents), ackRetryMessages{
 		retry:     "reducer batch ack hit transient failure; retrying",
@@ -222,7 +222,7 @@ func (s Service) ackBatchRetryingTransient(
 // ackBatchRetryingTransient: it calls WorkSink.Ack under the same classifier,
 // backoff and budget, so Workers <= 1 and the per-item concurrent path do not
 // end the run on a 40P01 or 40001 (#7444).
-func (s Service) ackSingleRetryingTransient(ctx context.Context, intent reducercontract.Intent, result Result) error {
+func (s Service) ackSingleRetryingTransient(ctx context.Context, intent reducercontract.Intent, result reducercontract.Result) error {
 	return s.retryTransientAck(ctx, 1, ackRetryMessages{
 		retry:     "reducer ack hit transient failure; retrying",
 		abandoned: "reducer ack abandoned to lease expiry",

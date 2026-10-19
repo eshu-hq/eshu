@@ -67,7 +67,7 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceProducerCompletesMidChec
 		store: producerreadiness.Store{DB: SQLDB{DB: p.db}},
 		complete: func() {
 			p.graph.committed.Store(true)
-			if err := producerQueue.Ack(ctx, producerIntent, reducer.Result{}); err != nil {
+			if err := producerQueue.Ack(ctx, producerIntent, reducercontract.Result{}); err != nil {
 				t.Errorf("producer Ack() error = %v", err)
 			}
 		},
@@ -145,7 +145,7 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers(t *tes
 			}
 			time.Sleep(time.Duration(rand.IntN(30)) * time.Millisecond) // graph write time
 			p.graph.committed.Store(true)
-			if err := queue.Ack(ctx, intent, reducer.Result{}); err != nil {
+			if err := queue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 				errs <- err
 			}
 			return
@@ -187,7 +187,7 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers(t *tes
 					}
 					continue
 				}
-				if err := queue.Ack(ctx, intent, reducer.Result{}); err != nil {
+				if err := queue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 					errs <- err
 					return
 				}
@@ -225,7 +225,7 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceConcurrentWorkers(t *tes
 		if _, err := p.handler(p.db).Handle(ctx, intent); err != nil {
 			t.Fatalf("replay Handle() error = %v", err)
 		}
-		if err := queue.Ack(ctx, intent, reducer.Result{}); err != nil {
+		if err := queue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 			t.Fatalf("replay Ack() error = %v", err)
 		}
 		writes = p.materialization.snapshot()

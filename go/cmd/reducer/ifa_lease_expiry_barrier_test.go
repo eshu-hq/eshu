@@ -60,9 +60,9 @@ func (s *leaseBarrierGraphStub) ExecuteProbe(context.Context, sourcecypher.State
 
 type leaseBarrierReducerStub struct{ graph sourcecypher.Executor }
 
-func (s leaseBarrierReducerStub) Execute(ctx context.Context, _ reducercontract.Intent) (reducer.Result, error) {
+func (s leaseBarrierReducerStub) Execute(ctx context.Context, _ reducercontract.Intent) (reducercontract.Result, error) {
 	group := s.graph.(sourcecypher.GroupExecutor)
-	return reducer.Result{}, group.ExecuteGroup(ctx, []sourcecypher.Statement{{Operation: sourcecypher.OperationCanonicalUpsert}})
+	return reducercontract.Result{}, group.ExecuteGroup(ctx, []sourcecypher.Statement{{Operation: sourcecypher.OperationCanonicalUpsert}})
 }
 
 func leaseBarrierIntent(id string, attempt int, epoch time.Time) reducercontract.Intent {

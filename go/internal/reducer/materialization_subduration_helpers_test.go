@@ -170,9 +170,9 @@ func codeCallContextOnlyEnvelopes() []facts.Envelope {
 
 // mustHandle runs a handler and fails the test on error, returning the Result.
 func mustHandle(t *testing.T, handler interface {
-	Handle(context.Context, reducercontract.Intent) (Result, error)
+	Handle(context.Context, reducercontract.Intent) (reducercontract.Result, error)
 }, intent reducercontract.Intent,
-) Result {
+) reducercontract.Result {
 	t.Helper()
 	result, err := handler.Handle(context.Background(), intent)
 	if err != nil {
@@ -183,7 +183,7 @@ func mustHandle(t *testing.T, handler interface {
 
 // assertSubDurationsPresent fails if SubDurations is nil or any required key is
 // absent. These are duration phases only.
-func assertSubDurationsPresent(t *testing.T, result Result, domain string, keys []string) {
+func assertSubDurationsPresent(t *testing.T, result reducercontract.Result, domain string, keys []string) {
 	t.Helper()
 	if result.SubDurations == nil {
 		t.Fatalf("%s: SubDurations must not be nil", domain)
@@ -197,7 +197,7 @@ func assertSubDurationsPresent(t *testing.T, result Result, domain string, keys 
 
 // assertInputReady fails if SubSignals is nil, lacks "input_ready", or its value
 // differs from want.
-func assertInputReady(t *testing.T, result Result, domain string, want float64) {
+func assertInputReady(t *testing.T, result reducercontract.Result, domain string, want float64) {
 	t.Helper()
 	if result.SubSignals == nil {
 		t.Fatalf("%s: SubSignals must not be nil", domain)
@@ -213,7 +213,7 @@ func assertInputReady(t *testing.T, result Result, domain string, want float64) 
 
 // assertWrittenRows fails if SubSignals["written_rows"] != want. It reads the
 // SIGNAL, not result.CanonicalWrites, so a missing written_rows key fails.
-func assertWrittenRows(t *testing.T, result Result, domain string, want int) {
+func assertWrittenRows(t *testing.T, result reducercontract.Result, domain string, want int) {
 	t.Helper()
 	if result.SubSignals == nil {
 		t.Fatalf("%s: SubSignals must not be nil", domain)
@@ -228,7 +228,7 @@ func assertWrittenRows(t *testing.T, result Result, domain string, want int) {
 }
 
 // assertWrittenRowsGreater fails if SubSignals["written_rows"] <= threshold.
-func assertWrittenRowsGreater(t *testing.T, result Result, domain string, threshold int) {
+func assertWrittenRowsGreater(t *testing.T, result reducercontract.Result, domain string, threshold int) {
 	t.Helper()
 	if result.SubSignals == nil {
 		t.Fatalf("%s: SubSignals must not be nil", domain)

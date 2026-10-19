@@ -35,7 +35,7 @@ func TestServiceRunMainLoopWithTelemetry(t *testing.T) {
 
 	source := &stubReducerWorkSource{intents: []reducercontract.Intent{intent}}
 	executor := &stubReducerExecutor{
-		result: Result{
+		result: reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
 			Status:   ResultStatusSucceeded,

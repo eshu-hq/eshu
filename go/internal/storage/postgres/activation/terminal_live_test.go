@@ -18,7 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/obligation"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -207,7 +207,7 @@ FROM activation_obligations WHERE scope_id = $1 AND generation_id = $2`, f.scope
 		t.Fatalf("native Claim after the re-owed wake = %v ok=%v err=%v, want %s", woken.IntentID, ok, err, wake)
 	}
 	// Finish the woken row so the next refinalize does not wait on its lease.
-	if err := f.reducerQ.Ack(f.ctx, woken, reducer.Result{IntentID: woken.IntentID, Domain: woken.Domain}); err != nil {
+	if err := f.reducerQ.Ack(f.ctx, woken, reducercontract.Result{IntentID: woken.IntentID, Domain: woken.Domain}); err != nil {
 		t.Fatal(err)
 	}
 

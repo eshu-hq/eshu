@@ -33,7 +33,7 @@ func TestReducerQueueAckBindsContainerImageIdentityClaimEpoch(t *testing.T) {
 			ClaimEpoch:   71,
 			ClaimedAt:    &claimedAt,
 		},
-		reducer.Result{},
+		reducercontract.Result{},
 	); err != nil {
 		t.Fatalf("Ack() error = %v", err)
 	}
@@ -68,7 +68,7 @@ func TestReducerQueueAckLeavesUnrelatedAndEmptyDomainsOnLegacyQuery(t *testing.T
 				IntentID: "intent-5854-legacy-dispatch",
 				Domain:   domain,
 			},
-			reducer.Result{},
+			reducercontract.Result{},
 		); err != nil {
 			t.Fatalf("Ack(domain=%q) error = %v", domain, err)
 		}

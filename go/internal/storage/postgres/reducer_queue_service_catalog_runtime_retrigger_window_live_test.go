@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
@@ -78,7 +79,7 @@ func TestReducerContentionGateServiceCatalogRetriggerFlagsRunThatNewlyNamesRepo(
 	if _, err := first.Handle(ctx, intent); err != nil {
 		t.Fatalf("first catalog Handle() error = %v", err)
 	}
-	if err := catalogQueue.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := catalogQueue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("first catalog Ack() error = %v", err)
 	}
 	if reopened, err := catalogQueue.ReopenSucceeded(ctx, runtimeFenceCatalogItem); err != nil || !reopened {
@@ -101,7 +102,7 @@ func TestReducerContentionGateServiceCatalogRetriggerFlagsRunThatNewlyNamesRepo(
 		t.Fatalf("catalog row after the in-window workload ack = %s flagged=%v, want claimed and flagged for replay",
 			status, flagged)
 	}
-	if err := catalogQueue.Ack(ctx, intent, reducer.Result{}); err != nil {
+	if err := catalogQueue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 		t.Fatalf("second catalog Ack() error = %v", err)
 	}
 	if status, _ := readRetriggerItem(t, ctx, p.db, runtimeFenceCatalogItem); status != "pending" {

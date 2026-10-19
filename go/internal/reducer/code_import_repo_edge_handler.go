@@ -67,15 +67,15 @@ type CodeImportRepoEdgeHandler struct {
 }
 
 // Handle executes code-import repo-edge projection for one git-repository scope.
-func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.Domain != DomainCodeImportRepoEdge {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"code_import_repo_edge handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("code import repo edge fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("code import repo edge fact loader is required")
 	}
 
 	if h.tracerStartSkippable() {
@@ -96,20 +96,20 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 		[]string{factKindFile},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load file facts for code import repo edge: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load file facts for code import repo edge: %w", err)
 	}
 
 	ownershipEnvelopes, err := h.OwnershipLoader.ListActivePackageOwnershipFacts(ctx)
 	if err != nil {
-		return Result{}, fmt.Errorf("load active package ownership facts: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load active package ownership facts: %w", err)
 	}
 	ownershipDecisions, ownershipQuarantined, err := decodePackageOwnershipCorrelationDecisions(ownershipEnvelopes)
 	if err != nil {
-		return Result{}, fmt.Errorf("decode package ownership correlations: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("decode package ownership correlations: %w", err)
 	}
 	publicationDecisions, publicationQuarantined, err := decodePackagePublicationCorrelationDecisions(ownershipEnvelopes)
 	if err != nil {
-		return Result{}, fmt.Errorf("decode package publication correlations: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("decode package publication correlations: %w", err)
 	}
 	quarantined := append(ownershipQuarantined, publicationQuarantined...)
 	inputInvalidCount := recordQuarantinedFacts(
@@ -157,7 +157,7 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 		return h.succeededResult(intent, counts, 0, inputInvalidCount), nil
 	}
 	if err := h.RepoDependencyIntentWriter.UpsertIntents(ctx, intents); err != nil {
-		return Result{}, fmt.Errorf("upsert code import repo dependency intents: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("upsert code import repo dependency intents: %w", err)
 	}
 	return h.succeededResult(intent, counts, len(upsertIntents), inputInvalidCount), nil
 }
@@ -173,8 +173,8 @@ func (h CodeImportRepoEdgeHandler) now() time.Time {
 	return time.Now().UTC()
 }
 
-func (h CodeImportRepoEdgeHandler) skippedResult(intent reducercontract.Intent, reason string) Result {
-	return Result{
+func (h CodeImportRepoEdgeHandler) skippedResult(intent reducercontract.Intent, reason string) reducercontract.Result {
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainCodeImportRepoEdge,
 		Status:          ResultStatusSucceeded,
@@ -187,8 +187,8 @@ func (h CodeImportRepoEdgeHandler) succeededResult(
 	counts codeImportEdgeCounts,
 	written int,
 	inputInvalidCount int,
-) Result {
-	return Result{
+) reducercontract.Result {
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainCodeImportRepoEdge,
 		Status:   ResultStatusSucceeded,

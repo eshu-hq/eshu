@@ -256,7 +256,7 @@ func (s Service) HandlerTimeoutFor(domain reducercontract.Domain) time.Duration 
 // panic value for the caller to re-raise; the boolean (rather than a nil test
 // on value) keeps panic(nil) unambiguous.
 type handlerOutcome struct {
-	result   Result
+	result   reducercontract.Result
 	err      error
 	panicked bool
 	value    any
@@ -293,7 +293,7 @@ func (s Service) executeHandler(
 	execCtx context.Context,
 	shutdownCtx context.Context,
 	intent reducercontract.Intent,
-) (result Result, err error, abandoned bool) {
+) (result reducercontract.Result, err error, abandoned bool) {
 	done := make(chan handlerOutcome, 1)
 	go func() {
 		completed := false
@@ -306,7 +306,7 @@ func (s Service) executeHandler(
 		completed = true
 		done <- handlerOutcome{result: result, err: err}
 	}()
-	reraise := func(out handlerOutcome) (Result, error, bool) {
+	reraise := func(out handlerOutcome) (reducercontract.Result, error, bool) {
 		if out.panicked {
 			panic(out.value)
 		}
@@ -326,7 +326,7 @@ func (s Service) executeHandler(
 			return reraise(out)
 		default:
 		}
-		return Result{}, shutdownCtx.Err(), true
+		return reducercontract.Result{}, shutdownCtx.Err(), true
 	}
 }
 
@@ -391,11 +391,11 @@ func (s Service) failAbandonedHandler(
 	failCtx := context.WithoutCancel(ctx)
 	failErr := s.WorkSink.Fail(failCtx, intent, err)
 	if failErr != nil && errors.Is(failErr, ErrExecutionClaimRejected) {
-		s.recordReducerResult(failCtx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
+		s.recordReducerResult(failCtx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
 		s.recordReducerHandlerAbandoned(failCtx, intent)
 		return nil
 	}
-	s.recordReducerResult(failCtx, intent, Result{}, duration, queueWait, "failed", workerID, err)
+	s.recordReducerResult(failCtx, intent, reducercontract.Result{}, duration, queueWait, "failed", workerID, err)
 	s.recordReducerHandlerAbandoned(failCtx, intent)
 	if failErr != nil {
 		return errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
@@ -434,11 +434,11 @@ func (s Service) failAbandonedBatchHandler(
 	failCtx := context.WithoutCancel(ctx)
 	failErr := s.WorkSink.Fail(failCtx, intent, err)
 	if failErr != nil && errors.Is(failErr, ErrExecutionClaimRejected) {
-		s.recordReducerResult(failCtx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
+		s.recordReducerResult(failCtx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
 		s.recordReducerHandlerAbandoned(failCtx, intent)
 		return batchAckItem{}, false, nil
 	}
-	s.recordReducerResult(failCtx, intent, Result{}, duration, queueWait, "failed", workerID, err)
+	s.recordReducerResult(failCtx, intent, reducercontract.Result{}, duration, queueWait, "failed", workerID, err)
 	s.recordReducerHandlerAbandoned(failCtx, intent)
 	if failErr != nil {
 		return batchAckItem{}, false, errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))

@@ -87,7 +87,7 @@ type ifaLeaseExpiryReducerExecutor struct {
 	inner reducer.Executor
 }
 
-func (e ifaLeaseExpiryReducerExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
+func (e ifaLeaseExpiryReducerExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.Domain != reducer.DomainGCPResourceMaterialization || intent.IntentID == "" || intent.ClaimedAt == nil || intent.ClaimedAt.IsZero() || intent.AttemptCount < 1 {
 		return e.inner.Execute(ctx, intent)
 	}

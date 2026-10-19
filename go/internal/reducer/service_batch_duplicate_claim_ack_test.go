@@ -24,11 +24,11 @@ type opaqueAckBatchSink struct {
 	ackErr   error
 }
 
-func (s *opaqueAckBatchSink) Ack(context.Context, reducercontract.Intent, reducer.Result) error {
+func (s *opaqueAckBatchSink) Ack(context.Context, reducercontract.Intent, reducercontract.Result) error {
 	return nil
 }
 
-func (s *opaqueAckBatchSink) AckBatch(context.Context, []reducercontract.Intent, []reducer.Result) error {
+func (s *opaqueAckBatchSink) AckBatch(context.Context, []reducercontract.Intent, []reducercontract.Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ackCalls++

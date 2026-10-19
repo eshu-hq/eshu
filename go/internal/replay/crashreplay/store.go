@@ -171,7 +171,7 @@ func (s *durableStore) Claim(_ context.Context) (reducercontract.Intent, bool, e
 // left observable rather than silently ignored; the run report asserts the count
 // is zero. Correct fencing means Claim never re-hands a completed item, so this
 // stays 0.
-func (s *durableStore) Ack(_ context.Context, intent reducercontract.Intent, _ reducer.Result) error {
+func (s *durableStore) Ack(_ context.Context, intent reducercontract.Intent, _ reducercontract.Result) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st, ok := s.items[intent.IntentID]

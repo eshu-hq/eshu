@@ -333,7 +333,7 @@ type deadlockAckCall struct {
 	err  error
 }
 
-func (r *deadlockAckRecorder) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []reducer.Result) error {
+func (r *deadlockAckRecorder) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []reducercontract.Result) error {
 	err := r.ReducerQueue.AckBatch(ctx, intents, results)
 	r.mu.Lock()
 	r.calls = append(r.calls, deadlockAckCall{size: len(intents), err: err})
@@ -353,13 +353,13 @@ type deadlockAckBarrierExecutor struct {
 	release chan struct{}
 }
 
-func (e *deadlockAckBarrierExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
+func (e *deadlockAckBarrierExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	e.arrived <- intent
 	select {
 	case <-e.release:
-		return reducer.Result{}, nil
+		return reducercontract.Result{}, nil
 	case <-ctx.Done():
-		return reducer.Result{}, ctx.Err()
+		return reducercontract.Result{}, ctx.Err()
 	}
 }
 

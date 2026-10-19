@@ -74,7 +74,7 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontr
 // subset. Refresh-producer items (issue #6785) are ACKed per domain with a
 // same-statement completion event covering only the emit-gated ids.
 // Implements reducer.BatchWorkSink.
-func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []reducer.Result) error {
+func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducercontract.Intent, results []reducercontract.Result) error {
 	if err := q.validateClaim(); err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducercontract.In
 	// keyed off the position the SURVIVING claim held: a lease reclaim puts two
 	// claims of one work item in the batch, and pairing the winner with the
 	// superseded run's result would drop a refresh the winner earned (#6162).
-	resultByID := make(map[string]reducer.Result, len(split.keptResultIndexByID))
+	resultByID := make(map[string]reducercontract.Result, len(split.keptResultIndexByID))
 	for intentID, position := range split.keptResultIndexByID {
 		if position >= len(results) {
 			continue

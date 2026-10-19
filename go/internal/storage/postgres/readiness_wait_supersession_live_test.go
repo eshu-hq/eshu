@@ -182,7 +182,7 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 		t.Helper()
 		_, handleErr := handler.Handle(ctx, intent)
 		if handleErr == nil {
-			if err := queue.Ack(ctx, intent, reducer.Result{}); err != nil {
+			if err := queue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
 				t.Fatalf("Ack: %v", err)
 			}
 			return nil

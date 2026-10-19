@@ -373,7 +373,7 @@ SELECT pg_advisory_xact_lock(
 		}
 		done := make(chan error, 1)
 		go func() {
-			done <- queue.Ack(ctx, intent, reducer.Result{})
+			done <- queue.Ack(ctx, intent, reducercontract.Result{})
 		}()
 		assertContainerImageIdentityOrderingOperationSucceeded(
 			t, done, "attempt-bound ACK behind advisory blocker",
@@ -446,7 +446,7 @@ SELECT pg_advisory_xact_lock(
 				ClaimEpoch:   capableEpoch,
 				ClaimedAt:    &capableClaimedAt,
 			},
-			reducer.Result{},
+			reducercontract.Result{},
 		); err != nil {
 			_ = capableTx.Rollback()
 			t.Fatalf("repeatable-read attempt-bound ACK: %v", err)

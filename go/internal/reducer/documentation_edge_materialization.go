@@ -36,18 +36,18 @@ type DocumentationEdgeMaterializationHandler struct {
 }
 
 // Handle executes the documentation edge materialization path.
-func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.Domain != DomainDocumentationMaterialization {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"documentation materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("documentation materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("documentation materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("documentation materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("documentation materialization edge writer is required")
 	}
 
 	slog.InfoContext(
@@ -59,23 +59,23 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 
 	envelopes, err := loadDocumentationMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for documentation materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for documentation materialization: %w", err)
 	}
 
 	deltaScope, deltaQuarantined, err := buildDocumentationDeltaScopeWithQuarantine(envelopes, intent.ScopeID)
 	if err != nil {
-		return Result{}, fmt.Errorf("build documentation delta scope: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("build documentation delta scope: %w", err)
 	}
 	rows, mentionQuarantined, err := ExtractDocumentationEdgeRowsWithQuarantine(envelopes, intent.ScopeID)
 	if err != nil {
-		return Result{}, fmt.Errorf("extract documentation edge rows: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("extract documentation edge rows: %w", err)
 	}
 	quarantined := append(deltaQuarantined, mentionQuarantined...)
 	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainDocumentationMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 
 	skipRetract, err := h.shouldSkipDocumentationRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	if !skipRetract {
 		if err := h.EdgeWriter.RetractEdges(
@@ -84,7 +84,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 			buildDocumentationRetractRows([]string{intent.ScopeID}, deltaScope),
 			documentationEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical documentation edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical documentation edges: %w", err)
 		}
 	}
 
@@ -96,7 +96,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 			writeRows,
 			documentationEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical documentation edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical documentation edges: %w", err)
 		}
 	}
 
@@ -107,7 +107,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 		slog.Int("edge_count", len(writeRows)),
 	)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainDocumentationMaterialization,
 		Status:          ResultStatusSucceeded,

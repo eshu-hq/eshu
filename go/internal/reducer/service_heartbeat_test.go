@@ -52,7 +52,7 @@ func TestServiceRunHeartbeatsLongRunningReducerWork(t *testing.T) {
 	}
 	executor := &blockingReducerExecutor{
 		release: release,
-		result: Result{
+		result: reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
 			Status:   ResultStatusSucceeded,
@@ -125,7 +125,7 @@ func TestServiceRunPreHeartbeatsImmediatelyOnClaim(t *testing.T) {
 	}
 	executor := &blockingReducerExecutor{
 		release: firstHeartbeat,
-		result: Result{
+		result: reducercontract.Result{
 			IntentID: intent.IntentID,
 			Domain:   intent.Domain,
 			Status:   ResultStatusSucceeded,
@@ -244,14 +244,14 @@ type neverCalledReducerExecutor struct {
 	count int
 }
 
-func (n *neverCalledReducerExecutor) Execute(ctx context.Context, _ reducercontract.Intent) (Result, error) {
+func (n *neverCalledReducerExecutor) Execute(ctx context.Context, _ reducercontract.Intent) (reducercontract.Result, error) {
 	n.mu.Lock()
 	n.count++
 	n.mu.Unlock()
 	if err := ctx.Err(); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
-	return Result{}, nil
+	return reducercontract.Result{}, nil
 }
 
 func (n *neverCalledReducerExecutor) calls() int {
@@ -284,14 +284,14 @@ func (s *stubReducerHeartbeater) calls() int {
 
 type blockingReducerExecutor struct {
 	release <-chan struct{}
-	result  Result
+	result  reducercontract.Result
 }
 
-func (b *blockingReducerExecutor) Execute(ctx context.Context, _ reducercontract.Intent) (Result, error) {
+func (b *blockingReducerExecutor) Execute(ctx context.Context, _ reducercontract.Intent) (reducercontract.Result, error) {
 	select {
 	case <-b.release:
 		return b.result, nil
 	case <-ctx.Done():
-		return Result{}, ctx.Err()
+		return reducercontract.Result{}, ctx.Err()
 	}
 }

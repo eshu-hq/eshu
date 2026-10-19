@@ -19,7 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/store"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 
@@ -138,7 +138,7 @@ func TestAdminHandler_ReopenLive(t *testing.T) {
 	if !ok || intent.IntentID != workA {
 		t.Fatalf("first claim = %q ok=%v, want %q", intent.IntentID, ok, workA)
 	}
-	if err := queue.Ack(ctx, intent, reducer.Result{IntentID: intent.IntentID, Domain: intent.Domain}); err != nil {
+	if err := queue.Ack(ctx, intent, reducercontract.Result{IntentID: intent.IntentID, Domain: intent.Domain}); err != nil {
 		t.Fatalf("ack first claim: %v", err)
 	}
 	intent, ok, err = queue.Claim(ctx)
@@ -148,7 +148,7 @@ func TestAdminHandler_ReopenLive(t *testing.T) {
 	if !ok || intent.IntentID != workB {
 		t.Fatalf("second claim = %q ok=%v, want %q", intent.IntentID, ok, workB)
 	}
-	if err := queue.Ack(ctx, intent, reducer.Result{IntentID: intent.IntentID, Domain: intent.Domain}); err != nil {
+	if err := queue.Ack(ctx, intent, reducercontract.Result{IntentID: intent.IntentID, Domain: intent.Domain}); err != nil {
 		t.Fatalf("ack second claim: %v", err)
 	}
 

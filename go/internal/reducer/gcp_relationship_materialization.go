@@ -92,19 +92,19 @@ type GCPRelationshipMaterializationHandler struct {
 func (h GCPRelationshipMaterializationHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) (Result, error) {
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainGCPRelationshipMaterialization {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"gcp relationship materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("gcp relationship materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("gcp relationship materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("gcp relationship materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("gcp relationship materialization edge writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -124,7 +124,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 	// intent re-enters the durable queue (retryable) rather than writing edges
 	// against a node set that does not exist yet.
 	if !h.canonicalNodesReady(intent) {
-		return Result{}, gcpRelationshipNodesNotReadyError{
+		return reducercontract.Result{}, gcpRelationshipNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
@@ -139,7 +139,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 		[]string{cloud.GCPCloudResourceFactKind, cloud.GCPCloudRelationshipFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for gcp relationship materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for gcp relationship materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -152,7 +152,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed gcp_cloud_resource or gcp_cloud_relationship
 	// fact (a missing required identity field) is quarantined as a visible
@@ -163,7 +163,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -171,15 +171,15 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 		if h.Ledger != nil {
 			uids, err := h.Ledger.ListSourceUIDsForScopes(ctx, gcpRelationshipEvidenceSource, []string{intent.ScopeID})
 			if err != nil {
-				return Result{}, fmt.Errorf("list source uids for gcp relationship retract: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("list source uids for gcp relationship retract: %w", err)
 			}
 			if err := h.EdgeWriter.RetractCloudResourceEdgesByUIDs(
 				ctx, uids, []string{intent.ScopeID}, gcpRelationshipEvidenceSource,
 			); err != nil {
-				return Result{}, fmt.Errorf("retract canonical gcp relationship edges by uids: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("retract canonical gcp relationship edges by uids: %w", err)
 			}
 			if err := h.Ledger.PruneForScopes(ctx, gcpRelationshipEvidenceSource, []string{intent.ScopeID}); err != nil {
-				return Result{}, fmt.Errorf("prune gcp relationship projected sources: %w", err)
+				return reducercontract.Result{}, fmt.Errorf("prune gcp relationship projected sources: %w", err)
 			}
 		} else if err := h.EdgeWriter.RetractCloudResourceEdges(
 			ctx,
@@ -187,7 +187,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 			intent.GenerationID,
 			gcpRelationshipEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical gcp relationship edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical gcp relationship edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -200,13 +200,13 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 				if err := h.Ledger.RecordProjectedSources(
 					ctx, gcpRelationshipEvidenceSource, intent.ScopeID, intent.GenerationID, uids, time.Now(),
 				); err != nil {
-					return Result{}, fmt.Errorf("record gcp relationship projected sources: %w", err)
+					return reducercontract.Result{}, fmt.Errorf("record gcp relationship projected sources: %w", err)
 				}
 			}
 		}
 		writeStart := time.Now()
 		if err := h.EdgeWriter.WriteCloudResourceEdges(ctx, rows, intent.ScopeID, intent.GenerationID, gcpRelationshipEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical gcp relationship edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical gcp relationship edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -228,7 +228,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 	logGCPRelationshipMaterializationCompleted(ctx, timing)
 	h.recordMetrics(ctx, timing)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainGCPRelationshipMaterialization,
 		Status:   ResultStatusSucceeded,

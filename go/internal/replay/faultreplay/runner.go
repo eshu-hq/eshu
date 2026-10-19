@@ -303,18 +303,18 @@ type canonicalApplyExecutor struct {
 	err error
 }
 
-func (e *canonicalApplyExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
+func (e *canonicalApplyExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := ctx.Err(); err != nil {
-		return reducer.Result{}, e.recordErrLocked(fmt.Errorf("fault replay execute canceled: %w", err))
+		return reducercontract.Result{}, e.recordErrLocked(fmt.Errorf("fault replay execute canceled: %w", err))
 	}
 	item, ok := e.registry[intent.IntentID]
 	if !ok {
-		return reducer.Result{}, e.recordErrLocked(fmt.Errorf("no work item registered for intent %q", intent.IntentID))
+		return reducercontract.Result{}, e.recordErrLocked(fmt.Errorf("no work item registered for intent %q", intent.IntentID))
 	}
 	e.apply(e.graph, item)
-	return reducer.Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
 		Status:   reducer.ResultStatusSucceeded,
@@ -362,7 +362,7 @@ type faultingSink struct {
 	terminalFailed []string
 }
 
-func (s *faultingSink) Ack(_ context.Context, intent reducercontract.Intent, _ reducer.Result) error {
+func (s *faultingSink) Ack(_ context.Context, intent reducercontract.Intent, _ reducercontract.Result) error {
 	s.ackedCount.Add(1)
 	s.mu.Lock()
 	for i, id := range s.terminalFailed {

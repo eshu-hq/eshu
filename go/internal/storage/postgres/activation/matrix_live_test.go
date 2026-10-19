@@ -18,6 +18,7 @@ import (
 
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/activation"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
@@ -81,7 +82,7 @@ func TestActivationObligationConsumerTerminalPreservedLive(t *testing.T) {
 	wake := f.notReady(t, f.scope, f.gen, "wake")
 	f.maintenance(t)
 	terminal := f.enqueueClaim(t, reducer.DomainDeploymentMapping, f.scope, f.gen, "terminal")
-	if err := f.reducerQ.Ack(f.ctx, terminal, reducer.Result{IntentID: terminal.IntentID, Domain: terminal.Domain}); err != nil {
+	if err := f.reducerQ.Ack(f.ctx, terminal, reducercontract.Result{IntentID: terminal.IntentID, Domain: terminal.Domain}); err != nil {
 		t.Fatal(err)
 	}
 	frozen := f.row(t, terminal.IntentID, false)

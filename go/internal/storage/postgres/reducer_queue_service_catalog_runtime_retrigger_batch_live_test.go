@@ -54,7 +54,7 @@ func TestReducerContentionGateServiceCatalogRetriggerBatchAckAndTelemetry(t *tes
 		intents = append(intents, intent)
 	}
 	p.graph.committed.Store(true)
-	if err := q.AckBatch(ctx, intents[:2], []reducer.Result{{}, {}}); err != nil {
+	if err := q.AckBatch(ctx, intents[:2], []reducercontract.Result{{}, {}}); err != nil {
 		t.Fatalf("AckBatch() error = %v", err)
 	}
 	if status, _ := readRetriggerItem(t, ctx, p.db, runtimeFenceCatalogItem); status != "pending" {
@@ -63,7 +63,7 @@ func TestReducerContentionGateServiceCatalogRetriggerBatchAckAndTelemetry(t *tes
 	if !strings.Contains(logs.String(), `"reopened_count":1`) || !strings.Contains(logs.String(), `"producer_domain":"workload_materialization"`) {
 		t.Fatalf("re-trigger log = %s, want reopened_count 1 for workload_materialization", logs.String())
 	}
-	if err := q.Ack(ctx, intents[2], reducer.Result{}); err != nil {
+	if err := q.Ack(ctx, intents[2], reducercontract.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v", err)
 	}
 

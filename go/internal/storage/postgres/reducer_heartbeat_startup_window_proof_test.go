@@ -225,12 +225,12 @@ type blockingProofExecutor struct {
 	release <-chan struct{}
 }
 
-func (b *blockingProofExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducer.Result, error) {
+func (b *blockingProofExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	select {
 	case <-b.release:
-		return reducer.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: reducer.ResultStatusSucceeded}, nil
+		return reducercontract.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: reducer.ResultStatusSucceeded}, nil
 	case <-ctx.Done():
-		return reducer.Result{}, ctx.Err()
+		return reducercontract.Result{}, ctx.Err()
 	}
 }
 
@@ -253,7 +253,7 @@ type proofWorkSink struct {
 	leaseOwner string
 }
 
-func (p *proofWorkSink) Ack(ctx context.Context, _ reducercontract.Intent, _ reducer.Result) error {
+func (p *proofWorkSink) Ack(ctx context.Context, _ reducercontract.Intent, _ reducercontract.Result) error {
 	_, err := p.db.ExecContext(ctx, `
 		UPDATE fact_work_items
 		SET status = 'succeeded', lease_owner = NULL, claim_until = NULL, updated_at = $1

@@ -61,7 +61,7 @@ func TestReducerExactClaimFenceRejectsSameOwnerStaleAttempt(t *testing.T) {
 		return queue.Heartbeat(ctx, stale)
 	})
 	assertRejectedWithoutClaimMutation("stale Ack", ErrReducerClaimRejected, func() error {
-		return queue.Ack(ctx, stale, reducer.Result{})
+		return queue.Ack(ctx, stale, reducercontract.Result{})
 	})
 	assertRejectedWithoutClaimMutation("stale retry Fail", ErrReducerClaimRejected, func() error {
 		return queue.Fail(ctx, stale, claimTokenRetryableError{})
@@ -116,7 +116,7 @@ func TestReducerExactClaimFenceAckBatchRejectsPartialStaleSet(t *testing.T) {
 	err := queue.AckBatch(
 		ctx,
 		[]reducercontract.Intent{firstByID[idA], firstByID[idB]},
-		[]reducer.Result{{}, {}},
+		[]reducercontract.Result{{}, {}},
 	)
 	if !errors.Is(err, ErrReducerClaimRejected) {
 		t.Fatalf("AckBatch(partial stale set) error = %v, want %v", err, ErrReducerClaimRejected)

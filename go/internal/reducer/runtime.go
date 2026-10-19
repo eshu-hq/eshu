@@ -13,9 +13,6 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-// Result captures the bounded terminal outcome of one reducer execution.
-type Result = reducercontract.Result
-
 // GenerationFreshnessCheck reports whether the given generation is still
 // the active generation for the scope. Returns (true, nil) if current,
 // (false, nil) if superseded, or (false, err) on lookup failure.
@@ -182,7 +179,7 @@ func (r *Runtime) RunOnce(ctx context.Context, now time.Time, max int) (RunRepor
 }
 
 // Execute runs one reducer intent through its registered handler.
-func (r *Runtime) Execute(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (r *Runtime) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	return r.execute(ctx, intent)
 }
 
@@ -312,7 +309,7 @@ func (r *Runtime) markRunning(position int) {
 	r.intents[position] = intent
 }
 
-func (r *Runtime) markSucceeded(position int, completedAt time.Time, result Result) {
+func (r *Runtime) markSucceeded(position int, completedAt time.Time, result reducercontract.Result) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -345,15 +342,15 @@ func (r *Runtime) markFailed(position int, completedAt time.Time, failureClass, 
 	r.intents[position] = intent
 }
 
-func (r *Runtime) execute(ctx context.Context, intent reducercontract.Intent) (Result, error) {
+func (r *Runtime) execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	// Generation guard: skip stale intents before touching Neo4j.
 	if r.GenerationCheck != nil {
 		current, err := r.GenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
 		if err != nil {
-			return Result{}, fmt.Errorf("generation freshness check: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("generation freshness check: %w", err)
 		}
 		if !current {
-			return Result{
+			return reducercontract.Result{
 				IntentID:        intent.IntentID,
 				Domain:          intent.Domain,
 				Status:          ResultStatusSuperseded,
@@ -366,10 +363,10 @@ func (r *Runtime) execute(ctx context.Context, intent reducercontract.Intent) (R
 
 	def, ok := r.registry.Definition(intent.Domain)
 	if !ok {
-		return Result{}, fmt.Errorf("domain %q is not registered", intent.Domain)
+		return reducercontract.Result{}, fmt.Errorf("domain %q is not registered", intent.Domain)
 	}
 	if def.Handler == nil {
-		return Result{}, fmt.Errorf("domain %q has no handler", intent.Domain)
+		return reducercontract.Result{}, fmt.Errorf("domain %q has no handler", intent.Domain)
 	}
 
 	return def.Handler.Handle(ctx, intent)

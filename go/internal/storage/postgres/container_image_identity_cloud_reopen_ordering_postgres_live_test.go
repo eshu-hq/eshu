@@ -365,7 +365,7 @@ func handleAndAckCloudReopenOrderingIntent(
 	queue *ReducerQueue,
 	handler reducer.ContainerImageIdentityHandler,
 	intent reducercontract.Intent,
-) reducer.Result {
+) reducercontract.Result {
 	t.Helper()
 	result, err := handler.Handle(ctx, intent)
 	if err != nil {

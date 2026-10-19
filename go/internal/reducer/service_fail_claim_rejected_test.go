@@ -28,8 +28,8 @@ func (s *failRejectedByLostClaimSink) Fail(ctx context.Context, intent reducerco
 
 type erroringReducerExecutor struct{ err error }
 
-func (e erroringReducerExecutor) Execute(context.Context, reducercontract.Intent) (Result, error) {
-	return Result{}, e.err
+func (e erroringReducerExecutor) Execute(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
+	return reducercontract.Result{}, e.err
 }
 
 // TestServiceRunTreatsAFailRejectedByALostClaimAsBenign pins the stale-worker

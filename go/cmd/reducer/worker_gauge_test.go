@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -18,11 +17,11 @@ type fakeExecutor struct {
 	onExecute func()
 }
 
-func (f fakeExecutor) Execute(context.Context, reducercontract.Intent) (reducer.Result, error) {
+func (f fakeExecutor) Execute(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
 	if f.onExecute != nil {
 		f.onExecute()
 	}
-	return reducer.Result{}, nil
+	return reducercontract.Result{}, nil
 }
 
 func TestNewActiveWorkerExecutorNilCounterReturnsInner(t *testing.T) {

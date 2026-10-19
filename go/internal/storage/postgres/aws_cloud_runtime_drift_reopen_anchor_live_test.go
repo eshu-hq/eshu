@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive is
@@ -109,7 +110,7 @@ func TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive(t 
 	if !claimed {
 		t.Fatal("first Claim() claimed = false, want true")
 	}
-	if err := queue.Ack(ctx, firstClaim, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, firstClaim, reducercontract.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}
 

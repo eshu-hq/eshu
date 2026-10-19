@@ -138,19 +138,19 @@ type KubernetesNamespaceMaterializationHandler struct {
 func (h KubernetesNamespaceMaterializationHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
-) (Result, error) {
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
 	if intent.Domain != DomainKubernetesNamespaceMaterialization {
-		return Result{}, fmt.Errorf(
+		return reducercontract.Result{}, fmt.Errorf(
 			"kubernetes namespace materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("kubernetes namespace materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("kubernetes namespace materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("kubernetes namespace materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("kubernetes namespace materialization node writer is required")
 	}
 
 	loadStart := time.Now()
@@ -162,14 +162,14 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 		[]string{cloud.KubernetesNamespaceFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for kubernetes namespace materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for kubernetes namespace materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
 	rows, boundCount, quarantined, err := ExtractKubernetesNamespaceNodeRows(envelopes)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesNamespaceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	reconcileComplete, _ := intent.Payload["reconcile_complete"].(bool)
@@ -178,12 +178,12 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 		clusterID, _ = intent.Payload["cluster_id"].(string)
 		clusterID = strings.TrimSpace(clusterID)
 		if clusterID == "" {
-			return Result{}, fmt.Errorf("reconcile complete kubernetes namespace snapshot requires cluster_id")
+			return reducercontract.Result{}, fmt.Errorf("reconcile complete kubernetes namespace snapshot requires cluster_id")
 		}
 		for _, row := range rows {
 			rowClusterID, _ := row["cluster_id"].(string)
 			if strings.TrimSpace(rowClusterID) != clusterID {
-				return Result{}, fmt.Errorf(
+				return reducercontract.Result{}, fmt.Errorf(
 					"reconcile complete kubernetes namespace snapshot cluster_id %q does not match row cluster_id %q",
 					clusterID,
 					strings.TrimSpace(rowClusterID),
@@ -200,7 +200,7 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 	if len(rows) > 0 {
 		writeStart := time.Now()
 		if err := h.NodeWriter.WriteKubernetesNamespaceNodes(ctx, rows, kubernetesNamespaceEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical kubernetes namespace nodes: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical kubernetes namespace nodes: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -216,7 +216,7 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 			intent.GenerationID,
 			kubernetesNamespaceEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract stale canonical kubernetes namespace nodes: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract stale canonical kubernetes namespace nodes: %w", err)
 		}
 		writeDuration += time.Since(writeStart)
 		reconciliationStatus = "applied"
@@ -234,7 +234,7 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 		totalDuration:   time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainKubernetesNamespaceMaterialization,
 		Status:   ResultStatusSucceeded,

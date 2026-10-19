@@ -63,7 +63,7 @@ func TestWorkloadReplayDuringClaimReturnsAckToPending(t *testing.T) {
 		t.Fatal("claimed workload row replay-required = false, want true")
 	}
 
-	if err := queue.Ack(ctx, claimed, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, claimed, reducercontract.Result{}); err != nil {
 		t.Fatalf("ack dirtied workload materialization: %v", err)
 	}
 	state := readClaimTokenWorkState(t, ctx, db, claimed.IntentID)
@@ -141,7 +141,7 @@ func TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock(t *testing.T) {
 		t.Fatal("claim single workload materialization returned no work")
 	}
 	dirty(singleKey)
-	if err := queue.Ack(ctx, claimed, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, claimed, reducercontract.Result{}); err != nil {
 		t.Fatalf("ack dirtied single workload materialization: %v", err)
 	}
 	second, ok, err := queue.Claim(ctx)
@@ -152,7 +152,7 @@ func TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock(t *testing.T) {
 		t.Fatalf("reopened single claim = (%q, %v), want (%q, true)", second.IntentID, ok, claimed.IntentID)
 	}
 	// Retire the single row so the batch phase sees only its own row.
-	if err := queue.Ack(ctx, second, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, second, reducercontract.Result{}); err != nil {
 		t.Fatalf("ack reopened single workload materialization: %v", err)
 	}
 
@@ -167,7 +167,7 @@ func TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock(t *testing.T) {
 		t.Fatalf("batch-claim workload materialization returned %d intents, want 1", len(first))
 	}
 	dirty(batchKey)
-	if err := queue.AckBatch(ctx, first, []reducer.Result{{}}); err != nil {
+	if err := queue.AckBatch(ctx, first, []reducercontract.Result{{}}); err != nil {
 		t.Fatalf("batch-ack dirtied workload materialization: %v", err)
 	}
 	reopened, err := queue.ClaimBatch(ctx, 10)
@@ -233,7 +233,7 @@ func TestWorkloadFencedReplaySupersedesOnlyOlderInFlightToken(t *testing.T) {
 		t.Fatalf("schedule fence B = (%v, %v), want (true, nil)", replayed, err)
 	}
 	assertWorkloadReplayFenceState(t, ctx, db, claimed.IntentID, "fence-b", true)
-	if err := queue.Ack(ctx, claimed, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, claimed, reducercontract.Result{}); err != nil {
 		t.Fatalf("ack pre-fence claim: %v", err)
 	}
 
@@ -257,7 +257,7 @@ func TestWorkloadFencedReplaySupersedesOnlyOlderInFlightToken(t *testing.T) {
 		t.Fatalf("schedule fence C = (%v, %v), want (true, nil)", replayed, err)
 	}
 	assertWorkloadReplayFenceState(t, ctx, db, claimB.IntentID, "fence-c", true)
-	if err := queue.Ack(ctx, claimB, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, claimB, reducercontract.Result{}); err != nil {
 		t.Fatalf("ack superseded fence B claim: %v", err)
 	}
 	claimC, ok, err := queue.Claim(ctx)

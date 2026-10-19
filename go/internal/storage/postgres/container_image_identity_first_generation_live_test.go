@@ -152,7 +152,7 @@ INSERT INTO fact_work_items (
 			t.Fatalf("claim after lease expiry = (%+v, %v, %v), want same intent at attempt %d with newer epoch than %d",
 				reclaimed, claimed, err, expectedAttempts, stale.ClaimEpoch)
 		}
-		if err := queue.Ack(ctx, stale, reducer.Result{}); !errors.Is(err, ErrReducerClaimRejected) {
+		if err := queue.Ack(ctx, stale, reducercontract.Result{}); !errors.Is(err, ErrReducerClaimRejected) {
 			t.Fatalf("stale Ack = %v, want ErrReducerClaimRejected", err)
 		}
 		if err := queue.Fail(ctx, stale, handleErr); !errors.Is(err, ErrReducerClaimRejected) {

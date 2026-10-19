@@ -85,7 +85,7 @@ WHERE work_item_id = $4
 		AttemptCount: 1,
 		ClaimEpoch:   1,
 	}
-	if err := queue.Ack(ctx, staleFirstAttempt, reducer.Result{}); err != ErrReducerClaimRejected {
+	if err := queue.Ack(ctx, staleFirstAttempt, reducercontract.Result{}); err != ErrReducerClaimRejected {
 		t.Fatalf("stale new-binary ACK = %v, want claim rejection", err)
 	}
 	assertContainerImageIdentityAckWorkItemState(
@@ -110,7 +110,7 @@ WHERE work_item_id = $4
 		refenced.AttemptCount != 1 || refenced.ClaimEpoch != 3 {
 		t.Fatalf("refenced claim = %+v ok=%t, want attempt 1 at epoch 3", refenced, ok)
 	}
-	if err := queue.Ack(ctx, refenced, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, refenced, reducercontract.Result{}); err != nil {
 		t.Fatalf("current attempt ACK: %v", err)
 	}
 	assertContainerImageIdentityAckClaimFence(
@@ -171,7 +171,7 @@ WHERE work_item_id = $2
 			ok,
 		)
 	}
-	if err := queue.Ack(ctx, replayedRefenced, reducer.Result{}); err != nil {
+	if err := queue.Ack(ctx, replayedRefenced, reducercontract.Result{}); err != nil {
 		t.Fatalf("replayed current attempt ACK: %v", err)
 	}
 	assertContainerImageIdentityAckClaimFence(
