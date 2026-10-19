@@ -25,6 +25,10 @@ owns those steps after it receives the isolated connection.
   references the constant.
 - `DeferredPartitionProofDSN` reads `ESHU_DEFERRED_PARTITION_PROOF_DSN`, then
   `ESHU_LATEST_GENERATION_PROOF_DSN`, or skips.
+- `RaisePoolForConcurrentClaimers` sizes a proof pool to one pinned
+  connection per concurrent claimer plus slack, so claim-race proofs never
+  serialize behind one connection (pool.go). Callers prove the concurrency
+  is real with distinct `pg_backend_pid` values and pool stats, not sleeps.
 
 The godoc contract is in [doc.go](doc.go).
 
