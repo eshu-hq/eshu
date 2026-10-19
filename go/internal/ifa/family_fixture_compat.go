@@ -53,6 +53,7 @@ const (
 	SubmodulePinFamilyOduName                   = familyodu.SubmodulePinFamilyOduName
 	SymbolRuntimeFamilyOduName                  = familyodu.SymbolRuntimeFamilyOduName
 	UsesServiceAccountFamilyOduName             = familyodu.UsesServiceAccountFamilyOduName
+	UsesVaultPolicyFamilyOduName                = familyodu.UsesVaultPolicyFamilyOduName
 	WorkloadCloudRelationshipFamilyOduName      = familyodu.WorkloadCloudRelationshipFamilyOduName
 	WorkloadDependencyFamilyOduName             = familyodu.WorkloadDependencyFamilyOduName
 )
@@ -159,6 +160,12 @@ func IAMCanAssumeFamilyOdu() CatalogOdu { return familyodu.IAMCanAssumeFamilyOdu
 // role family Odù.
 func AuthenticatesVaultRoleFamilyOdu() CatalogOdu {
 	return familyodu.AuthenticatesVaultRoleFamilyOdu()
+}
+
+// UsesVaultPolicyFamilyOdu returns the cataloged uses vault policy family
+// Odù.
+func UsesVaultPolicyFamilyOdu() CatalogOdu {
+	return familyodu.UsesVaultPolicyFamilyOdu()
 }
 
 // IAMCanPerformFamilyOdu returns the cataloged IAM can-perform family Odù.

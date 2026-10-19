@@ -262,6 +262,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveUsesServiceAccountMaterializedEdges(odu, usesServiceAccountExpectedEdgesPath(r.RepoRoot))
 	case authenticatesVaultRoleFamily:
 		return resolveAuthenticatesVaultRoleMaterializedEdges(odu, authenticatesVaultRoleExpectedEdgesPath(r.RepoRoot))
+	case usesVaultPolicyFamily:
+		return resolveUsesVaultPolicyMaterializedEdges(odu, usesVaultPolicyExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}

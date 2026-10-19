@@ -47,3 +47,29 @@ ifa_authenticates_vault_role_assert() {
 		-domain authenticates_vault_role \
 		-expected "${expected_edges}"
 }
+
+# ifa_uses_vault_policy_drive replays the uses-vault-policy cassette.
+ifa_uses_vault_policy_drive() {
+	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
+	_ifa_direct_family_drive uses-vault-policy \
+		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
+# ifa_uses_vault_policy_assert pins the three-edge exact set. Called
+# twice per cell for the reason recorded on the namespace assert in
+# ifa_direct_family_live.sh: post-delta is the only place an
+# identical-across-N generation-2 mutation shows up.
+#
+# The three edges are the exact-digest resolutions: the IRSA lane's Vault
+# role using its two token policies, and the EKS Pod Identity lane's Vault
+# role using its one token policy -- checked in both the pre-delta and
+# post-delta phase of each N cell, so a generation-2 SQL delta that touched
+# an unrelated family's Vault-adjacent rows would still have to preserve
+# this family's set to stay green.
+ifa_uses_vault_policy_assert() {
+	local label="$1" bin_dir="$2" expected_edges="$3"
+	printf '\n=== %s: assert uses_vault_policy materialized edges (three-edge exact set) ===\n' "${label}"
+	"${bin_dir}/eshu-ifa" assert-edges \
+		-domain uses_vault_policy \
+		-expected "${expected_edges}"
+}

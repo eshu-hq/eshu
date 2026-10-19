@@ -1,0 +1,21 @@
+{
+  "odu": "odu:ifa-uses-vault-policy-family",
+  "note": "Hand-derived from SecretsIAMUsesVaultPolicyEdgeUpsertCypher (go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go), NOT from the port or family name. The template is `MATCH (v:SecretsIAMVaultAuthRole {uid: row.vault_auth_role_uid}) MATCH (p:SecretsIAMVaultPolicy {uid: row.vault_policy_uid}) MERGE (v)-[rel:SECRETS_IAM_USES_VAULT_POLICY]->(p)`, and the token is static in the template (no %s: no value is ever encoded into a relationship type). The relationship MERGEs on its two endpoint nodes alone, so there is no identity block and no plain-string SET property: scope_id, generation_id, confidence, and evidence_fact_ids are per-run or data-carried values, and evidence_source is the writer's stamp. Exactly three edges: lane A resolves an IRSA web-identity exact chain whose Vault role carries two token policies (uses-vault-role-1 to uses-vault-policy-1 and uses-vault-policy-2) and lane B an EKS Pod Identity exact chain whose role carries one (uses-vault-role-2 to uses-vault-policy-3), so both identity mechanisms prove the policy fan-out. The other five lanes contribute nothing on purpose -- lane C carries a full chain without any Vault role bound to its service account, the ghost role binds a service account nobody observed, lane D's wildcard web-identity subject never matches exactly, lane E's wildcard Vault bound-service-account selector refuses the exact join, and lane F's Deny trust statement grants nothing.",
+  "edges": [
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:uses-vault-role-1",
+      "target_entity_id": "sha256:uses-vault-policy-1"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:uses-vault-role-1",
+      "target_entity_id": "sha256:uses-vault-policy-2"
+    },
+    {
+      "relationship_type": "SECRETS_IAM_USES_VAULT_POLICY",
+      "source_entity_id": "sha256:uses-vault-role-2",
+      "target_entity_id": "sha256:uses-vault-policy-3"
+    }
+  ]
+}

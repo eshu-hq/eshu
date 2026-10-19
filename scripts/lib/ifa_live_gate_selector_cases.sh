@@ -464,6 +464,13 @@ ifa_live_gate_common_seams=(
 	'testdata/cassettes/authenticatesvaultrole/**|testdata/cassettes/authenticatesvaultrole/ifa-authenticates-vault-role-family.json'
 	'go/internal/ifa/testdata/authenticatesvaultrole/**|go/internal/ifa/testdata/authenticatesvaultrole/ifa-authenticates-vault-role-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_authenticates_vault_role_cells.sh|scripts/lib/ifa_fault_injection_authenticates_vault_role_cells.sh'
+	# uses_vault_policy (#6228 slice A full build): cassette, expected-edge
+	# set, and cells are new common seams beside the siblings; the Odù stays
+	# in the determinism-only table and the writer seam above already covers
+	# this family's templates (same file).
+	'testdata/cassettes/usesvaultpolicy/**|testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json'
+	'go/internal/ifa/testdata/usesvaultpolicy/**|go/internal/ifa/testdata/usesvaultpolicy/ifa-uses-vault-policy-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh|scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder.go'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder_delta.go'
 	'go/internal/collector/repo/git/followup_facts.go|go/internal/collector/repo/git/followup_facts.go'

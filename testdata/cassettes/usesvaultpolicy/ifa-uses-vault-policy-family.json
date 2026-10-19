@@ -1,0 +1,537 @@
+{
+  "collector": "secrets_iam_posture",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "collector_kind": "secrets_iam_posture",
+      "facts": [
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_service_account",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-a"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_service_account:sha256:sa-uses-app-a"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_workload_identity_use",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-a",
+            "workload_kind": "deployments",
+            "workload_object_id": "wl-uses-a"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_workload_identity_use:sha256:sa-uses-app-a"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "eks_irsa_annotation",
+          "fencing_token": 1,
+          "payload": {
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-a",
+            "service_account_join_key": "sha256:sa-uses-app-a",
+            "web_identity_subject_fingerprint": "sha256:uses-web-identity-subject-a"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:eks_irsa_annotation:sha256:sa-uses-app-a"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_principal",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "principal_arn": "arn:aws:iam::123456789012:role/uses-app-a",
+            "principal_type": "aws_iam_role",
+            "provider": "aws_iam",
+            "region": "us-east-1"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_principal:arn:aws:iam::123456789012:role/uses-app-a"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_trust_policy",
+          "fencing_token": 1,
+          "payload": {
+            "actions": [
+              "sts:assumerolewithwebidentity"
+            ],
+            "effect": "Allow",
+            "provider": "aws_iam",
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-a",
+            "web_identity_subject_fingerprints": [
+              "sha256:uses-web-identity-subject-a"
+            ],
+            "web_identity_subject_wildcard": false
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_trust_policy:arn:aws:iam::123456789012:role/uses-app-a:Allow"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "vault_auth_role",
+          "fencing_token": 1,
+          "payload": {
+            "bound_service_account_join_keys": [
+              "sha256:sa-uses-app-a"
+            ],
+            "bound_service_account_selector_wildcard": false,
+            "mount_join_key": "sha256:uses-vault-mount",
+            "role_join_key": "sha256:uses-vault-role-1",
+            "token_policy_join_keys": [
+              "sha256:uses-vault-policy-1",
+              "sha256:uses-vault-policy-2"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:vault_auth_role:sha256:uses-vault-role-1"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_service_account",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-b"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_service_account:sha256:sa-uses-app-b"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_workload_identity_use",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-b",
+            "workload_kind": "deployments",
+            "workload_object_id": "wl-uses-b"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_workload_identity_use:sha256:sa-uses-app-b"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "eks_pod_identity_association",
+          "fencing_token": 1,
+          "payload": {
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-b",
+            "service_account_join_key": "sha256:sa-uses-app-b"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:eks_pod_identity_association:sha256:sa-uses-app-b"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_principal",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "principal_arn": "arn:aws:iam::123456789012:role/uses-app-b",
+            "principal_type": "aws_iam_role",
+            "provider": "aws_iam",
+            "region": "us-east-1"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_principal:arn:aws:iam::123456789012:role/uses-app-b"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_trust_policy",
+          "fencing_token": 1,
+          "payload": {
+            "actions": [
+              "sts:AssumeRole"
+            ],
+            "assume_principals": [
+              "pods.eks.amazonaws.com"
+            ],
+            "effect": "Allow",
+            "provider": "aws_iam",
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-b"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_trust_policy:arn:aws:iam::123456789012:role/uses-app-b:pod-identity"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "vault_auth_role",
+          "fencing_token": 1,
+          "payload": {
+            "bound_service_account_join_keys": [
+              "sha256:sa-uses-app-b"
+            ],
+            "bound_service_account_selector_wildcard": false,
+            "mount_join_key": "sha256:uses-vault-mount",
+            "role_join_key": "sha256:uses-vault-role-2",
+            "token_policy_join_keys": [
+              "sha256:uses-vault-policy-3"
+            ]
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:vault_auth_role:sha256:uses-vault-role-2"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_service_account",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-c"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_service_account:sha256:sa-uses-app-c"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_workload_identity_use",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-c",
+            "workload_kind": "deployments",
+            "workload_object_id": "wl-uses-c"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_workload_identity_use:sha256:sa-uses-app-c"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "eks_irsa_annotation",
+          "fencing_token": 1,
+          "payload": {
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-c",
+            "service_account_join_key": "sha256:sa-uses-app-c",
+            "web_identity_subject_fingerprint": "sha256:uses-web-identity-subject-c"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:eks_irsa_annotation:sha256:sa-uses-app-c"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_principal",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "principal_arn": "arn:aws:iam::123456789012:role/uses-app-c",
+            "principal_type": "aws_iam_role",
+            "provider": "aws_iam",
+            "region": "us-east-1"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_principal:arn:aws:iam::123456789012:role/uses-app-c"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_trust_policy",
+          "fencing_token": 1,
+          "payload": {
+            "actions": [
+              "sts:assumerolewithwebidentity"
+            ],
+            "effect": "Allow",
+            "provider": "aws_iam",
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-c",
+            "web_identity_subject_fingerprints": [
+              "sha256:uses-web-identity-subject-c"
+            ],
+            "web_identity_subject_wildcard": false
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_trust_policy:arn:aws:iam::123456789012:role/uses-app-c:Allow"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "vault_auth_role",
+          "fencing_token": 1,
+          "payload": {
+            "bound_service_account_join_keys": [
+              "sha256:sa-uses-ghost"
+            ],
+            "bound_service_account_selector_wildcard": false,
+            "mount_join_key": "sha256:uses-vault-mount",
+            "role_join_key": "sha256:uses-vault-role-3"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:vault_auth_role:sha256:uses-vault-role-3"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_service_account",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-d"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_service_account:sha256:sa-uses-app-d"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_workload_identity_use",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-d",
+            "workload_kind": "deployments",
+            "workload_object_id": "wl-uses-d"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_workload_identity_use:sha256:sa-uses-app-d"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "eks_irsa_annotation",
+          "fencing_token": 1,
+          "payload": {
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-d",
+            "service_account_join_key": "sha256:sa-uses-app-d",
+            "web_identity_subject_fingerprint": "sha256:uses-web-identity-subject-d"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:eks_irsa_annotation:sha256:sa-uses-app-d"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_principal",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "principal_arn": "arn:aws:iam::123456789012:role/uses-app-d",
+            "principal_type": "aws_iam_role",
+            "provider": "aws_iam",
+            "region": "us-east-1"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_principal:arn:aws:iam::123456789012:role/uses-app-d"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_trust_policy",
+          "fencing_token": 1,
+          "payload": {
+            "actions": [
+              "sts:assumerolewithwebidentity"
+            ],
+            "effect": "Allow",
+            "provider": "aws_iam",
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-d",
+            "web_identity_subject_fingerprints": [
+              "sha256:uses-web-identity-subject-d"
+            ],
+            "web_identity_subject_wildcard": true
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_trust_policy:arn:aws:iam::123456789012:role/uses-app-d:Allow"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_service_account",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-e"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_service_account:sha256:sa-uses-app-e"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_workload_identity_use",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-e",
+            "workload_kind": "deployments",
+            "workload_object_id": "wl-uses-e"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_workload_identity_use:sha256:sa-uses-app-e"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "eks_pod_identity_association",
+          "fencing_token": 1,
+          "payload": {
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-e",
+            "service_account_join_key": "sha256:sa-uses-app-e"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:eks_pod_identity_association:sha256:sa-uses-app-e"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_principal",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "principal_arn": "arn:aws:iam::123456789012:role/uses-app-e",
+            "principal_type": "aws_iam_role",
+            "provider": "aws_iam",
+            "region": "us-east-1"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_principal:arn:aws:iam::123456789012:role/uses-app-e"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_trust_policy",
+          "fencing_token": 1,
+          "payload": {
+            "actions": [
+              "sts:AssumeRole"
+            ],
+            "assume_principals": [
+              "pods.eks.amazonaws.com"
+            ],
+            "effect": "Allow",
+            "provider": "aws_iam",
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-e"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_trust_policy:arn:aws:iam::123456789012:role/uses-app-e:pod-identity"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "vault_auth_role",
+          "fencing_token": 1,
+          "payload": {
+            "bound_service_account_join_keys": [
+              "sha256:sa-uses-app-e"
+            ],
+            "bound_service_account_selector_wildcard": true,
+            "mount_join_key": "sha256:uses-vault-mount",
+            "role_join_key": "sha256:uses-vault-role-4"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:vault_auth_role:sha256:uses-vault-role-4"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_service_account",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-f"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_service_account:sha256:sa-uses-app-f"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "k8s_workload_identity_use",
+          "fencing_token": 1,
+          "payload": {
+            "service_account_join_key": "sha256:sa-uses-app-f",
+            "workload_kind": "deployments",
+            "workload_object_id": "wl-uses-f"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:k8s_workload_identity_use:sha256:sa-uses-app-f"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "eks_irsa_annotation",
+          "fencing_token": 1,
+          "payload": {
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-f",
+            "service_account_join_key": "sha256:sa-uses-app-f",
+            "web_identity_subject_fingerprint": "sha256:uses-web-identity-subject-f"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:eks_irsa_annotation:sha256:sa-uses-app-f"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_principal",
+          "fencing_token": 1,
+          "payload": {
+            "account_id": "123456789012",
+            "principal_arn": "arn:aws:iam::123456789012:role/uses-app-f",
+            "principal_type": "aws_iam_role",
+            "provider": "aws_iam",
+            "region": "us-east-1"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_principal:arn:aws:iam::123456789012:role/uses-app-f"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "aws_iam_trust_policy",
+          "fencing_token": 1,
+          "payload": {
+            "actions": [
+              "sts:assumerolewithwebidentity"
+            ],
+            "effect": "Deny",
+            "provider": "aws_iam",
+            "role_arn": "arn:aws:iam::123456789012:role/uses-app-f",
+            "web_identity_subject_fingerprints": [
+              "sha256:uses-web-identity-subject-f"
+            ],
+            "web_identity_subject_wildcard": false
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:aws_iam_trust_policy:arn:aws:iam::123456789012:role/uses-app-f:Deny"
+        },
+        {
+          "collector_kind": "secrets_iam_posture",
+          "fact_kind": "vault_auth_role",
+          "fencing_token": 1,
+          "payload": {
+            "bound_service_account_join_keys": [
+              "sha256:sa-uses-app-f"
+            ],
+            "bound_service_account_selector_wildcard": false,
+            "mount_join_key": "sha256:uses-vault-mount",
+            "role_join_key": "sha256:uses-vault-role-5"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "secretsiam:vault_auth_role:sha256:uses-vault-role-5"
+        }
+      ],
+      "generation_id": "gen-ifa-uses-vault-policy-family-1",
+      "metadata": {
+        "account_id": "123456789012",
+        "service_kind": "secrets-iam"
+      },
+      "observed_at": "2026-10-19T00:00:00Z",
+      "partition_key": "vault:eshu-fixture-uses-account",
+      "scope_id": "vault:eshu-fixture-uses-account",
+      "scope_kind": "account",
+      "source_system": "secrets_iam_posture",
+      "trigger_kind": "snapshot"
+    }
+  ]
+}

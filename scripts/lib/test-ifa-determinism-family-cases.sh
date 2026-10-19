@@ -321,6 +321,8 @@ require_vault_family_lib() {
 }
 require_vault_family_lib "authenticates-vault-role assert-edges domain" "-domain authenticates_vault_role"
 require_vault_family_lib "authenticates-vault-role drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_vault_family_lib "uses-vault-policy assert-edges domain" "-domain uses_vault_policy"
+require_vault_family_lib "uses-vault-policy drive takes the labeled signature" 'ifa_uses_vault_policy_drive()'
 require_direct_family_lib "kubernetes-correlation assert-edges domain" "-domain kubernetes_correlation"
 require_direct_family_lib "kubernetes-correlation drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "cloud-resource assert-edges domain" "-domain cloud_resource"
@@ -382,6 +384,7 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[ec2_uses_profile]="-domain ec2_uses_profile"
 	[s3_logs_to]="-domain s3_logs_to"
 	[authenticates_vault_role]="-domain authenticates_vault_role"
+	[uses_vault_policy]="-domain uses_vault_policy"
 	[kubernetes_correlation]="-domain kubernetes_correlation"
 	[cloud_resource]="-domain cloud_resource"
 	[semantic_entity_containment]="-domain semantic_entity_containment"
@@ -456,15 +459,15 @@ done
 # re-assertion of any kind, so neither ifa_submodule_pin_drive nor
 # ifa_submodule_pin_assert has a legitimate bare-name call anywhere in the
 # gate; dispatch is entirely through the registry loop for this family.
-# The twelve DIRECT families (#6228/#8358; #8359 for the last; plus
-# authenticates_vault_role from this change) join the drive half of this list
-# only. All twelve are dispatched into every N cell through the registry loop,
-# so no drive function has a legitimate bare-name call in the gate -- but each
+# The thirteen DIRECT families (#6228/#8358; #8359 for the last; plus the
+# two vault families from this stack) join the drive half of this list only.
+# All thirteen are dispatched into every N cell through the registry loop, so
+# no drive function has a legitimate bare-name call in the gate -- but each
 # ASSERT function does have exactly one (the post-delta re-assertion pinned
 # below), so the asserts take a count pin instead of a place here.
 for leftover_fn in ifa_det_drive_sql_baseline ifa_code_call_drive ifa_documentation_drive ifa_rationale_drive \
 	ifa_codeowners_drive ifa_submodule_pin_drive ifa_submodule_pin_assert \
-	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive ifa_iam_can_perform_drive ifa_workload_cloud_relationship_drive ifa_iam_escalation_drive ifa_ec2_uses_profile_drive ifa_s3_logs_to_drive ifa_authenticates_vault_role_drive ifa_kubernetes_correlation_drive ifa_cloud_resource_drive ifa_semantic_entity_containment_drive \
+	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive ifa_iam_can_perform_drive ifa_workload_cloud_relationship_drive ifa_iam_escalation_drive ifa_ec2_uses_profile_drive ifa_s3_logs_to_drive ifa_authenticates_vault_role_drive ifa_uses_vault_policy_drive ifa_kubernetes_correlation_drive ifa_cloud_resource_drive ifa_semantic_entity_containment_drive \
 	ifa_det_assert_sql_baseline ifa_rationale_assert; do
 	if rg --fixed-strings --quiet -- "${leftover_fn} \"" "${script}"; then
 		fail "leftover literal per-family call survives outside the registry loop: ${leftover_fn} (would double-drive/assert that family and change what every N-loop digest covers)"
@@ -488,7 +491,7 @@ codeowners_assert_count="$(rg --count --fixed-strings -- 'ifa_codeowners_assert 
 [[ "${codeowners_assert_count}" -eq 1 ]] \
 	|| fail "expected exactly 1 occurrence of ifa_codeowners_assert (the post-delta re-assertion) outside the registry loop; found ${codeowners_assert_count} -- an extra occurrence would double-assert this family in every N-loop cell"
 
-# The eleven DIRECT families post-delta ordering cases live in a sourced
+# The twelve DIRECT families post-delta ordering cases live in a sourced
 # sibling so this module stays below the 500-line cap (the same split the
 # maintenance-backed families took once this file crossed the cap).
 # run_ifa_determinism_post_delta_cases takes the gate script path plus the

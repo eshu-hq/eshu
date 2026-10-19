@@ -74,7 +74,9 @@ func parseIfaFamilyRegistryBlockerKinds(t *testing.T, rowsDir string) map[string
 // contract.
 func parseIfaFamilyRegistryWaitKeys(t *testing.T, rowsDir string) map[string]string {
 	t.Helper()
-	return parseIfaFamilyRegistryTable(t, rowsDir, ifaFamilyRegistryWaitKeyRE, "IFA_FAMILY_WAIT_KEY")
+	// Absence-tolerant: a kill-less family (no kill cell, no claim wait)
+	// declares no wait_key at all -- see parseIfaFamilyRegistryTableAllowingAbsent.
+	return parseIfaFamilyRegistryTableAllowingAbsent(t, rowsDir, ifaFamilyRegistryWaitKeyRE, "IFA_FAMILY_WAIT_KEY", true)
 }
 
 // parseIfaFamilyRegistryWaitStages reads each family's declared
@@ -85,7 +87,9 @@ func parseIfaFamilyRegistryWaitKeys(t *testing.T, rowsDir string) map[string]str
 // parser exists rather than the wait_key check standing alone.
 func parseIfaFamilyRegistryWaitStages(t *testing.T, rowsDir string) map[string]string {
 	t.Helper()
-	return parseIfaFamilyRegistryTable(t, rowsDir, ifaFamilyRegistryWaitStageRE, "IFA_FAMILY_WAIT_STAGE")
+	// Absence-tolerant: a kill-less family (no kill cell, no claim wait)
+	// declares no wait_stage at all -- see parseIfaFamilyRegistryTableAllowingAbsent.
+	return parseIfaFamilyRegistryTableAllowingAbsent(t, rowsDir, ifaFamilyRegistryWaitStageRE, "IFA_FAMILY_WAIT_STAGE", true)
 }
 
 // parseIfaFamilyRegistryAnchors reads every family's declared
@@ -133,6 +137,30 @@ func parseIfaFamilyRegistryAnchors(t *testing.T, rowsDir string) map[string]stri
 func parseIfaFamilyRegistryTable(t *testing.T, rowsDir string, tableRE *regexp.Regexp, tableName string) map[string]string {
 	t.Helper()
 
+	return parseIfaFamilyRegistryTableAllowingAbsent(t, rowsDir, tableRE, tableName, false)
+}
+
+// parseIfaFamilyRegistryTableAllowingAbsent is parseIfaFamilyRegistryTable
+// with one deliberate relaxation: when allowAbsentRow is true, a row file
+// that matches zero tableRE assignments contributes nothing instead of
+// failing the test.
+//
+// That relaxation exists for exactly one shape: the kill-less
+// direct-materialization family (uses_vault_policy, tracked as schema gap
+// #8539). A family with fault cells but no kill cell polls no claim wait,
+// so its row declares no IFA_FAMILY_WAIT_STAGE / IFA_FAMILY_WAIT_KEY -- any
+// value there would be a fake wait or a borrowed key (arbiter verdict
+// Option B on #6228). Absence is the honest declaration, and this parser
+// models it explicitly rather than forcing a fake value to satisfy a
+// fail-closed guard. The fail-closed properties that matter are preserved:
+// the directory-missing, zero-row-files, and globally-empty fatal paths are
+// unchanged, and every coherence consumer ranges over the returned maps, so
+// an undeclared family is checked by nothing rather than waved through --
+// which is exactly why the shell derived-pins checker asserts the absence
+// explicitly per family instead of merely tolerating it.
+func parseIfaFamilyRegistryTableAllowingAbsent(t *testing.T, rowsDir string, tableRE *regexp.Regexp, tableName string, allowAbsentRow bool) map[string]string {
+	t.Helper()
+
 	entries, err := os.ReadDir(rowsDir)
 	if err != nil {
 		t.Fatalf("read dir %s: %v -- rows directory missing or unreadable; every gate that iterates this registry would silently drive zero families and still report success, so this parser refuses to treat that as \"no families declared\"", rowsDir, err)
@@ -157,7 +185,7 @@ func parseIfaFamilyRegistryTable(t *testing.T, rowsDir string, tableRE *regexp.R
 			t.Fatalf("read %s: %v", path, err)
 		}
 		rows := tableRE.FindAllSubmatch(raw, -1)
-		if len(rows) == 0 {
+		if len(rows) == 0 && !allowAbsentRow {
 			t.Fatalf("%s: matched no %s[<family>]=\"<value>\" assignments -- registry row-file format changed, this parser is stale", path, tableName)
 		}
 		for _, row := range rows {

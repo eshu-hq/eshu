@@ -60,9 +60,9 @@
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
-#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56/59/62
-#   - an exact runner-waiter proof for cells 68/69/70
-#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/60/63/65/66/67
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/58/61/64
+#   - an exact runner-waiter proof for cells 70/71/72
+#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/56/59/62/65/67/68/69
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
@@ -129,8 +129,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56/59/62) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/60/63/65/66/67's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/58/61/64) and the default 30s (+jitter)
+# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/56/59/62/65/67/68/69's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
@@ -398,6 +398,11 @@ ifa_fault_shard_run cell_failgraphwrite_iam_escalation
 ifa_fault_shard_run cell_baseline_authenticates_vault_role
 ifa_fault_shard_run cell_killworker_authenticates_vault_role
 ifa_fault_shard_run cell_failgraphwrite_authenticates_vault_role
+# uses_vault_policy (#6228 slice A): ninth direct family, baseline
+# first, kill-less pair per arbiter verdict Option B on #6228 (no
+# kill-worker cell; mid-handler kill/reclaim is gap #8539).
+ifa_fault_shard_run cell_baseline_uses_vault_policy
+ifa_fault_shard_run cell_failgraphwrite_uses_vault_policy
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,

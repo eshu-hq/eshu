@@ -112,6 +112,10 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// build: same stem shape, read off the fault cells file and the cypher
 	// writer the triggers name.
 	"authenticates_vault_role": "authenticates_vault_role",
+	// uses_vault_policy joins them with the #6228 slice A full
+	// build: same stem shape, read off the fault cells file and the cypher
+	// writer the triggers name.
+	"uses_vault_policy": "uses_vault_policy",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

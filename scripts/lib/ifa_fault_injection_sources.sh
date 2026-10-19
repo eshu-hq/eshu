@@ -98,6 +98,8 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_can_assume
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_escalation_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_authenticates_vault_role_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_authenticates_vault_role_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_ec2_uses_profile_cells.sh

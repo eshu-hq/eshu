@@ -148,6 +148,12 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes:  []string{"SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE"},
 		LiveProven: true,
 	},
+	{
+		Family:     usesVaultPolicyFamily,
+		OduName:    ifa.UsesVaultPolicyFamilyOduName,
+		EdgeTypes:  []string{"SECRETS_IAM_USES_VAULT_POLICY"},
+		LiveProven: true,
+	},
 }
 
 // guardedDirectFamilyCoverageEntry builds the coverage entry a ledger row for

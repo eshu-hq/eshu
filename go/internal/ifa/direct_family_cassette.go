@@ -51,6 +51,7 @@ const (
 	ec2UsesProfileFamilyCassettePath                 = "testdata/cassettes/ec2usesprofile/ifa-ec2-uses-profile-family.json"
 	s3LogsToFamilyCassettePath                       = "testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json"
 	authenticatesVaultRoleFamilyCassettePath         = "testdata/cassettes/authenticatesvaultrole/ifa-authenticates-vault-role-family.json"
+	usesVaultPolicyFamilyCassettePath                = "testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json"
 	kubernetesCorrelationFamilyCassettePath          = "testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
 	semanticEntityContainmentFamilyCassettePath      = "testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
 	cloudResourceFamilyCassettePath                  = "testdata/cassettes/cloudresource/ifa-cloud-resource-family.json"
@@ -221,6 +222,19 @@ func AuthenticatesVaultRoleFamilyCassetteFullPath(repoRoot string) string {
 // authenticates_vault_role counterpart to LoadS3LogsToFamilyOdu.
 func LoadAuthenticatesVaultRoleFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, AuthenticatesVaultRoleFamilyOduName)
+}
+
+// UsesVaultPolicyFamilyCassetteFullPath joins repoRoot onto the committed
+// uses_vault_policy family cassette path.
+func UsesVaultPolicyFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, usesVaultPolicyFamilyCassettePath)
+}
+
+// LoadUsesVaultPolicyFamilyOdu reads the committed cassette and projects it
+// onto the fact envelopes the reducer's extractor consumes, the
+// uses_vault_policy counterpart to LoadAuthenticatesVaultRoleFamilyOdu.
+func LoadUsesVaultPolicyFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, UsesVaultPolicyFamilyOduName)
 }
 
 // KubernetesCorrelationFamilyCassetteFullPath joins repoRoot onto the committed

@@ -91,6 +91,7 @@ IFA_FAMILY_PINS_NAMES=(
 	ec2_uses_profile
 	s3_logs_to
 	authenticates_vault_role
+	uses_vault_policy
 	kubernetes_correlation
 	cloud_resource
 	semantic_entity_containment
@@ -215,15 +216,35 @@ run_ifa_family_registry_pins_cases() {
 		[[ "${value}" == "${IFA_FAMILY_PIN_BLOCKER_KIND}" ]] \
 			|| fail "family registry blocker_kind mismatch for '${family}': registry declares '${value}', hand-derived expectation is '${IFA_FAMILY_PIN_BLOCKER_KIND}' (see scripts/lib/ifa_family_registry_pins/${family}.sh)"
 
-		value="$(ifa_family_registry_pins_lookup_wait_stage "${family}")" \
-			|| fail "family registry totality: pinned family '${family}' is not declared by ${registry_family_lib} (or its wait_stage accessor failed)"
-		[[ "${value}" == "${IFA_FAMILY_PIN_WAIT_STAGE}" ]] \
-			|| fail "family registry wait_stage mismatch for '${family}': registry declares '${value}', hand-derived expectation is '${IFA_FAMILY_PIN_WAIT_STAGE}' (see scripts/lib/ifa_family_registry_pins/${family}.sh)"
+		# KILL-LESS SHAPE (#8539): a pin file whose WAIT_STAGE/WAIT_KEY is
+		# empty asserts the registry row declares NO wait at all -- the
+		# family has fault cells but no kill cell, so no remaining cell
+		# polls a claim wait and any declared value would be a fake wait
+		# or a borrowed key. The accessor MUST fail (absent key); a
+		# present-but-empty value would also satisfy the shell loader
+		# while reading as "declared" to the Go parsers, so fail on that
+		# too. Today only uses_vault_policy pins this shape.
+		if [[ -z "${IFA_FAMILY_PIN_WAIT_STAGE}" ]]; then
+			if value="$(ifa_family_registry_pins_lookup_wait_stage "${family}" 2>/dev/null)"; then
+				fail "family registry wait_stage mismatch for '${family}': hand-derived expectation is NO wait_stage declaration (kill-less shape, #8539), but the registry declares '${value}' (see scripts/lib/ifa_family_registry_pins/${family}.sh)"
+			fi
+		else
+			value="$(ifa_family_registry_pins_lookup_wait_stage "${family}")" \
+				|| fail "family registry totality: pinned family '${family}' is not declared by ${registry_family_lib} (or its wait_stage accessor failed)"
+			[[ "${value}" == "${IFA_FAMILY_PIN_WAIT_STAGE}" ]] \
+				|| fail "family registry wait_stage mismatch for '${family}': registry declares '${value}', hand-derived expectation is '${IFA_FAMILY_PIN_WAIT_STAGE}' (see scripts/lib/ifa_family_registry_pins/${family}.sh)"
+		fi
 
-		value="$(ifa_family_registry_pins_lookup_wait_key "${family}")" \
-			|| fail "family registry totality: pinned family '${family}' is not declared by ${registry_family_lib} (or its wait_key accessor failed)"
-		[[ "${value}" == "${IFA_FAMILY_PIN_WAIT_KEY}" ]] \
-			|| fail "family registry wait_key mismatch for '${family}': registry declares '${value}', hand-derived expectation is '${IFA_FAMILY_PIN_WAIT_KEY}' (see scripts/lib/ifa_family_registry_pins/${family}.sh)"
+		if [[ -z "${IFA_FAMILY_PIN_WAIT_KEY}" ]]; then
+			if value="$(ifa_family_registry_pins_lookup_wait_key "${family}" 2>/dev/null)"; then
+				fail "family registry wait_key mismatch for '${family}': hand-derived expectation is NO wait_key declaration (kill-less shape, #8539), but the registry declares '${value}' (see scripts/lib/ifa_family_registry_pins/${family}.sh)"
+			fi
+		else
+			value="$(ifa_family_registry_pins_lookup_wait_key "${family}")" \
+				|| fail "family registry totality: pinned family '${family}' is not declared by ${registry_family_lib} (or its wait_key accessor failed)"
+			[[ "${value}" == "${IFA_FAMILY_PIN_WAIT_KEY}" ]] \
+				|| fail "family registry wait_key mismatch for '${family}': registry declares '${value}', hand-derived expectation is '${IFA_FAMILY_PIN_WAIT_KEY}' (see scripts/lib/ifa_family_registry_pins/${family}.sh)"
+		fi
 
 		value="$(ifa_family_registry_pins_lookup_anchor "${family}")" \
 			|| fail "family registry totality: pinned family '${family}' is not declared by ${registry_family_lib} (or its anchor accessor failed)"

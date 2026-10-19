@@ -365,4 +365,21 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  iam.SecretsIAMVaultAuthRoleNodeRetractCypher,
 		IdentityCypher: iam.SecretsIAMVaultAuthRoleNodeUpsertCypher,
 	},
+	// uses_vault_policy is an evidenceNodeDetach family (#6228 slice A).
+	// Its edges hang off SecretsIAMVaultPolicy nodes only the secrets
+	// graph writer MERGEs (pinned by the sole-creator census in
+	// go/internal/storage/cypher), so the retract reaps the policy nodes
+	// with DETACH DELETE and the edges cascade. IdentityCypher holds the
+	// policy NODE upsert, the one template that MERGEs the evidence
+	// label, so the drift guard can derive it; the edge type itself is
+	// derived from the held edge upsert the RetractKind arm reads, never
+	// from the literal declared here. The edge template MERGEs on its two
+	// endpoint nodes alone (both are MATCHed, never merged), so the
+	// identity scan yields nothing.
+	"uses_vault_policy": {
+		EdgeTypes:      map[string]string{"SECRETS_IAM_USES_VAULT_POLICY": "Vault-role to Vault-policy use (SecretsIAMUsesVaultPolicyEdgeUpsertCypher in cloud/aws/iam/secrets_graph_writer.go)"},
+		RetractKind:    retractKindEvidenceNodeDetach,
+		RetractCypher:  iam.SecretsIAMVaultPolicyNodeRetractCypher,
+		IdentityCypher: iam.SecretsIAMVaultPolicyNodeUpsertCypher,
+	},
 }

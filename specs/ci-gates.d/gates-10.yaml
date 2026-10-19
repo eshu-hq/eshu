@@ -260,6 +260,7 @@ gates:
       - "testdata/cassettes/iamcanperform/**"
       - "testdata/cassettes/iamescalation/**"
       - "testdata/cassettes/authenticatesvaultrole/**"
+      - "testdata/cassettes/usesvaultpolicy/**"
       - "testdata/cassettes/ec2usesprofile/**"
       - "testdata/cassettes/cloudresource/**"
       - "testdata/cassettes/kubernetesnamespaceenvironment/**"
