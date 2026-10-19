@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -73,7 +74,7 @@ func TestReducerMetaclassEdgeRetractGraphTruth(t *testing.T) {
 	// Production write path: the metaclass template is the UNWIND + inline
 	// {uid} anchor shape, which matches on v1.1.11. Payload keys mirror the
 	// metaclass branch of buildCodeCallRowMap.
-	writeRows := []reducer.SharedProjectionIntentRow{
+	writeRows := []sharedintent.Row{
 		{IntentID: "meta-in", RepositoryID: metaEdgeInScopeRepoID, Payload: map[string]any{
 			"relationship_type": "USES_METACLASS",
 			"source_entity_id":  metaClsUser,
@@ -100,7 +101,7 @@ func TestReducerMetaclassEdgeRetractGraphTruth(t *testing.T) {
 	// Production retract path: repo-scoped rows under the python-metaclass
 	// evidence source fan out to one USES_METACLASS statement per source label
 	// (Function/Class/File), run sequentially (#5116).
-	retractRows := []reducer.SharedProjectionIntentRow{
+	retractRows := []sharedintent.Row{
 		{IntentID: "retract", RepositoryID: metaEdgeInScopeRepoID},
 	}
 	if err := writer.RetractEdges(ctx, reducer.DomainCodeCalls, retractRows, metaEdgeEvidenceSource); err != nil {

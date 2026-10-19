@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -163,13 +164,13 @@ func resolveDeployableUnitMaterializedEdges(odu ifa.Odu, expectedEdgesPath strin
 // only rows that end up admitted cannot prove the filter exists: removing it
 // entirely would still pass an exact-set comparison over an Odù with no
 // candidate that SHOULD be dropped.
-func deployableUnitAssertDropReasons(oduName string, rows, admitted []reducer.SharedProjectionIntentRow) string {
+func deployableUnitAssertDropReasons(oduName string, rows, admitted []sharedintent.Row) string {
 	admittedRepoIDs := make(map[string]struct{}, len(admitted))
 	for _, row := range admitted {
 		admittedRepoIDs[row.RepositoryID] = struct{}{}
 	}
 
-	var rejectedRow, noDeployRow *reducer.SharedProjectionIntentRow
+	var rejectedRow, noDeployRow *sharedintent.Row
 	for i := range rows {
 		switch rows[i].RepositoryID {
 		case deployableUnitFamilyRejectedRepoID:
@@ -210,7 +211,7 @@ func deployableUnitAssertDropReasons(oduName string, rows, admitted []reducer.Sh
 // produce. See resolveDeployableUnitMaterializedEdges's call site for why:
 // the bare MERGE key means the ExpectedEdge triple alone cannot catch a
 // correct repo pair admitted for the wrong reason.
-func deployableUnitAssertAdmittedEdgeProperties(oduName string, admitted []reducer.SharedProjectionIntentRow) string {
+func deployableUnitAssertAdmittedEdgeProperties(oduName string, admitted []sharedintent.Row) string {
 	if len(admitted) != 1 {
 		return fmt.Sprintf("odù %q: expected exactly 1 admitted row to assert non-identity properties against, got %d", oduName, len(admitted))
 	}

@@ -20,6 +20,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -49,7 +50,7 @@ func TestRepoDependencyIfaProcessDeathLive(t *testing.T) {
 	graphExec, _ := openDeltaLiveBackend(ctx, t)
 	odu := mustRepoDependencyIfaOdu(t)
 	row := repoDependencyProcessDeathRow(t, repoDependencyIfaRows(t, odu))
-	rows := []reducer.SharedProjectionIntentRow{row}
+	rows := []sharedintent.Row{row}
 	artifactIDs := repoDependencyIfaArtifactIDs(t, rows)
 	acquireRepoDependencyIfaExclusiveBackend(ctx, t, graphExec, artifactIDs)
 
@@ -173,7 +174,7 @@ func runRepoDependencyProcessDeathHelper(t *testing.T) {
 		store,
 		gate,
 		writer,
-		repoDependencyIfaAcceptedGeneration([]reducer.SharedProjectionIntentRow{row}),
+		repoDependencyIfaAcceptedGeneration([]sharedintent.Row{row}),
 		"process-death-owner-a",
 		1,
 	)
@@ -187,13 +188,13 @@ type repoDependencyProcessDeathWriter struct {
 }
 
 func (w *repoDependencyProcessDeathWriter) RetractEdges(
-	ctx context.Context, domain string, rows []reducer.SharedProjectionIntentRow, evidenceSource string,
+	ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string,
 ) error {
 	return w.inner.RetractEdges(ctx, domain, rows, evidenceSource)
 }
 
 func (w *repoDependencyProcessDeathWriter) WriteEdges(
-	ctx context.Context, domain string, rows []reducer.SharedProjectionIntentRow, evidenceSource string,
+	ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string,
 ) (reducer.SharedProjectionWriteReport, error) {
 	report, err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
 	if err != nil {
@@ -209,8 +210,8 @@ func (w *repoDependencyProcessDeathWriter) WriteEdges(
 }
 
 func repoDependencyProcessDeathRow(
-	t *testing.T, rows []reducer.SharedProjectionIntentRow,
-) reducer.SharedProjectionIntentRow {
+	t *testing.T, rows []sharedintent.Row,
+) sharedintent.Row {
 	t.Helper()
 	for _, row := range rows {
 		key, ok := row.AcceptanceKey()
@@ -219,7 +220,7 @@ func repoDependencyProcessDeathRow(
 		}
 	}
 	t.Fatal("Odù is missing repository:source-05 process-death row")
-	return reducer.SharedProjectionIntentRow{}
+	return sharedintent.Row{}
 }
 
 func openRepoDependencyProcessDeathProofDB(

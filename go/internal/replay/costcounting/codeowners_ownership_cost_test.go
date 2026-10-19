@@ -13,13 +13,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // codeownersOwnershipBudgetRelPath is the committed cost budget for the
 // codeowners_ownership scenario. Like documentation_materialization, this
 // projection has no committed cassette: edgewriter.EdgeWriter.WriteEdges operates
-// over flat reducer.SharedProjectionIntentRow values, not a
+// over flat sharedintent.Row values, not a
 // CanonicalMaterialization, so the fixture rows live inline in this file and
 // the budget records that explicitly instead of pointing at a cassette path.
 var codeownersOwnershipBudgetRelPath = filepath.Join(
@@ -38,7 +39,7 @@ const codeownersOwnershipCostEvidenceSource = "reducer/codeowners"
 // route). The pattern/owner values reuse the real golden-corpus fixture at
 // tests/fixtures/ecosystems/go_comprehensive/.github/CODEOWNERS (issue #5419
 // Phase 5) instead of inventing unrelated ones.
-func codeownersOwnershipEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
+func codeownersOwnershipEdgeFixtureRows() []sharedintent.Row {
 	rows := []map[string]any{
 		{
 			"repo_id":       "repo-1",
@@ -57,9 +58,9 @@ func codeownersOwnershipEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
 			"generation_id": "gen-1",
 		},
 	}
-	intents := make([]reducer.SharedProjectionIntentRow, 0, len(rows))
+	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
-		intents = append(intents, reducer.SharedProjectionIntentRow{
+		intents = append(intents, sharedintent.Row{
 			ProjectionDomain: reducer.DomainCodeownersOwnershipEdges,
 			PartitionKey: fmt.Sprintf(
 				"%s->%s->%s->%s", row["repo_id"], row["source_path"], row["pattern"], row["owner_ref"],
@@ -211,7 +212,7 @@ func TestCostBudget_CodeownersOwnership_N1_ExceedsBudget(t *testing.T) {
 		if _, err := writer.WriteEdges(
 			context.Background(),
 			reducer.DomainCodeownersOwnershipEdges,
-			[]reducer.SharedProjectionIntentRow{row},
+			[]sharedintent.Row{row},
 			codeownersOwnershipCostEvidenceSource,
 		); err != nil {
 			t.Fatalf("N+1 WriteEdges() error = %v", err)

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/refresh"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codeownersv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codeowners/v1"
@@ -27,15 +28,15 @@ import (
 // share unexported symbols across a package boundary (issue #6061).
 type replayRecordingCodeownersOwnershipEdgeWriter struct {
 	retractDomain string
-	retractRows   []SharedProjectionIntentRow
+	retractRows   []sharedintent.Row
 	writeDomain   string
-	writeRows     []SharedProjectionIntentRow
+	writeRows     []sharedintent.Row
 }
 
 func (r *replayRecordingCodeownersOwnershipEdgeWriter) RetractEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) error {
 	r.retractDomain = domain
@@ -46,7 +47,7 @@ func (r *replayRecordingCodeownersOwnershipEdgeWriter) RetractEdges(
 func (r *replayRecordingCodeownersOwnershipEdgeWriter) WriteEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) (SharedProjectionWriteReport, error) {
 	r.writeDomain = domain
@@ -210,7 +211,7 @@ func fencedFacts(envs []facts.Envelope) []facts.Envelope {
 // identity-keyed replay rows. The durable upsert MERGEs on IntentID
 // (BuildSharedProjectionIntent derives it deterministically from the stable
 // scope/generation/partition identity), so IntentID is the MERGE identity.
-func sharedIntentRows(rows []SharedProjectionIntentRow) []idempotencyRow {
+func sharedIntentRows(rows []sharedintent.Row) []idempotencyRow {
 	out := make([]idempotencyRow, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, idempotencyRow{

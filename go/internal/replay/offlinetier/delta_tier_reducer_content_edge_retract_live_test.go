@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -93,14 +94,14 @@ func TestReducerContentEdgeRetractGraphTruth(t *testing.T) {
 	// (S1 candidate keys, S2 connected keys) instead of a relationship-
 	// existence predicate (#5310); it needs a Reader for those reads.
 	writer.Reader = exec
-	write := func(domain, source string, rows []reducer.SharedProjectionIntentRow) {
+	write := func(domain, source string, rows []sharedintent.Row) {
 		t.Helper()
 		if _, err := writer.WriteEdges(ctx, domain, rows, source); err != nil {
 			t.Fatalf("WriteEdges(%s): %v", domain, err)
 		}
 	}
 
-	write(reducer.DomainShellExec, ctShellSource, []reducer.SharedProjectionIntentRow{
+	write(reducer.DomainShellExec, ctShellSource, []sharedintent.Row{
 		{IntentID: "shell-in", RepositoryID: ctInRepo, Payload: map[string]any{
 			"source_entity_id": ctFnShell, "target_entity_id": ctCmd,
 			"repo_id": ctInRepo, "source_path": ctShellPath,
@@ -110,7 +111,7 @@ func TestReducerContentEdgeRetractGraphTruth(t *testing.T) {
 			"repo_id": ctOutRepo, "source_path": ctShellPathB,
 		}},
 	})
-	write(reducer.DomainDocumentationEdges, ctDocSource, []reducer.SharedProjectionIntentRow{
+	write(reducer.DomainDocumentationEdges, ctDocSource, []sharedintent.Row{
 		{IntentID: "doc-in", RepositoryID: ctInRepo, ScopeID: ctScopeIn, Payload: map[string]any{
 			"section_uid": ctSection, "target_entity_id": ctFnDoc,
 			"scope_id": ctScopeIn, "document_id": ctDocumentIn, "mention_kind": "exact",
@@ -120,7 +121,7 @@ func TestReducerContentEdgeRetractGraphTruth(t *testing.T) {
 			"scope_id": ctScopeOut, "document_id": ctDocumentOut, "mention_kind": "exact",
 		}},
 	})
-	write(reducer.DomainDeployableUnitEdges, ctDepSource, []reducer.SharedProjectionIntentRow{
+	write(reducer.DomainDeployableUnitEdges, ctDepSource, []sharedintent.Row{
 		{IntentID: "dep-in", RepositoryID: ctInRepo, Payload: map[string]any{
 			"repo_id": ctInRepo, "deployment_repo_id": ctDepTarget,
 			"deployable_unit_key": "unit-a", "correlation_key": "corr-a",
@@ -152,7 +153,7 @@ func TestReducerContentEdgeRetractGraphTruth(t *testing.T) {
 
 	// Shell-exec whole-repo retract: edge DELETE + orphan ShellCommand cleanup,
 	// run sequentially (the grouped path under-applies on v1.1.11).
-	if err := writer.RetractEdges(ctx, reducer.DomainShellExec, []reducer.SharedProjectionIntentRow{
+	if err := writer.RetractEdges(ctx, reducer.DomainShellExec, []sharedintent.Row{
 		// shell_exec is a FENCED repo-wide-retract domain, so its whole-repo
 		// row must carry the refresh intent_type buildShellExecRefreshIntents
 		// stamps (#6166); a bare {"repo_id": ...} payload builds no statement.
@@ -162,7 +163,7 @@ func TestReducerContentEdgeRetractGraphTruth(t *testing.T) {
 	}
 	// Documentation delta retract: section-uid and document-id statements, run
 	// sequentially for the same reason.
-	if err := writer.RetractEdges(ctx, reducer.DomainDocumentationEdges, []reducer.SharedProjectionIntentRow{
+	if err := writer.RetractEdges(ctx, reducer.DomainDocumentationEdges, []sharedintent.Row{
 		{IntentID: "retract-doc", RepositoryID: ctInRepo, ScopeID: ctScopeIn, Payload: map[string]any{
 			"scope_id": ctScopeIn, "delta_projection": true,
 			"document_ids": []string{ctDocumentIn}, "section_uids": []string{ctSection},
@@ -170,7 +171,7 @@ func TestReducerContentEdgeRetractGraphTruth(t *testing.T) {
 	}, ctDocSource); err != nil {
 		t.Fatalf("RetractEdges(doc): %v", err)
 	}
-	if err := writer.RetractEdges(ctx, reducer.DomainDeployableUnitEdges, []reducer.SharedProjectionIntentRow{
+	if err := writer.RetractEdges(ctx, reducer.DomainDeployableUnitEdges, []sharedintent.Row{
 		{IntentID: "retract-dep", RepositoryID: ctInRepo, Payload: map[string]any{"repo_id": ctInRepo}},
 	}, ctDepSource); err != nil {
 		t.Fatalf("RetractEdges(dep): %v", err)

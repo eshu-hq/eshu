@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -62,8 +63,8 @@ func staleWritesByDomain(t *testing.T, reader *sdkmetric.ManualReader) map[strin
 	return byDomain
 }
 
-func staleWriteIntent(generationID string, at time.Time) reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func staleWriteIntent(generationID string, at time.Time) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:         "intent-6679-" + generationID + "-" + at.Format(time.RFC3339Nano),
 		ProjectionDomain: reducer.DomainCodeCalls,
 		PartitionKey:     "caller->callee",
@@ -91,7 +92,7 @@ func TestSharedIntentAcceptanceWriterCountsStaleWritesFromReturning(t *testing.T
 	writer := NewCodeCallIntentWriterWithInstruments(database, instruments)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
-	if err := writer.UpsertIntents(context.Background(), []reducer.SharedProjectionIntentRow{staleWriteIntent("gen-new", now)}); err != nil {
+	if err := writer.UpsertIntents(context.Background(), []sharedintent.Row{staleWriteIntent("gen-new", now)}); err != nil {
 		t.Fatalf("UpsertIntents(applied) error = %v", err)
 	}
 	if got := staleWritesByDomain(t, reader); len(got) != 0 {
@@ -99,7 +100,7 @@ func TestSharedIntentAcceptanceWriterCountsStaleWritesFromReturning(t *testing.T
 	}
 
 	database.staleKeys = map[string]struct{}{"scope-6679|repository:6679|run-6679": {}}
-	if err := writer.UpsertIntents(context.Background(), []reducer.SharedProjectionIntentRow{staleWriteIntent("gen-old", now)}); err != nil {
+	if err := writer.UpsertIntents(context.Background(), []sharedintent.Row{staleWriteIntent("gen-old", now)}); err != nil {
 		t.Fatalf("UpsertIntents(stale) error = %v", err)
 	}
 	got := staleWritesByDomain(t, reader)
@@ -116,7 +117,7 @@ func TestBuildSharedProjectionAcceptanceRowsSortsByPrimaryKey(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now().UTC()
-	var intents []reducer.SharedProjectionIntentRow
+	var intents []sharedintent.Row
 	for _, key := range [][3]string{
 		{"scope-b", "unit-a", "run-1"},
 		{"scope-a", "unit-b", "run-1"},

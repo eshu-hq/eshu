@@ -175,14 +175,14 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 			scopeID, generationID, _ := refinalizeResetScope(t, ctx, database, suffix)
 			repoID, entityKey := "repo:fence-"+suffix, "repo:fence-"+suffix
 			now := time.Now().UTC()
-			row := reducer.SharedProjectionIntentRow{
+			row := sharedintent.Row{
 				IntentID: "runs-on-" + suffix, ProjectionDomain: reducer.DomainRepoDependency,
 				PartitionKey: "runs_on:" + repoID + "->platform:kubernetes:test", ScopeID: scopeID,
 				AcceptanceUnitID: repoID, RepositoryID: repoID, SourceRunID: "repo_dependency:" + scopeID,
 				GenerationID: generationID, CreatedAt: now,
 				Payload: map[string]any{"repo_id": repoID, "platform_id": "platform:kubernetes:test", "relationship_type": "RUNS_ON", "evidence_source": reducer.CrossRepoEvidenceSource},
 			}
-			if err := NewSharedIntentAcceptanceWriter(SQLDB{DB: database}).UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{row}); err != nil {
+			if err := NewSharedIntentAcceptanceWriter(SQLDB{DB: database}).UpsertIntents(ctx, []sharedintent.Row{row}); err != nil {
 				t.Fatalf("seed RUNS_ON intent: %v", err)
 			}
 			phaseStore := NewGraphProjectionPhaseStateStore(SQLDB{DB: database})

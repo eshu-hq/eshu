@@ -11,6 +11,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // applyRetractWrite models how the existing retract-then-write projection path
@@ -133,9 +134,9 @@ func TestReconciliationDriftDrivesRepoScopedRetract(t *testing.T) {
 
 	report := sourcecypher.ClassifyReconciliationDrift(authoritative, graph)
 
-	retractRows := make([]reducer.SharedProjectionIntentRow, 0)
+	retractRows := make([]sharedintent.Row, 0)
 	for _, anchor := range report.RepairAnchors()[reducer.DomainRepoDependency] {
-		retractRows = append(retractRows, reducer.SharedProjectionIntentRow{
+		retractRows = append(retractRows, sharedintent.Row{
 			RepositoryID: anchor,
 			Payload:      map[string]any{"repo_id": anchor},
 		})

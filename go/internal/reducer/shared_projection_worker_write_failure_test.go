@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // errWriteEdges is a GENERIC canonical-edge-write failure — a backend error, a
@@ -29,7 +31,7 @@ type failingWriteEdgeWriter struct {
 func (f *failingWriteEdgeWriter) WriteEdges(
 	ctx context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) (SharedProjectionWriteReport, error) {
 	_, _ = f.stubEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
@@ -53,7 +55,7 @@ func TestProcessPartitionOnceDoesNotCompleteIntentsWhenWriteEdgesFails(t *testin
 
 	now := time.Date(2026, time.April, 13, 14, 0, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "intent-1",
 				ProjectionDomain: "platform_infra",

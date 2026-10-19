@@ -10,6 +10,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestRepairAnchorsYieldDomainRetractAnchorsNotEdgeKeys is the failing-first
@@ -50,9 +51,9 @@ func TestRepairAnchorsYieldDomainRetractAnchorsNotEdgeKeys(t *testing.T) {
 	}
 
 	// End-to-end: the anchors drive the real repo-scoped retract path.
-	retractRows := make([]reducer.SharedProjectionIntentRow, 0, len(got))
+	retractRows := make([]sharedintent.Row, 0, len(got))
 	for _, anchor := range got {
-		retractRows = append(retractRows, reducer.SharedProjectionIntentRow{
+		retractRows = append(retractRows, sharedintent.Row{
 			RepositoryID: anchor,
 			Payload:      map[string]any{"repo_id": anchor},
 		})

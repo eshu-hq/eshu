@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -263,7 +264,7 @@ func workloadDependencyRepoIDSet(repoIDs []string) map[string]struct{} {
 // cares about (relationship_type "DEPENDS_ON"), projecting them onto
 // reducer.RepoDependencyEdge -- the exact input shape
 // reducer.WorkloadDependencyGraphLookup.ListRepoDependencyEdges returns.
-func workloadDependencyRepoEdgesFromRows(rows []reducer.SharedProjectionIntentRow) []reducer.RepoDependencyEdge {
+func workloadDependencyRepoEdgesFromRows(rows []sharedintent.Row) []reducer.RepoDependencyEdge {
 	var edges []reducer.RepoDependencyEdge
 	for _, row := range rows {
 		if anyToStringValue(row.Payload["relationship_type"]) != workloadDependencyRelationshipType {

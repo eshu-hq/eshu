@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // submodulePinGitmodulesRelativePath is the exact repo-relative ".gitmodules"
@@ -121,14 +122,14 @@ func submodulePinDeltaTouchesGitmodules(payload map[string]any) bool {
 func buildSubmodulePinRetractRows(
 	repositoryIDs []string,
 	deltaScope submodulePinDeltaScope,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(repositoryIDs) == 0 {
 		return nil
 	}
 	if !deltaScope.hasDelta {
 		return buildSubmodulePinRepoRetractRows(repositoryIDs)
 	}
-	rows := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
+	rows := make([]sharedintent.Row, 0, len(repositoryIDs))
 	for _, repositoryID := range repositoryIDs {
 		repositoryID = strings.TrimSpace(repositoryID)
 		if repositoryID == "" {
@@ -137,19 +138,19 @@ func buildSubmodulePinRetractRows(
 		if _, touched := deltaScope.gitmodulesTouchedRepoIDs[repositoryID]; !touched {
 			continue
 		}
-		rows = append(rows, SharedProjectionIntentRow{RepositoryID: repositoryID})
+		rows = append(rows, sharedintent.Row{RepositoryID: repositoryID})
 	}
 	return rows
 }
 
-func buildSubmodulePinRepoRetractRows(repositoryIDs []string) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
+func buildSubmodulePinRepoRetractRows(repositoryIDs []string) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, len(repositoryIDs))
 	for _, repositoryID := range repositoryIDs {
 		repositoryID = strings.TrimSpace(repositoryID)
 		if repositoryID == "" {
 			continue
 		}
-		rows = append(rows, SharedProjectionIntentRow{RepositoryID: repositoryID})
+		rows = append(rows, sharedintent.Row{RepositoryID: repositoryID})
 	}
 	return rows
 }

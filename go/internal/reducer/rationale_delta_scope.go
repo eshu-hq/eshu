@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 type rationaleDeltaScope struct {
@@ -130,7 +131,7 @@ func mergeRationaleRepositoryIDs(repositoryIDs []string, extraRepositoryIDs []st
 func buildRationaleRetractRows(
 	repositoryIDs []string,
 	deltaScope rationaleDeltaScope,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(repositoryIDs) == 0 {
 		return nil
 	}
@@ -140,14 +141,14 @@ func buildRationaleRetractRows(
 	return buildRationaleRepoRetractRows(repositoryIDs)
 }
 
-func buildRationaleRepoRetractRows(repositoryIDs []string) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
+func buildRationaleRepoRetractRows(repositoryIDs []string) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, len(repositoryIDs))
 	for _, repositoryID := range repositoryIDs {
 		repositoryID = strings.TrimSpace(repositoryID)
 		if repositoryID == "" {
 			continue
 		}
-		rows = append(rows, SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			RepositoryID: repositoryID,
 			Payload:      map[string]any{"repo_id": repositoryID},
 		})
@@ -158,14 +159,14 @@ func buildRationaleRepoRetractRows(repositoryIDs []string) []SharedProjectionInt
 func buildRationaleDeltaRetractRows(
 	repositoryIDs []string,
 	filePathsByRepoID map[string][]string,
-) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
+) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, len(repositoryIDs))
 	for _, repositoryID := range repositoryIDs {
 		repositoryID = strings.TrimSpace(repositoryID)
 		if repositoryID == "" {
 			continue
 		}
-		rows = append(rows, SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			RepositoryID: repositoryID,
 			Payload: map[string]any{
 				"repo_id":          repositoryID,

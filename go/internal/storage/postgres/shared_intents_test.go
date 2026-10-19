@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestSharedIntentStoreUpsertAndList(t *testing.T) {
@@ -25,7 +26,7 @@ func TestSharedIntentStoreUpsertAndList(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-1",
 			ProjectionDomain: reducer.DomainWorkloadDependency,
@@ -73,7 +74,7 @@ func TestSharedIntentStoreUpsertOverwrites(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-upsert",
 			ProjectionDomain: reducer.DomainWorkloadDependency,
@@ -119,7 +120,7 @@ func TestSharedIntentStoreUpsertIntentsDeduplicatesBatchIntentIDs(t *testing.T) 
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-duplicate",
 			ProjectionDomain: reducer.DomainCodeCalls,
@@ -172,7 +173,7 @@ func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	completed := now.Add(-time.Hour)
 
-	pending := reducer.SharedProjectionIntentRow{
+	pending := sharedintent.Row{
 		IntentID:         "si-pending",
 		ProjectionDomain: reducer.DomainWorkloadDependency,
 		PartitionKey:     "pk-1",
@@ -183,7 +184,7 @@ func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 		CreatedAt:        now,
 		CompletedAt:      nil,
 	}
-	done := reducer.SharedProjectionIntentRow{
+	done := sharedintent.Row{
 		IntentID:         "si-done",
 		ProjectionDomain: reducer.DomainWorkloadDependency,
 		PartitionKey:     "pk-2",
@@ -195,7 +196,7 @@ func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 		CompletedAt:      &completed,
 	}
 
-	if err := store.UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{pending, done}); err != nil {
+	if err := store.UpsertIntents(ctx, []sharedintent.Row{pending, done}); err != nil {
 		t.Fatalf("UpsertIntents: %v", err)
 	}
 
@@ -219,7 +220,7 @@ func TestSharedIntentStoreMarkIntentsCompleted(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-mark-1",
 			ProjectionDomain: reducer.DomainWorkloadDependency,
@@ -281,7 +282,7 @@ func TestSharedIntentStoreEmptyUpsertIsNoop(t *testing.T) {
 	if err := store.UpsertIntents(ctx, nil); err != nil {
 		t.Fatalf("UpsertIntents(nil): %v", err)
 	}
-	if err := store.UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{}); err != nil {
+	if err := store.UpsertIntents(ctx, []sharedintent.Row{}); err != nil {
 		t.Fatalf("UpsertIntents(empty): %v", err)
 	}
 }
@@ -297,9 +298,9 @@ func TestSharedIntentStoreUpsertIntentsBatch(t *testing.T) {
 
 	// Create 1200 intents to test batching; this should stay in one bounded
 	// multi-row INSERT under the shared intent batch size.
-	rows := make([]reducer.SharedProjectionIntentRow, 1200)
+	rows := make([]sharedintent.Row, 1200)
 	for i := 0; i < 1200; i++ {
-		rows[i] = reducer.SharedProjectionIntentRow{
+		rows[i] = sharedintent.Row{
 			IntentID:         fmt.Sprintf("si-batch-%d", i),
 			ProjectionDomain: reducer.DomainWorkloadDependency,
 			PartitionKey:     fmt.Sprintf("pk-%d", i%10),
@@ -396,7 +397,7 @@ func TestSharedIntentStorePersistsAcceptanceIdentity(t *testing.T) {
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-identity",
 			ProjectionDomain: reducer.DomainWorkloadDependency,
@@ -437,7 +438,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitDomainIntents(t *testing.T) 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	completedAt := now.Add(time.Second)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-completed",
 			ProjectionDomain: reducer.DomainCodeCalls,
@@ -502,7 +503,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunDomainIntents(t *te
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	completedAt := now.Add(time.Second)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-completed-old-run",
 			ProjectionDomain: reducer.DomainCodeCalls,
@@ -584,7 +585,7 @@ func (database *sharedIntentTestDB) ExecContext(_ context.Context, query string,
 		numRows := len(args) / columnsPerSharedIntent
 		for i := 0; i < numRows; i++ {
 			offset := i * columnsPerSharedIntent
-			row := reducer.SharedProjectionIntentRow{
+			row := sharedintent.Row{
 				IntentID:         args[offset+0].(string),
 				ProjectionDomain: args[offset+1].(string),
 				PartitionKey:     args[offset+2].(string),
@@ -837,7 +838,7 @@ func (database *duplicateRejectingSharedIntentDB) QueryContext(context.Context, 
 }
 
 type storedSharedIntent struct {
-	row              reducer.SharedProjectionIntentRow
+	row              sharedintent.Row
 	scopeID          string
 	acceptanceUnitID string
 }

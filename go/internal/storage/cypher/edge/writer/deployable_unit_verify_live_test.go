@@ -17,6 +17,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // The #8283 verified-success probe against a real backend. The live-backend
@@ -80,8 +81,8 @@ func seedLiveRepository(t *testing.T, runner *boltRetractTestRunner, id string) 
 	}
 }
 
-func liveDeployableUnitRow(source, target string) reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func liveDeployableUnitRow(source, target string) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:     "intent-8283-verify-live",
 		RepositoryID: source,
 		GenerationID: "gen-8283",
@@ -103,7 +104,7 @@ func TestLiveVerifyDeployableUnitEdgesSourcePresentTargetAbsent(t *testing.T) {
 
 	w := NewEdgeWriter(&boltProbeTestExecutor{runner: runner}, 0)
 	err := w.VerifyDeployableUnitEdges(context.Background(),
-		[]reducer.SharedProjectionIntentRow{liveDeployableUnitRow(source, target)}, deployableUnitTestEvidenceSource)
+		[]sharedintent.Row{liveDeployableUnitRow(source, target)}, deployableUnitTestEvidenceSource)
 	if got := verifyClassOf(err); got != reducer.SharedEdgeTargetNotReadyFailureClass {
 		t.Fatalf("verify with the target absent = %v (class %q), want %q", err, got, reducer.SharedEdgeTargetNotReadyFailureClass)
 	}
@@ -124,7 +125,7 @@ func TestLiveVerifyDeployableUnitEdgesBothPresentEdgeAbsent(t *testing.T) {
 
 	w := NewEdgeWriter(&boltProbeTestExecutor{runner: runner}, 0)
 	err := w.VerifyDeployableUnitEdges(context.Background(),
-		[]reducer.SharedProjectionIntentRow{liveDeployableUnitRow(source, target)}, deployableUnitTestEvidenceSource)
+		[]sharedintent.Row{liveDeployableUnitRow(source, target)}, deployableUnitTestEvidenceSource)
 	if got := verifyClassOf(err); got != reducer.DeployableUnitEdgeWriteUnverifiedFailureClass {
 		t.Fatalf("verify with both nodes and no edge = %v (class %q), want %q", err, got, reducer.DeployableUnitEdgeWriteUnverifiedFailureClass)
 	}
@@ -140,7 +141,7 @@ func TestLiveVerifyDeployableUnitEdgesEdgePresent(t *testing.T) {
 	ctx := context.Background()
 
 	w := NewEdgeWriter(&boltProbeTestExecutor{runner: runner}, 0)
-	rows := []reducer.SharedProjectionIntentRow{liveDeployableUnitRow(source, target)}
+	rows := []sharedintent.Row{liveDeployableUnitRow(source, target)}
 	if _, err := w.WriteEdges(ctx, reducer.DomainDeployableUnitEdges, rows, deployableUnitTestEvidenceSource); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestEdgeWriterWriteEdgesInvokesCloudActionDispatch(t *testing.T) {
@@ -17,7 +18,7 @@ func TestEdgeWriterWriteEdgesInvokesCloudActionDispatch(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -84,7 +85,7 @@ func TestEdgeWriterWriteEdgesInvokesCloudActionRowsMissingMatchFieldsFailTheInte
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "r1", Payload: map[string]any{"function_id": "", "cloud_action": "s3:putobject", "action_id": "cloud-action:s3:putobject"}},
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "cloud_action": "", "action_id": "cloud-action:s3:putobject"}},
 		{IntentID: "i3", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "cloud_action": "s3:putobject", "action_id": ""}},
@@ -100,7 +101,7 @@ func TestEdgeWriterRetractEdgesInvokesCloudActionDispatch(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 

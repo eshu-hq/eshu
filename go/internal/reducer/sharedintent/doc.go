@@ -43,7 +43,9 @@
 // in internal/reducer/intents/shared/worker instead of here: they are the
 // reducer's concurrency core, not a shape a family needs.
 //
-// The root keeps aliases under the original names — SharedProjectionIntentRow,
-// SharedProjectionIntentInput, SharedProjectionAcceptanceKey — and a forwarder
-// for BuildSharedProjectionIntent, so no caller changed when this moved.
+// The root keeps aliases under the original names — SharedProjectionIntentInput,
+// SharedProjectionAcceptanceKey — and forwarders for BuildSharedProjectionIntent
+// and CarriesNoEdge, so those callers did not change when this moved.
+// SharedProjectionIntentRow callers spell sharedintent.Row directly
+// (issue #6626 bucket 5); the root alias is retired.
 package sharedintent

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 const rationaleHandlerBenchmarkEntityCount = 5_000
@@ -134,7 +135,7 @@ type rationaleBenchmarkIntentWriter struct {
 	lastCount int
 }
 
-func (w *rationaleBenchmarkIntentWriter) UpsertIntents(_ context.Context, rows []SharedProjectionIntentRow) error {
+func (w *rationaleBenchmarkIntentWriter) UpsertIntents(_ context.Context, rows []sharedintent.Row) error {
 	w.lastCount = len(rows)
 	return nil
 }

@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -81,7 +82,7 @@ func TestReducerCodeCallEdgeRetractGraphTruth(t *testing.T) {
 
 	// Production write path: typed endpoints route to exact-label MATCH Cyphers
 	// (NornicDB matches single labels), so these edges are actually created.
-	writeRows := []reducer.SharedProjectionIntentRow{
+	writeRows := []sharedintent.Row{
 		{IntentID: "calls-in", RepositoryID: reducerEdgeInScopeRepoID, Payload: map[string]any{
 			"caller_entity_id": reFnCaller, "caller_entity_type": "Function",
 			"callee_entity_id": reFnCallee, "callee_entity_type": "Function",
@@ -122,7 +123,7 @@ func TestReducerCodeCallEdgeRetractGraphTruth(t *testing.T) {
 	// Production retract path: repo-scoped rows route to
 	// BuildRetractCodeCallEdgeStatements -> one per-source-label DELETE, run
 	// sequentially (the #5116 fix).
-	retractRows := []reducer.SharedProjectionIntentRow{
+	retractRows := []sharedintent.Row{
 		{IntentID: "retract", RepositoryID: reducerEdgeInScopeRepoID},
 	}
 	if err := writer.RetractEdges(ctx, reducer.DomainCodeCalls, retractRows, reducerEdgeEvidenceSource); err != nil {

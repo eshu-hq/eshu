@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // unmarkedLegacyRetractRows is the batch the nil-fence path hands RetractEdges
@@ -21,8 +22,8 @@ import (
 // refresh intent_type. It is the input both halves of wholeScopeRetractDomains
 // are discriminated on -- the narrowed half must bind nothing for it, the
 // fenced-but-not-narrowed half must bind the batch-wide list.
-func unmarkedLegacyRetractRows() []reducer.SharedProjectionIntentRow {
-	return []reducer.SharedProjectionIntentRow{
+func unmarkedLegacyRetractRows() []sharedintent.Row {
+	return []sharedintent.Row{
 		{
 			IntentID:     "legacy-1",
 			RepositoryID: "repo-legacy",

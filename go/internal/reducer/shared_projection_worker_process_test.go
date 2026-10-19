@@ -9,6 +9,7 @@ import (
 	"time"
 
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadinessBlocked(t *testing.T) {
@@ -16,7 +17,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 
 	now := time.Date(2026, time.April, 17, 13, 30, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "blocked-1",
 				ProjectionDomain: DomainDocumentationEdges,
@@ -96,7 +97,7 @@ func TestProcessPartitionOnceFullCycle(t *testing.T) {
 	t0 := now.Add(-time.Minute)
 
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "intent-1",
 				ProjectionDomain: "platform_infra",
@@ -169,7 +170,7 @@ func TestProcessPartitionOnceReportsReadinessBlockedWait(t *testing.T) {
 	now := time.Date(2026, time.April, 17, 14, 0, 0, 0, time.UTC)
 	t0 := now.Add(-5 * time.Minute)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "blocked-1",
 				ProjectionDomain: DomainSQLRelationships,
@@ -296,7 +297,7 @@ func TestProcessPartitionOnceFiltersDeleteAction(t *testing.T) {
 	t0 := now.Add(-time.Minute)
 
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "upsert-1",
 				ProjectionDomain: "platform_infra",
@@ -357,7 +358,7 @@ func TestProcessPartitionOnceCodeCallsDomain(t *testing.T) {
 	t0 := now.Add(-time.Minute)
 
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "intent-1",
 				ProjectionDomain: DomainCodeCalls,
@@ -413,21 +414,21 @@ func TestProcessPartitionOnceCodeCallsDomain(t *testing.T) {
 // --- Test stubs ---
 
 type stubSharedIntentReader struct {
-	pending        []SharedProjectionIntentRow
+	pending        []sharedintent.Row
 	completedIDs   []string
 	limitRequests  []int
-	limitResponder func(limit int) []SharedProjectionIntentRow
+	limitResponder func(limit int) []sharedintent.Row
 }
 
-func (s *stubSharedIntentReader) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]SharedProjectionIntentRow, error) {
+func (s *stubSharedIntentReader) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]sharedintent.Row, error) {
 	s.limitRequests = append(s.limitRequests, limit)
 	if s.limitResponder != nil {
 		return s.limitResponder(limit), nil
 	}
 	if limit > 0 && len(s.pending) > limit {
-		return append([]SharedProjectionIntentRow(nil), s.pending[:limit]...), nil
+		return append([]sharedintent.Row(nil), s.pending[:limit]...), nil
 	}
-	return append([]SharedProjectionIntentRow(nil), s.pending...), nil
+	return append([]sharedintent.Row(nil), s.pending...), nil
 }
 
 func (s *stubSharedIntentReader) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) (int64, error) {
@@ -450,16 +451,16 @@ func (s *stubLeaseManager) ReleasePartitionLease(_ context.Context, _ string, _,
 }
 
 type stubEdgeWriter struct {
-	retractCalls [][]SharedProjectionIntentRow
-	writeCalls   [][]SharedProjectionIntentRow
+	retractCalls [][]sharedintent.Row
+	writeCalls   [][]sharedintent.Row
 }
 
-func (s *stubEdgeWriter) RetractEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) error {
+func (s *stubEdgeWriter) RetractEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) error {
 	s.retractCalls = append(s.retractCalls, rows)
 	return nil
 }
 
-func (s *stubEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) (SharedProjectionWriteReport, error) {
+func (s *stubEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (SharedProjectionWriteReport, error) {
 	s.writeCalls = append(s.writeCalls, rows)
 	return SharedProjectionWriteReport{}, nil
 }

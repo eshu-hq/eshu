@@ -9,13 +9,13 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRepoEvidenceArtifactRowsPreserveQualifiedFluxIdentity(t *testing.T) {
 	t.Parallel()
 
-	rows := repoEvidenceArtifactRowsFromIntent(reducer.SharedProjectionIntentRow{
+	rows := repoEvidenceArtifactRowsFromIntent(sharedintent.Row{
 		GenerationID: "gen-5540",
 		Payload: map[string]any{
 			"repo_id":           "repo-deploy",

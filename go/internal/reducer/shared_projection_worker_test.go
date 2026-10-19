@@ -16,7 +16,7 @@ func TestLatestIntentsByRepoAndPartitionDeduplicates(t *testing.T) {
 	t.Parallel()
 
 	t0 := time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC)
-	intents := []SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{IntentID: "old-1", RepositoryID: "repo-a", PartitionKey: "pk-1", CreatedAt: t0},
 		{IntentID: "new-1", RepositoryID: "repo-a", PartitionKey: "pk-1", CreatedAt: t0.Add(time.Second)},
 		{IntentID: "only-1", RepositoryID: "repo-b", PartitionKey: "pk-2", CreatedAt: t0},
@@ -48,7 +48,7 @@ func TestLatestIntentsByRepoAndPartitionKeepsRefreshFirst(t *testing.T) {
 	// still sort first, or a fixed batch window selects only edges that defer
 	// forever behind a refresh that is never selected.
 	t0 := time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC)
-	intents := []SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{IntentID: "edge-old", RepositoryID: "repo-a", PartitionKey: "inheritance_edges:file:a.go", CreatedAt: t0},
 		{IntentID: "edge-mid", RepositoryID: "repo-a", PartitionKey: "inheritance_edges:file:b.go", CreatedAt: t0.Add(time.Second)},
 		{
@@ -85,7 +85,7 @@ func TestLatestIntentsByRepoAndPartitionTripleSupersede(t *testing.T) {
 	t.Parallel()
 
 	t0 := time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC)
-	intents := []SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{IntentID: "v1", RepositoryID: "repo-a", PartitionKey: "pk-1", CreatedAt: t0},
 		{IntentID: "v2", RepositoryID: "repo-a", PartitionKey: "pk-1", CreatedAt: t0.Add(time.Second)},
 		{IntentID: "v3", RepositoryID: "repo-a", PartitionKey: "pk-1", CreatedAt: t0.Add(2 * time.Second)},
@@ -103,7 +103,7 @@ func TestLatestIntentsByRepoAndPartitionTripleSupersede(t *testing.T) {
 func TestFilterAuthoritativeIntentsMatchesGeneration(t *testing.T) {
 	t.Parallel()
 
-	intents := []SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{IntentID: "active-1", ScopeID: "scope-a", AcceptanceUnitID: "unit-a", RepositoryID: "repo-a", SourceRunID: "run-1", GenerationID: "gen-1"},
 		{IntentID: "stale-1", ScopeID: "scope-a", AcceptanceUnitID: "unit-a", RepositoryID: "repo-a", SourceRunID: "run-2", GenerationID: "gen-old"},
 		{IntentID: "active-2", ScopeID: "scope-b", AcceptanceUnitID: "unit-b", RepositoryID: "repo-b", SourceRunID: "run-1", GenerationID: "gen-2"},
@@ -137,7 +137,7 @@ func TestFilterAuthoritativeIntentsMatchesGeneration(t *testing.T) {
 func TestFilterAuthoritativeIntentsSkipsUnknownRepos(t *testing.T) {
 	t.Parallel()
 
-	intents := []SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{IntentID: "unknown-1", ScopeID: "scope-x", AcceptanceUnitID: "unit-x", RepositoryID: "repo-x", SourceRunID: "run-1", GenerationID: "gen-1"},
 	}
 
@@ -157,7 +157,7 @@ func TestFilterAuthoritativeIntentsSkipsUnknownRepos(t *testing.T) {
 func TestFilterAuthoritativeIntentsUsesScopeAndAcceptanceUnit(t *testing.T) {
 	t.Parallel()
 
-	intents := []SharedProjectionIntentRow{
+	intents := []sharedintent.Row{
 		{
 			IntentID:         "active",
 			ScopeID:          "scope-a",
@@ -198,7 +198,7 @@ func TestFilterAuthoritativeIntentsUsesScopeAndAcceptanceUnit(t *testing.T) {
 func TestFilterUpsertRows(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "upsert-1", Payload: map[string]any{"action": "upsert"}},
 		{IntentID: "delete-1", Payload: map[string]any{"action": "delete"}},
 		{IntentID: "implicit-1", Payload: map[string]any{"platform_id": "p1"}},
@@ -225,7 +225,7 @@ func TestSelectPartitionBatchReturnsAcceptedBatch(t *testing.T) {
 
 	t0 := time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{IntentID: "i1", ProjectionDomain: "platform_infra", PartitionKey: "pk-a", ScopeID: "scope-a", AcceptanceUnitID: "repo-a", RepositoryID: "repo-a", SourceRunID: "run-1", GenerationID: "gen-1", CreatedAt: t0},
 			{IntentID: "i2", ProjectionDomain: "platform_infra", PartitionKey: "pk-b", ScopeID: "scope-b", AcceptanceUnitID: "repo-b", RepositoryID: "repo-b", SourceRunID: "run-1", GenerationID: "gen-1", CreatedAt: t0},
 		},
@@ -251,7 +251,7 @@ func TestSelectPartitionBatchFiltersStale(t *testing.T) {
 
 	t0 := time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{IntentID: "active-1", ProjectionDomain: "platform_infra", PartitionKey: "pk-a", ScopeID: "scope-a", AcceptanceUnitID: "repo-a", RepositoryID: "repo-a", SourceRunID: "run-1", GenerationID: "gen-current", CreatedAt: t0},
 			{IntentID: "stale-1", ProjectionDomain: "platform_infra", PartitionKey: "pk-b", ScopeID: "scope-a", AcceptanceUnitID: "repo-a", RepositoryID: "repo-a", SourceRunID: "run-1", GenerationID: "gen-old", CreatedAt: t0},
 		},
@@ -284,7 +284,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 	partitionCount := 2
 	targetPartition := 1
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "other-partition-1",
 				ProjectionDomain: DomainWorkloadDependency,
@@ -371,10 +371,10 @@ func TestSelectPartitionBatchErrorsWhenScanCapIsReached(t *testing.T) {
 	t.Parallel()
 
 	reader := &stubSharedIntentReader{
-		limitResponder: func(limit int) []SharedProjectionIntentRow {
-			rows := make([]SharedProjectionIntentRow, limit)
+		limitResponder: func(limit int) []sharedintent.Row {
+			rows := make([]sharedintent.Row, limit)
 			for i := range rows {
-				rows[i] = SharedProjectionIntentRow{
+				rows[i] = sharedintent.Row{
 					IntentID:         "head-intent",
 					ProjectionDomain: DomainWorkloadDependency,
 					PartitionKey:     partitionKeyForTestPartition(t, 0, 2, "cap"),
@@ -422,7 +422,7 @@ func TestSelectPartitionBatchSkipsSQLAndInheritanceRowsUntilSemanticNodesCommitt
 			t.Parallel()
 
 			reader := &stubSharedIntentReader{
-				pending: []SharedProjectionIntentRow{
+				pending: []sharedintent.Row{
 					{
 						IntentID:         "blocked-1",
 						ProjectionDomain: domain,

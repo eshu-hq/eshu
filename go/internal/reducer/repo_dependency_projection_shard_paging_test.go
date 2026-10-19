@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRepoDependencyShardReaderContinuesPastForeignFullPage(t *testing.T) {
@@ -21,7 +23,7 @@ func TestRepoDependencyShardReaderContinuesPastForeignFullPage(t *testing.T) {
 	foreignUnit := repoDependencyUnitForShard(t, 0, shardCount)
 	targetUnit := repoDependencyUnitForShard(t, shardID, shardCount)
 	now := time.Date(2026, time.July, 14, 9, 0, 0, 0, time.UTC)
-	rows := make([]SharedProjectionIntentRow, 0, maxRepoDependencyAcceptanceScanLimit+1)
+	rows := make([]sharedintent.Row, 0, maxRepoDependencyAcceptanceScanLimit+1)
 	for i := range maxRepoDependencyAcceptanceScanLimit {
 		rows = append(rows, repoDependencyShardPagingRow(
 			fmt.Sprintf("foreign-%05d", i), foreignUnit, now.Add(time.Duration(i)*time.Nanosecond),
@@ -65,7 +67,7 @@ func TestRepoDependencyShardReaderFailsClosedWithoutContinuation(t *testing.T) {
 	)
 	foreignUnit := repoDependencyUnitForShard(t, 0, shardCount)
 	now := time.Date(2026, time.July, 14, 9, 0, 0, 0, time.UTC)
-	rows := make([]SharedProjectionIntentRow, 0, maxRepoDependencyAcceptanceScanLimit)
+	rows := make([]sharedintent.Row, 0, maxRepoDependencyAcceptanceScanLimit)
 	for i := range maxRepoDependencyAcceptanceScanLimit {
 		rows = append(rows, repoDependencyShardPagingRow(
 			fmt.Sprintf("foreign-%05d", i), foreignUnit, now.Add(time.Duration(i)*time.Nanosecond),
@@ -91,7 +93,7 @@ func TestRepoDependencyShardReaderRejectsNonAdvancingContinuation(t *testing.T) 
 	)
 	foreignUnit := repoDependencyUnitForShard(t, 0, shardCount)
 	now := time.Date(2026, time.July, 14, 9, 0, 0, 0, time.UTC)
-	rows := make([]SharedProjectionIntentRow, 0, maxRepoDependencyAcceptanceScanLimit)
+	rows := make([]sharedintent.Row, 0, maxRepoDependencyAcceptanceScanLimit)
 	for i := range maxRepoDependencyAcceptanceScanLimit {
 		rows = append(rows, repoDependencyShardPagingRow(
 			fmt.Sprintf("foreign-%05d", i), foreignUnit, now.Add(time.Duration(i)*time.Nanosecond),
@@ -121,7 +123,7 @@ func repoDependencyUnitForShard(t *testing.T, shardID, shardCount int) string {
 	return ""
 }
 
-func repoDependencyShardPagingRow(intentID, unitID string, createdAt time.Time) SharedProjectionIntentRow {
+func repoDependencyShardPagingRow(intentID, unitID string, createdAt time.Time) sharedintent.Row {
 	return repoDependencyIntentRow(
 		intentID,
 		"scope-"+unitID,
@@ -140,13 +142,13 @@ func repoDependencyShardPagingRow(intentID, unitID string, createdAt time.Time) 
 }
 
 type pagedRepoDependencyIntentReader struct {
-	rows              []SharedProjectionIntentRow
+	rows              []sharedintent.Row
 	continuationCalls int
 }
 
 func (r *pagedRepoDependencyIntentReader) ListPendingDomainIntents(
 	_ context.Context, _ string, limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	return truncateRowsForLimit(r.rows, limit), nil
 }
 
@@ -156,9 +158,9 @@ func (r *pagedRepoDependencyIntentReader) ListPendingDomainIntentsAfter(
 	afterCreatedAt time.Time,
 	afterIntentID string,
 	limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	r.continuationCalls++
-	rows := make([]SharedProjectionIntentRow, 0, limit)
+	rows := make([]sharedintent.Row, 0, limit)
 	for _, row := range r.rows {
 		if row.CreatedAt.Before(afterCreatedAt) ||
 			(row.CreatedAt.Equal(afterCreatedAt) && row.IntentID <= afterIntentID) {
@@ -174,7 +176,7 @@ func (r *pagedRepoDependencyIntentReader) ListPendingDomainIntentsAfter(
 
 func (r *pagedRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents(
 	context.Context, string, string, int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	return nil, nil
 }
 
@@ -183,18 +185,18 @@ func (r *pagedRepoDependencyIntentReader) MarkIntentsCompleted(context.Context, 
 }
 
 type nonPagedRepoDependencyIntentReader struct {
-	rows []SharedProjectionIntentRow
+	rows []sharedintent.Row
 }
 
 func (r *nonPagedRepoDependencyIntentReader) ListPendingDomainIntents(
 	_ context.Context, _ string, limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	return truncateRowsForLimit(r.rows, limit), nil
 }
 
 func (r *nonPagedRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents(
 	context.Context, string, string, int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	return nil, nil
 }
 
@@ -203,19 +205,19 @@ func (r *nonPagedRepoDependencyIntentReader) MarkIntentsCompleted(context.Contex
 }
 
 type nonAdvancingRepoDependencyIntentReader struct {
-	rows              []SharedProjectionIntentRow
+	rows              []sharedintent.Row
 	continuationCalls int
 }
 
 func (r *nonAdvancingRepoDependencyIntentReader) ListPendingDomainIntents(
 	_ context.Context, _ string, limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	return truncateRowsForLimit(r.rows, limit), nil
 }
 
 func (r *nonAdvancingRepoDependencyIntentReader) ListPendingDomainIntentsAfter(
 	context.Context, string, time.Time, string, int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	r.continuationCalls++
 	if r.continuationCalls > 1 {
 		return nil, fmt.Errorf("continuation loop sentinel")
@@ -225,7 +227,7 @@ func (r *nonAdvancingRepoDependencyIntentReader) ListPendingDomainIntentsAfter(
 
 func (r *nonAdvancingRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents(
 	context.Context, string, string, int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	return nil, nil
 }
 

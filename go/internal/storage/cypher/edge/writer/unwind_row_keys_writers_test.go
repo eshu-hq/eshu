@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -159,9 +160,9 @@ func TestEdgeWriterSparseRowsCarryEveryReferencedKey(t *testing.T) {
 			t.Parallel()
 			executor := &recordingExecutor{}
 			writer := NewEdgeWriter(executor, 0)
-			rows := make([]reducer.SharedProjectionIntentRow, 0, len(tc.payloads))
+			rows := make([]sharedintent.Row, 0, len(tc.payloads))
 			for index, payload := range tc.payloads {
-				rows = append(rows, reducer.SharedProjectionIntentRow{
+				rows = append(rows, sharedintent.Row{
 					IntentID:     tc.name + "-" + string(rune('a'+index)),
 					RepositoryID: "repo-a",
 					GenerationID: "gen-1",
@@ -218,7 +219,7 @@ func TestEdgeWriterSparseOptionalKeysAreNil(t *testing.T) {
 			t.Parallel()
 			executor := &recordingExecutor{}
 			writer := NewEdgeWriter(executor, 0)
-			rows := []reducer.SharedProjectionIntentRow{{IntentID: "i-1", RepositoryID: "repo-a", Payload: tc.payload}}
+			rows := []sharedintent.Row{{IntentID: "i-1", RepositoryID: "repo-a", Payload: tc.payload}}
 			if _, err := writer.WriteEdges(context.Background(), tc.domain, rows, "test/sparse"); err != nil {
 				t.Fatalf("WriteEdges() error = %v", err)
 			}

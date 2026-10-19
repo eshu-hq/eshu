@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
@@ -32,7 +33,7 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 	}
 	database := &partitionCandidateListTestDB{rows: []partitionCandidateListRow{
 		{
-			Intent: reducer.SharedProjectionIntentRow{
+			Intent: sharedintent.Row{
 				IntentID:         "same-partition",
 				ProjectionDomain: reducer.DomainCodeCalls,
 				PartitionKey:     selectedKey,
@@ -47,7 +48,7 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 			PartitionHash:    reducer.PartitionHashForKey(selectedKey),
 		},
 		{
-			Intent: reducer.SharedProjectionIntentRow{
+			Intent: sharedintent.Row{
 				IntentID:         "other-partition",
 				ProjectionDomain: reducer.DomainCodeCalls,
 				PartitionKey:     otherKey,
@@ -102,7 +103,7 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 	now := time.Date(2026, time.June, 16, 9, 15, 0, 0, time.UTC)
 	database := &partitionCandidateListTestDB{rows: []partitionCandidateListRow{
 		{
-			Intent: reducer.SharedProjectionIntentRow{
+			Intent: sharedintent.Row{
 				IntentID:         "legacy-unhashed",
 				ProjectionDomain: reducer.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-a:src/legacy.go",
@@ -115,7 +116,7 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 			},
 		},
 		{
-			Intent: reducer.SharedProjectionIntentRow{
+			Intent: sharedintent.Row{
 				IntentID:         "hashed",
 				ProjectionDomain: reducer.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-b:src/hashed.go",
@@ -157,7 +158,7 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 }
 
 type partitionCandidateListRow struct {
-	Intent           reducer.SharedProjectionIntentRow
+	Intent           sharedintent.Row
 	HasPartitionHash bool
 	PartitionHash    uint64
 }
@@ -178,7 +179,7 @@ func (database *partitionCandidateListTestDB) QueryContext(_ context.Context, qu
 	domain := args[0].(string)
 	unhashedOnly := strings.Contains(query, "partition_hash IS NULL")
 	limit := args[len(args)-1].(int)
-	rows := make([]reducer.SharedProjectionIntentRow, 0, len(database.rows))
+	rows := make([]sharedintent.Row, 0, len(database.rows))
 	for _, candidate := range database.rows {
 		if candidate.Intent.ProjectionDomain != domain || candidate.Intent.CompletedAt != nil {
 			continue
@@ -204,7 +205,7 @@ func (database *partitionCandidateListTestDB) QueryContext(_ context.Context, qu
 	// ORDER BY is_refresh_intent DESC, created_at ASC, intent_id ASC
 	// is_refresh_intent is a stored generated BOOLEAN column; DESC puts true
 	// (refresh rows) before ALL upsert rows regardless of created_at (#3474).
-	refreshPriority := func(row reducer.SharedProjectionIntentRow) int {
+	refreshPriority := func(row sharedintent.Row) int {
 		if action, _ := row.Payload["action"].(string); action == "refresh" {
 			return 0
 		}
@@ -227,7 +228,7 @@ func (database *partitionCandidateListTestDB) QueryContext(_ context.Context, qu
 }
 
 type partitionCandidateRows struct {
-	rows []reducer.SharedProjectionIntentRow
+	rows []sharedintent.Row
 	idx  int
 }
 
@@ -309,7 +310,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 
 	// Refresh row — same timestamp as the upsert rows.
 	rows = append(rows, partitionCandidateListRow{
-		Intent: reducer.SharedProjectionIntentRow{
+		Intent: sharedintent.Row{
 			IntentID:         "refresh-row",
 			ProjectionDomain: reducer.DomainInheritanceEdges,
 			PartitionKey:     refreshKey,
@@ -342,7 +343,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 			}
 		}
 		rows = append(rows, partitionCandidateListRow{
-			Intent: reducer.SharedProjectionIntentRow{
+			Intent: sharedintent.Row{
 				IntentID:         fmt.Sprintf("upsert-%d", i),
 				ProjectionDomain: reducer.DomainInheritanceEdges,
 				PartitionKey:     upsertKey,
@@ -435,7 +436,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 			}
 		}
 		rows = append(rows, partitionCandidateListRow{
-			Intent: reducer.SharedProjectionIntentRow{
+			Intent: sharedintent.Row{
 				IntentID:         fmt.Sprintf("upsert-%d", i),
 				ProjectionDomain: reducer.DomainInheritanceEdges,
 				PartitionKey:     upsertKey,
@@ -454,7 +455,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 
 	// Refresh intent — created AFTER the upsert edges.
 	rows = append(rows, partitionCandidateListRow{
-		Intent: reducer.SharedProjectionIntentRow{
+		Intent: sharedintent.Row{
 			IntentID:         "refresh-later",
 			ProjectionDomain: reducer.DomainInheritanceEdges,
 			PartitionKey:     refreshKey,

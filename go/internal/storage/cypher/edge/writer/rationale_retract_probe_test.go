@@ -13,6 +13,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestBuildProbeRationaleEdgesMirrorsRetractShape guards the #5998 probe-guard
@@ -122,7 +123,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeSkipsDeleteWhenProbeFindsNothing(t 
 
 	executor := &probeGuardRecordingExecutor{probeFound: false}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload:      wholeScopeRefreshPayload("repo-a"),
@@ -152,7 +153,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeRunsDeleteWhenProbeFindsRows(t *tes
 
 	executor := &probeGuardRecordingExecutor{probeFound: true}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload:      wholeScopeRefreshPayload("repo-a"),
@@ -185,7 +186,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeUnsupportedRunsDeleteUnconditionall
 
 	executor := &recordingExecutor{} // implements Executor only, not ProbeExecutor
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload:      wholeScopeRefreshPayload("repo-a"),
@@ -211,7 +212,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeErrorRunsDeleteUnconditionally(t *t
 
 	executor := &probeGuardRecordingExecutor{probeErr: errors.New("probe backend unavailable")}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "i1",
 		RepositoryID: "repo-a",
 		Payload:      wholeScopeRefreshPayload("repo-a"),
@@ -240,7 +241,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeUsesSameParametersAsDelete(t *testi
 
 	executor := &probeGuardRecordingExecutor{probeFound: true}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 

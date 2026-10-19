@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // handlesRouteFamily is the materialized-edge family key this guard asserts
@@ -170,7 +171,7 @@ type handlesRouteEdgeAccumulator struct {
 // ExpectedEdge with no asserted http_method), without needing a live backend
 // or a second fixture route.
 func handlesRouteRowsToExpectedEdges(
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	endpointIDs map[string]string,
 	relationshipType string,
 ) (edges []ExpectedEdge, unresolved []string) {

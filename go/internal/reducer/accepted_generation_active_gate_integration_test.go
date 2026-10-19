@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive proves the
@@ -38,8 +39,8 @@ func TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive(t *testing.T)
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{intent},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{intent},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {intent},
 		},
 		leaseGranted: true,

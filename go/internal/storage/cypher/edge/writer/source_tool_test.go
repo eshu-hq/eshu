@@ -11,6 +11,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestBuildCanonicalRepoDependencyUpsertStampsSourceTool proves the DEPENDS_ON
@@ -65,7 +66,7 @@ func TestEdgeWriterThreadsSourceToolIntoRows(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "dep",
 			RepositoryID: "repo-a",

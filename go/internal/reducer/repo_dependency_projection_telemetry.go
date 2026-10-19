@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -22,7 +23,7 @@ import (
 func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycle(
 	ctx context.Context,
 	acceptanceUnitID string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	writtenRows int,
 	writtenGroups int,
 	startedAt time.Time,

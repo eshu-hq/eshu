@@ -660,8 +660,7 @@ Primary groups:
 - `internal/facts` — `facts.Envelope`
 - `internal/projector` — `projector.ScopeGenerationWork`, `projector.Result`,
   `projector.IsRetryable`
-- `internal/reducer` — `reducer.Domain`, `reducer.SharedProjectionIntentRow`,
-  `reducer.GraphProjectionReadinessLookup`, `reducer.AcceptedGenerationLookup`
+- `internal/reducer` — `reducer.Domain`, `reducer.GraphProjectionReadinessLookup`, `reducer.AcceptedGenerationLookup`; `internal/reducer/sharedintent` — `sharedintent.Row`
 - `internal/recovery` — recovery store interface contracts
 - `internal/scope` — `scope.ScopeKind`, `scope.GenerationStatus`,
   `scope.TriggerKind`

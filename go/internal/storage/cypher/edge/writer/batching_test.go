@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestEdgeWriterRetractEdgesPropagatesExecutorError(t *testing.T) {
@@ -19,7 +20,7 @@ func TestEdgeWriterRetractEdgesPropagatesExecutorError(t *testing.T) {
 	executor := &recordingExecutor{errAtCall: errors.New("connection refused")}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
@@ -37,7 +38,7 @@ func TestEdgeWriterRequiresExecutor(t *testing.T) {
 
 	writer := NewEdgeWriter(nil, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-b"}},
 	}
 
@@ -56,7 +57,7 @@ func TestBatchedWriteEdgesRespectsBatchSize(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 2) // batch size = 2
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "r1", Payload: map[string]any{"repo_id": "r1", "target_repo_id": "r2"}},
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"repo_id": "r1", "target_repo_id": "r3"}},
 		{IntentID: "i3", RepositoryID: "r1", Payload: map[string]any{"repo_id": "r1", "target_repo_id": "r4"}},
@@ -93,9 +94,9 @@ func TestBatchedWriteEdgesDefaultBatchSize(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0) // uses DefaultBatchSize (500)
 
 	// Create 1000 rows — should produce 2 batches of 500
-	rows := make([]reducer.SharedProjectionIntentRow, 1000)
+	rows := make([]sharedintent.Row, 1000)
 	for i := range rows {
-		rows[i] = reducer.SharedProjectionIntentRow{
+		rows[i] = sharedintent.Row{
 			IntentID:     fmt.Sprintf("i%d", i),
 			RepositoryID: "r1",
 			Payload:      map[string]any{"repo_id": "r1", "target_repo_id": fmt.Sprintf("r%d", i+2)},
@@ -117,7 +118,7 @@ func TestBatchedWriteEdgesSkipsEmptyRequiredFields(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		// Valid row
 		{IntentID: "i1", RepositoryID: "r1", Payload: map[string]any{"repo_id": "r1", "target_repo_id": "r2"}},
 		// Missing repo_id — should be skipped
@@ -150,7 +151,7 @@ func TestBatchedWriteEdgesAllRowsInvalidFailsIntent(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "r1", Payload: map[string]any{"repo_id": "", "target_repo_id": ""}},
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{}},
 	}
@@ -167,7 +168,7 @@ func TestEdgeWriterWriteEdgesCodeCallsChunkManagedGroups(t *testing.T) {
 	writer.CodeCallBatchSize = 2
 	writer.CodeCallGroupBatchSize = 1
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "caller-1", "callee_entity_id": "callee-1"}},
 		{IntentID: "i2", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "caller-2", "callee_entity_id": "callee-2"}},
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "caller-3", "callee_entity_id": "callee-3"}},
@@ -203,7 +204,7 @@ func TestEdgeWriterWriteEdgesNonCodeCallsKeepSingleManagedGroup(t *testing.T) {
 	writer.CodeCallBatchSize = 1
 	writer.CodeCallGroupBatchSize = 1
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "r1", Payload: map[string]any{"repo_id": "r1", "target_repo_id": "r2"}},
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"repo_id": "r1", "target_repo_id": "r3"}},
 		{IntentID: "i3", RepositoryID: "r1", Payload: map[string]any{"repo_id": "r1", "target_repo_id": "r4"}},
@@ -227,7 +228,7 @@ func TestEdgeWriterWriteEdgesInheritanceChunkManagedGroups(t *testing.T) {
 	writer := NewEdgeWriter(executor, 2)
 	writer.InheritanceGroupBatchSize = 1
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -289,7 +290,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipsChunkManagedGroups(t *testing.T) {
 	writer := NewEdgeWriter(executor, 2)
 	writer.SQLRelationshipGroupBatchSize = 1
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -27,7 +28,7 @@ const rationaleEvidenceSource = reducercontract.RationaleEvidenceSource
 // projects them under file-scoped partition keys and the #2898 refresh fence owns
 // the single per-repo retract.
 type RationaleEdgeIntentWriter interface {
-	UpsertIntents(ctx context.Context, rows []SharedProjectionIntentRow) error
+	UpsertIntents(ctx context.Context, rows []sharedintent.Row) error
 }
 
 // RationaleEdgeMaterializationHandler projects EXPLAINS edges from intent-comment

@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -29,12 +30,12 @@ func (l oduEvidenceLoader) ListEvidenceFacts(
 }
 
 type oduIntentWriter struct {
-	rows []reducer.SharedProjectionIntentRow
+	rows []sharedintent.Row
 }
 
 func (w *oduIntentWriter) UpsertIntents(
 	_ context.Context,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) error {
 	w.rows = append(w.rows, rows...)
 	return nil
@@ -85,7 +86,7 @@ func TestRepoDependencyConcurrencyOduProducesHostileProductionIntents(t *testing
 
 func assertRepoDependencyOduIntentTruth(
 	t *testing.T,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) {
 	t.Helper()
 
@@ -170,7 +171,7 @@ func assertRepoDependencyOduIntentTruth(
 	}
 }
 
-func assertOduEvidenceArtifacts(t *testing.T, row reducer.SharedProjectionIntentRow) int {
+func assertOduEvidenceArtifacts(t *testing.T, row sharedintent.Row) int {
 	t.Helper()
 	artifacts, ok := row.Payload["evidence_artifacts"].([]map[string]any)
 	if !ok {

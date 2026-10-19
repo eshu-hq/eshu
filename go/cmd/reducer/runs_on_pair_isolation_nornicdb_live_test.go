@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -76,9 +77,9 @@ func TestRunsOnPairIsolationLive(t *testing.T) {
 			}
 			writeCrossRepo := func() {
 				t.Helper()
-				rows := make([]reducer.SharedProjectionIntentRow, 0, 2)
+				rows := make([]sharedintent.Row, 0, 2)
 				for index := range fixture.repos {
-					rows = append(rows, reducer.SharedProjectionIntentRow{
+					rows = append(rows, sharedintent.Row{
 						IntentID:     fixture.repos[index] + "-runs-on",
 						RepositoryID: fixture.repos[index],
 						Payload: map[string]any{
@@ -137,9 +138,9 @@ func TestRunsOnPairIsolationLive(t *testing.T) {
 				}
 				assertRunsOnPairFixture(t, ctx, runner, fixture, "workload")
 			case "cross_repo":
-				rows := make([]reducer.SharedProjectionIntentRow, 0, 2)
+				rows := make([]sharedintent.Row, 0, 2)
 				for index := range fixture.repos {
-					rows = append(rows, reducer.SharedProjectionIntentRow{
+					rows = append(rows, sharedintent.Row{
 						IntentID:     fixture.repos[index] + "-runs-on",
 						RepositoryID: fixture.repos[index],
 						Payload: map[string]any{

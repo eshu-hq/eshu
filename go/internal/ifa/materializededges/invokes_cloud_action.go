@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // invokesCloudActionFamily is the materialized-edge family key this guard
@@ -78,7 +79,7 @@ func resolveInvokesCloudActionMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 // go/internal/reducer/code/call/materialization/cloud_actions.go's own comment). No
 // dedupe is needed here: the extractor's own (function_id, action) dedupe
 // key already equals the edge identity.
-func invokesCloudActionRowsToExpectedEdges(rows []reducer.SharedProjectionIntentRow, relationshipType string) []ExpectedEdge {
+func invokesCloudActionRowsToExpectedEdges(rows []sharedintent.Row, relationshipType string) []ExpectedEdge {
 	edges := make([]ExpectedEdge, 0, len(rows))
 	for _, row := range rows {
 		edges = append(edges, ExpectedEdge{

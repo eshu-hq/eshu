@@ -327,7 +327,7 @@ func ExtractSymbolRuntimeIntentRows(
 	envelopes []facts.Envelope,
 	generationID string,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	return materialization.ExtractIntentRows(envelopes, generationID, createdAt)
 }
 
@@ -335,7 +335,7 @@ func ExtractSymbolRuntimeIntentRows(
 // [materialization.BuildRouteIntentRowsForQueryProof]. internal/mcp and
 // internal/query's route-to-caller proof tests call this as
 // reducer.BuildHandlesRouteIntentRowsForQueryProof.
-func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []SharedProjectionIntentRow {
+func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []sharedintent.Row {
 	return materialization.BuildRouteIntentRowsForQueryProof(envelopes)
 }
 
@@ -445,15 +445,15 @@ type SharedProjectionPartitionCandidateReader = worker.PartitionCandidateReader
 type SharedProjectionUnhashedCandidateReader = worker.UnhashedCandidateReader
 
 // LatestIntentsByRepoAndPartition forwards to [worker.LatestIntentsByRepoAndPartition].
-func LatestIntentsByRepoAndPartition(intents []SharedProjectionIntentRow) ([]SharedProjectionIntentRow, []string) {
+func LatestIntentsByRepoAndPartition(intents []sharedintent.Row) ([]sharedintent.Row, []string) {
 	return worker.LatestIntentsByRepoAndPartition(intents)
 }
 
 // FilterAuthoritativeIntents forwards to [worker.FilterAuthoritativeIntents].
 func FilterAuthoritativeIntents(
-	intents []SharedProjectionIntentRow,
+	intents []sharedintent.Row,
 	acceptedGen AcceptedGenerationLookup,
-) (active []SharedProjectionIntentRow, staleIDs []string) {
+) (active []sharedintent.Row, staleIDs []string) {
 	return worker.FilterAuthoritativeIntents(intents, acceptedGen)
 }
 

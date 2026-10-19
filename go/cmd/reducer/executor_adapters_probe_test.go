@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -190,8 +191,8 @@ func gateWiredEdgeWriterForProbeTest(t *testing.T, probeFound bool) (*edgewriter
 // repo-id list before it reaches the probe, so probeCalls stays 0 and neither
 // test proves the probe survives the gate-wrapped executor chain. Do not
 // "simplify" this back to a bare repo_id payload.
-func wholeScopeRationaleRefreshRow(intentID, repoID string) reducer.SharedProjectionIntentRow {
-	return reducer.SharedProjectionIntentRow{
+func wholeScopeRationaleRefreshRow(intentID, repoID string) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:     intentID,
 		RepositoryID: repoID,
 		Payload: map[string]any{
@@ -214,7 +215,7 @@ func TestReducerGraphWriteGateWiredChainSkipsRationaleDeleteOnEmptyProbe(t *test
 	t.Parallel()
 
 	writer, session := gateWiredEdgeWriterForProbeTest(t, false)
-	rows := []reducer.SharedProjectionIntentRow{wholeScopeRationaleRefreshRow("i1", "repo-a")}
+	rows := []sharedintent.Row{wholeScopeRationaleRefreshRow("i1", "repo-a")}
 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
@@ -234,7 +235,7 @@ func TestReducerGraphWriteGateWiredChainRunsRationaleDeleteWhenProbeFindsRows(t 
 	t.Parallel()
 
 	writer, session := gateWiredEdgeWriterForProbeTest(t, true)
-	rows := []reducer.SharedProjectionIntentRow{wholeScopeRationaleRefreshRow("i1", "repo-a")}
+	rows := []sharedintent.Row{wholeScopeRationaleRefreshRow("i1", "repo-a")}
 
 	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)

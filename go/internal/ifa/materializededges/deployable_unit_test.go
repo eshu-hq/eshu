@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
@@ -108,17 +108,17 @@ func TestResolveDeployableUnitMaterializedEdgesRejectsWrongExpectedSet(t *testin
 func TestDeployableUnitAssertDropReasonsCatchesRejectedRowLeak(t *testing.T) {
 	t.Parallel()
 
-	rejectedRow := reducer.SharedProjectionIntentRow{
+	rejectedRow := sharedintent.Row{
 		RepositoryID: deployableUnitFamilyRejectedRepoID,
 		Payload:      map[string]any{"admission_state": "rejected"},
 	}
-	noDeployRow := reducer.SharedProjectionIntentRow{
+	noDeployRow := sharedintent.Row{
 		RepositoryID: deployableUnitFamilyAdmittedNoDeployRepoID,
 		Payload:      map[string]any{"admission_state": "admitted", "deployment_repo_id": ""},
 	}
-	rows := []reducer.SharedProjectionIntentRow{rejectedRow, noDeployRow}
+	rows := []sharedintent.Row{rejectedRow, noDeployRow}
 	// Simulate the bug: the rejected row leaked into "admitted".
-	admitted := []reducer.SharedProjectionIntentRow{rejectedRow}
+	admitted := []sharedintent.Row{rejectedRow}
 
 	if detail := deployableUnitAssertDropReasons("odu:test", rows, admitted); detail == "" {
 		t.Fatal("deployableUnitAssertDropReasons() = \"\", want a non-empty failure detail for a leaked rejected row")
@@ -143,7 +143,7 @@ func TestDeployableUnitAssertDropReasonsCatchesMissingNegativeRows(t *testing.T)
 func TestDeployableUnitAssertDropReasonsCatchesUnexpectedDeploymentRepoID(t *testing.T) {
 	t.Parallel()
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{RepositoryID: deployableUnitFamilyRejectedRepoID, Payload: map[string]any{"admission_state": "rejected"}},
 		{
 			RepositoryID: deployableUnitFamilyAdmittedNoDeployRepoID,
@@ -164,7 +164,7 @@ func TestDeployableUnitAssertDropReasonsCatchesUnexpectedDeploymentRepoID(t *tes
 func TestDeployableUnitAssertAdmittedEdgePropertiesCatchesWrongRulePack(t *testing.T) {
 	t.Parallel()
 
-	admitted := []reducer.SharedProjectionIntentRow{
+	admitted := []sharedintent.Row{
 		{
 			Payload: map[string]any{
 				"admission_state":     "admitted",

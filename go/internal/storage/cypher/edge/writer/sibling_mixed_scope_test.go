@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // siblingDeltaDispatchCase names one of the three fenced repo-wide-retract
@@ -82,7 +83,7 @@ func TestEdgeWriterRetractEdgesSiblingMixedBatchRetractsBothDeltaAndWholeScopeRe
 			writer := NewEdgeWriter(executor, 0)
 			writer.Reader = executor
 
-			rows := []reducer.SharedProjectionIntentRow{
+			rows := []sharedintent.Row{
 				{
 					IntentID:     "refresh-delta",
 					RepositoryID: "repo-delta",
@@ -144,7 +145,7 @@ func TestEdgeWriterRetractEdgesSiblingEmptyDeltaFilePathsFailsThePartition(t *te
 			writer := NewEdgeWriter(executor, 0)
 			writer.Reader = executor
 
-			rows := []reducer.SharedProjectionIntentRow{
+			rows := []sharedintent.Row{
 				{
 					IntentID:     "refresh-empty-delta",
 					RepositoryID: "repo-empty",

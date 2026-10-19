@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -196,11 +197,11 @@ func (noopFactLoader) ListFacts(context.Context, string, string) ([]facts.Envelo
 // noopIntentWriter satisfies CodeCallIntentWriter, SQLRelationshipIntentWriter,
 // ShellExecIntentWriter, InheritanceIntentWriter, and RationaleEdgeIntentWriter
 // -- all five are structurally the same single-method interface
-// (UpsertIntents(context.Context, []SharedProjectionIntentRow) error), so one
+// (UpsertIntents(context.Context, []sharedintent.Row) error), so one
 // stub covers all five DefaultHandlers fields.
 type noopIntentWriter struct{}
 
-func (noopIntentWriter) UpsertIntents(context.Context, []SharedProjectionIntentRow) error {
+func (noopIntentWriter) UpsertIntents(context.Context, []sharedintent.Row) error {
 	return nil
 }
 
@@ -209,11 +210,11 @@ func (noopIntentWriter) UpsertIntents(context.Context, []SharedProjectionIntentR
 // SubmodulePinEdgeWriter on DefaultHandlers.
 type noopSharedProjectionEdgeWriter struct{}
 
-func (noopSharedProjectionEdgeWriter) RetractEdges(context.Context, string, []SharedProjectionIntentRow, string) error {
+func (noopSharedProjectionEdgeWriter) RetractEdges(context.Context, string, []sharedintent.Row, string) error {
 	return nil
 }
 
-func (noopSharedProjectionEdgeWriter) WriteEdges(context.Context, string, []SharedProjectionIntentRow, string) (SharedProjectionWriteReport, error) {
+func (noopSharedProjectionEdgeWriter) WriteEdges(context.Context, string, []sharedintent.Row, string) (SharedProjectionWriteReport, error) {
 	return SharedProjectionWriteReport{}, nil
 }
 

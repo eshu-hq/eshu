@@ -10,7 +10,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // copyRepoRelationshipMetadata preserves durable evidence pointers on graph
@@ -54,7 +54,7 @@ func copyRepoRelationshipMetadata(rowMap map[string]any, payload map[string]any,
 // reducer computed them (GitHub Actions evidence only); this function is not
 // the place that classifies a ref as pinned.
 func repoEvidenceArtifactRowsFromIntent(
-	row reducer.SharedProjectionIntentRow,
+	row sharedintent.Row,
 	evidenceSource string,
 ) []map[string]any {
 	payload := row.Payload

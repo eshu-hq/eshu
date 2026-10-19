@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -81,7 +82,7 @@ func TestReducerInheritanceEdgeRetractGraphTruth(t *testing.T) {
 
 	// Production write path: typed endpoints route to exact-label MATCH Cyphers
 	// (NornicDB matches single labels), so these edges are actually created.
-	writeRows := []reducer.SharedProjectionIntentRow{
+	writeRows := []sharedintent.Row{
 		{IntentID: "inherits-in", RepositoryID: inheritEdgeInScopeRepoID, Payload: map[string]any{
 			"relationship_type": "INHERITS",
 			"child_entity_id":   inhChildA, "child_entity_type": "Class",
@@ -134,7 +135,7 @@ func TestReducerInheritanceEdgeRetractGraphTruth(t *testing.T) {
 
 	// Production retract path: repo-scoped rows route to per-child-label
 	// statements, run sequentially (#5116/#4367).
-	retractRows := []reducer.SharedProjectionIntentRow{
+	retractRows := []sharedintent.Row{
 		{
 			IntentID:     "retract",
 			RepositoryID: inheritEdgeInScopeRepoID,

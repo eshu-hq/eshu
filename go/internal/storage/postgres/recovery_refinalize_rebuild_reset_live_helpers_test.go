@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // Real-Postgres proofs for the #4594 disaster-recovery rebuild.
@@ -253,11 +254,11 @@ func seedRefinalizeResetRepoDependencyIntent(
 	t *testing.T,
 	ctx context.Context,
 	db *sql.DB,
-	row reducer.SharedProjectionIntentRow,
+	row sharedintent.Row,
 ) {
 	t.Helper()
 
-	if err := NewSharedIntentStore(SQLDB{DB: db}).UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{row}); err != nil {
+	if err := NewSharedIntentStore(SQLDB{DB: db}).UpsertIntents(ctx, []sharedintent.Row{row}); err != nil {
 		t.Fatalf("seed repo_dependency intent %s: %v", row.IntentID, err)
 	}
 }

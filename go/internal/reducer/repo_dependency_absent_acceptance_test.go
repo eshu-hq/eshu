@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // The shard wrapper must forward the #7853 probe: multi-worker runs wrap the
@@ -42,8 +43,8 @@ func repoDependencyAbsentAcceptanceLookup(key SharedProjectionAcceptanceKey) (st
 	return "", false
 }
 
-func repoDependencyAbsentAcceptanceRows(now time.Time) []SharedProjectionIntentRow {
-	return []SharedProjectionIntentRow{
+func repoDependencyAbsentAcceptanceRows(now time.Time) []sharedintent.Row {
+	return []sharedintent.Row{
 		{
 			IntentID:         "orphan-1",
 			ProjectionDomain: DomainRepoDependency,
@@ -152,12 +153,12 @@ func TestRepoDependencySelectionDrainsAtCapAndRescans(t *testing.T) {
 	// healthy unit: pre-#7853 the selection errored at the cap and the
 	// healthy unit starved. Post-fix the cap drains and rescans past them.
 	now := time.Date(2026, time.October, 18, 12, 0, 0, 0, time.UTC)
-	rows := make([]SharedProjectionIntentRow, 0, maxRepoDependencyAcceptanceScanLimit+1)
+	rows := make([]sharedintent.Row, 0, maxRepoDependencyAcceptanceScanLimit+1)
 	gone := make(map[string]struct{}, maxRepoDependencyAcceptanceScanLimit)
 	for i := 0; i < maxRepoDependencyAcceptanceScanLimit; i++ {
 		gen := "gen-cap-orphan-gone"
 		gone[gen] = struct{}{}
-		rows = append(rows, SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			IntentID:         "orphan-cap-" + string(rune('a'+(i%26))) + "-" + string(rune('a'+((i/26)%26))) + "-" + string(rune('a'+((i/676)%26))),
 			ProjectionDomain: DomainRepoDependency,
 			PartitionKey:     "partition-orphan",
@@ -169,7 +170,7 @@ func TestRepoDependencySelectionDrainsAtCapAndRescans(t *testing.T) {
 			CreatedAt:        now.Add(time.Duration(i) * time.Nanosecond),
 		})
 	}
-	rows = append(rows, SharedProjectionIntentRow{
+	rows = append(rows, sharedintent.Row{
 		IntentID:         "healthy-1",
 		ProjectionDomain: DomainRepoDependency,
 		PartitionKey:     "partition-healthy",

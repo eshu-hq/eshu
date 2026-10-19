@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -82,7 +83,7 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 	// Production write path: the rationale template MERGEs the Rationale node
 	// inline and MATCHes the target by uid. Payload shapes mirror what the
 	// reducer's rationale edge intents emit (rationale_edge_intents.go).
-	writeRows := []reducer.SharedProjectionIntentRow{
+	writeRows := []sharedintent.Row{
 		{IntentID: "rat-fn", RepositoryID: ratRepoID, Payload: map[string]any{
 			"rationale_uid": ratUIDFn, "target_entity_id": ratFnTarget,
 			"repo_id": ratRepoID, "comment_kind": "WHY", "excerpt_hash": "h-fn",
@@ -115,7 +116,7 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 
 	// Production delta retract path: delta rows route to the by-file EXPLAINS
 	// retract, which must delete only the changed file's edges.
-	deltaRows := []reducer.SharedProjectionIntentRow{
+	deltaRows := []sharedintent.Row{
 		{IntentID: "retract-delta", RepositoryID: ratRepoID, Payload: map[string]any{
 			"repo_id":          ratRepoID,
 			"delta_projection": true,
@@ -148,7 +149,7 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 	// the refresh intent_type contributes nothing, RetractEdges returns before
 	// issuing a DELETE, and the assertion below fails against the edge this
 	// test just wrote.
-	repoRows := []reducer.SharedProjectionIntentRow{
+	repoRows := []sharedintent.Row{
 		{IntentID: "retract-repo", RepositoryID: ratRepoID, Payload: wholeScopeRefreshRetractPayload(ratRepoID)},
 	}
 	if err := writer.RetractEdges(ctx, reducer.DomainRationaleEdges, repoRows, ratEvidenceSource); err != nil {

@@ -7,6 +7,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // fakeSharedIntentReader, fakeLeaseManager, and fakeEdgeWriter mirror the
@@ -17,15 +19,15 @@ import (
 
 type fakeSharedIntentReader struct {
 	mu      sync.Mutex
-	intents []SharedProjectionIntentRow
+	intents []sharedintent.Row
 	marked  []string
 }
 
-func (f *fakeSharedIntentReader) ListPendingDomainIntents(_ context.Context, domain string, limit int) ([]SharedProjectionIntentRow, error) {
+func (f *fakeSharedIntentReader) ListPendingDomainIntents(_ context.Context, domain string, limit int) ([]sharedintent.Row, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	var result []SharedProjectionIntentRow
+	var result []sharedintent.Row
 	for _, row := range f.intents {
 		if row.ProjectionDomain == domain && row.CompletedAt == nil {
 			result = append(result, row)
@@ -76,7 +78,7 @@ type fakeEdgeWriter struct {
 	mu        sync.Mutex
 	writes    int
 	retracts  int
-	writeRows []SharedProjectionIntentRow
+	writeRows []sharedintent.Row
 	// writeErr, when non-nil, is returned by WriteEdges instead of a
 	// successful write -- used to simulate a graph-executor-seam failure
 	// (e.g. the ifafaultinjection fail-graph-write-once-then-succeed fault)
@@ -84,7 +86,7 @@ type fakeEdgeWriter struct {
 	writeErr error
 }
 
-func (f *fakeEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) (SharedProjectionWriteReport, error) {
+func (f *fakeEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (SharedProjectionWriteReport, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.writes++
@@ -95,7 +97,7 @@ func (f *fakeEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedPr
 	return SharedProjectionWriteReport{}, nil
 }
 
-func (f *fakeEdgeWriter) RetractEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) error {
+func (f *fakeEdgeWriter) RetractEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.retracts++

@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -30,8 +31,8 @@ const (
 // RepoDependencyProjectionIntentReader reads repo-dependency intents by domain
 // and by source-repo-owned acceptance unit.
 type RepoDependencyProjectionIntentReader interface {
-	ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]SharedProjectionIntentRow, error)
-	ListAcceptanceUnitDomainIntents(ctx context.Context, acceptanceUnitID, domain string, limit int) ([]SharedProjectionIntentRow, error)
+	ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]sharedintent.Row, error)
+	ListAcceptanceUnitDomainIntents(ctx context.Context, acceptanceUnitID, domain string, limit int) ([]sharedintent.Row, error)
 	// MarkIntentsCompleted marks intents completed and returns the rows
 	// matched, so the caller can log a batch whose rows vanished mid-cycle
 	// instead of reporting silent success (#7853).
@@ -255,7 +256,7 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 
 	var (
 		processed     PartitionProcessResult
-		active        []SharedProjectionIntentRow
+		active        []sharedintent.Row
 		writtenGroups int
 	)
 	ran, gateErr := r.AcceptanceUnitGate.WithAcceptanceUnit(
@@ -304,7 +305,7 @@ func (r *RepoDependencyProjectionRunner) quarantineLease(err error) error {
 	return &repoDependencyLeaseQuarantineError{delay: r.Config.leaseTTL(), cause: err}
 }
 
-func repoDependencyNeedsRetract(rows []SharedProjectionIntentRow, staleIDs []string) bool {
+func repoDependencyNeedsRetract(rows []sharedintent.Row, staleIDs []string) bool {
 	if len(staleIDs) > 0 {
 		return true
 	}
@@ -327,7 +328,7 @@ func (r *RepoDependencyProjectionRunner) selectAcceptanceUnitWork(ctx context.Co
 	// across widen rounds, keyed by intent id. The #7853 drain below marks
 	// the generation-gone subset completed and deletes them from this map,
 	// so a rescan after a cap-continue never re-marks them.
-	absentRows := make(map[string]SharedProjectionIntentRow)
+	absentRows := make(map[string]sharedintent.Row)
 	absentDrained := 0
 	// reportedTorn accumulates the torn-write ids already WARNed and
 	// counted this selection, and tornIDs carries them to the exit paths
@@ -467,7 +468,7 @@ func (r *RepoDependencyProjectionRunner) loadAllAcceptanceUnitIntents(
 	ctx context.Context,
 	reader RepoDependencyProjectionIntentReader,
 	acceptanceUnitID string,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	limit := r.Config.batchLimit()
 	if limit > maxRepoDependencyAcceptanceScanLimit {
 		limit = maxRepoDependencyAcceptanceScanLimit
@@ -495,7 +496,7 @@ func (r *RepoDependencyProjectionRunner) loadAllAcceptanceUnitIntents(
 	}
 }
 
-func (r *RepoDependencyProjectionRunner) retractRepo(ctx context.Context, rows []SharedProjectionIntentRow) (int, error) {
+func (r *RepoDependencyProjectionRunner) retractRepo(ctx context.Context, rows []sharedintent.Row) (int, error) {
 	retractRows := buildRepoDependencyRetractRows(uniqueRepositoryIDs(rows))
 	if len(retractRows) == 0 {
 		return 0, nil
@@ -509,7 +510,7 @@ func (r *RepoDependencyProjectionRunner) retractRepo(ctx context.Context, rows [
 	return len(retractRows) * len(sources), nil
 }
 
-func (r *RepoDependencyProjectionRunner) writeActiveRows(ctx context.Context, rows []SharedProjectionIntentRow) (int, int, error) {
+func (r *RepoDependencyProjectionRunner) writeActiveRows(ctx context.Context, rows []sharedintent.Row) (int, int, error) {
 	groups := groupRepoDependencyUpsertRows(rows)
 	if len(groups) == 0 {
 		return 0, 0, nil

@@ -10,13 +10,14 @@ import (
 	"time"
 
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // handlesRouteIntentRow builds a minimal DomainHandlesRoute intent row carrying
 // the (repo_id, path) the property-keyed Endpoint presence gate keys on.
-func handlesRouteIntentRow(intentID, repoID, path string) SharedProjectionIntentRow {
+func handlesRouteIntentRow(intentID, repoID, path string) sharedintent.Row {
 	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
-	return SharedProjectionIntentRow{
+	return sharedintent.Row{
 		IntentID:         intentID,
 		ProjectionDomain: DomainHandlesRoute,
 		PartitionKey:     intentID,
@@ -185,7 +186,7 @@ func TestPublishAPIEndpointRepoPathPresenceNilWriterNoOp(t *testing.T) {
 func TestFilterRowsByReadinessHandlesRouteTerminatesAbsentEndpoint(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		handlesRouteIntentRow("present", "repo-1", "/present"),
 		handlesRouteIntentRow("absent", "repo-1", "/absent"),
 	}
@@ -227,7 +228,7 @@ func TestFilterRowsByReadinessHandlesRouteTerminatesAbsentEndpoint(t *testing.T)
 func TestFilterRowsByReadinessHandlesRoutePhaseBlockedStaysDeferred(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		handlesRouteIntentRow("waiting", "repo-1", "/waiting"),
 	}
 	// Phase gate not yet satisfied for any row.
@@ -261,7 +262,7 @@ func TestFilterRowsByReadinessHandlesRoutePhaseBlockedStaysDeferred(t *testing.T
 func TestFilterRowsByReadinessHandlesRouteProjectsWhenPresent(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		handlesRouteIntentRow("a", "repo-1", "/a"),
 		handlesRouteIntentRow("b", "repo-1", "/b"),
 	}
@@ -296,7 +297,7 @@ func TestFilterRowsByReadinessHandlesRouteProjectsWhenPresent(t *testing.T) {
 func TestFilterRowsByReadinessHandlesRouteNilPresenceIsTodaysBehavior(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		handlesRouteIntentRow("a", "repo-1", "/a"),
 		handlesRouteIntentRow("b", "repo-1", "/b"),
 	}
@@ -322,7 +323,7 @@ func TestFilterRowsByReadinessHandlesRouteNilPresenceIsTodaysBehavior(t *testing
 func TestFilterRowsByReadinessNonHandlesRouteIgnoresPresence(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:         "cc-1",
 			ProjectionDomain: DomainCodeCalls,

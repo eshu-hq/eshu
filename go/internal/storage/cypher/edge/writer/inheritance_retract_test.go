@@ -12,6 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestInheritanceRetractCoversEveryWriteEndpointLabel closes a coverage gap
@@ -131,7 +132,7 @@ func TestEdgeWriterRetractEdgesInheritanceDeltaUsesFileScope(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -178,7 +179,7 @@ func TestEdgeWriterRetractEdgesInheritanceRepoScope(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
@@ -205,7 +206,7 @@ func TestEdgeWriterRetractEdgesInheritanceRejectsDeltaWithoutFilePaths(t *testin
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",

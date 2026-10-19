@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestSharedProjectionRunnerBackoffOnEmptyCycles(t *testing.T) {
@@ -70,7 +72,7 @@ func TestSharedProjectionRunnerBacksOffWhileReadinessBlocked(t *testing.T) {
 	var mu sync.Mutex
 	var waits []time.Duration
 	reader := &fakeSharedIntentReader{
-		intents: []SharedProjectionIntentRow{
+		intents: []sharedintent.Row{
 			{
 				IntentID:         "blocked-sql-1",
 				ProjectionDomain: DomainSQLRelationships,
@@ -166,7 +168,7 @@ func TestSharedProjectionRunnerBackoffResetsOnWork(t *testing.T) {
 
 			if wc == 2 {
 				reader.mu.Lock()
-				reader.intents = append(reader.intents, SharedProjectionIntentRow{
+				reader.intents = append(reader.intents, sharedintent.Row{
 					IntentID:         "intent-reset",
 					ProjectionDomain: DomainWorkloadDependency,
 					PartitionKey:     "platform:test",

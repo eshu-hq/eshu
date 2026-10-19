@@ -58,7 +58,7 @@ func newSQLRelationshipStateModelingEdgeWriter() *sqlRelationshipStateModelingEd
 func (w *sqlRelationshipStateModelingEdgeWriter) RetractEdges(
 	_ context.Context,
 	_ string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) error {
 	deltaPaths, hasDelta := sqlRelationshipTestDeltaFilePaths(rows)
@@ -81,7 +81,7 @@ func (w *sqlRelationshipStateModelingEdgeWriter) RetractEdges(
 func (w *sqlRelationshipStateModelingEdgeWriter) WriteEdges(
 	_ context.Context,
 	_ string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) (SharedProjectionWriteReport, error) {
 	for _, row := range rows {
@@ -117,7 +117,7 @@ func sqlRelationshipTestEdgeKey(payload map[string]any) string {
 // sqlRelationshipTestDeltaFilePaths mirrors collectDeltaFilePaths: a delta
 // retract is active when any row carries delta_projection=true, and the file set
 // is the union of every such row's delta_file_paths.
-func sqlRelationshipTestDeltaFilePaths(rows []SharedProjectionIntentRow) (map[string]struct{}, bool) {
+func sqlRelationshipTestDeltaFilePaths(rows []sharedintent.Row) (map[string]struct{}, bool) {
 	paths := make(map[string]struct{})
 	hasDelta := false
 	for _, row := range rows {
@@ -136,7 +136,7 @@ func sqlRelationshipTestDeltaFilePaths(rows []SharedProjectionIntentRow) (map[st
 	return paths, hasDelta
 }
 
-func sqlRelationshipTestRepoIDs(rows []SharedProjectionIntentRow) []string {
+func sqlRelationshipTestRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var out []string
 	for _, row := range rows {
@@ -240,13 +240,13 @@ func seedPriorSQLRelationshipEdges(rows []map[string]any) *sqlRelationshipStateM
 }
 
 // sqlRelationshipDirectWriteRows builds the DIRECT-path write set: one
-// SharedProjectionIntentRow per extracted edge carrying the full payload
+// sharedintent.Row per extracted edge carrying the full payload
 // (including source_path), matching what the legacy direct EdgeWriter.WriteEdges
 // received. It is the reference write set the promoted path must reproduce.
-func sqlRelationshipDirectWriteRows(rows []map[string]any) []SharedProjectionIntentRow {
-	intents := make([]SharedProjectionIntentRow, 0, len(rows))
+func sqlRelationshipDirectWriteRows(rows []map[string]any) []sharedintent.Row {
+	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
-		intents = append(intents, SharedProjectionIntentRow{
+		intents = append(intents, sharedintent.Row{
 			ProjectionDomain: DomainSQLRelationships,
 			RepositoryID:     anyToString(row["repo_id"]),
 			Payload:          copyPayload(row),
@@ -368,7 +368,7 @@ func TestSQLRelationshipPartitionConvergesDelta(t *testing.T) {
 func drainSQLRelationshipInto(
 	t *testing.T,
 	edges *sqlRelationshipStateModelingEdgeWriter,
-	intents []SharedProjectionIntentRow,
+	intents []sharedintent.Row,
 	partitionCount int,
 	now time.Time,
 ) *sqlRelationshipStateModelingEdgeWriter {
@@ -409,7 +409,7 @@ func drainSQLRelationshipInto(
 // file-scoped partition keys and the refresh intent carries the whole-scope key,
 // the keyspace invariant that lets edges spread across partitions while one
 // refresh owns the repo-wide retract.
-func assertSQLRelationshipIntentKeyShapes(t *testing.T, intents []SharedProjectionIntentRow) {
+func assertSQLRelationshipIntentKeyShapes(t *testing.T, intents []sharedintent.Row) {
 	t.Helper()
 
 	sawRefresh := false

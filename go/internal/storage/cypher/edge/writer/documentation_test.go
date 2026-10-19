@@ -12,6 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestBuildDocumentationRowMapRoutesEntityTarget(t *testing.T) {
@@ -205,7 +206,7 @@ func TestEdgeWriterRetractEdgesDocumentationDeltaUsesDocumentScope(t *testing.T)
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "scope-1",
@@ -249,7 +250,7 @@ func TestEdgeWriterRetractEdgesDocumentationDeltaUsesSectionScope(t *testing.T) 
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "scope-1",
@@ -287,7 +288,7 @@ func TestEdgeWriterRetractEdgesDocumentationWholeScopeBindsScopeIDNotRepoID(t *t
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			ScopeID:      "scope-doc",
@@ -325,7 +326,7 @@ func TestEdgeWriterRetractEdgesDocumentationDeltaBindsScopeIDNotRepoID(t *testin
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			ScopeID:      "scope-doc",
@@ -365,7 +366,7 @@ func TestEdgeWriterRetractEdgesDocumentationRejectsDeltaWithoutIdentity(t *testi
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "scope-1",

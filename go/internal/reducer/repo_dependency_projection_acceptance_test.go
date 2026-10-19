@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *testing.T) {
@@ -17,7 +19,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 	now := time.Date(2026, time.April, 19, 12, 0, 0, 0, time.UTC)
 	repoID := "repository:r_repo_a"
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			repoDependencyIntentRow(
 				"stale-1", "scope-a", repoID, repoID, "run-1", "gen-old", now,
 				map[string]any{
@@ -55,7 +57,7 @@ func TestRepoDependencyProjectionRunnerProcessesSourceRepoOwnedAcceptance(t *tes
 				},
 			),
 		},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {
 				repoDependencyIntentRow(
 					"stale-1", "scope-a", repoID, repoID, "run-1", "gen-old", now,
@@ -152,7 +154,7 @@ func TestRepoDependencyProjectionRunnerHeartbeatsLongGraphWrite(t *testing.T) {
 	heartbeatObserved := make(chan struct{})
 	var heartbeatOnce sync.Once
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			repoDependencyIntentRow(
 				"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
 				map[string]any{
@@ -163,7 +165,7 @@ func TestRepoDependencyProjectionRunnerHeartbeatsLongGraphWrite(t *testing.T) {
 				},
 			),
 		},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {
 				repoDependencyIntentRow(
 					"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
@@ -233,7 +235,7 @@ func TestRepoDependencyProjectionRunnerRetractsPerEvidenceSourceAndSkipsRetractR
 	now := time.Date(2026, time.April, 19, 12, 30, 0, 0, time.UTC)
 	repoID := "repository:r_repo_a"
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			repoDependencyIntentRow(
 				"upsert-cross-repo", "scope-a", repoID, repoID, "run-1", "gen-1", now,
 				map[string]any{
@@ -244,7 +246,7 @@ func TestRepoDependencyProjectionRunnerRetractsPerEvidenceSourceAndSkipsRetractR
 				},
 			),
 		},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {
 				repoDependencyIntentRow(
 					"upsert-cross-repo", "scope-a", repoID, repoID, "run-1", "gen-1", now,
@@ -331,7 +333,7 @@ func TestRepoDependencyProjectionRunnerRehydratesCompletedContributorRows(t *tes
 	completedContributor.CompletedAt = &completedAt
 
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			repoDependencyIntentRow(
 				"pending-1", "scope-new", repoID, repoID, "run-new", "gen-new", now,
 				map[string]any{
@@ -342,7 +344,7 @@ func TestRepoDependencyProjectionRunnerRehydratesCompletedContributorRows(t *tes
 				},
 			),
 		},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {
 				completedContributor,
 				repoDependencyIntentRow(

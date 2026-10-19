@@ -30,6 +30,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -180,7 +181,7 @@ func runRepoDependencySourceCycle(
 	source string,
 ) error {
 	writer := edgewriter.NewEdgeWriter(exec, 0)
-	retractRows := []reducer.SharedProjectionIntentRow{{
+	retractRows := []sharedintent.Row{{
 		IntentID:     "retract-" + source,
 		RepositoryID: source,
 		Payload:      map[string]any{"repo_id": source},
@@ -204,8 +205,8 @@ func runRepoDependencySourceCycle(
 func repoDependencyConcurrencyRows(
 	fixture repoDependencyConcurrencyFixture,
 	source string,
-) []reducer.SharedProjectionIntentRow {
-	return []reducer.SharedProjectionIntentRow{
+) []sharedintent.Row {
+	return []sharedintent.Row{
 		{
 			IntentID:     "shared-" + source,
 			RepositoryID: source,
@@ -280,9 +281,9 @@ func seedRepoDependencyConcurrencyStaleEdges(
 	fixture repoDependencyConcurrencyFixture,
 ) {
 	t.Helper()
-	rows := make([]reducer.SharedProjectionIntentRow, 0, len(fixture.sources))
+	rows := make([]sharedintent.Row, 0, len(fixture.sources))
 	for _, source := range fixture.sources {
-		rows = append(rows, reducer.SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			IntentID: "stale-" + source, RepositoryID: source,
 			Payload: map[string]any{
 				"repo_id": source, "target_repo_id": repoDependencyConcurrencyStale,

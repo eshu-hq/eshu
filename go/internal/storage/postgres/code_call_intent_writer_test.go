@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -35,7 +36,7 @@ func TestCodeCallIntentWriterRecordsAcceptanceUpsertMetrics(t *testing.T) {
 	writer := NewCodeCallIntentWriterWithInstruments(database, instruments)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:         "intent-1",
 			ProjectionDomain: reducer.DomainCodeCalls,

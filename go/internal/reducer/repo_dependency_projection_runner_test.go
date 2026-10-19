@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRepoDependencyProjectionRunnerConfigDefaults(t *testing.T) {
@@ -109,8 +111,8 @@ func TestRepoDependencyProjectionRunnerProcessOnceRejectsMissingAcceptanceUnitGa
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain:         []SharedProjectionIntentRow{row},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {row}},
+		pendingByDomain:         []sharedintent.Row{row},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {row}},
 		leaseGranted:            true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
@@ -183,8 +185,8 @@ func TestRepoDependencyProjectionRunnerRejectsMismatchedSourceRepositoryIdentity
 				"run-new", "gen-new", now, payload,
 			)
 			reader := &fakeRepoDependencyIntentStore{
-				pendingByDomain: []SharedProjectionIntentRow{validPending},
-				pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+				pendingByDomain: []sharedintent.Row{validPending},
+				pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 					repoA: {malformed},
 				},
 				leaseGranted: true,
@@ -220,8 +222,8 @@ func TestRepoDependencyProjectionRunnerLoadAllAcceptanceUnitIntentsRejectsOversi
 	t.Parallel()
 
 	reader := &fakeRepoDependencyIntentStore{
-		acceptanceUnitResponder: func(_ string, limit int) ([]SharedProjectionIntentRow, error) {
-			rows := make([]SharedProjectionIntentRow, limit)
+		acceptanceUnitResponder: func(_ string, limit int) ([]sharedintent.Row, error) {
+			rows := make([]sharedintent.Row, limit)
 			for i := range rows {
 				rows[i] = repoDependencyIntentRow(
 					"intent", "scope-a", "repository:r_repo_a", "repository:r_repo_a", "run-1", "gen-1", time.Now().UTC(),
@@ -255,8 +257,8 @@ func TestRepoDependencyProjectionRunnerLoadAllAcceptanceUnitIntentsRejectsOversi
 
 type fakeRepoDependencyIntentStore struct {
 	mu                        sync.Mutex
-	pendingByDomain           []SharedProjectionIntentRow
-	pendingByAcceptanceUnit   map[string][]SharedProjectionIntentRow
+	pendingByDomain           []sharedintent.Row
+	pendingByAcceptanceUnit   map[string][]sharedintent.Row
 	marked                    []string
 	leaseGranted              bool
 	leaseClaims               int
@@ -264,12 +266,12 @@ type fakeRepoDependencyIntentStore struct {
 	domainLimitRequests       []int
 	acceptanceLimitRequests   []int
 	acceptanceUnitRequests    []string
-	acceptanceUnitResponder   func(acceptanceUnitID string, limit int) ([]SharedProjectionIntentRow, error)
+	acceptanceUnitResponder   func(acceptanceUnitID string, limit int) ([]sharedintent.Row, error)
 	domainIntentListError     error
 	acceptanceIntentListError error
 }
 
-func (f *fakeRepoDependencyIntentStore) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]SharedProjectionIntentRow, error) {
+func (f *fakeRepoDependencyIntentStore) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]sharedintent.Row, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -280,7 +282,7 @@ func (f *fakeRepoDependencyIntentStore) ListPendingDomainIntents(_ context.Conte
 	return truncatePendingRows(f.pendingByDomain, limit), nil
 }
 
-func (f *fakeRepoDependencyIntentStore) ListAcceptanceUnitDomainIntents(_ context.Context, acceptanceUnitID, _ string, limit int) ([]SharedProjectionIntentRow, error) {
+func (f *fakeRepoDependencyIntentStore) ListAcceptanceUnitDomainIntents(_ context.Context, acceptanceUnitID, _ string, limit int) ([]sharedintent.Row, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -354,8 +356,8 @@ func (f *fakeRepoDependencyIntentStore) claimCount() int {
 	return f.leaseClaims
 }
 
-func truncatePendingRows(rows []SharedProjectionIntentRow, limit int) []SharedProjectionIntentRow {
-	filtered := make([]SharedProjectionIntentRow, 0, len(rows))
+func truncatePendingRows(rows []sharedintent.Row, limit int) []sharedintent.Row {
+	filtered := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		if row.CompletedAt != nil {
 			continue
@@ -374,8 +376,8 @@ func truncatePendingRows(rows []SharedProjectionIntentRow, limit int) []SharedPr
 	return filtered
 }
 
-func truncateRowsForLimit(rows []SharedProjectionIntentRow, limit int) []SharedProjectionIntentRow {
-	filtered := append([]SharedProjectionIntentRow(nil), rows...)
+func truncateRowsForLimit(rows []sharedintent.Row, limit int) []sharedintent.Row {
+	filtered := append([]sharedintent.Row(nil), rows...)
 	sort.SliceStable(filtered, func(i, j int) bool {
 		if !filtered[i].CreatedAt.Equal(filtered[j].CreatedAt) {
 			return filtered[i].CreatedAt.Before(filtered[j].CreatedAt)
@@ -388,7 +390,7 @@ func truncateRowsForLimit(rows []SharedProjectionIntentRow, limit int) []SharedP
 	return filtered
 }
 
-func truncateAcceptanceUnitRows(rows []SharedProjectionIntentRow, limit int) []SharedProjectionIntentRow {
+func truncateAcceptanceUnitRows(rows []sharedintent.Row, limit int) []sharedintent.Row {
 	return truncateRowsForLimit(rows, limit)
 }
 
@@ -401,8 +403,8 @@ func repoDependencyIntentRow(
 	generationID string,
 	createdAt time.Time,
 	payload map[string]any,
-) SharedProjectionIntentRow {
-	return SharedProjectionIntentRow{
+) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:         intentID,
 		ProjectionDomain: DomainRepoDependency,
 		PartitionKey:     intentID,
@@ -422,7 +424,7 @@ func TestRepoDependencyProjectionRunnerRunContinuesAfterCycleError(t *testing.T)
 	now := time.Date(2026, time.April, 19, 13, 0, 0, 0, time.UTC)
 	repoID := "repository:r_repo_a"
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			repoDependencyIntentRow(
 				"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,
 				map[string]any{
@@ -433,7 +435,7 @@ func TestRepoDependencyProjectionRunnerRunContinuesAfterCycleError(t *testing.T)
 				},
 			),
 		},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{
 			repoID: {
 				repoDependencyIntentRow(
 					"active-1", "scope-a", repoID, repoID, "run-1", "gen-1", now,

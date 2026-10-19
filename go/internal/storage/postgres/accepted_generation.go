@@ -220,7 +220,7 @@ func NewAcceptedGenerationLookup(database db.ExecQueryer) reducer.AcceptedGenera
 func NewAcceptedGenerationPrefetch(database db.ExecQueryer) reducer.AcceptedGenerationPrefetch {
 	store := NewSharedProjectionAcceptanceStore(database)
 
-	return func(ctx context.Context, intents []reducer.SharedProjectionIntentRow) (reducer.AcceptedGenerationLookup, error) {
+	return func(ctx context.Context, intents []sharedintent.Row) (reducer.AcceptedGenerationLookup, error) {
 		keys := make([]sharedintent.AcceptanceKey, 0, len(intents))
 		for _, intent := range intents {
 			key, ok := intent.AcceptanceKey()

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestEdgeWriterRetractEdgesRationaleMixedBatchRetractsBothDeltaAndWholeScopeRepos
@@ -31,7 +32,7 @@ func TestEdgeWriterRetractEdgesRationaleMixedBatchRetractsBothDeltaAndWholeScope
 
 	executor := &probeGuardRecordingExecutor{probeFound: true}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "refresh-delta",
 			RepositoryID: "repo-delta",
@@ -114,7 +115,7 @@ func TestEdgeWriterRetractEdgesRationaleMixedBatchIgnoresUnmarkedLegacyRows(t *t
 
 	executor := &probeGuardRecordingExecutor{probeFound: true}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "refresh-delta",
 			RepositoryID: "repo-delta",

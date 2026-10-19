@@ -17,6 +17,7 @@ import (
 	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
@@ -142,7 +143,7 @@ func newEdgeGraph(seed ...string) *edgeGraph {
 	return g
 }
 
-func (g *edgeGraph) RetractEdges(_ context.Context, _ string, rows []reducer.SharedProjectionIntentRow, _ string) error {
+func (g *edgeGraph) RetractEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) error {
 	g.statements++
 	for _, row := range rows {
 		for edge := range g.edges {
@@ -154,7 +155,7 @@ func (g *edgeGraph) RetractEdges(_ context.Context, _ string, rows []reducer.Sha
 	return nil
 }
 
-func (g *edgeGraph) WriteEdges(_ context.Context, _ string, rows []reducer.SharedProjectionIntentRow, _ string) (reducer.SharedProjectionWriteReport, error) {
+func (g *edgeGraph) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (reducer.SharedProjectionWriteReport, error) {
 	g.statements++
 	for _, row := range rows {
 		repoID, _ := row.Payload["repo_id"].(string)

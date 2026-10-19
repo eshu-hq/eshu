@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // reportingEdgeWriter returns a scripted write report, standing in for a
@@ -21,7 +23,7 @@ type reportingEdgeWriter struct {
 func (w *reportingEdgeWriter) WriteEdges(
 	ctx context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) (SharedProjectionWriteReport, error) {
 	_, _ = w.stubEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
@@ -60,7 +62,7 @@ func TestProcessPartitionOnceQuarantinesUnroutableRowsBeforeCompleting(t *testin
 
 	now := time.Date(2026, time.August, 9, 14, 0, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "intent-routable",
 				ProjectionDomain: "platform_infra",
@@ -139,7 +141,7 @@ func TestProcessPartitionOnceFailsTheCycleWhenQuarantineWriteFails(t *testing.T)
 
 	now := time.Date(2026, time.August, 9, 14, 0, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{{
+		pending: []sharedintent.Row{{
 			IntentID:         "intent-routable",
 			ProjectionDomain: "platform_infra",
 			PartitionKey:     "pk-a",
@@ -197,7 +199,7 @@ func TestProcessPartitionOnceWithNoUnroutableRowsSkipsTheQuarantineWrite(t *test
 
 	now := time.Date(2026, time.August, 9, 14, 0, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{{
+		pending: []sharedintent.Row{{
 			IntentID:         "intent-1",
 			ProjectionDomain: "platform_infra",
 			PartitionKey:     "pk-a",

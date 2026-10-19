@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
@@ -116,7 +117,7 @@ func sqlRefreshFenceDeliveryIntents(
 	sourceRunID string,
 	generationID string,
 	createdAt time.Time,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	refresh := BuildSharedProjectionIntent(SharedProjectionIntentInput{
 		ProjectionDomain: DomainSQLRelationships,
 		PartitionKey:     repoWideRetractRefreshPartitionKey(DomainSQLRelationships, repositoryID),
@@ -132,7 +133,7 @@ func sqlRefreshFenceDeliveryIntents(
 		},
 		CreatedAt: createdAt,
 	})
-	rows := []SharedProjectionIntentRow{refresh}
+	rows := []sharedintent.Row{refresh}
 	for _, relationshipType := range sqlRefreshFenceRelationshipTypes {
 		edgeIdentity := "sql-source->sql-target:" + relationshipType
 		row := BuildSharedProjectionIntent(SharedProjectionIntentInput{
@@ -165,7 +166,7 @@ func sqlRefreshFenceDeliveryIntents(
 // and completion behavior: a new deterministic ID is added as pending, while an
 // existing completed ID stays completed even when payload/created_at are
 // refreshed by an exact retry.
-func upsertFenceTrackingDelivery(store *fenceTrackingIntentStore, rows []SharedProjectionIntentRow) {
+func upsertFenceTrackingDelivery(store *fenceTrackingIntentStore, rows []sharedintent.Row) {
 	for _, row := range rows {
 		if _, exists := store.byID[row.IntentID]; !exists {
 			store.pending = append(store.pending, row)
@@ -253,7 +254,7 @@ func newSQLRelationshipStateWriter() *sqlRelationshipStateWriter {
 func (w *sqlRelationshipStateWriter) RetractEdges(
 	_ context.Context,
 	_ string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) error {
 	if len(rows) > 0 {
@@ -265,7 +266,7 @@ func (w *sqlRelationshipStateWriter) RetractEdges(
 func (w *sqlRelationshipStateWriter) WriteEdges(
 	_ context.Context,
 	_ string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) (SharedProjectionWriteReport, error) {
 	for _, row := range rows {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -389,7 +390,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunRefreshDomainInte
 func (s *SharedIntentStore) CodeCallProjectionRowBlockedByRepoFence(
 	ctx context.Context,
 	key reducer.SharedProjectionAcceptanceKey,
-	row reducer.SharedProjectionIntentRow,
+	row sharedintent.Row,
 	domain string,
 ) (bool, error) {
 	repositoryID := strings.TrimSpace(row.RepositoryID)

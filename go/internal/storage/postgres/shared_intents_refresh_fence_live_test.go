@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestSharedIntentStoreGenerationRefreshFenceAgainstPostgres proves the exact
@@ -56,7 +57,7 @@ func TestSharedIntentStoreGenerationRefreshFenceAgainstPostgres(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	store := NewSharedIntentStore(SQLDB{DB: db})
 	initial := refreshFenceProofIntent("gen-1", now)
-	if err := store.UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{initial}); err != nil {
+	if err := store.UpsertIntents(ctx, []sharedintent.Row{initial}); err != nil {
 		t.Fatalf("upsert initial refresh: %v", err)
 	}
 	if _, err := store.MarkIntentsCompleted(ctx, []string{initial.IntentID}, now.Add(time.Second)); err != nil {
@@ -68,7 +69,7 @@ func TestSharedIntentStoreGenerationRefreshFenceAgainstPostgres(t *testing.T) {
 	if exactRetry.IntentID != initial.IntentID {
 		t.Fatalf("exact retry intent ID = %q, want stable %q", exactRetry.IntentID, initial.IntentID)
 	}
-	if err := store.UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{exactRetry}); err != nil {
+	if err := store.UpsertIntents(ctx, []sharedintent.Row{exactRetry}); err != nil {
 		t.Fatalf("upsert exact same-generation retry: %v", err)
 	}
 	pending, err := store.ListPendingDomainIntents(ctx, reducer.DomainSQLRelationships, 10)
@@ -84,7 +85,7 @@ func TestSharedIntentStoreGenerationRefreshFenceAgainstPostgres(t *testing.T) {
 	if nextGeneration.IntentID == initial.IntentID {
 		t.Fatalf("next-generation intent ID reused %q; generation must participate in durable identity", initial.IntentID)
 	}
-	if err := store.UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{nextGeneration}); err != nil {
+	if err := store.UpsertIntents(ctx, []sharedintent.Row{nextGeneration}); err != nil {
 		t.Fatalf("upsert next-generation refresh: %v", err)
 	}
 	assertGenerationRefreshFenceReady(t, ctx, store, "gen-2", nextGeneration.PartitionKey, false)
@@ -94,7 +95,7 @@ func TestSharedIntentStoreGenerationRefreshFenceAgainstPostgres(t *testing.T) {
 	assertGenerationRefreshFenceReady(t, ctx, store, "gen-2", nextGeneration.PartitionKey, true)
 }
 
-func refreshFenceProofIntent(generationID string, createdAt time.Time) reducer.SharedProjectionIntentRow {
+func refreshFenceProofIntent(generationID string, createdAt time.Time) sharedintent.Row {
 	const repositoryID = "repo-sql"
 	return reducer.BuildSharedProjectionIntent(reducer.SharedProjectionIntentInput{
 		ProjectionDomain: reducer.DomainSQLRelationships,

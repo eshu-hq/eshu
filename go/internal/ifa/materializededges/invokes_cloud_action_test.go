@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestInvokesCloudActionRowsToExpectedEdgesIsOneToOne pins the family's
@@ -19,7 +20,7 @@ import (
 func TestInvokesCloudActionRowsToExpectedEdgesIsOneToOne(t *testing.T) {
 	t.Parallel()
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			ProjectionDomain: reducer.DomainInvokesCloudAction,
 			Payload: map[string]any{

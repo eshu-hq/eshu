@@ -23,6 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -360,7 +361,7 @@ func newRepoDependencyProjectionRunner(
 	// two thin closures below adapt across that boundary once, here, rather
 	// than importing the reducer root into maintenance.
 	gatedPrefetch := accepted.GatePrefetchOnActive(
-		func(ctx context.Context, intents []reducer.SharedProjectionIntentRow) (accepted.Lookup, error) {
+		func(ctx context.Context, intents []sharedintent.Row) (accepted.Lookup, error) {
 			return acceptedGenerationPrefetch(ctx, intents)
 		},
 		relationshipGenerationActive,
@@ -390,7 +391,7 @@ func newRepoDependencyProjectionRunner(
 			relationshipGenerationActive,
 			instruments,
 		),
-		AcceptedGenPrefetch: func(ctx context.Context, intents []reducer.SharedProjectionIntentRow) (reducer.AcceptedGenerationLookup, error) {
+		AcceptedGenPrefetch: func(ctx context.Context, intents []sharedintent.Row) (reducer.AcceptedGenerationLookup, error) {
 			return gatedPrefetch(ctx, intents)
 		},
 		// #6184: cross-repo artifact/edge loss happens on every

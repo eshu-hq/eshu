@@ -407,8 +407,9 @@ type JVMReachabilityFactFilter = supplychaincore.JVMReachabilityFactFilter
 // Stanza: shared-projection intent row and unroutable-write (H5
 // root-remnant fold, issue #6061). Writer.Write MUST fail the owning cycle
 // and be idempotent (ON CONFLICT DO NOTHING keyed on intent id).
+// SharedProjectionIntentRow was retired when its last callers named
+// sharedintent.Row directly (#6626 batch 6 bucket 5).
 type (
-	SharedProjectionIntentRow     = sharedintent.Row
 	SharedProjectionIntentInput   = sharedintent.Input
 	SharedProjectionAcceptanceKey = sharedintent.AcceptanceKey
 	SharedProjectionUnroutableRow = sharedintent.UnroutableRow
@@ -416,11 +417,11 @@ type (
 	FirstProjectionLookup         = worker.FirstProjectionLookup
 )
 
-func BuildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjectionIntentRow {
+func BuildSharedProjectionIntent(input SharedProjectionIntentInput) sharedintent.Row {
 	return sharedintent.Build(input)
 }
 
-func CarriesNoEdge(row SharedProjectionIntentRow) bool {
+func CarriesNoEdge(row sharedintent.Row) bool {
 	return sharedintent.CarriesNoEdge(row)
 }
 

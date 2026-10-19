@@ -6,7 +6,7 @@ package writer
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestRepoEvidenceArtifactRowsFromIntentCarriesRefFields proves that
@@ -19,7 +19,7 @@ import (
 func TestRepoEvidenceArtifactRowsFromIntentCarriesRefFields(t *testing.T) {
 	t.Parallel()
 
-	row := reducer.SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		GenerationID: "gen-1",
 		Payload: map[string]any{
 			"repo_id":           "repo-service",
@@ -62,7 +62,7 @@ func TestRepoEvidenceArtifactRowsFromIntentCarriesRefFields(t *testing.T) {
 func TestRepoEvidenceArtifactRowsFromIntentNilsRefFieldsWhenAbsent(t *testing.T) {
 	t.Parallel()
 
-	row := reducer.SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		GenerationID: "gen-1",
 		Payload: map[string]any{
 			"repo_id":           "repo-service",

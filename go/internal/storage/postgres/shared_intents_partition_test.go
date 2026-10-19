@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T) {
@@ -24,7 +25,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 	completedAt := now.Add(time.Second)
 	database := &partitionIntentListTestDB{rows: []partitionIntentListRow{
 		{
-			row: reducer.SharedProjectionIntentRow{
+			row: sharedintent.Row{
 				IntentID:         "si-other-partition",
 				ProjectionDomain: reducer.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-a:other",
@@ -38,7 +39,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 			acceptanceUnitID: "repo-a",
 		},
 		{
-			row: reducer.SharedProjectionIntentRow{
+			row: sharedintent.Row{
 				IntentID:         "si-target-1",
 				ProjectionDomain: reducer.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-a:target",
@@ -52,7 +53,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 			acceptanceUnitID: "repo-a",
 		},
 		{
-			row: reducer.SharedProjectionIntentRow{
+			row: sharedintent.Row{
 				IntentID:         "si-target-completed",
 				ProjectionDomain: reducer.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-a:target",
@@ -67,7 +68,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 			acceptanceUnitID: "repo-a",
 		},
 		{
-			row: reducer.SharedProjectionIntentRow{
+			row: sharedintent.Row{
 				IntentID:         "si-target-other-run",
 				ProjectionDomain: reducer.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-a:target",
@@ -103,7 +104,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 }
 
 type partitionIntentListRow struct {
-	row              reducer.SharedProjectionIntentRow
+	row              sharedintent.Row
 	scopeID          string
 	acceptanceUnitID string
 }

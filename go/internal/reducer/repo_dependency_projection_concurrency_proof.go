@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // runRepoDependencyProjection fans source-owned acceptance units across
@@ -77,19 +78,19 @@ type repoDependencyPendingIntentContinuationReader interface {
 		afterCreatedAt time.Time,
 		afterIntentID string,
 		limit int,
-	) ([]SharedProjectionIntentRow, error)
+	) ([]sharedintent.Row, error)
 }
 
 func (r *repoDependencyShardReader) ListPendingDomainIntents(
 	ctx context.Context,
 	domain string,
 	limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	rows, err := r.inner.ListPendingDomainIntents(ctx, domain, maxRepoDependencyAcceptanceScanLimit)
 	if err != nil {
 		return nil, err
 	}
-	owned := make([]SharedProjectionIntentRow, 0, min(len(rows), max(limit, 1)))
+	owned := make([]sharedintent.Row, 0, min(len(rows), max(limit, 1)))
 	for {
 		owned = r.appendOwnedPendingRows(owned, rows, limit)
 		if limit > 0 && len(owned) >= limit {
@@ -131,16 +132,16 @@ func (r *repoDependencyShardReader) ListPendingDomainIntents(
 	}
 }
 
-func repoDependencyPendingCursorAfter(row, cursor SharedProjectionIntentRow) bool {
+func repoDependencyPendingCursorAfter(row, cursor sharedintent.Row) bool {
 	return row.CreatedAt.After(cursor.CreatedAt) ||
 		(row.CreatedAt.Equal(cursor.CreatedAt) && row.IntentID > cursor.IntentID)
 }
 
 func (r *repoDependencyShardReader) appendOwnedPendingRows(
-	owned []SharedProjectionIntentRow,
-	rows []SharedProjectionIntentRow,
+	owned []sharedintent.Row,
+	rows []sharedintent.Row,
 	limit int,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	for _, row := range rows {
 		acceptanceUnitID, ok := repoDependencyAcceptanceUnitID(row)
 		if !ok {
@@ -164,7 +165,7 @@ func (r *repoDependencyShardReader) ListAcceptanceUnitDomainIntents(
 	acceptanceUnitID string,
 	domain string,
 	limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	return r.inner.ListAcceptanceUnitDomainIntents(ctx, acceptanceUnitID, domain, limit)
 }
 

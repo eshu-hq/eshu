@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -254,8 +255,8 @@ func validRepoDependencyQuarantineRunner(t *testing.T) RepoDependencyProjectionR
 		},
 	)
 	store := &fakeRepoDependencyIntentStore{
-		pendingByDomain:         []SharedProjectionIntentRow{row},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {row}},
+		pendingByDomain:         []sharedintent.Row{row},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {row}},
 		leaseGranted:            true,
 	}
 	return RepoDependencyProjectionRunner{
@@ -314,14 +315,14 @@ type delayedSuccessRepoDependencyWriter struct {
 }
 
 func (w delayedSuccessRepoDependencyWriter) RetractEdges(
-	context.Context, string, []SharedProjectionIntentRow, string,
+	context.Context, string, []sharedintent.Row, string,
 ) error {
 	time.Sleep(w.delay)
 	return nil
 }
 
 func (w delayedSuccessRepoDependencyWriter) WriteEdges(
-	context.Context, string, []SharedProjectionIntentRow, string,
+	context.Context, string, []sharedintent.Row, string,
 ) (SharedProjectionWriteReport, error) {
 	time.Sleep(w.delay)
 	return SharedProjectionWriteReport{}, nil
@@ -334,14 +335,14 @@ func (w delayedSuccessRepoDependencyWriter) WriteEdges(
 type blockUntilContextDoneRepoDependencyWriter struct{}
 
 func (blockUntilContextDoneRepoDependencyWriter) RetractEdges(
-	ctx context.Context, _ string, _ []SharedProjectionIntentRow, _ string,
+	ctx context.Context, _ string, _ []sharedintent.Row, _ string,
 ) error {
 	<-ctx.Done()
 	return nil
 }
 
 func (blockUntilContextDoneRepoDependencyWriter) WriteEdges(
-	ctx context.Context, _ string, _ []SharedProjectionIntentRow, _ string,
+	ctx context.Context, _ string, _ []sharedintent.Row, _ string,
 ) (SharedProjectionWriteReport, error) {
 	<-ctx.Done()
 	return SharedProjectionWriteReport{}, nil
@@ -351,14 +352,14 @@ type blockingRepoDependencyIntentReader struct{}
 
 func (blockingRepoDependencyIntentReader) ListPendingDomainIntents(
 	ctx context.Context, _ string, _ int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
 
 func (blockingRepoDependencyIntentReader) ListAcceptanceUnitDomainIntents(
 	context.Context, string, string, int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	return nil, errors.New("unexpected acceptance-unit load")
 }
 

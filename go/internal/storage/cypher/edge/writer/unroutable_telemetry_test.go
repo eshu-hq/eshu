@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -35,7 +36,7 @@ func TestEdgeWriterUnroutableRowsCounterRecordsPartialBatch(t *testing.T) {
 	writer := NewEdgeWriter(&recordingExecutor{}, 0)
 	writer.Instruments = instruments
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		routableRepoDependencyRow("i1"),
 		unroutableRepoDependencyRow("i2"),
 		unroutableRepoDependencyRow("i3"),
@@ -75,7 +76,7 @@ func TestEdgeWriterUnroutableRowsCounterRecordsWholeBatch(t *testing.T) {
 	writer := NewEdgeWriter(&recordingExecutor{}, 0)
 	writer.Instruments = instruments
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		unroutableRepoDependencyRow("i1"),
 		unroutableRepoDependencyRow("i2"),
 	}
@@ -120,7 +121,7 @@ func TestEdgeWriterControlRowOnlyBatchRecordsNoUnroutableMetric(t *testing.T) {
 	writer := NewEdgeWriter(&recordingExecutor{}, 0)
 	writer.Instruments = instruments
 
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "refresh",
 		RepositoryID: "repo-a",
 		Payload:      map[string]any{"repo_id": "repo-a", "intent_type": "repo_refresh"},

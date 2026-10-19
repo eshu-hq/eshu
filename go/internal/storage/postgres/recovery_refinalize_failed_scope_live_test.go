@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // Real-Postgres proofs for #7116: an all-scopes disaster-recovery rebuild used
@@ -148,7 +149,7 @@ func TestRefinalizeFailedScopeAllScopesEnqueuesNewestFailedGeneration(t *testing
 	seedActiveRelationshipGeneration(t, ctx, database, failedGeneration, failedScope)
 	completed := time.Now().UTC()
 	intentID := "refinalize-failed-intent-" + suffix
-	if err := NewSharedIntentStore(SQLDB{DB: database}).UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{{
+	if err := NewSharedIntentStore(SQLDB{DB: database}).UpsertIntents(ctx, []sharedintent.Row{{
 		IntentID:         intentID,
 		ProjectionDomain: reducer.DomainCodeCalls,
 		PartitionKey:     "caller->callee",

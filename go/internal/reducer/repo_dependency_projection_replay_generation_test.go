@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -139,7 +140,7 @@ func TestRepoDependencyInactiveAcceptedGenerationRowsAreCountedAndLogged(t *test
 
 	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
 	repoID := "repository:r_fixture01"
-	mk := func(id, generationID, target string) SharedProjectionIntentRow {
+	mk := func(id, generationID, target string) sharedintent.Row {
 		return repoDependencyIntentRow(
 			id, "scope-"+generationID, repoID, repoID, "run-"+generationID, generationID, now,
 			map[string]any{
@@ -148,14 +149,14 @@ func TestRepoDependencyInactiveAcceptedGenerationRowsAreCountedAndLogged(t *test
 			},
 		)
 	}
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		mk("r1", "gen-retired", "repository:r_t1"),
 		mk("r2", "gen-retired", "repository:r_t2"),
 		mk("a1", "gen-active", "repository:r_t3"),
 	}
 	reader := &fakeRepoDependencyIntentStore{
 		pendingByDomain:         rows,
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: rows},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: rows},
 		leaseGranted:            true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
@@ -221,8 +222,8 @@ func runsOnRetiredGenerationFixture(
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain:         []SharedProjectionIntentRow{runsOn},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {runsOn}},
+		pendingByDomain:         []sharedintent.Row{runsOn},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {runsOn}},
 		leaseGranted:            true,
 	}
 	return reader, &recordingCodeCallProjectionEdgeWriter{}, now

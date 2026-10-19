@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	documentationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/documentation/v1"
 )
 
@@ -275,7 +276,7 @@ func documentationGitDocumentIDPrefix(repositoryID string) string {
 func buildDocumentationRetractRows(
 	scopeIDs []string,
 	deltaScope documentationDeltaScope,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(scopeIDs) == 0 {
 		return nil
 	}
@@ -285,14 +286,14 @@ func buildDocumentationRetractRows(
 	return buildDocumentationScopeRetractRows(scopeIDs)
 }
 
-func buildDocumentationScopeRetractRows(scopeIDs []string) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(scopeIDs))
+func buildDocumentationScopeRetractRows(scopeIDs []string) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, len(scopeIDs))
 	for _, scopeID := range scopeIDs {
 		scopeID = strings.TrimSpace(scopeID)
 		if scopeID == "" {
 			continue
 		}
-		rows = append(rows, SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			ScopeID:      scopeID,
 			RepositoryID: scopeID,
 			Payload:      map[string]any{"scope_id": scopeID},
@@ -305,14 +306,14 @@ func buildDocumentationDeltaRetractRows(
 	scopeIDs []string,
 	documentIDs []string,
 	sectionUIDs []string,
-) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(scopeIDs))
+) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, len(scopeIDs))
 	for _, scopeID := range scopeIDs {
 		scopeID = strings.TrimSpace(scopeID)
 		if scopeID == "" {
 			continue
 		}
-		rows = append(rows, SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			ScopeID:      scopeID,
 			RepositoryID: scopeID,
 			Payload: map[string]any{

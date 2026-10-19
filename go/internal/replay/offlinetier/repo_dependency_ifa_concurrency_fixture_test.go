@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -42,7 +43,7 @@ func (l repoDependencyIfaEvidenceLoader) ListEvidenceFacts(
 }
 
 type repoDependencyIfaIntentCapture struct {
-	rows []reducer.SharedProjectionIntentRow
+	rows []sharedintent.Row
 }
 
 type repoDependencyOverlapWriter struct {
@@ -56,7 +57,7 @@ type repoDependencyOverlapWriter struct {
 func (w *repoDependencyOverlapWriter) RetractEdges(
 	ctx context.Context,
 	domain string,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) error {
 	return w.inner.RetractEdges(ctx, domain, rows, evidenceSource)
@@ -65,7 +66,7 @@ func (w *repoDependencyOverlapWriter) RetractEdges(
 func (w *repoDependencyOverlapWriter) WriteEdges(
 	ctx context.Context,
 	domain string,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) (reducer.SharedProjectionWriteReport, error) {
 	w.mu.Lock()
@@ -158,7 +159,7 @@ func (r *repoDependencyIfaReplayer) sharedTargetRequestCount() int {
 
 func (c *repoDependencyIfaIntentCapture) UpsertIntents(
 	_ context.Context,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 ) error {
 	c.rows = append(c.rows, rows...)
 	return nil

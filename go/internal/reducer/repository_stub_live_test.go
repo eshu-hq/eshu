@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
@@ -60,7 +61,7 @@ func (l *repoRetryLive) edgeWriter(instruments *telemetry.Instruments) *edgewrit
 func (l *repoRetryLive) writeStubEdges(ctx context.Context, t *testing.T, w *edgewriter.EdgeWriter, target string) {
 	t.Helper()
 	otherID := l.repoID(retryFixtureOther.name)
-	dependency := []reducer.SharedProjectionIntentRow{{
+	dependency := []sharedintent.Row{{
 		IntentID: "intent-7446-dep-" + target, RepositoryID: otherID, GenerationID: "reducer-gen",
 		Payload: map[string]any{
 			"repo_id": otherID, "target_repo_id": target, "relationship_type": "DEPENDS_ON",
@@ -71,7 +72,7 @@ func (l *repoRetryLive) writeStubEdges(ctx context.Context, t *testing.T, w *edg
 	if _, err := w.WriteEdges(ctx, reducer.DomainRepoDependency, dependency, stubRepoDependencySource); err != nil {
 		t.Fatalf("repo_dependency WriteEdges to %s: %v", target, err)
 	}
-	pin := []reducer.SharedProjectionIntentRow{{
+	pin := []sharedintent.Row{{
 		IntentID: "intent-7446-pin-" + target, RepositoryID: otherID,
 		Payload: map[string]any{
 			"parent_repo_id": otherID, "resolved_repo_id": target, "submodule_path": "vendor/payments",

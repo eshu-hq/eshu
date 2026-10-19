@@ -14,6 +14,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -29,7 +30,7 @@ func TestEdgeWriterWriteEdgesLogsSharedWriteShape(t *testing.T) {
 	writer := NewEdgeWriter(executor, 2)
 	writer.Logger = logger
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "entity:function:a", "callee_entity_id": "entity:function:b"}},
 		{IntentID: "i2", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "entity:function:c", "callee_entity_id": "entity:function:d"}},
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "entity:function:e", "callee_entity_id": "entity:function:f"}},
@@ -88,7 +89,7 @@ func TestEdgeWriterWriteEdgesLogsDerivedRowsSeparately(t *testing.T) {
 	writer := NewEdgeWriter(executor, 10)
 	writer.Logger = logger
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -162,7 +163,7 @@ func TestEdgeWriterWriteEdgesLogsCodeCallRouteSummaries(t *testing.T) {
 	writer.Logger = logger
 	writer.CodeCallGroupBatchSize = 1
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -236,7 +237,7 @@ func TestEdgeWriterWriteEdgesCodeCallIsolationRecordsBatchTelemetry(t *testing.T
 	writer.CodeCallBatchSize = 2
 	writer.CodeCallGroupBatchSize = 1
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "entity:function:a", "callee_entity_id": "entity:function:b"}},
 		{IntentID: "i2", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "entity:function:c", "callee_entity_id": "entity:function:d"}},
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "entity:function:e", "callee_entity_id": "entity:function:f"}},
@@ -275,7 +276,7 @@ func TestEdgeWriterWriteEdgesNonCodeCallDoesNotRecordCodeCallBatchTelemetry(t *t
 	writer.CodeCallBatchSize = 2
 	writer.CodeCallGroupBatchSize = 1
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-b"}},
 		{IntentID: "i2", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-c"}},
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-d"}},
@@ -309,7 +310,7 @@ func TestEdgeWriterWriteEdgesInheritanceRecordsSharedGroupTelemetry(t *testing.T
 	writer.Instruments = instruments
 	writer.InheritanceGroupBatchSize = 1
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"child_entity_id": "entity:class:a", "parent_entity_id": "entity:class:b", "repo_id": "repo-a", "relationship_type": "INHERITS"}},
 		{IntentID: "i2", RepositoryID: "repo-a", Payload: map[string]any{"child_entity_id": "entity:class:c", "parent_entity_id": "entity:class:d", "repo_id": "repo-a", "relationship_type": "INHERITS"}},
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"child_entity_id": "entity:class:e", "parent_entity_id": "entity:class:f", "repo_id": "repo-a", "relationship_type": "INHERITS"}},
@@ -344,7 +345,7 @@ func TestEdgeWriterWriteEdgesRepoDependencyRecordsSharedGroupTelemetry(t *testin
 	writer := NewEdgeWriter(executor, 2)
 	writer.Instruments = instruments
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-b"}},
 		{IntentID: "i2", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-c"}},
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-d"}},
@@ -506,7 +507,7 @@ func TestEdgeWriterArtifactPhaseLogsOneSummaryEntry(t *testing.T) {
 	writer := NewEdgeWriter(executor, 1)
 	writer.Logger = logger
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -570,7 +571,7 @@ func TestEdgeWriterArtifactPhaseRecordsSharedGroupTelemetry(t *testing.T) {
 	writer := NewEdgeWriter(executor, 1)
 	writer.Instruments = instruments
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -172,7 +173,7 @@ func raceRunsOnWriters(t *testing.T, runner neo4jSessionRunner, writers cypherRu
 			return err
 		}
 		writeCrossRepo := func() error {
-			_, err := edgeWriter.WriteEdges(ctx, reducer.DomainRepoDependency, []reducer.SharedProjectionIntentRow{{
+			_, err := edgeWriter.WriteEdges(ctx, reducer.DomainRepoDependency, []sharedintent.Row{{
 				IntentID:     pair.repo + "-runs-on",
 				RepositoryID: pair.repo,
 				Payload: map[string]any{

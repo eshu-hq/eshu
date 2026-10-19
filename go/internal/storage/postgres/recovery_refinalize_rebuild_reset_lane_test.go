@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // Lane-level proofs for #7673: a refinalize must clear the acceptance rows
@@ -45,8 +46,8 @@ func TestRefinalizeRetiredGenerationLaneWritesNoEdgesForBypassRun(t *testing.T) 
 	now := time.Now().UTC()
 
 	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, repoID, sourceRunID, activeGeneration, now)
-	dependsOn := func(intentID, generationID string) reducer.SharedProjectionIntentRow {
-		return reducer.SharedProjectionIntentRow{
+	dependsOn := func(intentID, generationID string) sharedintent.Row {
+		return sharedintent.Row{
 			IntentID: intentID, ProjectionDomain: reducer.DomainRepoDependency,
 			PartitionKey: "depends_on:" + repoID + "->repository:7673-target-" + suffix,
 			ScopeID:      scopeID, AcceptanceUnitID: repoID, RepositoryID: repoID,
@@ -100,7 +101,7 @@ func TestRefinalizeRetiredGenerationLaneWritesNoEdgesForBypassRun(t *testing.T) 
 	controlRun := "code_import_repo_dependency:" + controlScope
 	seedRefinalizeResetAcceptance(t, ctx, database, controlScope, controlRepo, controlRun, controlActive, now)
 	controlIntent := "lane-7673-control-" + suffix
-	seedRefinalizeResetRepoDependencyIntent(t, ctx, database, reducer.SharedProjectionIntentRow{
+	seedRefinalizeResetRepoDependencyIntent(t, ctx, database, sharedintent.Row{
 		IntentID: controlIntent, ProjectionDomain: reducer.DomainRepoDependency,
 		PartitionKey: "depends_on:" + controlRepo + "->repository:7673-target-" + suffix,
 		ScopeID:      controlScope, AcceptanceUnitID: controlRepo, RepositoryID: controlRepo,
@@ -140,7 +141,7 @@ func TestRefinalizeRetiredGenerationLaneWritesNoEdgesForBypassRun(t *testing.T) 
 	// Phase C: the re-projection re-advances acceptance to G2 and the lane
 	// drains again.
 	intentC := "lane-7673-c-" + suffix
-	if err := NewSharedIntentAcceptanceWriter(SQLDB{DB: database}).UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{
+	if err := NewSharedIntentAcceptanceWriter(SQLDB{DB: database}).UpsertIntents(ctx, []sharedintent.Row{
 		dependsOn(intentC, nextGeneration),
 	}); err != nil {
 		t.Fatalf("commit G2 intent with acceptance: %v", err)
@@ -174,7 +175,7 @@ func TestBypassedAcceptanceStillDrainsSupersededGenerationWithoutRefinalize(t *t
 
 	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, repoID, sourceRunID, activeGeneration, now)
 	intentID := "lane-7673-guard-" + suffix
-	seedRefinalizeResetRepoDependencyIntent(t, ctx, database, reducer.SharedProjectionIntentRow{
+	seedRefinalizeResetRepoDependencyIntent(t, ctx, database, sharedintent.Row{
 		IntentID: intentID, ProjectionDomain: reducer.DomainRepoDependency,
 		PartitionKey: "depends_on:" + repoID + "->repository:7673-target-" + suffix,
 		ScopeID:      scopeID, AcceptanceUnitID: repoID, RepositoryID: repoID,
@@ -226,7 +227,7 @@ func TestRefinalizeClearsResolverAcceptanceSoLaneLosesAuthority(t *testing.T) {
 	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, repoID, sourceRunID, activeGeneration, now)
 	seedActiveRelationshipGeneration(t, ctx, database, activeGeneration, scopeID)
 	intentID := "lane-7673-runson-" + suffix
-	seedRefinalizeResetRepoDependencyIntent(t, ctx, database, reducer.SharedProjectionIntentRow{
+	seedRefinalizeResetRepoDependencyIntent(t, ctx, database, sharedintent.Row{
 		IntentID: intentID, ProjectionDomain: reducer.DomainRepoDependency,
 		PartitionKey: "runs_on:" + repoID + "->platform:kubernetes:test", ScopeID: scopeID,
 		AcceptanceUnitID: repoID, RepositoryID: repoID, SourceRunID: sourceRunID,
@@ -240,7 +241,7 @@ func TestRefinalizeClearsResolverAcceptanceSoLaneLosesAuthority(t *testing.T) {
 	})
 
 	lookup := refinalizeResetGatedAcceptedGen(database)
-	readRows := func() []reducer.SharedProjectionIntentRow {
+	readRows := func() []sharedintent.Row {
 		rows, err := NewSharedIntentStore(SQLDB{DB: database}).ListAcceptanceUnitDomainIntents(
 			ctx, repoID, reducer.DomainRepoDependency, 100)
 		if err != nil {

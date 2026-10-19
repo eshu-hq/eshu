@@ -47,6 +47,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -69,7 +70,7 @@ func TestLiveRepoDependencyWithoutSourceToolStaysUnstamped(t *testing.T) {
 		live.write(ctx, t, `CREATE (:Repository {id: '`+id+`', name: '`+id+`'})`, nil)
 	}
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			// Shaped like the package-consumption intent: no source_tool.
 			IntentID:     "live-6782-package-consumption",

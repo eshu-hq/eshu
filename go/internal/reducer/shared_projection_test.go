@@ -177,7 +177,7 @@ func TestBuildSharedProjectionIntentDifferentAcceptanceIdentityDifferentIDs(t *t
 func TestSharedProjectionIntentRowAcceptanceKeyPrefersExplicitFields(t *testing.T) {
 	t.Parallel()
 
-	row := SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		ScopeID:          "scope-explicit",
 		AcceptanceUnitID: "unit-explicit",
 		RepositoryID:     "repo-fallback",
@@ -206,7 +206,7 @@ func TestSharedProjectionIntentRowAcceptanceKeyPrefersExplicitFields(t *testing.
 func TestRowsForPartitionFiltersCorrectly(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i-1", PartitionKey: "pk-a"},
 		{IntentID: "i-2", PartitionKey: "pk-b"},
 		{IntentID: "i-3", PartitionKey: "pk-c"},
@@ -242,7 +242,7 @@ func TestRowsForPartitionEmptyForNoMatch(t *testing.T) {
 		t.Errorf("expected empty result for nil input, got %d", len(result))
 	}
 
-	result = sharedintent.RowsForPartition([]SharedProjectionIntentRow{}, 0, 4)
+	result = sharedintent.RowsForPartition([]sharedintent.Row{}, 0, 4)
 	if len(result) != 0 {
 		t.Errorf("expected empty result for empty input, got %d", len(result))
 	}

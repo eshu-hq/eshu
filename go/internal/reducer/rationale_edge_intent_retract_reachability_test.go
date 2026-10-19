@@ -36,9 +36,9 @@ func (f rejectingFenceLookup) HasCompletedAcceptanceUnitSourceRunGenerationParti
 // marker is only load-bearing if it survives that trip: a marker that decodes
 // to a shape rowUsesRefreshFence does not recognize would make an ordinary
 // per-edge row look "unmarked legacy" to planRepoWideRetractWork.
-func roundTripPayloads(t *testing.T, rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
+func roundTripPayloads(t *testing.T, rows []sharedintent.Row) []sharedintent.Row {
 	t.Helper()
-	out := make([]SharedProjectionIntentRow, len(rows))
+	out := make([]sharedintent.Row, len(rows))
 	copy(out, rows)
 	for i := range out {
 		if out[i].Payload == nil {

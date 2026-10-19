@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRationaleHandlerRefreshesValidFullRepositoryWithNoEdges(t *testing.T) {
@@ -49,7 +50,7 @@ func TestRationaleHandlerRefreshesValidFullRepositoryWithNoEdges(t *testing.T) {
 	// zero-edge refresh must retract it even though there are no replacement
 	// edge intents to write.
 	edges := newRationaleStateModelingEdgeWriter()
-	prior := []SharedProjectionIntentRow{{
+	prior := []sharedintent.Row{{
 		ProjectionDomain: DomainRationaleEdges,
 		RepositoryID:     "repo-123",
 		Payload: map[string]any{

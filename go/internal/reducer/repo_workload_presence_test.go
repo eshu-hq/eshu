@@ -10,13 +10,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // runsInIntentRow builds a minimal DomainRunsIn intent row carrying the repo_id
 // the repo-workload presence gate keys on.
-func runsInIntentRow(intentID, repoID string) SharedProjectionIntentRow {
+func runsInIntentRow(intentID, repoID string) sharedintent.Row {
 	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
-	return SharedProjectionIntentRow{
+	return sharedintent.Row{
 		IntentID:         intentID,
 		ProjectionDomain: DomainRunsIn,
 		PartitionKey:     intentID,
@@ -118,7 +119,7 @@ func TestPublishRepoWorkloadPresenceNilWriterNoOp(t *testing.T) {
 func TestFilterRowsByReadinessRunsInTerminatesAbsentWorkload(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		runsInIntentRow("present", "repo-with-workload"),
 		runsInIntentRow("absent", "repo-no-workload"),
 	}
@@ -154,7 +155,7 @@ func TestFilterRowsByReadinessRunsInTerminatesAbsentWorkload(t *testing.T) {
 func TestFilterRowsByReadinessRunsInProjectsWhenWorkloadPresent(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		runsInIntentRow("a", "repo-1"),
 		runsInIntentRow("b", "repo-1"),
 	}
@@ -181,7 +182,7 @@ func TestFilterRowsByReadinessRunsInProjectsWhenWorkloadPresent(t *testing.T) {
 func TestFilterRowsByReadinessRunsInNilPresenceIsTodaysBehavior(t *testing.T) {
 	t.Parallel()
 
-	rows := []SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		runsInIntentRow("a", "repo-1"),
 		runsInIntentRow("b", "repo-2"),
 	}
@@ -208,7 +209,7 @@ func TestProcessPartitionOnceRunsInDrainsAbsentWorkload(t *testing.T) {
 
 	now := time.Date(2026, time.June, 17, 14, 0, 0, 0, time.UTC)
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			runsInIntentRow("present", "repo-1"),
 			runsInIntentRow("absent", "repo-2"),
 		},

@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestNewAcceptedGenerationLookupUsesAcceptanceTable(t *testing.T) {
@@ -111,7 +112,7 @@ func TestNewAcceptedGenerationPrefetchCachesByAcceptanceKey(t *testing.T) {
 	}
 
 	prefetch := NewAcceptedGenerationPrefetch(database)
-	lookup, err := prefetch(context.Background(), []reducer.SharedProjectionIntentRow{
+	lookup, err := prefetch(context.Background(), []sharedintent.Row{
 		{
 			ScopeID:          "scope:git:repo-1",
 			AcceptanceUnitID: "repository:r_test",

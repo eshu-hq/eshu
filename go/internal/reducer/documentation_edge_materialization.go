@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -262,10 +263,10 @@ func documentationSectionNodeUID(documentID string, sectionID string) string {
 	return "docsection:" + documentID + "|" + sectionID
 }
 
-func buildDocumentationIntentRows(rows []map[string]any, scopeID string) []SharedProjectionIntentRow {
-	intents := make([]SharedProjectionIntentRow, 0, len(rows))
+func buildDocumentationIntentRows(rows []map[string]any, scopeID string) []sharedintent.Row {
+	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
-		intents = append(intents, SharedProjectionIntentRow{
+		intents = append(intents, sharedintent.Row{
 			ProjectionDomain: DomainDocumentationEdges,
 			PartitionKey:     anyToString(row["section_uid"]) + "->" + anyToString(row["target_entity_id"]),
 			RepositoryID:     scopeID,

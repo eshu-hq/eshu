@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // keyedPhaseLookup answers readiness from an in-memory set of exact phase keys,
@@ -77,7 +78,7 @@ func TestFilterRowsByReadinessHandlesRouteResolvesViaRepoKey(t *testing.T) {
 	generationID := "460ece2548"
 
 	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
-	row := SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		IntentID:         "hr-1",
 		ProjectionDomain: DomainHandlesRoute,
 		PartitionKey:     "hr-1",
@@ -108,7 +109,7 @@ func TestFilterRowsByReadinessHandlesRouteResolvesViaRepoKey(t *testing.T) {
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainHandlesRoute,
-		[]SharedProjectionIntentRow{row}, lookup.lookup, nil, presence,
+		[]sharedintent.Row{row}, lookup.lookup, nil, presence,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)
@@ -139,7 +140,7 @@ func TestFilterRowsByReadinessHandlesRouteOldStyleKeyStillMisses(t *testing.T) {
 	generationID := "460ece2548"
 
 	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
-	row := SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		IntentID:         "hr-1",
 		ProjectionDomain: DomainHandlesRoute,
 		PartitionKey:     "hr-1",
@@ -171,7 +172,7 @@ func TestFilterRowsByReadinessHandlesRouteOldStyleKeyStillMisses(t *testing.T) {
 
 	ready, blocked, _, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainHandlesRoute,
-		[]SharedProjectionIntentRow{row}, lookup.lookup, nil, presence,
+		[]sharedintent.Row{row}, lookup.lookup, nil, presence,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)
@@ -195,7 +196,7 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 	repoID := "repository:r_858f75b9"
 	generationID := "gen-1"
 
-	row := SharedProjectionIntentRow{
+	row := sharedintent.Row{
 		IntentID:         "cc-1",
 		ProjectionDomain: DomainCodeCalls,
 		PartitionKey:     "cc-1",
@@ -218,7 +219,7 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainCodeCalls,
-		[]SharedProjectionIntentRow{row}, lookup.lookup, nil, nil,
+		[]sharedintent.Row{row}, lookup.lookup, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)
@@ -235,7 +236,7 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 	}}
 	ready, blocked, _, err = worker.FilterRowsByReadiness(
 		context.Background(), DomainCodeCalls,
-		[]SharedProjectionIntentRow{row}, repoOnly.lookup, nil, nil,
+		[]sharedintent.Row{row}, repoOnly.lookup, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)

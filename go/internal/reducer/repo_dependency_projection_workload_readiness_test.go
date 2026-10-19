@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRepoDependencyProjectionRunnerDefersRunsOnUntilWorkloadReady(t *testing.T) {
@@ -43,14 +45,14 @@ func TestRepoDependencyProjectionRunnerDefersRunsOnUntilWorkloadReady(t *testing
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain:         []SharedProjectionIntentRow{runsOn},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {runsOn, sibling, retractOnly}},
+		pendingByDomain:         []sharedintent.Row{runsOn},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {runsOn, sibling, retractOnly}},
 		leaseGranted:            true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
 	replayer := &recordingWorkloadMaterializationReplayer{}
 	workloadReady := false
-	fenceRequests, err := repoDependencyRunsOnFenceRequests([]SharedProjectionIntentRow{runsOn})
+	fenceRequests, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{runsOn})
 	if err != nil || len(fenceRequests) != 1 {
 		t.Fatalf("build fence requests = (%d, %v), want (1, nil)", len(fenceRequests), err)
 	}
@@ -144,15 +146,15 @@ func TestRepoDependencyRunsOnFenceIsOrderIndependentAndInputSensitive(t *testing
 		map[string]any{"repo_id": "repo-a", "relationship_type": "RUNS_ON"},
 	)
 
-	ab, err := repoDependencyRunsOnFenceRequests([]SharedProjectionIntentRow{rowA, rowB})
+	ab, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{rowA, rowB})
 	if err != nil || len(ab) != 1 {
 		t.Fatalf("AB fence requests = (%d, %v), want (1, nil)", len(ab), err)
 	}
-	ba, err := repoDependencyRunsOnFenceRequests([]SharedProjectionIntentRow{rowB, rowA})
+	ba, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{rowB, rowA})
 	if err != nil || len(ba) != 1 {
 		t.Fatalf("BA fence requests = (%d, %v), want (1, nil)", len(ba), err)
 	}
-	a, err := repoDependencyRunsOnFenceRequests([]SharedProjectionIntentRow{rowA})
+	a, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{rowA})
 	if err != nil || len(a) != 1 {
 		t.Fatalf("A fence requests = (%d, %v), want (1, nil)", len(a), err)
 	}
@@ -167,7 +169,7 @@ func TestRepoDependencyRunsOnFenceIsOrderIndependentAndInputSensitive(t *testing
 	// comfortably above that boundary so the unit proof models a value that
 	// survives the real queue round trip.
 	rowANewer.CreatedAt = rowA.CreatedAt.Add(time.Second)
-	newer, err := repoDependencyRunsOnFenceRequests([]SharedProjectionIntentRow{rowANewer})
+	newer, err := repoDependencyRunsOnFenceRequests([]sharedintent.Row{rowANewer})
 	if err != nil || len(newer) != 1 {
 		t.Fatalf("newer fence requests = (%d, %v), want (1, nil)", len(newer), err)
 	}
@@ -191,8 +193,8 @@ func TestRepoDependencyProjectionRunnerRejectsUnschedulableRunsOnReplay(t *testi
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain:         []SharedProjectionIntentRow{runsOn},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{repoID: {runsOn}},
+		pendingByDomain:         []sharedintent.Row{runsOn},
+		pendingByAcceptanceUnit: map[string][]sharedintent.Row{repoID: {runsOn}},
 		leaseGranted:            true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}

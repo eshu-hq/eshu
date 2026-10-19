@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -142,7 +143,7 @@ func (w *EdgeWriter) groupBatchSizeForDomain(domain string) int {
 func (w *EdgeWriter) WriteEdges(
 	ctx context.Context,
 	domain string,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	evidenceSource string,
 ) (reducer.SharedProjectionWriteReport, error) {
 	if len(rows) == 0 {
@@ -381,7 +382,7 @@ const (
 // domain are empty, indicating the row should be skipped.
 func buildRowMap(
 	domain string,
-	row reducer.SharedProjectionIntentRow,
+	row sharedintent.Row,
 	evidenceSource string,
 ) (string, map[string]any, bool) {
 	switch domain {

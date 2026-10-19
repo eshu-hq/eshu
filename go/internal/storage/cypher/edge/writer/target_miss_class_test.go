@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // failureClassOf reads the durable failure class the reducer queue would
@@ -36,7 +37,7 @@ func TestTargetMissingErrorCarriesNonCountingReadinessClass(t *testing.T) {
 	executor := &targetMissProbeExecutor{probeAllPresent: false}
 	_, err := NewEdgeWriter(executor, 0).WriteEdges(
 		context.Background(), reducer.DomainDeployableUnitEdges,
-		[]reducer.SharedProjectionIntentRow{validDeployableUnitRow()},
+		[]sharedintent.Row{validDeployableUnitRow()},
 		"reducer/deployable-unit-correlation",
 	)
 	if err == nil {
@@ -71,7 +72,7 @@ func TestTargetProbeErrorStaysCounting(t *testing.T) {
 	executor := &targetMissProbeExecutor{probeErr: errors.New("probe timed out")}
 	_, err := NewEdgeWriter(executor, 0).WriteEdges(
 		context.Background(), reducer.DomainDeployableUnitEdges,
-		[]reducer.SharedProjectionIntentRow{validDeployableUnitRow()},
+		[]sharedintent.Row{validDeployableUnitRow()},
 		"reducer/deployable-unit-correlation",
 	)
 	if err == nil {

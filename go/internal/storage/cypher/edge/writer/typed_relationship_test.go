@@ -12,6 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
@@ -20,7 +21,7 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -193,7 +194,7 @@ func TestEdgeWriterWriteEdgesMaterializesRepoEvidenceArtifacts(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-deploy",
@@ -289,7 +290,7 @@ func TestEdgeWriterWriteEdgesRunsOnDispatchUsesWorkloadInstanceShape(t *testing.
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",

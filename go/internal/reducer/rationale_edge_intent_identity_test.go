@@ -36,7 +36,7 @@ func TestRationaleSameFileEdgesKeepDistinctPartitionAndIntentIDs(t *testing.T) {
 		time.Date(2026, time.August, 15, 0, 0, 0, 0, time.UTC),
 	)
 
-	var edgeRows []SharedProjectionIntentRow
+	var edgeRows []sharedintent.Row
 	for _, row := range rows {
 		if !sharedintent.IsRepoRefreshRow(row) {
 			edgeRows = append(edgeRows, row)

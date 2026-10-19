@@ -11,6 +11,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // rationaleWholeScopeRetractRepoIDs returns the repo_ids parameter bound by
@@ -57,7 +58,7 @@ func TestEdgeWriterRetractEdgesRationaleNonDeltaBatchIgnoresUnmarkedLegacyRows(t
 
 	executor := &probeGuardRecordingExecutor{probeFound: true}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			// A legitimate whole-scope refresh on a full generation: this is
 			// the row that asked for a whole-repository retract, and it must
@@ -121,11 +122,11 @@ func TestEdgeWriterRetractEdgesRationaleNonDeltaBatchIgnoresUnmarkedLegacyRows(t
 // shared-projection BatchLimit of 100 (reducer/shared_projection_runner.go).
 // The refresh fence routes only refresh rows into retractRows for this domain,
 // so this is the batch the non-delta branch actually sees.
-func rationaleNonDeltaBenchBatch(size int) []reducer.SharedProjectionIntentRow {
-	rows := make([]reducer.SharedProjectionIntentRow, 0, size)
+func rationaleNonDeltaBenchBatch(size int) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, size)
 	for i := range size {
 		repoID := "repo-" + string(rune('a'+i%26)) + "-" + string(rune('0'+i/26))
-		rows = append(rows, reducer.SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			RepositoryID: repoID,
 			Payload: map[string]any{
 				"repo_id":     repoID,

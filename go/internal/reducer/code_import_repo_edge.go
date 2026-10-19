@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // codeImportEvidenceSource labels repo-to-repo DEPENDS_ON edges derived from
@@ -69,7 +70,7 @@ type CodeImportRepoDependencyInput struct {
 // code-import edges add value where no manifest declares the dependency.
 func BuildCodeImportRepoDependencyIntents(
 	input CodeImportRepoDependencyInput,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if input.Owners.empty() || len(input.FileEnvelopes) == 0 {
 		return nil
 	}
@@ -133,7 +134,7 @@ func BuildCodeImportRepoDependencyIntents(
 	}
 
 	sort.Strings(order)
-	rows := make([]SharedProjectionIntentRow, 0, len(order))
+	rows := make([]sharedintent.Row, 0, len(order))
 	for _, edgeKey := range order {
 		acc := edges[edgeKey]
 		rows = append(rows, buildCodeImportRepoEdgeIntent(
@@ -236,7 +237,7 @@ func buildCodeImportRepoEdgeIntent(
 	ownerRepoID string,
 	packageCount int,
 	ecosystems []string,
-) SharedProjectionIntentRow {
+) sharedintent.Row {
 	partitionKey := fmt.Sprintf("repo:%s->%s", consumerRepoID, ownerRepoID)
 	rationale := fmt.Sprintf(
 		"Consumer repository imports %d external package(s) owned by target repository",

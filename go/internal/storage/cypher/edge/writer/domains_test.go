@@ -11,6 +11,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestBatchedWriteEdgesUsesUNWINDCypher(t *testing.T) {
@@ -44,7 +45,7 @@ func TestBatchedWriteEdgesUsesUNWINDCypher(t *testing.T) {
 			executor := &recordingExecutor{}
 			writer := NewEdgeWriter(executor, 0)
 
-			rows := []reducer.SharedProjectionIntentRow{
+			rows := []sharedintent.Row{
 				{IntentID: "i1", RepositoryID: "r1", Payload: tc.payload},
 			}
 			_, err := writer.WriteEdges(context.Background(), tc.domain, rows, "test")
@@ -71,7 +72,7 @@ func TestEdgeWriterWriteEdgesInheritanceDispatch(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -124,7 +125,7 @@ func TestEdgeWriterWriteEdgesInheritanceEmptyFieldsFailTheIntent(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "r1", Payload: map[string]any{"child_entity_id": "", "parent_entity_id": "p1"}},
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"child_entity_id": "c1", "parent_entity_id": ""}},
 	}
@@ -139,7 +140,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatch(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -199,7 +200,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipFallsBackForRowsWithoutEntityTypes(t
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-a",
@@ -243,7 +244,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatchesRelationshipTypes(t *testi
 			executor := &recordingExecutor{}
 			writer := NewEdgeWriter(executor, 0)
 
-			rows := []reducer.SharedProjectionIntentRow{
+			rows := []sharedintent.Row{
 				{
 					IntentID:     "i1",
 					RepositoryID: "repo-a",
@@ -278,7 +279,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipEmptyFieldsFailTheIntent(t *testing.
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "r1", Payload: map[string]any{"source_entity_id": "", "target_entity_id": "t1"}},
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"source_entity_id": "s1", "target_entity_id": ""}},
 	}
@@ -293,7 +294,7 @@ func TestEdgeWriterRetractEdgesInheritanceDispatch(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
@@ -330,7 +331,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipDispatch(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
@@ -383,7 +384,7 @@ func TestBatchedWriteEdgesUsesUNWINDCypherIncludesNewDomains(t *testing.T) {
 			executor := &recordingExecutor{}
 			writer := NewEdgeWriter(executor, 0)
 
-			rows := []reducer.SharedProjectionIntentRow{
+			rows := []sharedintent.Row{
 				{IntentID: "i1", RepositoryID: "r1", Payload: tc.payload},
 			}
 			_, err := writer.WriteEdges(context.Background(), tc.domain, rows, "test")

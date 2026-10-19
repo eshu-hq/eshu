@@ -12,13 +12,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // documentationMaterializationBudgetRelPath is the committed cost budget for
 // the documentation_materialization scenario. Like semantic-entity, this
 // projection has no committed cassette: edgewriter.EdgeWriter.WriteEdges operates
-// over flat reducer.SharedProjectionIntentRow values, not a
+// over flat sharedintent.Row values, not a
 // CanonicalMaterialization, so the fixture rows live inline in this file and
 // the budget records that explicitly instead of pointing at a cassette path.
 var documentationMaterializationBudgetRelPath = filepath.Join(
@@ -36,7 +37,7 @@ const documentationCostEvidenceSource = "reducer/documentation"
 // DomainDocumentationEdges write route). Shaped exactly like
 // buildDocumentationIntentRows (go/internal/reducer/documentation_edge_materialization.go)
 // builds them from extracted mention rows.
-func documentationEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
+func documentationEdgeFixtureRows() []sharedintent.Row {
 	entityPayload := map[string]any{
 		"section_uid":      "docsection:doc-1|sec-1",
 		"scope_id":         "scope-1",
@@ -55,7 +56,7 @@ func documentationEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
 		"target_kind":      "workload",
 		"mention_kind":     "workload_name",
 	}
-	return []reducer.SharedProjectionIntentRow{
+	return []sharedintent.Row{
 		{
 			ProjectionDomain: reducer.DomainDocumentationEdges,
 			PartitionKey:     "docsection:doc-1|sec-1->uid:func:handler",
@@ -203,7 +204,7 @@ func TestCostBudget_DocumentationMaterialization_N1_ExceedsBudget(t *testing.T) 
 		if _, err := writer.WriteEdges(
 			context.Background(),
 			reducer.DomainDocumentationEdges,
-			[]reducer.SharedProjectionIntentRow{row},
+			[]sharedintent.Row{row},
 			documentationCostEvidenceSource,
 		); err != nil {
 			t.Fatalf("N+1 WriteEdges() error = %v", err)

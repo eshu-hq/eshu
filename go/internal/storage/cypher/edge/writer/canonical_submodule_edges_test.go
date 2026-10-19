@@ -12,6 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestBatchCanonicalSubmodulePinEdgeCypherShape(t *testing.T) {
@@ -161,7 +162,7 @@ func TestEdgeWriterRetractEdgesSubmodulePinWholeRepoScope(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-parent"},
 	}
 
@@ -193,7 +194,7 @@ func TestEdgeWriterRetractEdgesSubmodulePinRepoIDsAreGeneric(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{IntentID: "i1", RepositoryID: "repo-1"},
 		{IntentID: "i2", RepositoryID: "repo-2"},
 	}
@@ -219,7 +220,7 @@ func TestEdgeWriterWriteEdgesSubmodulePinRoutesTemplate(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-parent",

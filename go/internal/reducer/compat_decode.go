@@ -265,7 +265,7 @@ func deltaScopeRepositorySet(repositoryIDs []string) map[string]struct{} {
 // for the root's repo_dependency_projection_runner.go, which has not moved
 // out yet (issue #6061); [projection] (code/call/projection) calls
 // sharedintent.UniqueRepositoryIDs directly.
-func uniqueRepositoryIDs(rows []SharedProjectionIntentRow) []string {
+func uniqueRepositoryIDs(rows []sharedintent.Row) []string {
 	return sharedintent.UniqueRepositoryIDs(rows)
 }
 
@@ -289,7 +289,7 @@ func applyRepoRefreshDeltaScope(
 // sql_relationship_partition_convergence_test.go) read this spelling; the
 // production call site moved to [materialization] with the code-call handler
 // (issue #6061).
-func sharedProjectionRowRepoID(row SharedProjectionIntentRow) string {
+func sharedProjectionRowRepoID(row sharedintent.Row) string {
 	return sharedintent.RowRepoID(row)
 }
 

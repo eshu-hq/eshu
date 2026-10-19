@@ -12,6 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 type recordingGroupExecutor struct {
@@ -37,7 +38,7 @@ func TestEdgeWriterSQLRelationshipSequentialWritesBypassManagedTransactions(t *t
 	executor := &recordingGroupExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 	writer.SQLRelationshipSequentialWrites = true
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "sql-edge",
 		RepositoryID: "repo-a",
 		Payload: map[string]any{
@@ -70,7 +71,7 @@ func TestEdgeWriterSQLRelationshipSequentialWritesPreserveWorkerConcurrency(t *t
 	errs := make(chan error, writers)
 	for i := 0; i < writers; i++ {
 		go func(i int) {
-			row := reducer.SharedProjectionIntentRow{
+			row := sharedintent.Row{
 				IntentID:     "sql-edge",
 				RepositoryID: "repo-a",
 				Payload: map[string]any{
@@ -81,7 +82,7 @@ func TestEdgeWriterSQLRelationshipSequentialWritesPreserveWorkerConcurrency(t *t
 					"relationship_type":  "WRITES_TO",
 				},
 			}
-			_, writeErr := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, []reducer.SharedProjectionIntentRow{row}, "test")
+			_, writeErr := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, []sharedintent.Row{row}, "test")
 			errs <- writeErr
 		}(i)
 	}
@@ -110,7 +111,7 @@ func TestEdgeWriterSQLRelationshipDefaultUsesManagedTransactions(t *testing.T) {
 
 	executor := &recordingGroupExecutor{}
 	writer := NewEdgeWriter(executor, 0)
-	rows := []reducer.SharedProjectionIntentRow{{
+	rows := []sharedintent.Row{{
 		IntentID:     "sql-edge",
 		RepositoryID: "repo-a",
 		Payload: map[string]any{

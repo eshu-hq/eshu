@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestEdgeWriterWriteEdgesCodeCallsUsesExactEndpointLabels(t *testing.T) {
@@ -17,7 +18,7 @@ func TestEdgeWriterWriteEdgesCodeCallsUsesExactEndpointLabels(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-1",
@@ -54,7 +55,7 @@ func TestEdgeWriterWriteEdgesCodeCallsUsesExactInterfaceEndpointLabels(t *testin
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-1",
@@ -91,7 +92,7 @@ func TestEdgeWriterWriteEdgesCodeCallsFallsBackWhenEndpointLabelsMissing(t *test
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-1",
@@ -119,7 +120,7 @@ func TestEdgeWriterWriteEdgesCodeReferencesUsesExactEndpointLabels(t *testing.T)
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-1",
@@ -157,7 +158,7 @@ func TestEdgeWriterWriteEdgesInstantiatesUsesExactEndpointLabels(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	rows := []reducer.SharedProjectionIntentRow{
+	rows := []sharedintent.Row{
 		{
 			IntentID:     "i1",
 			RepositoryID: "repo-1",

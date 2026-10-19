@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -75,7 +76,7 @@ func (w *EdgeWriter) reportUnroutableRows(
 // producer emits types an older writer has never heard of. Recording both as
 // the same thing would either hide real losses in deploy noise or page someone
 // about a rollout that is working as intended.
-func unroutableReasonForRow(domain string, row reducer.SharedProjectionIntentRow) string {
+func unroutableReasonForRow(domain string, row sharedintent.Row) string {
 	if domain != reducer.DomainRepoDependency {
 		return reducer.UnroutableReasonMissingRequiredField
 	}
@@ -232,7 +233,7 @@ func checkRoutedBatchTargets(
 	w *EdgeWriter,
 	domain string,
 	evidenceSource string,
-	rows []reducer.SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	routedRows map[string][]map[string]any,
 	routeOrder []string,
 ) error {

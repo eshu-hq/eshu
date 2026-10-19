@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // The SQL relationship family's production code moved to
@@ -28,10 +29,10 @@ import (
 // emits, so handler tests assert on emitted intents instead of direct edge
 // writes (#2868).
 type recordingSQLRelationshipIntentWriter struct {
-	rows []SharedProjectionIntentRow
+	rows []sharedintent.Row
 }
 
-func (w *recordingSQLRelationshipIntentWriter) UpsertIntents(_ context.Context, rows []SharedProjectionIntentRow) error {
+func (w *recordingSQLRelationshipIntentWriter) UpsertIntents(_ context.Context, rows []sharedintent.Row) error {
 	w.rows = append(w.rows, rows...)
 	return nil
 }
