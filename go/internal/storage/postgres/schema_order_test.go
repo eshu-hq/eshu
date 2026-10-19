@@ -530,4 +530,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// only, no backfill: usage rows are created lazily by the grant upsert
 	// itself.
 	"component_quota_windows",
+	// Migration 207 (#7766) creates the repository_retirements tombstone
+	// marker table plus its open-row, runnable, scope, and idempotency
+	// indexes. Tombstone rows are opened by the operator-driven retirement
+	// mark; no backfill exists.
+	"repository_retirements",
 }
