@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
@@ -48,7 +49,12 @@ func runReuse(args []string) error {
 	for _, check := range reg.RequiredStatusChecks {
 		contexts = append(contexts, check.Context)
 	}
-	verdict, err := probeReuse(context.Background(), execGHRunner{}, *repo, *pr, *headSHA, contexts)
+	// Bound the probe like queue-select (2m): it sits on a workflow step's
+	// critical path, and a hung gh call must fail fast to "no reuse",
+	// never stall the caller to its job timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	verdict, err := probeReuse(ctx, execGHRunner{}, *repo, *pr, *headSHA, contexts)
 	if err != nil {
 		return err
 	}
@@ -58,6 +64,21 @@ func runReuse(args []string) error {
 }
 
 var repoNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+
+// validRepoName also rejects dot segments: the character class alone
+// accepts "../x", which would interpolate into REST paths as traversal.
+func validRepoName(repo string) bool {
+	if !repoNamePattern.MatchString(repo) {
+		return false
+	}
+	owner, name, _ := strings.Cut(repo, "/")
+	for _, segment := range []string{owner, name} {
+		if segment == "." || segment == ".." || strings.Contains(segment, "..") {
+			return false
+		}
+	}
+	return true
+}
 
 var commitSHAPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
@@ -70,7 +91,7 @@ var commitSHAPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 // run, a commit status, or both -- and any source reporting anything else
 // (failure, cancelled, pending, missing) fails the candidate closed.
 func probeReuse(ctx context.Context, runner ghRunner, repo string, pr int, headSHA string, contexts []string) (reuseVerdict, error) {
-	if !repoNamePattern.MatchString(repo) {
+	if !validRepoName(repo) {
 		return reuseVerdict{}, fmt.Errorf("invalid --repo %q", repo)
 	}
 	if !commitSHAPattern.MatchString(headSHA) {
@@ -239,23 +260,26 @@ type checkRunsResponse struct {
 }
 
 // latestCheckRun returns the conclusion of the highest-id (newest) check run
-// with the given name on the commit.
+// with the given name on the commit. It paginates: the max-id rule is only
+// sound over the full run set, and a much-rerun head can exceed one page.
 func latestCheckRun(ctx context.Context, runner ghRunner, repo, sha, name string) (string, bool, error) {
 	endpoint := "repos/" + repo + "/commits/" + sha + "/check-runs?check_name=" + url.QueryEscape(name) + "&per_page=100"
-	out, err := runner.Run(ctx, "api", endpoint)
+	out, err := runner.Run(ctx, "api", "--paginate", "--slurp", endpoint)
 	if err != nil {
 		return "", false, fmt.Errorf("read check runs for %q: %w", name, err)
 	}
-	var response checkRunsResponse
-	if err := json.Unmarshal(out, &response); err != nil {
+	var pages []checkRunsResponse
+	if err := json.Unmarshal(out, &pages); err != nil {
 		return "", false, fmt.Errorf("parse check runs for %q: %w", name, err)
 	}
 	conclusion := ""
 	var latest int64 = -1
-	for _, run := range response.CheckRuns {
-		if run.ID > latest {
-			latest = run.ID
-			conclusion = run.Conclusion
+	for _, page := range pages {
+		for _, run := range page.CheckRuns {
+			if run.ID > latest {
+				latest = run.ID
+				conclusion = run.Conclusion
+			}
 		}
 	}
 	return conclusion, latest >= 0, nil

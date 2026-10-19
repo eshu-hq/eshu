@@ -151,6 +151,25 @@ first changed field and voids the receipt. The `eshu-code-review` skill names
 the review that follows. Keep the receipt outside the worktree, normally under
 the shared Git common directory, so the receipt does not make the tree dirty.
 
+### reuse
+
+```bash
+ci-gates reuse \
+  --registry specs/ci-gates.v1.yaml \
+  --repo eshu-hq/eshu \
+  --pr 1234 \
+  --head-sha <exact pr head sha>
+```
+
+Prints `reuse`, `source_sha`, `tree`, and `reason` lines. `reuse=true` means a
+previous head of the same PR (the force-pushed-away head, or the first parent)
+has a byte-identical git tree and a success verdict on every required status
+context, so a workflow may transfer that verdict instead of re-running gates
+(#8617). Anything short of that — different tree, a missing or non-success
+context, no candidate — prints `reuse=false` and exits 0; a probe error exits
+non-zero and callers must treat it as no reuse. The probe is bounded to two
+minutes.
+
 ### await
 
 ```bash

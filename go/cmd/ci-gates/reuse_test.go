@@ -56,9 +56,9 @@ func forcePushJSON(before, after string) string {
 
 func successRoutes(oldSHA string) []mappedGHRoute {
 	return []mappedGHRoute{
-		{match: "check-runs?check_name=go-core-complete", output: `{"check_runs":[{"id":7,"conclusion":"success"}]}`},
-		{match: "check-runs?check_name=go-race-complete", output: `{"check_runs":[{"id":9,"conclusion":"success"}]}`},
-		{match: "check-runs?check_name=required-gates-complete", output: `{"check_runs":[]}`},
+		{match: "check-runs?check_name=go-core-complete", output: `[{"check_runs":[{"id":7,"conclusion":"success"}]}]`},
+		{match: "check-runs?check_name=go-race-complete", output: `[{"check_runs":[{"id":3,"conclusion":"failure"}]},{"check_runs":[{"id":9,"conclusion":"success"}]}]`},
+		{match: "check-runs?check_name=required-gates-complete", output: `[{"check_runs":[]}]`},
 		{match: "commits/" + oldSHA + "/statuses", output: `[{"context":"required-gates-complete","state":"success"}]`},
 	}
 }
@@ -104,7 +104,7 @@ func TestProbeReuse_FailedOldContextDoesNotReuse(t *testing.T) {
 	t.Parallel()
 
 	routes := successRoutes(reuseOldSHA)
-	routes[1].output = `{"check_runs":[{"id":9,"conclusion":"failure"}]}`
+	routes[1].output = `[{"check_runs":[{"id":9,"conclusion":"failure"}]}]`
 	runner := &mappedGHRunner{routes: append([]mappedGHRoute{
 		{match: "graphql", output: forcePushJSON(reuseOldSHA, reuseHeadSHA)},
 		{match: "git/commits/" + reuseHeadSHA, output: commitJSON(reuseTreeSHA, reuseParentSHA)},
