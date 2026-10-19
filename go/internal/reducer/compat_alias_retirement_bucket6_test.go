@@ -13,7 +13,7 @@ import (
 )
 
 // TestBucket6IntentRetired pins the #6626 batch 6 bucket 6
-// retirement: the Intent alias (deleted with intent_value.go) whose callers
+// retirement: the Intent alias (deleted with its file) whose callers
 // lived across storage, replay, ifa, cmd and reducer trees (all repointed at
 // reducercontract.Intent) must stay absent from the whole reducer package
 // directory — a re-declared alias in any file would still compile. The

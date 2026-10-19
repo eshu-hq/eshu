@@ -2,9 +2,9 @@
 
 ## What changed
 
-`reducer.Intent` (`= reducercontract.Intent`, the only content of
-`go/internal/reducer/intent_value.go`) is deleted with its file, and every
-caller now spells the canonical `reducercontract.Intent`:
+`reducer.Intent` (`= reducercontract.Intent`, the only content of its root
+file) is deleted with that file, and every caller now spells the canonical
+`reducercontract.Intent`:
 
 - 124 external caller files: `reducer.Intent` repointed, adding the aliased
   `reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"`
