@@ -15,9 +15,8 @@ package fake
 // this replaced.
 type RowAdapter func(destCount int, row []any) []any
 
-// LegacyQueueRowAdapter reproduces the two column-count reshapes moved
-// reducer-queue fixtures relied on before the work-queue schema grew two
-// columns.
+// LegacyQueueRowAdapter reproduces the column-count reshapes moved
+// reducer-queue fixtures relied on as the work-queue schema grew.
 //
 // Reducer claim rows gained a target-only claim epoch between attempt_count
 // and created_at; older unrelated-domain fixtures intentionally omit it, so
@@ -32,6 +31,12 @@ type RowAdapter func(destCount int, row []any) []any
 // Dedicated claim-fence tests provide a distinct last_attempt_at value and
 // construct their own row instead of using this adapter.
 //
+// Retention candidate rows carry ten columns: the #7981 identity triple
+// then the #7802 delta_protected flag. A 6-column row scanned into 10
+// destinations gets the triple zero-filled (a zero identity never matches)
+// and the flag zero-filled; a 9-column row staged before the flag existed
+// gets only the flag zero-filled.
+//
 // Any other destination-count/row-length combination, including a genuine
 // mismatch, passes through unchanged. Moved queue tests opt into this by
 // setting it as ExecQueryer.Adapt or a specific Rows.Adapt; it is not the
@@ -43,6 +48,10 @@ func LegacyQueueRowAdapter(destCount int, row []any) []any {
 		return append(row[:5:5], append([]any{int64(0)}, row[5:]...)...)
 	case destCount == 11 && len(row) == 10:
 		return append(row[:9:9], append([]any{row[8]}, row[9:]...)...)
+	case destCount == 10 && len(row) == 6:
+		return append(row[:6:6], append([]any{"", false, "", false}, row[6:]...)...)
+	case destCount == 10 && len(row) == 9:
+		return append(row[:9:9], append([]any{false}, row[9:]...)...)
 	default:
 		return row
 	}

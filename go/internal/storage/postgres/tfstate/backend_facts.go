@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 )
@@ -126,7 +127,7 @@ func (r TerraformStateBackendFactReader) TerraformStateCandidates(
 	if r.DB == nil {
 		return nil, fmt.Errorf("terraform state backend facts database is required")
 	}
-	repoIDs := cleanFactKinds(query.RepoIDs)
+	repoIDs := scalars.CleanStringSet(query.RepoIDs)
 	filters := cleanTerraformStateBackendFilters(query.BackendFilters)
 	if len(repoIDs) == 0 && len(filters) == 0 {
 		return nil, nil
@@ -237,7 +238,7 @@ func (r TerraformStateBackendFactReader) localStateCandidates(
 	if !query.IncludeLocalStateCandidates || len(query.ApprovedLocalCandidates) == 0 {
 		return nil, nil
 	}
-	repoIDs := cleanFactKinds(query.RepoIDs)
+	repoIDs := scalars.CleanStringSet(query.RepoIDs)
 	if len(repoIDs) == 0 {
 		return nil, nil
 	}
@@ -364,26 +365,4 @@ func isSafeFactRelativePath(path string) bool {
 		}
 	}
 	return true
-}
-
-// cleanFactKinds removes empty filters while preserving first-seen order so
-// tests and query plans stay stable. It is a copy of the postgres root's
-// cleanFactKinds (facts_filtered.go): the tfstate move (issue #8361) cannot
-// import the parent package, and hoisting the shared copy to a leaf package
-// is follow-up work. Keep the two implementations identical.
-func cleanFactKinds(factKinds []string) []string {
-	cleaned := make([]string, 0, len(factKinds))
-	seen := make(map[string]struct{}, len(factKinds))
-	for _, factKind := range factKinds {
-		factKind = strings.TrimSpace(factKind)
-		if factKind == "" {
-			continue
-		}
-		if _, ok := seen[factKind]; ok {
-			continue
-		}
-		seen[factKind] = struct{}{}
-		cleaned = append(cleaned, factKind)
-	}
-	return cleaned
 }

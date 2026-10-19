@@ -22,9 +22,10 @@
   and `CoerceJSONString` exported until the root AWS consumer and the
   cmd/ wiring sites move; the root aliases in `../compat_tfstate.go`
   retire entry by entry.
-- Keep `cleanFactKinds` identical to the root's copy in
-  `../facts_filtered.go`, and the parser-shape fixtures identical to the
-  root's `../runtime_drift_config_fixtures_test.go`, until one side is
+- Fact-kind cleaning lives in exactly one copy:
+  `scalars.CleanStringSet` (hoisted, #8552). Do not reintroduce a local
+  `cleanFactKinds`. Keep the parser-shape fixtures identical to the
+  root's `../runtime_drift_config_fixtures_test.go` until one side is
   hoisted or retired.
 - `flattenStateAttributes` must stay behavior-identical to the parser's
   `ctyValueToDriftString`; the cross-package encoding test pins this.

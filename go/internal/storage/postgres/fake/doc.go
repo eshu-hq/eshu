@@ -24,10 +24,11 @@
 // caller stages the query-shape-to-response logic its own tests need, and
 // ExecQueryer applies it before falling back to a FIFO QueryResponses queue.
 //
-// The same duplication problem applied to queueFakeRows.Scan's two
+// The same duplication problem applied to queueFakeRows.Scan's four
 // column-count reshapes for legacy reducer-queue fixtures (rows written
 // before the work-queue schema grew a claim epoch and a last_attempt_at
-// column). Rows.Scan does not hard-code that reshaping either: a caller
+// column, plus retention rows predating the identity triple and the
+// delta_protected flag). Rows.Scan does not hard-code that reshaping either: a caller
 // opts a Rows or an ExecQueryer into it via the RowAdapter it sets as
 // Adapt, and LegacyQueueRowAdapter reproduces the exact reshapes moved
 // queue tests need. Every other domain's fixtures leave Adapt nil and see

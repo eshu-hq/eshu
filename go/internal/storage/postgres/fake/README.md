@@ -47,8 +47,9 @@ business logic it stands in for. Callers stage that behavior themselves via
   before `Scan` checks it against the destination count. `ExecQueryer.Adapt`
   and `Rows.Adapt` both take one; `ExecQueryer.Adapt` fills in any
   handed-out `Rows` whose own `Adapt` is nil, so a caller can set it once.
-- `LegacyQueueRowAdapter` -- a `RowAdapter` reproducing the two column-count
-  reshapes moved reducer-queue fixtures need (see its doc comment). Every
+- `LegacyQueueRowAdapter` -- a `RowAdapter` reproducing the four column-count
+  reshapes moved reducer-queue fixtures need (claim epoch, last_attempt_at,
+  retention triple, retention flag; see its doc comment). Every
   other package's tests leave `Adapt` unset.
 - `CheckPlaceholders` -- returns an error unless a query's `$N` placeholders
   are dense and the highest equals the argument count; store tests call it
@@ -95,6 +96,22 @@ durable write of its own.
   the caller's own tests via `Routes`.
 - `LegacyQueueRowAdapter` is the one exception to "no domain knowledge": it
   exists so moved reducer-queue fixtures do not need a bespoke `Scan`
-  reimplementation for two schema-growth column shims. It is opt-in
+  reimplementation for four schema-growth column shims. It is opt-in
   (`Adapt`), never applied by default, and every other domain's fixtures are
   unaffected by it.
+
+## Hoist no-regression note (#8552)
+
+- No-Regression Evidence (#8552): the pair1/pair2 hoist is
+  expression-identical to the deleted copies (byte-identical branch
+  expressions, full-slice guards preserved, verified in review). Baseline:
+  `go test ./internal/storage/postgres/fake/
+  ./internal/storage/postgres/scalars/
+  ./internal/storage/postgres/tfstate/ ./internal/storage/postgres/`
+  green pre-change. After: same suites green post-change on
+  GOTOOLCHAIN go1.26.9 (unit lane, no Postgres/Neo4j backend — pure
+  functions over synthetic retention rows plus the existing Scan call
+  sites; new tests pin exact literals, positions, lengths, and
+  caller-row non-mutation).
+- No-Observability-Change (#8552): no metric, span, log, status, worker,
+  queue, lease, or SQL-text change; test-double-only refactor.

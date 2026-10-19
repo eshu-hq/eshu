@@ -49,8 +49,8 @@ metric, span, or log name changes.
   own issue with EXPLAIN proof per `eshu-postgres-rigor`.
 - `flattenStateAttributes` must agree with the parser's
   `ctyValueToDriftString` at the leaf level (cross-package encoding test).
-- `cleanFactKinds` here is a copy of the root's copy in
-  `facts_filtered.go`; keep the two identical or hoist to a leaf package.
+- Fact-kind cleaning is the single shared `scalars.CleanStringSet`
+  (hoisted, #8552); do not keep a local copy.
 - `fixtureConfigParserRow` / `fixtureConfigResourcesArray` exist in both
   this package's tests and the root's `runtime_drift_config_fixtures_test.go`
   (test files cannot be imported); keep them identical.

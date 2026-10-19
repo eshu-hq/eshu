@@ -73,6 +73,66 @@ func TestLegacyQueueRowAdapterDuplicatesCycleStartedAtInto11ColumnRow(t *testing
 	}
 }
 
+func sixColumnRetentionRow() []any {
+	return []any{"a", "b", "c", "d", "e", "f"}
+}
+
+func nineColumnRetentionRow() []any {
+	return []any{"a", "b", "c", "d", "e", "f", "g", "h", "i"}
+}
+
+func TestLegacyQueueRowAdapterZeroFillsRetentionTripleFrom6Into10(t *testing.T) {
+	t.Parallel()
+
+	row := sixColumnRetentionRow()
+	original := append([]any(nil), row...)
+
+	got := fake.LegacyQueueRowAdapter(10, row)
+
+	if len(got) != 10 {
+		t.Fatalf("len(got) = %d, want 10", len(got))
+	}
+	// The #7981 identity triple zero-fills (a zero identity never matches)
+	// and the #7802 delta_protected flag zero-fills.
+	want := []any{"a", "b", "c", "d", "e", "f", "", false, "", false}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("got[%d] = %v, want %v", i, got[i], want[i])
+		}
+	}
+	for i := range original {
+		if row[i] != original[i] {
+			t.Fatalf("adapter mutated the caller's row at index %d: got %v, want %v", i, row[i], original[i])
+		}
+	}
+}
+
+func TestLegacyQueueRowAdapterZeroFillsRetentionFlagFrom9Into10(t *testing.T) {
+	t.Parallel()
+
+	row := nineColumnRetentionRow()
+	original := append([]any(nil), row...)
+
+	got := fake.LegacyQueueRowAdapter(10, row)
+
+	if len(got) != 10 {
+		t.Fatalf("len(got) = %d, want 10", len(got))
+	}
+	for i := range original {
+		if got[i] != original[i] {
+			t.Errorf("got[%d] = %v, want first nine columns unchanged (%v)", i, got[i], original[i])
+		}
+	}
+	if got[9] != false {
+		t.Errorf("got[9] = %v, want false (zero-filled delta_protected flag)", got[9])
+	}
+	for i := range original {
+		if row[i] != original[i] {
+			t.Fatalf("adapter mutated the caller's row at index %d: got %v, want %v", i, row[i], original[i])
+		}
+	}
+}
+
 func TestLegacyQueueRowAdapterLeavesOtherShapesUntouched(t *testing.T) {
 	t.Parallel()
 
