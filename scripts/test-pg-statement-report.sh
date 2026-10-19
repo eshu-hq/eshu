@@ -22,9 +22,9 @@
 #  11. block read time is selected only when track_io_timing is on, with the
 #      Postgres 17 column name or the older one.
 #  12. a psql failure -> exit 1.
+#  13. --no-buffers skips the residency section and never touches pg_buffercache.
 #  14. an empty, blank, or lookalike preload value exits 3; $libdir/ and quoted
 #      entries count; the test runs the script with the bash that runs the test.
-#  13. --no-buffers skips the residency section and never touches pg_buffercache.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -87,7 +87,8 @@ run_case() {
   export STUB_LOG="${log_file}"
   rc=0
   PATH="${tmp_root}/bin:${PATH}" "${BASH}" "${script}" "$@" >"${out_file}" 2>&1 || rc=$?
-  # Reset the per-call knobs: bash 3.2 keeps `VAR=x function` assignments.
+  # Reset the per-call knobs: bash 3.2 (the macOS /bin/bash this targets;
+  # CI runs bash 4.4 or newer) keeps `VAR=x function` assignments.
   unset STUB_IO STUB_FAIL
 }
 
@@ -190,10 +191,15 @@ if has "s.query ~* '^\\s*(select|insert|update|delete|merge|with)\\M'" "${log_fi
 else
   record_fail "SQL filters to normalized statement kinds"
 fi
-if has "s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|current_setting'" "${log_file}"; then
-  record_pass "SQL excludes the report's own queries"
+if has "s.query !~* 'pg_stat_statements|pg_buffercache|pg_extension|pg_control_system|current_setting\\(\\$[0-9]+\\) *= *\\$[0-9]+" "${log_file}"; then
+  record_pass "SQL excludes the report's own queries and Eshu metadata probes"
 else
-  record_fail "SQL excludes the report's own queries"
+  record_fail "SQL excludes the report's own queries and Eshu metadata probes"
+fi
+if has "|current_setting'" "${log_file}"; then
+  record_fail "SQL no longer hides every statement mentioning current_setting"
+else
+  record_pass "SQL no longer hides every statement mentioning current_setting"
 fi
 if has "s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())" "${log_file}"; then
   record_pass "SQL scopes statements to the current database"
