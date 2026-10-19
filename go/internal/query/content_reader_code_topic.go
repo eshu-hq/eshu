@@ -8,12 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codetopicparallel"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/jackc/pgx/v5"
 	"go.opentelemetry.io/otel/attribute"
@@ -90,6 +88,12 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 			return nil, codetopicparallel.RecordSnapshotExportDenial(span, err)
 		}
 		if ctx.Err() != nil || !errors.Is(err, db.ErrSnapshotReservationCapacity) {
+			// #7008: the parallel path stays error-only on deadline (no
+			// bounded partial). Its probe rows are unscored and unordered
+			// until the assembly statement scores and pages them, so a
+			// mid-probe deadline has no valid score-ordered prefix to
+			// return. Only the single-statement path below streams
+			// score-ordered rows and can answer its gathered prefix.
 			span.SetAttributes(attribute.String("code_topic.execution_mode", "parallel_shared_snapshot"))
 			span.RecordError(err)
 			return nil, contentSubstringIndexReadError(err)
@@ -188,21 +192,74 @@ func (cr *ContentReader) InvestigateCodeTopic(ctx context.Context, req codequery
 	if measuredScopedOneTerm {
 		args = append([]any{pgx.QueryExecModeCacheDescribe}, args...)
 	}
+	return cr.runCodeTopicSingleStatement(ctx, span, query, args)
+}
+
+// runCodeTopicSingleStatement executes the bounded serial topic statement and
+// scans its score-ordered rows. #7008: the statement streams score-ordered
+// rows, so a deadline surfaces the gathered prefix as a bounded partial
+// instead of failing the call. A cancellation or backend fault stays
+// fail-closed: callers must never read a truncated result as complete.
+func (cr *ContentReader) runCodeTopicSingleStatement(ctx context.Context, span trace.Span, query string, args []any) ([]codequery.CodeTopicEvidenceRow, error) {
+	probeStarted := time.Now()
 	rows, err := cr.db.QueryContext(ctx, query, args...)
+	probeDuration := time.Since(probeStarted)
 	if err != nil {
 		err = contentSubstringIndexReadError(err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			recordCodeTopicProbeStage(span, probeDuration.Milliseconds(), 0, 0, 0, false, true)
+			return nil, fmt.Errorf("%w before any scored row: %w", codequery.ErrCodeTopicDeadlineTruncated, err)
+		}
 		span.RecordError(err)
 		return nil, fmt.Errorf("investigate code topic: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
+	assemblyStarted := time.Now()
 	results, poolTruncated, err := scanCodeTopicEvidenceRows(rows)
+	assemblyDuration := time.Since(assemblyStarted)
+	entityRows, fileRows := countCodeTopicProbeKinds(results)
 	if err != nil {
+		if errors.Is(err, codequery.ErrCodeTopicDeadlineTruncated) {
+			recordCodeTopicProbeStage(span, probeDuration.Milliseconds(), assemblyDuration.Milliseconds(), entityRows, fileRows, poolTruncated, true)
+			return results, err
+		}
 		span.RecordError(err)
 		return results, err
 	}
-	span.SetAttributes(attribute.Bool("code_topic.pool_truncated", poolTruncated))
+	recordCodeTopicProbeStage(span, probeDuration.Milliseconds(), assemblyDuration.Milliseconds(), entityRows, fileRows, poolTruncated, false)
 	return results, nil
+}
+
+// recordCodeTopicProbeStage records the single-statement topic read's
+// per-stage breakdown (#7008): the probe statement round trip, the Go-side
+// row assembly, and the entity/file row split. The entity and file probes are
+// CTEs of one statement, so they share one round trip: splitting their
+// server-side time would need EXPLAIN ANALYZE, which plans and runs the read
+// differently, so the probe duration stays whole and the split is by rows
+// gathered. Names mirror the parallel path's probe/assembly attributes.
+func recordCodeTopicProbeStage(span trace.Span, probeMs, assemblyMs int64, entityRows, fileRows int, poolTruncated, deadlineTruncated bool) {
+	span.SetAttributes(
+		attribute.Int64("code_topic.probe_duration_ms", probeMs),
+		attribute.Int64("code_topic.assembly_duration_ms", assemblyMs),
+		attribute.Int("code_topic.entity_probe_rows", entityRows),
+		attribute.Int("code_topic.file_probe_rows", fileRows),
+		attribute.Bool("code_topic.pool_truncated", poolTruncated),
+		attribute.Bool("code_topic.deadline_truncated", deadlineTruncated),
+	)
+}
+
+// countCodeTopicProbeKinds splits gathered topic rows into the entity-probe
+// and file-probe kinds for the per-stage span breakdown.
+func countCodeTopicProbeKinds(rows []codequery.CodeTopicEvidenceRow) (entityRows, fileRows int) {
+	for _, row := range rows {
+		if row.SourceKind == "file" {
+			fileRows++
+			continue
+		}
+		entityRows++
+	}
+	return entityRows, fileRows
 }
 
 // codeTopicFileBranch selects the per-term file probe for the single-statement
@@ -249,247 +306,14 @@ func scanCodeTopicEvidenceRows(rows db.Rows) ([]codequery.CodeTopicEvidenceRow, 
 		results = append(results, row)
 	}
 	if err := rows.Err(); err != nil {
+		// #7008: the statement streams score-ordered rows, so rows gathered
+		// before the deadline are a valid page prefix: mark them as a
+		// bounded partial instead of failing the call. Cancellations and
+		// backend faults keep the plain error so callers stay fail-closed.
+		if errors.Is(err, context.DeadlineExceeded) {
+			return results, poolTruncated, fmt.Errorf("%w after %d scored rows: %w", codequery.ErrCodeTopicDeadlineTruncated, len(results), err)
+		}
 		return results, poolTruncated, err
 	}
 	return results, poolTruncated, nil
-}
-
-// ---- Code divergence reads (epic #6833, child #6836) ----
-// Fingerprint-equality grouping over the #6835 side tables: same Postgres
-// content store and required-repo grant discipline as the topic reads above.
-
-// divergenceGroupStatsQuery is the phase-one grouping statement for one
-// fingerprint column (fp_exact or fp_renamed): every multi-member group in
-// the repo, as narrow rows the handler sorts/windows before any member
-// fetch. Never selects source_cache (#6835 contract gate). $1 repo_id,
-// $2 token floor.
-func divergenceGroupStatsQuery(fingerprintColumn string) string {
-	if fingerprintColumn != "fp_exact" && fingerprintColumn != "fp_renamed" {
-		return ""
-	}
-	nullFilter := ""
-	if fingerprintColumn == "fp_renamed" {
-		nullFilter = "AND f.fp_renamed IS NOT NULL "
-	}
-	// #nosec G201 -- fingerprintColumn is one of two literals validated above; the rest is static SQL with $N args
-	return fmt.Sprintf(`
-		SELECT f.%[1]s AS fp, count(*) AS members, max(f.token_count) AS tokens
-		FROM code_function_fingerprint f
-		WHERE f.repo_id = $1 AND f.token_count >= $2 %[2]s
-		GROUP BY f.%[1]s HAVING count(*) > 1
-	`, fingerprintColumn, nullFilter)
-}
-
-// divergenceMembersQuery is the phase-two member lookup: one row per member
-// of the page's fingerprints, ordered for contiguous grouping in Go. %s is
-// the qualified fingerprint column (one of two literals, never caller text).
-const divergenceMembersQuery = `
-	SELECT %s AS fp, e.entity_id, e.entity_name, e.entity_type,
-	       e.relative_path, coalesce(e.language, ''), f.token_count,
-	       e.start_line, e.end_line
-	FROM code_function_fingerprint f
-	JOIN content_entities e ON e.entity_id = f.entity_id AND e.repo_id = f.repo_id
-	WHERE f.repo_id = $1 AND %s = ANY($2)
-	ORDER BY %s, e.entity_id
-`
-
-func divergenceColumn(kind codedivergence.Kind) string {
-	if kind == codedivergence.KindRenamed {
-		return "fp_renamed"
-	}
-	return "fp_exact"
-}
-
-// DivergenceGroupStats returns every multi-member fingerprint group for one
-// repository and kind. repoID must already be grant-resolved by the caller
-// (required-repo pattern, like call-graph metrics).
-func (cr *ContentReader) DivergenceGroupStats(ctx context.Context, repoID string, kind codedivergence.Kind, floor int) ([]codedivergence.GroupStat, error) {
-	if cr == nil || cr.db == nil {
-		return nil, nil
-	}
-	statsQuery := divergenceGroupStatsQuery(divergenceColumn(kind))
-	if statsQuery == "" {
-		return nil, fmt.Errorf("divergence stats: unknown kind %q", kind)
-	}
-
-	ctx, span := cr.tracer.Start(
-		ctx, "postgres.query",
-		trace.WithAttributes(
-			attribute.String("db.system", "postgresql"),
-			attribute.String("db.operation", "divergence_group_stats"),
-			attribute.String("db.sql.table", "code_function_fingerprint"),
-		),
-	)
-	defer span.End()
-
-	rows, err := cr.db.QueryContext(ctx, statsQuery, repoID, floor)
-	if err != nil {
-		span.RecordError(err)
-		return nil, fmt.Errorf("divergence group stats: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	stats := make([]codedivergence.GroupStat, 0, 64)
-	for rows.Next() {
-		var stat codedivergence.GroupStat
-		if err := rows.Scan(&stat.Fingerprint, &stat.Members, &stat.Tokens); err != nil {
-			span.RecordError(err)
-			return nil, fmt.Errorf("scan divergence group stat: %w", err)
-		}
-		stat.Kind = kind
-		stats = append(stats, stat)
-	}
-	if err := rows.Err(); err != nil {
-		span.RecordError(err)
-		return nil, err
-	}
-	return stats, nil
-}
-
-// driftedFindingStore adapts the drifted findings store over this reader's
-// handle: the query package owns the read contract, postgres owns the SQL.
-func (cr *ContentReader) driftedFindingStore() postgres.PostgresCodeDriftedFindingStore {
-	storeDB := &postgres.InstrumentedQueryer{
-		Inner:     cr.db,
-		Tracer:    cr.tracer,
-		StoreName: "code_drifted_findings",
-	}
-	return postgres.PostgresCodeDriftedFindingStore{DB: storeDB}
-}
-
-// DivergenceMembersByEntityID resolves wrapper-bypass finding members from
-// the fingerprint table by entity id (graph-discovered caller entities, not
-// a fingerprint group). Ids missing here simply resolve to nothing.
-// Repo-scoped like every other divergence read.
-func (cr *ContentReader) DivergenceMembersByEntityID(ctx context.Context, repoID string, entityIDs []string) (map[string]codedivergence.Member, error) {
-	if cr == nil || cr.db == nil {
-		return map[string]codedivergence.Member{}, nil
-	}
-	if len(entityIDs) == 0 {
-		return map[string]codedivergence.Member{}, nil
-	}
-	const membersByEntityQuery = `
-	SELECT e.entity_id, e.entity_name, e.entity_type,
-	       e.relative_path, coalesce(e.language, ''), f.token_count,
-	       e.start_line, e.end_line
-	FROM code_function_fingerprint f
-	JOIN content_entities e ON e.entity_id = f.entity_id AND e.repo_id = f.repo_id
-	WHERE f.repo_id = $1 AND f.entity_id = ANY($2)
-	ORDER BY e.entity_id
-`
-	ctx, span := cr.tracer.Start(
-		ctx, "postgres.query",
-		trace.WithAttributes(
-			attribute.String("db.system", "postgresql"),
-			attribute.String("db.operation", "divergence_members_by_entity"),
-			attribute.String("db.sql.table", "code_function_fingerprint,content_entities"),
-		),
-	)
-	defer span.End()
-
-	rows, err := cr.db.QueryContext(ctx, membersByEntityQuery, repoID, array.Of(entityIDs))
-	if err != nil {
-		span.RecordError(err)
-		return nil, fmt.Errorf("divergence members by entity: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	byID := make(map[string]codedivergence.Member, len(entityIDs))
-	for rows.Next() {
-		var member codedivergence.Member
-		if err := rows.Scan(
-			&member.EntityID,
-			&member.EntityName,
-			&member.EntityType,
-			&member.RelativePath,
-			&member.Language,
-			&member.TokenCount,
-			&member.StartLine,
-			&member.EndLine,
-		); err != nil {
-			span.RecordError(err)
-			return nil, fmt.Errorf("scan divergence member by entity: %w", err)
-		}
-		byID[member.EntityID] = member
-	}
-	if err := rows.Err(); err != nil {
-		span.RecordError(err)
-		return nil, err
-	}
-	return byID, nil
-}
-
-// DriftedFindingStats returns one stat per active drifted finding in the
-// repo, keyed like the equality kinds (finding id as fingerprint, pair
-// token max) for the merged cross-kind page.
-func (cr *ContentReader) DriftedFindingStats(ctx context.Context, repoID string) ([]codedivergence.GroupStat, error) {
-	if cr == nil || cr.db == nil {
-		return nil, nil
-	}
-	return cr.driftedFindingStore().DriftedFindingStats(ctx, repoID)
-}
-
-// DriftedFindingRows hydrates exactly the given finding ids into drifted
-// rows keyed by finding id, so a large active set never turns hydration
-// into a full-repo fetch.
-func (cr *ContentReader) DriftedFindingRows(ctx context.Context, repoID string, findingIDs []string) (map[string]codedivergence.DriftedRow, error) {
-	if cr == nil || cr.db == nil {
-		return map[string]codedivergence.DriftedRow{}, nil
-	}
-	return cr.driftedFindingStore().DriftedFindingRows(ctx, repoID, findingIDs)
-}
-
-// DivergenceMembers hydrates the members of exactly the given fingerprints
-// in one repository, keyed by fingerprint, so a large group list never
-// turns hydration into a full-repo fetch.
-func (cr *ContentReader) DivergenceMembers(ctx context.Context, repoID string, kind codedivergence.Kind, fingerprints []string) (map[string][]codedivergence.Member, error) {
-	if cr == nil || cr.db == nil {
-		return nil, nil
-	}
-	if len(fingerprints) == 0 {
-		return map[string][]codedivergence.Member{}, nil
-	}
-	column := divergenceColumn(kind)
-
-	ctx, span := cr.tracer.Start(
-		ctx, "postgres.query",
-		trace.WithAttributes(
-			attribute.String("db.system", "postgresql"),
-			attribute.String("db.operation", "divergence_members"),
-			attribute.String("db.sql.table", "code_function_fingerprint,content_entities"),
-		),
-	)
-	defer span.End()
-
-	// #nosec G201 -- column is one of two literals; the rest is static SQL with $N args
-	membersQuery := fmt.Sprintf(divergenceMembersQuery, "f."+column, "f."+column, "f."+column)
-	rows, err := cr.db.QueryContext(ctx, membersQuery, repoID, array.Of(fingerprints))
-	if err != nil {
-		span.RecordError(err)
-		return nil, fmt.Errorf("divergence members: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	byFingerprint := make(map[string][]codedivergence.Member, len(fingerprints))
-	for rows.Next() {
-		var fingerprint string
-		var member codedivergence.Member
-		if err := rows.Scan(
-			&fingerprint,
-			&member.EntityID,
-			&member.EntityName,
-			&member.EntityType,
-			&member.RelativePath,
-			&member.Language,
-			&member.TokenCount,
-			&member.StartLine,
-			&member.EndLine,
-		); err != nil {
-			span.RecordError(err)
-			return nil, fmt.Errorf("scan divergence member: %w", err)
-		}
-		byFingerprint[fingerprint] = append(byFingerprint[fingerprint], member)
-	}
-	if err := rows.Err(); err != nil {
-		span.RecordError(err)
-		return nil, err
-	}
-	return byFingerprint, nil
 }

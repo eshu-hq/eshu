@@ -78,14 +78,21 @@ func CodeTopicAnswerSummary(data map[string]any) string {
 }
 
 // CodeTopicAnswerLimitations renders the answer-packet limitations for a
-// code-topic investigation whose result was truncated. The implementation
-// moved from root's answer_packet_routes.go for #6060 so the code family can
-// build the same limitations without importing root.
+// code-topic investigation whose result was truncated or deadline-cut. The
+// implementation moved from root's answer_packet_routes.go for #6060 so the
+// code family can build the same limitations without importing root. A
+// deadline partial (#7008) always carries its own limitation even when the
+// gathered rows fit the page, so the packet never presents a bounded partial
+// as a complete answer.
 func CodeTopicAnswerLimitations(data map[string]any) []string {
-	if !querycontract.BoolVal(data, "truncated") {
-		return nil
+	var limitations []string
+	if querycontract.BoolVal(data, "truncated") {
+		limitations = append(limitations, "result truncated; inspect additional pages before treating the evidence set as complete")
 	}
-	return []string{"result truncated; inspect additional pages before treating the evidence set as complete"}
+	if querycontract.BoolVal(data, "deadline_truncated") {
+		limitations = append(limitations, "result is a bounded deadline partial; the read exceeded its deadline, so lower-ranked matches may be missing")
+	}
+	return limitations
 }
 
 // CodeTopicEvidenceHandles extracts the addressable evidence handles from a

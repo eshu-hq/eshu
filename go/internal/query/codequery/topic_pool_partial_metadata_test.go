@@ -39,7 +39,8 @@ func TestCodeTopicPageFittingPoolPartialMetadataAgreesWithPacket(t *testing.T) {
 	}}
 	// The page fits: one row under a limit of 25, so data.truncated=false,
 	// while the producer reports the pool-cap stop in coverage.
-	data := CodeTopicResponse(req, rows, false)
+	// Fourth arg false: a pool-stop page is not a deadline partial (#7008).
+	data := CodeTopicResponse(req, rows, false, false)
 	if BoolVal(data, "truncated") {
 		t.Fatalf("data.truncated = %v, want false (page-fitting fixture)", data["truncated"])
 	}

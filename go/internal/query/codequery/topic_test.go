@@ -28,7 +28,10 @@ func (s *topicInvestigationContentStore) InvestigateCodeTopic(
 ) ([]CodeTopicEvidenceRow, error) {
 	s.requests = append(s.requests, req)
 	if s.err != nil {
-		return nil, s.err
+		// A deadline-truncated read returns its bounded partial rows
+		// alongside the marker error (#7008); every other failure keeps
+		// fail-closed nil rows.
+		return append([]CodeTopicEvidenceRow(nil), s.rows...), s.err
 	}
 	return append([]CodeTopicEvidenceRow(nil), s.rows...), nil
 }

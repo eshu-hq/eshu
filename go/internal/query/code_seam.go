@@ -292,6 +292,6 @@ func DeadCodeIncomingEdgeIsWeak(confidence float64) bool {
 // repository-story, and code-topic response builders in the same assertion.
 // It forwards so the code family can move without splitting that
 // cross-family test. See #6060.
-func CodeTopicResponse(req CodeTopicInvestigationRequest, rows []CodeTopicEvidenceRow, truncated bool) map[string]any {
-	return codequery.CodeTopicResponse(req, rows, truncated)
+func CodeTopicResponse(req CodeTopicInvestigationRequest, rows []CodeTopicEvidenceRow, truncated, deadlineTruncated bool) map[string]any {
+	return codequery.CodeTopicResponse(req, rows, truncated, deadlineTruncated)
 }
