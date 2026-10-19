@@ -85,20 +85,16 @@ What #5168 gives you:
    headerless request is refused with a bare `401` that discloses no tool
    catalog or server identity.
 
-**Residual gap for scoped-token-only and OIDC-only deployments (tracked,
-closed by the companion fix).** #5168 does not by itself make every *request*
-authenticated when the shared `ESHU_API_KEY` is unset and only
-`ESHU_SCOPED_TOKENS_FILE` or `ESHU_AUTH_RESOURCE_URI` is configured. In that
-configuration the shared credential middleware still lets a *headerless* request
-through — its dev-mode bypass keys off an empty shared token alone, regardless
-of a configured scoped or OIDC resolver — so `GET /sse`, `POST /mcp/message`,
-and the internally re-dispatched `tools/call` remain reachable without a
-credential. The #5168 startup gate treats a configured scoped-token file or
-OIDC resolver as a credential source, so such a deployment starts; it is the
-per-request headerless enforcement that is finished by the companion
-auth-headerless-bypass hardening (under #5161), the immediately-following change
-in this auth chain. Until that lands, run scoped-only or OIDC-only MCP HTTP
-deployments behind a network boundary, or also set `ESHU_API_KEY`.
+**Headerless enforcement for scoped-token-only and OIDC-only deployments
+(companion hardening #5394, shipped).** The per-request dev-mode-open branch is
+now gated on the same wiring-time predicate as the startup gate — a configured
+shared `ESHU_API_KEY`, `ESHU_SCOPED_TOKENS_FILE`, or `ESHU_AUTH_RESOURCE_URI` —
+instead of the shared key alone. A scoped-token-only or OIDC-only deployment
+therefore starts *and* denies a headerless request to a non-public route with
+`401`, the same as a shared-key deployment. History: before the companion,
+such a deployment started but still served headerless requests open, so the
+interim guidance was to run it behind a network boundary or also set
+`ESHU_API_KEY`. That workaround is no longer needed.
 
 **Breaking change for operators running a keyless HTTP deployment.** Before
 #5168, `ESHU_MCP_TRANSPORT=http` with no credential source served the MCP

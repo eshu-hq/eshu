@@ -93,12 +93,13 @@ that call `claude mcp add` / `codex mcp add` directly.
     same credential middleware as the query API, and SSE sessions are bound to
     the credential that opened them. A deployment with no `ESHU_API_KEY`,
     scoped-token file, or IdP bearer resolver configured refuses to start over
-    HTTP. Note the residual gap: a scoped-token-only or OIDC-only deployment
-    (with `ESHU_API_KEY` unset) still lets a *headerless* request through until
-    the companion auth-headerless-bypass hardening (under #5161) lands. See
+    HTTP. The companion auth-headerless-bypass hardening (under #5161, #5394)
+    has shipped, so a scoped-token-only or OIDC-only deployment (with
+    `ESHU_API_KEY` unset) now denies a *headerless* request with `401` instead
+    of letting it through. See
     [Service Runtimes](../deployment/service-runtimes.md#mcp-http-transport-auth-breaking-change)
-    for the exact contract, the residual gap, the escape hatch, and the local
-    `stdio` exception.
+    for the exact contract, the shipped headerless enforcement (with its
+    pre-companion history), the escape hatch, and the local `stdio` exception.
 
 Claude Code can add the deployed Eshu MCP server with:
 
