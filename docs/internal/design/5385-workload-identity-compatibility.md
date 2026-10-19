@@ -337,12 +337,15 @@ resolves ambiguous, is skipped, and the earlier edge is retracted by scope and
 evidence source (`RetractWorkloadCloudRelationshipEdgesCypher`, the
 scope-wide retract `commitEdges` dispatches in
 `workload_cloud_relationship_materialization.go`). That retract is a
-relationship delete, **unverified on the current pin**: probe P1 covers it
-with the other retract shapes under a Neo4j control. If P1 shows it inert,
-either the stale-`USES` hazard is recorded as an open item on the issue or
-the writer retracts by instance node, which is proven on both backends. Until
-P1 runs, the stale edge is visible only as the `ambiguous` counter rising for
-that surface.
+relationship delete, proven effective on the pinned `neo4j:2026-community`
+backend: probe P1 ran it with the other retract shapes (bare `DELETE` and
+production retract both 1 → 0, sibling scope surviving; see
+`docs/internal/evidence/8517-retract-proof-neo4j2026.md` and the
+`8517-retract-cloud-uses-neo4j2026` ledger row), so on re-materialization the
+earlier edge is reaped by scope and evidence source. No shape proved inert,
+so no hazard entry and no retract-by-node writer change were needed. While a
+scope has not yet re-materialized, the stale edge is visible only as the
+`ambiguous` counter rising for that surface.
 
 **Matching semantics per consumer** (each needs a RED/GREEN test, migration
 doc T3):
