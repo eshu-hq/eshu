@@ -218,16 +218,16 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveInvokesCloudActionMaterializedEdges(odu, invokesCloudActionExpectedEdgesPath(r.RepoRoot))
 	// The DIRECT-materialization families (#6228). Every arm above is a
 	// reducer.MaterializedEdgeFamilies() entry reaching the graph through the
-	// shared-projection intent path; the fifteen below are
+	// shared-projection intent path; the arms below are
 	// reducer.DirectMaterializedEdgeFamilies() entries whose reducer port
 	// writes straight to a storage/cypher writer with no intent row between.
 	//
-	// A registered guard is NOT a coverage claim. Six of the fifteen
-	// families carry coverage rows instead of waivers in
+	// A registered guard is NOT a coverage claim. Some of the families below
+	// carry coverage rows instead of waivers in
 	// specs/ifa-materialized-edge-coverage-direct.v1.yaml because both live
-	// matrices drive them; every other family below — including the four
-	// guarded by the #6228 slice-B change, whose live matrices are still
-	// outstanding — still carries its waiver rows.
+	// matrices drive them; the rest still carry their waiver rows. The ledger,
+	// not this comment, is the source of truth for which is which: a count or
+	// a name list written here goes stale the day a family is proven (#8359).
 	// What these arms buy is that a coverage row COULD resolve, which is one
 	// of the three things those waiver reasons said was missing.
 	case kubernetesNamespaceEnvironmentFamily:
