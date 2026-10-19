@@ -2,12 +2,12 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package admin holds the logic behind the `eshu admin` command tree: the
-// fact work-item and reindex API calls, and bootstrap admin credential
-// retrieval and reset.
+// fact work-item, reindex, and repository retirement API calls, and
+// bootstrap admin credential retrieval and reset.
 //
 // Two unrelated groups of operations share it. The work-item side (Reindex, TuningReport,
 // ListWorkItems, ListDecisions, Replay, DeadLetter, Skip, Backfill,
-// ListReplayEvents) decides which admin endpoint to call and what request
+// ListReplayEvents, RetireRepositories) decides which admin endpoint to call and what request
 // body to send, then returns the decoded response for the caller to render.
 // The credential side (RetrieveInitialCredential, ResetInitialCredential)
 // opens or regenerates the sealed bootstrap credential envelope and appends

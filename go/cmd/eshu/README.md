@@ -135,7 +135,7 @@ artifact wrapper, and the share-safe scope rules live in
     stop, logs, and upgrade logic lives in
     `internal/cli/localsupervisor` and the install logic in
     `internal/cli/graphinstall`)
-  - `admin`: `facts`, `reindex`, `tuning-report`, `list`, `decisions`,
+  - `admin`: `facts`, `reindex`, `retire-repositories`, `tuning-report`, `list`, `decisions`,
     `replay`, `dead-letter`, `skip`, `backfill`, `replay-events`
   - `config`, `neo4j`, `analyze`, `ecosystem`, `workspace`
   - `local-host` (hidden): the local Eshu service re-exec target

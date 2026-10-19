@@ -209,6 +209,36 @@ func runAdminReindex(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// newAdminRetireRepositoriesCmd builds `eshu admin retire-repositories`.
+func newAdminRetireRepositoriesCmd() *cobra.Command {
+	retireCmd := &cobra.Command{
+		Use:   "retire-repositories",
+		Short: "Mark git repositories retiring, fence their scopes, then purge the fenced rows",
+		RunE:  runAdminRetireRepositories,
+	}
+	retireCmd.Flags().StringArray("repository", nil, "Repository selector (repository ID, scope ID, name, slug, or path) to retire; repeatable, 1 to 25")
+	retireCmd.Flags().String("reason", "", "Why the retirement is safe (required)")
+	retireCmd.Flags().String("idempotency-key", "", "Idempotency key; one is generated when empty")
+	addRemoteFlags(retireCmd)
+	return retireCmd
+}
+
+func runAdminRetireRepositories(cmd *cobra.Command, args []string) error {
+	repositories, _ := cmd.Flags().GetStringArray("repository")
+	reason, _ := cmd.Flags().GetString("reason")
+	idempotencyKey, _ := cmd.Flags().GetString("idempotency-key")
+	result, err := admin.RetireRepositories(apiClientFromCmd(cmd), admin.RetireRepositoriesInput{
+		Repositories:   repositories,
+		Reason:         reason,
+		IdempotencyKey: idempotencyKey,
+	})
+	if err != nil {
+		return err
+	}
+	printJSON(result)
+	return nil
+}
+
 func runAdminTuningReport(cmd *cobra.Command, args []string) error {
 	result, err := admin.TuningReport(apiClientFromCmd(cmd))
 	if err != nil {

@@ -6,6 +6,7 @@ package postgres
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -332,4 +333,32 @@ func TestRecordRetirementPurgedNilSafe(t *testing.T) {
 	t.Parallel()
 
 	recordRetirementPurged(context.Background(), nil)
+}
+
+// TestPurgeRefusalsAreSentinelMapped proves the unfenced and wrong-phase
+// purge exits match the operator trigger's 409 sentinels, so the trigger
+// classifies refusals with errors.Is and never reads error text.
+func TestPurgeRefusalsAreSentinelMapped(t *testing.T) {
+	t.Parallel()
+
+	unfencedTx := &fakeTx{queryResponses: []queueFakeRows{{rows: [][]any{}}}}
+	unfencedDB := &fakeTransactionalDB{tx: unfencedTx}
+	_, err := NewRetirementPurger(unfencedDB, unfencedDB).PurgeRetired(context.Background(),
+		PurgeRequest{RepoIDs: []string{"PARTITION:never-fenced"}})
+	if !errors.Is(err, ErrRetirementNoOpenTombstone) {
+		t.Fatalf("unfenced purge error = %v, want ErrRetirementNoOpenTombstone", err)
+	}
+	if unfencedTx.committed {
+		t.Fatal("unfenced purge transaction committed = true, want rollback on refusal")
+	}
+
+	phaseTx := &fakeTx{queryResponses: []queueFakeRows{
+		{rows: [][]any{{"rr_phase01", "PARTITION:early", "early-main", "running", "purge"}}},
+	}}
+	phaseDB := &fakeTransactionalDB{tx: phaseTx}
+	_, err = NewRetirementPurger(phaseDB, phaseDB).PurgeRetired(context.Background(),
+		PurgeRequest{RepoIDs: []string{"PARTITION:early"}})
+	if !errors.Is(err, ErrRetirementTombstoneNotFenced) {
+		t.Fatalf("wrong-phase purge error = %v, want ErrRetirementTombstoneNotFenced", err)
+	}
 }

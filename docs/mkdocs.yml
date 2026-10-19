@@ -112,6 +112,7 @@ nav:
         - Semantic Evidence And Documentation Route Failures: reference/http-api/semantic-and-documentation-failures.md
         - Selector And Read Failures: reference/http-api/selector-and-read-failures.md
         - Completed Work Reopen: reference/http-api/status-admin-reopen.md
+        - Admin Retirement Trigger: reference/http-api/admin-retirement-trigger.md
         - Admin Scope Selector: reference/http-api/status-admin-scope-selector.md
         - Reindex Progress: reference/http-api/status-admin-reindex-progress.md
         - Repository Retirement: reference/http-api/status-admin-repository-retirement.md

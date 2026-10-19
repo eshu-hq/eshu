@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -16,6 +17,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// Purge refusal sentinels. The operator trigger maps them to 409 without
+// reading error text: an unfenced repository and a tombstone the owning
+// runner moved past pending/fenced both refuse, never purge partially.
+// ErrRetirementNoOpenTombstone reports a purge for a repository with no
+// open tombstone row: the repository was never fenced.
+var ErrRetirementNoOpenTombstone = errors.New("retirement purge: no open tombstone")
+
+// ErrRetirementTombstoneNotFenced reports a purge for a tombstone the
+// owning runner moved past pending/fenced.
+var ErrRetirementTombstoneNotFenced = errors.New("retirement purge: tombstone is not pending/fenced")
 
 // PurgeMaxRepositories caps one purge request. It matches the fence's
 // request cap so one operator request keeps one shape end to end.
@@ -185,8 +197,8 @@ func (p RetirementPurger) purgeOne(
 	}
 	if record.State != RetirementStatePending || record.Phase != RetirementPhaseFenced {
 		return "", nil, fmt.Errorf(
-			"retirement purge %s: tombstone %s is %s/%s, want pending/fenced (the owning runner phase purges it)",
-			repoID, record.RetirementID, record.State, record.Phase)
+			"retirement purge %s: tombstone %s is %s/%s, want pending/fenced (the owning runner phase purges it): %w",
+			repoID, record.RetirementID, record.State, record.Phase, ErrRetirementTombstoneNotFenced)
 	}
 	scopeIDs, busy, err := lockPurgeScopes(ctx, tx, repoID)
 	if err != nil {
@@ -278,7 +290,7 @@ func claimPurgeTombstone(ctx context.Context, tx db.Transaction, repoID string) 
 		if err := rows.Err(); err != nil {
 			return nil, fmt.Errorf("retirement purge claim tombstone: %w", err)
 		}
-		return nil, fmt.Errorf("retirement purge %s: no open tombstone", repoID)
+		return nil, fmt.Errorf("retirement purge %s: %w", repoID, ErrRetirementNoOpenTombstone)
 	}
 	var record RetirementRecord
 	if err := rows.Scan(&record.RetirementID, &record.RepoID, &record.ScopeID, &record.State, &record.Phase); err != nil {

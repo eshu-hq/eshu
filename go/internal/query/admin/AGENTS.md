@@ -7,7 +7,9 @@ Scope: `go/internal/query/admin/` (package `admin`) plus its nested leaves
 
 This tree owns the admin-handler family (#6060, lane B): recovery,
 work-item inspection, dead-lettering, replay, backfill, replay events,
-decisions, and input-invalid facts, with the tenant identity and
+decisions, input-invalid facts, and the repository retirement trigger
+(#8602, an operator mutation like reopen, not a repository-read route),
+with the tenant identity and
 provider-config surfaces in their nested leaves.
 
 - Do not add routes here for other families. New families get their own

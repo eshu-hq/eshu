@@ -6,7 +6,8 @@ package status
 // Admin is the OpenAPI path fragment documenting the admin mutation and
 // query routes in this file. openapi.Spec concatenates it into the published
 // document; keep it in lockstep with the handlers and HTTP API reference.
-// Reindex progress and delta-union completeness have their own fragments.
+// Reindex progress, delta-union completeness, and the retirement trigger
+// have their own fragments.
 const Admin = `
     "/api/v0/admin/refinalize": {
       "post": {

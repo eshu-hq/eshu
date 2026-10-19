@@ -323,6 +323,10 @@ type Handler struct {
 	// (#7620); nil makes it 503.
 	ReindexProgress ReindexProgressReader
 	Store           Store
+	// RetirementFencer and RetirementPurger serve the operator retirement
+	// trigger (#8602); either nil makes it 503.
+	RetirementFencer RetirementFencer
+	RetirementPurger RetirementPurger
 	// ReadStore serves inspections; nil preserves legacy single-store wiring.
 	ReadStore ReadStore
 	// Audit records governance audit events for mutating recovery actions.
@@ -384,6 +388,7 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/admin/skip", h.skip)
 	mux.HandleFunc("POST /api/v0/admin/replay", h.replay)
 	mux.HandleFunc("POST /api/v0/admin/reopen", h.reopen)
+	mux.HandleFunc("POST /api/v0/admin/repositories/retire", h.retireRepositories)
 	mux.HandleFunc("POST /api/v0/admin/backfill", h.backfill)
 	mux.HandleFunc("POST /api/v0/admin/replay-events/query", h.listReplayEvents)
 }
