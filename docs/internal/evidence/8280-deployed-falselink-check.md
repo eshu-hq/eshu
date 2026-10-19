@@ -47,7 +47,8 @@ the full `package#export` key each confirmed.
   This is the interim source-verified edge, now materialized.
 - T2 `api-node-boattrader` `server/handlers/app/blocks.ts` `getBlocks` ->
   `lib-node-blocks` `src/index.ts` `getBlock`. Destructured
-  `require('@dmm/lib-node-blocks')`; single call
+  `require('@dmm/lib-node-blocks')` (declared `package.json` repo root
+  `@dmm/lib-node-blocks ^1.1.1`, confirmed in `package-lock.json`); single call
   `getBlock(hostname, code, contentType, locale)`; producer declares
   `export const getBlock`; key unique (1 publisher). Consumer gen `83a22cd9`,
   producer gen `bb0e2333`. TRUE.
@@ -62,14 +63,16 @@ the full `package#export` key each confirmed.
   portal generation has since been superseded), producer gen `455bed10`. TRUE.
 - T4 `lib-node-search` `src/builders/filterTermForMake.ts`
   `filterTermForMake` -> `lib-node-make-model` `src/resources/elastic.js`
-  `getMake`. Bare named import (declared `^1.9.0`); single call
+  `getMake`. Bare named import (declared `package.json` repo root
+  `@dmm/lib-node-make-model ^1.9.0`); single call
   `getMake(services.elasticSearchClient, trimmed)`; producer declares
   `export const getMake`; key unique. Consumer gen `455bed10`,
   producer gen `b63544df`. TRUE.
 - T5 `api-node-boattrader` `server/resources/ads/adHelper.ts`
   `serveRoadBlocks` -> `lib-node-ads` `src/index.ts` `serveRoadblocks`.
   Aliased named import `serveRoadblocks as serveRoadblocksLib` (declared
-  `^7.0.4`); single call; producer declares `export const serveRoadblocks`;
+  `package.json` repo root `@dmm/lib-node-ads ^7.0.4`, confirmed in
+  `package-lock.json`); single call; producer declares `export const serveRoadblocks`;
   key unique. Consumer gen `83a22cd9`, producer gen `51486c30`. TRUE.
 
 ## PHP: 5 new, 0 false (all instance-receiver, new shape)
