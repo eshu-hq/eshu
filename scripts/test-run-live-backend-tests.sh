@@ -209,12 +209,14 @@ EOF
 # running on both backends)
 # (#5385: +1 per backend for the new catalog_sibling_live_test.go sibling
 # read proof, running on both backends)
+# (#8517: +1 neo4j for the new delete_effectiveness_live_test.go retract
+# proof, neo4j-only since relationship DELETE is inert on NornicDB)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "80" ]] || fail "planned runs ${#plan[@]}, want 80 (34 nornicdb + 46 neo4j)"
+[[ "${#plan[@]}" == "81" ]] || fail "planned runs ${#plan[@]}, want 81 (34 nornicdb + 47 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "34" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 34"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "46" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 46"
+[[ "${#plan_neo4j[@]}" == "47" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 47"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
 	fail "materialized workload-count regression missing from neo4j plan"
 assert_workload_count_neo4j_only() {
