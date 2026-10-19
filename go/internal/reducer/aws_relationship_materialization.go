@@ -91,7 +91,7 @@ type AWSRelationshipMaterializationHandler struct {
 	// been published for the intent's scope generation. A nil lookup keeps the
 	// gate open (test wiring); production wires the durable Postgres lookup.
 	ReadinessLookup GraphProjectionReadinessLookup
-	// PriorGenerationCheck reports whether the scope has any prior generation.
+	// PriorGenerationCheck reports whether the scope has a generation strictly older than the given generation.
 	// Nil keeps retract behavior conservative (always retract before write).
 	PriorGenerationCheck PriorGenerationCheck
 	// Ledger records and enumerates source CloudResource uids of projected AWS

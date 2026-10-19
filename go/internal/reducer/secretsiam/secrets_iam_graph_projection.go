@@ -80,7 +80,7 @@ func GraphProjectionDomainDefinition() reducercontract.DomainDefinition {
 type SecretsIAMGraphProjectionHandler struct {
 	FactLoader factload.FactLoader
 	Writer     SecretsIAMGraphWriter
-	// PriorGenerationCheck reports whether the scope has any prior generation.
+	// PriorGenerationCheck reports whether the scope has a generation strictly older than the given generation.
 	// Nil keeps retract conservative (always retract before write).
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	// PresenceLookup answers uid-exact cross-scope endpoint readiness. Nil
