@@ -76,3 +76,25 @@ through the existing signals (`IdentityCacheProbeDuration`,
 `IdentityCacheLoadRetryTotal`). On identity-empty fleets the `probe_error`
 passthrough and `identity_epoch_unstable` retries should drop to zero —
 observable on the existing counters with no new signal required.
+
+## Live-backend supplement (PR #8620)
+
+The unit/fake proof above stands on its own; this branch additionally
+measured the probe on a disposable backend and pins the empty-set
+contract with a live regression test
+(`go/internal/storage/postgres/identity_epoch_empty_set_live_test.go`,
+`TestProbeIdentityEpochEmptySetLive`, enrolled in the
+live-postgres-readiness inventory). Terminal live proof: PASS with
+count 0 and digest `e3b0c44...b855` on disposable PostgreSQL 18
+(`pg8607-epoch`); seeded comparison count 1,000 both spellings.
+
+`EXPLAIN (ANALYZE, BUFFERS, TIMING OFF)` of the old spelling (derived from
+the shipped constant) vs the new spelling, same disposable PostgreSQL 18
+container, same 1,000-row seeded set (20 scopes, one active generation each
+with 50 identity facts): identical plan shape — one Aggregate over one
+`Index Scan using fact_records_identity_epoch_idx_v2` (1,054 shared hits)
+with the same hashed active-generation SubPlan (44 + 42 shared hits).
+Execution 1.458 ms old vs 1.504 ms new; wall average over 5 runs 2.23 ms
+old vs 2.27 ms new. Same count (1,000) and fingerprint both ways. The
+difference is a projection-only simplification, so no plan or cardinality
+change exists to regress.

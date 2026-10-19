@@ -7,6 +7,10 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/workflow_control_claim_class_columns_live_test.go": (
+            "TestWorkflowClaimClassColumnsRoundTrip",
+            "TestWorkflowClaimClassColumnsBackfill",
+        ),
         "go/internal/storage/postgres/workflow_control_claim_depth_live_test.go": (
             "TestWorkflowClaimDepthEightClaimersDrainExactlyOnce",
             "TestWorkflowClaimDepthFairRotationServesSmallKeysEarly",
