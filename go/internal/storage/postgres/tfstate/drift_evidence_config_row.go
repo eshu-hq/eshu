@@ -14,7 +14,7 @@ import (
 // flat dot-path "attributes" map of literal values plus a sorted
 // "unknown_attributes" list of dot-paths whose expressions are non-literal.
 // This bridge decodes both fields so the classifier's attribute-drift dispatch
-// (go/internal/correlation/drift/tfconfigstate/classify.go:154) has both sides
+// (classifyAddedInConfig in go/internal/correlation/drift/tfconfigstate/classify.go)
 // of the comparison.
 //
 // `modulePrefix` carries the canonical Terraform-state module-address prefix

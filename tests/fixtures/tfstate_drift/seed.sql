@@ -4,8 +4,8 @@
 -- (issue #166, PR #165 follow-up). The script writes the exact rows the
 -- production queries select against:
 --
---   * go/internal/storage/postgres/tfstate_backend_canonical.go
---   * go/internal/storage/postgres/tfstate_drift_evidence.go
+--   * go/internal/storage/postgres/tfstate/backend_canonical.go
+--   * go/internal/storage/postgres/tfstate/drift_evidence.go
 --   * go/internal/storage/postgres/drift_enqueue.go
 --
 -- Idempotent: every INSERT carries ON CONFLICT DO NOTHING. Safe to re-run

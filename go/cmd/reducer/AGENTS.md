@@ -114,7 +114,7 @@ before touching any file in this directory.
 - `PriorConfigDepth` on the loader is set via `parsePriorConfigDepth`
   (`config.go:311`) from the `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` env var
   (`main.go:294`). The package default lives in
-  `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go` as
+  `go/internal/storage/postgres/tfstate/drift_evidence_prior_config.go` as
   `defaultPriorConfigDepth` (10). When changing the default, update both the
   constant and the README configuration table.
 

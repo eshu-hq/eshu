@@ -7,7 +7,7 @@ package terraformstate_test
 // scope.NewTerraformStateSnapshotScope and the canonical join key returned by
 // terraformstate.ScopeLocatorHash agree byte-for-byte for the same backend +
 // locator. The drift resolver compares these two hashes byte-for-byte at
-// go/internal/storage/postgres/tfstate_backend_canonical.go vs the state-side
+// go/internal/storage/postgres/tfstate/backend_canonical.go vs the state-side
 // scope hash parsed at go/internal/reducer/tfconfigstate/terraform_config_state_drift.go.
 //
 // Issue #203: hashStateLocator (scope side) and the original LocatorHash

@@ -42,6 +42,6 @@ The verifier asserts non-zero counter deltas for
 the second pass drains `config_state_drift` work.
 
 If prior-generation selection changes, re-check this fixture against
-`go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go`,
-`go/internal/storage/postgres/tfstate_drift_evidence_sql.go`, and the
+`go/internal/storage/postgres/tfstate/drift_evidence_prior_config.go`,
+`go/internal/storage/postgres/tfstate/drift_evidence_sql.go`, and the
 classifier tests for the same drift kinds.

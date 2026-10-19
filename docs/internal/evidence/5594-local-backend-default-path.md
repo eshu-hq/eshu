@@ -18,9 +18,9 @@ Touched hot-path files this covers:
 - `go/internal/reducer/tfconfigstate/terraform_config_state_drift_unresolved_owner.go`
 - `go/internal/reducer/tfconfigstate/terraform_config_state_drift_writer.go`
 - `go/internal/storage/postgres/terraform_config_state_drift_findings.go`
-- `go/internal/storage/postgres/tfstate_backend_canonical.go`
-- `go/internal/storage/postgres/tfstate_backend_filter.go`
-- `go/internal/storage/postgres/tfstate_backend_interpolation.go`
+- `go/internal/storage/postgres/tfstate/backend_canonical.go`
+- `go/internal/storage/postgres/tfstate/backend_filter.go`
+- `go/internal/storage/postgres/tfstate/backend_interpolation.go`
 - `go/internal/telemetry/instruments.go`
 
 ## Backend-local default-path candidate derivation and the repo-scoped join
@@ -43,7 +43,7 @@ scan pattern.
   `TestDefaultEngineParsePathHCLLocalBackendBareBlockOmitsPathAttribute` fail
   before this change (zero candidates / no `state_path` field) and pass after.
   `TestPostgresTerraformBackendQueryRepoLocalPathJoinIsRepoScopedAndLatest`
-  (`go/internal/storage/postgres/tfstate_backend_canonical_repo_local_path_integration_test.go`)
+  (`go/internal/storage/postgres/tfstate/backend_canonical_repo_local_path_integration_test.go`)
   was run against a real, freshly schema-migrated Postgres 16 container:
   fails against the pre-fix join (0 rows where 1 was expected), passes
   against the fix. `EXPLAIN (ANALYZE, BUFFERS)` on a 200-repo seeded corpus

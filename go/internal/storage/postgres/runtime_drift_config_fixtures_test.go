@@ -5,8 +5,8 @@ package postgres
 
 // Config-parser fixture builders shared by the AWS and multi-cloud
 // runtime-drift evidence tests. They mirror the parser's
-// parsed_file_data.terraform_resources row shape from
-// go/internal/parser/hcl/parser.go:130-154: the loader reconstructs the
+// parsed_file_data.terraform_resources row shape from hclBasePayload in
+// go/internal/parser/hcl/parser.go: the loader reconstructs the
 // canonical address from resource_type + resource_name (the parser does not
 // emit a single "address" key on the config side).
 //

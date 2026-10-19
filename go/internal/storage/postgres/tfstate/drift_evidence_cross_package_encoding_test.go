@@ -93,7 +93,7 @@ func stateAttributesForTest(t *testing.T, attributesJSON string) map[string]stri
 // resource through the real parser (hcl.Parse) and the real state flattener
 // (flattenStateAttributes) and asserts every dot-path leaf they both produce
 // is byte-identical, not merely deep-equal. classifyAttributeDrift
-// (go/internal/correlation/drift/tfconfigstate/classify.go:215) compares
+// (go/internal/correlation/drift/tfconfigstate/classify.go) compares
 // cfgValue != stateValue with plain Go string inequality, so a single
 // formatting difference on a shared leaf -- a trailing zero, a case
 // difference, a quoting difference -- makes two equal declared/observed

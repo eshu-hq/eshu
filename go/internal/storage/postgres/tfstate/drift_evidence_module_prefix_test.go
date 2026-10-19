@@ -39,7 +39,7 @@ func (r *fakeUnresolvedRecorder) reasons() []string {
 }
 
 // fixtureModuleCallRow returns the JSON shape the parser emits for one
-// terraform_modules entry. Mirrors go/internal/parser/hcl/parser.go:192-208.
+// terraform_modules entry. Mirrors parseTerraformBlocks in go/internal/parser/hcl/parser.go.
 func fixtureModuleCallRow(name, source, path string) string {
 	return `{"name":"` + name + `","source":"` + source + `","path":"` + path + `","lang":"hcl","line_number":1}`
 }

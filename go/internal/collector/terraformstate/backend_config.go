@@ -45,7 +45,7 @@ type BackendConfigContext struct {
 	// used to produce Backends/Variables/Locals was cloned into, mirrored
 	// from the durable `repository` fact's `local_path` payload field for the
 	// same active generation (see
-	// go/internal/storage/postgres/tfstate_backend_canonical.go). A
+	// go/internal/storage/postgres/tfstate/backend_canonical.go). A
 	// BackendLocal candidate's locator must be an absolute path that
 	// byte-for-byte matches the absolute path
 	// terraformstate.LocalStateSource used when it actually opened the same

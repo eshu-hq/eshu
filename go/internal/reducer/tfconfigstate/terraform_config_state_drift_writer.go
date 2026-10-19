@@ -187,7 +187,7 @@ func (w PostgresTerraformConfigStateDriftWriter) WriteTerraformConfigStateDriftF
 // meaning the config-side Address the candidate was built from depended on
 // an unresolved module-prefix fallback (see
 // go/internal/correlation/drift/tfconfigstate/candidate.go and
-// go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go).
+// go/internal/storage/postgres/tfstate/drift_evidence_module_confidence.go).
 func perAddressFindingFactRow(
 	write TerraformConfigStateDriftWrite,
 	candidate model.Candidate,

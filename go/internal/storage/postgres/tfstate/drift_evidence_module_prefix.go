@@ -26,9 +26,10 @@
 //   - ADR docs/public/services/collector-terraform-state.md
 //   - Issue #169
 //   - State-side address shape:
-//     go/internal/collector/terraformstate/identity.go:26-42
+//     normalizedParseOptions/resourceAddress in
+//     go/internal/collector/terraformstate/identity.go
 //   - Parser emission site:
-//     go/internal/parser/hcl/parser.go:188-208
+//     parseTerraformBlocks in go/internal/parser/hcl/parser.go
 package tfstate
 
 import (
@@ -93,7 +94,7 @@ type modulePrefixMap map[string][]string
 
 // moduleCallEntry is the decoded shape of one parser-emitted
 // `terraform_modules` row. The parser's emission site
-// (go/internal/parser/hcl/parser.go:192-208) populates `name`, `source`,
+// (parseTerraformBlocks in go/internal/parser/hcl/parser.go) populates `name`, `source`,
 // and `path` on every row; the other attributes are ignored here.
 type moduleCallEntry struct {
 	// name is the `module "<name>" {}` label. Becomes the per-segment value

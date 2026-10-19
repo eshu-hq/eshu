@@ -137,7 +137,7 @@ func decodeJSONArray(raw []byte, label string) ([]map[string]any, error) {
 // ctyValueToDriftString output
 // (go/internal/parser/hcl/terraform_resource_attributes.go) so the classifier's
 // value-equality check at
-// go/internal/correlation/drift/tfconfigstate/classify.go:171 fires
+// classifyRemovedFromState in go/internal/correlation/drift/tfconfigstate/classify.go fires
 // deterministically across both sides.
 //
 // Encoding contract per leaf type:

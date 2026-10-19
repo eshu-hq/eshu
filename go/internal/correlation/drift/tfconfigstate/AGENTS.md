@@ -29,13 +29,16 @@ Guidance for LLM assistants editing this package.
   (`classify.go:155`). `attribute_drift` is active end-to-end as of #167:
   the HCL parser now emits flat dot-path `attributes` and `unknown_attributes`
   maps; `configRowFromParserEntry` bridges them into `ResourceRow`
-  (`go/internal/storage/postgres/tfstate_drift_evidence_config_row.go:22`).
+  (`configRowFromParserEntry` in
+  `go/internal/storage/postgres/tfstate/drift_evidence_config_row.go`).
   The state side uses `flattenStateAttributes` with the same dot-path rules
-  (`go/internal/storage/postgres/tfstate_drift_evidence_state_row.go:71`).
+  (`flattenStateAttributes` in
+  `go/internal/storage/postgres/tfstate/drift_evidence_state_row.go`).
 - `removed_from_config` is active end-to-end as of issue #168. State-only
   addresses present in the prior-config snapshot (returned by
   PostgresDriftEvidenceLoader.loadPriorConfigAddresses in
-  `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go:45`)
+  (`loadPriorConfigAddresses` in
+  `go/internal/storage/postgres/tfstate/drift_evidence_prior_config.go`))
   get `ResourceRow.State.PreviouslyDeclaredInConfig=true`; the classifier
   emits `DriftKindRemovedFromConfig` for them (`classify.go`). Operator-imported
   addresses — never declared in any prior generation within the depth window

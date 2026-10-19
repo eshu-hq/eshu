@@ -73,7 +73,7 @@ unrelated reason, before #5623 existed.
 **`AmbiguousOwner` can itself be a byproduct of eventually-consistent
 ingestion, not only a genuinely contested backend.** The underlying query
 (`PostgresTerraformBackendQuery.ListTerraformBackendsByLocator`,
-`internal/storage/postgres/tfstate_backend_canonical.go`) joins each
+`internal/storage/postgres/tfstate/backend_canonical.go`) joins each
 candidate `terraform_backends` fact through
 `scope.active_generation_id = fact.generation_id` — it only sees each repo's
 CURRENTLY-ACTIVE generation, and repos re-ingest independently and

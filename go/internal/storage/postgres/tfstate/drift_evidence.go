@@ -189,6 +189,10 @@ type snapshotMetadata struct {
 	generationID string
 }
 
+// LoadConfigByAddress returns the config resource rows for one scope
+// generation keyed by canonical address, so the drift classifier can join
+// config against state. Exported for the aws drift-evidence consumer in the
+// parent package.
 func (l PostgresDriftEvidenceLoader) LoadConfigByAddress(
 	ctx context.Context,
 	scopeID string,

@@ -76,7 +76,7 @@
 //   - "derived" (issue #5572) — every per-address finding whose config-side
 //     ResourceRow.Address depended on an unresolved module-prefix fallback.
 //     The evidence loader
-//     (go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go)
+//     (go/internal/storage/postgres/tfstate/drift_evidence_module_prefix.go)
 //     resolves a module-nested resource's address prefix by walking
 //     `module {}` call chains (buildModulePrefixMap / modulePrefixForPath),
 //     and that resolution has two documented failure shapes:
@@ -88,7 +88,7 @@
 //     local module chain deeper than maxModulePrefixDepth is abandoned
 //     mid-walk. Either way the resulting address can be wrong. The
 //     evidence-loader sibling file
-//     go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go
+//     go/internal/storage/postgres/tfstate/drift_evidence_module_confidence.go
 //     now tracks BOTH shapes as a directory-keyed
 //     moduleResolutionConfidenceMap and compares its match depth against
 //     modulePrefixMap's own match depth (moduleResolutionReasonForEntry) —
@@ -121,7 +121,7 @@
 //     added_in_state at the real, prefixed Terraform address (they never
 //     share a join key). PostgresDriftEvidenceLoader's
 //     pairSpuriousModuleMismatches
-//     (go/internal/storage/postgres/tfstate_drift_evidence_pairing.go)
+//     (go/internal/storage/postgres/tfstate/drift_evidence_pairing.go)
 //     mirrors ModuleResolutionReason onto the paired state-only row when the
 //     pairing is unambiguous (exactly one low-confidence config-only row and
 //     exactly one state-only row share the same trailing <type>.<name>

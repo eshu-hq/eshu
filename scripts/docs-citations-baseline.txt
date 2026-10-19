@@ -379,9 +379,6 @@ LINE docs/public/reference/telemetry/streaming-memory.md go/internal/collector/s
 LINE go/cmd/ingester/README.md go/internal/collector/service.go:223
 LINE go/internal/collector/awscloud/AGENTS.md go/internal/collector/awscloud/internal/relguard/relguard.go:42
 LINE go/internal/collector/terraformstate/README.md go/internal/redact/redact.go:161
-LINE go/internal/correlation/drift/tfconfigstate/AGENTS.md go/internal/storage/postgres/tfstate_drift_evidence_config_row.go:22
-LINE go/internal/correlation/drift/tfconfigstate/AGENTS.md go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go:45
-LINE go/internal/correlation/drift/tfconfigstate/AGENTS.md go/internal/storage/postgres/tfstate_drift_evidence_state_row.go:71
 LINE go/internal/correlation/drift/tfconfigstate/README.md go/internal/correlation/engine/engine.go:25
 LINE go/internal/correlation/drift/tfconfigstate/README.md go/internal/correlation/model/types.go:65
 LINE go/internal/correlation/drift/tfconfigstate/README.md go/internal/mcp/dispatch.go:65
@@ -417,13 +414,4 @@ LINE go/internal/secretcrypto/env.go go/internal/runtime/api_key.go:66
 LINE go/internal/storage/postgres/AGENTS.md go/internal/parser/hcl/terraform_resource_attributes.go:132
 LINE go/internal/storage/postgres/README.md go/internal/collector/service.go:234
 LINE go/internal/storage/postgres/aws_cloud_runtime_drift_value_completeness_test.go go/internal/collector/awscloud/services/lambda/awssdk/client.go:89
-LINE go/internal/storage/postgres/tfstate_drift_evidence_config_row.go go/internal/correlation/drift/tfconfigstate/classify.go:154
-LINE go/internal/storage/postgres/tfstate_drift_evidence_cross_package_encoding_test.go go/internal/correlation/drift/tfconfigstate/classify.go:215
-LINE go/internal/storage/postgres/tfstate_drift_evidence_helpers.go go/internal/correlation/drift/tfconfigstate/classify.go:171
-LINE go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go go/internal/collector/terraformstate/identity.go:26
-LINE go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go go/internal/parser/hcl/parser.go:188
-LINE go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go go/internal/parser/hcl/parser.go:192
-LINE go/internal/storage/postgres/tfstate_drift_evidence_module_prefix_test.go go/internal/parser/hcl/parser.go:192
-LINE go/internal/storage/postgres/tfstate_drift_evidence_test.go go/internal/collector/terraformstate/resources.go:173
-LINE go/internal/storage/postgres/tfstate_drift_evidence_test.go go/internal/parser/hcl/parser.go:130
 LINE go/internal/synth/gcp/README.md go/internal/replay/canonical.go:49

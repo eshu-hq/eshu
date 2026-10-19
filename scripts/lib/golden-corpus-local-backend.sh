@@ -20,7 +20,7 @@
 # is queryable) and before the cassette collectors replay. It:
 #   1. reads that fixture's local_path from Postgres -- from fact_records
 #      WHERE fact_kind = 'repository', the EXACT table/predicate
-#      go/internal/storage/postgres/tfstate_backend_canonical.go's
+#      go/internal/storage/postgres/tfstate/backend_canonical.go's
 #      repo_local_paths CTE reads at resolution time (COALESCE to source_uri,
 #      ORDER BY observed_at DESC, fact_id DESC). An earlier version of this
 #      query read ingestion_scopes.payload instead -- a different table that,

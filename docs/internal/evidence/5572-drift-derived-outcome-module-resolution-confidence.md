@@ -6,11 +6,11 @@ files this change touches.
 
 Touched hot-path files this covers:
 
-- `go/internal/storage/postgres/tfstate_drift_evidence.go`
-- `go/internal/storage/postgres/tfstate_drift_evidence_config_row.go`
-- `go/internal/storage/postgres/tfstate_drift_evidence_module_prefix.go`
-- `go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go`
-- `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go`
+- `go/internal/storage/postgres/tfstate/drift_evidence.go`
+- `go/internal/storage/postgres/tfstate/drift_evidence_config_row.go`
+- `go/internal/storage/postgres/tfstate/drift_evidence_module_prefix.go`
+- `go/internal/storage/postgres/tfstate/drift_evidence_module_confidence.go`
+- `go/internal/storage/postgres/tfstate/drift_evidence_prior_config.go`
 - `go/internal/storage/postgres/aws_cloud_runtime_drift_evidence.go`
 - `go/internal/storage/postgres/terraform_config_state_drift_findings.go`
 - `go/internal/reducer/tfconfigstate/terraform_config_state_drift_writer.go`
@@ -129,7 +129,7 @@ stated decision rather than a silent gap:
   modules purely to trigger this path) that
   `TestBuildModulePrefixMapRecordsDepthExceededAsLowConfidence` and
   `TestLoadDriftEvidenceMarksLowConfidenceForDepthExceededModuleChain`
-  (`go/internal/storage/postgres/tfstate_drift_evidence_module_confidence_test.go`)
+  (`go/internal/storage/postgres/tfstate/drift_evidence_module_confidence_test.go`)
   already prove precisely, including the depth-comparison fix itself (the
   masking case where the resource is silently misattributed to the
   ancestor's real-but-wrong prefix rather than falling back to root). This
@@ -200,9 +200,9 @@ prior-config address also stayed `exact`.
 
 Touched hot-path files this follow-up covers (additive to the list above):
 
-- `go/internal/storage/postgres/tfstate_drift_evidence_pairing.go` (new)
-- `go/internal/storage/postgres/tfstate_drift_evidence_helpers.go`
-- `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go`
+- `go/internal/storage/postgres/tfstate/drift_evidence_pairing.go` (new)
+- `go/internal/storage/postgres/tfstate/drift_evidence_helpers.go`
+- `go/internal/storage/postgres/tfstate/drift_evidence_prior_config.go`
 - `go/internal/correlation/drift/tfconfigstate/candidate.go`
 
 ### Fix shape
@@ -480,7 +480,7 @@ inlining the CTE.
 
 **The committed, re-runnable evidence of record for this fix is
 `TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres`**
-(`go/internal/storage/postgres/tfstate_drift_evidence_prior_config_ordering_live_test.go`),
+(`go/internal/storage/postgres/tfstate/drift_evidence_prior_config_ordering_live_test.go`),
 gated on `ESHU_POSTGRES_DSN` — see "Committed re-runnable proof" below. The
 throwaway `psql`/EXPLAIN session that first found and diagnosed this bug is
 preserved below for the diagnostic narrative (how the CTE inlining and the
@@ -641,7 +641,7 @@ instance:**
 PASS
 ```
 
-`git diff go/internal/storage/postgres/tfstate_drift_evidence_sql.go`
+`git diff go/internal/storage/postgres/tfstate/drift_evidence_sql.go`
 confirmed clean (no diff) after the temporary revert-and-restore cycle --
 the committed query text was never actually changed.
 

@@ -100,7 +100,7 @@ const BootstrapIndexProjectorLeaseOwner = "bootstrap-index"
 // tfconfigstate.TerraformConfigStateDriftHandler's backend resolver
 // (tfstatebackend.Resolver.ResolveConfigCommitForBackend) reads that
 // config-side repo's OWN active-generation terraform_backends parser fact
-// directly (go/internal/storage/postgres/tfstate_backend_canonical.go), with
+// directly (go/internal/storage/postgres/tfstate/backend_canonical.go), with
 // no dependency on this generation's own cross-repo correlation having run.
 // Firing this trigger during bootstrap's own Phase 1 -- before every scope in
 // the corpus has necessarily activated -- risks the identical race the

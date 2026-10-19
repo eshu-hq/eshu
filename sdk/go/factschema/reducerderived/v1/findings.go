@@ -132,7 +132,7 @@ type AWSCloudRuntimeDriftFinding struct {
 //     operator debugging a spurious finding can tell the two causes apart
 //     without a second outcome value per cause. See
 //     go/internal/correlation/drift/tfconfigstate/doc.go and
-//     go/internal/storage/postgres/tfstate_drift_evidence_module_confidence.go.
+//     go/internal/storage/postgres/tfstate/drift_evidence_module_confidence.go.
 //   - Outcome "ambiguous": one row per rejected state-snapshot scope where
 //     backend-owner resolution found more than one candidate config repo
 //     (tfstatebackend.ErrAmbiguousBackendOwner). Address and DriftKind are

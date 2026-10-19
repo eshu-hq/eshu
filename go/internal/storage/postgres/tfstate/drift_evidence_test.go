@@ -12,7 +12,7 @@ import (
 )
 
 // fixtureConfigParserRow mirrors the parser's parsed_file_data.terraform_resources
-// row shape from go/internal/parser/hcl/parser.go:130-154. The loader
+// row shape from hclBasePayload in go/internal/parser/hcl/parser.go. The loader
 // reconstructs the canonical address from resource_type + resource_name (the
 // parser does not emit a single "address" key on the config side).
 func fixtureConfigParserRow(resourceType, resourceName string) string {
@@ -41,7 +41,7 @@ func fixtureConfigResourcesArray(rows ...string) []byte {
 
 // fixtureStatePayload returns the JSON shape the collector emits for one
 // terraform_state_resource fact, mirroring
-// go/internal/collector/terraformstate/resources.go:173-181.
+// readInstance in go/internal/collector/terraformstate/resources.go.
 func fixtureStatePayload(address, resourceType, name, attributesJSON string) []byte {
 	if attributesJSON == "" {
 		attributesJSON = "{}"
