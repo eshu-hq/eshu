@@ -334,16 +334,53 @@ func VerifyContentFileCounts(ctx context.Context, pool *pgxpool.Pool, expected m
 	return nil
 }
 
+// contentSearchReadinessTimeout bounds the seed wait for the trigram index
+// lifecycle to publish ready after bulk seeding: readiness is eventual (async
+// claim/build/publish plus deferred bootstrap validation), so a single-shot
+// check races a still-building index and fails a healthy seed. A fence that
+// never clears is a finding, not something to sweep through.
+const contentSearchReadinessTimeout = 5 * time.Minute
+
+const contentSearchReadinessPoll = 5 * time.Second
+
+// waitForContentSearchReady polls probe until it succeeds, failing with the
+// last probe error when timeout passes or the context ends first.
+func waitForContentSearchReady(ctx context.Context, probe func(context.Context) error, timeout, poll time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	attempts := 0
+	var lastErr error
+	for {
+		attempts++
+		if err := probe(ctx); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("content search indexes not ready after %s (%d attempts): %w", timeout, attempts, lastErr)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(poll):
+		}
+	}
+}
+
 // VerifyContentSearchReadiness runs the two readiness functions the unscoped
-// searches gate on and fails fast naming the check, so a gate run against a
-// database whose trigram indexes are not valid reports the seed gap instead
-// of sweeping 503s.
+// searches gate on, waiting for the lifecycle to publish ready after bulk
+// seeding, and fails naming the check, so a gate run against a database
+// whose trigram indexes never become valid reports the seed gap instead of
+// sweeping 503s.
 func VerifyContentSearchReadiness(ctx context.Context, pool *pgxpool.Pool) error {
-	if _, err := pool.Exec(ctx, "SELECT eshu_require_content_substring_indexes_ready()"); err != nil {
-		return fmt.Errorf("content substring index readiness: %w", err)
+	probe := func(ctx context.Context) error {
+		if _, err := pool.Exec(ctx, "SELECT eshu_require_content_substring_indexes_ready()"); err != nil {
+			return fmt.Errorf("content substring index readiness: %w", err)
+		}
+		if _, err := pool.Exec(ctx, "SELECT eshu_require_content_lower_trgm_index_ready()"); err != nil {
+			return fmt.Errorf("content lowercase trigram index readiness: %w", err)
+		}
+		return nil
 	}
-	if _, err := pool.Exec(ctx, "SELECT eshu_require_content_lower_trgm_index_ready()"); err != nil {
-		return fmt.Errorf("content lowercase trigram index readiness: %w", err)
-	}
-	return nil
+	return waitForContentSearchReady(ctx, probe, contentSearchReadinessTimeout, contentSearchReadinessPoll)
 }

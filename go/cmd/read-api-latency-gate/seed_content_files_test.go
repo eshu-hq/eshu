@@ -4,11 +4,45 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestWaitForContentSearchReadySucceedsAfterRetries(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	probe := func(context.Context) error {
+		calls++
+		if calls < 3 {
+			return errors.New("content substring indexes are not ready")
+		}
+		return nil
+	}
+	if err := waitForContentSearchReady(context.Background(), probe, time.Minute, time.Millisecond); err != nil {
+		t.Fatalf("waitForContentSearchReady() = %v, want nil after the probe turns ready", err)
+	}
+	if calls != 3 {
+		t.Fatalf("probe calls = %d, want 3 (fail fast on first success, no extra polls)", calls)
+	}
+}
+
+func TestWaitForContentSearchReadyTimesOut(t *testing.T) {
+	t.Parallel()
+
+	probe := func(context.Context) error { return errors.New("content substring indexes are not ready") }
+	err := waitForContentSearchReady(context.Background(), probe, 15*time.Millisecond, time.Millisecond)
+	if err == nil {
+		t.Fatal("waitForContentSearchReady() = nil, want timeout naming the last probe error")
+	}
+	if !strings.Contains(err.Error(), "content substring indexes are not ready") {
+		t.Fatalf("timeout error = %q, want it to name the last probe error", err.Error())
+	}
+}
 
 // TestStoryContentRowsAreDeterministicAndShaped pins the story corpus the
 // #7009 pilots read: byte-identical plans across builds, the anchor and
