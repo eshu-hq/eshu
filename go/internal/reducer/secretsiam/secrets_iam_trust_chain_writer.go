@@ -24,6 +24,21 @@ const (
 	secretsIAMPostureGapFactKind                  = "reducer_secrets_iam_posture_gap"
 )
 
+// Exported read-model fact kinds for Ifá family-Odù fixtures (#6228). The
+// uses_service_account vacuity guard runs the production
+// ExtractSecretsIAMGraphRows over its Odù's facts, so the Odù must carry
+// envelopes of exactly the kinds that extractor's switch admits; aliasing the
+// same literals (not copying them) keeps a kind rename red in both places
+// instead of letting the Odù silently stop matching the extractor.
+const (
+	// SecretsIAMIdentityTrustChainFactKind identifies one reducer-owned
+	// identity trust-chain read-model fact.
+	SecretsIAMIdentityTrustChainFactKind = secretsIAMIdentityTrustChainFactKind
+	// SecretsIAMSecretAccessPathFactKind identifies one reducer-owned secret
+	// access-path read-model fact.
+	SecretsIAMSecretAccessPathFactKind = secretsIAMSecretAccessPathFactKind
+)
+
 // PostgresSecretsIAMTrustChainWriter stores secrets/IAM reducer read models in
 // the shared fact store. It adds no table, graph label, graph edge, or DDL.
 type PostgresSecretsIAMTrustChainWriter struct {

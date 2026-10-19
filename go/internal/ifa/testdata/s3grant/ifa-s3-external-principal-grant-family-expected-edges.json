@@ -1,0 +1,42 @@
+{
+  "odu": "odu:ifa-s3-external-principal-grant-family",
+  "note": "Hand-derived from canonicalS3ExternalPrincipalGrantUpsertCypherFormat (go/internal/storage/cypher/cloud/aws/s3/external_principal_grant_writer.go): `MATCH (source:CloudResource {uid: row.source_uid}) MERGE (principal:ExternalPrincipal {uid: row.principal_uid}) ... MERGE (source)-[rel:%s]->(principal)`. The one %s fills from the closed single-member vocabulary screened per row by validateS3ExternalPrincipalGrantRelationshipType, so GRANTS_ACCESS_TO is the only type this writer can emit. Each source is a reducer.cloudjoin.CloudResourceUID value = sha256 over account_id, region, resource_type, resource_id: account_id 123456789012 and region us-east-1 everywhere, with (resource_type, resource_id) pairs (aws_s3_bucket, arn:aws:s3:::orders-artifacts), (aws_s3_bucket, arn:aws:s3:::shared-reads), and (aws_s3_bucket, arn:aws:s3:::logs-archive). Each target is the stable ExternalPrincipal uid folding principal kind and value. Exactly four edges sorted by (source, principal): orders-artifacts to aws_account 222233334444 (cross_account, resolved by name), shared-reads to aws_service logging.s3.amazonaws.com (service_delivery, resolved by name), shared-reads to aws_account 333344445555 (cross_account, source name derived from the ARN tail with a blank bucket_name), and logs-archive to public * (public, resolved by name). The other three grants contribute nothing on purpose -- one naming unscanned ghost-bucket (source_unresolved), one with unprojectable principal kind unsupported (unsupported_principal), and one with blank principal kind and value (missing_identity, which still decodes so it reaches the skip rather than quarantine). The idle bucket scans as a node but carries no grant. The MERGE keys on its two endpoint nodes alone, so there is no identity block; grant_outcome and resolution_mode are SET after the MERGE and are asserted as mutable properties instead.",
+  "edges": [
+    {
+      "relationship_type": "GRANTS_ACCESS_TO",
+      "source_entity_id": "a539bcb9ae808a69f8f26c79266120240b558102f8b6afb13ba5c6757a72a3a0",
+      "target_entity_id": "09336944f6448b062d113339c52c75fef3eaa1613392a5ae732d85dc4ca8f156",
+      "properties": {
+        "grant_outcome": "cross_account",
+        "resolution_mode": "bucket_name"
+      }
+    },
+    {
+      "relationship_type": "GRANTS_ACCESS_TO",
+      "source_entity_id": "a706e5e01c125562c69361d2103f1e90b8232c5fd2c8824f9be7c22efeaec7fb",
+      "target_entity_id": "505b36b96e7a378df5278721cd3546c9eab2f19aa4d6d2c1fbd7dae2407c3db5",
+      "properties": {
+        "grant_outcome": "service_delivery",
+        "resolution_mode": "bucket_name"
+      }
+    },
+    {
+      "relationship_type": "GRANTS_ACCESS_TO",
+      "source_entity_id": "a706e5e01c125562c69361d2103f1e90b8232c5fd2c8824f9be7c22efeaec7fb",
+      "target_entity_id": "da1364ade80858caae2b0b85cf7579e92ec47c62ca836e320a568c40127e2734",
+      "properties": {
+        "grant_outcome": "cross_account",
+        "resolution_mode": "bucket_name"
+      }
+    },
+    {
+      "relationship_type": "GRANTS_ACCESS_TO",
+      "source_entity_id": "ca2976c89bd682eea05f56774590dd1e668cbb020275e7d9f30f835d6f38e86f",
+      "target_entity_id": "e9df751e6decf2614cda4bdd3becbc57a7459caf1cc4fee3d639e8f7bf0256bd",
+      "properties": {
+        "grant_outcome": "public",
+        "resolution_mode": "bucket_name"
+      }
+    }
+  ]
+}

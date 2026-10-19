@@ -1,0 +1,31 @@
+{
+  "odu": "odu:ifa-security-group-reachability-family",
+  "note": "Hand-derived from canonicalSecurityGroupSGRuleEdgeUpsertCypherFormat (go/internal/storage/cypher/cloud/aws/security/group/security_reachability_edge_writer.go): `MATCH (sg:CloudResource {uid: row.sg_uid}) MATCH (rule:SecurityGroupRule {uid: row.rule_uid}) MERGE (sg)-[rel:%s]->(rule)`. The one %s fills per row from the closed direction vocabulary screened by validateSecurityGroupAllowsRelType, so ALLOWS_INGRESS and ALLOWS_EGRESS are the only types this writer can emit. Each source is a reducer.cloudjoin.CloudResourceUID value = sha256 over account_id, region, resource_type, resource_id: account_id 123456789012 and region us-east-1 everywhere, with (resource_type, resource_id) pairs (aws_ec2_security_group, sg-0abc123def456789a) for the first two edges and (aws_ec2_security_group, sg-0def123456789abcd) for the last three. Each target is the port-precise SecurityGroupRule uid folding sg_uid, direction, protocol, normalized port range, and source. Exactly five edges: web-sg ingress tcp 22 from 10.0.0.0/8 (ALLOWS_INGRESS), web-sg egress tcp 443 to 10.0.0.0/8 (ALLOWS_EGRESS, the direction proving the second vocabulary member), db-sg ingress tcp 80 from prefix list pl-0abc123def456789a, db-sg ingress tcp 5432 from referenced sg-0ref123456789abcd, and db-sg ingress udp 53 from 2001:db8::/32 (ALLOWS_INGRESS). The other four rules contribute nothing on purpose -- one anchored to unscanned ghost-sg (unresolved anchor), one referencing unscanned ghost-sg (unresolved endpoint), one with unknown source, and one tombstoned. The MERGE keys on its two endpoint nodes alone, so there is no identity block and no asserted properties.",
+  "edges": [
+    {
+      "relationship_type": "ALLOWS_EGRESS",
+      "source_entity_id": "6a8a7754af8732c39a72c412c7efa2d239702fe76db522e1aeedd9b93900dccf",
+      "target_entity_id": "18fc9e87e015f05ba883c63b719991ad8845bf40c64498f5c5afdabccb2c40c8"
+    },
+    {
+      "relationship_type": "ALLOWS_INGRESS",
+      "source_entity_id": "6a8a7754af8732c39a72c412c7efa2d239702fe76db522e1aeedd9b93900dccf",
+      "target_entity_id": "dc723bfcc234a3cd09aaa67f1f1f84cf8b98da38d8618409037a1bc2bee6dce9"
+    },
+    {
+      "relationship_type": "ALLOWS_INGRESS",
+      "source_entity_id": "862ca325b371a4f828428d652bd08eec119350716fed9fd79f04ac4dc6b001d0",
+      "target_entity_id": "72b8b0b553d9576dabcbf58294b3fb6051296bb284086a795c9208c113af2251"
+    },
+    {
+      "relationship_type": "ALLOWS_INGRESS",
+      "source_entity_id": "862ca325b371a4f828428d652bd08eec119350716fed9fd79f04ac4dc6b001d0",
+      "target_entity_id": "91f3f557f98ef57990c79f8d6a3514051aa1b125c217ac5dc43c0c8e715e3973"
+    },
+    {
+      "relationship_type": "ALLOWS_INGRESS",
+      "source_entity_id": "862ca325b371a4f828428d652bd08eec119350716fed9fd79f04ac4dc6b001d0",
+      "target_entity_id": "957b5c8d30dff26cc1d05efe35545a3d5b1c776eee2e577dda138d6a2b6a9ecd"
+    }
+  ]
+}

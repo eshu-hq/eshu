@@ -43,17 +43,13 @@ func TestHeldRetractVariantsCoverEveryProductionDelete(t *testing.T) {
 }
 
 // unheldRetractConstExclusions names production retract consts that exist but
-// are deliberately not held: the security_group_rule_endpoint sibling family
-// (single-type TO retract) is unregistered scaffolding with its own waiver
-// rows in specs/ifa-materialized-edge-coverage-direct.v1.yaml, so its two
-// variants cannot be held by any registered family yet. A new exclusion needs
+// are deliberately not held. It is empty today: the last entry covered the
+// security_group_rule_endpoint TO retracts, and registering that family holds
+// both variants, so the exclusion died with its reason. A new exclusion needs
 // the same shape: the sibling family and its waiver. A stale exclusion (the
 // const no longer exists, e.g. absorbed into a registered family) fails here
 // so the exclusion dies with the reason for it.
-var unheldRetractConstExclusions = map[string]string{
-	"retractSecurityGroupToEdgesCypher":       "sibling security_group_rule_endpoint family (single-type TO retract, unregistered; see direct_families.go)",
-	"retractSecurityGroupToEdgesByUIDsCypher": "sibling security_group_rule_endpoint family ledger-anchored variant (unregistered; see direct_families.go)",
-}
+var unheldRetractConstExclusions = map[string]string{}
 
 // heldRetractVariantStrings returns the set of every retract template the two
 // registry tables hold, keyed by exact template text.

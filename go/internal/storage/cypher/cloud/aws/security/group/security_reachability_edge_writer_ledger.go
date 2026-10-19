@@ -40,6 +40,9 @@ DELETE rel`
 const (
 	// RetractSecurityGroupSGRuleEdgesByUIDsCypher is the ledger-anchored SG -> rule retract.
 	RetractSecurityGroupSGRuleEdgesByUIDsCypher = retractSecurityGroupSGRuleEdgesByUIDsCypher
+	// RetractSecurityGroupToEdgesByUIDsCypher is the ledger-anchored
+	// rule -> endpoint TO retract.
+	RetractSecurityGroupToEdgesByUIDsCypher = retractSecurityGroupToEdgesByUIDsCypher
 )
 
 // retractSecurityGroupToEdgesByUIDsCypher is the ledger-anchored counterpart of

@@ -122,11 +122,25 @@ DELETE rel`
 // The registry in go/internal/storage/cypher/edge/materialized must hold the
 // production consts themselves, never a copy of their text, and derive the
 // family's edge types from the vocabulary below rather than a copied literal.
+//
+// No Cypher statement changes here: these aliases hold the existing production
+// templates unchanged, so the write shape, anchors (uid-indexed MATCH on
+// CloudResource/SecurityGroupRule/CidrBlock/PrefixList nodes), cardinality
+// (one edge per resolved rule), and idempotent MERGE-on-endpoints identity are
+// exactly what the writer already executes and its unit tests prove.
 const (
 	// CanonicalSecurityGroupSGRuleEdgeUpsertCypherFormat is the production write template.
 	CanonicalSecurityGroupSGRuleEdgeUpsertCypherFormat = canonicalSecurityGroupSGRuleEdgeUpsertCypherFormat
 	// RetractSecurityGroupSGRuleEdgesCypher is the production SG -> rule retract.
 	RetractSecurityGroupSGRuleEdgesCypher = retractSecurityGroupSGRuleEdgesCypher
+	// CanonicalSecurityGroupToEdgeUpsertCypherFormat is the production
+	// rule -> endpoint write template. The relationship type is the static TO
+	// token; the one %s fills per row from the closed endpoint-label
+	// vocabulary screened by validateSecurityGroupEndpointLabel.
+	CanonicalSecurityGroupToEdgeUpsertCypherFormat = canonicalSecurityGroupToEdgeUpsertCypherFormat
+	// RetractSecurityGroupToEdgesCypher is the production rule -> endpoint
+	// TO retract.
+	RetractSecurityGroupToEdgesCypher = retractSecurityGroupToEdgesCypher
 )
 
 // SecurityGroupSGRuleRelationshipTypes derives the closed relationship-type

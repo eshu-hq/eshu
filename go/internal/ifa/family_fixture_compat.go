@@ -43,12 +43,15 @@ const (
 	RationaleFamilyOduName                      = familyodu.RationaleFamilyOduName
 	RepoDependencyFamilyOduName                 = familyodu.RepoDependencyFamilyOduName
 	RepositoryFactKind                          = familyodu.RepositoryFactKind
+	S3ExternalPrincipalGrantFamilyOduName       = familyodu.S3ExternalPrincipalGrantFamilyOduName
 	S3LogsToFamilyOduName                       = familyodu.S3LogsToFamilyOduName
+	SecurityGroupReachabilityFamilyOduName      = familyodu.SecurityGroupReachabilityFamilyOduName
 	SemanticEntityContainmentFamilyOduName      = familyodu.SemanticEntityContainmentFamilyOduName
 	SharedFollowupFactKind                      = familyodu.SharedFollowupFactKind
 	ShellExecFamilyOduName                      = familyodu.ShellExecFamilyOduName
 	SubmodulePinFamilyOduName                   = familyodu.SubmodulePinFamilyOduName
 	SymbolRuntimeFamilyOduName                  = familyodu.SymbolRuntimeFamilyOduName
+	UsesServiceAccountFamilyOduName             = familyodu.UsesServiceAccountFamilyOduName
 	WorkloadCloudRelationshipFamilyOduName      = familyodu.WorkloadCloudRelationshipFamilyOduName
 	WorkloadDependencyFamilyOduName             = familyodu.WorkloadDependencyFamilyOduName
 )
@@ -166,6 +169,18 @@ func S3LogsToFamilyOdu() CatalogOdu { return familyodu.S3LogsToFamilyOdu() }
 // CloudResourceFamilyOdu returns the cataloged cloud_resource family Odù.
 func CloudResourceFamilyOdu() CatalogOdu { return familyodu.CloudResourceFamilyOdu() }
 
+// S3ExternalPrincipalGrantFamilyOdu returns the cataloged S3
+// external-principal-grant family Odù.
+func S3ExternalPrincipalGrantFamilyOdu() CatalogOdu {
+	return familyodu.S3ExternalPrincipalGrantFamilyOdu()
+}
+
+// SecurityGroupReachabilityFamilyOdu returns the cataloged security-group
+// reachability family Odù shared by the SG-rule and rule-endpoint families.
+func SecurityGroupReachabilityFamilyOdu() CatalogOdu {
+	return familyodu.SecurityGroupReachabilityFamilyOdu()
+}
+
 // KubernetesCorrelationFamilyOdu returns the cataloged Kubernetes
 // correlation family Odù.
 func KubernetesCorrelationFamilyOdu() CatalogOdu { return familyodu.KubernetesCorrelationFamilyOdu() }
@@ -197,6 +212,10 @@ func ShellExecFamilyOdu() CatalogOdu { return familyodu.ShellExecFamilyOdu() }
 
 // SymbolRuntimeFamilyOdu returns the cataloged symbol-runtime family Odù.
 func SymbolRuntimeFamilyOdu() CatalogOdu { return familyodu.SymbolRuntimeFamilyOdu() }
+
+// UsesServiceAccountFamilyOdu returns the cataloged uses-service-account
+// family Odù.
+func UsesServiceAccountFamilyOdu() CatalogOdu { return familyodu.UsesServiceAccountFamilyOdu() }
 
 // WorkloadCloudRelationshipFamilyOdu returns the cataloged workload-cloud-relationship family Odù.
 func WorkloadCloudRelationshipFamilyOdu() CatalogOdu {

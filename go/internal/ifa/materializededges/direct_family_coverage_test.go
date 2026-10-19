@@ -121,6 +121,26 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		OduName:         ifa.CloudResourceFamilyOduName,
 		PredicateScoped: true,
 	},
+	{
+		Family:    securityGroupSGRuleFamily,
+		OduName:   ifa.SecurityGroupReachabilityFamilyOduName,
+		EdgeTypes: []string{"ALLOWS_INGRESS", "ALLOWS_EGRESS"},
+	},
+	{
+		Family:    securityGroupRuleEndpointFamily,
+		OduName:   ifa.SecurityGroupReachabilityFamilyOduName,
+		EdgeTypes: []string{"TO"},
+	},
+	{
+		Family:    s3ExternalPrincipalGrantFamily,
+		OduName:   ifa.S3ExternalPrincipalGrantFamilyOduName,
+		EdgeTypes: []string{"GRANTS_ACCESS_TO"},
+	},
+	{
+		Family:    usesServiceAccountFamily,
+		OduName:   ifa.UsesServiceAccountFamilyOduName,
+		EdgeTypes: []string{"SECRETS_IAM_USES_SERVICE_ACCOUNT"},
+	},
 }
 
 // guardedDirectFamilyCoverageEntry builds the coverage entry a ledger row for

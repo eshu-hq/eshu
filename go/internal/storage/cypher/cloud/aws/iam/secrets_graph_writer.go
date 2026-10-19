@@ -166,6 +166,24 @@ WHERE rel.scope_id = $scope_id AND rel.evidence_source = $evidence_source
 DELETE rel`
 )
 
+// Registry-contract holders for the #6228 materialized-edge retract registry
+// (docs/internal/design/6228-materialized-edge-retract-registry-contract.md).
+// The registry in go/internal/storage/cypher/edge/materialized must hold the
+// production consts themselves, never a copy of their text.
+//
+// No Cypher statement changes here: these aliases hold the existing production
+// templates unchanged, so the write shape (uid-indexed MATCH on
+// KubernetesWorkload and SecretsIAMServiceAccount, MERGE on endpoints plus
+// the static SECRETS_IAM_USES_SERVICE_ACCOUNT token), cardinality (one edge
+// per exact chain carrying a workload id), and idempotent identity are
+// exactly what the writer already executes and its unit tests prove.
+const (
+	// #nosec G101 -- Cypher template holder; const name contains "Secret"/"Account" but the value is a parameterized graph-write query alias, not a credential literal
+	CanonicalSecretsIAMUsesServiceAccountEdgeUpsertCypher = secretsIAMUsesServiceAccountEdgeUpsertCypher
+	// #nosec G101 -- Cypher retract holder; const name contains "Secret"/"Account" but the value is a scoped DELETE query alias with bound parameters, not a credential literal
+	RetractSecretsIAMUsesServiceAccountEdgeCypher = secretsIAMUsesServiceAccountEdgeRetractCypher
+)
+
 // SecretsIAMGraphWriter materializes the reducer-owned secrets/IAM graph
 // projection: the four SecretsIAM* nodes and the five resolvable
 // SECRETS_IAM_* edges, plus scoped retract. It writes through the
