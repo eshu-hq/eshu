@@ -8,11 +8,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -25,13 +27,19 @@ type RelationshipStore struct {
 	// in-flight consumer row; zero uses defaultActivationWakeLockTimeout.
 	// Tests shorten it.
 	activationLockTimeout time.Duration
+	// completionWakeLockTimeout bounds the #8294 completion wake's wait on
+	// a contended work-item row; zero uses
+	// defaultCompletionWakeLockTimeout. Tests shorten it.
+	completionWakeLockTimeout time.Duration
 	// instruments records eshu_dp_reducer_own_gate_wake_total for the
-	// activation wake (#7597). Nil is a no-op.
+	// activation wake (#7597) and eshu_dp_reducer_completion_wake_total
+	// for the completion wake (#8294). Nil is a no-op.
 	instruments *telemetry.Instruments
 }
 
 // WithInstruments attaches the telemetry instruments the activation wake
-// records on (#7597) and returns the store. Nil keeps it uninstrumented.
+// (#7597) and the completion wake (#8294) record on and returns the store.
+// Nil keeps it uninstrumented.
 func (s *RelationshipStore) WithInstruments(instruments *telemetry.Instruments) *RelationshipStore {
 	s.instruments = instruments
 	return s
@@ -317,22 +325,33 @@ func (s *RelationshipStore) UpsertCandidates(
 }
 
 // UpsertResolved persists resolved relationships for a generation.
+//
+// It reports what the ON CONFLICT DO NOTHING insert actually wrote: Inserted
+// counts rows with RowsAffected > 0 (a re-run over stored identities inserts
+// nothing), and RepoIDs holds the distinct non-empty source/target repository
+// IDs of every row in the set, inserted or not. The completion-driven
+// deployable_unit_correlation wake (#8294) runs over that full scope on
+// every pass, so a retry after a lost wake re-runs it even though its
+// upsert inserts nothing; the wake's fingerprint-mismatch predicate decides
+// what reopens.
 func (s *RelationshipStore) UpsertResolved(
 	ctx context.Context,
 	generationID string,
 	resolved []relationships.ResolvedRelationship,
-) error {
+) (crossrepo.ResolvedUpsertResult, error) {
 	if len(resolved) == 0 {
-		return nil
+		return crossrepo.ResolvedUpsertResult{}, nil
 	}
 
+	var result crossrepo.ResolvedUpsertResult
+	seen := make(map[string]struct{}, 2*len(resolved))
 	for _, r := range resolved {
 		resolvedID := relationships.ResolvedRelationshipID(generationID, r)
 		detailsJSON, err := json.Marshal(r.Details)
 		if err != nil {
-			return fmt.Errorf("marshal resolved details: %w", err)
+			return crossrepo.ResolvedUpsertResult{}, fmt.Errorf("marshal resolved details: %w", err)
 		}
-		if _, err := s.database.ExecContext(
+		execResult, err := s.database.ExecContext(
 			ctx, insertResolvedSQL,
 			resolvedID,
 			generationID,
@@ -346,11 +365,28 @@ func (s *RelationshipStore) UpsertResolved(
 			r.Rationale,
 			string(r.ResolutionSource),
 			detailsJSON,
-		); err != nil {
-			return fmt.Errorf("insert resolved: %w", err)
+		)
+		if err != nil {
+			return crossrepo.ResolvedUpsertResult{}, fmt.Errorf("insert resolved: %w", err)
+		}
+		affected, err := execResult.RowsAffected()
+		if err != nil {
+			return crossrepo.ResolvedUpsertResult{}, fmt.Errorf("insert resolved: rows affected: %w", err)
+		}
+		result.Inserted += affected
+		for _, repoID := range []string{r.SourceRepoID, r.TargetRepoID} {
+			repoID = strings.TrimSpace(repoID)
+			if repoID == "" {
+				continue
+			}
+			if _, ok := seen[repoID]; ok {
+				continue
+			}
+			seen[repoID] = struct{}{}
+			result.RepoIDs = append(result.RepoIDs, repoID)
 		}
 	}
-	return nil
+	return result, nil
 }
 
 // GetResolvedRelationships returns resolved relationships for the active

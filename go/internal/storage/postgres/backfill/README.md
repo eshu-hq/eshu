@@ -24,7 +24,10 @@ The engine never imports the parent postgres package.
 The `targeted` child owns partition-scoped maintenance and its reopen
 transaction. Three shipped whole-pass reopen listings and shared replay-floor
 fragments live in `reopen_sql.go`; root keeps constant aliases for existing
-consumers. The child derives bounded listings once from those strings.
+consumers. The child derives bounded listings once from those strings. The
+#8294 completion wake in the parent package is the one other composer: it
+imports the exported `ScopeReplayFloorCTE` / `ScopeReplayFloorJoins`
+aliases so its candidate set carries this same single floor text.
 
 `reopen_fingerprint_sql.go` holds the `deployable_unit_correlation`
 changed-evidence gate (#8283): the input-row predicate and digest both the

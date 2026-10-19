@@ -223,7 +223,7 @@ func TestFluxEvidenceMixedGenerationLegacyAndCurrentCoexist(t *testing.T) {
 		}
 	}
 
-	if err := relStore.UpsertResolved(ctx, generationID, resolved); err != nil {
+	if _, err := relStore.UpsertResolved(ctx, generationID, resolved); err != nil {
 		t.Fatalf("UpsertResolved() error = %v", err)
 	}
 	// Read back by generation directly: the scope-joined getter needs a

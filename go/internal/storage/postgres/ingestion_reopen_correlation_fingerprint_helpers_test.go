@@ -74,7 +74,7 @@ WHERE scope_id = $1 AND status = 'active'`, scopeID); err != nil {
 // re-run deployment_mapping produces.
 func upsertFingerprintGateDeploysFrom(t *testing.T, ctx context.Context, db *sql.DB, generationID, sourceRepo, targetRepo string) {
 	t.Helper()
-	err := NewRelationshipStore(SQLDB{DB: db}).UpsertResolved(ctx, generationID, []relationships.ResolvedRelationship{{
+	_, err := NewRelationshipStore(SQLDB{DB: db}).UpsertResolved(ctx, generationID, []relationships.ResolvedRelationship{{
 		SourceRepoID:     sourceRepo,
 		TargetRepoID:     targetRepo,
 		SourceEntityID:   "entity:" + sourceRepo,

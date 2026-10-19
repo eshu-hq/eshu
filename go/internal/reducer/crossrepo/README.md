@@ -14,7 +14,9 @@ else in the reducer depends on its internals.
 |---|---|---|
 | `CrossRepoRelationshipHandler` | `cross_repo_resolution.go` | the reducer handler the `deployment_mapping` domain registers; loads evidence and assertions, runs `relationships.Resolve`, persists the audit trail, emits intents, then activates the generation |
 | `CrossRepoEvidenceSource` | `cross_repo_resolution.go` | the `evidence_source` this resolver stamps on every edge it writes |
-| `EvidenceFactLoader`, `AssertionLoader`, `ResolutionPersister`, `RepoDependencyIntentWriter` | `cross_repo_resolution.go` | the four ports the handler is wired through |
+| `EvidenceFactLoader`, `AssertionLoader`, `RepoDependencyIntentWriter` | `cross_repo_resolution.go` | three of the ports the handler is wired through |
+| `ResolutionPersister`, `ClaimFencedResolutionPersister` | `cross_repo_resolution_claim.go` | the persistence and claim-fenced activation ports |
+| completion wake (#8294) | `cross_repo_resolution_completion_wake.go` | `ResolvedUpsertResult`, `CompletionWakeResult`, and the `DeployableUnitCorrelationWaker` port: after each resolution pass the handler wakes the deployable_unit_correlation items whose recorded input no longer holds over the pass's full resolved repo scope, on retries too; the queue write lives in `storage/postgres` |
 | `ExtractRepoDependencyIntentRows` | `cross_repo_intent_row.go` | the resolved-relationship to intent-row conversion, exported for Ifá's materialized-edge vacuity guards |
 | retraction rows | `cross_repo_resolution_retract.go` | the rows emitted for a source repo that resolved to no edges, so a stale edge is withdrawn rather than left standing |
 | evidence artifacts | `cross_repo_evidence_artifacts.go` | the bounded `EvidenceArtifact` summaries an edge carries, including citation fields and the `GITHUB_ACTIONS_*` ref/pinned classification |
@@ -39,7 +41,7 @@ lookup-error classifier), `reducer/gpphase`, `reducer/payloadcore`,
 `internal/reducer` package. The dependency runs the other way: the root keeps
 compatibility aliases in the cross-repo stanza of `compat_correlation.go` for every name its own files,
 `cmd/reducer`, `internal/ifa/materializededges` and `internal/storage/cypher`
-still spell as `reducer.X` — seven of them today, and that file is the list.
+still spell as `reducer.X` — ten of them today, and that file is the list.
 
 Every blocker the move surfaced was of the first kind described in `AGENTS.md`
 -- a root one-line forwarder or type alias to a leaf that had already moved out
@@ -101,6 +103,41 @@ Postgres operation, runtime setting, metric instrument, metric label, span, or
 log field. The four instruments above and the spans and log lines around them
 are the same before and after the move; only the file paths their
 telemetry-coverage rows cite changed.
+
+No-Regression Evidence: #8294 adds one bounded wake transaction per
+cross-repo resolution that resolved rows (a lock_timeout plus two UPDATE
+arms), and zero statements when the pass resolved no repos. Baseline
+(pre-#8294): the ON CONFLICT DO NOTHING insert reported nothing and no wake
+existed, so an in-pass append waited for the next maintenance pass. After:
+UpsertResolved reports Inserted (rows actually added) plus RepoIDs over the
+full upsert set; the wake runs over that scope on every pass, retries
+included, and its changed-evidence predicate (the #8283 fingerprint verdict)
+plus the scope replay floor bound the write set — a re-run wake over settled
+input reopens zero, and below-floor succeeded history is never locked or
+reopened. Live-Postgres proof on PostgreSQL 18 (isolated schema, full
+bootstrap) in relationship_store_completion_wake_live_test.go: floor,
+missing fingerprint, unchanged-noop, Inserted=0 retry convergence with
+driver RowsAffected, running-item replay flag through the ACK trigger,
+lock_timeout 55P03 classification, an EvalPlanQual drop against a
+maintenance reopen, and a wake/maintenance/claim race all pass; the
+EXPLAIN (ANALYZE, BUFFERS) of the production reopen statement over 30
+below-floor plus 1 at-floor changed items shows the materialized
+scope_replay_floor CTE and LockRows rows=1 in 0.905 ms. Candidates lock in
+work_item_id C order under a 2 s lock_timeout, with 40P01/55P03 classified
+retryable. No worker, batch size, lease, or claim shape changes.
+
+Observability Evidence: #8294 registers
+`eshu_dp_reducer_completion_wake_total{outcome=reopened|noop|error}` (one
+increment per wake transaction) and feeds reopened rows into the existing
+`eshu_dp_correlation_reopened_total{domain="deployable_unit_correlation"}`,
+so never-ran, ran-and-reopened, ran-empty, and failed are distinguishable
+without log search; emission is proven live in TestCompletionWakeMetricsLive.
+A wake also logs one INFO `cross-repo completion wake reopened
+deployable_unit_correlation items` line (scope_id, generation_id,
+inserted_resolved_rows, reopened_items, replay_flagged_items), and its
+statements are timed by `eshu_dp_postgres_query_duration_seconds`. See the
+`projection (cross-repo edges)` and reopen-gates rows in
+telemetry-coverage.md.
 
 ## Gotchas / invariants
 

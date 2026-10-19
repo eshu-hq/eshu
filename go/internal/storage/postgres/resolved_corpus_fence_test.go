@@ -52,7 +52,7 @@ func TestRelationshipStoreGetResolvedRelationshipsForReposWithCorpusFence(t *tes
 		if err := store.ActivateResolutionGeneration(ctx, "gen-infra", "scope-infra"); err != nil {
 			t.Fatalf("ActivateResolutionGeneration: %v", err)
 		}
-		if err := store.UpsertResolved(ctx, "gen-infra", []relationships.ResolvedRelationship{{
+		if _, err := store.UpsertResolved(ctx, "gen-infra", []relationships.ResolvedRelationship{{
 			SourceRepoID:     "repo-infra",
 			TargetRepoID:     "repo-api",
 			RelationshipType: relationships.RelProvisionsDependencyFor,

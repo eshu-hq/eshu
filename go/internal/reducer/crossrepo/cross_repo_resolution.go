@@ -76,27 +76,6 @@ type AssertionLoader interface {
 	ListAssertions(ctx context.Context, relationshipType *relationships.RelationshipType) ([]relationships.Assertion, error)
 }
 
-// ResolutionPersister persists resolution outputs (candidates and resolved
-// relationships) for audit trail and activates the generation so downstream
-// consumers (e.g. workload materialization) can query resolved relationships.
-type ResolutionPersister interface {
-	UpsertCandidates(ctx context.Context, generationID string, candidates []relationships.Candidate) error
-	UpsertResolved(ctx context.Context, generationID string, resolved []relationships.ResolvedRelationship) error
-	ActivateResolutionGeneration(ctx context.Context, generationID, scopeID string) error
-}
-
-// ClaimFencedResolutionPersister publishes a generation only while the exact
-// reducer claim that computed it remains live.
-type ClaimFencedResolutionPersister interface {
-	ActivateResolutionGenerationForClaim(
-		ctx context.Context,
-		generationID string,
-		scopeID string,
-		workItemID string,
-		claimedAt time.Time,
-	) error
-}
-
 // RepoDependencyIntentWriter persists durable repo-dependency projection
 // intents plus their authoritative acceptance rows.
 type RepoDependencyIntentWriter interface {
@@ -117,9 +96,12 @@ type RepoDependencyIntentWriter interface {
 //     partitionResolvedOwnership). Activation (step 6) is unaffected: a scope
 //     whose emits are all foreign still publishes its generation.
 type CrossRepoRelationshipHandler struct {
-	EvidenceLoader    EvidenceFactLoader
-	Assertions        AssertionLoader
-	Persister         ResolutionPersister
+	EvidenceLoader EvidenceFactLoader
+	Assertions     AssertionLoader
+	Persister      ResolutionPersister
+	// CorrelationWake is the optional #8294 completion-driven wake. Nil
+	// disables it; production wires the RelationshipStore.
+	CorrelationWake   DeployableUnitCorrelationWaker
 	IntentWriter      RepoDependencyIntentWriter
 	ReadinessLookup   gpphase.ReadinessLookup
 	ReadinessPrefetch gpphase.ReadinessPrefetch
@@ -311,8 +293,22 @@ func (h *CrossRepoRelationshipHandler) resolve(
 		if err := h.Persister.UpsertCandidates(ctx, generationID, candidates); err != nil {
 			return 0, fmt.Errorf("persist candidates: %w", err)
 		}
-		if err := h.Persister.UpsertResolved(ctx, generationID, ownedResolved); err != nil {
+		upsertResult, err := h.Persister.UpsertResolved(ctx, generationID, ownedResolved)
+		if err != nil {
 			return 0, fmt.Errorf("persist resolved: %w", err)
+		}
+		// Completion-driven wake (#8294): the append lands under an
+		// already-active generation, so a deployable_unit_correlation item
+		// that succeeded earlier in this same pass read the older row set.
+		// Reopen (or replay-flag) the affected items now rather than at the
+		// next maintenance pass. This runs before the intent commit so a
+		// later step's failure retries with the wake already durable, and
+		// the wake itself is fingerprint-gated and runs on every pass — a
+		// retry that inserts nothing re-runs it, so a wake lost to a crash
+		// or a failed first attempt still converges instead of waiting for
+		// a maintenance pass a one-shot run may never get.
+		if err := h.wakeDeployableUnitCorrelations(ctx, scopeID, generationID, upsertResult); err != nil {
+			return 0, err
 		}
 	}
 

@@ -129,12 +129,22 @@ type DefaultHandlers struct {
 
 	// Cross-repo relationship resolution adapters. All optional; nil disables
 	// cross-repo resolution during deployment_mapping reduction.
-	EvidenceFactLoader         EvidenceFactLoader
-	AssertionLoader            AssertionLoader
-	ResolutionPersister        ResolutionPersister
-	ScopeRepos                 ScopeRepositoryReader
-	ResolvedRelationshipLoader ResolvedRelationshipLoader
-	RepoDependencyIntentWriter RepoDependencyIntentWriter
+	EvidenceFactLoader  EvidenceFactLoader
+	AssertionLoader     AssertionLoader
+	ResolutionPersister ResolutionPersister
+	// DeployableUnitCorrelationWaker is the #8294 completion-driven wake:
+	// every resolution pass wakes the deployable_unit_correlation items
+	// whose recorded input no longer holds over the pass's resolved repos
+	// (succeeded items reopen, including missing-fingerprint rows; in-flight
+	// ones replay after their ACK only when they carry a recorded
+	// fingerprint — a first-execution item with none is left for the next
+	// pass, see #8608), fingerprint-gated and replay-floored so retries
+	// converge. Nil disables the wake; items then wait for the next
+	// maintenance pass as before.
+	DeployableUnitCorrelationWaker DeployableUnitCorrelationWaker
+	ScopeRepos                     ScopeRepositoryReader
+	ResolvedRelationshipLoader     ResolvedRelationshipLoader
+	RepoDependencyIntentWriter     RepoDependencyIntentWriter
 
 	// WorkloadSiblingLookup reads same-named Workload nodes for the #5385
 	// handle ladder (one workload_name index seek per handle, batched per

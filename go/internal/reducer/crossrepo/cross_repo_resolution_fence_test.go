@@ -29,8 +29,12 @@ func (p *orderRecordingPersister) UpsertCandidates(_ context.Context, _ string, 
 	return nil
 }
 
-func (p *orderRecordingPersister) UpsertResolved(_ context.Context, _ string, _ []relationships.ResolvedRelationship) error {
-	return nil
+func (p *orderRecordingPersister) UpsertResolved(
+	_ context.Context,
+	_ string,
+	_ []relationships.ResolvedRelationship,
+) (ResolvedUpsertResult, error) {
+	return ResolvedUpsertResult{}, nil
 }
 
 func (p *orderRecordingPersister) ActivateResolutionGeneration(_ context.Context, generationID, _ string) error {

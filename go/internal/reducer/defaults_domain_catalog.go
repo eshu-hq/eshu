@@ -37,6 +37,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 					EvidenceLoader:    handlers.EvidenceFactLoader,
 					Assertions:        handlers.AssertionLoader,
 					Persister:         handlers.ResolutionPersister,
+					CorrelationWake:   handlers.DeployableUnitCorrelationWaker,
 					IntentWriter:      handlers.RepoDependencyIntentWriter,
 					ScopeRepos:        handlers.ScopeRepos,
 					ReadinessLookup:   handlers.ReadinessLookup,

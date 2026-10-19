@@ -302,13 +302,16 @@ func buildReducerService(
 		// (#2869): the promoted handler emits file-scoped per-edge intents plus a
 		// per-repo refresh intent to the shared intent acceptance writer, and the
 		// partitioned runner + #2898 refresh fence project them.
-		RationaleEdgeIntentWriter:             repoDependencyIntentWriter,
-		DocumentationEdgeWriter:               edgeWriterForHandlers,
-		CodeownersOwnershipEdgeWriter:         edgeWriterForHandlers,
-		RationaleEdgeWriter:                   edgeWriterForHandlers,
-		EvidenceFactLoader:                    relationshipStore,
-		AssertionLoader:                       relationshipStore,
-		ResolutionPersister:                   relationshipStore,
+		RationaleEdgeIntentWriter:     repoDependencyIntentWriter,
+		DocumentationEdgeWriter:       edgeWriterForHandlers,
+		CodeownersOwnershipEdgeWriter: edgeWriterForHandlers,
+		RationaleEdgeWriter:           edgeWriterForHandlers,
+		EvidenceFactLoader:            relationshipStore,
+		AssertionLoader:               relationshipStore,
+		ResolutionPersister:           relationshipStore,
+		// #8294 completion-driven wake: the same store owns the reopened
+		// queue rows and the fingerprint table the wake predicate reads.
+		DeployableUnitCorrelationWaker:        relationshipStore,
 		ScopeRepos:                            relationshipStore,
 		ResolvedRelationshipLoader:            relationshipStore,
 		RepoDependencyIntentWriter:            repoDependencyIntentWriter,

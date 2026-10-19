@@ -457,6 +457,18 @@ TABLE = {
             "TestFinalFailAfterTheActivationLockIsWokenLive",
             "TestActivationLockTimeoutFailsRetryablyLive",
         ),
+        "go/internal/storage/postgres/relationship_store_completion_wake_contention_live_test.go": (
+            "TestCompletionWakeLockTimeoutClassifiedLive",
+            "TestCompletionWakeEvalPlanQualDropsReopenedRowLive",
+            "TestCompletionWakeConcurrentWithMaintenanceAndClaimLive",
+            "TestCompletionWakeMetricsLive",
+        ),
+        "go/internal/storage/postgres/relationship_store_completion_wake_live_test.go": (
+            "TestCompletionWakeFloorMissingAndUnchangedLive",
+            "TestCompletionWakeRunningItemReplayBitLive",
+            "TestCompletionWakeClaimedMissingFingerprintNotFlaggedLive",
+            "TestCompletionWakeRetryConvergesAfterLostWakeLive",
+        ),
         "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
             "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
         ),
@@ -474,17 +486,6 @@ TABLE = {
         "go/internal/storage/postgres/workflow_control_claim_class_columns_live_test.go": (
             "TestWorkflowClaimClassColumnsRoundTrip",
             "TestWorkflowClaimClassColumnsBackfill",
-        ),
-        "go/internal/storage/postgres/workflow_control_claim_depth_live_test.go": (
-            "TestWorkflowClaimDepthEightClaimersDrainExactlyOnce",
-            "TestWorkflowClaimDepthFairRotationServesSmallKeysEarly",
-            "TestClaimDepthAnalysisHelpers",
-        ),
-        "go/internal/storage/postgres/workflow_control_claim_order_plan_live_test.go": (
-            "TestWorkflowClaimCandidateUsesFairClaimIndex",
-        ),
-        "go/internal/storage/postgres/workflow_control_claim_pacing_depth_live_test.go": (
-            "TestWorkflowClaimPacingRecordsDepthPendingGauge",
         ),
     },
 }

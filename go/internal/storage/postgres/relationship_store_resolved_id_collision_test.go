@@ -40,13 +40,13 @@ func TestRelationshipStoreRepoLevelOrdinalShift(t *testing.T) {
 		Details:          map[string]any{},
 	}
 
-	if err := store.UpsertResolved(ctx, "gen-1", []relationships.ResolvedRelationship{rowA, rowB}); err != nil {
+	if _, err := store.UpsertResolved(ctx, "gen-1", []relationships.ResolvedRelationship{rowA, rowB}); err != nil {
 		t.Fatalf("UpsertResolved first run: %v", err)
 	}
 	first := snapshotResolvedByIdentity(t, database)
 
 	// Re-run with shifted ordinals: same identities, opposite slice order.
-	if err := store.UpsertResolved(ctx, "gen-1", []relationships.ResolvedRelationship{rowB, rowA}); err != nil {
+	if _, err := store.UpsertResolved(ctx, "gen-1", []relationships.ResolvedRelationship{rowB, rowA}); err != nil {
 		t.Fatalf("UpsertResolved re-run: re-run must not produce a primary key conflict for existing identities: %v", err)
 	}
 	second := snapshotResolvedByIdentity(t, database)

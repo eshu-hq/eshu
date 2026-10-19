@@ -20,7 +20,7 @@ func TestRelationshipStoreEmptyActiveGenerationHidesPriorResolvedRelationships(t
 	if err := store.ActivateResolutionGeneration(ctx, "gen-old", "scope-deploy"); err != nil {
 		t.Fatalf("ActivateResolutionGeneration(old): %v", err)
 	}
-	if err := store.UpsertResolved(ctx, "gen-old", []relationships.ResolvedRelationship{
+	if _, err := store.UpsertResolved(ctx, "gen-old", []relationships.ResolvedRelationship{
 		{
 			SourceRepoID:     "repository:r_deploy",
 			TargetRepoID:     "repository:r_service",
