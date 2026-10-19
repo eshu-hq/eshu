@@ -201,3 +201,9 @@ and `semantic_search_wiring_test.go:212`) all assert an error raised before
 `pgaccess.Open`. That is a config, profile, capture, keyring, or embedder
 error, or the missing-DSN refusal from `pgaccess.LoadConfig`, so none of them
 opens an Access.
+
+## Rollout
+
+Rollout and integrity assessment live separately in
+[7957-snapshot-rollout-plan.md](7957-snapshot-rollout-plan.md): an upgrade
+does not repair existing hint bits.
