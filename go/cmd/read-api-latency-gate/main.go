@@ -368,6 +368,10 @@ func seed(ctx context.Context, opts runOptions) error {
 	if err := VerifyContentFileCounts(ctx, pool, ExpectedContentFileCounts()); err != nil {
 		return fmt.Errorf("verify seeded content: %w", err)
 	}
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: finalizing deferred content search indexes after the bulk content drain\n")
+	if err := finalizeContentSearchIndexes(ctx, opts.postgresDSN); err != nil {
+		return fmt.Errorf("finalize content search indexes: %w", err)
+	}
 	if err := VerifyContentSearchReadiness(ctx, pool); err != nil {
 		return fmt.Errorf("verify content search readiness: %w", err)
 	}
