@@ -422,6 +422,23 @@ func EntityTypeLabelMap() map[string]string {
 	return cloned
 }
 
+// DiscardsIncomingEntityID reports whether canonical projection recomputes
+// the graph uid for the given content-entity type, ignoring the fact's
+// entity_id. It answers the same question canonicalGraphEntityID answers
+// for the name/path/line labels, without rebuilding the row: the semantic
+// writer's MATCH-miss telemetry (#8359) reads this to decide which admitted
+// rows must carry the derived uid for their MATCH to hit. A type the
+// projector preserves (or cannot map at all) still MATCHes whatever uid the
+// fact carried, so flagging it would be noise.
+func DiscardsIncomingEntityID(entityType string) bool {
+	label, ok := EntityTypeLabel(entityType)
+	if !ok {
+		return false
+	}
+	_, ok = canonicalNamePathLineEntityLabels[label]
+	return ok
+}
+
 // javaSourcePackage places one file in its Java package for package-level
 // import cycles (#7349); it fills ImportRow.SourcePackage above. Only Java
 // files are placed: every other language keeps an empty package; each lift

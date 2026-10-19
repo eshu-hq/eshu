@@ -388,6 +388,14 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 		return semantic.EntityWriteResult{}, fmt.Errorf("unsupported semantic entity write mode %d", w.writeMode)
 	}
 
+	// Attempted-vs-matched reconciliation runs over admitted rows before
+	// dispatch (#8359): it is pure Go over the row identities, adds no
+	// statement, and changes no MATCH/MERGE shape.
+	attemptedByLabel, matchedByLabel, unmatchedUIDs := verifySemanticEntityMatchIdentities(
+		write.Rows,
+		w.writeMode == semanticEntityWriteModeCanonicalNodeRows,
+	)
+
 	batchSize := w.batchSize()
 	ownershipRows := buildRustImplBlockOwnershipRows(write.Rows)
 	for start := 0; start < len(ownershipRows); start += batchSize {
@@ -429,7 +437,13 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 		}
 	}
 
-	return semantic.EntityWriteResult{CanonicalWrites: writes, Groups: groups}, nil
+	return semantic.EntityWriteResult{
+		CanonicalWrites:      writes,
+		Groups:               groups,
+		RowsAttemptedByLabel: attemptedByLabel,
+		RowsMatchedByLabel:   matchedByLabel,
+		UnmatchedEntityIDs:   unmatchedUIDs,
+	}, nil
 }
 
 func (w *SemanticEntityWriter) semanticRetractStatements(repoIDs []string) []Statement {

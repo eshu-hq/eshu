@@ -117,11 +117,21 @@ filtering traces.
 `Handler.Handle` emits one "semantic entity
 materialization completed" structured log per execution, carrying
 `fact_count`, `repo_count`, `row_count`, `skip_retract`,
-`delta_projection`, `delta_file_count`, and the
+`delta_projection`, `delta_file_count`,
+`rows_attempted_by_label` / `rows_matched_by_label` /
+`unmatched_uid_count` (#8359), and the
 `load_facts_duration_seconds` / `extract_duration_seconds` /
 `retract_decision_duration_seconds` / `graph_write_duration_seconds` /
 `phase_publish_duration_seconds` / `total_duration_seconds` per-stage
-timings.
+timings. When the writer reports admitted rows that matched no canonical
+node identity, `Handle` additionally emits one "semantic entity rows matched
+no canonical node" WARN carrying the exact `unmatched_uid_count` and the
+first `unmatched_uids` (bounded at 10, with `unmatched_uids_truncated`
+counting the rest) plus the same per-label counts. The WARN is
+deliberately not an error: projector-to-reducer ordering is not proven
+total, so a miss can be a race rather than a defect. The status summary
+says "admitted N semantic entity rows (M matched)", never "materialized":
+admitted rows are not materialized until their statements land.
 
 No-Regression Evidence: #6061 relocates this family from
 `internal/reducer/semanticentity` to `internal/reducer/code/semantic`
@@ -155,6 +165,30 @@ Postgres operation, runtime setting, metric instrument, metric label, span,
 or log field. This package registers no instrument; the reducer executions
 that wrap it, the span over them, and the structured-log fields listed above
 are the same before and after the move.
+
+No-Regression Evidence: #8359 adds attempted-vs-matched reconciliation to
+the semantic write path without changing any statement. The writer computes
+per-label counts and the unmatched uid list in pure Go over admitted rows
+(O(rows) map builds plus one blake2s derivation per MATCH-owned row that
+the projector re-derives), then dispatches the byte-identical retract and
+upsert statements it always did; no Cypher text, shape, batching,
+transaction grouping, retry classification, or executor path changes. No new
+backend read (the check compares against the production derivation, not the
+graph), no new worker, queue domain, or runtime knob.
+Proof: `go test ./internal/projector/canonical/... ./internal/reducer/code/semantic/... ./internal/storage/cypher/ ./internal/reducer/ -count=1`
+all exit 0, including the seeded RED/GREEN telemetry tests (divergent uid
+WARNs with counts, agreed uid stays silent) and the pre-existing handler,
+delta, and writer suites unchanged.
+
+Observability Evidence: #8359 adds operator signals without a new metric
+instrument. The completion log gains `rows_attempted_by_label`,
+`rows_matched_by_label`, and `unmatched_uid_count`; a new bounded WARN
+names unmatched uids; the status summary stops calling admitted rows
+"materialized". This package still registers no instrument: executions stay
+covered by `eshu_dp_reducer_executions_total` and
+`eshu_dp_reducer_run_duration_seconds` under the `reducer.run` span, and the
+new fields ride the existing structured completion log, so no dashboard or
+alert rule needs a new series.
 
 ## Gotchas / invariants
 
