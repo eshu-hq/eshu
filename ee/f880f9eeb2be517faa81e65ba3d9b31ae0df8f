@@ -1,0 +1,148 @@
+docs/public/reference/cypher-performance.md
+  h_78a442cba0b3e6 1636
+go/cmd/bootstrap-index/nornicdb_wiring.go
+  h_78a442cba0b3e6 20,361,365,369
+go/cmd/bootstrap-index/wiring.go
+  h_78a442cba0b3e6 28,368
+go/cmd/ingester/files_group_probe.go
+  h_78a442cba0b3e6 16,56,81
+go/cmd/ingester/files_group_probe_test.go
+  h_78a442cba0b3e6 18,137,219
+go/cmd/ingester/wiring_neo4j_executor.go
+  h_78a442cba0b3e6 18,107
+go/cmd/reducer/config.go
+  h_78a442cba0b3e6 23,317
+go/cmd/reducer/default_wiring_test.go
+  h_78a442cba0b3e6 12,35,66
+go/cmd/reducer/endpoint_presence_wiring.go
+  h_78a442cba0b3e6 14,116
+go/cmd/reducer/graph_orphan_sweep_fingerprints_test.go
+  h_78a442cba0b3e6 15,67,107
+go/cmd/reducer/graph_orphan_sweep_wiring.go
+  h_78a442cba0b3e6 14,31,45,58
+go/internal/backendconformance/corpus_semantic_module.go
+  h_78a442cba0b3e6 13,147,304
+go/internal/queryplan/testdata/statement-builders.yaml
+  h_78a442cba0b3e6 67,423-479,505
+go/internal/reducer/recovery-runners.md
+  h_78a442cba0b3e6 167
+go/internal/reducer/repository_stub_live_test.go
+  h_78a442cba0b3e6 22,220,222,224
+go/internal/storage/cypher/README.md
+  h_78a442cba0b3e6 15,1723
+go/internal/storage/cypher/canonical.go
+  h_78a442cba0b3e6 254
+go/internal/storage/cypher/canonical_node_writer_repository_retirement_test.go
+  h_78a442cba0b3e6 12,100,107-124
+go/internal/storage/cypher/canonical_node_writer_retract.go
+  h_78a442cba0b3e6 338
+go/internal/storage/cypher/canonical_relationships.go
+  h_78a442cba0b3e6 50-54,424
+go/internal/storage/cypher/canonical_repository_incoming_edge_guard_test.go
+  h_78a442cba0b3e6 35
+go/internal/storage/cypher/cloud/aws/ec2/harness_test.go
+  h_78a442cba0b3e6 49
+go/internal/storage/cypher/cloud/aws/iam/harness_test.go
+  h_78a442cba0b3e6 42
+go/internal/storage/cypher/cloud/aws/image/harness_test.go
+  h_78a442cba0b3e6 42
+go/internal/storage/cypher/cloud/aws/rds/harness_test.go
+  h_78a442cba0b3e6 42
+go/internal/storage/cypher/cloud/aws/relationship/harness_test.go
+  h_78a442cba0b3e6 42
+go/internal/storage/cypher/cloud/aws/s3/harness_test.go
+  h_78a442cba0b3e6 42
+go/internal/storage/cypher/cloud/aws/security/group/harness_test.go
+  h_78a442cba0b3e6 42
+go/internal/storage/cypher/cloud/azure/relationship/harness_test.go
+  h_78a442cba0b3e6 42
+go/internal/storage/cypher/cloud/gcp/relationship/harness_test.go
+  h_78a442cba0b3e6 43
+go/internal/storage/cypher/cloud/resource/harness_test.go
+  h_78a442cba0b3e6 50
+go/internal/storage/cypher/deployable_unit_gap_probe_test.go
+  h_78a442cba0b3e6 34,39-60
+go/internal/storage/cypher/edge/writer/bolt_harness_test.go
+  h_78a442cba0b3e6 202-203
+go/internal/storage/cypher/edge/writer/retract_repo.go
+  h_78a442cba0b3e6 12,179
+go/internal/storage/cypher/edge/writer/shell_exec.go
+  h_78a442cba0b3e6 105-107
+go/internal/storage/cypher/edge/writer/writer.go
+  h_78a442cba0b3e6 14,34
+go/internal/storage/cypher/phase/group/AGENTS.md
+  h_78a442cba0b3e6 1-35
+go/internal/storage/cypher/phase/group/README.md
+  h_78a442cba0b3e6 1-65
+go/internal/storage/cypher/phase/group/doc.go
+  h_78a442cba0b3e6 1-19
+go/internal/storage/cypher/phase/group/profile.go
+  h_78a442cba0b3e6 4,11,17,25,50,62,65,68,71,85,103
+go/internal/storage/cypher/phase/group/profile_test.go
+  h_78a442cba0b3e6 4,14,25-26,33-35,39,68-70,73,99,107,113-117,122,138-141,143-153,161-171
+go/internal/storage/cypher/phase/group/sanitize.go
+  h_78a442cba0b3e6 4,6-10,58,65-66,78
+go/internal/storage/cypher/phase/group/sanitize_test.go
+  h_78a442cba0b3e6 4,9-10,15-19,23,34,62-63,66-67,74,78,83,90-91,93,96,99
+go/internal/storage/cypher/provenance_counts.go
+  h_78a442cba0b3e6 9,152-173
+go/internal/storage/cypher/sweep/orphan/AGENTS.md
+  h_78a442cba0b3e6 1-39
+go/internal/storage/cypher/sweep/orphan/README.md
+  h_78a442cba0b3e6 1-76
+go/internal/storage/cypher/sweep/orphan/antijoin_live_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/sweep/orphan/bolt_harness_test.go
+  h_78a442cba0b3e6 1-223
+go/internal/storage/cypher/sweep/orphan/chunking_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/sweep/orphan/composite_key_test.go
+  h_78a442cba0b3e6 4,12-13,304
+go/internal/storage/cypher/sweep/orphan/cycle_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/sweep/orphan/deleted_repository_ids_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/sweep/orphan/doc.go
+  h_78a442cba0b3e6 4-17
+go/internal/storage/cypher/sweep/orphan/edgecases_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/sweep/orphan/fixture_test.go
+  h_78a442cba0b3e6 4,13-14,63-65,78,313
+go/internal/storage/cypher/sweep/orphan/guards.go
+  h_78a442cba0b3e6 4,14,83-91
+go/internal/storage/cypher/sweep/orphan/module_class_live_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/sweep/orphan/module_language_live_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/sweep/orphan/observer_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/sweep/orphan/p1_review_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/sweep/orphan/queries.go
+  h_78a442cba0b3e6 4,11-12,20,100,103,107,116-117,149-150,192,195,199,208-209,230-231,241-242,443-446
+go/internal/storage/cypher/sweep/orphan/race_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/cypher/sweep/orphan/sourceless_artifact_live_test.go
+  h_78a442cba0b3e6 6
+go/internal/storage/cypher/sweep/orphan/store.go
+  h_78a442cba0b3e6 4,12-13,112-113,115,134
+go/internal/storage/cypher/sweep/orphan/sweep_test.go
+  h_78a442cba0b3e6 4,11-12,17-19,68-69,310-312
+go/internal/storage/cypher/sweep/orphan/writes.go
+  h_78a442cba0b3e6 4,9-10,14,41,44,48,70-71,83,94,117
+go/internal/storage/cypher/sweep/orphan/writeskip_test.go
+  h_78a442cba0b3e6 4
+go/internal/storage/nornicdb/phase_group_executor_stats.go
+  h_78a442cba0b3e6 13,280,294,298
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eef880f9eeb2be517faa81e65ba3d9b31ae0df8f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
