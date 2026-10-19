@@ -12,8 +12,9 @@ the QA primary (`pg_index` all true), 32 kilobytes over a 13,745,504-row,
 21 GB `fact_records` (ledger:8232-opsqa-arn-index-state). Only 403
 `terraform_state_resource` rows exist there, 134 carrying an ARN. Migration 180
 recorded `applied_at` 2026-10-17 20:42:18 UTC; the next migration in the same
-applier run recorded 8.37 s later, which bounds a sibling concurrent index
-build on the same table to seconds, not minutes.
+applier run recorded 8.37 s later (ledger:8232-opsqa-migration-gap),
+which bounds a sibling concurrent index build on the same table to
+seconds, not minutes.
 
 Build wall time and WAL volume for migration 180 itself are NOT_CHECKED: the
 Oct-17 applier pod and its per-migration `duration_ms` logs are gone; the QA cluster's
