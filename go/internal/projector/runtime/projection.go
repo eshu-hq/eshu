@@ -135,6 +135,8 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 				slog.String("scope_id", scopeValue.ScopeID),
 				slog.String("ref", scopeValue.Metadata["ref"]),
 				slog.String("reason", "ref_scope_gated"),
+				slog.Int("fact_count", len(inputFacts)),
+				slog.Int("file_fact_count", len(decode.FilterFileFacts(inputFacts))),
 			)
 		}
 		return Result{
@@ -338,8 +340,14 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		return left.FactID < right.FactID
 	})
 
-	// Build canonical materialization for Neo4j graph writes.
-	canonical, quarantined := canonical.BuildMaterialization(scopeValue, generation, inputFacts)
+	// Build canonical materialization for Neo4j graph writes. A fatal decode
+	// failure (an unsupported schema major) fails the whole projection loudly
+	// here, behind the per-fact admission gate above: either gate firing means
+	// no partial generation is ever written (issue #7671).
+	canonical, quarantined, err := canonical.BuildMaterialization(scopeValue, generation, inputFacts)
+	if err != nil {
+		return projection{}, fmt.Errorf("build canonical materialization: %w", err)
+	}
 
 	return projection{
 		canonical:              canonical,

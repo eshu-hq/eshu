@@ -128,7 +128,7 @@ func TestBuildMaterializationFoldsImportFlagsOntoTheSharedEdge(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, quarantined := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{
+			result, quarantined, _ := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{
 				importRepositoryFact(),
 				fileFactWithImports("f-1", "pkg/a.py", "python", tt.entries),
 			})

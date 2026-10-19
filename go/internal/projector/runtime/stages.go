@@ -7,9 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/projector/decode"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -96,6 +98,21 @@ func (r Runtime) writeCanonicalProjection(
 	mat canonical.CanonicalMaterialization,
 ) error {
 	if mat.IsEmpty() {
+		// Issue #7671: an empty materialization succeeds without writing any
+		// node. That is legitimate for generations carrying no canonical rows,
+		// but a file-bearing generation landing here means every file row was
+		// dropped upstream — fatal decodes fail loudly and empty identities
+		// quarantine, so anything else is a new silent path. Warn with the
+		// input counts so an operator can tell the two apart without
+		// recounting facts.
+		if r.Logger != nil && len(inputFacts) > 0 {
+			r.Logger.WarnContext(ctx, "projector canonical materialization empty with input facts; no graph nodes will be written",
+				slog.String("scope_id", scopeValue.ScopeID),
+				slog.String("generation_id", generationID),
+				slog.Int("fact_count", len(inputFacts)),
+				slog.Int("file_fact_count", len(decode.FilterFileFacts(inputFacts))),
+			)
+		}
 		if err := r.publishCanonicalGraphPhases(ctx, generationID, inputFacts); err != nil {
 			return fmt.Errorf("publish canonical graph phases: %w", err)
 		}

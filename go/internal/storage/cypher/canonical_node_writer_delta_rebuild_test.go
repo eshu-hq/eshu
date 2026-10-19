@@ -139,7 +139,7 @@ func deltaRebuildWrite(
 	envs []facts.Envelope,
 ) (canonical.CanonicalMaterialization, []Statement) {
 	t.Helper()
-	mat, quarantined := canonical.BuildMaterialization(sc, gen, envs)
+	mat, quarantined, _ := canonical.BuildMaterialization(sc, gen, envs)
 	if len(quarantined) != 0 {
 		t.Fatalf("BuildMaterialization(%s) quarantined %d facts: %#v", gen.GenerationID, len(quarantined), quarantined)
 	}

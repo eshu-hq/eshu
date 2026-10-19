@@ -4,6 +4,7 @@
 package canonical
 
 import (
+	"fmt"
 	"path"
 	"strings"
 
@@ -14,20 +15,25 @@ import (
 )
 
 // extractRepository builds a RepositoryRow from the first RepositoryObserved
-// fact envelope.
-func extractRepository(envelopes []facts.Envelope) *RepositoryRow {
-	row, _ := extractRepositoryWithQuarantine(envelopes)
-	return row
+// fact envelope. A fatal decode failure (an unsupported schema major) is
+// returned, never swallowed: it is version skew the whole build must fail
+// loudly on, not one malformed fact (issue #7671).
+func extractRepository(envelopes []facts.Envelope) (*RepositoryRow, error) {
+	row, _, err := extractRepositoryWithQuarantine(envelopes)
+	return row, err
 }
 
 // extractRepositoryWithQuarantine builds a RepositoryRow from the first
 // decodable RepositoryObserved fact envelope. A fact missing a required typed
 // identity field is quarantined and skipped, so a valid sibling repository fact
-// can still set the materialization's repo identity and path.
-func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow, []decode.QuarantinedFact) {
+// can still set the materialization's repo identity and path. A fatal decode
+// failure (an unsupported schema major, which is version skew rather than a
+// malformed individual payload) is returned so the caller fails the whole
+// build loudly instead of projecting a silent repository-less success.
+func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow, []decode.QuarantinedFact, error) {
 	repoFacts := decode.FilterRepositoryFacts(envelopes)
 	if len(repoFacts) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	var quarantined []decode.QuarantinedFact
@@ -36,7 +42,7 @@ func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow
 		if err != nil {
 			q, isQuarantine, fatal := decode.PartitionFailures(repoFacts[i], err)
 			if fatal != nil {
-				continue
+				return nil, quarantined, fmt.Errorf("decode repository fact %q: %w", repoFacts[i].FactID, fatal)
 			}
 			if isQuarantine {
 				quarantined = append(quarantined, q)
@@ -77,9 +83,9 @@ func extractRepositoryWithQuarantine(envelopes []facts.Envelope) (*RepositoryRow
 			RemoteURL: remoteURL,
 			RepoSlug:  repoSlug,
 			HasRemote: hasRemote,
-		}, quarantined
+		}, quarantined, nil
 	}
-	return nil, quarantined
+	return nil, quarantined, nil
 }
 
 // parsedFileRef is one decoded, materializable file fact, handed to the
@@ -106,13 +112,16 @@ type parsedFileRef struct {
 
 // extractFilesWithQuarantine builds FileRow entries from typed file fact
 // envelopes. A fact missing a required typed identity field is quarantined and
-// skipped; present-but-empty identity fields still decode and are dropped by the
-// row builder's materialization gate, matching the pre-typing behavior.
+// skipped; a present-but-empty relative_path decodes but cannot form a row
+// identity, so it is quarantined as input_invalid rather than skipped silently
+// (issue #7671: a silent skip is indistinguishable from a fact the collector
+// never emitted). A fatal decode failure (an unsupported schema major) is
+// returned so the caller fails the whole build loudly.
 //
 // It also returns one parsedFileRef per materialized file, in the same order,
 // so the parsed_file_data extractors (currently the import extractor, issue
 // #5691) can read the parser buckets off an already-decoded file.
-func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath string) ([]FileRow, []parsedFileRef, []decode.QuarantinedFact) {
+func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath string) ([]FileRow, []parsedFileRef, []decode.QuarantinedFact, error) {
 	fileFacts := decode.FilterFileFacts(envelopes)
 	var rows []FileRow
 	var parsed []parsedFileRef
@@ -127,7 +136,7 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 		if err != nil {
 			q, isQuarantine, fatal := decode.PartitionFailures(fileFacts[i], err)
 			if fatal != nil {
-				continue
+				return nil, nil, quarantined, fmt.Errorf("decode file fact %q: %w", fileFacts[i].FactID, fatal)
 			}
 			if isQuarantine {
 				quarantined = append(quarantined, q)
@@ -137,6 +146,16 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 
 		relativePath := strings.TrimSpace(file.RelativePath)
 		if relativePath == "" {
+			// The fact decoded but carries no usable identity: dropping it
+			// silently would leave a missing File row with no dead-letter.
+			// Quarantine it on the visible input_invalid path instead, so the
+			// metric increment plus structured error log names the fact.
+			quarantined = append(quarantined, decode.QuarantinedFact{
+				FactID:         fileFacts[i].FactID,
+				FactKind:       fileFacts[i].FactKind,
+				Field:          "relative_path",
+				Classification: factschema.ClassificationInputInvalid,
+			})
 			continue
 		}
 		if !isRepositoryLocalRelativePath(relativePath) {
@@ -178,7 +197,7 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 		})
 	}
 
-	return rows, parsed, quarantined
+	return rows, parsed, quarantined, nil
 }
 
 // isRepositoryLocalRelativePath reports whether a file fact's relative_path
@@ -208,8 +227,9 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 // operator needs to tell a fact this guard dropped from one that was never
 // emitted. The caller routes it through RecordQuarantinedFacts on the
 // input_invalid counter and log, the same visible dead-letter a decode failure
-// takes. The empty-relative_path skip beside it stays silent: it materializes
-// nothing either way, so there is no missing row to explain.
+// takes. The empty-relative_path skip beside it quarantines the same way
+// (issue #7671): it also materializes nothing, and a missing File row with no
+// dead-letter is exactly the silent-success shape this guard exists to prevent.
 func isRepositoryLocalRelativePath(relativePath string) bool {
 	if path.IsAbs(relativePath) {
 		return false

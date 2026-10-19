@@ -40,7 +40,7 @@ func BenchmarkExtractImportsFromFiles(b *testing.B) {
 	for _, files := range []int{100, 2000} {
 		envelopes := importBenchEnvelopes(files, 12)
 		b.Run(fmt.Sprintf("files=%d", files), func(b *testing.B) {
-			_, parsed, _ := extractFilesWithQuarantine(envelopes, "repo-abc", "/repos/my-project")
+			_, parsed, _, _ := extractFilesWithQuarantine(envelopes, "repo-abc", "/repos/my-project")
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
@@ -62,7 +62,7 @@ func BenchmarkBuildCanonicalMaterializationWithImports(b *testing.B) {
 		b.Run(fmt.Sprintf("files=%d", files), func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				mat, _ := BuildMaterialization(testScope(), testGeneration(), envelopes)
+				mat, _, _ := BuildMaterialization(testScope(), testGeneration(), envelopes)
 				if len(mat.Imports) == 0 {
 					b.Fatal("no imports materialized")
 				}

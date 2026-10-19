@@ -213,7 +213,7 @@ var canonicalEntityPhaseSkipProbes = map[string]func(*testing.T){
 		// Python-era envelopes still produce ParameterRows when an upgraded
 		// installation reprojects them. The writer stays live for exactly that
 		// reason -- do not read this note as an argument for removing it.
-		mat, _ := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{{
+		mat, _, _ := BuildMaterialization(testScope(), testGeneration(), []facts.Envelope{{
 			FactID:   "param-1",
 			ScopeID:  "scope-1",
 			FactKind: "content_entity",
