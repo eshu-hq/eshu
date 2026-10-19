@@ -14,8 +14,8 @@ Binding inputs: the arbiter rulings on
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
 the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)).
-Source check: origin/main ef5703ec26, 2026-10-15, for
-[Re-Anchor At ef5703ec26](#re-anchor-at-ef5703ec26) and the sections after it.
+Source check: origin/main f4f14a4096, 2026-10-19, for
+[Re-Anchor At f4f14a4096](#re-anchor-at-f4f14a4096) and the sections after it.
 The correction lists before it are records, each checked at the SHA it names
 (195337b97, 3b03f018e, or c88c3806a), and their citations are not rewritten.
 
@@ -111,7 +111,7 @@ fixed in the design file named.
 - F1: `reducer_queue.go:24-35` is `:25-35`, and `ReplayDomain` has no production
   caller. Otherwise accurate.
 - F2: "if `Fail` starts waiting first" understates it. `Fail` always loses this
-  cycle ([lock-order section](7766-repository-retirement-concurrency.md#lock-order-rule-and-the-fail-fix)).
+  cycle ([lock-order section](7766-repository-retirement-phase1-locking.md#lock-order-rule-and-the-fail-fix)).
 - The design's "No row is left to claim" (writer table) and the old I2 were
   false. They are replaced by the 7d mark and the restated I2.
 - The concurrency file's "`ingestion.go:219` precedes every write" is false as
@@ -234,62 +234,58 @@ after `3b03f018e`):
   cap") is `selection.go:179-183`.
 - `worker/runner.go:30` (`DefaultLeaseTTL`, 60 s) is unchanged.
 
-## Re-Anchor At ef5703ec26
+## Re-Anchor At f4f14a4096
 
-Main moved 1,211 commits between c88c3806a and ef5703ec26. Every `file:line`
-citation in the design files was mapped to the new SHA. Where the cited lines
-moved unchanged, only the number changed. The rest were re-read, and the claim
-each one supports still holds. None of the changes below breaks lock order, the
-fences, the #7130 claim branch, or how `upsertIngestionScope` binds status. The
-correction lists above are not rewritten.
+Main moved 2,738 commits between c88c3806a and f4f14a4096. The design was
+re-anchored twice: at ef5703ec26 (2026-10-15) and at f4f14a4096 (2026-10-19).
+Every `file:line` citation in the design files was mapped to the new SHA. Where
+the cited lines moved unchanged, only the number changed. The rest were re-read.
+None of the changes below breaks lock order, the fences, the #7130 claim branch,
+I1 to I4, or how `upsertIngestionScope` binds status. The correction lists above
+are not rewritten.
+
+**Changes that alter the design text:**
+- **#7852 shipped** the bounded fence the design proposed, so phase 1 reuses it
+  and decides four semantics differently
+  ([Reuse Of The #7852 Fence](7766-repository-retirement-phase1-locking.md#reuse-of-the-7852-fence)).
+- **#7853 shipped.** The selectors drain generation-gone orphans, and
+  `MarkIntentsCompleted` returns a count. The "skipped forever" premises in Why
+  2b Goes First are rewritten; 2b first still holds, and #7853 is a backstop.
+- **#8205** made the reducer claim sweep lock rows in C order. 2q Step A now
+  takes the same shape and retries `40P01`; it was an unordered multi-row
+  UPDATE that could deadlock against the replays.
+- **Retention's cascade grew** (#7420 fact-key sidecars, #8261 C-order work
+  lock, #7427 search-index pre-delete; migrations 188 to 191 dropped FKs). The
+  runner's 2d now reuses retention's step list instead of a copy.
+- **The demotion reasons** cite #8359's proven edgeless-reap predicate and say
+  why it still cannot delete a Repository.
 
 **Moved or renamed code:**
-- Deferred backfill moved into package `storage/postgres/backfill` (afeeba19c).
-  `latestGenerationCTE` is `backfill.LatestGenerationCTE`
-  (`backfill/generation_cte.go:41-52`), with a byte-identical body, so the
-  any-status fallback holds. `loadGenerations` runs under the exclusive repo
-  lock at `backfill/engine.go:328-332`. The gate moves into that package or
-  behind its `Store` seam, because the package must not import its parent.
-- The repository catalog query is `backfill/catalog.go:29` (SQL at `:51-56`).
-  It still reads every `repository` fact.
-- The finalized-skip branch is `ingestion.go:215-229`. It records
-  `RefreshSkipReasonFinalizedGenerationReplay`, and the retiring refusal keeps
-  its own counter.
-- `failProjectorWorkQuery` is `projector_queue_sql.go:144-216`. Its order is
-  unchanged, and its new `spared_generation` read keeps a spared generation
-  active. The comment PR 4a corrects is `projector_queue.go:214-222`.
-- Ack's refusal predicate is `projector_queue_sql.go:61-75`. It now also stamps
-  `reconcile_projected_at` on a re-projection.
-- The claim statement is split across `projector_queue_claim_sql.go` and
-  `projector_queue_claim_pool_sql.go` at a CTE boundary, and it is still one
-  statement. The re-admit probe is `projector_queue_claim_pool_sql.go:255-260`.
-  It now also accepts `activated_at IS NOT NULL`, and a re-admitted generation is
-  `pending` with no siblings, so it is still a first generation.
-- The refinalize template returns an `is_delta` column (`reset.go:75-123`; the
-  skip-reason CASE is `:78-86`). P8's baseline is the four-column template.
-- The reducer heartbeat is `reducerHeartbeatInterval`
-  (`cmd/reducer/main_helpers.go:46`, used at `main.go:394`). The lease is
-  `reducerClaimLeaseDuration` (`:42`).
-- #7795 added `ignored_decision` to the webhook failure constants (`:38-47`).
+- Deferred backfill is package `storage/postgres/backfill` (afeeba19c), and the
+  targeted pass moved into it (`backfill/targeted/write.go`, #7648).
+  `backfill.LatestGenerationCTE` keeps the any-status fallback. The gate goes
+  behind the package's `Store` seam, because it must not import its parent.
+- Ack is `projector_queue_ack.go`. Fail is unchanged
+  (`projector_queue_sql.go:195-267`), so PR 4a is still owed; its comment is
+  `projector_queue_ack.go:65-73`.
+- The canonical node Cypher is `storage/cypher/canonical/node/templates.go`, and
+  the orphan sweep is `storage/cypher/sweep/orphan/` (#6694).
+- The package-manifest backfill is `storage/postgres/consumption/`.
 
-**Writers the design did not list:**
-- **#7978 duplicate-generation reproject.** It runs before the commit
-  transaction and skips the commit gate, but it locks the scope row first and
-  re-opens only the active, activated generation, so phase 1 fences it. It is
-  added to the writer table and the lock-order table.
-- **Refinalize's delta reindex request (#7797).** A refinalize whose read
-  predates phase 1 can re-create the `repository_reindex_requests` row that 7e
-  deletes. The writer table and the census name it, and 2e deletes the row.
+**Writers the design did not list,** each added to the writer or lock-order
+table: the #7978 duplicate-generation reproject, refinalize's #7797 delta
+reindex request, the #8169 service-catalog re-trigger, the `failed` and
+`dead_letter` replays, and the opt-in poison-liveness auto-retry.
 
-**Point-in-time numbers re-read:** the marker migration is 178 (177 is the
-latest, and no open PR adds one). The `storage/postgres` dirgate pin is 321.
-`collector/repo/git` is at 67. `generation_retention.go` is 488 lines,
-`ingestion.go` is 475, and `paths/status/admin.go` is 463.
+**Point-in-time numbers at f4f14a4096:** the marker migration is 207 (206 is
+the latest, and no open PR adds one). `scripts/lib/dirgate-grandfather.tsv` is
+gone; `go/cmd/dirgate` ratchets growth through a `Dirgate-Growth:` trailer.
+`ingestion.go` is 499 lines, `generation_retention.go` 474, and
+`paths/status/admin.go` 485.
 
-**Table census:** every table it left NOT_CHECKED is now classified. Migration
-170 added three repo-keyed tables. The sweep also found
-`service_materialization_generations` and the `projection_decision_evidence` blind
-spot (see the [census](7766-repository-retirement-table-census.md)).
+**Table census:** every table the c88c3806a census left NOT_CHECKED is
+classified, and so are the tables migrations 170 and 178 to 206 added (see the
+[census](7766-repository-retirement-table-census.md)).
 
 ## Draft Review: N7
 
@@ -304,29 +300,31 @@ Parameters that full refreshes already leaked, and the snapshot does not.
 
 ## Out Of Scope: Pre-Existing Issues
 
-Two defects the proof exposed predate #7766. #7766 references them and does not
-depend on them: #7852 and #7853.
+The proof exposed two defects that predated #7766: #7852 and #7853. Both are
+fixed on main now, and #7766 does not depend on either.
 
-- **Refinalize `LOCK TABLE` convoy (#7852).**
-  `AcquireReducerClaimFence` runs `LOCK TABLE fact_work_items IN EXCLUSIVE
-  MODE` (`rebuild/reset/refinalize.go:65-66`, `:382`, driven from
-  `storage/postgres/recovery.go:394`) with no `lock_timeout` anywhere in
-  `recovery.go` or `refinalize.go`. The fix is a bounded-wait and retry fence
-  helper in `rebuild/reset`. #7766 PR 5 builds the scope-bound form, and the
-  refinalize issue adopts the same shape for its pair-bound form.
-- **Orphan-intent starvation and silent 0-row completion (#7853).** All
-  three shared selectors skip an intent whose acceptance row is absent, forever,
-  and `MarkIntentsCompleted` ignores rows affected (P9). Rule for the fix: mark
-  an intent completed (reason `acceptance_absent_generation_gone`) only when its
-  `scope_generations` row is absent. Count and WARN, without draining,
-  absent-acceptance intents whose generation row exists: a retry re-upserts the
-  same `intent_id` and the upsert never reopens `completed_at`
-  (`storage/postgres/shared_intents_upsert.go:53-66`), so a premature drain
-  loses the edge for good. `MarkIntentsCompleted` must return the affected
-  count, and the worker must count `affected < requested`. Prove-first for that
-  issue: RED/GREEN with 10,100 orphans and one healthy intent (the healthy one
-  processed in cycle 1 after the drain, one extra query per cycle, a torn-write
-  intent not drained), reproduced deterministically.
+- **Refinalize `LOCK TABLE` convoy (#7852), fixed by PR #8207.**
+  `AcquireReducerClaimFence` sets `lock_timeout` to 1 s before `LOCK TABLE
+  fact_work_items IN EXCLUSIVE MODE` and restores the prior value after the grant
+  (`rebuild/reset/claim_fence.go:16`, `:150-152`, `:206-222`).
+  `RefinalizeClaimFenceWithRetry` (`rebuild/reset/retry.go:24-89`) retries the whole
+  transaction on that `55P03` after a 100 to 500 ms jitter, under a 30 s budget
+  (`claim_fence.go:20`), then returns 409 `blocked/claim_fence_busy`
+  (`recovery/replay.go:16-18`). It runs from `storage/postgres/recovery.go:318-331`.
+  This is the shape the design proposed. The pair-bound form shipped first, so
+  #7766 PR 5 reuses it (concurrency,
+  [Reuse Of The #7852 Fence](7766-repository-retirement-phase1-locking.md#reuse-of-the-7852-fence)).
+- **Orphan-intent starvation and silent 0-row completion (#7853), fixed by
+  d3cd68415, 00d1568e8, and 9b4274f64.** The fix follows the rule this file set:
+  an absent-acceptance intent is marked completed, reason
+  `acceptance_absent_generation_gone`, only when its `scope_generations` row is
+  absent (`reducer/intents/shared/worker/absent_acceptance.go:91-138`, probe at
+  `storage/postgres/shared_intents_first_projection.go:215-260`). A torn write
+  whose generation row exists is kept and WARNed, and `MarkIntentsCompleted`
+  returns the rows matched (`shared_intents.go:265-287`). Two differences: a
+  short mark is a WARN, not a metric, and the fix treats generation-id stability
+  as settled (`shared_intents_first_projection.go:211-214`), which this file
+  still lists as NOT_CHECKED.
 - **Leaks the census found.** A full refresh retracts Parameters only for the
   current files, so a removed file's Parameters stay as nodes with no edges
   (runner, G5p). `relationship_evidence_facts`, `relationship_candidates`,
@@ -350,9 +348,9 @@ depend on them: #7852 and #7853.
   fixture SQL, and the shell wrappers. The Go drivers are described, not
   committed (round 4, N5).
 - Projector `LeaseDuration` defaults: 1 min for the projector service
-  (`cmd/projector/runtime_wiring.go:70`), 5 min for the ingester's in-process
-  projector (`cmd/ingester/wiring.go:293`), 1 min for bootstrap-index
-  (`cmd/bootstrap-index/wiring.go:128`).
+  (`cmd/projector/runtime_wiring.go:72`), 5 min for the ingester's in-process
+  projector (`cmd/ingester/wiring.go:304`), 1 min for bootstrap-index
+  (`cmd/bootstrap-index/wiring.go:130`).
 - ACK dirty-reopen trigger text (migration 093): it fires only on a `BEFORE
   UPDATE OF status` of a reducer row where `OLD.cross_scope_replay_required` and
   `OLD.status IN ('claimed','running')` and `NEW.status IN ('succeeded',
@@ -372,10 +370,11 @@ depend on them: #7852 and #7853.
   run examined it.
 - **Gate benchmark.** P2 measured a harness copy of the scope upsert with four
   runs at facts=400, not the real PR 3 code (P2').
-- **Starvation discrepancy.** Why one earlier starvation run processed the
-  healthy intent in 10 ms and the later run processed none.
 - **Generation id reuse.** Whether a deleted `generation_id` can be re-created
-  on re-ingest. It affects the drain rule in the orphan-intent issue.
+  on re-ingest. The #7853 drain relies on it: a drained intent re-emitted with
+  the same `intent_id` stays completed. Git snapshot ids hash `observed_at` at
+  nanosecond resolution (`collector/repo/git/source_processing.go:151-158`);
+  other collectors are unread.
 - **Pre-barrier edges.** Whether the retract plan covers shared-domain edges
   written by pre-barrier cycles (the P10 census covers it once built).
 - **Reducer replay.** Whether `ReplayWorkloadMaterialization` callers can name a
@@ -395,7 +394,7 @@ depend on them: #7852 and #7853.
   evicts a deleted repo id.
 - **Slug form.** The `repo_slug` form stored for GitLab and Bitbucket scopes,
   against the trigger form `provider/<full_name>`
-  (`webhook_trigger_selector.go:435-448`). The webhook gate depends on it.
+  (`webhook_trigger_selector.go:474-487`). The webhook gate depends on it.
 - **NornicDB.** Whether NornicDB honours the demotion `SET` and the sweep reap
   the way Neo4j does. Neo4j is the supported backend, so this is not a blocker.
 - **#7765.** GitHub fork filtering in `githubOrg`.
@@ -404,9 +403,11 @@ depend on them: #7852 and #7853.
   RED tests run.
 - **Performance numbers.** Every performance number outside P1, P2, and P9:
   none has been measured yet.
-- **P9 after #7724.** P9 ran at `3b03f018e`. The shared worker's `process.go` and
-  `selection.go` were restructured on main since, and P9 was not re-run on that
-  code. The orphan skip is unchanged in `FilterAuthoritativeIntents`.
+- **P9 after #7724 and #7853.** P9 ran at `3b03f018e`. Since then #7724
+  restructured the shared worker, and #7853 drains orphans whose generation row
+  is gone, so P9's starvation result now holds only for torn writes. P9 was not
+  re-run. The #7853 live test (`shared_intents_absent_acceptance_drain_live_test.go`)
+  supersedes the earlier starvation discrepancy.
 - **Round 4's own proof.** The ruling ran no command against Postgres or Neo4j;
   the projector-wait and settle analysis is from source until the RED tests run.
 - **Partial projector Run.** Whether `writeContentProjection` is one

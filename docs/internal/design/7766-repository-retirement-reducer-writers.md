@@ -8,8 +8,8 @@ lock-order rule), [Runner](7766-repository-retirement-runner.md) (phase 2), and
 
 Binding inputs: the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), section F1,
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)), sections 1 and 2.
-Source check: origin/main ef5703ec26, 2026-10-15, re-anchored from
-c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-ef5703ec26)).
+Source check: origin/main f4f14a4096, 2026-10-19, re-anchored from
+c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-f4f14a4096)).
 
 Phase 1 fences claims for the reducer rows that exist at commit. It does not
 stop the paths that create or reopen reducer rows afterwards. This file lists
@@ -21,23 +21,24 @@ Reducer work for a retired scope is re-created after phase 1. The premises, all
 from source:
 
 - Enqueue is `INSERT ... ON CONFLICT (work_item_id) DO NOTHING` with no
-  generation or marker guard (`reducer_queue.go:25-35`), run on the pool in
-  autocommit (`:321`).
+  generation or marker guard (`reducer_queue.go:27-37`), run on the pool in
+  autocommit (`:327`).
 - The projector enqueues reducer intents inside `Run`, before Ack
-  (`projector/runtime/projection.go:227`). Ack is a separate transaction
-  (`projector_queue.go:199-228`), so an Ack refusal does not roll the enqueue
+  (`projector/runtime/projection.go:229`). Ack is a separate transaction
+  (`projector_queue_ack.go:50-79`), so an Ack refusal does not roll the enqueue
   back.
 - A pending reducer row of a scope whose `active_generation_id` is NULL is
   claimable. The supersede CTE needs `scope.active_generation_id =
-  active_generation.generation_id` (`reducer_generation_filter_sql.go:180`), and
+  active_generation.generation_id` (`reducer_generation_filter_sql.go:136`,
+  applied in the #8205 lock step at `:196-203`), and
   `claimReducerWorkQuery` has no generation-status predicate
   (`reducer_queue_claim_query.go:9-104`). 7b nulls the pointer and 7a
   supersedes the generations; neither hides the row.
 - Deferred maintenance reopens succeeded rows in its own transaction with no
   repo lock (`ingestion_reopen_deployment_mapping.go:71-144`). The replay floor
   falls back to the latest generation of any status when the pointer is NULL
-  (`ingestion_reopen_correlation.go:105-122`), and the bound excludes only
-  `work_generation.status <> 'failed'`, not `superseded` (`:150-155`). After
+  (`storage/postgres/backfill/reopen_sql.go:16-33`), and the bound excludes only
+  `work_generation.status <> 'failed'`, not `superseded` (`:71-76`). After
   7b the floor is the newest generation. If that generation has succeeded rows,
   they reopen on every drain (see
   [Interim Behavior](#interim-behavior-until-the-runner-ships)).
@@ -50,7 +51,7 @@ from source:
   next heartbeat refused it: Heartbeat refuses a superseded generation
   (`projector_queue_scan.go:429`), the service cancels the Run context on
   heartbeat failure (`projector/service_heartbeat.go:41-66`), and the interval
-  is lease/3 capped at 1 min (`cmd/projector/runtime_wiring.go:122-132`), so
+  is lease/3 capped at 1 min (`cmd/projector/runtime_wiring.go:124-134`), so
   20 s to 1 min later, or the whole Run with heartbeats off. A Run that
   outlived its lease is outside the lease contract and stays a fresh-id
   residual.
@@ -95,7 +96,7 @@ WHERE stale.stage = 'reducer'
 - Succeeded rows are not touched in phase 1 (the P1' bar). 2q adds
   `'succeeded'` to the status list.
 - The statement embeds the prior-failure fold
-  (`priorFailureStaleSQL`, `reducer_generation_filter_sql.go:234`), so
+  (`priorFailureStaleSQL`, `reducer_generation_filter_sql.go:272`), so
   `TestSupersedeStatementsFoldPriorFailure` holds.
 - `AssertRetirementFenced` counts marked rows.
 
@@ -109,20 +110,23 @@ does not exist yet, bounded by 2d, settled by 2d', and caught by 2z.
 
 | Writer | Source | Touches | Closed by |
 | --- | --- | --- | --- |
-| Projector reducer-intent enqueue | `projector/runtime/projection.go:227` into `reducer_queue.go:25-35`, `:321` | New `pending` rows, any scope with a live projector Run | Phase 1 wait (I0) + 2a + 2q |
-| Deferred maintenance reopen | `ingestion_reopen_deployment_mapping.go:71-144`; floor `ingestion_reopen_correlation.go:105-122`, bound `:150-155` | `succeeded` to `pending`, `deployment_mapping`, `code_import_repo_edge`, and `CrossScopeCorrelationReopenDomains()`; no repo lock | 2q (succeeded only) |
-| Targeted maintenance reopen | `ingestion_targeted_maintenance_write.go:146-188` | `succeeded` to `pending`, same domains, by partition | 2q (succeeded only) |
-| Producer-settle reopen | `ingestion_producer_activation.go:298-306` | `ReopenSucceeded` of producer dependents, inside activation Finalize | 2q (succeeded only) |
+| Projector reducer-intent enqueue | `projector/runtime/projection.go:229` into `reducer_queue.go:27-37`, `:327` | New `pending` rows, any scope with a live projector Run | Phase 1 wait (I0) + 2a + 2q |
+| Deferred maintenance reopen | `ingestion_reopen_deployment_mapping.go:71-144`; floor `backfill/reopen_sql.go:16-33`, bound `:71-76` | `succeeded` to `pending`, `deployment_mapping`, `code_import_repo_edge`, and `CrossScopeCorrelationReopenDomains()`; no repo lock | 2q (succeeded only) |
+| Targeted maintenance reopen | `backfill/targeted/write.go:141-207` (`ReopenSucceeded` at `:167`, `:194`) | `succeeded` to `pending`, same domains, by partition | 2q (succeeded only) |
+| Producer-settle reopen | `ingestion_producer_activation.go:299-307` | `ReopenSucceeded` of producer dependents, inside activation Finalize | 2q (succeeded only) |
 | Admin reopen, reducer rows | `admin/store/reopen.go:75-85`; #7734 rollover fence `:199-213`; generation resolve `:28-39` | `succeeded` to `pending` for one domain; with the pointer NULL it resolves the newest generation, not an error | 2q (succeeded only) |
 | Admin reopen, shared intents | `admin/store/reopen.go:124-134` (`reopenIntentsQuery`) | `completed_at` to NULL on completed shared intents of one scope and domain, not reducer rows | Harmless: 2b deletes those intents, and 2c retracts any edge a pre-barrier drain wrote (I4) |
-| `ReopenSucceeded`, `ReplayDomain` | `reducer_queue_replay.go:49-67` | `succeeded` to `pending`; `ReplayDomain` has no production caller | 2q (succeeded only) |
-| Workload-materialization replay, UPDATE arm | `reducer_queue_replay.go:73-110` | Statuses `pending`, `claimed`, `running`, `retrying`, `succeeded`; never `superseded` | 2q (succeeded only) |
-| Workload-materialization replay, INSERT arm | `reducer_queue_replay.go:279` (`ReplayWorkloadMaterializationOutcome`) | New row, fresh `work_item_id` | Fresh-id residual |
-| Crossplane satisfied-by redrive | `reducer_queue_replay.go:368-375` | `ReopenSucceeded` (2q), then an enqueue at `:375` (fresh id) | 2q, then fresh-id residual |
+| `ReopenSucceeded`, `ReplayDomain` | `reducer_queue_replay.go:50-68` | `succeeded` to `pending`; `ReplayDomain` has no production caller | 2q (succeeded only) |
+| Workload-materialization replay, UPDATE arm | `reducer_queue_replay.go:74-111` | Statuses `pending`, `claimed`, `running`, `retrying`, `succeeded`; never `superseded` | 2q (succeeded only) |
+| Workload-materialization replay, INSERT arm | `reducer_queue_replay.go:280` (`ReplayWorkloadMaterializationOutcome`) | New row, fresh `work_item_id` | Fresh-id residual |
+| Crossplane satisfied-by redrive | `reducer_queue_replay.go:369-376` | `ReopenSucceeded` (2q), then an enqueue at `:376` (fresh id) | 2q, then fresh-id residual |
 | Cross-scope fanout reopen | `scope/completion/fanout.go:32-54` | Joins `generation.status = 'active'` through the pointer | Phase 1 (needs active generation) |
 | Projector zombie heal | `projector_queue_zombie_heal.go:97-99` | A projector row for the active generation; needs a non-NULL pointer | Phase 1 (needs active generation) |
-| Shared-intent upsert from a reducer handler | `code_import_repo_edge_handler.go:157`; `shared_intent_acceptance_writer.go:77-95` | Shared intents plus acceptance, not reducer rows | 2q (no handler runs) then 2b |
+| Shared-intent upsert from a reducer handler | `code_import_repo_edge_handler.go:159`; `shared_intent_acceptance_writer.go:78-96` | Shared intents plus acceptance, not reducer rows | 2q (no handler runs) then 2b |
 | A projector that outlived its lease | The Run that called `Enqueue` | Reducer rows with ids derived from its intents | Fresh-id residual |
+| Service-catalog runtime re-trigger (#8169) | `service_catalog_runtime_retrigger.go:74-148`, inside the workload ACK | `succeeded` to `pending`, and flags `claimed`/`running` rows `cross_scope_replay_required`, for `service_catalog_correlation`; joins `active.active_generation_id = linked.generation_id` | Phase 1 (needs active generation) |
+| Recovery and admin replays of `failed`/`dead_letter` | `projector_queue_sql.go:391-427`; `query/admin/store/queries.go:26-32` | `failed` or `dead_letter` to `pending` | 7d and 2q marked those statuses `superseded` |
+| Poison-liveness auto-retry (opt-in, `ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED`) | `poison/liveness_sql.go:100-140` | `dead_letter` to `pending`, both stages, on the newest generation of any status | Reducer rows: 7d and 2q. Projector rows: 7c does not mark `dead_letter`, so a re-pended row of a superseded generation is superseded by the #7130 claim branch, and 2a rechecks |
 
 The posted round 3 ruling lists admin reopen among the succeeded-only writers
 that 2q closes, so no correction to it is owed. An earlier draft of this design
@@ -134,7 +138,7 @@ resolves a superseded generation and reopens its succeeded rows, the same
 shape as the maintenance floor. 2q closes it. The fence takes the scope row
 first with a 5 s `lock_timeout` (`:196-211`), so it cannot join the lock cycle
 (see the
-[lock-order table](7766-repository-retirement-concurrency.md#lock-order-rule-and-the-fail-fix)).
+[lock-order table](7766-repository-retirement-phase1-locking.md#lock-order-rule-and-the-fail-fix)).
 
 Closed by phase 1 already: the cross-scope fanout and the zombie heal. A heal
 whose statement snapshot predates phase 1 can still insert a pending projector
@@ -154,16 +158,23 @@ supersedes pending, retrying, and expired rows of superseded generations
 (`projector_queue_claim_sql.go:188-209`), Heartbeat refuses a superseded
 generation and the service cancels the Run (`projector_queue_scan.go:429`,
 `projector/service_heartbeat.go:65`), and Ack refuses
-(`projector_queue_sql.go:61-75`). The projector `LeaseDuration` defaults set
-the bound: 1 min for the projector service (`cmd/projector/runtime_wiring.go:70`),
-5 min for the ingester's in-process projector (`cmd/ingester/wiring.go:293`), and
-1 min for bootstrap-index (`cmd/bootstrap-index/wiring.go:128`).
+(`projector_queue_sql.go:62-76`). The projector `LeaseDuration` defaults set
+the bound: 1 min for the projector service (`cmd/projector/runtime_wiring.go:72`),
+5 min for the ingester's in-process projector (`cmd/ingester/wiring.go:304`), and
+1 min for bootstrap-index (`cmd/bootstrap-index/wiring.go:130`).
 
 **2q, reducer quiesce.** It runs after 2a and before 2b.
 
-- **Step A, unfenced**, in chunks of 10,000 by `work_item_id`: the 7d statement
-  with `'succeeded'` added to the status list, bound by `scope_id = ANY`. It
-  removes the bulk of the rows without the table lock. The scope-leading index
+- **Step A, unfenced**, in chunks of 10,000, in the #8205 shape: a lock step
+  (`SELECT work_item_id ... <7d predicate plus 'succeeded'> ORDER BY
+  work_item_id COLLATE "C" LIMIT 10000 FOR NO KEY UPDATE`), then the 7d UPDATE
+  `WHERE work_item_id = ANY(...)` with stage, scope, and status rechecked
+  (`reducer_generation_filter_sql.go:196-233` is the reference). It removes the
+  bulk of the rows without the table lock. It shares rows with the recovery and
+  admin replays and with `AckBatch`, which lock in the same C order, so an
+  unordered multi-row UPDATE here could deadlock; on `40P01` it retries the
+  chunk. 7d and Step B run under `EXCLUSIVE`, where no other row lock can be
+  held. The scope-leading index
   is `fact_work_items_scope_generation_idx (scope_id, generation_id, status,
   updated_at DESC)` (`migrations/005_fact_work_items.sql:30-31`).
 - **Step B, fenced**, through the scope-bound helper (below):
@@ -178,20 +189,23 @@ the bound: 1 min for the projector service (`cmd/projector/runtime_wiring.go:70`
   claim_until)`. The runner waits and repeats step B. The wait happens outside
   the fenced transaction.
 - **`55P03`:** jittered 100 to 500 ms retry with a 30 s budget, then
-  `blocked/claim_fence_busy` (a new `blocked_reason` value) and a retry on the
+  `blocked/claim_fence_busy` (the #7852 outcome, `recovery/replay.go:16-18`,
+  and a new `blocked_reason` value) and a retry on the
   next runner attempt.
 - **Termination:** 2q ends when one fenced pass marks 0 rows and counts 0 live
   leases. It is idempotent and re-runs on every runner resume while the phase is
   before `purge`.
 
-**The scope-bound helper.** Phase 1 and 2q step B share one new helper in
-`rebuild/reset`. It binds the drain wait, the claim fence, and the recheck by
-`scope_id = ANY`, takes the stages to check as a parameter (both stages in phase
-1, the reducer stage in 2q), and applies `lock_timeout`. The existing
-`WaitForReducerDrain`, `AcquireReducerClaimFence`, and `AssertRetirementFenced`
-bind `(scope_id, generation_id)` pairs (`refinalize.go:148-150`), which is the
-refinalize shape, so the design cannot reuse them as the bindings table
-requires. The I2 guarantee is credited to the 2q recheck under `EXCLUSIVE`, not
+**The scope-bound helper.** Phase 1 and 2q step B share one helper in
+`rebuild/reset`. It reuses the #7852 table-lock acquisition and retry
+([reuse](7766-repository-retirement-phase1-locking.md#reuse-of-the-7852-fence)),
+binds the drain wait and the recheck by `scope_id = ANY`, and takes the stages
+to check as a parameter (both stages in phase 1, the reducer stage in 2q). The
+existing `WaitForReducerDrain`, the recheck in `AcquireReducerClaimFence`
+(`claim_fence.go:223`), and `AssertRetirementFenced` bind `(scope_id,
+generation_id)` pairs (`refinalize.go:138-140`), which is the refinalize shape,
+so the design cannot reuse them as the bindings table requires. PR 5 updates
+`rebuild/reset/AGENTS.md`, which names `../recovery.go` as the only caller. The I2 guarantee is credited to the 2q recheck under `EXCLUSIVE`, not
 to phase 1.
 
 ## Residual Risk
@@ -204,7 +218,7 @@ is cancelled, and 2d' waits one reducer lease for that (see the
 [runner](7766-repository-retirement-runner.md#phase-2-graph-then-bounded-purge)).
 2z catches what lands in between. The workload materializer writes the graph
 directly through `CypherExecutor.ExecuteCypher`
-(`reducer/workload_materializer.go:18-19`, `:104`), not through intents, so a
+(`reducer/workload_materializer.go:18-19`, `:109`), not through intents, so a
 statement already sent to the driver can still commit after the cancel. A handler
 that ignores cancellation past its lease is outside the lease contract, as every
 lease in the system today.
@@ -222,7 +236,7 @@ generation between 2q and 2d is reasoned structurally only (NOT_CHECKED).
 Deliverable 1 has no 2q. Until 2q lands, the per-drain maintenance reopen
 replays the newest generation's succeeded rows in the six reopen domains
 (`deployment_mapping`, `code_import_repo_edge`, and the four of
-`CrossScopeCorrelationReopenDomains()`, `ingestion_reopen_correlation.go:71-76`:
+`CrossScopeCorrelationReopenDomains()`, `ingestion_reopen_correlation.go:80-85`:
 `deployable_unit_correlation`, `kubernetes_correlation_materialization`,
 `container_image_identity`, `aws_cloud_runtime_drift`). That is the same replay
 an active scope gets today, and a reducer can claim the reopened rows because the
@@ -267,6 +281,9 @@ All run in the `reducer-contention` gate on real Postgres.
   rows that carry `cross_scope_replay_required`).
 - `TestRetirementStep4RedrainDoesNotHoldRepoKey`: a reducer that needs the
   shared repo key finishes while phase 1 re-drains after a step 4 growth.
+- `TestRetirementQuiesceStepAOrdersRowLocks`: two sessions, Step A against the
+  recovery replay scoped to the retiring scope, on overlapping rows. No `40P01`
+  surfaces from Step A; RED with an unordered multi-row UPDATE.
 
 The bars for these paths are P1q (2q step B on the stalled shape) and P10' (the
 runtime residue census); see the

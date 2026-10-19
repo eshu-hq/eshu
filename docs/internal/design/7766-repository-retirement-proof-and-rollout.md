@@ -22,14 +22,14 @@ Binding inputs: the arbiter rulings on
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
 the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)).
-Source check: origin/main ef5703ec26, 2026-10-15, re-anchored from
-c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-ef5703ec26)).
+Source check: origin/main f4f14a4096, 2026-10-19, re-anchored from
+c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-f4f14a4096)).
 
 ## Prove-First Table
 
 Data shape: PostgreSQL 18, 12,000 scopes and 739,838 generations, per-scope
 p50 27, p99 79, max 3,280, plus one 5,000 tail. This is the QA shape measured
-in `storage/postgres/membership/README.md:232-233`; ADR 2248 does not carry
+in `storage/postgres/membership/README.md:301-302`; ADR 2248 does not carry
 these numbers. Facts are seeded per the #2249 large fixture
 (`TestGenerationRetentionStoreLargeFixtureLive`, formerly
 `...Integration`; #7756 moved it to the migrated schema), scaled to 400 facts
@@ -186,6 +186,7 @@ Real-Postgres tests run in the `reducer-contention` gate. Graph tests run under
 | After 2q a projector `Enqueue` leaves nothing claimable | `TestRetirementQuiesceStopsProjectorEnqueue` |
 | After 2q the maintenance and admin reopens reopen 0 | `TestRetirementQuiesceStopsMaintenanceReopen` |
 | A live-leased reducer row survives the fenced pass and the row is `blocked/reducer_lease_live` | `TestRetirementQuiesceWaitsForLiveReducerLease` |
+| 2q step A locks rows in C order and retries `40P01` against the recovery replay; RED with an unordered multi-row UPDATE | `TestRetirementQuiesceStepAOrdersRowLocks` |
 | A live projector lease is refused by Ack; 2a stays blocked until expiry | `TestRetirementBlocksOnProjectorLeaseUntilExpiry` |
 | Runner vs generation retention on one scope | `TestRetirementRunnerAndRetentionSkipEachOther` |
 | Two runners, one row | `TestRetirementRunnerLeaseIsExclusive` |
@@ -248,11 +249,11 @@ Gates are from `specs/ci-gates.v1.yaml`.
 | PR | Content | Gates |
 | --- | --- | --- |
 | 1 | These design files, the evidence note (`docs/internal/evidence/7766-retirement-prove-first.md`), and its raw outputs, SQL, and shell wrappers (`docs/internal/evidence/7766-retirement-prove-first/`) | markdown-file-cap, docs-*, doc-citations, measurement-citations |
-| 2 | Refactor: move the retention prune steps and SQL to leaf `storage/postgres/retention/prune` with no behavior change. `generation_retention.go` is 488 lines against the 500-line cap, and `storage/postgres` is pinned at 321 non-test files (`scripts/lib/dirgate-grandfather.tsv`), both at `ef5703ec26`, so the move is net zero. Deliverable 2 consumes it; Deliverable 1 does not depend on it. | go-file-cap, go-dir-gate, reducer-contention, package-docs |
-| 3 | Marker migration (`repository_retirements`, number 178 at this check) + leaf `storage/postgres/retirement` (marker store, folded commit gate, commit-path benchmark for P2'); gates in `ingestion.go` (475 lines: share the finalized-skip rollback helper), backfill, recovery skip reasons, reindex refusal; refusal counter. No `claimed_at` change. | migration-immutability, reducer-contention, telemetry-coverage, go-file-cap |
-| 4 | Webhook handoff gate (`collector/repo/git`, edits only; grandfathered at 67) | go-dir-gate, telemetry-coverage |
-| 4a | `Fail` lock-order fix: take the scope row first under a `lock_timeout`, defer-retry on `55P03`, correct the comment at `projector_queue.go:214-222`. Projector code, not retirement code. Must land before PR 5. | reducer-contention, go-file-cap |
-| 5 | `repositoryretirement` service; phase 1 with the precheck, the deadline, 7d as a mark, the projector-lease wait and recheck (I0), and the new scope-bound drain/recheck/fence helper in `rebuild/reset`; admin leaf routes (create, get, list, dry run with grant counts); audit EventType; OpenAPI fragment | openapi-surface, route-coverage, reducer-contention, telemetry-coverage |
+| 2 | Refactor: move the retention prune steps and SQL to a leaf under `storage/postgres/retention/` (it holds only `statements/` today) with no behavior change, so the runner can call the same step list. `generation_retention.go` is 474 lines against the 500-line cap at `f4f14a4096`. Moving files out of `storage/postgres` needs no dirgate action; growth needs a `Dirgate-Growth:` commit trailer (`go/cmd/dirgate`). Deliverable 2 consumes it; Deliverable 1 does not depend on it. | go-file-cap, go-dir-gate, reducer-contention, package-docs |
+| 3 | Marker migration (`repository_retirements`, number 207 at this check) + leaf `storage/postgres/retirement` (marker store, folded commit gate, commit-path benchmark for P2'); gates in `ingestion.go` (499 lines at `f4f14a4096`, one under the cap: extract the finalized-skip rollback helper first and share it), backfill, recovery skip reasons, reindex refusal; refusal counter. No `claimed_at` change. | migration-immutability, reducer-contention, telemetry-coverage, go-file-cap |
+| 4 | Webhook handoff gate (`collector/repo/git`, edits only; 70 non-test files) | go-dir-gate, telemetry-coverage |
+| 4a | `Fail` lock-order fix: take the scope row first under a `lock_timeout`, defer-retry on `55P03`, correct the comment at `projector_queue_ack.go:65-73`. Projector code, not retirement code. Must land before PR 5. | reducer-contention, go-file-cap |
+| 5 | `repositoryretirement` service; phase 1 with the precheck, the deadline, 7d as a mark, the projector-lease wait and recheck (I0), and the scope-bound drain and recheck in `rebuild/reset` on top of the extracted #7852 acquisition and a generic retry wrapper; admin leaf routes (create, get, list, dry run with grant counts); audit EventType; OpenAPI fragment | openapi-surface, route-coverage, reducer-contention, telemetry-coverage |
 | 8 | Read surfaces, the `retiring` and `retired` freshness verdicts and OpenAPI enum, MCP descriptions, golden corpus | openapi-surface, mcp-schema-drift, golden-corpus-gate, read-api-latency-gate, query-plan-regression |
 
 PR 5 alone is safe for Postgres truth: it leaves the scope in `pending`, which

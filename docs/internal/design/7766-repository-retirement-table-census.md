@@ -11,17 +11,17 @@ design's earlier phase 3 text said the scope delete "cascades
 `projector_scope_claim_fences`". That was incomplete: about 30 tables reference
 `ingestion_scopes`, and more are keyed by scope or repo with no FK. This file
 classifies each of them.
-Source check: origin/main ef5703ec26, 2026-10-15, read from
-`go/internal/storage/postgres/migrations/*.sql` and confirmed against a scratch
-Postgres 18 schema with all 196 migration files applied (first checked at
-c88c3806a).
+Source check: origin/main f4f14a4096, 2026-10-19, read from
+`go/internal/storage/postgres/migrations/*.sql`. The schema up to migration 177
+was confirmed against a scratch Postgres 18 schema at ef5703ec26 (first checked
+at c88c3806a); migrations 178 to 206 were read from source.
 
 ## Dispositions
 
 | Code | Meaning | Who removes it |
 | --- | --- | --- |
 | `2b` | Shared intents, deleted before the graph retraction | 2b, chunked 10,000 rows |
-| `2d` | Cascades from a generation or fact delete | 2d, the ADR 2248 cascade (`generation_retention.go:425-459`) |
+| `2d` | Removed with a generation: by its FK cascade, or by a retention step | 2d, the ADR 2248 cascade (`generation_retention.go:401-445`) |
 | `2e` | Scope- or repo-keyed, no FK, retention does not reach it | 2e, chunked 10,000 by ctid, after 2c |
 | `3` | Cascades from the scope row | Phase 3 `DELETE FROM ingestion_scopes` |
 | `3+count` | Cascades at phase 3 and the tombstone reports the count | Phase 3, pre-counted inside the transaction |
@@ -55,7 +55,9 @@ The 33 `REFERENCES ingestion_scopes` lines in the migrations name 32 tables
 parent tables. Its 64 partitions, `eshu_search_index_terms_p00` to `_p63`, carry
 cloned FKs to `ingestion_scopes` and `scope_generations`, so the census test
 rolls a partition up to its parent (`pg_class.relispartition`) instead of
-listing 64 entries.
+listing 64 entries. Migration 191 dropped the terms table's generation FK, so
+its rows go in 2d's search-index pre-delete (#7427), and only its
+`ingestion_scopes` FK is left for phase 3.
 
 ### Purged at 2d by the generation cascade
 
@@ -68,8 +70,9 @@ generation removes its rows. Disposition `2d`.
 `graph_projection_phase_repair_queue` (`013`), `admission_decisions` (`007a`),
 `semantic_extraction_jobs` (`006a`), `iac_reachability_rows` (`016`),
 `code_reachability_rows` and `code_reachability_repository_watermarks` (`027`),
-`deferred_backfill_partition_memo` (`042`), `eshu_search_index_documents`,
-`eshu_search_index_terms`, and `eshu_search_index_stats` (`003b`),
+`deferred_backfill_partition_memo` (`042`), `eshu_search_index_documents` and
+`eshu_search_index_stats` (`003b`; `eshu_search_index_terms` is deleted by the
+2d pre-delete since migration 191),
 `eshu_search_vector_metadata` (`003c`), `eshu_search_vector_values` (`003d`),
 `eshu_search_document_projection_state` (`054`), `eshu_search_vector_scope_state`
 (`055`), `reducer_input_invalid_facts` (`060`), `code_root_verdicts` (`064`), and
@@ -104,9 +107,8 @@ table is `fact_backfill_requests`.
 
 | Table | Parent and rule | Disposition |
 | --- | --- | --- |
-| `relationship_reference_candidate_keys` (`058`) | `fact_records ON DELETE CASCADE` | `2d` |
-| `package_manifest_consumption_keys` (`139`) | `fact_records ON DELETE CASCADE` | `2d` |
-| `package_registry_identity_keys` (`143`) | `fact_records ON DELETE CASCADE` | `2d` |
+| `relationship_reference_candidate_keys` (`058`), `package_manifest_consumption_keys` (`139`), `package_registry_identity_keys` (`143`) | None since migrations 188 to 190 dropped the `fact_records` FK; keyed by `scope_id` and `generation_id` | `2d` through retention's `factkeys.DeleteGenerations` step (#7420), then `2e` by `scope_id` for leftovers |
+| `deployable_unit_reopen_fingerprints` (`193`) | `fact_work_items ON DELETE CASCADE`; also carries `repo_ids` | `2d`. 2c also calls `InvalidateDeployableUnitReopenFingerprintsForRepos` (`ingestion_reopen_correlation.go:374-400`) after the graph commit, as both Repository deleters do. |
 | `content_file_secret_lines` (`138`) | `content_files` | `2d` (with `content_files`) |
 | `activation_obligations` (`160`), `producer_activation_obligations` (`163`) | `scope_generations ON DELETE CASCADE`; `scope_id` has no FK | `2d` |
 | `container_image_identity_supports` (`092_container_image_identity_support_store.sql:263-265`) | `container_image_identity_support_sets ON DELETE CASCADE`; the set's `scope_id` cascades from `ingestion_scopes` (`092:255`) | `3`. Its `repository_id` holds `oci-registry://` ids (`containerimage/container_image_identity_registry.go:128`), so it is `not_a_key`. A retired git repo id inside another scope's repo-id arrays is `foreign_target`. |
@@ -126,11 +128,11 @@ which is why 2e follows 2c.
 
 | Table | Key | Today's deleter | Disposition |
 | --- | --- | --- | --- |
-| `content_files`, `content_entities`, `content_file_references` | `repo_id` | Retention prune steps, keyed by the pruned generations' file and entity facts (2d, `generation_retention_sql.go:335-433`). Migration 169's `content_files.generation_id` is advisory and retention does not read it (`169:12-15`). | `2e` leftover sweep (`migrations/004:57-60`) |
+| `content_files`, `content_entities`, `content_file_references` | `repo_id` | Retention prune steps, keyed by the pruned generations' file and entity facts (2d, `generation_retention_sql.go:292-390`). Migration 169's `content_files.generation_id` is advisory and retention does not read it (`169:12-15`). | `2e` leftover sweep (`migrations/004:57-60`) |
 | `infra_resource_entities` | `repo_id`, `scope_id` | Retention orphan delete (`inventory.DeleteOrphanedRows`) | `2e` leftover sweep |
 | `infra_resource_entity_dirty_repos` | `repo_id` | `infra/inventory/fence.go:91`, one repo | `2e` |
 | `repository_refs` | `repo_id` | None found for a whole repo | `2e` (`004:46-55`) |
-| `repository_selection_observations` | `scope_id` | None (#7774) | `2e` |
+| `repository_selection_observations` | `scope_id` | Expired rows (`membership/observations.go:119-131`) and abandoned selectors' rows (`membership/observations_sweep.go:46-61`), not a whole scope | `2e` |
 | `repository_reindex_requests` | `scope_id` | Phase 1 7e. A refinalize whose read predates phase 1 can re-create it (`rebuild/reset/delta_active.go:101-115`) | `2e` |
 | `code_function_fingerprint`, `code_fingerprint_band` | `repo_id` | `content_writer_sql.go:211-225`, by path only | `2e` |
 | `function_summaries`, `function_sources`, `function_graph_ids` | `repo` | By repo on rewrite (`summary_store.go:74`) | `2e`; whether `repo` equals the canonical repo id is NOT_CHECKED (`summary_store.go:319`) |
@@ -139,15 +141,16 @@ which is why 2e follows 2c.
 | `reducer_readiness_waits` | `scope_id` | None | `2e` |
 | `collector_generation_dead_letters` | `scope_id`, `partition_key` | None | `2e`; a replay is refused by the commit gate, so the row has no use |
 | `projection_decisions` | `repository_id` | None | `2e` |
-| `package_manifest_consumption_key_dirty_scopes` | `scope_id` | `package_manifest_consumption_backfill.go:100`, after a backfill pass | `2e` |
+| `package_manifest_consumption_key_dirty_scopes` | `scope_id` | `consumption/statements.go:53-60`, run at `consumption/rebuild.go:100`, after a backfill pass | `2e` |
 | `supply_chain_impact_canonical_winners` | `winner_scope_id`, `repository_id` | `RebuildAllWinners` reconciles to the active fact set | `2e` by `winner_scope_id`; how often the rebuild runs is NOT_CHECKED |
 | `supply_chain_impact_write_admission` | `scope_id` | Not read | `2e`; which scope kinds write it is NOT_CHECKED |
 | `crossplane_satisfied_by_redrive_state` | `xrd_scope_id` (`076:39-50`) | None | `2e`. A leftover queued row finds no XRD keys and completes itself (`crossplane/sweep.go:205-216`), so it is residue, not a loop. |
 | `crossplane_satisfied_by_redrive_target_ledger` | `target_scope_id` (`076:105-111`) | None | `2e`. Leaving it is wrong: the redrive's `NOT EXISTS` fence (`crossplane/query.go:77-83`) would skip a re-added repository, because git scope ids are derived from the remote URL. |
 | `relationship_evidence_facts`, `relationship_candidates`, `resolved_relationships` | `generation_id` (no FK), `source_repo_id`, `target_repo_id` (`010:31-79`) | None. Retention never touches `relationship_*` | `2d` by each batch's generation ids, then `2e` for the rest; see [Relationship tables](#relationship-tables). Rows where the retired repo is only the target, under other scopes' generations, are `foreign_target`. |
 | `relationship_generations` | `scope` (the ingestion `scope_id`), `generation_id` (`010:19-29`) | None; `rebuild/reset/reset.go:226` only marks rows superseded | `2e` by `scope = ANY($scopes)`, after the three tables above |
-| `config_artifact_content_versions`, `config_artifact_repo_state` | `repo_id` (`170:54-77`) | None on main; migration 170 adds the schema only (`170:10-14`) | `2e` by `repo_id`, both tables in one statement, after the `content_files` sweep (see [Config artifact tables](#config-artifact-tables)) |
-| `config_artifact_paths` | `repo_id` (`170:83-94`) | None on main | `2e` by `repo_id` |
+| `config_artifact_content_versions`, `config_artifact_repo_state` | `repo_id` (`170:54-77`) | None. The `content_files` trigger (`186`) inserts or bumps version rows, and migration 187 seeds them | `2e` by `repo_id`, both tables in one statement, after the `content_files` sweep (see [Config artifact tables](#config-artifact-tables)) |
+| `config_artifact_paths` | `repo_id` (`170:83-94`) | None | `2e` by `repo_id` |
+| `content_file_ref_deltas`, `content_file_ref_delta_bases` | `repo_id` (`197:43-66`) | None; not wired yet | `2e` by `repo_id` |
 | `service_materialization_generations` | `scope_id` (`126:22-23`) | None | `2e` by `scope_id`; `service_evidence_snapshots` cascades. Legacy rows with a NULL `scope_id` are NOT_CHECKED. |
 
 ### Relationship Tables
@@ -156,7 +159,7 @@ The three relationship tables need both predicates:
 - **The generation predicate alone misses rows.** Per-commit backfill writes the
   retired repository's outgoing evidence under the onboarding generation of the
   repository it targets (`backfill/per_commit.go:93`, via
-  `ingestion_backfill_seam.go:234`), and rows of long-pruned generations survive
+  `ingestion_backfill_seam.go:294`), and rows of long-pruned generations survive
   because nothing deletes them.
 - **`source_repo_id` alone misses rows.** Backward evidence and the
   candidates, which are not ownership-partitioned
@@ -185,11 +188,14 @@ predates #7766.
 
 The 7126 protocol requires a version row to be deleted only together with its
 repository's state row, and names this design as the retirement path that must
-honour it (`docs/internal/design/7126-ingest-time-config-artifacts-protocol.md:34-41`).
+honour it (`docs/internal/design/7126-ingest-time-config-artifacts-protocol.md:36-43`).
 `config/artifacts/versions_guard_test.go` enforces it per statement: the
-versions delete must be the same statement that deletes the state row. The 2e statement also
-runs after the `content_files` sweep, because the planned `content_files` delete
-trigger bumps the version row, and retirement leaves that trigger enabled.
+versions delete must be the same statement that deletes the state row. The
+`content_files` trigger shipped in migration 186. It bumps the version row on a
+`content_files` delete, and inserts one at version 1 when the row is missing
+(`186:119`). So the 2e versions statement commits after the last `content_files`
+delete, and retirement leaves the trigger enabled. `config_artifact_fence_pending`
+(`186`) is emptied by the same trigger at commit: `reaped`.
 `config_artifact_backfill_markers` and `config_artifact_reconcile_cursor` have no
 matching column and need no entry.
 
@@ -207,8 +213,8 @@ barrier that follows (see the concurrency contract). Disposition `2b`.
 design (migration 136 explains the multixact deadlock). Retention prunes them per
 generation at 2d. After phase 3 deletes the scope row, the link runner's
 orphan-scope pass removes the rest (`DeleteOrphanScope`,
-`storage/postgres/freshness/links/journal.go:310`, statements at
-`journal_sql.go:218-225`, driven from `reducer/freshness/links/runner.go:279`).
+`storage/postgres/freshness/links/journal.go:317`, statements at
+`journal_sql.go:238-245`, driven from `reducer/freshness/links/runner.go:286`).
 Disposition `reaped`. The runner does not wait for it, and the pass cadence is
 NOT_CHECKED.
 
@@ -218,6 +224,12 @@ the active set (`collector_evidence_summary.go:119-126`), and that set requires
 an active generation (`:20-51`). It runs every 60 s
 (`reducer/maintenance/evidence/maintainer.go:48`). Disposition `reaped`; its
 rows are not counted in `rows_deleted`.
+
+`component_quota_windows` (`206`, `scope_id`) is reaped by the quota writer,
+whose `prune_quota` step deletes buckets older than the previous hour
+(`workflow_control_quota_sql.go:137-141`). Disposition `reaped`. `repository_selectors`
+(`200`) and `workflow_claim_pacing` (`205`) have no matching column and need no
+entry.
 
 ### Kept, with a reason
 
@@ -235,13 +247,15 @@ rows are not counted in `rows_deleted`.
 
 ### NOT_CHECKED, blocks PR 7
 
-Every table the c88c3806a census left NOT_CHECKED is classified above at
-`ef5703ec26`. What remains unread:
+Every table the c88c3806a census left NOT_CHECKED is classified above, and the
+tables migrations 178 to 206 added are classified at `f4f14a4096`. What remains
+unread:
 - whether every writer of the relationship tables stores `source_repo_id` in
   the same canonical `repository:` form;
 - legacy `service_materialization_generations` rows with a NULL `scope_id`;
-- what the planned `content_files` delete trigger (#7126 PR3b-1b) does when the
-  version row is missing.
+- the size of `deployable_unit_reopen_fingerprints`, and which scope kinds
+  write `component_quota_windows` (reaped by `prune_quota`,
+  `workflow_control_quota_sql.go:137-141`).
 
 ## Consequences For The Runner
 

@@ -15,8 +15,8 @@ Binding inputs: the arbiter rulings on
 [the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
 the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)), F7,
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)), section 2.
-Source check: origin/main ef5703ec26, 2026-10-15, re-anchored from
-c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-ef5703ec26)).
+Source check: origin/main f4f14a4096, 2026-10-19, re-anchored from
+c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-f4f14a4096)).
 
 ## Read Surfaces And OpenAPI
 
@@ -38,9 +38,9 @@ Retiring and retired rows also carry `retirement` = {`state` (policy enum),
 
 | Surface | Change |
 | --- | --- |
-| GET `/api/v0/repositories` (`query/repository/handler.go:141-223`) | Graph path: add `r.evidence_source` to the page query and look up tombstones for the page ids only (`WHERE repo_id = ANY($page_ids)`, in a new `retirement_state.go`; the dir carries `//nolint:dirgate`, `doc.go:16`). Content path (`content_reader_repository_catalog.go:16-32` reads `ingestion_scopes WHERE scope_kind='repository'`): `UNION ALL` the complete tombstones that have no scope row. Nothing is dropped from the list; every row is labelled. `total` stays the node count. |
+| GET `/api/v0/repositories` (`query/repository/handler.go:141-233`) | Graph path: add `r.evidence_source` to the page query and look up tombstones for the page ids only (`WHERE repo_id = ANY($page_ids)`, in a new `retirement_state.go`; `//nolint:dirgate` at `query/repository/doc.go:16` waives only the naming rule, so the file needs a `Dirgate-Growth:` trailer, 48 non-test files today). Content path (`content_reader_repository_catalog.go:16-32` reads `ingestion_scopes WHERE scope_kind='repository'`): `UNION ALL` the complete tombstones that have no scope row. Nothing is dropped from the list; every row is labelled. `total` stays the node count. |
 | MCP `list_indexed_repositories` (`mcp/dispatch_repositories.go:74`, routes to the above) | Picks up the fields; the tool description in `tools_codebase.go:227` names `index_state` (mcp-schema-drift). |
-| `/api/v0/index-status`, MCP `get_index_status` (`query/status.go:226-246`) | `repository_count` keeps its query. Adds `repository_count_by_state{indexed,stub}` from `MATCH (r:Repository) WITH r.evidence_source = 'projector/canonical' AS idx RETURN idx, count(*)`. Adds a `repository_retirements` block: counts by state, `oldest_pending_age_seconds`, `last_completed_at`. Counts only, no ids. |
+| `/api/v0/index-status`, MCP `get_index_status` (`query/status.go:276-316`) | `repository_count` keeps its query, including #8395's 5xx through `WriteGraphReadError` when the count fails; the by-state count uses the same mapping. Adds `repository_count_by_state{indexed,stub}` from `MATCH (r:Repository) WITH r.evidence_source = 'projector/canonical' AS idx RETURN idx, count(*)`. Adds a `repository_retirements` block: counts by state, `oldest_pending_age_seconds`, `last_completed_at`. Counts only, no ids. |
 | Freshness (`status/repository_freshness.go:22-27`, computed at `:183-205`) | The verdict is a closed set today (`current`, `building`, `behind`, `unobserved`, `not_selected`, `unknown`), and nothing in it knows a tombstone. Add `retiring` and `retired` to `RepositoryFreshnessVerdict` as rule 0, from a tombstone lookup by `repo_id` that runs before `repositoryFreshnessResolveQuery`: an open non-`complete` row gives `retiring`, a `complete` row gives `retired`. The snapshot gains `Retirement *RepositoryFreshnessRetirement`. |
 | Console (`apps/console/src/api/repoCatalog.ts`) | Badge from `index_state`; retired and retiring rows are muted, not hidden. |
 
@@ -70,7 +70,7 @@ OpenAPI changes:
 - the repositories list schema: add `index_state` and `retirement`;
 - the index-status schema: add the new blocks;
 - new admin fragments go in `paths/status/repository_retirement.go`
-  (`paths/status/admin.go` is 463 lines at `ef5703ec26`, so it cannot take them).
+  (`paths/status/admin.go` is 485 lines at `f4f14a4096`, so it cannot take them).
 
 ## Operator Surface
 
@@ -80,15 +80,17 @@ Admin routes live in a new leaf, `query/admin/retirement/`, because the admin
 - `POST /api/v0/admin/repository-retirements` with body
   `{"repositories":[sel,...1..25], "reason":str, "idempotency_key":str, "dry_run":bool}`.
   - **Selectors:** resolved with `MatchRepositories` and `gitDefaultScopeMatch`
-    (`query/admin/reindex_repository.go:52-128`, `content_reader_repository_catalog.go:145-171`
+    (`query/admin/reindex_repository.go:52-133`, `content_reader_repository_catalog.go:145-171`
     matches repo id, `scope_id`, name, slug, path, local path). The request is
     all or nothing, and a 400 names every bad selector. A scope id
     disambiguates the duplicate case.
   - **Required fields:** `reason` and `idempotency_key` are mandatory.
     `ClaimReplayIdempotency` uses fingerprint `sha256(sorted scope_ids)`, and
     `CompleteReplayIdempotency` follows the semantics in
-    `query/admin/generations.go:84-128`.
-  - **Auth:** admin (all-scopes) only. Scoped tokens get 403 (`generations.go:97-101`).
+    `query/admin/generations.go:84-141`, including `finalizeContext`
+    (`query/admin/finalize.go:36-42`), so a client cancel cannot strand the key
+    `in_progress`.
+  - **Auth:** admin (all-scopes) only. Scoped tokens get 403 (`query/admin/generations.go:97-101`).
   - **Responses:**
     - 202 `{status:"accepted", retirements:[{retirement_id, repository_id, scope_id, state:"pending", requested_at}], idempotency_key, duplicate}`;
     - 200 dry-run preview;
@@ -124,7 +126,7 @@ Admin routes live in a new leaf, `query/admin/retirement/`, because the admin
   `eshu admin repository retirement-candidates`.
   - Request builders go in `internal/cli/admin/retirement.go` and cobra in
     `cmd/eshu/admin.go`, because `cmd/eshu` already has 40 non-test files.
-  - With no key given, the CLI generates one, as `replay` does (`admin.go:88`).
+  - With no key given, the CLI generates one, as `replay` does (`cmd/eshu/admin.go:88`).
 - **Tombstone row:** the marker row itself, holding the safe hashes, bounded
   reason code, actor class, counts by table (the four grant counts are inside
   `rows_deleted`), and lifecycle timestamps. Raw ids appear only in admin
@@ -147,7 +149,7 @@ Access fails closed. Re-admission does not restore them. Three places say so:
 is read-only. It never feeds the primitive.
 
 The SQL is a prefilter, and `selection.Summarize`
-(`scope/selection/summary.go:74-144`) re-runs on the page's rows (PK reads) as
+(`scope/selection/summary.go:85-155`) re-runs on the page's rows (PK reads) as
 the authority:
 
 ```sql
@@ -169,6 +171,8 @@ ORDER BY a.scope_id LIMIT $3
 ## Telemetry
 
 Instruments go in `telemetry/instruments_operator_repository_retirement.go`.
+`internal/telemetry` has 40 non-test files at `f4f14a4096`, so that commit carries
+a `Dirgate-Growth:` trailer.
 The existing `instruments_repository_retirement.go` is the 7324 counter.
 
 | Signal | Definition |
@@ -178,7 +182,7 @@ The existing `instruments_repository_retirement.go` is the 7324 counter.
 | `eshu_dp_repository_retirement_step_duration_seconds{phase}` | `fence`, `quiesce`, `barrier`, `graph_retract`, `purge_batch`, `census`, `finalize` |
 | Spans | `admin.repository_retire` and `reducer.repository_retirement_step` (attr `phase`), registered through a contract subpackage step (telemetry `AGENTS.md`) |
 | Logs | WARN `repository retirement completed`: `scope_id`, `retirement_id`, `generation_count`, ≤10 `generation_ids` + `generation_ids_hash`, `rows_deleted`, `nodes_deleted`, `relationships_deleted`, and the four grant counts. WARN `repository ingest refused: retiring` with `writer`. WARN `repository readmitted after retirement`, with the four grant counts read from the tombstone. |
-| Audit | `governanceaudit.EventTypeRepositoryRetirement = "repository_retirement"` beside `audit.go:56`, added to `validEventType` (`:327-342`), `ScopeClassRepository`. Reason codes `repository_retire_{accepted,preview,idempotent_replay,refused_missing_reason,refused_missing_idempotency_key,refused_unauthorized,refused_selector,refused_key_reused,refused_request_too_large,blocked}`. |
+| Audit | `governanceaudit.EventTypeRepositoryRetirement = "repository_retirement"` beside `governanceaudit/audit.go:56`, added to `validEventType` (`:327-342`), `ScopeClassRepository`. Reason codes `repository_retire_{accepted,preview,idempotent_replay,refused_missing_reason,refused_missing_idempotency_key,refused_unauthorized,refused_selector,refused_key_reused,refused_request_too_large,blocked}`. |
 | Status | Readback fields (see Operator Surface) and the index-status block (see Read Surfaces And OpenAPI). The `blocked_reason` values `reducer_lease_live` and `claim_fence_busy` make 2q visible. |
 
 Every row lands in `docs/public/observability/telemetry-coverage.md`, the

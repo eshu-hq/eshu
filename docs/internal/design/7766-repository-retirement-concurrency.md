@@ -7,10 +7,11 @@ design and the two deliverables), [Reducer Reopen And Replay Writers](7766-repos
 [Proof And Rollout](7766-repository-retirement-proof-and-rollout.md), and the
 [evidence note](../evidence/7766-retirement-prove-first.md).
 
-This file holds the phase 1 lock budget and deadline, the lock-order rule, the
-intent-delete barrier that replaced the shared-projection horizon, the
-invariants that make the phase 2 order safe, the folded commit gate, and the
-re-admission interleavings. Binding inputs: the
+This file holds the intent-delete barrier that replaced the shared-projection
+horizon, the invariants that make the phase 2 order safe, the folded commit
+gate, and the re-admission interleavings. The phase 1 lock budget, the reuse of
+the #7852 fence, and the lock-order rule are in
+[Phase 1 Locking](7766-repository-retirement-phase1-locking.md). Binding inputs: the
 [shared-contract arbiter ruling](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6073882598),
 the [arbiter ruling on the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
 the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
@@ -18,196 +19,11 @@ and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/es
 [evidence note](../evidence/7766-retirement-prove-first.md) and summarized in
 [Prove-First Results](7766-repository-retirement-proof-and-rollout.md#prove-first-results).
 
-Source check: origin/main ef5703ec26, 2026-10-15, re-anchored from
-c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-ef5703ec26)). The shared-worker citations in the barrier and
-invariant sections were re-read at c88c3806a (#7724 restructured `process.go`
-and `selection.go`); `reducer/intents/shared/worker/` is unchanged since.
-
-## Phase 1 Lock Budget
-
-Phase 1 takes `LOCK TABLE fact_work_items IN EXCLUSIVE MODE` (step 6). The
-measured cost has three parts: how long the section runs, who it blocks, and
-how a waiting `LOCK TABLE` blocks everyone behind it. Every figure below for
-7d is for the DELETE form that P1 measured. 7d is now an UPDATE (a mark), so
-P1' re-measures it before code lands.
-
-### Bindings
-
-The design form bound 7c, 7d, and the step 6 recheck to every
-`(scope_id, generation_id)` pair of the scopes. It failed the 250 ms bar
-(P1: design-form Rc5000 cold p99 252.2 ms, Wc5000 cold 885.9 ms). The
-amended bindings:
-
-| Statement | Design form | Amended binding |
-| --- | --- | --- |
-| 7c, projector rows to `superseded` | pairs for all generations | step-4 non-superseded `(scope_id, generation_id)` pairs |
-| 7d, reducer rows to `superseded` (a mark) | pairs for all generations, a delete | `scope_id = ANY($scopes)` |
-| Step 6 recheck of live leases, both stages | pairs for all generations (reducer stage only) | `scope_id = ANY($scopes)`, `stage IN ('projector','reducer')` |
-
-This is valid because the retire unit is the whole scope, every generation.
-`refinalize` binds a subset of generations, which is why its pair form is right
-for it and wrong here.
-
-- **7d by scope** marks the reducer rows of every generation of a scope that is
-  going away. Phase 2d's cascade deletes the same rows later. The live-lease
-  guard of the 7d predicate is unchanged.
-- **7c by non-superseded pairs** skips projector rows of generations that were
-  already `superseded`. The #7130 claim branch already supersedes those rows,
-  and Ack and Heartbeat refuse them.
-
-Both stay in phase 1.
-
-- **7d cannot move to phase 2.** The reducer claim's supersede CTE requires
-  `scope.active_generation_id = active_generation.generation_id`
-  (`reducer_generation_filter_sql.go:180`). Step 7b nulls that pointer, and the
-  reducer claim has no generation-status predicate
-  (`reducer_queue_claim_query.go:9-104`), so after phase 1 commits a pending
-  reducer row of the retired scope is claimable unless 7d marked it under the
-  fence.
-- **7c is droppable for fencing, and still stays.** `candidate_pool` excludes
-  every supersedable row (`projector_queue_claim_sql.go:188-209`) and Ack and
-  Heartbeat refuse. Dropping 7c would move a one-off sweep of up to 5,000
-  generation-row and 5,000 work-row locks into an unrelated worker's claim
-  statement, which is a hot path nobody measured. Tuned 7c costs 6.5 ms cold on
-  the realistic shape (mean, n=10, rollback mode). The stalled-shape run
-  (Ww5000, 32.3 ms mean) touched only 106 to 170 7c rows, not 5,000, so it does
-  not measure the stalled-shape cost and P1' owes that figure.
-- 7e could move to phase 2. It costs 0.5 ms, so it stays.
-
-### Deadline and lock waits
-
-`WriteTimeout` is `DefaultRefinalizeDrainTimeout + apiRecoveryResponseMargin`,
-5 min plus 1 min (`cmd/api/main.go:27`, `:159-160`; `refinalize.go:31`). The
-first amendment gave the drain 5 min, the advisory wait 5 min, and the fence 30
-s. Those sum past 6 min, so a slow drain could outlive the response. Phase 1
-now runs under **one deadline of 5 min 30 s** from request start, leaving 30 s
-to write the response. Each wait is bounded by `min(its own bound, remaining)`:
-
-1. Step 2, the scope-bound drain: `min(5 min, remaining)`. It waits for live
-   leases of both stages, so an in-flight projector Run finishes before the
-   fence starts (I0).
-2. Step 3, the advisory wait: `set_config('lock_timeout', <ms>, true)` with
-   `<ms> = remaining - fenceReserve`, computed at that moment and not a
-   constant. `fenceReserve` is 35 s (the 30 s fence budget plus 5 s for steps 4
-   to 8). If that is not positive, return 409 `lock_timeout` without taking the
-   key. The advisory wait convoys nothing: a commit waiting on it holds no
-   `fact_work_items` lock. It may already hold workflow-control rows
-   (`HeartbeatClaim` at `ingestion.go:191` writes `workflow_claims`), so
-   `ingestion.go:197` does not precede every write, but nothing before it
-   touches `fact_work_items` or `ingestion_scopes`. Only this repository's
-   commits queue behind the key, which is the intent.
-3. Step 6, the fence: `set_config('lock_timeout','1s',true)` immediately before
-   it. This is the pattern in `activation/sql.go:63`: a short wait plus a
-   deferred retry. The total fence budget is `min(30 s, remaining)`.
-
-On `55P03` at step 6: roll back, sleep a jittered 100 to 500 ms, and restart at
-step 1, with every wait recomputed from the remaining deadline. When the
-deadline or the fence budget runs out, the API returns 409 `blocked` with the
-reason of the wait that could not finish. No marker row exists, so these are API
-response reasons. The same name (`claim_fence_busy`) is also a `blocked_reason`
-value, but only for 2q step B, where a marker row exists.
-
-Why 1 s and not the old 5 minutes: PostgreSQL grants conflicting lock requests
-in queue order, so a waiting `EXCLUSIVE` blocks every later `ROW EXCLUSIVE`
-requester. Measured: a `LOCK TABLE` waited 6,975 ms behind a `ROW EXCLUSIVE`
-holder, and an unrelated single-row `UPDATE` then waited 5,963 ms behind that
-waiter (evidence note, convoy section). The convoy came from step 6 inheriting
-step 3's `SET LOCAL`, not from the advisory wait. `refinalize` has the same
-defect (see Out Of Scope in the
-[corrections file](7766-repository-retirement-corrections.md#out-of-scope-pre-existing-issues)).
-
-### Request budget
-
-The 25-repository cap stays as the request cap. It does not bound the cost. The
-precheck bounds it:
-
-- After step 1, before any lock, count per repository the non-superseded
-  generations and the reducer rows that match the 7d predicate. Refuse with 409
-  `request_too_large` and the per-repository counts when the sum of
-  non-superseded generations exceeds 5,000 or the sum of 7d-predicate rows
-  exceeds 20,000.
-- **The limits are candidates, not measurements.** P1 measured the design form
-  on shapes with 5,000 generations and 19,996 reducer rows. P1' sets the final
-  limits by measuring the tuned, mark-form phase 1 in commit mode, with the projector-stage
-  recheck count in the fenced section, and the limits drop if the 250 ms bar
-  fails. P1' also measures unrelated claim
-  throughput across the section: at least 90% of the no-retirement baseline over
-  the whole run, with the per-statement max as the second bar.
-- The precheck is a snapshot. Step 4 is authoritative: if the re-read under the
-  lock exceeds either bound, abort with the same 409.
-
-## Lock-Order Rule And The Fail Fix
-
-**Rule: advisory key, then scope row, then the `fact_work_items` relation.** A
-writer that blocks on a retired scope row or on the key must take it in a
-statement that references no other relation.
-
-`Fail` breaks the rule, and phase 1 deadlocks against it. The facts, all from
-source (no live run yet; `TestRetirementAndProjectorFailDoNotDeadlock` is the
-RED proof):
-
-- `failProjectorWorkQuery` is one statement (`projector_queue_sql.go:144-216`).
-  The order is unchanged at `ef5703ec26`: the scope row, then the owned work rows,
-  then the updates. Its newer `spared_generation` read (`:162-171`) keeps a
-  spared generation active; it reads no other relation.
-  A `locked_scope ... FOR NO KEY UPDATE` CTE comes first, then `owned_work ...
-  FOR UPDATE OF work`, then UPDATEs of `scope_generations`, `ingestion_scopes`,
-  and `fact_work_items`. The outer UPDATE target takes `ROW EXCLUSIVE` on
-  `fact_work_items` at parse time, before the scope-row wait.
-- It runs on the pool with no `lock_timeout` (`projector_queue.go:402`).
-  `failWork` returns the error joined to the cause (`service_superseded.go:293-300`).
-  There is no retry and no dead-letter row; the lease expires.
-- Ack takes the scope row first in a single-table UPDATE
-  (`projector_queue.go:223-226`) under a lock_timeout (`:210`). The comment at
-  `:214-220` lists "Fail (scope, work, generation)", which is true at the row
-  level and false at the relation level.
-- Phase 1 holds the scope row (step 5) before it requests `LOCK TABLE ...
-  EXCLUSIVE` (step 6). The cycle closes only when `Fail` is already waiting on
-  the scope row while holding `ROW EXCLUSIVE`. Then `Fail`'s `deadlock_timeout`
-  (default 1 s) expires before phase 1's 1 s `lock_timeout`, because `Fail`
-  started waiting first, and the detector aborts the transaction that runs the
-  check. `Fail` loses every time, not only when it starts waiting first.
-- No such cycle exists today. `refinalize` takes the table lock without first
-  holding a scope row (`refinalize.go:65-66`, `:382`), and its FK inserts take
-  `KEY SHARE`, which is compatible with `NO KEY UPDATE`.
-
-Every transaction that holds a lock conflicting with `EXCLUSIVE` on
-`fact_work_items` and can then block on a retired scope row or the repo key:
-
-| Transaction | Order | Verdict |
-| --- | --- | --- |
-| `Fail` | `ROW EXCLUSIVE` on the relation, then the scope row | The only member. Fixed below. |
-| Ack | Scope row first, single-table UPDATE (`projector_queue.go:223`) | Safe |
-| Ingestion commit | Key (`ingestion.go:197`), scope upsert (`:209`), work enqueue later | Safe. `HeartbeatClaim` (`:191`) writes workflow-control tables before the key and is not part of the cycle. |
-| Activation Finalize | Scope row first, 1 s lock_timeout (`activation/sql.go:63-72`); producer-settle reopens inside it | Safe |
-| Admin reopen | Scope row first, 5 s lock_timeout (`admin/store/reopen.go:196-211`, #7734 fence) | Safe |
-| Duplicate-generation reproject (#7978) | Scope row first, in its own statement (`generation_freshness_reproject.go:23-25`, run at `:165`), then the projector work row and the generation | Safe |
-| Acceptance gate and writer | Key first (`repo_dependency_acceptance_gate.go:72`, `shared_intent_acceptance_writer.go:83-87`) | Safe |
-| Backfill (per commit, pool, all-repos) | Key first (`ingestion_backfill_seam.go:226`, `backfill/pool.go:402`, `backfill/engine.go:328`) | Safe |
-| Fanout, reducer claim, ack, heartbeat, batch acks, value-flow ack, activation for claim | Lock `fact_work_items` rows, never block on a scope row (`fanout.go:32-54` reads scopes unlocked; `relationship_schema.go:270-296`) | Safe |
-| Package-manifest backfill | Locks scope rows `FOR UPDATE` (`package_manifest_consumption_backfill.go:69-71`), never references `fact_work_items` | Safe |
-| Vulnerability suppression; generation retention | Locks a non-git scope; `SKIP LOCKED` | Safe |
-
-**The fix is on `Fail`, not on phase 1**, in its own small PR (PR 4a) that
-lands before PR 5. It is a fix to projector code, not retirement code. `Fail`
-becomes a transaction:
-1. `set_config('lock_timeout', <ackLockTimeoutSetting>, true)`, as Ack does;
-2. statement 1: `SELECT scope_id FROM ingestion_scopes WHERE scope_id = $1 FOR NO KEY UPDATE`;
-3. statement 2: the existing chain without the `locked_scope` CTE.
-
-On `55P03`, `Fail` returns a deferred error and the service retries it the way
-it retries Ack, bounded by `DefaultAckWaitMaxRetries`
-(`service_superseded.go:306`). A phase 1 holding the scope row delays the
-dead-letter instead of losing it. The same PR corrects the comment at
-`projector_queue.go:214-222` to state the relation-level rule.
-
-Tests (real Postgres, `reducer-contention` gate):
-- `TestProjectorFailScopeLockPrecedesWorkTableLock`: after statement 1,
-  `pg_locks` shows the scope row lock and no lock on `fact_work_items` for that
-  backend.
-- `TestRetirementAndProjectorFailDoNotDeadlock`: both orders, no `40P01`. The
-  dead-letter row and `scope_generations.status='failed'` land after phase 1
-  commits, or `Fail` is refused as superseded.
+Source check: origin/main f4f14a4096, 2026-10-19, re-anchored from
+c88c3806a (see the [corrections](7766-repository-retirement-corrections.md#re-anchor-at-f4f14a4096)). The shared-worker citations in the barrier and
+invariant sections were re-read at f4f14a4096: #7853 (d3cd68415, 9b4274f64)
+changed `worker/process.go` and `worker/selection.go` and added
+`worker/absent_acceptance.go`.
 
 ## Shared-Projection Barrier
 
@@ -216,17 +32,17 @@ leases as `shared_lease_horizon` and waited for `now()` to pass it. P9H showed
 that this is unsound in code, not only in a repro:
 
 - `claimPartitionLeaseSQL`'s `ON CONFLICT` rewrites `lease_expires_at` whenever
-  `lease_owner = $4` (`storage/postgres/shared_intents.go:180-186`), and the
+  `lease_owner = $4` (`storage/postgres/shared_intents.go:181-187`), and the
   heartbeat calls it every TTL/2
   (`reducer/intents/shared/worker/heartbeat.go:32-38`, `:60`, `:78-80`).
-- The lease is held from claim (`worker/process.go:137`) through the edge write
-  (`:238`) and `MarkIntentsCompleted` (`:250`, call at `:310`) to the deferred
-  release (`:175`).
+- The lease is held from claim (`worker/process.go:150`) through the edge write
+  (`:246`) and `MarkIntentsCompleted` (`:258`, call at `:353`) to the deferred
+  release (`:188`).
 - Measured: with the horizon taken at t=300 ms, `now() > horizon` was true at
   t=1.5 s, the lease was still renewed 3.0 s past the horizon at t=3.5 s, and
   the worker stayed inside `RetractEdges` until t=4.0 s.
 - code_calls shares the table and the heartbeat shape
-  (`code/call/projection/lease.go:58-66`, `runner.go:267`; TTL 60 s at
+  (`code/call/projection/lease.go:58-66`, `code/call/projection/runner.go:271`; TTL 60 s at
   `cmd/reducer/config_projection.go:45`, shared default 60 s at
   `worker/runner.go:30`).
 
@@ -302,10 +118,10 @@ At this check the writers are:
 
 | Writer | Claim site | Class |
 | --- | --- | --- |
-| Shared projection worker (every shared domain) | `worker/process.go:137`, heartbeat `worker/heartbeat.go:78` | `repo_graph_writer` |
-| code_calls | `code/call/projection/runner.go:267`, heartbeat `lease.go:58` | `repo_graph_writer` |
-| repo_dependency | `repo_dependency_projection_runner.go:178`, heartbeat `repo_dependency_projection_telemetry.go:109` | `repo_graph_writer` |
-| Graph orphan sweep | `maintenance/orphan/runner.go:161` | `maintenance_lease` |
+| Shared projection worker (every shared domain) | `worker/process.go:150`, heartbeat `worker/heartbeat.go:78` | `repo_graph_writer` |
+| code_calls | `code/call/projection/runner.go:271`, heartbeat `lease.go:58` | `repo_graph_writer` |
+| repo_dependency | `repo_dependency_projection_runner.go:183`, heartbeat `repo_dependency_projection_telemetry.go:112` | `repo_graph_writer` |
+| Graph orphan sweep | `maintenance/orphan/runner.go:171` | `maintenance_lease` |
 | Collector evidence summary | `maintenance/evidence/maintainer.go:160` | `maintenance_lease` |
 | Code value-flow stale cleanup | `code/value/cleanup/runner.go:215` | `maintenance_lease` |
 | Supply-chain impact winners | `supplychain/core/winners_maintainer.go:120` | `maintenance_lease` |
@@ -323,27 +139,32 @@ at all, so the restriction removes nothing 2b' could have protected.
   refusal, and the Ack refusal are backstops, not the fence. The step 2 wait and
   the step 6 recheck under `EXCLUSIVE` carry it. Without the wait, a live Run
   survives phase 1 until the next heartbeat (lease/3 capped at 1 min,
-  `cmd/projector/runtime_wiring.go:122-132`) cancels its context, and a Run
+  `cmd/projector/runtime_wiring.go:124-134`) cancels its context, and a Run
   cancelled between its canonical write and its content write leaves a frozen
   half-Run graph: on Neo4j each node phase is one transaction, and the full
   refresh retract deletes every `projector/canonical` entity node whose
   `generation_id` differs from the new one and every File absent from the new
-  path list (`canonical_node_writer.go:149-166`, `canonical_node_cypher.go:15-18`,
-  `:55-57`), dropping other repositories' edges into those nodes. Lease defaults:
-  1 min for the projector service (`cmd/projector/runtime_wiring.go:70`), 5 min
-  for the ingester's in-process projector (`cmd/ingester/wiring.go:293`), and 1
-  min for bootstrap-index (`cmd/bootstrap-index/wiring.go:128`).
+  path list (`canonical_node_writer.go:197-214`,
+  `storage/cypher/canonical/node/templates.go:15-18`, `:55-57`), dropping other repositories' edges into those nodes. Lease defaults:
+  1 min for the projector service (`cmd/projector/runtime_wiring.go:72`), 5 min
+  for the ingester's in-process projector (`cmd/ingester/wiring.go:304`), and 1
+  min for bootstrap-index (`cmd/bootstrap-index/wiring.go:130`).
 - **I1.** Every writer of shared-domain graph edges holds a
   `shared_projection_partition_leases` row from before it reads intents until
   after its last graph write and `MarkIntentsCompleted`. Confirmed for the
-  shared worker (`worker/process.go:137-250`, release `:175`), code_calls, and, by source read,
-  repo_dependency: the lease is claimed at `repo_dependency_projection_runner.go:178`
-  before `selectAcceptanceUnitWork`; the heartbeat renews it through
-  `ClaimPartitionLease` (`repo_dependency_projection_telemetry.go:109`); the
-  retract (`:420`), the write (`:452`), and `MarkIntentsCompleted`
-  (`repo_dependency_projection_acceptance_cycle.go:150`) all run inside
-  `processAcceptanceUnit`, which the gate callback calls (`:280`); the lease is
-  released only after the gate returns, or held for the TTL on quarantine.
+  shared worker (`worker/process.go:150-258`, release `:188`), code_calls
+  (claim `code/call/projection/runner.go:271`, mark `:484`, release `:305`), and,
+  by source read, repo_dependency: the lease is claimed at
+  `repo_dependency_projection_runner.go:183` before `selectAcceptanceUnitWork`;
+  the heartbeat renews it through `ClaimPartitionLease`
+  (`repo_dependency_projection_telemetry.go:112`); the retract
+  (`repo_dependency_projection_runner.go:506`), the write (`:538`), and
+  `MarkIntentsCompleted` (`repo_dependency_projection_acceptance_cycle.go:165`)
+  all run inside `processAcceptanceUnit`, which the gate callback calls
+  (`repo_dependency_projection_runner.go:273`); the lease is released only after
+  the gate returns, or held for the TTL on quarantine. The #7853 drains add
+  `MarkIntentsCompleted` calls but no graph writes, and each runs inside the same
+  lease.
   That is a static read. No live test exercises repo_dependency under the
   barrier.
 - **I2.** From 2q's final fenced pass on, no reducer row of the retired scopes
@@ -351,22 +172,25 @@ at all, so the restriction removes nothing 2b' could have protected.
   Rows are marked `superseded`, never deleted, so `ON CONFLICT (work_item_id) DO
   NOTHING` is inert for every id that has ever existed. Every reopen and replay
   writer on origin/main touches `status='succeeded'` rows only
-  (`reducer_queue_replay.go:49-110`, `admin/store/reopen.go:75-85`, the
+  (`reducer_queue_replay.go:50-111`, `admin/store/reopen.go:75-85`, the
   `ReopenSucceeded` loops in `ingestion_reopen_*.go`,
-  `ingestion_targeted_maintenance_write.go`,
+  `backfill/targeted/write.go`,
   `ingestion_producer_activation.go`) or requires an active generation
-  (`scope/completion/fanout.go:32-54`), so each finds none. The one open path is
+  (`scope/completion/fanout.go:32-54`), so each finds none. The `failed` and
+  `dead_letter` replays (`projector_queue_sql.go:391-427`,
+  `query/admin/store/queries.go:26-32`) find none either: 7d and 2q have
+  marked those statuses `superseded`. The one open path is
   an INSERT with a fresh `work_item_id`
-  (`ReplayWorkloadMaterializationOutcome` at `reducer_queue_replay.go:279`,
-  `ReplayCrossplaneSatisfiedByMaterialization` at `:375`, a projector that
+  (`ReplayWorkloadMaterializationOutcome` at `reducer_queue_replay.go:280`,
+  `ReplayCrossplaneSatisfiedByMaterialization` at `:376`, a projector that
   outlived its lease). It is bounded by 2d: `fact_work_items.generation_id` is
   `NOT NULL REFERENCES scope_generations ON DELETE CASCADE`
   (`migrations/005_fact_work_items.sql:4`), so an insert that names a deleted
   generation fails `23503`. A handler that claimed a cascaded row before 2d
   loses its next heartbeat (a heartbeat on a vanished row affects 0 rows and
-  returns `ErrReducerClaimRejected`, `storage/postgres/reducer_queue.go:385-409`)
+  returns `ErrReducerClaimRejected`, `storage/postgres/reducer_queue.go:391-415`)
   and is cancelled within `LeaseDuration/2` plus one in-flight statement
-  (`reducer/service_heartbeat.go:97-123`, `cmd/reducer/main.go:394`, `main_helpers.go:46`); 2d' waits
+  (`reducer/service_heartbeat.go:98-124`, `cmd/reducer/main.go:426`, `main_helpers.go:49`); 2d' waits
   one reducer lease for that. 2z catches what lands in between. **The guarantee is
   the 2q recheck under `EXCLUSIVE`, not phase 1.** Phase 1's recheck cannot
   carry it, because a pre-phase-1 projector Run or a maintenance reopen can
@@ -376,25 +200,38 @@ at all, so the restriction removes nothing 2b' could have protected.
   (`migrations/011:2-5`), which runs after. Generation retention's cascade also
   deletes acceptance rows of superseded generations. That is harmless: the
   retention transaction deletes the generation's intents first
-  (`generation_retention.go:429-430`), so it creates no orphan.
+  (`generation_retention.go:405-406`), so it creates no orphan.
 - **I4.** An edge written for the retired repository by a pre-barrier cycle is
-  harmless: 2c retracts it, and that cycle's `MarkIntentsCompleted` affects 0
-  rows.
+  harmless: 2c retracts it, and that cycle's `MarkIntentsCompleted` matches 0
+  rows for the intents 2b deleted. Since #7853 the call returns that count and
+  the worker logs that it marked fewer intents than requested. That WARN is
+  expected during 2b and 2b'.
 
 ## Why 2b Goes First
 
 Intents and acceptance rows are written together
-(`shared_intent_acceptance_writer.go:111-121`, one transaction when a beginner
-exists, `:78-93`). An intent without an acceptance row can therefore come only
-from a cascade delete or a torn non-transactional write. All three selectors
-skip such an intent forever (`reducer/intents/shared/worker/selection.go:139-147`,
-`code/call/projection/selection.go:203-206`,
-`repo_dependency_projection_runner.go:348-350`, which errors at its 10,000 cap
-at `:366-370`). The indexed shared path returns an empty batch at the 10,000
-cap with no error (`selection.go:233-238`, `:322-339`), and `MarkIntentsCompleted` ignores
-rows affected (`shared_intents.go:265-276`).
+(`shared_intent_acceptance_writer.go:113-132`, one transaction when a beginner
+exists, `:78-95`). An intent without an acceptance row can therefore come only
+from a cascade delete or a torn non-transactional write. Before #7853 all three
+selectors skipped such an intent forever. At f4f14a4096 each still drops it in
+its acceptance filter (`reducer/intents/shared/worker/selection.go:153-156`,
+`code/call/projection/selection.go:253-260`,
+`repo_dependency_projection_runner.go:404-411`), then marks the subset whose
+`scope_generations` row is absent completed, reason
+`acceptance_absent_generation_gone` (`worker/absent_acceptance.go:91-138`). A
+torn write whose generation row exists is still skipped, counted, and WARNed.
+code_calls and repo_dependency error at the 10,000 cap only when a cap drain
+finds nothing new (`code/call/projection/selection.go:383-415`,
+`repo_dependency_projection_runner.go:439-457`), and the indexed shared path
+drains on its cap round (`worker/selection.go:321-366`). `MarkIntentsCompleted`
+returns rows matched (`shared_intents.go:265-287`).
 
-Measured (P9, real Postgres): an intent whose acceptance row or generation was
+#7853 is a backstop, not part of this design's guarantee. Acceptance rows of
+the scopes go only through 2d's cascade, after 2b, so retirement creates
+neither kind of orphan. Residue that lands after 2b and whose generation 2d
+deletes is drained after 2d with no graph write, and 2z still counts it.
+
+Measured at `3b03f018e`, before #7853 (P9, real Postgres): an intent whose acceptance row or generation was
 deleted before selection stayed unprocessed and uncompleted for five cycles,
 and 10,100 such intents plus one healthy intent made a cycle take 2.1 s and
 process 0.
@@ -431,7 +268,7 @@ RETURNING (SELECT state FROM gate)
   commit, so a marker either committed before the gate reads or phase 1 is still
   waiting. There is no check-then-write window.
 - **The `ON CONFLICT` arm stays byte-identical** to `ingestion_queries.go`
-  (the status CASE, bound at `:199`). A test derives the expected prefix from
+  (the status CASE, bound at `:165`). A test derives the expected prefix from
   that file and compares.
 - **Cost of the shape:** `upsertIngestionScope` moves from `Exec` to `Query`,
   and `LIMIT 1` relies on the partial unique open-repo index.
