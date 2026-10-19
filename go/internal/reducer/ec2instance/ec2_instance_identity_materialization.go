@@ -74,7 +74,7 @@ type EC2InstanceIdentityMaterializationHandler struct {
 	// ReadinessLookup reports whether the EC2 instance node canonical-nodes
 	// phase has committed. A nil lookup keeps the gate open for test wiring.
 	ReadinessLookup gpphase.ReadinessLookup
-	// PriorGenerationCheck reports whether the scope has any prior generation.
+	// PriorGenerationCheck reports whether the scope has a generation strictly older than the given generation.
 	// Nil keeps retract behavior conservative (always retract before write).
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer

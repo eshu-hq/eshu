@@ -102,7 +102,7 @@ type KubernetesCorrelationMaterializationHandler struct {
 	// published for the intent's scope generation. A nil lookup keeps the gate open
 	// (test wiring); production wires the durable Postgres lookup.
 	ReadinessLookup gpphase.ReadinessLookup
-	// PriorGenerationCheck reports whether the scope has any prior generation. Nil
+	// PriorGenerationCheck reports whether the scope has a generation strictly older than the given generation. Nil
 	// keeps retract behavior conservative (always retract before write).
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer

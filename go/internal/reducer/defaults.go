@@ -144,7 +144,7 @@ type DefaultHandlers struct {
 	// GenerationCheck reports whether an intent's generation is still current.
 	// Nil disables the guard and lets all intents execute unconditionally.
 	GenerationCheck GenerationFreshnessCheck
-	// PriorGenerationCheck reports whether a scope has any prior generation.
+	// PriorGenerationCheck reports whether a scope has a generation strictly older than the given generation.
 	// Nil keeps retract behavior conservative for handlers that need cleanup.
 	PriorGenerationCheck PriorGenerationCheck
 	// PriorGeneration resolves the predecessor generation id for the #6887

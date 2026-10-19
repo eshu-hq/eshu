@@ -146,8 +146,8 @@ type CrossplaneSatisfiedByMaterializationHandler struct {
 	EdgeWriter  CrossplaneSatisfiedByEdgeWriter
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
-	// PriorGenerationCheck reports whether the scope has any prior
-	// generation. Nil keeps retract behavior conservative (always retract
+	// PriorGenerationCheck reports whether the scope has a generation strictly
+	// older than the given generation. Nil keeps retract behavior conservative (always retract
 	// before write).
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	// RedriveTargetLedger records intent.ScopeID as confirmed satisfied for

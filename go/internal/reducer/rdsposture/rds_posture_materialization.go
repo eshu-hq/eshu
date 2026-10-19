@@ -71,7 +71,7 @@ type RDSPostureMaterializationHandler struct {
 	// ReadinessLookup reports whether the canonical CloudResource nodes have
 	// committed. A nil lookup keeps the gate open for test wiring.
 	ReadinessLookup gpphase.ReadinessLookup
-	// PriorGenerationCheck reports whether the scope has any prior generation.
+	// PriorGenerationCheck reports whether the scope has a generation strictly older than the given generation.
 	// Nil keeps retract behavior conservative.
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
