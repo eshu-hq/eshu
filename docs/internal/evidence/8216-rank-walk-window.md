@@ -1,11 +1,14 @@
 # #8216: cache the hybrid rank_cursor window score across pages
 
 Child of #8017. Branch `drive/8216-rank-walk-window`, base `origin/main` at
-`d76b2aeea` (reattached from `abb5cae71`; prerequisite commit `823ccd540`,
-which qualifies two `Result{}` leftovers from the #6626 alias retirement
-and changes no behavior, was skipped in the rebase as redundant — both of
-its hunks are byte-identical to `d76b2aeea`-era main, which absorbed the
-same qualification upstream, and it never touched the scoring path).
+`2e2ac4404` (previously `d76b2aeea`; reattached from `abb5cae71`;
+prerequisite commit `823ccd540`, which qualifies two `Result{}` leftovers
+from the #6626 alias retirement and changes no behavior, was skipped in the
+rebase as redundant — both of its hunks are byte-identical to
+`d76b2aeea`-era main, which absorbed the same qualification upstream, and
+it never touched the scoring path. Zero scoring-package drift verified from
+`d76b2aeea` to `2e2ac4404`: `git diff d76b2aeea..2e2ac4404` over
+`go/internal/query/codemodel`, `codequery`, and `contentread` is empty).
 
 ## Problem
 
@@ -48,8 +51,8 @@ variance can never mix. Both lanes share it: find_code through
 ## Performance Evidence: one scoring pass per walk instead of one per page
 
 `BenchmarkFindCodeRankWalkPage` before (count=3, `d76b2aeea`-era content:
-measured at prereq `823ccd540`; the only scoring-package drift to the
-rebased base is one unrelated new test file, no benchmark bytes) and
+measured at prereq `823ccd540`; zero scoring-package drift verified from
+`d76b2aeea` to the rebased base `2e2ac4404`, so the before figures stand) and
 after (count=5, branch head with the window-score cache),
 linux/arm64, go1.26.9, shared host (wall
 times non-gating; byte and alloc figures are the load-independent change).
