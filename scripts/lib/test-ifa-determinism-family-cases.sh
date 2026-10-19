@@ -491,7 +491,7 @@ codeowners_assert_count="$(rg --count --fixed-strings -- 'ifa_codeowners_assert 
 [[ "${codeowners_assert_count}" -eq 1 ]] \
 	|| fail "expected exactly 1 occurrence of ifa_codeowners_assert (the post-delta re-assertion) outside the registry loop; found ${codeowners_assert_count} -- an extra occurrence would double-assert this family in every N-loop cell"
 
-# The twelve DIRECT families post-delta ordering cases live in a sourced
+# The thirteen DIRECT families post-delta ordering cases live in a sourced
 # sibling so this module stays below the 500-line cap (the same split the
 # maintenance-backed families took once this file crossed the cap).
 # run_ifa_determinism_post_delta_cases takes the gate script path plus the
