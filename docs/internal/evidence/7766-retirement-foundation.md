@@ -1,4 +1,4 @@
-# Evidence: #7766 fenced tombstone-retirement foundation (#8603 lane)
+# Evidence: #7766 fenced tombstone-retirement foundation (foundation lane)
 
 ## What changed
 
@@ -26,7 +26,7 @@ change ships in this lane.
 
 ## Why observability is unchanged except one registered counter
 
-No-Observability-Change except the registered
+No-Observability-Change: except the registered
 `eshu_dp_repository_retirements_purged_total` instrument, which no
 production path emits yet (registration asserted in instruments_test).
 No new span, log key (beyond the designed purge WARN on blocked exits,
