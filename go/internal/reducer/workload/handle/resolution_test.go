@@ -164,3 +164,22 @@ func TestResolveBatchDedupesSelectors(t *testing.T) {
 		t.Fatalf("batch miss outcome = %q, want miss", got["workload:absent"].Outcome)
 	}
 }
+
+// Two items differing only by surrounding whitespace resolve identically,
+// so they must share one map key: otherwise ResolveAll counts the outcome
+// twice on eshu_dp_workload_handle_resolution_total and can log the
+// ambiguous WARN twice for one handle (#8523 owner review).
+func TestItemKeyTrimsWhitespaceOnlyDifferences(t *testing.T) {
+	t.Parallel()
+
+	a := Item{Selector: "workload:checkout"}
+	b := Item{Selector: "  workload:checkout  "}
+	if a.Key() != b.Key() {
+		t.Fatalf("Key() = %q vs %q: whitespace-only selectors must share one key", a.Key(), b.Key())
+	}
+	c := Item{Selector: "workload:checkout", RepoID: "  repository:r_alpha "}
+	d := Item{Selector: "workload:checkout", RepoID: "repository:r_alpha"}
+	if c.Key() != d.Key() {
+		t.Fatalf("Key() = %q vs %q: repo ids must compare trimmed", c.Key(), d.Key())
+	}
+}

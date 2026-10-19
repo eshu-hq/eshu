@@ -217,10 +217,15 @@ type Item struct {
 // repositories for one handle resolve independently instead of sharing the
 // first row's restriction.
 func (i Item) Key() string {
+	// Both segments compare trimmed, mirroring Resolve and HandleNames:
+	// two rows differing only by surrounding whitespace resolve
+	// identically and must share one filing key, or ResolveAll counts the
+	// outcome twice (#8523 owner review).
+	selector := strings.TrimSpace(i.Selector)
 	if strings.TrimSpace(i.RepoID) == "" {
-		return i.Selector
+		return selector
 	}
-	return i.Selector + "\x00" + strings.TrimSpace(i.RepoID)
+	return selector + "\x00" + strings.TrimSpace(i.RepoID)
 }
 
 // Resolver composes the batched ladder over the graph: one candidate read

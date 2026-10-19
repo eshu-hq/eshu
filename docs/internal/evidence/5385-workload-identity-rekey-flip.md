@@ -156,12 +156,13 @@ cannot prove the deployed shape.
 
 ## No-Observability-Change:
 
-This wave adds no metric, span, log, or status signal. Runtime behavior
+This wave adds the missing metric the ladder wave left open:
+`eshu_dp_workload_identity_rejected_total{reason}` from migration doc
+section 8 now exists, so constructor fail-closed drops (blank or
+colon-bearing segments) are counted by bounded reason (`blank_segment`,
+`colon_in_name`, `colon_in_environment`) instead of nowhere. Runtime behavior
 stays covered by the ladder wave's signals
 (`eshu_dp_workload_identity_collision_total{mode}`,
 `eshu_dp_workload_handle_resolution_total{surface,outcome}`), which are the
 tripwires for a leaked name-only key (any post-flip `cross_scope_merge`
-collision) and for handle-resolution pressure. Known gap, not introduced
-here: `eshu_dp_workload_identity_rejected_total{reason}` from migration doc
-section 8 does not exist yet, so constructor fail-closed drops (blank or
-colon-bearing segments) are counted nowhere; filed as follow-up on #5385.
+collision) and for handle-resolution pressure.
