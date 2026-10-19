@@ -68,9 +68,9 @@ importing a query package. This package keeps:
   (the #7951 follow-up). Its hydration set comes from
   `contentartifacts.SelectHydrationIndexes` at the whole-window allowance, so
   the selection and order match the config-artifact load's; one
-  `GetFileContents` statement per ten paths replaced the old one-file reads
-  capped at `RepositoryArtifactHydrationLimit` (the 50-candidate floor, kept
-  exported for #6060). The loader fallback lists read
+  `GetFileContents` statement per fifty paths (#7009) replaced the old
+  one-file reads capped at `RepositoryArtifactHydrationLimit` (the
+  50-candidate floor, kept exported for #6060). The loader fallback lists read
   `RepositorySemanticEntityLimit+1` rows, clip to the window, and report the
   clip: `listAnchorCandidateFiles` returns a truncated flag alongside the
   clipped list (#8157), and each anchor-only loader propagates it, so a
@@ -159,9 +159,9 @@ median over 3 runs of ~687 iters, 500 of 500 rows hydrated. Baseline is the
 pre-follow-up pass: at most 50 one-file `GetFileContent` statements covering
 only the first 50 candidates, so any window with more than 50 candidates
 returned an incomplete body. After the change the statement count is
-ceil(candidates/10) and the body is the whole window: 60 candidates cost 6
-statements for 60 rows instead of 50 statements for 50 rows. The 5,000-file
-window bounds the worst case at 500 statements; anchor candidates (compose,
+ceil(candidates/50) (#7009) and the body is the whole window: 60 candidates
+cost 2 statements for 60 rows instead of 50 statements for 50 rows. The
+5,000-file window bounds the worst case at 100 statements; anchor candidates (compose,
 workflow, controller files) are rare per repository, so the usual cost is 0-2
 statements. The in-flight bound stays 8, the bound the per-file reader used,
 and row semantics are unchanged (rows by `RelativePath`, missing row keeps
@@ -181,8 +181,8 @@ No-Regression Evidence (#8157): the flag adds one bool to existing returns
 and changes no statement shape. The fallback still reads
 `anchorCandidateListLimit+1` rows in one `ListRepoFiles` call, pinned by
 `TestAnchorLoaderListsReadWholeWindowWithSentinel` on all three loaders, and
-hydration still costs ceil(candidates/10) `GetFileContents` statements with 8
-in flight, pinned at 6 statements for 60 candidates by
+hydration still costs ceil(candidates/50) `GetFileContents` statements with 8
+in flight, pinned at 2 statements for 60 candidates by
 `TestAnchorHydrationReadsWholeCandidateWindow`. Baseline is the pre-#8157
 tree with the same limits and chunking. After the change:
 `go test ./internal/query/repositoryartifacts/ -count=1` is ok,

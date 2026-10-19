@@ -120,10 +120,11 @@ jobs:
     name: methodology scale (neo4j)
     runs-on: ubuntu-latest
     # Run 38032713508 reached its serial report after 30m8s from first job
-    # setup log, then the 30m job limit canceled the concurrent stage. Three
-    # operations x ceil(20 requests / 4 workers) x 30s allow 7m30s more;
-    # 45m leaves about 7m for normal scheduling and teardown variation.
-    timeout-minutes: 45
+    # setup log, then the 30m job limit canceled the concurrent stage. Six
+    # operations (#7009 pilots included) x ceil(20 requests / 4 workers) x
+    # 30s allow 15m more; 60m leaves about 7m for normal scheduling and
+    # teardown variation.
+    timeout-minutes: 60
     env:
       GATE_COMPOSE_PROJECT: eshu-methodology-scale-ci
       ESHU_GRAPH_BACKEND: neo4j

@@ -361,6 +361,25 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("verify seeded content_entities: %w", err)
 	}
 
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding story plus search content_files and gate content_entities (#7009 pilots)\n")
+	if err := SeedContentFiles(ctx, pool, time.Now().UTC()); err != nil {
+		return fmt.Errorf("seed story and search content: %w", err)
+	}
+	if err := VerifyContentFileCounts(ctx, pool, ExpectedContentFileCounts()); err != nil {
+		return fmt.Errorf("verify seeded content: %w", err)
+	}
+	if err := VerifyContentSearchReadiness(ctx, pool); err != nil {
+		return fmt.Errorf("verify content search readiness: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d story repository nodes and edges\n", SeedStoryRepositoryCount)
+	if err := SeedRepositoryGraph(ctx, graphOpts); err != nil {
+		return fmt.Errorf("seed story repository graph: %w", err)
+	}
+	if err := VerifyRepositoryGraphCounts(ctx, graphOpts); err != nil {
+		return fmt.Errorf("verify story repository graph: %w", err)
+	}
+
 	fmt.Fprintln(os.Stderr, "read-api-latency-gate: ANALYZE seeded Postgres tables")
 	if err := analyzeSeededTables(ctx, pool); err != nil {
 		return fmt.Errorf("analyze seeded tables: %w", err)
@@ -380,14 +399,14 @@ func analyzeSeededTables(ctx context.Context, pool *pgxpool.Pool) error {
 }
 
 // analyzedSeededTables lists the tables analyzeSeededTables refreshes: every
-// table in the exact-count read-back plus content_entities, which is seeded
-// and verified through its own count path. A test pins the list to the
-// read-back set so a newly seeded table cannot be left unanalyzed once it is in
-// the read-back set.
+// table in the exact-count read-back plus content_entities and content_files,
+// which are seeded and verified through their own count paths (#7009 pilots).
+// A test pins the list to the read-back set so a newly seeded table cannot
+// be left unanalyzed once it is in the read-back set.
 func analyzedSeededTables() []string {
 	return []string{
 		"ingestion_scopes", "scope_generations", "fact_work_items", "fact_records",
-		"shared_projection_intents", "content_entities",
+		"shared_projection_intents", "content_entities", "content_files",
 	}
 }
 

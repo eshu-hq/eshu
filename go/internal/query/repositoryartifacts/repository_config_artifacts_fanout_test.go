@@ -228,7 +228,11 @@ func TestConfigArtifactFanOutMatchesSequentialDigests(t *testing.T) {
 	if got, want := digest(wholeBody), "7d1e411a25f42942de7d516061777e3547e8962b3768d9ff41921a0b7d38fb4f"; got != want {
 		t.Fatalf("whole=%s rows=%s counts=%s", got, digest(rowsBody), digest(countsBody))
 	}
-	if got, want := digest(countsBody), "5cb897f6189fd330cd059239d902e29ee7a6b215df69139c0762109316f5bfe6"; got != want {
+	// counts digest re-pinned by #7009 (chunk width ten to fifty): a
+	// before/after dump of the oracleCounts body differs only in
+	// BatchStatements (28 to 6) and BatchChunkSize (10 to 50); the rows
+	// and whole digests above are unchanged, so no row moved.
+	if got, want := digest(countsBody), "75f1a21a8b0a4f407f6bd0d57749ed85d7718797a0aedd1cb3cc6b7715ace1ec"; got != want {
 		t.Fatalf("counts=%s rows=%s whole=%s", got, digest(rowsBody), digest(wholeBody))
 	}
 }

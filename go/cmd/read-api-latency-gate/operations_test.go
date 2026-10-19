@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -49,11 +50,20 @@ func TestPilotOperationsAreImplementedInventoryRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(operations) != 3 {
-		t.Fatalf("pilot operations = %d, want 3", len(operations))
+	if len(operations) != 6 {
+		t.Fatalf("pilot operations = %d, want 6", len(operations))
 	}
 	if got := operations["GET /api/v0/status/ingesters/{ingester}"].Path; got != "/api/v0/status/ingesters/repository" {
 		t.Fatalf("parameterized path = %q", got)
+	}
+	if got := operations["GET /api/v0/repositories/{repo_id}/story"].Path; got != "/api/v0/repositories/"+SeedStoryAnchorID+"/story" {
+		t.Fatalf("story path = %q, want the seeded anchor", got)
+	}
+	for _, id := range []string{"MCP search_file_content", "MCP search_entity_content"} {
+		op, ok := operations[id]
+		if !ok || !op.MCP || op.Path != "/mcp/message" || op.Expect == "" {
+			t.Fatalf("pilot %s = %+v, want an MCP operation with an Expect contract", id, op)
+		}
 	}
 }
 
@@ -111,7 +121,7 @@ func TestConcurrentPilotSweepOverlapsRequestsWithoutMeter(t *testing.T) {
 func TestSweepOperationsUsesRealMCPTransport(t *testing.T) {
 	queryMux := http.NewServeMux()
 	queryMux.HandleFunc("GET /api/v0/index-status", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(w, `{"version":"test","status":"ready","repository_count":0,"queue":{}}`)
+		_, _ = fmt.Fprintf(w, `{"version":"test","status":"ready","repository_count":%d,"queue":{}}`, SeedStoryRepositoryCount)
 	})
 	server := httptest.NewServer(mcp.NewServer(queryMux, slog.Default()).Handler(http.NewServeMux()))
 	defer server.Close()

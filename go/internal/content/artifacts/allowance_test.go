@@ -161,7 +161,7 @@ func TestLoadConfigPathsAllowanceBoundsTheSelection(t *testing.T) {
 				t.Fatalf("rows = %d, want one per selected Terraform file (%d)", len(rows), tc.want)
 			}
 			if wantChunks := (tc.want + ReadChunkSize - 1) / ReadChunkSize; stats.BatchStatements != wantChunks {
-				t.Fatalf("BatchStatements = %d, want ceil(%d/10) = %d", stats.BatchStatements, tc.want, wantChunks)
+				t.Fatalf("BatchStatements = %d, want ceil(%d/%d) = %d", stats.BatchStatements, tc.want, ReadChunkSize, wantChunks)
 			}
 		})
 	}

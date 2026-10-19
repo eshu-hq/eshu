@@ -28,18 +28,20 @@ func tfFiles(n int) []File {
 	return files
 }
 
-// TestBatchedHydrationIssuesOneStatementPerChunkOfTen is the statement-shape
-// contract of #7126 PR 2: the consumed files of one repository are read with
-// one ReadFiles statement per chunk of ten, and GetFileContent is not
-// used. runConfigLoad runs at the floor allowance of 50, which bounds a
-// repository at five chunks.
-func TestBatchedHydrationIssuesOneStatementPerChunkOfTen(t *testing.T) {
+// TestBatchedHydrationIssuesOneStatementPerChunkOfFifty is the statement-shape
+// contract of the hydrate pass: the consumed files of one repository are read
+// with one ReadFiles statement per chunk of fifty paths (#7009: fifty cuts
+// the round trips of ten fivefold while a 21 MB single-statement read stays
+// under 60 ms; see ReadChunkSize), and GetFileContent is not used.
+// runConfigLoad runs at the floor allowance of 50, which bounds
+// a repository at one chunk.
+func TestBatchedHydrationIssuesOneStatementPerChunkOfFifty(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		files, wantChunks int
 	}{
-		{0, 0}, {1, 1}, {9, 1}, {10, 1}, {11, 2}, {20, 2}, {21, 3}, {49, 5}, {50, 5}, {51, 5}, {120, 5},
+		{0, 0}, {1, 1}, {49, 1}, {50, 1}, {51, 1}, {100, 1}, {120, 1},
 	} {
 		tc := tc
 		t.Run(fmt.Sprintf("%d files", tc.files), func(t *testing.T) {
@@ -52,15 +54,15 @@ func TestBatchedHydrationIssuesOneStatementPerChunkOfTen(t *testing.T) {
 			// runConfigLoad walks two sources over the same store: the anchor
 			// with a file list and one related repository that lists it.
 			if want := 2 * tc.wantChunks; len(store.batchCalls) != want {
-				t.Fatalf("ReadFiles statements = %d, want %d (5 chunks per repository at most)", len(store.batchCalls), want)
+				t.Fatalf("ReadFiles statements = %d, want %d (1 chunk per repository at most)", len(store.batchCalls), want)
 			}
 			if store.singleCalls != 0 {
 				t.Fatalf("GetFileContent statements = %d, want none: the batch replaces the per-file read", store.singleCalls)
 			}
 			read := 0
 			for _, call := range store.batchCalls {
-				if len(call) > 10 {
-					t.Fatalf("chunk of %d paths, want at most 10", len(call))
+				if len(call) > 50 {
+					t.Fatalf("chunk of %d paths, want at most 50", len(call))
 				}
 				read += len(call)
 			}
@@ -74,8 +76,8 @@ func TestBatchedHydrationIssuesOneStatementPerChunkOfTen(t *testing.T) {
 			if got.stats.BatchStatements != 2*tc.wantChunks {
 				t.Fatalf("stats.BatchStatements = %d, want %d", got.stats.BatchStatements, 2*tc.wantChunks)
 			}
-			if tc.wantChunks > 0 && got.stats.BatchChunkSize != 10 {
-				t.Fatalf("stats.BatchChunkSize = %d, want 10", got.stats.BatchChunkSize)
+			if tc.wantChunks > 0 && got.stats.BatchChunkSize != 50 {
+				t.Fatalf("stats.BatchChunkSize = %d, want 50", got.stats.BatchChunkSize)
 			}
 		})
 	}
@@ -100,8 +102,8 @@ func TestBatchedHydrationPhaseTwoReadsAreChunked(t *testing.T) {
 	if got.err != nil {
 		t.Fatalf("load error = %v", got.err)
 	}
-	// Per repository: one chunk for the kustomization, three for 23 resources.
-	if want := 2 * 4; len(store.batchCalls) != want {
+	// Per repository: one chunk for the kustomization, one for 23 resources.
+	if want := 2 * 2; len(store.batchCalls) != want {
 		t.Fatalf("ReadFiles statements = %d, want %d: %v", len(store.batchCalls), want, store.batchCalls)
 	}
 	if store.singleCalls != 0 {
@@ -198,13 +200,13 @@ func gatedFixture(n int) ([]File, []int) {
 }
 
 // TestChunkedReadKeepsAtMostEightChunksInFlight proves the fan-out bound on a
-// call the cap would never produce (200 paths, 20 chunks): the pass reaches
-// eight reads at once and never nine.
+// call with more chunks than the bound (400 paths, 8 fifty-path chunks): the
+// pass reaches eight reads at once and never nine.
 func TestChunkedReadKeepsAtMostEightChunksInFlight(t *testing.T) {
 	t.Parallel()
 
 	store := newGatedBatchStore()
-	files, indexes := gatedFixture(200)
+	files, indexes := gatedFixture(400)
 	var stats ReadStats
 	done := make(chan error, 1)
 	go func() {
@@ -224,8 +226,8 @@ func TestChunkedReadKeepsAtMostEightChunksInFlight(t *testing.T) {
 	if store.peak != 8 {
 		t.Fatalf("peak concurrent reads = %d, want 8", store.peak)
 	}
-	if store.calls != 20 || stats.BatchStatements != 20 {
-		t.Fatalf("statements = %d (stats %d), want 20 chunks", store.calls, stats.BatchStatements)
+	if store.calls != 8 || stats.BatchStatements != 8 {
+		t.Fatalf("statements = %d (stats %d), want 8 chunks", store.calls, stats.BatchStatements)
 	}
 	if stats.BatchChunksInFlightMax != 8 {
 		t.Fatalf("stats.BatchChunksInFlightMax = %d, want 8", stats.BatchChunksInFlightMax)
@@ -247,11 +249,13 @@ func TestChunkedReadReturnsTheLowestFailingChunkDeterministically(t *testing.T) 
 	errHigh := errors.New("chunk 3 failed")
 	for run := 0; run < 25; run++ {
 		store := newGatedBatchStore()
-		store.failAt["p010.tf"] = errLow
-		store.delay["p010.tf"] = 20 * time.Millisecond
-		store.failAt["p030.tf"] = errHigh
+		// Fifty-path chunks put p050.tf first in chunk 1 and p150.tf
+		// first in chunk 3; the higher chunk still fails first.
+		store.failAt["p050.tf"] = errLow
+		store.delay["p050.tf"] = 20 * time.Millisecond
+		store.failAt["p150.tf"] = errHigh
 		close(store.release)
-		files, indexes := gatedFixture(50)
+		files, indexes := gatedFixture(200)
 		before := append([]File(nil), files...)
 		var stats ReadStats
 		err := productionChunkedRead.fetch(context.Background(), store, "repo", files, indexes, &stats)
@@ -331,7 +335,9 @@ func TestChunkedReadHonorsContextCancellation(t *testing.T) {
 		store := newGatedBatchStore()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		files, indexes := gatedFixture(200)
+		// Eight fifty-path chunks: all eight reads start, then the cancel
+		// lands while every one is blocked.
+		files, indexes := gatedFixture(400)
 		var stats ReadStats
 		done := make(chan error, 1)
 		go func() {
@@ -456,14 +462,14 @@ func TestChunkedReadCancelledBetweenChunksIsNotSuccess(t *testing.T) {
 
 // readShapeViolation reports why a load did not read through ReadFiles
 // chunks, or "" when it did: no GetFileContent statement, and every chunk of
-// at most ten paths.
+// at most fifty paths (#7009).
 func readShapeViolation(store *hydrationStore) string {
 	if store.singleCalls != 0 {
 		return fmt.Sprintf("%d GetFileContent statements; the config-artifact read must use ReadFiles chunks", store.singleCalls)
 	}
 	for _, call := range store.batchCalls {
-		if len(call) > 10 {
-			return fmt.Sprintf("a ReadFiles chunk of %d paths, want at most 10", len(call))
+		if len(call) > 50 {
+			return fmt.Sprintf("a ReadFiles chunk of %d paths, want at most 50", len(call))
 		}
 	}
 	if len(store.batchCalls) == 0 {
