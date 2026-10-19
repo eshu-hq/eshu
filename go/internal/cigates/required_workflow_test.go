@@ -310,6 +310,29 @@ func TestCheckRequiredStatusWorkflows_RequiresCompletedOnlyAggregation(t *testin
 	}
 }
 
+// A disjunction in a post-pending step condition must not smuggle an
+// in_progress run past the completed-only literal it also contains (#8617 F1).
+func TestCheckRequiredStatusWorkflows_RejectsDisjunctiveCompletedCondition(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Replace(
+		trustedRequiredWorkflow,
+		`if: ${{ github.event.action == 'completed' }}`,
+		`if: ${{ github.event.action == 'completed' || always() }}`,
+		1,
+	)
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, body), requiredWorkflowRegistry())
+	found := false
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "disjunction") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected disjunction error, got: %v", errs)
+	}
+}
+
 func TestCheckRequiredStatusWorkflows_RequiresSerializedPerHeadPublisher(t *testing.T) {
 	t.Parallel()
 

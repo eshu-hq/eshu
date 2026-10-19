@@ -82,6 +82,17 @@ func validateCompletedOnlyAggregation(check RequiredStatusCheck, job requiredWor
 	var errs []error
 	for _, step := range job.Steps[pending+1:] {
 		condition := strings.ReplaceAll(step.If, " ", "")
+		// A disjunction would re-admit in_progress through its other arm
+		// while still containing the required literal, so reject it outright.
+		if strings.Contains(condition, "||") {
+			errs = append(errs, fmt.Errorf(
+				"required status context %q: step %q uses a disjunction (||) after the pending write, which can "+
+					"re-admit an in_progress event past the completed-only condition; use a plain conjunction",
+				check.Context,
+				step.Name,
+			))
+			continue
+		}
 		if !strings.Contains(condition, "github.event.action=='completed'") {
 			errs = append(errs, fmt.Errorf(
 				"required status context %q: step %q runs after the pending write without a completed-only "+
