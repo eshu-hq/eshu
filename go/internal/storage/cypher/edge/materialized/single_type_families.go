@@ -377,6 +377,7 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// endpoint nodes alone (both are MATCHed, never merged), so the
 	// identity scan yields nothing.
 	"uses_vault_policy": {
+		// #nosec G101 -- registry entry: the key is a graph relationship type and the description names a Cypher-template identifier, not a credential
 		EdgeTypes:      map[string]string{"SECRETS_IAM_USES_VAULT_POLICY": "Vault-role to Vault-policy use (SecretsIAMUsesVaultPolicyEdgeUpsertCypher in cloud/aws/iam/secrets_graph_writer.go)"},
 		RetractKind:    retractKindEvidenceNodeDetach,
 		RetractCypher:  iam.SecretsIAMVaultPolicyNodeRetractCypher,
