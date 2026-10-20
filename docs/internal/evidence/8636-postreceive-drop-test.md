@@ -4,8 +4,8 @@ No-Regression Evidence: deterministic Site-B test
 `TestServiceBatchPostReceiveDropRecordsOnce` plus its ordering seam
 (`batchWorkerTestHooks.afterWorkReceive`, called once per worker handoff
 receive behind a single nil check) in `go/internal/reducer`
-(`service_batch.go` worker loop, `service.go` Service struct,
-`service_batch_hooks.go`, `service_batch_postreceive_test.go`).
+(`service_batch.go` worker loop and hooks type, `service.go` Service struct,
+`service_batch_postreceive_test.go`).
 
 - Baseline: with the Site-B record hunk removed the new test FAILS (the
   received item goes unrecorded — the exact false-green class from #8625
