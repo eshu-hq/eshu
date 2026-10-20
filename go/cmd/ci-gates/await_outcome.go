@@ -78,6 +78,18 @@ const (
 	// would send an operator hunting a broken aggregator at 3 AM when the
 	// actual repair is `gh run rerun` on the cancelled workflow.
 	awaitExitGateCancelled = 13
+	// awaitExitReused means a previous head of the same pull request
+	// already proved this exact tree green on every required context
+	// (#8617 step 4b). It publishes success, but with a description that
+	// names the reuse instead of claiming the gates just ran: the verdict
+	// is transferred, and the source SHA is in the run log the status
+	// target_url points at.
+	awaitExitReused = 14
+	// awaitExitSmokePassed means the fast subset passed on a clean
+	// rebase whose base delta is disjoint from the PR diff, with heavy
+	// verdicts transferred from the fully green replaced head (#8617
+	// step 5). Success, but the description must name the smoke shape.
+	awaitExitSmokePassed = 15
 )
 
 // awaitOutcome is what the await loop concluded, as opposed to how it exited.
@@ -89,6 +101,8 @@ const (
 	awaitOutcomeStillRunning
 	awaitOutcomeBroken
 	awaitOutcomeGateCancelled
+	awaitOutcomeReused
+	awaitOutcomeSmokePassed
 )
 
 func (o awaitOutcome) String() string {
@@ -103,6 +117,10 @@ func (o awaitOutcome) String() string {
 		return "broken"
 	case awaitOutcomeGateCancelled:
 		return "gate_cancelled"
+	case awaitOutcomeReused:
+		return "reused"
+	case awaitOutcomeSmokePassed:
+		return "smoke_passed"
 	}
 	return "unknown"
 }
@@ -120,6 +138,10 @@ func (o awaitOutcome) exitCode() int {
 		return awaitExitBroken
 	case awaitOutcomeGateCancelled:
 		return awaitExitGateCancelled
+	case awaitOutcomeReused:
+		return awaitExitReused
+	case awaitOutcomeSmokePassed:
+		return awaitExitSmokePassed
 	}
 	return awaitExitBroken
 }
@@ -137,9 +159,16 @@ var (
 	// other two -- a text match would reclassify silently the first time
 	// someone reworded the message.
 	errGateCancelled = errors.New("selected blocking gate cancelled")
+	// errReuseProven wraps the tree-identical reuse verdict (#8617 step
+	// 4b): it is a success the publisher must still be able to tell apart
+	// from a fresh pass, so it travels as an outcome, not as nil.
+	errReuseProven = errors.New("tree-identical verdict reused from a previous head")
+	// errSmokeProven marks a smoke-tier pass (#8617 step 5): the fast
+	// subset actually ran and passed; heavy verdicts transferred.
+	errSmokeProven = errors.New("smoke subset passed on a clean rebase")
 )
 
-// classifyAwaitOutcome decides which of the four non-success meanings an
+// classifyAwaitOutcome decides which of the six non-success meanings an
 // await error carries. Anything unrecognized is `broken`, not `gate_failed`:
 // an unclassified error means the publisher does not know what happened, and
 // reporting "a gate failed" on that basis is the overclaim this fixes.
@@ -154,6 +183,10 @@ func classifyAwaitOutcome(err error) awaitOutcome {
 		return awaitOutcomeStillRunning
 	case errors.Is(err, errGateCancelled):
 		return awaitOutcomeGateCancelled
+	case errors.Is(err, errReuseProven):
+		return awaitOutcomeReused
+	case errors.Is(err, errSmokeProven):
+		return awaitOutcomeSmokePassed
 	default:
 		return awaitOutcomeBroken
 	}

@@ -121,6 +121,30 @@ func TestProbeReuse_FailedOldContextDoesNotReuse(t *testing.T) {
 	}
 }
 
+// A plain push on top of a proven head is the landing shape: no
+// force-push event names this head, the first parent carries a different
+// tree, and the probe must refuse so the landing head runs every gate in
+// full. Refusal here is what lets a consumer change (a new await exit
+// code, a new publisher arm) reach the default branch, where later heads
+// can transfer verdicts against it.
+func TestProbeReuse_PlainPushDifferentTreeDoesNotReuse(t *testing.T) {
+	t.Parallel()
+
+	runner := &mappedGHRunner{routes: append([]mappedGHRoute{
+		{match: "graphql", output: `{"data":{"repository":{"pullRequest":{"timelineItems":{"nodes":[]}}}}}`},
+		{match: "git/commits/" + reuseHeadSHA, output: commitJSON(reuseTreeSHA, reuseParentSHA)},
+		{match: "git/commits/" + reuseParentSHA, output: commitJSON(reuseOtherTree, "")},
+	}, successRoutes(reuseParentSHA)...)}
+	got, err := probeReuse(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
+		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
+	if err != nil {
+		t.Fatalf("probeReuse returned error: %v", err)
+	}
+	if got.Reuse {
+		t.Fatalf("verdict = %#v; want no reuse on a plain push with a different tree", got)
+	}
+}
+
 func TestProbeReuse_EmptyCommitParentReuses(t *testing.T) {
 	t.Parallel()
 

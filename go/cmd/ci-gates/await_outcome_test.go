@@ -78,6 +78,41 @@ func TestAwaitOutcomeForAggregationBreakage(t *testing.T) {
 
 // TestAwaitOutcomeForSuccess pins the happy path and its exit code, so a
 // refactor cannot make success indistinguishable from "still running".
+// A tree-identical reuse verdict is its own outcome (#8617 step 4b): the
+// publisher needs to say "copied from a previous head", not claim the
+// gates just ran, and it must never collapse into passed (0) where the
+// distinction would vanish from the status description.
+func TestAwaitOutcomeForReuse(t *testing.T) {
+	t.Parallel()
+
+	// Production wraps the sentinel (await.go annotates source and tree),
+	// so pin the wrapped shape: a bare-%v wrap that dropped the chain
+	// would misclassify reuse as broken here instead of staying green in
+	// a test that only feeds the bare sentinel.
+	wrapped := fmt.Errorf("%w: source abc123 tree def456", errReuseProven)
+	got := classifyAwaitOutcome(wrapped)
+	if got != awaitOutcomeReused {
+		t.Fatalf("classifyAwaitOutcome(wrapped reuse) = %v, want %v", got, awaitOutcomeReused)
+	}
+	if got.exitCode() != 14 {
+		t.Fatalf("reused exit code = %d, want 14", got.exitCode())
+	}
+}
+
+// A smoke pass is a distinct outcome (#8617 step 5): the fast subset ran
+// and passed, heavy verdicts transferred, and the publisher must say so.
+func TestAwaitOutcomeForSmoke(t *testing.T) {
+	t.Parallel()
+
+	got := classifyAwaitOutcome(errSmokeProven)
+	if got != awaitOutcomeSmokePassed {
+		t.Fatalf("classifyAwaitOutcome(errSmokeProven) = %v, want %v", got, awaitOutcomeSmokePassed)
+	}
+	if got.exitCode() != 15 {
+		t.Fatalf("smoke exit code = %d, want 15", got.exitCode())
+	}
+}
+
 func TestAwaitOutcomeForSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -103,6 +138,8 @@ func TestAwaitOutcomeExitCodesAreDistinct(t *testing.T) {
 		awaitOutcomeStillRunning,
 		awaitOutcomeBroken,
 		awaitOutcomeGateCancelled,
+		awaitOutcomeReused,
+		awaitOutcomeSmokePassed,
 	} {
 		if prev, dup := seen[o.exitCode()]; dup {
 			t.Fatalf("outcomes %v and %v share exit code %d", prev, o, o.exitCode())

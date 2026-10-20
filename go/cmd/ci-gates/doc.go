@@ -43,7 +43,14 @@
 // (#6189) -- CANCELLED, STALE, SKIPPED because the workflow run that owned the
 // job was cancelled, or MISSING because that run was cancelled before the job
 // was created at all. That is infrastructure state, not a gate result, so
-// it publishes `error`. A gate GitHub skipped for its own reasons is NOT in
+// it publishes `error`. 14 is the #8617 tree-identical reuse outcome: the
+// verdict was transferred from a previous head, so it publishes `success`
+// with a description that names the transfer instead of claiming a fresh
+// run. 15 is the #8617 smoke-tier outcome: the fast subset passed on a
+// clean rebase while heavy verdicts transferred from the fully green
+// replaced head, so it publishes `success` with a description that names
+// the smoke shape instead of claiming every gate ran. A gate GitHub skipped
+// for its own reasons is NOT in
 // that set and still publishes `failure`; separating the two is the one thing
 // await needs the `actions: read` scope for, and a failed lookup keeps the
 // skip a failure. With --event merge_group, Await instead aggregates a
@@ -149,4 +156,18 @@
 // anything else fails closed. It prints reuse/source_sha/tree/reason lines
 // for workflow outputs and is bounded to two minutes: probe failure means
 // "run the gates", never a verdict.
+//
+// A transfer verdict needs a consumer that understands it. The
+// required-gates publisher runs from the trusted default-branch checkout
+// -- workflow_run always executes that version, which builds the await
+// binary from the same checkout -- never from the pull request, so a pull
+// request that introduces a new transfer outcome cannot rely on one to go
+// green. When the skipped lanes are path-selected for the head, the
+// default-branch consumer reads those skips as failures and
+// required-gates-complete stays red by design, not by defect (fail-closed:
+// a workflow-chosen skip of a selected gate publishes failure). The safety
+// conclusion holds for a different reason: the landing head always runs
+// every gate in full -- any tree change past the last proven-green head
+// refuses the probe -- and a transfer is safe because its source ran every
+// gate in full on the identical tree.
 package main

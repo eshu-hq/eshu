@@ -35,6 +35,8 @@ const fixtureCaseBlock = `          case "${AGGREGATE_CODE}" in
             10) state=failure; description='A required gate failed' ;;
             11) exit 0 ;;
             13) state=error; description='A required gate was cancelled' ;;
+            14) state=success; description='Reuse: verdict copied from a previous head' ;;
+            15) state=success; description='Smoke subset passed on a clean rebase' ;;
             *) state=error; description='Aggregation broke' ;;
           esac
 `
@@ -61,7 +63,7 @@ func realShapedPublisher(t *testing.T, lead, arm string) string {
               0) state=success; description='All gates passed' ;;
               10) state=failure; description='A required gate failed' ;;
               11) exit 0 ;;
-` + arm + `              *) state=error; description='Aggregation broke' ;;
+` + arm + reusedArm + smokedArm + `              *) state=error; description='Aggregation broke' ;;
             esac
           fi
 `
@@ -75,6 +77,17 @@ func realShapedPublisher(t *testing.T, lead, arm string) string {
 // cancelledArm is the arm the real workflow ships, in realShapedPublisher's
 // indentation.
 const cancelledArm = "              13) state=error; description='A required gate was cancelled' ;;\n"
+
+// reusedArm is the #8617 arm the real workflow ships alongside the
+// cancelled arm. realShapedPublisher always carries it, so the publisher
+// contract's reuse row is exercised against every attack shape below.
+const reusedArm = "              14) state=success; description='Reuse: verdict copied from a previous head' ;;\n"
+
+// smokedArm is the #8617 arm the real workflow ships alongside the
+// cancelled arm: the smoke subset passed on a clean rebase.
+// realShapedPublisher always carries it, so the publisher contract's
+// smoke row is exercised against every attack shape below.
+const smokedArm = "              15) state=success; description='Smoke subset passed on a clean rebase' ;;\n"
 
 // injectBeforePublish puts lines between the publisher's branch and its `gh`
 // call -- the gap round 3 closed with a textual anchor and round 4 walked
@@ -265,6 +278,47 @@ func TestCheckRequiredStatusWorkflows_RejectsCancelledGateMappedToFailure(t *tes
 	requireErrorContaining(t, errs, `posts state="failure" for AGGREGATE_CODE=13`)
 }
 
+// TestCheckRequiredStatusWorkflows_RejectsReuseMappedToFreshPass pins the
+// #8617 reuse arm against its own most dangerous reword: describing the
+// transferred verdict exactly as a fresh pass would make a copied verdict
+// indistinguishable from gates that just ran.
+func TestCheckRequiredStatusWorkflows_RejectsReuseMappedToFreshPass(t *testing.T) {
+	t.Parallel()
+
+	body := realShapedPublisher(t, "", cancelledArm)
+	attacked := strings.Replace(body,
+		"description='Reuse: verdict copied from a previous head'",
+		"description='All gates passed'", 1)
+	if attacked == body {
+		t.Fatal("the reuse arm moved; this attack would be replacing nothing")
+	}
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, attacked), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("describing a transferred verdict exactly as a fresh pass must be rejected")
+	}
+	requireErrorContaining(t, errs, "describes await exit codes [0 14] identically")
+}
+
+// TestCheckRequiredStatusWorkflows_RejectsSmokeMappedToFreshPass pins the
+// #8617 smoke arm against its own most dangerous reword: describing the
+// smoke subset exactly as a fresh pass would make a partial run
+// indistinguishable from gates that all ran.
+func TestCheckRequiredStatusWorkflows_RejectsSmokeMappedToFreshPass(t *testing.T) {
+	t.Parallel()
+
+	body := realShapedPublisher(t, "", cancelledArm)
+	attacked := strings.Replace(body,
+		"description='Smoke subset passed on a clean rebase'", "description='All gates passed'", 1)
+	if attacked == body {
+		t.Fatal("the smoke arm moved; this attack would be replacing nothing")
+	}
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, attacked), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("describing a smoke subset exactly as a fresh pass must be rejected")
+	}
+	requireErrorContaining(t, errs, "describes await exit codes [0 15] identically")
+}
+
 // TestCheckRequiredStatusWorkflows_RejectsAFailureArmBehindAComment is round
 // 3's H-1 seed for the arm locator: a comment carrying "(13)" moved a
 // substring anchor onto itself, and the region it then read already held the
@@ -393,7 +447,7 @@ func TestCheckRequiredStatusWorkflows_RepositoryPublisherExitsZeroAfterPostingVe
 	if err != nil {
 		t.Fatalf("locate the repository's terminal publisher: %v", err)
 	}
-	for _, code := range []int{awaitExitPassedCode, awaitExitGateFailedCode, awaitExitBrokenCode, awaitExitGateCancelledCode, publisherUnclassifiedProbeCode} {
+	for _, code := range []int{awaitExitPassedCode, awaitExitGateFailedCode, awaitExitBrokenCode, awaitExitGateCancelledCode, awaitExitReusedCode, awaitExitSmokePassedCode, publisherUnclassifiedProbeCode} {
 		observed, err := EvaluatePublisher(run, code)
 		if err != nil {
 			t.Fatalf("evaluate repository publisher for %d: %v", code, err)
@@ -421,6 +475,8 @@ func TestPublisherProbeCodeIsNotARealAwaitExitCode(t *testing.T) {
 		awaitExitStillRunningCode,
 		awaitExitBrokenCode,
 		awaitExitGateCancelledCode,
+		awaitExitReusedCode,
+		awaitExitSmokePassedCode,
 	} {
 		if publisherUnclassifiedProbeCode == code {
 			t.Fatalf("publisherUnclassifiedProbeCode %d collides with a real await exit code",

@@ -45,22 +45,28 @@ func runReuse(args []string) error {
 	if err != nil {
 		return fmt.Errorf("load registry: %w", err)
 	}
-	contexts := make([]string, 0, len(reg.RequiredStatusChecks))
-	for _, check := range reg.RequiredStatusChecks {
-		contexts = append(contexts, check.Context)
-	}
 	// Bound the probe like queue-select (2m): it sits on a workflow step's
 	// critical path, and a hung gh call must fail fast to "no reuse",
 	// never stall the caller to its job timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	verdict, err := probeReuse(ctx, execGHRunner{}, *repo, *pr, *headSHA, contexts)
+	verdict, err := probeReuseForAwait(ctx, execGHRunner{}, reg, *repo, *pr, *headSHA)
 	if err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(os.Stdout, "reuse=%v\nsource_sha=%s\ntree=%s\nreason=%s\n",
 		verdict.Reuse, verdict.SourceSHA, verdict.Tree, verdict.Reason)
 	return nil
+}
+
+// probeReuseForAwait adapts the registry to the probe's context list for
+// the await path, sharing runReuse's single source of truth.
+func probeReuseForAwait(ctx context.Context, runner ghRunner, reg *cigates.Registry, repo string, pr int, headSHA string) (reuseVerdict, error) {
+	contexts := make([]string, 0, len(reg.RequiredStatusChecks))
+	for _, check := range reg.RequiredStatusChecks {
+		contexts = append(contexts, check.Context)
+	}
+	return probeReuse(ctx, runner, repo, pr, headSHA, contexts)
 }
 
 var repoNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)

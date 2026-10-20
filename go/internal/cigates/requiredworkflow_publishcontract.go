@@ -74,6 +74,14 @@ func publisherOutcomeContract() []publisherOutcome {
 			meaning: "a selected gate was cancelled or never ran",
 		},
 		{
+			code: awaitExitReusedCode, publishes: true, state: "success",
+			meaning: "verdict transferred from a tree-identical previous head",
+		},
+		{
+			code: awaitExitSmokePassedCode, publishes: true, state: "success",
+			meaning: "smoke subset passed on a clean rebase; heavy verdicts transferred",
+		},
+		{
 			code: publisherUnclassifiedProbeCode, publishes: true, state: "error",
 			meaning: "an exit code no arm names",
 		},
@@ -202,7 +210,7 @@ func publishedDescriptionErrors(check RequiredStatusCheck, descriptions map[int]
 	// The `*)` arm serves both the broken code and anything unclassified, so
 	// those two legitimately share a sentence. Compare the arms that must
 	// differ.
-	distinct := []int{awaitExitPassedCode, awaitExitGateFailedCode, awaitExitGateCancelledCode, publisherUnclassifiedProbeCode}
+	distinct := []int{awaitExitPassedCode, awaitExitGateFailedCode, awaitExitGateCancelledCode, awaitExitReusedCode, awaitExitSmokePassedCode, publisherUnclassifiedProbeCode}
 	var errs []error
 	for _, code := range distinct {
 		if descriptions[code] != "" {

@@ -63,6 +63,66 @@ jobs:
               - '!mkdocs.yml'
               - '!.github/**/*.md'
               - '!.agents/**'
+  # Tree-identical reuse probe (#8617 step 4b): on a pull request whose
+  # head tree was already proven green by a previous head of the same PR,
+  # go-core/go-race skip and their *-complete aggregates pass on the
+  # transferred verdict. Always runs (a skipped need would skip its
+  # dependents); the probe itself only executes on pull_request and any
+  # probe failure leaves reuse=false, the pre-existing behavior.
+  tree-reuse:
+    needs: queue-selection
+    name: Tree-identical reuse probe
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+      pull-requests: read
+      statuses: read
+    timeout-minutes: 5
+    outputs:
+      reuse: ${{ steps.probe.outputs.reuse }}
+    steps:
+      - name: Require queue selection to succeed
+        if: ${{ always() && github.event_name == 'merge_group' }}
+        run: test "${{ needs.queue-selection.result }}" = success
+      # Trusted build: the probe decides whether lanes may skip, so it is
+      # built from the default branch like the required-gates publisher,
+      # never from the PR tree it is judging.
+      - name: Checkout trusted default branch
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Set up Go
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        if: ${{ github.event_name == 'pull_request' }}
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Probe tree-identical reuse
+        id: probe
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          (cd go && go build -o "${RUNNER_TEMP}/ci-gates-bin" ./cmd/ci-gates)
+          "${RUNNER_TEMP}/ci-gates-bin" reuse \
+            --registry specs/ci-gates.v1.yaml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pr "${PR_NUMBER}" \
+            --head-sha "${HEAD_SHA}" | tee "${RUNNER_TEMP}/reuse.out" || true
+          if ! grep -E '^(reuse|source_sha|tree)=' "${RUNNER_TEMP}/reuse.out" >> "$GITHUB_OUTPUT"; then
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
+          fi
   markdown-file-cap:
     needs: queue-selection
     runs-on: ubuntu-latest
@@ -302,8 +362,8 @@ jobs:
           scripts/test-verify-golden-corpus-filter-exhaustive.sh
           scripts/verify-golden-corpus-filter-exhaustive.sh
   go-core:
-    needs: [queue-selection, changes]
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
+    needs: [queue-selection, changes, tree-reuse]
+    if: ${{ (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') && (github.event_name != 'pull_request' || needs.tree-reuse.outputs.reuse != 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -365,7 +425,7 @@ jobs:
         working-directory: go
         run: go build ./...
   go-core-complete:
-    needs: [queue-selection, changes, go-core]
+    needs: [queue-selection, changes, go-core, tree-reuse]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -383,6 +443,14 @@ jobs:
             echo "::error::changes gate did not succeed (result=${changes_result}) - a skipped go-core cannot be trusted as a docs-only skip"
             exit 1
           fi
+          if [ "${{ needs.tree-reuse.result }}" != "success" ]; then
+            echo "::error::tree-reuse probe did not succeed (result=${{ needs.tree-reuse.result }}) - a skipped lane proves nothing without it"
+            exit 1
+          fi
+          if [ "${{ needs.tree-reuse.outputs.reuse }}" = "true" ]; then
+            echo "tree-identical reuse: go-core verdict transferred from a previous head of this PR (source in the reuse probe log)"
+            exit 0
+          fi
           if [ "${result}" = "cancelled" ]; then
             echo "::error::go-core timed out or was cancelled (result=cancelled) - not a lint or build finding; rerun the failed job"
             exit 1
@@ -392,8 +460,8 @@ jobs:
             exit 1
           fi
   go-race:
-    needs: [queue-selection, changes]
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
+    needs: [queue-selection, changes, tree-reuse]
+    if: ${{ (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') && (github.event_name != 'pull_request' || needs.tree-reuse.outputs.reuse != 'true') }}
     strategy:
       fail-fast: false
       matrix:
@@ -445,7 +513,7 @@ jobs:
           echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: ${count} package(s)"
           printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 900s -p 2
   go-race-complete:
-    needs: [queue-selection, changes, go-race]
+    needs: [queue-selection, changes, go-race, tree-reuse]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -462,6 +530,14 @@ jobs:
           if [ "${changes_result}" != "success" ]; then
             echo "::error::changes gate did not succeed (result=${changes_result}) - a skipped go-race matrix cannot be trusted as a docs-only skip"
             exit 1
+          fi
+          if [ "${{ needs.tree-reuse.result }}" != "success" ]; then
+            echo "::error::tree-reuse probe did not succeed (result=${{ needs.tree-reuse.result }}) - a skipped lane proves nothing without it"
+            exit 1
+          fi
+          if [ "${{ needs.tree-reuse.outputs.reuse }}" = "true" ]; then
+            echo "tree-identical reuse: go-race verdict transferred from a previous head of this PR (source in the reuse probe log)"
+            exit 0
           fi
           if [ "${result}" != "success" ] && [ "${result}" != "skipped" ]; then
             echo "::error::one or more go-race shards did not succeed (result=${result})"

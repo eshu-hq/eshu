@@ -48,6 +48,8 @@ jobs:
             10) state=failure; description='A required gate failed' ;;
             11) exit 0 ;;
             13) state=error; description='A required gate was cancelled' ;;
+            14) state=success; description='Reuse: verdict copied from a previous head' ;;
+            15) state=success; description='Smoke subset passed on a clean rebase' ;;
             *) state=error; description='Aggregation broke' ;;
           esac
           gh api -X POST repos/example/repo/statuses/${HEAD_SHA} -f state="${state}" -f context=required-gates-complete -f description="${description}"

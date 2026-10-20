@@ -33,6 +33,18 @@ const (
 	awaitExitStillRunningCode  = 11
 	awaitExitBrokenCode        = 12
 	awaitExitGateCancelledCode = 13
+	// awaitExitReusedCode is the #8617 step-4b outcome: the verdict was
+	// transferred from a tree-identical previous head instead of freshly
+	// produced. It publishes success, but its description must never read
+	// the same as a fresh pass, or a copied verdict becomes
+	// indistinguishable from gates that just ran.
+	awaitExitReusedCode = 14
+	// awaitExitSmokePassedCode is the #8617 step-5 outcome: the fast
+	// subset ran and passed on a clean rebase while heavy verdicts
+	// transferred. It publishes success, but its description must never
+	// read the same as a fresh pass, or a partial run becomes
+	// indistinguishable from gates that all ran.
+	awaitExitSmokePassedCode = 15
 )
 
 // validateTerminalPublisher checks the terminal required-status step: that it
