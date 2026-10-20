@@ -118,7 +118,7 @@ import (
 // #8659 adds 208_repository_retirement_graph_capture.sql (graph_repo_root
 // plus graph_scope_ids capture columns for the 2c graph retraction) and
 // 209_partition_lease_claimed_at.sql (claim epoch for the 2b' barrier).
-const goldenBootstrapDefinitionsDigest = "5e0d76b93763a80abfc67a075807e05234aef13bef6b6d15c9cabc104de49d92"
+const goldenBootstrapDefinitionsDigest = "0813bb3b0e916c3fd964764dae97df23111111eccbebf71138a19ce9112ed76a"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

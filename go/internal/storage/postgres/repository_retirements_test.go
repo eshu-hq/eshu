@@ -163,6 +163,21 @@ func TestInsertRetirementPendingRejectsEmptyInputs(t *testing.T) {
 
 // TestGetOpenRetirementByRepo proves the gate lookup reads exactly the open
 // row the partial index serves.
+// TestReassertScopesQuiescedRejectsEmptyScopeIDs pins the P2-3 closure:
+// an empty scope list must fail closed before any query runs, since every
+// ANY('{}') count would read 0 and report a proceed answer from no input.
+func TestReassertScopesQuiescedRejectsEmptyScopeIDs(t *testing.T) {
+	t.Parallel()
+
+	fake := &retirementFakeDB{}
+	if _, err := ReassertScopesQuiesced(context.Background(), fake, nil); err == nil {
+		t.Fatal("empty scope ids must fail closed")
+	}
+	if len(fake.queryQueries) != 0 {
+		t.Fatalf("no query may run on empty scope ids, ran %d", len(fake.queryQueries))
+	}
+}
+
 func TestGetOpenRetirementByRepo(t *testing.T) {
 	t.Parallel()
 

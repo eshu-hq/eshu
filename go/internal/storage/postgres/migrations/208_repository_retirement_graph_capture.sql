@@ -12,8 +12,9 @@
 --     the precedence BuildMaterialization uses (repository fact path, else
 --     scope metadata repo_path). It is written once and never overwritten,
 --     so a re-run of 2c after G6 cleared Repository.path still has it. An
---     empty root fails the retirement closed (failure_class
---     repository_root_unknown), never silently.
+--     empty root must fail the retirement closed at the runner: refusing
+--     the capture is runner work (as with empty scopes below), never
+--     enforced by this schema.
 --   - graph_scope_ids is the JSON array of scope ids the purge locked for
 --     this repository (default-branch scope plus @ref scopes), captured at
 --     the same seam. The documentation retraction (G3) and the residue

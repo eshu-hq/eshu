@@ -254,7 +254,7 @@ var migrationShippedChecksums = map[string]string{
 	"205_workflow_claim_pacing.sql":                                          "7bbf1448bf2746fff2456b4d2256a8160cacee3dd8f491c50169eb5106f03de2",
 	"206_component_quota_windows.sql":                                        "742d2bb81b3415a2024585ff61ee6eb37f5ddce036e6ff13dbb905aa72330208",
 	"207_repository_retirements.sql":                                         "7776852a103ef9a9c2b5db24beef2065614a1355405d344d35d8a17844eb590f",
-	"208_repository_retirement_graph_capture.sql":                            "7680770f27aa89272ec09bb755b68dec6304911d0b17c1f60341b49253182041",
+	"208_repository_retirement_graph_capture.sql":                            "5a9c3a6479a5c9883b34c5bbd2991025b3f2a0d69d0e94e3095f4b315d9f2443",
 	"209_partition_lease_claimed_at.sql":                                     "cdab9f7fd61365dc94ae065fdf232ca342b66a1aa349c3b4c77eb4b47e2618cb",
 }
 

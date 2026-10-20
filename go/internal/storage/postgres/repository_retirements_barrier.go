@@ -151,6 +151,9 @@ const (
 // remarks the tombstone instead of retracting under live writers, so no
 // reducer row can reopen and write graph edges after the retraction.
 func ReassertScopesQuiesced(ctx context.Context, database db.ExecQueryer, scopeIDs []string) (ScopeQuiesceCounts, error) {
+	if len(scopeIDs) == 0 {
+		return ScopeQuiesceCounts{}, fmt.Errorf("retirement reassert quiesced: empty scope ids")
+	}
 	var counts ScopeQuiesceCounts
 	queries := []struct {
 		text  string

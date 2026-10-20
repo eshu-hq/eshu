@@ -118,6 +118,9 @@ func BuildRetirementParameterRetractStatement(root string, nestedRootPrefixes []
 		return Statement{}, fmt.Errorf("retirement parameter retract: empty repository root")
 	}
 	prefix = strings.TrimSuffix(prefix, "/") + "/"
+	if prefix == "/" {
+		return Statement{}, fmt.Errorf("retirement parameter retract: filesystem-root repository root matches every path")
+	}
 	nested := normalizeRetirementNestedPrefixes(nestedRootPrefixes)
 	return Statement{
 		Operation: OperationCanonicalRetract,
@@ -256,11 +259,14 @@ func retirementAncestorPaths(root string) []string {
 // parameters. rootPrefix is slash-terminated here under the P1 rule: an
 // un-slashed "/r/shared" would also match the sibling "/r/shared-backup"
 // and spare its Parameters invisibly to the census that shares the list.
-// A blank root is a caller error (STARTS WITH "" matches every
-// repository); the retract builder already fails closed on blank roots.
-func RetirementNestedRootsQuery(repoID, rootPrefix string) (string, map[string]any) {
+// A blank or filesystem-root prefix fails closed: STARTS WITH "" (or "/")
+// would match every repository and report them all as nested.
+func RetirementNestedRootsQuery(repoID, rootPrefix string) (string, map[string]any, error) {
 	prefix := strings.TrimSuffix(strings.TrimSpace(rootPrefix), "/") + "/"
-	return retirementNestedRootsCypher, map[string]any{"repo_id": repoID, "root_prefix": prefix}
+	if prefix == "/" {
+		return "", nil, fmt.Errorf("retirement nested roots: blank or filesystem-root prefix matches every repository")
+	}
+	return retirementNestedRootsCypher, map[string]any{"repo_id": repoID, "root_prefix": prefix}, nil
 }
 
 // RetirementResidueCheck is one anchored arm of the 2z runtime graph
@@ -296,55 +302,58 @@ func BuildRetirementResidueCensus(
 	if strings.TrimSpace(repoID) == "" {
 		return nil, fmt.Errorf("retirement residue census: empty repo id")
 	}
-	params := map[string]any{"repo_id": repoID}
+	// retirementResidueParams builds one arm's parameter map. Every arm
+	// gets its own instance: sharing one map would let a mutating consumer
+	// silently retarget every arm.
+	retirementResidueParams := func() map[string]any { return map[string]any{"repo_id": repoID} }
 	checks := []RetirementResidueCheck{
 		{
 			Name: "file_residue",
 			Cypher: `MATCH (f:File)
 WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical'
 RETURN count(f) AS count`,
-			Parameters: params,
+			Parameters: retirementResidueParams(),
 		},
 		{
 			Name: "directory_residue",
 			Cypher: `MATCH (d:Directory)
 WHERE d.repo_id = $repo_id AND d.evidence_source = 'projector/canonical'
 RETURN count(d) AS count`,
-			Parameters: params,
+			Parameters: retirementResidueParams(),
 		},
 		{
 			Name: "function_residue",
 			Cypher: `MATCH (f:Function)
 WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical'
 RETURN count(f) AS count`,
-			Parameters: params,
+			Parameters: retirementResidueParams(),
 		},
 		{
 			Name: "workload_residue",
 			Cypher: `MATCH (w:Workload)
 WHERE w.repo_id = $repo_id
 RETURN count(w) AS count`,
-			Parameters: params,
+			Parameters: retirementResidueParams(),
 		},
 		{
 			Name: "workload_instance_residue",
 			Cypher: `MATCH (i:WorkloadInstance)
 WHERE i.repo_id = $repo_id
 RETURN count(i) AS count`,
-			Parameters: params,
+			Parameters: retirementResidueParams(),
 		},
 		{
 			Name: "endpoint_residue",
 			Cypher: `MATCH (e:Endpoint)
 WHERE e.repo_id = $repo_id
 RETURN count(e) AS count`,
-			Parameters: params,
+			Parameters: retirementResidueParams(),
 		},
 		{
 			Name: "repository_outgoing_edges",
 			Cypher: `MATCH (r:Repository {id: $repo_id})-[rel]->()
 RETURN count(rel) AS count`,
-			Parameters: params,
+			Parameters: retirementResidueParams(),
 		},
 	}
 	if includeParameters {
@@ -353,6 +362,9 @@ RETURN count(rel) AS count`,
 			return nil, fmt.Errorf("retirement residue census: empty repository root")
 		}
 		prefix = strings.TrimSuffix(prefix, "/") + "/"
+		if prefix == "/" {
+			return nil, fmt.Errorf("retirement residue census: filesystem-root repository root matches every path")
+		}
 		nested := normalizeRetirementNestedPrefixes(nestedRootPrefixes)
 		checks = append(checks, RetirementResidueCheck{
 			Name: "parameter_residue",

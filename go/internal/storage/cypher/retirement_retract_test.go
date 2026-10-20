@@ -137,9 +137,54 @@ func TestRetirementNestedRootsQueryNormalizes(t *testing.T) {
 	t.Parallel()
 
 	for _, root := range []string{"/r/shared", "/r/shared/", "  /r/shared  "} {
-		_, params := RetirementNestedRootsQuery("repo-x", root)
+		_, params, err := RetirementNestedRootsQuery("repo-x", root)
+		if err != nil {
+			t.Fatalf("RetirementNestedRootsQuery(%q): %v", root, err)
+		}
 		if params["root_prefix"] != "/r/shared/" {
 			t.Errorf("RetirementNestedRootsQuery(%q) root_prefix = %v, want /r/shared/", root, params["root_prefix"])
+		}
+	}
+	for _, root := range []string{"", "  ", "/"} {
+		if _, _, err := RetirementNestedRootsQuery("repo-x", root); err == nil {
+			t.Errorf("RetirementNestedRootsQuery(%q) must fail closed: a match-all prefix would report every repository as nested", root)
+		}
+	}
+}
+
+// TestRetirementFilesystemRootFailsClosed pins the P2-1 closure: a "/"
+// root normalizes to "/" in every prefix builder and would match every
+// path, so all three refuse it at the source.
+func TestRetirementFilesystemRootFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	if _, err := BuildRetirementParameterRetractStatement("/", nil); err == nil {
+		t.Error("parameter retract on / must fail closed")
+	}
+	if _, _, err := RetirementNestedRootsQuery("repo-x", "/"); err == nil {
+		t.Error("nested roots query on / must fail closed")
+	}
+	if _, err := BuildRetirementResidueCensus("repo-x", "/", nil, true); err == nil {
+		t.Error("residue census on / must fail closed")
+	}
+}
+
+// TestRetirementCensusArmsOwnTheirParams pins the P2-5 closure: mutating
+// one arm's parameter map must not retarget the others.
+func TestRetirementCensusArmsOwnTheirParams(t *testing.T) {
+	t.Parallel()
+
+	checks, err := BuildRetirementResidueCensus("repo-x", "/r/retired", nil, false)
+	if err != nil {
+		t.Fatalf("BuildRetirementResidueCensus: %v", err)
+	}
+	if len(checks) == 0 {
+		t.Fatal("want at least one census arm")
+	}
+	checks[0].Parameters["repo_id"] = "repo-y"
+	for _, c := range checks[1:] {
+		if c.Parameters["repo_id"] != "repo-x" {
+			t.Fatalf("arm %s shares its parameter map: repo_id = %v", c.Name, c.Parameters["repo_id"])
 		}
 	}
 }
