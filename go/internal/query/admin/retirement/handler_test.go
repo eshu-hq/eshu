@@ -181,6 +181,16 @@ func TestRetireRepositoryMapsFenceRefusalToConflict(t *testing.T) {
 	if strings.Contains(rec.Body.String(), "conn refused") {
 		t.Fatalf("body = %s, leaks backend error text", rec.Body.String())
 	}
+	decoded := partialFailureBody(t, rec)
+	if len(decoded.Retirements) != 1 {
+		t.Fatalf("retirements = %+v, want the refused entry inline", decoded.Retirements)
+	}
+	if got := decoded.Retirements[0]; got.RetirementID != "rr_trigger01" || got.Outcome != TriggerOutcomeRefused {
+		t.Fatalf("retirements[0] = %+v, want the refused mark entry", got)
+	}
+	if decoded.IdempotencyKey != "k" {
+		t.Fatalf("idempotency_key = %q, want the request key", decoded.IdempotencyKey)
+	}
 }
 
 // TestRetireRepositoryAnswersLookupFailureOnce proves a catalog failure
