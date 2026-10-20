@@ -129,9 +129,9 @@ each cycle's work is bounded by the page budget (500) times K=4 workers.
 No-Regression Evidence: the walker is a new side runner, so the regression
 surface is the reducer without it: disabled (the turned-off path) builds no
 walker and issues no statement (`TestConfigArtifactWalkerRunnerForDisabled`
-counts zero statements); enabled, an empty cycle issues two bounded indexed
-statements per 5 minutes (dirty join over the versions/state tables, one
-walk claim) and no derive. No existing path is edited except additive
+counts zero statements); enabled, an empty cycle issues three bounded indexed
+statements per 5 minutes (marker check, dirty join, walk claim) and no
+derive — five on a wrapping clean cycle (plus relist and marker record). No existing path is edited except additive
 service assembly (one field, one start block, one builder call with error
 propagation); the Write path, projector wiring, reader, and retention are
 untouched.

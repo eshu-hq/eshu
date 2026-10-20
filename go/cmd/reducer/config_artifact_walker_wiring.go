@@ -103,19 +103,18 @@ func configArtifactWalkerRunnerFor(
 	if err != nil {
 		return nil, err
 	}
+	leafCfg := walkartifacts.Config{Workers: walkerCfg.Workers}.WithDefaults()
 	store := configArtifactWalkerStore{
 		database:  database,
 		deriver:   deriver,
-		skipAfter: walkartifacts.DefaultSkipAfterFailures,
+		skipAfter: leafCfg.SkipAfterFailures,
 	}
 	return &walkartifacts.Runner{
-		Lister:  store,
-		Claimer: store,
-		Deriver: store,
-		Marker:  store,
-		Config: walkartifacts.Config{
-			Workers: walkerCfg.Workers,
-		},
+		Lister:      store,
+		Claimer:     store,
+		Deriver:     store,
+		Marker:      store,
+		Config:      leafCfg,
 		Tracer:      tracer,
 		Instruments: instruments,
 		Logger:      logger,

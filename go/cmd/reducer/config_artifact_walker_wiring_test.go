@@ -79,6 +79,35 @@ func TestConfigArtifactWalkerRunnerForDefaults(t *testing.T) {
 	}
 }
 
+// TestConfigArtifactWalkerRunnerForSkipLimit pins the skip-after knob
+// threading: the wired runner must carry the live skip limit in both the
+// leaf config and the storage adapter, not just in WithDefaults.
+func TestConfigArtifactWalkerRunnerForSkipLimit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	runner, err := configArtifactWalkerRunnerFor(ctx,
+		func(string) string { return "" }, &refusingWalkerDB{}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("configArtifactWalkerRunnerFor(defaults) error = %v", err)
+	}
+	if runner == nil {
+		t.Fatal("configArtifactWalkerRunnerFor(defaults) = nil, want the walker on by default")
+	}
+	if runner.Config.SkipAfterFailures != walkartifacts.DefaultSkipAfterFailures {
+		t.Fatalf("Config.SkipAfterFailures = %d, want %d",
+			runner.Config.SkipAfterFailures, walkartifacts.DefaultSkipAfterFailures)
+	}
+	store, ok := runner.Lister.(configArtifactWalkerStore)
+	if !ok {
+		t.Fatalf("Lister = %T, want configArtifactWalkerStore", runner.Lister)
+	}
+	if store.skipAfter != walkartifacts.DefaultSkipAfterFailures {
+		t.Fatalf("store.skipAfter = %d, want %d",
+			store.skipAfter, walkartifacts.DefaultSkipAfterFailures)
+	}
+}
+
 // TestConfigArtifactWalkerRunnerForDisabled pins the kill switch: disabled
 // builds no walker and issues no statement.
 func TestConfigArtifactWalkerRunnerForDisabled(t *testing.T) {
