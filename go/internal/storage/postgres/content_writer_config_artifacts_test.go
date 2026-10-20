@@ -220,6 +220,40 @@ func TestNewConfigArtifactWriteDeriverDisabledBuildsNothing(t *testing.T) {
 	}
 }
 
+func TestContentWriterWriteSkipsDeriveFromDisabledHelper(t *testing.T) {
+	t.Parallel()
+
+	// Regression for the typed-nil deriver: the disabled helper must hand
+	// the writer a nil interface (not a typed-nil *Deriver), so Write
+	// skips the derive instead of panicking on the nil receiver.
+	deriver, err := NewConfigArtifactWriteDeriver(
+		context.Background(),
+		withTransactions(&fakeExecQueryer{}),
+		func(key string) string {
+			if key == "ESHU_CONFIG_ARTIFACT_DERIVE_ENABLED" {
+				return "false"
+			}
+			return ""
+		},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("NewConfigArtifactWriteDeriver() error = %v", err)
+	}
+	instruments, reader := newDeriveMeter(t)
+	writer := NewContentWriter(withTransactions(&fakeExecQueryer{})).
+		WithInstruments(instruments).
+		WithConfigArtifactDeriver(deriver)
+
+	if _, err := writer.Write(context.Background(), configArtifactWriteMaterialization()); err != nil {
+		t.Fatalf("Write() error = %v, want nil with a disabled derive helper", err)
+	}
+	counts, durations := configArtifactDeriveSeries(t, reader)
+	if len(counts) != 0 || len(durations) != 0 {
+		t.Fatalf("derive series = %v durations = %v, want no config-artifact derive", counts, durations)
+	}
+}
+
 func TestNewConfigArtifactWriteDeriverRejectsInvalidTimeout(t *testing.T) {
 	t.Parallel()
 

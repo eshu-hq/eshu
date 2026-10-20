@@ -447,7 +447,10 @@ func buildIngesterProjectorRuntime(
 		return runtime.Runtime{}, err
 	}
 	// Config-artifact derive (#8155): last step of every content Write; nil skips, refused checks stay live.
-	configArtifactDeriver, err := postgres.NewConfigArtifactWriteDeriver(context.Background(), database, getenv, logger)
+	// Bounded startup context so the encoding/fence checks fail fast on a wedged database.
+	checkCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	configArtifactDeriver, err := postgres.NewConfigArtifactWriteDeriver(checkCtx, database, getenv, logger)
 	if err != nil {
 		return runtime.Runtime{}, err
 	}

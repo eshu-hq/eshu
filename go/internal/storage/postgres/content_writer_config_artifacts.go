@@ -137,7 +137,7 @@ func NewConfigArtifactWriteDeriver(
 	database db.ExecQueryer,
 	getenv func(string) string,
 	logger *slog.Logger,
-) (*artifacts.Deriver, error) {
+) (ConfigArtifactDeriver, error) {
 	cfg, err := content.LoadConfigArtifactDeriveConfig(getenv)
 	if err != nil {
 		return nil, err
