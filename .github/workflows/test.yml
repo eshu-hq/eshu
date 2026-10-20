@@ -194,7 +194,10 @@ jobs:
     needs: [queue-selection, changes]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Raised 15 -> 25 per #8665: cold-build-cache compile (~10.6m) + scoped vet
+    # (~3.6m) already consume ~14.2m, leaving nothing for filecap and the
+    # remaining parity steps on slow runners. Revisit if p95 exceeds 20m.
+    timeout-minutes: 25
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
