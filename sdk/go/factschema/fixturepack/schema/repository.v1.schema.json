@@ -33,6 +33,12 @@
         "null"
       ]
     },
+    "empty_scope": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "git_refs": {
       "items": {
         "additionalProperties": true,
