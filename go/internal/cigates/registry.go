@@ -306,9 +306,13 @@ func Load(path string) (*Registry, error) {
 			return nil, err
 		}
 
+		// Tier is required: the smoke tier (#8617 step 5) and every
+		// stage comparison depend on it, and an empty tier must not be
+		// read as "fastest" by a consumer that skips the membership
+		// check. Missing and unknown values fail identically.
 		tier := Tier(strings.TrimSpace(gf.Tier))
 		if _, ok := tierOrder[tier]; !ok {
-			return nil, fmt.Errorf("ci-gates registry %s: gate %q has invalid tier %q", path, id, gf.Tier)
+			return nil, fmt.Errorf("ci-gates registry %s: gate %q has invalid tier %q (tier is required)", path, id, gf.Tier)
 		}
 
 		if len(gf.Triggers) == 0 {
