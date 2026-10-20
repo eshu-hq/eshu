@@ -197,6 +197,47 @@ func TestTriggerPartialMarkErrorReturnsPerRepoOutcomes(t *testing.T) {
 	}
 }
 
+// TestTriggerFirstMarkFailureLeavesZeroCounts is the #8614 boundary
+// regression: when the mark loop fails on the first repository, nothing is
+// marked, so no count fires at all — the failing repository carries the
+// terminal counter-silent and the remainder is not_attempted.
+func TestTriggerFirstMarkFailureLeavesZeroCounts(t *testing.T) {
+	inst, reader := countingInstruments(t)
+	boom := errors.New("retirement insert: connection refused")
+	fencer := &scriptedFencer{}
+	purger := &scriptedPurger{}
+	trigger := &Trigger{
+		Marker: &scriptedMarker{
+			failRepos: map[string]error{"PARTITION:part-repo-a": boom},
+		},
+		Fencer:      fencer,
+		Purger:      purger,
+		Instruments: inst,
+	}
+	result, err := trigger.TriggerRetirement(context.Background(), twoRepoInput())
+	if !errors.Is(err, boom) {
+		t.Fatalf("err = %v, want the mark error", err)
+	}
+	if len(fencer.calls) != 0 || len(purger.calls) != 0 {
+		t.Fatal("fence or purge ran after a mark failure")
+	}
+	want := []RepoOutcome{
+		{RetirementID: "rr_part01", RepoID: "PARTITION:part-repo-a", ScopeID: "part-scope-a", Outcome: TriggerOutcomeFailed},
+		{RetirementID: "rr_part02", RepoID: "PARTITION:part-repo-b", ScopeID: "part-scope-b", Outcome: TriggerOutcomeNotAttempted},
+	}
+	if len(result.Repos) != len(want) {
+		t.Fatalf("repos = %+v, want failing then not_attempted", result.Repos)
+	}
+	for i, wantOutcome := range want {
+		if result.Repos[i] != wantOutcome {
+			t.Fatalf("repos[%d] = %+v, want %+v", i, result.Repos[i], wantOutcome)
+		}
+	}
+	if counts := outcomeCounts(t, reader); len(counts) != 0 {
+		t.Fatalf("counts = %v, want zero counts: nothing was marked", counts)
+	}
+}
+
 // threeRepoInput builds a three-repository operator request: the #8614 T3
 // path fails on the middle repository, so the third is never attempted.
 func threeRepoInput() TriggerRequest {

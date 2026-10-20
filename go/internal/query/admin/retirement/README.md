@@ -39,10 +39,11 @@ reconstruct the funnel. The counter is
 `eshu_dp_repository_retirements_total{outcome}`.
 
 An interrupted mark loop still reports one entry per requested repository
-in request order on the error result (#8614): marked and failing
-repositories carry the counted terminal (`refused` on conflict, `failed`
-on error), and the never-attempted remainder carries the response-only
-`not_attempted` outcome, which is never counted and never audited. The
+in request order on the error result (#8614): the marked repositories
+carry the counted terminal (`refused` on conflict, `failed` on error),
+the failing repository carries that terminal counter-silent, and the
+never-attempted remainder carries the response-only `not_attempted`
+outcome, which is never counted and never audited. The
 `409`/`500` route body renders those entries with the fixed detail, and a
 same-key retry resumes the open rows to completion.
 
