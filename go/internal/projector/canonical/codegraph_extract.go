@@ -289,6 +289,6 @@ func rejectSilentFilelessWipe(inputFacts []facts.Envelope, mat CanonicalMaterial
 	}
 	sort.Strings(quarantinedIDs)
 	sort.Strings(unaccounted)
-	return fmt.Errorf("build codegraph file materialization: generation %q scope %q carries %d live file facts but projected zero File rows (tombstoned=%d quarantined=%v unaccounted=%v); refusing a file-less success that would retract every prior File node",
+	return fmt.Errorf("build codegraph file materialization: generation %q scope %q carries %d live file facts but projected zero File rows (tombstoned=%d quarantined=%v unaccounted=%v); refusing a file-less success that would retract every prior File node; the empty_scope repository-fact declaration (issue #8668) excuses only builds that carry zero file facts, never dropped live facts",
 		mat.GenerationID, mat.ScopeID, live, tombstoned, quarantinedIDs, unaccounted)
 }

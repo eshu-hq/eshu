@@ -40,3 +40,37 @@ No-Observability-Change: the guard emits no log, metric, or span. Failure
 surfaces as a `BuildMaterialization` error through the existing
 projection-failure path, whose callers treat a non-nil error as
 authoritative. No new operator signal was added.
+
+## Empty-scope marker (eshu-hq/eshu#8668)
+
+A scope that is genuinely fileless declares it on its repository fact with
+the `empty_scope` payload key (same in-band declaration pattern as
+`delta_generation` / `reconciliation_generation` in `delta.go`; only an
+explicit true declares, through `decode.PayloadBoolPtr`). The builder
+carries the declaration on
+`CanonicalMaterialization.DeclaredEmptyScope`, pinned by
+`builder_empty_scope_test.go` (marked succeeds with the flag set, unmarked
+zero-facts succeeds with the flag clear, marker plus dropped live facts
+still fails loud).
+
+The declaration excuses only builds that carry zero file facts: it is the
+escape hatch for the #8657 writer-side conditional retract, which must fail
+a file-less wipe over prior File nodes unless the scope declared
+filelessness. It never excuses dropped live facts.
+
+Producer handoff: no collector emits the key yet. The declaration belongs to
+the collector that walked the scope (`RepositoryFactEnvelope` in
+`go/internal/collector/git/content/envelopes.go`, sent from `streamFacts` in
+`go/internal/collector/repo/git/fact_builder.go`): declare only when the
+snapshot carries zero file facts and zero deleted paths outside a delta,
+and never when discovery reported errors. That wiring rides with the #8657
+lane, which needs the hatch live for its writer check.
+
+No-Regression Evidence: `go test ./internal/projector/canonical/...`,
+`./internal/projector/decode/...`, `./internal/projector/runtime/...`
+`-count=1` green; `go vet ./internal/projector/...` clean. The derivation is
+one repository-fact filter plus one map lookup beside the existing
+delta/reconciliation derivation, so no new hot-path cost class.
+
+No-Observability-Change: same as above; the carried flag is builder-local
+until the #8657 writer check reads it.
