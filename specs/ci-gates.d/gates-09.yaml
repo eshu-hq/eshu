@@ -53,7 +53,9 @@ gates:
       - "scripts/lib/postgres_scheduled_inventory.json"
       - "scripts/lib/postgres_scheduled_inventory.d/**"
       - "scripts/lib/postgres_scheduled_fragments.py"
+      - "scripts/lib/postgres_scheduled_matrix.py"
       - "scripts/test-postgres-scheduled-fragments.py"
+      - "scripts/test-postgres-scheduled-matrix.py"
       - "scripts/test-postgres-scheduled-runner.py"
       - "scripts/test-postgres-scheduled-ledger-policy.py"
       - "scripts/lib/ifa_scheduled_*"
@@ -80,7 +82,7 @@ gates:
       - ".github/workflows/live-backend-tests.yml"
     local:
       command: "bash scripts/verify-live-tests-ledger.sh"
-      test_command: "bash scripts/test-verify-live-tests-ledger.sh && python3 scripts/test-nornic-conformance-events.py && bash scripts/test-run-live-backend-tests.sh && python3 scripts/test-live-backend-shards.py && python3 scripts/test-live-backend-lifecycle.py && python3 scripts/test-live-backend-workflow.py && python3 scripts/test-postgres-scheduled-runner.py && python3 scripts/test-postgres-scheduled-fragments.py && python3 scripts/test-postgres-scheduled-ledger-policy.py && python3 scripts/test-ifa-scheduled-events.py && python3 scripts/test-ifa-scheduled-manifest.py && python3 scripts/test-ifa-scheduled-bundle.py && python3 scripts/test-ifa-scheduled-ledger-policy.py"
+      test_command: "bash scripts/test-verify-live-tests-ledger.sh && python3 scripts/test-nornic-conformance-events.py && bash scripts/test-run-live-backend-tests.sh && python3 scripts/test-live-backend-shards.py && python3 scripts/test-live-backend-lifecycle.py && python3 scripts/test-live-backend-workflow.py && python3 scripts/test-postgres-scheduled-runner.py && python3 scripts/test-postgres-scheduled-matrix.py && python3 scripts/test-postgres-scheduled-fragments.py && python3 scripts/test-postgres-scheduled-ledger-policy.py && python3 scripts/test-ifa-scheduled-events.py && python3 scripts/test-ifa-scheduled-manifest.py && python3 scripts/test-ifa-scheduled-bundle.py && python3 scripts/test-ifa-scheduled-ledger-policy.py"
     ci:
       workflow: live-backend-tests.yml
       job: "static-mirror (ledger and runner probes)"

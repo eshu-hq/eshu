@@ -29,7 +29,7 @@ purpose: >
   reducer contention job verifies each enrolled PostgreSQL-only dedicated_ci
   test from Go JSON events in its expected package. The B-7 identity runner
   verifies its two PostgreSQL proofs through the existing golden corpus job.
-  The postgres-scheduled job checks exact tests in thirteen groups daily on
+  The postgres-scheduled job checks exact tests in fifteen groups daily on
   PostgreSQL. The ifa-scheduled job checks eight exact tagged tests daily and
   on scoped PRs on disposable NornicDB and PostgreSQL, with a second NornicDB
   identity endpoint. The replay-tier gate checks 27 exact tests from 23 files;

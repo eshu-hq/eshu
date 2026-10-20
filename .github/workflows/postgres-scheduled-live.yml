@@ -2,6 +2,19 @@ name: Scheduled PostgreSQL Live Proofs
 
 # #7533: exact selected proofs run daily, on manual dispatch, and for PRs
 # changing the enrolled proof. The live job is not a universally required check.
+# #8617 step 7: the suite runs sharded across six parallel jobs sharing one
+# digest-pinned PostgreSQL 18.6 image. The setup job checks enrollment and
+# records the manifest from its own same-image service (SELECT version() is
+# identical across instances of one digest). Five proof legs each create fresh
+# databases exactly as the serial suite did: the freshness scale leg keeps the
+# scale fixture and the 30m-deadline scale proofs, freshness chunks A/B split
+# the remaining files 9/9, ACK stays whole, and the bulk leg runs every other
+# family serially sharing one warm build cache. The aggregate job downloads
+# every leg stream, verifies the bundle, and retains it. Measured walls from
+# run 39339606297 (success): ACK 22.4m, freshness_links 45.7m, bulk families
+# ~16m of tests; per-test artifact timings put the scale chunk at ~16.6m, chunk
+# A at ~5.7m, and chunk B at ~4.3m. Acceptance (#8617 step 7, as amended
+# 2026-10-20): slowest leg under 35 minutes; measured 32m20s in run 39421484741.
 on:
   schedule:
     - cron: '35 4 * * *'
@@ -161,12 +174,14 @@ on:
       - 'scripts/lib/postgres_scheduled_inventory.d/**'
       - 'scripts/lib/postgres_scheduled_inventory.json'
       - 'scripts/lib/postgres_scheduled_manifest.py'
+      - 'scripts/lib/postgres_scheduled_matrix.py'
       - 'scripts/lib/postgres_scheduled_runner.py'
       - 'scripts/lib/postgres_scheduled_workflow.py'
       - 'scripts/lib/reducer_contention_events.py'
       - 'scripts/lib/verify-live-tests-ledger.py'
       - 'scripts/test-postgres-scheduled-fragments.py'
       - 'scripts/test-postgres-scheduled-ledger-policy.py'
+      - 'scripts/test-postgres-scheduled-matrix.py'
       - 'scripts/test-postgres-scheduled-runner.py'
       - 'scripts/test-verify-live-tests-ledger.sh'
       - 'scripts/verify-live-tests-ledger.sh'
@@ -183,18 +198,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  postgres-scheduled:
+  scheduled-setup:
     runs-on: ubuntu-latest
-    # Full scheduled live suite (-race, -p=1): p95 of the whole job is
-    # ~84 min over the ten latest hosted runs on 2026-10-19 (success range
-    # 62-84 min; successes reaching ~84 min leave thin margin under the old
-    # 90 min cap). The ACK step averages
-    # ~20 min (865-1335 s), dominated by a ~713 s one-time -race build of
-    # the postgres test binary; its 44 tests take ~151 s, led by
-    # TestReducerContentionGateAckFanoutLockOrderLive at 24.25 s (#8290).
-    # 105 min covers the measured p95 with ~25% headroom; revisit with a
-    # split/matrix if the suite p95 grows past ~90 min of job time.
-    timeout-minutes: 105
+    # Enrollment gate and manifest writer. No proof load: 15 min covers
+    # checkout, module pre-warm, the three negative-case suites, and the
+    # manifest write with margin at several times the measured ~5 min.
+    timeout-minutes: 15
     services:
       postgres:
         image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
@@ -224,6 +233,7 @@ jobs:
       - name: Check exact enrollment and negative cases
         run: |
           python3 scripts/test-postgres-scheduled-runner.py
+          python3 scripts/test-postgres-scheduled-matrix.py
           python3 scripts/test-postgres-scheduled-fragments.py
           python3 scripts/test-postgres-scheduled-ledger-policy.py
           python3 scripts/lib/postgres_scheduled_runner.py
@@ -246,6 +256,309 @@ jobs:
             --checkout-sha "$checkout_sha" \
             --event-sha "${GITHUB_SHA}" \
             --backend-identity "$postgres_identity"
+      - name: Upload hosted proof manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduled-proof-streams-setup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/manifest.json
+          if-no-files-found: error
+          retention-days: 14
+  scheduled-freshness-scale:
+    runs-on: ubuntu-latest
+    # Scale chunk: the 30m-deadline scale proofs plus the retention-timing
+    # template build and the scale fixture setup, isolated from the chunks.
+    # Measured tests ~16.6m; 45 min covers the fixture load, the timing
+    # build, and a cold links-package build with margin.
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+        env:
+          POSTGRES_DB: eshu
+          POSTGRES_USER: eshu
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U eshu -d eshu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Create fresh freshness scale database
+        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_freshness_scheduled'
+      - name: Run freshness scale proofs
+        working-directory: go
+        env:
+          ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu_freshness_scheduled?sslmode=disable
+          ESHU_7127_W11_COST: "1"
+          ESHU_RETENTION_TIMING_DSN: postgres://eshu:change-me@localhost:15432/eshu_freshness_scheduled?sslmode=disable
+          ESHU_RETENTION_TIMING_LABEL: "freshness-links-scheduled"
+          ESHU_RETENTION_TIMING_FIXTURES: "link"
+          ESHU_RETENTION_TIMING_FIXTURE: "link"
+          ESHU_RETENTION_TIMING_MODE: "run"
+          ESHU_CHANGED_SINCE_LINK_SCALE_DSN: postgres://eshu:change-me@localhost:15432/eshu_freshness_scale?sslmode=disable
+          ESHU_CHANGED_SINCE_LINK_SCALE_BASE_REF: "HEAD"
+          ESHU_CHANGED_SINCE_LINK_SCALE_ROUNDS: "1"
+          ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS: "1"
+          ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE: "30m"
+          ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p3"
+        run: |
+          set -euo pipefail
+          test -z "${GOFLAGS:-}"
+          test -z "${GOWORK:-}"
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+          ESHU_RETENTION_TIMING_MODE=build go test -race -p=1 -count=1 -timeout=10m ./internal/storage/postgres/freshness/links -run '^TestRetentionTimingP8$'
+          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'DROP DATABASE IF EXISTS eshu_freshness_scale WITH (FORCE)'
+          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_freshness_scale'
+          docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale < internal/storage/postgres/migrations/001_ingestion_scopes.sql
+          docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale < internal/storage/postgres/migrations/002_scope_generations.sql
+          python3 -c 'import re; path="internal/storage/postgres/migrations/003_fact_records.sql"; statements=[s.strip() for s in open(path).read().split(";")]; keep=[s for s in statements if s and not re.match(r"(?is)^(--[^\n]*\n\s*)*CREATE\s+(UNIQUE\s+)?INDEX", s)]; print(";\n".join(keep) + ";")' | docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale
+          docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale < internal/storage/postgres/migrations/136_changed_since_link_ledger.sql
+          docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale < ../docs/internal/evidence/7127-link-writer-fixture.sql
+          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d eshu_freshness_scale -c "CREATE INDEX IF NOT EXISTS fact_records_scope_generation_idx ON fact_records (scope_id, generation_id, fact_kind, observed_at DESC)"
+          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d eshu_freshness_scale -c "CREATE INDEX IF NOT EXISTS fact_records_scope_generation_keyset_idx ON fact_records (scope_id, generation_id, observed_at, fact_id)"
+          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d eshu_freshness_scale -c 'ANALYZE'
+          go test -json -race -p=1 -count=1 -timeout=30m ./internal/storage/postgres/freshness/links -run '^(TestLinkScaleEvidence|TestLinkScaleProof|TestRetentionTimingCloneIsDropped|TestRetentionTimingP8)$' | tee "${RUNNER_TEMP}/freshness_links_scale.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/freshness_links_scale.jsonl" --group freshness_links_scale
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+      - name: Upload freshness scale proof stream
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduled-proof-streams-freshness-scale-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/freshness_links_scale.jsonl
+          if-no-files-found: error
+          retention-days: 14
+  scheduled-freshness-a:
+    runs-on: ubuntu-latest
+    # Chunk A: 9 files / 33 tests, measured ~5.7m. 25 min covers a cold
+    # links-package build with wide margin.
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+        env:
+          POSTGRES_DB: eshu
+          POSTGRES_USER: eshu
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U eshu -d eshu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Create fresh freshness chunk A database
+        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_freshness_a'
+      - name: Run freshness chunk A proofs
+        working-directory: go
+        env:
+          ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu_freshness_a?sslmode=disable
+          ESHU_7127_W11_COST: "1"
+        run: |
+          set -euo pipefail
+          test -z "${GOFLAGS:-}"
+          test -z "${GOWORK:-}"
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+          go test -json -race -p=1 -count=1 -timeout=10m ./internal/storage/postgres/freshness/links -run '^(TestAckJournalGateAndJournalPassExcludeEachOther|TestActivatingGenerationChainWaitTimesOut|TestBackfillChainWaitTimesOut|TestChainBreakKeepsStateThenIncremental|TestCursorHeldReturnsRetryWithoutWaiting|TestDeltaWithoutRootAndPrunedBeforeLink|TestDigestVersionChangeReRootsTheScope|TestFailingLinkIsPoisonedAfterMaxAttempts|TestGenerationLockedIsRetryable|TestJournalBackfillWalksRetainedChainInOrder|TestJournalPassIsExclusiveAcrossReplicas|TestJournalSweeperJournalsActiveGenerationsWithUnknownPrior|TestLedgerSchemaHasNoForeignKeys|TestLinkCostW11|TestLinkFenceOneWinnerPerActivation|TestLinkKilledMidStatementRerunsToIdenticalRows|TestLinkRootThenIncrementalStateEqualsAggregate|TestLockTimeoutDoesNotLeaveTheTransaction|TestOrphanScopeRowsAreDeletedUnlessLinking|TestPriorChainWaitTimesOut|TestRecordFailureSkipsAHeldCursor|TestRetentionActivationAboveCursorP4|TestRetentionBoundP3|TestRetentionCountsP5|TestRetentionRowLimitDoesNotStarveLedgerHeavyGenerations|TestRetentionRowLimitP5|TestRetentionRuleP1|TestRetentionStatementPlanShape|TestRetryErrorIsRetryable|TestSlotBusyBlocksFullLinksOnly|TestStaleFailureDoesNotCountAgainstANewerHead|TestStatsReportsBacklogAndLag|TestTransactionDeadlineEndsAStalledLink)$' | tee "${RUNNER_TEMP}/freshness_links_a.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/freshness_links_a.jsonl" --group freshness_links_a
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+      - name: Upload freshness chunk A proof stream
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduled-proof-streams-freshness-a-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/freshness_links_a.jsonl
+          if-no-files-found: error
+          retention-days: 14
+  scheduled-freshness-b:
+    runs-on: ubuntu-latest
+    # Chunk B: 9 files / 21 tests, measured ~4.3m. 25 min covers a cold
+    # links-package build with wide margin.
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+        env:
+          POSTGRES_DB: eshu
+          POSTGRES_USER: eshu
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U eshu -d eshu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Create fresh freshness chunk B database
+        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_freshness_b'
+      - name: Run freshness chunk B proofs
+        working-directory: go
+        env:
+          ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu_freshness_b?sslmode=disable
+        run: |
+          set -euo pipefail
+          test -z "${GOFLAGS:-}"
+          test -z "${GOWORK:-}"
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+          go test -json -race -p=1 -count=1 -timeout=10m ./internal/storage/postgres/freshness/links -run '^(TestBackfillEndsTheChainAtAHeldGeneration|TestBackfillInsertFencesItsGeneration|TestGenerationLockChainWaitRaceShape|TestIncrementalLinkPlanClassUnderPlantedStatistics|TestIncrementalLinkSurvivesStaleScopeStatistics|TestLinkDeltaChainReadUsesPrimaryKey|TestLinkFailsWhenAFenceBreachSkipsADelete|TestLinkStatementPlanShape|TestLinkWriterDoesNotWaitOnRetentionInFlight|TestOrphansCountsPlantedRows|TestPriorHeldByRetentionIsGenerationLocked|TestPriorLockWithACommittedUpdaterDoesNotWait|TestRebaseLinkPlanShape|TestRebaseOnPrunedPriorWritesOnlyChangedKeys|TestRekeyLinkIsBoundedUnderAbsentStatistics|TestRetentionAndOrphanPurgeDoNotBlock|TestRetentionDoesNotWaitOnALinkInFlight|TestRetentionRacesLinkWriter|TestRetentionSkipsTheGenerationALinkHolds|TestSplitLedgerDeleteLeaksHeadlessDeltas|TestStalledLockDiffersFromShippedOnlyByTheStall)$' | tee "${RUNNER_TEMP}/freshness_links_b.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/freshness_links_b.jsonl" --group freshness_links_b
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+      - name: Upload freshness chunk B proof stream
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduled-proof-streams-freshness-b-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/freshness_links_b.jsonl
+          if-no-files-found: error
+          retention-days: 14
+  scheduled-ack:
+    runs-on: ubuntu-latest
+    # ACK and completion proofs stay whole: measured 22.4m including the
+    # one-time -race build of the storage test binary, so 30 min keeps thin
+    # but sufficient margin without masking a hang.
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+        env:
+          POSTGRES_DB: eshu
+          POSTGRES_USER: eshu
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U eshu -d eshu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Create fresh ACK database
+        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_ack_scheduled'
+      - name: Run ACK and completion proofs
+        working-directory: go
+        env:
+          ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu_ack_scheduled?sslmode=disable
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_ack_scheduled?sslmode=disable
+        run: |
+          set -euo pipefail
+          test -z "${GOFLAGS:-}"
+          test -z "${GOWORK:-}"
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+          go test -json -race -p=1 -count=1 -timeout=10m ./internal/storage/postgres -run '^(TestContainerImageIdentityAckAttemptFenceMixedVersionLive|TestContainerImageIdentityAckAttemptFenceSurvivesSameOwnerReclaimAndReplayLive|TestContainerImageIdentityAckBatchAttemptExactnessLive|TestContainerImageIdentityAckMarkerOrderingLive|TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundariesLive|TestContainerImageIdentityCapableClaimQueriesLatchV2AndAdvanceEpochExplicitly|TestContainerImageIdentityCapablePreCutoverClaimSkipsTriggerFunctionLive|TestContainerImageIdentityClaimEpochAdvancesOnceUnderCompetingClaimersLive|TestContainerImageIdentityClaimEpochTriggerCatalogLive|TestContainerImageIdentityClaimEpochTriggerSkipsUnrelatedRowsLive|TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndFencesLegacyCallbacksLive|TestContainerImageIdentityClaimRejectsInvalidEpochJumpLive|TestContainerImageIdentityCurrentBatchClaimAdvancesAndSucceedsLive|TestContainerImageIdentityCutoverMigrationAcceptsDurableClaimLatchWithoutMarkerLive|TestContainerImageIdentityFailureStatusAuthorizationLive|TestContainerImageIdentityLegacyCleanupProbeHonorsMarkerPresentRowsLive|TestContainerImageIdentityLegacyReclaimFencesExpiredSameOwnerAttemptLive|TestContainerImageIdentityPostCutoverLegacyClaimFailsUnchangedLive|TestCrossScopeCompletionConcurrentClaimHasOneLiveOwnerPerDomain|TestCrossScopeCompletionEventAfterFanoutSnapshotRemainsPendingLive|TestCrossScopeCompletionExpiredLeaseIsRootOfBoundedFanoutLive|TestCrossScopeCompletionFanoutRollsBackEventAndIntentTogetherLive|TestCrossScopeCompletionFanoutSchedulesOnlyEligibleConsumerStatesLive|TestCrossScopeCompletionIdentityActivationRaceReopensConsumerLive|TestCrossScopeCompletionIdentityThenCICDConvergesLive|TestCrossScopeCompletionLegacyRetryAndFailClearDirtyReplayLive|TestCrossScopeCompletionQueueMigrationLifecycleLive|TestCrossScopeCompletionQuietUpgradeSeedsCanonicalReplayOnceLive|TestCrossScopeCompletionRetryMergesPendingAndStaysBoundedLive|TestCrossScopeCompletionSourceIndexLifecycleLive|TestCrossScopeCompletionSuppressesUnchangedIdentityReplayLive|TestProvenanceEdgeIdentityUpgradeSeedsCurrentReplayOnceLive|TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive|TestReducerAckCoalescesPendingCompletionEventsPerDomainLive|TestReducerAckEventInsertFailureRollsBackProducerSuccessLive|TestReducerContentionGateAckBatchDeadlockRetryLive|TestReducerContentionGateAckFanoutLockOrderLive|TestValueFlowRefreshAckBatchEmitsOnlyForGatedItemsLive|TestValueFlowRefreshAckEmitsEventWhenGatePassesLive|TestValueFlowRefreshAckFailsOpenWithoutSignalLive|TestValueFlowRefreshAckSuppressesEventOnExplicitZeroLive|TestValueFlowRefreshFanoutReopensSingletonLive|TestValueFlowRefreshGlobalScopeDoesNotHoldCanonicalLaneLive|TestValueFlowRefreshSeedMigrationSeedsGlobalSingletonLive|TestWorkflowImageCompletionForcedOrderConvergesLive)$' | tee "${RUNNER_TEMP}/ack_family.jsonl"
+          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/ack_family.jsonl" --group ack_family
+          effective_config="$(go env GOFLAGS GOWORK)"
+          test -z "$effective_config"
+          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
+          test -z "$proof_status"
+      - name: Upload ACK proof stream
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduled-proof-streams-ack-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ack_family.jsonl
+          if-no-files-found: error
+          retention-days: 14
+  scheduled-bulk:
+    runs-on: ubuntu-latest
+    # Bulk leg: every family outside ACK and the freshness splits, serially
+    # in current enrollment order sharing one warm build cache. Measured
+    # tests ~16m; 40 min covers the cold multi-package build with margin.
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+        env:
+          POSTGRES_DB: eshu
+          POSTGRES_USER: eshu
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U eshu -d eshu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
       - name: Create fresh Crossplane database
         run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_crossplane_scheduled'
       - name: Run Crossplane proofs
@@ -286,29 +599,6 @@ jobs:
           test -z "$effective_config"
           proof_status="$(git -C .. status --porcelain --untracked-files=all)"
           test -z "$proof_status"
-
-      - name: Create fresh ACK database
-        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_ack_scheduled'
-      - name: Run ACK and completion proofs
-        working-directory: go
-        env:
-          ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu_ack_scheduled?sslmode=disable
-          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_ack_scheduled?sslmode=disable
-        run: |
-          set -euo pipefail
-          test -z "${GOFLAGS:-}"
-          test -z "${GOWORK:-}"
-          effective_config="$(go env GOFLAGS GOWORK)"
-          test -z "$effective_config"
-          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-          test -z "$proof_status"
-          go test -json -race -p=1 -count=1 -timeout=10m ./internal/storage/postgres -run '^(TestContainerImageIdentityAckAttemptFenceMixedVersionLive|TestContainerImageIdentityAckAttemptFenceSurvivesSameOwnerReclaimAndReplayLive|TestContainerImageIdentityAckBatchAttemptExactnessLive|TestContainerImageIdentityAckMarkerOrderingLive|TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundariesLive|TestContainerImageIdentityCapableClaimQueriesLatchV2AndAdvanceEpochExplicitly|TestContainerImageIdentityCapablePreCutoverClaimSkipsTriggerFunctionLive|TestContainerImageIdentityClaimEpochAdvancesOnceUnderCompetingClaimersLive|TestContainerImageIdentityClaimEpochTriggerCatalogLive|TestContainerImageIdentityClaimEpochTriggerSkipsUnrelatedRowsLive|TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndFencesLegacyCallbacksLive|TestContainerImageIdentityClaimRejectsInvalidEpochJumpLive|TestContainerImageIdentityCurrentBatchClaimAdvancesAndSucceedsLive|TestContainerImageIdentityCutoverMigrationAcceptsDurableClaimLatchWithoutMarkerLive|TestContainerImageIdentityFailureStatusAuthorizationLive|TestContainerImageIdentityLegacyCleanupProbeHonorsMarkerPresentRowsLive|TestContainerImageIdentityLegacyReclaimFencesExpiredSameOwnerAttemptLive|TestContainerImageIdentityPostCutoverLegacyClaimFailsUnchangedLive|TestCrossScopeCompletionConcurrentClaimHasOneLiveOwnerPerDomain|TestCrossScopeCompletionEventAfterFanoutSnapshotRemainsPendingLive|TestCrossScopeCompletionExpiredLeaseIsRootOfBoundedFanoutLive|TestCrossScopeCompletionFanoutRollsBackEventAndIntentTogetherLive|TestCrossScopeCompletionFanoutSchedulesOnlyEligibleConsumerStatesLive|TestCrossScopeCompletionIdentityActivationRaceReopensConsumerLive|TestCrossScopeCompletionIdentityThenCICDConvergesLive|TestCrossScopeCompletionLegacyRetryAndFailClearDirtyReplayLive|TestCrossScopeCompletionQueueMigrationLifecycleLive|TestCrossScopeCompletionQuietUpgradeSeedsCanonicalReplayOnceLive|TestCrossScopeCompletionRetryMergesPendingAndStaysBoundedLive|TestCrossScopeCompletionSourceIndexLifecycleLive|TestCrossScopeCompletionSuppressesUnchangedIdentityReplayLive|TestProvenanceEdgeIdentityUpgradeSeedsCurrentReplayOnceLive|TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive|TestReducerAckCoalescesPendingCompletionEventsPerDomainLive|TestReducerAckEventInsertFailureRollsBackProducerSuccessLive|TestReducerContentionGateAckBatchDeadlockRetryLive|TestReducerContentionGateAckFanoutLockOrderLive|TestValueFlowRefreshAckBatchEmitsOnlyForGatedItemsLive|TestValueFlowRefreshAckEmitsEventWhenGatePassesLive|TestValueFlowRefreshAckFailsOpenWithoutSignalLive|TestValueFlowRefreshAckSuppressesEventOnExplicitZeroLive|TestValueFlowRefreshFanoutReopensSingletonLive|TestValueFlowRefreshGlobalScopeDoesNotHoldCanonicalLaneLive|TestValueFlowRefreshSeedMigrationSeedsGlobalSingletonLive|TestWorkflowImageCompletionForcedOrderConvergesLive)$' | tee "${RUNNER_TEMP}/ack_family.jsonl"
-          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/ack_family.jsonl" --group ack_family
-          effective_config="$(go env GOFLAGS GOWORK)"
-          test -z "$effective_config"
-          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-          test -z "$proof_status"
-
       - name: Create fresh claim database
         run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_claim_scheduled'
       - name: Run claim proofs
@@ -493,70 +783,67 @@ jobs:
           test -z "$effective_config"
           proof_status="$(git -C .. status --porcelain --untracked-files=all)"
           test -z "$proof_status"
-      - name: Create fresh freshness_links database
-        run: docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_freshness_scheduled'
-      - name: Run freshness_links proofs
-        working-directory: go
-        env:
-          ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu_freshness_scheduled?sslmode=disable
-          ESHU_7127_W11_COST: "1"
-          ESHU_RETENTION_TIMING_DSN: postgres://eshu:change-me@localhost:15432/eshu_freshness_scheduled?sslmode=disable
-          ESHU_RETENTION_TIMING_LABEL: "freshness-links-scheduled"
-          ESHU_RETENTION_TIMING_FIXTURES: "link"
-          ESHU_RETENTION_TIMING_FIXTURE: "link"
-          ESHU_RETENTION_TIMING_MODE: "run"
-          ESHU_CHANGED_SINCE_LINK_SCALE_DSN: postgres://eshu:change-me@localhost:15432/eshu_freshness_scale?sslmode=disable
-          ESHU_CHANGED_SINCE_LINK_SCALE_BASE_REF: "HEAD"
-          ESHU_CHANGED_SINCE_LINK_SCALE_ROUNDS: "1"
-          ESHU_CHANGED_SINCE_LINK_SCALE_VALID_ROUNDS: "1"
-          ESHU_CHANGED_SINCE_LINK_SCALE_DEADLINE: "30m"
-          ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p3"
-        run: |
-          set -euo pipefail
-          test -z "${GOFLAGS:-}"
-          test -z "${GOWORK:-}"
-          effective_config="$(go env GOFLAGS GOWORK)"
-          test -z "$effective_config"
-          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-          test -z "$proof_status"
-          ESHU_RETENTION_TIMING_MODE=build go test -race -p=1 -count=1 -timeout=10m ./internal/storage/postgres/freshness/links -run '^TestRetentionTimingP8$'
-          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'DROP DATABASE IF EXISTS eshu_freshness_scale WITH (FORCE)'
-          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d postgres -c 'CREATE DATABASE eshu_freshness_scale'
-          docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale < internal/storage/postgres/migrations/001_ingestion_scopes.sql
-          docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale < internal/storage/postgres/migrations/002_scope_generations.sql
-          python3 -c 'import re; path="internal/storage/postgres/migrations/003_fact_records.sql"; statements=[s.strip() for s in open(path).read().split(";")]; keep=[s for s in statements if s and not re.match(r"(?is)^(--[^\n]*\n\s*)*CREATE\s+(UNIQUE\s+)?INDEX", s)]; print(";\n".join(keep) + ";")' | docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale
-          docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale < internal/storage/postgres/migrations/136_changed_since_link_ledger.sql
-          docker exec -i "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -q -U eshu -d eshu_freshness_scale < ../docs/internal/evidence/7127-link-writer-fixture.sql
-          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d eshu_freshness_scale -c "CREATE INDEX IF NOT EXISTS fact_records_scope_generation_idx ON fact_records (scope_id, generation_id, fact_kind, observed_at DESC)"
-          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d eshu_freshness_scale -c "CREATE INDEX IF NOT EXISTS fact_records_scope_generation_keyset_idx ON fact_records (scope_id, generation_id, observed_at, fact_id)"
-          docker exec "${{ job.services.postgres.id }}" psql -v ON_ERROR_STOP=1 -U eshu -d eshu_freshness_scale -c 'ANALYZE'
-          go test -json -race -p=1 -count=1 -timeout=30m ./internal/storage/postgres/freshness/links -run '^(TestAckJournalGateAndJournalPassExcludeEachOther|TestActivatingGenerationChainWaitTimesOut|TestBackfillChainWaitTimesOut|TestBackfillEndsTheChainAtAHeldGeneration|TestBackfillInsertFencesItsGeneration|TestChainBreakKeepsStateThenIncremental|TestCursorHeldReturnsRetryWithoutWaiting|TestDeltaWithoutRootAndPrunedBeforeLink|TestDigestVersionChangeReRootsTheScope|TestFailingLinkIsPoisonedAfterMaxAttempts|TestGenerationLockChainWaitRaceShape|TestGenerationLockedIsRetryable|TestIncrementalLinkPlanClassUnderPlantedStatistics|TestIncrementalLinkSurvivesStaleScopeStatistics|TestJournalBackfillWalksRetainedChainInOrder|TestJournalPassIsExclusiveAcrossReplicas|TestJournalSweeperJournalsActiveGenerationsWithUnknownPrior|TestLedgerSchemaHasNoForeignKeys|TestLinkCostW11|TestLinkDeltaChainReadUsesPrimaryKey|TestLinkFailsWhenAFenceBreachSkipsADelete|TestLinkFenceOneWinnerPerActivation|TestLinkKilledMidStatementRerunsToIdenticalRows|TestLinkRootThenIncrementalStateEqualsAggregate|TestLinkScaleEvidence|TestLinkScaleProof|TestLinkStatementPlanShape|TestLinkWriterDoesNotWaitOnRetentionInFlight|TestLockTimeoutDoesNotLeaveTheTransaction|TestOrphanScopeRowsAreDeletedUnlessLinking|TestOrphansCountsPlantedRows|TestPriorChainWaitTimesOut|TestPriorHeldByRetentionIsGenerationLocked|TestPriorLockWithACommittedUpdaterDoesNotWait|TestRebaseLinkPlanShape|TestRebaseOnPrunedPriorWritesOnlyChangedKeys|TestRecordFailureSkipsAHeldCursor|TestRekeyLinkIsBoundedUnderAbsentStatistics|TestRetentionActivationAboveCursorP4|TestRetentionAndOrphanPurgeDoNotBlock|TestRetentionBoundP3|TestRetentionCountsP5|TestRetentionDoesNotWaitOnALinkInFlight|TestRetentionRacesLinkWriter|TestRetentionRowLimitDoesNotStarveLedgerHeavyGenerations|TestRetentionRowLimitP5|TestRetentionRuleP1|TestRetentionSkipsTheGenerationALinkHolds|TestRetentionStatementPlanShape|TestRetentionTimingCloneIsDropped|TestRetentionTimingP8|TestRetryErrorIsRetryable|TestSlotBusyBlocksFullLinksOnly|TestSplitLedgerDeleteLeaksHeadlessDeltas|TestStaleFailureDoesNotCountAgainstANewerHead|TestStalledLockDiffersFromShippedOnlyByTheStall|TestStatsReportsBacklogAndLag|TestTransactionDeadlineEndsAStalledLink)$' | tee "${RUNNER_TEMP}/freshness_links.jsonl"
-          python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/freshness_links.jsonl" --group freshness_links
-          effective_config="$(go env GOFLAGS GOWORK)"
-          test -z "$effective_config"
-          proof_status="$(git -C .. status --porcelain --untracked-files=all)"
-          test -z "$proof_status"
-      - name: Verify hosted proof bundle
-        run: python3 scripts/lib/postgres_scheduled_runner.py --verify-proof-bundle "${RUNNER_TEMP}"
-      - name: Retain hosted proof bundle
+      - name: Upload bulk proof streams
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: postgres-scheduled-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          name: scheduled-proof-streams-bulk-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/manifest.json
             ${{ runner.temp }}/crossplane.jsonl
             ${{ runner.temp }}/infra_inventory.jsonl
             ${{ runner.temp }}/disposable_gate.jsonl
             ${{ runner.temp }}/disposable_query.jsonl
             ${{ runner.temp }}/disposable_storage.jsonl
-            ${{ runner.temp }}/ack_family.jsonl
             ${{ runner.temp }}/claim.jsonl
             ${{ runner.temp }}/liveness.jsonl
             ${{ runner.temp }}/fanout.jsonl
             ${{ runner.temp }}/search.jsonl
             ${{ runner.temp }}/readiness.jsonl
             ${{ runner.temp }}/containerimage.jsonl
-            ${{ runner.temp }}/freshness_links.jsonl
+          if-no-files-found: error
+          retention-days: 14
+  scheduled-aggregate:
+    needs: [scheduled-setup, scheduled-freshness-scale, scheduled-freshness-a, scheduled-freshness-b, scheduled-ack, scheduled-bulk]
+    runs-on: ubuntu-latest
+    # Bundle assembly. No proof load and no database: 15 min covers checkout,
+    # the six artifact downloads, bundle verification, and retention. The
+    # needs list fails this job when any leg fails, so a partial stream set
+    # can never verify or retain.
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Download proof streams
+        uses: actions/download-artifact@v4
+        with:
+          pattern: scheduled-proof-streams-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/proof-bundle
+          merge-multiple: true
+      - name: Verify hosted proof bundle
+        run: python3 scripts/lib/postgres_scheduled_runner.py --verify-proof-bundle "${RUNNER_TEMP}/proof-bundle"
+      - name: Retain hosted proof bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-scheduled-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/proof-bundle/manifest.json
+            ${{ runner.temp }}/proof-bundle/crossplane.jsonl
+            ${{ runner.temp }}/proof-bundle/infra_inventory.jsonl
+            ${{ runner.temp }}/proof-bundle/disposable_gate.jsonl
+            ${{ runner.temp }}/proof-bundle/disposable_query.jsonl
+            ${{ runner.temp }}/proof-bundle/disposable_storage.jsonl
+            ${{ runner.temp }}/proof-bundle/ack_family.jsonl
+            ${{ runner.temp }}/proof-bundle/claim.jsonl
+            ${{ runner.temp }}/proof-bundle/liveness.jsonl
+            ${{ runner.temp }}/proof-bundle/fanout.jsonl
+            ${{ runner.temp }}/proof-bundle/search.jsonl
+            ${{ runner.temp }}/proof-bundle/readiness.jsonl
+            ${{ runner.temp }}/proof-bundle/containerimage.jsonl
+            ${{ runner.temp }}/proof-bundle/freshness_links_scale.jsonl
+            ${{ runner.temp }}/proof-bundle/freshness_links_a.jsonl
+            ${{ runner.temp }}/proof-bundle/freshness_links_b.jsonl
           if-no-files-found: error
           retention-days: 14

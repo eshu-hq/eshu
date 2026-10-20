@@ -1,0 +1,30 @@
+{
+  "go/internal/storage/postgres/freshness/links/retention_timing_clone_live_test.go": {
+    "group": "freshness_links_scale",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRetentionTimingCloneIsDropped"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/retention_timing_live_test.go": {
+    "group": "freshness_links_scale",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRetentionTimingP8"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/scale_live_test.go": {
+    "group": "freshness_links_scale",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkScaleEvidence"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/scale_proof_live_test.go": {
+    "group": "freshness_links_scale",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkScaleProof"
+    ]
+  }
+}

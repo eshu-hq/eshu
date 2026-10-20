@@ -1,0 +1,77 @@
+{
+  "go/internal/storage/postgres/freshness/links/fence_breach_live_test.go": {
+    "group": "freshness_links_b",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkFailsWhenAFenceBreachSkipsADelete"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/plan_live_test.go": {
+    "group": "freshness_links_b",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkDeltaChainReadUsesPrimaryKey",
+      "TestLinkStatementPlanShape"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/plan_stats_live_test.go": {
+    "group": "freshness_links_b",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestIncrementalLinkPlanClassUnderPlantedStatistics"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/prior_fence_live_test.go": {
+    "group": "freshness_links_b",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestBackfillEndsTheChainAtAHeldGeneration",
+      "TestBackfillInsertFencesItsGeneration",
+      "TestOrphansCountsPlantedRows",
+      "TestPriorHeldByRetentionIsGenerationLocked",
+      "TestPriorLockWithACommittedUpdaterDoesNotWait",
+      "TestRebaseOnPrunedPriorWritesOnlyChangedKeys"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/prior_plan_live_test.go": {
+    "group": "freshness_links_b",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRebaseLinkPlanShape"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/prior_wait_live_test.go": {
+    "group": "freshness_links_b",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestGenerationLockChainWaitRaceShape",
+      "TestStalledLockDiffersFromShippedOnlyByTheStall"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/rekey_timing_live_test.go": {
+    "group": "freshness_links_b",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestRekeyLinkIsBoundedUnderAbsentStatistics"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/retention_race_live_test.go": {
+    "group": "freshness_links_b",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestLinkWriterDoesNotWaitOnRetentionInFlight",
+      "TestRetentionAndOrphanPurgeDoNotBlock",
+      "TestRetentionDoesNotWaitOnALinkInFlight",
+      "TestRetentionRacesLinkWriter",
+      "TestRetentionSkipsTheGenerationALinkHolds",
+      "TestSplitLedgerDeleteLeaksHeadlessDeltas"
+    ]
+  },
+  "go/internal/storage/postgres/freshness/links/stale_stats_live_test.go": {
+    "group": "freshness_links_b",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "tests": [
+      "TestIncrementalLinkSurvivesStaleScopeStatistics"
+    ]
+  }
+}

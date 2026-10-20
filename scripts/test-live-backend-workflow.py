@@ -39,6 +39,7 @@ class FanInTest(unittest.TestCase):
                     "scripts/test-live-backend-lifecycle.py",
                     "scripts/test-live-backend-workflow.py",
                     "scripts/test-postgres-scheduled-runner.py",
+                    "scripts/test-postgres-scheduled-matrix.py",
                     "scripts/test-postgres-scheduled-fragments.py",
                     "scripts/test-postgres-scheduled-ledger-policy.py",
                     "scripts/test-ifa-scheduled-events.py",

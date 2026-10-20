@@ -23,7 +23,7 @@ class InventoryFragmentTest(unittest.TestCase):
         """The reviewed inventory contains all 242 tests in 119 files."""
         index = json.loads(runner.INVENTORY.read_text(encoding="utf-8"))
         self.assertEqual(index["version"], "postgres-scheduled-inventory/v1")
-        self.assertEqual(len(index["fragments"]), 13)
+        self.assertEqual(len(index["fragments"]), 15)
         inventory = runner.load_inventory()
         self.assertEqual(len(inventory), 119)
         self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 242)
@@ -140,7 +140,7 @@ class InventoryFragmentTest(unittest.TestCase):
                  "selector"),
                 ('ESHU_SEARCH_INDEX_PARTITION_LIVE: "1"',
                  'ESHU_SEARCH_INDEX_PARTITION_LIVE: "0"', "search partition"),
-                ('${{ runner.temp }}/readiness.jsonl\n', "", "artifact"),
+                ('${{ runner.temp }}/proof-bundle/readiness.jsonl\n', "", "artifact"),
                 ("--group fanout", "--group claim", "event verifier"),
                 ("      - name: Run claim proofs\n",
                  "      - name: Run claim proofs\n        if: false\n", "conditional"),
@@ -157,6 +157,12 @@ class InventoryFragmentTest(unittest.TestCase):
                  'ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p8b"', "freshness"),
                 ('ESHU_7127_W11_COST: "1"',
                  'ESHU_7127_W11_COST: "0"', "freshness"),
+                ("ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/"
+                 "eshu_freshness_a?sslmode=disable\n"
+                 '          ESHU_7127_W11_COST: "1"',
+                 "ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/"
+                 "eshu_freshness_a?sslmode=disable",
+                 "freshness"),
                 ("-timeout=30m ./internal/storage/postgres/freshness/links",
                  "-timeout=6m ./internal/storage/postgres/freshness/links",
                  "selector"),
@@ -172,7 +178,7 @@ class InventoryFragmentTest(unittest.TestCase):
 
     @mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "false"})
     def test_missing_new_stream_and_local_as_hosted_fail(self) -> None:
-        """The thirteen-stream bundle requires the new stream and hosted origin."""
+        """The fifteen-stream bundle requires the new stream and hosted origin."""
         inventory = runner.load_inventory()
         manifest = runner.build_manifest(
             inventory, "pull_request", "123", "1",
