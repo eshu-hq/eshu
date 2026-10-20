@@ -232,3 +232,47 @@ func registerConfigArtifactWalkerInstruments(meter metric.Meter, inst *Instrumen
 	}
 	return nil
 }
+
+// Outcome values of eshu_dp_config_artifact_shadow_compare_total (#8155,
+// decision record section 3.5). The set is closed and matches the shadow
+// compare alphabet in go/internal/content/artifacts; a parity test pins both
+// sides.
+const (
+	// ConfigArtifactShadowCompareOutcomeMatch is a related repository whose
+	// stored rows equal its live rows.
+	ConfigArtifactShadowCompareOutcomeMatch = "match"
+	// ConfigArtifactShadowCompareOutcomeMismatch is a related repository
+	// whose stored and live rows differ. The request serves the live
+	// answer.
+	ConfigArtifactShadowCompareOutcomeMismatch = "mismatch"
+	// ConfigArtifactShadowCompareOutcomeStoredMissing is a related
+	// repository with no trusted stored rows, so there was nothing to
+	// compare. It is not a mismatch.
+	ConfigArtifactShadowCompareOutcomeStoredMissing = "stored_missing"
+)
+
+// ConfigArtifactShadowCompareOutcomes returns a copy of the closed shadow
+// compare outcome set, in declaration order.
+func ConfigArtifactShadowCompareOutcomes() []string {
+	return []string{
+		ConfigArtifactShadowCompareOutcomeMatch,
+		ConfigArtifactShadowCompareOutcomeMismatch,
+		ConfigArtifactShadowCompareOutcomeStoredMissing,
+	}
+}
+
+// registerConfigArtifactShadowCompareInstruments registers the #8155 shadow
+// compare counter on inst. PR3c-shadow registers it; the shadow wiring slice
+// first emits it.
+func registerConfigArtifactShadowCompareInstruments(meter metric.Meter, inst *Instruments) error {
+	var err error
+	if inst.ConfigArtifactShadowCompare, err = meter.Int64Counter(
+		"eshu_dp_config_artifact_shadow_compare_total",
+		metric.WithDescription("Per-repository config-artifact shadow compare outcomes by outcome "+
+			"(match, mismatch, stored_missing) (#8155). "+
+			"No repository label"),
+	); err != nil {
+		return fmt.Errorf("register ConfigArtifactShadowCompare counter: %w", err)
+	}
+	return nil
+}

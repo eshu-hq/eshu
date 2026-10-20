@@ -77,7 +77,12 @@ importing a query package. This package keeps:
   direct nil caller can disclose the cut via `AnchorFileListTruncatedReason`
   the same way production callers do;
 - `ConfigArtifactReadStats`, which sums the per-repository `ReadStats` of the
-  neutral package with the stage's statement and byte counts.
+  neutral package with the stage's statement and byte counts;
+- the shadow compare (`shadow.go`, #8155 PR3c): after the live load, an
+  enabled `ShadowConfig` reads the related repositories' stored rows through
+  the `StoredReader` port, compares each against its live rows, and reports a
+  `ShadowReport` without changing the response. Disabled (the zero value) it
+  issues no stored statement.
 
 ## Candidate floor and request budget (#7951)
 

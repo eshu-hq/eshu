@@ -1184,6 +1184,14 @@ type Instruments struct {
 	// instruments_config_artifacts.go.
 	ConfigArtifactReconcile  metric.Int64Counter
 	ConfigArtifactStaleRepos metric.Int64Gauge
+	// ConfigArtifactShadowCompare counts per-repository config-artifact
+	// shadow compare outcomes (#8155 PR3c) by outcome (match, mismatch,
+	// stored_missing). A non-zero mismatch rate is the operator signal that
+	// the stored read model disagrees with the live extractor; the request
+	// still serves the live answer. No repository label. Registered in
+	// instruments_config_artifacts.go since PR3c-shadow; the shadow wiring
+	// slice first emits it.
+	ConfigArtifactShadowCompare metric.Int64Counter
 	// QueryK8sSelectCandidateScanTruncated counts k8s SELECTS relationship
 	// builds (GET /api/v0/entities/{id}/context on a Service or Deployment
 	// K8sResource) whose K8sResource candidate scan hit the
@@ -5924,6 +5932,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerConfigArtifactWalkerInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerConfigArtifactShadowCompareInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {

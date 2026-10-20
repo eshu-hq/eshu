@@ -37,6 +37,9 @@ This package owns:
 - `ConfigArtifactWalkerConfig`, `LoadConfigArtifactWalkerConfig` — the
   config-artifact reducer walker's own switch and worker count (#8155
   PR3b-2; defaults enabled, 4 workers; below 1 worker fails startup)
+- `ConfigArtifactReadConfig`, `LoadConfigArtifactReadMode` — the
+  config-artifact read mode of the API (#8155 PR3c; default live; an unknown
+  value fails startup)
 - `MemoryWriter` — in-process test double
 
 This package does not own the Postgres schema, SQL, or connection pool.
@@ -144,6 +147,10 @@ Config:
   the binary fails at start. The count is checked even with the walker off.
   The reducer calls the loader from `configArtifactWalkerRunnerFor` (PR3b-2,
   #8155).
+- `ConfigArtifactReadConfig` / `LoadConfigArtifactReadMode` — reads
+  `ESHU_CONFIG_ARTIFACT_READ_MODE` (default `live`) once at API start. An
+  unknown value is an error, so the binary fails at start. The API's shadow
+  wiring slice calls the loader (PR3c, #8155).
 
 ## Dependencies
 

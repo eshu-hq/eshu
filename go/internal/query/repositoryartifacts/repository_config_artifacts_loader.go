@@ -68,10 +68,12 @@ func (l configArtifactLoader) loadShared(
 	sources = append(sources, relatedSources...)
 	stats.RelatedRepositoryCount = len(relatedSources)
 
-	configArtifacts, err := l.loadForSources(ctx, reader, sources, stats)
+	res, err := l.loadForSources(ctx, reader, sources, stats)
 	if err != nil {
 		return nil, err
 	}
+	l.maybeShadow(ctx, res)
+	configArtifacts := res.merged
 	// The overview keeps its shape: production callers hold the anchor list,
 	// so the fallback never fires here and the flag is always false (#8157).
 	controllerArtifacts, _, err := loadRepositoryControllerArtifacts(ctx, reader, repoID, repoName, files)
@@ -202,7 +204,20 @@ func loadRepositoryConfigArtifactsForSources(
 	sources []repositoryArtifactSource,
 	stats *ConfigArtifactReadStats,
 ) (map[string]any, error) {
-	return productionConfigArtifactLoader.loadForSources(ctx, reader, sources, stats)
+	res, err := productionConfigArtifactLoader.loadForSources(ctx, reader, sources, stats)
+	if err != nil {
+		return nil, err
+	}
+	return res.merged, nil
+}
+
+// configArtifactLoadResult is one loadForSources pass: the merged answer and
+// the per-repository rows aligned with the ordered sources, so the shadow
+// compare can reach each related repository's live rows.
+type configArtifactLoadResult struct {
+	merged  map[string]any
+	rows    [][]map[string]any
+	sources []repositoryArtifactSource
 }
 
 // repositoryConfigFanoutWidth bounds the per-repository loads loadForSources
@@ -253,11 +268,11 @@ func (l configArtifactLoader) loadForSources(
 	reader querycontract.ContentStore,
 	sources []repositoryArtifactSource,
 	stats *ConfigArtifactReadStats,
-) (map[string]any, error) {
+) (configArtifactLoadResult, error) {
 	stats.HydrationFloor = l.floor
 	stats.HydrationBudget = l.budget
 	if reader == nil || len(sources) == 0 {
-		return nil, nil
+		return configArtifactLoadResult{}, nil
 	}
 
 	ordered := make([]repositoryArtifactSource, 0, len(sources))
@@ -268,7 +283,7 @@ func (l configArtifactLoader) loadForSources(
 		ordered = append(ordered, source)
 	}
 	if len(ordered) == 0 {
-		return nil, nil
+		return configArtifactLoadResult{}, nil
 	}
 
 	port := contentStoreReader{store: reader}
@@ -319,16 +334,18 @@ func (l configArtifactLoader) loadForSources(
 		stats.addRepository(adopted.readStats)
 		remaining = max(remaining-max(adopted.readStats.CandidatesHydrated-l.floor, 0), 0)
 		if adopted.err != nil {
-			return nil, adopted.err
+			return configArtifactLoadResult{}, adopted.err
 		}
 		perRepository = append(perRepository, adopted.rows)
 	}
 
+	res := configArtifactLoadResult{rows: perRepository, sources: ordered}
 	merged := contentartifacts.MergeConfigPaths(perRepository...)
 	if len(merged) == 0 {
-		return nil, nil
+		return res, nil
 	}
-	return map[string]any{contentartifacts.ConfigPathsKey: merged}, nil
+	res.merged = map[string]any{contentartifacts.ConfigPathsKey: merged}
+	return res, nil
 }
 
 // loadRepositoryControllerArtifacts keeps the in-package spelling after the

@@ -36,6 +36,10 @@ and adapts `querycontract.FileContent` to `File`.
   order and the one-dedup merge
 - `CleanRelativePath`, `StripRepositoryName`, `NameScoped`, `EvidenceKinds` —
   the clean step, the strip step and the name-scope table
+- `StoredRow`, `NamedRow`, `ApplyStoredNameStep`, `CompareNamedRows`,
+  `EqualNamedRows`, `ShadowOutcome*`, `ShadowOutcomes` — the shadow compare
+  input, the read-time name step over it, and the multiset equality with its
+  closed outcome alphabet (#8155 PR3c)
 - `ListStatement`, `GetFileStatement`, `GetFilesStatement`,
   `NonBlankPathsStatement`, `FileScanTargets`, `RelativePathScanTargets`, `SpaceCharacters` —
   the shared `content_files` statements and row mappers

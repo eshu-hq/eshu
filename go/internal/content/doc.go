@@ -14,6 +14,9 @@
 // ConfigArtifactWalkerConfig and LoadConfigArtifactWalkerConfig read the
 // reducer walker's own switch and worker count once at reducer start
 // (#8155 PR3b-2).
+// ConfigArtifactReadConfig and LoadConfigArtifactReadMode read the API's
+// config-artifact read mode (live, shadow, stored) once at API start
+// (#8155 PR3c); unset or blank means live.
 // CanonicalEntityID hashes (repoID, relativePath, entityType, entityName,
 // lineNumber) into a stable "content-entity:e_<12-hex>" identifier with
 // BLAKE2s. CanonicalEntityIDWithMetadata routes in-scope manifest dependency
