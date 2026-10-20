@@ -1,0 +1,16 @@
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 117,142,160,269,287
+go/internal/ifa/testdata/shellexec/ifa-shell-exec-family-expected-edges.json
+  h_78a442cba0b3e6 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a8e598ce18905ade60f38d197c6d93956b158a8",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
