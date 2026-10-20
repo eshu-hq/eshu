@@ -46,22 +46,6 @@ func zeroLiveGuardRepositoryFact() facts.Envelope {
 	}
 }
 
-func zeroLiveGuardFileFact(factID string, tombstone bool) facts.Envelope {
-	return facts.Envelope{
-		FactID:       factID,
-		ScopeID:      "scope-1",
-		GenerationID: "gen-1",
-		FactKind:     "file",
-		IsTombstone:  tombstone,
-		Payload: map[string]any{
-			"repo_id":          "repo-abc",
-			"relative_path":    "src/main.go",
-			"language":         "go",
-			"parsed_file_data": map[string]any{},
-		},
-	}
-}
-
 func zeroLiveGuardEntityFact() facts.Envelope {
 	return facts.Envelope{
 		FactID:       "entity-1",
@@ -113,26 +97,10 @@ func TestBuildMaterializationFailsLoudOnZeroFileFactsWithEntities(t *testing.T) 
 	}
 }
 
-// An all-tombstone full generation is a legitimate mass delete: the tombstones
-// are explicit per-file delete evidence, so the retract carries out input
-// intent and the build must still succeed with zero File rows.
-func TestBuildMaterializationAllTombstoneFilesStillSucceeds(t *testing.T) {
-	t.Parallel()
-
-	input := []facts.Envelope{
-		zeroLiveGuardRepositoryFact(),
-		zeroLiveGuardFileFact("file-deleted-1", true),
-		zeroLiveGuardFileFact("file-deleted-2", true),
-	}
-
-	result, _, err := BuildMaterialization(zeroLiveGuardScope(), testGeneration(), input)
-	if err != nil {
-		t.Fatalf("BuildMaterialization() error = %v, want nil; all-tombstone is a legitimate mass delete, not an unexplained wipe", err)
-	}
-	if len(result.Files) != 0 {
-		t.Fatalf("len(Files) = %d, want 0", len(result.Files))
-	}
-}
+// An all-tombstone full generation is a legitimate mass delete; that case is
+// pinned by TestBuildMaterializationAllTombstoneFilesStillSucceeds in
+// builder_fileless_guard_test.go (kept there after the #8660 merge to avoid a
+// duplicate), so this file does not repeat it.
 
 // A first generation with no file facts runs no retract, so nothing can be
 // wiped and the build keeps succeeding.
