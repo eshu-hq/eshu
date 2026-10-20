@@ -378,6 +378,14 @@ go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/
 # #6694 canonical slice: dated evidence records describing paths as they stood.
 docs/internal/evidence/5994-documentation-sqltable-match-label.md:go/internal/storage/cypher/canonical_documentation_edges.go
 docs/internal/evidence/6649-calls-degree-floor.md:go/internal/storage/cypher/canonical_code_call_edges.go
+# #6694 edge/writer leaf: the 6228 slice-D note records the alias consts as
+# placed "beside the existing writer" at the old root path. Repointing would
+# claim the 6228 tree looked like the post-move tree.
+go/internal/storage/cypher/edge/writer/evidence-6228-slice-d-taint-writers.md:go/internal/storage/cypher/code_interproc_evidence_writer.go
+# #6694 edge/writer leaf: the 6228 determinism note's No-Regression section
+# records the const-export rename edit against the old root writer path.
+# Repointing would falsify which file that evidence was gathered on.
+docs/internal/evidence/6228-kubernetes-correlation-determinism.md:go/internal/storage/cypher/kubernetes_correlation_edge_writer.go
 
 # #6696 leaf 1 renamed awscloud/services to awscloud/service. These three
 # pointers record the tree as it stood at the time: a released CHANGELOG entry,
