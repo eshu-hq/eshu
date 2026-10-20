@@ -50,11 +50,16 @@ func TestPilotOperationsAreImplementedInventoryRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(operations) != 6 {
-		t.Fatalf("pilot operations = %d, want 6", len(operations))
+	if len(operations) != 10 {
+		t.Fatalf("pilot operations = %d, want 10", len(operations))
 	}
 	if got := operations["GET /api/v0/status/ingesters/{ingester}"].Path; got != "/api/v0/status/ingesters/repository" {
 		t.Fatalf("parameterized path = %q", got)
+	}
+	// #7009: the plain ingester-detail route shares the status variant's
+	// handler, so it carries the same Expect contract on its own path.
+	if got := operations["GET /api/v0/ingesters/{ingester}"]; got.Path != "/api/v0/ingesters/repository" || got.Expect != "ingester_status" {
+		t.Fatalf("ingester detail pilot = %+v, want the repository path with the ingester_status contract", got)
 	}
 	if got := operations["GET /api/v0/repositories/{repo_id}/story"].Path; got != "/api/v0/repositories/"+SeedStoryAnchorID+"/story" {
 		t.Fatalf("story path = %q, want the seeded anchor", got)
@@ -65,7 +70,7 @@ func TestPilotOperationsAreImplementedInventoryRoutes(t *testing.T) {
 			toolNames[surface.Name] = true
 		}
 	}
-	for _, id := range []string{"MCP search_file_content", "MCP search_entity_content"} {
+	for _, id := range []string{"MCP search_file_content", "MCP search_entity_content", "MCP get_hosted_readiness", "MCP list_ingesters", "MCP get_operator_control_plane"} {
 		op, ok := operations[id]
 		if !ok || !op.MCP || op.Path != "/mcp/message" || op.Expect == "" {
 			t.Fatalf("pilot %s = %+v, want an MCP operation with an Expect contract", id, op)

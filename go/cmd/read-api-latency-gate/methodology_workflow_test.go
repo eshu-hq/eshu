@@ -201,8 +201,8 @@ func TestMethodologyScaleDeadlineContainsObservedWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(operations) != 6 {
-		t.Fatalf("pilot operation count = %d, want 6", len(operations))
+	if len(operations) != 10 {
+		t.Fatalf("pilot operation count = %d, want 10", len(operations))
 	}
 	requestBatches := (manual.Env.Requests + manual.Env.Workers - 1) / manual.Env.Workers
 	remaining := time.Duration(len(operations)*requestBatches) * requestTimeout

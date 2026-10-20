@@ -121,11 +121,15 @@ jobs:
     name: methodology scale (neo4j)
     runs-on: ubuntu-latest
     # Run 38032713508 reached its serial report after 30m8s from first job
-    # setup log, then the 30m job limit canceled the concurrent stage. Six
+    # setup log, then the 30m job limit canceled the concurrent stage. Ten
     # operations (#7009 pilots included) x ceil(20 requests / 4 workers) x
-    # 30s allow 15m more; 60m leaves about 7m for normal scheduling and
-    # teardown variation.
-    timeout-minutes: 60
+    # 30s allow 25m more, plus 7m20s cleanup/headroom: 65m leaves about
+    # 2m30s. That is the longest deadline the merge-queue publisher budget
+    # admits (selection 10m + payload + 5m margin against the 80m await, and
+    # the 85m aggregate job under the 90m check-response budget), so the
+    # four added pilots consume its whole margin. A slower run fails here
+    # and is retried by hand; it never blocks a merge.
+    timeout-minutes: 65
     env:
       GATE_COMPOSE_PROJECT: eshu-methodology-scale-ci
       ESHU_GRAPH_BACKEND: neo4j

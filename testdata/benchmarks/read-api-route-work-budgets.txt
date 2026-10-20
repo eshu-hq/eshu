@@ -19,6 +19,7 @@ GET /api/v0/index-status	42	47442	82	GREEN-derived work guard
 GET /api/v0/infra/resources/count	20	149436	86	GREEN-derived work guard
 GET /api/v0/infra/resources/inventory	20	149436	18	GREEN-derived work guard
 GET /api/v0/ingesters	39	47385	82	GREEN-derived work guard
+GET /api/v0/ingesters/{ingester}	39	47379	82	GREEN-derived work guard
 GET /api/v0/repositories	20	72	18	GREEN-derived work guard
 GET /api/v0/repositories/language-inventory	20	243	18	GREEN-derived work guard
 GET /api/v0/repositories/{repo_id}/story	389	70782	11084	GREEN-derived work guard
@@ -36,6 +37,9 @@ GET /api/v0/status/pipeline	47	51384	86	GREEN-derived work guard
 GET /api/v0/status/semantic-extraction	20	33	18	GREEN-derived work guard
 GET /api/v0/supply-chain/container-images/identities/count	20	33	18	GREEN-derived work guard
 GET /api/v0/supply-chain/impact/findings/count	20	33	18	GREEN-derived work guard
+MCP get_hosted_readiness	45	51315	86	GREEN-derived work guard
 MCP get_index_status	43	47436	82	GREEN-derived work guard
+MCP get_operator_control_plane	45	51324	86	GREEN-derived work guard
+MCP list_ingesters	40	47382	82	GREEN-derived work guard
 MCP search_entity_content	71	311960	117	GREEN-derived work guard
 MCP search_file_content	22	798	40	GREEN-derived work guard

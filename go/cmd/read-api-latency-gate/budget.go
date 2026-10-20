@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -172,6 +173,23 @@ func (b RouteBudgets) WithCatalog(catalog capabilitycatalog.Catalog) RouteBudget
 	b.catalog = catalog
 	b.haveCat = true
 	return b
+}
+
+// Named reports whether the table lists route explicitly instead of leaving
+// it to the default row. It mirrors the work-budget Named contract.
+func (b RouteBudgets) Named(route string) bool {
+	_, ok := b.byRoute[route]
+	return ok
+}
+
+// NamedRoutes lists every explicitly budgeted route in sorted order.
+func (b RouteBudgets) NamedRoutes() []string {
+	routes := make([]string, 0, len(b.byRoute))
+	for route := range b.byRoute {
+		routes = append(routes, route)
+	}
+	slices.Sort(routes)
+	return routes
 }
 
 // For returns the effective budget for route: the tighter of the declared
