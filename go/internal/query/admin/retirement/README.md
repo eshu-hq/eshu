@@ -38,6 +38,14 @@ mark loop — stays counter-silent, so accepted plus terminal counts
 reconstruct the funnel. The counter is
 `eshu_dp_repository_retirements_total{outcome}`.
 
+An interrupted mark loop still reports one entry per requested repository
+in request order on the error result (#8614): marked and failing
+repositories carry the counted terminal (`refused` on conflict, `failed`
+on error), and the never-attempted remainder carries the response-only
+`not_attempted` outcome, which is never counted and never audited. The
+`409`/`500` route body renders those entries with the fixed detail, and a
+same-key retry resumes the open rows to completion.
+
 A re-POST with the same idempotency key resumes the open retirement and
 reports `duplicate: true`. The mark, fence, and purge each commit
 atomically, so a client cancel between steps leaves resumable state, never
@@ -46,8 +54,10 @@ a stranded key.
 ## Telemetry and audit
 
 - Counter: `eshu_dp_repository_retirements_total{outcome}` (this trigger).
-- Logs: `repository retirement refused at fence` (WARN); the purge's own
-  `repository retirement purged` (INFO) and `repository retirement blocked:
+- Logs: `repository retirement refused at fence` (WARN) and `repository
+  retirement mark failed` (WARN, with `outcome`, the failing `repo_id`,
+  and the still-open `marked_repo_ids`); the purge's own `repository
+  retirement purged` (INFO) and `repository retirement blocked:
   terminal generations not reached` (WARN) lines.
 - Audit: `admin_retirement_action` events for accepted, refused, blocked,
   completed, failed, and denied inputs. Raw reasons and keys never reach a

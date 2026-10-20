@@ -141,6 +141,15 @@ so retry with a fresh `idempotency_key`.
 A selector that matches no repository, or several, still answers `400` and
 names the selector. A failed catalog lookup answers `500` without it.
 
+A `409` or `500` from the retirement trigger carries the trigger's
+per-repository entries alongside the fixed `detail` (#8614): one
+`retirements` entry per requested repository in request order, plus the
+`idempotency_key` and the `duplicate` flag. Repositories marked before a
+mid-request mark failure stay committed and open with their terminal
+outcome (`refused` on conflict, `failed` on error); repositories never
+attempted report the response-only `not_attempted` outcome. A retry with
+the same key resumes the open rows.
+
 ## A 499 on a mutation
 
 A `499` says only that the client left. It does not say that the mutation did

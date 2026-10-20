@@ -25,8 +25,11 @@ import (
 // marked repository, so the eshu_dp_repository_retirements_total funnel
 // adds up. A repository this call never marked stays counter-silent: a
 // validation refusal counts nothing, and a mid-loop mark failure counts
-// the terminal only for the repositories already marked. The per-repo
-// breakdown of an interrupted mark loop is deferred to #8614.
+// the terminal only for the repositories already marked. The interrupted
+// mark loop still reports per-repository entries in request order (#8614):
+// the marked repositories carry the counted terminal, the failing
+// repository carries that terminal counter-silent, and the never-attempted
+// remainder carries the response-only not_attempted outcome.
 const (
 	// TriggerOutcomeAccepted counts a committed tombstone mark.
 	TriggerOutcomeAccepted = "accepted"
@@ -41,6 +44,11 @@ const (
 	// TriggerOutcomeFailed counts a trigger error: the repository reached
 	// no designed exit.
 	TriggerOutcomeFailed = "failed"
+	// TriggerOutcomeNotAttempted is response-only (#8614): the mark loop
+	// failed before this repository was attempted, so it carries no
+	// terminal count and no audit event. It never reaches countOutcome or
+	// the audit appender; only the error response names it.
+	TriggerOutcomeNotAttempted = "not_attempted"
 )
 
 // Trigger audit reason codes for the admin_retirement_action event. The
@@ -153,11 +161,14 @@ func (t *Trigger) TriggerRetirement(ctx context.Context, req TriggerRequest) (Tr
 	keyHash := audit.IdentityHash(req.IdempotencyKey)
 	duplicate := false
 	// marked carries the repositories this call committed a tombstone
-	// for. A mid-loop mark failure counts its terminal only for those:
-	// the never-attempted remainder stays counter-silent until #8614
-	// gives the interrupted mark loop a per-repo breakdown.
+	// for. A mid-loop mark failure counts its terminal only for those;
+	// the never-attempted remainder stays counter-silent and audit-silent.
 	var marked []string
-	for _, retirement := range req.Retirements {
+	// effectiveIDs maps a marked repository to its open row's id: the
+	// requested id, or the resumed row's id when the mark resumed a
+	// same-key retry. The partial mark-failure entries name the open row.
+	effectiveIDs := make(map[string]string, len(req.Retirements))
+	for i, retirement := range req.Retirements {
 		record, err := t.Marker.InsertPending(ctx, pgstorage.RetirementRequest{
 			RetirementID:       retirement.RetirementID,
 			RepoID:             retirement.RepoID,
@@ -169,17 +180,26 @@ func (t *Trigger) TriggerRetirement(ctx context.Context, req TriggerRequest) (Tr
 			IdempotencyKeyHash: keyHash,
 		})
 		if err != nil {
+			terminal := TriggerOutcomeFailed
 			if errors.Is(err, pgstorage.ErrRetirementAlreadyOpen) {
+				terminal = TriggerOutcomeRefused
 				t.countRefused(ctx, marked)
 				t.audit(ctx, req, retirement, governanceaudit.DecisionDenied, triggerReasonRefused)
 			} else {
 				t.countOutcome(ctx, TriggerOutcomeFailed, marked)
 			}
-			return TriggerResult{}, err
+			t.logger().WarnContext(ctx, "repository retirement mark failed",
+				slog.String("outcome", terminal),
+				slog.String("repo_id", retirement.RepoID),
+				slog.Any("marked_repo_ids", marked),
+				slog.String("error", err.Error()),
+			)
+			return TriggerResult{Repos: partialMarkOutcomes(req.Retirements, effectiveIDs, terminal, i), Duplicate: duplicate}, err
 		}
 		if record.RetirementID != retirement.RetirementID {
 			duplicate = true
 		}
+		effectiveIDs[retirement.RepoID] = record.RetirementID
 		marked = append(marked, retirement.RepoID)
 		t.countOutcome(ctx, TriggerOutcomeAccepted, []string{retirement.RepoID})
 		t.audit(ctx, req, retirement, governanceaudit.DecisionAllowed, triggerReasonAccepted)
@@ -302,6 +322,33 @@ func repoIDsOf(retirements []TriggerRetirement) []string {
 	}
 	sort.Strings(repoIDs)
 	return repoIDs
+}
+
+// partialMarkOutcomes reports an interrupted mark loop in request order
+// (#8614): repositories marked before index failedAt carry the counted
+// terminal outcome, the failing repository carries that terminal
+// counter-silent, and the never-attempted remainder carries the
+// response-only not_attempted outcome. effectiveIDs maps a marked
+// repository to its open row's id, so a resumed same-key retry names the
+// open row instead of the superseded request id.
+func partialMarkOutcomes(retirements []TriggerRetirement, effectiveIDs map[string]string, terminal string, failedAt int) []RepoOutcome {
+	outcomes := make([]RepoOutcome, 0, len(retirements))
+	for i, retirement := range retirements {
+		outcome := RepoOutcome{
+			RetirementID: retirement.RetirementID, RepoID: retirement.RepoID,
+			ScopeID: retirement.ScopeID, Outcome: terminal,
+		}
+		switch {
+		case i < failedAt:
+			if id, ok := effectiveIDs[retirement.RepoID]; ok {
+				outcome.RetirementID = id
+			}
+		case i > failedAt:
+			outcome.Outcome = TriggerOutcomeNotAttempted
+		}
+		outcomes = append(outcomes, outcome)
+	}
+	return outcomes
 }
 
 // refusedOutcomes reports every repository refused when the fence stops the
