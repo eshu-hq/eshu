@@ -36,7 +36,9 @@ import (
 // The same loud failure applies when a non-first, non-delta build drops every
 // live file fact yet materializes zero File rows: succeeding would hand the
 // writer a file-less materialization whose unbounded retract wipes every
-// prior File node (see rejectSilentFilelessWipe).
+// prior File node (see rejectSilentFilelessWipe). The same loud failure
+// applies when the build carries zero file facts of any kind (see
+// rejectZeroLiveFileWipe, issue #8657).
 // Callers must treat a non-nil error as authoritative and discard the returned
 // materialization.
 func BuildMaterialization(
@@ -132,6 +134,16 @@ func BuildMaterialization(
 	quarantined = append(quarantined, ExtractTerraformStateRows(&mat, inputFacts)...)
 	quarantined = append(quarantined, ExtractOCIRegistryRows(&mat, inputFacts)...)
 	quarantined = append(quarantined, ExtractPackageRegistryRows(&mat, inputFacts)...)
+
+	// A non-first, non-delta build that carries zero file facts of any kind
+	// yet materialized zero File rows hands the writer a file-less
+	// materialization whose unbounded retract wipes every prior File node
+	// and writes zero replacements, yet reports success (issue #8657).
+	// Fail loudly: with no live or tombstoned file facts the input carries
+	// no file intent, so the wipe is unexplained.
+	if err := rejectZeroLiveFileWipe(inputFacts, mat); err != nil {
+		return CanonicalMaterialization{}, quarantined, err
+	}
 
 	return mat, quarantined, nil
 }

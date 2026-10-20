@@ -201,6 +201,50 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 	return rows, parsed, quarantined, nil
 }
 
+// rejectZeroLiveFileWipe fails a non-first, non-delta build that carries
+// zero file facts of any kind yet materialized zero File rows. The writer's
+// retract phase is unbounded for such a materialization (RetractFilesCypher
+// plus the per-label entity retracts), so succeeding would DETACH DELETE
+// every prior File node and write zero replacements while the projection
+// reports success -- the exact shape observed in issue #8657 (Repository
+// node, no edges, no File nodes, succeeded item).
+//
+// Builds that legitimately carry zero File rows still succeed: first
+// generations run no retract, delta projections retract only their scoped
+// path lists, and input without any repository scope cannot drive the
+// writer's repository-scoped retract at all (mirroring
+// hasRepositoryScopedRetract in storage/cypher, which this package cannot
+// import without a cycle). An all-tombstone full generation is a mass delete
+// the full retract is meant to carry out: the tombstones are explicit
+// per-file delete evidence, so the empty graph matches the input intent and
+// the build succeeds. Live file facts that vanish upstream pass through
+// here untouched: that drop shape belongs to the sibling #8660 guard, which
+// fails it loudly naming the dropped facts.
+func rejectZeroLiveFileWipe(inputFacts []facts.Envelope, mat CanonicalMaterialization) error {
+	if mat.FirstGeneration || mat.DeltaProjection {
+		return nil
+	}
+	if len(mat.Files) > 0 {
+		return nil
+	}
+	if strings.TrimSpace(mat.RepoID) == "" {
+		return nil
+	}
+	var live, tombstoned int
+	for _, f := range decode.FilterFileFacts(inputFacts) {
+		if f.IsTombstone {
+			tombstoned++
+			continue
+		}
+		live++
+	}
+	if live > 0 || tombstoned > 0 {
+		return nil
+	}
+	return fmt.Errorf("build codegraph file materialization: generation %q scope %q carries zero file facts (live=%d tombstoned=%d) but projected zero File rows; refusing a file-less success that would retract every prior File node",
+		mat.GenerationID, mat.ScopeID, live, tombstoned)
+}
+
 // isRepositoryLocalRelativePath reports whether a file fact's relative_path
 // stays inside the repository it was collected from.
 //

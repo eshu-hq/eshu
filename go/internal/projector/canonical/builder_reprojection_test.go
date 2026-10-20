@@ -25,7 +25,17 @@ func TestBuildMaterializationMarksReprojectionOfActiveGeneration(t *testing.T) {
 		for key, value := range extra {
 			payload[key] = value
 		}
-		return []facts.Envelope{{FactID: "r-1", ScopeID: "scope-1", FactKind: "repository", Payload: payload}}
+		// The fixture carries a live file fact on purpose: a non-first,
+		// non-delta build with zero file facts of any kind is a loud
+		// failure since #8657 (the file-less success would wipe prior File
+		// nodes), and this test's subject is flag marking, not filelessness.
+		return []facts.Envelope{
+			{FactID: "r-1", ScopeID: "scope-1", FactKind: "repository", Payload: payload},
+			{FactID: "f-1", ScopeID: "scope-1", FactKind: "file", Payload: map[string]any{
+				"repo_id": "repo-abc", "relative_path": "src/main.go",
+				"language": "go", "parsed_file_data": map[string]any{},
+			}},
+		}
 	}
 	cases := []struct {
 		name   string

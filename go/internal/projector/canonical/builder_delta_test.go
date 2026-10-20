@@ -89,6 +89,18 @@ func TestBuildCanonicalMaterializationExtractsReconciliationProjection(t *testin
 				"reconciliation_generation": true,
 			},
 		},
+		// A live file fact on purpose: a non-first, non-delta build with
+		// zero file facts of any kind is a loud failure since #8657, and
+		// this test's subject is flag marking, not filelessness.
+		{
+			FactID:   "f-1",
+			ScopeID:  "scope-1",
+			FactKind: "file",
+			Payload: map[string]any{
+				"repo_id": "repo-abc", "relative_path": "src/main.go",
+				"language": "go", "parsed_file_data": map[string]any{},
+			},
+		},
 	}
 
 	result, _, _ := BuildMaterialization(sc, gen, envelopes)
