@@ -334,14 +334,15 @@ The exit code is the contract with the `case "${AGGREGATE_CODE}"` arms in
 | `12` | aggregation could not reach a verdict (API error, bad token, unreadable registry) | `error` |
 | `13` | every selected gate is terminal and at least one never produced a verdict (cancelled, stale, skipped by its run's cancellation, or missing because that run was cancelled before the job existed) | `error` |
 | `14` | verdict transferred from a tree-identical previous head (#8617 reuse) | `success`, with a description that names the transfer |
+| `15` | fast subset passed on a clean rebase, heavy verdicts transferred (#8617 smoke) | `success`, with a description that names the smoke shape |
 
 Codes start at `10` so a `go build` failure (`1`) or a usage error (`2`) cannot
 be mistaken for a gate result. `internal/cigates` re-declares `11`, `13`,
-and `14` to validate those workflow arms statically;
+`14`, and `15` to validate those workflow arms statically;
 `TestStillRunningCodeMatchesAwaitContract`,
 `TestGateCancelledCodeMatchesAwaitContract`, and
 `TestPublisherMirrorsEveryAwaitExitCode` pin the mirrors against this
-package's constants.
+package's constants, the last covering the `15` smoke mirror as well.
 
 ### queue-select
 

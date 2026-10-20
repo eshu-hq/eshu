@@ -46,7 +46,11 @@
 // it publishes `error`. 14 is the #8617 tree-identical reuse outcome: the
 // verdict was transferred from a previous head, so it publishes `success`
 // with a description that names the transfer instead of claiming a fresh
-// run. A gate GitHub skipped for its own reasons is NOT in
+// run. 15 is the #8617 smoke-tier outcome: the fast subset passed on a
+// clean rebase while heavy verdicts transferred from the fully green
+// replaced head, so it publishes `success` with a description that names
+// the smoke shape instead of claiming every gate ran. A gate GitHub skipped
+// for its own reasons is NOT in
 // that set and still publishes `failure`; separating the two is the one thing
 // await needs the `actions: read` scope for, and a failed lookup keeps the
 // skip a failure. With --event merge_group, Await instead aggregates a
