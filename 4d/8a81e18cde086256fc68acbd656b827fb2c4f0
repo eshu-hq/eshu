@@ -1,0 +1,20 @@
+go/internal/ifa/familyodu/iam_instance_profile_role_family_odu.go
+  h_78a442cba0b3e6 52
+go/internal/reducer/code/shell/handler.go
+  h_78a442cba0b3e6 127
+go/internal/reducer/evidence-6626-cloud-bucket.md
+  h_78a442cba0b3e6 53-56,78-82
+go/internal/reducer/secgroup/README.md
+  h_78a442cba0b3e6 109-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d8a81e18cde086256fc68acbd656b827fb2c4f0",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
