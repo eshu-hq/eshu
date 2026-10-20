@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
@@ -50,7 +51,7 @@ func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handle
 		handlers.AWSCloudRuntimeDriftWriter != nil &&
 		handlers.AWSCloudRuntimeDriftFencingTokenIssuer != nil {
 		awsRuntimeDrift := awsCloudRuntimeDriftDomainDefinition()
-		awsRuntimeDrift.Handler = AWSCloudRuntimeDriftHandler{
+		awsRuntimeDrift.Handler = awscloud.AWSCloudRuntimeDriftHandler{
 			EvidenceLoader:     handlers.AWSCloudRuntimeDriftEvidenceLoader,
 			Writer:             handlers.AWSCloudRuntimeDriftWriter,
 			Instruments:        handlers.Instruments,

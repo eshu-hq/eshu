@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
@@ -43,7 +44,7 @@ func containerImageIdentityEnrichedWrite(
 	scopeID, generationID, suffix string,
 	evidenceAsOf time.Time,
 	sourceRevision string,
-) reducer.ContainerImageIdentityWrite {
+) containerimage.ContainerImageIdentityWrite {
 	write := containerImageIdentityLiveWrite(
 		scopeID, generationID, suffix, evidenceAsOf, reducer.ContainerImageIdentityExactDigest,
 	)
@@ -81,10 +82,10 @@ func containerImageIdentityStoredPayload(
 
 func containerImageIdentityFenceLiveWriter(
 	db *sql.DB,
-) reducer.PostgresContainerImageIdentityWriter {
+) containerimage.PostgresContainerImageIdentityWriter {
 	adapter := SQLDB{DB: db}
 	cutoverStore := NewContainerImageIdentityCutoverStore(adapter)
-	return reducer.PostgresContainerImageIdentityWriter{
+	return containerimage.PostgresContainerImageIdentityWriter{
 		DB:                  adapter,
 		Beginner:            ContainerImageIdentityBeginner{Beginner: adapter},
 		CutoverLookup:       cutoverStore,
@@ -97,7 +98,7 @@ func seedContainerImageIdentityFenceLiveClaim(
 	t *testing.T,
 	ctx context.Context,
 	db *sql.DB,
-	write reducer.ContainerImageIdentityWrite,
+	write containerimage.ContainerImageIdentityWrite,
 ) {
 	t.Helper()
 	seedContainerImageIdentityAckWorkItem(

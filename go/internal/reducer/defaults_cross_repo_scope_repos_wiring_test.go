@@ -73,9 +73,9 @@ func TestDeploymentMappingRegistrationCarriesScopeRepos(t *testing.T) {
 		if definition.Domain != DomainDeploymentMapping {
 			continue
 		}
-		typed, ok := definition.Handler.(PlatformMaterializationHandler)
+		typed, ok := definition.Handler.(platformfam.PlatformMaterializationHandler)
 		if !ok {
-			t.Fatalf("handler for %s = %T, want PlatformMaterializationHandler", definition.Domain, definition.Handler)
+			t.Fatalf("handler for %s = %T, want platformfam.PlatformMaterializationHandler", definition.Domain, definition.Handler)
 		}
 		if typed.CrossRepoResolver == nil {
 			t.Fatal("CrossRepoResolver is nil on the registered handler: the ownership partition would ship inert")

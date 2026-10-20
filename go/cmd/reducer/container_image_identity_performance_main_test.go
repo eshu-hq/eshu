@@ -6,7 +6,7 @@
 package main
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -22,7 +22,7 @@ func containerImageIdentityPerfPrepareIntent(intent *reducercontract.Intent) {
 
 func containerImageIdentityPerfWriter(
 	database db.ExecQueryer,
-) reducer.ContainerImageIdentityWriter {
+) containerimage.ContainerImageIdentityWriter {
 	store := postgres.NewFactStore(database)
 	return containerImageIdentityPerfLegacyWriter{store: store}
 }

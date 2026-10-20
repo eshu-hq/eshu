@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 // TestAzureRelationshipMaterializationQuarantinesMissingResourceType is the
@@ -22,7 +23,7 @@ import (
 //
 // Before the migration this behavior was impossible: azureCloudResourceNodeRow
 // read resource_type with payloadString, which returns "" for the absent key,
-// and cloudResourceUID(subscriptionID, location, "", resourceID) yielded a
+// and cloudjoin.CloudResourceUID(subscriptionID, location, "", resourceID) yielded a
 // wrong-but-plausible identity that silently entered the join index — the
 // silent wrong graph truth the Life Motto ranks as the worst failure.
 //
@@ -74,7 +75,7 @@ func TestAzureRelationshipMaterializationQuarantinesMissingResourceType(t *testi
 
 	// No row may reference a uid computed with an empty-string resource_type
 	// segment — the accuracy guarantee.
-	emptyTypeUID := cloudResourceUID("sub-1", "eastus", "", "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm")
+	emptyTypeUID := cloudjoin.CloudResourceUID("sub-1", "eastus", "", "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm")
 	for _, row := range rows {
 		if row["uid"] == emptyTypeUID {
 			t.Fatalf("written row references the empty-resource_type uid %q; a quarantined fact must never produce graph identity", emptyTypeUID)

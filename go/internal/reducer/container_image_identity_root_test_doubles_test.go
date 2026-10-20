@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 )
 
 // This file is a local copy of test fixtures and doubles the
@@ -83,7 +84,7 @@ func containerImageIdentityFact(factID, repositoryID, imageRef, digest string) f
 
 // recordingContainerImageIdentityWriter is a trimmed local copy of
 // internal/reducer/containerimage's own fixture. The upstream version also
-// sets ContainerImageIdentityWriteResult's package-private
+// sets containerimage.ContainerImageIdentityWriteResult's package-private
 // effectiveDecisions/effectiveProjectionPresent fields to feed the graph
 // projection path; this package cannot reach those unexported fields across
 // the package boundary, and its own callers (defaults_test.go,
@@ -91,7 +92,7 @@ func containerImageIdentityFact(factID, repositoryID, imageRef, digest string) f
 // as a zero-value stand-in and never inspect the returned result, so the
 // simpler CanonicalWrites-only result is equivalent for their purposes.
 type recordingContainerImageIdentityWriter struct {
-	write ContainerImageIdentityWrite
+	write containerimage.ContainerImageIdentityWrite
 	calls int
 	err   error
 }
@@ -106,14 +107,14 @@ func (*recordingContainerImageIdentityWriter) ContainerImageIdentityActivationEp
 
 func (w *recordingContainerImageIdentityWriter) WriteContainerImageIdentityDecisions(
 	_ context.Context,
-	write ContainerImageIdentityWrite,
-) (ContainerImageIdentityWriteResult, error) {
+	write containerimage.ContainerImageIdentityWrite,
+) (containerimage.ContainerImageIdentityWriteResult, error) {
 	w.calls++
 	w.write = write
 	if w.err != nil {
-		return ContainerImageIdentityWriteResult{}, w.err
+		return containerimage.ContainerImageIdentityWriteResult{}, w.err
 	}
-	return ContainerImageIdentityWriteResult{
+	return containerimage.ContainerImageIdentityWriteResult{
 		CanonicalWrites: len(write.Decisions),
 	}, nil
 }

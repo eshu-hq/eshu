@@ -9,11 +9,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 )
 
 // AWSCloudRuntimeDriftAdmissionBeginner adapts a postgres Beginner (for
-// example the instrumented reducer DB) into the reducer's narrow AWS
+// example the instrumented reducer DB) into the awscloud narrow AWS
 // cloud-runtime-drift transaction surface (#5848), so the writer can commit
 // its insert-admission check, versioned upsert, and generation-authoritative
 // retire atomically over the shared instrumented connection. Mirrors
@@ -22,11 +22,11 @@ type AWSCloudRuntimeDriftAdmissionBeginner struct {
 	Beginner db.Beginner
 }
 
-// BeginAWSCloudRuntimeDriftTx opens a transaction wrapped in the reducer's
+// BeginAWSCloudRuntimeDriftTx opens a transaction wrapped in the awscloud
 // drift-writer surface.
 func (b AWSCloudRuntimeDriftAdmissionBeginner) BeginAWSCloudRuntimeDriftTx(
 	ctx context.Context,
-) (reducer.AWSCloudRuntimeDriftTx, error) {
+) (awscloud.AWSCloudRuntimeDriftTx, error) {
 	tx, err := b.Beginner.Begin(ctx)
 	if err != nil {
 		return nil, err

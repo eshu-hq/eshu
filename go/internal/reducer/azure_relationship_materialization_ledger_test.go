@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 const (
@@ -74,7 +75,7 @@ func TestAzureRelationshipMaterializationLedgerRecordsBeforeWrite(t *testing.T) 
 	if ledger.recordCalls != 1 {
 		t.Fatalf("record calls = %d, want 1", ledger.recordCalls)
 	}
-	wantUID := cloudResourceUID("sub-1", "eastus", "microsoft.compute/virtualmachines",
+	wantUID := cloudjoin.CloudResourceUID("sub-1", "eastus", "microsoft.compute/virtualmachines",
 		"/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm")
 	if len(ledger.recordedUIDs) != 1 || ledger.recordedUIDs[0] != wantUID {
 		t.Fatalf("recorded uids = %v, want [%s]", ledger.recordedUIDs, wantUID)
@@ -190,9 +191,9 @@ func TestAzureRelationshipMaterializationLedgerLeakSafetyAcrossGenerations(t *te
 		t.Fatalf("gen2 Handle returned error: %v", err)
 	}
 
-	uidVM1 := cloudResourceUID("sub-1", "eastus", "microsoft.compute/virtualmachines",
+	uidVM1 := cloudjoin.CloudResourceUID("sub-1", "eastus", "microsoft.compute/virtualmachines",
 		"/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm")
-	uidVM2 := cloudResourceUID("sub-1", "eastus", "microsoft.compute/virtualmachines",
+	uidVM2 := cloudjoin.CloudResourceUID("sub-1", "eastus", "microsoft.compute/virtualmachines",
 		"/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm2")
 
 	if writer.retractByUIDsCalls != 1 {

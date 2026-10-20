@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
@@ -23,7 +24,7 @@ import (
 func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition, handlers DefaultHandlers) []DomainDefinition {
 	if handlers.FactLoader != nil && handlers.ObservabilityCoverageCorrelationWriter != nil {
 		observability := observabilityCoverageCorrelationDomainDefinition()
-		observability.Handler = ObservabilityCoverageCorrelationHandler{
+		observability.Handler = obscoverage.ObservabilityCoverageCorrelationHandler{
 			FactLoader:  handlers.FactLoader,
 			Writer:      handlers.ObservabilityCoverageCorrelationWriter,
 			Instruments: handlers.Instruments,

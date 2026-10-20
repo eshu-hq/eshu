@@ -63,7 +63,7 @@ type awsRuntimeStateResourceRow struct {
 	resource     *cloudruntime.ResourceRow
 }
 
-// LoadAWSCloudRuntimeDriftEvidence implements reducer.AWSCloudRuntimeDriftEvidenceLoader.
+// LoadAWSCloudRuntimeDriftEvidence implements awscloud.AWSCloudRuntimeDriftEvidenceLoader.
 func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) LoadAWSCloudRuntimeDriftEvidence(
 	ctx context.Context,
 	scopeID string,

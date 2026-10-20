@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 )
 
 // Minimal local stubs for the AWS cloud-runtime-drift adapter interfaces, used
@@ -33,9 +34,9 @@ type stubAWSCloudRuntimeDriftFindingWriter struct{}
 
 func (stubAWSCloudRuntimeDriftFindingWriter) WriteAWSCloudRuntimeDriftFindings(
 	context.Context,
-	AWSCloudRuntimeDriftWrite,
-) (AWSCloudRuntimeDriftWriteResult, error) {
-	return AWSCloudRuntimeDriftWriteResult{}, nil
+	awscloud.AWSCloudRuntimeDriftWrite,
+) (awscloud.AWSCloudRuntimeDriftWriteResult, error) {
+	return awscloud.AWSCloudRuntimeDriftWriteResult{}, nil
 }
 
 type stubAWSCloudRuntimeDriftFencingTokenIssuer struct {

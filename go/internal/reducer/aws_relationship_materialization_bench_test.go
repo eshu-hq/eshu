@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 // awsRelationshipBenchCorpus builds a realistic single-region scan corpus:
@@ -78,9 +79,9 @@ func BenchmarkBuildCloudResourceJoinIndex(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		index, _, err := buildCloudResourceJoinIndex(resources)
+		index, _, err := cloudjoin.BuildCloudResourceJoinIndex(resources)
 		if err != nil {
-			b.Fatalf("buildCloudResourceJoinIndex() error = %v, want nil", err)
+			b.Fatalf("cloudjoin.BuildCloudResourceJoinIndex() error = %v, want nil", err)
 		}
 		if len(index.ByARN) != resourceCount*2 {
 			b.Fatalf("len(byARN) = %d, want %d", len(index.ByARN), resourceCount*2)

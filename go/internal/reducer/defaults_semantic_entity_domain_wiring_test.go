@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 )
 
 // TestNewDefaultRuntimeRegistersSemanticEntityMaterializationWhenWriterPresent
@@ -31,7 +32,7 @@ func TestNewDefaultRuntimeRegistersSemanticEntityMaterializationWhenWriterPresen
 			result: cloudasset.CloudAssetResolutionWriteResult{CanonicalWrites: 1},
 		},
 		PlatformMaterializationWriter: &recordingPlatformMaterializationWriter{
-			result: PlatformMaterializationWriteResult{CanonicalWrites: 1},
+			result: platformfam.PlatformMaterializationWriteResult{CanonicalWrites: 1},
 		},
 		SemanticEntityWriter: &recordingSemanticEntityWriter{
 			result: semantic.EntityWriteResult{CanonicalWrites: 1},

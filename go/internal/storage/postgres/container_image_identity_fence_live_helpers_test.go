@@ -13,6 +13,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 )
 
 // Shared fixtures for the real-Postgres proofs of the #5847 fencing token.
@@ -135,15 +136,15 @@ func containerImageIdentityLiveWrite(
 	scopeID, generationID, suffix string,
 	evidenceAsOf time.Time,
 	outcome reducer.ContainerImageIdentityOutcome,
-) reducer.ContainerImageIdentityWrite {
-	return reducer.ContainerImageIdentityWrite{
+) containerimage.ContainerImageIdentityWrite {
+	return containerimage.ContainerImageIdentityWrite{
 		IntentID:     "intent-" + suffix,
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		SourceSystem: "git",
 		Cause:        "live fence proof",
 		EvidenceAsOf: evidenceAsOf,
-		Decisions: []reducer.ContainerImageIdentityDecision{
+		Decisions: []containerimage.ContainerImageIdentityDecision{
 			{
 				ImageRef:         "registry.example.com/team/api:prod",
 				Digest:           "sha256:" + "ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12",

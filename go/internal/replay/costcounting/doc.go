@@ -40,7 +40,7 @@
 //     go/cmd/reducer/endpoint_presence_wiring.go newHandlerEdgeWriter sets on
 //     the production edge writer.
 //   - aws_cloud_runtime_drift (aws_cloud_runtime_drift_cost_test.go) drives
-//     [reducer.PostgresAWSCloudRuntimeDriftWriter.WriteAWSCloudRuntimeDriftFindings]
+//     [awscloud.PostgresAWSCloudRuntimeDriftWriter.WriteAWSCloudRuntimeDriftFindings]
 //     over two in-package fixture candidates through a
 //     [storage/postgres.InstrumentedDB] — a Postgres fact writer, not a
 //     Cypher graph writer, so it asserts the

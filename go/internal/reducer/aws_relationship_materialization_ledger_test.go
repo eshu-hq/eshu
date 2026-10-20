@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 // TestAWSRelationshipMaterializationLedgerRecordsBeforeWrite proves the
@@ -49,7 +50,7 @@ func TestAWSRelationshipMaterializationLedgerRecordsBeforeWrite(t *testing.T) {
 	if ledger.recordCalls != 1 {
 		t.Fatalf("record calls = %d, want 1", ledger.recordCalls)
 	}
-	wantUID := cloudResourceUID("111122223333", "us-east-1", "aws_lambda_function",
+	wantUID := cloudjoin.CloudResourceUID("111122223333", "us-east-1", "aws_lambda_function",
 		"arn:aws:lambda:us-east-1:111122223333:function:fn")
 	if len(ledger.recordedUIDs) != 1 || ledger.recordedUIDs[0] != wantUID {
 		t.Fatalf("recorded uids = %v, want [%s]", ledger.recordedUIDs, wantUID)
@@ -233,8 +234,8 @@ func TestAWSRelationshipMaterializationLedgerLeakSafetyAcrossGenerations(t *test
 		"source_resource_id": fnB, "source_arn": fnB,
 		"target_resource_id": kmsKey, "target_arn": kmsKey, "target_type": "aws_kms_key",
 	})
-	uidA := cloudResourceUID(account, region, "aws_lambda_function", fnA)
-	uidB := cloudResourceUID(account, region, "aws_lambda_function", fnB)
+	uidA := cloudjoin.CloudResourceUID(account, region, "aws_lambda_function", fnA)
+	uidB := cloudjoin.CloudResourceUID(account, region, "aws_lambda_function", fnB)
 
 	writer := &recordingCloudResourceEdgeWriter{}
 	ledger := newStatefulProjectedSourceLedger()

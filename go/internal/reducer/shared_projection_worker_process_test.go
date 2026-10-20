@@ -471,9 +471,9 @@ func partitionKeyForTestPartition(t *testing.T, wantPartition, partitionCount in
 
 	for i := 0; i < 10_000; i++ {
 		key := prefix + "-" + time.Date(2026, time.April, 17, 0, 0, i%60, 0, time.UTC).Format("150405") + "-" + string(rune('a'+(i%26)))
-		got, err := PartitionForKey(key, partitionCount)
+		got, err := sharedintent.PartitionForKey(key, partitionCount)
 		if err != nil {
-			t.Fatalf("PartitionForKey(%q) error = %v", key, err)
+			t.Fatalf("sharedintent.PartitionForKey(%q) error = %v", key, err)
 		}
 		if got == wantPartition {
 			return key

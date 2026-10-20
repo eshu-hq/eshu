@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -64,7 +65,7 @@ func TestAzureResourceMaterializationRetractsDeletedUIDs(t *testing.T) {
 	if result.Status != ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
-	wantDeleted := cloudResourceUID("sub-1", "eastus", "microsoft.compute/virtualmachines",
+	wantDeleted := cloudjoin.CloudResourceUID("sub-1", "eastus", "microsoft.compute/virtualmachines",
 		"/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/deleted")
 	if len(retracter.uids) != 1 || retracter.uids[0] != wantDeleted {
 		t.Fatalf("retract uids = %v, want exactly [%q]", retracter.uids, wantDeleted)

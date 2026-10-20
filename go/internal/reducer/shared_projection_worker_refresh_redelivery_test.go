@@ -82,12 +82,12 @@ func TestProcessPartitionOnceSQLRefreshFenceRedeliveryConverges(t *testing.T) {
 			upsertFenceTrackingDelivery(store, redelivery)
 			accepted := acceptedGenerationFixed(tt.secondGeneration, true)
 
-			refreshPartition, err := PartitionForKey(
+			refreshPartition, err := sharedintent.PartitionForKey(
 				sharedintent.RepoWideRetractRefreshPartitionKey(DomainSQLRelationships, repositoryID),
 				partitionCount,
 			)
 			if err != nil {
-				t.Fatalf("PartitionForKey(refresh): %v", err)
+				t.Fatalf("sharedintent.PartitionForKey(refresh): %v", err)
 			}
 
 			// Force the hostile cross-partition interleaving: every edge partition

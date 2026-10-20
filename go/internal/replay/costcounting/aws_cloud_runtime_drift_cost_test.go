@@ -19,7 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -28,7 +28,7 @@ import (
 // specs/fact-kind-registry.v1.yaml:44-64, reducer_domain
 // aws_cloud_runtime_drift). Unlike every other scenario in this package, the
 // production writer for this domain
-// (reducer.PostgresAWSCloudRuntimeDriftWriter) is a Postgres fact writer, not
+// (awscloud.PostgresAWSCloudRuntimeDriftWriter) is a Postgres fact writer, not
 // a Cypher graph writer — it has no committed cassette or graph-shaped input,
 // so the fixture candidates live inline in this file and the budget records
 // that explicitly instead of pointing at a cassette path.
@@ -174,9 +174,9 @@ func (postgresFakeResult) LastInsertId() (int64, error) { return 0, nil }
 func (postgresFakeResult) RowsAffected() (int64, error) { return 1, nil }
 
 // newInstrumentedAWSCloudRuntimeDriftWriter builds the production
-// reducer.PostgresAWSCloudRuntimeDriftWriter (constructed at
+// awscloud.PostgresAWSCloudRuntimeDriftWriter (constructed at
 // go/cmd/reducer/wiring_handlers.go:61
-// "AWSCloudRuntimeDriftWriter: reducer.PostgresAWSCloudRuntimeDriftWriter{DB:
+// "AWSCloudRuntimeDriftWriter: awscloud.PostgresAWSCloudRuntimeDriftWriter{DB:
 // database}"), wired over a postgresExecCountingQueryer wrapped by the
 // production postgres.InstrumentedDB — the same wrapper
 // go/cmd/reducer/observed_service_wiring.go buildObservedReducerService
@@ -189,7 +189,7 @@ func (postgresFakeResult) RowsAffected() (int64, error) { return 1, nil }
 // (operation="write", store="reducer") — the PRIMARY instrument this scenario
 // asserts, not a hand-counted call slice.
 func newInstrumentedAWSCloudRuntimeDriftWriter(t *testing.T) (
-	writer reducer.PostgresAWSCloudRuntimeDriftWriter,
+	writer awscloud.PostgresAWSCloudRuntimeDriftWriter,
 	exec *postgresExecCountingQueryer,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -198,7 +198,7 @@ func newInstrumentedAWSCloudRuntimeDriftWriter(t *testing.T) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &postgresExecCountingQueryer{}
 	instrumentedDB := &postgres.InstrumentedDB{Inner: exec, Instruments: inst, StoreName: "reducer"}
-	writer = reducer.PostgresAWSCloudRuntimeDriftWriter{
+	writer = awscloud.PostgresAWSCloudRuntimeDriftWriter{
 		DB:  postgres.AWSCloudRuntimeDriftAdmissionBeginner{Beginner: instrumentedDB},
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
@@ -235,7 +235,7 @@ func collectHistogramCount(rm metricdata.ResourceMetrics, name string) uint64 {
 // the aws_cloud_runtime_drift reducer projection (the aws family in
 // specs/fact-kind-registry.v1.yaml, C-14 issue #4367). It drives the
 // production
-// reducer.PostgresAWSCloudRuntimeDriftWriter.WriteAWSCloudRuntimeDriftFindings
+// awscloud.PostgresAWSCloudRuntimeDriftWriter.WriteAWSCloudRuntimeDriftFindings
 // over two deterministic admitted candidates through a real
 // InstrumentedDB-backed sdkmetric.ManualReader, then asserts the
 // eshu_dp_postgres_query_duration_seconds observation count is within the
@@ -258,7 +258,7 @@ func TestCostBudget_AWSCloudRuntimeDrift(t *testing.T) {
 	budget := loadBudgetFrom(t, awsCloudRuntimeDriftBudgetRelPath)
 	writer, exec, reader := newInstrumentedAWSCloudRuntimeDriftWriter(t)
 
-	if _, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), reducer.AWSCloudRuntimeDriftWrite{
+	if _, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), awscloud.AWSCloudRuntimeDriftWrite{
 		IntentID:      "intent-aws-drift-cost",
 		ScopeID:       "aws:123456789012:us-east-1",
 		GenerationID:  "generation-aws-cost",
@@ -341,7 +341,7 @@ func TestCostBudget_AWSCloudRuntimeDrift_N1_ExceedsBudget(t *testing.T) {
 	writer, _, reader := newInstrumentedAWSCloudRuntimeDriftWriter(t)
 
 	for i := 0; i < 2; i++ {
-		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), reducer.AWSCloudRuntimeDriftWrite{
+		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), awscloud.AWSCloudRuntimeDriftWrite{
 			IntentID:      "intent-aws-drift-cost",
 			ScopeID:       "aws:123456789012:us-east-1",
 			GenerationID:  "generation-aws-cost",
@@ -400,7 +400,7 @@ func TestCostBudget_AWSCloudRuntimeDrift_WithinCallN1_ExceedsBudget(t *testing.T
 	writer, _, reader := newInstrumentedAWSCloudRuntimeDriftWriter(t)
 
 	for _, candidate := range candidates {
-		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), reducer.AWSCloudRuntimeDriftWrite{
+		if _, err := writer.WriteAWSCloudRuntimeDriftFindings(context.Background(), awscloud.AWSCloudRuntimeDriftWrite{
 			IntentID:      "intent-aws-drift-cost",
 			ScopeID:       "aws:123456789012:us-east-1",
 			GenerationID:  "generation-aws-cost",

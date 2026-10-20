@@ -16,8 +16,8 @@ import "context"
 // It is exported so families below the reducer root (e.g. cicdrun,
 // container_image_identity) can name it without importing the reducer root
 // package, which would violate the strictly downward package-import direction
-// (root -> family -> shared-core -> contract). The reducer root keeps
-// ContainerImageProvenanceEdgeWriter as an alias to this type (issue #6061).
+// (root -> family -> shared-core -> contract). The reducer-root alias to this
+// type was retired with the #6626 cloud bucket (issues #6061, #6626).
 type ContainerImageProvenanceEdgeWriter interface {
 	WriteBuiltFromEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractBuiltFromEdges(ctx context.Context, scopeID, generationID, evidenceSource string) error

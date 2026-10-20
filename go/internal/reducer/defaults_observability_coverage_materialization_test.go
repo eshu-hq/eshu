@@ -6,6 +6,8 @@ package reducer
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 )
 
 // recordingObservabilityCoverageEdgeWriter is a minimal
@@ -71,9 +73,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesObservabilityCoverageMateria
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(ObservabilityCoverageMaterializationHandler)
+		handler, ok := def.Handler.(obscoverage.ObservabilityCoverageMaterializationHandler)
 		if !ok {
-			t.Fatalf("observability_coverage_materialization handler type = %T, want ObservabilityCoverageMaterializationHandler", def.Handler)
+			t.Fatalf("observability_coverage_materialization handler type = %T, want obscoverage.ObservabilityCoverageMaterializationHandler", def.Handler)
 		}
 		if handler.FactLoader != loader {
 			t.Fatal("observability_coverage_materialization handler FactLoader was not wired")

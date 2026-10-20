@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -151,12 +152,12 @@ func TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive(t 
 
 	// --- Step 4: the real Handler, real Postgres, state still pending. ---
 	loader := PostgresAWSCloudRuntimeDriftEvidenceLoader{DB: SQLDB{DB: sqlDB}}
-	writer := reducer.PostgresAWSCloudRuntimeDriftWriter{
+	writer := awscloud.PostgresAWSCloudRuntimeDriftWriter{
 		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: sqlDB}},
 	}
 	readinessChecker := PostgresAWSCloudRuntimeDriftReadinessChecker{DB: SQLDB{DB: sqlDB}}
 	fencingTokenIssuer := PostgresAWSCloudRuntimeDriftFencingTokenIssuer{DB: SQLDB{DB: sqlDB}}
-	handler := reducer.AWSCloudRuntimeDriftHandler{
+	handler := awscloud.AWSCloudRuntimeDriftHandler{
 		EvidenceLoader:     loader,
 		Writer:             writer,
 		ReadinessChecker:   readinessChecker,

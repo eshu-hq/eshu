@@ -10,6 +10,7 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
@@ -21,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
@@ -75,8 +77,8 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// DriftWriteSupersededPastAttemptBudget and
 	// TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget
 	// are the regression.
-	reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass,
-	reducer.AWSCloudRuntimeDriftStatePendingFailureClass,
+	awscloud.AWSCloudRuntimeDriftWriteSupersededFailureClass,
+	awscloud.AWSCloudRuntimeDriftStatePendingFailureClass,
 	// #7142: a supply_chain_impact write rejected at admission because a
 	// fresher pass already admitted for the same (scope, generation). Enrolled
 	// for the same reason as the AWS class above: a declared-but-unregistered
@@ -117,14 +119,14 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// here, so the next one cannot be added silently. That guard found six of
 	// the seventeen on its first run, after a hand sweep had already missed
 	// them.
-	reducer.AWSCloudImageNodesNotReadyFailureClass,
+	awscloud.AWSCloudImageNodesNotReadyFailureClass,
 	reducer.AWSRelationshipNodesNotReadyFailureClass,
 	reducer.AzureRelationshipNodesNotReadyFailureClass,
 	iamcan.IAMCanAssumeNodesNotReadyFailureClass,
 	iamcan.IAMCanPerformNodesNotReadyFailureClass,
 	iamescalation.IAMEscalationNodesNotReadyFailureClass,
 	iaminstprofile.IAMInstanceProfileRoleNodesNotReadyFailureClass,
-	reducer.ObservabilityCoverageNodesNotReadyFailureClass,
+	obscoverage.ObservabilityCoverageNodesNotReadyFailureClass,
 	rdsposture.RDSPostureNodesNotReadyFailureClass,
 	secgroup.SecurityGroupReachabilityNodesNotReadyFailureClass,
 	reducer.WorkloadCloudRelationshipNodesNotReadyFailureClass,

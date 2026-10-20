@@ -38,10 +38,11 @@ import (
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 )
 
 // ---------------------------------------------------------------------------
-// deployment_mapping (PlatformMaterializationHandler)
+// deployment_mapping (platformfam.PlatformMaterializationHandler)
 // ---------------------------------------------------------------------------
 
 // TestPlatformMaterializationHandlerSubDurationsWorkHappened asserts the
@@ -50,9 +51,9 @@ import (
 func TestPlatformMaterializationHandlerSubDurationsWorkHappened(t *testing.T) {
 	t.Parallel()
 
-	handler := PlatformMaterializationHandler{
+	handler := platformfam.PlatformMaterializationHandler{
 		Writer: &recordingPlatformMaterializationWriter{
-			result: PlatformMaterializationWriteResult{
+			result: platformfam.PlatformMaterializationWriteResult{
 				CanonicalWrites: 3,
 				EvidenceSummary: "3 platform bindings written",
 			},
@@ -74,9 +75,9 @@ func TestPlatformMaterializationHandlerSubDurationsWorkHappened(t *testing.T) {
 func TestPlatformMaterializationHandlerSubDurationsGenuineEmpty(t *testing.T) {
 	t.Parallel()
 
-	handler := PlatformMaterializationHandler{
+	handler := platformfam.PlatformMaterializationHandler{
 		Writer: &recordingPlatformMaterializationWriter{
-			result: PlatformMaterializationWriteResult{
+			result: platformfam.PlatformMaterializationWriteResult{
 				CanonicalWrites: 0,
 				EvidenceSummary: "nothing to write",
 			},

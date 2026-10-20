@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -24,7 +25,7 @@ import (
 //
 // Before the migration this behavior was impossible: gcpCloudResourceNodeRow
 // read full_resource_name with payloadString, which returns "" for the absent
-// key, and cloudResourceUID(projectID, location, assetType, "") yielded a
+// key, and cloudjoin.CloudResourceUID(projectID, location, assetType, "") yielded a
 // wrong-but-plausible identity that would silently materialize a corrupt node.
 //
 // After the migration ExtractGCPCloudResourceNodeRows decodes each
@@ -92,7 +93,7 @@ func TestGCPResourceMaterializationQuarantinesMissingFullResourceName(t *testing
 
 	// No node may be written under a uid computed with an empty-string
 	// full_resource_name segment — the accuracy guarantee.
-	emptyIdentityUID := cloudResourceUID("demo-proj", "us-central1-a", "compute.googleapis.com/Instance", "")
+	emptyIdentityUID := cloudjoin.CloudResourceUID("demo-proj", "us-central1-a", "compute.googleapis.com/Instance", "")
 	for _, row := range writer.rows {
 		if row["uid"] == emptyIdentityUID {
 			t.Fatalf("written node references the empty-identity uid %q; a quarantined fact must never produce graph identity", emptyIdentityUID)

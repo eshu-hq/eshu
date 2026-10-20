@@ -25,8 +25,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/evidence"
+	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -264,7 +267,7 @@ func buildReducerService(
 		RepositoryEdgeReader:            graphReader,
 		WorkloadIdentityWriter:          reducer.PostgresWorkloadIdentityWriter{DB: database},
 		CloudAssetResolutionWriter:      cloudasset.PostgresCloudAssetResolutionWriter{DB: database},
-		PlatformMaterializationWriter:   reducer.PostgresPlatformMaterializationWriter{DB: database},
+		PlatformMaterializationWriter:   platformfam.PostgresPlatformMaterializationWriter{DB: database},
 		PlatformGraphLocker:             platformGraphLockerForReducer(database),
 		WorkloadMaterializationReplayer: workQueue,
 		WorkloadMaterializer:            newProbedWorkloadMaterializer(cypherExec, logger, instruments, neo4jWorkloadSiblingLookup{reader: graphReader}),
@@ -334,7 +337,7 @@ func buildReducerService(
 		EC2InstanceNodeRetracter:              graphWriters.ec2InstanceRetracter,
 		CloudResourceEdgeWriter:               graphWriters.cloudResourceEdge,
 		CloudResourceContainerImageEdgeWriter: graphWriters.cloudResourceContainerImageEdge,
-		ContainerImageExistence:               reducer.GraphContainerImageExistenceLookup{Graph: graphReader},
+		ContainerImageExistence:               containerimage.GraphContainerImageExistenceLookup{Graph: graphReader},
 		GCPCloudResourceEdgeWriter:            graphWriters.gcpCloudResourceEdge,
 		AzureCloudResourceEdgeWriter:          graphWriters.azureCloudResourceEdge,
 		WorkloadCloudRelationshipEdgeWriter:   graphWriters.workloadCloudRelationshipEdge,
@@ -394,7 +397,7 @@ func buildReducerService(
 		// family (#1990, #2127) from active reducer_supply_chain_impact_finding facts
 		// on each correlated service's repository (repository_id-scoped, additive).
 		ServiceVulnerabilityAdvisoryLoader: factStore,
-		ObservabilityCoverageCorrelationWriter: reducer.PostgresObservabilityCoverageCorrelationWriter{
+		ObservabilityCoverageCorrelationWriter: obscoverage.PostgresObservabilityCoverageCorrelationWriter{
 			DB: database,
 		},
 		PackageWriter: correlation.PostgresPackageWriter{

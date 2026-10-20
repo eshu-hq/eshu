@@ -22,14 +22,15 @@ workflow-image and deployment-event evidence bridges, and the exact
 workflow-image `BUILT_FROM` provenance-edge projection.
 
 **Does not own:** the container-image identity domain itself
-(`ContainerImageIdentityHandler` and its writer, still in the reducer root)
+(`ContainerImageIdentityHandler` and its writer, in `internal/reducer/containerimage`)
 — this package only reads its published `reducer_container_image_identity`
 facts across scopes, behind the `crossscope` readiness floor. The
 `ContainerImageProvenanceEdgeWriter` port itself is shared, not
 root-owned: its canonical definition now lives in
-`internal/reducer/contract/provenance_edges.go`, with the reducer root
-keeping only a type-alias forwarder (`container_image_provenance_edges.go`)
-for backward compatibility — see Dependencies below. Also does not own the
+`internal/reducer/contract/provenance_edges.go` — the reducer-root type-alias
+forwarder (`container_image_provenance_edges.go`) was retired with the #6626
+cloud bucket; callers name `containerimage`/`reducercontract` directly — see
+Dependencies below. Also does not own the
 `supply_chain_impact` domain that reads this package's canonical
 `reducer_ci_cd_run_correlation` facts, or the cross-scope
 producer-readiness floor and dependency catalog themselves (`crossscope`,
@@ -78,10 +79,10 @@ shared with `container_image_identity`) moved to
 #6061): it is a genuine two-family shared contract, not owned by either
 family alone, so it was hoisted to `contract` — the same reasoning
 `crossscope`'s own README documents for the readiness floor — rather than
-re-declared locally. The reducer root keeps
-`ContainerImageProvenanceEdgeWriter` as a type alias to
-`reducercontract.ContainerImageProvenanceEdgeWriter`
-(`container_image_provenance_edges.go`). The
+re-declared locally. The reducer-root `ContainerImageProvenanceEdgeWriter`
+type alias (`container_image_provenance_edges.go`) was retired with the #6626
+cloud bucket; callers name `reducercontract.ContainerImageProvenanceEdgeWriter`
+directly. The
 `CICDRunCorrelationEnvironmentEvidenceDeployEvent`/`Declared` vocabulary
 (`contract/ci_cd_run_correlation_environment_evidence.go`) moved the same
 way: this package publishes it on `CICDRunCorrelationDecision.EnvironmentEvidence`,

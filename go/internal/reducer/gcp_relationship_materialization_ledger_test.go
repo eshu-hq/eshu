@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 const (
@@ -68,7 +69,7 @@ func TestGCPRelationshipMaterializationLedgerRecordsBeforeWrite(t *testing.T) {
 	if ledger.recordCalls != 1 {
 		t.Fatalf("record calls = %d, want 1", ledger.recordCalls)
 	}
-	wantUID := cloudResourceUID("demo-proj", "us-central1-a", "compute.googleapis.com/Instance", gcpInstanceFullName)
+	wantUID := cloudjoin.CloudResourceUID("demo-proj", "us-central1-a", "compute.googleapis.com/Instance", gcpInstanceFullName)
 	if len(ledger.recordedUIDs) != 1 || ledger.recordedUIDs[0] != wantUID {
 		t.Fatalf("recorded uids = %v, want [%s]", ledger.recordedUIDs, wantUID)
 	}
@@ -183,8 +184,8 @@ func TestGCPRelationshipMaterializationLedgerLeakSafetyAcrossGenerations(t *test
 		t.Fatalf("gen2 Handle returned error: %v", err)
 	}
 
-	uidInstance1 := cloudResourceUID("demo-proj", "us-central1-a", "compute.googleapis.com/Instance", gcpInstanceFullName)
-	uidInstance2 := cloudResourceUID("demo-proj", "us-central1-a", "compute.googleapis.com/Instance", gcpInstance2FullName)
+	uidInstance1 := cloudjoin.CloudResourceUID("demo-proj", "us-central1-a", "compute.googleapis.com/Instance", gcpInstanceFullName)
+	uidInstance2 := cloudjoin.CloudResourceUID("demo-proj", "us-central1-a", "compute.googleapis.com/Instance", gcpInstance2FullName)
 
 	if writer.retractByUIDsCalls != 1 {
 		t.Fatalf("retractByUIDs calls = %d, want 1", writer.retractByUIDsCalls)

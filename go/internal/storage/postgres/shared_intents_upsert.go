@@ -13,7 +13,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -135,7 +134,7 @@ func (s *SharedIntentStore) UpsertIntents(ctx context.Context, rows []sharedinte
 			repositoryID:     r.RepositoryID,
 			sourceRunID:      r.SourceRunID,
 			generationID:     r.GenerationID,
-			partitionHash:    strconv.FormatUint(reducer.PartitionHashForKey(r.PartitionKey), 10),
+			partitionHash:    strconv.FormatUint(sharedintent.PartitionHashForKey(r.PartitionKey), 10),
 			payloadBytes:     payloadBytes,
 			createdAt:        r.CreatedAt,
 			completedAt:      completedAt,

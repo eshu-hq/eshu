@@ -18,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
@@ -36,12 +37,12 @@ import (
 // appendSecretsAndDriftAdditiveDomains's nil-adapter gate keeps the domain
 // unregistered rather than wiring a writer that would panic on first use.
 // Mirrors serviceMaterializationWriterFor.
-func awsCloudRuntimeDriftWriterFor(database db.ExecQueryer) reducer.AWSCloudRuntimeDriftFindingWriter {
+func awsCloudRuntimeDriftWriterFor(database db.ExecQueryer) awscloud.AWSCloudRuntimeDriftFindingWriter {
 	beginner := reducerBeginner(database)
 	if beginner == nil {
 		return nil
 	}
-	return reducer.PostgresAWSCloudRuntimeDriftWriter{
+	return awscloud.PostgresAWSCloudRuntimeDriftWriter{
 		DB: postgres.AWSCloudRuntimeDriftAdmissionBeginner{Beginner: beginner},
 	}
 }

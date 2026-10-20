@@ -30,7 +30,7 @@ import (
 // explicitly wired KubernetesCorrelationEdgeWriter and FactLoader; registering it
 // without them would silently drop every intent. It mirrors
 // awsRelationshipMaterializationDomainDefinition (#805 PR2) and
-// observabilityCoverageMaterializationDomainDefinition (#391 PR3). See issue #388
+// obscoverage.MaterializationDomainDefinition (#391 PR3). See issue #388
 // PR3 and docs/internal/design/388-kubernetes-correlation-readmodel.md.
 func KubernetesCorrelationMaterializationDomainDefinition() reducercontract.DomainDefinition {
 	return reducercontract.DomainDefinition{

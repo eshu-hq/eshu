@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 )
 
 // awsCloudRuntimeDriftElapsedBoundQueueDB fakes just enough of the reducer
@@ -117,14 +118,14 @@ func (alwaysOrphanedAWSCloudRuntimeDriftEvidenceLoader) LoadAWSCloudRuntimeDrift
 type countingAWSCloudRuntimeDriftFindingWriter struct{ calls int }
 
 func (w *countingAWSCloudRuntimeDriftFindingWriter) WriteAWSCloudRuntimeDriftFindings(
-	_ context.Context, write reducer.AWSCloudRuntimeDriftWrite,
-) (reducer.AWSCloudRuntimeDriftWriteResult, error) {
+	_ context.Context, write awscloud.AWSCloudRuntimeDriftWrite,
+) (awscloud.AWSCloudRuntimeDriftWriteResult, error) {
 	w.calls++
-	return reducer.AWSCloudRuntimeDriftWriteResult{CanonicalWrites: len(write.Candidates)}, nil
+	return awscloud.AWSCloudRuntimeDriftWriteResult{CanonicalWrites: len(write.Candidates)}, nil
 }
 
 // sequentialAWSCloudRuntimeDriftFencingTokenIssuer fakes
-// reducer.AWSCloudRuntimeDriftFencingTokenIssuer with a plain in-memory
+// awscloud.AWSCloudRuntimeDriftFencingTokenIssuer with a plain in-memory
 // counter -- this test drives a fake queue backend specifically so a
 // 30-minute bound can be crossed in test time, so it has no real Postgres
 // sequence to issue from; the fencing-token mechanism itself (#5875 P1) is
@@ -194,7 +195,7 @@ func TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive(
 
 	writer := &countingAWSCloudRuntimeDriftFindingWriter{}
 	readiness := &alwaysPendingAWSCloudRuntimeDriftReadinessChecker{}
-	handler := reducer.AWSCloudRuntimeDriftHandler{
+	handler := awscloud.AWSCloudRuntimeDriftHandler{
 		EvidenceLoader:     alwaysOrphanedAWSCloudRuntimeDriftEvidenceLoader{},
 		Writer:             writer,
 		ReadinessChecker:   readiness,

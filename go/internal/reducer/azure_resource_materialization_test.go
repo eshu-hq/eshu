@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -58,7 +59,7 @@ func TestExtractAzureCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
-	wantUID := cloudResourceUID("sub-1", "eastus", "microsoft.compute/virtualmachines", "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm")
+	wantUID := cloudjoin.CloudResourceUID("sub-1", "eastus", "microsoft.compute/virtualmachines", "/subscriptions/sub-1/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm")
 	if got := anyToString(rows[0]["uid"]); got != wantUID {
 		t.Fatalf("uid = %q, want %q", got, wantUID)
 	}

@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -181,7 +182,7 @@ func runContainerImageIdentityPerfCase(
 		t.Fatal("build production container-image-identity writer = nil")
 	}
 	var clockTick atomic.Int64
-	handler := reducer.ContainerImageIdentityHandler{
+	handler := containerimage.ContainerImageIdentityHandler{
 		FactLoader: factStore,
 		Writer:     writer,
 		Now: func() time.Time {

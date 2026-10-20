@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -834,7 +835,7 @@ func TestWorkloadMaterializationHandlerWritesProvisionedInfrastructureRuntimePla
 				RepoName:            "service-api",
 				ProvisioningRepoIDs: []string{"repo-infra"},
 				ProvisioningEvidenceKinds: map[string][]string{
-					"repo-infra": {TerraformPlatformEvidenceKind("ecs", "cluster")},
+					"repo-infra": {platformfam.TerraformPlatformEvidenceKind("ecs", "cluster")},
 				},
 				Classification: "service",
 				Confidence:     0.96,

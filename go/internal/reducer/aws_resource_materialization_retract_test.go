@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -110,7 +111,7 @@ func TestAWSResourceMaterializationRetractsDeletedUIDs(t *testing.T) {
 	if retracter.calls != 1 {
 		t.Fatalf("retracter.calls = %d, want 1", retracter.calls)
 	}
-	wantDeleted := cloudResourceUID("111122223333", "us-east-1", "aws_ec2_vpc", "vpc-deleted")
+	wantDeleted := cloudjoin.CloudResourceUID("111122223333", "us-east-1", "aws_ec2_vpc", "vpc-deleted")
 	if len(retracter.uids) != 1 || retracter.uids[0] != wantDeleted {
 		t.Fatalf("retract uids = %v, want exactly [%q]", retracter.uids, wantDeleted)
 	}

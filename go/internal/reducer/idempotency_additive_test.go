@@ -114,7 +114,7 @@ var idempotencyAdditiveExemptDomains = map[reducercontract.Domain]string{
 
 	// Image identity + CI/CD + supply chain: cross-source digest/artifact fan-in,
 	// proven by their own suites.
-	DomainContainerImageIdentity:      "additive, gated on FactLoader+ContainerImageIdentityWriter; cross-source digest correlation with image-reference-keyed facts, idempotency proven by container_image_identity_*_test.go",
+	DomainContainerImageIdentity:      "additive, gated on FactLoader+containerimage.ContainerImageIdentityWriter; cross-source digest correlation with image-reference-keyed facts, idempotency proven by container_image_identity_*_test.go",
 	DomainCICDRunCorrelation:          "additive, gated on FactLoader+cicdrun.CICDRunCorrelationWriter; idempotency proven by cicd run-correlation suites (container_image_identity_cicd_test.go and defaults_cicd_test.go)",
 	DomainSBOMAttestationAttachment:   "additive, gated on FactLoader+SBOMAttestationAttachmentWriter; digest-subject fan-in, idempotency proven by sbom_attestation_attachment_*_test.go",
 	DomainSupplyChainImpact:           "additive, gated on FactLoader+supplychaincore.SupplyChainImpactWriter; multi-signal fan-in, idempotency proven by supply_chain_impact_*_test.go",
@@ -123,7 +123,7 @@ var idempotencyAdditiveExemptDomains = map[reducercontract.Domain]string{
 	// Service catalog + observability/kubernetes correlation: multi-loader
 	// cross-source fan-in, proven by their own suites.
 	DomainServiceCatalogCorrelation:        "additive, gated on FactLoader+ServiceCatalogCorrelationWriter plus deployment/runtime/docs/incident/vuln loaders; idempotency proven by service_catalog_correlation_*_test.go",
-	DomainObservabilityCoverageCorrelation: "additive, gated on FactLoader+ObservabilityCoverageCorrelationWriter; cross-source coverage fan-in, idempotency proven by observability_coverage_correlation_*_test.go",
+	DomainObservabilityCoverageCorrelation: "additive, gated on FactLoader+obscoverage.ObservabilityCoverageCorrelationWriter; cross-source coverage fan-in, idempotency proven by observability_coverage_correlation_*_test.go",
 	DomainKubernetesCorrelation:            "additive, gated on FactLoader+KubernetesCorrelationWriter; live-vs-source fan-in, idempotency proven by kubernetes_correlation_*_test.go",
 
 	// Secrets/IAM trust + graph projection: evidence/graph read-back gated, proven
@@ -148,11 +148,11 @@ var idempotencyAdditiveExemptDomains = map[reducercontract.Domain]string{
 	// Cloud relationship/edge materializers: readiness-gated edge writes against
 	// committed nodes, proven by their own suites.
 	DomainAWSRelationshipMaterialization:           "additive, gated on FactLoader+CloudResourceEdgeWriter with readiness lookup; edges resolve against committed nodes, idempotency proven by aws_relationship_materialization_*_test.go",
-	DomainAWSCloudImageMaterialization:             "additive sibling of DomainAWSRelationshipMaterialization, gated on FactLoader+CloudResourceContainerImageEdgeWriter with readiness lookup; the CloudResource -> ContainerImage MATCH-MATCH-MERGE is idempotent by (source_uid, target_uid), idempotency proven by aws_cloud_image_materialization_test.go (TestAWSCloudImageMaterializationIdempotentOnReprojection)",
+	DomainAWSCloudImageMaterialization:             "additive sibling of DomainAWSRelationshipMaterialization, gated on FactLoader+awscloud.CloudResourceContainerImageEdgeWriter with readiness lookup; the CloudResource -> ContainerImage MATCH-MATCH-MERGE is idempotent by (source_uid, target_uid), idempotency proven by aws_cloud_image_materialization_test.go (TestAWSCloudImageMaterializationIdempotentOnReprojection)",
 	DomainGCPRelationshipMaterialization:           "additive, gated on FactLoader+GCPCloudResourceEdgeWriter with readiness lookup; idempotency proven by gcp_relationship_materialization_*_test.go",
 	DomainAzureRelationshipMaterialization:         "additive, gated on FactLoader+AzureCloudResourceEdgeWriter with readiness lookup; idempotency proven by azure_relationship_materialization_test.go",
 	DomainWorkloadCloudRelationshipMaterialization: "additive, gated on FactLoader+WorkloadCloudRelationshipEdgeWriter with readiness lookup; idempotency proven by workload_cloud_relationship_materialization_*_test.go",
-	DomainObservabilityCoverageMaterialization:     "additive, gated on FactLoader+ObservabilityCoverageEdgeWriter with readiness lookup; idempotency proven by observability_coverage_materialization_*_test.go",
+	DomainObservabilityCoverageMaterialization:     "additive, gated on FactLoader+obscoverage.ObservabilityCoverageEdgeWriter with readiness lookup; idempotency proven by observability_coverage_materialization_*_test.go",
 	DomainKubernetesCorrelationMaterialization:     "additive, gated on FactLoader+KubernetesCorrelationEdgeWriter with readiness lookup; idempotency proven by kubernetes_correlation_materialization_*_test.go",
 	DomainCrossplaneSatisfiedByMaterialization:     "additive, gated on FactLoader+CrossplaneSatisfiedByEdgeWriter; MATCH-MATCH-MERGE edge write is idempotent by (claim_uid, SATISFIED_BY, xrd_uid) and rows are deduplicated before write, idempotency proven by satisfied_by_edge_rows_test.go and crossplane_satisfied_by_edge/writer/dispatch_test.go",
 	DomainEC2UsesProfileMaterialization:            "additive, gated on FactLoader+EC2UsesProfileEdgeWriter with dual readiness lookup; idempotency proven by ec2usesprofile/ec2_uses_profile_materialization_*_test.go",

@@ -49,7 +49,7 @@ const (
 // and the [awscloud] cloud-image edge projection resolve their source
 // endpoint through the identical index and logic, and a family package may
 // never import the reducer root.
-func resolveCloudResourceSource(i cloudResourceJoinIndex, sourceARN, sourceResourceID string) (string, bool) {
+func resolveCloudResourceSource(i cloudjoin.CloudResourceJoinIndex, sourceARN, sourceResourceID string) (string, bool) {
 	return cloudjoin.ResolveSource(i, sourceARN, sourceResourceID)
 }
 
@@ -58,7 +58,7 @@ func resolveCloudResourceSource(i cloudResourceJoinIndex, sourceARN, sourceResou
 // the ARN index (when target_arn is set or target_resource_id is ARN-shaped),
 // then the bare-id index, then the correlation-anchor index. The first hit
 // wins.
-func resolveCloudResourceTarget(i cloudResourceJoinIndex, targetARN, targetResourceID string) (string, string, bool) {
+func resolveCloudResourceTarget(i cloudjoin.CloudResourceJoinIndex, targetARN, targetResourceID string) (string, string, bool) {
 	if targetARN != "" {
 		if uid, ok := i.ByARN[targetARN]; ok {
 			return uid, joinModeARN, true
@@ -148,7 +148,7 @@ func newAWSRelationshipEdgeTally() awsRelationshipEdgeTally {
 // node: an endpoint that is not a materialized CloudResource in this scope is
 // counted in the returned tally and produces no row (graceful degradation).
 //
-// Both the aws_resource facts (via buildCloudResourceJoinIndex) and each
+// Both the aws_resource facts (via cloudjoin.BuildCloudResourceJoinIndex) and each
 // aws_relationship fact are decoded through the factschema seam, so a payload
 // missing a required field returns a classified input_invalid error the caller
 // dead-letters instead of resolving an edge against an empty-string identity.
@@ -166,7 +166,7 @@ func ExtractAWSRelationshipEdgeRows(
 		return nil, tally, nil, nil
 	}
 
-	index, quarantined, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, quarantined, err := cloudjoin.BuildCloudResourceJoinIndex(resourceEnvelopes)
 	if err != nil {
 		return nil, tally, nil, err
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
@@ -86,7 +87,7 @@ func TestBenchFactloadCorpusCoversRequestedKinds(t *testing.T) {
 		"codeowners":    codeownersMaterializationFactKinds,
 		"documentation": documentationMaterializationFactKinds,
 		"rationale":     rationaleMaterializationFactKinds,
-		"shellexec":     shellExecMaterializationFactKinds,
+		"shellexec":     shell.MaterializationFactKinds(),
 		"submodule":     submodulePinMaterializationFactKinds,
 	} {
 		for _, k := range kinds {
@@ -115,7 +116,7 @@ func TestFactloadMaterializationWrappersReturnSeededEnvelopes(t *testing.T) {
 		"codeowners":    loadCodeownersOwnershipMaterializationFacts,
 		"documentation": loadDocumentationMaterializationFacts,
 		"rationale":     loadRationaleMaterializationFacts,
-		"shellexec":     loadShellExecMaterializationFacts,
+		"shellexec":     shell.LoadMaterializationFacts,
 		"submodule":     loadSubmodulePinMaterializationFacts,
 	}
 	wantIDs := make(map[string]int, len(envelopes))
@@ -250,7 +251,7 @@ func BenchmarkLoadShellExecMaterializationFacts(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		got, err := loadShellExecMaterializationFacts(ctx, loader, "scope", "gen")
+		got, err := shell.LoadMaterializationFacts(ctx, loader, "scope", "gen")
 		if err != nil {
 			b.Fatalf("error = %v", err)
 		}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
@@ -58,7 +59,7 @@ type cloudReopenOrderingHarness struct {
 	ctx     context.Context
 	adapter SQLDB
 	store   IngestionStore
-	handler reducer.ContainerImageIdentityHandler
+	handler containerimage.ContainerImageIdentityHandler
 }
 
 func newCloudReopenOrderingHarness(t *testing.T) cloudReopenOrderingHarness {
@@ -70,9 +71,9 @@ func newCloudReopenOrderingHarness(t *testing.T) cloudReopenOrderingHarness {
 		ctx:     ctx,
 		adapter: adapter,
 		store:   NewIngestionStore(adapter),
-		handler: reducer.ContainerImageIdentityHandler{
+		handler: containerimage.ContainerImageIdentityHandler{
 			FactLoader: NewFactStore(adapter),
-			Writer: reducer.PostgresContainerImageIdentitySupportWriter{
+			Writer: containerimage.PostgresContainerImageIdentitySupportWriter{
 				ActivationLookup:  NewContainerImageIdentityScopeStateStore(adapter),
 				HeldSupportLoader: NewContainerImageIdentityHeldSupportStore(adapter),
 				ClaimedExecer:     ContainerImageIdentityClaimedExecer{DB: adapter},
@@ -363,7 +364,7 @@ func handleAndAckCloudReopenOrderingIntent(
 	t *testing.T,
 	ctx context.Context,
 	queue *ReducerQueue,
-	handler reducer.ContainerImageIdentityHandler,
+	handler containerimage.ContainerImageIdentityHandler,
 	intent reducercontract.Intent,
 ) reducercontract.Result {
 	t.Helper()

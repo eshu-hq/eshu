@@ -18,7 +18,7 @@ import (
 )
 
 // TestShellExecFamilyOduResolvesItsExpectedEdgeSet proves the EXTRACTOR:
-// reducer.ExtractShellExecRows, run over the cataloged Odù, reproduces the
+// shell.ExtractExecRows, run over the cataloged Odù, reproduces the
 // hand-derived edge set exactly.
 func TestShellExecFamilyOduResolvesItsExpectedEdgeSet(t *testing.T) {
 	t.Parallel()
@@ -192,7 +192,7 @@ func TestShellExecCanonicalEntityIDLiterals(t *testing.T) {
 // sha256 target uid without importing an unexported reducer symbol. Any
 // drift between this copy and the production function is caught by
 // TestShellExecFamilyOduResolvesItsExpectedEdgeSet, which runs the REAL
-// reducer.ExtractShellExecRows (not this copy) against the same fixture and
+// shell.ExtractExecRows (not this copy) against the same fixture and
 // asserts its output matches these same literals -- so a change to the
 // production hash function that this copy failed to mirror would surface
 // there as a MISSING/EXTRA mismatch, not as a false-passing pair of

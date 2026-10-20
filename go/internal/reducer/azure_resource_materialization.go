@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -242,7 +243,7 @@ func azureCloudResourceNodeRow(env facts.Envelope) (row map[string]any, uid stri
 	if resourceID == "" || resource.ResourceType == "" {
 		return nil, "", "", false, nil
 	}
-	uid = cloudResourceUID(resource.SubscriptionID, resource.Location, resource.ResourceType, resourceID)
+	uid = cloudjoin.CloudResourceUID(resource.SubscriptionID, resource.Location, resource.ResourceType, resourceID)
 	row = map[string]any{
 		"uid":           uid,
 		"arn":           "",

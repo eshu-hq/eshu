@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
@@ -404,7 +405,7 @@ func cloudResourceUIDForResource(resource awsv1.Resource) (string, bool) {
 	if resource.ResourceType == "" || resourceID == "" {
 		return "", false
 	}
-	return cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID), true
+	return cloudjoin.CloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID), true
 }
 
 // awsResourceMaterializationTiming groups stage durations so the completion log

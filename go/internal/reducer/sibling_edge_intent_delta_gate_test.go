@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -142,7 +143,7 @@ func siblingDeltaGateCases() []siblingDeltaGateCase {
 				// Shell exec reuses the SQL-relationship delta scope
 				// (shell_exec_materialization.go), so it inherits the same gate.
 				scope := sqlrelationship.BuildDeltaScope(envelopes)
-				return buildShellExecRefreshIntents(scope, repoIDs, contexts, createdAt),
+				return shell.BuildRefreshIntents(scope, repoIDs, contexts, createdAt),
 					scope.RepositoryIDs, scope.FilePathsByRepoID
 			},
 		},

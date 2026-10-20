@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -83,7 +84,7 @@ type canonicalGraphWriters struct {
 	// PUBLISHES edges and container-image-identity decisions to BUILT_FROM
 	// edges (issue #5457). One writer instance satisfies both the
 	// reducer.PackageProvenanceEdgeWriter and
-	// reducer.ContainerImageProvenanceEdgeWriter interfaces.
+	// containerimage.ContainerImageProvenanceEdgeWriter interfaces.
 	provenanceEdge *edgewriter.ProvenanceEdgeWriter
 	// ec2InstanceIdentityNode is wrapped in the SAME #5062 lock-only gate as
 	// the four writers above (#5448): it SETs the disjoint ami_id property on
@@ -232,7 +233,7 @@ func seedReducerProjectedSourceLedgers(database db.ExecQueryer, graphReader quer
 			reducer.AWSRelationshipEvidenceSource(),
 			reducer.AzureRelationshipEvidenceSource(),
 			reducer.GCPRelationshipEvidenceSource(),
-			reducer.ObservabilityCoverageEvidenceSource(),
+			obscoverage.ObservabilityCoverageEvidenceSource(),
 			secgroup.SecurityGroupReachabilityEvidenceSource(),
 		},
 	}

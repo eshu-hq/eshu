@@ -25,7 +25,7 @@ const awsCloudRuntimeDriftFencingTokenSequence = "aws_cloud_runtime_drift_fencin
 const awsCloudRuntimeDriftNextFencingTokenQuery = `SELECT nextval('` + awsCloudRuntimeDriftFencingTokenSequence + `')`
 
 // PostgresAWSCloudRuntimeDriftFencingTokenIssuer implements
-// reducer.AWSCloudRuntimeDriftFencingTokenIssuer (#5848, #5875 P1) over a
+// awscloud.AWSCloudRuntimeDriftFencingTokenIssuer (#5848, #5875 P1) over a
 // plain query connection -- no transaction needed, since a sequence's
 // nextval() is not itself transactional (Postgres deliberately does not roll
 // back sequence advances on transaction abort, so gaps from a failed caller

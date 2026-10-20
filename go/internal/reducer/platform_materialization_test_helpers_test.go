@@ -6,6 +6,8 @@ package reducer
 import (
 	"context"
 	"sync"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 )
 
 // These doubles serve the reducer-root tests that wire the deployment_mapping
@@ -18,15 +20,15 @@ import (
 // recordingPlatformMaterializationWriter records the canonical write requests
 // the deployment_mapping handler issues and returns a canned result.
 type recordingPlatformMaterializationWriter struct {
-	requests []PlatformMaterializationWrite
-	result   PlatformMaterializationWriteResult
+	requests []platformfam.PlatformMaterializationWrite
+	result   platformfam.PlatformMaterializationWriteResult
 	err      error
 }
 
 func (w *recordingPlatformMaterializationWriter) WritePlatformMaterialization(
 	_ context.Context,
-	request PlatformMaterializationWrite,
-) (PlatformMaterializationWriteResult, error) {
+	request platformfam.PlatformMaterializationWrite,
+) (platformfam.PlatformMaterializationWriteResult, error) {
 	w.requests = append(w.requests, request)
 	return w.result, w.err
 }

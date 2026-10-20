@@ -7,15 +7,18 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
@@ -25,7 +28,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
+	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
@@ -42,9 +47,9 @@ type DefaultHandlers struct {
 	DeployableUnitCorrelationHandler Handler
 	WorkloadIdentityWriter           WorkloadIdentityWriter
 	CloudAssetResolutionWriter       cloudasset.CloudAssetResolutionWriter
-	PlatformMaterializationWriter    PlatformMaterializationWriter
-	PlatformGraphLocker              PlatformGraphLocker
-	WorkloadMaterializationReplayer  WorkloadMaterializationReplayer
+	PlatformMaterializationWriter    platformfam.PlatformMaterializationWriter
+	PlatformGraphLocker              platformfam.PlatformGraphLocker
+	WorkloadMaterializationReplayer  platformfam.WorkloadMaterializationReplayer
 
 	// Cypher-backed adapters for canonical graph writes.
 	WorkloadMaterializer               *WorkloadMaterializer
@@ -91,7 +96,7 @@ type DefaultHandlers struct {
 	// edge materialization. The handler emits file-scoped per-edge intents plus a
 	// per-repo refresh intent instead of writing canonical edges directly, so the
 	// partitioned runner and the refresh fence project them.
-	ShellExecIntentWriter ShellExecIntentWriter
+	ShellExecIntentWriter shell.IntentWriter
 
 	// RationaleEdgeIntentWriter persists durable shared-intent rows for rationale
 	// EXPLAINS edge materialization (#2869). The promoted
@@ -238,7 +243,7 @@ type DefaultHandlers struct {
 	// CloudResource). Non-nil alongside FactLoader registers
 	// DomainAWSCloudImageMaterialization; the handler gates on ReadinessLookup
 	// so edges never resolve against an uncommitted source.
-	CloudResourceContainerImageEdgeWriter CloudResourceContainerImageEdgeWriter
+	CloudResourceContainerImageEdgeWriter awscloud.CloudResourceContainerImageEdgeWriter
 
 	// RefreshAffectedGraph runs the value-flow refresh emit gate (issue #6785)
 	// over each producer's committed keys. The four producer handlers consult
@@ -256,7 +261,7 @@ type DefaultHandlers struct {
 	// value skips the filter, matching ReadinessLookup/PriorGenerationCheck's
 	// nil-safe test-wiring convention; production wires the durable graph-backed
 	// lookup.
-	ContainerImageExistence ContainerImageExistenceLookup
+	ContainerImageExistence containerimage.ContainerImageExistenceLookup
 
 	// GCPCloudResourceEdgeWriter projects gcp_cloud_relationship facts into
 	// canonical GCP relationship edges between CloudResource nodes (issue #2348).
@@ -288,7 +293,7 @@ type DefaultHandlers struct {
 	// would drop every coverage materialization intent before it reaches the
 	// graph. The handler also gates on ReadinessLookup so edges never resolve
 	// against uncommitted nodes.
-	ObservabilityCoverageEdgeWriter ObservabilityCoverageEdgeWriter
+	ObservabilityCoverageEdgeWriter obscoverage.ObservabilityCoverageEdgeWriter
 
 	// ProjectedSourceLedger records and enumerates the source uids of edges
 	// projected by the AWS, Azure, GCP relationship, observability-coverage,
@@ -398,7 +403,7 @@ type DefaultHandlers struct {
 
 	// ContainerImageIdentityWriter persists image-reference-keyed identity
 	// decisions for Git, OCI registry, and runtime image evidence.
-	ContainerImageIdentityWriter ContainerImageIdentityWriter
+	ContainerImageIdentityWriter containerimage.ContainerImageIdentityWriter
 
 	// ContainerImageIdentityGenerationCheck disambiguates an activation-epoch miss (issue #6502):
 	// pending defers, superseded acks superseded, missing surfaces loudly. Nil keeps the legacy loud error.
@@ -414,13 +419,13 @@ type DefaultHandlers struct {
 	// identity decisions into canonical BUILT_FROM graph edges (issue #5457).
 	// Nil skips the projection; the container_image_identity domain still
 	// registers (Postgres decisions are unaffected).
-	ContainerImageProvenanceEdgeWriter ContainerImageProvenanceEdgeWriter
+	ContainerImageProvenanceEdgeWriter containerimage.ContainerImageProvenanceEdgeWriter
 
 	// ContainerImageDerivedFromEdgeWriter projects Dockerfile base-image
 	// lineage into canonical DERIVED_FROM graph edges (issue #5460). Nil skips
 	// the projection; the container_image_identity domain still registers
 	// (Postgres decisions are unaffected).
-	ContainerImageDerivedFromEdgeWriter ContainerImageDerivedFromEdgeWriter
+	ContainerImageDerivedFromEdgeWriter containerimage.ContainerImageDerivedFromEdgeWriter
 
 	// cicdrun.CICDRunCorrelationWriter persists provider run, artifact, and
 	// environment correlation decisions for CI/CD evidence.
@@ -471,7 +476,7 @@ type DefaultHandlers struct {
 	// ObservabilityCoverageCorrelationWriter persists observability coverage
 	// correlation decisions (covered, gap, ambiguous, stale, rejected) for
 	// CloudWatch, CloudWatch Logs, and X-Ray facts.
-	ObservabilityCoverageCorrelationWriter ObservabilityCoverageCorrelationWriter
+	ObservabilityCoverageCorrelationWriter obscoverage.ObservabilityCoverageCorrelationWriter
 
 	// SecurityGroupEndpointNodeWriter materializes the CIDR and managed
 	// prefix-list source endpoints of aws_security_group_rule facts into canonical

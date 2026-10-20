@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -117,7 +118,7 @@ func TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive(t *testing.T
 	seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, statePendingGenerationID, stateScopeID, "pending", now)
 
 	loader := PostgresAWSCloudRuntimeDriftEvidenceLoader{DB: SQLDB{DB: sqlDB}}
-	writer := reducer.PostgresAWSCloudRuntimeDriftWriter{
+	writer := awscloud.PostgresAWSCloudRuntimeDriftWriter{
 		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: sqlDB}},
 	}
 	readinessChecker := PostgresAWSCloudRuntimeDriftReadinessChecker{DB: SQLDB{DB: sqlDB}}
@@ -131,7 +132,7 @@ func TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive(t *testing.T
 	seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, beforeGenerationID, beforeScopeID, "active", now)
 	seedAWSResourceFactMinimal(t, ctx, sqlDB, beforeScopeID, beforeGenerationID, beforeARN, "aws_lambda_function", now)
 
-	beforeHandler := reducer.AWSCloudRuntimeDriftHandler{
+	beforeHandler := awscloud.AWSCloudRuntimeDriftHandler{
 		EvidenceLoader: loader,
 		Writer:         writer,
 		// ReadinessChecker deliberately nil: byte-identical to pre-#5848.
@@ -170,7 +171,7 @@ func TestAWSCloudRuntimeDriftReadinessDeterministicReproductionLive(t *testing.T
 	seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, afterGenerationID, afterScopeID, "active", now)
 	seedAWSResourceFactMinimal(t, ctx, sqlDB, afterScopeID, afterGenerationID, afterARN, "aws_lambda_function", now)
 
-	afterHandler := reducer.AWSCloudRuntimeDriftHandler{
+	afterHandler := awscloud.AWSCloudRuntimeDriftHandler{
 		EvidenceLoader:     loader,
 		Writer:             writer,
 		ReadinessChecker:   readinessChecker,

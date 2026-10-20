@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -158,7 +159,7 @@ func unusableDeltaCases() []unusableDeltaCase {
 				writer *capturingIntentWriter,
 				intent reducercontract.Intent,
 			) error {
-				handler := reducer.ShellExecMaterializationHandler{FactLoader: loader, IntentWriter: writer}
+				handler := shell.Handler{FactLoader: loader, IntentWriter: writer}
 				_, err := handler.Handle(ctx, intent)
 				return err
 			},

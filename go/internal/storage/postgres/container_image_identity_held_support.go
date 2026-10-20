@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
 
@@ -36,7 +36,7 @@ func (s ContainerImageIdentityHeldSupportStore) LoadHeldContainerImageIdentitySu
 	generationID string,
 	activationEpoch int64,
 	imageRefs []string,
-) ([]reducer.ContainerImageIdentityPriorSupport, error) {
+) ([]containerimage.ContainerImageIdentityPriorSupport, error) {
 	if s.database == nil {
 		return nil, fmt.Errorf("container image identity held support database is required")
 	}
@@ -56,9 +56,9 @@ func (s ContainerImageIdentityHeldSupportStore) LoadHeldContainerImageIdentitySu
 	}
 	defer func() { _ = rows.Close() }()
 
-	supports := make([]reducer.ContainerImageIdentityPriorSupport, 0)
+	supports := make([]containerimage.ContainerImageIdentityPriorSupport, 0)
 	for rows.Next() {
-		var support reducer.ContainerImageIdentityPriorSupport
+		var support containerimage.ContainerImageIdentityPriorSupport
 		if err := rows.Scan(
 			&support.Digest,
 			&support.ImageRef,

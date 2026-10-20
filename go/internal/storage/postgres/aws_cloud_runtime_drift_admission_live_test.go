@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 )
 
 // TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLive
@@ -60,13 +61,13 @@ func TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLiv
 	seedAWSCloudRuntimeDriftScope(t, ctx, sqlDB, scopeID, "aws", generationID, now)
 	seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, generationID, scopeID, "active", now)
 
-	writer := reducer.PostgresAWSCloudRuntimeDriftWriter{
+	writer := awscloud.PostgresAWSCloudRuntimeDriftWriter{
 		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: sqlDB}},
 	}
 
 	// Step 2: worker B, fresh (larger token), image_version_drift. Runs to
 	// completion first.
-	freshWrite := reducer.AWSCloudRuntimeDriftWrite{
+	freshWrite := awscloud.AWSCloudRuntimeDriftWrite{
 		IntentID:      "intent-worker-b",
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
@@ -86,7 +87,7 @@ func TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLiv
 	}
 
 	// Step 3: worker A, a SMALLER (stale) token, lands AFTER B in call order.
-	staleWrite := reducer.AWSCloudRuntimeDriftWrite{
+	staleWrite := awscloud.AWSCloudRuntimeDriftWrite{
 		IntentID:      "intent-worker-a",
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
@@ -104,8 +105,8 @@ func TestAWSCloudRuntimeDriftInsertAdmissionRejectsStaleWorkerAfterFreshWriteLiv
 	if !mustRetryable(t, err) {
 		t.Fatalf("worker A (stale) write error = %v, want Retryable() == true", err)
 	}
-	if class := mustFailureClass(t, err); class != reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass {
-		t.Fatalf("worker A (stale) write FailureClass() = %q, want %q", class, reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass)
+	if class := mustFailureClass(t, err); class != awscloud.AWSCloudRuntimeDriftWriteSupersededFailureClass {
+		t.Fatalf("worker A (stale) write FailureClass() = %q, want %q", class, awscloud.AWSCloudRuntimeDriftWriteSupersededFailureClass)
 	}
 
 	// THE ASSERTION: exactly one row for the ARN, from the fresher evidence
@@ -159,11 +160,11 @@ func TestAWSCloudRuntimeDriftInsertAdmissionAppliesEqualTokenRetryLive(t *testin
 	seedAWSCloudRuntimeDriftScope(t, ctx, sqlDB, scopeID, "aws", generationID, now)
 	seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, generationID, scopeID, "active", now)
 
-	writer := reducer.PostgresAWSCloudRuntimeDriftWriter{
+	writer := awscloud.PostgresAWSCloudRuntimeDriftWriter{
 		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: sqlDB}},
 	}
 
-	write := reducer.AWSCloudRuntimeDriftWrite{
+	write := awscloud.AWSCloudRuntimeDriftWrite{
 		IntentID:      "intent-retry",
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
@@ -308,7 +309,7 @@ func TestAWSCloudRuntimeDriftRetireRemovesStaleFindingOnReclassificationLive(t *
 	seedAWSCloudRuntimeDriftScope(t, ctx, sqlDB, scopeID, "aws", generationID, now)
 	seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, generationID, scopeID, "active", now)
 
-	writer := reducer.PostgresAWSCloudRuntimeDriftWriter{
+	writer := awscloud.PostgresAWSCloudRuntimeDriftWriter{
 		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: sqlDB}},
 	}
 
@@ -320,7 +321,7 @@ func TestAWSCloudRuntimeDriftRetireRemovesStaleFindingOnReclassificationLive(t *
 	// collision) -- this is the pre-#5837-fix shape: state was not active yet,
 	// so the domain durably wrote orphaned_cloud_resource as its best verdict.
 	staleFactID := awsCloudRuntimeDriftFactID2(scopeID, generationID, arn, cloudruntime.FindingKindOrphanedCloudResource)
-	staleWrite := reducer.AWSCloudRuntimeDriftWrite{
+	staleWrite := awscloud.AWSCloudRuntimeDriftWrite{
 		IntentID:      "intent-first-pass",
 		ScopeID:       scopeID,
 		GenerationID:  generationID,
@@ -340,7 +341,7 @@ func TestAWSCloudRuntimeDriftRetireRemovesStaleFindingOnReclassificationLive(t *
 
 	// Second pass: a reopen replay with fresher evidence (state now active)
 	// and a LARGER fencing token, reclassifying the SAME ARN.
-	freshWrite := reducer.AWSCloudRuntimeDriftWrite{
+	freshWrite := awscloud.AWSCloudRuntimeDriftWrite{
 		IntentID:      "intent-reopen-replay",
 		ScopeID:       scopeID,
 		GenerationID:  generationID,

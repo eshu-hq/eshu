@@ -4,8 +4,10 @@
 package reducer
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
@@ -35,8 +37,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, awsRelationships)
 	}
 	if handlers.FactLoader != nil && handlers.CloudResourceContainerImageEdgeWriter != nil {
-		awsCloudImage := awsCloudImageMaterializationDomainDefinition()
-		awsCloudImage.Handler = AWSCloudImageMaterializationHandler{
+		awsCloudImage := awscloud.ImageMaterializationDomainDefinition()
+		awsCloudImage.Handler = awscloud.AWSCloudImageMaterializationHandler{
 			FactLoader:              handlers.FactLoader,
 			EdgeWriter:              handlers.CloudResourceContainerImageEdgeWriter,
 			ReadinessLookup:         handlers.ReadinessLookup,
@@ -65,8 +67,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, workloadCloud)
 	}
 	if handlers.FactLoader != nil && handlers.ObservabilityCoverageEdgeWriter != nil {
-		coverageEdges := observabilityCoverageMaterializationDomainDefinition()
-		coverageEdges.Handler = ObservabilityCoverageMaterializationHandler{
+		coverageEdges := obscoverage.MaterializationDomainDefinition()
+		coverageEdges.Handler = obscoverage.ObservabilityCoverageMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			EdgeWriter:           handlers.ObservabilityCoverageEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

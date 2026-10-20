@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 func awsRelationshipEnvelope(payload map[string]any) facts.Envelope {
@@ -67,8 +68,8 @@ func TestExtractAWSRelationshipEdgeRowsResolvesByARN(t *testing.T) {
 	if rows[0]["resolution_mode"] != joinModeARN {
 		t.Fatalf("resolution_mode = %v, want %s", rows[0]["resolution_mode"], joinModeARN)
 	}
-	wantSource := cloudResourceUID("111122223333", "us-east-1", "aws_lambda_function", "arn:aws:lambda:us-east-1:111122223333:function:fn")
-	wantTarget := cloudResourceUID("111122223333", "us-east-1", "aws_kms_key", "arn:aws:kms:us-east-1:111122223333:key/abc")
+	wantSource := cloudjoin.CloudResourceUID("111122223333", "us-east-1", "aws_lambda_function", "arn:aws:lambda:us-east-1:111122223333:function:fn")
+	wantTarget := cloudjoin.CloudResourceUID("111122223333", "us-east-1", "aws_kms_key", "arn:aws:kms:us-east-1:111122223333:key/abc")
 	if rows[0]["source_uid"] != wantSource {
 		t.Fatalf("source_uid = %v, want %v", rows[0]["source_uid"], wantSource)
 	}
@@ -314,8 +315,8 @@ func TestExtractAWSRelationshipEdgeRowsResolvesEC2InstanceUsesAMITarget(t *testi
 	if rows[0]["resolution_mode"] != joinModeBareID {
 		t.Fatalf("resolution_mode = %v, want %s", rows[0]["resolution_mode"], joinModeBareID)
 	}
-	wantSource := cloudResourceUID("123456789012", "us-east-1", "aws_ec2_instance", "i-1234567890abcdef0")
-	wantTarget := cloudResourceUID("123456789012", "us-east-1", "aws_ec2_ami", "ami-000000000000000a")
+	wantSource := cloudjoin.CloudResourceUID("123456789012", "us-east-1", "aws_ec2_instance", "i-1234567890abcdef0")
+	wantTarget := cloudjoin.CloudResourceUID("123456789012", "us-east-1", "aws_ec2_ami", "ami-000000000000000a")
 	if rows[0]["source_uid"] != wantSource {
 		t.Fatalf("source_uid = %v, want %v", rows[0]["source_uid"], wantSource)
 	}

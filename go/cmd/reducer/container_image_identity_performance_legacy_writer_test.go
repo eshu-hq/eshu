@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -32,8 +33,8 @@ func (containerImageIdentityPerfLegacyWriter) ContainerImageIdentityActivationEp
 
 func (w containerImageIdentityPerfLegacyWriter) WriteContainerImageIdentityDecisions(
 	ctx context.Context,
-	write reducer.ContainerImageIdentityWrite,
-) (reducer.ContainerImageIdentityWriteResult, error) {
+	write containerimage.ContainerImageIdentityWrite,
+) (containerimage.ContainerImageIdentityWriteResult, error) {
 	envelopes := make([]facts.Envelope, 0, len(write.Decisions))
 	for _, decision := range write.Decisions {
 		if decision.Outcome != reducer.ContainerImageIdentityExactDigest &&
@@ -100,12 +101,12 @@ func (w containerImageIdentityPerfLegacyWriter) WriteContainerImageIdentityDecis
 		})
 	}
 	if err := w.store.UpsertFacts(ctx, envelopes); err != nil {
-		return reducer.ContainerImageIdentityWriteResult{}, fmt.Errorf(
+		return containerimage.ContainerImageIdentityWriteResult{}, fmt.Errorf(
 			"write legacy performance container image identities: %w",
 			err,
 		)
 	}
-	return reducer.ContainerImageIdentityWriteResult{
+	return containerimage.ContainerImageIdentityWriteResult{
 		CanonicalWrites: len(envelopes),
 		EvidenceSummary: fmt.Sprintf(
 			"wrote container image identity decisions %d",

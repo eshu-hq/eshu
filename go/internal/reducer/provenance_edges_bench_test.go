@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
@@ -44,11 +45,11 @@ func benchPackagePublicationDecisions(n int) []correlation.PackagePublicationDec
 	return decisions
 }
 
-func benchContainerImageIdentityDecisions(n int) []ContainerImageIdentityDecision {
-	decisions := make([]ContainerImageIdentityDecision, 0, n)
+func benchContainerImageIdentityDecisions(n int) []containerimage.ContainerImageIdentityDecision {
+	decisions := make([]containerimage.ContainerImageIdentityDecision, 0, n)
 	for i := 0; i < n; i++ {
 		repoID := fmt.Sprintf("repo-%d", i)
-		decisions = append(decisions, ContainerImageIdentityDecision{
+		decisions = append(decisions, containerimage.ContainerImageIdentityDecision{
 			Digest:              fmt.Sprintf("sha256:%064d", i),
 			SourceRepositoryIDs: []string{repoID},
 			// BUILT_FROM (#5796) gates on BuildProvenanceRepositoryIDs, not the
@@ -101,7 +102,7 @@ func BenchmarkContainerImageBuiltFromRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows := containerImageBuiltFromRows(decisions)
+		rows := containerimage.ContainerImageBuiltFromRows(decisions)
 		if len(rows) != 5000 {
 			b.Fatalf("rows = %d, want 5000", len(rows))
 		}
@@ -115,15 +116,15 @@ func BenchmarkContainerImageBuiltFromRows(b *testing.B) {
 // children reached through the active fact load) that the owner-scoped builder
 // must scan past without emitting. So the input is 2n+n+1 decisions and the
 // output is n rows, all for repo-own.
-func benchContainerImageBaseLineageDecisions(n int) []ContainerImageIdentityDecision {
-	decisions := make([]ContainerImageIdentityDecision, 0, 3*n+1)
-	decisions = append(decisions, ContainerImageIdentityDecision{
+func benchContainerImageBaseLineageDecisions(n int) []containerimage.ContainerImageIdentityDecision {
+	decisions := make([]containerimage.ContainerImageIdentityDecision, 0, 3*n+1)
+	decisions = append(decisions, containerimage.ContainerImageIdentityDecision{
 		Digest:                    "sha256:b" + fmt.Sprintf("%063d", 0),
 		BaseImageForRepositoryIDs: []string{benchDerivedFromOwningRepo},
 		Outcome:                   ContainerImageIdentityExactDigest,
 	})
 	for i := 0; i < n; i++ {
-		decisions = append(decisions, ContainerImageIdentityDecision{
+		decisions = append(decisions, containerimage.ContainerImageIdentityDecision{
 			Digest: fmt.Sprintf("sha256:c%063d", i),
 			// Children of the owning repository carry build provenance, which is
 			// what the DERIVED_FROM child gate keys on (#5460).
@@ -134,12 +135,12 @@ func benchContainerImageBaseLineageDecisions(n int) []ContainerImageIdentityDeci
 		// Cross-scope noise: another repository's base and child, which the
 		// owner-scoped builder must skip.
 		noiseRepo := fmt.Sprintf("repository:noise-%d", i)
-		decisions = append(decisions, ContainerImageIdentityDecision{
+		decisions = append(decisions, containerimage.ContainerImageIdentityDecision{
 			Digest:                    fmt.Sprintf("sha256:n%063d", i),
 			BaseImageForRepositoryIDs: []string{noiseRepo},
 			Outcome:                   ContainerImageIdentityExactDigest,
 		})
-		decisions = append(decisions, ContainerImageIdentityDecision{
+		decisions = append(decisions, containerimage.ContainerImageIdentityDecision{
 			Digest:                       fmt.Sprintf("sha256:m%063d", i),
 			SourceRepositoryIDs:          []string{noiseRepo},
 			BuildProvenanceRepositoryIDs: []string{noiseRepo},
@@ -161,7 +162,7 @@ func BenchmarkContainerImageDerivedFromRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows := containerImageDerivedFromRows(decisions, benchDerivedFromOwningRepo)
+		rows := containerimage.ContainerImageDerivedFromRows(decisions, benchDerivedFromOwningRepo)
 		if len(rows) != 2500 {
 			b.Fatalf("rows = %d, want 2500", len(rows))
 		}
