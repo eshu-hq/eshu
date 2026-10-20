@@ -24,7 +24,7 @@ verdict recorded in the lane handoff).
 - Verification: EXPLAIN before/after on the pinned backend (below), live
   retract test, live sweep test, live Postgres tests.
 
-## Performance Evidence
+## Performance Evidence:
 
 Prove-theory-first EXPLAIN shims ran on live Neo4j before any statement
 was built (same backend and data both runs):
@@ -66,7 +66,7 @@ the largest observed retirement needs no batching seam; re-measure (one
 command: the test above) if a retirement exceeds ~10x this shape. Walls
 are same-host relative (shared host); the scaling ratio is the claim.
 
-## Observability Evidence
+## Observability Evidence:
 
 No-Observability-Change:
 `eshu_dp_repository_retirements_total{outcome}`,
