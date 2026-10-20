@@ -22,6 +22,11 @@ func TestChangeSurfaceScopedGrantsApplyBeforeBothLimits(t *testing.T) {
 		[]string{"repository:owner", "repository:consumer"},
 		[]string{"scope:owner"},
 	)
+	// Each branch reads depths 1..4 with the remaining probe need (8 calls),
+	// and per-call params are asserted on every call. The fake serves its
+	// granted row only at depth 1, so the grant-before-LIMIT shape is pinned
+	// on the depth-1 statement of each branch; the grant-clause position is
+	// fixed in the shared per-branch template, so depths 2-4 inherit it.
 	var calls int
 	handler := &Handler{Neo4j: graph.FakeGraphReader{RunFn: func(
 		_ context.Context,
@@ -30,10 +35,15 @@ func TestChangeSurfaceScopedGrantsApplyBeforeBothLimits(t *testing.T) {
 	) ([]map[string]any, error) {
 		calls++
 		assertChangeSurfaceGrantParams(t, params, access)
-		switch calls {
-		case 1:
-			if strings.Contains(cypher, "CALL {") &&
-				strings.Contains(cypher, "impacted.repo_id IN $allowed_repository_ids") &&
+		depth, ok := changeSurfaceDepthRangeOfQuery(cypher)
+		if !ok {
+			t.Fatalf("call %d is not an exact-depth read: %.120q", calls, cypher)
+		}
+		if depth != 1 {
+			return []map[string]any{}, nil
+		}
+		if strings.Contains(cypher, "CALL {") {
+			if strings.Contains(cypher, "impacted.repo_id IN $allowed_repository_ids") &&
 				strings.Contains(cypher, "impacted.repo_id IN $allowed_scope_ids") &&
 				strings.Contains(cypher, "WITH path, impacted") &&
 				strings.Index(cypher, "allowed_repository_ids") < strings.LastIndex(cypher, "LIMIT") {
@@ -43,19 +53,15 @@ func TestChangeSurfaceScopedGrantsApplyBeforeBothLimits(t *testing.T) {
 				)}, nil
 			}
 			return changeSurfaceDeniedRows("Workload", "DEFINES", 11), nil
-		case 2:
-			if strings.Contains(cypher, "impacted.id IN $allowed_repository_ids") &&
-				strings.Index(cypher, "allowed_repository_ids") < strings.LastIndex(cypher, "LIMIT") {
-				return []map[string]any{changeSurfaceTestRow(
-					"repository:consumer", "granted-consumer", []any{"Repository"},
-					"", "DEPENDS_ON",
-				)}, nil
-			}
-			return changeSurfaceDeniedRows("Repository", "DEPENDS_ON", 11), nil
-		default:
-			t.Fatalf("unexpected graph call %d", calls)
-			return nil, nil
 		}
+		if strings.Contains(cypher, "impacted.id IN $allowed_repository_ids") &&
+			strings.Index(cypher, "allowed_repository_ids") < strings.LastIndex(cypher, "LIMIT") {
+			return []map[string]any{changeSurfaceTestRow(
+				"repository:consumer", "granted-consumer", []any{"Repository"},
+				"", "DEPENDS_ON",
+			)}, nil
+		}
+		return changeSurfaceDeniedRows("Repository", "DEPENDS_ON", 11), nil
 	}}}
 
 	rows, truncated, err := handler.changeSurfaceTraversalRows(
@@ -75,8 +81,8 @@ func TestChangeSurfaceScopedGrantsApplyBeforeBothLimits(t *testing.T) {
 	if got, want := testutil.RowIDs(rows), []string{"repository:consumer", "workload:granted"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("row ids = %#v, want %#v", got, want)
 	}
-	if got, want := calls, 2; got != want {
-		t.Fatalf("graph calls = %d, want %d", got, want)
+	if got, want := calls, 8; got != want {
+		t.Fatalf("graph calls = %d, want %d (depths 1..4 in each branch)", got, want)
 	}
 }
 
@@ -140,9 +146,18 @@ func TestChangeSurfaceUnscopedQueriesStayByteIdentical(t *testing.T) {
 	if err != nil {
 		t.Fatalf("changeSurfaceTraversalRows() error = %v", err)
 	}
+	// The empty fake exhausts no depth, so every depth runs with the full
+	// probe need: four exact-depth outgoing reads, then four exact-depth
+	// consumer reads, each byte-pinned.
 	wantQueries := []string{
-		fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Repository {id: $target_id})", 4, ""),
-		fmt.Sprintf(changeSurfaceRepositoryConsumersCypher, 4, "", 11),
+		fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Repository {id: $target_id})", 1, 1, ""),
+		fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Repository {id: $target_id})", 2, 2, ""),
+		fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Repository {id: $target_id})", 3, 3, ""),
+		fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Repository {id: $target_id})", 4, 4, ""),
+		fmt.Sprintf(changeSurfaceRepositoryConsumersCypher, 1, 1, "", 11),
+		fmt.Sprintf(changeSurfaceRepositoryConsumersCypher, 2, 2, "", 11),
+		fmt.Sprintf(changeSurfaceRepositoryConsumersCypher, 3, 3, "", 11),
+		fmt.Sprintf(changeSurfaceRepositoryConsumersCypher, 4, 4, "", 11),
 	}
 	if !reflect.DeepEqual(queries, wantQueries) {
 		t.Fatalf("queries = %#v, want byte-identical %#v", queries, wantQueries)

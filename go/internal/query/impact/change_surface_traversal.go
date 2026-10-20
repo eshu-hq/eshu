@@ -16,13 +16,17 @@ import (
 // changeSurfaceRepositoryConsumersCypher follows repository dependency edges
 // against their stored direction. A repository that depends on the changed
 // repository is the consumer affected by that change, so the traversal is
-// incoming from the changed repository anchor.
-const changeSurfaceRepositoryConsumersCypher = `MATCH path = (start:Repository {id: $target_id})<-[:DEPENDS_ON*1..%d]-(impacted:Repository)
+// incoming from the changed repository anchor. Verbs: %d..%d = the one exact
+// depth this statement reads, %s = the optional environment predicate, %d =
+// this depth's LIMIT (the remaining probe need). It merges depth-major
+// through runChangeSurfaceDepthRange, the same order-preserving
+// iterative-deepening read as the outgoing branch (#7677).
+const changeSurfaceRepositoryConsumersCypher = `MATCH path = (start:Repository {id: $target_id})<-[:DEPENDS_ON*%d..%d]-(impacted:Repository)
 WHERE impacted.id <> $target_id%s
 RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels,
        impacted.environment as environment, impacted.repo_id as repo_id,
        length(path) as depth, relationships(path) as rels
-ORDER BY depth, name, id
+ORDER BY name, id
 LIMIT %d`
 
 // changeSurfaceScopedOutgoingCypher keeps grant filtering inside one graph
@@ -33,7 +37,7 @@ LIMIT %d`
 // CALL-subquery UNION is intentional: pinned NornicDB executes both subquery
 // arms, while a top-level UNION silently ignores its second arm.
 const changeSurfaceScopedOutgoingCypher = `CALL {
-  MATCH path = %s-[*1..%d]->(impacted)
+  MATCH path = %s-[*%d..%d]->(impacted)
   WHERE impacted.id <> $target_id AND (impacted.repo_id IN $allowed_repository_ids OR impacted.repo_id IN $allowed_scope_ids)%s
   WITH path, impacted
   WHERE impacted:Workload OR impacted:WorkloadInstance OR impacted:CloudResource OR impacted:TerraformModule OR impacted:DataAsset
@@ -41,21 +45,24 @@ const changeSurfaceScopedOutgoingCypher = `CALL {
          impacted.environment as environment, impacted.repo_id as repo_id,
          length(path) as depth, relationships(path) as rels
   UNION
-  MATCH path = %s-[*1..%d]->(impacted:Repository)
+  MATCH path = %s-[*%d..%d]->(impacted:Repository)
   WHERE impacted.id <> $target_id AND (impacted.id IN $allowed_repository_ids OR impacted.id IN $allowed_scope_ids)%s
   RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels,
          impacted.environment as environment, impacted.repo_id as repo_id,
          length(path) as depth, relationships(path) as rels
 }
 RETURN id, name, labels, environment, repo_id, depth, rels
-ORDER BY depth, name, id
+ORDER BY name, id
 LIMIT $limit`
 
 // changeSurfaceTraversalRows merges the bounded outward-causal and incoming
 // repository-consumer reads. The opposite traversal directions remain separate
-// auto-commit reads with eventual-read consistency. Scoped outgoing reads use a
-// CALL-subquery UNION because pinned NornicDB executes both subquery arms while
-// silently ignoring the second arm of a top-level UNION.
+// auto-commit reads with eventual-read consistency. Each direction reads one
+// exact depth per statement and merges depth-major (runChangeSurfaceDepthRange),
+// so a shallow probe-full page never expands the deep fan-out (#7677). Scoped
+// outgoing reads use a CALL-subquery UNION because pinned NornicDB executes
+// both subquery arms while silently ignoring the second arm of a top-level
+// UNION.
 func (h *Handler) changeSurfaceTraversalRows(
 	ctx context.Context,
 	target ChangeSurfaceTargetCandidate,
@@ -100,6 +107,36 @@ func (h *Handler) changeSurfaceTraversalRows(
 // of the change-surface routes that can run long (#7246).
 const changeSurfaceOutgoingQueryName = "platform_impact.change_surface.outgoing"
 
+// runChangeSurfaceDepthRange reads one anchored traversal depth by depth
+// and merges the pages depth-major. want is the limit+1 probe bound: each
+// depth is read with the remaining need, a depth that returns fewer rows than
+// requested is exhausted and the next depth continues, and the read stops as
+// soon as the probe is full. Because ORDER BY depth is the major sort key,
+// the merged sequence equals the single [*1..max] read's ORDER BY
+// depth, name, id page, and the collected count answers truncated identically.
+// A backend error on any depth aborts the read: a shallower prefix is never
+// returned as if it were complete.
+func runChangeSurfaceDepthRange(
+	ctx context.Context,
+	maxDepth int,
+	want int,
+	readDepth func(ctx context.Context, oneDepth, need int) ([]map[string]any, error),
+) ([]map[string]any, error) {
+	collected := make([]map[string]any, 0, want)
+	for oneDepth := 1; oneDepth <= maxDepth; oneDepth++ {
+		need := want - len(collected)
+		rows, err := readDepth(ctx, oneDepth, need)
+		if err != nil {
+			return nil, err
+		}
+		collected = append(collected, rows...)
+		if len(rows) >= need {
+			break
+		}
+	}
+	return collected, nil
+}
+
 // RunChangeSurfaceOutgoing runs the outgoing change-surface traversal for
 // one anchored start pattern. Exported because the root live-backend proof
 // test calls it; the home stays this package. See #6060.
@@ -113,25 +150,29 @@ func (h *Handler) RunChangeSurfaceOutgoing(
 	access querycontract.RepositoryAccessFilter,
 ) ([]map[string]any, error) {
 	environmentClause := changeSurfaceEnvironmentClause(environment)
-	cypher := fmt.Sprintf(changeSurfaceInvestigateCypher, startPattern, depth, environmentClause)
-	if access.Scoped() {
-		cypher = fmt.Sprintf(
-			changeSurfaceScopedOutgoingCypher,
-			startPattern,
-			depth,
-			environmentClause,
-			startPattern,
-			depth,
-			environmentClause,
-		)
-	}
-	queryParams := make(map[string]any, len(params)+1)
-	for key, value := range params {
-		queryParams[key] = value
-	}
-	queryParams["limit"] = limit + 1
-	queryParams = access.GraphParams(queryParams)
-	return h.Neo4j.Run(querycontract.WithGraphQueryName(ctx, changeSurfaceOutgoingQueryName), cypher, queryParams)
+	return runChangeSurfaceDepthRange(ctx, depth, limit+1, func(ctx context.Context, oneDepth, need int) ([]map[string]any, error) {
+		cypher := fmt.Sprintf(changeSurfaceInvestigateCypher, startPattern, oneDepth, oneDepth, environmentClause)
+		if access.Scoped() {
+			cypher = fmt.Sprintf(
+				changeSurfaceScopedOutgoingCypher,
+				startPattern,
+				oneDepth,
+				oneDepth,
+				environmentClause,
+				startPattern,
+				oneDepth,
+				oneDepth,
+				environmentClause,
+			)
+		}
+		queryParams := make(map[string]any, len(params)+1)
+		for key, value := range params {
+			queryParams[key] = value
+		}
+		queryParams["limit"] = need
+		queryParams = access.GraphParams(queryParams)
+		return h.Neo4j.Run(querycontract.WithGraphQueryName(ctx, changeSurfaceOutgoingQueryName), cypher, queryParams)
+	})
 }
 
 // RunChangeSurfaceRepositoryConsumers runs the repository-consumers
@@ -145,17 +186,21 @@ func (h *Handler) RunChangeSurfaceRepositoryConsumers(
 	params map[string]any,
 	access querycontract.RepositoryAccessFilter,
 ) ([]map[string]any, error) {
-	cypher := fmt.Sprintf(
-		changeSurfaceRepositoryConsumersCypher,
-		depth,
-		changeSurfaceEnvironmentClause(environment)+access.GraphPredicateOnProperty("impacted", "id"),
-		limit+1,
-	)
-	queryParams := make(map[string]any, len(params)+2)
-	for key, value := range params {
-		queryParams[key] = value
-	}
-	return h.Neo4j.Run(ctx, cypher, access.GraphParams(queryParams))
+	grantClause := changeSurfaceEnvironmentClause(environment) + access.GraphPredicateOnProperty("impacted", "id")
+	return runChangeSurfaceDepthRange(ctx, depth, limit+1, func(ctx context.Context, oneDepth, need int) ([]map[string]any, error) {
+		cypher := fmt.Sprintf(
+			changeSurfaceRepositoryConsumersCypher,
+			oneDepth,
+			oneDepth,
+			grantClause,
+			need,
+		)
+		queryParams := make(map[string]any, len(params)+2)
+		for key, value := range params {
+			queryParams[key] = value
+		}
+		return h.Neo4j.Run(ctx, cypher, access.GraphParams(queryParams))
+	})
 }
 
 // changeSurfaceImpactedLabels is the set of node labels a change-surface

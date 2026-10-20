@@ -140,15 +140,34 @@ func semanticChangeSurfaceGraph() *recordingChangeSurfaceGraph {
 				"labels": []any{"Repository"}, "repo_id": changeSurfaceDependencyRepoID,
 			}}, nil
 		case strings.Contains(cypher, "<-[:DEPENDS_ON"):
+			// The consumers branch reads one exact depth per statement;
+			// only the depth-1 statement sees the consumer row.
+			if depth, ok := changeSurfaceDepthRangeOfQuery(cypher); !ok || depth != 1 {
+				return []map[string]any{}, nil
+			}
 			return []map[string]any{semanticChangeSurfaceRow(
 				changeSurfaceConsumerRepoID, "orders-api", 1, "DEPENDS_ON",
 			)}, nil
 		case strings.Contains(cypher, "MATCH path"):
-			return []map[string]any{
+			// The outgoing branch reads one exact depth per statement;
+			// serve only the rows at the requested depth, as the backend
+			// does for an exact-depth range.
+			depth, ok := changeSurfaceDepthRangeOfQuery(cypher)
+			if !ok {
+				return nil, nil
+			}
+			rows := []map[string]any{
 				semanticChangeSurfaceRow("workload:lib-common", "lib-common-service", 1, "DEFINES"),
 				semanticChangeSurfaceRow(changeSurfaceDependencyRepoID, "dependency", 1, "DEPENDS_ON"),
 				semanticMixedChangeSurfaceRow("workload:mixed", "mixed", 2),
-			}, nil
+			}
+			served := make([]map[string]any, 0, len(rows))
+			for _, row := range rows {
+				if querycontract.IntVal(row, "depth") == depth {
+					served = append(served, row)
+				}
+			}
+			return served, nil
 		default:
 			return nil, nil
 		}
@@ -189,15 +208,30 @@ func assertSemanticChangeSurfaceRows(t *testing.T, rows []map[string]any) {
 
 func assertSemanticChangeSurfaceQueries(t *testing.T, calls []changeSurfaceRunCall) {
 	t.Helper()
-	if got, want := len(calls), 2; got != want {
-		t.Fatalf("graph run calls = %d, want outgoing and dependency-consumer queries", got)
+	// The target arrives resolved, so the calls are the outgoing branch at
+	// depths 1..4 (depths 1 and 2 serve rows, 3 and 4 exhaust against the
+	// limit+1 probe of 11) followed by the consumers branch at depths 1..4.
+	if got, want := len(calls), 8; got != want {
+		t.Fatalf("graph run calls = %d, want 4 outgoing and 4 dependency-consumer depth reads", got)
 	}
-	if !strings.Contains(calls[0].cypher, "relationships(path) as rels") {
-		t.Fatalf("outgoing query must project raw relationships: %s", calls[0].cypher)
+	for i := range 4 {
+		call := calls[i]
+		if !strings.Contains(call.cypher, "relationships(path) as rels") {
+			t.Fatalf("outgoing query %d must project raw relationships: %s", i, call.cypher)
+		}
+		if depth, ok := changeSurfaceDepthRangeOfQuery(call.cypher); !ok || depth != i+1 {
+			t.Fatalf("outgoing query %d reads depth %d, want exact depth %d", i, depth, i+1)
+		}
 	}
-	if !strings.Contains(calls[1].cypher, "(start:Repository") ||
-		!strings.Contains(calls[1].cypher, "<-[:DEPENDS_ON") {
-		t.Fatalf("consumer query must use an incoming typed repository dependency traversal: %s", calls[1].cypher)
+	for i := range 4 {
+		call := calls[4+i]
+		if !strings.Contains(call.cypher, "(start:Repository") ||
+			!strings.Contains(call.cypher, "<-[:DEPENDS_ON") {
+			t.Fatalf("consumer query %d must use an incoming typed repository dependency traversal: %s", i, call.cypher)
+		}
+		if depth, ok := changeSurfaceDepthRangeOfQuery(call.cypher); !ok || depth != i+1 {
+			t.Fatalf("consumer query %d reads depth %d, want exact depth %d", i, depth, i+1)
+		}
 	}
 }
 
@@ -269,8 +303,9 @@ func TestChangeSurfaceRepositoryTargetNamesOnlyTheOutgoingTraversal(t *testing.T
 	if err != nil {
 		t.Fatalf("changeSurfaceTraversalRows() error = %v", err)
 	}
-	if outgoingCalls != 1 || consumerCalls != 1 {
-		t.Fatalf("graph reads = %d outgoing, %d consumer, want one of each for a Repository target", outgoingCalls, consumerCalls)
+	// The empty fake exhausts no depth, so each branch reads all four depths.
+	if outgoingCalls != 4 || consumerCalls != 4 {
+		t.Fatalf("graph reads = %d outgoing, %d consumer, want four exact-depth reads of each for a Repository target", outgoingCalls, consumerCalls)
 	}
 	if want := "platform_impact.change_surface.outgoing"; outgoingName != want {
 		t.Errorf("outgoing graph_query_name = %q, want %q", outgoingName, want)

@@ -38,6 +38,11 @@ func TestChangeSurfaceScopedDropsLabelsTheServerFailedToFilter(t *testing.T) {
 		if !strings.Contains(cypher, "WITH path, impacted") {
 			t.Fatalf("expected the scoped traversal, got:\n%s", cypher)
 		}
+		// The fixture rows are one hop out, so only the depth-1 statement
+		// serves them; deeper statements exhaust, as on the backend.
+		if depth, ok := changeSurfaceDepthRangeOfQuery(cypher); !ok || depth != 1 {
+			return []map[string]any{}, nil
+		}
 		return []map[string]any{
 			changeSurfaceTestRow("workload:checkout", "checkout",
 				[]any{"Workload"}, "repository:owner", "DEFINES"),
@@ -104,7 +109,7 @@ func TestChangeSurfaceKeepsEveryWhitelistedLabel(t *testing.T) {
 func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
 	t.Parallel()
 
-	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, changeSurfaceEnvironmentClause("prod"))
+	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, 4, changeSurfaceEnvironmentClause("prod"))
 	graph.AssertCypherHasNoIgnoredLabelPredicate(t, rendered)
 	graph.AssertCypherHasNoBrokenAndOr(t, rendered)
 
@@ -299,7 +304,7 @@ func changeSurfaceWhereConjuncts(t *testing.T, cypher string) []string {
 func TestChangeSurfaceLegacyCypherGuardsWhitelistWithLabelTest(t *testing.T) {
 	t.Parallel()
 
-	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, "")
+	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, 4, "")
 	conjuncts := changeSurfaceWhereConjuncts(t, rendered)
 	if len(conjuncts) != 3 {
 		t.Fatalf("unscoped outgoing WHERE has %d conjuncts, want 3 (id guard, label test, IN labels() guard): %q", len(conjuncts), conjuncts)
@@ -337,8 +342,8 @@ func TestChangeSurfaceNonLegacyCypherIsPinned(t *testing.T) {
 	t.Parallel()
 
 	for name, tc := range map[string]struct{ cypher, sha string }{
-		"scoped outgoing":      {changeSurfaceScopedOutgoingCypher, "fc148711bafaa2eb4cf1f25db2a6cbc3ee1215e353f041841011b03479fa7441"},
-		"repository consumers": {changeSurfaceRepositoryConsumersCypher, "d42bfe62558f2106f2ea952311303581ba45326c2c35d757538b66e9d7d776d7"},
+		"scoped outgoing":      {changeSurfaceScopedOutgoingCypher, "25e324684de473e374a13c10490b8e1c48b920e790fecf0e5f01113ec7dd3f27"},
+		"repository consumers": {changeSurfaceRepositoryConsumersCypher, "52761ea308175d03bc3e889388774d2ec90081ed8505979ef9b5b2db7bc8c940"},
 	} {
 		sum := sha256.Sum256([]byte(tc.cypher))
 		if got := hex.EncodeToString(sum[:]); got != tc.sha {
@@ -356,7 +361,7 @@ func TestChangeSurfaceNonLegacyCypherIsPinned(t *testing.T) {
 func TestChangeSurfaceEnvironmentScopedCypherKeepsLabelTestFirst(t *testing.T) {
 	t.Parallel()
 
-	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, changeSurfaceEnvironmentClause("prod"))
+	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, 4, changeSurfaceEnvironmentClause("prod"))
 	conjuncts := changeSurfaceWhereConjuncts(t, rendered)
 	if len(conjuncts) != 4 {
 		t.Fatalf("environment-scoped WHERE has %d conjuncts, want 4 (id guard, label test, IN labels() guard, environment): %q", len(conjuncts), conjuncts)

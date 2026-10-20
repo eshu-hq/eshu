@@ -32,7 +32,9 @@ func changeSurfaceNoTargetResolution(req ChangeSurfaceInvestigationRequest) map[
 
 // changeSurfaceInvestigateCypher shares the NornicDB-safe, single-anchor-clause
 // outgoing traversal with the legacy endpoint. Both callers decode raw path
-// relationships in Go so dependency direction is validated consistently.
+// relationships in Go so dependency direction is validated consistently. The
+// template reads one exact depth per statement; callers merge depth-major
+// through runChangeSurfaceDepthRange (#7677).
 const changeSurfaceInvestigateCypher = changeSurfaceLegacyCypher
 
 // changeSurfaceEnvironmentClause returns the NornicDB-safe server-side

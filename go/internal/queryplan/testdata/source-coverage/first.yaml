@@ -376,5 +376,5 @@ source_coverage:
           max_results: 1212
   - file: impact/change_surface_traversal.go
     calls:
-      - {symbol: "(*Handler).RunChangeSurfaceOutgoing", count: 1, source_sha256: e087c635001e978dbe2a82f8e77577b9894d9c70f4bc48106fae212cb3317101, entry_ids: [QP-IMPACT-CHANGE-SURFACE, QP-IMPACT-CHANGE-SURFACE-SCOPED]}
-      - {symbol: "(*Handler).RunChangeSurfaceRepositoryConsumers", count: 1, source_sha256: 6bbfe251f9fd783d3402aeb50e264efa98e740e6ce2fdecf3d45a73ef1a6772c, entry_ids: [QP-IMPACT-CHANGE-SURFACE-CONSUMERS, QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED]}
+      - {symbol: "(*Handler).RunChangeSurfaceOutgoing", count: 1, source_sha256: cab74f6f4a52e7f8869f984087eddae76630093ab1d278f1b6e0b6c5962ba08a, entry_ids: [QP-IMPACT-CHANGE-SURFACE, QP-IMPACT-CHANGE-SURFACE-SCOPED]}
+      - {symbol: "(*Handler).RunChangeSurfaceRepositoryConsumers", count: 1, source_sha256: ee4aae1da123035bf30bdf413e90c842e687e46080b4e7f35389ed59f84c236b, entry_ids: [QP-IMPACT-CHANGE-SURFACE-CONSUMERS, QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED]}

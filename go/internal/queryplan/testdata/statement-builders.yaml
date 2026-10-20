@@ -646,3 +646,21 @@ read_exemptions:
   - callsite: internal/query/repository/deployment_evidence.go:queryRepoDeploymentEvidenceDirection
     anchor: "MATCH (r:Repository {id: $repo_id})<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(artifact:EvidenceArtifact)"
     reason: incoming-evidence read; 22 executions per backend (4 bound to r_ea78e8bb), all empty on both backends; zero EvidenceArtifact creates touch r_ea78e8bb (the sibling outgoing variant is already exempt for the same repo)
+  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceOutgoing.func1
+    anchor: "[*2..2]->(impacted)"
+    reason: per-depth change-surface read (#7677); the differential capture corpus anchors expose depth-1 paths only, so the depth-2 statement returns empty on both backends by corpus construction; non-empty depth-2 execution is proven by the ordered-equality shim on the live QA anchor (docs/internal/evidence/7677-per-depth-read.md)
+  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceOutgoing.func1
+    anchor: "[*3..3]->(impacted)"
+    reason: per-depth change-surface read (#7677); the differential capture corpus anchors expose depth-1 paths only, so the depth-3 statement returns empty on both backends by corpus construction; non-empty depth-3 execution is proven by the ordered-equality shim on the live QA anchor (docs/internal/evidence/7677-per-depth-read.md)
+  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceOutgoing.func1
+    anchor: "[*4..4]->(impacted)"
+    reason: per-depth change-surface read (#7677); the differential capture corpus anchors expose depth-1 paths only, so the depth-4 statement returns empty on both backends by corpus construction; non-empty depth-4 execution is proven by the ordered-equality shim on the live QA anchor (docs/internal/evidence/7677-per-depth-read.md)
+  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceRepositoryConsumers.func1
+    anchor: "<-[:DEPENDS_ON*2..2]-"
+    reason: per-depth consumers read (#7677); the differential capture corpus anchors expose depth-1 DEPENDS_ON paths only, so the depth-2 statement returns empty on both backends by corpus construction; non-empty depth-2 execution is proven by the ordered-equality shim on the live QA anchor (docs/internal/evidence/7677-per-depth-read.md)
+  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceRepositoryConsumers.func1
+    anchor: "<-[:DEPENDS_ON*3..3]-"
+    reason: per-depth consumers read (#7677); the differential capture corpus anchors expose depth-1 DEPENDS_ON paths only, so the depth-3 statement returns empty on both backends by corpus construction; non-empty depth-3 execution is proven by the ordered-equality shim on the live QA anchor (docs/internal/evidence/7677-per-depth-read.md)
+  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceRepositoryConsumers.func1
+    anchor: "<-[:DEPENDS_ON*4..4]-"
+    reason: per-depth consumers read (#7677); the differential capture corpus anchors expose depth-1 DEPENDS_ON paths only, so the depth-4 statement returns empty on both backends by corpus construction; non-empty depth-4 execution is proven by the ordered-equality shim on the live QA anchor (docs/internal/evidence/7677-per-depth-read.md)
