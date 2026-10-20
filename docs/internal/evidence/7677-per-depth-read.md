@@ -76,3 +76,19 @@ and must go green in CI before merge.
 - Scoped CALL-UNION `[*1..1]`: 3 rows, the granted subset of the unscoped
   depth-1 page.
 - Consumers anchor (72 incoming): 12-row ordered-key page equality.
+
+## CI wave 1 findings (PR #8681, 2026-10-20)
+
+- Live PROFILE gate: the family capture joins 4 per-depth statements, but
+  the live test PROFILEd the joined text as one statement (Neo4j rejects
+  multi-statement PROFILE). Fix: `queryplan.SplitProfileStatements` splits
+  on the capture join and the live test PROFILEs each part with the same
+  operator requirements; single-statement families behave identically.
+- Differential always-empty-read (9): depths 2-4 return empty on both
+  backends because the capture corpus anchors expose depth-1 paths only.
+  Fix: 6 `read_exemptions` in `statement-builders.yaml` (callsite +
+  per-depth anchor + this reason); non-empty per-depth execution stays
+  proven by the shim above.
+- Differential quorum (511 infra-search divergences): under diagnosis via
+  failed-job retry on the same head; no change-surface statement appears
+  in the divergence sample, and the branch touches no corpus fixture.

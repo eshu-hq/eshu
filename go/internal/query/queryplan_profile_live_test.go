@@ -144,36 +144,47 @@ func TestProductionQueryplanProfilesRejectWholeGraphScans(t *testing.T) {
 		if strings.TrimSpace(entry.Cypher) == "" {
 			continue
 		}
-		if err := queryplanProfileTotalBudgetError(time.Since(gateStarted), profiled); err != nil {
-			t.Fatal(err)
+		statements := queryplan.SplitProfileStatements(entry.Cypher)
+		if len(statements) == 0 {
+			continue
 		}
-		profiled++
-		t.Run(entry.ID, func(t *testing.T) {
-			queryCtx, cancelQuery := context.WithTimeout(t.Context(), queryplanProfileQueryBudget)
-			defer cancelQuery()
-			step := "PROFILE " + entry.ID
-			queryStarted := time.Now()
-			result, err := session.Run(queryCtx, "PROFILE "+entry.Cypher, queryplanProfileParams())
-			if err != nil {
-				t.Fatal(queryplanProfileStepError(queryCtx, step,
-					time.Since(queryStarted), queryplanProfileQueryBudget, err))
+		for index, statement := range statements {
+			statement := statement
+			if err := queryplanProfileTotalBudgetError(time.Since(gateStarted), profiled); err != nil {
+				t.Fatal(err)
 			}
-			summary, err := result.Consume(queryCtx)
-			if err != nil {
-				t.Fatal(queryplanProfileStepError(queryCtx, "consume "+step,
-					time.Since(queryStarted), queryplanProfileQueryBudget, err))
+			profiled++
+			name := entry.ID
+			if len(statements) > 1 {
+				name = fmt.Sprintf("%s/part-%d", entry.ID, index+1)
 			}
-			profile := summary.Profile()
-			if profile == nil {
-				t.Fatal("PROFILE returned no plan")
-			}
-			operators := profiledPlanOperators(profile)
-			assertProfileExcludesOperators(t, entry, operators)
-			assertProfileCartesianBound(t, entry, operators)
-			assertProfileHasBoundedAnchor(t, entry, operators)
-			assertNoUnboundedVarLength(t, entry.ID, profile)
-			t.Logf("operators=%s", strings.Join(operators, ","))
-		})
+			t.Run(name, func(t *testing.T) {
+				queryCtx, cancelQuery := context.WithTimeout(t.Context(), queryplanProfileQueryBudget)
+				defer cancelQuery()
+				step := "PROFILE " + name
+				queryStarted := time.Now()
+				result, err := session.Run(queryCtx, "PROFILE "+statement, queryplanProfileParams())
+				if err != nil {
+					t.Fatal(queryplanProfileStepError(queryCtx, step,
+						time.Since(queryStarted), queryplanProfileQueryBudget, err))
+				}
+				summary, err := result.Consume(queryCtx)
+				if err != nil {
+					t.Fatal(queryplanProfileStepError(queryCtx, "consume "+step,
+						time.Since(queryStarted), queryplanProfileQueryBudget, err))
+				}
+				profile := summary.Profile()
+				if profile == nil {
+					t.Fatal("PROFILE returned no plan")
+				}
+				operators := profiledPlanOperators(profile)
+				assertProfileExcludesOperators(t, entry, operators)
+				assertProfileCartesianBound(t, entry, operators)
+				assertProfileHasBoundedAnchor(t, entry, operators)
+				assertNoUnboundedVarLength(t, name, profile)
+				t.Logf("operators=%s", strings.Join(operators, ","))
+			})
+		}
 	}
 	profileQueryplanSafeProductionVariants(t, session, gateStarted, profiled)
 }
