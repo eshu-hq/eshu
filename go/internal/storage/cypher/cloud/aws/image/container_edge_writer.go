@@ -19,6 +19,24 @@ const canonicalPhaseCloudResourceContainerImageEdge = "cloud_resource_container_
 // edge statement metadata.
 const cloudResourceContainerImageEdgeLabel = "AWS_LAMBDA_FUNCTION_USES_IMAGE"
 
+// CanonicalCloudResourceContainerImageEdgeUpsertCypherFormat and
+// RetractCloudResourceContainerImageEdgesCypher are the exported aliases
+// the materialized-edge family registry holds (IdentityCypher,
+// RetractCypher) beside its cloud_resource_container_image row, so the
+// drift guards pin the production templates rather than a copied literal.
+// They alias the unexported consts above; the %s hole in the upsert format
+// fills per row from the closed vocabulary the writer screens, so the held
+// const keeps the unsubstituted shape and the identity scan yields no
+// property-keyed identity for this family.
+const (
+	// CanonicalCloudResourceContainerImageEdgeUpsertCypherFormat is the
+	// production upsert template this family's registry row holds.
+	CanonicalCloudResourceContainerImageEdgeUpsertCypherFormat = canonicalCloudResourceContainerImageEdgeUpsertCypherFormat
+	// RetractCloudResourceContainerImageEdgesCypher is the production
+	// retract template this family's registry row holds.
+	RetractCloudResourceContainerImageEdgesCypher = retractCloudResourceContainerImageEdgesCypher
+)
+
 // cloudResourceContainerImageRelationshipVocabulary is the closed
 // single-member set of RAW aws_relationship relationship_type values the AWS
 // cloud-image projection may use (issue #5450,

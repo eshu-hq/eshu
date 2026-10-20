@@ -18,6 +18,20 @@ const canonicalPhaseProvenanceDerivedFromEdges = "provenance_derived_from_edges"
 // statement-metadata dimension for this writer's edge type.
 const provenanceDerivedFromEdgeLabel = "DERIVED_FROM"
 
+// CanonicalProvenanceDerivedFromCypher and
+// RetractProvenanceDerivedFromEdgesCypher are the exported aliases the
+// materialized-edge family registry holds (IdentityCypher, RetractCypher)
+// beside its derived_from row, so the drift guards pin the production
+// templates rather than a copied literal.
+const (
+	// CanonicalProvenanceDerivedFromCypher is the production upsert
+	// template the derived_from registry row holds.
+	CanonicalProvenanceDerivedFromCypher = canonicalProvenanceDerivedFromCypher
+	// RetractProvenanceDerivedFromEdgesCypher is the production retract
+	// template the derived_from registry row holds.
+	RetractProvenanceDerivedFromEdgesCypher = retractProvenanceDerivedFromEdgesCypher
+)
+
 // canonicalProvenanceDerivedFromCypher upserts a DERIVED_FROM edge from a built
 // ContainerImage to the base ContainerImage its repository's Dockerfile
 // declared.

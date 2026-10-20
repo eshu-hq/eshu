@@ -43,6 +43,36 @@ const (
 	provenanceBuiltFromEdgeLabel = "BUILT_FROM"
 )
 
+// CanonicalProvenancePublishesPackageCypher,
+// CanonicalProvenancePublishesPackageVersionCypher,
+// CanonicalProvenanceBuiltFromCypher, RetractProvenancePublishesEdgesCypher
+// and RetractProvenanceBuiltFromEdgesCypher are the exported aliases the
+// materialized-edge family registry holds (IdentityCypher, RetractCypher)
+// beside its publishes and built_from rows, so the drift guards pin the
+// production templates rather than a copied literal. Both PUBLISHES
+// templates MERGE the identical {scope_id, evidence_source} identity, so
+// the Package template stands as the held const with the twin named beside
+// the registry row.
+const (
+	// CanonicalProvenancePublishesPackageCypher is the production
+	// Repository-to-Package upsert template the publishes registry row
+	// holds.
+	CanonicalProvenancePublishesPackageCypher = canonicalProvenancePublishesPackageCypher
+	// CanonicalProvenancePublishesPackageVersionCypher is the production
+	// Repository-to-PackageVersion upsert template, MERGE-identical to the
+	// Package twin above.
+	CanonicalProvenancePublishesPackageVersionCypher = canonicalProvenancePublishesPackageVersionCypher
+	// CanonicalProvenanceBuiltFromCypher is the production upsert template
+	// the built_from registry row holds.
+	CanonicalProvenanceBuiltFromCypher = canonicalProvenanceBuiltFromCypher
+	// RetractProvenancePublishesEdgesCypher is the production retract
+	// template the publishes registry row holds.
+	RetractProvenancePublishesEdgesCypher = retractProvenancePublishesEdgesCypher
+	// RetractProvenanceBuiltFromEdgesCypher is the production retract
+	// template the built_from registry row holds.
+	RetractProvenanceBuiltFromEdgesCypher = retractProvenanceBuiltFromEdgesCypher
+)
+
 // provenanceEdgeKindForSource maps a writer evidence_source to the single
 // evidence_kinds token stamped on its edges. The golden-corpus gate's
 // shared-verb isolation (RequiredCorrelation.EvidenceKinds,

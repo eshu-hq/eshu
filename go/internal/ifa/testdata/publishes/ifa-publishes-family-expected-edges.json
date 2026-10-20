@@ -1,0 +1,33 @@
+{
+  "odu": "odu:ifa-publishes-family",
+  "note": "Hand-derived from canonicalProvenancePublishesPackageCypher and canonicalProvenancePublishesPackageVersionCypher (go/internal/storage/cypher/edge/writer/provenance.go): `UNWIND $rows AS row MATCH (repo:Repository {id: row.repository_id}) MATCH (target:Package {uid: row.package_id}) MERGE (repo)-[rel:PUBLISHES {scope_id: row.scope_id, evidence_source: row.evidence_source}]->(target) SET ...` and the PackageVersion twin with `{uid: row.version_id}`. PUBLISHES is the only type this writer can emit (fixed templates, no vocabulary substitution); rows carrying version_id take the PackageVersion template, the rest the Package template. The source is the owning repository id, the target the package or version uid. scope_id and evidence_source are MERGE identity the WRITER stamps per run, so the fixture pins the live contract the guard reproduces: scope_id is the package-registry scope (the writing intent's scope), evidence_source the ownership or publication domain per edge (the handler writes the two decision sets through separate writer calls, so the same endpoint pair under both sources is two edges, not one). The live cell must drive the writing intent in this scope with these evidence sources, or update these pins -- the guard test reds on a mismatch either way. Exactly three edges: the package-level exact hint (ownership of the Package node, and the publication pairing of ver-team-api-1.0.0 against the same hint) plus the version-scoped exact hint (ownership of ver-team-api-2.0.0, paired with no version fact so publication never sees it). The stale, homepage-only, unmatched and ambiguous hints contribute nothing on purpose -- tombstoned-only matches go stale, non-repository kinds are provenance-only, unmatched remotes stay unresolved, and a hint matching two active remotes is never picked -- on whichever path pairs them.",
+  "edges": [
+    {
+      "relationship_type": "PUBLISHES",
+      "source_entity_id": "repository:eshu-fixture-team-api",
+      "target_entity_id": "pkg:npm:@acme/team-api",
+      "identity": {
+        "evidence_source": "reducer/package-ownership",
+        "scope_id": "package-registry:npm:eshu-fixture-team-api"
+      }
+    },
+    {
+      "relationship_type": "PUBLISHES",
+      "source_entity_id": "repository:eshu-fixture-team-api",
+      "target_entity_id": "ver-team-api-1.0.0",
+      "identity": {
+        "evidence_source": "reducer/package-publication",
+        "scope_id": "package-registry:npm:eshu-fixture-team-api"
+      }
+    },
+    {
+      "relationship_type": "PUBLISHES",
+      "source_entity_id": "repository:eshu-fixture-team-api",
+      "target_entity_id": "ver-team-api-2.0.0",
+      "identity": {
+        "evidence_source": "reducer/package-ownership",
+        "scope_id": "package-registry:npm:eshu-fixture-team-api"
+      }
+    }
+  ]
+}

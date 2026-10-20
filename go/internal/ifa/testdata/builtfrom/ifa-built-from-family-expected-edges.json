@@ -1,0 +1,24 @@
+{
+  "odu": "odu:ifa-built-from-family",
+  "note": "Hand-derived from canonicalProvenanceBuiltFromCypher (go/internal/storage/cypher/edge/writer/provenance.go): `UNWIND $rows AS row MATCH (img:ContainerImage {digest: row.digest}) MATCH (repo:Repository {id: row.repository_id}) MERGE (img)-[rel:BUILT_FROM {scope_id: row.scope_id, evidence_source: row.evidence_source}]->(repo) SET ...`. BUILT_FROM is the only type this writer can emit (the provenance writer's fixed templates, no vocabulary substitution). The source is the built image digest, the target the Repository node id. scope_id and evidence_source are MERGE identity the WRITER stamps per run, so the fixture pins the live contract the guard reproduces: scope_id is the owning repository's scope (the writing intent's scope), evidence_source the container-image-identity domain. The live cell must drive the writing intent in this scope with this evidence source, or update these pins -- the guard test reds on a mismatch either way. Exactly two edges: the app and worker digests whose OCI configs declare the fixture repository as builder. The third-party digest contributes nothing on purpose -- exact_digest with no build evidence, and the deploying repository's Kubernetes reference to it anchors only SourceRepositoryIDs (#5796: a runtime reference never confers build provenance). The ghost digest contributes nothing -- its source label names a repository no fact scans.",
+  "edges": [
+    {
+      "relationship_type": "BUILT_FROM",
+      "source_entity_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "target_entity_id": "repository:eshu-fixture-orders-api",
+      "identity": {
+        "evidence_source": "reducer/container-image-identity",
+        "scope_id": "git-repository-scope:repository:eshu-fixture-orders-api"
+      }
+    },
+    {
+      "relationship_type": "BUILT_FROM",
+      "source_entity_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "target_entity_id": "repository:eshu-fixture-orders-api",
+      "identity": {
+        "evidence_source": "reducer/container-image-identity",
+        "scope_id": "git-repository-scope:repository:eshu-fixture-orders-api"
+      }
+    }
+  ]
+}
