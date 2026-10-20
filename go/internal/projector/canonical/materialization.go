@@ -21,7 +21,7 @@ type CanonicalMaterialization struct {
 	FirstGeneration             bool   // true when the scope has no prior generation of ANY status (activated, failed, or superseded), not just no prior ACTIVE one; retract-skip guards rely on this to not miss edges a pre-activation prior generation wrote (#4710)
 	DeltaProjection             bool   // true when the materialization carries a file-scoped delta
 	ReconciliationProjection    bool   // true for a forced full reconciliation snapshot or a re-projection of an active full (#7978)
-	DeclaredEmptyScope          bool   // true when the generation's repository fact declares `empty_scope`: the collector observed zero files, so filelessness is genuine, not facts gone missing (#8668). Carried for the #8657 writer-side conditional retract, which honors it as the escape hatch; the builder itself succeeds clean zero-facts builds either way.
+	DeclaredEmptyScope          bool   // true when the generation's repository fact declares `empty_scope`: the collector observed zero files, so filelessness is genuine, not facts gone missing (#8668). Carried for the #8657 writer-side conditional retract, which honors it as the escape hatch; the builder itself succeeds clean zero-facts builds either way. Only BuildMaterialization sets it; materializations built elsewhere (for example replay) carry false.
 	DeltaFilePaths              []string
 	DeltaDeletedFilePaths       []string
 	DeltaDeletedDirectoryPaths  []string
