@@ -50,10 +50,12 @@ and ifa callers already named the leaves. `compat_cloud.go` keeps only the
 `GraphQueryRunner` pin block plus retired-stanza notes. New guard test
 `TestCloudBucketFamilyRetired` in
 `compat_alias_retirement_cloud_test.go` scans the reducer package directory
-for any re-declared alias. Capability inventory regenerated with no diff;
-the only non-Go content change is the prose note in the ifa shell-exec
+for any re-declared alias. No golden, spec, manifest, or inventory content
+changed: capability inventory regenerated with no diff; the only
+golden/spec/manifest/inventory change is the prose note in the ifa shell-exec
 expected-edges fixture (`reducer.ExtractShellExecRows` spelled
-`shell.ExtractShellExecRows`, edges untouched).
+`shell.ExtractExecRows`, edges untouched); companion doc updates repoint
+reducer.X spellings to the leaves.
 
 Struct field names and keyed-literal keys keep their bare spelling (struct
 scope, not the retired package scope).
