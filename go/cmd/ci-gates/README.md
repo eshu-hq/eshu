@@ -170,6 +170,12 @@ context, no candidate — prints `reuse=false` and exits 0; a probe error exits
 non-zero and callers must treat it as no reuse. The probe is bounded to two
 minutes.
 
+A transfer needs a consumer that understands it: the required-gates
+publisher runs from the default branch, so the pull request that introduces
+a transfer outcome cannot itself ride one. Its landing head must run the
+gates in full, and transfers activate for later heads once the consumer
+has merged.
+
 ### await
 
 ```bash

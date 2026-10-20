@@ -152,4 +152,15 @@
 // anything else fails closed. It prints reuse/source_sha/tree/reason lines
 // for workflow outputs and is bounded to two minutes: probe failure means
 // "run the gates", never a verdict.
+//
+// A transfer verdict needs a consumer that understands it. The
+// required-gates publisher and the await exit codes run from the trusted
+// default-branch checkout, never from the pull request, so a pull request
+// that introduces a new transfer outcome cannot itself ride one: its own
+// heads skip the lanes, the default-branch consumer still reads those
+// skips as failures, and required-gates-complete stays red by design, not
+// by defect. The landing head of such a change must run every gate in
+// full -- any tree change past the last proven-green head refuses the
+// probe -- and transfers activate for later heads once the consumer is on
+// the default branch.
 package main
