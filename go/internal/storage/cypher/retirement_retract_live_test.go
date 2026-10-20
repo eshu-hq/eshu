@@ -6,6 +6,8 @@ package cypher
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,6 +55,11 @@ func TestRetirementGraphRetractLive(t *testing.T) {
 	// backend the schema applier has not touched. repository_path is
 	// included so the seed itself runs under the product uniqueness the
 	// shared-root shapes must respect.
+	// NornicDB never created composite (name, path, ...) uniqueness forms,
+	// so the product schema carries parameter_unique on Neo4j only. Skip it
+	// there to mirror the product backend split; the tagged seed CREATEs no
+	// duplicate Parameter, so no uniqueness guard is load-bearing here.
+	isNornicDB := strings.EqualFold(strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_BACKEND")), "nornicdb")
 	for _, ddl := range []string{
 		`CREATE CONSTRAINT repository_id IF NOT EXISTS FOR (r:Repository) REQUIRE r.id IS UNIQUE`,
 		`CREATE CONSTRAINT repository_path IF NOT EXISTS FOR (r:Repository) REQUIRE r.path IS UNIQUE`,
@@ -60,48 +67,70 @@ func TestRetirementGraphRetractLive(t *testing.T) {
 		`CREATE INDEX file_repo_id IF NOT EXISTS FOR (f:File) ON (f.repo_id)`,
 		`CREATE INDEX parameter_path IF NOT EXISTS FOR (p:Parameter) ON (p.path)`,
 	} {
+		if isNornicDB && strings.Contains(ddl, "parameter_unique") {
+			continue
+		}
 		if err := runner.runCypherSingle(ctx, Statement{Cypher: ddl}); err != nil {
 			t.Fatalf("ensure schema %q: %v", ddl, err)
 		}
 	}
 
+	// All paths and ids are concatenated client-side: NornicDB stores a
+	// server-side `$param + 'literal'` concat in CREATE unevaluated (the
+	// expression text lands in the property), so the seed carries only
+	// plain parameters. Neo4j evaluates either form; plain params keep
+	// both backends on identical data.
 	seed := `CREATE (ra:Repository {id: $repoRetired, path: $rootA, evidence_source: 'projector/canonical', scope_id: 's-a', generation_id: 'g1'})
 CREATE (rb:Repository {id: $repoLive, path: $rootB, evidence_source: 'projector/canonical', scope_id: 's-b', generation_id: 'g1'})
 CREATE (rd:Repository {id: $repoSharedRetired, path: $rootSharedChild, evidence_source: 'projector/canonical', scope_id: 's-d', generation_id: 'g1'})
 CREATE (re:Repository {id: $repoSharedLive, path: $rootShared, evidence_source: 'projector/canonical', scope_id: 's-e', generation_id: 'g1'})
-CREATE (fa:File {path: $rootA + '/a.go', repo_id: $repoRetired, evidence_source: 'projector/canonical', generation_id: 'g1'})
+CREATE (fa:File {path: $pathAGo, repo_id: $repoRetired, evidence_source: 'projector/canonical', generation_id: 'g1'})
 CREATE (da:Directory {path: $rootA, repo_id: $repoRetired, evidence_source: 'projector/canonical', generation_id: 'g1'})
-CREATE (fna:Function {name: 'main', path: $rootA + '/a.go', repo_id: $repoRetired, evidence_source: 'projector/canonical', generation_id: 'g1'})
-CREATE (pa:Parameter {name: 'x', path: $rootA + '/a.go', function_line_number: 1, evidence_source: 'projector/canonical', generation_id: 'g1'})
-CREATE (fb:File {path: $rootB + '/b.go', repo_id: $repoLive, evidence_source: 'projector/canonical', generation_id: 'g1'})
-CREATE (pb:Parameter {name: 'y', path: $rootB + '/b.go', function_line_number: 2, evidence_source: 'projector/canonical', generation_id: 'g1'})
-CREATE (fc:File {path: $rootA + '/orphan.go', repo_id: $repoNoNode, evidence_source: 'projector/canonical', generation_id: 'g1'})
-CREATE (pd:Parameter {name: 'd', path: $rootSharedChild + '/d.go', function_line_number: 3, evidence_source: 'projector/canonical', generation_id: 'g1'})
-CREATE (pe:Parameter {name: 'e', path: $rootShared + '/e.go', function_line_number: 4, evidence_source: 'projector/canonical', generation_id: 'g1'})
-CREATE (wa:Workload {id: 'wl-a-' + $tag, repo_id: $repoRetired, evidence_source: 'reducer/workload'})
-CREATE (ia:WorkloadInstance {id: 'wli-a-' + $tag, repo_id: $repoRetired, evidence_source: 'reducer/workload'})
-CREATE (ea:Endpoint {id: 'ep-a-' + $tag, repo_id: $repoRetired, evidence_source: 'reducer/workload'})
-CREATE (wb:Workload {id: 'wl-b-' + $tag, repo_id: $repoLive, evidence_source: 'reducer/workload'})
+CREATE (fna:Function {name: 'main', path: $pathAGo, repo_id: $repoRetired, evidence_source: 'projector/canonical', generation_id: 'g1'})
+CREATE (pa:Parameter {name: 'x', path: $pathAGo, function_line_number: 1, evidence_source: 'projector/canonical', generation_id: 'g1'})
+CREATE (fb:File {path: $pathBGo, repo_id: $repoLive, evidence_source: 'projector/canonical', generation_id: 'g1'})
+CREATE (pb:Parameter {name: 'y', path: $pathBGo, function_line_number: 2, evidence_source: 'projector/canonical', generation_id: 'g1'})
+CREATE (fc:File {path: $pathOrphan, repo_id: $repoNoNode, evidence_source: 'projector/canonical', generation_id: 'g1'})
+CREATE (pd:Parameter {name: 'd', path: $pathDGo, function_line_number: 3, evidence_source: 'projector/canonical', generation_id: 'g1'})
+CREATE (pe:Parameter {name: 'e', path: $pathEGo, function_line_number: 4, evidence_source: 'projector/canonical', generation_id: 'g1'})
+CREATE (wa:Workload {id: $wlA, repo_id: $repoRetired, evidence_source: 'reducer/workload'})
+CREATE (ia:WorkloadInstance {id: $wliA, repo_id: $repoRetired, evidence_source: 'reducer/workload'})
+CREATE (ea:Endpoint {id: $epA, repo_id: $repoRetired, evidence_source: 'reducer/workload'})
+CREATE (wb:Workload {id: $wlB, repo_id: $repoLive, evidence_source: 'reducer/workload'})
 CREATE (rb)-[dep:DEPENDS_ON {evidence_source: 'other/canonical'}]->(ra)
 CREATE (ra)-[def:DEFINES {evidence_source: 'reducer/workload'}]->(wa)
 CREATE (wa)-[uses:USES {evidence_source: 'reducer/workload-cloud'}]->(ea)`
 	if err := runner.runCypherSingle(ctx, Statement{Cypher: seed, Parameters: map[string]any{
 		"repoRetired": repoRetired, "repoLive": repoLive, "repoNoNode": repoNoNode,
 		"repoSharedRetired": repoSharedRetired, "repoSharedLive": repoSharedLive,
-		"rootA": rootA, "rootB": rootB, "rootShared": rootShared, "rootSharedChild": rootSharedChild, "tag": tag,
+		"rootA": rootA, "rootB": rootB, "rootShared": rootShared, "rootSharedChild": rootSharedChild,
+		"pathAGo": rootA + "/a.go", "pathBGo": rootB + "/b.go", "pathOrphan": rootA + "/orphan.go",
+		"pathDGo": rootSharedChild + "/d.go", "pathEGo": rootShared + "/e.go",
+		"wlA": "wl-a-" + tag, "wliA": "wli-a-" + tag, "epA": "ep-a-" + tag, "wlB": "wl-b-" + tag,
 	}}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cleanupCancel()
+		// Per-label deletes: a labelless repo_id scan is NornicDB-unreliable
+		// (the File-scoped file_repo_id index serves it and silently drops
+		// every other label), so leftovers would accumulate run over run.
+		for _, label := range []string{"File", "Directory", "Function", "Workload", "WorkloadInstance", "Endpoint"} {
+			_ = runner.runCypherSingle(cleanupCtx, Statement{
+				Cypher:     fmt.Sprintf(`MATCH (n:%s) WHERE n.repo_id IN $repos DETACH DELETE n`, label),
+				Parameters: map[string]any{"repos": []string{repoRetired, repoLive, repoNoNode, repoSharedRetired, repoSharedLive}},
+			})
+		}
 		_ = runner.runCypherSingle(cleanupCtx, Statement{
-			Cypher: `MATCH (n) WHERE n.repo_id IN $repos
-OR (n:Repository AND n.id IN $repos)
-OR (n:Parameter AND (n.path STARTS WITH $rootA OR n.path STARTS WITH $rootB OR n.path STARTS WITH $rootShared))
-DETACH DELETE n`,
+			Cypher: `MATCH (n:Repository) WHERE n.id IN $repos DETACH DELETE n`,
 			Parameters: map[string]any{
 				"repos": []string{repoRetired, repoLive, repoNoNode, repoSharedRetired, repoSharedLive},
+			},
+		})
+		_ = runner.runCypherSingle(cleanupCtx, Statement{
+			Cypher: `MATCH (n:Parameter) WHERE (n.path STARTS WITH $rootA OR n.path STARTS WITH $rootB OR n.path STARTS WITH $rootShared) DETACH DELETE n`,
+			Parameters: map[string]any{
 				"rootA": rootA + "/", "rootB": rootB + "/", "rootShared": rootShared + "/",
 			},
 		})
@@ -178,15 +207,11 @@ DETACH DELETE n`,
 	retireOne(repoSharedRetired, rootSharedChild, true)
 
 	// Exact P10 acceptance: no projector-owned node carries the retired id.
+	// A bare aggregation always yields one row (count 0 on empty input),
+	// so assert the count, never the row absence.
 	for _, repoID := range []string{repoRetired, repoNoNode, repoSharedRetired} {
-		rows, err := runner.runCypher(ctx,
-			`MATCH (n) WHERE n.repo_id = $repo_id RETURN labels(n) AS labels, count(n) AS count`,
-			map[string]any{"repo_id": repoID})
-		if err != nil {
-			t.Fatalf("P10 node census %s: %v", repoID, err)
-		}
-		if len(rows) != 0 {
-			t.Fatalf("P10 node census %s = %v, want no rows", repoID, rows)
+		if got := retirementBoltRepoIDCount(t, ctx, runner, repoID); got != 0 {
+			t.Fatalf("P10 node census %s = %d, want 0", repoID, got)
 		}
 	}
 	// The demoted node keeps only the other repository's incoming edge.
@@ -235,12 +260,33 @@ DETACH DELETE n`,
 		`MATCH (p:Parameter) WHERE p.path STARTS WITH $root RETURN count(p) AS count`,
 		map[string]any{"root": rootShared + "/"}, 2, "AC3 shared-root Parameters survive")
 	// The live repository is untouched.
-	assertRetirementBoltCount(t, ctx, runner,
-		`MATCH (n) WHERE n.repo_id = $repo_id RETURN count(n) AS count`,
-		map[string]any{"repo_id": repoLive}, 2, "live repository File and Workload survive")
+	if got := retirementBoltRepoIDCount(t, ctx, runner, repoLive); got != 2 {
+		t.Fatalf("live repository File and Workload survive count = %d, want 2", got)
+	}
 	assertRetirementBoltCount(t, ctx, runner,
 		`MATCH (p:Parameter) WHERE p.path STARTS WITH $root RETURN count(p) AS count`,
 		map[string]any{"root": rootB + "/"}, 1, "live repository Parameter survives")
+}
+
+// retirementBoltRepoIDCount sums the nodes carrying repoID across the
+// projector labels. A labelless repo_id scan is NornicDB-unreliable: the
+// File-scoped file_repo_id index serves it and silently drops every other
+// label (probe: labelless returned File only; after DROP INDEX it returned
+// File+Workload). The labeled equality form agrees on both backends, so
+// cross-label censuses loop over labels explicitly.
+func retirementBoltRepoIDCount(t *testing.T, ctx context.Context, runner *boltRetractTestRunner, repoID string) int64 {
+	t.Helper()
+	var total int64
+	for _, label := range []string{"File", "Directory", "Function", "Parameter", "Workload", "WorkloadInstance", "Endpoint", "Repository"} {
+		got, err := boltCount(ctx, runner,
+			fmt.Sprintf(`MATCH (n:%s) WHERE n.repo_id = $repo_id RETURN count(n) AS count`, label),
+			map[string]any{"repo_id": repoID})
+		if err != nil {
+			t.Fatalf("repo census %s %s: %v", label, repoID, err)
+		}
+		total += got
+	}
+	return total
 }
 
 // assertRetirementBoltCount fails the test unless the count query returns

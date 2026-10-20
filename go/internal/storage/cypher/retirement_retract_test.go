@@ -271,22 +271,40 @@ func TestBuildRetirementWorkloadRetractStatements(t *testing.T) {
 	}
 }
 
-// TestRetirementSharedRootQueryCoversEqualAndParentPaths pins both arms of
-// the shared-root read. Live coverage uses the parent shape only: two
-// Repository nodes can never carry the same path under the repository_path
-// uniqueness constraint, so the equal-path arm has no live shape and this
-// pin is its only guard against a future edit dropping it.
+// TestRetirementSharedRootQueryCoversEqualAndParentPaths pins the
+// ancestor-list contract of the shared-root read: ancestry is computed
+// client-side (a literal STARTS WITH <property-expr> predicate over-matches
+// on NornicDB) and matched server-side with IN. Live coverage uses the
+// parent shape only: two Repository nodes can never carry the same path
+// under the repository_path uniqueness constraint, so the equal entry has
+// no live shape and this pin is its only guard against a future edit
+// dropping it.
 func TestRetirementSharedRootQueryCoversEqualAndParentPaths(t *testing.T) {
 	t.Parallel()
 
 	cypher, params := RetirementSharedRootQuery("repo-retired", "/root/child")
-	if !strings.Contains(cypher, "$root = o.path") {
-		t.Errorf("shared-root query missing the equal-path arm:\n%s", cypher)
+	if strings.Contains(cypher, "STARTS WITH") {
+		t.Errorf("shared-root query must not use STARTS WITH (NornicDB over-matches literal STARTS WITH <property-expr>):\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "$root STARTS WITH o.path + '/'") {
-		t.Errorf("shared-root query missing the parent-path arm:\n%s", cypher)
+	if !strings.Contains(cypher, "o.path IN $ancestors") {
+		t.Errorf("shared-root query missing the ancestor-list match:\n%s", cypher)
 	}
-	if params["repo_id"] != "repo-retired" || params["root"] != "/root/child" {
-		t.Errorf("shared-root params = %v, want repo_id and root carried through", params)
+	if params["repo_id"] != "repo-retired" {
+		t.Errorf("shared-root params repo_id = %v, want repo-retired", params["repo_id"])
+	}
+	wantAncestors := []string{"/root/child", "/root"}
+	gotAncestors, ok := params["ancestors"].([]string)
+	if !ok || len(gotAncestors) != len(wantAncestors) {
+		t.Fatalf("shared-root params ancestors = %v (%T), want %v", params["ancestors"], params["ancestors"], wantAncestors)
+	}
+	for i := range wantAncestors {
+		if gotAncestors[i] != wantAncestors[i] {
+			t.Errorf("shared-root ancestors[%d] = %q, want %q", i, gotAncestors[i], wantAncestors[i])
+		}
+	}
+
+	_, emptyParams := RetirementSharedRootQuery("repo-retired", "")
+	if ancestors, _ := emptyParams["ancestors"].([]string); len(ancestors) != 0 {
+		t.Errorf("empty root must yield no ancestors (fail closed), got %v", ancestors)
 	}
 }

@@ -150,18 +150,26 @@ func RetirementCensusUnclassified(ctx context.Context, database *sql.DB) ([]Reti
 		}
 	}
 	sort.Slice(unclassified, func(i, j int) bool { return unclassified[i].Table < unclassified[j].Table })
+	return unclassified, retirementCensusStale(rolled, retirement.RetireTableDispositions), nil
+}
+
+// retirementCensusStale returns disposition-table names absent from the
+// rolled scan hits, skipping rows the scan cannot produce. Pure so the
+// flag-vs-prose contract is unit-pinned; the live query path feeds it
+// rolled hits.
+func retirementCensusStale(rolled map[string]*RetirementCensusHit, dispositions map[string]retirement.RetireTableEntry) []string {
 	var stale []string
-	for table, entry := range retirement.RetireTableDispositions {
+	for table, entry := range dispositions {
 		if _, ok := rolled[table]; ok {
 			continue
 		}
-		if strings.Contains(entry.Reason, "the schema scan cannot see it") {
+		if entry.InvisibleToScan {
 			continue
 		}
 		stale = append(stale, table)
 	}
 	sort.Strings(stale)
-	return unclassified, stale, nil
+	return stale
 }
 
 // parseCensusColumns splits a Postgres text-array aggregate such as

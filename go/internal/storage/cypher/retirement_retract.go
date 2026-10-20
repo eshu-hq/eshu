@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"fmt"
+	"path"
 	"strings"
 )
 
@@ -194,14 +195,17 @@ const (
 	retirementRepoRootCypher = `MATCH (r:Repository {id: $repo_id})
 RETURN r.path AS path`
 
-	// retirementSharedRootCypher lists the other repositories whose path
-	// equals the captured root or is a parent of it. A hit skips G5p (and
-	// the Parameter census arm) and records parameter_retract_skipped with
-	// the other repository id: Parameters share one key across both ids,
-	// so the live owner's Parameters sit under the same root.
+	// retirementSharedRootCypher lists the other repositories whose path is
+	// the captured root or an ancestor of it. A hit skips G5p (and the
+	// Parameter census arm) and records parameter_retract_skipped with the
+	// other repository id: Parameters share one key across both ids, so the
+	// live owner's Parameters sit under the same root. Ancestry is computed
+	// client-side into $ancestors and matched with IN: a literal STARTS
+	// WITH <property-expr> predicate over-matches on NornicDB (probe: it
+	// returned every Repository but the excluded id), while the equality
+	// family is correct on both backends.
 	retirementSharedRootCypher = `MATCH (o:Repository)
-WHERE o.id <> $repo_id AND o.path IS NOT NULL
-  AND ($root = o.path OR $root STARTS WITH o.path + '/')
+WHERE o.id <> $repo_id AND o.path IN $ancestors
 RETURN o.id AS repo_id, o.path AS path`
 
 	// retirementNestedRootsCypher lists the paths of the other
@@ -221,7 +225,31 @@ func RetirementRepoRootQuery(repoID string) (string, map[string]any) {
 // RetirementSharedRootQuery returns the shared-root read and its
 // parameters.
 func RetirementSharedRootQuery(repoID, root string) (string, map[string]any) {
-	return retirementSharedRootCypher, map[string]any{"repo_id": repoID, "root": root}
+	return retirementSharedRootCypher, map[string]any{"repo_id": repoID, "ancestors": retirementAncestorPaths(root)}
+}
+
+// retirementAncestorPaths returns root plus its strict ancestor paths,
+// root-first. An empty root yields nil, so the IN match fails closed.
+// Repository depth is shallow (a handful of segments), so the list stays
+// tiny and the match remains an equality seek on both backends.
+func retirementAncestorPaths(root string) []string {
+	p := strings.TrimSuffix(root, "/")
+	if p == "" {
+		return nil
+	}
+	out := []string{p}
+	for cur := p; ; {
+		parent := path.Dir(cur)
+		// Bare "/" is never a repository root shape: appending it would
+		// match a filesystem-root repository on every retirement. Stop
+		// before it; anything shallower than "/root" has no live shape.
+		if parent == cur || parent == "." || parent == "/" {
+			break
+		}
+		out = append(out, parent)
+		cur = parent
+	}
+	return out
 }
 
 // RetirementNestedRootsQuery returns the nested-root read and its

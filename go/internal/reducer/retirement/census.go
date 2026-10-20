@@ -27,6 +27,11 @@ type RetireTableEntry struct {
 	// Reason cites the deleter, the cascade, or the keep reason. Required
 	// on every row.
 	Reason string
+	// InvisibleToScan marks rows the information_schema scan cannot
+	// produce (no matching scope/repository key column), so the stale
+	// check skips them instead of prose-matching Reason. Set it exactly
+	// on rows whose Reason says the scan cannot see them.
+	InvisibleToScan bool
 }
 
 // RetireTableDispositions holds every scope- or repo-keyed table's
@@ -47,7 +52,7 @@ var RetireTableDispositions = map[string]RetireTableEntry{
 	"graph_projection_phase_state":            {Table: "graph_projection_phase_state", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/012)"},
 	"graph_projection_phase_repair_queue":     {Table: "graph_projection_phase_repair_queue", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/013)"},
 	"admission_decisions":                     {Table: "admission_decisions", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/007a)"},
-	"admission_decision_evidence":             {Table: "admission_decision_evidence", KeyColumns: []string{"decision_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "cascades with its admission_decisions parent (migrations/007a); no matching column so the schema scan cannot see it"},
+	"admission_decision_evidence":             {Table: "admission_decision_evidence", KeyColumns: []string{"decision_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "cascades with its admission_decisions parent (migrations/007a); no matching column so the schema scan cannot see it", InvisibleToScan: true},
 	"semantic_extraction_jobs":                {Table: "semantic_extraction_jobs", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/006a)"},
 	"iac_reachability_rows":                   {Table: "iac_reachability_rows", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/016)"},
 	"code_reachability_rows":                  {Table: "code_reachability_rows", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/027)"},
@@ -96,13 +101,13 @@ var RetireTableDispositions = map[string]RetireTableEntry{
 	"function_summaries":                            {Table: "function_summaries", KeyColumns: []string{"repo"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by repo (summary_store.go deletes by repo on rewrite only)"},
 	"function_sources":                              {Table: "function_sources", KeyColumns: []string{"repo"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by repo, with its summary parent"},
 	"function_graph_ids":                            {Table: "function_graph_ids", KeyColumns: []string{"repo"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by repo, with its summary parent"},
-	"projected_source_edge":                         {Table: "projected_source_edge", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by scope after 2c; the graph retraction reads it to enumerate source uids (projected_source_edge_store.go)"},
+	"projected_source_edge":                         {Table: "projected_source_edge", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by scope after 2c; the graph retraction enumerates source uids from it (storage/postgres/projected_source_edge_store.go ListSourceUIDsForScopes)"},
 	"code_interproc_projected_edge":                 {Table: "code_interproc_projected_edge", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by scope after 2c, same ledger reason (code/taint/interprocedural_edge.go)"},
 	"code_taint_evidence_projected_node":            {Table: "code_taint_evidence_projected_node", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by scope after 2c, same ledger reason (code/taint/projected_node.go)"},
 	"reducer_readiness_waits":                       {Table: "reducer_readiness_waits", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by scope (no deleter exists today)"},
 	"collector_generation_dead_letters":             {Table: "collector_generation_dead_letters", KeyColumns: []string{"scope_id", "partition_key"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by scope (a replay is refused by the commit gate, so the row has no use)"},
 	"projection_decisions":                          {Table: "projection_decisions", KeyColumns: []string{"repository_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by repository_id (no deleter exists today)"},
-	"projection_decision_evidence":                  {Table: "projection_decision_evidence", KeyColumns: []string{"decision_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "deleted by decision_id before its projection_decisions parent; no matching column so the schema scan cannot see it"},
+	"projection_decision_evidence":                  {Table: "projection_decision_evidence", KeyColumns: []string{"decision_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "deleted by decision_id before its projection_decisions parent; no matching column so the schema scan cannot see it", InvisibleToScan: true},
 	"package_manifest_consumption_key_dirty_scopes": {Table: "package_manifest_consumption_key_dirty_scopes", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by scope (consumption/statements.go runs after a backfill pass, never a whole retirement)"},
 	"supply_chain_impact_canonical_winners":         {Table: "supply_chain_impact_canonical_winners", KeyColumns: []string{"winner_scope_id", "repository_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by winner_scope_id (RebuildAllWinners reconciles, never deletes a whole scope)"},
 	"supply_chain_impact_write_admission":           {Table: "supply_chain_impact_write_admission", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by scope"},
@@ -114,7 +119,7 @@ var RetireTableDispositions = map[string]RetireTableEntry{
 	"content_file_ref_deltas":                       {Table: "content_file_ref_deltas", KeyColumns: []string{"repo_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by repo_id (not wired yet)"},
 	"content_file_ref_delta_bases":                  {Table: "content_file_ref_delta_bases", KeyColumns: []string{"repo_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by repo_id (not wired yet)"},
 	"service_materialization_generations":           {Table: "service_materialization_generations", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "leftover sweep by scope; service_evidence_snapshots cascades with the parent"},
-	"service_evidence_snapshots":                    {Table: "service_evidence_snapshots", KeyColumns: []string{"generation_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "cascades with its service_materialization_generations parent (migrations/026); keyed by generation_id only, so the schema scan cannot see it"},
+	"service_evidence_snapshots":                    {Table: "service_evidence_snapshots", KeyColumns: []string{"generation_id"}, RemoveSteps: []string{"2e"}, Disposition: "2e", Reason: "cascades with its service_materialization_generations parent (migrations/026); keyed by generation_id only, so the schema scan cannot see it", InvisibleToScan: true},
 	// Cascaded at phase 3 when the scope rows go. The four grant tables
 	// are pre-counted into the tombstone inside the transaction.
 	"tenant_scope_grants":                   {Table: "tenant_scope_grants", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"3"}, Disposition: "3+count", Reason: "scope FK cascade at phase 3, pre-counted into rows_deleted; access fails closed (deliberately dropped)"},
