@@ -253,9 +253,14 @@ func retirementAncestorPaths(root string) []string {
 }
 
 // RetirementNestedRootsQuery returns the nested-root read and its
-// parameters.
+// parameters. rootPrefix is slash-terminated here under the P1 rule: an
+// un-slashed "/r/shared" would also match the sibling "/r/shared-backup"
+// and spare its Parameters invisibly to the census that shares the list.
+// A blank root is a caller error (STARTS WITH "" matches every
+// repository); the retract builder already fails closed on blank roots.
 func RetirementNestedRootsQuery(repoID, rootPrefix string) (string, map[string]any) {
-	return retirementNestedRootsCypher, map[string]any{"repo_id": repoID, "root_prefix": rootPrefix}
+	prefix := strings.TrimSuffix(strings.TrimSpace(rootPrefix), "/") + "/"
+	return retirementNestedRootsCypher, map[string]any{"repo_id": repoID, "root_prefix": prefix}
 }
 
 // RetirementResidueCheck is one anchored arm of the 2z runtime graph

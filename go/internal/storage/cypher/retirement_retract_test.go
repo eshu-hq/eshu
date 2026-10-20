@@ -130,6 +130,20 @@ func TestRetirementNestedPrefixesNormalized(t *testing.T) {
 	t.Fatal("parameter_residue arm missing with includeParameters=true")
 }
 
+// TestRetirementNestedRootsQueryNormalizes pins the P3-1 closure: the
+// nested-root read slash-terminates its prefix itself, so an un-slashed
+// root cannot smuggle "/r/shared-backup" into the spare list.
+func TestRetirementNestedRootsQueryNormalizes(t *testing.T) {
+	t.Parallel()
+
+	for _, root := range []string{"/r/shared", "/r/shared/", "  /r/shared  "} {
+		_, params := RetirementNestedRootsQuery("repo-x", root)
+		if params["root_prefix"] != "/r/shared/" {
+			t.Errorf("RetirementNestedRootsQuery(%q) root_prefix = %v, want /r/shared/", root, params["root_prefix"])
+		}
+	}
+}
+
 // TestBuildRetirementRepositoryDemoteStatement pins the G6 shape: the
 // Repository node is demoted, never deleted. Clearing path keeps the node
 // out of the path-conflict cleanup; clearing scope and generation ids

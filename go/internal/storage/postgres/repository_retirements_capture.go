@@ -143,7 +143,9 @@ func StoreGraphRetractKeys(ctx context.Context, database db.ExecQueryer, retirem
 
 // ReadGraphRetractKeys reads the tombstone's capture back. Every 2c
 // resume (and the 2z census) reads these columns, never the live rows the
-// purge may already have deleted.
+// purge may already have deleted. An empty ScopeIDs capture reads back
+// without error; the runner must refuse-and-remark on empty scopes before
+// the graph phase (fail-closed is runner work, not enforced here).
 func ReadGraphRetractKeys(ctx context.Context, database db.ExecQueryer, retirementID string) (GraphRetractKeys, error) {
 	var keys GraphRetractKeys
 	rows, err := database.QueryContext(ctx, `SELECT graph_repo_root, graph_scope_ids::text

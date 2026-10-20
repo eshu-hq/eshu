@@ -45,6 +45,9 @@ var searchIndexLifecycleOwners = []string{
 // tables without the active-generation join, with the reason.
 var searchIndexReadAllowlist = map[string]string{
 	"internal/storage/postgres/adapters.go": "COPY target table name for the reducer projection writer's term load",
+	// The retirement disposition registry names the tables as census keys
+	// and issues no reads (#8659).
+	"internal/reducer/retirement/census.go": "retirement disposition registry: table names are census data, no SQL reads",
 }
 
 // searchIndexReadViolations parses one Go file and reports every top-level
