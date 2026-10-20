@@ -49,7 +49,7 @@ func secretsIAMGraphProjectionEnabled(getenv func(string) string) (bool, error) 
 func secretsIAMGraphProjectionFollowUpWriter(
 	database db.ExecQueryer,
 	secretsIAMGraphWriter secretsiam.SecretsIAMGraphWriter,
-) reducer.SecretsIAMGraphProjectionFollowUpWriter {
+) secretsiam.GraphProjectionFollowUpWriter {
 	if secretsIAMGraphWriter == nil {
 		return nil
 	}
