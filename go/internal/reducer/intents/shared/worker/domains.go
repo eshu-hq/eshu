@@ -45,7 +45,7 @@ func ReadinessPhase(domain string) (gpphase.Phase, bool) {
 		// rationale_edges connects an identity-only :Rationale node to a canonical
 		// code entity (:Function|:Class|:Struct|:Interface|:TypeAlias|:Enum|:File).
 		// The Rationale node is MERGEd inline by the EXPLAINS edge writer itself
-		// (canonical_rationale_edges.go), not by the semantic-entity reducer, so the
+		// (canonical/node/rationale_edges.go), not by the semantic-entity reducer, so the
 		// only prerequisite is that the canonical target node exists — which commits
 		// at canonical-nodes. Gating it on semantic-nodes was the same latent stall
 		// as inheritance and sql: that phase is published only when the

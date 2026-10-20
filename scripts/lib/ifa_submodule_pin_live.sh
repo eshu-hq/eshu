@@ -42,7 +42,7 @@ ifa_submodule_pin_drive() {
 # cypher.MaterializedEdgeIdentityProperties for the domain, so a live
 # PINS_SUBMODULE edge is keyed on (relationship_type, source, target, path) --
 # batchCanonicalSubmodulePinEdgeCypher's MERGE key
-# (go/internal/storage/cypher/canonical_submodule_edges.go), mirroring
+# (go/internal/storage/cypher/canonical/node/submodule_edges.go), mirroring
 # codeowners_ownership_edges' identical (pattern, source_path) reasoning for
 # DECLARES_CODEOWNER. It proves WHICH gitmodules entry produced which edge and
 # which pinned commit survived duplicate reduction, so a dropped path or stale

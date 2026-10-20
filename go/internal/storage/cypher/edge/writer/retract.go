@@ -9,6 +9,7 @@ import (
 	"time"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -304,7 +305,7 @@ func buildRetractStatement(
 	case reducer.DomainHandlesRoute:
 		return sourcecypher.Statement{
 			Operation: sourcecypher.OperationCanonicalRetract,
-			Cypher:    sourcecypher.RetractHandlesRouteEdgesCypher,
+			Cypher:    node.RetractHandlesRouteEdgesCypher,
 			Parameters: map[string]any{
 				"repo_ids":        repoIDs,
 				"evidence_source": evidenceSource,
@@ -313,7 +314,7 @@ func buildRetractStatement(
 	case reducer.DomainRunsIn:
 		return sourcecypher.Statement{
 			Operation: sourcecypher.OperationCanonicalRetract,
-			Cypher:    sourcecypher.RetractRunsInEdgesCypher,
+			Cypher:    node.RetractRunsInEdgesCypher,
 			Parameters: map[string]any{
 				"repo_ids":        repoIDs,
 				"evidence_source": evidenceSource,
@@ -322,7 +323,7 @@ func buildRetractStatement(
 	case reducer.DomainInvokesCloudAction:
 		return sourcecypher.Statement{
 			Operation: sourcecypher.OperationCanonicalRetract,
-			Cypher:    sourcecypher.RetractInvokesCloudActionEdgesCypher,
+			Cypher:    node.RetractInvokesCloudActionEdgesCypher,
 			Parameters: map[string]any{
 				"repo_ids":        repoIDs,
 				"evidence_source": evidenceSource,

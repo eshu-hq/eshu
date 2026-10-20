@@ -18,7 +18,7 @@ IFA_FAMILY_WAIT_STAGE[code_calls]="handler"
 # ifa_family_wait_key and scopes ifa_fault_wait_for_claimed to it.
 IFA_FAMILY_WAIT_KEY[code_calls]="code_call_materialization"
 IFA_FAMILY_SHARED_CELL[code_calls]=1
-# go/internal/storage/cypher/canonical_code_call_edges.go:70
+# go/internal/storage/cypher/canonical/node/code_call_edges.go:70
 # (batchCanonicalCodeCallUpsertCypher) is the live CALLS write template. Cited
 # to the Cypher source rather than to a shell twin because there is no longer a
 # twin to cite: code_call_edge_operation_match was deleted when this family

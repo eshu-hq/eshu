@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -27,8 +28,8 @@ import (
 func TestInheritanceRetractCoversEveryWriteEndpointLabel(t *testing.T) {
 	t.Parallel()
 
-	retractSet := make(map[string]bool, len(sourcecypher.InheritanceRetractChildLabels))
-	for _, label := range sourcecypher.InheritanceRetractChildLabels {
+	retractSet := make(map[string]bool, len(inheritance.InheritanceRetractChildLabels))
+	for _, label := range inheritance.InheritanceRetractChildLabels {
 		retractSet[label] = true
 	}
 	for label := range inheritanceEndpointLabels {
@@ -54,10 +55,10 @@ func TestInheritanceRetractStatementsUseSingleChildLabel(t *testing.T) {
 		{"repo", sourcecypher.BuildRetractInheritanceEdgeStatements([]string{"r"}, "reducer/inheritance")},
 		{"file", sourcecypher.BuildRetractInheritanceEdgeStatementsByFilePath([]string{"p"}, "reducer/inheritance")},
 	} {
-		if len(build.stmts) != len(sourcecypher.InheritanceRetractChildLabels) {
-			t.Fatalf("%s: %d statements, want %d (one per child label)", build.name, len(build.stmts), len(sourcecypher.InheritanceRetractChildLabels))
+		if len(build.stmts) != len(inheritance.InheritanceRetractChildLabels) {
+			t.Fatalf("%s: %d statements, want %d (one per child label)", build.name, len(build.stmts), len(inheritance.InheritanceRetractChildLabels))
 		}
-		for _, label := range sourcecypher.InheritanceRetractChildLabels {
+		for _, label := range inheritance.InheritanceRetractChildLabels {
 			want := "MATCH (child:" + label + ")-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()"
 			found := false
 			for _, stmt := range build.stmts {
@@ -82,8 +83,8 @@ func TestBuildRetractInheritanceEdgeStatements(t *testing.T) {
 	t.Parallel()
 
 	stmts := sourcecypher.BuildRetractInheritanceEdgeStatements([]string{"repo-1"}, "reducer/inheritance")
-	if len(stmts) != len(sourcecypher.InheritanceRetractChildLabels) {
-		t.Fatalf("statements = %d, want %d", len(stmts), len(sourcecypher.InheritanceRetractChildLabels))
+	if len(stmts) != len(inheritance.InheritanceRetractChildLabels) {
+		t.Fatalf("statements = %d, want %d", len(stmts), len(inheritance.InheritanceRetractChildLabels))
 	}
 	for _, stmt := range stmts {
 		if stmt.Operation != sourcecypher.OperationCanonicalRetract {
@@ -106,8 +107,8 @@ func TestBuildRetractInheritanceEdgeStatementsByFilePath(t *testing.T) {
 	t.Parallel()
 
 	stmts := sourcecypher.BuildRetractInheritanceEdgeStatementsByFilePath([]string{"/repo/src/child.go"}, "reducer/inheritance")
-	if len(stmts) != len(sourcecypher.InheritanceRetractChildLabels) {
-		t.Fatalf("statements = %d, want %d", len(stmts), len(sourcecypher.InheritanceRetractChildLabels))
+	if len(stmts) != len(inheritance.InheritanceRetractChildLabels) {
+		t.Fatalf("statements = %d, want %d", len(stmts), len(inheritance.InheritanceRetractChildLabels))
 	}
 	for _, stmt := range stmts {
 		if !strings.Contains(stmt.Cypher, "child.path IN $file_paths") {
@@ -150,7 +151,7 @@ func TestEdgeWriterRetractEdgesInheritanceDeltaUsesFileScope(t *testing.T) {
 	}
 	// One statement per child label (#5116/#4367), each in its own call (the
 	// recordingExecutor is not a GroupExecutor, so they run sequentially).
-	if got, want := len(executor.calls), len(sourcecypher.InheritanceRetractChildLabels); got != want {
+	if got, want := len(executor.calls), len(inheritance.InheritanceRetractChildLabels); got != want {
 		t.Fatalf("executor calls = %d, want %d (one per child label)", got, want)
 	}
 	for _, stmt := range executor.calls {
@@ -190,7 +191,7 @@ func TestEdgeWriterRetractEdgesInheritanceRepoScope(t *testing.T) {
 	// Statement counts and Cypher text read the same when repo_ids binds an
 	// EMPTY list, so pin the binding itself (#6166).
 	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
-	if got, want := len(executor.calls), len(sourcecypher.InheritanceRetractChildLabels); got != want {
+	if got, want := len(executor.calls), len(inheritance.InheritanceRetractChildLabels); got != want {
 		t.Fatalf("executor calls = %d, want %d (one per child label)", got, want)
 	}
 	for _, stmt := range executor.calls {

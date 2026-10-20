@@ -6,6 +6,8 @@ package cypher
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // TestCodeCallRetractStatementsUseSingleSourceLabel guards the #5116 fix.
@@ -22,7 +24,7 @@ func TestCodeCallRetractStatementsUseSingleSourceLabel(t *testing.T) {
 	t.Parallel()
 
 	for _, evidenceSource := range []string{"parser/code-calls", "parser/python-metaclass", "other/fallback"} {
-		wantLabels := codeCallRetractSourceLabelsFor(evidenceSource)
+		wantLabels := node.CodeCallRetractSourceLabelsFor(evidenceSource)
 		for _, build := range []struct {
 			name  string
 			stmts []Statement

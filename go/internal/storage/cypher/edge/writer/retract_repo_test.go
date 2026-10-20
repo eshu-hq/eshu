@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -369,7 +370,7 @@ func TestRepoDependencyRetractSummariesShareRelationshipEdgeTypes(t *testing.T) 
 	crossRepo := buildRepoDependencyRetractStatements([]string{"repo-a"}, "resolver/cross-repo")
 	prefixCollision := buildRepoDependencyRetractStatements([]string{"repo-a"}, "projection/code-imports-extra")
 
-	wantGroupedSummary := repoDependencyRetractSummary("repository_relationship_edges", sourcecypher.RepoDependencyRelationshipEdgeTypes)
+	wantGroupedSummary := repoDependencyRetractSummary("repository_relationship_edges", node.RepoDependencyRelationshipEdgeTypes)
 	if got := grouped[0].Stmt.Parameters[sourcecypher.StatementMetadataSummaryKey]; got != wantGroupedSummary {
 		t.Fatalf("grouped relationship summary = %v, want %s", got, wantGroupedSummary)
 	}
@@ -391,7 +392,7 @@ func TestRepoDependencyRetractSummariesShareRelationshipEdgeTypes(t *testing.T) 
 
 	wantDiagnosticSummary := repoDependencyRetractSummary(
 		"repository_relationship_edges",
-		sourcecypher.RepoDependencyRelationshipEdgeTypes,
+		node.RepoDependencyRelationshipEdgeTypes,
 	)
 	if got := diagnostic[0].Stmt.Parameters[sourcecypher.StatementMetadataSummaryKey]; got != wantDiagnosticSummary {
 		t.Fatalf("diagnostic relationship summary = %v, want %s", got, wantDiagnosticSummary)

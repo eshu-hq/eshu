@@ -57,8 +57,8 @@ are easy to confuse; only the first two encode the tool.
 
 | Property | Holds | Shape | Set at | Tool? |
 | --- | --- | --- | --- | --- |
-| `evidence_kinds` | UPPERCASE `EvidenceKind` enum strings (e.g. `KUSTOMIZE_RESOURCE_REFERENCE`, `ARGOCD_APPLICATION_SOURCE`) | list (an edge can carry several) | resolver aggregates the set (`go/internal/relationships/resolver.go`), written to the edge in `go/internal/storage/cypher/canonical_relationships.go` | **yes** (raw form) |
-| `evidence_type` | lowercase_snake single token, derived from the *first* evidence kind (e.g. `kustomize_resource_reference`) | scalar | the `evidenceKindToType` map in `go/internal/reducer/crossrepo/cross_repo_evidence_type.go`; written in `canonical_relationships.go` | **yes** (sub-kind, not yet collapsed to the tool) |
+| `evidence_kinds` | UPPERCASE `EvidenceKind` enum strings (e.g. `KUSTOMIZE_RESOURCE_REFERENCE`, `ARGOCD_APPLICATION_SOURCE`) | list (an edge can carry several) | resolver aggregates the set (`go/internal/relationships/resolver.go`), written to the edge in `go/internal/storage/cypher/canonical/node/relationships_edges.go` | **yes** (raw form) |
+| `evidence_type` | lowercase_snake single token, derived from the *first* evidence kind (e.g. `kustomize_resource_reference`) | scalar | the `evidenceKindToType` map in `go/internal/reducer/crossrepo/cross_repo_evidence_type.go`; written in `canonical/node/relationships_edges.go` | **yes** (sub-kind, not yet collapsed to the tool) |
 | `evidence_source` | the producing **STAGE** (`resolver/cross-repo`, `projector/canonical`, `finalization/workloads`, `parser/code-calls`, `reducer/runs-in`, …) | scalar | many `*EvidenceSource` consts across `go/internal/reducer/*` and `go/internal/storage/cypher/*` | **no** |
 
 `evidence_source` answers "which pipeline stage wrote this edge", not "which
@@ -86,7 +86,7 @@ query time.
 
 | Property | Holds | Set at | Populated for |
 | --- | --- | --- | --- |
-| `source_revision` | The declared git revision (branch/tag/SHA), e.g. an ArgoCD `Application.spec.source.targetRevision` | `evidenceFactSourceRevision`/`aggregateCandidate` (`go/internal/relationships/`), written in `canonical_relationships.go` | `DEPLOYS_FROM` edges from ArgoCD evidence (both the structured and document-level ArgoCD discovery paths) |
+| `source_revision` | The declared git revision (branch/tag/SHA), e.g. an ArgoCD `Application.spec.source.targetRevision` | `evidenceFactSourceRevision`/`aggregateCandidate` (`go/internal/relationships/`), written in `canonical/node/relationships_edges.go` | `DEPLOYS_FROM` edges from ArgoCD evidence (both the structured and document-level ArgoCD discovery paths) |
 | `first_party_ref_version` | The pinned module/reference version, e.g. the `ref=` query parameter on a `git::https://...?ref=v1.2.3` Terraform module source, or the `@ref` pin on a GitHub Actions `uses:` reference | `evidenceFactFirstPartyRefVersion` (prefers `Details["first_party_ref_version"]` when an evidence family sets it directly — GitHub Actions, ArgoCD — falling back to `ExtractTerraformRefPin` deriving it from `Details["source_ref"]` for Terraform/Terragrunt/Ansible/Dockerfile evidence) | `DEPLOYS_FROM` edges from GitHub Actions reusable-workflow evidence; `USES_MODULE`/`PROVISIONS_DEPENDENCY_FOR` edges from pinned Terraform module sources |
 
 Both are absent-safe: an edge whose evidence carries neither value gets `""`
@@ -213,21 +213,21 @@ each by tier; only Tier-1/Tier-2 carry a tool.
 
 | Edge type | `source_tool` | Emitter |
 | --- | --- | --- |
-| `MANAGES` | `atlantis` | `storage/cypher/canonical_atlantis_edges.go:23` |
-| `ATLANTIS_DEPENDS_ON` | `atlantis` | `canonical_atlantis_edges.go:35` |
-| `USES_WORKFLOW` | `atlantis` | `canonical_atlantis_edges.go:46` |
+| `MANAGES` | `atlantis` | `storage/cypher/canonical/node/atlantis_edges.go:20` |
+| `ATLANTIS_DEPENDS_ON` | `atlantis` | `canonical/node/atlantis_edges.go:32` |
+| `USES_WORKFLOW` | `atlantis` | `canonical/node/atlantis_edges.go:43` |
 | `RECONCILES_FROM` | `flux` | `storage/cypher/canonical/flux/edges.go:21` (GitRepository), `:32` (OCIRepository), `:43` (Bucket) -- Kustomization-sourced; `canonical/flux/helm.go` (HelmRepository/GitRepository/OCIRepository/Bucket) -- HelmRelease-sourced, issue #5483 C1 |
-| `DEFINES_JOB` | `gitlab` | `canonical_gitlab_edges.go:22` |
-| `NEEDS` | `gitlab` | `canonical_gitlab_edges.go:34` |
+| `DEFINES_JOB` | `gitlab` | `canonical/node/gitlab_edges.go:19` |
+| `NEEDS` | `gitlab` | `canonical/node/gitlab_edges.go:31` |
 | `HAS_VERSION` | package ecosystem (`gomod`/`npm`/`pip`/`maven`/`cargo`) | `package_registry_edge_writer.go:25` |
 | `DECLARES_DEPENDENCY` | package ecosystem | `package_registry_edge_writer.go:33` |
 | `DEPENDS_ON_PACKAGE` | package ecosystem | `package_registry_edge_writer.go:36` |
 | `PROVISIONS_PLATFORM` | `terraform`/IaC | `reducer/infrastructure_platform_materializer.go:147` |
-| `INVOKES_CLOUD_ACTION` | `aws` | `canonical_invokes_cloud_action_edges.go:22` |
-| `HANDLES_ROUTE` | language/framework | `canonical_handles_route_edges.go:19` |
-| `RUNS_IN` | runtime (reducer workload binding) | `canonical_runs_in_edges.go:27` |
+| `INVOKES_CLOUD_ACTION` | `aws` | `canonical/node/invokes_cloud_action_edges.go:18` |
+| `HANDLES_ROUTE` | language/framework | `canonical/node/handles_route_edges.go:19` |
+| `RUNS_IN` | runtime (reducer workload binding) | `canonical/node/runs_in_edges.go:27` |
 | `RUNS_IMAGE` | `kubernetes` | `kubernetes_correlation_edge_writer.go:54` |
-| `CORRELATES_DEPLOYABLE_UNIT` | hybrid ² | `canonical_deployable_unit_edges.go:9` |
+| `CORRELATES_DEPLOYABLE_UNIT` | hybrid ² | `canonical/node/deployable_unit_edges.go:6` |
 | `PUBLISHES` | `unknown` (explicit fallback until ecosystem evidence is wired; issues #5457 and #5827) | `storage/cypher/provenance_edge_writer.go` |
 | `BUILT_FROM` | `oci` for container-image identity; `github_actions` for exact workflow-image correlation (same-pair assertions are isolated by #5827) | `storage/cypher/provenance_edge_writer.go` |
 
@@ -250,18 +250,18 @@ these tokens with the `models.go` enum.
 
 All emitted by the cross-repo resolver (`reducer/crossrepo/cross_repo_resolution.go`'s `CrossRepoRelationshipHandler.Resolve`)
 and written through the canonical relationship upserts
-(`storage/cypher/canonical_relationships.go`, dispatched in
+(`storage/cypher/canonical/node/relationships_edges.go`, dispatched in
 `storage/cypher/edge_writer.go:275-320`).
 
 | Edge type | Tools observed (via evidence kinds) | Emitter |
 | --- | --- | --- |
 | `DEPENDS_ON` | `ansible`, `puppet`, `chef`, `salt`, `docker_compose`, `github_actions`, `jenkins`, `gcp`, … | `canonical.go:78` (repo), `:93` (workload) |
-| `DEPLOYS_FROM` | `helm`, `kustomize`, `argocd`, `docker`, `docker_compose`, `github_actions`, `flux` (cross-repo Flux GitRepository url resolution, issue #5483 C2) | `canonical_relationships.go:37` |
-| `DISCOVERS_CONFIG_IN` | `terragrunt`, `argocd`, `jenkins` | `canonical_relationships.go:56` |
-| `PROVISIONS_DEPENDENCY_FOR` | `terraform`, `terragrunt` | `canonical_relationships.go:75` |
-| `USES_MODULE` | `terraform` (¹ terragrunt) | `canonical_relationships.go:94` |
-| `READS_CONFIG_FROM` | `terraform` | `canonical_relationships.go:113` |
-| `RUNS_ON` | `argocd`, `terraform` | `canonical_relationships.go:267` |
+| `DEPLOYS_FROM` | `helm`, `kustomize`, `argocd`, `docker`, `docker_compose`, `github_actions`, `flux` (cross-repo Flux GitRepository url resolution, issue #5483 C2) | `canonical/node/relationships_edges.go:10` |
+| `DISCOVERS_CONFIG_IN` | `terragrunt`, `argocd`, `jenkins` | `canonical/node/relationships_edges.go:32` |
+| `PROVISIONS_DEPENDENCY_FOR` | `terraform`, `terragrunt` | `canonical/node/relationships_edges.go:54` |
+| `USES_MODULE` | `terraform` (¹ terragrunt) | `canonical/node/relationships_edges.go:76` |
+| `READS_CONFIG_FROM` | `terraform` | `canonical/node/relationships_edges.go:98` |
+| `RUNS_ON` | `argocd`, `terraform` | `canonical/node/relationships_edges.go:282` |
 
 ### Tier 3 — no edge-level tool (intentional)
 

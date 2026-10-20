@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -37,7 +38,7 @@ func TestBuildProbeRationaleEdgesMirrorsRetractShape(t *testing.T) {
 		retract := BuildRetractRationaleEdges(repoIDs, canonicalRationaleEvidenceSource)
 		probe := BuildProbeRationaleEdges(repoIDs, canonicalRationaleEvidenceSource)
 
-		if probe.Cypher != sourcecypher.ProbeCanonicalRationaleEdgesCypher {
+		if probe.Cypher != node.ProbeCanonicalRationaleEdgesCypher {
 			t.Fatalf("probe cypher = %q, want ProbeCanonicalRationaleEdgesCypher", probe.Cypher)
 		}
 		// Compare EVERYTHING up to the terminal clause, not just the first two
@@ -70,7 +71,7 @@ func TestBuildProbeRationaleEdgesMirrorsRetractShape(t *testing.T) {
 		retract := BuildRetractRationaleEdges(repoIDs, source)
 		probe := BuildProbeRationaleEdges(repoIDs, source)
 
-		if probe.Cypher != sourcecypher.ProbeRationaleEdgesCypher {
+		if probe.Cypher != node.ProbeRationaleEdgesCypher {
 			t.Fatalf("probe cypher = %q, want ProbeRationaleEdgesCypher", probe.Cypher)
 		}
 		// See the "multi-source canonical" subtest above for why this compares

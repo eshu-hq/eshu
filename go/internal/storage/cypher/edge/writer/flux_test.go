@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -48,7 +48,7 @@ func TestRepoEvidenceArtifactRowsPreserveQualifiedFluxIdentity(t *testing.T) {
 
 func TestFluxArtifactUpsertProjectsDedicatedIdentityProperties(t *testing.T) {
 	t.Parallel()
-	upsert := sourcecypher.BatchCanonicalRepoEvidenceArtifactUpsertCypher
+	upsert := node.BatchCanonicalRepoEvidenceArtifactUpsertCypher
 	for _, fragment := range []string{"artifact.flux_git_repository_name = row.flux_git_repository_name", "artifact.flux_git_repository_namespace = row.flux_git_repository_namespace"} {
 		if !strings.Contains(upsert, fragment) {
 			t.Fatalf("upsert missing %q", fragment)

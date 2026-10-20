@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // buildRationaleRowMap routes a rationale EXPLAINS edge row (issue #2230) to its
@@ -31,7 +32,7 @@ func buildRationaleRowMap(
 		"excerpt_hash":     sourcecypher.PayloadString(payload, "excerpt_hash"),
 		"evidence_source":  evidenceSource,
 	}
-	return sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher, rowMap, true
+	return node.BatchCanonicalRationaleExplainsEdgeCypher, rowMap, true
 }
 
 // BuildRetractRationaleEdges builds a repo-scoped EXPLAINS edge retraction
@@ -41,7 +42,7 @@ func BuildRetractRationaleEdges(repoIDs []string, evidenceSource string) sourcec
 	if len(sources) > 1 {
 		return sourcecypher.Statement{
 			Operation: sourcecypher.OperationCanonicalRetract,
-			Cypher:    sourcecypher.RetractCanonicalRationaleEdgesCypher,
+			Cypher:    node.RetractCanonicalRationaleEdgesCypher,
 			Parameters: map[string]any{
 				"repo_ids":         repoIDs,
 				"evidence_sources": sources,
@@ -50,7 +51,7 @@ func BuildRetractRationaleEdges(repoIDs []string, evidenceSource string) sourcec
 	}
 	return sourcecypher.Statement{
 		Operation: sourcecypher.OperationCanonicalRetract,
-		Cypher:    sourcecypher.RetractRationaleEdgesCypher,
+		Cypher:    node.RetractRationaleEdgesCypher,
 		Parameters: map[string]any{
 			"repo_ids":        repoIDs,
 			"evidence_source": evidenceSource,
@@ -76,7 +77,7 @@ func BuildProbeRationaleEdges(repoIDs []string, evidenceSource string) sourcecyp
 	if len(sources) > 1 {
 		return sourcecypher.Statement{
 			Operation: sourcecypher.OperationCanonicalProbe,
-			Cypher:    sourcecypher.ProbeCanonicalRationaleEdgesCypher,
+			Cypher:    node.ProbeCanonicalRationaleEdgesCypher,
 			Parameters: map[string]any{
 				"repo_ids":         repoIDs,
 				"evidence_sources": sources,
@@ -85,7 +86,7 @@ func BuildProbeRationaleEdges(repoIDs []string, evidenceSource string) sourcecyp
 	}
 	return sourcecypher.Statement{
 		Operation: sourcecypher.OperationCanonicalProbe,
-		Cypher:    sourcecypher.ProbeRationaleEdgesCypher,
+		Cypher:    node.ProbeRationaleEdgesCypher,
 		Parameters: map[string]any{
 			"repo_ids":        repoIDs,
 			"evidence_source": evidenceSource,
@@ -296,8 +297,8 @@ func buildRationaleDeltaStatementsByFilePath(
 	operation sourcecypher.Operation,
 	terminalClause string,
 ) []sourcecypher.Statement {
-	stmts := make([]sourcecypher.Statement, 0, len(sourcecypher.RationaleExplainsTargetLabels))
-	for _, label := range sourcecypher.RationaleExplainsTargetLabels {
+	stmts := make([]sourcecypher.Statement, 0, len(node.RationaleExplainsTargetLabels))
+	for _, label := range node.RationaleExplainsTargetLabels {
 		cypher := "MATCH (rationale:Rationale)-[rel:EXPLAINS]->(target:" + label + ")\n" +
 			"WHERE target.path IN $file_paths\n" +
 			"  AND " + evidencePredicate + "\n" +

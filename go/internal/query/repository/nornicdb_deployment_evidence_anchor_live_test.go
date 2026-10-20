@@ -44,7 +44,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	storagecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -134,7 +134,7 @@ func deployEvidenceAnchorFillerCount(t *testing.T) int {
 }
 
 // deployEvidenceAnchorArtifactRow builds one row shaped exactly like the
-// production upsert (storagecypher.BatchCanonicalRepoEvidenceArtifactUpsertCypher
+// production upsert (node.BatchCanonicalRepoEvidenceArtifactUpsertCypher
 // -- see internal/storage/cypher/canonical_relationships.go), flux-shaped so
 // the same 40 hub artifacts serve both the deployment-evidence-incoming and
 // the flux-expansion comparisons.
@@ -276,7 +276,7 @@ func seedDeployEvidenceAnchor(ctx context.Context, t *testing.T, reader repoLive
 			fmt.Sprintf("%sart-mid-0001", deployEvidenceAnchorPrefix), "deploy/mid-0001.yaml"),
 	)
 	for _, chunk := range chunkItems(coreRows, deployEvidenceAnchorWriteBatch) {
-		reader.writeParams(ctx, t, storagecypher.BatchCanonicalRepoEvidenceArtifactUpsertCypher, map[string]any{"rows": chunk})
+		reader.writeParams(ctx, t, node.BatchCanonicalRepoEvidenceArtifactUpsertCypher, map[string]any{"rows": chunk})
 	}
 
 	// 3) Filler mesh: each filler repo has one noise artifact pointing at

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // forbiddenOrphanSweepPatterns are the relationship-existence predicate
@@ -307,7 +308,7 @@ func TestRepoRelationshipUpsertStampsTargetRepositoryForFutureSweeps(t *testing.
 	t.Parallel()
 
 	for _, cypher := range []string{
-		sourcecypher.CanonicalDeploysFromRepoRelationshipUpsertCypher,
+		node.CanonicalDeploysFromRepoRelationshipUpsertCypher,
 		sourcecypher.CanonicalRepoDependencyUpsertCypher,
 		sourcecypher.BatchCanonicalRepoDependencyUpsertCypher,
 	} {

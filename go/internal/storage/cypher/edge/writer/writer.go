@@ -11,6 +11,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
@@ -200,9 +201,9 @@ func (w *EdgeWriter) WriteEdges(
 		routedRows[cypher] = append(routedRows[cypher], rowMap)
 		if domain == reducer.DomainRepoDependency {
 			for _, artifactRow := range repoEvidenceArtifactRowsFromIntent(row, evidenceSource) {
-				artifactCypher := sourcecypher.BatchCanonicalRepoEvidenceArtifactUpsertCypher
+				artifactCypher := node.BatchCanonicalRepoEvidenceArtifactUpsertCypher
 				if sourcecypher.PayloadString(artifactRow, "environment") != "" {
-					artifactCypher = sourcecypher.BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher
+					artifactCypher = node.BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher
 				}
 				if _, seen := artifactRows[artifactCypher]; !seen {
 					artifactRouteOrder = append(artifactRouteOrder, artifactCypher)
@@ -323,13 +324,13 @@ func batchCypherForDomain(domain string) (string, error) {
 	case reducer.DomainWorkloadDependency:
 		return sourcecypher.BatchCanonicalWorkloadDependencyUpsertCypher, nil
 	case reducer.DomainCodeCalls:
-		return sourcecypher.BatchCanonicalCodeCallUpsertCypher, nil
+		return node.BatchCanonicalCodeCallUpsertCypher, nil
 	case reducer.DomainInheritanceEdges:
 		return inheritance.BatchUpsertCypher, nil
 	case reducer.DomainDocumentationEdges:
-		return sourcecypher.BatchCanonicalDocumentationEntityEdgeCypher, nil
+		return node.BatchCanonicalDocumentationEntityEdgeCypher, nil
 	case reducer.DomainRationaleEdges:
-		return sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher, nil
+		return node.BatchCanonicalRationaleExplainsEdgeCypher, nil
 	case reducer.DomainSQLRelationships:
 		// SQL relationship edges have no single-template batch: each row is
 		// dispatched per relationship type by buildSQLRelationshipRowMap — a
@@ -347,17 +348,17 @@ func batchCypherForDomain(domain string) (string, error) {
 	case reducer.DomainShellExec:
 		return BatchCanonicalShellExecUpsertCypher, nil
 	case reducer.DomainDeployableUnitEdges:
-		return sourcecypher.BatchCanonicalDeployableUnitCorrelationUpsertCypher, nil
+		return node.BatchCanonicalDeployableUnitCorrelationUpsertCypher, nil
 	case reducer.DomainHandlesRoute:
-		return sourcecypher.BatchCanonicalHandlesRouteEdgeUpsertCypher, nil
+		return node.BatchCanonicalHandlesRouteEdgeUpsertCypher, nil
 	case reducer.DomainRunsIn:
-		return sourcecypher.BatchCanonicalRunsInEdgeUpsertCypher, nil
+		return node.BatchCanonicalRunsInEdgeUpsertCypher, nil
 	case reducer.DomainInvokesCloudAction:
-		return sourcecypher.BatchCanonicalInvokesCloudActionUpsertCypher, nil
+		return node.BatchCanonicalInvokesCloudActionUpsertCypher, nil
 	case reducer.DomainCodeownersOwnershipEdges:
-		return sourcecypher.BatchCanonicalCodeownersOwnershipEdgeCypher, nil
+		return node.BatchCanonicalCodeownersOwnershipEdgeCypher, nil
 	case reducer.DomainSubmodulePinEdges:
-		return sourcecypher.BatchCanonicalSubmodulePinEdgeCypher, nil
+		return node.BatchCanonicalSubmodulePinEdgeCypher, nil
 	default:
 		return "", fmt.Errorf("unsupported domain for write: %q", domain)
 	}
@@ -405,7 +406,7 @@ func buildRowMap(
 			}
 			sourcecypher.SetOptionalRowString(rowMap, row.Payload, "evidence_type")
 			sourcecypher.SetOptionalRowString(rowMap, row.Payload, "source_tool")
-			return sourcecypher.BatchCanonicalRunsOnUpsertCypher, rowMap, true
+			return node.BatchCanonicalRunsOnUpsertCypher, rowMap, true
 		}
 		if targetRepoID == "" {
 			return "", nil, false

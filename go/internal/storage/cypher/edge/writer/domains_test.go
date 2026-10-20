@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -306,7 +306,7 @@ func TestEdgeWriterRetractEdgesInheritanceDispatch(t *testing.T) {
 	// EMPTY list, so pin the binding itself (#6166).
 	assertBoundRepoIDs(t, executor.calls, []string{"repo-a"})
 	// One statement per child label (#5116/#4367), each single-label + repo-scoped.
-	if got, want := len(executor.calls), len(sourcecypher.InheritanceRetractChildLabels); got != want {
+	if got, want := len(executor.calls), len(inheritance.InheritanceRetractChildLabels); got != want {
 		t.Fatalf("executor calls = %d, want %d (one per child label)", got, want)
 	}
 	for _, stmt := range executor.calls {

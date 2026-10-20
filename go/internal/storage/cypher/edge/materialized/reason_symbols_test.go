@@ -15,8 +15,8 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // goIdentifierInReason matches the Go identifiers the registries cite inside
@@ -263,7 +263,7 @@ func TestRegistryReasonsCiteRealSymbols(t *testing.T) {
 	declared := packageIdentifiers(t)
 
 	registries := map[string]map[string]string{
-		"code_calls":      sourcecypher.CodeCallMaterializedEdgeTypes(),
+		"code_calls":      node.CodeCallMaterializedEdgeTypes(),
 		"repo_dependency": RepoDependencyMaterializedEdgeTypes(),
 	}
 	for _, family := range SingleTypeMaterializedEdgeFamilyNames() {

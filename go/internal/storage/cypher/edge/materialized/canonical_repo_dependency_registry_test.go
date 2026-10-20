@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -99,7 +99,7 @@ func TestRepoDependencyRegistryDerivesTheAlternationRatherThanRelistingIt(t *tes
 	t.Parallel()
 
 	registry := RepoDependencyMaterializedEdgeTypes()
-	for _, edgeType := range strings.Split(sourcecypher.RepoDependencyRelationshipEdgeTypes, "|") {
+	for _, edgeType := range strings.Split(node.RepoDependencyRelationshipEdgeTypes, "|") {
 		edgeType = strings.TrimSpace(edgeType)
 		if edgeType == "" {
 			continue
@@ -111,7 +111,7 @@ func TestRepoDependencyRegistryDerivesTheAlternationRatherThanRelistingIt(t *tes
 	if _, ok := registry["RUNS_ON"]; !ok {
 		t.Error("registry omits RUNS_ON; it is reaped by a separate retract role and is invisible in the repo-to-repo alternation")
 	}
-	if len(registry) != len(strings.Split(sourcecypher.RepoDependencyRelationshipEdgeTypes, "|"))+1 {
+	if len(registry) != len(strings.Split(node.RepoDependencyRelationshipEdgeTypes, "|"))+1 {
 		t.Errorf("registry has %d types, want the alternation plus RUNS_ON; an extra type claims edges this family does not own", len(registry))
 	}
 }

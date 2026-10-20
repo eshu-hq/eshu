@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -130,58 +131,66 @@ var unwindBareMatchSetAllowlist = map[string]bool{}
 func TestNoUnwindBareMatchThenSetCyphersInPackage(t *testing.T) {
 	t.Parallel()
 
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatalf("read package directory: %v", err)
-	}
+	// The canonical edge-domain templates moved to the canonical/node leaf and
+	// the inheritance retract to canonical/inheritance (#6694); their shapes
+	// stay in this gate so a future bare-MATCH+SET template added beside them
+	// fails here instead of escaping the package scan.
+	dirs := []string{".", "canonical/node", "canonical/inheritance"}
 
 	fset := token.NewFileSet()
 	var violations []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-
-		file, err := parser.ParseFile(fset, name, nil, parser.ParseComments)
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
 		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
+			t.Fatalf("read package directory %s: %v", dir, err)
 		}
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+				continue
+			}
 
-		ast.Inspect(file, func(n ast.Node) bool {
-			valueSpec, ok := n.(*ast.ValueSpec)
-			if !ok {
+			path := filepath.Join(dir, name)
+			file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+			if err != nil {
+				t.Fatalf("parse %s: %v", path, err)
+			}
+
+			ast.Inspect(file, func(n ast.Node) bool {
+				valueSpec, ok := n.(*ast.ValueSpec)
+				if !ok {
+					return true
+				}
+				for i, ident := range valueSpec.Names {
+					if i >= len(valueSpec.Values) {
+						continue
+					}
+					lit, ok := valueSpec.Values[i].(*ast.BasicLit)
+					if !ok || lit.Kind != token.STRING {
+						continue
+					}
+					value, err := strconv.Unquote(lit.Value)
+					if err != nil {
+						// Raw string literals (backtick) unquote fine via
+						// strconv.Unquote too; skip anything that fails rather
+						// than fail the whole gate on an unrelated parse edge
+						// case.
+						continue
+					}
+					if !hasUnwindBareMatchThenSet(value) {
+						continue
+					}
+					if strings.Contains(value, "MERGE") {
+						continue
+					}
+					if unwindBareMatchSetAllowlist[ident.Name] {
+						continue
+					}
+					violations = append(violations, path+": "+ident.Name)
+				}
 				return true
-			}
-			for i, ident := range valueSpec.Names {
-				if i >= len(valueSpec.Values) {
-					continue
-				}
-				lit, ok := valueSpec.Values[i].(*ast.BasicLit)
-				if !ok || lit.Kind != token.STRING {
-					continue
-				}
-				value, err := strconv.Unquote(lit.Value)
-				if err != nil {
-					// Raw string literals (backtick) unquote fine via
-					// strconv.Unquote too; skip anything that fails rather
-					// than fail the whole gate on an unrelated parse edge
-					// case.
-					continue
-				}
-				if !hasUnwindBareMatchThenSet(value) {
-					continue
-				}
-				if strings.Contains(value, "MERGE") {
-					continue
-				}
-				if unwindBareMatchSetAllowlist[ident.Name] {
-					continue
-				}
-				violations = append(violations, name+": "+ident.Name)
-			}
-			return true
-		})
+			})
+		}
 	}
 
 	if len(violations) > 0 {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // TestUIDIndexedIdentityEdgeStatementsDropOversizedRow pins that the production
@@ -21,9 +22,9 @@ func TestUIDIndexedIdentityEdgeStatementsDropOversizedRow(t *testing.T) {
 	tests := []struct {
 		name, cypher, uidField, label string
 	}{
-		{"rationale", BatchCanonicalRationaleExplainsEdgeCypher, "rationale_uid", "Rationale"},
-		{"documentation entity", BatchCanonicalDocumentationEntityEdgeCypher, "section_uid", "DocumentationSection"},
-		{"documentation workload", BatchCanonicalDocumentationWorkloadEdgeCypher, "section_uid", "DocumentationSection"},
+		{"rationale", node.BatchCanonicalRationaleExplainsEdgeCypher, "rationale_uid", "Rationale"},
+		{"documentation entity", node.BatchCanonicalDocumentationEntityEdgeCypher, "section_uid", "DocumentationSection"},
+		{"documentation workload", node.BatchCanonicalDocumentationWorkloadEdgeCypher, "section_uid", "DocumentationSection"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

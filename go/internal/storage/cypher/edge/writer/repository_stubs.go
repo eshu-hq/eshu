@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -27,7 +28,7 @@ const repositoryStubCandidateLimit = 10
 var repositoryStubUpsertCyphers = func() map[string]bool {
 	set := map[string]bool{
 		sourcecypher.BatchCanonicalRepoDependencyUpsertCypher: true,
-		sourcecypher.BatchCanonicalSubmodulePinEdgeCypher:     true,
+		node.BatchCanonicalSubmodulePinEdgeCypher:             true,
 	}
 	for _, relationshipType := range []edgetype.EdgeType{
 		edgetype.DeploysFrom, edgetype.DiscoversConfigIn, edgetype.ProvisionsDependencyFor,

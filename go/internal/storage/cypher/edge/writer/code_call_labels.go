@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
@@ -80,7 +81,7 @@ func buildCodeCallRowMap(
 			"evidence_source":   evidenceSource,
 		}
 		applyCodeCallProvenance(rowMap, payload)
-		return sourcecypher.BatchCanonicalMetaclassUpsertCypher, rowMap, true
+		return node.BatchCanonicalMetaclassUpsertCypher, rowMap, true
 	}
 
 	callerEntityID := sourcecypher.PayloadString(payload, "caller_entity_id")
@@ -112,13 +113,13 @@ func buildCodeCallRowMap(
 		if isCodeInstantiatesSourceLabel(sourceLabel) && isCodeInstantiatesTargetLabel(targetLabel) {
 			return buildLabelScopedInstantiatesCypher(sourceLabel, targetLabel), rowMap, true
 		}
-		return sourcecypher.BatchCanonicalInstantiatesUpsertCypher, rowMap, true
+		return node.BatchCanonicalInstantiatesUpsertCypher, rowMap, true
 	}
 	if rowMap["call_kind"] == "jsx_component" || sourcecypher.PayloadString(payload, "relationship_type") == "REFERENCES" {
 		if isCodeReferenceEndpointLabel(sourceLabel) && isCodeReferenceEndpointLabel(targetLabel) {
 			return buildLabelScopedCodeReferenceCypher(sourceLabel, targetLabel), rowMap, true
 		}
-		return sourcecypher.BatchCanonicalCodeReferenceUpsertCypher, rowMap, true
+		return node.BatchCanonicalCodeReferenceUpsertCypher, rowMap, true
 	}
 	if isCodeCallEndpointLabel(sourceLabel) && isCodeCallEndpointLabel(targetLabel) {
 		return buildLabelScopedCodeCallCypher(sourceLabel, targetLabel), rowMap, true
@@ -128,7 +129,7 @@ func buildCodeCallRowMap(
 	// the metaclass-style endpoint keys. Send them as nil for the same reason.
 	rowMap["source_entity_id"] = nil
 	rowMap["target_entity_id"] = nil
-	return sourcecypher.BatchCanonicalCodeCallUpsertCypher, rowMap, true
+	return node.BatchCanonicalCodeCallUpsertCypher, rowMap, true
 }
 
 func isCodeCallEndpointLabel(label string) bool {

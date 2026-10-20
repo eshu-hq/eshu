@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -375,7 +375,7 @@ func TestEdgeWriterRetractEdgesCodeCallDispatch(t *testing.T) {
 	}
 	// Retract fans out to one statement per source label (#5116); the
 	// recordingExecutor is not a GroupExecutor, so each runs as its own call.
-	if got, want := len(executor.calls), len(sourcecypher.CodeCallRetractSourceLabels); got != want {
+	if got, want := len(executor.calls), len(node.CodeCallRetractSourceLabels); got != want {
 		t.Fatalf("executor calls = %d, want %d (one per source label)", got, want)
 	}
 	for _, call := range executor.calls {
@@ -416,7 +416,7 @@ func TestEdgeWriterRetractEdgesCodeCallDeltaScopesToFilePaths(t *testing.T) {
 	}
 	// Delta retract fans out to one statement per source label (#5116), each
 	// file-scoped.
-	if got, want := len(executor.calls), len(sourcecypher.CodeCallRetractSourceLabels); got != want {
+	if got, want := len(executor.calls), len(node.CodeCallRetractSourceLabels); got != want {
 		t.Fatalf("executor calls = %d, want %d (one per source label)", got, want)
 	}
 	wantPaths := []string{"/repo/src/changed.go", "/repo/src/deleted.go"}

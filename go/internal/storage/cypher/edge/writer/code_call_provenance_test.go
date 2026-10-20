@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
@@ -92,9 +92,9 @@ func TestBuildCodeCallRowMapMetaclassCarriesDeclaredConfidence(t *testing.T) {
 // hard-coded confidence literal on any code-edge template.
 func TestCodeCallCypherTemplatesAreParameterized(t *testing.T) {
 	templates := map[string]string{
-		"call":            sourcecypher.BatchCanonicalCodeCallUpsertCypher,
-		"reference":       sourcecypher.BatchCanonicalCodeReferenceUpsertCypher,
-		"metaclass":       sourcecypher.BatchCanonicalMetaclassUpsertCypher,
+		"call":            node.BatchCanonicalCodeCallUpsertCypher,
+		"reference":       node.BatchCanonicalCodeReferenceUpsertCypher,
+		"metaclass":       node.BatchCanonicalMetaclassUpsertCypher,
 		"label-call":      buildLabelScopedCodeCallCypher("Function", "Function"),
 		"label-reference": buildLabelScopedCodeReferenceCypher("Function", "Function"),
 	}

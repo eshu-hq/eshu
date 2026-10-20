@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
@@ -25,7 +25,7 @@ import (
 // (edge/writer/code_call_labels.go) reaches CALLS, REFERENCES, USES_METACLASS,
 // and INSTANTIATES, and the default retract disjunction in canonical_retract.go
 // names the same four. An earlier draft of this test asserted CALLS alone,
-// reading only the first MERGE template in canonical_code_call_edges.go; that is
+// reading only the first MERGE template in canonical/node/code_call_edges.go; that is
 // the precise failure #5991 warns about, because a too-small type set makes the
 // live gate ignore three quarters of the family's real edges and call the
 // remainder exhaustive.
@@ -53,9 +53,9 @@ func TestCodeCallsDomainResolvesItsMaterializedEdgeTypes(t *testing.T) {
 func TestCodeCallsDomainEdgeTypesComeFromTheWriterRegistry(t *testing.T) {
 	t.Parallel()
 
-	reg := cypher.CodeCallMaterializedEdgeTypes()
+	reg := node.CodeCallMaterializedEdgeTypes()
 	if len(reg) == 0 {
-		t.Fatal("cypher.CodeCallMaterializedEdgeTypes() is empty; an empty registry makes any graph vacuously pass the live gate")
+		t.Fatal("node.CodeCallMaterializedEdgeTypes() is empty; an empty registry makes any graph vacuously pass the live gate")
 	}
 	got, err := MaterializedEdgeDomainEdgeTypes("code_calls")
 	if err != nil {

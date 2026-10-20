@@ -41,6 +41,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 const (
@@ -61,7 +62,7 @@ type kustomizeExtendsBaseLiveResolver struct {
 func (r kustomizeExtendsBaseLiveResolver) ListKustomizeOverlays(
 	ctx context.Context,
 	repoID string,
-) ([]cypher.KustomizeOverlayRow, error) {
+) ([]node.KustomizeOverlayRow, error) {
 	session := r.exec.driver.NewSession(ctx, neo4jdriver.SessionConfig{
 		AccessMode:   neo4jdriver.AccessModeRead,
 		DatabaseName: r.exec.database,
@@ -79,7 +80,7 @@ func (r kustomizeExtendsBaseLiveResolver) ListKustomizeOverlays(
 		return nil, fmt.Errorf("collect kustomize overlay list: %w", err)
 	}
 
-	rows := make([]cypher.KustomizeOverlayRow, 0, len(records))
+	rows := make([]node.KustomizeOverlayRow, 0, len(records))
 	for _, record := range records {
 		uidValue, _ := record.Get("uid")
 		pathValue, _ := record.Get("path")
@@ -100,7 +101,7 @@ func (r kustomizeExtendsBaseLiveResolver) ListKustomizeOverlays(
 				}
 			}
 		}
-		rows = append(rows, cypher.KustomizeOverlayRow{UID: uid, Path: path, BaseRefs: baseRefs})
+		rows = append(rows, node.KustomizeOverlayRow{UID: uid, Path: path, BaseRefs: baseRefs})
 	}
 	return rows, nil
 }

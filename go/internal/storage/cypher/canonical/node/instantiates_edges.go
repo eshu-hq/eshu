@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package node
 
 // BatchCanonicalInstantiatesUpsertCypher writes INSTANTIATES edges from a caller
 // to the class/struct/enum it constructs (issue #2229). It mirrors the code-call

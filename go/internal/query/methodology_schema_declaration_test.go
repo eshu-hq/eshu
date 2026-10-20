@@ -33,13 +33,11 @@ import (
 // the declaration goes inert, and the pin behaves as before. Any other PR
 // leaves the zero value alone.
 var methodologyCommittedSchemaDeclaration = methodologyRewriteDeclaration{
-	Issue:  5385,
-	Reason: "Repository-scoped workload identity re-key: new endpoint repo_id index DDL plus corrected compatibility predecessor literals; the paired Base/Candidate sides in this run both measure candidate schema and no pinned reader changes.",
+	Issue:  6694,
+	Reason: "Repoints symbol mentions in comments to the canonical/node leaf (no DDL, no statement, no index change); the paired Base/Candidate sides in this run both measure candidate schema and no query text changes.",
 	// Production sources only: the pin inventory excludes *_test.go, so the
 	// declaration names exactly the differing non-test schema files.
 	Paths: []string{
-		"go/internal/graph/schema_application.go",
-		"go/internal/graph/schema_predecessors.go",
 		"go/internal/graph/schema_tables_indexes.go",
 	},
 }

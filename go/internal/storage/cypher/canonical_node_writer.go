@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/package/registry"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -34,7 +35,7 @@ type CanonicalNodeWriter struct {
 	packageRegistryLocks              *registry.IdentityLocks
 	tfStateOwnershipResolver          TerraformStateOwnershipResolver
 	tfStateConfigMatchResolver        TerraformStateConfigMatchResolver
-	kustomizeOverlayResolver          KustomizeOverlayResolver
+	kustomizeOverlayResolver          node.KustomizeOverlayResolver
 	schemaWriteFence                  func(context.Context) error
 	// repositoryRetirementBare emits the bare path-conflict retirement
 	// shape instead of the attributed one. It MUST be set on every writer

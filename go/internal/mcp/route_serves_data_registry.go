@@ -135,7 +135,7 @@ var domainDataSignatures = map[string]domainDataSignature{
 	"service_catalog_correlation": {Markers: []string{"reducer_service_catalog_correlation"}, StoreTypes: []string{"CatalogCorrelationStore"}},
 
 	// codeowners_ownership projects (:Repository)-[:DECLARES_CODEOWNER]->
-	// (:CodeownerTeam) graph truth (storage/cypher/canonical_codeowners_edges.go:34-35).
+	// (:CodeownerTeam) graph truth (storage/cypher/canonical/node/codeowners_edges.go).
 	"codeowners_ownership": {Markers: []string{"DECLARES_CODEOWNER"}},
 
 	// config_state_drift materializes tfstate truth onto its OWN state

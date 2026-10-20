@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -67,8 +68,8 @@ func TestRetractEdgesRationaleDeltaSkipsDeletesWhenProbesFindNothing(t *testing.
 		t.Fatalf("RetractEdges() error = %v, want nil", err)
 	}
 
-	if got := len(executor.probeCalls); got != len(sourcecypher.RationaleExplainsTargetLabels) {
-		t.Fatalf("probe calls = %d, want %d (one per target label)", got, len(sourcecypher.RationaleExplainsTargetLabels))
+	if got := len(executor.probeCalls); got != len(node.RationaleExplainsTargetLabels) {
+		t.Fatalf("probe calls = %d, want %d (one per target label)", got, len(node.RationaleExplainsTargetLabels))
 	}
 	if got := len(deltaDeletes(executor.executeCalls)); got != 0 {
 		t.Fatalf("delta DELETE calls = %d, want 0 when every probe finds nothing", got)
@@ -91,8 +92,8 @@ func TestRetractEdgesRationaleDeltaRunsDeletesWhenProbesFindRows(t *testing.T) {
 		t.Fatalf("RetractEdges() error = %v, want nil", err)
 	}
 
-	if got := len(deltaDeletes(executor.executeCalls)); got != len(sourcecypher.RationaleExplainsTargetLabels) {
-		t.Fatalf("delta DELETE calls = %d, want %d (one per target label)", got, len(sourcecypher.RationaleExplainsTargetLabels))
+	if got := len(deltaDeletes(executor.executeCalls)); got != len(node.RationaleExplainsTargetLabels) {
+		t.Fatalf("delta DELETE calls = %d, want %d (one per target label)", got, len(node.RationaleExplainsTargetLabels))
 	}
 }
 
@@ -110,8 +111,8 @@ func TestRetractEdgesRationaleDeltaProbeErrorStillDeletes(t *testing.T) {
 		t.Fatalf("RetractEdges() error = %v, want nil", err)
 	}
 
-	if got := len(deltaDeletes(executor.executeCalls)); got != len(sourcecypher.RationaleExplainsTargetLabels) {
-		t.Fatalf("delta DELETE calls = %d, want %d; a probe error must fall back to deleting", got, len(sourcecypher.RationaleExplainsTargetLabels))
+	if got := len(deltaDeletes(executor.executeCalls)); got != len(node.RationaleExplainsTargetLabels) {
+		t.Fatalf("delta DELETE calls = %d, want %d; a probe error must fall back to deleting", got, len(node.RationaleExplainsTargetLabels))
 	}
 }
 
@@ -130,8 +131,8 @@ func TestRetractEdgesRationaleDeltaWithoutProbeSupportDeletesEverything(t *testi
 		t.Fatalf("RetractEdges() error = %v, want nil", err)
 	}
 
-	if got := len(deltaDeletes(executor.calls)); got != len(sourcecypher.RationaleExplainsTargetLabels) {
-		t.Fatalf("delta DELETE calls = %d, want %d without probe support", got, len(sourcecypher.RationaleExplainsTargetLabels))
+	if got := len(deltaDeletes(executor.calls)); got != len(node.RationaleExplainsTargetLabels) {
+		t.Fatalf("delta DELETE calls = %d, want %d without probe support", got, len(node.RationaleExplainsTargetLabels))
 	}
 }
 
@@ -182,9 +183,9 @@ func TestBuildProbeRationaleEdgeStatementsByFilePathMirrorsRetract(t *testing.T)
 			// hand, not derived, so it can actually go red on a statement
 			// change.
 			if len(probes) == 0 {
-				t.Fatalf("probes = 0, want %d", len(sourcecypher.RationaleExplainsTargetLabels))
+				t.Fatalf("probes = 0, want %d", len(node.RationaleExplainsTargetLabels))
 			}
-			wantFirstProbe := "MATCH (rationale:Rationale)-[rel:EXPLAINS]->(target:" + sourcecypher.RationaleExplainsTargetLabels[0] + ")\n" +
+			wantFirstProbe := "MATCH (rationale:Rationale)-[rel:EXPLAINS]->(target:" + node.RationaleExplainsTargetLabels[0] + ")\n" +
 				"WHERE target.path IN $file_paths\n" +
 				"  AND " + tc.wantEvidencePredicate + "\n" +
 				"RETURN true LIMIT 1"

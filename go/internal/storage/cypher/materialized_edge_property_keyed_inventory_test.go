@@ -58,7 +58,7 @@ var propertyKeyedMergeTypePattern = regexp.MustCompile(`-\[\s*(?:[A-Za-z_][A-Za-
 // those types are never checked against source at all.
 //
 // This test scans every non-test .go file directly in this package directory
-// plus the edge/writer leaf directory for a
+// plus the edge/writer and canonical/node leaf directories for a
 // relationship-MERGE property map (`-[var:TYPE {...}]`) and asserts the
 // total inventory, by relationship type, equals a fixed nine-occurrence
 // allow-list: the two gated identities (DECLARES_CODEOWNER, PINS_SUBMODULE,
@@ -87,13 +87,13 @@ func TestPropertyKeyedRelationshipMergesMatchKnownAllowList(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]int{
-		"DECLARES_CODEOWNER": 1, // canonical_codeowners_edges.go -- gated, covered above.
-		"PINS_SUBMODULE":     1, // canonical_submodule_edges.go -- gated, covered above.
+		"DECLARES_CODEOWNER": 1, // canonical/node/codeowners_edges.go -- gated, covered above.
+		"PINS_SUBMODULE":     1, // canonical/node/submodule_edges.go -- gated, covered above.
 		"TAINT_FLOWS_TO":     1, // code_interproc_evidence_writer.go -- outside the registry scope.
 		"DERIVED_FROM":       1, // edge/writer/derived_from.go -- registered (derived_from row), identity held, not asserted here.
 		"PUBLISHES":          2, // edge/writer/provenance.go -- Package + PackageVersion targets; registered (publishes row).
 		"BUILT_FROM":         1, // edge/writer/provenance.go -- registered (built_from row), identity held, not asserted here.
-		"RUNS_ON":            2, // canonical.go + canonical_relationships.go -- shared deterministic identity.
+		"RUNS_ON":            2, // canonical.go + canonical/node/relationships_edges.go -- shared deterministic identity.
 		"DEPENDS_ON":         2, // canonical.go -- workload dependency single-row and batched templates.
 	}
 
@@ -117,7 +117,10 @@ func scanPropertyKeyedRelationshipMergeTypes(t *testing.T) map[string]int {
 	// The provenance family (DERIVED_FROM, PUBLISHES x2, BUILT_FROM) moved to
 	// the edge/writer leaf (#6694); its templates stay in this inventory so a
 	// property folded into one of those types still fails the allow-list.
-	for _, dir := range []string{".", "edge/writer"} {
+	// The canonical edge-domain families (DECLARES_CODEOWNER, PINS_SUBMODULE,
+	// one RUNS_ON) moved to the canonical/node leaf (#6694); their templates
+	// stay in this inventory for the same reason.
+	for _, dir := range []string{".", "edge/writer", "canonical/node"} {
 		scanPropertyKeyedRelationshipMergeDir(t, fset, counts, dir)
 	}
 	return counts

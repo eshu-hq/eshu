@@ -296,21 +296,21 @@ builders:
           operation: sourcecypher.OperationCanonicalRetract
           variants:
             - template: MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->() WHERE section.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
-          source_sha256: 718fda4c6d7ead7456f57b419ea5e514c4fc0d638e1bc28a432b887ef46a1c30
+          source_sha256: 2942a7bca04a06296eaed147e7c08ff437b38e566d149f4b43e64d76b0deea9d
           exempt: B-7 captures contain zero Documentation writes on either backend, so no retract scope exists for this builder
         - symbol: BuildRetractDocumentationEdgesByDocumentID
           count: 1
           operation: sourcecypher.OperationCanonicalRetract
           variants:
             - template: MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->() WHERE section.scope_id IN $scope_ids AND section.document_id IN $document_ids AND rel.evidence_source = $evidence_source DELETE rel
-          source_sha256: 1f4d342e5834db0317cc62e47c4e33eaea6ae731e3d3ee6bb16a74fe24c2cd7b
+          source_sha256: 433f9cb6b33a2050e84448bae8233fcde1bb587ae8a9ca36326636afe8c791d9
           exempt: B-7 captures contain zero Documentation writes on either backend, so no retract scope exists for this builder
         - symbol: BuildRetractDocumentationEdgesBySectionUID
           count: 1
           operation: sourcecypher.OperationCanonicalRetract
           variants:
             - template: MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->() WHERE section.scope_id IN $scope_ids AND section.uid IN $section_uids AND rel.evidence_source = $evidence_source DELETE rel
-          source_sha256: 35a0e6ffb807c8a6db9ce2caef5ec1f780370e976f49bb90643544d3ab1df73d
+          source_sha256: 8d00858a92e6df12673635ce1d93574c8b98622dad955176f13e384cca432e0d
           exempt: B-7 captures contain zero Documentation writes on either backend, so no retract scope exists for this builder
     - file: internal/storage/cypher/edge/writer/provenance.go
       builders:
@@ -329,14 +329,14 @@ builders:
           variants:
             - template: MATCH (rationale:Rationale)-[rel:EXPLAINS]->() WHERE rationale.repo_id IN $repo_ids AND rel.evidence_source IN $evidence_sources RETURN true LIMIT 1
             - template: MATCH (rationale:Rationale)-[rel:EXPLAINS]->() WHERE rationale.repo_id IN $repo_ids AND rel.evidence_source = $evidence_source RETURN true LIMIT 1
-          source_sha256: 743f4ddcad4fa2e05285b7bc99878131ce2be655872692a045de662331212f3a
+          source_sha256: 3f31639278fa6ec413d88060104f42287c63357978cc0e74e8db1f3799a37ade
         - symbol: BuildRetractRationaleEdges
           count: 2
           operation: sourcecypher.OperationCanonicalRetract
           variants:
             - template: MATCH (rationale:Rationale)-[rel:EXPLAINS]->() WHERE rationale.repo_id IN $repo_ids AND rel.evidence_source IN $evidence_sources DELETE rel
             - template: MATCH (rationale:Rationale)-[rel:EXPLAINS]->() WHERE rationale.repo_id IN $repo_ids AND rel.evidence_source = $evidence_source DELETE rel
-          source_sha256: 9db5027b17dd49b9b9658cdb84fb8c31d8efdbadc36b66f43072ae2699449f64
+          source_sha256: f8117063911eb8abc91d313e55cecb821944b920cae14b77da538744d83b8b76
           exempt: B-7 captures contain zero Rationale writes on either backend, so no retract scope exists for this builder
         - symbol: buildRationaleDeltaStatementsByFilePath
           count: 1
@@ -346,7 +346,7 @@ builders:
                 - )
                 - WHERE target.path IN $file_paths
                 - AND
-          source_sha256: 763b54bba843f795e0d5a3ab2087405ac01b76d5791aaac10ffbe53fc0efad36
+          source_sha256: eceed984afcc838135262a08bd8a5bb7259829b38ac826677402dec9007615e8
           exempt: B-7 captures contain zero Rationale writes on either backend, so no file-path retract scope exists for this builder
     - file: internal/storage/cypher/edge/writer/retract.go
       builders:
@@ -358,7 +358,7 @@ builders:
             - template: 'UNWIND $repo_ids AS repo_id MATCH (f:Function {repo_id: repo_id})-[rel:RUNS_IN]->(:Workload) WHERE rel.evidence_source = $evidence_source DELETE rel'
             - template: 'UNWIND $repo_ids AS repo_id MATCH (func:Function {repo_id: repo_id})-[rel:INVOKES_CLOUD_ACTION]->(:CloudAction) WHERE rel.evidence_source = $evidence_source DELETE rel'
             - {}
-          source_sha256: 57ba290eeaa5ce7eda3501f02cd1edd8b2c73b1fc6c9ef0d1e91c96ca2a7d6be
+          source_sha256: 01ded3a63937c4a73ad645ebaf9ab778326d2660c70074f4b326123aa5ed945f
           exempt: dispatcher; its HandlesRoute/RunsIn/InvokesCloudAction const templates never fire on the B-7 corpus (absent both backends); delegated domains execute through callee builders (BuildRetractShellExecEdges inventoried and executed, the rest unattributed)
     - file: internal/storage/cypher/edge/writer/retract_repo.go
       builders:
@@ -369,7 +369,7 @@ builders:
             - {}
             - {}
             - {}
-          source_sha256: e9a08aa739afe07136ce635279120b891172610cac59acf98fc9d55d905865f7
+          source_sha256: 77b7f318c75ff49e076f2d58715a0c44dfd9fce1895067dc7f2ea12cf6141c8a
           exempt: executed but unattributed (single-rel 70/73, single-runson 36/37, single-art 70/73 execs in Sept-21 captures); emits branch-chosen package consts via helpers that discovery cannot resolve inter-procedurally
     - file: internal/storage/cypher/edge/writer/shell_exec.go
       builders:

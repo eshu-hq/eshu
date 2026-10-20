@@ -10,15 +10,16 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // fakeKustomizeOverlayResolver is a test double for KustomizeOverlayResolver.
 type fakeKustomizeOverlayResolver struct {
-	rows map[string][]KustomizeOverlayRow // keyed by repo_id
+	rows map[string][]node.KustomizeOverlayRow // keyed by repo_id
 	err  error
 }
 
-func (f *fakeKustomizeOverlayResolver) ListKustomizeOverlays(_ context.Context, repoID string) ([]KustomizeOverlayRow, error) {
+func (f *fakeKustomizeOverlayResolver) ListKustomizeOverlays(_ context.Context, repoID string) ([]node.KustomizeOverlayRow, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -48,7 +49,7 @@ func TestKustomizeExtendsBaseEdgeStatements_ResolvesLocalBase(t *testing.T) {
 
 	w := &CanonicalNodeWriter{
 		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{
-			rows: map[string][]KustomizeOverlayRow{
+			rows: map[string][]node.KustomizeOverlayRow{
 				"repo-1": {
 					{UID: "uid-base", Path: "base/kustomization.yaml"},
 				},
@@ -86,7 +87,7 @@ func TestKustomizeExtendsBaseEdgeStatements_DanglingBaseDropsSilently(t *testing
 	t.Parallel()
 
 	w := &CanonicalNodeWriter{
-		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{rows: map[string][]KustomizeOverlayRow{}},
+		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{rows: map[string][]node.KustomizeOverlayRow{}},
 	}
 	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
@@ -122,7 +123,7 @@ func TestKustomizeExtendsBaseEdgeStatements_RepoRootEscapeDropsSilently(t *testi
 
 	w := &CanonicalNodeWriter{
 		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{
-			rows: map[string][]KustomizeOverlayRow{"repo-1": {}},
+			rows: map[string][]node.KustomizeOverlayRow{"repo-1": {}},
 		},
 	}
 	mat := canonical.CanonicalMaterialization{
@@ -158,7 +159,7 @@ func TestKustomizeExtendsBaseEdgeStatements_CycleTolerated(t *testing.T) {
 
 	w := &CanonicalNodeWriter{
 		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{
-			rows: map[string][]KustomizeOverlayRow{
+			rows: map[string][]node.KustomizeOverlayRow{
 				"repo-1": {
 					{UID: "uid-a", Path: "a/kustomization.yaml", BaseRefs: []string{"../b"}},
 				},
@@ -191,7 +192,7 @@ func TestKustomizeExtendsBaseEdgeStatements_RetractScopedToFullRepoSet(t *testin
 
 	w := &CanonicalNodeWriter{
 		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{
-			rows: map[string][]KustomizeOverlayRow{
+			rows: map[string][]node.KustomizeOverlayRow{
 				"repo-1": {
 					// uid-untouched extends a base that is being deleted this cycle.
 					{UID: "uid-untouched", Path: "overlays/staging/kustomization.yaml", BaseRefs: []string{"../../base"}},
@@ -256,7 +257,7 @@ func TestKustomizeExtendsBaseEdgeStatements_PersistsBaseRefsProperty(t *testing.
 	t.Parallel()
 
 	w := &CanonicalNodeWriter{
-		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{rows: map[string][]KustomizeOverlayRow{}},
+		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{rows: map[string][]node.KustomizeOverlayRow{}},
 	}
 	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
@@ -347,7 +348,7 @@ func TestKustomizeExtendsBaseEdgeStatements_NoKustomizeTouchIsNoop(t *testing.T)
 	t.Parallel()
 
 	w := &CanonicalNodeWriter{
-		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{rows: map[string][]KustomizeOverlayRow{}},
+		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{rows: map[string][]node.KustomizeOverlayRow{}},
 	}
 	mat := canonical.CanonicalMaterialization{
 		RepoID:       "repo-1",
@@ -378,7 +379,7 @@ func TestKustomizeExtendsBaseEdgeStatements_DirectoryCollisionPicksStableWinner(
 
 	w := &CanonicalNodeWriter{
 		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{
-			rows: map[string][]KustomizeOverlayRow{
+			rows: map[string][]node.KustomizeOverlayRow{
 				"repo-1": {
 					{UID: "uid-zzz-second", Path: "team/kustomization.yml"},
 					{UID: "uid-aaa-first", Path: "team/kustomization.yaml"},

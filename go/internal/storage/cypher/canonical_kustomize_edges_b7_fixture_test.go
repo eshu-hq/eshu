@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/yaml"
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // TestKustomizeDeployableOverlayB7FixtureExtendsBase guards the B-7 corpus
@@ -61,7 +62,7 @@ func TestKustomizeDeployableOverlayB7FixtureExtendsBase(t *testing.T) {
 
 	w := &CanonicalNodeWriter{
 		kustomizeOverlayResolver: &fakeKustomizeOverlayResolver{
-			rows: map[string][]KustomizeOverlayRow{
+			rows: map[string][]node.KustomizeOverlayRow{
 				"kustomize-deployable-overlay": {
 					{UID: "uid-base", Path: "base/kustomization.yaml"},
 				},

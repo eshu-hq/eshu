@@ -43,7 +43,7 @@ IFA_FAMILY_ASSERT_FN[handles_route]="ifa_handles_route_assert"
 IFA_FAMILY_CASSETTE_VAR[handles_route]="symbol_runtime_cassette"
 IFA_FAMILY_EXPECTED_VAR[handles_route]="handles_route_expected_edges"
 
-# go/internal/storage/cypher/canonical_handles_route_edges.go:19. Single
+# go/internal/storage/cypher/canonical/node/handles_route_edges.go:19. Single
 # relationship type; this anchor covers the family's whole write surface.
 IFA_FAMILY_ANCHOR[handles_route]="MERGE (f)-[rel:HANDLES_ROUTE]->(e)"
 # custom: this family's baseline, graph-write-failure cell, and runner-lease

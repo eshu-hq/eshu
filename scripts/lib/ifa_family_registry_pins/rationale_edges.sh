@@ -26,7 +26,7 @@ IFA_FAMILY_PIN_BLOCKER_KIND="shared_intent_lock"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="rationale_materialization"
 
-# go/internal/storage/cypher/canonical_rationale_edges.go:33-45
+# go/internal/storage/cypher/canonical/node/rationale_edges.go:33-45
 # (batchCanonicalRationaleExplainsEdgeCypher) is the family's only EXPLAINS
 # write template (matches the registry row's own literal --
 # scripts/lib/ifa_family_registry/rows/04_rationale_edges.sh's

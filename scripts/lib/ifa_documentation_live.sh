@@ -33,7 +33,7 @@ ifa_documentation_drive() {
 # a live backend. Pinned RED by
 # TestBuildDocumentationRowMapTableTargetMatchesSqlTableLabel (commit
 # a3347e898), fixed by adding SqlTable to the label alternation
-# (go/internal/storage/cypher/canonical_documentation_edges.go). TypeAlias and
+# (go/internal/storage/cypher/canonical/node/documentation_edges.go). TypeAlias and
 # File documentation targets remain unproven for a different reason — their
 # uid formats would have to be independently correct upstream, and no
 # producer of documentation_entity_mention facts exists in-repo to verify

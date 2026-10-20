@@ -6,6 +6,7 @@ package writer
 import (
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // buildHandlesRouteRowMap converts a handles_route intent payload into the flat
@@ -24,7 +25,7 @@ func buildHandlesRouteRowMap(
 		return "", nil, false
 	}
 	resolutionMethod := sourcecypher.PayloadString(payload, "resolution_method")
-	return sourcecypher.BatchCanonicalHandlesRouteEdgeUpsertCypher, map[string]any{
+	return node.BatchCanonicalHandlesRouteEdgeUpsertCypher, map[string]any{
 		"function_entity_id": functionEntityID,
 		"repo_id":            repoID,
 		"path":               path,
@@ -65,7 +66,7 @@ func buildDeployableUnitCorrelationRowMap(
 	if relationshipType == "" {
 		relationshipType = string(edgetype.CorrelatesDeployableUnit)
 	}
-	return sourcecypher.BatchCanonicalDeployableUnitCorrelationUpsertCypher, map[string]any{
+	return node.BatchCanonicalDeployableUnitCorrelationUpsertCypher, map[string]any{
 		"repo_id":             repoID,
 		"deployment_repo_id":  deploymentRepoID,
 		"deployable_unit_key": unitKey,

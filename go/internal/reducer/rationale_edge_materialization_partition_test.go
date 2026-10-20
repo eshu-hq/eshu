@@ -17,7 +17,7 @@ import (
 )
 
 // rationaleStateModelingEdgeWriter models the canonical rationale EXPLAINS edge
-// STATE the way the real edge writer dispatch does (canonical_rationale_edges.go,
+// STATE the way the real edge writer dispatch does (canonical/node/rationale_edges.go,
 // DomainRationaleEdges branch):
 //
 //   - RetractEdges: if ANY row carries delta_projection=true, delete only the

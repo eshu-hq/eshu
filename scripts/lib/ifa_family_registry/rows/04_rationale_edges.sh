@@ -15,7 +15,7 @@ IFA_FAMILY_WAIT_STAGE[rationale_edges]="handler"
 # ifa_family_wait_key and scopes ifa_fault_wait_for_claimed to it.
 IFA_FAMILY_WAIT_KEY[rationale_edges]="rationale_materialization"
 IFA_FAMILY_SHARED_CELL[rationale_edges]=1
-# go/internal/storage/cypher/canonical_rationale_edges.go:41 is the live
+# go/internal/storage/cypher/canonical/node/rationale_edges.go:41 is the live
 # EXPLAINS write template. Cited to the Cypher source rather than to a shell
 # twin because there is no longer a twin to cite: rationale_edge_operation_match
 # was deleted when this family moved to the generic cells, which read this field

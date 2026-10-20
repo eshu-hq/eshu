@@ -6,7 +6,7 @@ package materialized
 import (
 	"strings"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 // The repo_dependency family's materialized-edge registry (#5999).
@@ -68,7 +68,7 @@ import (
 //     set can pin it. Do not lift this exclusion on the strength of the endpoint
 //     table alone — the blocker is endpoint identity, not label ambiguity.
 func RepoDependencyMaterializedEdgeTypes() map[string]string {
-	alternatives := strings.Split(sourcecypher.RepoDependencyRelationshipEdgeTypes, "|")
+	alternatives := strings.Split(node.RepoDependencyRelationshipEdgeTypes, "|")
 	out := make(map[string]string, len(alternatives)+1)
 	for _, edgeType := range alternatives {
 		if edgeType = strings.TrimSpace(edgeType); edgeType != "" {

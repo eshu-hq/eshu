@@ -8,8 +8,8 @@ import (
 	"sort"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -23,7 +23,7 @@ func familyRegistry(t *testing.T, family string) map[string]string {
 	case "repo_dependency":
 		return RepoDependencyMaterializedEdgeTypes()
 	case "code_calls":
-		return sourcecypher.CodeCallMaterializedEdgeTypes()
+		return node.CodeCallMaterializedEdgeTypes()
 	case "inheritance_edges":
 		return inheritance.MaterializedEdgeTypes()
 	default:

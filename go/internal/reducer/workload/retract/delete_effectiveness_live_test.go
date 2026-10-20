@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	relationship "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/relationship"
 )
 
@@ -231,7 +232,7 @@ WHERE rel.evidence_source = $ev RETURN count(rel) AS c`
 WHERE rel.evidence_source = $ev DELETE rel`, countParams)
 		},
 		prod: func(ctx context.Context) error {
-			return db.write(ctx, sourcecypher.RetractSingleRepoRunsOnEdgesCypher,
+			return db.write(ctx, node.RetractSingleRepoRunsOnEdgesCypher,
 				map[string]any{"repo_id": repo, "evidence_source": evidence})
 		},
 		count: func(ctx context.Context) (int64, error) { return db.count(ctx, countCypher, countParams) },
@@ -321,7 +322,7 @@ WHERE rel.evidence_source = $ev RETURN count(rel) AS c`
 WHERE rel.evidence_source = $ev DELETE rel`, countParams)
 		},
 		prod: func(ctx context.Context) error {
-			return db.write(ctx, sourcecypher.RetractRunsInEdgesCypher,
+			return db.write(ctx, node.RetractRunsInEdgesCypher,
 				map[string]any{"repo_ids": []string{repo}, "evidence_source": evidence})
 		},
 		count: func(ctx context.Context) (int64, error) { return db.count(ctx, countCypher, countParams) },
@@ -347,7 +348,7 @@ WHERE rel.evidence_source = $ev RETURN count(rel) AS c`
 WHERE rel.evidence_source = $ev DELETE rel`, countParams)
 		},
 		prod: func(ctx context.Context) error {
-			return db.write(ctx, sourcecypher.RetractDocumentationEdgesCypher,
+			return db.write(ctx, node.RetractDocumentationEdgesCypher,
 				map[string]any{"scope_ids": []string{scope}, "evidence_source": evidence})
 		},
 		count: func(ctx context.Context) (int64, error) { return db.count(ctx, countCypher, countParams) },

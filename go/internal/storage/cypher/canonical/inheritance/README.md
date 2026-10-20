@@ -6,7 +6,9 @@ templates from here; label-scoped variants remain in the edge writer.
 
 The registry contains four relationship types: `INHERITS`, `OVERRIDES`,
 `ALIASES`, and `IMPLEMENTS`. Each reason names the template that writes its
-relationship. The root Cypher package still owns the shared retract builder;
+relationship. The per-child-label retract fan-out lives here too
+(`retract.go`, statement-free `Part` values); the root Cypher package owns
+only the thin `Statement` wrapper. The root
 `canonical_inheritance_registry_test.go` verifies that the retract's type set
 matches this registry.
 

@@ -9,6 +9,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 func TestBuildInheritanceRowMapRoutesImplementsLabelScoped(t *testing.T) {
@@ -98,7 +99,7 @@ func TestBuildCodeCallRowMapRoutesInstantiatesCanonicalFallback(t *testing.T) {
 	if !ok {
 		t.Fatal("buildCodeCallRowMap ok = false, want true")
 	}
-	if cypher != sourcecypher.BatchCanonicalInstantiatesUpsertCypher {
+	if cypher != node.BatchCanonicalInstantiatesUpsertCypher {
 		t.Errorf("expected fallback INSTANTIATES template, got %q", cypher)
 	}
 }
