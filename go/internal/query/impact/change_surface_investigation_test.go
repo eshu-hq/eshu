@@ -126,14 +126,16 @@ func TestInvestigateChangeSurfaceUsesBoundedTraversal(t *testing.T) {
 	if got, want := len(graph.runCalls), 2; got != want {
 		t.Fatalf("graph Run calls = %d, want resolver and traversal", got)
 	}
+	// max_depth=3 with limit=2: the depth-1 statement serves the queued three
+	// rows, filling the limit+1 probe, so no deeper statement runs.
 	traversalCypher := graph.runCalls[1].cypher
 	for _, want := range []string{
 		"(start:Workload {id: $target_id})",
-		"*1..3",
+		"*1..1",
 		"LIMIT $limit",
 		"length(path) as depth",
 		"relationships(path) as rels",
-		"ORDER BY depth, name, id",
+		"ORDER BY name, id",
 	} {
 		if !strings.Contains(traversalCypher, want) {
 			t.Fatalf("traversal cypher missing %q: %s", want, traversalCypher)

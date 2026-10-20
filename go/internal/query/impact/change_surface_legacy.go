@@ -124,9 +124,15 @@ func (h *Handler) findChangeSurface(w http.ResponseWriter, r *http.Request) {
 }
 
 // changeSurfaceLegacyCypher is the single-anchor-clause impact traversal for the
-// legacy endpoint. Verbs: %s = the label-anchored start node pattern, %d = max
-// traversal depth, %s = the optional environment predicate (empty or an
-// ` AND (…)` clause). It projects the raw relationships(path) list (unwound
+// legacy endpoint. Verbs: %s = the label-anchored start node pattern,
+// %d..%d = the one exact depth this statement reads, %s = the optional
+// environment predicate (empty or an ` AND (…)` clause). Callers read one
+// depth per statement and merge depth-major (see runChangeSurfaceDepthRange):
+// the [*d..d] slice of [*1..max] enumerates the same depth-d path multiset,
+// and ORDER BY name, id within the fixed depth reproduces the global
+// ORDER BY depth, name, id relative order, so the merged page is identical
+// while a shallow probe-full page never expands the deep fan-out (#7677).
+// It projects the raw relationships(path) list (unwound
 // per-edge in Go) rather than the old OPTIONAL MATCH + UNWIND + WITH + RETURN
 // DISTINCT shape, which returned a single all-null row on the pinned NornicDB
 // (#5287). The environment filter is applied server-side (before LIMIT) so an
@@ -150,7 +156,11 @@ func (h *Handler) findChangeSurface(w http.ResponseWriter, r *http.Request) {
 // backend ignores a label test in this clause position, so the conjunct is a
 // no-op there and the IN labels() terms still enforce the whitelist.
 // TestChangeSurfaceLegacyCypherGuardsWhitelistWithLabelTest pins the shape.
-const changeSurfaceLegacyCypher = `MATCH path = %s-[*1..%d]->(impacted)
+//
+// The exact-depth bracket keeps the #6786 pairing exemption: [*d..d] is still
+// one variable-length relationship, the live-proven position. A bracketless
+// fixed-length hop would fall outside that proof and is not used here.
+const changeSurfaceLegacyCypher = `MATCH path = %s-[*%d..%d]->(impacted)
 WHERE impacted.id <> $target_id
   AND (impacted:Repository OR impacted:Workload OR impacted:WorkloadInstance
     OR impacted:CloudResource OR impacted:TerraformModule OR impacted:DataAsset)
@@ -158,7 +168,7 @@ WHERE impacted.id <> $target_id
     OR 'CloudResource' IN labels(impacted) OR 'TerraformModule' IN labels(impacted) OR 'DataAsset' IN labels(impacted))%s
 RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,
 	impacted.repo_id as repo_id, length(path) as depth, relationships(path) as rels
-ORDER BY depth, name, id
+ORDER BY name, id
 LIMIT $limit`
 
 // findChangeSurfaceImpactRows runs the bounded impact traversal from a resolved

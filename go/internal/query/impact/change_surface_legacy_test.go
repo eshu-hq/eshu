@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -30,10 +31,10 @@ func TestChangeSurfaceTraversalQueriesAreNornicDBSafe(t *testing.T) {
 
 	envClause := changeSurfaceEnvironmentClause("prod")
 	queries := map[string]string{
-		"investigate":     fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, ""),
-		"investigate+env": fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, envClause),
-		"legacy":          fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4, ""),
-		"legacy+env":      fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4, envClause),
+		"investigate":     fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, 4, ""),
+		"investigate+env": fmt.Sprintf(changeSurfaceInvestigateCypher, "(start:Workload {id: $target_id})", 4, 4, envClause),
+		"legacy":          fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4, 4, ""),
+		"legacy+env":      fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Workload {id: $target_id})", 4, 4, envClause),
 	}
 	for name, q := range queries {
 		if got := strings.Count(q, "MATCH"); got != 1 {
@@ -187,8 +188,7 @@ func decodeLegacyChangeSurfaceData(t *testing.T, rec *httptest.ResponseRecorder)
 func TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth(t *testing.T) {
 	t.Parallel()
 
-	var traversalCypher string
-	var traversalParams map[string]any
+	var traversalCalls []changeSurfaceRunCall
 	graph := &legacyChangeSurfaceGraph{
 		handler: func(cypher string, params map[string]any) ([]map[string]any, error) {
 			// Resolver probe: label-anchored Workload lookup by id.
@@ -201,8 +201,7 @@ func TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth(t *testin
 			// raw relationships(path) list; the handler unwinds per-edge provenance
 			// in Go (the pinned NornicDB corrupts a rel-property comprehension).
 			if strings.Contains(cypher, "relationships(path)") {
-				traversalCypher = cypher
-				traversalParams = params
+				traversalCalls = append(traversalCalls, changeSurfaceRunCall{cypher: cypher, params: params})
 				return []map[string]any{
 					{"id": "repo:billing", "name": "billing", "labels": []any{"Repository"}, "environment": "prod", "depth": int64(1), "rels": []any{
 						map[string]any{"type": "DEFINES", "properties": map[string]any{"confidence": 0.9, "reason": "definition"}},
@@ -231,26 +230,41 @@ func TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth(t *testin
 
 	// Root cause (a): start node MUST be resolved by an indexed, label-anchored
 	// MATCH, never an unlabeled all-node scan.
-	if traversalCypher == "" {
+	if len(traversalCalls) == 0 {
 		t.Fatalf("traversal query was never issued; calls = %+v", graph.calls)
 	}
-	if strings.Contains(traversalCypher, "MATCH (start) WHERE start.id") {
-		t.Fatalf("traversal must not anchor an unlabeled start node (all-node scan): %s", traversalCypher)
-	}
-	if !strings.Contains(traversalCypher, "(start:Workload {id:") {
-		t.Fatalf("traversal must anchor the resolved label in the start MATCH: %s", traversalCypher)
+	for _, call := range traversalCalls {
+		if strings.Contains(call.cypher, "MATCH (start) WHERE start.id") {
+			t.Fatalf("traversal must not anchor an unlabeled start node (all-node scan): %s", call.cypher)
+		}
+		if !strings.Contains(call.cypher, "(start:Workload {id:") {
+			t.Fatalf("traversal must anchor the resolved label in the start MATCH: %s", call.cypher)
+		}
 	}
 	// Root cause (b): depth MUST be bounded by the requested/clamped max_depth,
-	// not the hardcoded 8.
-	if !strings.Contains(traversalCypher, "*1..3]") {
-		t.Fatalf("traversal depth must honor max_depth=3, got: %s", traversalCypher)
+	// not the hardcoded 8. max_depth=3 reads exactly depths 1..3, one
+	// statement each; the fake serves two rows per depth against the
+	// limit+1 probe of 51, so no depth exhausts and all three run.
+	if got, want := changeSurfaceDepthCallDepths(traversalCalls), []int{1, 2, 3}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("traversal depths = %v, want %v", got, want)
 	}
-	if strings.Contains(traversalCypher, "*1..8") {
-		t.Fatalf("traversal must not keep the hardcoded *1..8 depth: %s", traversalCypher)
+	deepest := traversalCalls[len(traversalCalls)-1].cypher
+	if !strings.Contains(deepest, "*3..3]") {
+		t.Fatalf("traversal depth must honor max_depth=3, got: %s", deepest)
 	}
-	// Over-fetch by one row to detect truncation honestly.
-	if got, want := traversalParams["limit"], 51; got != want {
-		t.Fatalf("traversal limit = %#v, want limit+1 = %#v", got, want)
+	if strings.Contains(deepest, "*1..") {
+		t.Fatalf("traversal must read one exact depth per statement, got: %s", deepest)
+	}
+	// Over-fetch by one row to detect truncation honestly: the first depth
+	// carries limit+1 and each depth carries the remaining need.
+	if got, want := traversalCalls[0].params["limit"], 51; got != want {
+		t.Fatalf("first traversal limit = %#v, want limit+1 = %#v", got, want)
+	}
+	wantLimits := []int{51, 49, 47}
+	for i, call := range traversalCalls {
+		if got := call.params["limit"]; got != wantLimits[i] {
+			t.Fatalf("traversal %d limit = %#v, want %#v", i, got, wantLimits[i])
+		}
 	}
 
 	// Accuracy: per-relationship fields stay in the response (legacy contract).
@@ -280,9 +294,9 @@ func TestFindChangeSurfaceClampsMaxDepth(t *testing.T) {
 		body      string
 		wantDepth string
 	}{
-		{"default_when_absent", `{"kind":"service","target":"orders"}`, "*1..4]"},
-		{"clamped_when_over_max", `{"kind":"service","target":"orders","max_depth":99}`, "*1..8]"},
-		{"floored_when_zero", `{"kind":"service","target":"orders","max_depth":0}`, "*1..4]"},
+		{"default_when_absent", `{"kind":"service","target":"orders"}`, "*4..4]"},
+		{"clamped_when_over_max", `{"kind":"service","target":"orders","max_depth":99}`, "*8..8]"},
+		{"floored_when_zero", `{"kind":"service","target":"orders","max_depth":0}`, "*4..4]"},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -308,8 +322,14 @@ func TestFindChangeSurfaceClampsMaxDepth(t *testing.T) {
 			rec := httptest.NewRecorder()
 			handler.findChangeSurface(rec, req)
 			decodeLegacyChangeSurfaceData(t, rec)
+			// The empty fake exhausts no depth, so traversalCypher is the
+			// deepest exact-depth statement: the bound is honored when that
+			// statement reads exactly the clamped max depth.
 			if !strings.Contains(traversalCypher, tc.wantDepth) {
 				t.Fatalf("traversal depth = %q, want contains %q", traversalCypher, tc.wantDepth)
+			}
+			if strings.Contains(traversalCypher, "*1..") {
+				t.Fatalf("traversal must read one exact depth per statement, got: %s", traversalCypher)
 			}
 		})
 	}

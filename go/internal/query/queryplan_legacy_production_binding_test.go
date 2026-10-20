@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
@@ -160,7 +161,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		_, err := handler.readHostedRepositoryCount(context.Background())
 		return err
 	})
-	changeSurface := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
+	changeSurface := captureLegacyQueryplanCypherFamily(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &ImpactHandler{Neo4j: graphQuery}
 		_, err := handler.RunChangeSurfaceOutgoing(
 			context.Background(), "(start:Workload {id: $target_id})", "",
@@ -173,7 +174,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		AllowedRepositoryIDs: []string{"repository:proof"},
 		AllowedScopeIDs:      []string{"scope:proof"},
 	}
-	changeSurfaceScoped := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
+	changeSurfaceScoped := captureLegacyQueryplanCypherFamily(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &ImpactHandler{Neo4j: graphQuery}
 		_, err := handler.RunChangeSurfaceOutgoing(
 			context.Background(), "(start:Workload {id: $target_id})", "",
@@ -182,7 +183,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		)
 		return err
 	})
-	changeSurfaceConsumers := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
+	changeSurfaceConsumers := captureLegacyQueryplanCypherFamily(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &ImpactHandler{Neo4j: graphQuery}
 		_, err := handler.RunChangeSurfaceRepositoryConsumers(
 			context.Background(), "", impact.ChangeSurfaceLegacyDefaultDepth, 10,
@@ -191,7 +192,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		)
 		return err
 	})
-	changeSurfaceConsumersScoped := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
+	changeSurfaceConsumersScoped := captureLegacyQueryplanCypherFamily(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &ImpactHandler{Neo4j: graphQuery}
 		_, err := handler.RunChangeSurfaceRepositoryConsumers(
 			context.Background(), "", impact.ChangeSurfaceLegacyDefaultDepth, 10,
@@ -358,4 +359,25 @@ func captureLegacyQueryplanCypher(
 		t.Fatalf("captured production Cypher count = %d, want 1", len(graphQuery.cypher))
 	}
 	return graphQuery.cypher[0]
+}
+
+// captureLegacyQueryplanCypherFamily captures a per-depth change-surface
+// read, which emits one statement per depth instead of one statement.
+// Against the empty capture backend no depth exhausts, so the joined text is
+// the maximal statement set for the requested depth, in traversal order; a
+// probe-full production read emits a prefix of it. Every other pinned read
+// stays on captureLegacyQueryplanCypher's exactly-one statement.
+func captureLegacyQueryplanCypherFamily(
+	t *testing.T,
+	invoke func(*legacyQueryplanCaptureGraph) error,
+) string {
+	t.Helper()
+	graphQuery := &legacyQueryplanCaptureGraph{}
+	if err := invoke(graphQuery); err != nil {
+		t.Fatalf("capture production Cypher: %v", err)
+	}
+	if len(graphQuery.cypher) == 0 {
+		t.Fatal("captured no production Cypher")
+	}
+	return strings.Join(graphQuery.cypher, "\n;\n")
 }

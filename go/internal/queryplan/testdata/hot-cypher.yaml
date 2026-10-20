@@ -539,8 +539,8 @@ entries:
     source:
       file: go/internal/query/impact/change_surface_traversal.go
       symbol: (*Handler).RunChangeSurfaceOutgoing
-      source_sha256: e087c635001e978dbe2a82f8e77577b9894d9c70f4bc48106fae212cb3317101
-      line_hint: 106
+      source_sha256: cab74f6f4a52e7f8869f984087eddae76630093ab1d278f1b6e0b6c5962ba08a
+      line_hint: 143
     required_anchors:
       - label: Workload
         property: id
@@ -551,7 +551,7 @@ entries:
       - $limit
     requires_order: true
     caveats:
-      - The traversal start label is resolved per target kind via changeSurfaceTraversalStartMatch; the Workload anchor is the dense service-kind shape that issue #3384 bounded. The recorded depth *1..4 is the production default (normalizeChangeSurfaceLegacyDepth defaults to 4); the call site clamps the requested max_depth to [1, 8]. The canonical shape pins the bounded default rather than the maximum so the hot-path gate cannot bless the hardcoded *1..8 the fix removed (see TestFindChangeSurfaceServiceKindAnchorsLabeledStartAndBoundsDepth, which rejects *1..8).
+      - The traversal start label is resolved per target kind via changeSurfaceTraversalStartMatch; the Workload anchor is the dense service-kind shape that issue #3384 bounded. The call site clamps the requested max_depth to [1, 8]. Since #7677 the read is order-preserving iterative deepening: one exact-depth [*d..d] statement per depth, merged depth-major, so the page equals the old [*1..4] ORDER BY depth, name, id page while a shallow probe-full page never expands the deep fan-out. The pinned text is the maximal family for the default depth 4 (joined in traversal order); a probe-full production read emits a prefix of it.
     plan:
       operators:
         - NodeIndexSeek
@@ -560,7 +560,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "c1bcb4a443253ad9d00a4ae7011ecb2bf0e7138325fd3f57477f7bcc82392c3a"
+    cypher_sha256: "f00bdf5ef5c4649fa86cdd39edeb339ff0edf36f4d568cd185261d8c02dd0010"
   - id: QP-IMPACT-CHANGE-SURFACE-SCOPED
     domain: impact
     backend: nornicdb
@@ -568,8 +568,8 @@ entries:
     source:
       file: go/internal/query/impact/change_surface_traversal.go
       symbol: (*Handler).RunChangeSurfaceOutgoing
-      source_sha256: e087c635001e978dbe2a82f8e77577b9894d9c70f4bc48106fae212cb3317101
-      line_hint: 106
+      source_sha256: cab74f6f4a52e7f8869f984087eddae76630093ab1d278f1b6e0b6c5962ba08a
+      line_hint: 143
     required_anchors:
       - label: Workload
         property: id
@@ -580,7 +580,7 @@ entries:
       - $limit
     requires_order: true
     caveats:
-      - Scoped change-surface reads apply repository and scope grants before the global ORDER/LIMIT. The property-owned and Repository-owned branches use a CALL-subquery UNION because pinned NornicDB executes both subquery arms but silently ignores the second arm of a top-level UNION.
+      - Scoped change-surface reads apply repository and scope grants before the per-depth ORDER/LIMIT. The property-owned and Repository-owned branches use a CALL-subquery UNION because pinned NornicDB executes both subquery arms but silently ignores the second arm of a top-level UNION. Since #7677 the wrapper runs once per exact depth [*d..d] and merges depth-major; the pinned text is the maximal family for the default depth 4.
     plan:
       operators:
         - NodeIndexSeek
@@ -589,7 +589,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "bec2c0827f2e94edfaa1f66f638ea1d2f70d3083e9d637bb6f96ce7ea6156687"
+    cypher_sha256: "2456d561fd0cfd1db990656ae1521b8b9ef66ce7ffa003082c1c0d812c2c8501"
   - id: QP-IMPACT-CHANGE-SURFACE-CONSUMERS
     domain: impact
     backend: nornicdb
@@ -597,8 +597,8 @@ entries:
     source:
       file: go/internal/query/impact/change_surface_traversal.go
       symbol: (*Handler).RunChangeSurfaceRepositoryConsumers
-      source_sha256: 6bbfe251f9fd783d3402aeb50e264efa98e740e6ce2fdecf3d45a73ef1a6772c
-      line_hint: 140
+      source_sha256: ee4aae1da123035bf30bdf413e90c842e687e46080b4e7f35389ed59f84c236b
+      line_hint: 181
     required_anchors:
       - label: Repository
         property: id
@@ -609,7 +609,7 @@ entries:
       - "11"
     requires_order: true
     caveats:
-      - Repository dependency impact follows incoming DEPENDS_ON edges because the stored edge points from consumer to dependency. The traversal is a separate bounded single-clause read to avoid NornicDB's silent-empty multi-clause and top-level UNION shapes; the handler merges the two eventually consistent read snapshots deterministically.
+      - Repository dependency impact follows incoming DEPENDS_ON edges because the stored edge points from consumer to dependency. The traversal is a separate bounded single-clause read to avoid NornicDB's silent-empty multi-clause and top-level UNION shapes; the handler merges the two eventually consistent read snapshots deterministically. Since #7677 it reads one exact depth per statement and merges depth-major; the pinned text is the maximal family for the default depth 4.
     plan:
       operators:
         - NodeIndexSeek
@@ -618,7 +618,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "e99de77e702476efce7933fdc1158b4e6ed787d2df060013c8ed91323c026708"
+    cypher_sha256: "9e4c6c86da6275f548d35bd727497a286655b6087669dbd18017554915491dd6"
   - id: QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED
     domain: impact
     backend: nornicdb
@@ -626,8 +626,8 @@ entries:
     source:
       file: go/internal/query/impact/change_surface_traversal.go
       symbol: (*Handler).RunChangeSurfaceRepositoryConsumers
-      source_sha256: 6bbfe251f9fd783d3402aeb50e264efa98e740e6ce2fdecf3d45a73ef1a6772c
-      line_hint: 140
+      source_sha256: ee4aae1da123035bf30bdf413e90c842e687e46080b4e7f35389ed59f84c236b
+      line_hint: 181
     required_anchors:
       - label: Repository
         property: id
@@ -638,7 +638,7 @@ entries:
       - "11"
     requires_order: true
     caveats:
-      - Scoped repository-consumer impact binds the impacted Repository id to the caller's repository and scope grants before ORDER/LIMIT, preventing denied consumers from starving authorized results or setting truncation metadata.
+      - Scoped repository-consumer impact binds the impacted Repository id to the caller's repository and scope grants before the per-depth ORDER/LIMIT, preventing denied consumers from starving authorized results or setting truncation metadata. Since #7677 it reads one exact depth per statement and merges depth-major; the pinned text is the maximal family for the default depth 4.
     plan:
       operators:
         - NodeIndexSeek
@@ -647,7 +647,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "65d78abe8f017f7586889fcb4c1c7437e7339b982c0c4e0d8500360dba51eda9"
+    cypher_sha256: "6e9e21cadc9d1f258ac5c1dfda966591b5b54dbe998edd2c5837b6735243d664"
   - id: QP-IMPACT-FLUX-BINDINGS-FIRST-HOP
     domain: impact
     backend: nornicdb
