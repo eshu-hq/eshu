@@ -168,6 +168,11 @@ const (
 	// only some items. One constant keeps a typo from splitting the status
 	// cardinality across the recorder, the log switch and the ack paths.
 	ackStatusOutcomeUnknown = "ack_outcome_unknown"
+	// batchDropUnassignedWorkerID marks a drop record for an item that was
+	// never handed to a worker (dropped between claim and handoff or
+	// mid-handoff). One constant keeps the sentinel from reading as a worker
+	// index on dashboards or in logs (#8625 review).
+	batchDropUnassignedWorkerID = -1
 )
 
 // errAckAbandonedToLeaseExpiry marks an ack, batch or single-item, whose
