@@ -110,7 +110,7 @@ func changeSurfaceDepthCallDepths(calls []changeSurfaceRunCall) []int {
 // TestRunChangeSurfaceOutgoingStopsWhenFirstDepthFillsProbe pins the #7677
 // fast path: when depth 1 alone returns the full limit+1 probe, no deeper
 // statement runs. On the filed anchor this is the whole page: one cheap
-// depth-1 read replaces the 190,405-path [*1..4] enumeration.
+// depth-1 read replaces the full [*1..4] enumeration.
 func TestRunChangeSurfaceOutgoingStopsWhenFirstDepthFillsProbe(t *testing.T) {
 	t.Parallel()
 
