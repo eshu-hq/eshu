@@ -253,7 +253,7 @@ func (h *overlayHarness) commit(ctx context.Context, gen overlayGen) error {
 	repoPath := h.repo.LocalPath
 	envelopes := []facts.Envelope{gitcontent.RepositoryFactEnvelope(
 		repoPath, h.repo, "run-"+gen.id, h.scope.ScopeID, gen.id, observed, len(gen.files),
-		nil, false, "main", nil, gen.delta, gen.changed, gen.deleted, false,
+		nil, false, "main", nil, gen.delta, gen.changed, gen.deleted, false, false, // reconcile, emptyScope
 	)}
 	for _, file := range gen.files {
 		envelopes = append(envelopes,

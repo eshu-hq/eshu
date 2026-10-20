@@ -112,6 +112,12 @@ type Repository struct {
 	// DeltaGeneration.
 	ReconciliationGeneration *bool `json:"reconciliation_generation,omitempty"`
 
+	// EmptyScope reports whether the collector walked this scope and
+	// observed zero files, so a file-less materialization is genuine
+	// emptiness rather than facts gone missing (#8657). Optional: written
+	// only when declared, so absent stays distinct from an observed false.
+	EmptyScope *bool `json:"empty_scope,omitempty"`
+
 	// DeltaRelativePaths lists the repo-relative paths changed in this delta
 	// generation. Optional: written only alongside DeltaGeneration.
 	DeltaRelativePaths []string `json:"delta_relative_paths,omitempty"`
