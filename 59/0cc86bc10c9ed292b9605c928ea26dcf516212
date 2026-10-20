@@ -1,0 +1,16 @@
+specs/fact-kind-registry-contracts.d/bindings/reducer/handle_submodule.yaml
+  h_78a442cba0b3e6 8
+specs/fact-kind-registry-contracts.d/bindings/reducer/shared_projection_row_repo_i_d.yaml
+  h_78a442cba0b3e6 5,9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "590cc86bc10c9ed292b9605c928ea26dcf516212",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
