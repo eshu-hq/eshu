@@ -191,7 +191,10 @@ func TestRetentionTimingP8(t *testing.T) {
 			if err != nil {
 				t.Fatalf("prune: %v", err)
 			}
-			wal := readWALStats(t, db).since(walBefore)
+			// The settled read waits out the backend-stats flush throttle on
+			// sub-second runs (trial DEFAULT_5 read wal_bytes=0 here); the TIMING
+			// line schema is unchanged.
+			wal := readWALStatsSettled(t, db, walBefore).since(walBefore)
 			if fixture.ledger {
 				_ = db.QueryRowContext(ctx, fixture.bigLinkQuery()).Scan(&bigAfter)
 			}
@@ -233,6 +236,63 @@ func TestRetentionTimingP8(t *testing.T) {
 type walStats struct {
 	records, fpi, bytes, buffersFull, lsn  int64
 	timed, requested, done, buffersWritten int64
+}
+
+// maxWALSettlePolls and walSettlePollInterval bound the wait for a throttled
+// backend-stats flush after a sub-second prune. The documented minimum
+// spacing is PGSTAT_MIN_INTERVAL (1s), but a live PG 18.6 micro-repro showed
+// a fully idle writer backend holding its pending stats for ~9s twice
+// (74.4M LSN advanced with wal_bytes_delta=0, converging to 99.5% at
+// ~t+9-10s with no further writer activity), so the bound covers 15s and
+// readWALStatsSettled gives up with the last sample past it.
+const (
+	maxWALSettlePolls     = 150
+	walSettlePollInterval = 100 * time.Millisecond
+	// settleMinWALBytes floors the agreement check: below 64KB of inserted
+	// WAL there is nothing material to undercount (the smallest measured
+	// prune wrote 15.4MB), so tiny or idle runs settle at once instead of
+	// burning the bound on background-WAL noise.
+	settleMinWALBytes = 64 * 1024
+	// settleWALNumerator/settleWALDenominator require the flushed counters
+	// to account for at least 95% of the inserted WAL. Clean runs agree at
+	// 96-100% (slow trials 146.3M/147.3M; DEFAULT_3 14.8M/15.4M; live
+	// micro-repro ~100% after converge); the race reads 0%.
+	settleWALNumerator   = 19
+	settleWALDenominator = 20
+)
+
+// walFlushSettled reports whether an after-prune sample needs no more
+// waiting. The race signature is inserted-but-unaccounted WAL: the LSN
+// advanced several megabytes past before while the flushed counters show
+// none of it (trial DEFAULT_5: wal_bytes=0 with lsn_bytes=15.4M on a 702ms
+// run) or only background noise (live micro-repro: +50 bytes against +74.5M
+// LSN). A bare bytes>before check would accept that noise as settled.
+func walFlushSettled(before, after walStats) bool {
+	lsnDelta := after.lsn - before.lsn
+	if lsnDelta <= settleMinWALBytes {
+		return true
+	}
+	return (after.bytes-before.bytes)*settleWALDenominator >= lsnDelta*settleWALNumerator
+}
+
+// settleWALStats polls until walFlushSettled holds or the bound expires,
+// returning the last sample either way. poll and sleep are parameters so the
+// wait is unit-testable without a database.
+func settleWALStats(before walStats, poll func() walStats, sleep func(time.Duration)) walStats {
+	after := poll()
+	for i := 0; i < maxWALSettlePolls && !walFlushSettled(before, after); i++ {
+		sleep(walSettlePollInterval)
+		after = poll()
+	}
+	return after
+}
+
+// readWALStatsSettled samples WAL stats after a prune, waiting out the
+// documented backend-stats flush throttle when the first sample shows the
+// race signature. Clean runs return after one sample with no sleep.
+func readWALStatsSettled(t *testing.T, db *sql.DB, before walStats) walStats {
+	t.Helper()
+	return settleWALStats(before, func() walStats { return readWALStats(t, db) }, time.Sleep)
 }
 
 func readWALStats(t *testing.T, db *sql.DB) walStats {
