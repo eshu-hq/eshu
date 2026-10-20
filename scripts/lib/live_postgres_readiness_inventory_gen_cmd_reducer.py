@@ -7,6 +7,10 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./cmd/reducer": {
+        "go/cmd/reducer/config_artifact_walker_live_test.go": (
+            "TestConfigArtifactWalkerCycleLive",
+            "TestConfigArtifactWalkerSkipsFailedRepositoriesLive",
+        ),
         "go/cmd/reducer/package_manifest_backfill_live_test.go": (
             "TestPackageManifestBackfillOnlyOneCandidateOwnsPass",
             "TestPackageManifestBackfillDoesNotStarveSingleConnectionPool",

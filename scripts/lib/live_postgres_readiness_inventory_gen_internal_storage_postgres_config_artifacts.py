@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres/config/artifacts": {
+        "go/internal/storage/postgres/config/artifacts/backfill_live_test.go": (
+            "TestBackfillMarkerRoundTripLive",
+        ),
         "go/internal/storage/postgres/config/artifacts/derive_duplicate_live_test.go": (
             "TestDeriveDuplicateRowDigestFailsLoudlyLive",
             "TestDeriveRederiveReplacesRowsWithoutConflictLive",
@@ -96,6 +99,9 @@ TABLE = {
             "TestRowKeyRejectsADuplicateRowLive",
             "TestReadModelCatalogLive",
             "TestMigrationReRunsLive",
+        ),
+        "go/internal/storage/postgres/config/artifacts/skipped_live_test.go": (
+            "TestSkippedReposPredicateLive",
         ),
         "go/internal/storage/postgres/config/artifacts/walk_live_test.go": (
             "TestClaimPageWalksEveryRepositoryAndWrapsLive",
