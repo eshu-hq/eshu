@@ -378,3 +378,12 @@ go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/
 # #6694 canonical slice: dated evidence records describing paths as they stood.
 docs/internal/evidence/5994-documentation-sqltable-match-label.md:go/internal/storage/cypher/canonical_documentation_edges.go
 docs/internal/evidence/6649-calls-degree-floor.md:go/internal/storage/cypher/canonical_code_call_edges.go
+
+# #6696 leaf 1 renamed awscloud/services to awscloud/service. These three
+# pointers record the tree as it stood at the time: a released CHANGELOG entry,
+# the byte-identical B-12 golden snapshot descriptions, and a dated evidence
+# note quoting the landed code location. Repointing any of them would rewrite
+# history.
+CHANGELOG.md:go/internal/collector/awscloud/services/ec2/ami_identity.go
+testdata/golden/e2e-20repo-snapshot.json:go/internal/collector/awscloud/services/ec2/ami_identity.go
+docs/internal/evidence/5717-ami-node-class.md:go/internal/collector/awscloud/services/ec2/ami_identity.go

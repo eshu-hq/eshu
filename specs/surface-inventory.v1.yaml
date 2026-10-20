@@ -83,7 +83,7 @@ surfaces:
       projection_surfaces: [aws_cloud_runtime_drift, cloud_asset_resolution, secrets_iam_trust_chain, supply_chain_impact]
       read_surfaces: [GET /api/v0/cloud/inventory, GET /api/v0/cloud/resources, GET /api/v0/replatforming/selectors, GET /api/v0/secrets-iam/posture-summary, list_aws_runtime_drift_findings, list_secrets_iam_identity_trust_chains]
       proof_gates: [cd go && go test ./cmd/collector-aws-cloud ./internal/collector/awscloud ./internal/reducer/... ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/cmd/collector-aws-cloud/testdata, go/internal/collector/awscloud/services]
+      fixture_refs: [go/cmd/collector-aws-cloud/testdata, go/internal/collector/awscloud/service]
       truth_profile: provider_gated
   - category: collector
     name: webhook

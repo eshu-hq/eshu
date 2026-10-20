@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -34,7 +35,8 @@ import (
 //
 // The original bug was an empty-bodied non-default case (`case awscloud.Service<X>:`
 // with nothing after it): the kind was validated but never canonicalized. This
-// guard walks every services/*/scanner.go that uses the trim-switch and asserts
+// guard walks every service/*/scanner.go that uses the trim-switch (including
+// one nested level for the AWS proper-noun groups) and asserts
 // the shape that makes the bug impossible: a default arm (mismatch rejection),
 // no empty-bodied non-default case, and at least one arm that writes
 // boundary.ServiceKind back. A new scanner that copies the old boilerplate fails
@@ -43,42 +45,64 @@ func TestScannerServiceKindSwitchesCanonicalize(t *testing.T) {
 	dir := servicesSourceDir(t)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		t.Fatalf("read services dir %q: %v", dir, err)
+		t.Fatalf("read service dir %q: %v", dir, err)
 	}
 
-	checked, skipped := 0, 0
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		scannerPath := filepath.Join(dir, entry.Name(), "scanner.go")
+	checked, skipped, nested := 0, 0, 0
+	check := func(scannerPath, label string) {
 		if _, statErr := os.Stat(scannerPath); statErr != nil {
-			continue
+			return
 		}
 		fset := token.NewFileSet()
 		file, parseErr := parser.ParseFile(fset, scannerPath, nil, 0)
 		if parseErr != nil {
-			t.Errorf("%s: parse scanner.go: %v", entry.Name(), parseErr)
-			continue
+			t.Errorf("%s: parse scanner.go: %v", label, parseErr)
+			return
 		}
 		sw := findServiceKindSwitch(file)
 		if sw == nil {
 			// The scanner does not use the trim-switch pattern; this guard only
 			// enforces canonicalization on scanners that do.
 			skipped++
-			continue
+			return
 		}
 		checked++
-		assertSwitchCanonicalizes(t, entry.Name(), sw)
+		if strings.Contains(label, "/") {
+			nested++
+		}
+		assertSwitchCanonicalizes(t, label, sw)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		top := filepath.Join(dir, entry.Name())
+		check(filepath.Join(top, "scanner.go"), entry.Name())
+		nested, nestErr := os.ReadDir(top)
+		if nestErr != nil {
+			t.Fatalf("read service dir %q: %v", top, nestErr)
+		}
+		for _, child := range nested {
+			if !child.IsDir() {
+				continue
+			}
+			check(
+				filepath.Join(top, child.Name(), "scanner.go"),
+				entry.Name()+"/"+child.Name(),
+			)
+		}
 	}
 
 	if checked == 0 {
 		t.Fatalf("guard inspected zero service_kind switches under %q; check directory resolution", dir)
 	}
-	t.Logf("service_kind canonicalization guard: %d scanners checked, %d skipped (no trim-switch)", checked, skipped)
+	if nested == 0 {
+		t.Fatalf("guard saw no nested service scanner under %q; the nesting walk is unchecked", dir)
+	}
+	t.Logf("service_kind canonicalization guard: %d scanners checked (%d nested), %d skipped (no trim-switch)", checked, nested, skipped)
 }
 
-// servicesSourceDir resolves go/internal/collector/awscloud/services from this
+// servicesSourceDir resolves go/internal/collector/awscloud/service from this
 // test file's own location so the guard has no dependency on the caller's
 // working directory.
 func servicesSourceDir(t *testing.T) string {
@@ -87,7 +111,7 @@ func servicesSourceDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("cannot resolve current file to locate services dir")
 	}
-	return filepath.Join(filepath.Dir(currentFile), "services")
+	return filepath.Join(filepath.Dir(currentFile), "service")
 }
 
 // findServiceKindSwitch returns the first switch statement in file whose tag is

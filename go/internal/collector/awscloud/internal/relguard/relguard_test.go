@@ -358,13 +358,30 @@ func TestAssertObservationsFailsBadEdge(t *testing.T) {
 // target_type fails here mechanically, which is the whole point of #804.
 func TestLiveScannerTreeHasNoGraphJoinDefects(t *testing.T) {
 	awscloudDir := liveAWSCloudDir(t)
-	servicesDir := filepath.Join(awscloudDir, "services")
+	servicesDir := filepath.Join(awscloudDir, "service")
 	resolved, unresolved, err := relguard.ValidateEmitted(awscloudDir, servicesDir)
 	if err != nil {
 		t.Fatalf("live scanner tree has graph-join target_type defects:\n%v", err)
 	}
 	if resolved == 0 {
 		t.Fatal("guard resolved zero target_type literals; the walk did not see the live scanner tree")
+	}
+	// The AWS proper-noun services nest one level under service/; this pins
+	// the nested half of the walk observably so a regression that drops the
+	// nested loop fails here instead of passing with fewer literals.
+	literals, _, litErr := relguard.EmittedTargetTypeLiterals(servicesDir)
+	if litErr != nil {
+		t.Fatalf("re-list live scanner tree literals: %v", litErr)
+	}
+	nested := false
+	for _, lit := range literals {
+		if strings.Contains(lit.File, filepath.Join("catalog", "app_registry")+string(filepath.Separator)) {
+			nested = true
+			break
+		}
+	}
+	if !nested {
+		t.Fatal("walk saw no nested service package literals; the nesting walk is unchecked")
 	}
 	// The fleet mixes static literals and data-dependent helpers; both must be
 	// present for the two-layer guard to be meaningful. This asserts the walk is

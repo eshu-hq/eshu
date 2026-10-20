@@ -30,7 +30,7 @@ Scoped agent instructions for the live Vault source lane (issue #25, #1344).
 ## Patterns to follow
 
 - Mirror `internal/collector/kuberneteslive` for the live-source / client-seam /
-  claim-driven shape, and `internal/collector/awscloud/services/iam` for
+  claim-driven shape, and `internal/collector/awscloud/service/iam` for
   runtimebind registration when wiring the live adapter.
 - Reuse `internal/collector/secretsiam` observation types and envelope builders;
   do not duplicate redaction logic.

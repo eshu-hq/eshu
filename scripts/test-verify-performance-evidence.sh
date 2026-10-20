@@ -130,8 +130,8 @@ git -C "${new_collector_repo}" commit -q -m 'new collector query'
 expect_fail "${new_collector_repo}"
 
 new_concurrency_repo="$(init_repo new-concurrency)"
-mkdir -p "${new_concurrency_repo}/go/internal/collector/awscloud/services/s3"
-cat >"${new_concurrency_repo}/go/internal/collector/awscloud/services/s3/runner.go" <<'GO'
+mkdir -p "${new_concurrency_repo}/go/internal/collector/awscloud/service/s3"
+cat >"${new_concurrency_repo}/go/internal/collector/awscloud/service/s3/runner.go" <<'GO'
 package s3
 
 type Runner struct {

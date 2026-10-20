@@ -188,10 +188,17 @@ rg -UPo --no-filename \
 # ref, or the repo is a single-commit fixture) skip the diff entirely.
 : >"$new_stages_tmp"
 if [ -n "$base" ]; then
-  if git -C "$repo_root" diff --name-only --diff-filter=A "$base"...HEAD >"$tmp_diff" 2>/dev/null; then
+  # Pair renames explicitly with a high rename limit: a pure package move
+  # (e.g. the #6696 services/ to service/ rename, ~1300 files) must not read
+  # as thousands of added stage files. Without -M, a diff that exceeds git's
+  # rename-detection limit degrades to delete+add and every moved file is
+  # reported uncovered; with it, moves vanish from the --diff-filter=A set
+  # while genuinely new files still appear. The (3b) stale-target check below
+  # is unaffected: rows naming removed paths fail there regardless.
+  if git -C "$repo_root" -c diff.renameLimit=20000 diff --find-renames --name-only --diff-filter=A "$base"...HEAD >"$tmp_diff" 2>/dev/null; then
     :
   else
-    git -C "$repo_root" diff --name-only --diff-filter=A "$base" HEAD >"$tmp_diff"
+    git -C "$repo_root" -c diff.renameLimit=20000 diff --find-renames --name-only --diff-filter=A "$base" HEAD >"$tmp_diff"
   fi
   while IFS= read -r file; do
     [ -n "$file" ] || continue

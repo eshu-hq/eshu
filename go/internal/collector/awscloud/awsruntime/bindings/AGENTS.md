@@ -9,7 +9,7 @@
 ## Invariants
 
 - Keep `bindings.go` a pure list of blank imports of
-  `internal/collector/awscloud/services/<svc>/runtimebind` packages.
+  `internal/collector/awscloud/service/<svc>/runtimebind` packages.
 - Keep the list alphabetical so reviewers can verify completeness at a
   glance.
 - Do not import anything else. Configuration, validation, and selection
