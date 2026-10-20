@@ -207,6 +207,11 @@ type Service struct {
 	// ackRetryBase is the first backoff between transient ack retries, batch or
 	// single-item; zero uses defaultAckRetryBase. Tests shrink it.
 	ackRetryBase time.Duration
+
+	// batchWorkerTestHooks are the ordering points batch-cancel proofs use
+	// to place shutdown inside one worker handoff. Only same-package tests
+	// set them; production wiring never does (#8636).
+	batchWorkerTestHooks
 }
 
 // Run polls for reducer work until the context is canceled. If a
