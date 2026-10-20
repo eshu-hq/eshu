@@ -447,7 +447,7 @@ func TestCheckRequiredStatusWorkflows_RepositoryPublisherExitsZeroAfterPostingVe
 	if err != nil {
 		t.Fatalf("locate the repository's terminal publisher: %v", err)
 	}
-	for _, code := range []int{awaitExitPassedCode, awaitExitGateFailedCode, awaitExitBrokenCode, awaitExitGateCancelledCode, awaitExitReusedCode, publisherUnclassifiedProbeCode} {
+	for _, code := range []int{awaitExitPassedCode, awaitExitGateFailedCode, awaitExitBrokenCode, awaitExitGateCancelledCode, awaitExitReusedCode, awaitExitSmokePassedCode, publisherUnclassifiedProbeCode} {
 		observed, err := EvaluatePublisher(run, code)
 		if err != nil {
 			t.Fatalf("evaluate repository publisher for %d: %v", code, err)
@@ -476,6 +476,7 @@ func TestPublisherProbeCodeIsNotARealAwaitExitCode(t *testing.T) {
 		awaitExitBrokenCode,
 		awaitExitGateCancelledCode,
 		awaitExitReusedCode,
+		awaitExitSmokePassedCode,
 	} {
 		if publisherUnclassifiedProbeCode == code {
 			t.Fatalf("publisherUnclassifiedProbeCode %d collides with a real await exit code",

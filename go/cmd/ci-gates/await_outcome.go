@@ -168,7 +168,7 @@ var (
 	errSmokeProven = errors.New("smoke subset passed on a clean rebase")
 )
 
-// classifyAwaitOutcome decides which of the five non-success meanings an
+// classifyAwaitOutcome decides which of the six non-success meanings an
 // await error carries. Anything unrecognized is `broken`, not `gate_failed`:
 // an unclassified error means the publisher does not know what happened, and
 // reporting "a gate failed" on that basis is the overclaim this fixes.
