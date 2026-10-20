@@ -303,7 +303,7 @@ func ncCheck(t *testing.T, database *sql.DB, st ncStatement, staleRows int) []st
 			st.name, v.name, plan.planning, plan.root.SharedHit, plan.root.SharedRead, plan.root.SharedDirtied, plan.root.SharedWritten, len(plan.shape()))
 	}
 	if b, a := plans["before"].shape(), plans["after"].shape(); !reflect.DeepEqual(b, a) {
-		problems = append(problems, fmt.Sprintf("%s: before and after plans differ:\nbefore %v\nafter  %v", st.name, b, a))
+		problems = append(problems, fmt.Sprintf("%s: before and after plans differ:\nbefore %v\nafter  %v\nstats:%s", st.name, b, a, ncStatSnapshot(database)))
 	}
 	for _, v := range texts {
 		ncSeed(t, database, projector, scopes, staleRows)
