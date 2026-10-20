@@ -6,6 +6,7 @@ package canonical
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/decode"
@@ -236,4 +237,58 @@ func isRepositoryLocalRelativePath(relativePath string) bool {
 	}
 	cleaned := path.Clean(relativePath)
 	return cleaned != ".." && !strings.HasPrefix(cleaned, "../")
+}
+
+// rejectSilentFilelessWipe fails a non-first, non-delta build that
+// materialized zero File rows from live (non-tombstone) file facts. The
+// writer's retract phase is unbounded for such a materialization
+// (RetractFilesCypher plus the per-label entity retracts), so succeeding
+// would DETACH DELETE every prior File node and write zero replacements
+// while the projection reports success -- the exact shape observed in issue
+// #7671 (Repository node, no edges, no File nodes, succeeded item).
+//
+// Builds that legitimately carry zero File rows still succeed: first
+// generations run no retract, delta projections retract only their scoped
+// path lists, and an all-tombstone full generation is a mass delete the
+// full retract is meant to carry out. A build whose live file facts were
+// all quarantined still fails: the drops are dead-lettered, but succeeding
+// would wipe the prior graph, so the dead-letters alone are not loud
+// enough. The error names every dropped fact so a recurrence names its
+// fact in the failed projection instead of succeeding silently.
+func rejectSilentFilelessWipe(inputFacts []facts.Envelope, mat CanonicalMaterialization, quarantined []decode.QuarantinedFact) error {
+	if mat.FirstGeneration || mat.DeltaProjection {
+		return nil
+	}
+	if len(mat.Files) > 0 {
+		return nil
+	}
+	quarantinedField := make(map[string]string, len(quarantined))
+	for _, q := range quarantined {
+		if q.FactKind == decode.FactKindFileObserved {
+			quarantinedField[q.FactID] = q.Field + ":" + q.Classification
+		}
+	}
+	var live, tombstoned int
+	var unaccounted []string
+	for _, f := range decode.FilterFileFacts(inputFacts) {
+		if f.IsTombstone {
+			tombstoned++
+			continue
+		}
+		live++
+		if _, ok := quarantinedField[f.FactID]; !ok {
+			unaccounted = append(unaccounted, f.FactID)
+		}
+	}
+	if live == 0 {
+		return nil
+	}
+	var quarantinedIDs []string
+	for factID, field := range quarantinedField {
+		quarantinedIDs = append(quarantinedIDs, factID+" ("+field+")")
+	}
+	sort.Strings(quarantinedIDs)
+	sort.Strings(unaccounted)
+	return fmt.Errorf("build codegraph file materialization: generation %q scope %q carries %d live file facts but projected zero File rows (tombstoned=%d quarantined=%v unaccounted=%v); refusing a file-less success that would retract every prior File node",
+		mat.GenerationID, mat.ScopeID, live, tombstoned, quarantinedIDs, unaccounted)
 }
