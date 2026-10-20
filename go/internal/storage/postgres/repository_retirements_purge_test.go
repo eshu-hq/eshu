@@ -361,4 +361,7 @@ func TestPurgeRefusalsAreSentinelMapped(t *testing.T) {
 	if !errors.Is(err, ErrRetirementTombstoneNotFenced) {
 		t.Fatalf("wrong-phase purge error = %v, want ErrRetirementTombstoneNotFenced", err)
 	}
+	if phaseTx.committed {
+		t.Fatal("wrong-phase purge transaction committed = true, want rollback on refusal")
+	}
 }

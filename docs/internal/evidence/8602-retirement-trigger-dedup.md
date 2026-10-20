@@ -23,10 +23,13 @@ fence-then-purge sequence live test.
 
 No-Regression Evidence: the sentinel change alters error values only.
 No SQL text changes, no new statement, no plan or index change, no
-worker, lease, batch, or concurrency knob change; every message keeps
-its former text as a prefix, so substring consumers match unchanged,
-and the operator trigger maps any purge error to a failed outcome
-retried with the same key with no text matching. Proof: `go test
+worker, lease, batch, or concurrency knob change. The wrong-phase wrap
+appends `: %w` (former text preserved as a prefix); the no-open-tombstone
+line now reads `retirement purge %s: retirement purge: no open tombstone`
+(formerly `retirement purge %s: no open tombstone`). Verified by grep that
+no consumer matches purge error text: the operator trigger maps any purge
+error to a failed outcome retried with the same key, and the old-string
+literal in the base trigger test is a scripted fixture, never a matcher. Proof: `go test
 ./internal/storage/postgres/ -run 'Retirement|Retire'` green (includes
 `TestPurgeRefusalsAreSentinelMapped`, which also pins rollback on both
 refusals), `go test ./internal/query/ ./internal/query/admin/
