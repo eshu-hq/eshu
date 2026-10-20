@@ -366,7 +366,7 @@ func (e differentialGroupRecorder) ExecuteProbe(ctx context.Context, stmt source
 func (e differentialGroupRecorder) ExecuteCountProbe(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
 	prober, ok := e.inner.(sourcecypher.CountProbeExecutor)
 	if !ok {
-		return 0, errDifferentialNoExecuteCountProbe
+		return 0, errors.Join(errDifferentialNoExecuteCountProbe, sourcecypher.ErrCountProbeUnsupported)
 	}
 	return e.recordedCountProbe(stmt, func() (int64, error) {
 		return prober.ExecuteCountProbe(ctx, stmt)

@@ -135,7 +135,7 @@ func (r *RetryingExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bo
 func (r *RetryingExecutor) ExecuteCountProbe(ctx context.Context, stmt Statement) (int64, error) {
 	pe, ok := r.Inner.(CountProbeExecutor)
 	if !ok {
-		return 0, fmt.Errorf("inner executor does not support ExecuteCountProbe")
+		return 0, fmt.Errorf("inner executor does not support ExecuteCountProbe: %w", ErrCountProbeUnsupported)
 	}
 	return pe.ExecuteCountProbe(ctx, stmt)
 }

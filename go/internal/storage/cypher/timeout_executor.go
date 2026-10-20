@@ -277,7 +277,7 @@ func (e TimeoutExecutor) ExecuteCountProbe(ctx context.Context, stmt Statement) 
 	}
 	pe, ok := e.Inner.(CountProbeExecutor)
 	if !ok {
-		return 0, fmt.Errorf("inner executor does not support ExecuteCountProbe")
+		return 0, fmt.Errorf("inner executor does not support ExecuteCountProbe: %w", ErrCountProbeUnsupported)
 	}
 	if e.Timeout <= 0 {
 		return pe.ExecuteCountProbe(ctx, stmt)

@@ -179,7 +179,7 @@ func (i *InstrumentedExecutor) ExecuteProbe(ctx context.Context, stmt Statement)
 func (i *InstrumentedExecutor) ExecuteCountProbe(ctx context.Context, stmt Statement) (int64, error) {
 	pe, ok := i.Inner.(CountProbeExecutor)
 	if !ok {
-		return 0, fmt.Errorf("inner executor does not support ExecuteCountProbe")
+		return 0, fmt.Errorf("inner executor does not support ExecuteCountProbe: %w", ErrCountProbeUnsupported)
 	}
 
 	start := time.Now()

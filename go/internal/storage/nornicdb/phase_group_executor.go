@@ -87,7 +87,10 @@ func (e PhaseGroupExecutor) ExecuteCountProbe(ctx context.Context, stmt sourcecy
 	}
 	pe, ok := e.Inner.(sourcecypher.CountProbeExecutor)
 	if !ok {
-		return 0, errInnerNoCountProbe
+		// No NornicDB terminal implements the seam yet (#8677): the
+		// NornicDB path stays unprobed (surfaced as probe_unsupported)
+		// until one does.
+		return 0, errors.Join(errInnerNoCountProbe, sourcecypher.ErrCountProbeUnsupported)
 	}
 	count, err := pe.ExecuteCountProbe(ctx, stmt)
 	if err != nil {

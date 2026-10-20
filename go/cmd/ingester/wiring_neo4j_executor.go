@@ -250,10 +250,8 @@ func (e ingesterNeo4jExecutor) ExecuteProbe(ctx context.Context, stmt sourcecyph
 
 // ExecuteCountProbe implements sourcecypher.CountProbeExecutor (#8657): it
 // runs stmt (a read-only COUNT query) and reports its count, with the same
-// leader-routed AccessModeWrite session as ExecuteProbe above. See
-// countProbeIntValue in go/cmd/projector/runtime_wiring_probe.go: a copy
-// lives here because cmd packages cannot share unexported helpers; keep the
-// copies behavior-identical.
+// leader-routed AccessModeWrite session as ExecuteProbe above. Integer
+// conversion is the shared sourcecypher.CountProbeIntValue.
 func (e ingesterNeo4jExecutor) ExecuteCountProbe(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
 	if e.Driver == nil {
 		return 0, fmt.Errorf("neo4j driver is required")
@@ -281,7 +279,7 @@ func (e ingesterNeo4jExecutor) ExecuteCountProbe(ctx context.Context, stmt sourc
 	if len(record.Values) == 0 {
 		return 0, fmt.Errorf("count probe returned a row with no columns")
 	}
-	count, ok := ingesterCountProbeIntValue(record.Values[0])
+	count, ok := sourcecypher.CountProbeIntValue(record.Values[0])
 	if !ok {
 		return 0, fmt.Errorf("count probe first column has unexpected type %T", record.Values[0])
 	}
@@ -289,25 +287,6 @@ func (e ingesterNeo4jExecutor) ExecuteCountProbe(ctx context.Context, stmt sourc
 		return 0, err
 	}
 	return count, nil
-}
-
-// ingesterCountProbeIntValue converts the Bolt integer types a COUNT query
-// can return. It mirrors countProbeIntValue in
-// go/cmd/projector/runtime_wiring_probe.go; keep the copies
-// behavior-identical.
-func ingesterCountProbeIntValue(v any) (int64, bool) {
-	switch n := v.(type) {
-	case int64:
-		return n, true
-	case int:
-		return int64(n), true
-	case int32:
-		return int64(n), true
-	case float64:
-		return int64(n), true
-	default:
-		return 0, false
-	}
 }
 
 func (e ingesterNeo4jExecutor) transactionConfigurers() []func(*neo4jdriver.TransactionConfig) {

@@ -323,7 +323,7 @@ func (fe *FaultingExecutor) ExecuteProbe(ctx context.Context, stmt cypher.Statem
 func (fe *FaultingExecutor) ExecuteCountProbe(ctx context.Context, stmt cypher.Statement) (int64, error) {
 	pe, ok := fe.inner.(cypher.CountProbeExecutor)
 	if !ok {
-		return 0, errFaultingExecutorInnerNoCountProbe
+		return 0, errors.Join(errFaultingExecutorInnerNoCountProbe, cypher.ErrCountProbeUnsupported)
 	}
 	return pe.ExecuteCountProbe(ctx, stmt)
 }

@@ -168,6 +168,20 @@ func TestFilelessWipeGuardProceedsWhenProbeUnsupported(t *testing.T) {
 	}
 }
 
+// TestFilelessWipeGuardMapsMidChainGapToUnsupported pins the shared
+// capability sentinel: a count-probe gap below a forwarding wrapper must
+// surface as probe_unsupported (permanent missing seam), not probe_failed
+// (transient probe failure), so operators triaging WARNs can tell them
+// apart. Both proceed; only the outcome differs.
+func TestFilelessWipeGuardMapsMidChainGapToUnsupported(t *testing.T) {
+	t.Parallel()
+
+	wrapped := &RetryingExecutor{Inner: &executeOnlyFilelessExecutor{}}
+	if outcome, err := checkFilelessWipeGuard(context.Background(), wrapped, filelessGuardMat(), false); err != nil || outcome != filelessWipeProbeUnsupported {
+		t.Fatalf("checkFilelessWipeGuard() = (%q, %v), want (probe_unsupported, nil); a mid-chain capability gap must map to unsupported", outcome, err)
+	}
+}
+
 func TestFilelessWipeGuardProceedsWhenProbeFails(t *testing.T) {
 	t.Parallel()
 

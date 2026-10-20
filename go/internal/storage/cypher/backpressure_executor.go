@@ -240,7 +240,7 @@ func (e *BackpressureExecutor) ExecuteProbe(ctx context.Context, stmt Statement)
 func (e *BackpressureExecutor) ExecuteCountProbe(ctx context.Context, stmt Statement) (int64, error) {
 	pe, ok := e.inner.(CountProbeExecutor)
 	if !ok {
-		return 0, errInnerNoExecuteProbe
+		return 0, errors.Join(errInnerNoExecuteProbe, ErrCountProbeUnsupported)
 	}
 	release, err := e.gate.Acquire(ctx, string(stmt.Operation))
 	if err != nil {

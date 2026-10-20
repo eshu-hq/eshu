@@ -5,6 +5,7 @@ package cypher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -150,6 +151,9 @@ func checkFilelessWipeGuard(
 		Cypher:     priorFileCountProbeCypher,
 		Parameters: map[string]any{"repo_id": mat.RepoID},
 	})
+	if errors.Is(err, ErrCountProbeUnsupported) {
+		return filelessWipeProbeUnsupported, nil
+	}
 	if err != nil || priorFiles < 0 {
 		return filelessWipeProbeFailed, nil
 	}
@@ -164,12 +168,11 @@ func checkFilelessWipeGuard(
 	}
 }
 
-// refuseFilelessWipe records the refusal on the write span and returns it
-// through the retryable-error wrapper. A refusal is already retryable, and
-// WrapRetryableNeo4jError passes non-Neo4j errors through unchanged.
-func refuseFilelessWipe(writeSpan trace.Span, err error) error {
-	writeSpan.RecordError(err)
-	writeSpan.SetStatus(codes.Error, err.Error())
+// refuseFilelessWipe returns the refusal through the retryable-error
+// wrapper. A refusal is already retryable, and WrapRetryableNeo4jError
+// passes non-Neo4j errors through unchanged. Span recording lives only in
+// recordFilelessWipeGuardOutcome, which already tagged the write span.
+func refuseFilelessWipe(_ trace.Span, err error) error {
 	return WrapRetryableNeo4jError(err)
 }
 
