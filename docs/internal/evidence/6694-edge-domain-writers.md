@@ -69,9 +69,11 @@ precedent):
   (`:51` → `:56` at the new path).
 - `internal/queryplan/testdata/statement-builders.yaml`: 5 new file entries,
   14 builders re-derived from discovery output (byte-identical templates,
-  new `source_sha256` over qualified source). No exempt added: execution
-  proof stays with the CI B-7/B-12 replay; any `never-executed` finding there
-  takes the standard zero-executions exempt with the capture as evidence.
+  new `source_sha256` over qualified source). The CI B-7 differential capture
+  (pair1+pair2 neo4j+nornicdb) executes 1 of the 14 and records zero
+  executions of the other 13 whole-scope/stale retracts on either backend,
+  so those 13 take the standard zero-executions exempt (retract paths stay
+  pinned by leaf unit tests, not the corpus replay).
 - Package docs: leaf `doc.go`/`README.md` name the five writers; root
   `AGENTS.md` evidence commands point at the leaf package.
 
