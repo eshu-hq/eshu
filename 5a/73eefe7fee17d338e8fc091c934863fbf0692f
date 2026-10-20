@@ -1,0 +1,26 @@
+.github/static-contract-filters.yml
+  h_78a442cba0b3e6 181
+docs/internal/design/5385-workload-identity-key.md
+  h_78a442cba0b3e6 634
+docs/internal/design/5385-workload-identity-migration.md
+  h_78a442cba0b3e6 56,362,365,443
+docs/public/reference/cypher-performance.md
+  h_78a442cba0b3e6 939
+go/internal/mcp/route_serves_data_registry.go
+  h_78a442cba0b3e6 138
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  h_78a442cba0b3e6 240,259
+scripts/moved-file-refs-allowlist.txt
+  h_78a442cba0b3e6 378-380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a73eefe7fee17d338e8fc091c934863fbf0692f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
