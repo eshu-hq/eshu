@@ -10,7 +10,8 @@ repo_root="$(cd "$here/.." && pwd)"
 tmp="$(mktemp -d)"
 # Retry teardown: an async host indexer may hold a fixture .git entry open in
 # the teardown window; a single rm then fails ENOTEMPTY and masks green
-# assertions. Retry briefly, then fail loud.
+# assertions. Retry briefly, then fail loud. Budget assumes release within
+# ~5s; a longer hold still fails loud, surfacing the slow indexer.
 clean_tmp() { local i; for i in 1 2 3 4 5; do rm -rf "$tmp" 2>/dev/null && return 0; sleep 1; done; rm -rf "$tmp" || exit 1; }
 trap 'clean_tmp' EXIT
 

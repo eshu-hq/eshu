@@ -63,6 +63,8 @@ temp_root="$(mktemp -d)"
 # Retry teardown: an async host indexer (git-ai daemon via Trace2) may hold a
 # fixture .git/ai entry open in the teardown window; a single rm then fails
 # with ENOTEMPTY and masks green assertions. Retry briefly, then fail loud.
+# Budget assumes release within ~5s; a longer hold still fails loud,
+# surfacing the slow indexer instead of masking it.
 clean_temp_root() {
 	local i
 	for i in 1 2 3 4 5; do

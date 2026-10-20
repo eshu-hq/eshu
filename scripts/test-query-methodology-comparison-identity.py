@@ -24,6 +24,8 @@ class ComparisonIdentityTest(unittest.TestCase):
         # Trace2) may hold a fixture .git/ai entry open in the
         # teardown window; a single cleanup then raises ENOTEMPTY
         # and masks green assertions. Retry briefly, then fail loud.
+        # Budget assumes release within ~5s; a longer hold still
+        # fails loud, surfacing the slow indexer instead of masking it.
         for _ in range(5):
             try:
                 self.temporary.cleanup()
