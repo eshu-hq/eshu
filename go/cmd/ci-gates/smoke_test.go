@@ -5,6 +5,13 @@ package main
 
 import (
 	"context"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -207,4 +214,107 @@ func TestSmokeSubsetAllHeavyIsEmpty(t *testing.T) {
 	if got := smokeSubset(reg, resolved); len(got) != 0 {
 		t.Fatalf("smokeSubset all-heavy = %v, want empty", got)
 	}
+}
+
+// TestSmokeAcceptedDescriptionsMatchPublisherArms pins the coupling
+// between candidateRanFull's allowlist and the required-gates
+// publisher arms. The smoke probe accepts a candidate only when its
+// aggregating status carries the full-run or tree-reuse description,
+// matched by exact text. Rewording either sentence in
+// required-gates.yml is ordinary maintenance, and the publish
+// contract deliberately checks distinctness rather than wording -- so
+// without this test a reword would silently disable smoke with
+// nothing red. The probe fails closed (full await), so the cost is
+// availability, not safety, but a dead perf path with no alarm is
+// still a defect. Read both sides from source: the arm texts from
+// the workflow, the accepted texts from candidateRanFull's switch.
+func TestSmokeAcceptedDescriptionsMatchPublisherArms(t *testing.T) {
+	t.Parallel()
+
+	arms := publisherArmDescriptions(t)
+	allowed := smokeAllowedDescriptions(t)
+	for _, code := range []int{0, 14} {
+		description, ok := arms[code]
+		if !ok {
+			t.Fatalf("required-gates.yml has no %d arm with a description", code)
+		}
+		if !allowed[description] {
+			t.Fatalf("publisher arm %d describes %q, which candidateRanFull does not accept; smoke is silently disabled", code, description)
+		}
+	}
+	if len(allowed) != 2 {
+		t.Fatalf("candidateRanFull accepts %d descriptions, want exactly the full-run and tree-reuse sentences", len(allowed))
+	}
+}
+
+// publisherArmDescriptions reads the single-line `N) ...
+// description='...'` arms out of the required-gates publisher.
+func publisherArmDescriptions(t *testing.T) map[int]string {
+	t.Helper()
+
+	raw, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "workflows", "required-gates.yml"))
+	if err != nil {
+		t.Fatalf("read required-gates.yml: %v", err)
+	}
+	armPattern := regexp.MustCompile(`(?m)^\s*(\d+)\) [^;]*; description='([^']+)' ;;$`)
+	descriptions := make(map[int]string)
+	for _, match := range armPattern.FindAllStringSubmatch(string(raw), -1) {
+		code, err := strconv.Atoi(match[1])
+		if err != nil {
+			t.Fatalf("non-numeric arm %q", match[1])
+		}
+		if _, dup := descriptions[code]; dup {
+			t.Fatalf("duplicate %d arm in required-gates.yml", code)
+		}
+		descriptions[code] = match[2]
+	}
+	return descriptions
+}
+
+// smokeAllowedDescriptions reads the accepted descriptions out of
+// candidateRanFull's switch cases by parsing smoke.go, not by
+// searching it for text. A fixed-string search would still pass if a
+// case were commented out or moved into dead code. Only case-list
+// literals count: any third accept (or a missing one) fails the
+// caller, so widening the allowlist without updating the publisher
+// coupling it claims cannot slip through.
+func smokeAllowedDescriptions(t *testing.T) map[string]bool {
+	t.Helper()
+
+	path := filepath.Join(repoRoot(t), "go", "cmd", "ci-gates", "smoke.go")
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	allowed := make(map[string]bool)
+	found := false
+	for _, decl := range file.Decls {
+		function, ok := decl.(*ast.FuncDecl)
+		if !ok || function.Name.Name != "candidateRanFull" {
+			continue
+		}
+		found = true
+		ast.Inspect(function.Body, func(node ast.Node) bool {
+			clause, ok := node.(*ast.CaseClause)
+			if !ok {
+				return true
+			}
+			for _, expression := range clause.List {
+				literal, ok := expression.(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					t.Fatalf("candidateRanFull case accepts a non-literal")
+				}
+				value, err := strconv.Unquote(literal.Value)
+				if err != nil {
+					t.Fatalf("unquote %s: %v", literal.Value, err)
+				}
+				allowed[value] = true
+			}
+			return true
+		})
+	}
+	if !found {
+		t.Fatalf("%s declares no candidateRanFull", path)
+	}
+	return allowed
 }
