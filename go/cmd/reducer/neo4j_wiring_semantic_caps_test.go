@@ -19,7 +19,7 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBAnnotationCap(
 	executor := &recordingReducerStatementExecutor{}
 	writer, err := semanticEntityWriterForGraphBackend(executor, 500, runtimecfg.GraphBackendNornicDB, func(string) string {
 		return ""
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
@@ -62,7 +62,7 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBTypeAliasCap(t
 	executor := &recordingReducerStatementExecutor{}
 	writer, err := semanticEntityWriterForGraphBackend(executor, 500, runtimecfg.GraphBackendNornicDB, func(string) string {
 		return ""
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
@@ -105,7 +105,7 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBTypeAnnotation
 	executor := &recordingReducerStatementExecutor{}
 	writer, err := semanticEntityWriterForGraphBackend(executor, 500, runtimecfg.GraphBackendNornicDB, func(string) string {
 		return ""
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
@@ -148,7 +148,7 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBFunctionCap(t 
 	executor := &recordingReducerStatementExecutor{}
 	writer, err := semanticEntityWriterForGraphBackend(executor, 500, runtimecfg.GraphBackendNornicDB, func(string) string {
 		return ""
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}

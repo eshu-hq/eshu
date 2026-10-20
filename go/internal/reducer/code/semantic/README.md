@@ -145,6 +145,18 @@ fail-closed — a pending generation (`GenerationNotYetActiveError`,
 retryable) is about to activate, not superseded, so it must retry rather
 than skip.
 
+When the writer's `WithGenerationCheck` fence is armed (#8628, production
+wiring via `postgres.NewGenerationFreshnessCheck`), the writer probes the
+stamped write before every dispatched group — including the first and
+retract-only writes, on both dispatch paths — and aborts a superseded run
+with a partial `EntityWriteResult` plus `ErrGenerationSuperseded`, which
+`Handle` maps to the `mid_write` superseded exit with the partial
+`CanonicalWrites` and no phase publish, poison, or retry. A single
+post-write probe after the completion log then feeds both branches:
+fresh+unmatched keeps the #8587 poison-pill failure, fresh+matched
+succeeds, stale exits `post_write` superseded, and a probe error fails
+closed. The closed `phase` label set is `pre_write`/`mid_write`/`post_write`.
+
 No-Regression Evidence: #6061 relocates this family from
 `internal/reducer/semanticentity` to `internal/reducer/code/semantic`
 without changing its behavior. Every hunk in the moved production files is
@@ -228,6 +240,46 @@ dashboard or alert rule needs a new series. The new
 row with `graph_ports.go` in
 `docs/public/observability/telemetry-coverage.md` (one merged row: the
 coverage file is grandfathered at its line cap and must not grow).
+
+No-Regression Evidence: #8628 arms the writer-side generation fence without
+changing any statement. The writer probes the stamped write's freshness
+before every dispatched group (first, retract-only, and fallback dispatches
+included) through the production `postgres.NewGenerationFreshnessCheck` the
+handler already uses — one read-only primary-key lookup on
+`scope_generations` per group, the same statement the #8611 probes issue.
+Conflict domain: semantic entity repo node/edge rows across row-bounded
+groups; contested resources are the fact_work_items intent row (claim/ack),
+semantic graph nodes/edges by (repo_id, evidence_source), and phase-state
+rows by (scope, generation). No new locks; worker, lease, batch, and retry
+settings are unchanged. It emits no new Cypher, performs no new graph read,
+and changes no batching, transaction grouping, retry classification, or
+executor path: the dispatch loop is a straight move from `writer.go` to
+`writer_fence.go`, and the handler's matched branch gains the post-write
+probe the unmatched branch already ran. Proof: `go test
+./internal/storage/cypher/semantic/entity/ ./internal/reducer/code/semantic/
+./internal/reducer/ ./cmd/reducer/ -count=1` all exit 0, including the ten
+seeded RED/GREEN writer fence tests (pre-first-group abort, mid-write
+partial, fence-error wrap, unstamped fail-closed, nil-check legacy,
+retract-only, fallback, empty-write skip, label-keyed partial count,
+abort-then-converge), the five new handler tests (matched post-write
+supersede RED on the pre-change tree, mid_write abort, error propagation,
+write stamp, fresh rerun publish), and the both-branches wiring pair, with
+the pre-existing suites unchanged.
+
+Observability Evidence: #8628 extends the closed superseded-log phase set
+with `mid_write` (writer fence abort, partial `CanonicalWrites` on the
+result, no phase publish) and runs the post-write probe on matched writes
+too, so a generation superseded after its write exits `post_write`
+superseded instead of succeeding on stale truth. This package still
+registers no instrument: executions stay covered by
+`eshu_dp_reducer_executions_total` and
+`eshu_dp_reducer_run_duration_seconds` under the `reducer.run` span, the
+`mid_write` exit rides the existing superseded Info log, and no dashboard
+or alert rule needs a new series. The extended `generation_gates.go` keeps
+its shared `No-Observability-Change` row with `graph_ports.go` in
+`docs/public/observability/telemetry-coverage.md` (row text updated in
+place; the coverage file is grandfathered at its line cap and must not
+grow).
 
 ## Gotchas / invariants
 

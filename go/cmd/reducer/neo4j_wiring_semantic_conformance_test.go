@@ -35,7 +35,7 @@ func TestSemanticModuleConformanceCasesUseTheReducerWiring(t *testing.T) {
 			t.Parallel()
 
 			production := func(executor sourcecypher.Executor) *entity.SemanticEntityWriter {
-				writer, err := semanticEntityWriterForGraphBackend(executor, tc.neo4jBatchSz, tc.backend, func(string) string { return "" })
+				writer, err := semanticEntityWriterForGraphBackend(executor, tc.neo4jBatchSz, tc.backend, func(string) string { return "" }, nil)
 				if err != nil {
 					t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 				}

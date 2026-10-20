@@ -40,6 +40,10 @@ type EntityWrite struct {
 	SkipRetract     bool
 	DeltaProjection bool
 	DeltaFilePaths  []string
+	// ScopeID and GenerationID stamp the owning generation for the
+	// writer-side freshness fence; empty keeps the legacy unfenced path.
+	ScopeID      string
+	GenerationID string
 }
 
 // EntityWriteResult captures the canonical semantic-entity write outcome.
@@ -158,17 +162,16 @@ func (h Handler) Handle(
 	}
 
 	graphWriteStart := time.Now()
-	writeResult, err := h.Writer.WriteSemanticEntities(ctx, EntityWrite{
-		RepoIDs:         repoIDs,
-		Rows:            rows,
-		SkipRetract:     skipRetract,
-		DeltaProjection: deltaScope.Delta,
-		DeltaFilePaths:  deltaScope.FilePaths,
-	})
-	if err != nil {
-		return reducercontract.Result{}, fmt.Errorf("write semantic entities: %w", err)
-	}
+	writeResult, writeOutcome, fenced, err := h.dispatchSemanticEntityWrite(
+		ctx, intent, semanticEntityWriteRequest(intent, repoIDs, rows, skipRetract, deltaScope),
+	)
 	graphWriteDuration := time.Since(graphWriteStart)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
+	if fenced {
+		return writeOutcome, nil
+	}
 	phasePublishStart := time.Now()
 	if err := h.publishSemanticGraphPhases(ctx, intent.GenerationID, envelopes, repoIDs, len(rows)); err != nil {
 		return reducercontract.Result{}, fmt.Errorf("publish semantic graph phases: %w", err)
@@ -222,19 +225,10 @@ func (h Handler) Handle(
 		totalDuration:           time.Since(totalStart),
 	})
 
-	// Freshness re-check (#8611): unmatched uids on a generation
-	// superseded mid-run exit superseded, never as a derivation bug.
-	if unmatched {
-		return h.resolveSemanticUnmatchedOutcome(ctx, intent, writeResult)
-	}
-
-	return reducercontract.Result{
-		IntentID:        intent.IntentID,
-		Domain:          reducercontract.DomainSemanticEntityMaterialization,
-		Status:          reducercontract.ResultStatusSucceeded,
-		EvidenceSummary: summary,
-		CanonicalWrites: writeResult.CanonicalWrites,
-	}, nil
+	// Single post-write freshness probe (#8628): feeds both the matched and
+	// the unmatched branch, so a generation superseded after its write exits
+	// superseded instead of succeeding or failing as a derivation bug.
+	return h.resolveSemanticPostWriteOutcome(ctx, intent, writeResult, unmatched, summary)
 }
 
 // semanticEntityMaterializationTiming keeps stage durations together so the

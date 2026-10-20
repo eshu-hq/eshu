@@ -12,4 +12,10 @@
 // owns the Executor/Statement seam this package builds on. The parent never
 // imports this package — the dependency runs one way, leaf to parent — so
 // root callers reach the writer through this import path, never the reverse.
+//
+// WithGenerationCheck (writer_fence.go) arms an optional per-group
+// generation fence: every dispatched group, including the first and
+// retract-only writes, probes the write's stamped generation before
+// committing, and a superseded generation aborts with a partial result
+// instead of landing stale rows. A nil check keeps the legacy unfenced path.
 package entity

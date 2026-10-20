@@ -62,7 +62,7 @@ func TestSemanticEntityWriterForGraphBackendNornicDBGroupsRetractWithUpserts(t *
 	t.Parallel()
 
 	exec := &routeRecordingReducerExecutor{}
-	writer, err := semanticEntityWriterForGraphBackend(exec, 100, runtimecfg.GraphBackendNornicDB, func(string) string { return "" })
+	writer, err := semanticEntityWriterForGraphBackend(exec, 100, runtimecfg.GraphBackendNornicDB, func(string) string { return "" }, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
@@ -96,7 +96,7 @@ func TestSemanticEntityWriterForGraphBackendNeo4jRoutesRetractGrouped(t *testing
 	t.Parallel()
 
 	exec := &routeRecordingReducerExecutor{}
-	writer, err := semanticEntityWriterForGraphBackend(exec, 100, runtimecfg.GraphBackendNeo4j, func(string) string { return "" })
+	writer, err := semanticEntityWriterForGraphBackend(exec, 100, runtimecfg.GraphBackendNeo4j, func(string) string { return "" }, nil)
 	if err != nil {
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}

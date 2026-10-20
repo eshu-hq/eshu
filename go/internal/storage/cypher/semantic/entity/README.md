@@ -22,7 +22,8 @@ backend-conformance corpus) reach the writer through this import path.
 - `SemanticEntityWriter`, `NewSemanticEntityWriter` and the four row-shape
   constructors (`WithParameterizedRows`, `WithBatchedProperties`,
   `WithMergeFirstRows`, `WithCanonicalNodeRows`), `WithLabelScopedRetract`,
-  `WithMaxGroupRows`, `WithEntityLabelBatchSize`
+  `WithMaxGroupRows`, `WithEntityLabelBatchSize`, `WithGenerationCheck`
+  (per-group generation fence, `writer_fence.go`)
 - `DefaultMaxGroupRows` — UNWIND row cap per grouped transaction
 - `SemanticEntityEvidenceSource` and the `RetractSemanticEntityContainment*`
   templates plus `SemanticEntityContainmentSourceLabels` /
@@ -37,11 +38,28 @@ See `doc.go` for the package contract.
 - `internal/storage/cypher` (as `sourcecypher`) — executor and statement seam
 - `internal/reducer/code/semantic` — `EntityWrite` / `EntityRow` input contract
 
+## Generation fence (#8628)
+
+`WithGenerationCheck` arms a per-group generation fence on the writer: before
+every dispatched group — including the first group and retract-only writes,
+on both the grouped and the per-statement fallback path — the writer probes
+the write's stamped (`ScopeID`, `GenerationID`) generation. A stale verdict
+aborts with a partial `EntityWriteResult` (`CanonicalWrites` counts
+dispatched labeled upsert rows only) and the `semantic.ErrGenerationSuperseded`
+sentinel; a probe error (including `GenerationNotYetActiveError`) aborts
+wrapped fail-closed; a stale verdict on an unstamped write errors fail-closed;
+a nil check keeps the legacy unfenced path. Each probe is one read-only
+primary-key lookup on `scope_generations`: no new lock, worker, batch, retry,
+or Cypher change.
+
 ## Telemetry
 
 None new. Writes flow through the existing `Executor` dispatch, statement
 summaries, retry wrapping, and failure logs; the oversized-index-key skips
 emit the existing `eshu_dp_graph_oversized_index_keys_skipped_total` counter.
+The fence itself emits no signal: a fenced abort surfaces as the writer's
+error return (existing failure logs), and the handler's `mid_write`
+superseded log covers the operator-visible exit.
 
 ## Gotchas / invariants
 

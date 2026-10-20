@@ -5,12 +5,14 @@ package entity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // DefaultMaxGroupRows caps how many UNWIND parameter rows one grouped
@@ -34,6 +36,10 @@ type SemanticEntityWriter struct {
 	entityLabelBatchSizes map[string]int
 	writeMode             semanticEntityWriteMode
 	retractMode           semanticEntityRetractMode
+	// generationCheck fences every dispatched group on the owning
+	// generation's freshness (#8628); nil keeps the legacy unfenced
+	// path. Set it with WithGenerationCheck (writer_fence.go).
+	generationCheck reducercontract.GenerationFreshnessCheck
 }
 
 // semanticEntityWriteMode names the exact Cypher row shape used by the writer.
@@ -412,31 +418,22 @@ func (w *SemanticEntityWriter) WriteSemanticEntities(
 		})
 	}
 
-	groups := 0
-	if len(stmts) > 0 {
-		// Prefer grouped execution; fall back to per-statement dispatch
-		// for executors that expose only Execute — NornicDB's default
-		// ExecuteOnlyExecutor, and test stubs.
-		if ge, ok := w.executor.(sourcecypher.GroupExecutor); ok {
-			// Split oversized writes into sequential row-bounded groups so
-			// no single transaction exceeds the backend request ceiling.
-			// Groups dispatch in order (retracts lead upserts); a group
-			// failure aborts the write and the work item retry replays all
-			// groups to convergence.
-			split := splitSemanticStatements(stmts, w.groupRowLimit())
-			for i, group := range split {
-				if err := ge.ExecuteGroup(ctx, group); err != nil {
-					return semantic.EntityWriteResult{}, fmt.Errorf("write semantic entities group %d of %d: %w", i+1, len(split), sourcecypher.WrapRetryableNeo4jError(err))
-				}
-				groups++
-			}
-		} else {
-			for _, stmt := range stmts {
-				if err := w.executor.Execute(ctx, stmt); err != nil {
-					return semantic.EntityWriteResult{}, fmt.Errorf("write semantic entities: %w", sourcecypher.WrapRetryableNeo4jError(err))
-				}
-			}
+	// Prefer grouped execution; fall back to per-statement dispatch
+	// for executors that expose only Execute — NornicDB's default
+	// ExecuteOnlyExecutor, and test stubs. Every dispatch passes the
+	// generation fence first (#8628, writer_fence.go).
+	groups, dispatched, err := w.dispatchSemanticStatements(ctx, write, stmts)
+	if err != nil {
+		if errors.Is(err, semantic.ErrGenerationSuperseded) {
+			return semantic.EntityWriteResult{
+				CanonicalWrites:      dispatched,
+				Groups:               groups,
+				RowsAttemptedByLabel: attemptedByLabel,
+				RowsMatchedByLabel:   matchedByLabel,
+				UnmatchedEntityIDs:   unmatchedUIDs,
+			}, err
 		}
+		return semantic.EntityWriteResult{}, err
 	}
 
 	return semantic.EntityWriteResult{
