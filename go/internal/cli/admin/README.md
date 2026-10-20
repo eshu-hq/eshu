@@ -90,6 +90,7 @@ body as `any`:
 | `Skip` | `SkipInput` | `POST /api/v0/admin/skip` |
 | `Backfill` | `BackfillInput` | `POST /api/v0/admin/backfill` |
 | `ListReplayEvents` | `limit int` | `POST /api/v0/admin/replay-events/query` |
+| `Retire` | `RetireInput` | `POST /api/v0/admin/repository-retirements` |
 
 Credential side:
 

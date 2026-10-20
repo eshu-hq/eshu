@@ -176,6 +176,19 @@ func runAdminRepositoryRetire(cmd *cobra.Command, args []string) error {
 	repositories, _ := cmd.Flags().GetStringArray("repository")
 	reason, _ := cmd.Flags().GetString("reason")
 	idempotencyKey, _ := cmd.Flags().GetString("idempotency-key")
+	if strings.TrimSpace(idempotencyKey) == "" {
+		// Mint and print the key before the POST: when the call fails
+		// after the fence commits, the operator retries with this same
+		// key instead of minting a fresh one into already_open. A
+		// production retirement should still pass an explicit
+		// --idempotency-key recorded with the change.
+		generated, err := admin.NewRetireIdempotencyKey()
+		if err != nil {
+			return err
+		}
+		idempotencyKey = generated
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "generated idempotency key: %s (reuse it with --idempotency-key to retry)\n", idempotencyKey)
+	}
 	result, err := admin.Retire(apiClientFromCmd(cmd), admin.RetireInput{
 		Repositories:   repositories,
 		Reason:         reason,

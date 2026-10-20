@@ -163,6 +163,10 @@ tests:
     tag: ~
     class: scheduled
     reason: "#7766 retirement purge and terminal-not-reached live proof, untagged and gated by the ESHU_POSTGRES_DSN env Skip; ran green on disposable PostgreSQL during the lane (docs/internal/evidence/7766-retirement-foundation.md) — promote to blocking with CI timing evidence"
+  - file: go/internal/storage/postgres/repository_retirements_sequence_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8602 retirement fence-then-purge sequence and unfenced-refusal live proof, untagged and gated by the ESHU_POSTGRES_DSN env Skip; ran green on disposable PostgreSQL 18 during the lane — promote to blocking with CI timing evidence"
   - file: go/internal/storage/postgres/ingestion_published_generation_recommit_live_test.go
     tag: ~
     class: dedicated_ci
