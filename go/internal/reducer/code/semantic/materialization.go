@@ -49,7 +49,7 @@ type EntityWrite struct {
 // EntityWriteResult captures the canonical semantic-entity write outcome.
 //
 // On a fence abort only CanonicalWrites/Groups describe the dispatched
-// prefix; the label maps below still cover the full admitted write.
+// prefix; the maps and ID list below still cover the full admitted write.
 type EntityWriteResult struct {
 	CanonicalWrites int
 	// Groups counts grouped transactions dispatched; oversized writes split
