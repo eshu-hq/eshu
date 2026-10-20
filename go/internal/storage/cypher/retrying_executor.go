@@ -126,6 +126,20 @@ func (r *RetryingExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bo
 	return pe.ExecuteProbe(ctx, stmt)
 }
 
+// ExecuteCountProbe delegates to Inner.ExecuteCountProbe when Inner
+// implements CountProbeExecutor, without retrying. It mirrors ExecuteProbe's
+// fail-closed capability check and no-retry rationale (writer.go): the
+// caller treats the "unsupported" error as "unknown" and proceeds with the
+// guarded write, so retrying the read would only hold the caller's scope
+// lease longer before the fail-safe write it was deciding about.
+func (r *RetryingExecutor) ExecuteCountProbe(ctx context.Context, stmt Statement) (int64, error) {
+	pe, ok := r.Inner.(CountProbeExecutor)
+	if !ok {
+		return 0, fmt.Errorf("inner executor does not support ExecuteCountProbe: %w", ErrCountProbeUnsupported)
+	}
+	return pe.ExecuteCountProbe(ctx, stmt)
+}
+
 // runWithRetry centralizes the retry loop for both Execute and ExecuteGroup.
 // classify returns a bounded reason for errors that are safe to retry; do
 // performs the work. Both callers share the same exponential-backoff-with-

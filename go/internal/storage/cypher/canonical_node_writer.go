@@ -144,14 +144,8 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 		return nil
 	}
 
-	// The schema fence runs before any statement is built, so a writer the
-	// applied graph schema has stopped admitting fails here rather than writing
-	// nodes under an identity the current schema no longer uses. See
-	// WithSchemaWriteFence.
-	if w.schemaWriteFence != nil {
-		if err := w.schemaWriteFence(ctx); err != nil {
-			return &schemaFenceError{inner: err}
-		}
+	if err := w.checkSchemaWriteFence(ctx); err != nil {
+		return err
 	}
 
 	// Drop rows whose indexed key the backend would reject before any
@@ -176,12 +170,7 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 		phases = annotateReconciliationDriftWritePhases(phases)
 	}
 	if mat.FirstGeneration {
-		slog.Info(
-			"canonical retract skipped for first generation",
-			"scope_id", mat.ScopeID,
-			"repo_id", mat.RepoID,
-			"generation_id", mat.GenerationID,
-		)
+		logFirstGenerationRetractSkip(mat)
 	}
 	allStatements := flattenCanonicalWritePhases(phases)
 	if len(allStatements) == 0 {
@@ -189,6 +178,10 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat canonical.Canonical
 	}
 	ctx, writeSpan := w.startWriteSpan(ctx, mat, len(allStatements))
 	defer writeSpan.End()
+	// The file-less wipe guard (#8657) refuses before any statement executes.
+	if err := w.runFilelessWipeGuard(ctx, writeSpan, mat); err != nil {
+		return refuseFilelessWipe(writeSpan, err)
+	}
 	if oversizedSkipped > 0 {
 		writeSpan.SetAttributes(attribute.Int("oversized_index_keys_skipped", oversizedSkipped))
 	}

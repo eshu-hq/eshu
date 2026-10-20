@@ -38,6 +38,18 @@ const (
 	// vocabulary is shared, so adding a value here is a routing change and
 	// should be weighed as one.
 	OperationCanonicalProbe Operation = "canonical_probe"
+
+	// OperationCanonicalCountProbe runs a read-only COUNT statement that
+	// reports how many rows a paired retract would remove, without mutating
+	// the graph (see CountProbeExecutor in writer.go). Kept distinct from
+	// OperationCanonicalProbe so probe dashboards keep the existence-probe
+	// ratio (probes to real deletes, #5998) separate from the count probes
+	// the file-less wipe guard (#8657) issues at most once per
+	// CanonicalNodeWriter.Write, and only on file-less builds. Count
+	// statements dispatch only through ExecuteCountProbe, never
+	// Execute/ExecuteGroup, so the value never reaches the grouping,
+	// chunking, or drain paths above.
+	OperationCanonicalCountProbe Operation = "canonical_count_probe"
 )
 
 // --- Cypher templates ---

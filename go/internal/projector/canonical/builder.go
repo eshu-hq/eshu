@@ -97,6 +97,12 @@ func BuildMaterialization(
 	}
 	quarantined = append(quarantined, codegraphQuarantined...)
 
+	// Stamp the file intent for the writer-side conditional retract (#8657),
+	// which tells a file-less build apart from a tombstone-driven mass
+	// delete. A build the guard below rejects returns the zero
+	// materialization and never reaches the writer.
+	mat.FileIntent = summarizeFileIntent(inputFacts)
+
 	// A non-first, non-delta build that drops every live file fact hands the
 	// writer a file-less materialization whose unbounded retract wipes every
 	// prior File node and writes zero replacements, yet reports success

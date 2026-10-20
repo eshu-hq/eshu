@@ -2358,6 +2358,12 @@ type Instruments struct {
 	// Canonical atomic write metrics
 	CanonicalAtomicWrites    metric.Int64Counter
 	CanonicalAtomicFallbacks metric.Int64Counter
+	// CanonicalFilelessWipeGuard counts the canonical writer's file-less
+	// wipe guard decisions (#8657), by the closed outcome
+	// (refused_prior_files, probe_unsupported, probe_failed).
+	// Steady-state projections record nothing: only a refusal or a
+	// degraded unprobed decision moves the counter.
+	CanonicalFilelessWipeGuard metric.Int64Counter
 	// GraphOversizedIndexKeysSkipped counts graph node writes dropped before
 	// they reach the backend because a schema index key exceeded
 	// graph.MaxIndexKeyBytes (#7058). It is emitted by the canonical
@@ -5891,6 +5897,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerCanonicalRepositoryRetirements(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCanonicalFilelessWipeGuard(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerOperatorRepositoryRetirement(meter, inst); err != nil {

@@ -265,6 +265,49 @@ func (e TimeoutExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bool
 	return found, err
 }
 
+// ExecuteCountProbe forwards a read-only COUNT probe with an optional
+// deadline when the wrapped executor supports count probing. It returns an
+// error without attempting the probe when Inner does not implement
+// CountProbeExecutor. Timeout and cancellation map to the same
+// GraphWriteTimeoutError shape as ExecuteProbe with a count-probe
+// operation label, so operators can tell which probe flavor timed out.
+func (e TimeoutExecutor) ExecuteCountProbe(ctx context.Context, stmt Statement) (int64, error) {
+	if e.Inner == nil {
+		return 0, fmt.Errorf("inner executor is required")
+	}
+	pe, ok := e.Inner.(CountProbeExecutor)
+	if !ok {
+		return 0, fmt.Errorf("inner executor does not support ExecuteCountProbe: %w", ErrCountProbeUnsupported)
+	}
+	if e.Timeout <= 0 {
+		return pe.ExecuteCountProbe(ctx, stmt)
+	}
+
+	execCtx, cancel := context.WithTimeout(ctx, e.Timeout)
+	defer cancel()
+
+	count, err := pe.ExecuteCountProbe(execCtx, stmt)
+	if errors.Is(execCtx.Err(), context.DeadlineExceeded) {
+		return 0, timeoutError(
+			"neo4j execute count probe timed out",
+			e.Timeout,
+			e.TimeoutHint,
+			statementSummary(stmt),
+			context.DeadlineExceeded,
+		)
+	}
+	if errors.Is(execCtx.Err(), context.Canceled) {
+		return 0, timeoutError(
+			"neo4j execute count probe canceled before completion",
+			0,
+			"",
+			statementSummary(stmt),
+			context.Canceled,
+		)
+	}
+	return count, err
+}
+
 func timeoutError(prefix string, timeout time.Duration, timeoutHint string, summary string, cause error) error {
 	if errors.Is(cause, context.DeadlineExceeded) {
 		return GraphWriteTimeoutError{

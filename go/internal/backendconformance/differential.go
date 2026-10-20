@@ -323,6 +323,10 @@ var errDifferentialNoExecutePhaseGroup = errors.New("differential inner executor
 // group-capable case.
 var errDifferentialNoExecuteProbe = errors.New("differential inner executor does not support ExecuteProbe")
 
+// errDifferentialNoExecuteCountProbe is the ExecuteCountProbe counterpart
+// for the same group-capable case.
+var errDifferentialNoExecuteCountProbe = errors.New("differential inner executor does not support ExecuteCountProbe")
+
 func (e differentialExecutorRecorder) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
 	return e.recorded(ctx, stmt, func(call context.Context) error {
 		return e.inner.Execute(call, stmt)
@@ -357,6 +361,29 @@ func (e differentialGroupRecorder) ExecuteProbe(ctx context.Context, stmt source
 	return e.recordedProbe(stmt, func() (bool, error) {
 		return prober.ExecuteProbe(ctx, stmt)
 	})
+}
+
+func (e differentialGroupRecorder) ExecuteCountProbe(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
+	prober, ok := e.inner.(sourcecypher.CountProbeExecutor)
+	if !ok {
+		return 0, errors.Join(errDifferentialNoExecuteCountProbe, sourcecypher.ErrCountProbeUnsupported)
+	}
+	return e.recordedCountProbe(stmt, func() (int64, error) {
+		return prober.ExecuteCountProbe(ctx, stmt)
+	})
+}
+
+// recordedCountProbe captures a count probe as a one-row read: the count is
+// the row, so a backend that counts differently digests differently,
+// mirroring recordedProbe's transparency rule for existence probes.
+func (e differentialGroupRecorder) recordedCountProbe(stmt sourcecypher.Statement, run func() (int64, error)) (int64, error) {
+	count, err := run()
+	var rows []map[string]any
+	if err == nil {
+		rows = []map[string]any{{"count": count}}
+	}
+	e.recorder.Add(captureRead(stmt.Cypher, stmt.Parameters, rows, err, e.backend))
+	return count, err
 }
 
 // recordedProbe captures a probe as a one-row read: the found boolean is

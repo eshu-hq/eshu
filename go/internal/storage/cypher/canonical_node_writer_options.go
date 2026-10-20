@@ -58,6 +58,20 @@ func (w *CanonicalNodeWriter) WithSchemaWriteFence(check func(context.Context) e
 	return w
 }
 
+// checkSchemaWriteFence runs the schema fence before any statement is
+// built, so a writer the applied graph schema has stopped admitting fails
+// here rather than writing nodes under an identity the current schema no
+// longer uses. See WithSchemaWriteFence.
+func (w *CanonicalNodeWriter) checkSchemaWriteFence(ctx context.Context) error {
+	if w.schemaWriteFence == nil {
+		return nil
+	}
+	if err := w.schemaWriteFence(ctx); err != nil {
+		return &schemaFenceError{inner: err}
+	}
+	return nil
+}
+
 // WithEntityBatchSize overrides the per-statement row batch size used only for
 // canonical entity upserts. Other canonical phases keep the writer's default
 // batch size.

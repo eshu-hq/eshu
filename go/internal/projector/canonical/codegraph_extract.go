@@ -239,6 +239,22 @@ func isRepositoryLocalRelativePath(relativePath string) bool {
 	return cleaned != ".." && !strings.HasPrefix(cleaned, "../")
 }
 
+// summarizeFileIntent counts the live vs tombstoned file facts a build
+// carried. It is the single source of truth for both the builder-level
+// guard below and the FileIntent summary BuildMaterialization stamps on the
+// materialization for the writer-side conditional retract (#8657).
+func summarizeFileIntent(inputFacts []facts.Envelope) FileIntentSummary {
+	var summary FileIntentSummary
+	for _, f := range decode.FilterFileFacts(inputFacts) {
+		if f.IsTombstone {
+			summary.TombstonedFileFacts++
+			continue
+		}
+		summary.LiveFileFacts++
+	}
+	return summary
+}
+
 // rejectSilentFilelessWipe fails a non-first, non-delta build that
 // materialized zero File rows from live (non-tombstone) file facts. The
 // writer's retract phase is unbounded for such a materialization
@@ -268,14 +284,13 @@ func rejectSilentFilelessWipe(inputFacts []facts.Envelope, mat CanonicalMaterial
 			quarantinedField[q.FactID] = q.Field + ":" + q.Classification
 		}
 	}
-	var live, tombstoned int
+	intent := summarizeFileIntent(inputFacts)
+	live, tombstoned := intent.LiveFileFacts, intent.TombstonedFileFacts
 	var unaccounted []string
 	for _, f := range decode.FilterFileFacts(inputFacts) {
 		if f.IsTombstone {
-			tombstoned++
 			continue
 		}
-		live++
 		if _, ok := quarantinedField[f.FactID]; !ok {
 			unaccounted = append(unaccounted, f.FactID)
 		}

@@ -29,6 +29,9 @@ var (
 	// errFaultingExecutorInnerNoGroup: fails closed rather than silently
 	// reporting probing unsupported through a different error shape.
 	errFaultingExecutorInnerNoProbe = errors.New("faulting executor: inner executor does not support ExecuteProbe")
+	// errFaultingExecutorInnerNoCountProbe is the ExecuteCountProbe
+	// counterpart of errFaultingExecutorInnerNoProbe.
+	errFaultingExecutorInnerNoCountProbe = errors.New("faulting executor: inner executor does not support ExecuteCountProbe")
 )
 
 // FaultingExecutor decorates a cypher Executor with the graph-executor-seam
@@ -310,6 +313,19 @@ func (fe *FaultingExecutor) ExecuteProbe(ctx context.Context, stmt cypher.Statem
 		return false, errFaultingExecutorInnerNoProbe
 	}
 	return pe.ExecuteProbe(ctx, stmt)
+}
+
+// ExecuteCountProbe forwards a read-only COUNT probe to inner
+// unconditionally, for the same reason as ExecuteProbe above: no scripted
+// fault kind targets a read-only probe. It fails closed with
+// errFaultingExecutorInnerNoCountProbe when inner does not implement
+// cypher.CountProbeExecutor.
+func (fe *FaultingExecutor) ExecuteCountProbe(ctx context.Context, stmt cypher.Statement) (int64, error) {
+	pe, ok := fe.inner.(cypher.CountProbeExecutor)
+	if !ok {
+		return 0, errors.Join(errFaultingExecutorInnerNoCountProbe, cypher.ErrCountProbeUnsupported)
+	}
+	return pe.ExecuteCountProbe(ctx, stmt)
 }
 
 // maybeFailOnce fires the scripted fail-graph-write-once-then-succeed fault

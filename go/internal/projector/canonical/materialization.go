@@ -14,14 +14,22 @@ import (
 // repository projection. Built from the same facts that produce content store
 // writes. Written to Neo4j in strict phase order by CanonicalNodeWriter.
 type CanonicalMaterialization struct {
-	ScopeID                     string
-	GenerationID                string
-	RepoID                      string
-	RepoPath                    string // repository path used as Directory chain root
-	FirstGeneration             bool   // true when the scope has no prior generation of ANY status (activated, failed, or superseded), not just no prior ACTIVE one; retract-skip guards rely on this to not miss edges a pre-activation prior generation wrote (#4710)
-	DeltaProjection             bool   // true when the materialization carries a file-scoped delta
-	ReconciliationProjection    bool   // true for a forced full reconciliation snapshot or a re-projection of an active full (#7978)
-	DeclaredEmptyScope          bool   // true when the generation's repository fact declares `empty_scope`: the collector observed zero files, so filelessness is genuine, not facts gone missing (#8668). Carried for the #8657 writer-side conditional retract, which honors it as the escape hatch; the builder itself succeeds clean zero-facts builds either way. Only BuildMaterialization sets it; materializations built elsewhere (for example replay) carry false.
+	ScopeID                  string
+	GenerationID             string
+	RepoID                   string
+	RepoPath                 string // repository path used as Directory chain root
+	FirstGeneration          bool   // true when the scope has no prior generation of ANY status (activated, failed, or superseded), not just no prior ACTIVE one; retract-skip guards rely on this to not miss edges a pre-activation prior generation wrote (#4710)
+	DeltaProjection          bool   // true when the materialization carries a file-scoped delta
+	ReconciliationProjection bool   // true for a forced full reconciliation snapshot or a re-projection of an active full (#7978)
+	DeclaredEmptyScope       bool   // true when the generation's repository fact declares `empty_scope`: the collector observed zero files, so filelessness is genuine, not facts gone missing (#8668). Carried for the #8657 writer-side conditional retract, which honors it as the escape hatch; the builder itself succeeds clean zero-facts builds either way. Only BuildMaterialization sets it; materializations built elsewhere (for example replay) carry false.
+	// FileIntent summarizes the file facts the build carried: live vs
+	// tombstoned file-fact counts. The writer-side conditional retract
+	// (#8657) reads it to tell a file-less build (zero live, zero
+	// tombstoned) over prior File nodes, which must fail loud, from a
+	// tombstone-driven mass delete, which the unbounded retract is meant to
+	// carry out. Only BuildMaterialization sets it; materializations built
+	// elsewhere carry the zero value, which reads as file-less.
+	FileIntent                  FileIntentSummary
 	DeltaFilePaths              []string
 	DeltaDeletedFilePaths       []string
 	DeltaDeletedDirectoryPaths  []string
@@ -48,6 +56,18 @@ type CanonicalMaterialization struct {
 	PackageRegistryDependencies []PackageRegistryDependencyRow
 	PackageRegistryArtifacts    []PackageRegistryArtifactRow
 	PackageRegistryEvents       []PackageRegistryEventRow
+}
+
+// FileIntentSummary carries the file-fact counts a build observed, so a
+// downstream stage that only sees the materialization can still tell why it
+// carries zero File rows. LiveFileFacts counts non-tombstone file facts;
+// TombstonedFileFacts counts tombstone file facts. Both count input facts,
+// not projected rows: quarantined or otherwise dropped live facts still
+// count as live here (the drop is visible through the quarantine
+// dead-letters, and the builder-level guard names them).
+type FileIntentSummary struct {
+	LiveFileFacts       int
+	TombstonedFileFacts int
 }
 
 // IsEmpty reports whether the materialization carries no projectable data.

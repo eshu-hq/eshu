@@ -14,9 +14,10 @@ import (
 	"testing"
 )
 
-// fullyCapableExecutor implements Executor, GroupExecutor, and ProbeExecutor
-// so TestWrapperProbeFollowsGroup can wrap it with every Executor-decorator
-// type in this package and observe which capabilities each wrapper exposes.
+// fullyCapableExecutor implements Executor, GroupExecutor, ProbeExecutor,
+// and CountProbeExecutor so TestWrapperProbeFollowsGroup can wrap it with
+// every Executor-decorator type in this package and observe which
+// capabilities each wrapper exposes.
 type fullyCapableExecutor struct{}
 
 func (fullyCapableExecutor) Execute(context.Context, Statement) error { return nil }
@@ -27,9 +28,13 @@ func (fullyCapableExecutor) ExecuteProbe(context.Context, Statement) (bool, erro
 	return true, nil
 }
 
+func (fullyCapableExecutor) ExecuteCountProbe(context.Context, Statement) (int64, error) {
+	return 7, nil
+}
+
 // wrapperProbeFollowsGroupCase names one Executor-decorator type in this
-// package and states whether it is expected to expose GroupExecutor and
-// ProbeExecutor when wrapping a fully-capable inner.
+// package and states whether it is expected to expose GroupExecutor,
+// ProbeExecutor, and CountProbeExecutor when wrapping a fully-capable inner.
 type wrapperProbeFollowsGroupCase struct {
 	name string
 	// build constructs the wrapper around a fully-capable inner and returns
@@ -37,14 +42,19 @@ type wrapperProbeFollowsGroupCase struct {
 	// through type assertion -- the same mechanism every real caller
 	// (EdgeWriter.RetractEdges, canonical writers) uses.
 	build func(inner fullyCapableExecutor) Executor
-	// wantGroup and wantProbe state the wrapper's documented intent. The
-	// review F7 invariant under test is wantGroup == wantProbe for every
-	// row: this package's contract (writer.go's ProbeExecutor doc) requires
-	// every wrapper that forwards GroupExecutor to forward ProbeExecutor the
-	// same way, and every wrapper that deliberately hides GroupExecutor
-	// (an execute-only surface) to hide ProbeExecutor too.
+	// wantGroup, wantProbe, and wantCount state the wrapper's documented
+	// intent. The review F7 invariant under test is
+	// wantGroup == wantProbe == wantCount for every row: this package's
+	// contract (writer.go's ProbeExecutor and CountProbeExecutor docs)
+	// requires every wrapper that forwards GroupExecutor to forward both
+	// probe flavors the same way, and every wrapper that deliberately hides
+	// GroupExecutor (an execute-only surface) to hide both probe flavors
+	// too. A wrapper that forwarded GroupExecutor but not CountProbeExecutor
+	// would silently downgrade the #8657 file-less wipe guard to
+	// probe_unsupported with all tests green.
 	wantGroup bool
 	wantProbe bool
+	wantCount bool
 }
 
 // wrapperProbeFollowsGroupCases names every Executor-decorator type in this
@@ -72,6 +82,7 @@ var wrapperProbeFollowsGroupCases = []wrapperProbeFollowsGroupCase{
 		},
 		wantGroup: true,
 		wantProbe: true,
+		wantCount: true,
 	},
 	{
 		name: "ExecuteOnlyBackpressureExecutor",
@@ -80,6 +91,7 @@ var wrapperProbeFollowsGroupCases = []wrapperProbeFollowsGroupCase{
 		},
 		wantGroup: false,
 		wantProbe: false,
+		wantCount: false,
 	},
 	{
 		name: "ExecuteOnlyExecutor",
@@ -88,6 +100,7 @@ var wrapperProbeFollowsGroupCases = []wrapperProbeFollowsGroupCase{
 		},
 		wantGroup: false,
 		wantProbe: false,
+		wantCount: false,
 	},
 	{
 		name: "InstrumentedExecutor",
@@ -96,6 +109,7 @@ var wrapperProbeFollowsGroupCases = []wrapperProbeFollowsGroupCase{
 		},
 		wantGroup: true,
 		wantProbe: true,
+		wantCount: true,
 	},
 	{
 		name: "RetryingExecutor",
@@ -104,6 +118,7 @@ var wrapperProbeFollowsGroupCases = []wrapperProbeFollowsGroupCase{
 		},
 		wantGroup: true,
 		wantProbe: true,
+		wantCount: true,
 	},
 	{
 		name: "TimeoutExecutor",
@@ -112,6 +127,7 @@ var wrapperProbeFollowsGroupCases = []wrapperProbeFollowsGroupCase{
 		},
 		wantGroup: true,
 		wantProbe: true,
+		wantCount: true,
 	},
 }
 
@@ -135,15 +151,19 @@ func TestWrapperProbeFollowsGroup(t *testing.T) {
 			wrapped := tc.build(fullyCapableExecutor{})
 			_, gotGroup := wrapped.(GroupExecutor)
 			_, gotProbe := wrapped.(ProbeExecutor)
+			_, gotCount := wrapped.(CountProbeExecutor)
 
-			if gotGroup != gotProbe {
-				t.Fatalf("%s: GroupExecutor=%v, ProbeExecutor=%v -- Probe-follows-Group violated (writer.go's ProbeExecutor doc requires these to match)", tc.name, gotGroup, gotProbe)
+			if gotGroup != gotProbe || gotProbe != gotCount {
+				t.Fatalf("%s: GroupExecutor=%v, ProbeExecutor=%v, CountProbeExecutor=%v -- Probe-follows-Group violated (writer.go's ProbeExecutor and CountProbeExecutor docs require these to match)", tc.name, gotGroup, gotProbe, gotCount)
 			}
 			if gotGroup != tc.wantGroup {
 				t.Errorf("%s: GroupExecutor exposed = %v, want %v", tc.name, gotGroup, tc.wantGroup)
 			}
 			if gotProbe != tc.wantProbe {
 				t.Errorf("%s: ProbeExecutor exposed = %v, want %v", tc.name, gotProbe, tc.wantProbe)
+			}
+			if gotCount != tc.wantCount {
+				t.Errorf("%s: CountProbeExecutor exposed = %v, want %v", tc.name, gotCount, tc.wantCount)
 			}
 		})
 	}
@@ -216,7 +236,7 @@ func TestWrapperProbeFollowsGroupTableCoversEveryExecuteGroupReceiver(t *testing
 	}
 	for _, typeName := range executeGroupReceiverTypesFromSource(t) {
 		if !known[typeName] {
-			t.Errorf("type %s implements ExecuteGroup in production source but has no row in wrapperProbeFollowsGroupCases -- add one (name, build, wantGroup, wantProbe) so a decorator that forwards ExecuteGroup but not ExecuteProbe cannot ship undetected", typeName)
+			t.Errorf("type %s implements ExecuteGroup in production source but has no row in wrapperProbeFollowsGroupCases -- add one (name, build, wantGroup, wantProbe, wantCount) so a decorator that forwards ExecuteGroup but not ExecuteProbe cannot ship undetected", typeName)
 		}
 	}
 }
