@@ -96,6 +96,40 @@ func TestBuildRetirementParameterRetractStatement(t *testing.T) {
 	}
 }
 
+// TestRetirementNestedPrefixesNormalized pins the P1 slash rule: an
+// un-slashed nested root ("/r/shared") must normalize to "/r/shared/",
+// or STARTS WITH would also match the sibling "/r/shared-backup/x.go"
+// and spare a retired Parameter invisibly to the census (which shares
+// the list). Both the G5p builder and the census arm must agree.
+func TestRetirementNestedPrefixesNormalized(t *testing.T) {
+	t.Parallel()
+
+	stmt, err := BuildRetirementParameterRetractStatement("/r/retired", []string{"/r/shared", "  ", "/r/kept/"})
+	if err != nil {
+		t.Fatalf("BuildRetirementParameterRetractStatement: %v", err)
+	}
+	nested, ok := stmt.Parameters["nested_root_prefixes"].([]string)
+	if !ok || len(nested) != 2 || nested[0] != "/r/shared/" || nested[1] != "/r/kept/" {
+		t.Fatalf("nested_root_prefixes = %v, want [/r/shared/ /r/kept/]", stmt.Parameters["nested_root_prefixes"])
+	}
+
+	checks, err := BuildRetirementResidueCensus("repo-retired", "/r/retired", []string{"/r/shared"}, true)
+	if err != nil {
+		t.Fatalf("BuildRetirementResidueCensus: %v", err)
+	}
+	for _, c := range checks {
+		if c.Name != "parameter_residue" {
+			continue
+		}
+		got, ok := c.Parameters["nested_root_prefixes"].([]string)
+		if !ok || len(got) != 1 || got[0] != "/r/shared/" {
+			t.Fatalf("census nested_root_prefixes = %v, want [/r/shared/]", c.Parameters["nested_root_prefixes"])
+		}
+		return
+	}
+	t.Fatal("parameter_residue arm missing with includeParameters=true")
+}
+
 // TestBuildRetirementRepositoryDemoteStatement pins the G6 shape: the
 // Repository node is demoted, never deleted. Clearing path keeps the node
 // out of the path-conflict cleanup; clearing scope and generation ids

@@ -93,6 +93,21 @@ func BuildRetirementFileRetractStatement(repoID string) (Statement, error) {
 	}, nil
 }
 
+// normalizeRetirementNestedPrefixes trims and slash-terminates every
+// non-blank nested root. An un-slashed "/r/shared" would make STARTS WITH
+// also match the sibling "/r/shared-backup/x.go", sparing a retired
+// Parameter invisibly to the census that shares this list: always match
+// on the root plus '/'.
+func normalizeRetirementNestedPrefixes(nestedRootPrefixes []string) []string {
+	nested := make([]string, 0, len(nestedRootPrefixes))
+	for _, n := range nestedRootPrefixes {
+		if p := strings.TrimSpace(n); p != "" {
+			nested = append(nested, strings.TrimSuffix(p, "/")+"/")
+		}
+	}
+	return nested
+}
+
 // BuildRetirementParameterRetractStatement builds the G5p Parameter retract
 // for one captured repository root. root may carry or omit the trailing
 // slash; the statement always matches on root plus '/'.
@@ -102,12 +117,7 @@ func BuildRetirementParameterRetractStatement(root string, nestedRootPrefixes []
 		return Statement{}, fmt.Errorf("retirement parameter retract: empty repository root")
 	}
 	prefix = strings.TrimSuffix(prefix, "/") + "/"
-	nested := make([]string, 0, len(nestedRootPrefixes))
-	for _, n := range nestedRootPrefixes {
-		if strings.TrimSpace(n) != "" {
-			nested = append(nested, n)
-		}
-	}
+	nested := normalizeRetirementNestedPrefixes(nestedRootPrefixes)
 	return Statement{
 		Operation: OperationCanonicalRetract,
 		Cypher:    retirementParameterRetractCypher,
@@ -310,12 +320,7 @@ RETURN count(rel) AS count`,
 			return nil, fmt.Errorf("retirement residue census: empty repository root")
 		}
 		prefix = strings.TrimSuffix(prefix, "/") + "/"
-		nested := make([]string, 0, len(nestedRootPrefixes))
-		for _, n := range nestedRootPrefixes {
-			if strings.TrimSpace(n) != "" {
-				nested = append(nested, n)
-			}
-		}
+		nested := normalizeRetirementNestedPrefixes(nestedRootPrefixes)
 		checks = append(checks, RetirementResidueCheck{
 			Name: "parameter_residue",
 			Cypher: `MATCH (p:Parameter)
