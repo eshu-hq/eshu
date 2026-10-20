@@ -115,6 +115,30 @@ class TestFetchWindow(unittest.TestCase):
         self.assertEqual({r["databaseId"] for r in got}, set(range(1, 10)))
         self.assertEqual(truncated, 0)
 
+    def test_still_capped_at_max_depth_reports_truncated(self):
+        base = datetime(2026, 10, 19, tzinfo=timezone.utc)
+
+        def always_capped(start, end):
+            return [
+                {"databaseId": 1, "workflowName": "W",
+                 "createdAt": base.strftime("%Y-%m-%dT%H:%M:%SZ")},
+                {"databaseId": 2, "workflowName": "W",
+                 "createdAt": base.strftime("%Y-%m-%dT%H:%M:%SZ")},
+            ]
+
+        with mock.patch.object(gha_census, "_SLICE_LIMIT", 2), \
+                mock.patch.object(gha_census, "_gh_run_list",
+                                  always_capped):
+            got, truncated = fetch_window(base, base + timedelta(hours=1))
+        # Every leaf stays at the cap through max depth, so the count
+        # must say so instead of passing silently.
+        self.assertGreater(truncated, 0)
+        report = aggregate(got)
+        report["truncated_slices"] = truncated
+        text = render_markdown(report, "2026-10-19T00:00:00Z",
+                               "2026-10-19T01:00:00Z")
+        self.assertIn("WARNING", text)
+
 
 if __name__ == "__main__":
     unittest.main()
