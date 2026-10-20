@@ -49,7 +49,7 @@ const (
 	// iamInstanceProfileRoleFamilyAccountID and
 	// iamInstanceProfileRoleFamilyRegion are two of the four inputs to the
 	// CloudResource uid both edge endpoints are keyed by
-	// (reducer.cloudResourceUID -> facts.StableID over account_id, region,
+	// (cloudjoin.CloudResourceUID -> facts.StableID over account_id, region,
 	// resource_id, resource_type). They are synthetic, matching the
 	// collector's own redaction posture.
 	iamInstanceProfileRoleFamilyAccountID = "123456789012"

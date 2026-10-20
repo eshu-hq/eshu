@@ -124,8 +124,7 @@ var materializationFactKinds = []string{factload.FactKindRepository, factload.Fa
 // MaterializationFactKinds returns the fact kinds shell-exec materialization
 // requests, as a fresh copy so a caller cannot mutate the package's backing
 // slice. Exported: the reducer root's factload_materialization_bench_test.go
-// corpus-coverage guard reads it through the shellExecMaterializationFactKinds
-// compat forwarder.
+// corpus-coverage guard reads it through shell.MaterializationFactKinds().
 func MaterializationFactKinds() []string {
 	out := make([]string, len(materializationFactKinds))
 	copy(out, materializationFactKinds)

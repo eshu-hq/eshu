@@ -50,8 +50,10 @@ and ifa callers already named the leaves. `compat_cloud.go` keeps only the
 `GraphQueryRunner` pin block plus retired-stanza notes. New guard test
 `TestCloudBucketFamilyRetired` in
 `compat_alias_retirement_cloud_test.go` scans the reducer package directory
-for any re-declared alias. No golden, spec, manifest, or inventory content
-changed beyond the regenerated capability surface.
+for any re-declared alias. Capability inventory regenerated with no diff;
+the only non-Go content change is the prose note in the ifa shell-exec
+expected-edges fixture (`reducer.ExtractShellExecRows` spelled
+`shell.ExtractShellExecRows`, edges untouched).
 
 Struct field names and keyed-literal keys keep their bare spelling (struct
 scope, not the retired package scope).
@@ -73,9 +75,11 @@ packages, `internal/replay/costcounting`, and the touched postgres unit
 tests; `go test -race` over changed packages PASS (287s, pre-push floor);
 `git diff --check` clean; gofumpt and golangci-lint clean on staged files.
 
-Benchmark Evidence: `BenchmarkExtractShellExecRows` (repointed caller)
-1000 x 5410488 ns/op, 5216326 B/op, 43094 allocs/op on Intel i7-8700K
-(12x) — row-building path unchanged, same code under the new spelling.
+Benchmark Evidence (illustrative single-point timing, post-change only):
+`BenchmarkExtractShellExecRows` (repointed caller) 1000 x 5410488 ns/op,
+5216326 B/op, 43094 allocs/op on Intel i7-8700K (12x). No baseline number
+is claimed; the no-regression case rests on code identity (same leaf
+function under the new spelling), and the timing shows the path runs.
 Baseline: `origin/main` 0f76c3edb1 (post-#8671); after: this head; backend
 n/a (pure compile-time spelling change, no query or driver path touched);
 input shape n/a (no fixture or row-shape change).
