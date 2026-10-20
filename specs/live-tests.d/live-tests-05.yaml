@@ -1,4 +1,8 @@
 tests:
+  - file: go/internal/storage/postgres/content_writer_config_artifacts_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8155 write-time derive proof on real PostgreSQL (Write derives the written repository, derives_total write/ok, extractor_version 1); untagged live proof gated by env Skip (ESHU_POSTGRES_TEST_DSN or ESHU_POSTGRES_DSN) — promote to blocking with CI timing evidence"
   - file: go/internal/storage/postgres/content_writer_fingerprint_reap_equivalence_live_test.go
     tag: ~
     class: scheduled
