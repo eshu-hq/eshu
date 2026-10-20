@@ -24,9 +24,10 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 )
 
-// serviceKindPattern extracts the awscloud ServiceKind constant name from a
-// runtimebind bind.go source file.
-var serviceKindPattern = regexp.MustCompile(`ServiceKind:\s*awscloud\.(\w+)`)
+// serviceKindPattern extracts the ServiceKind constant name from a
+// runtimebind bind.go source file. The qualifier is either awscloud (root
+// constants_*.go) or catalog (#6696 consolidated category files).
+var serviceKindPattern = regexp.MustCompile(`ServiceKind:\s*(?:awscloud|catalog)\.(\w+)`)
 
 // TestRedactionKeySetDerivesFromRuntimebindRegistrations proves the command
 // derives the redaction-key requirement from the registry rather than a
@@ -122,10 +123,11 @@ func expectedRedactionPhrase(kinds []string) string {
 //
 // Every bind.go's kind resolves uniformly from its own ServiceKind constant
 // reference, looked up in the Service* constants parsed from the awscloud
-// root: directory names never stand in for kinds, so renamed and nested
-// service packages resolve exactly like top-level ones. A bind.go with no
-// ServiceKind reference, or a reference to an unknown constant, fails loudly
-// instead of silently corrupting the derived set.
+// root and the awscloud/catalog consolidation directory: directory names
+// never stand in for kinds, so renamed and nested service packages resolve
+// exactly like top-level ones. A bind.go with no ServiceKind reference, or a
+// reference to an unknown constant, fails loudly instead of silently
+// corrupting the derived set.
 func redactionRequiringServiceDirs(t *testing.T) []string {
 	t.Helper()
 	servicesDir := awsServicesDir(t)
@@ -197,56 +199,80 @@ func serviceKindOfBindFile(t *testing.T, kindsByConst map[string]string, bindFil
 }
 
 // serviceKindsByConstName parses every constants_*.go file in the awscloud
-// root directory and maps Service* constant names to their string values.
-// The redaction walk resolves each bind.go through this table so the mapping
-// stays derived from source instead of hand-maintained.
+// root directory plus every category file in the awscloud/catalog directory
+// (#6696 consolidation target) and maps Service* constant names to their
+// string values. The redaction walk resolves each bind.go through this table
+// so the mapping stays derived from source instead of hand-maintained.
 func serviceKindsByConstName(t *testing.T, awscloudDir string) map[string]string {
 	t.Helper()
+	kinds := map[string]string{}
+	fset := token.NewFileSet()
 	entries, err := os.ReadDir(awscloudDir)
 	if err != nil {
 		t.Fatalf("read awscloud dir %q: %v", awscloudDir, err)
 	}
-	kinds := map[string]string{}
-	fset := token.NewFileSet()
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasPrefix(name, "constants_") || !strings.HasSuffix(name, ".go") {
 			continue
 		}
-		file, parseErr := goparser.ParseFile(fset, filepath.Join(awscloudDir, name), nil, 0)
-		if parseErr != nil {
-			t.Fatalf("parse constants file %q: %v", name, parseErr)
+		collectServiceKinds(t, fset, filepath.Join(awscloudDir, name), kinds)
+	}
+	catalogDir := filepath.Join(awscloudDir, "catalog")
+	catalogEntries, err := os.ReadDir(catalogDir)
+	if err != nil {
+		t.Fatalf("read catalog dir %q: %v", catalogDir, err)
+	}
+	for _, entry := range catalogEntries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
 		}
-		for _, decl := range file.Decls {
-			gen, ok := decl.(*ast.GenDecl)
-			if !ok || gen.Tok != token.CONST {
-				continue
-			}
-			for _, spec := range gen.Specs {
-				val, ok := spec.(*ast.ValueSpec)
-				if !ok || len(val.Names) != 1 || len(val.Values) != 1 {
-					continue
-				}
-				constName := val.Names[0].Name
-				if !strings.HasPrefix(constName, "Service") {
-					continue
-				}
-				lit, ok := val.Values[0].(*ast.BasicLit)
-				if !ok || lit.Kind != token.STRING {
-					t.Fatalf("constants file %q: %s is not a string literal", name, constName)
-				}
-				str, unquoteErr := strconv.Unquote(lit.Value)
-				if unquoteErr != nil {
-					t.Fatalf("unquote %s in %q: %v", constName, name, unquoteErr)
-				}
-				kinds[constName] = str
-			}
-		}
+		collectServiceKinds(t, fset, filepath.Join(catalogDir, name), kinds)
 	}
 	if len(kinds) == 0 {
 		t.Fatalf("parsed zero Service* constants under %q; check directory resolution", awscloudDir)
 	}
 	return kinds
+}
+
+// collectServiceKinds parses one constants source file and records its
+// Service* string constants into kinds. A duplicate constant name fails
+// loudly: two files must never declare the same service kind.
+func collectServiceKinds(t *testing.T, fset *token.FileSet, path string, kinds map[string]string) {
+	t.Helper()
+	file, parseErr := goparser.ParseFile(fset, path, nil, 0)
+	if parseErr != nil {
+		t.Fatalf("parse constants file %q: %v", path, parseErr)
+	}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			val, ok := spec.(*ast.ValueSpec)
+			if !ok || len(val.Names) != 1 || len(val.Values) != 1 {
+				continue
+			}
+			constName := val.Names[0].Name
+			if !strings.HasPrefix(constName, "Service") {
+				continue
+			}
+			lit, ok := val.Values[0].(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				t.Fatalf("constants file %q: %s is not a string literal", path, constName)
+			}
+			str, unquoteErr := strconv.Unquote(lit.Value)
+			if unquoteErr != nil {
+				t.Fatalf("unquote %s in %q: %v", constName, path, unquoteErr)
+			}
+			if prev, dup := kinds[constName]; dup && prev != str {
+				t.Fatalf("constants file %q: %s = %q conflicts with %q", path, constName, str, prev)
+			}
+			kinds[constName] = str
+		}
+	}
 }
 
 // awsServicesDir resolves go/internal/collector/awscloud/service from this

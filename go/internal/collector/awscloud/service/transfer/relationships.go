@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // serverRelationships returns every reported relationship for one Transfer
@@ -250,7 +251,7 @@ func userS3HomeDirectoryRelationship(
 		SourceARN:        strings.TrimSpace(user.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   userID + "->" + awscloud.RelationshipTransferUserHomeDirectoryInS3Bucket + ":" + bucketARN,
 	}
@@ -290,7 +291,7 @@ func userEFSHomeDirectoryRelationship(
 		SourceARN:        strings.TrimSpace(user.ARN),
 		TargetResourceID: fileSystemARN,
 		TargetARN:        fileSystemARN,
-		TargetType:       awscloud.ResourceTypeEFSFileSystem,
+		TargetType:       catalog.ResourceTypeEFSFileSystem,
 		Attributes:       attributes,
 		SourceRecordID:   userID + "->" + awscloud.RelationshipTransferUserHomeDirectoryInEFSFileSystem + ":" + fileSystemARN,
 	}

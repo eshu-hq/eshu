@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestWorkGroupResultBucketRelationshipDerivesPartition pins the GovCloud/China
@@ -44,8 +45,8 @@ func TestWorkGroupResultBucketRelationshipDerivesPartition(t *testing.T) {
 			if obs.TargetARN != tc.want {
 				t.Fatalf("target_arn = %q, want %q", obs.TargetARN, tc.want)
 			}
-			if obs.TargetType != awscloud.ResourceTypeS3Bucket {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeS3Bucket)
+			if obs.TargetType != catalog.ResourceTypeS3Bucket {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, catalog.ResourceTypeS3Bucket)
 			}
 		})
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -166,7 +167,7 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 
 	// user -> S3 bucket home directory (synthesized partition-aware ARN).
 	homeS3 := relationshipByType(t, envelopes, awscloud.RelationshipTransferUserHomeDirectoryInS3Bucket)
-	if got, want := homeS3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := homeS3.Payload["target_type"], catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("user->s3 target_type = %#v, want %q", got, want)
 	}
 	if got, want := homeS3.Payload["target_resource_id"], "arn:aws:s3:::landing-bucket"; got != want {
@@ -205,7 +206,7 @@ func TestScannerEmitsEFSHomeDirectoryRelationship(t *testing.T) {
 	}
 	homeEFS := relationshipByType(t, envelopes, awscloud.RelationshipTransferUserHomeDirectoryInEFSFileSystem)
 	wantARN := "arn:aws:elasticfilesystem:us-east-1:123456789012:file-system/fs-0a1b2c3d"
-	if got, want := homeEFS.Payload["target_type"], awscloud.ResourceTypeEFSFileSystem; got != want {
+	if got, want := homeEFS.Payload["target_type"], catalog.ResourceTypeEFSFileSystem; got != want {
 		t.Fatalf("user->efs target_type = %#v, want %q", got, want)
 	}
 	if got, want := homeEFS.Payload["target_resource_id"], wantARN; got != want {

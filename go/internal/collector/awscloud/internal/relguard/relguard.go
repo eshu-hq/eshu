@@ -84,19 +84,33 @@ var KnownTargetTypeAllowlist = map[string]string{
 	"aws_waf_web_acl": "ambiguous classic-WAF/WAFv2 association from CloudFront WebACLID; pending modeling decision, see service/cloudfront/relationships.go",
 }
 
-// DeclaredResourceTypeValues parses every Go source file directly under
-// awscloudDir and returns the sorted, de-duplicated set of string values
-// assigned to constants whose name starts with ResourceType. These are the
-// resource families a relationship target_type may name. The walk is source
-// based (go/parser, no type checking) so it stays fast and has no dependency on
-// the packages it derives the set from.
+// DeclaredResourceTypeValues parses every non-test Go source file directly
+// under awscloudDir plus every non-test Go source file in the
+// awscloud/catalog consolidation directory (#6696) and returns the sorted,
+// de-duplicated set of string values assigned to constants whose name starts
+// with ResourceType. These are the resource families a relationship
+// target_type may name. The walk is source based (go/parser, no type
+// checking) so it stays fast and has no dependency on the packages it
+// derives the set from.
 func DeclaredResourceTypeValues(awscloudDir string) ([]string, error) {
-	entries, err := os.ReadDir(awscloudDir)
-	if err != nil {
-		return nil, fmt.Errorf("read awscloud dir %q: %w", awscloudDir, err)
-	}
 	seen := map[string]struct{}{}
 	fset := token.NewFileSet()
+	if err := collectDirResourceTypes(fset, awscloudDir, seen); err != nil {
+		return nil, err
+	}
+	if err := collectDirResourceTypes(fset, filepath.Join(awscloudDir, "catalog"), seen); err != nil {
+		return nil, err
+	}
+	return sortedKeys(seen), nil
+}
+
+// collectDirResourceTypes parses the non-test Go source files directly under
+// dir and records their ResourceType constant values into seen.
+func collectDirResourceTypes(fset *token.FileSet, dir string, seen map[string]struct{}) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("read dir %q: %w", dir, err)
+	}
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
 			continue
@@ -104,14 +118,14 @@ func DeclaredResourceTypeValues(awscloudDir string) ([]string, error) {
 		if strings.HasSuffix(entry.Name(), "_test.go") {
 			continue
 		}
-		path := filepath.Join(awscloudDir, entry.Name())
+		path := filepath.Join(dir, entry.Name())
 		file, parseErr := goparser.ParseFile(fset, path, nil, 0)
 		if parseErr != nil {
-			return nil, fmt.Errorf("parse %q: %w", path, parseErr)
+			return fmt.Errorf("parse %q: %w", path, parseErr)
 		}
 		collectResourceTypeConstants(file, seen)
 	}
-	return sortedKeys(seen), nil
+	return nil
 }
 
 // collectResourceTypeConstants records the string value of every

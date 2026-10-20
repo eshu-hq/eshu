@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -26,10 +27,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("s3 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceS3:
+	case "", catalog.ServiceS3:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceS3
+		boundary.ServiceKind = catalog.ServiceS3
 	default:
 		return nil, fmt.Errorf("s3 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -84,7 +85,7 @@ func bucketObservation(boundary awscloud.Boundary, bucket Bucket) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, name),
-		ResourceType: awscloud.ResourceTypeS3Bucket,
+		ResourceType: catalog.ResourceTypeS3Bucket,
 		Name:         name,
 		Tags:         cloneStringMap(bucket.Tags),
 		Attributes:   bucketAttributes(bucket),
@@ -219,7 +220,7 @@ func resourcePolicyPermissionObservations(
 		observations = append(observations, awscloud.ResourcePolicyPermissionObservation{
 			Boundary:            boundary,
 			ResourceARN:         arn,
-			ResourceType:        awscloud.ResourceTypeS3Bucket,
+			ResourceType:        catalog.ResourceTypeS3Bucket,
 			StatementSID:        statement.StatementSID,
 			Effect:              statement.Effect,
 			Actions:             statement.Actions,
@@ -299,12 +300,12 @@ func loggingRelationship(
 	targetARN := arnForBucket(awscloud.PartitionForBoundary(boundary), targetName)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipS3BucketLogsToBucket,
+		RelationshipType: catalog.RelationshipS3BucketLogsToBucket,
 		SourceResourceID: sourceARN,
 		SourceARN:        sourceARN,
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes: map[string]any{
 			"target_prefix": strings.TrimSpace(bucket.Logging.TargetPrefix),
 		},

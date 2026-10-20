@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
@@ -262,9 +263,9 @@ func iamPermissionObservation() awscloud.IAMPermissionObservation {
 
 func resourcePolicyPermissionObservation() awscloud.ResourcePolicyPermissionObservation {
 	return awscloud.ResourcePolicyPermissionObservation{
-		Boundary:            awsBoundary(awscloud.ServiceS3, time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)),
+		Boundary:            awsBoundary(catalog.ServiceS3, time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)),
 		ResourceARN:         "arn:aws:s3:::eshu-shared-bucket",
-		ResourceType:        awscloud.ResourceTypeS3Bucket,
+		ResourceType:        catalog.ResourceTypeS3Bucket,
 		StatementSID:        "AllowPartner",
 		Effect:              "Allow",
 		Actions:             []string{"s3:GetObject"},
@@ -280,7 +281,7 @@ func s3BucketPostureObservation() awscloud.S3BucketPostureObservation {
 	trueVal := true
 	falseVal := false
 	return awscloud.S3BucketPostureObservation{
-		Boundary:                    awsBoundary(awscloud.ServiceS3, time.Date(2026, 5, 14, 17, 30, 0, 0, time.UTC)),
+		Boundary:                    awsBoundary(catalog.ServiceS3, time.Date(2026, 5, 14, 17, 30, 0, 0, time.UTC)),
 		BucketARN:                   "arn:aws:s3:::orders-artifacts",
 		BucketName:                  "orders-artifacts",
 		BlockPublicACLs:             &trueVal,

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // environmentRelationships returns every outgoing edge for one MWAA
@@ -57,7 +58,7 @@ func environmentS3Relationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesS3Bucket + ":" + bucketARN,
 	}, true
 }

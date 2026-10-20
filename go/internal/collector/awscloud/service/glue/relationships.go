@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func tableInDatabaseRelationship(boundary awscloud.Boundary, table Table) *awscloud.RelationshipObservation {
@@ -49,7 +50,7 @@ func tableS3LocationRelationship(boundary awscloud.Boundary, table Table) *awscl
 		SourceResourceID: tableID,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   tableID + "->" + awscloud.RelationshipGlueTableStoredAtS3Location + ":" + bucketARN,
 	}

@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/fsx/runtimebind"
 )
 
 // TestFSxRuntimeBindRegisters confirms importing the binding installs the FSx
 // scanner builder.
 func TestFSxRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceFSx)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceFSx)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceFSx)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceFSx)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceFSx},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceFSx},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

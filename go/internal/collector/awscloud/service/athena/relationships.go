@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func workGroupResultBucketRelationship(
@@ -27,7 +28,7 @@ func workGroupResultBucketRelationship(
 		SourceResourceID: sourceID,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		// Attributes intentionally omits the workgroup OutputLocation URI to
 		// keep the relationship payload bucket-only; including the raw URI
 		// would leak the result-object prefix and violate the package

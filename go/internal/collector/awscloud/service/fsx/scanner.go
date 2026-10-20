@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,10 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("fsx scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceFSx:
+	case "", catalog.ServiceFSx:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceFSx
+		boundary.ServiceKind = catalog.ServiceFSx
 	default:
 		return nil, fmt.Errorf("fsx scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -142,7 +143,7 @@ func fileSystemObservation(boundary awscloud.Boundary, fs FileSystem) awscloud.R
 		Boundary:     boundary,
 		ARN:          fsARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFSxFileSystem,
+		ResourceType: catalog.ResourceTypeFSxFileSystem,
 		Name:         id,
 		State:        strings.TrimSpace(fs.Lifecycle),
 		Tags:         cloneStringMap(fs.Tags),
@@ -177,7 +178,7 @@ func svmObservation(boundary awscloud.Boundary, svm StorageVirtualMachine) awscl
 		Boundary:     boundary,
 		ARN:          svmARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFSxStorageVirtualMachine,
+		ResourceType: catalog.ResourceTypeFSxStorageVirtualMachine,
 		Name:         strings.TrimSpace(svm.Name),
 		State:        strings.TrimSpace(svm.Lifecycle),
 		Tags:         cloneStringMap(svm.Tags),
@@ -202,7 +203,7 @@ func volumeObservation(boundary awscloud.Boundary, volume Volume) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          volumeARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFSxVolume,
+		ResourceType: catalog.ResourceTypeFSxVolume,
 		Name:         strings.TrimSpace(volume.Name),
 		State:        strings.TrimSpace(volume.Lifecycle),
 		Tags:         cloneStringMap(volume.Tags),
@@ -229,7 +230,7 @@ func snapshotObservation(boundary awscloud.Boundary, snapshot Snapshot) awscloud
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFSxSnapshot,
+		ResourceType: catalog.ResourceTypeFSxSnapshot,
 		Name:         strings.TrimSpace(snapshot.Name),
 		State:        strings.TrimSpace(snapshot.Lifecycle),
 		Tags:         cloneStringMap(snapshot.Tags),
@@ -250,7 +251,7 @@ func backupObservation(boundary awscloud.Boundary, backup Backup) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          backupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFSxBackup,
+		ResourceType: catalog.ResourceTypeFSxBackup,
 		Name:         id,
 		State:        strings.TrimSpace(backup.Lifecycle),
 		Tags:         cloneStringMap(backup.Tags),

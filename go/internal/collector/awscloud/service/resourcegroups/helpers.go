@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // queryTypeCloudFormationStack is the AWS Resource Groups query type that marks
@@ -117,7 +118,7 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 	switch fields.Service {
 	case "s3":
 		// arn:p:s3:::bucket-name. The s3 scanner keys the bucket by its ARN.
-		return arnTarget(awscloud.ResourceTypeS3Bucket, arn), true
+		return arnTarget(catalog.ResourceTypeS3Bucket, arn), true
 	case "lambda":
 		// arn:p:lambda:region:acct:function:name. The lambda scanner keys the
 		// function by its ARN.

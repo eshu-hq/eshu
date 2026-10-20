@@ -14,6 +14,7 @@ import (
 	awsfsxtypes "github.com/aws/aws-sdk-go-v2/service/fsx/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientInterfaceExcludesMutationAndContentAPIs is the primary contract
@@ -325,7 +326,7 @@ func TestClientListBackupsMapsSourceFileSystem(t *testing.T) {
 }
 
 func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceFSx}
+	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceFSx}
 }
 
 type fakeFSxAPI struct {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // dataSourceBackingRelationship records a QuickSight data source's resolvable
@@ -51,7 +52,7 @@ func dataSourceBackingRelationship(
 		base.RelationshipType = awscloud.RelationshipQuickSightDataSourceUsesS3Bucket
 		base.TargetResourceID = bucketARN
 		base.TargetARN = bucketARN
-		base.TargetType = awscloud.ResourceTypeS3Bucket
+		base.TargetType = catalog.ResourceTypeS3Bucket
 	default:
 		return nil
 	}

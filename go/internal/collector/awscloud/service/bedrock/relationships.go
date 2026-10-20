@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // foundationModelTargetType labels a base or provisioned model ARN relationship
@@ -73,7 +74,7 @@ func customModelS3Relationship(modelID, modelARN, outputURI string) (awscloud.Re
 		SourceARN:        strings.TrimSpace(modelARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   modelID + "#output#" + uri,
 	}, true
@@ -207,7 +208,7 @@ func knowledgeBaseDataSourceRelationship(
 			SourceARN:        strings.TrimSpace(kbARN),
 			TargetResourceID: bucketARN,
 			TargetARN:        bucketARN,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       catalog.ResourceTypeS3Bucket,
 			Attributes:       attributes,
 			SourceRecordID:   kbID + "#s3-data-source#" + bucketARN,
 		}, true

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -50,7 +51,7 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 
 	allow := resourcePolicyPermissionByEffect(t, envelopes, "Allow")
 	assertPayloadEquals(t, allow.Payload, "resource_arn", "arn:aws:s3:::orders-artifacts")
-	assertPayloadEquals(t, allow.Payload, "resource_type", awscloud.ResourceTypeS3Bucket)
+	assertPayloadEquals(t, allow.Payload, "resource_type", catalog.ResourceTypeS3Bucket)
 	assertPayloadEquals(t, allow.Payload, "policy_source", awscloud.ResourcePolicySourceResource)
 	assertPayloadEquals(t, allow.Payload, "is_cross_account", true)
 	if got, _ := allow.Payload["principal_account_ids"].([]string); len(got) != 1 || got[0] != "999988887777" {

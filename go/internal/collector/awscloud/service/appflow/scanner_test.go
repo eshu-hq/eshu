@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -112,7 +113,7 @@ func TestScannerEmitsAppFlowMetadataResourcesAndRelationships(t *testing.T) {
 	if got, want := flowS3.Payload["target_arn"], "arn:aws:s3:::orders-landing"; got != want {
 		t.Fatalf("flow->s3 target_arn = %#v, want %q", got, want)
 	}
-	if got, want := flowS3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := flowS3.Payload["target_type"], catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("flow->s3 target_type = %#v, want %q", got, want)
 	}
 

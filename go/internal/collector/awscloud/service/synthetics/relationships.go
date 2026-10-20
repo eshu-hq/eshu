@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // canaryRelationships returns the reported dependency edges for one canary: the
@@ -36,7 +37,7 @@ func canaryRelationships(boundary awscloud.Boundary, canary Canary) []awscloud.R
 				SourceARN:        canaryARN,
 				TargetResourceID: bucketARN,
 				TargetARN:        bucketARN,
-				TargetType:       awscloud.ResourceTypeS3Bucket,
+				TargetType:       catalog.ResourceTypeS3Bucket,
 				Attributes:       attributes,
 				SourceRecordID:   canaryID + "#s3#" + bucketARN,
 			})

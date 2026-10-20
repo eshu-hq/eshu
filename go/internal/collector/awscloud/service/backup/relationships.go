@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func vaultKMSRelationship(
@@ -20,7 +21,7 @@ func vaultKMSRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupVaultUsesKMSKey,
+		RelationshipType: catalog.RelationshipBackupVaultUsesKMSKey,
 		SourceResourceID: vaultARN,
 		SourceARN:        vaultARN,
 		TargetResourceID: kmsARN,
@@ -42,11 +43,11 @@ func planHasSelectionRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupPlanHasSelection,
+		RelationshipType: catalog.RelationshipBackupPlanHasSelection,
 		SourceResourceID: planARN,
 		SourceARN:        planARN,
 		TargetResourceID: selID,
-		TargetType:       awscloud.ResourceTypeBackupSelection,
+		TargetType:       catalog.ResourceTypeBackupSelection,
 		SourceRecordID:   planARN + "#selection#" + selID,
 	}, true
 }
@@ -62,7 +63,7 @@ func selectionRoleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupSelectionUsesIAMRole,
+		RelationshipType: catalog.RelationshipBackupSelectionUsesIAMRole,
 		SourceResourceID: selID,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
@@ -79,7 +80,7 @@ func selectionIncludesResourceRelationship(
 	selID := strings.TrimSpace(selection.ID)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupSelectionIncludesResource,
+		RelationshipType: catalog.RelationshipBackupSelectionIncludesResource,
 		SourceResourceID: firstNonEmpty(selID, selection.Name),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
@@ -99,12 +100,12 @@ func recoveryPointInVaultRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupRecoveryPointInVault,
+		RelationshipType: catalog.RelationshipBackupRecoveryPointInVault,
 		SourceResourceID: rpARN,
 		SourceARN:        rpARN,
 		TargetResourceID: vaultARN,
 		TargetARN:        vaultARN,
-		TargetType:       awscloud.ResourceTypeBackupVault,
+		TargetType:       catalog.ResourceTypeBackupVault,
 		SourceRecordID:   rpARN + "#vault#" + vaultARN,
 	}, true
 }
@@ -120,7 +121,7 @@ func recoveryPointOfResourceRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupRecoveryPointOfResource,
+		RelationshipType: catalog.RelationshipBackupRecoveryPointOfResource,
 		SourceResourceID: rpARN,
 		SourceARN:        rpARN,
 		TargetResourceID: sourceARN,
@@ -143,11 +144,11 @@ func frameworkHasControlRelationship(
 	resourceID := frameworkARN + "/" + controlName
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipBackupFrameworkHasControl,
+		RelationshipType: catalog.RelationshipBackupFrameworkHasControl,
 		SourceResourceID: frameworkARN,
 		SourceARN:        frameworkARN,
 		TargetResourceID: resourceID,
-		TargetType:       awscloud.ResourceTypeBackupFrameworkControl,
+		TargetType:       catalog.ResourceTypeBackupFrameworkControl,
 		SourceRecordID:   frameworkARN + "#control#" + controlName,
 	}, true
 }
@@ -166,7 +167,7 @@ func targetTypeForARN(arn string) string {
 	case strings.Contains(arn, ":rds:"):
 		return awscloud.ResourceTypeRDSDBInstance
 	case strings.Contains(arn, ":s3:::") || strings.HasPrefix(arn, "arn:aws:s3:::"):
-		return awscloud.ResourceTypeS3Bucket
+		return catalog.ResourceTypeS3Bucket
 	case strings.Contains(arn, ":elasticache:"):
 		return awscloud.ResourceTypeElastiCacheCacheCluster
 	case strings.Contains(arn, ":redshift:"):

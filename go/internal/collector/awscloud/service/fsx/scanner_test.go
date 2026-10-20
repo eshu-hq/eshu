@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -148,7 +149,7 @@ func TestScannerEmitsAllFlavorsAndRelationships(t *testing.T) {
 	}
 
 	// Four file systems, one per flavor.
-	if got, want := countResources(envelopes, awscloud.ResourceTypeFSxFileSystem), 4; got != want {
+	if got, want := countResources(envelopes, catalog.ResourceTypeFSxFileSystem), 4; got != want {
 		t.Fatalf("file system resources = %d, want %d", got, want)
 	}
 	win := resourceByID(t, envelopes, winARN)
@@ -182,42 +183,42 @@ func TestScannerEmitsAllFlavorsAndRelationships(t *testing.T) {
 	resourceByID(t, envelopes, zfsARN)
 
 	// SVM, volumes, snapshot, backup resources.
-	if got, want := countResources(envelopes, awscloud.ResourceTypeFSxStorageVirtualMachine), 1; got != want {
+	if got, want := countResources(envelopes, catalog.ResourceTypeFSxStorageVirtualMachine), 1; got != want {
 		t.Fatalf("svm resources = %d, want %d", got, want)
 	}
-	if got, want := countResources(envelopes, awscloud.ResourceTypeFSxVolume), 2; got != want {
+	if got, want := countResources(envelopes, catalog.ResourceTypeFSxVolume), 2; got != want {
 		t.Fatalf("volume resources = %d, want %d", got, want)
 	}
-	if got, want := countResources(envelopes, awscloud.ResourceTypeFSxSnapshot), 1; got != want {
+	if got, want := countResources(envelopes, catalog.ResourceTypeFSxSnapshot), 1; got != want {
 		t.Fatalf("snapshot resources = %d, want %d", got, want)
 	}
-	if got, want := countResources(envelopes, awscloud.ResourceTypeFSxBackup), 1; got != want {
+	if got, want := countResources(envelopes, catalog.ResourceTypeFSxBackup), 1; got != want {
 		t.Fatalf("backup resources = %d, want %d", got, want)
 	}
 
 	// Relationships: VPC (x4), subnet (2+1+2+1=6), KMS (windows, ontap, zfs =3),
 	// AD-directory file system (windows =1), SVM->file system (1), SVM->AD (1),
 	// volume->SVM (1, ontap only), volume->file system (2), backup->file system (1).
-	assertRelationship(t, envelopes, awscloud.RelationshipFSxFileSystemInVPC)
-	assertRelationship(t, envelopes, awscloud.RelationshipFSxFileSystemInSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipFSxFileSystemUsesKMSKey)
-	assertRelationship(t, envelopes, awscloud.RelationshipFSxFileSystemUsesADDirectory)
-	assertRelationship(t, envelopes, awscloud.RelationshipFSxSVMTargetsFileSystem)
-	assertRelationship(t, envelopes, awscloud.RelationshipFSxSVMUsesADDirectory)
-	assertRelationship(t, envelopes, awscloud.RelationshipFSxVolumeTargetsSVM)
-	assertRelationship(t, envelopes, awscloud.RelationshipFSxVolumeTargetsFileSystem)
-	assertRelationship(t, envelopes, awscloud.RelationshipFSxBackupTargetsFileSystem)
+	assertRelationship(t, envelopes, catalog.RelationshipFSxFileSystemInVPC)
+	assertRelationship(t, envelopes, catalog.RelationshipFSxFileSystemInSubnet)
+	assertRelationship(t, envelopes, catalog.RelationshipFSxFileSystemUsesKMSKey)
+	assertRelationship(t, envelopes, catalog.RelationshipFSxFileSystemUsesADDirectory)
+	assertRelationship(t, envelopes, catalog.RelationshipFSxSVMTargetsFileSystem)
+	assertRelationship(t, envelopes, catalog.RelationshipFSxSVMUsesADDirectory)
+	assertRelationship(t, envelopes, catalog.RelationshipFSxVolumeTargetsSVM)
+	assertRelationship(t, envelopes, catalog.RelationshipFSxVolumeTargetsFileSystem)
+	assertRelationship(t, envelopes, catalog.RelationshipFSxBackupTargetsFileSystem)
 
-	if got, want := countRelationships(envelopes, awscloud.RelationshipFSxFileSystemInVPC), 4; got != want {
+	if got, want := countRelationships(envelopes, catalog.RelationshipFSxFileSystemInVPC), 4; got != want {
 		t.Fatalf("file-system-in-vpc relationships = %d, want %d", got, want)
 	}
-	if got, want := countRelationships(envelopes, awscloud.RelationshipFSxFileSystemInSubnet), 6; got != want {
+	if got, want := countRelationships(envelopes, catalog.RelationshipFSxFileSystemInSubnet), 6; got != want {
 		t.Fatalf("file-system-in-subnet relationships = %d, want %d", got, want)
 	}
-	if got, want := countRelationships(envelopes, awscloud.RelationshipFSxFileSystemUsesKMSKey), 3; got != want {
+	if got, want := countRelationships(envelopes, catalog.RelationshipFSxFileSystemUsesKMSKey), 3; got != want {
 		t.Fatalf("file-system-uses-kms relationships = %d, want %d", got, want)
 	}
-	if got, want := countRelationships(envelopes, awscloud.RelationshipFSxVolumeTargetsSVM), 1; got != want {
+	if got, want := countRelationships(envelopes, catalog.RelationshipFSxVolumeTargetsSVM), 1; got != want {
 		t.Fatalf("volume-targets-svm relationships = %d, want %d", got, want)
 	}
 
@@ -226,22 +227,22 @@ func TestScannerEmitsAllFlavorsAndRelationships(t *testing.T) {
 
 	// Graph-join: the SVM->file system edge upgrades the bare file system ID to
 	// the ONTAP file system ARN so it joins the file system resource fact.
-	svmFSEdge := relationshipByType(t, envelopes, awscloud.RelationshipFSxSVMTargetsFileSystem)
+	svmFSEdge := relationshipByType(t, envelopes, catalog.RelationshipFSxSVMTargetsFileSystem)
 	if got, want := svmFSEdge.Payload["target_resource_id"], ontapARN; got != want {
 		t.Fatalf("svm->file-system target_resource_id = %#v, want ARN %q", got, want)
 	}
-	if got, want := svmFSEdge.Payload["target_type"], awscloud.ResourceTypeFSxFileSystem; got != want {
+	if got, want := svmFSEdge.Payload["target_type"], catalog.ResourceTypeFSxFileSystem; got != want {
 		t.Fatalf("svm->file-system target_type = %#v, want %q", got, want)
 	}
 
 	// Volume->SVM edge upgrades to the SVM ARN.
-	volSVMEdge := relationshipByType(t, envelopes, awscloud.RelationshipFSxVolumeTargetsSVM)
+	volSVMEdge := relationshipByType(t, envelopes, catalog.RelationshipFSxVolumeTargetsSVM)
 	if got, want := volSVMEdge.Payload["target_resource_id"], svmARN; got != want {
 		t.Fatalf("volume->svm target_resource_id = %#v, want ARN %q", got, want)
 	}
 
 	// VPC and subnet edges target the bare AWS ID (joins aws_ec2_vpc / aws_ec2_subnet).
-	vpcEdge := relationshipByType(t, envelopes, awscloud.RelationshipFSxFileSystemInVPC)
+	vpcEdge := relationshipByType(t, envelopes, catalog.RelationshipFSxFileSystemInVPC)
 	if got, want := vpcEdge.Payload["target_resource_id"], "vpc-aaa"; got != want {
 		t.Fatalf("file-system->vpc target_resource_id = %#v, want bare %q", got, want)
 	}
@@ -250,7 +251,7 @@ func TestScannerEmitsAllFlavorsAndRelationships(t *testing.T) {
 	}
 
 	// AD edges target the bare directory ID (joins aws_ds_directory).
-	adEdge := relationshipByType(t, envelopes, awscloud.RelationshipFSxFileSystemUsesADDirectory)
+	adEdge := relationshipByType(t, envelopes, catalog.RelationshipFSxFileSystemUsesADDirectory)
 	if got, want := adEdge.Payload["target_resource_id"], "d-1234567890"; got != want {
 		t.Fatalf("file-system->ad target_resource_id = %#v, want %q", got, want)
 	}
@@ -259,7 +260,7 @@ func TestScannerEmitsAllFlavorsAndRelationships(t *testing.T) {
 	}
 
 	// KMS edge ARN-shaped: target_arn populated.
-	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipFSxFileSystemUsesKMSKey)
+	kmsEdge := relationshipByType(t, envelopes, catalog.RelationshipFSxFileSystemUsesKMSKey)
 	if got, want := kmsEdge.Payload["target_arn"], kmsARN; got != want {
 		t.Fatalf("file-system->kms target_arn = %#v, want %q", got, want)
 	}
@@ -392,7 +393,7 @@ func TestScannerDefaultsServiceKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countResources(envelopes, awscloud.ResourceTypeFSxFileSystem); got != 1 {
+	if got := countResources(envelopes, catalog.ResourceTypeFSxFileSystem); got != 1 {
 		t.Fatalf("file system resources = %d, want 1", got)
 	}
 }

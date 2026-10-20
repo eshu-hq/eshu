@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/backup/runtimebind"
 )
 
@@ -17,13 +18,13 @@ import (
 // AWS Backup scanner builder. The test mirrors the shape of every other
 // service runtimebind test in the AWS collector.
 func TestBackupRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceBackup)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceBackup)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceBackup)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceBackup)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBackup},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

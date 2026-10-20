@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -105,7 +106,7 @@ func TestScannerEmitsDatabrewMetadataAndRelationships(t *testing.T) {
 	// dataset -> S3 bucket edge, keyed by synthesized partition-aware ARN.
 	datasetS3 := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewDatasetReadsS3)
 	wantBucketARN := "arn:aws:s3:::sales-input-bucket"
-	assertEdgeTarget(t, datasetS3, awscloud.ResourceTypeS3Bucket, wantBucketARN)
+	assertEdgeTarget(t, datasetS3, catalog.ResourceTypeS3Bucket, wantBucketARN)
 	if got, want := datasetS3.Payload["source_resource_id"], "sales"; got != want {
 		t.Fatalf("dataset->s3 source_resource_id = %#v, want %q", got, want)
 	}
@@ -119,7 +120,7 @@ func TestScannerEmitsDatabrewMetadataAndRelationships(t *testing.T) {
 
 	// job -> S3 output bucket edge.
 	jobS3 := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewJobWritesS3)
-	assertEdgeTarget(t, jobS3, awscloud.ResourceTypeS3Bucket, "arn:aws:s3:::sales-output-bucket")
+	assertEdgeTarget(t, jobS3, catalog.ResourceTypeS3Bucket, "arn:aws:s3:::sales-output-bucket")
 
 	// job -> dataset internal edge, keyed by the dataset name the dataset node publishes.
 	jobDataset := relationshipByType(t, envelopes, awscloud.RelationshipDatabrewJobProcessesDataset)
@@ -317,7 +318,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

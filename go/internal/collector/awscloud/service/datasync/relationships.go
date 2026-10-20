@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // taskSourceLocationRelationship records the source location a task reads from.
@@ -93,7 +94,7 @@ func locationS3Relationship(boundary awscloud.Boundary, location Location) *awsc
 		SourceARN:        locationARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       map[string]any{"bucket": bucket},
 		SourceRecordID:   locationARN + "->" + awscloud.RelationshipDataSyncLocationTargetsS3Bucket + ":" + bucketARN,
 	}
@@ -125,7 +126,7 @@ func locationEFSRelationship(boundary awscloud.Boundary, location Location) *aws
 		SourceARN:        locationARN,
 		TargetResourceID: fileSystemARN,
 		TargetARN:        fileSystemARN,
-		TargetType:       awscloud.ResourceTypeEFSFileSystem,
+		TargetType:       catalog.ResourceTypeEFSFileSystem,
 		Attributes:       map[string]any{"file_system_id": fileSystemID},
 		SourceRecordID:   locationARN + "->" + awscloud.RelationshipDataSyncLocationTargetsEFSFileSystem + ":" + fileSystemARN,
 	}
@@ -169,7 +170,7 @@ func locationFSxRelationship(boundary awscloud.Boundary, location Location) *aws
 		SourceARN:        locationARN,
 		TargetResourceID: fileSystemARN,
 		TargetARN:        fileSystemARN,
-		TargetType:       awscloud.ResourceTypeFSxFileSystem,
+		TargetType:       catalog.ResourceTypeFSxFileSystem,
 		Attributes:       attributes,
 		SourceRecordID:   locationARN + "->" + awscloud.RelationshipDataSyncLocationTargetsFSxFileSystem + ":" + fileSystemARN,
 	}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -221,7 +222,7 @@ func TestScannerEmitsInfraConfigEdges(t *testing.T) {
 	assertEdgeTarget(t, snsEdge, awscloud.ResourceTypeSNSTopic, testSNSTopicARN)
 
 	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigLogsToS3)
-	assertEdgeTarget(t, s3Edge, awscloud.ResourceTypeS3Bucket, testWantLogARN)
+	assertEdgeTarget(t, s3Edge, catalog.ResourceTypeS3Bucket, testWantLogARN)
 	if got, want := s3Edge.Payload["target_arn"], testWantLogARN; got != want {
 		t.Fatalf("infra->s3 target_arn = %#v, want %q", got, want)
 	}
@@ -324,7 +325,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

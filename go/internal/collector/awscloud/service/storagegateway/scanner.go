@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("storagegateway scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceStorageGateway:
+	case "", catalog.ServiceStorageGateway:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceStorageGateway
+		boundary.ServiceKind = catalog.ServiceStorageGateway
 	default:
 		return nil, fmt.Errorf("storagegateway scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -145,7 +146,7 @@ func gatewayObservation(boundary awscloud.Boundary, gateway Gateway) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeStorageGatewayGateway,
+		ResourceType: catalog.ResourceTypeStorageGatewayGateway,
 		Name:         firstNonEmpty(gateway.Name, id),
 		State:        firstNonEmpty(gateway.State, gateway.OperationalState),
 		Tags:         cloneStringMap(gateway.Tags),
@@ -176,7 +177,7 @@ func volumeObservation(boundary awscloud.Boundary, volume Volume) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeStorageGatewayVolume,
+		ResourceType: catalog.ResourceTypeStorageGatewayVolume,
 		Name:         firstNonEmpty(id, arn),
 		State:        strings.TrimSpace(volume.AttachmentStatus),
 		Attributes: map[string]any{
@@ -200,7 +201,7 @@ func fileShareObservation(boundary awscloud.Boundary, share FileShare) awscloud.
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeStorageGatewayFileShare,
+		ResourceType: catalog.ResourceTypeStorageGatewayFileShare,
 		Name:         firstNonEmpty(share.Name, id, arn),
 		State:        strings.TrimSpace(share.Status),
 		Attributes: map[string]any{

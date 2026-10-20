@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -242,7 +243,7 @@ func trailRelationships(boundary awscloud.Boundary, trail Trail) []awscloud.Rela
 			SourceResourceID: sourceID,
 			SourceARN:        trailARN,
 			TargetResourceID: bucket,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       catalog.ResourceTypeS3Bucket,
 			Attributes: map[string]any{
 				"s3_key_prefix": strings.TrimSpace(trail.S3KeyPrefix),
 			},

@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/storagegateway/runtimebind"
 )
 
 // TestStorageGatewayRuntimeBindRegisters confirms importing the binding
 // installs the Storage Gateway scanner builder.
 func TestStorageGatewayRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceStorageGateway)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceStorageGateway)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceStorageGateway)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceStorageGateway)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceStorageGateway},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceStorageGateway},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

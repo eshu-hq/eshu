@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -100,7 +101,7 @@ func TestScannerEmitsApplicationMetadataAndRelationships(t *testing.T) {
 	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
 		awscloud.ResourceTypeFirehoseDeliveryStream, testOutputFH, testAppARN)
 	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
-		awscloud.ResourceTypeS3Bucket, testCodeBucket, testAppARN)
+		catalog.ResourceTypeS3Bucket, testCodeBucket, testAppARN)
 	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesIAMRole,
 		awscloud.ResourceTypeIAMRole, testRoleARN, testAppARN)
 	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
@@ -186,7 +187,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

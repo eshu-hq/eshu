@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -49,8 +50,8 @@ func TestLocationS3RelationshipDerivesPartition(t *testing.T) {
 			if obs.TargetARN != tc.want {
 				t.Fatalf("target_arn = %q, want %q", obs.TargetARN, tc.want)
 			}
-			if obs.TargetType != awscloud.ResourceTypeS3Bucket {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeS3Bucket)
+			if obs.TargetType != catalog.ResourceTypeS3Bucket {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, catalog.ResourceTypeS3Bucket)
 			}
 		})
 	}
@@ -86,8 +87,8 @@ func TestLocationEFSRelationshipDerivesPartition(t *testing.T) {
 			if obs.TargetResourceID != tc.want {
 				t.Fatalf("target_resource_id = %q, want %q", obs.TargetResourceID, tc.want)
 			}
-			if obs.TargetType != awscloud.ResourceTypeEFSFileSystem {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeEFSFileSystem)
+			if obs.TargetType != catalog.ResourceTypeEFSFileSystem {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, catalog.ResourceTypeEFSFileSystem)
 			}
 		})
 	}
@@ -122,8 +123,8 @@ func TestLocationFSxRelationshipSynthesizesPartition(t *testing.T) {
 			if obs.TargetResourceID != tc.want {
 				t.Fatalf("target_resource_id = %q, want %q", obs.TargetResourceID, tc.want)
 			}
-			if obs.TargetType != awscloud.ResourceTypeFSxFileSystem {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeFSxFileSystem)
+			if obs.TargetType != catalog.ResourceTypeFSxFileSystem {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, catalog.ResourceTypeFSxFileSystem)
 			}
 		})
 	}

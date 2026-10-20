@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -221,7 +222,7 @@ func TestScannerEmitsCRLBucketRelationshipWhenConfigured(t *testing.T) {
 	if got, want := rel.Payload["target_resource_id"], "eshu-crl-bucket"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q (must match S3 bucket name correlation anchor)", got, want)
 	}
-	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := rel.Payload["target_type"], catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("target_type = %#v, want %q", got, want)
 	}
 	// The CRL bucket name is not an ARN, so target_arn stays empty.

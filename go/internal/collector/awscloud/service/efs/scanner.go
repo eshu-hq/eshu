@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -25,10 +26,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("efs scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceEFS:
+	case "", catalog.ServiceEFS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceEFS
+		boundary.ServiceKind = catalog.ServiceEFS
 	default:
 		return nil, fmt.Errorf("efs scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -71,7 +72,7 @@ func fileSystemEnvelopes(boundary awscloud.Boundary, system FileSystem) ([]facts
 	if kmsKey := strings.TrimSpace(system.KMSKeyID); system.Encrypted && kmsKey != "" {
 		relationship, err := awscloud.NewRelationshipEnvelope(awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEFSFileSystemUsesKMSKey,
+			RelationshipType: catalog.RelationshipEFSFileSystemUsesKMSKey,
 			SourceResourceID: fsKey,
 			SourceARN:        system.ARN,
 			TargetResourceID: kmsKey,
@@ -117,12 +118,12 @@ func accessPointEnvelopes(
 	if apKey != "" && fileSystemKey != "" {
 		relationship, err := awscloud.NewRelationshipEnvelope(awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEFSAccessPointTargetsFileSystem,
+			RelationshipType: catalog.RelationshipEFSAccessPointTargetsFileSystem,
 			SourceResourceID: apKey,
 			SourceARN:        accessPoint.ARN,
 			TargetResourceID: fileSystemKey,
 			TargetARN:        fileSystemARN,
-			TargetType:       awscloud.ResourceTypeEFSFileSystem,
+			TargetType:       catalog.ResourceTypeEFSFileSystem,
 		})
 		if err != nil {
 			return nil, err
@@ -143,7 +144,7 @@ func mountTargetEnvelopes(boundary awscloud.Boundary, mountTarget MountTarget) (
 	if subnet := strings.TrimSpace(mountTarget.SubnetID); mtID != "" && subnet != "" {
 		relationship, err := awscloud.NewRelationshipEnvelope(awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEFSMountTargetInSubnet,
+			RelationshipType: catalog.RelationshipEFSMountTargetInSubnet,
 			SourceResourceID: mtID,
 			TargetResourceID: subnet,
 			TargetType:       awscloud.ResourceTypeEC2Subnet,
@@ -160,7 +161,7 @@ func mountTargetEnvelopes(boundary awscloud.Boundary, mountTarget MountTarget) (
 		}
 		relationship, err := awscloud.NewRelationshipEnvelope(awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEFSMountTargetUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipEFSMountTargetUsesSecurityGroup,
 			SourceResourceID: mtID,
 			TargetResourceID: group,
 			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
@@ -191,11 +192,11 @@ func replicationEnvelopes(boundary awscloud.Boundary, replication ReplicationCon
 		}
 		relationship, err := awscloud.NewRelationshipEnvelope(awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEFSReplicationTargetsFileSystem,
+			RelationshipType: catalog.RelationshipEFSReplicationTargetsFileSystem,
 			SourceResourceID: sourceKey,
 			SourceARN:        replication.SourceFileSystemARN,
 			TargetResourceID: target,
-			TargetType:       awscloud.ResourceTypeEFSFileSystem,
+			TargetType:       catalog.ResourceTypeEFSFileSystem,
 			Attributes: map[string]any{
 				"destination_region": strings.TrimSpace(destination.Region),
 				"replication_status": strings.TrimSpace(destination.Status),
@@ -215,7 +216,7 @@ func fileSystemObservation(boundary awscloud.Boundary, system FileSystem) awsclo
 		Boundary:     boundary,
 		ARN:          fsARN,
 		ResourceID:   firstNonEmpty(fsARN, system.ID),
-		ResourceType: awscloud.ResourceTypeEFSFileSystem,
+		ResourceType: catalog.ResourceTypeEFSFileSystem,
 		Name:         strings.TrimSpace(system.Name),
 		State:        strings.TrimSpace(system.LifeCycleState),
 		Tags:         cloneStringMap(system.Tags),
@@ -243,7 +244,7 @@ func accessPointObservation(boundary awscloud.Boundary, accessPoint AccessPoint)
 		Boundary:     boundary,
 		ARN:          apARN,
 		ResourceID:   firstNonEmpty(apARN, accessPoint.ID),
-		ResourceType: awscloud.ResourceTypeEFSAccessPoint,
+		ResourceType: catalog.ResourceTypeEFSAccessPoint,
 		Name:         strings.TrimSpace(accessPoint.Name),
 		State:        strings.TrimSpace(accessPoint.LifeCycleState),
 		Tags:         cloneStringMap(accessPoint.Tags),
@@ -263,7 +264,7 @@ func mountTargetObservation(boundary awscloud.Boundary, mountTarget MountTarget)
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   strings.TrimSpace(mountTarget.ID),
-		ResourceType: awscloud.ResourceTypeEFSMountTarget,
+		ResourceType: catalog.ResourceTypeEFSMountTarget,
 		State:        strings.TrimSpace(mountTarget.LifeCycleState),
 		Attributes: map[string]any{
 			"mount_target_id":      strings.TrimSpace(mountTarget.ID),
@@ -296,7 +297,7 @@ func replicationObservation(boundary awscloud.Boundary, replication ReplicationC
 		Boundary:     boundary,
 		ARN:          sourceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeEFSReplicationConfiguration,
+		ResourceType: catalog.ResourceTypeEFSReplicationConfiguration,
 		Attributes: map[string]any{
 			"source_file_system_id": sourceID,
 			"destinations":          destinations,

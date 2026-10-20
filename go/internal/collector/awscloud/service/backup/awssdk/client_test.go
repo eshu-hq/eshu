@@ -16,6 +16,7 @@ import (
 	awsbackuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListBackupVaultsProjectsMetadataAndExcludesAccessPolicy(t *testing.T) {
@@ -46,7 +47,7 @@ func TestClientListBackupVaultsProjectsMetadataAndExcludesAccessPolicy(t *testin
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBackup},
 	}
 	vaults, err := adapter.ListBackupVaults(context.Background())
 	if err != nil {
@@ -107,7 +108,7 @@ func TestClientListBackupSelectionsMergesTagConditions(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBackup},
 	}
 	selections, err := adapter.ListBackupSelections(context.Background(), planID)
 	if err != nil {
@@ -150,7 +151,7 @@ func TestClientListRecoveryPointsExcludesRestoreMetadata(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBackup},
 	}
 	rps, err := adapter.ListRecoveryPoints(context.Background(), "prod")
 	if err != nil {
@@ -206,7 +207,7 @@ func TestClientListFrameworksProjectsControlSummaryWithoutInputParameters(t *tes
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBackup},
 	}
 	frameworks, err := adapter.ListFrameworks(context.Background())
 	if err != nil {
@@ -298,7 +299,7 @@ func TestClientMetadataReadsSucceedAgainstEmptyFake(t *testing.T) {
 	fake := &fakeBackupAPI{}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBackup},
 	}
 	if _, err := adapter.ListBackupVaults(context.Background()); err != nil {
 		t.Fatalf("ListBackupVaults() error = %v", err)

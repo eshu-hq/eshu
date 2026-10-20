@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -256,7 +257,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 	if s3Source[0]["target_resource_id"] != wantSourceBucketARN {
 		t.Fatalf("project->S3-source target_resource_id = %v, want %v", s3Source[0]["target_resource_id"], wantSourceBucketARN)
 	}
-	if s3Source[0]["target_type"] != awscloud.ResourceTypeS3Bucket {
+	if s3Source[0]["target_type"] != catalog.ResourceTypeS3Bucket {
 		t.Fatalf("project->S3-source target_type = %v", s3Source[0]["target_type"])
 	}
 

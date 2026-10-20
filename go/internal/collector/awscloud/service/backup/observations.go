@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // vaultObservation projects one AWS Backup vault into a metadata-only
@@ -20,7 +21,7 @@ func vaultObservation(boundary awscloud.Boundary, vault Vault) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          vaultARN,
 		ResourceID:   firstNonEmpty(vaultARN, vault.Name),
-		ResourceType: awscloud.ResourceTypeBackupVault,
+		ResourceType: catalog.ResourceTypeBackupVault,
 		Name:         strings.TrimSpace(vault.Name),
 		Attributes: map[string]any{
 			"encryption_key_arn":        strings.TrimSpace(vault.EncryptionKeyARN),
@@ -44,7 +45,7 @@ func planObservation(boundary awscloud.Boundary, plan Plan) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          planARN,
 		ResourceID:   firstNonEmpty(planARN, plan.ID, plan.Name),
-		ResourceType: awscloud.ResourceTypeBackupPlan,
+		ResourceType: catalog.ResourceTypeBackupPlan,
 		Name:         strings.TrimSpace(plan.Name),
 		Attributes: map[string]any{
 			"plan_id":             strings.TrimSpace(plan.ID),
@@ -84,7 +85,7 @@ func selectionObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   firstNonEmpty(selID, selection.Name),
-		ResourceType: awscloud.ResourceTypeBackupSelection,
+		ResourceType: catalog.ResourceTypeBackupSelection,
 		Name:         strings.TrimSpace(selection.Name),
 		Attributes: map[string]any{
 			"selection_id":   selID,
@@ -127,7 +128,7 @@ func recoveryPointObservation(
 		Boundary:     boundary,
 		ARN:          rpARN,
 		ResourceID:   rpARN,
-		ResourceType: awscloud.ResourceTypeBackupRecoveryPoint,
+		ResourceType: catalog.ResourceTypeBackupRecoveryPoint,
 		State:        strings.TrimSpace(rp.Status),
 		Attributes: map[string]any{
 			"vault_name":           strings.TrimSpace(rp.VaultName),
@@ -158,7 +159,7 @@ func reportPlanObservation(
 		Boundary:     boundary,
 		ARN:          planARN,
 		ResourceID:   firstNonEmpty(planARN, plan.Name),
-		ResourceType: awscloud.ResourceTypeBackupReportPlan,
+		ResourceType: catalog.ResourceTypeBackupReportPlan,
 		Name:         strings.TrimSpace(plan.Name),
 		Attributes: map[string]any{
 			"deployment_status":              strings.TrimSpace(plan.DeploymentStatus),
@@ -184,7 +185,7 @@ func restoreTestingPlanObservation(
 		Boundary:     boundary,
 		ARN:          planARN,
 		ResourceID:   firstNonEmpty(planARN, plan.Name),
-		ResourceType: awscloud.ResourceTypeBackupRestoreTestingPlan,
+		ResourceType: catalog.ResourceTypeBackupRestoreTestingPlan,
 		Name:         strings.TrimSpace(plan.Name),
 		Attributes: map[string]any{
 			"schedule_expression": strings.TrimSpace(plan.ScheduleExpression),
@@ -210,7 +211,7 @@ func frameworkObservation(
 		Boundary:     boundary,
 		ARN:          frameworkARN,
 		ResourceID:   firstNonEmpty(frameworkARN, framework.Name),
-		ResourceType: awscloud.ResourceTypeBackupFramework,
+		ResourceType: catalog.ResourceTypeBackupFramework,
 		Name:         strings.TrimSpace(framework.Name),
 		Attributes: map[string]any{
 			"description":        strings.TrimSpace(framework.Description),
@@ -234,7 +235,7 @@ func frameworkControlObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBackupFrameworkControl,
+		ResourceType: catalog.ResourceTypeBackupFrameworkControl,
 		Name:         controlName,
 		Attributes: map[string]any{
 			"control_name":              controlName,

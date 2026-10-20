@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -56,7 +57,7 @@ func TestScannerEmitsS3MetadataOnlyBucketFactsAndLoggingRelationships(t *testing
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeS3Bucket)
+	resource := resourceByType(t, envelopes, catalog.ResourceTypeS3Bucket)
 	if got, want := resource.Payload["arn"], "arn:aws:s3:::orders-artifacts"; got != want {
 		t.Fatalf("bucket arn = %#v, want %q", got, want)
 	}
@@ -107,14 +108,14 @@ func TestScannerEmitsS3MetadataOnlyBucketFactsAndLoggingRelationships(t *testing
 		}
 	}
 
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipS3BucketLogsToBucket)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipS3BucketLogsToBucket)
 	if got, want := relationship.Payload["source_arn"], "arn:aws:s3:::orders-artifacts"; got != want {
 		t.Fatalf("logging relationship source_arn = %#v, want %q", got, want)
 	}
 	if got, want := relationship.Payload["target_arn"], "arn:aws:s3:::orders-logs"; got != want {
 		t.Fatalf("logging relationship target_arn = %#v, want %q", got, want)
 	}
-	if got, want := relationship.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := relationship.Payload["target_type"], catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("logging relationship target_type = %#v, want %q", got, want)
 	}
 	relationshipAttributes := attributesOf(t, relationship)
@@ -313,7 +314,7 @@ func TestScannerSkipsLoggingRelationshipWithoutTargetBucket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipS3BucketLogsToBucket); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipS3BucketLogsToBucket); got != 0 {
 		t.Fatalf("logging relationship count = %d, want 0 without target bucket", got)
 	}
 }
@@ -332,7 +333,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceS3,
+		ServiceKind:         catalog.ServiceS3,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:s3:1",
 		CollectorInstanceID: "aws-prod",

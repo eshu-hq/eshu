@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -207,7 +208,7 @@ func TestScannerNeverPersistsSecrets(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceFSx
+	boundary.ServiceKind = catalog.ServiceFSx
 
 	if _, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary); err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")

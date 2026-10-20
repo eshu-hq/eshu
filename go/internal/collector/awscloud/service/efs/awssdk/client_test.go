@@ -14,6 +14,7 @@ import (
 	awsefstypes "github.com/aws/aws-sdk-go-v2/service/efs/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientInterfaceExcludesMutationAndPolicyAPIs is the primary contract
@@ -112,7 +113,7 @@ func TestClientListFileSystemsReadsMetadataAndChildResources(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceEFS},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceEFS},
 	}
 
 	systems, err := adapter.ListFileSystems(context.Background())
@@ -176,7 +177,7 @@ func TestClientListReplicationConfigurationsRecordsDestinations(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceEFS},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceEFS},
 	}
 
 	configs, err := adapter.ListReplicationConfigurations(context.Background())

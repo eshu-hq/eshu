@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -107,7 +108,7 @@ func TestScannerEmitsFirehoseMetadataResourceAndRelationships(t *testing.T) {
 	assertEdge(t, lambda, streamARN, lambdaARN, lambdaARN, awscloud.ResourceTypeLambdaFunction)
 
 	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamDeliversToS3Bucket)
-	assertEdge(t, s3, streamARN, bucketARN, bucketARN, awscloud.ResourceTypeS3Bucket)
+	assertEdge(t, s3, streamARN, bucketARN, bucketARN, catalog.ResourceTypeS3Bucket)
 
 	opensearch := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamDeliversToOpenSearchDomain)
 	assertEdge(t, opensearch, streamARN, domainARN, domainARN, awscloud.ResourceTypeOpenSearchDomain)
@@ -259,7 +260,7 @@ func TestStagingS3RelationshipForNonS3Destination(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a staging S3 edge for a Redshift destination with a backup bucket")
 	}
-	if edge.TargetType != awscloud.ResourceTypeS3Bucket || edge.TargetResourceID != "arn:aws:s3:::staging-bucket" {
+	if edge.TargetType != catalog.ResourceTypeS3Bucket || edge.TargetResourceID != "arn:aws:s3:::staging-bucket" {
 		t.Fatalf("staging edge = %+v, want S3 bucket arn:aws:s3:::staging-bucket", edge)
 	}
 	if _, ok := stagingS3Relationship(testBoundary(), "stream-1", streamARN,

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // dataLakeS3Relationship records a data lake's backing S3 bucket. AWS reports
@@ -26,7 +27,7 @@ func dataLakeS3Relationship(boundary awscloud.Boundary, lake DataLake) *awscloud
 		SourceARN:        strings.TrimSpace(lake.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecurityLakeDataLakeUsesS3Bucket + ":" + bucketARN,
 	}
 }
@@ -179,7 +180,7 @@ func subscriberS3Relationship(boundary awscloud.Boundary, subscriber Subscriber)
 		SourceARN:        strings.TrimSpace(subscriber.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecurityLakeSubscriberUsesS3Bucket + ":" + bucketARN,
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // resourceS3BucketRelationship derives the registered location's S3 bucket edge
@@ -34,7 +35,7 @@ func resourceS3BucketRelationship(boundary awscloud.Boundary, resource Registere
 		SourceARN:        resourceARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   resourceARN + "->" + awscloud.RelationshipLakeFormationResourceAtS3Bucket + ":" + bucketARN,
 	}

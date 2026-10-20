@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -167,7 +168,7 @@ func TestScannerEmitsAppStreamMetadataAndRelationships(t *testing.T) {
 		"arn:aws:s3:::appstream-home-folders":    false,
 	}
 	for _, edge := range s3Edges {
-		assertEdgeTargetType(t, edge, awscloud.ResourceTypeS3Bucket)
+		assertEdgeTargetType(t, edge, catalog.ResourceTypeS3Bucket)
 		target, _ := edge.Payload["target_resource_id"].(string)
 		if _, ok := wantBucketARNs[target]; !ok {
 			t.Fatalf("unexpected stack->s3 target_resource_id %q", target)
@@ -318,7 +319,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

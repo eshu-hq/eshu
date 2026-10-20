@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -118,7 +119,7 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 
 	// template -> S3 bucket, keyed by the synthesized partition-aware ARN.
 	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateLogsToS3)
-	assertEdgeTarget(t, s3, awscloud.ResourceTypeS3Bucket, "arn:aws:s3:::fis-logs")
+	assertEdgeTarget(t, s3, catalog.ResourceTypeS3Bucket, "arn:aws:s3:::fis-logs")
 
 	// template -> CloudWatch alarm stop condition, keyed by the alarm ARN.
 	alarm := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateStopsOnCloudWatchAlarm)
@@ -280,7 +281,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
