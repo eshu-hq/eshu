@@ -271,6 +271,27 @@ func TestCheckRequiredStatusWorkflows_RejectsCancelledGateMappedToFailure(t *tes
 	requireErrorContaining(t, errs, `posts state="failure" for AGGREGATE_CODE=13`)
 }
 
+// TestCheckRequiredStatusWorkflows_RejectsReuseMappedToFreshPass pins the
+// #8617 reuse arm against its own most dangerous reword: describing the
+// transferred verdict exactly as a fresh pass would make a copied verdict
+// indistinguishable from gates that just ran.
+func TestCheckRequiredStatusWorkflows_RejectsReuseMappedToFreshPass(t *testing.T) {
+	t.Parallel()
+
+	body := realShapedPublisher(t, "", cancelledArm)
+	attacked := strings.Replace(body,
+		"description='Reuse: verdict copied from a previous head'",
+		"description='All gates passed'", 1)
+	if attacked == body {
+		t.Fatal("the reuse arm moved; this attack would be replacing nothing")
+	}
+	errs := checkRequiredStatusWorkflows(writeRequiredWorkflowFixture(t, attacked), requiredWorkflowRegistry())
+	if len(errs) == 0 {
+		t.Fatal("describing a transferred verdict exactly as a fresh pass must be rejected")
+	}
+	requireErrorContaining(t, errs, "describes await exit codes [0 14] identically")
+}
+
 // TestCheckRequiredStatusWorkflows_RejectsAFailureArmBehindAComment is round
 // 3's H-1 seed for the arm locator: a comment carrying "(13)" moved a
 // substring anchor onto itself, and the region it then read already held the
@@ -399,7 +420,7 @@ func TestCheckRequiredStatusWorkflows_RepositoryPublisherExitsZeroAfterPostingVe
 	if err != nil {
 		t.Fatalf("locate the repository's terminal publisher: %v", err)
 	}
-	for _, code := range []int{awaitExitPassedCode, awaitExitGateFailedCode, awaitExitBrokenCode, awaitExitGateCancelledCode, publisherUnclassifiedProbeCode} {
+	for _, code := range []int{awaitExitPassedCode, awaitExitGateFailedCode, awaitExitBrokenCode, awaitExitGateCancelledCode, awaitExitReusedCode, publisherUnclassifiedProbeCode} {
 		observed, err := EvaluatePublisher(run, code)
 		if err != nil {
 			t.Fatalf("evaluate repository publisher for %d: %v", code, err)
@@ -427,6 +448,7 @@ func TestPublisherProbeCodeIsNotARealAwaitExitCode(t *testing.T) {
 		awaitExitStillRunningCode,
 		awaitExitBrokenCode,
 		awaitExitGateCancelledCode,
+		awaitExitReusedCode,
 	} {
 		if publisherUnclassifiedProbeCode == code {
 			t.Fatalf("publisherUnclassifiedProbeCode %d collides with a real await exit code",
