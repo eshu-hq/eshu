@@ -95,9 +95,7 @@ func (l configArtifactLoader) maybeShadow(ctx context.Context, res configArtifac
 	} else {
 		report = compareShadow(ctx, l.shadow.Reader, res)
 	}
-	if l.shadow.Reporter != nil {
-		l.shadow.Reporter(report)
-	}
+	l.shadow.Reporter(report)
 }
 
 // compareShadow reads the stored rows of the related repositories and
