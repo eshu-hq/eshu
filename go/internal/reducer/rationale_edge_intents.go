@@ -153,9 +153,8 @@ func buildRationaleRefreshIntents(
 			"evidence_source": rationaleEvidenceSource,
 		}
 		// Delta scoping is per repository and fails closed on an unusable
-		// delta; sharedintent.ApplyRepoRefreshDeltaScope (the shared-payload-delta stanza of compat_decode.go)
-		// carries the full rule and why the two obvious alternatives lose
-		// edges (#6216).
+		// delta; sharedintent.ApplyRepoRefreshDeltaScope carries the full
+		// rule and why the two obvious alternatives lose edges (#6216).
 		sharedintent.ApplyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
 		intents = append(intents, sharedintent.Build(sharedintent.Input{
 			ProjectionDomain: DomainRationaleEdges,
