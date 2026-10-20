@@ -13,15 +13,33 @@ from postgres_scheduled_contract import ADMIN_ENVS, DATABASES, DSNS, IMAGE, PACK
 from reducer_contention_events import verify_events as verify_go_events
 from postgres_scheduled_fragments import load_inventory as load_fragments, inventory_digest
 from postgres_scheduled_manifest import build_manifest as build_source_bound_manifest
+from postgres_scheduled_matrix import verify_aggregate_bundle, verify_leg_uploads
 from postgres_scheduled_workflow import (
+    JOB_ORDER, LEG_JOBS, SERVICE_JOBS, job_blocks, named_step,
     verify_canonical_workflow, verify_trigger as verify_workflow_trigger,
 )
 
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
-WORKFLOW_SHA256 = "7a807a796323db73f9bb9bb095a9ae3fa121ce75bf5c88e0fc743cdffbd75a7a"
+WORKFLOW_SHA256 = "5cd43f568b7be7e962e074131702a520432e2b219c5aaf6e5f161acd9257c552"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
+GROUP_LABELS = {
+    "crossplane": "Crossplane",
+    "infra_inventory": "inventory",
+    "ack_family": "ACK",
+    "freshness_links_scale": "freshness scale",
+    "freshness_links_a": "freshness chunk A",
+    "freshness_links_b": "freshness chunk B",
+}
+GROUP_TIMEOUTS = {
+    "ack_family": "10m",
+    "crossplane": "7m",
+    "infra_inventory": "7m",
+    "freshness_links_scale": "30m",
+    "freshness_links_a": "10m",
+    "freshness_links_b": "10m",
+}
 
 
 
@@ -44,27 +62,26 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
     verify_trigger(workflow, inventory)
     if IMAGE not in workflow or "postgres:latest" in workflow:
         raise ValueError("pinned PostgreSQL backend missing")
-    if workflow.count(IMAGE) != 1:
-        raise ValueError("pinned PostgreSQL service must appear once")
-    steps = re.split(r"(?m)^      - name:", workflow)
-    def named_step(name: str) -> tuple[int, str]:
-        """Return the only active step with the exact reviewed name."""
-        matches = [
-            (index, step) for index, step in enumerate(steps)
-            if step.startswith(f" {name}\n")
-        ]
-        if len(matches) != 1:
-            raise ValueError(f"missing or duplicate hosted proof step: {name}")
-        return matches[0]
+    blocks = job_blocks(workflow)
+    if list(blocks) != list(JOB_ORDER):
+        raise ValueError("hosted proof legs differ from reviewed matrix")
+    for job in SERVICE_JOBS:
+        if blocks[job].count(IMAGE) != 1:
+            raise ValueError(f"pinned PostgreSQL service must appear once: {job}")
+    if IMAGE in blocks["scheduled-aggregate"]:
+        raise ValueError("aggregate job must not run a database service")
+    setup_steps = re.split(r"(?m)^      - name:", blocks["scheduled-setup"])
+    aggregate_steps = re.split(r"(?m)^      - name:", blocks["scheduled-aggregate"])
 
     bootstrap = [
-        step for step in steps
+        step for step in setup_steps
         if step.startswith(" Check exact enrollment and negative cases\n")
     ]
     if len(bootstrap) != 1:
         raise ValueError("scheduled runner harness step missing")
     for command in (
         "python3 scripts/test-postgres-scheduled-runner.py",
+        "python3 scripts/test-postgres-scheduled-matrix.py",
         "python3 scripts/test-postgres-scheduled-fragments.py",
         "python3 scripts/test-postgres-scheduled-ledger-policy.py",
         "python3 scripts/lib/postgres_scheduled_runner.py",
@@ -73,7 +90,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             raise ValueError("scheduled runner harness command missing")
     if re.search(r"(?m)^\s*if:", bootstrap[0]):
         raise ValueError("conditional scheduled runner harness step")
-    manifest_index, manifest_step = named_step("Record hosted proof manifest")
+    manifest_index, manifest_step = named_step(setup_steps, "Record hosted proof manifest")
     manifest_lines = {
         "          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}",
         "          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}",
@@ -100,14 +117,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         raise ValueError("conditional hosted proof manifest step")
     for group, package in PACKAGES.items():
         package_path = "./" + package.split("/go/", 1)[1]
-        if group == "ack_family":
-            timeout = "10m"
-        elif group in {"crossplane", "infra_inventory"}:
-            timeout = "7m"
-        elif group == "freshness_links":
-            timeout = "30m"
-        else:
-            timeout = "6m"
+        timeout = GROUP_TIMEOUTS.get(group, "6m")
         arguments = (
             " -args -containerimage-bootstrap=1"
             " -containerimage-database=eshu_containerimage_scheduled"
@@ -122,10 +132,15 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             + re.escape(group)
             + r"\.jsonl\"$"
         )
-        selected_steps = [step for step in steps if pattern.search(step)]
-        if len(selected_steps) != 1:
+        leg_steps = [
+            step
+            for job in LEG_JOBS
+            for step in re.split(r"(?m)^      - name:", blocks[job])
+            if pattern.search(step)
+        ]
+        if len(leg_steps) != 1:
             raise ValueError(f"missing or duplicate selector for {group}")
-        step = selected_steps[0]
+        step = leg_steps[0]
         selected = pattern.search(step).group(1)
         expected = sorted(
             name for row in inventory.values() if row.get("group") == group
@@ -153,7 +168,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
                     raise ValueError(f"secondary DSN differs for {group}")
             if group == "search" and step.count('ESHU_SEARCH_INDEX_PARTITION_LIVE: "1"') != 1:
                 raise ValueError("search partition opt-in missing")
-            if group == "freshness_links":
+            if group == "freshness_links_scale":
                 for line in (
                     'ESHU_7127_W11_COST: "1"',
                     "ESHU_RETENTION_TIMING_DSN: postgres://eshu:change-me@localhost:15432/"
@@ -201,10 +216,10 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             raise ValueError(f"conditional proof step for {group}")
     if workflow.count("set -euo pipefail") != len(PACKAGES) + 1:
         raise ValueError("every scheduled package step requires fail-closed shell")
+    all_steps = re.split(r"(?m)^      - name:", workflow)
     for group, database in DATABASES.items():
-        label = {"crossplane": "Crossplane", "infra_inventory": "inventory",
-                 "ack_family": "ACK"}.get(group, group)
-        create_index, create_step = named_step(f"Create fresh {label} database")
+        label = GROUP_LABELS.get(group, group)
+        create_index, create_step = named_step(all_steps, f"Create fresh {label} database")
         expected_create = (
             '        run: docker exec "${{ job.services.postgres.id }}" '
             'psql -v ON_ERROR_STOP=1 -U eshu -d postgres '
@@ -218,7 +233,7 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         run_name = {"infra_inventory": "Run infra inventory proofs",
                     "ack_family": "Run ACK and completion proofs"}.get(
                         group, f"Run {label} proofs")
-        run_index, _ = named_step(run_name)
+        run_index, _ = named_step(all_steps, run_name)
         if create_index >= run_index:
             raise ValueError(f"fresh database is not created before {group}")
 
@@ -234,41 +249,8 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         actual = sorted(TEST_PATTERN.findall(source))
         if actual != tests:
             raise ValueError(f"source Test inventory changed: {relative}")
-    bundle_index, bundle_step = named_step("Verify hosted proof bundle")
-    expected_bundle = (
-        '        run: python3 scripts/lib/postgres_scheduled_runner.py '
-        '--verify-proof-bundle "${RUNNER_TEMP}"'
-    )
-    if expected_bundle not in bundle_step.splitlines():
-        raise ValueError("hosted proof bundle verification missing")
-    if re.search(r"(?m)^\s*if:", bundle_step):
-        raise ValueError("conditional hosted proof bundle step")
-    artifact_index, artifact_step = named_step("Retain hosted proof bundle")
-    artifact_lines = {
-        "        if: always()",
-        "        uses: actions/upload-artifact@v4",
-        "          name: postgres-scheduled-proof-${{ github.run_id }}-"
-        "${{ github.run_attempt }}",
-        "          if-no-files-found: error",
-        "          retention-days: 14",
-    } | {
-        f"            ${{{{ runner.temp }}}}/{name}"
-        for name in ("manifest.json", *(f"{group}.jsonl" for group in PACKAGES))
-    }
-    if not artifact_lines.issubset(set(artifact_step.splitlines())):
-        raise ValueError("hosted proof artifact retention missing")
-    uploaded = re.search(
-        r"(?m)^          path: \|\n((?:            [^\n]+\n)+)",
-        artifact_step,
-    )
-    expected_uploads = [
-        f"            ${{{{ runner.temp }}}}/{name}"
-        for name in ("manifest.json", *(f"{group}.jsonl" for group in PACKAGES))
-    ]
-    if not uploaded or uploaded.group(1).splitlines() != expected_uploads:
-        raise ValueError("hosted proof artifact paths differ from exact bundle")
-    if not (steps.index(bootstrap[0]) < manifest_index < bundle_index < artifact_index):
-        raise ValueError("hosted proof step order changed")
+    verify_leg_uploads(blocks)
+    verify_aggregate_bundle(aggregate_steps)
     if hashlib.sha256(workflow.encode("utf-8")).hexdigest() != WORKFLOW_SHA256:
         raise ValueError("hosted workflow executable bytes differ from reviewed contract")
 

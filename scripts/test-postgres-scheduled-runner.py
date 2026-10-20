@@ -56,7 +56,9 @@ class ScheduledRunnerTest(unittest.TestCase):
             ("search", 5, 8),
             ("readiness", 4, 6),
             ("containerimage", 8, 15),
-            ("freshness_links", 22, 58),
+            ("freshness_links_scale", 4, 4),
+            ("freshness_links_a", 9, 33),
+            ("freshness_links_b", 9, 21),
         ):
             rows = [row for row in inventory.values() if row["group"] == group]
             self.assertEqual(len(rows), files)
@@ -124,25 +126,25 @@ class ScheduledRunnerTest(unittest.TestCase):
                 "      - name: Run Crossplane proofs\n",
                 "      - name: Run Crossplane proofs\n        if: false\n", "conditional",
             ),
-            ("  postgres-scheduled:\n", "  postgres-scheduled:\n    if: false\n", "conditional"),
+            ("  scheduled-bulk:\n", "  scheduled-bulk:\n    if: false\n", "conditional"),
             (
-                "  postgres-scheduled:\n",
-                "  postgres-scheduled:\n    continue-on-error: true\n",
+                "  scheduled-bulk:\n",
+                "  scheduled-bulk:\n    continue-on-error: true\n",
                 "continue-on-error",
             ),
             (
-                "  postgres-scheduled:\n",
-                "  postgres-scheduled:\n    continue-on-error : true\n",
+                "  scheduled-bulk:\n",
+                "  scheduled-bulk:\n    continue-on-error : true\n",
                 "non-fail-closed",
             ),
             (
-                "  postgres-scheduled:\n",
-                "  postgres-scheduled:\n    'continue-on-error': true\n",
+                "  scheduled-bulk:\n",
+                "  scheduled-bulk:\n    'continue-on-error': true\n",
                 "non-fail-closed",
             ),
             (
-                "  postgres-scheduled:\n",
-                "  postgres-scheduled:\n    if : false\n",
+                "  scheduled-bulk:\n",
+                "  scheduled-bulk:\n    if : false\n",
                 "non-fail-closed",
             ),
             (
@@ -212,7 +214,7 @@ class ScheduledRunnerTest(unittest.TestCase):
             ),
             (
                 "run: python3 scripts/lib/postgres_scheduled_runner.py "
-                "--verify-proof-bundle \"${RUNNER_TEMP}\"",
+                "--verify-proof-bundle \"${RUNNER_TEMP}/proof-bundle\"",
                 "run: echo bundle-verified",
                 "bundle",
             ),
@@ -226,16 +228,16 @@ class ScheduledRunnerTest(unittest.TestCase):
                 "      - name: Retain hosted proof bundle\n        if: false",
                 "artifact",
             ),
-            ("            ${{ runner.temp }}/manifest.json\n", "", "artifact"),
+            ("            ${{ runner.temp }}/proof-bundle/manifest.json\n", "", "artifact"),
             (
-                "            ${{ runner.temp }}/manifest.json\n",
-                "            ${{ runner.temp }}/manifest.json\n"
-                "            ${{ runner.temp }}/*.env\n",
+                "            ${{ runner.temp }}/proof-bundle/manifest.json\n",
+                "            ${{ runner.temp }}/proof-bundle/manifest.json\n"
+                "            ${{ runner.temp }}/proof-bundle/*.env\n",
                 "artifact",
             ),
             (
-                "--verify-proof-bundle \"${RUNNER_TEMP}\"",
-                "--verify-proof-bundle \"${RUNNER_TEMP}\" --allow-local-simulation",
+                "--verify-proof-bundle \"${RUNNER_TEMP}/proof-bundle\"",
+                "--verify-proof-bundle \"${RUNNER_TEMP}/proof-bundle\" --allow-local-simulation",
                 "local simulation",
             ),
         )

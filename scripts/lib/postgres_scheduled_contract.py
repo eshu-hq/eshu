@@ -13,7 +13,9 @@ PACKAGES = {
     "search": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "readiness": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "containerimage": "github.com/eshu-hq/eshu/go/internal/reducer/containerimage",
-    "freshness_links": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
+    "freshness_links_scale": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "freshness_links_a": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links",
+    "freshness_links_b": "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 }
 
 DSNS = {
@@ -26,7 +28,9 @@ DSNS = {
     "search": "ESHU_POSTGRES_DSN",
     "readiness": "ESHU_REDUCER_FAIRNESS_PROOF_DSN",
     "containerimage": "ESHU_POSTGRES_DSN",
-    "freshness_links": "ESHU_POSTGRES_TEST_DSN"
+    "freshness_links_scale": "ESHU_POSTGRES_TEST_DSN",
+    "freshness_links_a": "ESHU_POSTGRES_TEST_DSN",
+    "freshness_links_b": "ESHU_POSTGRES_TEST_DSN"
 }
 
 DATABASES = {
@@ -36,10 +40,12 @@ DATABASES = {
     "claim": "eshu_claim_scheduled",
     "liveness": "eshu_liveness_scheduled",
     "fanout": "eshu_fanout_scheduled",
-    "freshness_links": "eshu_freshness_scheduled",
     "search": "eshu_search_scheduled",
     "readiness": "eshu_readiness_scheduled",
-    "containerimage": "eshu_containerimage_scheduled"
+    "containerimage": "eshu_containerimage_scheduled",
+    "freshness_links_scale": "eshu_freshness_scheduled",
+    "freshness_links_a": "eshu_freshness_a",
+    "freshness_links_b": "eshu_freshness_b"
 }
 
 ADMIN_ENVS = {
@@ -94,12 +100,14 @@ PR_PATHS = {
     "scripts/lib/postgres_scheduled_inventory.d/**",
     "scripts/lib/postgres_scheduled_inventory.json",
     "scripts/lib/postgres_scheduled_manifest.py",
+    "scripts/lib/postgres_scheduled_matrix.py",
     "scripts/lib/postgres_scheduled_runner.py",
     "scripts/lib/postgres_scheduled_workflow.py",
     "scripts/lib/reducer_contention_events.py",
     "scripts/lib/verify-live-tests-ledger.py",
     "scripts/test-postgres-scheduled-fragments.py",
     "scripts/test-postgres-scheduled-ledger-policy.py",
+    "scripts/test-postgres-scheduled-matrix.py",
     "scripts/test-postgres-scheduled-runner.py",
     "scripts/test-verify-live-tests-ledger.sh",
     "scripts/verify-live-tests-ledger.sh",
