@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -65,5 +66,45 @@ func TestAdminRetireRepositoriesFlags(t *testing.T) {
 	}
 	if len(bodies) != calls {
 		t.Fatal("an HTTP call ran with a missing --reason")
+	}
+}
+
+// TestAdminRetireRepositoriesPrintsGeneratedKey proves the cobra wrapper
+// mints the idempotency key before the POST and prints it to stderr, so an
+// operator whose call fails after the fence commits can retry with the
+// same key instead of minting a fresh one into already_open.
+func TestAdminRetireRepositoriesPrintsGeneratedKey(t *testing.T) {
+	var bodies []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
+		bodies = append(bodies, body)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ESHU_SERVICE_URL", server.URL)
+
+	cmd := newAdminRetireRepositoriesCmd()
+	if err := cmd.ParseFlags([]string{"--repository", "acme/api", "--reason", "decommissioned upstream"}); err != nil {
+		t.Fatalf("ParseFlags() error = %v", err)
+	}
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	if err := runAdminRetireRepositories(cmd, nil); err != nil {
+		t.Fatalf("runAdminRetireRepositories() error = %v", err)
+	}
+	if len(bodies) != 1 {
+		t.Fatalf("calls = %d, want 1", len(bodies))
+	}
+	posted, ok := bodies[0]["idempotency_key"].(string)
+	if !ok || !strings.HasPrefix(posted, "cli-retire-") {
+		t.Fatalf("posted idempotency_key = %v, want the cli-retire- prefix", bodies[0]["idempotency_key"])
+	}
+	if !strings.Contains(stderr.String(), posted) {
+		t.Fatalf("stderr = %q, want it to name the posted key %q", stderr.String(), posted)
 	}
 }

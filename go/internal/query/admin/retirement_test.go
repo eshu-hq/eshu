@@ -162,6 +162,27 @@ func TestRetireSurfacesUnfencedPurgeRefusal(t *testing.T) {
 	assertRetireAuditValid(t, audit.Events)
 }
 
+func TestRetireSurfacesWrongPhasePurgeRefusal(t *testing.T) {
+	var calls []string
+	audit := &testutil.FakeGovernanceAuditAppender{}
+	fencer := &stubRetirementFencer{calls: &calls, result: pgstatus.FenceResult{
+		RetirementIDs: []string{"rr_wrongphase01"},
+		RepoIDs:       []string{"PARTITION:acme/api"},
+	}}
+	purger := &stubRetirementPurger{
+		calls: &calls,
+		err:   errors.Join(errors.New("retirement purge PARTITION:acme/api"), pgstatus.ErrRetirementTombstoneNotFenced),
+	}
+	rec := postRetire(t, retireHandler(singleRepoCatalog(), fencer, purger, audit), retireBody(), nil)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+	if len(audit.Events) != 1 || audit.Events[0].ReasonCode != "retire_refused_wrong_phase" {
+		t.Fatalf("want retire_refused_wrong_phase denied audit, got %+v", audit.Events)
+	}
+	assertRetireAuditValid(t, audit.Events)
+}
+
 func TestRetireReportsLiveGenerationsBlocked(t *testing.T) {
 	var calls []string
 	audit := &testutil.FakeGovernanceAuditAppender{}

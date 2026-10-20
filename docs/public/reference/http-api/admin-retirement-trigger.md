@@ -15,9 +15,12 @@ eshu admin retire-repositories \
   --idempotency-key retire-2026-10-19-acme-api
 ```
 
-Repeat `--repository` for up to 25 repositories. A key is generated when
-`--idempotency-key` is omitted. The same call as HTTP needs an admin
-(all-scopes) token:
+Repeat `--repository` for up to 25 repositories. When `--idempotency-key`
+is omitted the CLI mints one and prints it to stderr before the call, so a
+call that fails after the fence commits stays retryable with the printed
+key. A production retirement should still pass an explicit
+`--idempotency-key` recorded with the change. The same call as HTTP needs
+an admin (all-scopes) token:
 
 ```bash
 curl -X POST http://localhost:8080/api/v0/admin/repositories/retire \
@@ -47,7 +50,8 @@ curl -X POST http://localhost:8080/api/v0/admin/repositories/retire \
 | Selector matches nothing | `404` | Fix the selector. |
 | Selector matches several repositories | `409` | Narrow the selector. |
 | Selector is not a git default-branch scope | `422` | Only git repositories retire. |
-| Fence blocked (live lease, lock wait, over budget) | `409` | Wait, then retry with the same key. |
+| Fence blocked (live lease, lock wait, busy claim fence) | `409` | Wait, then retry with the same key. |
+| Fence over budget (`request_too_large`) | `409` | Split the request; retrying the same set refuses again. |
 | Retirement already open under a different key | `409` | Reuse the original key. |
 | Purge finds no open tombstone or a moved tombstone | `409` | Never purged partially; re-fence first. |
 | Generations still live (`status: blocked`) | `200` | Retry with the same key after they go terminal. |
