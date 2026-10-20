@@ -99,9 +99,13 @@ func runAwait(args []string) error {
 		if smokeErr != nil {
 			_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke probe failed (%v); awaiting full selection\n", smokeErr)
 		} else if applied {
-			smoke = true
-			resolved = smokeSubset(reg, resolved)
-			_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke tier applies (clean rebase, disjoint base delta); awaiting %d fast job(s), heavy verdicts transfer\n", len(resolved))
+			if subset := smokeSubset(reg, resolved); len(subset) == 0 {
+				_, _ = fmt.Fprintln(os.Stdout, "required-gates: smoke subset empty (all-heavy selection); awaiting full selection")
+			} else {
+				smoke = true
+				resolved = subset
+				_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke tier applies (clean rebase, disjoint base delta); awaiting %d fast job(s), heavy verdicts transfer\n", len(resolved))
+			}
 		}
 	}
 	if err := awaitPRRequiredChecks(ctx, runner, *repo, *pr, *headSHA, resolved, *pollInterval, os.Stdout); err != nil {

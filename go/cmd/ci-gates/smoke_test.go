@@ -102,9 +102,6 @@ func TestProbeSmoke_GateDefinitionDeltaRefuses(t *testing.T) {
 	}
 }
 
-// The smoke filter keeps a resolved job when any gate it covers is a
-// fast local tier, and drops ci-heavy/manual-only jobs: their verdicts
-// transfer from the green candidate.
 // A candidate whose own success was a smoke pass refuses transfer:
 // smoke-on-smoke chains would accumulate unbounded base drift with the
 // heavy gates never re-running. One hop from a fully run tree is the
@@ -163,6 +160,9 @@ func TestProbeSmoke_TruncatedCompareRefuses(t *testing.T) {
 	}
 }
 
+// The smoke filter keeps a resolved job when any gate it covers is a
+// fast local tier, and drops ci-heavy/manual-only jobs: their verdicts
+// transfer from the green candidate.
 func TestSmokeSubsetKeepsFastJobsOnly(t *testing.T) {
 	t.Parallel()
 
@@ -187,5 +187,24 @@ func TestSmokeSubsetKeepsFastJobsOnly(t *testing.T) {
 	want := []string{"fast", "unknown"}
 	if strings.Join(jobs, ",") != strings.Join(want, ",") {
 		t.Fatalf("smokeSubset jobs = %v, want %v", jobs, want)
+	}
+}
+
+// An all-heavy selection filters to nothing. The await path must
+// refuse smoke on an empty subset and run the full selection instead
+// of publishing a smoke success with zero jobs run.
+func TestSmokeSubsetAllHeavyIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	reg := &cigates.Registry{Gates: []cigates.Gate{
+		{ID: "heavy-one", Tier: cigates.TierCIHeavy},
+		{ID: "manual-one", Tier: cigates.TierManual},
+	}}
+	resolved := []resolvedRequiredGate{
+		{Job: "heavy", GateIDs: []string{"heavy-one"}},
+		{Job: "manual", GateIDs: []string{"manual-one"}},
+	}
+	if got := smokeSubset(reg, resolved); len(got) != 0 {
+		t.Fatalf("smokeSubset all-heavy = %v, want empty", got)
 	}
 }
