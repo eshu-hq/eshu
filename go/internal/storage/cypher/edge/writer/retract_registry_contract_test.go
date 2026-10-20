@@ -319,11 +319,11 @@ func checkEvidenceEdgeAttachers(found map[string][]string) []string {
 func TestEvidenceNodeSoleCreatorsCensus(t *testing.T) {
 	t.Parallel()
 
-	found := scanEvidenceNodeCreators(t, "../..")
+	found := scanEvidenceNodeCreators(t, "../../..")
 	if violations := checkEvidenceNodeSoleCreators(found); len(violations) > 0 {
 		t.Errorf("evidence-node sole-creator census failed:\n  %s", strings.Join(violations, "\n  "))
 	}
-	attached := scanEvidenceEdgeAttachers(t, "../..")
+	attached := scanEvidenceEdgeAttachers(t, "../../..")
 	if violations := checkEvidenceEdgeAttachers(attached); len(violations) > 0 {
 		t.Errorf("evidence-edge attacher census failed:\n  %s", strings.Join(violations, "\n  "))
 	}

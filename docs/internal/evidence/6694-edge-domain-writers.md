@@ -19,9 +19,10 @@ fakes):
   `".."` → `"../.."`, still covering `go/internal/storage/`; basename
   comparison survives the move by design)
 - `code_evidence_retract_dispatch_test.go` (unchanged behavior)
-- `code_evidence_bolt_retract_test.go` (harness block deleted: it was
-  byte-identical to the leaf `bolt_harness_test.go` copy, which now names the
-  restored root `bolt_harness_test.go` as its duplication source)
+- `code_evidence_bolt_retract_test.go` (harness block relocated to the new
+  leaf `bolt_harness_test.go`, adapted with `sourcecypher.` qualifiers plus
+  the `boltOrphanSweepReader` duplicate; the leaf copy names the restored
+  root `bolt_harness_test.go` as its duplication source)
 
 Shared-helper handling (issue's "split shared helpers before moving leaves"):
 
@@ -34,14 +35,16 @@ Shared-helper handling (issue's "split shared helpers before moving leaves"):
   with them in `code_taint_evidence_writer.go`. No root stayer references a
   moved symbol (verified by full-module build).
 
-Root keeps its own bolt harness (`bolt_harness_test.go`, restored verbatim
-from the pre-move file modulo the trailing blank line, which gofumpt drops
-at EOF): the remaining root live tests
+Root keeps its own bolt harness (`bolt_harness_test.go`, restored from the
+pre-move file): the remaining root live tests
 (`canonical_index_key_live_test.go`, `canonical_moved_block_live_test.go`,
 `harness_test.go`, `tfstate_state_match_edge_live_test.go`) still resolve
-`boltRetractTestRunner` in-package. No new duplication: the leaf copy serves
-the moved evidence tests, the root copy serves the canonical/tfstate/index
-tests, and both copies are byte-identical.
+`boltRetractTestRunner` in-package. The two copies are intentionally
+different, not duplicates: the root copy keeps the `ESHU_NEO4J_URI` and
+`ESHU_NEO4J_DATABASE` env fallbacks the blocking live-backend runner exports,
+while the leaf copy adapts the same harness to package `writer`
+(`sourcecypher.` qualifiers, duplication-source comment) and adds the
+`boltOrphanSweepReader` duplicate for the `[]string`-parameter live case.
 
 Repoints (direct caller migration, no root facade, per the #6694 lane
 precedent):
@@ -82,8 +85,8 @@ precedent):
 Baseline: pre-move files at the rebase base (`git mv` records renames;
 a literal-diff of the 5 impl + 10 moved test files shows zero Cypher/string
 literal changes — only package clauses, the `sourcecypher` import, qualifier
-prefixes, gofumpt alignment, the registry walk root, and the deleted
-byte-identical harness duplicate). After:
+prefixes, gofumpt alignment, the registry walk root, and the relocated
+harness block). After:
 
 - `go build ./...` — clean (full module, incl. all repointed callers).
 - `go vet` on the cypher tree, `internal/ifa/...`,
