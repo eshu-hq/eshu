@@ -11,6 +11,9 @@
 // config-artifact derive timeout and kill switch once at process start; the
 // ingester, the projector, and bootstrap-index call the loader from
 // NewConfigArtifactWriteDeriver (#8155 PR3b-2c-2).
+// ConfigArtifactWalkerConfig and LoadConfigArtifactWalkerConfig read the
+// reducer walker's own switch and worker count once at reducer start
+// (#8155 PR3b-2).
 // CanonicalEntityID hashes (repoID, relativePath, entityType, entityName,
 // lineNumber) into a stable "content-entity:e_<12-hex>" identifier with
 // BLAKE2s. CanonicalEntityIDWithMetadata routes in-scope manifest dependency

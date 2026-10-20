@@ -80,6 +80,25 @@ func TestConfigArtifactDeriveLabelsMatchStorageConstants(t *testing.T) {
 	}
 }
 
+// TestConfigArtifactReconcileOutcomesAreClosed pins the closed outcome set
+// of the config-artifact walker counter (#8155 PR3b-2): the five outcomes of
+// the decision record section 3.5, in declaration order.
+func TestConfigArtifactReconcileOutcomesAreClosed(t *testing.T) {
+	t.Parallel()
+
+	outcomes := ConfigArtifactReconcileOutcomes()
+	want := []string{"match", "repaired", "superseded", "error", "skipped"}
+	if !slices.Equal(outcomes, want) {
+		t.Fatalf("ConfigArtifactReconcileOutcomes() = %v, want %v", outcomes, want)
+	}
+
+	// The accessor returns a copy: a caller cannot widen the closed set.
+	outcomes[0] = "mutated"
+	if ConfigArtifactReconcileOutcomes()[0] != "match" {
+		t.Fatal("reconcile outcome accessor returned a shared slice")
+	}
+}
+
 // TestConfigArtifactDeriveDimensionAndSpanRegistered pins the trigger
 // dimension key and the derive span name in the frozen contract lists.
 func TestConfigArtifactDeriveDimensionAndSpanRegistered(t *testing.T) {

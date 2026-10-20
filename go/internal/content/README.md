@@ -34,6 +34,9 @@ This package owns:
 - `WriterConfig`, `LoadWriterConfig` — batch-width tunable
 - `ConfigArtifactDeriveConfig`, `LoadConfigArtifactDeriveConfig` — the
   config-artifact derive timeout and kill switch (#8155)
+- `ConfigArtifactWalkerConfig`, `LoadConfigArtifactWalkerConfig` — the
+  config-artifact reducer walker's own switch and worker count (#8155
+  PR3b-2; defaults enabled, 4 workers; below 1 worker fails startup)
 - `MemoryWriter` — in-process test double
 
 This package does not own the Postgres schema, SQL, or connection pool.
@@ -134,6 +137,13 @@ Config:
   from `NewConfigArtifactWriteDeriver` beside `LoadWriterConfig` (PR3b-2c-2,
   #8155). The loader lives here, not in the storage `config/artifacts`
   package, whose contract forbids environment lookups.
+- `ConfigArtifactWalkerConfig` / `LoadConfigArtifactWalkerConfig` — reads
+  `ESHU_CONFIG_ARTIFACT_WALKER_ENABLED` (default `true`) and
+  `ESHU_CONFIG_ARTIFACT_WALKER_WORKERS` (default `4`) once at reducer start.
+  An unparsable flag, an unparsable count, or a count below 1 is an error, so
+  the binary fails at start. The count is checked even with the walker off.
+  The reducer calls the loader from `configArtifactWalkerRunnerFor` (PR3b-2,
+  #8155).
 
 ## Dependencies
 
