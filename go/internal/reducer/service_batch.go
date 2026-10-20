@@ -145,9 +145,9 @@ func (s Service) runBatchConcurrent(
 						intent:    intent,
 						queueWait: reducerQueueWaitSeconds(droppedAt, intent.AvailableAt),
 						duration:  claimElapsed,
-						// -1: never assigned to a worker; dropped between
-						// claim and handoff.
-						workerID: -1,
+						// Never assigned to a worker; dropped between claim
+						// and handoff.
+						workerID: batchDropUnassignedWorkerID,
 					}, ackStatusOutcomeUnknown, ctx.Err())
 				}
 				return
@@ -173,8 +173,8 @@ func (s Service) runBatchConcurrent(
 							intent:    dropped,
 							queueWait: reducerQueueWaitSeconds(droppedAt, dropped.AvailableAt),
 							duration:  claimElapsed,
-							// -1: never handed to a worker; dropped mid-handoff.
-							workerID: -1,
+							// Never handed to a worker; dropped mid-handoff.
+							workerID: batchDropUnassignedWorkerID,
 						}, ackStatusOutcomeUnknown, ctx.Err())
 					}
 					return
