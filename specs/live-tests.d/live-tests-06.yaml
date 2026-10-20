@@ -167,6 +167,30 @@ tests:
     tag: ~
     class: scheduled
     reason: "#8602 retirement fence-then-purge sequence and unfenced-refusal live proof, untagged and gated by the ESHU_POSTGRES_DSN env Skip; ran green on disposable PostgreSQL 18 during the lane — promote to blocking with CI timing evidence"
+  - file: go/internal/storage/cypher/retirement_retract_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8659 2c graph-retract live proof (G5/G5f/G5w/G5p, G6 demote, shared-root skip, P10 census), untagged and gated by the ESHU_CYPHER_BOLT_DSN env Skip; ran green on disposable NornicDB (1.1s) and Neo4j (28.9s) during the lane (docs/internal/evidence/8659-graph-retract.md) — promote to blocking with repeated CI timing evidence"
+  - file: go/internal/storage/cypher/sweep/orphan/retirement_demote_sweep_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8659 demoted-repository reap-after-TTL live proof with injected clock, untagged and gated by the ESHU_CYPHER_BOLT_DSN env Skip; not yet run against a live backend in this lane — promote to blocking with measured timing evidence"
+  - file: go/internal/storage/postgres/repository_retirements_barrier_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8659 retirement barrier (fence, quiesce, lease wait, heartbeat) live proof, untagged and gated by the ESHU_POSTGRES_DSN env Skip; not yet run against a live backend in this lane — promote to blocking with measured timing evidence"
+  - file: go/internal/storage/postgres/repository_retirements_capture_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8659 retirement capture (graph_repo_root/graph_scope_ids) live proof, untagged and gated by the ESHU_POSTGRES_DSN env Skip; not yet run against a live backend in this lane — promote to blocking with measured timing evidence"
+  - file: go/internal/storage/postgres/repository_retirements_purge_scale_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8659 retirement purge scale measurement live proof, untagged and gated by the ESHU_POSTGRES_DSN env Skip; not yet run against a live backend in this lane — promote to blocking with measured timing evidence"
+  - file: go/internal/storage/postgres/retirement_table_census_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8659 retirement table-census live proof (every scope-keyed table classified both directions), untagged and gated by the ESHU_POSTGRES_DSN env Skip; not yet run against a live backend in this lane — promote to blocking with measured timing evidence"
   - file: go/internal/storage/postgres/ingestion_published_generation_recommit_live_test.go
     tag: ~
     class: dedicated_ci

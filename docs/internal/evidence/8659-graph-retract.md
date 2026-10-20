@@ -94,19 +94,28 @@ log keys, all built here:
 ## Per-AC proof
 
 - AC1 (no projector-owned node after complete): live
-  `TestRetirementGraphRetractLive` runs the exact P10 forms
-  (`MATCH (n) WHERE n.repo_id=$id RETURN labels(n), count(n)` zero rows
-  for three retired ids; edge census one foreign-owned incoming edge).
+  `TestRetirementGraphRetractLive` counts per label and sums
+  (`retirementBoltRepoIDCount`: File, Directory, Function, Parameter,
+  Workload, WorkloadInstance, Endpoint, Repository) to zero for three
+  retired ids; edge census one foreign-owned incoming edge. The per-label
+  loop is load-bearing on NornicDB, whose `File`-scoped `file_repo_id`
+  index serves a labelless `repo_id` scan and silently drops every other
+  label (proven by a drop-index flip; filed as #8685).
 - AC2 (demote + sweep reap after TTL, injected clock): live
   `TestRetirementDemotedRepositoryReapedAfterTTLWithInjectedClock`
   (mark at T0, survive at T0+30m, reaped at T0+61m with a 1h TTL, no
   sleeps; canonical node never marked).
 - AC3 (G5p + shared-root skip+record): builder test pins the NOT term
   and fail-closed root; live test detects the shared root through
-  `RetirementSharedRootQuery` (parent shape: the retired root nested
-  under the live repository's path, the only shape the
-  `repository_path` uniqueness constraint admits; the equal-path arm is
-  unit-pinned), skips G5p, and asserts both Parameters survive.
+  `RetirementSharedRootQuery`, which matches a client-side ancestor
+  `IN`-list (root plus strict ancestors; empty root matches nothing).
+  The `IN` form replaces a `literal STARTS WITH <property-expr>`
+  predicate that over-matches on NornicDB (returned every repository
+  but the excluded id; filed as #8685). The live seed concatenates
+  paths client-side for the same reason (NornicDB stores a server-side
+  `$param + 'literal'` concat in `CREATE` unevaluated). G5p is skipped
+  on the hit and both Parameters survive; the run is green on Neo4j
+  and NornicDB.
 - AC4 (Files without Repository node): live test retracts R3's file,
   which G5 cannot reach; builder test pins "no Repository anchor".
 - AC5 (intents deleted before retraction + pre-barrier lease wait):
