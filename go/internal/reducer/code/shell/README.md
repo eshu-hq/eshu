@@ -37,16 +37,14 @@ the intents this package emits (reducer root).
 | `LoadMaterializationFacts` / `MaterializationFactKinds` | the scoped fact-kind loader for `repository`/`file`, and the kind set it requests |
 | `BuildSharedIntentRows` / `BuildRefreshIntents` | the per-edge and per-repo-refresh shared-projection intent builders |
 
-The reducer root wires `Handler` in
-`defaults_domain_catalog.go` and declares the `ShellExecIntentWriter` field on
-`DefaultHandlers` (`defaults.go`), keeping the `reducer.ShellExecIntentWriter`/
-`reducer.ShellExecMaterializationHandler` spellings through the shell-exec
-stanza of `compat_projection.go`. The reducer root's cross-domain sibling
+The reducer root wires `shell.Handler` in
+`defaults_domain_catalog.go` and declares the `shell.IntentWriter` field on
+`DefaultHandlers` (`defaults.go`), naming this package directly with no
+compat surface. The reducer root's cross-domain sibling
 proofs (`sibling_edge_intent_delta_gate_test.go`,
 `sibling_edge_intent_retract_reachability_test.go`) drive
-`BuildRefreshIntents`/`BuildSharedIntentRows` directly, alongside
-`inheritance` and `sqlrelationship`'s equivalents, through the
-`buildShellExecRefreshIntents`/`buildShellExecSharedIntentRows` forwarders.
+`shell.BuildRefreshIntents`/`shell.BuildSharedIntentRows` directly, alongside
+`inheritance` and `sqlrelationship`'s equivalents.
 
 ## Dependencies
 
@@ -99,8 +97,8 @@ string, or call order. `ShellExec*` exported identifiers dropped the `Shell`
 prefix per `docs/internal/naming.md` (`ExtractShellExecRows` ->
 `ExtractExecRows`, `ShellExecIntentWriter` -> `IntentWriter`,
 `ShellExecMaterializationHandler` -> `Handler`); the
-reducer root keeps every one of these spellings through the shell-exec stanza
-of `compat_projection.go`, so no external caller needed a source change.
+reducer root named this package directly (#6626 cloud bucket retired the
+shell-exec compat stanza, so external callers spell `shell.*`).
 Measured from `go/`, with `GOROOT` unset: `go build ./...`, `go vet
 ./internal/reducer/... ./cmd/reducer/... ./internal/storage/...`, and `go
 test ./internal/reducer/... ./cmd/reducer/... ./internal/storage/cypher/...

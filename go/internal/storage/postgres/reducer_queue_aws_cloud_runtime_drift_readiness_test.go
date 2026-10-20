@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -30,7 +30,7 @@ func (awsCloudRuntimeDriftStatePendingTestError) Error() string {
 func (awsCloudRuntimeDriftStatePendingTestError) Retryable() bool { return true }
 
 func (awsCloudRuntimeDriftStatePendingTestError) FailureClass() string {
-	return reducer.AWSCloudRuntimeDriftStatePendingFailureClass
+	return awscloud.AWSCloudRuntimeDriftStatePendingFailureClass
 }
 
 // awsCloudRuntimeDriftWriteSupersededTestError stands in for the writer's
@@ -48,7 +48,7 @@ func (awsCloudRuntimeDriftWriteSupersededTestError) Error() string {
 func (awsCloudRuntimeDriftWriteSupersededTestError) Retryable() bool { return true }
 
 func (awsCloudRuntimeDriftWriteSupersededTestError) FailureClass() string {
-	return reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass
+	return awscloud.AWSCloudRuntimeDriftWriteSupersededFailureClass
 }
 
 // TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget
@@ -56,7 +56,7 @@ func (awsCloudRuntimeDriftWriteSupersededTestError) FailureClass() string {
 // state-pending defer as non-counting: even at an attempt count far past
 // MaxAttempts, Fail re-queues the row as retrying rather than dead-lettering
 // it. This is the P0 regression: it fails red without
-// reducer.AWSCloudRuntimeDriftStatePendingFailureClass registered in
+// awscloud.AWSCloudRuntimeDriftStatePendingFailureClass registered in
 // nonCountingReducerRetryFailureClasses, in which case Fail would dead-letter
 // instead of deferring -- turning aws_cloud_runtime_drift's own bounded
 // readiness defer (capped at awsCloudRuntimeDriftStatePendingMaxWait, 30
@@ -108,7 +108,7 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], reducer.AWSCloudRuntimeDriftStatePendingFailureClass; got != want {
+	if got, want := db.execs[0].args[1], awscloud.AWSCloudRuntimeDriftStatePendingFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 }
@@ -117,7 +117,7 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget
 // is the write-admission sibling of the test above: even at an attempt count
 // far past MaxAttempts, a superseded-write rejection must be deferred, not
 // dead-lettered. Fails red without
-// reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass registered in
+// awscloud.AWSCloudRuntimeDriftWriteSupersededFailureClass registered in
 // nonCountingReducerRetryFailureClasses.
 func TestReducerQueueFailDefersAWSCloudRuntimeDriftWriteSupersededPastAttemptBudget(t *testing.T) {
 	t.Parallel()
@@ -158,7 +158,7 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftWriteSupersededPastAttemptBud
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], reducer.AWSCloudRuntimeDriftWriteSupersededFailureClass; got != want {
+	if got, want := db.execs[0].args[1], awscloud.AWSCloudRuntimeDriftWriteSupersededFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 }

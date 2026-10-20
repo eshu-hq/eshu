@@ -6,8 +6,10 @@ package reducer
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
@@ -47,7 +49,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 					Instruments:       handlers.Instruments,
 				}
 			}
-			platformHandler := PlatformMaterializationHandler{
+			platformHandler := platformfam.PlatformMaterializationHandler{
 				Writer:                          handlers.PlatformMaterializationWriter,
 				WorkloadMaterializationReplayer: handlers.WorkloadMaterializationReplayer,
 				PhasePublisher:                  handlers.GraphProjectionPhasePublisher,
@@ -119,7 +121,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				IntentWriter: handlers.SQLRelationshipIntentWriter,
 			}
 		case DomainShellExecMaterialization:
-			def.Handler = ShellExecMaterializationHandler{
+			def.Handler = shell.Handler{
 				FactLoader:   handlers.FactLoader,
 				IntentWriter: handlers.ShellExecIntentWriter,
 			}

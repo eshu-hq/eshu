@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -308,7 +309,7 @@ func TestRepoDependencyReplayStillFailsClosedOnActiveGeneration(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		replayer WorkloadMaterializationReplayer
+		replayer platformfam.WorkloadMaterializationReplayer
 	}{
 		{name: "boolean replayer", replayer: &recordingWorkloadMaterializationReplayer{reject: true}},
 		{name: "outcome replayer", replayer: &outcomeWorkloadReplayer{

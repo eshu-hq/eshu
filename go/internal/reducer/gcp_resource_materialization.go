@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -346,7 +347,7 @@ func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, 
 		return nil, "", false, nil
 	}
 
-	uid := cloudResourceUID(projectID, location, assetType, fullResourceName)
+	uid := cloudjoin.CloudResourceUID(projectID, location, assetType, fullResourceName)
 	row := map[string]any{
 		"uid":           uid,
 		"arn":           "",

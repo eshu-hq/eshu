@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
@@ -157,8 +158,8 @@ func TestExtractShellExecRowsReplayIsIdempotent(t *testing.T) {
 		},
 	}
 
-	firstRepoIDs, firstRows := ExtractShellExecRows(envelopes)
-	secondRepoIDs, secondRows := ExtractShellExecRows(envelopes)
+	firstRepoIDs, firstRows := shell.ExtractExecRows(envelopes)
+	secondRepoIDs, secondRows := shell.ExtractExecRows(envelopes)
 
 	if !reflect.DeepEqual(firstRepoIDs, secondRepoIDs) {
 		t.Fatalf("repoIDs replay is not idempotent: first=%v second=%v", firstRepoIDs, secondRepoIDs)

@@ -46,7 +46,7 @@ ownership boundary and exported surface.
   `factdecode.PartitionDecodeFailures`; do not swallow a decode error to make
   a batch "succeed."
 - **`CICDRunKeyFromParts`/`TrimmedCICDPtr` are exported ONLY because the
-  reducer root's `container_image_identity_ci_loader.go` and
+  `containerimage` family's `container_image_identity_ci_loader.go` and
   `container_image_identity_typed_evidence.go` read them across the seam**
   (via the `cicdRunKeyFromParts`/`trimmedCICDPtr` forwarders in
   the ci-cd-run stanza of `compat_correlation.go`). Do not treat them as a public run-key

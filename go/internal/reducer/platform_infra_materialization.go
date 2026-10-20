@@ -11,6 +11,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -33,7 +34,7 @@ import (
 type PlatformInfraMaterializationHandler struct {
 	FactLoader                 FactLoader
 	InfrastructureMaterializer *InfrastructurePlatformMaterializer
-	PlatformGraphLocker        PlatformGraphLocker
+	PlatformGraphLocker        platformfam.PlatformGraphLocker
 }
 
 // Handle executes the platform infrastructure materialization path.

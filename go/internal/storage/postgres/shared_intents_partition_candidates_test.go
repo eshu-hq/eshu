@@ -45,7 +45,7 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 				CreatedAt:        now,
 			},
 			HasPartitionHash: true,
-			PartitionHash:    reducer.PartitionHashForKey(selectedKey),
+			PartitionHash:    sharedintent.PartitionHashForKey(selectedKey),
 		},
 		{
 			Intent: sharedintent.Row{
@@ -60,7 +60,7 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 				CreatedAt:        now.Add(time.Second),
 			},
 			HasPartitionHash: true,
-			PartitionHash:    reducer.PartitionHashForKey(otherKey),
+			PartitionHash:    sharedintent.PartitionHashForKey(otherKey),
 		},
 	}}
 	store := NewSharedIntentStore(database)
@@ -128,7 +128,7 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 				CreatedAt:        now.Add(time.Second),
 			},
 			HasPartitionHash: true,
-			PartitionHash:    reducer.PartitionHashForKey("code-calls:v1:files:repo-b:src/hashed.go"),
+			PartitionHash:    sharedintent.PartitionHashForKey("code-calls:v1:files:repo-b:src/hashed.go"),
 		},
 	}}
 	store := NewSharedIntentStore(database)
@@ -323,7 +323,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 			CreatedAt:        now,
 		},
 		HasPartitionHash: true,
-		PartitionHash:    reducer.PartitionHashForKey(refreshKey),
+		PartitionHash:    sharedintent.PartitionHashForKey(refreshKey),
 	})
 
 	// batchLimit upsert rows that also hash to refreshPartition, same timestamp.
@@ -332,11 +332,11 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 	for i := range batchLimit {
 		upsertKey := fmt.Sprintf("inheritance-edges:v1:files:repository:r_abc123:file%d.go", i)
 		// Force same partition as refresh row.
-		if int(reducer.PartitionHashForKey(upsertKey)%8) != refreshPartition {
+		if int(sharedintent.PartitionHashForKey(upsertKey)%8) != refreshPartition {
 			// Adjust key until it lands on the right partition.
 			for j := range 1000 {
 				candidate := fmt.Sprintf("inheritance-edges:v1:files:repository:r_abc123:file%d_%d.go", i, j)
-				if int(reducer.PartitionHashForKey(candidate)%8) == refreshPartition {
+				if int(sharedintent.PartitionHashForKey(candidate)%8) == refreshPartition {
 					upsertKey = candidate
 					break
 				}
@@ -356,7 +356,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 				CreatedAt:        now,
 			},
 			HasPartitionHash: true,
-			PartitionHash:    reducer.PartitionHashForKey(upsertKey),
+			PartitionHash:    sharedintent.PartitionHashForKey(upsertKey),
 		})
 	}
 
@@ -426,10 +426,10 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 
 	for i := range batchLimit {
 		upsertKey := fmt.Sprintf("inheritance-edges:v1:files:repository:r_later123:file%d.go", i)
-		if int(reducer.PartitionHashForKey(upsertKey)%8) != refreshPartition {
+		if int(sharedintent.PartitionHashForKey(upsertKey)%8) != refreshPartition {
 			for j := range 1000 {
 				candidate := fmt.Sprintf("inheritance-edges:v1:files:repository:r_later123:file%d_%d.go", i, j)
-				if int(reducer.PartitionHashForKey(candidate)%8) == refreshPartition {
+				if int(sharedintent.PartitionHashForKey(candidate)%8) == refreshPartition {
 					upsertKey = candidate
 					break
 				}
@@ -449,7 +449,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 				CreatedAt:        edgeTime,
 			},
 			HasPartitionHash: true,
-			PartitionHash:    reducer.PartitionHashForKey(upsertKey),
+			PartitionHash:    sharedintent.PartitionHashForKey(upsertKey),
 		})
 	}
 
@@ -468,7 +468,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 			CreatedAt:        refreshTime,
 		},
 		HasPartitionHash: true,
-		PartitionHash:    reducer.PartitionHashForKey(refreshKey),
+		PartitionHash:    sharedintent.PartitionHashForKey(refreshKey),
 	})
 
 	database := &partitionCandidateListTestDB{rows: rows}
@@ -507,7 +507,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 
 func mustPostgresTestPartitionForKey(t *testing.T, key string, partitionCount int) int {
 	t.Helper()
-	partitionID, err := reducer.PartitionForKey(key, partitionCount)
+	partitionID, err := sharedintent.PartitionForKey(key, partitionCount)
 	if err != nil {
 		t.Fatalf("PartitionForKey(%q, %d): %v", key, partitionCount, err)
 	}

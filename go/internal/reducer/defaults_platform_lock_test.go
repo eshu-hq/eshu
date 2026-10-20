@@ -28,6 +28,6 @@ func TestNewDefaultRegistryWiresPlatformGraphLocker(t *testing.T) {
 		t.Fatalf("handler type = %T, want PlatformInfraMaterializationHandler", def.Handler)
 	}
 	if handler.PlatformGraphLocker != locker {
-		t.Fatal("PlatformGraphLocker was not wired")
+		t.Fatal("platformfam.PlatformGraphLocker was not wired")
 	}
 }

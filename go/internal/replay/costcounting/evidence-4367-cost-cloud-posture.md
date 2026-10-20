@@ -10,8 +10,8 @@ projection domain:
 
 - `projection:aws_cloud_runtime_drift` (family `aws`) — new scenario
   (`aws_cloud_runtime_drift_cost_test.go`) driving
-  `reducer.PostgresAWSCloudRuntimeDriftWriter.WriteAWSCloudRuntimeDriftFindings`
-  (the writer `reducer.AWSCloudRuntimeDriftHandler.Handle` calls,
+  `awscloud.PostgresAWSCloudRuntimeDriftWriter.WriteAWSCloudRuntimeDriftFindings`
+  (the writer `awscloud.AWSCloudRuntimeDriftHandler.Handle` calls,
   `go/internal/reducer/awscloud/aws_cloud_runtime_drift.go`, constructed at
   `go/cmd/reducer/wiring_handlers.go:61`). This writer is a Postgres fact
   writer, not a Cypher graph writer, wired over
@@ -74,7 +74,7 @@ reproduces the identical Cypher statement / instrument shape production
 emits.
 
 For `aws_cloud_runtime_drift`, `go/cmd/reducer/wiring_handlers.go:61`
-constructs `reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database}`, where
+constructs `awscloud.PostgresAWSCloudRuntimeDriftWriter{DB: database}`, where
 `database` is `buildReducerService`'s first storage parameter — the
 `instrumentedDB` `buildObservedReducerService` constructs
 (`go/cmd/reducer/observed_service_wiring.go:35-40`,

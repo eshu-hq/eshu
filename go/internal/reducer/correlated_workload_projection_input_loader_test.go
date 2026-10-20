@@ -14,6 +14,7 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -430,7 +431,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderEnrichesProvisioningRepoEnvironm
 	t.Parallel()
 
 	now := time.Now().UTC()
-	platformEvidenceKind := TerraformPlatformEvidenceKind("ecs", "cluster")
+	platformEvidenceKind := platformfam.TerraformPlatformEvidenceKind("ecs", "cluster")
 
 	sourceEnvelopes := []facts.Envelope{
 		{
@@ -564,7 +565,7 @@ func TestCorrelatedWorkloadProjectionInputLoaderUsesRepoScopedIncomingProvisioni
 	t.Parallel()
 
 	now := time.Now().UTC()
-	platformEvidenceKind := TerraformPlatformEvidenceKind("ecs", "service")
+	platformEvidenceKind := platformfam.TerraformPlatformEvidenceKind("ecs", "service")
 
 	sourceEnvelopes := []facts.Envelope{
 		{

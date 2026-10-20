@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -92,7 +93,7 @@ func TestContainerImageIdentityRetirementProductionPathLive(t *testing.T) {
 	}
 
 	cutoverStore := postgres.NewContainerImageIdentityCutoverStore(storeDB)
-	writer := reducer.PostgresContainerImageIdentityWriter{
+	writer := containerimage.PostgresContainerImageIdentityWriter{
 		DB:                  storeDB,
 		CutoverLookup:       cutoverStore,
 		LegacyCleanupLookup: cutoverStore,
@@ -102,7 +103,7 @@ func TestContainerImageIdentityRetirementProductionPathLive(t *testing.T) {
 		},
 	}
 	handlerClock := now.Add(time.Second)
-	handler := reducer.ContainerImageIdentityHandler{
+	handler := containerimage.ContainerImageIdentityHandler{
 		FactLoader: factStore,
 		Writer:     writer,
 		Now: func() time.Time {

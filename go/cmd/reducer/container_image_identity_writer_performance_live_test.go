@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -116,11 +117,11 @@ func TestContainerImageIdentityWriterPerformanceLive(t *testing.T) {
 	t.Logf("PERF5854 %s", encoded)
 }
 
-func containerImageIdentityPerfWriterWrite() reducer.ContainerImageIdentityWrite {
-	decisions := make([]reducer.ContainerImageIdentityDecision, 0, containerImageIdentityPerfWorstCaseRefs)
+func containerImageIdentityPerfWriterWrite() containerimage.ContainerImageIdentityWrite {
+	decisions := make([]containerimage.ContainerImageIdentityDecision, 0, containerImageIdentityPerfWorstCaseRefs)
 	for reference := 1; reference <= containerImageIdentityPerfWorstCaseRefs; reference++ {
 		suffix := fmt.Sprintf("%06d", reference)
-		decisions = append(decisions, reducer.ContainerImageIdentityDecision{
+		decisions = append(decisions, containerimage.ContainerImageIdentityDecision{
 			ImageRef:            "registry.example.com/performance/team-api:tag-" + suffix,
 			Digest:              "sha256:" + fmt.Sprintf("%064x", reference),
 			RepositoryID:        containerImageIdentityPerfRepositoryID,
@@ -132,7 +133,7 @@ func containerImageIdentityPerfWriterWrite() reducer.ContainerImageIdentityWrite
 			IdentityStrength:    "tag_resolved",
 		})
 	}
-	return reducer.ContainerImageIdentityWrite{
+	return containerimage.ContainerImageIdentityWrite{
 		IntentID:     "intent-5854-performance",
 		ClaimEpoch:   1,
 		ScopeID:      containerImageIdentityPerfRepoScope,

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -72,7 +73,7 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 	}
 
 	builtFromWriter := &recordingContainerImageProvenanceEdgeWriter{}
-	builtFromHandler := ContainerImageIdentityHandler{
+	builtFromHandler := containerimage.ContainerImageIdentityHandler{
 		ProvenanceEdgeWriter: builtFromWriter,
 		Instruments:          instruments,
 	}
@@ -103,7 +104,7 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 	}
 
 	derivedFromWriter := &recordingContainerImageDerivedFromEdgeWriter{}
-	derivedFromHandler := ContainerImageIdentityHandler{
+	derivedFromHandler := containerimage.ContainerImageIdentityHandler{
 		DerivedFromEdgeWriter: derivedFromWriter,
 		Instruments:           instruments,
 	}
@@ -117,9 +118,9 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 	for _, domain := range []string{
 		correlation.PackageOwnershipProvenanceEvidenceSource,
 		correlation.PackagePublicationProvenanceEvidenceSource,
-		containerImageBuiltFromProvenanceEvidenceSource,
+		containerimage.ContainerImageBuiltFromProvenanceEvidenceSource,
 		cicdrun.CICDWorkflowImageBuiltFromEvidenceSource,
-		containerImageDerivedFromProvenanceEvidenceSource,
+		containerimage.ContainerImageDerivedFromProvenanceEvidenceSource,
 	} {
 		if got, ok := provenanceEdgeCounterValue(metrics, domain, "submitted"); !ok || got != 1 {
 			t.Errorf("submitted counter for domain %q = (%d, %t), want (1, true)", domain, got, ok)
@@ -173,7 +174,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			wantError: true,
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{writeErr: errors.New("write failed")}
-				return (ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+				return (containerimage.ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectContainerImageBuiltFromRowsForTest(
 						context.Background(),
 						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
@@ -206,7 +207,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			wantError: true,
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageDerivedFromEdgeWriter{writeErr: errors.New("write failed")}
-				return (ContainerImageIdentityHandler{DerivedFromEdgeWriter: writer, Instruments: instruments}).
+				return (containerimage.ContainerImageIdentityHandler{DerivedFromEdgeWriter: writer, Instruments: instruments}).
 					ProjectContainerImageDerivedFromRowsForTest(
 						context.Background(),
 						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
@@ -219,7 +220,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			wantError: true,
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{retractErr: errors.New("retract failed")}
-				return (ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+				return (containerimage.ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectContainerImageBuiltFromRowsForTest(
 						context.Background(),
 						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
@@ -244,7 +245,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			name: "empty projection",
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{}
-				return (ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+				return (containerimage.ContainerImageIdentityHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectContainerImageBuiltFromRowsForTest(
 						context.Background(),
 						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
@@ -267,10 +268,10 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 		{
 			name: "unwired projection",
 			run: func(instruments *telemetry.Instruments) error {
-				return (ContainerImageIdentityHandler{Instruments: instruments}).ProjectContainerImageBuiltFromEdgesForTest(
+				return (containerimage.ContainerImageIdentityHandler{Instruments: instruments}).ProjectContainerImageBuiltFromEdgesForTest(
 					context.Background(),
 					reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
-					[]ContainerImageIdentityDecision{{
+					[]containerimage.ContainerImageIdentityDecision{{
 						Digest:                       "sha256:child",
 						BuildProvenanceRepositoryIDs: []string{"repository-1"},
 						Outcome:                      ContainerImageIdentityExactDigest,

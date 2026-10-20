@@ -6,6 +6,7 @@ package reducer
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
@@ -85,7 +86,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 	}
 	if handlers.FactLoader != nil && handlers.ContainerImageIdentityWriter != nil {
 		imageIdentity := containerImageIdentityDomainDefinition()
-		imageIdentity.Handler = ContainerImageIdentityHandler{
+		imageIdentity.Handler = containerimage.ContainerImageIdentityHandler{
 			FactLoader:            handlers.FactLoader,
 			Writer:                handlers.ContainerImageIdentityWriter,
 			Instruments:           handlers.Instruments,

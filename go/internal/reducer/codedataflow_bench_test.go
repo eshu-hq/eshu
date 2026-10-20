@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/code"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
@@ -171,6 +172,6 @@ func BenchmarkExtractShellExecRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ExtractShellExecRows(envelopes)
+		_, _ = shell.ExtractExecRows(envelopes)
 	}
 }

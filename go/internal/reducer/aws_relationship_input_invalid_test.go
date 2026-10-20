@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 // TestAWSRelationshipMaterializationQuarantinesMissingAccountID is the flagship
@@ -21,7 +22,7 @@ import (
 //
 // Before the migration this behavior was impossible: buildCloudResourceJoinIndex
 // read account_id with payloadString, which returns "" for the absent key, and
-// cloudResourceUID("", region, type, id) yielded a wrong-but-plausible identity;
+// cloudjoin.CloudResourceUID("", region, type, id) yielded a wrong-but-plausible identity;
 // the relationship then resolved against that empty-account node and the handler
 // wrote an edge to it — the silent wrong graph truth the Life Motto ranks as the
 // worst failure.
@@ -98,7 +99,7 @@ func TestAWSRelationshipMaterializationQuarantinesMissingAccountID(t *testing.T)
 	// No edge may reference a uid computed with an empty-string account segment —
 	// the accuracy guarantee. The malformed fact's empty-account uid must never
 	// appear as a source or target in any written edge.
-	emptyAccountUID := cloudResourceUID("", "us-east-1", "aws_lambda_function",
+	emptyAccountUID := cloudjoin.CloudResourceUID("", "us-east-1", "aws_lambda_function",
 		"arn:aws:lambda:us-east-1:111122223333:function:fn")
 	for _, row := range writer.writtenRows {
 		if row["source_uid"] == emptyAccountUID || row["target_uid"] == emptyAccountUID {

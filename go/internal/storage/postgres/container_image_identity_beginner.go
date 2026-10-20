@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 )
 
 // ContainerImageIdentityBeginner adapts a Postgres transaction beginner into
@@ -21,7 +21,7 @@ type ContainerImageIdentityBeginner struct {
 // BeginContainerImageIdentityTx opens one atomic identity write transaction.
 func (b ContainerImageIdentityBeginner) BeginContainerImageIdentityTx(
 	ctx context.Context,
-) (reducer.ContainerImageIdentityTransaction, error) {
+) (containerimage.ContainerImageIdentityTransaction, error) {
 	tx, err := b.Beginner.Begin(ctx)
 	if err != nil {
 		return nil, err

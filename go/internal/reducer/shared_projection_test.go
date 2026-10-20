@@ -219,9 +219,9 @@ func TestRowsForPartitionFiltersCorrectly(t *testing.T) {
 		filtered := sharedintent.RowsForPartition(rows, pid, partitionCount)
 		totalCollected += len(filtered)
 		for _, r := range filtered {
-			got, err := PartitionForKey(r.PartitionKey, partitionCount)
+			got, err := sharedintent.PartitionForKey(r.PartitionKey, partitionCount)
 			if err != nil {
-				t.Fatalf("PartitionForKey(%q): %v", r.PartitionKey, err)
+				t.Fatalf("sharedintent.PartitionForKey(%q): %v", r.PartitionKey, err)
 			}
 			if got != pid {
 				t.Errorf("row %q assigned to partition %d but RowsForPartition returned it for %d",

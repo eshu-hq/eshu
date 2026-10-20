@@ -288,7 +288,7 @@ func TestProcessPartitionOnceHandlesRouteFenceHoldsWritesBeforeRetract(t *testin
 	const repoID = "repo-b"
 
 	intents := handlesRouteRepoIntents(t, repoID, 3, partitionCount, now.Add(-time.Minute))
-	refreshPartition, err := PartitionForKey(sharedintent.RepoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID), partitionCount)
+	refreshPartition, err := sharedintent.PartitionForKey(sharedintent.RepoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID), partitionCount)
 	if err != nil {
 		t.Fatalf("PartitionForKey: %v", err)
 	}

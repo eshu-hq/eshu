@@ -6,6 +6,8 @@ package reducer
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 )
 
 // CanonicalPlatformInput holds the parameters for building a canonical
@@ -115,12 +117,12 @@ func InferInfrastructurePlatformDescriptor(input InfrastructurePlatformInput) *P
 	normalizedRT := normalizeSlice(input.ResourceTypes)
 	normalizedMS := normalizeSlice(input.ModuleSources)
 
-	platformKind := InferInfrastructureRuntimeFamilyKind(normalizedRT, normalizedMS)
+	platformKind := platformfam.InferInfrastructureRuntimeFamilyKind(normalizedRT, normalizedMS)
 	if platformKind == "" {
 		return nil
 	}
 
-	family := LookupRuntimeFamily(platformKind)
+	family := platformfam.LookupRuntimeFamily(platformKind)
 	var platformProvider string
 	if family != nil {
 		platformProvider = family.Provider

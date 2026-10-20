@@ -5,16 +5,18 @@ package reducer
 
 import (
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestPartitionForKeyStableResult(t *testing.T) {
 	t.Parallel()
 
-	p1, err := PartitionForKey("pk-1", 4)
+	p1, err := sharedintent.PartitionForKey("pk-1", 4)
 	if err != nil {
 		t.Fatalf("PartitionForKey: %v", err)
 	}
-	p2, err := PartitionForKey("pk-1", 4)
+	p2, err := sharedintent.PartitionForKey("pk-1", 4)
 	if err != nil {
 		t.Fatalf("PartitionForKey: %v", err)
 	}
@@ -33,9 +35,9 @@ func TestPartitionForKeyDistributes(t *testing.T) {
 	partitionCount := 4
 	seen := make(map[int]bool)
 	for _, key := range keys {
-		p, err := PartitionForKey(key, partitionCount)
+		p, err := sharedintent.PartitionForKey(key, partitionCount)
 		if err != nil {
-			t.Fatalf("PartitionForKey(%q): %v", key, err)
+			t.Fatalf("sharedintent.PartitionForKey(%q): %v", key, err)
 		}
 		seen[p] = true
 	}
@@ -48,7 +50,7 @@ func TestPartitionForKeyRejectsZeroOrNegative(t *testing.T) {
 	t.Parallel()
 
 	for _, count := range []int{0, -1, -100} {
-		_, err := PartitionForKey("any-key", count)
+		_, err := sharedintent.PartitionForKey("any-key", count)
 		if err == nil {
 			t.Errorf("expected error for partitionCount=%d, got nil", count)
 		}
@@ -61,12 +63,12 @@ func TestPartitionForKeyInRange(t *testing.T) {
 	keys := []string{"a", "b", "c", "longer-key", "another"}
 	for _, count := range []int{1, 2, 4, 8, 16} {
 		for _, key := range keys {
-			p, err := PartitionForKey(key, count)
+			p, err := sharedintent.PartitionForKey(key, count)
 			if err != nil {
-				t.Fatalf("PartitionForKey(%q, %d): %v", key, count, err)
+				t.Fatalf("sharedintent.PartitionForKey(%q, %d): %v", key, count, err)
 			}
 			if p < 0 || p >= count {
-				t.Errorf("PartitionForKey(%q, %d) = %d, want [0, %d)", key, count, p, count)
+				t.Errorf("sharedintent.PartitionForKey(%q, %d) = %d, want [0, %d)", key, count, p, count)
 			}
 		}
 	}
@@ -76,11 +78,11 @@ func TestPartitionForKeyCrossLanguageParity(t *testing.T) {
 	t.Parallel()
 
 	// Verified against Python: partition_for_key("pk-1", partition_count=4) == 1
-	p, err := PartitionForKey("pk-1", 4)
+	p, err := sharedintent.PartitionForKey("pk-1", 4)
 	if err != nil {
 		t.Fatalf("PartitionForKey: %v", err)
 	}
 	if p != 1 {
-		t.Errorf("PartitionForKey(pk-1, 4) = %d, want 1 (Python parity)", p)
+		t.Errorf("sharedintent.PartitionForKey(pk-1, 4) = %d, want 1 (Python parity)", p)
 	}
 }

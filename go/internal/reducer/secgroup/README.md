@@ -106,7 +106,7 @@ before and after the move.
 - Test helpers (`stubFactLoader`, `resourceEnvelope`,
   `recordingGraphProjectionPhasePublisher`, `fakeProjectedSourceLedger`,
   `statefulProjectedSourceLedger`, `metricHasAttrs`, `cloudResourceUID`,
-  `anyToString`) are duplicated from the reducer root by design; do not
+  `anyToString`) mirror the leaf helpers (`cloudjoin`, `payloadcore`) by design; do not
   export a root test helper to reach it.
 
 ## Related docs

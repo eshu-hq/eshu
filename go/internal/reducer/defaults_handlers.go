@@ -6,6 +6,7 @@ package reducer
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/function/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
@@ -66,21 +67,21 @@ type DriftHandlers struct {
 	// the registry to register DomainAWSCloudRuntimeDrift; missing either one
 	// would either drop evidence before publication or admit findings with no
 	// durable truth surface.
-	AWSCloudRuntimeDriftEvidenceLoader AWSCloudRuntimeDriftEvidenceLoader
-	AWSCloudRuntimeDriftWriter         AWSCloudRuntimeDriftFindingWriter
+	AWSCloudRuntimeDriftEvidenceLoader awscloud.AWSCloudRuntimeDriftEvidenceLoader
+	AWSCloudRuntimeDriftWriter         awscloud.AWSCloudRuntimeDriftFindingWriter
 	AWSCloudRuntimeDriftLogger         *slog.Logger
 	// AWSCloudRuntimeDriftReadinessChecker gates the readiness defer (#5848).
 	// Optional: nil disables the gate and the handler always writes its
 	// best-available classification, matching pre-#5848 behavior. Not part of
 	// the required-adapter set above.
-	AWSCloudRuntimeDriftReadinessChecker AWSCloudRuntimeDriftReadinessChecker
+	AWSCloudRuntimeDriftReadinessChecker awscloud.AWSCloudRuntimeDriftReadinessChecker
 	// AWSCloudRuntimeDriftFencingTokenIssuer supplies the database-issued
 	// cross-worker fencing token (#5875 P1). Required alongside the writer
 	// above -- unlike ReadinessChecker, this is NOT optional: a nil issuer
 	// makes AWSCloudRuntimeDriftHandler.Handle hard-error rather than
 	// silently falling back to the host clock, so the registry must not
 	// register the domain with a writer wired but no issuer.
-	AWSCloudRuntimeDriftFencingTokenIssuer AWSCloudRuntimeDriftFencingTokenIssuer
+	AWSCloudRuntimeDriftFencingTokenIssuer awscloud.AWSCloudRuntimeDriftFencingTokenIssuer
 
 	// Multi-cloud runtime drift adapters (issues #1997, #1998). Both must be
 	// non-nil for the registry to register DomainMultiCloudRuntimeDrift; missing

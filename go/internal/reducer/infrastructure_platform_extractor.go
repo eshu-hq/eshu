@@ -198,8 +198,8 @@ func runtimeServiceModuleClusterSignal(module map[string]any, source string) (st
 	if clusterName == "" {
 		return "", ""
 	}
-	for _, family := range RuntimeFamilies() {
-		if !MatchesServiceModuleSource(source, family.Kind) || len(family.ClusterResourceTypes) == 0 {
+	for _, family := range platformfam.RuntimeFamilies() {
+		if !platformfam.MatchesServiceModuleSource(source, family.Kind) || len(family.ClusterResourceTypes) == 0 {
 			continue
 		}
 		return clusterName, family.ClusterResourceTypes[0]

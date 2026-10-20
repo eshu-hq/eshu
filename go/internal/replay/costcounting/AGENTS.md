@@ -17,7 +17,7 @@ One scenario per distinct `reducer_domain` (`specs/fact-kind-registry.v1.yaml`):
 (`documentation_edges_cost_test.go`, drives `cypher.EdgeWriter.WriteEdges` with
 `EdgeWriter.Instruments` set), `aws_cloud_runtime_drift`
 (`aws_cloud_runtime_drift_cost_test.go`, drives
-`reducer.PostgresAWSCloudRuntimeDriftWriter` through `postgres.InstrumentedDB`
+`awscloud.PostgresAWSCloudRuntimeDriftWriter` through `postgres.InstrumentedDB`
 — a Postgres fact writer, not a Cypher writer, so it asserts
 `eshu_dp_postgres_query_duration_seconds` observation count instead of a neo4j
 batch counter), `ec2_instance_node_materialization`

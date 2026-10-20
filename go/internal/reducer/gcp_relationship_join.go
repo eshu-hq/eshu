@@ -104,7 +104,7 @@ type gcpResolvedResource struct {
 // (full_resource_name, asset_type) is QUARANTINED per-fact via
 // partitionDecodeFailures — that one fact is skipped and returned in the
 // quarantined slice, while every valid resource is still indexed. A non-decode
-// error is returned fatally. Mirrors buildCloudResourceJoinIndex
+// error is returned fatally. Mirrors cloudjoin.BuildCloudResourceJoinIndex
 // (aws_relationship_join.go).
 func buildGCPCloudResourceJoinIndex(envelopes []facts.Envelope) (gcpCloudResourceJoinIndex, []quarantinedFact, error) {
 	index := gcpCloudResourceJoinIndex{

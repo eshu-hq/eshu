@@ -5,6 +5,8 @@ package reducer
 
 import (
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 )
 
 // ecsRunningTaskResourceTypes and lambdaFunctionResourceTypes are the closed,
@@ -146,7 +148,7 @@ func lambdaFunctionImageFields(resource awsv1.Resource) (map[string]any, error) 
 	// rather than being dropped when it does not resolve, so a digest-less row
 	// never collides with the pinned NornicDB missing-map-key-in-UNWIND bug.
 	fields := map[string]any{"running_image_ref": attrs.ImageURI, "running_image_digest": ""}
-	if digest := digestFromImageRef(attrs.ResolvedImageURI); digest != "" {
+	if digest := containerimage.DigestFromImageRef(attrs.ResolvedImageURI); digest != "" {
 		fields["running_image_digest"] = digest
 	}
 	return fields, nil

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -64,7 +65,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 				}
 			},
 			buildRows: func(edges []map[string]any, repoIDs []string, ctxByRepo map[string]ProjectionContext, at time.Time) []sharedintent.Row {
-				return buildShellExecSharedIntentRows(edges, sqlrelationship.DeltaScope{}, repoIDs, ctxByRepo, at)
+				return shell.BuildSharedIntentRows(edges, sqlrelationship.DeltaScope{}, repoIDs, ctxByRepo, at)
 			},
 		},
 	}

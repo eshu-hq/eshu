@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -449,7 +450,7 @@ func runRepoDependencyIfaRunner(
 	t *testing.T,
 	store *repoDependencyIfaStore,
 	writer sharedintent.EdgeWriter,
-	replayer reducer.WorkloadMaterializationReplayer,
+	replayer platformfam.WorkloadMaterializationReplayer,
 	workers int,
 ) {
 	t.Helper()

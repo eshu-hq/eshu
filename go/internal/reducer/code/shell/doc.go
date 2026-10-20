@@ -15,11 +15,13 @@
 // reducer root's cross-domain sibling proofs (delta-gate and
 // retract-reachability) can drive all three through one table.
 //
-// The reducer root imports this package as shell. It keeps the exported
+// The reducer root imports this package as shell. The exported
 // ShellExecIntentWriter/ShellExecMaterializationHandler spellings and the
 // ExtractShellExecRows/loadShellExecMaterializationFacts/
-// buildShellExecRefreshIntents/buildShellExecSharedIntentRows forwarders
-// through the shell-exec stanza of compat_projection.go.
+// buildShellExecRefreshIntents/buildShellExecSharedIntentRows forwarders used
+// to live in a compat stanza (compat_projection.go, then compat_cloud.go);
+// they were retired with the #6626 cloud bucket, and every caller names this
+// package directly.
 //
 // Dependency rule: from the reducer tree this package imports only the
 // shared tier (contract, factload, schemadecode, sharedintent, payloadcore)

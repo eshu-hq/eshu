@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/refresh"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -112,7 +113,7 @@ const idempotencyReplayFencingToken int64 = 7
 // anything. Their idempotency is already proven by their own dedicated suites,
 // cited below, rather than by this registry-driven unit replay.
 var idempotencyExemptDomains = map[reducercontract.Domain]string{
-	// deployment_mapping (PlatformMaterializationHandler) emits only after the
+	// deployment_mapping (platformfam.PlatformMaterializationHandler) emits only after the
 	// cross-repo resolver + readiness lookups admit work; its reprojection
 	// idempotency is covered by cross_repo_resolution_*_test.go and
 	// platformfam/platform_materialization_test.go. No constructible
@@ -336,7 +337,7 @@ func shellExecReplayCase() idempotencyReplayCase {
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
 			writer := &recordingSQLRelationshipIntentWriter{}
-			handler := ShellExecMaterializationHandler{
+			handler := shell.Handler{
 				FactLoader:   &stubFactLoader{envelopes: fencedFacts(shellExecReplayFacts())},
 				IntentWriter: writer,
 			}

@@ -13,7 +13,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 )
 
 // The real-Postgres half of the #5861 Lambda-completeness proof.
@@ -122,10 +122,10 @@ func awsDriftRunLambdaCompletenessPass(
 	for i := range candidates {
 		candidates[i].State = "admitted"
 	}
-	writer := reducer.PostgresAWSCloudRuntimeDriftWriter{
+	writer := awscloud.PostgresAWSCloudRuntimeDriftWriter{
 		DB: AWSCloudRuntimeDriftAdmissionBeginner{Beginner: SQLDB{DB: db}},
 	}
-	result, err := writer.WriteAWSCloudRuntimeDriftFindings(ctx, reducer.AWSCloudRuntimeDriftWrite{
+	result, err := writer.WriteAWSCloudRuntimeDriftFindings(ctx, awscloud.AWSCloudRuntimeDriftWrite{
 		IntentID:      "intent-" + generationID,
 		ScopeID:       scopeID,
 		GenerationID:  generationID,

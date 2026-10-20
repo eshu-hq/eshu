@@ -6,6 +6,7 @@ package reducer
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
@@ -134,7 +135,7 @@ func TestProvisionedRuntimePlatformRowsMatchConstructors(t *testing.T) {
 			DeploymentRepoID:    "repo-payments",
 			ProvisioningRepoIDs: []string{"repo-infra"},
 			ProvisioningEvidenceKinds: map[string][]string{
-				"repo-infra": {TerraformPlatformEvidenceKind("ecs", "service")},
+				"repo-infra": {platformfam.TerraformPlatformEvidenceKind("ecs", "service")},
 			},
 			Classification: "service",
 			Confidence:     0.96,

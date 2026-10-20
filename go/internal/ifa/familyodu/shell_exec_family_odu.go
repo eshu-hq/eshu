@@ -14,7 +14,7 @@ import (
 
 // The shell_exec family Odù (#6001, under the #5543 umbrella).
 //
-// reducer.ExtractShellExecRows (go/internal/reducer/code/shell/handler.go)
+// shell.ExtractExecRows (go/internal/reducer/code/shell/handler.go)
 // projects one Function-[:EXECUTES_SHELL]->ShellCommand edge per distinct
 // (function, line_number, api) triple carried in a file's parser-emitted
 // parsed_file_data.embedded_shell_commands. The fixture below exercises every
@@ -129,7 +129,7 @@ func ShellExecFamilyExpectedEdgesPath(repoRoot string) string {
 }
 
 // ShellExecFamilyOdu carries one repository fact and four file facts wired so
-// reducer.ExtractShellExecRows derives exactly two EXECUTES_SHELL edges, both
+// shell.ExtractExecRows derives exactly two EXECUTES_SHELL edges, both
 // from services/deploy/deploy.py's deploy_service function, while the other
 // three files pin every exclusion clause to no edges.
 func ShellExecFamilyOdu() CatalogOdu {
@@ -223,7 +223,7 @@ func shellExecFamilyDeployFileFact() facts.Envelope {
 }
 
 // shellExecFamilyCleanupFileFact carries cleanup_workspace with two commands
-// that each fail exactly one of ExtractShellExecRows's four field checks: a
+// that each fail exactly one of shell.ExtractExecRows's four field checks: a
 // non-positive line_number, and a blank api.
 func shellExecFamilyCleanupFileFact() facts.Envelope {
 	return ShellExecFamilyFileFact(codegraphv1.File{
@@ -286,7 +286,7 @@ func ShellExecFamilyFileFact(file codegraphv1.File) facts.Envelope {
 
 // shellExecFamilyParsedFile builds the parser-owned data carried by a typed
 // codegraph file. parsed_file_data.path (not the top-level payload) is what
-// ExtractShellExecRows's sourcePath fallback reads, matching the real file
+// shell.ExtractExecRows's sourcePath fallback reads, matching the real file
 // fact emitter.
 func shellExecFamilyParsedFile(relativePath string, functions, commands []any) map[string]any {
 	return map[string]any{
@@ -327,8 +327,8 @@ func shellExecFamilyCommand(functionName string, functionLine, lineNumber int, a
 // shellExecMaterializationFactEnvelope): the shared_followup fact whose
 // reducer_domain: shell_exec_materialization payload key is what
 // go/internal/projector's buildReducerIntent turns into a durable
-// fact_work_items row under the real pipeline. ExtractShellExecRows itself
-// ignores this fact kind (loadShellExecMaterializationFacts only loads
+// fact_work_items row under the real pipeline. shell.ExtractExecRows itself
+// ignores this fact kind (shell.LoadMaterializationFacts only loads
 // repository/file), so it is inert for the pure vacuity guard but included
 // for fidelity with the live-drive cassette and the real collector's own
 // emission shape.

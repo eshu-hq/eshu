@@ -42,7 +42,7 @@ SELECT EXISTS (
 `
 
 // PostgresAWSCloudRuntimeDriftReadinessChecker implements
-// reducer.AWSCloudRuntimeDriftReadinessChecker over the shared fact store.
+// awscloud.AWSCloudRuntimeDriftReadinessChecker over the shared fact store.
 type PostgresAWSCloudRuntimeDriftReadinessChecker struct {
 	DB db.Queryer
 }

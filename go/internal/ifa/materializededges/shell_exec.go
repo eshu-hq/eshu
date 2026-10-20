@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 )
 
 // shellExecFamily is the materialized-edge family key this guard asserts,
@@ -29,7 +29,7 @@ const shellExecFamily = "shell_exec"
 // registry accepts, (3) run the production extractor over odu.Facts and
 // assert the result matches the fixture EXACTLY, then check the reported
 // repository fan-out the way resolveRationaleEdgeMaterializedEdges does --
-// reducer.ExtractShellExecRows shares that function's (repoIDs, rows)
+// shell.ExtractExecRows shares that function's (repoIDs, rows)
 // signature, not documentation's WithQuarantine shape.
 //
 // shell_exec is single-type (EXECUTES_SHELL only) with no declared
@@ -56,7 +56,7 @@ func resolveShellExecMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (b
 		return false, fmt.Sprintf("odù %q: expected-edge set does not cover all registry types, missing: %v", odu.Name, missing)
 	}
 
-	repoIDs, rows := reducer.ExtractShellExecRows(odu.Facts)
+	repoIDs, rows := shell.ExtractExecRows(odu.Facts)
 	actual := shellExecRowsToExpectedEdges(rows)
 	if mismatch := compareShellExecExpectedEdges(odu.Name, expected, actual); mismatch != "" {
 		return false, mismatch
@@ -109,7 +109,7 @@ func missingShellExecExpectedTypes(expected []ExpectedEdge, registry map[string]
 // shellExecRowsToExpectedEdges adapts ExtractShellExecRows's []map[string]any
 // row shape into the shared ExpectedEdge identity the comparison keys on.
 // shell_exec declares no relationship-MERGE identity properties, so Identity
-// is left empty. RelationshipType is read from the row (reducer.ExtractShellExecRows
+// is left empty. RelationshipType is read from the row (shell.ExtractExecRows
 // stamps "relationship_type") rather than hardcoded, mirroring
 // inheritanceRowsToExpectedEdges: a hardcoded literal here would make
 // compareShellExecExpectedEdges compare a fixed string against itself, unable

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
@@ -17,6 +19,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -93,7 +96,7 @@ func TestNewDefaultRuntimeUsesDefaultDomainHandlers(t *testing.T) {
 			},
 		},
 		PlatformMaterializationWriter: &recordingPlatformMaterializationWriter{
-			result: PlatformMaterializationWriteResult{
+			result: platformfam.PlatformMaterializationWriteResult{
 				CanonicalWrites: 1,
 			},
 		},
@@ -302,7 +305,7 @@ func TestDefaultHandlersWiresCrossRepoResolver(t *testing.T) {
 			result: cloudasset.CloudAssetResolutionWriteResult{CanonicalWrites: 1},
 		},
 		PlatformMaterializationWriter: &recordingPlatformMaterializationWriter{
-			result: PlatformMaterializationWriteResult{CanonicalWrites: 1},
+			result: platformfam.PlatformMaterializationWriteResult{CanonicalWrites: 1},
 		},
 		EvidenceFactLoader:         evidenceLoader,
 		RepoDependencyIntentWriter: intentWriter,
@@ -366,9 +369,9 @@ func TestNewDefaultRegistryWiresCrossRepoReadinessDependencies(t *testing.T) {
 	if !ok {
 		t.Fatal("deployment mapping definition missing")
 	}
-	handler, ok := def.Handler.(PlatformMaterializationHandler)
+	handler, ok := def.Handler.(platformfam.PlatformMaterializationHandler)
 	if !ok {
-		t.Fatalf("deployment mapping handler type = %T, want PlatformMaterializationHandler", def.Handler)
+		t.Fatalf("deployment mapping handler type = %T, want platformfam.PlatformMaterializationHandler", def.Handler)
 	}
 	if handler.CrossRepoResolver == nil {
 		t.Fatal("CrossRepoResolver = nil, want non-nil")
@@ -401,9 +404,9 @@ func TestImplementedDefaultDomainDefinitionsLeavesCrossRepoResolverNilWithoutAda
 		if def.Domain != DomainDeploymentMapping {
 			continue
 		}
-		handler, ok := def.Handler.(PlatformMaterializationHandler)
+		handler, ok := def.Handler.(platformfam.PlatformMaterializationHandler)
 		if !ok {
-			t.Fatalf("deployment mapping handler type = %T, want PlatformMaterializationHandler", def.Handler)
+			t.Fatalf("deployment mapping handler type = %T, want platformfam.PlatformMaterializationHandler", def.Handler)
 		}
 		if handler.CrossRepoResolver != nil {
 			t.Fatalf("CrossRepoResolver = %#v, want nil", handler.CrossRepoResolver)
@@ -449,8 +452,8 @@ func TestImplementedDefaultDomainDefinitionsIncludesAWSCloudRuntimeDriftWhenAdap
 	for _, def := range definitions {
 		if def.Domain == DomainAWSCloudRuntimeDrift {
 			found = true
-			if _, ok := def.Handler.(AWSCloudRuntimeDriftHandler); !ok {
-				t.Fatalf("aws_cloud_runtime_drift handler type = %T, want AWSCloudRuntimeDriftHandler", def.Handler)
+			if _, ok := def.Handler.(awscloud.AWSCloudRuntimeDriftHandler); !ok {
+				t.Fatalf("aws_cloud_runtime_drift handler type = %T, want awscloud.AWSCloudRuntimeDriftHandler", def.Handler)
 			}
 		}
 	}
@@ -550,9 +553,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesContainerImageIdentityWhenAd
 	for _, def := range definitions {
 		if def.Domain == DomainContainerImageIdentity {
 			found = true
-			handler, ok := def.Handler.(ContainerImageIdentityHandler)
+			handler, ok := def.Handler.(containerimage.ContainerImageIdentityHandler)
 			if !ok {
-				t.Fatalf("container_image_identity handler type = %T, want ContainerImageIdentityHandler", def.Handler)
+				t.Fatalf("container_image_identity handler type = %T, want containerimage.ContainerImageIdentityHandler", def.Handler)
 			}
 			if handler.FactLoader != loader {
 				t.Fatal("container_image_identity handler FactLoader was not wired")

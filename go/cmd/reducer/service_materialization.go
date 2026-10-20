@@ -4,7 +4,8 @@
 package main
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -14,7 +15,7 @@ import (
 // platformGraphLockerForReducer builds the Postgres-backed platform graph lock
 // the deployment-mapping handler uses, or nil when the database does not expose a
 // transaction beginner.
-func platformGraphLockerForReducer(database db.ExecQueryer) reducer.PlatformGraphLocker {
+func platformGraphLockerForReducer(database db.ExecQueryer) platformfam.PlatformGraphLocker {
 	beginner := reducerBeginner(database)
 	if beginner == nil {
 		return nil
@@ -54,12 +55,12 @@ func serviceMaterializationWriterFor(database db.ExecQueryer) servicecatalog.Ser
 // publishing without convergence.
 func containerImageIdentityWriterFor(
 	database db.ExecQueryer,
-) reducer.ContainerImageIdentityWriter {
+) containerimage.ContainerImageIdentityWriter {
 	beginner := reducerBeginner(database)
 	if database == nil || beginner == nil {
 		return nil
 	}
-	return reducer.PostgresContainerImageIdentitySupportWriter{
+	return containerimage.PostgresContainerImageIdentitySupportWriter{
 		ActivationLookup:  postgres.NewContainerImageIdentityScopeStateStore(database),
 		HeldSupportLoader: postgres.NewContainerImageIdentityHeldSupportStore(database),
 		ClaimedExecer:     postgres.ContainerImageIdentityClaimedExecer{DB: database},

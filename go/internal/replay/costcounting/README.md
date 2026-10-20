@@ -18,7 +18,7 @@ graph writer:
 | `semantic_entity_materialization` | `semantic_entity_cost_test.go` | `storage/cypher.SemanticEntityWriter` | `eshu_dp_neo4j_batches_executed_total` |
 | `documentation_materialization` | `documentation_edges_cost_test.go` | `storage/cypher.EdgeWriter` | `eshu_dp_shared_edge_write_groups_total` |
 | `codeowners_ownership` | `codeowners_ownership_cost_test.go` | `storage/cypher.EdgeWriter` | `eshu_dp_shared_edge_write_groups_total` |
-| `aws_cloud_runtime_drift` | `aws_cloud_runtime_drift_cost_test.go` | `reducer.PostgresAWSCloudRuntimeDriftWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `aws_cloud_runtime_drift` | `aws_cloud_runtime_drift_cost_test.go` | `awscloud.PostgresAWSCloudRuntimeDriftWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `ec2_instance_node_materialization` | `ec2_instance_node_cost_test.go` | `storage/cypher.EC2InstanceNodeWriter` | `eshu_dp_neo4j_batches_executed_total` |
 | `rds_posture_materialization` | `rds_posture_cost_test.go` | `storage/cypher.RDSPostureNodeWriter` | `eshu_dp_neo4j_batches_executed_total` |
 | `s3_external_principal_grant_materialization` | `s3_external_principal_grant_cost_test.go` | `storage/cypher.S3ExternalPrincipalGrantWriter` | `eshu_dp_neo4j_batches_executed_total` |
@@ -29,7 +29,7 @@ graph writer:
 | `kubernetes_correlation` | `kubernetes_workload_node_cost_test.go` | `graphowner.KubernetesWorkloadGatedWriter` | `eshu_dp_neo4j_batches_executed_total` |
 | `observability_coverage_correlation` | `observability_coverage_edge_cost_test.go` | `storage/cypher.ObservabilityCoverageEdgeWriter` | `eshu_dp_neo4j_batches_executed_total` |
 | `incident_routing_materialization` | `incident_routing_evidence_cost_test.go` | `storage/cypher.IncidentRoutingEvidenceWriter` | `eshu_dp_neo4j_batches_executed_total` |
-| `container_image_identity` | `container_image_identity_cost_test.go` | `reducer.PostgresContainerImageIdentityWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
+| `container_image_identity` | `container_image_identity_cost_test.go` | `containerimage.PostgresContainerImageIdentityWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `ci_cd_run_correlation` | `ci_cd_run_correlation_cost_test.go` | `reducer.PostgresCICDRunCorrelationWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `sbom_attestation_attachment` | `sbom_attestation_attachment_cost_test.go` | `sbomattest.PostgresSBOMAttestationAttachmentWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |
 | `cloud_asset_resolution` | `cloud_asset_resolution_cost_test.go` | `reducer/cloudasset.PostgresCloudAssetResolutionWriter` | `eshu_dp_postgres_query_duration_seconds` (observation count) |

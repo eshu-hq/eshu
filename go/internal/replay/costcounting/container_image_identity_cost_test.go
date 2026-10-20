@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -70,9 +71,9 @@ func (p containerImageIdentityCompletedCutoverCostPath) ExecContainerImageIdenti
 // containerImageIdentityCanonicalDecisions' CanonicalWrites>0 filter
 // (go/internal/reducer/containerimage/container_image_identity.go), so both become rows the
 // batched writer persists.
-func containerImageIdentityFixtureDecisions() []reducer.ContainerImageIdentityDecision {
-	row := func(id string) reducer.ContainerImageIdentityDecision {
-		return reducer.ContainerImageIdentityDecision{
+func containerImageIdentityFixtureDecisions() []containerimage.ContainerImageIdentityDecision {
+	row := func(id string) containerimage.ContainerImageIdentityDecision {
+		return containerimage.ContainerImageIdentityDecision{
 			ImageRef:         "registry.example.com/team/api:" + id,
 			Digest:           "sha256:" + id + "11111111111111111111111111111111111111111111111111111111111111",
 			RepositoryID:     "oci-registry://registry.example.com/team/api",
@@ -81,11 +82,11 @@ func containerImageIdentityFixtureDecisions() []reducer.ContainerImageIdentityDe
 			IdentityStrength: "tag_observation_with_digest",
 		}
 	}
-	return []reducer.ContainerImageIdentityDecision{row("aaaa"), row("bbbb")}
+	return []containerimage.ContainerImageIdentityDecision{row("aaaa"), row("bbbb")}
 }
 
 // newInstrumentedContainerImageIdentityWriter builds the PRODUCTION Postgres
-// write dispatch for this domain: reducer.PostgresContainerImageIdentityWriter
+// write dispatch for this domain: containerimage.PostgresContainerImageIdentityWriter
 // over a postgres.InstrumentedDB (StoreName "reducer", the exact shape
 // go/cmd/reducer/observed_service_wiring.go wires) wrapping a
 // countingExecQueryer. The fixture models the steady-state completed-cutover
@@ -94,7 +95,7 @@ func containerImageIdentityFixtureDecisions() []reducer.ContainerImageIdentityDe
 // statement that publishes up to one 1000-row chunk. Two canonical rows
 // therefore fit in one statement and cost exactly one ExecContext round-trip.
 func newInstrumentedContainerImageIdentityWriter(t *testing.T) (
-	writer reducer.PostgresContainerImageIdentityWriter,
+	writer containerimage.PostgresContainerImageIdentityWriter,
 	fake *countingExecQueryer,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -103,7 +104,7 @@ func newInstrumentedContainerImageIdentityWriter(t *testing.T) (
 	fake = &countingExecQueryer{}
 	db, manualReader := newInstrumentedReducerDB(t, fake)
 	completedCutover := containerImageIdentityCompletedCutoverCostPath{db: db}
-	writer = reducer.PostgresContainerImageIdentityWriter{
+	writer = containerimage.PostgresContainerImageIdentityWriter{
 		DB:                  db,
 		CutoverLookup:       completedCutover,
 		LegacyCleanupLookup: completedCutover,
@@ -135,7 +136,7 @@ func TestCostBudget_ContainerImageIdentity(t *testing.T) {
 	budget := loadBudgetFrom(t, containerImageIdentityBudgetRelPath)
 	writer, fake, reader := newInstrumentedContainerImageIdentityWriter(t)
 
-	result, err := writer.WriteContainerImageIdentityDecisions(context.Background(), reducer.ContainerImageIdentityWrite{
+	result, err := writer.WriteContainerImageIdentityDecisions(context.Background(), containerimage.ContainerImageIdentityWrite{
 		IntentID:     containerImageIdentityCostIntentID,
 		ClaimEpoch:   1,
 		ScopeID:      "repo:team-api",
@@ -213,7 +214,7 @@ func TestCostBudget_ContainerImageIdentity_N1_ExceedsBudget(t *testing.T) {
 	writer, _, reader := newInstrumentedContainerImageIdentityWriter(t)
 
 	for _, decision := range decisions {
-		if _, err := writer.WriteContainerImageIdentityDecisions(context.Background(), reducer.ContainerImageIdentityWrite{
+		if _, err := writer.WriteContainerImageIdentityDecisions(context.Background(), containerimage.ContainerImageIdentityWrite{
 			IntentID:     containerImageIdentityCostIntentID,
 			ClaimEpoch:   1,
 			ScopeID:      "repo:team-api",
@@ -221,7 +222,7 @@ func TestCostBudget_ContainerImageIdentity_N1_ExceedsBudget(t *testing.T) {
 			SourceSystem: "git",
 			EvidenceAsOf: time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC),
 			Cause:        "reducer/container_image_identity",
-			Decisions:    []reducer.ContainerImageIdentityDecision{decision},
+			Decisions:    []containerimage.ContainerImageIdentityDecision{decision},
 		}); err != nil {
 			t.Fatalf("N+1 WriteContainerImageIdentityDecisions() error = %v", err)
 		}

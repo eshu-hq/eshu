@@ -23,9 +23,9 @@
 // The AWS relationship and security-group slices at the reducer root and the
 // [iamcan] family both resolve endpoints against this same index, and a family
 // package may never import the reducer root. The index therefore lives below
-// both. The root keeps cloudResourceJoinIndex, buildCloudResourceJoinIndex and
-// cloudResourceUID as aliases and forwarders in
-// the cloudjoin stanza of compat_cloud.go so its own callers compile unchanged.
+// both. The root aliases and forwarders (the cloudjoin stanza of
+// compat_cloud.go) were retired with the #6626 cloud bucket; every caller
+// names this package directly.
 //
 // The S3 bucket-name index ([S3BucketJoinIndex]) follows the same rule one
 // level narrower: the s3logsto LOGS_TO slice, the s3grant slice, and the S3

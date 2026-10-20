@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -48,7 +49,7 @@ type RepoDependencyProjectionRunner struct {
 	LeaseManager                    sharedintent.PartitionLeaseManager
 	AcceptanceUnitGate              RepoDependencyAcceptanceUnitGate
 	EdgeWriter                      sharedintent.EdgeWriter
-	WorkloadMaterializationReplayer WorkloadMaterializationReplayer
+	WorkloadMaterializationReplayer platformfam.WorkloadMaterializationReplayer
 	// WorkloadReadinessPrefetch reports whether RUNS_ON endpoint materialization
 	// committed before the repo-dependency acceptance unit may write its edges.
 	WorkloadReadinessPrefetch gpphase.ReadinessPrefetch

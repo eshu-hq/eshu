@@ -6,6 +6,8 @@ package reducer
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 )
 
 // recordingObservabilityCoverageCorrelationWriter is a minimal
@@ -17,9 +19,9 @@ import (
 type recordingObservabilityCoverageCorrelationWriter struct{}
 
 func (*recordingObservabilityCoverageCorrelationWriter) WriteObservabilityCoverageCorrelations(
-	context.Context, ObservabilityCoverageCorrelationWrite,
-) (ObservabilityCoverageCorrelationWriteResult, error) {
-	return ObservabilityCoverageCorrelationWriteResult{}, nil
+	context.Context, obscoverage.ObservabilityCoverageCorrelationWrite,
+) (obscoverage.ObservabilityCoverageCorrelationWriteResult, error) {
+	return obscoverage.ObservabilityCoverageCorrelationWriteResult{}, nil
 }
 
 func TestImplementedDefaultDomainDefinitionsOmitsObservabilityCoverageWithoutAdapters(t *testing.T) {
@@ -46,9 +48,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesObservabilityCoverageWhenAda
 	for _, def := range definitions {
 		if def.Domain == DomainObservabilityCoverageCorrelation {
 			found = true
-			handler, ok := def.Handler.(ObservabilityCoverageCorrelationHandler)
+			handler, ok := def.Handler.(obscoverage.ObservabilityCoverageCorrelationHandler)
 			if !ok {
-				t.Fatalf("observability_coverage_correlation handler type = %T, want ObservabilityCoverageCorrelationHandler", def.Handler)
+				t.Fatalf("observability_coverage_correlation handler type = %T, want obscoverage.ObservabilityCoverageCorrelationHandler", def.Handler)
 			}
 			if handler.FactLoader != loader {
 				t.Fatal("observability_coverage_correlation handler FactLoader was not wired")

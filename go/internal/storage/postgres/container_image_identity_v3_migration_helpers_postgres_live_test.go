@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 )
 
 func seedContainerImageIdentityV3MigrationRows(t *testing.T, ctx context.Context, db *sql.DB) {
@@ -94,16 +95,16 @@ WHERE work_item_id = $1
 		t.Fatalf("claim first held v3 publication: %v", err)
 	}
 	queryDB := SQLDB{DB: db}
-	writer := reducer.PostgresContainerImageIdentitySupportWriter{
+	writer := containerimage.PostgresContainerImageIdentitySupportWriter{
 		ActivationLookup:  NewContainerImageIdentityScopeStateStore(queryDB),
 		HeldSupportLoader: NewContainerImageIdentityHeldSupportStore(queryDB),
 		ClaimedExecer:     ContainerImageIdentityClaimedExecer{DB: queryDB},
 	}
-	held := reducer.ContainerImageIdentityDecision{
+	held := containerimage.ContainerImageIdentityDecision{
 		ImageRef: imageRef,
 		Outcome:  reducer.ContainerImageIdentityUnresolved,
 	}
-	result, err := writer.WriteContainerImageIdentityDecisions(ctx, reducer.ContainerImageIdentityWrite{
+	result, err := writer.WriteContainerImageIdentityDecisions(ctx, containerimage.ContainerImageIdentityWrite{
 		IntentID:        intentID,
 		ClaimEpoch:      1,
 		ActivationEpoch: activationEpoch,
@@ -112,8 +113,8 @@ WHERE work_item_id = $1
 		SourceSystem:    "git",
 		Cause:           "synthetic held first publication",
 		EvidenceAsOf:    time.Now().UTC(),
-		Decisions:       []reducer.ContainerImageIdentityDecision{held},
-		HeldDecisions:   []reducer.ContainerImageIdentityDecision{held},
+		Decisions:       []containerimage.ContainerImageIdentityDecision{held},
+		HeldDecisions:   []containerimage.ContainerImageIdentityDecision{held},
 	})
 	if err != nil {
 		t.Fatalf("first held v3 publication: %v", err)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
@@ -146,7 +147,7 @@ func TestExtractCloudResourceNodeRowsBuildsStableUID(t *testing.T) {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
 
-	wantUID := cloudResourceUID("111122223333", "us-east-1", "aws_iam_role", "arn:aws:iam::111122223333:role/app")
+	wantUID := cloudjoin.CloudResourceUID("111122223333", "us-east-1", "aws_iam_role", "arn:aws:iam::111122223333:role/app")
 	if got := anyToString(rows[0]["uid"]); got != wantUID {
 		t.Fatalf("uid = %q, want %q", got, wantUID)
 	}

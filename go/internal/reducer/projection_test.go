@@ -6,6 +6,7 @@ package reducer //nolint:filelength // 982 lines: projection row builder and ove
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -545,7 +546,7 @@ func TestBuildProjectionRowsAddsProvisionedInfrastructurePlatforms(t *testing.T)
 			DeploymentRepoID:    "repo-payments",
 			ProvisioningRepoIDs: []string{"repo-infra"},
 			ProvisioningEvidenceKinds: map[string][]string{
-				"repo-infra": {TerraformPlatformEvidenceKind("ecs", "service")},
+				"repo-infra": {platformfam.TerraformPlatformEvidenceKind("ecs", "service")},
 			},
 			Classification: "service",
 			Confidence:     0.96,
@@ -594,8 +595,8 @@ func TestBuildProjectionRowsAddsMultipleProvisionedInfrastructurePlatforms(t *te
 			ProvisioningRepoIDs: []string{"repo-infra"},
 			ProvisioningEvidenceKinds: map[string][]string{
 				"repo-infra": {
-					TerraformPlatformEvidenceKind("ecs", "service"),
-					TerraformPlatformEvidenceKind("eks", "cluster"),
+					platformfam.TerraformPlatformEvidenceKind("ecs", "service"),
+					platformfam.TerraformPlatformEvidenceKind("eks", "cluster"),
 				},
 			},
 			Classification: "service",

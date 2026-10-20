@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -63,7 +64,7 @@ func TestGCPResourceMaterializationRetractsDeletedUIDs(t *testing.T) {
 	if result.Status != ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
-	wantDeleted := cloudResourceUID("demo-proj", "us-central1-a", "compute.googleapis.com/Instance",
+	wantDeleted := cloudjoin.CloudResourceUID("demo-proj", "us-central1-a", "compute.googleapis.com/Instance",
 		"//compute.googleapis.com/projects/demo-proj/zones/us-central1-a/instances/deleted")
 	if len(retracter.uids) != 1 || retracter.uids[0] != wantDeleted {
 		t.Fatalf("retract uids = %v, want exactly [%q]", retracter.uids, wantDeleted)

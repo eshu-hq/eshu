@@ -9,6 +9,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 )
 
 // ---------------------------------------------------------------------------
@@ -205,7 +207,7 @@ func TestProjectedSourceEdgeBackfillerEnumerateGroupsAndRecords(t *testing.T) {
 				{EvidenceSource: awsRelationshipEvidenceSource, ScopeID: "scope-1", GenerationID: "gen-1", SourceUID: "uid-a"},
 				{EvidenceSource: awsRelationshipEvidenceSource, ScopeID: "scope-1", GenerationID: "gen-1", SourceUID: "uid-b"},
 				{EvidenceSource: awsRelationshipEvidenceSource, ScopeID: "scope-2", GenerationID: "gen-2", SourceUID: "uid-c"},
-				{EvidenceSource: ObservabilityCoverageEvidenceSource(), ScopeID: "scope-1", GenerationID: "gen-1", SourceUID: "uid-d"},
+				{EvidenceSource: obscoverage.ObservabilityCoverageEvidenceSource(), ScopeID: "scope-1", GenerationID: "gen-1", SourceUID: "uid-d"},
 			}, nil
 		},
 	}
@@ -216,7 +218,7 @@ func TestProjectedSourceEdgeBackfillerEnumerateGroupsAndRecords(t *testing.T) {
 		Reader:          reader,
 		Ledger:          ledger,
 		StateMarker:     marker,
-		EvidenceSources: []string{awsRelationshipEvidenceSource, ObservabilityCoverageEvidenceSource()},
+		EvidenceSources: []string{awsRelationshipEvidenceSource, obscoverage.ObservabilityCoverageEvidenceSource()},
 		Now:             time.Now,
 	}
 
@@ -230,9 +232,9 @@ func TestProjectedSourceEdgeBackfillerEnumerateGroupsAndRecords(t *testing.T) {
 	}
 	checkProjectedSourceEdgeCall(t, calls[0], awsRelationshipEvidenceSource, "scope-1", "gen-1", []string{"uid-a", "uid-b"})
 	checkProjectedSourceEdgeCall(t, calls[1], awsRelationshipEvidenceSource, "scope-2", "gen-2", []string{"uid-c"})
-	checkProjectedSourceEdgeCall(t, calls[2], ObservabilityCoverageEvidenceSource(), "scope-1", "gen-1", []string{"uid-d"})
+	checkProjectedSourceEdgeCall(t, calls[2], obscoverage.ObservabilityCoverageEvidenceSource(), "scope-1", "gen-1", []string{"uid-d"})
 
-	for _, src := range []string{awsRelationshipEvidenceSource, ObservabilityCoverageEvidenceSource()} {
+	for _, src := range []string{awsRelationshipEvidenceSource, obscoverage.ObservabilityCoverageEvidenceSource()} {
 		key := projectedSourceEdgeBackfillKey(src)
 		if _, ok := marker.markComplete[key]; !ok {
 			t.Fatalf("MarkComplete was NOT called for key %q", key)
