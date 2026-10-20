@@ -14,7 +14,7 @@ import (
 )
 
 // TestBindingsImportsEveryRuntimebindDir asserts the set of
-// services/<service>/runtimebind/ directories on disk matches the set of
+// service/<service>/runtimebind/ directories on disk matches the set of
 // runtimebind blank imports in bindings.go exactly. The expected set is DERIVED
 // from the filesystem plus the bindings.go source, so a new scanner adds zero
 // lines to this test.
@@ -41,10 +41,10 @@ func TestBindingsImportsEveryRuntimebindDir(t *testing.T) {
 
 	missing, extra := guardset.Diff(dirs, imports)
 	for _, service := range missing {
-		t.Errorf("services/%s/runtimebind/ exists but bindings.go does not blank-import it", service)
+		t.Errorf("service/%s/runtimebind/ exists but bindings.go does not blank-import it", service)
 	}
 	for _, service := range extra {
-		t.Errorf("bindings.go blank-imports services/%s/runtimebind but no such directory exists", service)
+		t.Errorf("bindings.go blank-imports service/%s/runtimebind but no such directory exists", service)
 	}
 }
 
@@ -62,7 +62,7 @@ func TestBindingsRegistersEveryImportedKind(t *testing.T) {
 	}
 }
 
-// servicesDir resolves go/internal/collector/awscloud/services from this test
+// servicesDir resolves go/internal/collector/awscloud/service from this test
 // file's location so the directory walk does not depend on the go test working
 // directory.
 func servicesDir(t *testing.T) string {
@@ -71,9 +71,9 @@ func servicesDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	// bindings_test.go lives in awsruntime/bindings/; services is two levels up
+	// bindings_test.go lives in awsruntime/bindings/; service is two levels up
 	// under awscloud/.
-	return filepath.Join(filepath.Dir(currentFile), "..", "..", "services")
+	return filepath.Join(filepath.Dir(currentFile), "..", "..", "service")
 }
 
 // bindingsFile resolves the bindings.go source that lists the runtimebind

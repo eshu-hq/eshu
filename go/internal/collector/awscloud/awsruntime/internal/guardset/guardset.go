@@ -18,8 +18,10 @@ import (
 
 // importPathSuffix is the trailing module path under which every AWS service
 // scanner registers itself. A blank import that ends with
-// services/<service>/runtimebind contributes <service> to the bindings set.
-const importPathSuffix = "/internal/collector/awscloud/services/"
+// service/<service>/runtimebind contributes <service> to the bindings set,
+// and one that ends with service/<group>/<service>/runtimebind contributes
+// the relative <group>/<service> token.
+const importPathSuffix = "/internal/collector/awscloud/service/"
 
 // runtimebindLeaf is the final path element every service registration import
 // must carry.
@@ -27,8 +29,10 @@ const runtimebindLeaf = "runtimebind"
 
 // ServiceFromImportPath extracts the service token from a runtimebind blank
 // import path. It returns ("", false) for any import that is not exactly a
-// services/<service>/runtimebind package, so unrelated imports and deeper
-// nested packages are ignored rather than misattributed.
+// service/<service>/runtimebind or service/<group>/<service>/runtimebind
+// package, so unrelated imports and deeper nested packages are ignored rather
+// than misattributed. Nested services report the relative <group>/<service>
+// token so the directory walk and the import set stay comparable.
 func ServiceFromImportPath(path string) (string, bool) {
 	idx := strings.Index(path, importPathSuffix)
 	if idx < 0 {
@@ -36,51 +40,78 @@ func ServiceFromImportPath(path string) (string, bool) {
 	}
 	tail := path[idx+len(importPathSuffix):]
 	parts := strings.Split(tail, "/")
-	// Exactly <service>/runtimebind. Reject <service>,
-	// <service>/runtimebind/extra, and empty service tokens.
-	if len(parts) != 2 {
+	// Exactly <service>/runtimebind or <group>/<service>/runtimebind. Reject
+	// <service>, <service>/runtimebind/extra, and empty tokens.
+	if len(parts) != 2 && len(parts) != 3 {
 		return "", false
 	}
-	service, leaf := parts[0], parts[1]
-	if service == "" || leaf != runtimebindLeaf {
+	if parts[len(parts)-1] != runtimebindLeaf {
 		return "", false
 	}
-	return service, true
+	for _, part := range parts[:len(parts)-1] {
+		if part == "" {
+			return "", false
+		}
+	}
+	return strings.Join(parts[:len(parts)-1], "/"), true
 }
 
 // RuntimebindServiceDirs returns the sorted set of service tokens that have a
-// services/<service>/runtimebind/ directory under servicesDir. This is the set
-// of scanners the repository layout says SHOULD be registered.
+// service/<service>/runtimebind/ directory under servicesDir. Nested service
+// groups (service/<group>/<service>/) contribute their relative
+// <group>/<service> token, matching ServiceFromImportPath. This is the set of
+// scanners the repository layout says SHOULD be registered.
 func RuntimebindServiceDirs(servicesDir string) ([]string, error) {
 	entries, err := os.ReadDir(servicesDir)
 	if err != nil {
-		return nil, fmt.Errorf("read services dir %q: %w", servicesDir, err)
+		return nil, fmt.Errorf("read service dir %q: %w", servicesDir, err)
 	}
 	var services []string
+	collect := func(dir, token string) error {
+		bindDir := filepath.Join(dir, token, runtimebindLeaf)
+		info, statErr := os.Stat(bindDir)
+		if errors.Is(statErr, os.ErrNotExist) {
+			// Service directory without a runtimebind package; skip it.
+			return nil
+		}
+		if statErr != nil {
+			return fmt.Errorf("stat runtimebind dir %q: %w", bindDir, statErr)
+		}
+		if !info.IsDir() {
+			return nil
+		}
+		services = append(services, token)
+		return nil
+	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		bindDir := filepath.Join(servicesDir, entry.Name(), runtimebindLeaf)
-		info, statErr := os.Stat(bindDir)
-		if errors.Is(statErr, os.ErrNotExist) {
-			// Service directory without a runtimebind package; skip it.
-			continue
+		if err := collect(servicesDir, entry.Name()); err != nil {
+			return nil, err
 		}
-		if statErr != nil {
-			return nil, fmt.Errorf("stat runtimebind dir %q: %w", bindDir, statErr)
+		// One nested level: AWS proper-noun services group under service/
+		// to satisfy the filename-stutter gate (naming rule 3).
+		nested, nestErr := os.ReadDir(filepath.Join(servicesDir, entry.Name()))
+		if nestErr != nil {
+			return nil, fmt.Errorf("read service group dir %q: %w", entry.Name(), nestErr)
 		}
-		if !info.IsDir() {
-			continue
+		for _, child := range nested {
+			if !child.IsDir() {
+				continue
+			}
+			if err := collect(servicesDir, filepath.Join(entry.Name(), child.Name())); err != nil {
+				return nil, err
+			}
 		}
-		services = append(services, entry.Name())
 	}
 	sort.Strings(services)
 	return services, nil
 }
 
 // BindingsImportServices parses bindingsFile and returns the sorted set of
-// service tokens from its services/<service>/runtimebind blank imports. This is
+// service tokens from its service/<service>/runtimebind blank imports
+// (relative <group>/<service> tokens for nested services). This is
 // the set of scanners that ARE wired into the runtime aggregator.
 func BindingsImportServices(bindingsFile string) ([]string, error) {
 	fset := token.NewFileSet()

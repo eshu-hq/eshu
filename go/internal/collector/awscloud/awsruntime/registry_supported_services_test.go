@@ -53,7 +53,7 @@ func TestSupportedServiceKindsBuildScanners(t *testing.T) {
 }
 
 // TestSupportedServiceKindsCoversEveryRuntimebind asserts the registry holds
-// exactly one builder per services/<service>/runtimebind/ directory. The
+// exactly one builder per service/<service>/runtimebind/ directory. The
 // expected count is DERIVED from the filesystem, not a hardcoded want-list, so
 // a new scanner adds zero lines to this test. A binding that is imported but
 // fails to register at init (so its kind never reaches the registry) still
@@ -80,7 +80,7 @@ func TestSupportedServiceKindsCoversEveryRuntimebind(t *testing.T) {
 	}
 }
 
-// servicesDir resolves go/internal/collector/awscloud/services from this test
+// servicesDir resolves go/internal/collector/awscloud/service from this test
 // file's location so the directory walk does not depend on the go test working
 // directory.
 func servicesDir(t *testing.T) string {
@@ -89,7 +89,7 @@ func servicesDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	// registry_supported_services_test.go lives in awsruntime/; services is a
+	// registry_supported_services_test.go lives in awsruntime/; service is a
 	// sibling of awsruntime under awscloud/.
-	return filepath.Join(filepath.Dir(currentFile), "..", "services")
+	return filepath.Join(filepath.Dir(currentFile), "..", "service")
 }

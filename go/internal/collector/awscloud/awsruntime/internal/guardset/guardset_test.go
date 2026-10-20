@@ -25,19 +25,25 @@ func TestServiceFromImportPath(t *testing.T) {
 	}{
 		{
 			name: "canonical runtimebind import",
-			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/runtimebind",
+			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/iam/runtimebind",
 			want: "iam",
 			ok:   true,
 		},
 		{
 			name: "multi-word service token",
-			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatchlogs/runtimebind",
+			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/cloudwatchlogs/runtimebind",
 			want: "cloudwatchlogs",
 			ok:   true,
 		},
 		{
+			name: "nested service import reports the relative token",
+			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/catalog/app_registry/runtimebind",
+			want: "catalog/app_registry",
+			ok:   true,
+		},
+		{
 			name: "non-runtimebind service import is ignored",
-			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam",
+			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/iam",
 			want: "",
 			ok:   false,
 		},
@@ -49,7 +55,13 @@ func TestServiceFromImportPath(t *testing.T) {
 		},
 		{
 			name: "deeper nested package under runtimebind is ignored",
-			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/runtimebind/extra",
+			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/iam/runtimebind/extra",
+			want: "",
+			ok:   false,
+		},
+		{
+			name: "fourth service level is ignored",
+			path: "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/a/b/c/runtimebind",
 			want: "",
 			ok:   false,
 		},
@@ -73,7 +85,7 @@ func TestServiceFromImportPath(t *testing.T) {
 // TestDiff is the core guard proof. It must report a difference whenever the
 // directory set and the import set disagree, and report none when they match.
 // The "dir present but not imported" case is the real failure mode the guard
-// protects against: a scanner author adds services/<x>/runtimebind/ but forgets
+// protects against: a scanner author adds service/<x>/runtimebind/ but forgets
 // the bindings.go blank import.
 func TestDiff(t *testing.T) {
 	cases := []struct {
@@ -147,6 +159,11 @@ func TestRuntimebindServiceDirs(t *testing.T) {
 	if !contains(dirs, "iam") {
 		t.Fatalf("RuntimebindServiceDirs() = %v, want it to include iam", dirs)
 	}
+	// The AWS proper-noun services nest one level under service/ (naming
+	// rule 3); the walk reports their relative tokens.
+	if !contains(dirs, "catalog/app_registry") {
+		t.Fatalf("RuntimebindServiceDirs() = %v, want it to include catalog/app_registry", dirs)
+	}
 }
 
 // TestBindingsImportServices proves the source reader extracts the service set
@@ -173,7 +190,7 @@ func TestBindingsImportServices(t *testing.T) {
 	}
 }
 
-// liveServicesDir resolves go/internal/collector/awscloud/services from this
+// liveServicesDir resolves go/internal/collector/awscloud/service from this
 // test file's location so the walk does not depend on the working directory.
 func liveServicesDir(t *testing.T) string {
 	t.Helper()
@@ -183,7 +200,7 @@ func liveServicesDir(t *testing.T) string {
 	}
 	// guardset_test.go -> guardset -> internal -> awsruntime -> awscloud
 	awscloudDir := filepath.Join(filepath.Dir(currentFile), "..", "..", "..")
-	return filepath.Join(awscloudDir, "services")
+	return filepath.Join(awscloudDir, "service")
 }
 
 // liveBindingsFile resolves the live bindings.go source from this test file's

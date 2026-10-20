@@ -372,7 +372,7 @@ func anyMapSlice(raw any) ([]any, bool) {
 		return out, true
 	case []map[string]string:
 		// The ECS running-task collector builds its containers[] attribute as
-		// []map[string]string (awscloud/services/ecs.taskContainerMaps): a
+		// []map[string]string (awscloud/service/ecs.taskContainerMaps): a
 		// direct in-Go envelope (test fixtures, any synthetic fact built
 		// without a JSON round trip) preserves that concrete type, while a
 		// real collected fact always round-trips through JSON storage and

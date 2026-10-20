@@ -63,17 +63,17 @@ var KnownTargetTypeAllowlist = map[string]string{
 	// Git repositories are external (non-AWS) CodeBuild source endpoints; the
 	// codebuild scanner labels them with a stable non-AWS-resource type, mirroring
 	// container_image.
-	"git_repository": "non-AWS join anchor: external git source endpoint (codebuild), see services/codebuild/relationships.go",
+	"git_repository": "non-AWS join anchor: external git source endpoint (codebuild), see service/codebuild/relationships.go",
 	// Public package registries (npmjs, PyPI, Maven Central, NuGet gallery,
 	// crates.io, etc.) are external (non-AWS) endpoints a CodeArtifact
 	// repository connects to through an external connection. The codeartifact
 	// scanner labels them with a stable non-AWS-resource type, mirroring
 	// container_image and git_repository.
-	"public_package_registry": "non-AWS join anchor: external public package registry endpoint (codeartifact external connection), see services/codeartifact/relationships.go",
+	"public_package_registry": "non-AWS join anchor: external public package registry endpoint (codeartifact external connection), see service/codeartifact/relationships.go",
 	// CodePipeline source providers (GitHub, CodeStarSourceConnection, Bitbucket)
 	// are a synthetic provider category, not a scanned resource; the constant
 	// guarantees the edge is never empty. See ResourceTypeCodePipelineSourceProvider.
-	"aws_codepipeline_source_provider": "synthetic provider category for CodePipeline sources, see services/codepipeline/relationships.go",
+	"aws_codepipeline_source_provider": "synthetic provider category for CodePipeline sources, see service/codepipeline/relationships.go",
 	// IAM SAML/OIDC identity providers are referenced as Cognito identity-pool
 	// trust evidence; Eshu does not scan an IAM identity-provider resource type.
 	"aws_iam_identity_provider": "forward reference: IAM SAML/OIDC provider trust evidence (cognito), no IAM identity-provider scanner yet",
@@ -81,7 +81,7 @@ var KnownTargetTypeAllowlist = map[string]string{
 	// through one WebACLID field; the edge cannot pick a v1/v2 type without more
 	// signal. Allowlisted pending a modeling decision rather than mis-keyed to
 	// aws_wafv2_web_acl (which would dangle for classic-WAF associations).
-	"aws_waf_web_acl": "ambiguous classic-WAF/WAFv2 association from CloudFront WebACLID; pending modeling decision, see services/cloudfront/relationships.go",
+	"aws_waf_web_acl": "ambiguous classic-WAF/WAFv2 association from CloudFront WebACLID; pending modeling decision, see service/cloudfront/relationships.go",
 }
 
 // DeclaredResourceTypeValues parses every Go source file directly under

@@ -60,7 +60,7 @@ deployment flag-on still requires separate activation proof.
 
 Merged to `main`:
 
-- Source lanes emit redacted facts: AWS IAM (`awscloud/services/iam`,
+- Source lanes emit redacted facts: AWS IAM (`awscloud/service/iam`,
   `accessanalyzer`), Kubernetes RBAC (`kuberneteslive`), and Vault metadata
   (the `secretsiam` builders + `vaultlive` source, all seven Vault fact families,
   #1355).

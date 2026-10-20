@@ -60,19 +60,40 @@ type EmittedTargetType struct {
 func EmittedTargetTypeLiterals(servicesDir string) (literals []EmittedTargetType, unresolved int, err error) {
 	serviceDirs, err := os.ReadDir(servicesDir)
 	if err != nil {
-		return nil, 0, fmt.Errorf("read services dir %q: %w", servicesDir, err)
+		return nil, 0, fmt.Errorf("read service dir %q: %w", servicesDir, err)
 	}
 	for _, serviceDir := range serviceDirs {
 		if !serviceDir.IsDir() {
 			continue
 		}
 		dir := filepath.Join(servicesDir, serviceDir.Name())
-		dirLiterals, dirUnresolved, walkErr := emittedFromPackage(dir)
-		if walkErr != nil {
-			return nil, 0, walkErr
+		// The service package itself plus one nested level: AWS proper-noun
+		// services group under service/ to satisfy the filename-stutter gate
+		// (naming rule 3). A nested directory counts as a service package
+		// when it carries its own scanner.go, matching the fleet guards;
+		// adapter subpackages (awssdk, runtimebind) never do.
+		pkgDirs := []string{dir}
+		nested, nestErr := os.ReadDir(dir)
+		if nestErr != nil {
+			return nil, 0, fmt.Errorf("read service dir %q: %w", dir, nestErr)
 		}
-		literals = append(literals, dirLiterals...)
-		unresolved += dirUnresolved
+		for _, child := range nested {
+			if !child.IsDir() {
+				continue
+			}
+			if _, statErr := os.Stat(filepath.Join(dir, child.Name(), "scanner.go")); statErr != nil {
+				continue
+			}
+			pkgDirs = append(pkgDirs, filepath.Join(dir, child.Name()))
+		}
+		for _, pkgDir := range pkgDirs {
+			dirLiterals, dirUnresolved, walkErr := emittedFromPackage(pkgDir)
+			if walkErr != nil {
+				return nil, 0, walkErr
+			}
+			literals = append(literals, dirLiterals...)
+			unresolved += dirUnresolved
+		}
 	}
 	sort.Slice(literals, func(i, j int) bool {
 		if literals[i].Value != literals[j].Value {

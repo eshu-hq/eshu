@@ -79,7 +79,8 @@ Every directory ends at 40 non-test files or fewer.
    `collector/cloud/aws/catalog`** - as many as needed to hold the 500-line file cap
    (7,283 lines across 133 files will not fit in 12). Each file today holds one
    small `const` block.
-3. **`awscloud/services/` becomes `cloud/aws/service/`**, singular per Go convention.
+3. **The AWS service leaf is singular.** `awscloud/service/` (renamed in place
+in #6696 leaf 1) becomes `cloud/aws/service/` with the root composition move.
 4. **The shared database interfaces in `storage/postgres/db.go` move to
    `storage/postgres/db`.** Not `sql`, which would collide with the standard
    library's `database/sql`.
@@ -99,7 +100,7 @@ Every directory ends at 40 non-test files or fewer.
 
 ## Import cycles decide the shape, so check them first
 
-**AWS, measured.** 1,224 files under `awscloud/services/` import the awscloud root,
+**AWS, measured.** 1,224 files under `awscloud/service/` import the awscloud root,
 and the root itself uses the `Service*` constants. Moving each constant file next to
 its service would create a cycle between root and service. That is why the constants
 become a leaf `catalog` package that imports neither side.
