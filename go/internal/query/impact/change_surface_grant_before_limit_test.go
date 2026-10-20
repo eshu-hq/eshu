@@ -22,10 +22,11 @@ func TestChangeSurfaceScopedGrantsApplyBeforeBothLimits(t *testing.T) {
 		[]string{"repository:owner", "repository:consumer"},
 		[]string{"scope:owner"},
 	)
-	// Each branch reads depths 1..4 with the remaining probe need. The fake
-	// serves its granted row only at depth 1, so every depth runs and the
-	// grant-before-LIMIT shape is verified on all eight statements, not just
-	// the first of each branch.
+	// Each branch reads depths 1..4 with the remaining probe need (8 calls),
+	// and per-call params are asserted on every call. The fake serves its
+	// granted row only at depth 1, so the grant-before-LIMIT shape is pinned
+	// on the depth-1 statement of each branch; the grant-clause position is
+	// fixed in the shared per-branch template, so depths 2-4 inherit it.
 	var calls int
 	handler := &Handler{Neo4j: graph.FakeGraphReader{RunFn: func(
 		_ context.Context,
