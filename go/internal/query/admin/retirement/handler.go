@@ -35,6 +35,10 @@ const maxRetirementSelectors = pgstorage.RetirementFenceMaxRepositories
 const (
 	retirementLookupFailedMessage  = "repository retirement selector lookup failed"
 	retirementRequestFailedMessage = "repository retirement request failed"
+	// retirementAlreadyOpenMessage answers a mark conflict: a retirement
+	// is already open for the repository under a different idempotency
+	// key. The per-repository entry identifies which repository (#8614).
+	retirementAlreadyOpenMessage = "repository retirement refused: a retirement is already open for this repository under a different idempotency key"
 )
 
 // retirementCatalogLookupCapability names the repository catalog lookup in
@@ -169,15 +173,21 @@ func (h *Handler) retireRepository(w http.ResponseWriter, r *http.Request) {
 		var blocked *pgstorage.FenceBlockedError
 		switch {
 		case errors.As(err, &blocked):
-			querycontract.WriteError(w, http.StatusConflict,
-				"repository retirement refused at fence: "+fenceRefusalDetail(blocked))
+			querycontract.WriteJSON(w, http.StatusConflict,
+				triggerFailureBody(http.StatusConflict, result, req.IdempotencyKey,
+					"repository retirement refused at fence: "+fenceRefusalDetail(blocked)))
 			return
 		case errors.Is(err, pgstorage.ErrRetirementAlreadyOpen):
-			querycontract.WriteError(w, http.StatusConflict,
-				"repository retirement refused: a retirement is already open for this repository under a different idempotency key")
+			querycontract.WriteJSON(w, http.StatusConflict,
+				triggerFailureBody(http.StatusConflict, result, req.IdempotencyKey, retirementAlreadyOpenMessage))
 			return
 		}
-		tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, retirementRequestFailedMessage)
+		// The envelope helper marks the request span and maps a client
+		// cancel to 499; the body carries the fixed detail plus the
+		// trigger's per-repository entries (#8614), never backend text.
+		status, _ := tracing.ServerFailureEnvelope(r.Context(), err, retirementRequestFailedMessage, "")
+		querycontract.WriteJSON(w, status,
+			triggerFailureBody(status, result, req.IdempotencyKey, retirementRequestFailedMessage))
 		return
 	}
 	querycontract.WriteJSON(w, http.StatusAccepted, triggerResponse(result, req.IdempotencyKey))
@@ -276,8 +286,18 @@ func fenceRefusalDetail(blocked *pgstorage.FenceBlockedError) string {
 // triggerResponse renders the 202 body: the per-repository outcomes inline,
 // so a blocked purge needs no second read to name its retry.
 func triggerResponse(result TriggerResult, idempotencyKey string) map[string]any {
-	retirements := make([]map[string]any, 0, len(result.Repos))
-	for _, repo := range result.Repos {
+	return map[string]any{
+		"status": "accepted", "retirements": retirementEntries(result.Repos),
+		"idempotency_key": idempotencyKey, "duplicate": result.Duplicate,
+	}
+}
+
+// retirementEntries renders one entry per repository in request order,
+// reusing the 202 entry shape for failure bodies: bounded ids plus bounded
+// outcome strings, never backend error text.
+func retirementEntries(repos []RepoOutcome) []map[string]any {
+	entries := make([]map[string]any, 0, len(repos))
+	for _, repo := range repos {
 		entry := map[string]any{
 			"retirement_id": repo.RetirementID,
 			"repository_id": repo.RepoID,
@@ -289,10 +309,19 @@ func triggerResponse(result TriggerResult, idempotencyKey string) map[string]any
 			entry["blocked_detail"] = repo.BlockedDetail
 			entry["blocking_statuses"] = repo.BlockedStatuses
 		}
-		retirements = append(retirements, entry)
+		entries = append(entries, entry)
 	}
+	return entries
+}
+
+// triggerFailureBody renders a trigger-failure body (#8614): the fixed
+// detail (#7674) plus the trigger's per-repository entries, the idempotency
+// key, and the duplicate flag, so a mid-mark failure still names every
+// repository's outcome. Status codes and detail strings are unchanged.
+func triggerFailureBody(status int, result TriggerResult, idempotencyKey, detail string) map[string]any {
 	return map[string]any{
-		"status": "accepted", "retirements": retirements,
+		"error": http.StatusText(status), "detail": detail,
+		"retirements":     retirementEntries(result.Repos),
 		"idempotency_key": idempotencyKey, "duplicate": result.Duplicate,
 	}
 }

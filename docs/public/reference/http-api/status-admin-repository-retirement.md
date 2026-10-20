@@ -52,6 +52,19 @@ instead of opening a new one. A `409` names the fence refusal reason
 `claim_fence_busy`, `request_too_large`) or an already-open retirement
 under a different key.
 
+When the tombstone mark fails partway through a multi-repository request
+(#8614), the repositories marked before the failure stay committed and
+open, and the `409` (already-open conflict) or `500` (request failed) body
+still carries one `retirements` entry per requested repository in request
+order: marked and failing repositories carry their terminal outcome
+(`refused` on conflict, `failed` on error), and repositories never
+attempted carry the response-only `not_attempted` outcome, which is never
+counted and never audited. There is no compensating close: re-POST with
+the same key resumes the open rows and converges to the completed
+retirement. An already-open conflict means a foreign open row exists under
+a different idempotency key; the per-repository entry identifies which
+repository.
+
 Read surfaces report a fenced repository as `retiring` and a purged one as
 `retired` (`GET /api/v0/repositories`, index status, freshness, and
 `list_indexed_repositories` / `get_index_status`).
@@ -61,9 +74,11 @@ Read surfaces report a fenced repository as `retiring` and a purged one as
 - `eshu_dp_repository_retirements_total{outcome}` -- one `accepted` per
   marked repository plus exactly one terminal outcome per marked repository.
 - `eshu_dp_repository_retirements_purged_total` — purge completions.
-- WARN `repository retirement refused at fence`, INFO `repository
-  retirement purged`, WARN `repository retirement blocked: terminal
-  generations not reached`.
+- WARN `repository retirement refused at fence`, WARN `repository
+  retirement mark failed` (a mid-loop mark error stopped the request
+  before any fence: `outcome`, the failing `repo_id`, the still-open
+  `marked_repo_ids`), INFO `repository retirement purged`, WARN
+  `repository retirement blocked: terminal generations not reached`.
 - `admin_retirement_action` audit events for accepted, refused, blocked,
   completed, failed, and denied inputs.
 

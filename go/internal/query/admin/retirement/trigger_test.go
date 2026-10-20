@@ -311,85 +311,6 @@ func TestTriggerMarksDuplicateOnResumedRow(t *testing.T) {
 	}
 }
 
-// twoRepoInput builds a two-repository operator request: the partial
-// mark-failure path needs a marked repository ahead of the failing one.
-func twoRepoInput() TriggerRequest {
-	return TriggerRequest{
-		Retirements: []TriggerRetirement{
-			{RetirementID: "rr_part01", RepoID: "PARTITION:part-repo-a", ScopeID: "part-scope-a"},
-			{RetirementID: "rr_part02", RepoID: "PARTITION:part-repo-b", ScopeID: "part-scope-b"},
-		},
-		Reason:         "deselected repositories",
-		ActorClass:     "operator",
-		IdempotencyKey: "key-8602-partial",
-	}
-}
-
-// TestTriggerCountsTerminalOnlyForMarkedReposOnPartialMarkFailure is the
-// #8626 P2 regression: when the mark loop fails on the second repository,
-// the never-attempted repository must not gain a terminal count. Only the
-// marked repository carries accepted plus exactly one terminal, so the
-// funnel still adds up.
-func TestTriggerCountsTerminalOnlyForMarkedReposOnPartialMarkFailure(t *testing.T) {
-	inst, reader := countingInstruments(t)
-	boom := errors.New("retirement insert: connection refused")
-	trigger := &Trigger{
-		Marker: &scriptedMarker{
-			next:      pgstorage.RetirementRecord{RetirementID: "rr_part01", State: pgstorage.RetirementStatePending},
-			failRepos: map[string]error{"PARTITION:part-repo-b": boom},
-		},
-		Fencer:      &scriptedFencer{},
-		Purger:      &scriptedPurger{},
-		Instruments: inst,
-	}
-	if _, err := trigger.TriggerRetirement(context.Background(), twoRepoInput()); !errors.Is(err, boom) {
-		t.Fatalf("err = %v, want the mark error", err)
-	}
-	counts := outcomeCounts(t, reader)
-	if got, want := counts[TriggerOutcomeAccepted], int64(1); got != want {
-		t.Fatalf("accepted = %d, want %d: only the marked repository counts", got, want)
-	}
-	if got, want := counts[TriggerOutcomeFailed], int64(1); got != want {
-		t.Fatalf("failed = %d, want %d: the never-attempted repository stays counter-silent", got, want)
-	}
-	if got := terminalCounts(counts); got != counts[TriggerOutcomeAccepted] {
-		t.Fatalf("terminals = %d, accepted = %d: funnel diverged on the partial-failure path",
-			got, counts[TriggerOutcomeAccepted])
-	}
-}
-
-// TestTriggerCountsTerminalOnlyForMarkedReposOnMarkConflict pins the same
-// rule for the conflict arm: a mid-loop ErrRetirementAlreadyOpen counts
-// refused only for repositories this call actually marked.
-func TestTriggerCountsTerminalOnlyForMarkedReposOnMarkConflict(t *testing.T) {
-	inst, reader := countingInstruments(t)
-	trigger := &Trigger{
-		Marker: &scriptedMarker{
-			next: pgstorage.RetirementRecord{RetirementID: "rr_part01", State: pgstorage.RetirementStatePending},
-			failRepos: map[string]error{
-				"PARTITION:part-repo-b": pgstorage.ErrRetirementAlreadyOpen,
-			},
-		},
-		Fencer:      &scriptedFencer{},
-		Purger:      &scriptedPurger{},
-		Instruments: inst,
-	}
-	if _, err := trigger.TriggerRetirement(context.Background(), twoRepoInput()); !errors.Is(err, pgstorage.ErrRetirementAlreadyOpen) {
-		t.Fatalf("err = %v, want the mark conflict", err)
-	}
-	counts := outcomeCounts(t, reader)
-	if got, want := counts[TriggerOutcomeAccepted], int64(1); got != want {
-		t.Fatalf("accepted = %d, want %d", got, want)
-	}
-	if got, want := counts[TriggerOutcomeRefused], int64(1); got != want {
-		t.Fatalf("refused = %d, want %d: the never-attempted repository stays counter-silent", got, want)
-	}
-	if got := terminalCounts(counts); got != counts[TriggerOutcomeAccepted] {
-		t.Fatalf("terminals = %d, accepted = %d: funnel diverged on the conflict path",
-			got, counts[TriggerOutcomeAccepted])
-	}
-}
-
 // TestTriggerValidationFailureCountsNothing pins the line-147 shape of the
 // #8626 P2: a request refused before any mark attempted no repository, so
 // no repository gains a terminal count.
@@ -469,5 +390,67 @@ func TestTriggerSameKeyRetryPreservesFunnel(t *testing.T) {
 	}
 	if got, want := terminalCounts(counts), counts[TriggerOutcomeAccepted]; got != want {
 		t.Fatalf("terminals = %d, accepted = %d: same-key retry broke the funnel", got, want)
+	}
+
+	// Conflict arm (#8614): the first attempt marks repository A and meets
+	// B's foreign open row under a different key, so both entries report
+	// refused. The retry runs after that foreign row resolves: A resumes
+	// its open row, B marks fresh, and fence plus purge complete both.
+	conflictInst, conflictReader := countingInstruments(t)
+	conflictFirst := &Trigger{
+		Marker: &scriptedMarker{
+			next:      pgstorage.RetirementRecord{RetirementID: "rr_part01", State: pgstorage.RetirementStatePending},
+			failRepos: map[string]error{"PARTITION:part-repo-b": pgstorage.ErrRetirementAlreadyOpen},
+		},
+		Fencer:      &scriptedFencer{},
+		Purger:      &scriptedPurger{},
+		Instruments: conflictInst,
+	}
+	conflictPartial, err := conflictFirst.TriggerRetirement(context.Background(), twoRepoInput())
+	if !errors.Is(err, pgstorage.ErrRetirementAlreadyOpen) {
+		t.Fatalf("conflict first err = %v, want the mark conflict", err)
+	}
+	if len(conflictPartial.Repos) != 2 ||
+		conflictPartial.Repos[0].Outcome != TriggerOutcomeRefused ||
+		conflictPartial.Repos[1].Outcome != TriggerOutcomeRefused {
+		t.Fatalf("conflict partial = %+v, want both repositories refused", conflictPartial.Repos)
+	}
+	conflictRetry := &Trigger{
+		Marker: &scriptedMarker{records: map[string]pgstorage.RetirementRecord{
+			"PARTITION:part-repo-a": {RetirementID: "rr_existing_a", State: pgstorage.RetirementStatePending},
+		}, next: pgstorage.RetirementRecord{RetirementID: "rr_part02", State: pgstorage.RetirementStatePending}},
+		Fencer: &scriptedFencer{next: pgstorage.FenceResult{
+			RetirementIDs: []string{"rr_existing_a", "rr_part02"},
+			RepoIDs:       []string{"PARTITION:part-repo-a", "PARTITION:part-repo-b"},
+		}},
+		Purger: &scriptedPurger{next: pgstorage.PurgeResult{
+			Completed: []string{"PARTITION:part-repo-a", "PARTITION:part-repo-b"},
+		}},
+		Instruments: conflictInst,
+	}
+	conflictResult, err := conflictRetry.TriggerRetirement(context.Background(), twoRepoInput())
+	if err != nil {
+		t.Fatalf("conflict retry TriggerRetirement = %v, want nil", err)
+	}
+	if !conflictResult.Duplicate {
+		t.Fatal("conflict retry Duplicate = false, want true for the resumed open row")
+	}
+	if len(conflictResult.Repos) != 2 ||
+		conflictResult.Repos[0].Outcome != TriggerOutcomeCompleted ||
+		conflictResult.Repos[1].Outcome != TriggerOutcomeCompleted {
+		t.Fatalf("conflict retry repos = %+v, want both repositories completed", conflictResult.Repos)
+	}
+	conflictCounts := outcomeCounts(t, conflictReader)
+	if got, want := conflictCounts[TriggerOutcomeAccepted], int64(3); got != want {
+		t.Fatalf("conflict accepted = %d, want %d (first attempt plus both retry marks)", got, want)
+	}
+	if got, want := conflictCounts[TriggerOutcomeRefused], int64(1); got != want {
+		t.Fatalf("conflict refused = %d, want %d (only the first attempt's marked repository)", got, want)
+	}
+	if got, want := conflictCounts[TriggerOutcomeCompleted], int64(2); got != want {
+		t.Fatalf("conflict completed = %d, want %d", got, want)
+	}
+	if got, want := terminalCounts(conflictCounts), conflictCounts[TriggerOutcomeAccepted]; got != want {
+		t.Fatalf("conflict terminals = %d, accepted = %d: same-key retry broke the funnel", got, want)
 	}
 }

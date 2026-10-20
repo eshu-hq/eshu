@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -180,6 +181,16 @@ func TestRetireRepositoryMapsFenceRefusalToConflict(t *testing.T) {
 	if strings.Contains(rec.Body.String(), "conn refused") {
 		t.Fatalf("body = %s, leaks backend error text", rec.Body.String())
 	}
+	decoded := partialFailureBody(t, rec)
+	if len(decoded.Retirements) != 1 {
+		t.Fatalf("retirements = %+v, want the refused entry inline", decoded.Retirements)
+	}
+	if got := decoded.Retirements[0]; got.RetirementID != "rr_trigger01" || got.Outcome != TriggerOutcomeRefused {
+		t.Fatalf("retirements[0] = %+v, want the refused mark entry", got)
+	}
+	if decoded.IdempotencyKey != "k" {
+		t.Fatalf("idempotency_key = %q, want the request key", decoded.IdempotencyKey)
+	}
 }
 
 // TestRetireRepositoryAnswersLookupFailureOnce proves a catalog failure
@@ -259,5 +270,134 @@ func TestRetireRepositoryReportsBlockedInline(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "terminal_not_reached") {
 		t.Fatalf("body = %s, want the blocked reason inline", rec.Body.String())
+	}
+}
+
+// partialFailureFixture serves a two-repository retire whose trigger
+// answers a partial per-repository result plus err: the #8614 mid-mark
+// failure surface.
+func partialFailureFixture(err error, outcomes [2]string, duplicate bool) *Handler {
+	catalog := &scriptedCatalog{entries: map[string][]querycontract.RepositoryCatalogEntry{
+		"repo-a": {gitEntry("repository:r_a", "git-repository-scope:repository:r_a")},
+		"repo-b": {gitEntry("repository:r_b", "git-repository-scope:repository:r_b")},
+	}}
+	return &Handler{Catalog: catalog, Triggerer: &scriptedTriggerer{
+		result: TriggerResult{
+			Repos: []RepoOutcome{
+				{RetirementID: "rr_a", RepoID: "repository:r_a", ScopeID: "git-repository-scope:repository:r_a", Outcome: outcomes[0]},
+				{RetirementID: "rr_b", RepoID: "repository:r_b", ScopeID: "git-repository-scope:repository:r_b", Outcome: outcomes[1]},
+			},
+			Duplicate: duplicate,
+		},
+		err: err,
+	}}
+}
+
+// partialFailureEntry is one decoded per-repository entry of a
+// trigger-failure response body.
+type partialFailureEntry struct {
+	RetirementID string `json:"retirement_id"`
+	RepositoryID string `json:"repository_id"`
+	ScopeID      string `json:"scope_id"`
+	Outcome      string `json:"outcome"`
+}
+
+// partialFailureDecoded is a decoded trigger-failure response body.
+type partialFailureDecoded struct {
+	Error          string                `json:"error"`
+	Detail         string                `json:"detail"`
+	Retirements    []partialFailureEntry `json:"retirements"`
+	IdempotencyKey string                `json:"idempotency_key"`
+	Duplicate      bool                  `json:"duplicate"`
+}
+
+// partialFailureBody decodes a trigger-failure response body.
+func partialFailureBody(t *testing.T, rec *httptest.ResponseRecorder) partialFailureDecoded {
+	t.Helper()
+	var decoded partialFailureDecoded
+	if err := json.Unmarshal(rec.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("decode = %v: %s", err, rec.Body.String())
+	}
+	return decoded
+}
+
+// TestRetireRepositoryConflictCarriesPartialOutcomes is the #8614 T5
+// conflict arm: a mid-mark already-open failure answers 409 with the fixed
+// detail plus both per-repository entries and the idempotency key, and no
+// backend error text.
+func TestRetireRepositoryConflictCarriesPartialOutcomes(t *testing.T) {
+	// The wrapped store message must not reach the body: only the fixed
+	// detail and the bounded per-repository entries do.
+	wrapped := fmt.Errorf("retirement insert repository:r_b: %w", pgstorage.ErrRetirementAlreadyOpen)
+	handler := partialFailureFixture(wrapped,
+		[2]string{TriggerOutcomeRefused, TriggerOutcomeRefused}, true)
+	rec := retireHTTPBody(t, handler,
+		`{"repositories":["repo-a","repo-b"],"reason":"r","idempotency_key":"key-partial"}`, adminAuth())
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("code = %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+	decoded := partialFailureBody(t, rec)
+	if decoded.Error != "Conflict" {
+		t.Fatalf("error = %q, want Conflict", decoded.Error)
+	}
+	const wantDetail = "repository retirement refused: a retirement is already open for this repository under a different idempotency key"
+	if decoded.Detail != wantDetail {
+		t.Fatalf("detail = %q, want the fixed conflict text", decoded.Detail)
+	}
+	if len(decoded.Retirements) != 2 {
+		t.Fatalf("retirements = %+v, want both per-repository entries", decoded.Retirements)
+	}
+	for i, entry := range decoded.Retirements {
+		if entry.Outcome != TriggerOutcomeRefused {
+			t.Fatalf("retirements[%d] = %+v, want refused", i, entry)
+		}
+		if entry.RetirementID == "" || entry.RepositoryID == "" || entry.ScopeID == "" {
+			t.Fatalf("retirements[%d] = %+v, want bounded ids on every entry", i, entry)
+		}
+	}
+	if decoded.IdempotencyKey != "key-partial" {
+		t.Fatalf("idempotency_key = %q, want the request key", decoded.IdempotencyKey)
+	}
+	if !decoded.Duplicate {
+		t.Fatal("duplicate = false, want the trigger's duplicate flag passed through")
+	}
+	if strings.Contains(rec.Body.String(), "retirement insert") {
+		t.Fatalf("body = %s, leaks backend error text", rec.Body.String())
+	}
+}
+
+// TestRetireRepositoryMarkErrorCarriesPartialOutcomes is the #8614 T5
+// generic arm: a mid-mark store error answers 500 with the fixed detail
+// plus both per-repository entries and the idempotency key, and no backend
+// error text.
+func TestRetireRepositoryMarkErrorCarriesPartialOutcomes(t *testing.T) {
+	boom := errors.New("retirement insert: connection refused")
+	handler := partialFailureFixture(boom,
+		[2]string{TriggerOutcomeFailed, TriggerOutcomeFailed}, false)
+	rec := retireHTTPBody(t, handler,
+		`{"repositories":["repo-a","repo-b"],"reason":"r","idempotency_key":"key-partial"}`, adminAuth())
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("code = %d, want 500: %s", rec.Code, rec.Body.String())
+	}
+	decoded := partialFailureBody(t, rec)
+	if decoded.Error != "Internal Server Error" {
+		t.Fatalf("error = %q, want Internal Server Error", decoded.Error)
+	}
+	if decoded.Detail != "repository retirement request failed" {
+		t.Fatalf("detail = %q, want the fixed request-failed text", decoded.Detail)
+	}
+	if len(decoded.Retirements) != 2 {
+		t.Fatalf("retirements = %+v, want both per-repository entries", decoded.Retirements)
+	}
+	for i, entry := range decoded.Retirements {
+		if entry.Outcome != TriggerOutcomeFailed {
+			t.Fatalf("retirements[%d] = %+v, want failed", i, entry)
+		}
+	}
+	if decoded.IdempotencyKey != "key-partial" {
+		t.Fatalf("idempotency_key = %q, want the request key", decoded.IdempotencyKey)
+	}
+	if strings.Contains(rec.Body.String(), "connection refused") {
+		t.Fatalf("body = %s, leaks backend error text", rec.Body.String())
 	}
 }
