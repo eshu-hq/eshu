@@ -114,6 +114,7 @@ nav:
         - Completed Work Reopen: reference/http-api/status-admin-reopen.md
         - Admin Scope Selector: reference/http-api/status-admin-scope-selector.md
         - Reindex Progress: reference/http-api/status-admin-reindex-progress.md
+        - Repository Retirement: reference/http-api/status-admin-repository-retirement.md
         - Index Status: reference/http-api/index-status.md
         - Active Work Source: reference/http-api/active-work-source.md
         - Dashboard Browser Sessions: reference/http-api/dashboard-sessions.md
@@ -345,7 +346,7 @@ nav:
       - Fair-Claim Rotation Signals: reference/telemetry/fair-claim-rotation.md
       - Claim-Pacing Signals: reference/telemetry/claim-pacing.md
       - Claim Quota Signals: reference/telemetry/claim-quotas.md
-      - Retirement Purge Signals: reference/telemetry/retirement-purge.md
+      - Retirement Trigger And Purge Signals: reference/telemetry/retirement-purge.md
       - Id-Anchor Census: reference/telemetry/id-anchor-census.md
       - Traces: reference/telemetry/traces.md
       - Code-Topic Probe Traces: reference/telemetry/code-topic-probes.md

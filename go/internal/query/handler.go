@@ -120,6 +120,7 @@ type APIRouter struct {
 	AdminInputInvalidFacts         *AdminInputInvalidFactListHandler
 	AdminChangedSincePoisonedLinks *AdminChangedSincePoisonedLinksHandler
 	Admin                          *AdminHandler
+	AdminRetirement                *AdminRetirementHandler
 	Ask                            *AskHandler
 	Setup                          *SetupHandler
 	LocalIdentity                  *LocalIdentityHandler
@@ -412,6 +413,12 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Admin
 	if a.Admin != nil {
 		a.Admin.Mount(mux)
+	}
+
+	// Operator-driven repository retirement trigger (#8602). The leaf owns
+	// the mark-fence-purge sequence; the root only mounts it.
+	if a.AdminRetirement != nil {
+		a.AdminRetirement.Mount(mux)
 	}
 
 	// Ask Eshu (default-off; nil Asker returns 503 unavailable)

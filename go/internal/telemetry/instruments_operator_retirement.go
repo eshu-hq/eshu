@@ -10,7 +10,8 @@ import (
 )
 
 // registerOperatorRepositoryRetirement registers the operator-driven
-// repository retirement purge counter (#7766) on inst.
+// repository retirement purge counter (#7766) and the trigger outcome
+// counter (#8602) on inst.
 func registerOperatorRepositoryRetirement(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.OperatorRepositoryRetirementsPurged, err = meter.Int64Counter(
@@ -19,6 +20,13 @@ func registerOperatorRepositoryRetirement(meter metric.Meter, inst *Instruments)
 		metric.WithUnit("{retirement}"),
 	); err != nil {
 		return fmt.Errorf("register OperatorRepositoryRetirementsPurged counter: %w", err)
+	}
+	if inst.OperatorRepositoryRetirements, err = meter.Int64Counter(
+		"eshu_dp_repository_retirements_total",
+		metric.WithDescription("Operator-driven repository retirement trigger outcomes (#8602)"),
+		metric.WithUnit("{retirement}"),
+	); err != nil {
+		return fmt.Errorf("register OperatorRepositoryRetirements counter: %w", err)
 	}
 	return nil
 }

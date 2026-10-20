@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/identity"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/provider/config"
+	"github.com/eshu-hq/eshu/go/internal/query/admin/retirement"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/store"
 )
 
@@ -156,6 +157,12 @@ type AdminIdentityReadHandler = identity.ReadHandler
 // the cmd/api constructors spelling query.AdminIdentityMutationHandler
 // unchanged. See #6060.
 type AdminIdentityMutationHandler = identity.MutationHandler
+
+// AdminRetirementHandler serves the operator-driven repository retirement
+// trigger endpoint. Its home is admin/retirement/; this alias keeps the
+// APIRouter wiring and the cmd/api constructors spelling
+// query.AdminRetirementHandler unchanged. See #8602.
+type AdminRetirementHandler = retirement.Handler
 
 // AdminInvitationListItem is the metadata-only invitation view returned to a
 // tenant admin. Its home is admin/identity/. See #6060.

@@ -2019,6 +2019,19 @@ type Instruments struct {
 	// the WARN log carrying the read-back blocking generation statuses.
 	OperatorRepositoryRetirementsPurged metric.Int64Counter
 
+	// OperatorRepositoryRetirements counts the operator-driven repository
+	// retirement trigger outcomes (#8602) by closed outcome (accepted,
+	// refused, blocked, completed, failed), one event per marked
+	// repository. The trigger emits accepted when the tombstone mark
+	// commits and exactly one terminal outcome per marked repository
+	// after the fence and purge steps, so accepted plus terminal counts
+	// reconstruct the trigger funnel. A repository the call never marked
+	// stays counter-silent.
+	// It is distinct from OperatorRepositoryRetirementsPurged (purge
+	// completions only) and from CanonicalRepositoryRetirements (the #7324
+	// path-conflict retirement, unrelated to this operator path).
+	OperatorRepositoryRetirements metric.Int64Counter
+
 	// RepositorySelectionEvaluations counts git collector repository
 	// selection evaluations (#7625) by collector_kind and a closed outcome
 	// (evaluated, listing_truncated, guard_tripped, store_error).

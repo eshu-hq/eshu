@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
+	"github.com/eshu-hq/eshu/go/internal/query/admin/retirement"
 	adminstore "github.com/eshu-hq/eshu/go/internal/query/admin/store"
 	"github.com/eshu-hq/eshu/go/internal/query/capability"
 	"github.com/eshu-hq/eshu/go/internal/query/cicd"
@@ -340,6 +341,21 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 		state:   maintenancestore.NewStatusRequestStore(pgstatus.SQLDB{DB: writer}),
 		perRepo: maintenancestore.NewRepositoryReindexStore(pgstatus.SQLDB{DB: writer}),
 		scopes:  pgstatus.NewIngestionStore(pgstatus.SQLDB{DB: writer}),
+	}
+	// Operator-driven repository retirement trigger (#8602): the only
+	// production wiring of the tombstone mark, the phase-1 fence, and the
+	// narrowed purge. The API writer backs all three steps.
+	retirementDB := pgstatus.SQLDB{DB: writer}
+	router.AdminRetirement = &query.AdminRetirementHandler{
+		Catalog: contentReader,
+		Triggerer: &retirement.Trigger{
+			Marker:      pgstatus.NewRetirementStore(retirementDB),
+			Fencer:      pgstatus.NewRetirementFencer(retirementDB, retirementDB),
+			Purger:      pgstatus.NewRetirementPurger(retirementDB, retirementDB),
+			Instruments: instruments,
+			Audit:       adminRecoveryAuditAppender(governanceAudit),
+		},
+		Audit: adminRecoveryAuditAppender(governanceAudit),
 	}
 	return router, nil
 }

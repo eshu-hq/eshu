@@ -100,9 +100,9 @@ No body carries backend error text.
 ## Mutations
 
 These routes write through the writer store. Only the repository reindex
-selector lookup reads through the guarded reader, so it alone can answer the
-reader-verdict `503` with `Retry-After`. It runs with no route deadline and
-never answers `504`. Every mutation can still answer the checkpoint `503`
+and repository retirement selector lookups read through the guarded reader,
+so they alone can answer the reader-verdict `503` with `Retry-After`. They
+run with no route deadline and never answer `504`. Every mutation can still answer the checkpoint `503`
 and its configuration `503`, as described in [Statuses](#statuses).
 
 ### Claim-fence busy responses
@@ -131,6 +131,8 @@ so retry with a fresh `idempotency_key`.
 | `POST /api/v0/admin/replay` | idempotency claim | `replay idempotency claim failed` |
 | `POST /api/v0/admin/replay` | replay update | `replay failed` |
 | `POST /api/v0/admin/replay` | ledger finalize | `replay applied but recording its idempotency outcome failed` |
+| `POST /api/v0/admin/repository-retirements` | repository selector lookup | `repository retirement selector lookup failed` |
+| `POST /api/v0/admin/repository-retirements` | retirement trigger | `repository retirement request failed` |
 | `POST /api/v0/admin/reopen` | scope resolution | `reopen scope resolution failed` |
 | `POST /api/v0/admin/reopen` | idempotency claim | `reopen idempotency claim failed` |
 | `POST /api/v0/admin/reopen` | reopen transaction | `reopen failed` |
