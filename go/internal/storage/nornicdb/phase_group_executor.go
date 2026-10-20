@@ -74,6 +74,32 @@ func (e PhaseGroupExecutor) Execute(ctx context.Context, stmt sourcecypher.State
 	return nil
 }
 
+// ExecuteCountProbe forwards a read-only COUNT probe to Inner when it
+// implements sourcecypher.CountProbeExecutor (#8657). A probe is a single
+// read, never a grouped write, so it dispatches straight through Inner
+// with no phase chunking or drain handling. It fails closed with
+// errInnerNoCountProbe when Inner lacks the capability, mirroring the
+// drain loop's probe_unsupported direction: the caller treats that as
+// "unknown" and runs the guarded retract unprobed.
+func (e PhaseGroupExecutor) ExecuteCountProbe(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
+	if e.Inner == nil {
+		return 0, errInnerExecutorRequired
+	}
+	pe, ok := e.Inner.(sourcecypher.CountProbeExecutor)
+	if !ok {
+		return 0, errInnerNoCountProbe
+	}
+	count, err := pe.ExecuteCountProbe(ctx, stmt)
+	if err != nil {
+		return 0, fmt.Errorf("execute count probe: %w", err)
+	}
+	return count, nil
+}
+
+// errInnerNoCountProbe is returned by ExecuteCountProbe when the inner
+// executor does not implement sourcecypher.CountProbeExecutor.
+var errInnerNoCountProbe = errors.New("nornicdb phase-group inner executor does not support ExecuteCountProbe")
+
 // ExecutePhaseGroup commits one dependency phase with bounded NornicDB transactions.
 func (e PhaseGroupExecutor) ExecutePhaseGroup(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {

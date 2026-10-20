@@ -231,6 +231,25 @@ func (e *BackpressureExecutor) ExecuteProbe(ctx context.Context, stmt Statement)
 	return pe.ExecuteProbe(ctx, stmt)
 }
 
+// ExecuteCountProbe runs a read-only COUNT probe under the same in-flight
+// bound as ExecuteProbe, so count probing cannot bypass the backpressure
+// ceiling either. It returns errInnerNoExecuteProbe if inner does not
+// support CountProbeExecutor: one shared sentinel keeps the capability
+// absence indistinguishable between the probe flavors, and callers treat
+// both as "unknown".
+func (e *BackpressureExecutor) ExecuteCountProbe(ctx context.Context, stmt Statement) (int64, error) {
+	pe, ok := e.inner.(CountProbeExecutor)
+	if !ok {
+		return 0, errInnerNoExecuteProbe
+	}
+	release, err := e.gate.Acquire(ctx, string(stmt.Operation))
+	if err != nil {
+		return 0, err
+	}
+	defer release()
+	return pe.ExecuteCountProbe(ctx, stmt)
+}
+
 // executeOnlyBackpressureWrapper wraps BackpressureExecutor but intentionally
 // does not implement GroupExecutor or ProbeExecutor. Use it when the inner
 // executor does not support grouped writes so callers that type-assert

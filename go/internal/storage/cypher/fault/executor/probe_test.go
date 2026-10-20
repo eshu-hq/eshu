@@ -31,6 +31,21 @@ func (e *faultRecordingExecutor) probeCount() int {
 	return len(e.probes)
 }
 
+// ExecuteCountProbe records the call and returns a scripted count/error
+// pair, mirroring ExecuteProbe above for the #8657 count seam.
+func (e *faultRecordingExecutor) ExecuteCountProbe(_ context.Context, stmt cypher.Statement) (int64, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.countProbes = append(e.countProbes, stmt)
+	return e.countValue, e.countErr
+}
+
+func (e *faultRecordingExecutor) countProbeCount() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.countProbes)
+}
+
 // TestFaultingExecutorExecuteProbeForwardsUnconditionally proves ExecuteProbe
 // delegates to inner and returns its found/error result unchanged, with no
 // scripted fault able to intercept it (#5998) -- unlike Execute/ExecuteGroup,
@@ -63,7 +78,9 @@ func TestFaultingExecutorExecuteProbeForwardsUnconditionally(t *testing.T) {
 // counterpart of TestWrapperProbeFollowsGroup (probe_follows_group_test.go),
 // which cannot reference FaultingExecutor since it only builds under this
 // tag. Asserts the same #5998 review F7 invariant: a wrapper that exposes
-// cypher.GroupExecutor must expose cypher.ProbeExecutor too.
+// cypher.GroupExecutor must expose cypher.ProbeExecutor too -- and the
+// #8657 extension: it must expose cypher.CountProbeExecutor as well, or a
+// mid-chain gap silently downgrades the file-less wipe guard.
 func TestFaultingExecutorProbeFollowsGroup(t *testing.T) {
 	t.Parallel()
 
@@ -72,8 +89,9 @@ func TestFaultingExecutorProbeFollowsGroup(t *testing.T) {
 	var wrapped cypher.Executor = fe
 	_, gotGroup := wrapped.(cypher.GroupExecutor)
 	_, gotProbe := wrapped.(cypher.ProbeExecutor)
-	if !gotGroup || !gotProbe {
-		t.Fatalf("FaultingExecutor: cypher.GroupExecutor=%v, cypher.ProbeExecutor=%v, want both true", gotGroup, gotProbe)
+	_, gotCount := wrapped.(cypher.CountProbeExecutor)
+	if !gotGroup || !gotProbe || !gotCount {
+		t.Fatalf("FaultingExecutor: cypher.GroupExecutor=%v, cypher.ProbeExecutor=%v, cypher.CountProbeExecutor=%v, want all true", gotGroup, gotProbe, gotCount)
 	}
 }
 
@@ -91,5 +109,50 @@ func TestFaultingExecutorExecuteProbeErrorsWhenInnerLacksProbeSupport(t *testing
 	}
 	if found {
 		t.Fatal("found = true on an unsupported probe, want false")
+	}
+}
+
+// TestFaultingExecutorExecuteCountProbeForwardsUnconditionally proves
+// ExecuteCountProbe delegates to inner and returns its count/error result
+// unchanged, with no scripted fault able to intercept it -- the count-seam
+// counterpart of
+// TestFaultingExecutorExecuteProbeForwardsUnconditionally above.
+func TestFaultingExecutorExecuteCountProbeForwardsUnconditionally(t *testing.T) {
+	t.Parallel()
+
+	inner := &faultRecordingExecutor{countValue: 7}
+	script := onceThenSucceedScript(faultreplay.LaneQueueRetry, intPtr(1), nil)
+	fe := mustFaultingExecutor(t, inner, script, "")
+
+	count, err := fe.ExecuteCountProbe(context.Background(), cypher.Statement{Cypher: "MATCH (r) RETURN count(r)"})
+	if err != nil {
+		t.Fatalf("ExecuteCountProbe() error = %v, want nil (no fault targets this seam)", err)
+	}
+	if count != 7 {
+		t.Fatalf("ExecuteCountProbe() count = %d, want 7", count)
+	}
+	if got := inner.countProbeCount(); got != 1 {
+		t.Fatalf("inner.ExecuteCountProbe calls = %d, want 1", got)
+	}
+	if fe.OnceThenSucceedFired() {
+		t.Fatal("OnceThenSucceedFired() = true, want false: ExecuteCountProbe must not consume the scripted fault")
+	}
+}
+
+// TestFaultingExecutorExecuteCountProbeErrorsWhenInnerLacksCountSupport
+// proves ExecuteCountProbe fails closed with
+// errFaultingExecutorInnerNoCountProbe (not a silent zero) when the wrapped
+// executor does not implement cypher.CountProbeExecutor.
+func TestFaultingExecutorExecuteCountProbeErrorsWhenInnerLacksCountSupport(t *testing.T) {
+	t.Parallel()
+
+	inner := newFaultExecuteOnlyRecordingExecutor()
+	fe := mustFaultingExecutor(t, inner, faultreplay.Script{Version: faultreplay.CurrentVersion}, "")
+	count, err := fe.ExecuteCountProbe(context.Background(), cypher.Statement{Cypher: "MATCH (r) RETURN count(r)"})
+	if !errors.Is(err, errFaultingExecutorInnerNoCountProbe) {
+		t.Fatalf("ExecuteCountProbe() error = %v, want errFaultingExecutorInnerNoCountProbe", err)
+	}
+	if count != 0 {
+		t.Fatalf("count = %d on an unsupported probe, want 0", count)
 	}
 }

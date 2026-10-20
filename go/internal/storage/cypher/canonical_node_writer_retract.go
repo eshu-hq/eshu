@@ -44,7 +44,12 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat canonical.CanonicalMate
 	stmts := make([]Statement, 0, 3)
 	fileRetractCypher := node.RetractFilesCypher
 	fileRetractParams := retractParams
-	if len(filePaths) > 0 {
+	// usesUnboundedFileRetract is the single predicate for this selection:
+	// len(filePaths) > 0 is its exact negation here (the FirstGeneration,
+	// scope, and delta exits above already returned), and the file-less
+	// wipe guard reads the same predicate so it can never drift from the
+	// shape it protects.
+	if !usesUnboundedFileRetract(mat) {
 		fileRetractCypher = node.RetractRemovedFilesCypher
 		fileRetractParams = map[string]any{
 			"repo_id":       mat.RepoID,

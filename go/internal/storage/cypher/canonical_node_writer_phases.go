@@ -415,6 +415,18 @@ func buildBatchedRetractStatements(cypher string, rows []map[string]any, batchSi
 
 // --- Telemetry helpers ---
 
+// logFirstGenerationRetractSkip notes that no retract phase runs for a
+// first generation. Extracted from Write to keep that function under the
+// funlen cap; the log line is unchanged.
+func logFirstGenerationRetractSkip(mat canonical.CanonicalMaterialization) {
+	slog.Info(
+		"canonical retract skipped for first generation",
+		"scope_id", mat.ScopeID,
+		"repo_id", mat.RepoID,
+		"generation_id", mat.GenerationID,
+	)
+}
+
 func (w *CanonicalNodeWriter) recordAtomicWrite(ctx context.Context, mode string, seconds float64, _ canonical.CanonicalMaterialization) {
 	if w.instruments == nil {
 		return

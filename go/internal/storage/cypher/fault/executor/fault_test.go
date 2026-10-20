@@ -34,6 +34,9 @@ type faultRecordingExecutor struct {
 	failNext    error
 	probeFound  bool
 	probeErr    error
+	countProbes []cypher.Statement
+	countValue  int64
+	countErr    error
 }
 
 func (e *faultRecordingExecutor) Execute(_ context.Context, stmt cypher.Statement) error {

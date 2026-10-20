@@ -5,57 +5,9 @@ split out of [AGENTS.md](AGENTS.md) to keep the read-first guidance under the
 repository's 500-line cap. Every entry below is preserved verbatim from the
 prior single-file AGENTS.md. Add new dated entries here, not in AGENTS.md.
 
-## Evidence
+## Evidence (archive)
 
-### 2026-06-22 — Canonical writer retryable-error propagation (#3483)
-
-Issue #3483 reported NornicDB canonical writes dead-lettering under write
-pressure ("NornicDB connection timeouts + 376 dead-letters"). Root cause:
-`CanonicalNodeWriter.Write` was the only major graph writer in this package
-that returned its executor errors bare (`fmt.Errorf("...: %w", err)`) without
-`WrapRetryableNeo4jError`. Transient failures — driver retry-budget exhaustion
-(`*neo4j.TransactionExecutionLimit`), `*neo4j.ConnectivityError`, and the
-`retryableNeo4jCodes` set — therefore reached `ProjectorQueue.Fail` as
-non-`projector.RetryableError` values and were classified `projection_failed`
-(terminal dead-letter) at `projector_queue.go` instead of `projection_retryable`
-(requeue with `retryDelay`, default 30s, bounded by `maxAttempts`, default 3).
-
-The fix wraps all three `Write` dispatch return paths with
-`WrapRetryableNeo4jError`. This is a correctness change to the error *type* on an
-already-occurring failure path; it does not change Cypher shape, statement
-batching, transaction scope, phase order, worker counts, leases, or the retry
-classifier. The grouped-atomic conformance flag
-(`ESHU_NORNICDB_CANONICAL_GROUPED_WRITES`) is intentionally left at its
-documented default (`false`, phase-group path); enabling it would batch MERGE
-and retract DELETE into one mixed group that `isRetryableGraphWriteGroupError`
-correctly refuses to retry, which would make dead-lettering worse and would
-require loosening retry classification — explicitly a non-goal of #2247.
-
-No-Regression Evidence: backend NornicDB/Neo4j shared Cypher contract,
-input shape = canonical materialization (repository + directory + file + entity
-phases), conflict domain = canonical `uid` MERGE under concurrent projector
-workers. `go test ./internal/storage/cypher ./internal/projector
-./internal/storage/postgres -count=1` → 1771 passed (2026-06-22). New regression
-`TestCanonicalNodeWriterWritePropagatesRetryable` drives all three dispatch
-paths (atomic_group, phase_group, sequential) with a `*TransactionExecutionLimit`
-and asserts `projector.IsRetryable(Write(...)) == true`; it fails before the fix
-(bare error → dead-letter) and passes after.
-`TestCanonicalNodeWriterWriteKeepsTerminalErrorsTerminal` proves a
-`ConstraintValidationFailed` schema error stays non-retryable (no classifier
-loosening). No graph-write throughput change: same statements, same batching,
-same transactions; only the error wrapper on the failure return path changed.
-
-Observability Evidence: the change preserves all existing canonical-write
-telemetry — the `telemetry.SpanCanonicalWrite`/`SpanCanonicalRetract` spans,
-  the `eshu_dp_neo4j_deadlock_retries_total` retry counter (with bounded
-  `write_phase` and `reason` labels) in `RetryingExecutor`, the
-  `recordAtomicWrite`/`recordAtomicFallback`
-counters, and the per-phase failure `slog.WarnContext("canonical phase failed",
-...)`. The operator-visible improvement is queue-side: a transient canonical
-write now surfaces as queue `failure_class = projection_retryable` with a bounded
-requeue rather than a terminal `projection_failed` dead letter, so dead-letter
-count and `attempt_count` exposed by the projector queue now distinguish
-transient backpressure from real terminal failures.
+The 2026-06-22 canonical-writer retryable-error propagation entry (#3483) moved verbatim to [AGENTS-evidence-history-archive.md](AGENTS-evidence-history-archive.md) when this file reached the 500-line cap.
 
 ## #4893 — uid-anchored TAINT_FLOWS_TO edge and CodeTaintEvidence node retracts
 
@@ -497,3 +449,18 @@ start node ... does not exist`) were all terminal, so one restart dead-lettered
 three intents as `projection_bug` at attempt 1. Both `SyntaxError` shapes share
 a code with a malformed query, so each guard takes code AND message. Record:
 [evidence-6142-backend-restart-transient-classification.md](evidence-6142-backend-restart-transient-classification.md).
+
+## #8657 — writer-side conditional retract for file-less builds (Phase 1)
+
+A file-less build (zero live and zero tombstoned file facts, zero File
+rows) over prior File nodes ran the unbounded `RetractFilesCypher` and
+reported success; the builder cannot see the shape (#8669 disproof), so the
+check moved to `CanonicalNodeWriter.Write`, which probes the prior File
+count through the new `CountProbeExecutor` seam and fails loud (retryable,
+naming generation/scope/repository/prior count) when priors exist.
+Tombstone-driven deletes stay exempt via the `FileIntent` summary the
+builder stamps on the materialization; unprobed backends proceed as before
+and count the degraded outcome. PROFILE on the pinned Neo4j at 1,001,002
+File nodes: UNIQUE Repository(id) seek plus one REPO_CONTAINS expand,
+~2M db hits linear in the repo's own files. Record:
+[evidence-8657-writer-conditional-retract.md](evidence-8657-writer-conditional-retract.md).

@@ -168,6 +168,50 @@ func (i *InstrumentedExecutor) ExecuteProbe(ctx context.Context, stmt Statement)
 	return found, err
 }
 
+// ExecuteCountProbe forwards to Inner.ExecuteCountProbe when the inner
+// executor implements CountProbeExecutor, under the same
+// `neo4j.execute_probe` span and `Neo4jQueryDuration{operation=probe}` point
+// as ExecuteProbe: a count probe is one of the probe family, and the
+// statement's own `canonical_count_probe` operation (db.operation) keeps it
+// distinguishable from existence probes. Returns an error without
+// attempting the probe when Inner lacks the capability, mirroring
+// ExecuteProbe's fail-closed check.
+func (i *InstrumentedExecutor) ExecuteCountProbe(ctx context.Context, stmt Statement) (int64, error) {
+	pe, ok := i.Inner.(CountProbeExecutor)
+	if !ok {
+		return 0, fmt.Errorf("inner executor does not support ExecuteCountProbe")
+	}
+
+	start := time.Now()
+
+	var span trace.Span
+	if i.Tracer != nil {
+		ctx, span = i.Tracer.Start(
+			ctx, "neo4j.execute_probe",
+			trace.WithAttributes(
+				attribute.String("db.system", "neo4j"),
+				attribute.String("db.operation", string(stmt.Operation)),
+			),
+		)
+		defer span.End()
+	}
+
+	count, err := pe.ExecuteCountProbe(ctx, stmt)
+
+	if i.Instruments != nil && i.Instruments.Neo4jQueryDuration != nil {
+		duration := time.Since(start).Seconds()
+		i.Instruments.Neo4jQueryDuration.Record(ctx, duration, metric.WithAttributes(
+			attribute.String("operation", "probe"),
+		))
+	}
+
+	if err != nil && span != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	return count, err
+}
+
 // recordStatementBatchMetrics emits one bounded row-count signal per UNWIND
 // statement. Grouped Neo4j writes use this to expose the same phase and label
 // clues available to NornicDB phase-group logs without splitting the transaction.
