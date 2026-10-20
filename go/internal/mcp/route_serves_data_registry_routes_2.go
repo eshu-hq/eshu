@@ -237,7 +237,7 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// (repo:Repository)-[rel:DECLARES_CODEOWNER]->(team:CodeownerTeam)
 	// (codeownersOwnershipMatch in
 	// go/internal/query/codeowners/ownership_cypher.go), written by
-	// storage/cypher/canonical_codeowners_edges.go:34-35. The handler's
+	// storage/cypher/canonical/node/codeowners_edges.go. The handler's
 	// Correlations field (ServiceCatalogCorrelationStore) and the Repository
 	// anchor are enrichment/anchor touches — disclosed, not served.
 	"GET /api/v0/codeowners/ownership": {
@@ -256,7 +256,7 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 			Domain: "codeowners_ownership",
 			Evidence: []routeReadEvidence{
 				{File: "go/internal/query/codeowners/ownership_cypher.go", Marker: "DECLARES_CODEOWNER"},
-				{File: "go/internal/storage/cypher/canonical_codeowners_edges.go", Marker: "DECLARES_CODEOWNER"},
+				{File: "go/internal/storage/cypher/canonical/node/codeowners_edges.go", Marker: "DECLARES_CODEOWNER"},
 			},
 		}},
 		Disclosed: []routeDisclosure{

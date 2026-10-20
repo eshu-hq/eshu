@@ -936,7 +936,7 @@ when the probe saturates.
 ### Code-Edge Resolution Provenance Write Shape
 
 The `CALLS`, `REFERENCES`, and `USES_METACLASS` edge-write templates
-(`go/internal/storage/cypher/canonical_code_call_edges.go` and the label-scoped
+(`go/internal/storage/cypher/canonical/node/code_call_edges.go` and the label-scoped
 builders) carry per-edge `resolution_method`, `confidence`, and `reason` from
 [design 2222](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/2222-resolution-provenance-code-edges.md).
 These were previously a hard-coded `confidence = 0.95` literal in the `SET`

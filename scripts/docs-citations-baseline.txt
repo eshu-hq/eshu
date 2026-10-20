@@ -197,7 +197,6 @@ LINE docs/internal/design/5385-workload-identity-key.md go/internal/storage/cyph
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/storage/cypher/canonical.go:66
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/storage/cypher/canonical.go:82
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/storage/cypher/canonical.go:89
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/storage/cypher/canonical_documentation_edges.go:35
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/storage/cypher/canonical_runs_in_edges.go:24
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/storage/postgres/service_changed_since_sql.go:57
 LINE docs/internal/design/5385-workload-identity-options.md go/internal/graph/mutations.go:113

@@ -375,3 +375,6 @@ docs/internal/evidence/8359-semantic-contains-edge-retract.md:go/internal/storag
 go/internal/storage/cypher/evidence-4367-semantic-retract-dispatch.md:go/internal/storage/cypher/semantic_entity.go
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/semantic_entity_statements.go
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/semantic_entity_nornicdb_test.go
+# #6694 canonical slice: dated evidence records describing paths as they stood.
+docs/internal/evidence/5994-documentation-sqltable-match-label.md:go/internal/storage/cypher/canonical_documentation_edges.go
+docs/internal/evidence/6649-calls-degree-floor.md:go/internal/storage/cypher/canonical_code_call_edges.go
