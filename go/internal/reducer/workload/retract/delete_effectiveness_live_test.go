@@ -348,7 +348,7 @@ WHERE rel.evidence_source = $ev RETURN count(rel) AS c`
 WHERE rel.evidence_source = $ev DELETE rel`, countParams)
 		},
 		prod: func(ctx context.Context) error {
-			return db.write(ctx, sourcecypher.RetractDocumentationEdgesCypher,
+			return db.write(ctx, node.RetractDocumentationEdgesCypher,
 				map[string]any{"scope_ids": []string{scope}, "evidence_source": evidence})
 		},
 		count: func(ctx context.Context) (int64, error) { return db.count(ctx, countCypher, countParams) },

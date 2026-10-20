@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
@@ -166,7 +167,7 @@ func TestLiveRepositoryRetryKeepsReducerEdges(t *testing.T) {
 			// P4 (#7324): the submodule_pin writer MERGEs the pinned
 			// Repository as a path-less stub before its first projection;
 			// the projector's MERGE + SET must adopt that node, not replace it.
-			live.run(ctx, t, cypher.BatchCanonicalSubmodulePinEdgeCypher, map[string]any{"rows": []map[string]any{{
+			live.run(ctx, t, node.BatchCanonicalSubmodulePinEdgeCypher, map[string]any{"rows": []map[string]any{{
 				"parent_repo_id": pinParams["other"], "resolved_repo_id": repoID, "submodule_path": "vendor/payments",
 				"pinned_sha": nil, "generation_id": "reducer-gen", "evidence_source": "reducer/submodule_pin",
 			}}})
