@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -28,7 +30,7 @@ func TestSharedAcceptanceTelemetryRecordStaleIntents(t *testing.T) {
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
 
-	sharedAcceptanceTelemetry{
+	worker.AcceptanceTelemetry{
 		Instruments: instruments,
 		Logger:      logger,
 	}.RecordStaleIntents(context.Background(), "code_call_projection", DomainCodeCalls, 3)
@@ -62,9 +64,9 @@ func TestSharedAcceptanceTelemetryRecordLookupError(t *testing.T) {
 	}
 	logger := telemetry.NewLoggerWithWriter(bootstrap, "reducer", "reducer", &buf)
 
-	sharedAcceptanceTelemetry{
+	worker.AcceptanceTelemetry{
 		Logger: logger,
-	}.RecordLookup(context.Background(), sharedAcceptanceLookupEvent{
+	}.RecordLookup(context.Background(), worker.AcceptanceLookupEvent{
 		Runner:   "shared_projection",
 		Result:   "error",
 		Duration: 0.12,

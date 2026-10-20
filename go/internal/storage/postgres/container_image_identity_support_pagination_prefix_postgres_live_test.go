@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -65,7 +66,7 @@ func TestContainerImageIdentitySupportPaginationPreservesPrefixScopesPostgresLiv
 
 	impactRows, truncated, err := store.ListActiveSupplyChainImpactFacts(
 		ctx,
-		reducer.SupplyChainImpactFactFilter{SubjectDigests: []string{digest}},
+		supplychaincore.SupplyChainImpactFactFilter{SubjectDigests: []string{digest}},
 	)
 	if err != nil {
 		t.Fatalf("list supply-chain support facts: %v", err)
@@ -121,7 +122,7 @@ func TestContainerImageIdentityLegacySupportPaginationPreservesPrefixScopesPostg
 
 	impactRows, truncated, err := store.ListActiveSupplyChainImpactFacts(
 		ctx,
-		reducer.SupplyChainImpactFactFilter{SubjectDigests: []string{digest}},
+		supplychaincore.SupplyChainImpactFactFilter{SubjectDigests: []string{digest}},
 	)
 	if err != nil {
 		t.Fatalf("list legacy supply-chain support facts: %v", err)

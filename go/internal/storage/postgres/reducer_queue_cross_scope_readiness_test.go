@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 )
 
 // TestCrossScopeProducerNotReadyIsNonCounting asserts the #5709 cross-scope
@@ -19,8 +19,8 @@ import (
 func TestCrossScopeProducerNotReadyIsNonCounting(t *testing.T) {
 	t.Parallel()
 
-	if !IsNonCountingReducerRetryFailureClass(reducer.CrossScopeProducerNotReadyFailureClass) {
-		t.Fatalf("%q must be exempt from the reducer retry budget", reducer.CrossScopeProducerNotReadyFailureClass)
+	if !IsNonCountingReducerRetryFailureClass(crossscope.ProducerNotReadyFailureClass) {
+		t.Fatalf("%q must be exempt from the reducer retry budget", crossscope.ProducerNotReadyFailureClass)
 	}
 }
 

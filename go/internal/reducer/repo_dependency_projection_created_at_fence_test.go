@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -31,7 +33,7 @@ func TestRepoDependencyProjectionRunnerReplaysFencedWhenCompletedRunsOnCreatedAt
 		"repo_id":           repoID,
 		"platform_id":       "platform:kubernetes:none:cluster/prod:none:none",
 		"relationship_type": "RUNS_ON",
-		"evidence_source":   CrossRepoEvidenceSource,
+		"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 	}
 	// Same intent_id, so the upsert conflicts on the row; only created_at moves.
 	runsOnAtOldEpoch := repoDependencyIntentRow(
@@ -46,7 +48,7 @@ func TestRepoDependencyProjectionRunnerReplaysFencedWhenCompletedRunsOnCreatedAt
 			"repo_id":           repoID,
 			"target_repo_id":    "repo-target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 

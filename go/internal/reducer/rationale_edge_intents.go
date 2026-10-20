@@ -21,8 +21,8 @@ const rationalePartitionKeyVersion = "rationale-edges:v1"
 
 // rationaleFilePartitionKey returns the file-scoped partition key for a single
 // rationale EXPLAINS edge. It is unique per edge, not merely per file: the generic
-// ProcessPartitionOnce selection deduplicates rows by (acceptance key, partition
-// key) via LatestIntentsByRepoAndPartition, so two edges that shared one partition
+// worker.ProcessPartitionOnce selection deduplicates rows by (acceptance key, partition
+// key) via worker.LatestIntentsByRepoAndPartition, so two edges that shared one partition
 // key would collapse and one edge would be silently dropped. The key therefore
 // hashes the repo, the target entity's repo-relative file path, and the edge
 // identity (rationale_uid->target_entity_id). The target_path is the entity's
@@ -47,7 +47,7 @@ func rationaleFilePartitionKey(repoID, targetPath, edgeIdentity string) string {
 
 // rationaleWholeScopePartitionKey returns the whole-scope partition key the
 // per-repo refresh intent is emitted under. It MUST equal the key the #2898
-// refresh fence reconstructs (repoWideRetractRefreshPartitionKey), because the
+// refresh fence reconstructs (sharedintent.RepoWideRetractRefreshPartitionKey), because the
 // fence reads a per-edge row's repo and rebuilds this exact key to check whether
 // the owning refresh has committed. Emitting the refresh under any other key would
 // make the fence miss it and defer every cross-partition edge forever, so this
@@ -55,7 +55,7 @@ func rationaleFilePartitionKey(repoID, targetPath, edgeIdentity string) string {
 // (#2869/#2898). A whole-scope key hashes to exactly one partition, so the repo's
 // single retract is owned by one partition lease and cannot race itself.
 func rationaleWholeScopePartitionKey(repoID string) string {
-	return repoWideRetractRefreshPartitionKey(DomainRationaleEdges, repoID)
+	return sharedintent.RepoWideRetractRefreshPartitionKey(DomainRationaleEdges, repoID)
 }
 
 // buildRationaleSharedIntentRows promotes extracted rationale EXPLAINS edge rows
@@ -100,9 +100,9 @@ func buildRationaleSharedIntentRows(
 		edgeIdentity := rationaleEdgeIdentityKey(row)
 		payload := copyPayload(row)
 		payload["action"] = "upsert"
-		payload[retractViaRefreshKey] = true
+		payload[sharedintent.RetractViaRefreshKey] = true
 
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		intents = append(intents, sharedintent.Build(sharedintent.Input{
 			ProjectionDomain: DomainRationaleEdges,
 			PartitionKey:     rationaleFilePartitionKey(repoID, targetPath, edgeIdentity),
 			IdentityKey:      edgeIdentity,
@@ -139,7 +139,7 @@ func buildRationaleRefreshIntents(
 	sorted := append([]string(nil), repoIDs...)
 	sort.Strings(sorted)
 
-	deltaRepositoryIDs := deltaScopeRepositorySet(deltaScope.repositoryIDs)
+	deltaRepositoryIDs := sharedintent.DeltaScopeRepositorySet(deltaScope.repositoryIDs)
 	intents := make([]sharedintent.Row, 0, len(sorted))
 	for _, repoID := range sorted {
 		context, ok := contextByRepoID[repoID]
@@ -148,16 +148,15 @@ func buildRationaleRefreshIntents(
 		}
 		payload := map[string]any{
 			"repo_id":         repoID,
-			"intent_type":     RepoRefreshIntentType,
-			"action":          repoRefreshAction,
+			"intent_type":     sharedintent.RepoRefreshIntentType,
+			"action":          sharedintent.RepoRefreshAction,
 			"evidence_source": rationaleEvidenceSource,
 		}
 		// Delta scoping is per repository and fails closed on an unusable
-		// delta; applyRepoRefreshDeltaScope (the shared-payload-delta stanza of compat_decode.go)
-		// carries the full rule and why the two obvious alternatives lose
-		// edges (#6216).
-		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		// delta; sharedintent.ApplyRepoRefreshDeltaScope carries the full
+		// rule and why the two obvious alternatives lose edges (#6216).
+		sharedintent.ApplyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
+		intents = append(intents, sharedintent.Build(sharedintent.Input{
 			ProjectionDomain: DomainRationaleEdges,
 			PartitionKey:     rationaleWholeScopePartitionKey(repoID),
 			ScopeID:          context.ScopeID,

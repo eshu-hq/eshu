@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 // TestSupplyChainImpactWriterSerializesOverlappingPassesLive proves the
@@ -35,7 +35,7 @@ func TestSupplyChainImpactWriterSerializesOverlappingPassesLive(t *testing.T) {
 	// A failing assertion must not leave pass 1 parked mid-transaction
 	// holding the lock the schema cleanup needs.
 	t.Cleanup(release)
-	gated := reducer.PostgresSupplyChainImpactWriter{
+	gated := supplychaincore.PostgresSupplyChainImpactWriter{
 		DB: gatedCommitBeginner{
 			inner:   replaceSetWriter(db).DB,
 			reached: commitReached,
@@ -104,7 +104,7 @@ func TestSupplyChainImpactWriterConcurrentPassesConvergeLive(t *testing.T) {
 	writer := replaceSetWriter(db)
 
 	const workers, rounds = 8, 6
-	findingSets := make([][]reducer.SupplyChainImpactFinding, workers)
+	findingSets := make([][]supplychaincore.SupplyChainImpactFinding, workers)
 	expected := make([][]string, workers)
 	for i := range findingSets {
 		for j := 0; j <= i; j++ {
@@ -118,7 +118,7 @@ func TestSupplyChainImpactWriterConcurrentPassesConvergeLive(t *testing.T) {
 	for round := 0; round < rounds; round++ {
 		// Fresh tokens each round, ordered by worker index: worker workers-1
 		// is the freshest pass of the round.
-		candidates := make([]reducer.SupplyChainImpactWrite, workers)
+		candidates := make([]supplychaincore.SupplyChainImpactWrite, workers)
 		for i := range candidates {
 			candidates[i] = replaceSetWrite(fmt.Sprintf("intent:6831:race-%d-%d", round, i), findingSets[i]...)
 		}
@@ -126,7 +126,7 @@ func TestSupplyChainImpactWriterConcurrentPassesConvergeLive(t *testing.T) {
 		errs := make(chan error, workers)
 		for i := range candidates {
 			wg.Add(1)
-			go func(write reducer.SupplyChainImpactWrite) {
+			go func(write supplychaincore.SupplyChainImpactWrite) {
 				defer wg.Done()
 				if _, err := writer.WriteSupplyChainImpactFindings(ctx, write); err != nil {
 					errs <- err
@@ -137,7 +137,7 @@ func TestSupplyChainImpactWriterConcurrentPassesConvergeLive(t *testing.T) {
 		close(errs)
 		for err := range errs {
 			var classified interface{ FailureClass() string }
-			if !errors.As(err, &classified) || classified.FailureClass() != reducer.SupplyChainImpactWriteSupersededFailureClass {
+			if !errors.As(err, &classified) || classified.FailureClass() != supplychaincore.SupplyChainImpactWriteSupersededFailureClass {
 				t.Fatalf("round %d concurrent pass failed with something other than a superseded rejection: %v", round, err)
 			}
 		}
@@ -193,12 +193,12 @@ func replaceSetAdvisoryWaiters(t *testing.T, ctx context.Context, db *sql.DB) in
 // gatedCommitBeginner wraps the production beginner so a test can hold one
 // pass open between its last statement and its commit.
 type gatedCommitBeginner struct {
-	inner   reducer.SupplyChainImpactBeginner
+	inner   supplychaincore.SupplyChainImpactBeginner
 	reached chan<- struct{}
 	gate    <-chan struct{}
 }
 
-func (b gatedCommitBeginner) BeginSupplyChainImpactTx(ctx context.Context) (reducer.SupplyChainImpactTx, error) {
+func (b gatedCommitBeginner) BeginSupplyChainImpactTx(ctx context.Context) (supplychaincore.SupplyChainImpactTx, error) {
 	tx, err := b.inner.BeginSupplyChainImpactTx(ctx)
 	if err != nil {
 		return nil, err
@@ -207,7 +207,7 @@ func (b gatedCommitBeginner) BeginSupplyChainImpactTx(ctx context.Context) (redu
 }
 
 type gatedCommitTx struct {
-	reducer.SupplyChainImpactTx
+	supplychaincore.SupplyChainImpactTx
 	reached chan<- struct{}
 	gate    <-chan struct{}
 }

@@ -12,10 +12,11 @@ import (
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -98,7 +99,7 @@ func TestSupplySupportPagesUseOneActiveSetSnapshotPostgresLive(t *testing.T) {
 		func(ctx context.Context, store *FactStore, digest string) ([]facts.Envelope, error) {
 			loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(
 				ctx,
-				reducer.SupplyChainImpactFactFilter{SubjectDigests: []string{digest}},
+				supplychaincore.SupplyChainImpactFactFilter{SubjectDigests: []string{digest}},
 			)
 			if truncated {
 				t.Fatal("supply-chain support facts unexpectedly truncated")

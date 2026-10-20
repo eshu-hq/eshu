@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -27,7 +29,7 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycle(
 	writtenRows int,
 	writtenGroups int,
 	startedAt time.Time,
-	timing PartitionProcessResult,
+	timing worker.PartitionProcessResult,
 ) {
 	duration := time.Since(startedAt).Seconds()
 	if r.Instruments != nil {
@@ -267,7 +269,7 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyWorkloadReadinessBl
 func recordRepoDependencyStepDurations(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	timing PartitionProcessResult,
+	timing worker.PartitionProcessResult,
 ) {
 	steps := []struct {
 		phase    string

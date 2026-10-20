@@ -5,6 +5,7 @@ package materialized
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/semantic/entity"
 )
 
@@ -104,7 +105,7 @@ var materializedEdgeEndpointsByFamily = map[string]map[string]MaterializedEdgeEn
 		"RUNS_ON": {
 			FromLabel:              "WorkloadInstance",
 			ToLabel:                "Platform",
-			EvidenceSource:         reducer.CrossRepoEvidenceSource,
+			EvidenceSource:         crossrepo.CrossRepoEvidenceSource,
 			OneEdgePerEndpointPair: true,
 		},
 	},

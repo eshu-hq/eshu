@@ -6,6 +6,7 @@ package main
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -17,7 +18,7 @@ func codeValueFlowStaleCleanupRunnerFor(
 	taintWriter taint.EvidenceWriter,
 	interprocEvidence reducer.CodeInterprocStaleEvidenceRetractor,
 	interprocWriter taint.InterprocEvidenceWriter,
-	leaseManager reducer.PartitionLeaseManager,
+	leaseManager sharedintent.PartitionLeaseManager,
 	cfg codeValueFlowStaleCleanupConfig,
 ) *reducer.CodeValueFlowStaleCleanupRunner {
 	if !cfg.Enabled {

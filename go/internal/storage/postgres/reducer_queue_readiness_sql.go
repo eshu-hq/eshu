@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
@@ -60,7 +62,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// (go/internal/reducer/crossscope/readiness_floor.go); the deferral is
 	// bounded by elapsed time since the repair cycle began, so a producer scope
 	// that never activates still converges instead of retrying forever.
-	reducer.CrossScopeProducerNotReadyFailureClass,
+	crossscope.ProducerNotReadyFailureClass,
 	// #5848: aws_cloud_runtime_drift's own readiness-defer and insert-admission
 	// classes. Both MUST be enrolled here, not just declared as constants next
 	// to the error types that return them (go/internal/reducer/awscloud/aws_cloud_runtime_drift_readiness.go,
@@ -82,7 +84,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// dead-letter an intent that merely lost a normal race, freezing stale
 	// truth. TestReducerQueueFailDefersSupplyChainImpactWriteSupersededPast
 	// AttemptBudget is the regression.
-	reducer.SupplyChainImpactWriteSupersededFailureClass,
+	supplychaincore.SupplyChainImpactWriteSupersededFailureClass,
 	// #6887: the cloud-resource retract's admission-drain fence. The live-check
 	// refuses to prove death while another scope's active-generation
 	// cloud_inventory_admission item is nonterminal; under continuous

@@ -38,7 +38,7 @@ func TestEdgeWriterRetractEdgesRationaleMixedBatchRetractsBothDeltaAndWholeScope
 			RepositoryID: "repo-delta",
 			Payload: map[string]any{
 				"repo_id":          "repo-delta",
-				"intent_type":      reducer.RepoRefreshIntentType,
+				"intent_type":      sharedintent.RepoRefreshIntentType,
 				"delta_projection": true,
 				"delta_file_paths": []string{"/repo/src/handler.go"},
 			},
@@ -53,7 +53,7 @@ func TestEdgeWriterRetractEdgesRationaleMixedBatchRetractsBothDeltaAndWholeScope
 			RepositoryID: "repo-full",
 			Payload: map[string]any{
 				"repo_id":     "repo-full",
-				"intent_type": reducer.RepoRefreshIntentType,
+				"intent_type": sharedintent.RepoRefreshIntentType,
 			},
 		},
 	}
@@ -121,7 +121,7 @@ func TestEdgeWriterRetractEdgesRationaleMixedBatchIgnoresUnmarkedLegacyRows(t *t
 			RepositoryID: "repo-delta",
 			Payload: map[string]any{
 				"repo_id":          "repo-delta",
-				"intent_type":      reducer.RepoRefreshIntentType,
+				"intent_type":      sharedintent.RepoRefreshIntentType,
 				"delta_projection": true,
 				"delta_file_paths": []string{"/repo/src/handler.go"},
 			},

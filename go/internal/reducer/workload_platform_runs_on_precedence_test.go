@@ -36,7 +36,7 @@ func TestRuntimePlatformRunsOnRequiresAtomicGroup(t *testing.T) {
 
 // TestRuntimePlatformRunsOnUpsertPreservesForeignStamp pins the deterministic
 // writer precedence for the shared RUNS_ON identity: the cross-repo resolver
-// (repo_dependency, CrossRepoEvidenceSource) and workload materialization
+// (repo_dependency, crossrepo.CrossRepoEvidenceSource) and workload materialization
 // (EvidenceSourceWorkloads) MERGE the same (WorkloadInstance)-[:RUNS_ON]->
 // (Platform) edge, while the family's exact-set gate and its retract both key
 // on the cross-repo stamp. An unconditional evidence_source SET here made the

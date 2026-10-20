@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -352,7 +354,7 @@ func repoDependencyRowEvidenceSource(row sharedintent.Row) string {
 	if source := strings.TrimSpace(repoDependencyPayloadString(row, "evidence_source")); source != "" {
 		return source
 	}
-	return defaultEvidenceSource
+	return worker.DefaultEvidenceSource
 }
 
 func repoDependencyPayloadString(row sharedintent.Row, key string) string {

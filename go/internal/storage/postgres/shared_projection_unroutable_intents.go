@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -107,7 +107,7 @@ func (s *SharedProjectionUnroutableIntentStore) EnsureSchema(ctx context.Context
 // converges on one row per intent rather than duplicating or erroring.
 func (s *SharedProjectionUnroutableIntentStore) WriteUnroutableIntents(
 	ctx context.Context,
-	rows []reducer.SharedProjectionUnroutableRow,
+	rows []sharedintent.UnroutableRow,
 ) error {
 	if len(rows) == 0 {
 		return nil
@@ -127,7 +127,7 @@ func (s *SharedProjectionUnroutableIntentStore) WriteUnroutableIntents(
 func insertSharedProjectionUnroutableIntentBatch(
 	ctx context.Context,
 	database db.ExecQueryer,
-	batch []reducer.SharedProjectionUnroutableRow,
+	batch []sharedintent.UnroutableRow,
 ) error {
 	if len(batch) == 0 {
 		return nil

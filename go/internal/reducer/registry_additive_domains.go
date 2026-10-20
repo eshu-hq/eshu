@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -131,7 +132,7 @@ func eshuSearchDocumentDomainDefinition() DomainDefinition {
 // codeImportRepoEdgeDomainDefinition returns the additive definition for the
 // code-import repo-edge projection. It is additive (not part of
 // DefaultDomainDefinitions) because the handler requires an explicitly wired
-// FactLoader, package-ownership loader, and RepoDependencyIntentWriter;
+// FactLoader, package-ownership loader, and crossrepo.RepoDependencyIntentWriter;
 // registering it without them would silently drop every intent. The domain emits
 // no canonical fact of its own: it rides the shared repo-dependency projection
 // lane, so its canonical surface is the DEPENDS_ON edge that lane writes
@@ -226,7 +227,7 @@ func cicdRunCorrelationDomainDefinition() DomainDefinition {
 		// The correlation reads container_image_identity output across scopes;
 		// carrying this dependency on the registered definition keeps declared
 		// truth and completion fanout in lockstep.
-		CrossScopeDependencies: crossScopeDependenciesForRegistration(DomainCICDRunCorrelation),
+		CrossScopeDependencies: crossscope.DependenciesForRegistration(DomainCICDRunCorrelation),
 	}
 }
 
@@ -301,7 +302,7 @@ func supplyChainImpactDomainDefinition() DomainDefinition {
 		// deployment context and environment evidence (#5426). Completion fanout
 		// consumes the registered declaration, so leaving it unwired here would
 		// let the early empty-join execution stand.
-		CrossScopeDependencies: crossScopeDependenciesForRegistration(DomainSupplyChainImpact),
+		CrossScopeDependencies: crossscope.DependenciesForRegistration(DomainSupplyChainImpact),
 	}
 }
 

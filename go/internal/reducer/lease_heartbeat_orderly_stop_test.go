@@ -9,11 +9,13 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellation
-// is the ProcessPartitionOnce half of this file; the code-call half moved to
+// is the worker.ProcessPartitionOnce half of this file; the code-call half moved to
 // [projection] (code/call/projection/lease_heartbeat_orderly_stop_test.go)
 // with the runner (issue #6061).
 func TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellation(t *testing.T) {
@@ -35,7 +37,7 @@ func TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellat
 		},
 	}}
 	leases := newInFlightCancellationLeaseManager()
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -46,7 +48,7 @@ func TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellat
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	result, err := ProcessPartitionOnce(
+	result, err := worker.ProcessPartitionOnce(
 		ctx,
 		now,
 		cfg,
@@ -63,7 +65,7 @@ func TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellat
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v, want nil after orderly stop cancels an in-flight renewal", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v, want nil after orderly stop cancels an in-flight renewal", err)
 	}
 	if !result.LeaseAcquired {
 		t.Fatal("LeaseAcquired = false, want true")
@@ -147,11 +149,11 @@ func (w waitForLeaseRenewalWriter) WriteEdges(
 	_ string,
 	_ []sharedintent.Row,
 	_ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	select {
 	case <-w.renewalStarted:
-		return SharedProjectionWriteReport{}, nil
+		return sharedintent.WriteReport{}, nil
 	case <-ctx.Done():
-		return SharedProjectionWriteReport{}, ctx.Err()
+		return sharedintent.WriteReport{}, ctx.Err()
 	}
 }

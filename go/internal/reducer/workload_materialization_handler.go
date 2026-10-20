@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
@@ -116,7 +118,7 @@ type WorkloadMaterializationHandler struct {
 	InfrastructurePlatformLookup InfrastructurePlatformLookup
 	Materializer                 *WorkloadMaterializer
 	DependencyLookup             WorkloadDependencyGraphLookup
-	WorkloadDependencyEdgeWriter SharedProjectionEdgeWriter
+	WorkloadDependencyEdgeWriter sharedintent.EdgeWriter
 	// InstanceRetractionLookup resolves previously materialized WorkloadInstance
 	// ids that this generation's projection superseded (e.g. a pre-canonical
 	// environment alias key retired by the #5473 environment-alias contract), so

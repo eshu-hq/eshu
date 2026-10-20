@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -69,10 +71,10 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 	if !errors.As(execErr, &classified) {
 		t.Fatalf("execution error = %v, want an error carrying a failure class", execErr)
 	}
-	if got := classified.FailureClass(); got != reducer.CrossScopeProducerNotReadyFailureClass {
+	if got := classified.FailureClass(); got != crossscope.ProducerNotReadyFailureClass {
 		t.Fatalf(
 			"failure class = %q, want %q",
-			got, reducer.CrossScopeProducerNotReadyFailureClass,
+			got, crossscope.ProducerNotReadyFailureClass,
 		)
 	}
 	if !database.probedProducerQuiescence {
@@ -156,10 +158,10 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact
 	if !errors.As(execErr, &classified) {
 		t.Fatalf("execution error = %v, want an error carrying a failure class", execErr)
 	}
-	if got := classified.FailureClass(); got != reducer.CrossScopeProducerNotReadyFailureClass {
+	if got := classified.FailureClass(); got != crossscope.ProducerNotReadyFailureClass {
 		t.Fatalf(
 			"failure class = %q, want %q",
-			got, reducer.CrossScopeProducerNotReadyFailureClass,
+			got, crossscope.ProducerNotReadyFailureClass,
 		)
 	}
 	if !database.probedProducerQuiescence {

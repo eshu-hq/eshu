@@ -54,10 +54,13 @@ var KubernetesLiveHandleBinding = contract.Bind(contract.Binding{
 })
 
 // ReducerDerivedSharedProjectionRowRepoIDBinding declares this package's verified reducer consumption of
-// reducer_derived kinds (issue #6629). Build-time metadata only.
+// reducer_derived kinds (issue #6629). Build-time metadata only. The anchor
+// was the shared-projection row-repo helper; once that helper retired to
+// [sharedintent.RowRepoID] (#6626 tail bucket 2) the anchor moved to the
+// owner-index builder that consumes both decision sets.
 var ReducerDerivedSharedProjectionRowRepoIDBinding = contract.Bind(contract.Binding{
 	ID: "reducer/reducer_shared_projection_row_repo_i_d", FamilyID: "reducer_derived",
-	ReducerDir: "go/internal/reducer", Symbol: "sharedProjectionRowRepoID",
+	ReducerDir: "go/internal/reducer", Symbol: "buildCodeImportOwnerIndex",
 	Kinds: []string{"reducer_package_ownership_correlation", "reducer_package_publication_correlation"},
 })
 

@@ -77,7 +77,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 	insert(wholeID, "code-calls:v1:whole:"+repo, base.Add(time.Second),
 		`{"action":"refresh","repo_id":"`+repo+`"}`)
 
-	key := reducer.SharedProjectionAcceptanceKey{ScopeID: scope, AcceptanceUnitID: au, SourceRunID: run}
+	key := sharedintent.AcceptanceKey{ScopeID: scope, AcceptanceUnitID: au, SourceRunID: run}
 
 	wholeRow := sharedintent.Row{
 		IntentID: wholeID, ProjectionDomain: reducer.DomainCodeCalls,
@@ -166,7 +166,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 	insert(refreshID, filePart, base.Add(time.Second),
 		`{"action":"refresh","intent_type":"repo_refresh","repo_id":"`+repo+`","delta_projection":true,"delta_file_paths":["src/a.go"]}`)
 
-	key := reducer.SharedProjectionAcceptanceKey{ScopeID: scope, AcceptanceUnitID: au, SourceRunID: run}
+	key := sharedintent.AcceptanceKey{ScopeID: scope, AcceptanceUnitID: au, SourceRunID: run}
 	refreshRow := sharedintent.Row{
 		IntentID: refreshID, ProjectionDomain: reducer.DomainCodeCalls,
 		PartitionKey: filePart, ScopeID: scope, AcceptanceUnitID: au,

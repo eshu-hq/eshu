@@ -26,7 +26,7 @@ const documentationEvidenceSource = "reducer/documentation"
 // bodies stay in the Postgres content/fact store (design 430).
 type DocumentationEdgeMaterializationHandler struct {
 	FactLoader           FactLoader
-	EdgeWriter           SharedProjectionEdgeWriter
+	EdgeWriter           sharedintent.EdgeWriter
 	PriorGenerationCheck PriorGenerationCheck
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total
 	// counter for a documentation_entity_mention fact quarantined by the

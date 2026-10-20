@@ -50,10 +50,10 @@ func (r *replayRecordingCodeownersOwnershipEdgeWriter) WriteEdges(
 	domain string,
 	rows []sharedintent.Row,
 	_ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	r.writeDomain = domain
 	r.writeRows = append(r.writeRows, rows...)
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 // codeownersOwnershipReplayEnvelope is a local copy of the [owners] package's
@@ -210,7 +210,7 @@ func fencedFacts(envs []facts.Envelope) []facts.Envelope {
 
 // sharedIntentRows maps captured durable shared-projection intent rows to
 // identity-keyed replay rows. The durable upsert MERGEs on IntentID
-// (BuildSharedProjectionIntent derives it deterministically from the stable
+// (sharedintent.Build derives it deterministically from the stable
 // scope/generation/partition identity), so IntentID is the MERGE identity.
 func sharedIntentRows(rows []sharedintent.Row) []idempotencyRow {
 	out := make([]idempotencyRow, 0, len(rows))

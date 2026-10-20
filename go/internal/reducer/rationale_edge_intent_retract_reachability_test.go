@@ -21,7 +21,7 @@ type rejectingFenceLookup struct{ t *testing.T }
 
 func (f rejectingFenceLookup) HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents(
 	_ context.Context,
-	_ SharedProjectionAcceptanceKey,
+	_ sharedintent.AcceptanceKey,
 	_ string,
 	_ string,
 	_ string,
@@ -118,10 +118,10 @@ func TestRationaleProductionIntentsNeverReachRetractAsUnmarkedRows(t *testing.T)
 	// Negative half: nothing reaching the retract may lack the intent_type that
 	// collectRepoIDs does not check for.
 	for _, row := range plan.RetractRows {
-		if payloadStr(row.Payload, "intent_type") != RepoRefreshIntentType {
+		if payloadStr(row.Payload, "intent_type") != sharedintent.RepoRefreshIntentType {
 			t.Fatalf("intent %s reached retractRows without intent_type=%q (payload %#v); "+
 				"collectRepoIDs binds it into a whole-repository EXPLAINS DELETE",
-				row.IntentID, RepoRefreshIntentType, row.Payload)
+				row.IntentID, sharedintent.RepoRefreshIntentType, row.Payload)
 		}
 	}
 }
@@ -151,7 +151,7 @@ func TestRationalePerEdgeIntentsCarryRefreshFenceMarkerAfterRoundTrip(t *testing
 		perEdge++
 		if !worker.RowUsesRefreshFence(row) {
 			t.Fatalf("per-edge intent %s lost its %s marker across the durable round trip (payload %#v)",
-				row.IntentID, retractViaRefreshKey, row.Payload)
+				row.IntentID, sharedintent.RetractViaRefreshKey, row.Payload)
 		}
 	}
 	if perEdge != 1 {

@@ -11,6 +11,9 @@ import (
 	"sync"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -76,15 +79,15 @@ type Service struct {
 	HeartbeatInterval time.Duration
 	Wait              func(context.Context, time.Duration) error
 
-	// SharedProjectionEdgeWriter is the Neo4j edge writer used by the shared
-	// projection worker loop (ProcessPartitionOnce). Nil until Neo4j is wired.
-	SharedProjectionEdgeWriter SharedProjectionEdgeWriter
+	// sharedintent.EdgeWriter is the Neo4j edge writer used by the shared
+	// projection worker loop (worker.ProcessPartitionOnce). Nil until Neo4j is wired.
+	SharedProjectionEdgeWriter sharedintent.EdgeWriter
 
-	// SharedProjectionRunner runs the shared projection intent processing loop
+	// worker.Runner runs the shared projection intent processing loop
 	// concurrently with the main claim/execute/ack loop. Nil disables the runner.
-	SharedProjectionRunner *SharedProjectionRunner
+	SharedProjectionRunner *worker.Runner
 
-	// SupplyChainImpactWinnersMaintainer keeps the
+	// supplychaincore.SupplyChainImpactWinnersMaintainer keeps the
 	// supply_chain_impact_canonical_winners read model reconciled with the active
 	// impact facts (#3389) via a lease-guarded periodic atomic resweep. Nil
 	// disables the maintainer.
@@ -215,7 +218,7 @@ type Service struct {
 }
 
 // Run polls for reducer work until the context is canceled. If a
-// SharedProjectionRunner is configured, it runs concurrently as a goroutine.
+// worker.Runner is configured, it runs concurrently as a goroutine.
 func (s Service) Run(ctx context.Context) error {
 	if err := s.validate(); err != nil {
 		return err

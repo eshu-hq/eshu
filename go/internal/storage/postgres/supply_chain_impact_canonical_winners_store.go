@@ -9,7 +9,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -280,7 +281,7 @@ type SupplyChainImpactBeginner struct {
 // supply-chain impact writer surface.
 func (b SupplyChainImpactBeginner) BeginSupplyChainImpactTx(
 	ctx context.Context,
-) (reducer.SupplyChainImpactTx, error) {
+) (supplychaincore.SupplyChainImpactTx, error) {
 	tx, err := b.Beginner.Begin(ctx)
 	if err != nil {
 		return nil, err

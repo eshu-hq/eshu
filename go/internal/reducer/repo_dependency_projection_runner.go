@@ -45,15 +45,15 @@ type RepoDependencyProjectionIntentReader interface {
 // partition-sliced snapshots.
 type RepoDependencyProjectionRunner struct {
 	IntentReader                    RepoDependencyProjectionIntentReader
-	LeaseManager                    PartitionLeaseManager
+	LeaseManager                    sharedintent.PartitionLeaseManager
 	AcceptanceUnitGate              RepoDependencyAcceptanceUnitGate
-	EdgeWriter                      SharedProjectionEdgeWriter
+	EdgeWriter                      sharedintent.EdgeWriter
 	WorkloadMaterializationReplayer WorkloadMaterializationReplayer
 	// WorkloadReadinessPrefetch reports whether RUNS_ON endpoint materialization
 	// committed before the repo-dependency acceptance unit may write its edges.
 	WorkloadReadinessPrefetch gpphase.ReadinessPrefetch
-	AcceptedGen               AcceptedGenerationLookup
-	AcceptedGenPrefetch       AcceptedGenerationPrefetch
+	AcceptedGen               sharedintent.AcceptedGenerationLookup
+	AcceptedGenPrefetch       sharedintent.AcceptedGenerationPrefetch
 	// GenerationFreshness reports whether a replay request's generation is
 	// still its scope's active generation (#7670). A generation retired after
 	// its acceptance row was written has nothing left to replay, so the runner
@@ -150,25 +150,25 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 	}
 }
 
-func (r *RepoDependencyProjectionRunner) runOneCycle(ctx context.Context) (PartitionProcessResult, error) {
+func (r *RepoDependencyProjectionRunner) runOneCycle(ctx context.Context) (worker.PartitionProcessResult, error) {
 	result, err := r.processOnce(ctx, time.Now().UTC())
 	if err != nil {
-		return PartitionProcessResult{}, err
+		return worker.PartitionProcessResult{}, err
 	}
 	return result, nil
 }
 
-func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now time.Time) (PartitionProcessResult, error) {
+func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now time.Time) (worker.PartitionProcessResult, error) {
 	cycleStart := time.Now()
 	claimStart := time.Now()
-	result := PartitionProcessResult{}
+	result := worker.PartitionProcessResult{}
 	// #6184: hold the whole lane while any code scope's canonical nodes are
 	// uncommitted, before claiming the lease. See CanonicalCodeQuiescenceChecker.
 	if r.CanonicalQuiescence != nil {
 		gateStart := time.Now()
 		uncommitted, err := r.CanonicalQuiescence.HasUncommittedCanonicalCodeScopes(ctx)
 		if err != nil {
-			return PartitionProcessResult{}, fmt.Errorf("check canonical code quiescence: %w", err)
+			return worker.PartitionProcessResult{}, fmt.Errorf("check canonical code quiescence: %w", err)
 		}
 		if r.Instruments != nil && r.Instruments.SharedProjectionLaneGateDuration != nil {
 			r.Instruments.SharedProjectionLaneGateDuration.Record(ctx, time.Since(gateStart).Seconds(), metric.WithAttributes(
@@ -178,7 +178,7 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 		}
 		if uncommitted {
 			r.recordRepoDependencyQuiescenceBlocked(ctx, cycleStart)
-			return PartitionProcessResult{BlockedReadiness: 1}, nil
+			return worker.PartitionProcessResult{BlockedReadiness: 1}, nil
 		}
 	}
 	claimed, err := r.LeaseManager.ClaimPartitionLease(
@@ -201,13 +201,13 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 			// reached the client; release through a context that survives
 			// shutdown so the lease cannot outlive this process (#6747).
 			r.releasePartitionLease(ctx)
-			return PartitionProcessResult{}, repoDependencyShutdownError(ctx)
+			return worker.PartitionProcessResult{}, repoDependencyShutdownError(ctx)
 		}
-		return PartitionProcessResult{}, fmt.Errorf("claim repo dependency lease: %w", err)
+		return worker.PartitionProcessResult{}, fmt.Errorf("claim repo dependency lease: %w", err)
 	}
 	if !claimed {
 		r.recordRepoDependencyLeaseContended(ctx)
-		return PartitionProcessResult{LeaseAcquired: false}, nil
+		return worker.PartitionProcessResult{LeaseAcquired: false}, nil
 	}
 	r.recordRepoDependencyLeaseAcquired(ctx)
 	// releaseLease stays false on a quarantined error on purpose: the
@@ -256,7 +256,7 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	}
 
 	var (
-		processed     PartitionProcessResult
+		processed     worker.PartitionProcessResult
 		active        []sharedintent.Row
 		writtenGroups int
 	)
@@ -498,7 +498,7 @@ func (r *RepoDependencyProjectionRunner) loadAllAcceptanceUnitIntents(
 }
 
 func (r *RepoDependencyProjectionRunner) retractRepo(ctx context.Context, rows []sharedintent.Row) (int, error) {
-	retractRows := buildRepoDependencyRetractRows(uniqueRepositoryIDs(rows))
+	retractRows := buildRepoDependencyRetractRows(sharedintent.UniqueRepositoryIDs(rows))
 	if len(retractRows) == 0 {
 		return 0, nil
 	}

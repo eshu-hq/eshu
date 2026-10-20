@@ -12,13 +12,15 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestSharedProjectionRunnerLogsPartitionProcessingError proves a shared-
 // projection graph-write failure (e.g. the sql_relationships domain's
 // QUERIES_TABLE/etc. MERGE) is not silently swallowed. Before this test,
-// ProcessPartitionOnce's returned error was dropped by runOneCycleSequential/
+// worker.ProcessPartitionOnce's returned error was dropped by runOneCycleSequential/
 // Concurrent's `if err != nil { continue }` with no log, metric, or durable
 // Postgres row anywhere in the shared-projection path -- unlike fact_work_items
 // domains (e.g. gcp_resource_materialization), which the reducer's WorkSink.Fail
@@ -60,13 +62,13 @@ func TestSharedProjectionRunnerLogsPartitionProcessingError(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
 
-	runner := SharedProjectionRunner{
+	runner := worker.Runner{
 		IntentReader: reader,
 		LeaseManager: leaseManager,
 		EdgeWriter:   edgeWriter,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
 		Logger:       logger,
-		Config: SharedProjectionRunnerConfig{
+		Config: worker.RunnerConfig{
 			PartitionCount: 1,
 			LeaseOwner:     "test-runner",
 			PollInterval:   10 * time.Millisecond,

@@ -86,15 +86,15 @@ type fakeEdgeWriter struct {
 	writeErr error
 }
 
-func (f *fakeEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (SharedProjectionWriteReport, error) {
+func (f *fakeEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (sharedintent.WriteReport, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.writes++
 	if f.writeErr != nil {
-		return SharedProjectionWriteReport{}, f.writeErr
+		return sharedintent.WriteReport{}, f.writeErr
 	}
 	f.writeRows = append(f.writeRows, rows...)
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func (f *fakeEdgeWriter) RetractEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) error {

@@ -241,7 +241,7 @@ func TestEdgeWriterWriteEdgesControlRowPlusUnroutableRowReportsOnlyTheLostEdge(t
 	if got, want := report.UnroutableRows[0].IntentID, "i2"; got != want {
 		t.Errorf("reported intent = %q, want %q", got, want)
 	}
-	if got, want := report.UnroutableRows[0].Reason, reducer.UnroutableReasonMissingRequiredField; got != want {
+	if got, want := report.UnroutableRows[0].Reason, sharedintent.UnroutableReasonMissingRequiredField; got != want {
 		t.Errorf("reason = %q, want %q", got, want)
 	}
 	if got := len(executor.calls); got != 0 {
@@ -280,7 +280,7 @@ func TestEdgeWriterWriteEdgesReportsVersionSkewSeparately(t *testing.T) {
 	if got, want := len(report.UnroutableRows), 1; got != want {
 		t.Fatalf("reported rows = %d, want %d", got, want)
 	}
-	if got, want := report.UnroutableRows[0].Reason, reducer.UnroutableReasonNoStatementForType; got != want {
+	if got, want := report.UnroutableRows[0].Reason, sharedintent.UnroutableReasonNoStatementForType; got != want {
 		t.Errorf("reason = %q, want %q: a type this binary lacks is version skew, not a malformed payload", got, want)
 	}
 }
@@ -297,7 +297,7 @@ func TestEdgeWriterWriteEdgesReportsVersionSkewSeparately(t *testing.T) {
 // the loss is queryable rather than silent.
 func assertAllRowsUnroutable(
 	t *testing.T,
-	report reducer.SharedProjectionWriteReport,
+	report sharedintent.WriteReport,
 	err error,
 	calls int,
 	domain string,

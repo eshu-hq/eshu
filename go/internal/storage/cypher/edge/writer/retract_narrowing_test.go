@@ -57,9 +57,9 @@ func unmarkedLegacyRetractRows() []sharedintent.Row {
 func TestWholeScopeRetractDomainsCoversFencedSet(t *testing.T) {
 	t.Parallel()
 
-	fenced := reducer.RepoWideRetractDomains()
+	fenced := sharedintent.RepoWideRetractDomains()
 	if len(fenced) == 0 {
-		t.Fatal("reducer.RepoWideRetractDomains() is empty; the comparison below would pass having checked nothing")
+		t.Fatal("sharedintent.RepoWideRetractDomains() is empty; the comparison below would pass having checked nothing")
 	}
 	fencedSet := make(map[string]struct{}, len(fenced))
 	for _, domain := range fenced {

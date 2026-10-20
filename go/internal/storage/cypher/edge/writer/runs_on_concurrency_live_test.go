@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -99,7 +101,7 @@ func TestBoltRunsOnConcurrentOverlapPreservesCrossRepoTuple(t *testing.T) {
 			assertRunsOnCrossRepoOrWorkloadTuple(
 				t,
 				readRunsOnTuple(t, runner, fixture),
-				reducer.CrossRepoEvidenceSource,
+				crossrepo.CrossRepoEvidenceSource,
 			)
 		})
 	}
@@ -142,7 +144,7 @@ func startRunsOnCrossRepoWrite(
 					"source_tool":       "argocd",
 				},
 			}},
-			reducer.CrossRepoEvidenceSource,
+			crossrepo.CrossRepoEvidenceSource,
 		)
 		errors <- err
 	}()

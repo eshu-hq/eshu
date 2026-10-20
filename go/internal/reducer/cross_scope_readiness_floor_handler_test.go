@@ -5,7 +5,7 @@ package reducer
 
 // Handler-level proof for the #5709 cross-scope readiness floor. The helper
 // tests for the floor itself moved to crossscope/readiness_floor_test.go
-// (issue #6061); these drive CICDRunCorrelationHandler.Handle end to end,
+// (issue #6061); these drive cicdrun.CICDRunCorrelationHandler.Handle end to end,
 // because a floor that is correct in isolation and never called by the
 // handler is exactly the state #5709 found the codebase in.
 
@@ -17,6 +17,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -39,7 +42,7 @@ func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
 	consumer reducercontract.Domain,
 	_ string,
 	_ string,
-) (CrossScopeProducerReadinessByDomain, error) {
+) (crossscope.ProducerReadinessByDomain, error) {
 	r.calls++
 	if r.err != nil {
 		return nil, r.err
@@ -47,8 +50,8 @@ func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
 	// Built from the real catalog, so a canned answer always covers exactly the
 	// producers the floor is about to ask about — the same contract the
 	// production store owes.
-	readiness := CrossScopeProducerReadinessByDomain{}
-	for _, dependency := range crossScopeDependenciesForRegistration(consumer) {
+	readiness := crossscope.ProducerReadinessByDomain{}
+	for _, dependency := range crossscope.DependenciesForRegistration(consumer) {
 		for _, producer := range dependency.ProducerDomains {
 			ready := r.ready
 			if override, named := r.readyByProducer[producer]; named {
@@ -69,7 +72,7 @@ func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
 const testCICDDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 
 // stubCICDRunCorrelationFactLoader implements the base FactLoader, the by-kind
-// load, and the cross-scope active-identity load CICDRunCorrelationHandler.Handle
+// load, and the cross-scope active-identity load cicdrun.CICDRunCorrelationHandler.Handle
 // needs, so this file can drive Handle end to end without a real store.
 type stubCICDRunCorrelationFactLoader struct {
 	scopeFacts []facts.Envelope
@@ -114,21 +117,21 @@ func (s *stubCICDRunCorrelationFactLoader) ListActiveCICDRunCorrelationFacts(
 // call and how many times it was called, so a test can assert a deferral wrote
 // nothing durable.
 type recordingCICDRunCorrelationWriter struct {
-	write CICDRunCorrelationWrite
+	write cicdrun.CICDRunCorrelationWrite
 	calls int
 }
 
 func (w *recordingCICDRunCorrelationWriter) WriteCICDRunCorrelations(
 	_ context.Context,
-	write CICDRunCorrelationWrite,
-) (CICDRunCorrelationWriteResult, error) {
+	write cicdrun.CICDRunCorrelationWrite,
+) (cicdrun.CICDRunCorrelationWriteResult, error) {
 	w.calls++
 	w.write = write
 	canonicalWrites := 0
 	for _, decision := range write.Decisions {
 		canonicalWrites += decision.CanonicalWrites
 	}
-	return CICDRunCorrelationWriteResult{
+	return cicdrun.CICDRunCorrelationWriteResult{
 		CanonicalWrites: canonicalWrites,
 		FactsWritten:    len(write.Decisions),
 	}, nil
@@ -136,8 +139,8 @@ func (w *recordingCICDRunCorrelationWriter) WriteCICDRunCorrelations(
 
 // cicdDecisionsByRun keys a batch of decisions by provider:run_id:run_attempt,
 // so a test asserting on one run's outcome does not depend on batch order.
-func cicdDecisionsByRun(decisions []CICDRunCorrelationDecision) map[string]CICDRunCorrelationDecision {
-	out := make(map[string]CICDRunCorrelationDecision, len(decisions))
+func cicdDecisionsByRun(decisions []cicdrun.CICDRunCorrelationDecision) map[string]cicdrun.CICDRunCorrelationDecision {
+	out := make(map[string]cicdrun.CICDRunCorrelationDecision, len(decisions))
 	for _, decision := range decisions {
 		out[decision.Provider+":"+decision.RunID+":"+decision.RunAttempt] = decision
 	}
@@ -194,7 +197,7 @@ func TestCICDRunCorrelationDefersWhenIdentityProducerScopeHasNotActivated(t *tes
 	}
 	writer := &recordingCICDRunCorrelationWriter{}
 	logs := &bytes.Buffer{}
-	handler := CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader:        loader,
 		Writer:            writer,
 		ProducerReadiness: &fixedCrossScopeReadiness{ready: false},
@@ -213,12 +216,12 @@ func TestCICDRunCorrelationDefersWhenIdentityProducerScopeHasNotActivated(t *tes
 	if err == nil {
 		t.Fatal("Handle() error = nil, want a readiness deferral: an early correlation must not record an empty answer")
 	}
-	var notReady crossScopeProducerNotReadyError
+	var notReady crossscope.ProducerNotReadyError
 	if !errors.As(err, &notReady) {
-		t.Fatalf("Handle() error = %#v, want crossScopeProducerNotReadyError", err)
+		t.Fatalf("Handle() error = %#v, want crossscope.ProducerNotReadyError", err)
 	}
-	if got := notReady.FailureClass(); got != CrossScopeProducerNotReadyFailureClass {
-		t.Fatalf("FailureClass() = %q, want %q", got, CrossScopeProducerNotReadyFailureClass)
+	if got := notReady.FailureClass(); got != crossscope.ProducerNotReadyFailureClass {
+		t.Fatalf("FailureClass() = %q, want %q", got, crossscope.ProducerNotReadyFailureClass)
 	}
 	// Nothing durable may be written on a deferral. Writing then deferring
 	// would leave the empty answer behind for the retry to find.
@@ -269,7 +272,7 @@ func TestCICDRunCorrelationDefersDespiteProducerActivatingDuringTheLoad(t *testi
 		},
 	}
 	writer := &recordingCICDRunCorrelationWriter{}
-	handler := CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader:        loader,
 		Writer:            writer,
 		ProducerReadiness: readiness,
@@ -284,7 +287,7 @@ func TestCICDRunCorrelationDefersDespiteProducerActivatingDuringTheLoad(t *testi
 		Cause:          "producer activates mid-pass",
 		CycleStartedAt: time.Now().Add(-time.Minute),
 	})
-	var notReady crossScopeProducerNotReadyError
+	var notReady crossscope.ProducerNotReadyError
 	if !errors.As(err, &notReady) {
 		t.Fatalf("Handle() error = %#v, want a deferral: readiness must be sampled before the load, not after", err)
 	}
@@ -306,7 +309,7 @@ func TestCICDRunCorrelationDoesNotDeferARunWithNoImageArtifacts(t *testing.T) {
 	}
 	writer := &recordingCICDRunCorrelationWriter{}
 	readiness := &fixedCrossScopeReadiness{ready: false}
-	handler := CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader:        loader,
 		Writer:            writer,
 		ProducerReadiness: readiness,
@@ -343,7 +346,7 @@ func TestCICDRunCorrelationDoesNotDeferWithoutTheCrossScopeLoaderSeam(t *testing
 
 	writer := &recordingCICDRunCorrelationWriter{}
 	readiness := &fixedCrossScopeReadiness{ready: false}
-	handler := CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader: &scopeOnlyCICDRunFactLoader{
 			scopeFacts: []facts.Envelope{
 				ciRunFact("run-no-seam", "github_actions", "repo-api", "abc123"),
@@ -400,7 +403,7 @@ const testCICDWaitingDigest = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 //
 // If the batch-wide count were ever narrowed to a per-run predicate, this test
 // fails: run-waiting would defer and Handle would return
-// crossScopeProducerNotReadyError instead of writing.
+// crossscope.ProducerNotReadyError instead of writing.
 func TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved(t *testing.T) {
 	t.Parallel()
 
@@ -422,21 +425,21 @@ func TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved(t *testing.
 	// The load is filtered by BOTH digests and comes back with identity for only
 	// the first. That is a resolved count of 1 for the whole batch.
 	partial := runCICDBatchUnderTheFloor(t, batchFacts, []facts.Envelope{resolvedIdentity})
-	if got := partial["github_actions:run-resolved:1"].Outcome; got != CICDRunCorrelationExact {
-		t.Fatalf("run-resolved outcome = %q, want %q", got, CICDRunCorrelationExact)
+	if got := partial["github_actions:run-resolved:1"].Outcome; got != cicdrun.CICDRunCorrelationExact {
+		t.Fatalf("run-resolved outcome = %q, want %q", got, cicdrun.CICDRunCorrelationExact)
 	}
-	if got := partial["github_actions:run-waiting:1"].Outcome; got != CICDRunCorrelationDerived {
+	if got := partial["github_actions:run-waiting:1"].Outcome; got != cicdrun.CICDRunCorrelationDerived {
 		t.Fatalf(
 			"run-waiting outcome = %q, want %q: the batch-wide resolved count disarms the floor for every run in the pass",
-			got, CICDRunCorrelationDerived,
+			got, cicdrun.CICDRunCorrelationDerived,
 		)
 	}
 
 	// Same batch, same "not ready" signal, with the waiting run's identity also
 	// published. This is what run-waiting's answer above should have been.
 	complete := runCICDBatchUnderTheFloor(t, batchFacts, []facts.Envelope{resolvedIdentity, waitingIdentity})
-	if got := complete["github_actions:run-waiting:1"].Outcome; got != CICDRunCorrelationExact {
-		t.Fatalf("run-waiting outcome with its identity present = %q, want %q", got, CICDRunCorrelationExact)
+	if got := complete["github_actions:run-waiting:1"].Outcome; got != cicdrun.CICDRunCorrelationExact {
+		t.Fatalf("run-waiting outcome with its identity present = %q, want %q", got, cicdrun.CICDRunCorrelationExact)
 	}
 	if got := complete["github_actions:run-waiting:1"].CanonicalWrites; got != 1 {
 		t.Fatalf("run-waiting canonical writes with its identity present = %d, want 1", got)
@@ -451,11 +454,11 @@ func runCICDBatchUnderTheFloor(
 	t *testing.T,
 	scopeFacts []facts.Envelope,
 	active []facts.Envelope,
-) map[string]CICDRunCorrelationDecision {
+) map[string]cicdrun.CICDRunCorrelationDecision {
 	t.Helper()
 
 	writer := &recordingCICDRunCorrelationWriter{}
-	handler := CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader: &stubCICDRunCorrelationFactLoader{
 			scopeFacts: scopeFacts,
 			active:     active,
@@ -497,7 +500,7 @@ func TestCICDRunCorrelationStillWritesWhenIdentityHasCommitted(t *testing.T) {
 	}
 	writer := &recordingCICDRunCorrelationWriter{}
 	readiness := &fixedCrossScopeReadiness{ready: false}
-	handler := CICDRunCorrelationHandler{
+	handler := cicdrun.CICDRunCorrelationHandler{
 		FactLoader: loader,
 		Writer:     writer,
 		// Deliberately "not ready": a resolved join must win over readiness,

@@ -14,7 +14,7 @@ func TestBuildSharedProjectionIntentDeterministicID(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	input := SharedProjectionIntentInput{
+	input := sharedintent.Input{
 		ProjectionDomain: DomainWorkloadDependency,
 		PartitionKey:     "pk-1",
 		RepositoryID:     "repo-1",
@@ -24,8 +24,8 @@ func TestBuildSharedProjectionIntentDeterministicID(t *testing.T) {
 		CreatedAt:        now,
 	}
 
-	row1 := BuildSharedProjectionIntent(input)
-	row2 := BuildSharedProjectionIntent(input)
+	row1 := sharedintent.Build(input)
+	row2 := sharedintent.Build(input)
 
 	if row1.IntentID != row2.IntentID {
 		t.Errorf("same inputs produced different IDs: %q vs %q", row1.IntentID, row2.IntentID)
@@ -36,7 +36,7 @@ func TestBuildSharedProjectionIntentDifferentInputsDifferentIDs(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	base := SharedProjectionIntentInput{
+	base := sharedintent.Input{
 		ProjectionDomain: DomainWorkloadDependency,
 		PartitionKey:     "pk-1",
 		RepositoryID:     "repo-1",
@@ -49,8 +49,8 @@ func TestBuildSharedProjectionIntentDifferentInputsDifferentIDs(t *testing.T) {
 	modified := base
 	modified.RepositoryID = "repo-2"
 
-	row1 := BuildSharedProjectionIntent(base)
-	row2 := BuildSharedProjectionIntent(modified)
+	row1 := sharedintent.Build(base)
+	row2 := sharedintent.Build(modified)
 
 	if row1.IntentID == row2.IntentID {
 		t.Errorf("different inputs produced same ID: %q", row1.IntentID)
@@ -61,7 +61,7 @@ func TestBuildSharedProjectionIntentIdentityKeyPreservesStoredPartition(t *testi
 	t.Parallel()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	base := SharedProjectionIntentInput{
+	base := sharedintent.Input{
 		ProjectionDomain: DomainCodeCalls,
 		PartitionKey:     "code-calls:v1:files:repo-a:partition",
 		RepositoryID:     "repo-a",
@@ -75,8 +75,8 @@ func TestBuildSharedProjectionIntentIdentityKeyPreservesStoredPartition(t *testi
 	second := base
 	second.IdentityKey = base.PartitionKey + ":edge:caller->other"
 
-	firstRow := BuildSharedProjectionIntent(first)
-	secondRow := BuildSharedProjectionIntent(second)
+	firstRow := sharedintent.Build(first)
+	secondRow := sharedintent.Build(second)
 
 	if got, want := firstRow.PartitionKey, base.PartitionKey; got != want {
 		t.Fatalf("first PartitionKey = %q, want %q", got, want)
@@ -93,7 +93,7 @@ func TestBuildSharedProjectionIntentSetsAllFields(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	input := SharedProjectionIntentInput{
+	input := sharedintent.Input{
 		ProjectionDomain: DomainRepoDependency,
 		PartitionKey:     "pk-test",
 		ScopeID:          "scope-test",
@@ -105,7 +105,7 @@ func TestBuildSharedProjectionIntentSetsAllFields(t *testing.T) {
 		CreatedAt:        now,
 	}
 
-	row := BuildSharedProjectionIntent(input)
+	row := sharedintent.Build(input)
 
 	if row.IntentID == "" {
 		t.Error("IntentID is empty")
@@ -146,7 +146,7 @@ func TestBuildSharedProjectionIntentDifferentAcceptanceIdentityDifferentIDs(t *t
 	t.Parallel()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	base := SharedProjectionIntentInput{
+	base := sharedintent.Input{
 		ProjectionDomain: DomainCodeCalls,
 		PartitionKey:     "caller->callee",
 		ScopeID:          "scope-a",
@@ -162,9 +162,9 @@ func TestBuildSharedProjectionIntentDifferentAcceptanceIdentityDifferentIDs(t *t
 	modifiedUnit := base
 	modifiedUnit.AcceptanceUnitID = "repo-b"
 
-	baseRow := BuildSharedProjectionIntent(base)
-	scopeRow := BuildSharedProjectionIntent(modifiedScope)
-	unitRow := BuildSharedProjectionIntent(modifiedUnit)
+	baseRow := sharedintent.Build(base)
+	scopeRow := sharedintent.Build(modifiedScope)
+	unitRow := sharedintent.Build(modifiedUnit)
 
 	if baseRow.IntentID == scopeRow.IntentID {
 		t.Fatal("different scope_id produced same intent ID")

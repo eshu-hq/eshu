@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 // TestListActiveSupplyChainImpactFactsCapNeverTruncatesCoreEvidenceLive is
@@ -94,7 +94,7 @@ FROM generate_series(1, $2::integer) AS n
 
 	store := NewFactStore(SQLDB{DB: db})
 
-	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(ctx, reducer.SupplyChainImpactFactFilter{
+	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(ctx, supplychaincore.SupplyChainImpactFactFilter{
 		CVEIDs: []string{cveID},
 	})
 	if err != nil {

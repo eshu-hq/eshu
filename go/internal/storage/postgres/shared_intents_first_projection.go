@@ -7,13 +7,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
 // SharedIntentStore answers the first-projection probe the shared projection
 // runner uses to skip a scope's whole-scope edge retract when there is nothing
 // to retract (#3624).
-var _ reducer.FirstProjectionLookup = (*SharedIntentStore)(nil)
+var _ worker.FirstProjectionLookup = (*SharedIntentStore)(nil)
 
 // scopeHasPriorGenerationSQL reports whether the scope has ANY generation other
 // than the current one, in any status. For the shared-projection domains edges

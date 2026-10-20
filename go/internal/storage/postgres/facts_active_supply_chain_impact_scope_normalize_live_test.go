@@ -9,7 +9,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 // TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDAndPaddedPURLLive
@@ -48,7 +48,7 @@ func TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDA
 	// vulnerability.cve/vulnerability.affected_package evidence, which
 	// conventionally carries uppercase CVE IDs and unpadded PURLs -- the
 	// exact filter shape used here.
-	loaded, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	loaded, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
 		CVEIDs: []string{"CVE-2026-1234"},
 		PURLs:  []string{"pkg:npm/left-pad@1.3.0"},
 	})
@@ -93,7 +93,7 @@ func TestListActiveSupplyChainImpactFactsNormalizesAdvisoryScopeLive(t *testing.
 	// vulnerability.cve fact's raw top-level advisory_id field (see
 	// supplyChainImpactFilter), independent of that same fact's cve_id
 	// (which is collected separately into CVEIDs).
-	loaded, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	loaded, _, err := store.ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
 		AdvisoryIDs: []string{"GHSA-demo-1111-2222"},
 	})
 	if err != nil {
@@ -124,7 +124,7 @@ func TestListActiveSupplyChainImpactFactsLoadsUnicodeTrimSpaceSuppressionScopeLi
 	store := NewFactStore(SQLDB{DB: db})
 	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(
 		context.Background(),
-		reducer.SupplyChainImpactFactFilter{CVEIDs: []string{cveID}},
+		supplychaincore.SupplyChainImpactFactFilter{CVEIDs: []string{cveID}},
 	)
 	if err != nil {
 		t.Fatalf("ListActiveSupplyChainImpactFacts: %v", err)

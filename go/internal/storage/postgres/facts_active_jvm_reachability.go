@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
 
@@ -130,7 +131,7 @@ LIMIT $5
 // claim vulnerability reachability.
 func (s FactStore) ListActiveJVMReachabilityFacts(
 	ctx context.Context,
-	filter reducer.JVMReachabilityFactFilter,
+	filter supplychaincore.JVMReachabilityFactFilter,
 ) ([]facts.Envelope, error) {
 	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")

@@ -97,7 +97,7 @@ func TestSharedIntentStoreGenerationRefreshFenceAgainstPostgres(t *testing.T) {
 
 func refreshFenceProofIntent(generationID string, createdAt time.Time) sharedintent.Row {
 	const repositoryID = "repo-sql"
-	return reducer.BuildSharedProjectionIntent(reducer.SharedProjectionIntentInput{
+	return sharedintent.Build(sharedintent.Input{
 		ProjectionDomain: reducer.DomainSQLRelationships,
 		PartitionKey:     "sql_relationships:refresh:v1:whole:" + repositoryID,
 		ScopeID:          "scope-sql",
@@ -125,7 +125,7 @@ func assertGenerationRefreshFenceReady(
 	t.Helper()
 	got, err := store.HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents(
 		ctx,
-		reducer.SharedProjectionAcceptanceKey{
+		sharedintent.AcceptanceKey{
 			ScopeID:          "scope-sql",
 			AcceptanceUnitID: "repo-sql",
 			SourceRunID:      "run-reused",

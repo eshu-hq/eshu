@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -77,9 +79,9 @@ var crossScopeProducerCollectorKindByDomain = map[reducercontract.Domain]scope.C
 }
 
 // CrossScopeProducerReadinessStore implements
-// reducer.CrossScopeProducerReadiness over the shared fact store.
+// crossscope.ProducerReadiness over the shared fact store.
 //
-// It resolves a consumer's producers from reducer.CrossScopeCompletionEdges --
+// It resolves a consumer's producers from crossscope.CompletionEdges --
 // the same exported catalog the completion fanout is built from -- rather than
 // from a second hand-maintained list here, so the two halves of the contract
 // (the re-trigger and the floor) cannot drift apart on WHO the producers are.
@@ -101,7 +103,7 @@ type CrossScopeProducerReadinessStore struct {
 // Per producer, not one bool for the set. The consumer compares each answer
 // against the evidence that producer actually wrote, and a single bool paired
 // with a single evidence count cannot tell "both producers answered once" from
-// "one producer answered twice" (see reducer.CrossScopeProducerReadinessByDomain,
+// "one producer answered twice" (see crossscope.ProducerReadinessByDomain,
 // found reviewing #6093).
 //
 // A kind with no registered scope at all is ready, not blocked. Not every
@@ -167,9 +169,9 @@ func (s CrossScopeProducerReadinessStore) CrossScopeProducersReady(
 	consumer reducercontract.Domain,
 	_ string,
 	_ string,
-) (reducer.CrossScopeProducerReadinessByDomain, error) {
+) (crossscope.ProducerReadinessByDomain, error) {
 	producers := crossScopeProducerDomainsFor(consumer)
-	readiness := make(reducer.CrossScopeProducerReadinessByDomain, len(producers))
+	readiness := make(crossscope.ProducerReadinessByDomain, len(producers))
 	if len(crossScopeProducerCollectorKinds(producers)) > 0 && s.DB == nil {
 		return nil, fmt.Errorf("cross-scope producer readiness database is required")
 	}
@@ -210,7 +212,7 @@ func (s CrossScopeProducerReadinessStore) CrossScopeProducersReady(
 func crossScopeProducerDomainsFor(consumer reducercontract.Domain) []reducercontract.Domain {
 	seen := make(map[reducercontract.Domain]struct{})
 	producers := make([]reducercontract.Domain, 0, 2)
-	for _, edge := range reducer.CrossScopeCompletionEdges() {
+	for _, edge := range crossscope.CompletionEdges() {
 		if edge.Consumer != consumer {
 			continue
 		}

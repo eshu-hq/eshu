@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -141,11 +143,11 @@ func TestBoltRunsOnWritersPreserveOneCoherentProvenanceTuple(t *testing.T) {
 		wantConf   float64
 	}{
 		{"workload_only", "w", reducer.EvidenceSourceWorkloads, nil, "Workload instance runs on inferred platform", 0.42},
-		{"cross_repo_only", "x", reducer.CrossRepoEvidenceSource, "argocd", "Repository workload instance runs on inferred platform", 0.97},
-		{"workload_then_cross_repo", "wx", reducer.CrossRepoEvidenceSource, "argocd", "Repository workload instance runs on inferred platform", 0.97},
-		{"cross_repo_then_workload", "xw", reducer.CrossRepoEvidenceSource, "argocd", "Repository workload instance runs on inferred platform", 0.97},
-		{"workload_cross_repo_workload", "wxw", reducer.CrossRepoEvidenceSource, "argocd", "Repository workload instance runs on inferred platform", 0.97},
-		{"cross_repo_workload_cross_repo", "xwx", reducer.CrossRepoEvidenceSource, "argocd", "Repository workload instance runs on inferred platform", 0.97},
+		{"cross_repo_only", "x", crossrepo.CrossRepoEvidenceSource, "argocd", "Repository workload instance runs on inferred platform", 0.97},
+		{"workload_then_cross_repo", "wx", crossrepo.CrossRepoEvidenceSource, "argocd", "Repository workload instance runs on inferred platform", 0.97},
+		{"cross_repo_then_workload", "xw", crossrepo.CrossRepoEvidenceSource, "argocd", "Repository workload instance runs on inferred platform", 0.97},
+		{"workload_cross_repo_workload", "wxw", crossrepo.CrossRepoEvidenceSource, "argocd", "Repository workload instance runs on inferred platform", 0.97},
+		{"cross_repo_workload_cross_repo", "xwx", crossrepo.CrossRepoEvidenceSource, "argocd", "Repository workload instance runs on inferred platform", 0.97},
 	}
 
 	for index, testCase := range testCases {
@@ -181,7 +183,7 @@ func TestBoltRunsOnWritersPreserveOneCoherentProvenanceTuple(t *testing.T) {
 						"relationship_type": "RUNS_ON",
 						"source_tool":       "argocd",
 					},
-				}}, reducer.CrossRepoEvidenceSource)
+				}}, crossrepo.CrossRepoEvidenceSource)
 				if err != nil {
 					t.Fatalf("cross-repo WriteEdges() error = %v", err)
 				}
@@ -249,7 +251,7 @@ func writeCrossRepoRunsOn(
 				"source_tool":       "argocd",
 			},
 		}},
-		reducer.CrossRepoEvidenceSource,
+		crossrepo.CrossRepoEvidenceSource,
 	)
 	return err
 }
@@ -344,7 +346,7 @@ func assertRunsOnCrossRepoOrWorkloadTuple(t *testing.T, got map[string]any, sour
 	wantConfidence := 0.42
 	wantReason := "Workload instance runs on inferred platform"
 	var wantTool any
-	if source == reducer.CrossRepoEvidenceSource {
+	if source == crossrepo.CrossRepoEvidenceSource {
 		wantConfidence = 0.97
 		wantReason = "Repository workload instance runs on inferred platform"
 		wantTool = "argocd"

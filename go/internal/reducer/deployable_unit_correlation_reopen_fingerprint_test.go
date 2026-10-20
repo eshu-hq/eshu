@@ -78,8 +78,8 @@ func (erroringFingerprintEdgeWriter) RetractEdges(context.Context, string, []sha
 
 func (erroringFingerprintEdgeWriter) WriteEdges(
 	context.Context, string, []sharedintent.Row, string,
-) (SharedProjectionWriteReport, error) {
-	return SharedProjectionWriteReport{}, errors.New("graph write failed")
+) (sharedintent.WriteReport, error) {
+	return sharedintent.WriteReport{}, errors.New("graph write failed")
 }
 
 func claimedDeployableUnitIntent(claimedAt time.Time) reducercontract.Intent {

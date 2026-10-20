@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 func TestListActiveJVMReachabilityFactsQueryIsRepositoryAPIPackageAndLanguageBounded(t *testing.T) {
@@ -67,7 +67,7 @@ func TestListActiveJVMReachabilityFactsPassesAPIPackageBoundsAndKeepsMatchingEvi
 	}
 	store := NewFactStore(db)
 
-	loaded, err := store.ListActiveJVMReachabilityFacts(context.Background(), reducer.JVMReachabilityFactFilter{
+	loaded, err := store.ListActiveJVMReachabilityFacts(context.Background(), supplychaincore.JVMReachabilityFactFilter{
 		RepositoryIDs: []string{"repo://example/jvm", "repo://example/jvm"},
 		APIPackages:   []string{" org.apache.logging.log4j ", "org.apache.logging.log4j"},
 	})

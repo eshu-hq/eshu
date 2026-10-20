@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -62,7 +64,7 @@ func TestRepoDependencyPureDrainForcesRetract(t *testing.T) {
 	}
 
 	result, _, _, err := runner.processAcceptanceUnit(
-		context.Background(), now, repoID, reader, PartitionProcessResult{}, now, nil,
+		context.Background(), now, repoID, reader, worker.PartitionProcessResult{}, now, nil,
 	)
 	if err != nil {
 		t.Fatalf("processAcceptanceUnit() error = %v", err)
@@ -108,7 +110,7 @@ func TestRepoDependencyPureStaleWithoutDrainSkipsRetract(t *testing.T) {
 	}
 
 	_, _, _, err := runner.processAcceptanceUnit(
-		context.Background(), now, repoID, reader, PartitionProcessResult{}, now, nil,
+		context.Background(), now, repoID, reader, worker.PartitionProcessResult{}, now, nil,
 	)
 	if err != nil {
 		t.Fatalf("processAcceptanceUnit() error = %v", err)
@@ -154,12 +156,12 @@ func TestRepoDependencyDrainRetryAfterMarkFailureRetracts(t *testing.T) {
 	}
 
 	if _, _, _, err := runner.processAcceptanceUnit(
-		context.Background(), now, repoID, reader, PartitionProcessResult{}, now, nil,
+		context.Background(), now, repoID, reader, worker.PartitionProcessResult{}, now, nil,
 	); err == nil {
 		t.Fatalf("first processAcceptanceUnit() error = nil, want injected mark failure")
 	}
 	if _, _, _, err := runner.processAcceptanceUnit(
-		context.Background(), now, repoID, reader, PartitionProcessResult{}, now, nil,
+		context.Background(), now, repoID, reader, worker.PartitionProcessResult{}, now, nil,
 	); err != nil {
 		t.Fatalf("retry processAcceptanceUnit() error = %v", err)
 	}

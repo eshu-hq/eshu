@@ -205,7 +205,7 @@ var readinessClassOwningDomain = map[string]string{
 	// consumer in any domain returns while a producer in another scope is still
 	// running, so there is no one claim-time row it could map to. Empty string
 	// means "placed, and placed nowhere" — distinct from "could not place".
-	reducer.CrossScopeProducerNotReadyFailureClass: "",
+	crossscope.ProducerNotReadyFailureClass: "",
 	// #6184: cross-repo resolution defers inside deployment_mapping until
 	// backward evidence commits. The class name does not follow the
 	// <domain>_nodes_not_ready convention, so it is placed here explicitly.

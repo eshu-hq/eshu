@@ -233,8 +233,8 @@ func TestSiblingRefreshIntentsKeepUnusableDeltaFailClosed(t *testing.T) {
 			if len(filePaths) != 0 {
 				t.Fatalf("delta_file_paths = %v, want empty; the fixture qualifies no path", filePaths)
 			}
-			if payload["intent_type"] != RepoRefreshIntentType {
-				t.Fatalf("refresh intent intent_type = %v, want %q", payload["intent_type"], RepoRefreshIntentType)
+			if payload["intent_type"] != sharedintent.RepoRefreshIntentType {
+				t.Fatalf("refresh intent intent_type = %v, want %q", payload["intent_type"], sharedintent.RepoRefreshIntentType)
 			}
 		})
 	}

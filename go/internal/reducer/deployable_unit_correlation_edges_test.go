@@ -78,13 +78,13 @@ func (w *recordingDeployableUnitEdgeWriter) WriteEdges(
 	domain string,
 	rows []sharedintent.Row,
 	evidenceSource string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	w.writeCalls = append(w.writeCalls, deployableUnitEdgeWriterCall{
 		domain:         domain,
 		rows:           rows,
 		evidenceSource: evidenceSource,
 	})
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func TestDeployableUnitCorrelationHandleWritesAdmittedResolvedDeploymentEdge(t *testing.T) {

@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -72,7 +75,7 @@ func (crossScopeReadinessProofLoader) ListFactsByKind(
 
 func (crossScopeReadinessProofLoader) ListActiveSupplyChainImpactFacts(
 	context.Context,
-	reducer.SupplyChainImpactFactFilter,
+	supplychaincore.SupplyChainImpactFactFilter,
 ) ([]facts.Envelope, bool, error) {
 	return nil, false, nil
 }
@@ -127,10 +130,10 @@ type countingSupplyChainImpactWriter struct {
 
 func (w *countingSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 	_ context.Context,
-	write reducer.SupplyChainImpactWrite,
-) (reducer.SupplyChainImpactWriteResult, error) {
+	write supplychaincore.SupplyChainImpactWrite,
+) (supplychaincore.SupplyChainImpactWriteResult, error) {
 	w.calls++
-	return reducer.SupplyChainImpactWriteResult{FactsWritten: len(write.Findings)}, nil
+	return supplychaincore.SupplyChainImpactWriteResult{FactsWritten: len(write.Findings)}, nil
 }
 
 // TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget is
@@ -175,7 +178,7 @@ func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t
 	})
 
 	writer := &countingSupplyChainImpactWriter{}
-	handler := reducer.SupplyChainImpactHandler{
+	handler := supplychaincore.SupplyChainImpactHandler{
 		FactLoader:         crossScopeReadinessProofLoader{},
 		Writer:             writer,
 		FencingTokenIssuer: crossScopeReadinessTokenIssuer{},
@@ -222,10 +225,10 @@ func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t
 		// restatement of it.
 		var classified interface{ FailureClass() string }
 		if !errors.As(handleErr, &classified) ||
-			classified.FailureClass() != reducer.CrossScopeProducerNotReadyFailureClass {
+			classified.FailureClass() != crossscope.ProducerNotReadyFailureClass {
 			t.Fatalf(
 				"cycle %d: Handle() error = %#v, want one self-classifying as %q",
-				cycle, handleErr, reducer.CrossScopeProducerNotReadyFailureClass,
+				cycle, handleErr, crossscope.ProducerNotReadyFailureClass,
 			)
 		}
 		if writer.calls != 0 {
@@ -242,8 +245,8 @@ func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t
 				cycle, status,
 			)
 		}
-		if failureClass != reducer.CrossScopeProducerNotReadyFailureClass {
-			t.Fatalf("cycle %d: failure_class = %q, want %q", cycle, failureClass, reducer.CrossScopeProducerNotReadyFailureClass)
+		if failureClass != crossscope.ProducerNotReadyFailureClass {
+			t.Fatalf("cycle %d: failure_class = %q, want %q", cycle, failureClass, crossscope.ProducerNotReadyFailureClass)
 		}
 		if attemptCount != 1 {
 			t.Fatalf(
@@ -319,7 +322,7 @@ func TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound(t *t
 	})
 
 	writer := &countingSupplyChainImpactWriter{}
-	handler := reducer.SupplyChainImpactHandler{
+	handler := supplychaincore.SupplyChainImpactHandler{
 		FactLoader:         crossScopeReadinessProofLoader{},
 		Writer:             writer,
 		FencingTokenIssuer: crossScopeReadinessTokenIssuer{},

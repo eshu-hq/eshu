@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 // suppressionRowCapFakePage builds one page of `count` fake
@@ -77,7 +77,7 @@ func TestListActiveSupplyChainImpactFactsCapsRowsPerCall(t *testing.T) {
 	}
 	store := NewFactStore(db)
 
-	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
 		CVEIDs: []string{"CVE-2026-0700"},
 	})
 	if err != nil {
@@ -108,7 +108,7 @@ func TestListActiveSupplyChainImpactFactsExactCapIsNotTruncated(t *testing.T) {
 	}
 	store := NewFactStore(db)
 
-	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
 		CVEIDs: []string{"CVE-2026-0700"},
 	})
 	if err != nil {
@@ -136,7 +136,7 @@ func TestListActiveSupplyChainImpactFactsDoesNotTruncateUnderTheCap(t *testing.T
 	}
 	store := NewFactStore(db)
 
-	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), reducer.SupplyChainImpactFactFilter{
+	loaded, truncated, err := store.ListActiveSupplyChainImpactFacts(context.Background(), supplychaincore.SupplyChainImpactFactFilter{
 		CVEIDs: []string{"CVE-2026-0700"},
 	})
 	if err != nil {

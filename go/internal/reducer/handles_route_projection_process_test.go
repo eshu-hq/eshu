@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -34,7 +36,7 @@ func TestProcessPartitionOnceHandlesRouteDrainsAbsentEndpoint(t *testing.T) {
 		apiEndpointRepoPathPresenceKey("repo-1", "/present"): {},
 	}}
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         DomainHandlesRoute,
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -44,14 +46,14 @@ func TestProcessPartitionOnceHandlesRouteDrainsAbsentEndpoint(t *testing.T) {
 		EvidenceSource: materialization.HandlesRouteEvidenceSource,
 	}
 
-	result, err := ProcessPartitionOnce(
+	result, err := worker.ProcessPartitionOnce(
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true), nil,
 		readinessLookupFixed(true, true), nil, presence, nil, nil,
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v", err)
 	}
 	if result.BlockedReadiness != 0 {
 		t.Fatalf("BlockedReadiness = %d, want 0 (absent endpoint is terminal, not deferred)", result.BlockedReadiness)
@@ -120,7 +122,7 @@ func TestProcessPartitionOnceHandlesRouteAllTerminalRepoDrainsAndRetracts(t *tes
 	edges := &stubEdgeWriter{}
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{}} // nothing present
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         DomainHandlesRoute,
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -130,14 +132,14 @@ func TestProcessPartitionOnceHandlesRouteAllTerminalRepoDrainsAndRetracts(t *tes
 		EvidenceSource: materialization.HandlesRouteEvidenceSource,
 	}
 
-	result, err := ProcessPartitionOnce(
+	result, err := worker.ProcessPartitionOnce(
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true), nil,
 		readinessLookupFixed(true, true), nil, presence, nil, nil,
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v", err)
 	}
 	if result.BlockedReadiness != 0 {
 		t.Fatalf("BlockedReadiness = %d, want 0 (route-only repo is terminal, not deferred)", result.BlockedReadiness)
@@ -185,7 +187,7 @@ func TestProcessPartitionOnceHandlesRouteNilPresenceProjectsAll(t *testing.T) {
 	lease := &stubLeaseManager{claimResult: true}
 	edges := &stubEdgeWriter{}
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         DomainHandlesRoute,
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -195,13 +197,13 @@ func TestProcessPartitionOnceHandlesRouteNilPresenceProjectsAll(t *testing.T) {
 		EvidenceSource: materialization.HandlesRouteEvidenceSource,
 	}
 
-	result, err := ProcessPartitionOnce(
+	result, err := worker.ProcessPartitionOnce(
 		context.Background(), now, cfg, lease, reader, edges,
 		acceptedGenerationFixed("gen-1", true), nil,
 		readinessLookupFixed(true, true), nil, nil, nil, nil, nil, // nil presence lookup
 	)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v", err)
 	}
 	if result.BlockedReadiness != 0 {
 		t.Fatalf("BlockedReadiness = %d, want 0 (nil presence = today's behavior)", result.BlockedReadiness)

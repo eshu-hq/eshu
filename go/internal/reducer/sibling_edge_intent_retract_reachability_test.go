@@ -91,7 +91,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 // written by an emitter that did not stamp the marker.
 //
 // Do NOT restate this as "the commit that created the file is the only commit
-// that touched retractViaRefreshKey". That reading is wrong and was corrected
+// that touched sharedintent.RetractViaRefreshKey". That reading is wrong and was corrected
 // on #6233: these files' --diff-filter=A commits are recent cmd/eshu
 // extractions (rationale_edge_intents.go was created by 5836de3aae on
 // 2026-08-18, "extract the repository-selector matcher from cmd/eshu"), so file
@@ -148,10 +148,10 @@ func TestSiblingProductionIntentsNeverReachRetractAsUnmarkedRows(t *testing.T) {
 			// Negative half: nothing reaching the retract may lack the
 			// intent_type the narrowed dispatch now requires.
 			for _, row := range plan.RetractRows {
-				if payloadStr(row.Payload, "intent_type") != RepoRefreshIntentType {
+				if payloadStr(row.Payload, "intent_type") != sharedintent.RepoRefreshIntentType {
 					t.Fatalf("intent %s reached retractRows without intent_type=%q (payload %#v); "+
 						"the %s whole-scope retract would bind it into a repo-wide DELETE",
-						row.IntentID, RepoRefreshIntentType, row.Payload, tc.domain)
+						row.IntentID, sharedintent.RepoRefreshIntentType, row.Payload, tc.domain)
 				}
 			}
 		})
@@ -184,7 +184,7 @@ func TestSiblingPerEdgeIntentsCarryRefreshFenceMarkerAfterRoundTrip(t *testing.T
 				perEdge++
 				if !worker.RowUsesRefreshFence(row) {
 					t.Fatalf("per-edge intent %s lost its %s marker across the durable round trip (payload %#v)",
-						row.IntentID, retractViaRefreshKey, row.Payload)
+						row.IntentID, sharedintent.RetractViaRefreshKey, row.Payload)
 				}
 			}
 			if perEdge != 1 {

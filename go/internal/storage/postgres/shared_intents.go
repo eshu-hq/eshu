@@ -13,7 +13,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -350,7 +349,7 @@ func (s *SharedIntentStore) ReleasePartitionLease(ctx context.Context, domain st
 // freshness key and projection domain.
 func (s *SharedIntentStore) ListPendingAcceptanceUnitIntents(
 	ctx context.Context,
-	key reducer.SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	domain string,
 	limit int,
 ) ([]sharedintent.Row, error) {
@@ -377,7 +376,7 @@ func (s *SharedIntentStore) ListPendingAcceptanceUnitIntents(
 // bounded freshness key, projection domain, and selected partition key.
 func (s *SharedIntentStore) ListPendingAcceptanceUnitPartitionIntents(
 	ctx context.Context,
-	key reducer.SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	domain string,
 	partitionKey string,
 	limit int,

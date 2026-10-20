@@ -6,6 +6,8 @@ package main
 import (
 	"log/slog"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
 	taintstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
@@ -50,12 +52,12 @@ func awsCloudRuntimeDriftWriterFor(database db.ExecQueryer) reducer.AWSCloudRunt
 // transaction beginner the writer is nil, so the additive-domain gate keeps
 // supply_chain_impact unregistered rather than wiring a writer that cannot
 // retract. Mirrors awsCloudRuntimeDriftWriterFor.
-func supplyChainImpactWriterFor(database db.ExecQueryer) reducer.SupplyChainImpactWriter {
+func supplyChainImpactWriterFor(database db.ExecQueryer) supplychaincore.SupplyChainImpactWriter {
 	beginner := reducerBeginner(database)
 	if beginner == nil {
 		return nil
 	}
-	return reducer.PostgresSupplyChainImpactWriter{
+	return supplychaincore.PostgresSupplyChainImpactWriter{
 		DB: postgres.SupplyChainImpactBeginner{Beginner: beginner},
 	}
 }

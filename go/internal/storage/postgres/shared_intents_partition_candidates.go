@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -20,8 +22,8 @@ var (
 	_ reducer.CodeCallProjectionPartitionCandidateReader = (*SharedIntentStore)(nil)
 	_ reducer.CodeCallProjectionUnhashedCandidateReader  = (*SharedIntentStore)(nil)
 	_ reducer.CodeCallProjectionRefreshFenceLookup       = (*SharedIntentStore)(nil)
-	_ reducer.SharedProjectionPartitionCandidateReader   = (*SharedIntentStore)(nil)
-	_ reducer.SharedProjectionUnhashedCandidateReader    = (*SharedIntentStore)(nil)
+	_ worker.PartitionCandidateReader                    = (*SharedIntentStore)(nil)
+	_ worker.UnhashedCandidateReader                     = (*SharedIntentStore)(nil)
 )
 
 // listPendingDomainPartitionIntentsSQL fetches up to $4 pending intents for

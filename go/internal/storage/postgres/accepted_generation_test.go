@@ -13,7 +13,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -33,7 +32,7 @@ func TestNewAcceptedGenerationLookupUsesAcceptanceTable(t *testing.T) {
 	}
 
 	lookup := NewAcceptedGenerationLookup(database)
-	gotGeneration, gotFound := lookup(reducer.SharedProjectionAcceptanceKey{
+	gotGeneration, gotFound := lookup(sharedintent.AcceptanceKey{
 		ScopeID:          "scope:git:repo-1",
 		AcceptanceUnitID: "repository:r_test",
 		SourceRunID:      "run-test",
@@ -82,7 +81,7 @@ func TestNewAcceptedGenerationLookupReturnsFalseOnStoreError(t *testing.T) {
 	t.Parallel()
 
 	lookup := NewAcceptedGenerationLookup(&acceptanceStoreErrorDB{})
-	gotGeneration, gotFound := lookup(reducer.SharedProjectionAcceptanceKey{
+	gotGeneration, gotFound := lookup(sharedintent.AcceptanceKey{
 		ScopeID:          "scope:git:repo-1",
 		AcceptanceUnitID: "repository:r_test",
 		SourceRunID:      "run-test",
@@ -130,7 +129,7 @@ func TestNewAcceptedGenerationPrefetchCachesByAcceptanceKey(t *testing.T) {
 		t.Fatalf("prefetch() error = %v", err)
 	}
 
-	gotGeneration, gotFound := lookup(reducer.SharedProjectionAcceptanceKey{
+	gotGeneration, gotFound := lookup(sharedintent.AcceptanceKey{
 		ScopeID:          "scope:git:repo-1",
 		AcceptanceUnitID: "repository:r_test",
 		SourceRunID:      "run-test",

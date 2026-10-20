@@ -17,7 +17,7 @@ import (
 // codeImportEvidenceSource labels repo-to-repo DEPENDS_ON edges derived from
 // per-file external import sources correlated to package-registry ownership. It
 // is deliberately distinct from packageConsumptionEvidenceSource
-// ("projection/package-consumption") and CrossRepoEvidenceSource
+// ("projection/package-consumption") and crossrepo.CrossRepoEvidenceSource
 // ("resolver/cross-repo") so the code-import edges are independently retractable
 // and so query surfaces can attribute the edge to parser import provenance
 // (issue #3642).
@@ -61,7 +61,7 @@ type CodeImportRepoDependencyInput struct {
 // collapse to one edge whose evidence_count records how many distinct packages
 // backed it.
 //
-// The returned rows reuse BuildSharedProjectionIntent so the intent id is a
+// The returned rows reuse sharedintent.Build so the intent id is a
 // deterministic function of the acceptance identity and partition key; running
 // the join twice over the same input yields identical intent ids, which keeps
 // the downstream DEPENDS_ON MERGE idempotent under retries and re-projection.
@@ -259,7 +259,7 @@ func buildCodeImportRepoEdgeIntent(
 		"resolved_id":       codeImportResolvedID(consumerRepoID, ownerRepoID),
 	}
 
-	return BuildSharedProjectionIntent(SharedProjectionIntentInput{
+	return sharedintent.Build(sharedintent.Input{
 		ProjectionDomain: DomainRepoDependency,
 		PartitionKey:     partitionKey,
 		ScopeID:          input.ScopeID,

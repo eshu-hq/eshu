@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 func TestListActiveSupplyChainImpactFactsPagesIdentityAfterLegacyCompletes(t *testing.T) {
@@ -40,7 +40,7 @@ func TestListActiveSupplyChainImpactFactsPagesIdentityAfterLegacyCompletes(t *te
 
 	loaded, truncated, err := NewFactStore(db).ListActiveSupplyChainImpactFacts(
 		context.Background(),
-		reducer.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:paging"}},
+		supplychaincore.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:paging"}},
 	)
 	if err != nil {
 		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)
@@ -93,7 +93,7 @@ func TestListActiveSupplyChainImpactFactsCapsSuppressionWhileIdentityContinues(t
 
 	loaded, truncated, err := NewFactStore(db).ListActiveSupplyChainImpactFacts(
 		context.Background(),
-		reducer.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:cap"}},
+		supplychaincore.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:cap"}},
 	)
 	if err != nil {
 		t.Fatalf("ListActiveSupplyChainImpactFacts() error = %v, want nil", err)
@@ -159,7 +159,7 @@ func TestListActiveSupplyChainImpactFactsRejectsInvalidTaggedStreams(t *testing.
 			db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: test.rows}}}
 			_, _, err := NewFactStore(db).ListActiveSupplyChainImpactFacts(
 				context.Background(),
-				reducer.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:invalid"}},
+				supplychaincore.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:invalid"}},
 			)
 			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
 				t.Fatalf("error = %v, want containing %q", err, test.wantErr)

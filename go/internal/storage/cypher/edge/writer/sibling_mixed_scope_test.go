@@ -89,7 +89,7 @@ func TestEdgeWriterRetractEdgesSiblingMixedBatchRetractsBothDeltaAndWholeScopeRe
 					RepositoryID: "repo-delta",
 					Payload: map[string]any{
 						"repo_id":          "repo-delta",
-						"intent_type":      reducer.RepoRefreshIntentType,
+						"intent_type":      sharedintent.RepoRefreshIntentType,
 						"delta_projection": true,
 						"delta_file_paths": []string{"/repo/src/handler.go"},
 					},
@@ -151,7 +151,7 @@ func TestEdgeWriterRetractEdgesSiblingEmptyDeltaFilePathsFailsThePartition(t *te
 					RepositoryID: "repo-empty",
 					Payload: map[string]any{
 						"repo_id":          "repo-empty",
-						"intent_type":      reducer.RepoRefreshIntentType,
+						"intent_type":      sharedintent.RepoRefreshIntentType,
 						"delta_projection": true,
 						"delta_file_paths": []string{},
 					},

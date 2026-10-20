@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 )
 
 // seedSucceededReopenWorkItem inserts one succeeded reducer work item for the
@@ -95,7 +95,7 @@ func snapshotSharedProjectionIntents(t *testing.T, ctx context.Context, db *sql.
 }
 
 // resolveCrossRepoIntents drives the REAL reducer cross-repo resolution
-// handler (reducer.CrossRepoRelationshipHandler.Resolve) for one generation
+// handler (crossrepo.CrossRepoRelationshipHandler.Resolve) for one generation
 // against the REAL Postgres-backed RelationshipStore (evidence loader) and
 // SharedIntentStore (intent writer) — the same production ports
 // RunDeferredRelationshipMaintenance's downstream reducer claim/drain path
@@ -107,7 +107,7 @@ func snapshotSharedProjectionIntents(t *testing.T, ctx context.Context, db *sql.
 func resolveCrossRepoIntents(t *testing.T, ctx context.Context, db *sql.DB, scopeID, generationID string) int {
 	t.Helper()
 	adapter := SQLDB{DB: db}
-	handler := reducer.CrossRepoRelationshipHandler{
+	handler := crossrepo.CrossRepoRelationshipHandler{
 		EvidenceLoader: NewRelationshipStore(adapter),
 		IntentWriter:   NewSharedIntentStore(adapter),
 	}

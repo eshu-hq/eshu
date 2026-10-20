@@ -36,7 +36,7 @@ func (s *absentGenerationRepoDependencyStore) AbsentGenerationIDs(
 	return gone, nil
 }
 
-func repoDependencyAbsentAcceptanceLookup(key SharedProjectionAcceptanceKey) (string, bool) {
+func repoDependencyAbsentAcceptanceLookup(key sharedintent.AcceptanceKey) (string, bool) {
 	if key.AcceptanceUnitID == "repository:r_healthy" {
 		return "gen-healthy", true
 	}

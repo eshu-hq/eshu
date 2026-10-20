@@ -51,7 +51,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 		0,
 		1,
 		10,
-		func(key SharedProjectionAcceptanceKey) (string, bool) {
+		func(key sharedintent.AcceptanceKey) (string, bool) {
 			switch key.AcceptanceUnitID {
 			case "repo-blocked":
 				return "gen-1", true
@@ -119,7 +119,7 @@ func TestProcessPartitionOnceFullCycle(t *testing.T) {
 
 	lookup := acceptedGenerationFixed("gen-1", true)
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -129,9 +129,9 @@ func TestProcessPartitionOnceFullCycle(t *testing.T) {
 		EvidenceSource: "finalization/workloads",
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
+	result, err := worker.ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce error = %v", err)
+		t.Fatalf("worker.ProcessPartitionOnce error = %v", err)
 	}
 	if !result.LeaseAcquired {
 		t.Fatal("LeaseAcquired = false, want true")
@@ -188,7 +188,7 @@ func TestProcessPartitionOnceReportsReadinessBlockedWait(t *testing.T) {
 	lease := &stubLeaseManager{claimResult: true}
 	edges := &stubEdgeWriter{}
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         DomainSQLRelationships,
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -197,7 +197,7 @@ func TestProcessPartitionOnceReportsReadinessBlockedWait(t *testing.T) {
 		BatchLimit:     100,
 	}
 
-	result, err := ProcessPartitionOnce(
+	result, err := worker.ProcessPartitionOnce(
 		context.Background(),
 		now,
 		cfg,
@@ -214,7 +214,7 @@ func TestProcessPartitionOnceReportsReadinessBlockedWait(t *testing.T) {
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v", err)
 	}
 	if got, want := result.BlockedReadiness, 1; got != want {
 		t.Fatalf("BlockedReadiness = %d, want %d", got, want)
@@ -239,7 +239,7 @@ func TestProcessPartitionOnceLeaseNotAcquired(t *testing.T) {
 	edges := &stubEdgeWriter{}
 	lookup := acceptedGenerationFixed("", false)
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -247,9 +247,9 @@ func TestProcessPartitionOnceLeaseNotAcquired(t *testing.T) {
 		LeaseTTL:       30 * time.Second,
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
+	result, err := worker.ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce error = %v", err)
+		t.Fatalf("worker.ProcessPartitionOnce error = %v", err)
 	}
 	if result.LeaseAcquired {
 		t.Error("LeaseAcquired = true, want false")
@@ -268,7 +268,7 @@ func TestProcessPartitionOnceEmptyBatch(t *testing.T) {
 	edges := &stubEdgeWriter{}
 	lookup := acceptedGenerationFixed("gen-1", true)
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -276,7 +276,7 @@ func TestProcessPartitionOnceEmptyBatch(t *testing.T) {
 		LeaseTTL:       30 * time.Second,
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
+	result, err := worker.ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -330,7 +330,7 @@ func TestProcessPartitionOnceFiltersDeleteAction(t *testing.T) {
 	edges := &stubEdgeWriter{}
 	lookup := acceptedGenerationFixed("gen-1", true)
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         "platform_infra",
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -340,7 +340,7 @@ func TestProcessPartitionOnceFiltersDeleteAction(t *testing.T) {
 		EvidenceSource: "finalization/workloads",
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
+	result, err := worker.ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("error = %v", err)
 	}
@@ -384,7 +384,7 @@ func TestProcessPartitionOnceCodeCallsDomain(t *testing.T) {
 	edges := &stubEdgeWriter{}
 	lookup := acceptedGenerationFixed("gen-1", true)
 
-	cfg := PartitionProcessorConfig{
+	cfg := worker.PartitionProcessorConfig{
 		Domain:         DomainCodeCalls,
 		PartitionID:    0,
 		PartitionCount: 1,
@@ -394,9 +394,9 @@ func TestProcessPartitionOnceCodeCallsDomain(t *testing.T) {
 		EvidenceSource: "parser/code-calls",
 	}
 
-	result, err := ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
+	result, err := worker.ProcessPartitionOnce(context.Background(), now, cfg, lease, reader, edges, lookup, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v", err)
+		t.Fatalf("worker.ProcessPartitionOnce() error = %v", err)
 	}
 	if result.UpsertedRows != 1 {
 		t.Fatalf("UpsertedRows = %d, want 1", result.UpsertedRows)
@@ -461,9 +461,9 @@ func (s *stubEdgeWriter) RetractEdges(_ context.Context, _ string, rows []shared
 	return nil
 }
 
-func (s *stubEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (SharedProjectionWriteReport, error) {
+func (s *stubEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (sharedintent.WriteReport, error) {
 	s.writeCalls = append(s.writeCalls, rows)
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func partitionKeyForTestPartition(t *testing.T, wantPartition, partitionCount int, prefix string) string {

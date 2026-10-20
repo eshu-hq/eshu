@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
@@ -70,15 +72,15 @@ func TestCICDRunCorrelationRegistrationCarriesTheReadinessSeam(t *testing.T) {
 		},
 	})
 
-	var handler CICDRunCorrelationHandler
+	var handler cicdrun.CICDRunCorrelationHandler
 	found := false
 	for _, definition := range definitions {
 		if definition.Domain != DomainCICDRunCorrelation {
 			continue
 		}
-		typed, ok := definition.Handler.(CICDRunCorrelationHandler)
+		typed, ok := definition.Handler.(cicdrun.CICDRunCorrelationHandler)
 		if !ok {
-			t.Fatalf("handler for %s = %T, want CICDRunCorrelationHandler", definition.Domain, definition.Handler)
+			t.Fatalf("handler for %s = %T, want cicdrun.CICDRunCorrelationHandler", definition.Domain, definition.Handler)
 		}
 		handler, found = typed, true
 	}

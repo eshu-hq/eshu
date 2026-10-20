@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -56,7 +59,7 @@ func TestRefinalizeRetiredGenerationLaneWritesNoEdgesForBypassRun(t *testing.T) 
 				"repo_id":           repoID,
 				"target_repo_id":    "repository:7673-target-" + suffix,
 				"relationship_type": "DEPENDS_ON",
-				"evidence_source":   reducer.CrossRepoEvidenceSource,
+				"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 			},
 		}
 	}
@@ -110,7 +113,7 @@ func TestRefinalizeRetiredGenerationLaneWritesNoEdgesForBypassRun(t *testing.T) 
 			"repo_id":           controlRepo,
 			"target_repo_id":    "repository:7673-target-" + suffix,
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   reducer.CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	})
 
@@ -184,7 +187,7 @@ func TestBypassedAcceptanceStillDrainsSupersededGenerationWithoutRefinalize(t *t
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:7673-target-" + suffix,
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   reducer.CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	})
 	activateRefinalizeResetGeneration(t, ctx, database, scopeID, activeGeneration, "refinalize-reset-next-"+suffix)
@@ -236,7 +239,7 @@ func TestRefinalizeClearsResolverAcceptanceSoLaneLosesAuthority(t *testing.T) {
 			"repo_id":           repoID,
 			"platform_id":       "platform:kubernetes:test",
 			"relationship_type": "RUNS_ON",
-			"evidence_source":   reducer.CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	})
 
@@ -249,7 +252,7 @@ func TestRefinalizeClearsResolverAcceptanceSoLaneLosesAuthority(t *testing.T) {
 		}
 		return rows
 	}
-	if active, _ := reducer.FilterAuthoritativeIntents(readRows(), lookup); len(active) != 1 {
+	if active, _ := worker.FilterAuthoritativeIntents(readRows(), lookup); len(active) != 1 {
 		t.Fatalf("pre-refinalize authoritative intents = %d, want 1: the fenced unit must hold authority while accepted and active", len(active))
 	}
 
@@ -268,7 +271,7 @@ func TestRefinalizeClearsResolverAcceptanceSoLaneLosesAuthority(t *testing.T) {
 		t.Fatalf("re-activate relationship generation %s: %v", activeGeneration, err)
 	}
 
-	active, stale := reducer.FilterAuthoritativeIntents(readRows(), lookup)
+	active, stale := worker.FilterAuthoritativeIntents(readRows(), lookup)
 	if len(active) != 0 || len(stale) != 0 {
 		t.Fatalf("post-refinalize authoritative = %d active + %d stale, want 0 + 0: "+
 			"with no acceptance row the unit must not be selected", len(active), len(stale))

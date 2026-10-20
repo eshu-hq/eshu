@@ -171,13 +171,13 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 }
 
 type repoDependencyLostResponseWriter struct {
-	inner                reducer.SharedProjectionEdgeWriter
+	inner                sharedintent.EdgeWriter
 	faultAcceptanceUnit  string
 	injectedFailureCount atomic.Int32
 	once                 sync.Once
 }
 
-func newRepoDependencyLostResponseWriter(inner reducer.SharedProjectionEdgeWriter, faultAcceptanceUnit string) *repoDependencyLostResponseWriter {
+func newRepoDependencyLostResponseWriter(inner sharedintent.EdgeWriter, faultAcceptanceUnit string) *repoDependencyLostResponseWriter {
 	return &repoDependencyLostResponseWriter{inner: inner, faultAcceptanceUnit: faultAcceptanceUnit}
 }
 
@@ -185,10 +185,10 @@ func (w *repoDependencyLostResponseWriter) RetractEdges(ctx context.Context, dom
 	return w.inner.RetractEdges(ctx, domain, rows, evidenceSource)
 }
 
-func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) (reducer.SharedProjectionWriteReport, error) {
+func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) (sharedintent.WriteReport, error) {
 	report, err := w.inner.WriteEdges(ctx, domain, rows, evidenceSource)
 	if err != nil {
-		return reducer.SharedProjectionWriteReport{}, err
+		return sharedintent.WriteReport{}, err
 	}
 	for _, row := range rows {
 		if row.AcceptanceUnitID != w.faultAcceptanceUnit {
@@ -200,7 +200,7 @@ func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domai
 			injected = true
 		})
 		if injected {
-			return reducer.SharedProjectionWriteReport{}, errRepoDependencyGraphResponseLost
+			return sharedintent.WriteReport{}, errRepoDependencyGraphResponseLost
 		}
 	}
 	// Preserve the inner report so unroutable rows are not silently completed (#5984).
@@ -243,14 +243,14 @@ func prepareRepoDependencyQuarantinePhase(ctx context.Context, t *testing.T, dat
 	}
 }
 
-func repoDependencyIfaAcceptedGeneration(rows []sharedintent.Row) reducer.AcceptedGenerationLookup {
-	accepted := make(map[reducer.SharedProjectionAcceptanceKey]string, len(rows))
+func repoDependencyIfaAcceptedGeneration(rows []sharedintent.Row) sharedintent.AcceptedGenerationLookup {
+	accepted := make(map[sharedintent.AcceptanceKey]string, len(rows))
 	for _, row := range rows {
 		if key, ok := row.AcceptanceKey(); ok {
 			accepted[key] = row.GenerationID
 		}
 	}
-	return func(key reducer.SharedProjectionAcceptanceKey) (string, bool) {
+	return func(key sharedintent.AcceptanceKey) (string, bool) {
 		generationID, ok := accepted[key]
 		return generationID, ok
 	}
@@ -260,8 +260,8 @@ func startRepoDependencyQuarantineRunner(
 	ctx context.Context,
 	store *postgres.SharedIntentStore,
 	gate *postgres.RepoDependencyAcceptanceUnitGate,
-	writer reducer.SharedProjectionEdgeWriter,
-	acceptedGeneration reducer.AcceptedGenerationLookup,
+	writer sharedintent.EdgeWriter,
+	acceptedGeneration sharedintent.AcceptedGenerationLookup,
 	owner string,
 	workers int,
 ) <-chan error {
@@ -309,8 +309,8 @@ func runRepoDependencyQuarantineUntil(
 	t *testing.T,
 	store *postgres.SharedIntentStore,
 	gate *postgres.RepoDependencyAcceptanceUnitGate,
-	writer reducer.SharedProjectionEdgeWriter,
-	acceptedGeneration reducer.AcceptedGenerationLookup,
+	writer sharedintent.EdgeWriter,
+	acceptedGeneration sharedintent.AcceptedGenerationLookup,
 	owner string,
 	workers int,
 	condition func() bool,

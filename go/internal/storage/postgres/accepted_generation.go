@@ -16,7 +16,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
@@ -192,9 +191,9 @@ func NewResolutionProducerLookup(database db.Queryer) crossrepo.ProducerLookup {
 // single indexed key read. A lookup error fails safe as not-found, and
 // request-scoped cancellation is enforced by the fence and queue layers
 // above (#6730).
-func NewAcceptedGenerationLookup(database db.ExecQueryer) reducer.AcceptedGenerationLookup {
+func NewAcceptedGenerationLookup(database db.ExecQueryer) sharedintent.AcceptedGenerationLookup {
 	store := NewSharedProjectionAcceptanceStore(database)
-	return func(key reducer.SharedProjectionAcceptanceKey) (string, bool) {
+	return func(key sharedintent.AcceptanceKey) (string, bool) {
 		generationID, found, err := store.Lookup(
 			context.Background(),
 			key.ScopeID,
@@ -218,10 +217,10 @@ func NewAcceptedGenerationLookup(database db.ExecQueryer) reducer.AcceptedGenera
 // former one-Lookup-per-key loop. Per-key found/not-found semantics,
 // TrimSpace normalization, and the batch-error-fails-selection contract
 // are unchanged.
-func NewAcceptedGenerationPrefetch(database db.ExecQueryer) reducer.AcceptedGenerationPrefetch {
+func NewAcceptedGenerationPrefetch(database db.ExecQueryer) sharedintent.AcceptedGenerationPrefetch {
 	store := NewSharedProjectionAcceptanceStore(database)
 
-	return func(ctx context.Context, intents []sharedintent.Row) (reducer.AcceptedGenerationLookup, error) {
+	return func(ctx context.Context, intents []sharedintent.Row) (sharedintent.AcceptedGenerationLookup, error) {
 		keys := make([]sharedintent.AcceptanceKey, 0, len(intents))
 		for _, intent := range intents {
 			key, ok := intent.AcceptanceKey()
@@ -236,7 +235,7 @@ func NewAcceptedGenerationPrefetch(database db.ExecQueryer) reducer.AcceptedGene
 			return nil, err
 		}
 
-		return func(key reducer.SharedProjectionAcceptanceKey) (string, bool) {
+		return func(key sharedintent.AcceptanceKey) (string, bool) {
 			key.ScopeID = strings.TrimSpace(key.ScopeID)
 			key.AcceptanceUnitID = strings.TrimSpace(key.AcceptanceUnitID)
 			key.SourceRunID = strings.TrimSpace(key.SourceRunID)

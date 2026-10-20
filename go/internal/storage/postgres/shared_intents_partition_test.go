@@ -84,7 +84,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 	}}
 	store := NewSharedIntentStore(database)
 
-	got, err := store.ListPendingAcceptanceUnitPartitionIntents(context.Background(), reducer.SharedProjectionAcceptanceKey{
+	got, err := store.ListPendingAcceptanceUnitPartitionIntents(context.Background(), sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",

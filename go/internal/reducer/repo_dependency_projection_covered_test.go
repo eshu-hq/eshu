@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -41,7 +44,7 @@ func coveredRepoDependencyRow(intentID, genID string, now time.Time) sharedinten
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 }
@@ -75,7 +78,7 @@ func TestRepoDependencyProjectionRunnerDrainsCoveredGenerations(t *testing.T) {
 	}
 
 	result, _, _, err := runner.processAcceptanceUnit(
-		context.Background(), now, repoID, reader, PartitionProcessResult{}, now, nil,
+		context.Background(), now, repoID, reader, worker.PartitionProcessResult{}, now, nil,
 	)
 	if err != nil {
 		t.Fatalf("processAcceptanceUnit() error = %v", err)
@@ -128,7 +131,7 @@ func TestRepoDependencyProjectionRunnerKeepsUncoveredGenerations(t *testing.T) {
 	}
 
 	result, _, _, err := runner.processAcceptanceUnit(
-		context.Background(), now, repoID, reader, PartitionProcessResult{}, now, nil,
+		context.Background(), now, repoID, reader, worker.PartitionProcessResult{}, now, nil,
 	)
 	if err != nil {
 		t.Fatalf("processAcceptanceUnit() error = %v", err)

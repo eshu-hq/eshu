@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -47,7 +46,7 @@ type repoDependencyIfaIntentCapture struct {
 }
 
 type repoDependencyOverlapWriter struct {
-	inner   reducer.SharedProjectionEdgeWriter
+	inner   sharedintent.EdgeWriter
 	delay   time.Duration
 	mu      sync.Mutex
 	current int
@@ -68,7 +67,7 @@ func (w *repoDependencyOverlapWriter) WriteEdges(
 	domain string,
 	rows []sharedintent.Row,
 	evidenceSource string,
-) (reducer.SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	w.mu.Lock()
 	w.current++
 	if w.current > w.max {
@@ -85,7 +84,7 @@ func (w *repoDependencyOverlapWriter) WriteEdges(
 		defer timer.Stop()
 		select {
 		case <-ctx.Done():
-			return reducer.SharedProjectionWriteReport{}, ctx.Err()
+			return sharedintent.WriteReport{}, ctx.Err()
 		case <-timer.C:
 		}
 	}

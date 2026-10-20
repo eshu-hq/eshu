@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
@@ -374,9 +376,9 @@ func TestNewDefaultRegistryWiresCrossRepoReadinessDependencies(t *testing.T) {
 	// CrossRepoResolver is the interface seam the platform family declares
 	// (#6061); the reducer root is what wires the concrete handler into it, so
 	// this assertion has to name the concrete type to reach its fields.
-	resolver, ok := handler.CrossRepoResolver.(*CrossRepoRelationshipHandler)
+	resolver, ok := handler.CrossRepoResolver.(*crossrepo.CrossRepoRelationshipHandler)
 	if !ok {
-		t.Fatalf("CrossRepoResolver type = %T, want *CrossRepoRelationshipHandler", handler.CrossRepoResolver)
+		t.Fatalf("CrossRepoResolver type = %T, want *crossrepo.CrossRepoRelationshipHandler", handler.CrossRepoResolver)
 	}
 	if resolver.ReadinessLookup == nil {
 		t.Fatal("ReadinessLookup = nil, want non-nil")
@@ -388,7 +390,7 @@ func TestNewDefaultRegistryWiresCrossRepoReadinessDependencies(t *testing.T) {
 
 // TestImplementedDefaultDomainDefinitionsLeavesCrossRepoResolverNilWithoutAdapters
 // pins the typed-nil hazard the interface seam introduces: assigning a nil
-// *CrossRepoRelationshipHandler into the interface field would produce a
+// *crossrepo.CrossRepoRelationshipHandler into the interface field would produce a
 // non-nil interface value, and the handler's "resolver != nil" guard would then
 // dereference it on every deployment_mapping intent.
 func TestImplementedDefaultDomainDefinitionsLeavesCrossRepoResolverNilWithoutAdapters(t *testing.T) {

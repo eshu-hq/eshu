@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
@@ -27,7 +29,7 @@ func explainAckFanoutProbe(t *testing.T, ctx context.Context, db *sql.DB, now ti
 		claimedAt = append(claimedAt, claimedAtValue(intent))
 	}
 	ackArgs := []any{now, "ack-6488", ids, claimedAt}
-	edges := reducer.CrossScopeCompletionEdges()
+	edges := crossscope.CompletionEdges()
 	producers, consumers := make([]string, 0, len(edges)), make([]string, 0, len(edges))
 	for _, edge := range edges {
 		producers = append(producers, string(edge.Producer))

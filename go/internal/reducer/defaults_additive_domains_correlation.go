@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
@@ -96,7 +97,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 	}
 	if handlers.FactLoader != nil && handlers.CICDRunCorrelationWriter != nil {
 		cicdRun := cicdRunCorrelationDomainDefinition()
-		cicdRun.Handler = CICDRunCorrelationHandler{
+		cicdRun.Handler = cicdrun.CICDRunCorrelationHandler{
 			FactLoader:           handlers.FactLoader,
 			Writer:               handlers.CICDRunCorrelationWriter,
 			Instruments:          handlers.Instruments,

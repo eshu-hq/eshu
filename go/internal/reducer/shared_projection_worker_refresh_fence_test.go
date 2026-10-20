@@ -3,7 +3,11 @@
 
 package reducer
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+)
 
 // TestRepoWideRetractRefreshPartitionKeyShapeIsPinned pins the exact whole-scope
 // refresh partition key string, because a cross-package test depends on that
@@ -14,7 +18,7 @@ import "testing"
 // rows collapse to one survivor before RetractEdges sees them, which is what
 // keeps collectDeltaProjectionRepoIDs and collectWholeScopeRefreshRepoIDs
 // disjoint. That proof rests on both rows sharing one partition key, and since
-// repoWideRetractRefreshPartitionKey is unexported, that test mirrors the key as
+// sharedintent.RepoWideRetractRefreshPartitionKey is unexported, that test mirrors the key as
 // a hard-coded literal.
 //
 // A mirror is not a guard. If this scheme ever gained a delta or generation
@@ -39,8 +43,8 @@ func TestRepoWideRetractRefreshPartitionKeyShapeIsPinned(t *testing.T) {
 		want   = "rationale_edges:refresh:v1:whole:repo-shape-pin"
 	)
 
-	if got := repoWideRetractRefreshPartitionKey(DomainRationaleEdges, repoID); got != want {
-		t.Fatalf("repoWideRetractRefreshPartitionKey(%q, %q) = %q, want %q\n"+
+	if got := sharedintent.RepoWideRetractRefreshPartitionKey(DomainRationaleEdges, repoID); got != want {
+		t.Fatalf("sharedintent.RepoWideRetractRefreshPartitionKey(%q, %q) = %q, want %q\n"+
 			"The whole-scope refresh key scheme changed. storage/cypher's\n"+
 			"edge/writer/retract_scope_test.go mirrors this exact string as a\n"+
 			"literal to prove the delta and whole-scope retract collectors stay\n"+
@@ -56,8 +60,8 @@ func TestRepoWideRetractRefreshPartitionKeyShapeIsPinned(t *testing.T) {
 func TestRepoWideRetractRefreshPartitionKeyTrimsRepoID(t *testing.T) {
 	t.Parallel()
 
-	want := repoWideRetractRefreshPartitionKey(DomainRationaleEdges, "repo-1")
-	if got := repoWideRetractRefreshPartitionKey(DomainRationaleEdges, "  repo-1\t"); got != want {
+	want := sharedintent.RepoWideRetractRefreshPartitionKey(DomainRationaleEdges, "repo-1")
+	if got := sharedintent.RepoWideRetractRefreshPartitionKey(DomainRationaleEdges, "  repo-1\t"); got != want {
 		t.Fatalf("padded repo id produced %q, want %q -- a padded id must not open a second partition for one repository", got, want)
 	}
 }

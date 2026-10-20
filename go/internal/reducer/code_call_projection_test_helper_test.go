@@ -32,7 +32,7 @@ type fakeCodeCallIntentStore struct {
 	afterClaim              func(int)
 	domainLimitRequests     []int
 	acceptanceLimitRequests []int
-	acceptanceResponder     func(key SharedProjectionAcceptanceKey, limit int) ([]sharedintent.Row, error)
+	acceptanceResponder     func(key sharedintent.AcceptanceKey, limit int) ([]sharedintent.Row, error)
 }
 
 func (f *fakeCodeCallIntentStore) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]sharedintent.Row, error) {
@@ -59,7 +59,7 @@ func (f *fakeCodeCallIntentStore) ListPendingDomainIntents(_ context.Context, _ 
 	return rows, nil
 }
 
-func (f *fakeCodeCallIntentStore) ListPendingAcceptanceUnitIntents(_ context.Context, key SharedProjectionAcceptanceKey, _ string, limit int) ([]sharedintent.Row, error) {
+func (f *fakeCodeCallIntentStore) ListPendingAcceptanceUnitIntents(_ context.Context, key sharedintent.AcceptanceKey, _ string, limit int) ([]sharedintent.Row, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -149,12 +149,12 @@ func (r *recordingCodeCallProjectionEdgeWriter) RetractEdges(_ context.Context, 
 	return nil
 }
 
-func (r *recordingCodeCallProjectionEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, evidenceSource string) (SharedProjectionWriteReport, error) {
+func (r *recordingCodeCallProjectionEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, evidenceSource string) (sharedintent.WriteReport, error) {
 	r.writeCalls = append(r.writeCalls, recordedProjectionCall{
 		rows:           append([]sharedintent.Row(nil), rows...),
 		evidenceSource: evidenceSource,
 	})
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 type flakyCodeCallProjectionEdgeWriter struct {
@@ -172,10 +172,10 @@ func (r *flakyCodeCallProjectionEdgeWriter) RetractEdges(ctx context.Context, do
 	return r.recordingCodeCallProjectionEdgeWriter.RetractEdges(ctx, domain, rows, evidenceSource)
 }
 
-func (r *flakyCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) (SharedProjectionWriteReport, error) {
+func (r *flakyCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) (sharedintent.WriteReport, error) {
 	if r.writeFailures > 0 {
 		r.writeFailures--
-		return SharedProjectionWriteReport{}, r.err
+		return sharedintent.WriteReport{}, r.err
 	}
 	return r.recordingCodeCallProjectionEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
 }
@@ -185,11 +185,11 @@ type blockingCodeCallProjectionEdgeWriter struct {
 	release <-chan struct{}
 }
 
-func (r *blockingCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) (SharedProjectionWriteReport, error) {
+func (r *blockingCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) (sharedintent.WriteReport, error) {
 	select {
 	case <-r.release:
 	case <-ctx.Done():
-		return SharedProjectionWriteReport{}, ctx.Err()
+		return sharedintent.WriteReport{}, ctx.Err()
 	}
 	return r.recordingCodeCallProjectionEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
 }

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -81,18 +83,18 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 	}
 
 	workflowWriter := &recordingContainerImageProvenanceEdgeWriter{}
-	workflowHandler := CICDRunCorrelationHandler{
+	workflowHandler := cicdrun.CICDRunCorrelationHandler{
 		ProvenanceEdgeWriter: workflowWriter,
 		Instruments:          instruments,
 	}
 	if err := workflowHandler.ProjectCICDWorkflowImageBuiltFromEdges(
 		context.Background(),
 		intent,
-		[]CICDRunCorrelationDecision{{
+		[]cicdrun.CICDRunCorrelationDecision{{
 			Provider:        "github_actions",
 			RepositoryID:    "repository-1",
 			ArtifactDigest:  "sha256:workflow-child",
-			Outcome:         CICDRunCorrelationExact,
+			Outcome:         cicdrun.CICDRunCorrelationExact,
 			CanonicalTarget: "container_image",
 			CorrelationKind: "workflow_image",
 		}},
@@ -116,7 +118,7 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 		correlation.PackageOwnershipProvenanceEvidenceSource,
 		correlation.PackagePublicationProvenanceEvidenceSource,
 		containerImageBuiltFromProvenanceEvidenceSource,
-		cicdWorkflowImageBuiltFromEvidenceSource,
+		cicdrun.CICDWorkflowImageBuiltFromEvidenceSource,
 		containerImageDerivedFromProvenanceEvidenceSource,
 	} {
 		if got, ok := provenanceEdgeCounterValue(metrics, domain, "submitted"); !ok || got != 1 {
@@ -184,15 +186,15 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			wantError: true,
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{writeErr: errors.New("write failed")}
-				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+				return (cicdrun.CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectCICDWorkflowImageBuiltFromEdges(
 						context.Background(),
 						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
-						[]CICDRunCorrelationDecision{{
+						[]cicdrun.CICDRunCorrelationDecision{{
 							Provider:        "github_actions",
 							RepositoryID:    "repository-1",
 							ArtifactDigest:  "sha256:child",
-							Outcome:         CICDRunCorrelationExact,
+							Outcome:         cicdrun.CICDRunCorrelationExact,
 							CanonicalTarget: "container_image",
 							CorrelationKind: "workflow_image",
 						}},
@@ -230,7 +232,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			wantError: true,
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{retractErr: errors.New("retract failed")}
-				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+				return (cicdrun.CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectCICDWorkflowImageBuiltFromEdges(
 						context.Background(),
 						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
@@ -254,7 +256,7 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			name: "empty workflow image projection",
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingContainerImageProvenanceEdgeWriter{}
-				return (CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+				return (cicdrun.CICDRunCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectCICDWorkflowImageBuiltFromEdges(
 						context.Background(),
 						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
@@ -279,14 +281,14 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 		{
 			name: "unwired workflow image projection",
 			run: func(instruments *telemetry.Instruments) error {
-				return (CICDRunCorrelationHandler{Instruments: instruments}).ProjectCICDWorkflowImageBuiltFromEdges(
+				return (cicdrun.CICDRunCorrelationHandler{Instruments: instruments}).ProjectCICDWorkflowImageBuiltFromEdges(
 					context.Background(),
 					reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
-					[]CICDRunCorrelationDecision{{
+					[]cicdrun.CICDRunCorrelationDecision{{
 						Provider:        "github_actions",
 						RepositoryID:    "repository-1",
 						ArtifactDigest:  "sha256:child",
-						Outcome:         CICDRunCorrelationExact,
+						Outcome:         cicdrun.CICDRunCorrelationExact,
 						CanonicalTarget: "container_image",
 						CorrelationKind: "workflow_image",
 					}},

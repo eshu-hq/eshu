@@ -22,7 +22,7 @@ import (
 // path converges to the same edge set as the legacy direct-write path. It
 // stays in the reducer root rather than moving into sqlrelationship
 // (issue #6061) because it drives the generic shared-projection worker
-// (ProcessPartitionOnce, PartitionProcessorConfig, and their lease/reader/
+// (worker.ProcessPartitionOnce, worker.PartitionProcessorConfig, and their lease/reader/
 // readiness dependencies), which is genuine root-owned infrastructure shared
 // by every domain family and has not moved out of root yet — mirroring
 // inherits_edge_partition_convergence_test.go's identical reasoning for the
@@ -83,9 +83,9 @@ func (w *sqlRelationshipStateModelingEdgeWriter) WriteEdges(
 	_ string,
 	rows []sharedintent.Row,
 	_ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	for _, row := range rows {
-		repoID := sharedProjectionRowRepoID(row)
+		repoID := sharedintent.RowRepoID(row)
 		if repoID == "" {
 			continue
 		}
@@ -96,7 +96,7 @@ func (w *sqlRelationshipStateModelingEdgeWriter) WriteEdges(
 		}
 		edges[sqlRelationshipTestEdgeKey(row.Payload)] = anyToString(row.Payload["source_path"])
 	}
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func (w *sqlRelationshipStateModelingEdgeWriter) edgeKeys(repoID string) []string {
@@ -140,7 +140,7 @@ func sqlRelationshipTestRepoIDs(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var out []string
 	for _, row := range rows {
-		repoID := sharedProjectionRowRepoID(row)
+		repoID := sharedintent.RowRepoID(row)
 		if repoID == "" {
 			continue
 		}
@@ -153,8 +153,8 @@ func sqlRelationshipTestRepoIDs(rows []sharedintent.Row) []string {
 	return out
 }
 
-func sqlRelationshipFenceConfig(partitionID, partitionCount int) PartitionProcessorConfig {
-	return PartitionProcessorConfig{
+func sqlRelationshipFenceConfig(partitionID, partitionCount int) worker.PartitionProcessorConfig {
+	return worker.PartitionProcessorConfig{
 		Domain:         DomainSQLRelationships,
 		PartitionID:    partitionID,
 		PartitionCount: partitionCount,
@@ -382,7 +382,7 @@ func drainSQLRelationshipInto(
 	for pass := 0; pass < partitionCount+2; pass++ {
 		progressed := false
 		for p := 0; p < partitionCount; p++ {
-			result, err := ProcessPartitionOnce(
+			result, err := worker.ProcessPartitionOnce(
 				context.Background(), now, sqlRelationshipFenceConfig(p, partitionCount),
 				lease, store, edges, acceptedGen, nil, readiness, nil, nil, store, nil,
 				nil,

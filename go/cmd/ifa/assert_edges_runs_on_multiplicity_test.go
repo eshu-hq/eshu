@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -70,13 +72,13 @@ func TestRunsOnDuplicateIsVisibleRegardlessOfEvidenceStamp(t *testing.T) {
 	cases := map[string]string{
 		"unstamped duplicate":        "",
 		"workload-stamped duplicate": reducer.EvidenceSourceWorkloads,
-		"resolver-stamped duplicate": reducer.CrossRepoEvidenceSource,
+		"resolver-stamped duplicate": crossrepo.CrossRepoEvidenceSource,
 	}
 	for name, secondStamp := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			graph := []graphdump.Edge{
-				runsOnEdge("inst-a", "plat-a", reducer.CrossRepoEvidenceSource),
+				runsOnEdge("inst-a", "plat-a", crossrepo.CrossRepoEvidenceSource),
 				runsOnEdge("inst-a", "plat-a", secondStamp),
 			}
 			err := assertRepoDependencyRunsOn(t, graph, expected)
@@ -98,7 +100,7 @@ func TestRunsOnDuplicateOfAnotherWritersEdgeFails(t *testing.T) {
 	t.Parallel()
 
 	graph := []graphdump.Edge{
-		runsOnEdge("inst-a", "plat-a", reducer.CrossRepoEvidenceSource),
+		runsOnEdge("inst-a", "plat-a", crossrepo.CrossRepoEvidenceSource),
 		runsOnEdge("inst-w", "plat-w", reducer.EvidenceSourceWorkloads),
 		runsOnEdge("inst-w", "plat-w", ""),
 	}
@@ -124,7 +126,7 @@ func TestRunsOnOneEdgePerPairStillPartitionsByWriter(t *testing.T) {
 	t.Parallel()
 
 	graph := []graphdump.Edge{
-		runsOnEdge("inst-a", "plat-a", reducer.CrossRepoEvidenceSource),
+		runsOnEdge("inst-a", "plat-a", crossrepo.CrossRepoEvidenceSource),
 		runsOnEdge("inst-w", "plat-w", reducer.EvidenceSourceWorkloads),
 	}
 	expected := []materializededges.ExpectedEdge{{

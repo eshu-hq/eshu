@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
@@ -196,7 +198,7 @@ func repoDependencyIfaRows(t *testing.T, odu ifa.Odu) []sharedintent.Row {
 		scopeID, generationID := repoDependencyIfaCoordinates(t, odu, source)
 		evidence := evidenceBySource[source]
 		evidence = append(evidence, evidence...)
-		handler := reducer.CrossRepoRelationshipHandler{
+		handler := crossrepo.CrossRepoRelationshipHandler{
 			EvidenceLoader: repoDependencyIfaEvidenceLoader{evidence: evidence},
 			IntentWriter:   capture,
 		}
@@ -218,7 +220,7 @@ func repoDependencyIfaRetractRows(
 	t.Helper()
 	scopeID, generationID := repoDependencyIfaCoordinates(t, odu, source)
 	capture := &repoDependencyIfaIntentCapture{}
-	handler := reducer.CrossRepoRelationshipHandler{
+	handler := crossrepo.CrossRepoRelationshipHandler{
 		EvidenceLoader: repoDependencyIfaEvidenceLoader{},
 		IntentWriter:   capture,
 	}
@@ -258,7 +260,7 @@ type repoDependencyIfaStore struct {
 	mu        sync.Mutex
 	rows      map[string]sharedintent.Row
 	completed map[string]struct{}
-	accepted  map[reducer.SharedProjectionAcceptanceKey]string
+	accepted  map[sharedintent.AcceptanceKey]string
 	leases    map[string]string
 	onDrained func()
 }
@@ -267,7 +269,7 @@ func newRepoDependencyIfaStore(rows []sharedintent.Row) *repoDependencyIfaStore 
 	store := &repoDependencyIfaStore{
 		rows:      make(map[string]sharedintent.Row, len(rows)),
 		completed: make(map[string]struct{}, len(rows)),
-		accepted:  make(map[reducer.SharedProjectionAcceptanceKey]string, len(rows)),
+		accepted:  make(map[sharedintent.AcceptanceKey]string, len(rows)),
 		leases:    make(map[string]string),
 	}
 	store.upsert(rows)
@@ -295,7 +297,7 @@ func (s *repoDependencyIfaStore) accept(rows []sharedintent.Row) {
 }
 
 func (s *repoDependencyIfaStore) acceptedGeneration(
-	key reducer.SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 ) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -446,7 +448,7 @@ func runRepoDependencyIfaRunner(
 	parent context.Context,
 	t *testing.T,
 	store *repoDependencyIfaStore,
-	writer reducer.SharedProjectionEdgeWriter,
+	writer sharedintent.EdgeWriter,
 	replayer reducer.WorkloadMaterializationReplayer,
 	workers int,
 ) {

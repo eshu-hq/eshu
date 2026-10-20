@@ -12,6 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -19,14 +22,14 @@ func TestRepoDependencyProjectionRunnerConfigDefaults(t *testing.T) {
 	t.Parallel()
 
 	cfg := RepoDependencyProjectionRunnerConfig{}
-	if got := cfg.pollInterval(); got != defaultSharedPollInterval {
-		t.Fatalf("pollInterval() = %v, want %v", got, defaultSharedPollInterval)
+	if got := cfg.pollInterval(); got != worker.DefaultPollInterval {
+		t.Fatalf("pollInterval() = %v, want %v", got, worker.DefaultPollInterval)
 	}
 	if got := cfg.leaseTTL(); got != defaultRepoDependencyProjectionLeaseTTL {
 		t.Fatalf("leaseTTL() = %v, want %v", got, defaultRepoDependencyProjectionLeaseTTL)
 	}
-	if got := cfg.batchLimit(); got != defaultBatchLimit {
-		t.Fatalf("batchLimit() = %d, want %d", got, defaultBatchLimit)
+	if got := cfg.batchLimit(); got != worker.DefaultBatchLimit {
+		t.Fatalf("batchLimit() = %d, want %d", got, worker.DefaultBatchLimit)
 	}
 	if got := cfg.leaseOwner(); got != defaultRepoDependencyLeaseOwner {
 		t.Fatalf("leaseOwner() = %q, want %q", got, defaultRepoDependencyLeaseOwner)
@@ -107,7 +110,7 @@ func TestRepoDependencyProjectionRunnerProcessOnceRejectsMissingAcceptanceUnitGa
 			"repo_id":           repoID,
 			"target_repo_id":    "repository:r_target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 	reader := &fakeRepoDependencyIntentStore{
@@ -150,7 +153,7 @@ func TestRepoDependencyProjectionRunnerRejectsMismatchedSourceRepositoryIdentity
 			"repo_id":           repoA,
 			"target_repo_id":    "repository:r_target",
 			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
+			"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 		},
 	)
 
@@ -175,7 +178,7 @@ func TestRepoDependencyProjectionRunnerRejectsMismatchedSourceRepositoryIdentity
 			payload := map[string]any{
 				"target_repo_id":    "repository:r_target",
 				"relationship_type": "DEPENDS_ON",
-				"evidence_source":   CrossRepoEvidenceSource,
+				"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 			}
 			if tt.payloadRepoID != nil {
 				payload["repo_id"] = tt.payloadRepoID
@@ -231,7 +234,7 @@ func TestRepoDependencyProjectionRunnerLoadAllAcceptanceUnitIntentsRejectsOversi
 						"repo_id":           "repository:r_repo_a",
 						"target_repo_id":    "repository:r_target",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				)
 			}
@@ -431,7 +434,7 @@ func TestRepoDependencyProjectionRunnerRunContinuesAfterCycleError(t *testing.T)
 					"repo_id":           repoID,
 					"target_repo_id":    "repository:r_target_1",
 					"relationship_type": "DEPENDS_ON",
-					"evidence_source":   CrossRepoEvidenceSource,
+					"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 				},
 			),
 		},
@@ -443,7 +446,7 @@ func TestRepoDependencyProjectionRunnerRunContinuesAfterCycleError(t *testing.T)
 						"repo_id":           repoID,
 						"target_repo_id":    "repository:r_target_1",
 						"relationship_type": "DEPENDS_ON",
-						"evidence_source":   CrossRepoEvidenceSource,
+						"evidence_source":   crossrepo.CrossRepoEvidenceSource,
 					},
 				),
 			},
@@ -465,7 +468,7 @@ func TestRepoDependencyProjectionRunnerRunContinuesAfterCycleError(t *testing.T)
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: &recordingWorkloadMaterializationReplayer{},
 		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.AcceptanceUnitID == repoID
 		},
 		Config: RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},

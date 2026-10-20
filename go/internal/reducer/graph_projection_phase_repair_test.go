@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
@@ -24,7 +26,7 @@ func TestGraphProjectionPhaseRepairerRunOnceRepublishesMissingReadiness(t *testi
 	publisher := &recordingGraphProjectionPhasePublisher{}
 	repairer := GraphProjectionPhaseRepairer{
 		Queue: queue,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			if key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1" {
 				return "gen-1", true
 			}
@@ -68,7 +70,7 @@ func TestGraphProjectionPhaseRepairerRunOnceRepublishesWorkloadReadinessWithoutA
 	publisher := &recordingGraphProjectionPhasePublisher{}
 	repairer := GraphProjectionPhaseRepairer{
 		Queue: queue,
-		AcceptedGen: func(SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(sharedintent.AcceptanceKey) (string, bool) {
 			return "", false
 		},
 		StateLookup: graphProjectionPhaseLookupFixed(false, false, nil),
@@ -106,7 +108,7 @@ func TestGraphProjectionPhaseRepairerRunOnceSkipsStaleGeneration(t *testing.T) {
 	publisher := &recordingGraphProjectionPhasePublisher{}
 	repairer := GraphProjectionPhaseRepairer{
 		Queue: queue,
-		AcceptedGen: func(SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-new", true
 		},
 		StateLookup: graphProjectionPhaseLookupFixed(false, false, nil),
@@ -143,7 +145,7 @@ func TestGraphProjectionPhaseRepairerRunOnceMarksFailedPublicationForRetry(t *te
 	}
 	repairer := GraphProjectionPhaseRepairer{
 		Queue: queue,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			if key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1" {
 				return "gen-1", true
 			}

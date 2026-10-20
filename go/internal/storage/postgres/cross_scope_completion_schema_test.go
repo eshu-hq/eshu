@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 )
 
 func TestBootstrapDefinitionsIncludeCrossScopeCompletionQueue(t *testing.T) {
@@ -123,7 +123,7 @@ func TestCrossScopeCompletionSchemaCoversCatalogDomainsExactly(t *testing.T) {
 	t.Parallel()
 	producerSet := make(map[string]struct{})
 	consumerSet := make(map[string]struct{})
-	for _, edge := range reducer.CrossScopeCompletionEdges() {
+	for _, edge := range crossscope.CompletionEdges() {
 		producerSet[string(edge.Producer)] = struct{}{}
 		consumerSet[string(edge.Consumer)] = struct{}{}
 	}
@@ -140,7 +140,7 @@ func TestCrossScopeCompletionSchemaCoversCatalogDomainsExactly(t *testing.T) {
 	// existing installs onto the current producer catalog (see
 	// migrations/README.md). 120 is the most recent delta, so it is now the
 	// migration whose literal CHECK/trigger text must match
-	// reducer.CrossScopeCompletionEdges() exactly. A future producer addition
+	// crossscope.CompletionEdges() exactly. A future producer addition
 	// lands in a new guarded migration and moves this assertion to that file.
 	queueSQL := MigrationSQL("value_flow_refresh_code_function_summary_producer")
 	producerList := quotedSorted(producerSet)

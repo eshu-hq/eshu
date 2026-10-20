@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 // Issue #6831: the supply-chain impact writer must treat each pass's finding
@@ -167,13 +168,13 @@ func openReplaceSetLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	return ctx, db
 }
 
-func replaceSetFinding(repositoryID string) reducer.SupplyChainImpactFinding {
-	return reducer.SupplyChainImpactFinding{
+func replaceSetFinding(repositoryID string) supplychaincore.SupplyChainImpactFinding {
+	return supplychaincore.SupplyChainImpactFinding{
 		CVEID:           replaceSetLiveCVE,
 		PackageID:       replaceSetLivePackage,
 		Ecosystem:       "deb",
 		ObservedVersion: "3.0.11-1",
-		Status:          reducer.SupplyChainImpactAffectedExact,
+		Status:          supplychaincore.SupplyChainImpactAffectedExact,
 		RepositoryID:    repositoryID,
 	}
 }
@@ -186,8 +187,8 @@ var replaceSetTokens atomic.Int64
 // replaceSetNextToken returns the next test fencing token.
 func replaceSetNextToken() int64 { return replaceSetTokens.Add(1) }
 
-func replaceSetWrite(intentID string, findings ...reducer.SupplyChainImpactFinding) reducer.SupplyChainImpactWrite {
-	return reducer.SupplyChainImpactWrite{
+func replaceSetWrite(intentID string, findings ...supplychaincore.SupplyChainImpactFinding) supplychaincore.SupplyChainImpactWrite {
+	return supplychaincore.SupplyChainImpactWrite{
 		FencingToken: replaceSetNextToken(),
 		IntentID:     intentID,
 		ScopeID:      replaceSetLiveScope,
