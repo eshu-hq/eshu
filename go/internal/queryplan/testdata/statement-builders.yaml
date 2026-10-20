@@ -153,7 +153,7 @@ builders:
           operation: sourcecypher.OperationCanonicalRetract
           variants:
             - {}
-          source_sha256: bed766f5e97b3ad1f3797a8c47b2fede4676197153bb5dea1c6bb9c20eab0ff3
+          source_sha256: 8fb8cb61e59f8ea3c4ef02d8c038f13afb36f65cfbe5735022a73de1d928f7b6
           exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
     - file: internal/storage/cypher/cloud/aws/image/container_edge_writer.go
       builders:

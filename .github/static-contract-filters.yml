@@ -60,9 +60,8 @@ skill:
   - 'go/internal/extensions/skillgen/**'
   - '.agents/skills/**'
   - 'skill-fragments/**'
-  # The gate compares fragments against this baseline, so a PR that
-  # touches only expected/ must still create the named check; the
-  # registry selects it and the two must not disagree.
+  # The gate compares fragments against this baseline: a PR touching only
+  # expected/ must still create the named check; the two must not disagree.
   - 'expected/**'
   - 'scripts/*verify-skill-roundtrip*.sh'
 skillworkflowrefs:
@@ -138,11 +137,10 @@ ifa:
   - 'specs/fact-kind-registry.v1.yaml'
   - 'specs/replay-coverage-manifest.v1.yaml'
   - 'testdata/golden/e2e-20repo-snapshot.json'
-  # The shell family registry. The Go blocker-shape lockstep test
-  # parses these rows and binds each family's declared blocker_kind
-  # to its real handler's write shape, so a row edit must select
-  # this gate's CI check. A single '*' does not cross '/' in a
-  # dorny filter, hence the explicit '**' on the rows directory.
+  # The shell family registry. The Go blocker-shape lockstep test parses
+  # these rows and binds each family's declared blocker_kind to its real
+  # handler's write shape, so a row edit must select this gate's CI check.
+  # A single '*' does not cross '/' in a dorny filter, hence the '**' here.
   - 'scripts/lib/ifa_family_registry.sh'
   - 'scripts/lib/ifa_family_registry/**'
   # #5351 materialized-edge exhaustiveness gate: the SQL relationship
@@ -194,6 +192,9 @@ ifa:
   - 'testdata/cassettes/iaminstanceprofilerole/**'
   - 'testdata/cassettes/iamcanassume/**'
   - 'testdata/cassettes/iamcanperform/**'
+  - 'testdata/cassettes/iamescalation/**'
+  - 'testdata/cassettes/authenticatesvaultrole/**'
+  - 'testdata/cassettes/usesvaultpolicy/**'
   - 'testdata/cassettes/ec2usesprofile/**'
   - 'testdata/cassettes/cloudresource/**'
   - 'testdata/cassettes/kubernetesnamespaceenvironment/**'

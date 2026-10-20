@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
 )
 
@@ -131,6 +132,20 @@ func deriveEvidenceNodeDetachTypes(t *testing.T, family string, entry materializ
 		// Single static MERGE type: read the relationship type straight out
 		// of the held write template.
 		return map[string]struct{}{mergeRelTypeFromWriteCypher(t, family, entry.IdentityCypher): {}}
+	case "authenticates_vault_role":
+		// Single static MERGE type, but the writer splits node and edge
+		// templates: IdentityCypher holds the role NODE upsert (the one
+		// template that MERGEs the evidence label), so the edge type is read
+		// off the held edge upsert instead. Both are held production consts
+		// of the same writer, never copied literals.
+		return map[string]struct{}{mergeRelTypeFromWriteCypher(t, family, iam.SecretsIAMAuthenticatesVaultRoleEdgeUpsertCypher): {}}
+	case "uses_vault_policy":
+		// Single static MERGE type, same split shape as
+		// authenticates_vault_role: IdentityCypher holds the policy NODE
+		// upsert, so the edge type is read off the held edge upsert
+		// instead. Both are held production consts of the same writer,
+		// never copied literals.
+		return map[string]struct{}{mergeRelTypeFromWriteCypher(t, family, iam.SecretsIAMUsesVaultPolicyEdgeUpsertCypher): {}}
 	case "incident_routing_evidence":
 		// Parameterized MERGE type (%s): the write template names no type, so
 		// the slot-to-type map the write path screens each row against is the

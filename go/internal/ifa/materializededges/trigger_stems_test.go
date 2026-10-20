@@ -82,15 +82,16 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// writer -- rather than guesses at paths nobody has written, which is the
 	// state the comment above describes for the remaining direct families.
 	//
-	// In the ifa-fault-injection block since #6309: all five families have
+	// In the ifa-fault-injection block since #6309: all nine families have
 	// fault cells asserting their exact edge sets, so their inputs retrigger
 	// that gate. The both-gates check below is keyed to coverage rows, and
-	// all five families are covered, so it demands the fault-side trigger --
+	// all nine families are covered, so it demands the fault-side trigger --
 	// and finds it, in the per-family cell files and the shared fault seams.
 	//
-	// iam_can_assume, iam_can_perform and ec2_uses_profile join them with
-	// the #6228 fault halves: same stem shape, read off the fault cells
-	// files and the cypher writers the triggers name.
+	// iam_can_assume, iam_can_perform, ec2_uses_profile, s3_logs_to,
+	// iam_escalation, and authenticates_vault_role join them with
+	// the #6228 fault halves and slice A: same stem shape, read off the
+	// fault cells files and the cypher writers the triggers name.
 	"iam_can_assume":                   "iam_can_assume",
 	"ec2_uses_profile":                 "ec2_uses_profile",
 	"iam_instance_profile_role":        "iam_instance_profile_role",
@@ -104,6 +105,17 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// s3_logs_to joins them with the #6228 fault half: same stem shape,
 	// read off the fault cells file and the cypher writer the triggers name.
 	"s3_logs_to": "s3_logs_to",
+	// iam_escalation joins them with the #6228 fault half: same stem shape,
+	// read off the fault cells file and the cypher writer the triggers name.
+	"iam_escalation": "iam_escalation",
+	// authenticates_vault_role joins them with the #6228 slice A full
+	// build: same stem shape, read off the fault cells file and the cypher
+	// writer the triggers name.
+	"authenticates_vault_role": "authenticates_vault_role",
+	// uses_vault_policy joins them with the #6228 slice A full
+	// build: same stem shape, read off the fault cells file and the cypher
+	// writer the triggers name.
+	"uses_vault_policy": "uses_vault_policy",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

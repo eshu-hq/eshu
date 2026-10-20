@@ -5,6 +5,7 @@ package secretsiam
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -436,6 +437,139 @@ func (l *recordingSecretsIAMTrustChainEvidenceLoader) LoadSecretsIAMTrustChainEv
 ) ([]facts.Envelope, SecretsIAMTrustChainLoadStats, error) {
 	l.intent = intent
 	return l.envelopes, l.stats, nil
+}
+
+var errTestFollowUpUnavailable = errors.New("test follow-up writer unavailable")
+
+type recordingGraphProjectionFollowUpWriter struct {
+	calls        int
+	scopeID      string
+	generationID string
+	sourceSystem string
+	err          error
+}
+
+func (w *recordingGraphProjectionFollowUpWriter) EnqueueGraphProjectionFollowUp(
+	_ context.Context,
+	scopeID string,
+	generationID string,
+	sourceSystem string,
+) error {
+	w.calls++
+	w.scopeID = scopeID
+	w.generationID = generationID
+	w.sourceSystem = sourceSystem
+	return w.err
+}
+
+func TestSecretsIAMTrustChainHandlerEnqueuesGraphProjectionFollowUp(t *testing.T) {
+	t.Parallel()
+
+	loader := &recordingSecretsIAMTrustChainEvidenceLoader{
+		envelopes: []facts.Envelope{
+			secretsIAMReducerFact("coverage", factsidentity.SecretsIAMCoverageWarningFactKind, "aws-scope", "aws-gen", map[string]any{
+				"provider":       "aws_iam",
+				"warning_kind":   "scp_uncollected",
+				"source_state":   "unsupported",
+				"resource_scope": "aws_organizations",
+			}),
+		},
+		stats: SecretsIAMTrustChainLoadStats{SeedFactCount: 1, LoadedFactCount: 1},
+	}
+	writer := &recordingSecretsIAMTrustChainWriter{}
+	followUp := &recordingGraphProjectionFollowUpWriter{}
+	handler := SecretsIAMTrustChainHandler{
+		EvidenceLoader:          loader,
+		Writer:                  writer,
+		GraphProjectionFollowUp: followUp,
+	}
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
+		IntentID:     "intent-1",
+		ScopeID:      "aws-scope",
+		GenerationID: "aws-gen",
+		Domain:       reducercontract.DomainSecretsIAMTrustChain,
+		SourceSystem: "secrets_iam_posture",
+		Cause:        "secrets/IAM source facts observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if got, want := result.Status, reducercontract.ResultStatusSucceeded; got != want {
+		t.Fatalf("result.Status = %q, want %q", got, want)
+	}
+	if got, want := followUp.calls, 1; got != want {
+		t.Fatalf("follow-up calls = %d, want %d: the graph projection intent is never enqueued, so the projection stage never runs", got, want)
+	}
+	if got, want := followUp.scopeID, "aws-scope"; got != want {
+		t.Fatalf("follow-up scope_id = %q, want %q", got, want)
+	}
+	if got, want := followUp.generationID, "aws-gen"; got != want {
+		t.Fatalf("follow-up generation_id = %q, want %q", got, want)
+	}
+	if got, want := followUp.sourceSystem, "secrets_iam_posture"; got != want {
+		t.Fatalf("follow-up source_system = %q, want %q", got, want)
+	}
+}
+
+func TestSecretsIAMTrustChainHandlerSkipsFollowUpWhenUnwired(t *testing.T) {
+	t.Parallel()
+
+	loader := &recordingSecretsIAMTrustChainEvidenceLoader{
+		envelopes: []facts.Envelope{
+			secretsIAMReducerFact("coverage", factsidentity.SecretsIAMCoverageWarningFactKind, "aws-scope", "aws-gen", map[string]any{
+				"provider":       "aws_iam",
+				"warning_kind":   "scp_uncollected",
+				"source_state":   "unsupported",
+				"resource_scope": "aws_organizations",
+			}),
+		},
+		stats: SecretsIAMTrustChainLoadStats{SeedFactCount: 1, LoadedFactCount: 1},
+	}
+	writer := &recordingSecretsIAMTrustChainWriter{}
+	handler := SecretsIAMTrustChainHandler{EvidenceLoader: loader, Writer: writer}
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
+		IntentID:     "intent-1",
+		ScopeID:      "aws-scope",
+		GenerationID: "aws-gen",
+		Domain:       reducercontract.DomainSecretsIAMTrustChain,
+		SourceSystem: "secrets_iam_posture",
+		Cause:        "secrets/IAM source facts observed",
+	}); err != nil {
+		t.Fatalf("Handle() without a follow-up writer error = %v, want nil", err)
+	}
+}
+
+func TestSecretsIAMTrustChainHandlerFollowUpErrorFailsHandle(t *testing.T) {
+	t.Parallel()
+
+	loader := &recordingSecretsIAMTrustChainEvidenceLoader{
+		envelopes: []facts.Envelope{
+			secretsIAMReducerFact("coverage", factsidentity.SecretsIAMCoverageWarningFactKind, "aws-scope", "aws-gen", map[string]any{
+				"provider":       "aws_iam",
+				"warning_kind":   "scp_uncollected",
+				"source_state":   "unsupported",
+				"resource_scope": "aws_organizations",
+			}),
+		},
+		stats: SecretsIAMTrustChainLoadStats{SeedFactCount: 1, LoadedFactCount: 1},
+	}
+	writer := &recordingSecretsIAMTrustChainWriter{}
+	followUp := &recordingGraphProjectionFollowUpWriter{err: errTestFollowUpUnavailable}
+	handler := SecretsIAMTrustChainHandler{
+		EvidenceLoader:          loader,
+		Writer:                  writer,
+		GraphProjectionFollowUp: followUp,
+	}
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
+		IntentID:     "intent-1",
+		ScopeID:      "aws-scope",
+		GenerationID: "aws-gen",
+		Domain:       reducercontract.DomainSecretsIAMTrustChain,
+		SourceSystem: "secrets_iam_posture",
+		Cause:        "secrets/IAM source facts observed",
+	}); err == nil {
+		t.Fatal("Handle() with a failing follow-up writer error = nil, want non-nil")
+	}
 }
 
 type recordingSecretsIAMTrustChainWriter struct {

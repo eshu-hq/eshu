@@ -144,3 +144,88 @@ func TestAppendAdditiveDomainsSkipsSecretsIAMGraphProjectionWithoutWriter(t *tes
 		t.Fatal("secrets_iam_graph_projection registered without a wired writer")
 	}
 }
+
+// secretsIAMWiringTrustChainLoader is a non-nil trust-chain evidence loader;
+// these tests assert only which handler the registration carries, never what
+// a load returns.
+type secretsIAMWiringTrustChainLoader struct{}
+
+func (secretsIAMWiringTrustChainLoader) LoadSecretsIAMTrustChainEvidence(
+	context.Context,
+	reducercontract.Intent,
+) ([]facts.Envelope, secretsiam.SecretsIAMTrustChainLoadStats, error) {
+	return nil, secretsiam.SecretsIAMTrustChainLoadStats{}, nil
+}
+
+// secretsIAMWiringTrustChainWriter is a non-nil trust-chain writer. It
+// records nothing: this file proves the registration gate, and the family's
+// own tests in internal/reducer/secretsiam prove what the handler writes.
+type secretsIAMWiringTrustChainWriter struct{}
+
+func (secretsIAMWiringTrustChainWriter) WriteSecretsIAMTrustChainReadModels(
+	context.Context,
+	secretsiam.SecretsIAMTrustChainWrite,
+) (secretsiam.SecretsIAMTrustChainWriteResult, error) {
+	return secretsiam.SecretsIAMTrustChainWriteResult{}, nil
+}
+
+// secretsIAMWiringFollowUpWriter is a non-nil graph-projection follow-up
+// writer. It records nothing: this file proves the registration gate.
+type secretsIAMWiringFollowUpWriter struct{}
+
+func (secretsIAMWiringFollowUpWriter) EnqueueGraphProjectionFollowUp(
+	context.Context,
+	string,
+	string,
+	string,
+) error {
+	return nil
+}
+
+// TestAppendAdditiveDomainsWiresTrustChainFollowUp proves the trust-chain
+// handler carries the graph-projection follow-up writer exactly when it is
+// wired: without it no live component enqueues the projection intent, so a
+// generation would drain clean while its edges never materialize. A nil
+// follow-up must keep the handler working (flag-off posture, where the
+// projection domain is unregistered and a follow-up row would sit
+// unclaimed).
+func TestAppendAdditiveDomainsWiresTrustChainFollowUp(t *testing.T) {
+	t.Parallel()
+
+	withFollowUp := appendSecretsAndDriftAdditiveDomains(nil, DefaultHandlers{
+		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
+			SecretsIAMTrustChainEvidenceLoader: secretsIAMWiringTrustChainLoader{},
+			SecretsIAMTrustChainWriter:         secretsIAMWiringTrustChainWriter{},
+			SecretsIAMGraphProjectionFollowUp:  secretsIAMWiringFollowUpWriter{},
+		},
+	})
+	def, ok := secretsIAMWiringDomain(withFollowUp, DomainSecretsIAMTrustChain)
+	if !ok {
+		t.Fatal("secrets_iam_trust_chain not registered when loader, writer, and follow-up are wired")
+	}
+	handler, ok := def.Handler.(secretsiam.SecretsIAMTrustChainHandler)
+	if !ok {
+		t.Fatalf("handler type = %T, want SecretsIAMTrustChainHandler", def.Handler)
+	}
+	if handler.GraphProjectionFollowUp == nil {
+		t.Fatal("trust-chain handler dropped the wired graph-projection follow-up writer")
+	}
+
+	withoutFollowUp := appendSecretsAndDriftAdditiveDomains(nil, DefaultHandlers{
+		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
+			SecretsIAMTrustChainEvidenceLoader: secretsIAMWiringTrustChainLoader{},
+			SecretsIAMTrustChainWriter:         secretsIAMWiringTrustChainWriter{},
+		},
+	})
+	def, ok = secretsIAMWiringDomain(withoutFollowUp, DomainSecretsIAMTrustChain)
+	if !ok {
+		t.Fatal("secrets_iam_trust_chain not registered when follow-up is unwired")
+	}
+	handler, ok = def.Handler.(secretsiam.SecretsIAMTrustChainHandler)
+	if !ok {
+		t.Fatalf("handler type = %T, want SecretsIAMTrustChainHandler", def.Handler)
+	}
+	if handler.GraphProjectionFollowUp != nil {
+		t.Fatal("trust-chain handler carries a follow-up writer that was never wired")
+	}
+}

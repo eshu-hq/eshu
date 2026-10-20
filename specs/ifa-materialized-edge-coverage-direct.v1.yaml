@@ -48,14 +48,16 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# SIX OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# NINE OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
-# ec2_uses_profile, and s3_logs_to each carry a cataloged Odù, a registered
+# ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
+# and uses_vault_policy
+# each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
-# and -- since #6309 for the first two, since the #6228 fault halves for the
-# other four -- live ifa-determinism AND ifa-fault-injection matrices driving
-# the family
+# and -- since #6309 for the first two, since the #6228 fault halves and
+# slice A for the other seven -- live ifa-determinism AND ifa-fault-injection
+# matrices driving the family
 # and asserting its exact edge set. Their coverage rows below say so. Every
 # other family below still lacks the fourth condition, which is why every
 # other family below still carries waiver rows instead.
@@ -205,6 +207,54 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-s3-logs-to-family"
     proof_gate: ifa-fault-injection
+  # iam_escalation: fault-free baseline plus kill-worker and
+  # fail-graph-write recovery, all asserting the five-edge CAN_ESCALATE_TO
+  # exact set with identical graph digests (#6228 fault half).
+  - surface: "materialized_edges:iam_escalation"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-iam-escalation-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:iam_escalation"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-iam-escalation-family"
+    proof_gate: ifa-fault-injection
+  # authenticates_vault_role: fault-free baseline plus kill-worker and
+  # fail-graph-write recovery, all asserting the two-edge
+  # SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE exact set with identical graph
+  # digests (#6228 slice A). Both identity mechanisms (IRSA web-identity and
+  # EKS Pod Identity) resolve a Vault hop; the missing-Vault-hop,
+  # ghost-bound-role, wildcard-trust, wildcard-Vault-selector, and Deny lanes
+  # resolve to nothing.
+  - surface: "materialized_edges:authenticates_vault_role"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-authenticates-vault-role-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:authenticates_vault_role"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-authenticates-vault-role-family"
+    proof_gate: ifa-fault-injection
+  # uses_vault_policy: fault-free baseline plus fail-graph-write recovery
+  # (kill-less per arbiter verdict Option B on #6228; mid-handler
+  # kill/reclaim is gap #8539), all asserting the three-edge
+  # SECRETS_IAM_USES_VAULT_POLICY exact set with identical graph
+  # digests (#6228 slice A). The IRSA lane's role carries two token
+  # policies and the Pod Identity lane's role carries one; the
+  # missing-Vault-hop, ghost-bound-role, wildcard-trust,
+  # wildcard-Vault-selector, and Deny lanes resolve to nothing.
+  - surface: "materialized_edges:uses_vault_policy"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-uses-vault-policy-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:uses_vault_policy"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-uses-vault-policy-family"
+    proof_gate: ifa-fault-injection
 
 waivers:
   - surface: "materialized_edges:assumes_iam_role"
@@ -217,16 +267,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; DEFERRED 2026-09-27, will not be wired: the sole production writer path is DomainSecretsIAMGraphProjection, which stays unregistered unless ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED is set (ADR #1314 keeps repo/chart/operator defaults OFF). If wired later: collector-only cassette plus the full trust-chain -> graph-projection chain in one reducer with the flag on for that cell only; never reducer facts in a cassette, which bypass the analyzer that decides exact vs partial chains"
-  - surface: "materialized_edges:authenticates_vault_role"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteAuthenticatesVaultRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
-  - surface: "materialized_edges:authenticates_vault_role"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteAuthenticatesVaultRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
   - surface: "materialized_edges:built_from"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -307,16 +347,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteGrantsSecretReadEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_GRANTS_SECRET_READ; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
-  - surface: "materialized_edges:iam_escalation"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteIAMEscalationEdges -> cypher/iam_escalation_edge_writer.go merges CAN_ESCALATE_TO; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the iam-escalation live-cell change, and the live determinism matrix drives the family since that change (registry row 17, shared N={1,2,4} cell + post-delta exact-set assert). Stays waived: the fault-injection matrix does not drive it yet (no fault cells; see the row's cell_kind=custom note)"
-  - surface: "materialized_edges:iam_escalation"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteIAMEscalationEdges -> cypher/iam_escalation_edge_writer.go merges CAN_ESCALATE_TO; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the iam-escalation live-cell change (family stays waived: the fault-injection matrix does not drive it yet; determinism drives it since the iam-escalation live-cell change)"
   - surface: "materialized_edges:incident_routing_evidence"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -407,16 +437,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteUsesServiceAccountEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_SERVICE_ACCOUNT; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
-  - surface: "materialized_edges:uses_vault_policy"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteUsesVaultPolicyEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_VAULT_POLICY; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
-  - surface: "materialized_edges:uses_vault_policy"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteUsesVaultPolicyEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_USES_VAULT_POLICY; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
   - surface: "materialized_edges:workload_cloud_relationship"
     proof_gate: ifa-determinism
     issue: "#6228"

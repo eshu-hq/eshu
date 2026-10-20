@@ -90,9 +90,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    iamEscalationFamily,
-		OduName:   ifa.IAMEscalationFamilyOduName,
-		EdgeTypes: []string{"CAN_ESCALATE_TO"},
+		Family:     iamEscalationFamily,
+		OduName:    ifa.IAMEscalationFamilyOduName,
+		EdgeTypes:  []string{"CAN_ESCALATE_TO"},
+		LiveProven: true,
 	},
 	{
 		Family:     ec2UsesProfileFamily,
@@ -140,6 +141,18 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		Family:    usesServiceAccountFamily,
 		OduName:   ifa.UsesServiceAccountFamilyOduName,
 		EdgeTypes: []string{"SECRETS_IAM_USES_SERVICE_ACCOUNT"},
+	},
+	{
+		Family:     authenticatesVaultRoleFamily,
+		OduName:    ifa.AuthenticatesVaultRoleFamilyOduName,
+		EdgeTypes:  []string{"SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE"},
+		LiveProven: true,
+	},
+	{
+		Family:     usesVaultPolicyFamily,
+		OduName:    ifa.UsesVaultPolicyFamilyOduName,
+		EdgeTypes:  []string{"SECRETS_IAM_USES_VAULT_POLICY"},
+		LiveProven: true,
 	},
 }
 

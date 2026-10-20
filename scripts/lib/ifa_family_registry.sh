@@ -217,6 +217,13 @@ declare -gA IFA_FAMILY_DRIVE_FN=()
 declare -gA IFA_FAMILY_ASSERT_FN=()
 declare -gA IFA_FAMILY_CASSETTE_VAR=()
 declare -gA IFA_FAMILY_EXPECTED_VAR=()
+# SHARED_EXPECTED_VAR overrides the shared N-cell expectation for a family
+# whose edge type is also written by another shared_cell scope: the shared
+# DB then holds a superset of any one scope's exact set, so the loop must
+# assert the combined file while per-cell (fault) consumers keep the
+# scope-local EXPECTED_VAR. Unset for every other family; the dispatcher
+# falls back to EXPECTED_VAR explicitly below, never silently.
+declare -gA IFA_FAMILY_SHARED_EXPECTED_VAR=()
 declare -gA IFA_FAMILY_RETRY_BASELINE_VAR=()
 # FAULT_SHARED_DRIVE answers the one question the generic fault cells cannot
 # answer for themselves: is this family already produced by drive_all_cassettes
@@ -328,6 +335,7 @@ ifa_family_drive_fn()              { _ifa_family_registry_get IFA_FAMILY_DRIVE_F
 ifa_family_assert_fn()             { _ifa_family_registry_get IFA_FAMILY_ASSERT_FN             "$1" ifa_family_assert_fn; }
 ifa_family_cassette_var()          { _ifa_family_registry_get IFA_FAMILY_CASSETTE_VAR          "$1" ifa_family_cassette_var; }
 ifa_family_expected_var()          { _ifa_family_registry_get IFA_FAMILY_EXPECTED_VAR          "$1" ifa_family_expected_var; }
+ifa_family_shared_expected_var()   { _ifa_family_registry_get IFA_FAMILY_SHARED_EXPECTED_VAR   "$1" ifa_family_shared_expected_var; }
 ifa_family_handler_go_file()       { _ifa_family_registry_get IFA_FAMILY_HANDLER_GO_FILE       "$1" ifa_family_handler_go_file; }
 ifa_family_retry_baseline_var()    { _ifa_family_registry_get IFA_FAMILY_RETRY_BASELINE_VAR    "$1" ifa_family_retry_baseline_var; }
 ifa_family_fault_shared_drive()     { _ifa_family_registry_get IFA_FAMILY_FAULT_SHARED_DRIVE   "$1" ifa_family_fault_shared_drive; }
@@ -364,12 +372,20 @@ ifa_family_registry_drive() {
 
 ifa_family_registry_assert() {
 	local family="$1" n="$2" bin_dir="$3"
-	local assert_fn expected_var expected
+	local assert_fn expected_var shared_var expected
 	assert_fn="$(ifa_family_assert_fn "${family}")" || return 1
 	expected_var="$(ifa_family_expected_var "${family}")" || return 1
 	if [[ -z "${assert_fn}" || -z "${expected_var}" ]]; then
 		printf 'ifa_family_registry_assert: %s has no assert_fn/expected_var registered (not a determinism-loop family)\n' "${family}" >&2
 		return 1
+	fi
+	# A set SHARED_EXPECTED_VAR wins for the shared cell (see its declaration
+	# comment); otherwise the scope-local EXPECTED_VAR applies. The override
+	# lookup failure is captured, never tested inline, so a malformed row
+	# still fails closed here rather than silently asserting the local file.
+	shared_var="$(ifa_family_shared_expected_var "${family}" 2>/dev/null)" || shared_var=""
+	if [[ -n "${shared_var}" ]]; then
+		expected_var="${shared_var}"
 	fi
 	expected="${!expected_var}"
 	if [[ "${family}" == "sql_relationships" ]]; then

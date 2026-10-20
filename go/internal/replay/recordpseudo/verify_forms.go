@@ -58,6 +58,14 @@ const (
 // service principal such as states.amazonaws.com.
 var servicePrincipalRe = regexp.MustCompile(`^[a-z0-9-]+\.amazonaws\.com$`)
 
+// eksPodIdentityPrincipal is the exact EKS Pod Identity service principal.
+// eks.amazonaws.com is one label directly under amazonaws.com, so AWS owns
+// the whole zone; this principal is AWS-published (matched literally by the
+// reducer's trust-chain resolution) and carries no customer identity. It is
+// the gate's pods\.eks\.amazonaws\.com branch verbatim: an exact match, so
+// no other two-label host under amazonaws.com is admitted.
+const eksPodIdentityPrincipal = "pods.eks.amazonaws.com"
+
 // awsEndpointRe is a customer endpoint under amazonaws.com as record mode
 // writes it: one or more h-pseudonym labels, then only AWS-owned labels (a
 // region or a listed service word), then the single AWS-owned label
@@ -114,7 +122,7 @@ func ipv6Allowed(token string) bool   { return ipv6AllowRe.MatchString(token) }
 // hostnameAllowed reports a documented host form. host is the lowercased
 // candidate and original the candidate as it appears in the cassette.
 func hostnameAllowed(host, original string, produced Set) bool {
-	if reservedHostRe.MatchString(host) || googleAPIsRe.MatchString(host) || servicePrincipalRe.MatchString(host) || awsRegionalEndpointRe.MatchString(host) || microsoftNSRe.MatchString(host) || corpusZoneRe.MatchString(host) {
+	if host == eksPodIdentityPrincipal || reservedHostRe.MatchString(host) || googleAPIsRe.MatchString(host) || servicePrincipalRe.MatchString(host) || awsRegionalEndpointRe.MatchString(host) || microsoftNSRe.MatchString(host) || corpusZoneRe.MatchString(host) {
 		return true
 	}
 	if _, ok := publicHostsList[host]; ok {

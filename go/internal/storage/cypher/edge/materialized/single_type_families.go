@@ -83,7 +83,7 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  sourcecypher.RetractRationaleEdgesCypher,
 		IdentityCypher: sourcecypher.BatchCanonicalRationaleExplainsEdgeCypher,
 	},
-	// The fourteen DIRECT-materialization families registered here (#6228;
+	// The fifteen DIRECT-materialization families registered here (#6228;
 	// #8359 for semantic_entity_containment).
 	// Unlike every entry above them, these reach the graph straight from their
 	// own reducer port with no shared-projection intent row in between, so
@@ -106,12 +106,13 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	//     which is NOT a graph relationship type; the type its template MERGEs
 	//     is USES.
 	//
-	// Since #6309 six of the fourteen carry coverage rows:
+	// Since #6309 nine of the fifteen carry coverage rows:
 	// kubernetes_namespace_environment, iam_instance_profile_role,
-	// iam_can_assume, iam_can_perform, ec2_uses_profile, and s3_logs_to.
+	// iam_can_assume, iam_can_perform, ec2_uses_profile, s3_logs_to,
+	// iam_escalation, authenticates_vault_role, and uses_vault_policy.
 	// Registering a family here makes `eshu-ifa assert-edges -domain <family>`
 	// addressable and lets its vacuity guard resolve; it does not assert that
-	// any live matrix drives it. workload_cloud_relationship, iam_escalation,
+	// any live matrix drives it. workload_cloud_relationship,
 	// kubernetes_correlation, code_taint_evidence, semantic_entity_containment,
 	// security_group_rule_endpoint, s3_external_principal_grant, and
 	// uses_service_account still carry their waiver rows in
@@ -346,5 +347,40 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		EdgeTypes:      map[string]string{"SECRETS_IAM_USES_SERVICE_ACCOUNT": "workload-to-service-account attachment (CanonicalSecretsIAMUsesServiceAccountEdgeUpsertCypher)"},
 		RetractCypher:  iam.RetractSecretsIAMUsesServiceAccountEdgeCypher,
 		IdentityCypher: iam.CanonicalSecretsIAMUsesServiceAccountEdgeUpsertCypher,
+	},
+	// authenticates_vault_role is an evidenceNodeDetach family (#6228 slice
+	// A). Its edges hang off SecretsIAMVaultAuthRole nodes only the secrets
+	// graph writer MERGEs (pinned by the sole-creator census in
+	// go/internal/storage/cypher), so the retract reaps the role nodes with
+	// DETACH DELETE and the edges cascade. IdentityCypher holds the role
+	// NODE upsert, the one template that MERGEs the evidence label, so the
+	// drift guard can derive it; the edge type itself is derived from the
+	// held edge upsert the RetractKind arm reads, never from the literal
+	// declared here. The edge template MERGEs on its two endpoint nodes
+	// alone (both are MATCHed, never merged), so the identity scan yields
+	// nothing.
+	"authenticates_vault_role": {
+		EdgeTypes:      map[string]string{"SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE": "service-account to Vault-role authentication (SecretsIAMAuthenticatesVaultRoleEdgeUpsertCypher in cloud/aws/iam/secrets_graph_writer.go)"},
+		RetractKind:    retractKindEvidenceNodeDetach,
+		RetractCypher:  iam.SecretsIAMVaultAuthRoleNodeRetractCypher,
+		IdentityCypher: iam.SecretsIAMVaultAuthRoleNodeUpsertCypher,
+	},
+	// uses_vault_policy is an evidenceNodeDetach family (#6228 slice A).
+	// Its edges hang off SecretsIAMVaultPolicy nodes only the secrets
+	// graph writer MERGEs (pinned by the sole-creator census in
+	// go/internal/storage/cypher), so the retract reaps the policy nodes
+	// with DETACH DELETE and the edges cascade. IdentityCypher holds the
+	// policy NODE upsert, the one template that MERGEs the evidence
+	// label, so the drift guard can derive it; the edge type itself is
+	// derived from the held edge upsert the RetractKind arm reads, never
+	// from the literal declared here. The edge template MERGEs on its two
+	// endpoint nodes alone (both are MATCHed, never merged), so the
+	// identity scan yields nothing.
+	"uses_vault_policy": {
+		// #nosec G101 -- registry entry: the key is a graph relationship type and the description names a Cypher-template identifier, not a credential
+		EdgeTypes:      map[string]string{"SECRETS_IAM_USES_VAULT_POLICY": "Vault-role to Vault-policy use (SecretsIAMUsesVaultPolicyEdgeUpsertCypher in cloud/aws/iam/secrets_graph_writer.go)"},
+		RetractKind:    retractKindEvidenceNodeDetach,
+		RetractCypher:  iam.SecretsIAMVaultPolicyNodeRetractCypher,
+		IdentityCypher: iam.SecretsIAMVaultPolicyNodeUpsertCypher,
 	},
 }

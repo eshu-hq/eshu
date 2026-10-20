@@ -21,9 +21,10 @@ func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handle
 	if handlers.SecretsIAMTrustChainEvidenceLoader != nil && handlers.SecretsIAMTrustChainWriter != nil {
 		secretsIAM := secretsiam.TrustChainDomainDefinition()
 		secretsIAM.Handler = secretsiam.SecretsIAMTrustChainHandler{
-			EvidenceLoader: handlers.SecretsIAMTrustChainEvidenceLoader,
-			Writer:         handlers.SecretsIAMTrustChainWriter,
-			Instruments:    handlers.Instruments,
+			EvidenceLoader:          handlers.SecretsIAMTrustChainEvidenceLoader,
+			Writer:                  handlers.SecretsIAMTrustChainWriter,
+			GraphProjectionFollowUp: handlers.SecretsIAMGraphProjectionFollowUp,
+			Instruments:             handlers.Instruments,
 		}
 		definitions = append(definitions, secretsIAM)
 	}

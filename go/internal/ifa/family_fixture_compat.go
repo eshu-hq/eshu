@@ -24,6 +24,7 @@ type (
 
 const (
 	CloudResourceFamilyOduName                  = familyodu.CloudResourceFamilyOduName
+	AuthenticatesVaultRoleFamilyOduName         = familyodu.AuthenticatesVaultRoleFamilyOduName
 	CodeownersFamilyOduName                     = familyodu.CodeownersFamilyOduName
 	CodeCallFamilyOduName                       = familyodu.CodeCallFamilyOduName
 	ContentEntityFactKind                       = familyodu.ContentEntityFactKind
@@ -52,6 +53,7 @@ const (
 	SubmodulePinFamilyOduName                   = familyodu.SubmodulePinFamilyOduName
 	SymbolRuntimeFamilyOduName                  = familyodu.SymbolRuntimeFamilyOduName
 	UsesServiceAccountFamilyOduName             = familyodu.UsesServiceAccountFamilyOduName
+	UsesVaultPolicyFamilyOduName                = familyodu.UsesVaultPolicyFamilyOduName
 	WorkloadCloudRelationshipFamilyOduName      = familyodu.WorkloadCloudRelationshipFamilyOduName
 	WorkloadDependencyFamilyOduName             = familyodu.WorkloadDependencyFamilyOduName
 )
@@ -153,6 +155,18 @@ func WorkloadDependencyFamilyCassetteFullPath(repoRoot string) string {
 
 // IAMCanAssumeFamilyOdu returns the cataloged IAM can-assume family Odù.
 func IAMCanAssumeFamilyOdu() CatalogOdu { return familyodu.IAMCanAssumeFamilyOdu() }
+
+// AuthenticatesVaultRoleFamilyOdu returns the cataloged authenticates vault
+// role family Odù.
+func AuthenticatesVaultRoleFamilyOdu() CatalogOdu {
+	return familyodu.AuthenticatesVaultRoleFamilyOdu()
+}
+
+// UsesVaultPolicyFamilyOdu returns the cataloged uses vault policy family
+// Odù.
+func UsesVaultPolicyFamilyOdu() CatalogOdu {
+	return familyodu.UsesVaultPolicyFamilyOdu()
+}
 
 // IAMCanPerformFamilyOdu returns the cataloged IAM can-perform family Odù.
 func IAMCanPerformFamilyOdu() CatalogOdu { return familyodu.IAMCanPerformFamilyOdu() }

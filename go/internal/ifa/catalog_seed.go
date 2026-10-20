@@ -69,6 +69,8 @@ var catalogSeed = []familyodu.CatalogOdu{
 	familyodu.SecurityGroupReachabilityFamilyOdu(),
 	familyodu.S3ExternalPrincipalGrantFamilyOdu(),
 	familyodu.UsesServiceAccountFamilyOdu(),
+	familyodu.AuthenticatesVaultRoleFamilyOdu(),
+	familyodu.UsesVaultPolicyFamilyOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds

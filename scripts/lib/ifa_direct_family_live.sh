@@ -4,7 +4,8 @@
 # (#6228; #8359 for the last): kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # workload_cloud_relationship, iam_escalation, ec2_uses_profile, s3_logs_to,
-# kubernetes_correlation, and semantic_entity_containment.
+# kubernetes_correlation, and semantic_entity_containment. (Vault families:
+# scripts/lib/ifa_vault_family_live.sh, split under the tooling line cap.)
 #
 # SOURCED BY scripts/verify-ifa-determinism.sh AND, since #6309, the fault
 # gate through scripts/lib/ifa_fault_injection_sources.sh — always paired

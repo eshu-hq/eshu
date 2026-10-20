@@ -87,6 +87,24 @@ s3_logs_to_edge_operation_match="MERGE (source)-[rel:LOGS_TO]->(target)"
 # would never fire. It is NOT AWS_RELATIONSHIP, which is statement metadata
 # beside the query.
 cloud_resource_edge_operation_match="MERGE (source)-[rel:AWS_lambda_function_uses_execution_role]->(target)"
+# The CAN_ESCALATE_TO MERGE anchor cell_failgraphwrite_iam_escalation (#6228
+# fault half) targets:
+# go/internal/storage/cypher/cloud/aws/iam/escalation_edge_writer.go:42 bakes
+# the static token into the template (no %s), so the anchor carries the
+# literal. It is NOT IAM_ESCALATION, which appears nowhere in code.
+iam_escalation_edge_operation_match="MERGE (p)-[rel:CAN_ESCALATE_TO]->(t)"
+# The SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE MERGE anchor
+# cell_failgraphwrite_authenticates_vault_role (#6228 slice A) targets:
+# go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go:100 bakes
+# the static token into the template (no %s), so the anchor carries the
+# literal. None of the port-suffix labels appears in code.
+authenticates_vault_role_edge_operation_match="MERGE (s)-[rel:SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE]->(v)"
+# The SECRETS_IAM_USES_VAULT_POLICY MERGE anchor
+# cell_failgraphwrite_uses_vault_policy (#6228 slice A, kill-less pair) targets:
+# go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go:111 bakes
+# the static token into the template (no %s), so the anchor carries the
+# literal. None of the port-suffix labels appears in code.
+uses_vault_policy_edge_operation_match="MERGE (v)-[rel:SECRETS_IAM_USES_VAULT_POLICY]->(p)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical_documentation_edges.go's

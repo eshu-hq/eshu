@@ -157,6 +157,18 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.CloudResourceFamilyCassetteFullPath,
 			load:         ifa.LoadCloudResourceFamilyOdu,
 		},
+		{
+			name:         ifa.AuthenticatesVaultRoleFamilyOduName,
+			compiled:     ifa.AuthenticatesVaultRoleFamilyOdu,
+			cassettePath: ifa.AuthenticatesVaultRoleFamilyCassetteFullPath,
+			load:         ifa.LoadAuthenticatesVaultRoleFamilyOdu,
+		},
+		{
+			name:         ifa.UsesVaultPolicyFamilyOduName,
+			compiled:     ifa.UsesVaultPolicyFamilyOdu,
+			cassettePath: ifa.UsesVaultPolicyFamilyCassetteFullPath,
+			load:         ifa.LoadUsesVaultPolicyFamilyOdu,
+		},
 	}
 }
 

@@ -38,7 +38,7 @@ SET n.scope_id = row.scope_id,
     n.confidence = row.confidence`
 
 	// #nosec G101 -- Cypher template; const name contains "Secret"/"Vault" but the value is a parameterized graph-write query, not a credential literal
-	secretsIAMVaultAuthRoleNodeUpsertCypher = `UNWIND $rows AS row
+	SecretsIAMVaultAuthRoleNodeUpsertCypher = `UNWIND $rows AS row
 MERGE (n:SecretsIAMVaultAuthRole {uid: row.uid})
 SET n.vault_mount_join_key = row.vault_mount_join_key,
     n.scope_id = row.scope_id,
@@ -47,7 +47,7 @@ SET n.vault_mount_join_key = row.vault_mount_join_key,
     n.confidence = row.confidence`
 
 	// #nosec G101 -- Cypher template; const name contains "Secret"/"Policy" but the value is a parameterized graph-write query, not a credential literal
-	secretsIAMVaultPolicyNodeUpsertCypher = `UNWIND $rows AS row
+	SecretsIAMVaultPolicyNodeUpsertCypher = `UNWIND $rows AS row
 MERGE (n:SecretsIAMVaultPolicy {uid: row.uid})
 SET n.scope_id = row.scope_id,
     n.generation_id = row.generation_id,
@@ -94,7 +94,7 @@ SET rel.assume_mode = row.assume_mode,
     rel.evidence_fact_ids = row.evidence_fact_ids`
 
 	// #nosec G101 -- Cypher template; const name contains "Secret"/"Vault" but the value is a parameterized graph-write query, not a credential literal
-	secretsIAMAuthenticatesVaultRoleEdgeUpsertCypher = `UNWIND $rows AS row
+	SecretsIAMAuthenticatesVaultRoleEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid})
 MATCH (v:SecretsIAMVaultAuthRole {uid: row.vault_auth_role_uid})
 MERGE (s)-[rel:SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE]->(v)
@@ -105,7 +105,7 @@ SET rel.scope_id = row.scope_id,
     rel.evidence_fact_ids = row.evidence_fact_ids`
 
 	// #nosec G101 -- Cypher template; const name contains "Secret"/"Policy" but the value is a parameterized graph-write query, not a credential literal
-	secretsIAMUsesVaultPolicyEdgeUpsertCypher = `UNWIND $rows AS row
+	SecretsIAMUsesVaultPolicyEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (v:SecretsIAMVaultAuthRole {uid: row.vault_auth_role_uid})
 MATCH (p:SecretsIAMVaultPolicy {uid: row.vault_policy_uid})
 MERGE (v)-[rel:SECRETS_IAM_USES_VAULT_POLICY]->(p)
@@ -140,12 +140,12 @@ WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
 	// #nosec G101 -- Cypher retract template; const name contains "Secret"/"Vault" but the value is a scoped DETACH DELETE query with bound parameters, not a credential literal
-	secretsIAMVaultAuthRoleNodeRetractCypher = `MATCH (n:SecretsIAMVaultAuthRole)
+	SecretsIAMVaultAuthRoleNodeRetractCypher = `MATCH (n:SecretsIAMVaultAuthRole)
 WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
 	// #nosec G101 -- Cypher retract template; const name contains "Secret"/"Policy" but the value is a scoped DETACH DELETE query with bound parameters, not a credential literal
-	secretsIAMVaultPolicyNodeRetractCypher = `MATCH (n:SecretsIAMVaultPolicy)
+	SecretsIAMVaultPolicyNodeRetractCypher = `MATCH (n:SecretsIAMVaultPolicy)
 WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source
 DETACH DELETE n`
 
@@ -210,12 +210,12 @@ func (w *SecretsIAMGraphWriter) WriteServiceAccountNodes(ctx context.Context, ro
 
 // WriteVaultAuthRoleNodes upserts SecretsIAMVaultAuthRole nodes.
 func (w *SecretsIAMGraphWriter) WriteVaultAuthRoleNodes(ctx context.Context, rows []map[string]any) error {
-	return w.writeBatched(ctx, secretsIAMVaultAuthRoleNodeUpsertCypher, secretsIAMNodeVaultAuthRole, rows)
+	return w.writeBatched(ctx, SecretsIAMVaultAuthRoleNodeUpsertCypher, secretsIAMNodeVaultAuthRole, rows)
 }
 
 // WriteVaultPolicyNodes upserts SecretsIAMVaultPolicy nodes.
 func (w *SecretsIAMGraphWriter) WriteVaultPolicyNodes(ctx context.Context, rows []map[string]any) error {
-	return w.writeBatched(ctx, secretsIAMVaultPolicyNodeUpsertCypher, secretsIAMNodeVaultPolicy, rows)
+	return w.writeBatched(ctx, SecretsIAMVaultPolicyNodeUpsertCypher, secretsIAMNodeVaultPolicy, rows)
 }
 
 // WriteSecretMetadataPathNodes upserts SecretsIAMSecretMetadataPath nodes.
@@ -240,12 +240,12 @@ func (w *SecretsIAMGraphWriter) WriteAssumesIAMRoleEdges(ctx context.Context, ro
 
 // WriteAuthenticatesVaultRoleEdges upserts ServiceAccount->VaultAuthRole edges.
 func (w *SecretsIAMGraphWriter) WriteAuthenticatesVaultRoleEdges(ctx context.Context, rows []map[string]any) error {
-	return w.writeBatched(ctx, secretsIAMAuthenticatesVaultRoleEdgeUpsertCypher, "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE", rows)
+	return w.writeBatched(ctx, SecretsIAMAuthenticatesVaultRoleEdgeUpsertCypher, "SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE", rows)
 }
 
 // WriteUsesVaultPolicyEdges upserts VaultAuthRole->VaultPolicy edges.
 func (w *SecretsIAMGraphWriter) WriteUsesVaultPolicyEdges(ctx context.Context, rows []map[string]any) error {
-	return w.writeBatched(ctx, secretsIAMUsesVaultPolicyEdgeUpsertCypher, "SECRETS_IAM_USES_VAULT_POLICY", rows)
+	return w.writeBatched(ctx, SecretsIAMUsesVaultPolicyEdgeUpsertCypher, "SECRETS_IAM_USES_VAULT_POLICY", rows)
 }
 
 // WriteGrantsSecretReadEdges upserts VaultPolicy->SecretMetadataPath edges.
@@ -277,8 +277,8 @@ func (w *SecretsIAMGraphWriter) RetractScope(
 		cypher string
 	}{
 		{secretsIAMNodeServiceAccount, secretsIAMServiceAccountNodeRetractCypher},
-		{secretsIAMNodeVaultAuthRole, secretsIAMVaultAuthRoleNodeRetractCypher},
-		{secretsIAMNodeVaultPolicy, secretsIAMVaultPolicyNodeRetractCypher},
+		{secretsIAMNodeVaultAuthRole, SecretsIAMVaultAuthRoleNodeRetractCypher},
+		{secretsIAMNodeVaultPolicy, SecretsIAMVaultPolicyNodeRetractCypher},
 		{secretsIAMNodeSecretMetadataPath, secretsIAMSecretMetadataPathNodeRetractCypher},
 		{"SECRETS_IAM_USES_SERVICE_ACCOUNT", secretsIAMUsesServiceAccountEdgeRetractCypher},
 	}

@@ -29,6 +29,7 @@ inheritance_lib="${repo_root}/scripts/lib/ifa_inheritance_live.sh"
 shell_exec_lib="${repo_root}/scripts/lib/ifa_shell_exec_live.sh"
 symbol_runtime_lib="${repo_root}/scripts/lib/ifa_symbol_runtime_live.sh"
 direct_family_lib="${repo_root}/scripts/lib/ifa_direct_family_live.sh"; direct_family_cloud_lib="${repo_root}/scripts/lib/ifa_direct_family_live_cloud_resource.sh"  # packed for the 500-line cap
+vault_family_lib="${repo_root}/scripts/lib/ifa_vault_family_live.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 require_helpers_lib="${repo_root}/scripts/lib/test-ifa-determinism-require-helpers.sh"
 family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"

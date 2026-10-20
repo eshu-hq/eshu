@@ -184,6 +184,28 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_cloud_resource
 	cell_killworker_cloud_resource
 	cell_failgraphwrite_cloud_resource
+	# iam_escalation (#6228 fault half): seventh direct-materialization
+	# family in this gate, same family-scoped-baseline-plus-two shape. Its
+	# baseline writes digests[baseline_iam_escalation], so the trio must stay
+	# co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_iam_escalation
+	cell_killworker_iam_escalation
+	cell_failgraphwrite_iam_escalation
+	# authenticates_vault_role (#6228 slice A): eighth direct-materialization
+	# family in this gate, same family-scoped-baseline-plus-two shape. Its
+	# baseline writes digests[baseline_authenticates_vault_role], so the trio
+	# must stay co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_authenticates_vault_role
+	cell_killworker_authenticates_vault_role
+	cell_failgraphwrite_authenticates_vault_role
+	# uses_vault_policy (#6228 slice A): ninth direct-materialization
+	# family in this gate, kill-less per arbiter verdict Option B on #6228
+	# (mid-handler kill/reclaim is a named, tracked gap, #8539). Baseline
+	# plus the family's own MERGE-anchored graph-write recovery cell; its
+	# baseline writes digests[baseline_uses_vault_policy], so the pair
+	# must stay co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_uses_vault_policy
+	cell_failgraphwrite_uses_vault_policy
 	cell_baseline_inheritance
 	cell_killworker_inheritance
 	cell_failgraphwrite_inheritance
@@ -242,6 +264,9 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_ec2_uses_profile cell_killworker_ec2_uses_profile cell_failgraphwrite_ec2_uses_profile"
 	"cell_baseline_s3_logs_to cell_killworker_s3_logs_to cell_failgraphwrite_s3_logs_to"
 	"cell_baseline_cloud_resource cell_killworker_cloud_resource cell_failgraphwrite_cloud_resource"
+	"cell_baseline_iam_escalation cell_killworker_iam_escalation cell_failgraphwrite_iam_escalation"
+	"cell_baseline_authenticates_vault_role cell_killworker_authenticates_vault_role cell_failgraphwrite_authenticates_vault_role"
+	"cell_baseline_uses_vault_policy cell_failgraphwrite_uses_vault_policy"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
 	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"

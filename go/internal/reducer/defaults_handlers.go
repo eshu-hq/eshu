@@ -241,6 +241,13 @@ type SupplyChainSecurityHandlers struct {
 	// privilege-posture, secret-access-path, and posture-gap reducer facts.
 	SecretsIAMTrustChainWriter secretsiam.SecretsIAMTrustChainWriter
 
+	// SecretsIAMGraphProjectionFollowUp enqueues the graph-projection
+	// follow-up intent after trust-chain read models commit. Nil skips the
+	// enqueue, which is the flag-off posture: without a registered
+	// projection domain the row would sit unclaimed. Wire it exactly when
+	// SecretsIAMGraphWriter is wired.
+	SecretsIAMGraphProjectionFollowUp SecretsIAMGraphProjectionFollowUpWriter
+
 	// SecretsIAMGraphWriter projects exact reducer-owned secrets/IAM
 	// read-model rows (identity_trust_chain, secret_access_path) into the four
 	// SecretsIAM* node families and the five resolvable SECRETS_IAM_* edge
