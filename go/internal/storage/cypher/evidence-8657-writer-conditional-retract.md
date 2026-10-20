@@ -129,16 +129,16 @@ the error text names all four and points at the `empty_scope` marker
 `db.operation=canonical_count_probe`. No new span name, worker, queue
 domain, runtime knob, or backend branch.
 
-## What Remains After #8670 Lands
+## What Remains (post-#8670 rebase, done-state recorded)
 
-1. Wire `declaredEmptyScopeForGuard` to `mat.DeclaredEmptyScope`
-   (`TODO(#8668)` in `node_writer_fileless_guard.go`); the
-   guard-level declared-empty path is already pinned by
-   `TestFilelessWipeGuardHonorsDeclaredEmptyScope`.
-2. Merge-note: this lane adds `FileIntent` beside #8670's
-   `DeclaredEmptyScope` on `CanonicalMaterialization` plus one line in
-   `builder.go`; expect an adjacent-hunk conflict on rebase, no semantic
-   overlap (this lane never reads or writes the marker key).
+1. DONE: `declaredEmptyScopeForGuard` reads `mat.DeclaredEmptyScope`
+   (no `TODO(#8668)` left); seam pinned by
+   `TestDeclaredEmptyScopeForGuardReadsMaterialization` plus the
+   guard-level `TestFilelessWipeGuardHonorsDeclaredEmptyScope`.
+2. DONE: rebased onto post-#8670 main; the predicted adjacent-hunk
+   conflict on `materialization.go` resolved by keeping both
+   `DeclaredEmptyScope` and `FileIntent` (plus gofmt realignment).
+   This lane still never reads or writes the marker key itself.
 3. NornicDB terminal count: the `PhaseGroupExecutor.ExecuteCountProbe`
    forward is in place, but no NornicDB terminal implements the seam yet,
    so that path reports `probe_unsupported` and proceeds (measured: the

@@ -141,14 +141,27 @@ func TestFilelessWipeGuardProceedsWhenZeroPriors(t *testing.T) {
 	}
 }
 
+// executeOnlyFilelessExecutor is a write-only Executor double without the
+// CountProbeExecutor seam: the production shape on chains whose terminal
+// executor predates it. The guard must take the probe_unsupported exit.
+type executeOnlyFilelessExecutor struct{ writes int }
+
+func (e *executeOnlyFilelessExecutor) Execute(context.Context, Statement) error {
+	e.writes++
+	return nil
+}
+
 func TestFilelessWipeGuardProceedsWhenProbeUnsupported(t *testing.T) {
 	t.Parallel()
 
-	exec := &filelessGuardFakeExecutor{hasCount: false}
+	exec := &executeOnlyFilelessExecutor{}
 	writer := NewCanonicalNodeWriter(exec, 500, nil)
 
+	if outcome, err := checkFilelessWipeGuard(context.Background(), exec, filelessGuardMat(), false); err != nil || outcome != filelessWipeProbeUnsupported {
+		t.Fatalf("checkFilelessWipeGuard() = (%q, %v), want (probe_unsupported, nil); a chain without the count seam must take the fail-safe exit", outcome, err)
+	}
 	if err := writer.Write(context.Background(), filelessGuardMat()); err != nil {
-		t.Fatalf("Write() error = %v, want nil; an unknown probe is never zero rows (ProbeExecutor contract), so the retract runs as before", err)
+		t.Fatalf("Write() error = %v, want nil; an unprobed backend runs the retract exactly as before", err)
 	}
 	if exec.writes == 0 {
 		t.Fatal("writes = 0, want the status-quo retract path on an unprobed backend")
