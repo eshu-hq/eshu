@@ -27,40 +27,22 @@ func validatePilotResponse(expect string, body []byte) error {
 		return validateMCPSearchResponse(payload, expect)
 	case "relationships_catalog":
 		return validateRelationshipCatalog(payload)
+	case "mcp_hosted_readiness", "mcp_ingesters_list", "mcp_operator_controlplane":
+		structured, err := validateStatusMCPEnvelope(payload)
+		if err != nil {
+			return err
+		}
+		return validateStatusMCPIdentity(expect, structured)
 	case "mcp_index_status":
-		if payload["jsonrpc"] != "2.0" || payload["id"] != float64(1) || payload["error"] != nil {
-			return fmt.Errorf("MCP response identity or error mismatch")
-		}
-		result, ok := payload["result"].(map[string]any)
-		if !ok || result["isError"] == true {
-			return fmt.Errorf("MCP tool result missing or failed")
-		}
-		structured, ok := result["structuredContent"].(map[string]any)
-		if !ok {
-			return fmt.Errorf("MCP structured content missing")
+		result, structured, err := validateMCPEnvelopeHead(payload)
+		if err != nil {
+			return err
 		}
 		if err := validateIndexStatus(structured); err != nil {
 			return err
 		}
-		content, ok := result["content"].([]any)
-		if !ok || len(content) != 2 {
-			return fmt.Errorf("MCP tool content missing summary or resource")
-		}
-		resourceBlock, ok := content[1].(map[string]any)
-		if !ok || resourceBlock["type"] != "resource" {
-			return fmt.Errorf("MCP resource block missing")
-		}
-		resource, ok := resourceBlock["resource"].(map[string]any)
-		if !ok {
-			return fmt.Errorf("MCP resource missing")
-		}
-		resourceText, ok := resource["text"].(string)
-		if !ok {
-			return fmt.Errorf("MCP resource text missing")
-		}
-		var duplicate map[string]any
-		if json.Unmarshal([]byte(resourceText), &duplicate) != nil || !reflect.DeepEqual(duplicate, structured) {
-			return fmt.Errorf("MCP resource and structured payload differ")
+		if err := validateMCPContentMirror(result, structured); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("unknown pilot expectation %q", expect)
@@ -71,6 +53,97 @@ func validatePilotResponse(expect string, body []byte) error {
 func object(value any) bool {
 	_, ok := value.(map[string]any)
 	return ok
+}
+
+// validateStatusMCPEnvelope checks the tools/call envelope shared by the
+// #7009 status-proxy MCP pilots: the JSON-RPC identity, a non-error result,
+// structured content, the two-block content shape, and the resource text
+// mirroring structured content. A successful status with an empty or
+// unrelated payload is not a latency proof.
+func validateStatusMCPEnvelope(payload map[string]any) (map[string]any, error) {
+	result, structured, err := validateMCPEnvelopeHead(payload)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateMCPContentMirror(result, structured); err != nil {
+		return nil, err
+	}
+	return structured, nil
+}
+
+// validateMCPEnvelopeHead checks the tools/call head shared by every MCP
+// pilot: the JSON-RPC identity, a non-error result, and structured content.
+func validateMCPEnvelopeHead(payload map[string]any) (map[string]any, map[string]any, error) {
+	if payload["jsonrpc"] != "2.0" || payload["id"] != float64(1) || payload["error"] != nil {
+		return nil, nil, fmt.Errorf("MCP response identity or error mismatch")
+	}
+	result, ok := payload["result"].(map[string]any)
+	if !ok || result["isError"] == true {
+		return nil, nil, fmt.Errorf("MCP tool result missing or failed")
+	}
+	structured, ok := result["structuredContent"].(map[string]any)
+	if !ok {
+		return nil, nil, fmt.Errorf("MCP structured content missing")
+	}
+	return result, structured, nil
+}
+
+// validateMCPContentMirror checks the two-block content shape and that the
+// resource text mirrors structured content.
+func validateMCPContentMirror(result, structured map[string]any) error {
+	content, ok := result["content"].([]any)
+	if !ok || len(content) != 2 {
+		return fmt.Errorf("MCP tool content missing summary or resource")
+	}
+	resourceBlock, ok := content[1].(map[string]any)
+	if !ok || resourceBlock["type"] != "resource" {
+		return fmt.Errorf("MCP resource block missing")
+	}
+	resource, ok := resourceBlock["resource"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("MCP resource missing")
+	}
+	resourceText, ok := resource["text"].(string)
+	if !ok {
+		return fmt.Errorf("MCP resource text missing")
+	}
+	var duplicate map[string]any
+	if json.Unmarshal([]byte(resourceText), &duplicate) != nil || !reflect.DeepEqual(duplicate, structured) {
+		return fmt.Errorf("MCP resource and structured payload differ")
+	}
+	return nil
+}
+
+// validateStatusMCPIdentity checks the route identity inside structured
+// content of a status-proxy MCP pilot: the seeded corpus serves exactly one
+// repository ingester, the readiness state is one of the two builder states,
+// and the control plane carries its queue and reducer-domain read model.
+func validateStatusMCPIdentity(expect string, structured map[string]any) error {
+	switch expect {
+	case "mcp_hosted_readiness":
+		if state, ok := structured["state"].(string); !ok || (state != "ready" && state != "not_ready") {
+			return fmt.Errorf("hosted readiness state is not a builder state")
+		}
+	case "mcp_ingesters_list":
+		ingesters, ok := structured["ingesters"].([]any)
+		if !ok || len(ingesters) == 0 {
+			return fmt.Errorf("ingesters list is empty")
+		}
+		first, ok := ingesters[0].(map[string]any)
+		if !ok || first["name"] != "repository" {
+			return fmt.Errorf("ingesters list does not start with the repository ingester")
+		}
+	case "mcp_operator_controlplane":
+		if !object(structured["queue"]) {
+			return fmt.Errorf("control plane has no queue read model")
+		}
+		if _, ok := structured["reducer_domains"].([]any); !ok {
+			return fmt.Errorf("control plane has no reducer domains")
+		}
+	default:
+		return fmt.Errorf("unknown pilot expectation %q", expect)
+	}
+	return nil
 }
 
 func validateIndexStatus(payload map[string]any) error {

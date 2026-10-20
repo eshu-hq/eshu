@@ -90,8 +90,16 @@ latency includes reading and checking the response body. The MCP server is a
 separate process started by the runner and exercises the production tool dispatcher.
 The existing no-arg GET coverage and Postgres meter still run first.
 
+The #7009 pilots extend the same coverage to the issue's residual rows: a
+seeded `GET /api/v0/repositories/{anchor}/story`, the unscoped MCP file and
+entity searches (exact page only), the plain
+`GET /api/v0/ingesters/repository` on the shared ingester-status handler,
+and the MCP `get_hosted_readiness`, `list_ingesters`, and
+`get_operator_control_plane` proxies, each checked against its route
+identity inside the shared tools/call envelope.
+
 `GATE_CONCURRENT_WORKERS=2..16` enables a later, unmetered pass over those
-three operations. `GATE_CONCURRENT_REQUESTS` sets requests per operation
+pilot operations. `GATE_CONCURRENT_REQUESTS` sets requests per operation
 (at least the worker count, at most 1000), and
 `GATE_CONCURRENT_REPORT=<path>` writes a version 1 JSON report with each
 operation's worker count,

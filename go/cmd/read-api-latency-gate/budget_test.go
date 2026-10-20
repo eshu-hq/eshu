@@ -271,6 +271,92 @@ func TestRequireNamedRoutesExercisedIgnoresUnnamedRoutes(t *testing.T) {
 	}
 }
 
+// TestRouteBudgetsNamedReportsExplicitRows mirrors the work-budget Named
+// contract: only an explicit row counts, never the default.
+func TestRouteBudgetsNamedReportsExplicitRows(t *testing.T) {
+	budgets, err := ParseRouteBudgets(strings.NewReader(testBudgetFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !budgets.Named("GET /api/v0/infra/resources/count") || budgets.Named("GET /api/v0/unlisted") {
+		t.Errorf("Named() must be true only for explicitly listed routes")
+	}
+}
+
+// TestNamedLatencyRoutesHaveWorkRows is the RED/GREEN pair for the #7009
+// gap class: a route with an explicit latency SLO and no explicit Postgres
+// work row is held to the tight default work row, so a legitimate read
+// fails the gate. Every named latency route must name a work row.
+func TestNamedLatencyRoutesHaveWorkRows(t *testing.T) {
+	t.Parallel()
+
+	latency, err := ParseRouteBudgets(strings.NewReader(testBudgetFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	work, err := ParseRouteWorkBudgets(strings.NewReader(testWorkBudgetFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if missing := latencyRoutesWithoutWorkRows(latency, work); len(missing) != 1 || missing[0] != "GET /api/v0/infra/resources/count" {
+		t.Fatalf("missing work rows = %q, want exactly the unnamed latency fixture route", missing)
+	}
+}
+
+// TestShippedLatencyRoutesNameWorkRows guards the shipped tables against the
+// #7009 gap class: every route the latency gate budgets explicitly must also
+// name an explicit Postgres work row, or a legitimate read fails the gate on
+// the tight default work row.
+func TestShippedLatencyRoutesNameWorkRows(t *testing.T) {
+	t.Parallel()
+
+	latency, err := openRouteBudgets(shippedRouteBudgetsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	work, err := openRouteWorkBudgets(shippedRouteWorkBudgetsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if missing := latencyRoutesWithoutWorkRows(latency, work); len(missing) != 0 {
+		t.Fatalf("latency-budgeted routes without work rows: %q", missing)
+	}
+}
+
+// latencyRoutesWithoutWorkRows lists the explicitly latency-budgeted routes
+// with no explicit Postgres work row, in sorted route order.
+func latencyRoutesWithoutWorkRows(latency RouteBudgets, work RouteWorkBudgets) []string {
+	var missing []string
+	for _, route := range latency.NamedRoutes() {
+		if !work.Named(route) {
+			missing = append(missing, route)
+		}
+	}
+	return missing
+}
+
+// shippedRouteWorkBudgetsPath is the committed work-budget table the shipped
+// latency table must agree with row for row.
+const shippedRouteWorkBudgetsPath = "../../../testdata/benchmarks/read-api-route-work-budgets.txt"
+
+func openRouteBudgets(path string) (RouteBudgets, error) {
+	f, err := os.Open(path) // #nosec G304 -- test fixture path, not user input
+	if err != nil {
+		return RouteBudgets{}, err
+	}
+	defer f.Close()
+	return ParseRouteBudgets(f)
+}
+
+func openRouteWorkBudgets(path string) (RouteWorkBudgets, error) {
+	f, err := os.Open(path) // #nosec G304 -- test fixture path, not user input
+	if err != nil {
+		return RouteWorkBudgets{}, err
+	}
+	defer f.Close()
+	return ParseRouteWorkBudgets(f)
+}
+
 // TestEveryRouteCapabilityResolvesInTheCatalog: RouteCapability is a
 // hand-maintained map. If a capability id is renamed or removed, For() falls
 // back to the looser configured budget with no failure, so every mapped id has
