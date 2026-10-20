@@ -165,10 +165,18 @@ func buildProjectorRuntime(
 	if err != nil {
 		return runtime.Runtime{}, err
 	}
+	// Config-artifact derive (#8155): last step of every content Write; nil skips, refused checks stay live.
+	// Bounded startup context so the encoding/fence checks fail fast on a wedged database.
+	checkCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	configArtifactDeriver, err := postgres.NewConfigArtifactWriteDeriver(checkCtx, database, getenv, logger)
+	if err != nil {
+		return runtime.Runtime{}, err
+	}
 
 	return runtime.Runtime{
 		CanonicalWriter:               canonicalWriter,
-		ContentWriter:                 postgres.NewContentWriter(database).WithInstruments(instruments).WithEntityBatchSize(contentConfig.EntityBatchSize),
+		ContentWriter:                 postgres.NewContentWriter(database).WithInstruments(instruments).WithEntityBatchSize(contentConfig.EntityBatchSize).WithConfigArtifactDeriver(configArtifactDeriver).WithConfigArtifactTracer(tracer),
 		IntentWriter:                  intentWriter,
 		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(database),
 		RepairQueue:                   postgres.NewGraphProjectionPhaseRepairQueueStore(database),

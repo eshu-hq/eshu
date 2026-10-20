@@ -228,14 +228,19 @@ transaction's COMMIT. The retention cost is the `OLD TABLE` capture: +0.11 to
 
 ## Telemetry
 
-No runtime path calls this package yet, so it emits nothing in production.
+`ContentWriter.Write` calls `DeriveRepository` as its last step (PR3b-2c-2)
+and counts every Write derive on
+`eshu_dp_config_artifact_derives_total{trigger,outcome}` (trigger always
+`write`), observes its wall time on
+`eshu_dp_config_artifact_derive_duration_seconds{trigger}`, and records the
+`config_artifacts.derive` span with the repository id, trigger and outcome;
+`derive_config_artifacts` joins the content-writer stage log. This package
+registers no metric or span itself.
 `DeriveRepository` logs `event_name=config_artifacts.derive.failed` at ERROR
-for every failed derive and returns a `Result` the wiring slice counts on
-`eshu_dp_config_artifact_derives_total{trigger,outcome}` and observes on the
-derive duration histogram; this package registers no metric or span.
+for every failed derive and returns a `Result` the wiring counts.
 `CheckEncoding` logs `event_name=postgres.server_encoding` at INFO for UTF8
 and at ERROR otherwise (with `config_artifacts_status=not_installed` and the
-`reason`), for the binaries that will call it in PR3b-2 and PR3c. Every
+`reason`); the deriving binaries call it once at start. Every
 statement runs through the caller's `db.Queryer`, which in the runtimes is the
 instrumented Postgres wrapper.
 
@@ -351,6 +356,48 @@ version mismatch still sends readers live and lists the repository for the
 walker; if it did not, the stored rows are still exact. The derive
 outcome counter and duration histogram are registered by the wiring slice.
 
+## Evidence (PR3b-2c-2, the wiring)
+
+Performance Evidence: S1 on the built path, the real `ContentWriter.Write`
+with and without the wired derive. Backend: `postgres:18` in Docker, local,
+a shared host at load average 2.5 to 6.4, 2026-10-19. The harness is a
+throwaway live test (kept at `~/.cache/coord8155/s1/`, deleted before the PR),
+interleaved A/B over fresh repositories. Shapes: the golden fixture corpus
+(194 repositories, 2,130 files, 1.74 MB) and one synthetic monster (5,000
+files, 4.00 MB in, 5,000 rows stored, 5,000 candidates listed and read, plus
+10,000 entities so the Write wall is production-width).
+
+| Shape | Added Write wall (wired minus plain) |
+|---|---|
+| Golden corpus, 193 interleaved pairs | median +0.8 to +1.1 ms, p95 +1.8 to +2.1 ms (four runs) |
+| Monster, 3 alternating rounds | +0.211 s median (+0.211, +0.324, and one round at −1.038 s when the plain arm spiked to 3.04 s on host noise); files-only reference median +0.127 s |
+
+Bars: the worst-repository 2 s cap holds with 6x margin (0.21 to 0.32 s);
+HCL parse CPU runs at 53 to 81 ms per MB of input against the bench rate of
+94 ms per MB. The 10% of content-stage share reads about 11% on the monster
+(0.21 s of a 2.0 s files-plus-entities Write, noise ±5 pp over 3 rounds) and
+under a millisecond absolute on every corpus repository; the monster stores
+5,000 rows in one repository, about 250x the R1 average, so typical
+repositories pass with two orders of margin. The A2 attribution that admits
+this slice (same R1 story, 7 serial reads on QA image sha-3d7cb9c6, 2026-10-19)
+is in `docs/internal/evidence/8155-2c2-write-derive-wiring.md`: the
+`deployment_artifacts` stage is 2.04 to 2.29 s of a 2.35 to 2.60 s route
+(83 to 91%), graph stages total at most 0.01 s, bodies byte-identical 7/7.
+
+Observability Evidence: PR3b-2c-2 is the first emission of the registered
+derive signals. Every Write derive counts one
+`eshu_dp_config_artifact_derives_total{trigger=write,outcome}` (outcome
+`canceled` included: a canceled caller records `OutcomeCanceled`, kept apart
+from `error`), observes one
+`eshu_dp_config_artifact_derive_duration_seconds{trigger=write}`, ends one
+`config_artifacts.derive` span carrying `repo_id`, `trigger` and `outcome`
+(no id on the metrics), and logs one `derive_config_artifacts` content-writer
+stage line with trigger, outcome, row and content-version counts. A disabled
+derive logs `config_artifacts.derive.disabled` once at start and builds no
+deriver. A refused startup check answers every derive with
+`encoding_unsupported` or `fence_missing` without a statement, counted the
+same way.
+
 ## Known limits for the wiring slice
 
 These came out of the independent review of the derive core and belong to the
@@ -358,8 +405,9 @@ wiring and walker slices, not to this one.
 
 - A caller can block for `Timeout` plus the 5 s failure-update bound (15 s with
   the default) when the repository lock is contended; `derive_write.go`
-  `recordFailure` bounds only its own update, and the caller-facing total is
-  not in the `DeriveRepository` godoc yet.
+  `recordFailure` bounds only its own update. The caller-facing total is in
+  the `DeriveRepository` godoc, the protocol companion (section 3) and the
+  `ESHU_CONFIG_ARTIFACT_DERIVE_TIMEOUT` registry entry.
 - A canceled caller context records a failure (`failure_count` + 1, class
   `canceled`; `derive_write.go` `classifyFailure`), so repeated restarts
   mid-derive can push `failure_count` toward the walker's skip threshold of 5;

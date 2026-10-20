@@ -5,6 +5,9 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"testing"
 	"time"
 
@@ -13,10 +16,38 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
+// unreachableSQLDB returns a postgres.SQLDB whose every statement fails
+// without touching the network: its connector refuses the connection, so no
+// port, socket or server is involved. Wiring tests use it where they used
+// postgres.SQLDB{}: the runtime builder runs the config-artifact startup
+// checks (#8155) over the database, and a nil *sql.DB panics on the first
+// query. A refused connection proves the builders survive failed checks: the
+// derive stays off, the wiring succeeds, and reads stay live.
+func unreachableSQLDB(t *testing.T) postgres.SQLDB {
+	t.Helper()
+	database := sql.OpenDB(failingConnector{})
+	t.Cleanup(func() { _ = database.Close() })
+	return postgres.SQLDB{DB: database}
+}
+
+type failingConnector struct{}
+
+func (failingConnector) Connect(context.Context) (driver.Conn, error) {
+	return nil, errors.New("unreachableSQLDB: no database")
+}
+
+func (failingConnector) Driver() driver.Driver { return failingDriver{} }
+
+type failingDriver struct{}
+
+func (failingDriver) Open(string) (driver.Conn, error) {
+	return nil, errors.New("unreachableSQLDB: no database")
+}
+
 func TestBuildProjectorRuntimeWiresPersistentStorageAdapters(t *testing.T) {
 	t.Parallel()
 
-	runtime, err := buildProjectorRuntime(postgres.SQLDB{}, &noopCanonicalWriter{}, nil, nil, func(string) string { return "" }, nil, nil, nil)
+	runtime, err := buildProjectorRuntime(unreachableSQLDB(t), &noopCanonicalWriter{}, nil, nil, func(string) string { return "" }, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildProjectorRuntime() error = %v, want nil", err)
 	}
@@ -36,7 +67,7 @@ func TestBuildProjectorServiceWiresRetryInjectorFromEnv(t *testing.T) {
 	t.Parallel()
 
 	service, err := buildProjectorService(
-		postgres.SQLDB{},
+		unreachableSQLDB(t),
 		&noopCanonicalWriter{},
 		func(name string) string {
 			if name == projectorRetryOnceScopeGenerationEnv {
@@ -65,7 +96,7 @@ func TestBuildProjectorServiceWiresRetryPolicyFromEnv(t *testing.T) {
 	t.Parallel()
 
 	service, err := buildProjectorService(
-		postgres.SQLDB{},
+		unreachableSQLDB(t),
 		&noopCanonicalWriter{},
 		func(name string) string {
 			switch name {
@@ -101,7 +132,7 @@ func TestBuildProjectorServiceHeartbeatsLongRunningClaims(t *testing.T) {
 	t.Parallel()
 
 	service, err := buildProjectorService(
-		postgres.SQLDB{},
+		unreachableSQLDB(t),
 		&noopCanonicalWriter{},
 		func(string) string { return "" },
 		nil,
@@ -135,7 +166,7 @@ func TestBuildProjectorServiceUsesWorkerCountFromEnv(t *testing.T) {
 	t.Parallel()
 
 	service, err := buildProjectorService(
-		postgres.SQLDB{},
+		unreachableSQLDB(t),
 		&noopCanonicalWriter{},
 		func(name string) string {
 			if name == "ESHU_PROJECTOR_WORKERS" {

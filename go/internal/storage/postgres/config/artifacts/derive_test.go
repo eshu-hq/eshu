@@ -336,7 +336,7 @@ func TestDeriveCPUBoundOverrunIsATimeout(t *testing.T) {
 	}
 }
 
-func TestDeriveCanceledCallerIsAnError(t *testing.T) {
+func TestDeriveCanceledCallerIsCanceled(t *testing.T) {
 	fake := &deriveFakeDB{version: int64Ptr(2)}
 	ctx, cancel := context.WithCancel(context.Background())
 	deriver := newTestDeriver(t, fake, supportedConfig(), func(context.Context, contentartifacts.Reader, contentartifacts.Repository, []contentartifacts.File, bool, int) ([]map[string]any, contentartifacts.ReadStats, error) {
@@ -344,8 +344,8 @@ func TestDeriveCanceledCallerIsAnError(t *testing.T) {
 		return nil, contentartifacts.ReadStats{}, context.Canceled
 	})
 	result := deriver.DeriveRepository(ctx, Request{RepoID: "repo-a", Trigger: TriggerWrite})
-	if result.Outcome != OutcomeError || result.ErrorClass != "canceled" || !result.FailureRecorded {
-		t.Fatalf("Result = %+v, want error class canceled with the failure recorded", result)
+	if result.Outcome != OutcomeCanceled || result.ErrorClass != "canceled" || !result.FailureRecorded {
+		t.Fatalf("Result = %+v, want outcome canceled with the failure recorded", result)
 	}
 }
 

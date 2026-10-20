@@ -13,7 +13,7 @@ import (
 // ingester binary builds its projector Service without the #7319 fence.
 func TestBuildIngesterProjectorServiceWiresDeltaBaselineFence(t *testing.T) {
 	t.Parallel()
-	service, err := buildIngesterProjectorService(postgres.SQLDB{}, &noopCanonicalWriter{},
+	service, err := buildIngesterProjectorService(queryErrorDB{}, &noopCanonicalWriter{},
 		func(string) string { return "" }, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildIngesterProjectorService() = %v", err)
@@ -30,7 +30,7 @@ func TestBuildIngesterProjectorServiceWiresDeltaBaselineFence(t *testing.T) {
 // without the #7389 projection write-start marker.
 func TestBuildIngesterProjectorServiceWiresWriteMarker(t *testing.T) {
 	t.Parallel()
-	service, err := buildIngesterProjectorService(postgres.SQLDB{}, &noopCanonicalWriter{},
+	service, err := buildIngesterProjectorService(queryErrorDB{}, &noopCanonicalWriter{},
 		func(string) string { return "" }, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildIngesterProjectorService() = %v", err)

@@ -234,7 +234,7 @@ func classifyFailure(err, deadline error) (Outcome, string) {
 		return OutcomeTimeout, errorClassTimeout
 	}
 	if errors.Is(deadline, context.Canceled) {
-		return OutcomeError, errorClassCanceled
+		return OutcomeCanceled, errorClassCanceled
 	}
 	var coded interface{ SQLState() string }
 	if errors.As(err, &coded) && coded.SQLState() != "" {

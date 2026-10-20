@@ -15,8 +15,8 @@
 // config_artifact_reconcile_cursor. Migration 186 adds the content_files
 // version fence, which bumps a repository's version once per content
 // transaction at COMMIT, and migration 187 seeds one version-0 row per
-// repository. The derive exists; no runtime calls it yet, and no reader
-// exists yet.
+// repository. The derive exists; ContentWriter.Write calls it as its last
+// step (PR3b-2c-2), and no reader exists yet.
 //
 // This package defines the contracts the later PRs build on:
 //
@@ -26,7 +26,8 @@
 //   - [CheckFence], the start-up check that the five migration 186 fence
 //     triggers exist on their tables and fire for an ordinary session
 //     (tgenabled 'O' or 'A'); otherwise the read model stays off with
-//     [ReasonVersionFenceMissing]. No binary calls either check yet.
+//     [ReasonVersionFenceMissing]. The deriving binaries run both checks
+//     once at process start.
 //   - [Reader], [Repository], [Row] and [Classify], the read-model port and the
 //     reader's trust condition: stored rows are served only for the current
 //     content version and extractor version after a successful derive.

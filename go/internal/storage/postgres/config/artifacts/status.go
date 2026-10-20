@@ -63,6 +63,12 @@ const (
 	OutcomePanic Outcome = "panic"
 	// OutcomeTimeout: the derive ran past its deadline.
 	OutcomeTimeout Outcome = "timeout"
+	// OutcomeCanceled: the caller's context was canceled (shutdown,
+	// supersede, or a lost claim), so the derive stopped without a write. It
+	// is kept apart from OutcomeError so a shutdown wave does not read as a
+	// derive-error wave; the state row still records the failure with
+	// last_error_class "canceled".
+	OutcomeCanceled Outcome = "canceled"
 	// OutcomeEncodingUnsupported: the start-up encoding check failed, so no
 	// derive runs in this process.
 	OutcomeEncodingUnsupported Outcome = "encoding_unsupported"

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package main //nolint:filelength // 503 lines: bootstrap projector assembly; the #8648 bounded derive-check wiring tipped it over
 
 import (
 	"context"
@@ -153,12 +153,22 @@ func buildBootstrapProjector(
 	if err != nil {
 		return projectorDeps{}, err
 	}
+	// Config-artifact derive (#8155): last step of every content Write; nil skips, refused checks stay live.
+	// Bounded startup context so the encoding/fence checks fail fast on a wedged database.
+	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	configArtifactDeriver, err := postgres.NewConfigArtifactWriteDeriver(checkCtx, instrumentedDB, getenv, logger)
+	if err != nil {
+		return projectorDeps{}, err
+	}
 	runtime := runtime.Runtime{
 		CanonicalWriter: canonicalWriter,
 		ContentWriter: postgres.NewContentWriter(instrumentedDB).
 			WithLogger(logger).
 			WithInstruments(instruments).
-			WithEntityBatchSize(contentConfig.EntityBatchSize),
+			WithEntityBatchSize(contentConfig.EntityBatchSize).
+			WithConfigArtifactDeriver(configArtifactDeriver).
+			WithConfigArtifactTracer(tracer),
 		IntentWriter:                  reducerQueue,
 		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(instrumentedDB),
 		RepairQueue:                   postgres.NewGraphProjectionPhaseRepairQueueStore(instrumentedDB),

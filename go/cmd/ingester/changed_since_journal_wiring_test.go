@@ -15,7 +15,7 @@ import (
 func TestBuildIngesterProjectorServiceWiresChangedSinceJournal(t *testing.T) {
 	t.Parallel()
 	for value, want := range map[string]bool{"": false, "false": false, "true": true} {
-		service, err := buildIngesterProjectorService(postgres.SQLDB{}, &noopCanonicalWriter{},
+		service, err := buildIngesterProjectorService(queryErrorDB{}, &noopCanonicalWriter{},
 			func(key string) string {
 				if key == "ESHU_CHANGED_SINCE_LINK_ENABLED" {
 					return value

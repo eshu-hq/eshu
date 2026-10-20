@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/config/artifacts"
 )
 
 const (
@@ -45,6 +47,36 @@ func TestConfigArtifactDeriveLabelValuesAreClosed(t *testing.T) {
 	outcomes[0] = "mutated"
 	if ConfigArtifactDeriveTriggers()[0] != "write" || ConfigArtifactDeriveOutcomes()[0] != "ok" {
 		t.Fatal("label value accessors returned shared slices")
+	}
+}
+
+// TestConfigArtifactDeriveLabelsMatchStorageConstants pins the telemetry
+// trigger and outcome sets to the artifacts package's Trigger and Outcome
+// constants (#8155 PR3b-2c-2): a renamed, added or dropped outcome must change
+// both sides, or the wiring counts a label the storage package never returns
+// (or drops one it does).
+func TestConfigArtifactDeriveLabelsMatchStorageConstants(t *testing.T) {
+	t.Parallel()
+	storageTriggers := []string{
+		string(artifacts.TriggerWrite),
+		string(artifacts.TriggerBackfill),
+		string(artifacts.TriggerRepair),
+	}
+	if got := ConfigArtifactDeriveTriggers(); !slices.Equal(got, storageTriggers) {
+		t.Fatalf("telemetry triggers = %v, storage triggers = %v", got, storageTriggers)
+	}
+	storageOutcomes := []string{
+		string(artifacts.OutcomeOK),
+		string(artifacts.OutcomeSuperseded),
+		string(artifacts.OutcomeError),
+		string(artifacts.OutcomePanic),
+		string(artifacts.OutcomeTimeout),
+		string(artifacts.OutcomeCanceled),
+		string(artifacts.OutcomeEncodingUnsupported),
+		string(artifacts.OutcomeFenceMissing),
+	}
+	if got := ConfigArtifactDeriveOutcomes(); !slices.Equal(got, storageOutcomes) {
+		t.Fatalf("telemetry outcomes = %v, storage outcomes = %v", got, storageOutcomes)
 	}
 }
 

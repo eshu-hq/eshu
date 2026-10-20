@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
@@ -22,12 +24,14 @@ import (
 
 // ContentWriter persists repo-local content rows into the canonical content store.
 type ContentWriter struct {
-	database         db.ExecQueryer
-	entityBatchSize  int
-	batchConcurrency int
-	Now              func() time.Time
-	Logger           *slog.Logger
-	instruments      *telemetry.Instruments
+	database              db.ExecQueryer
+	entityBatchSize       int
+	batchConcurrency      int
+	Now                   func() time.Time
+	Logger                *slog.Logger
+	instruments           *telemetry.Instruments
+	configArtifactDeriver ConfigArtifactDeriver
+	configArtifactTracer  trace.Tracer
 }
 
 // NewContentWriter constructs a Postgres-backed canonical content writer.
@@ -395,6 +399,11 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 	if err := w.deriveInfraInventory(ctx, cloned); err != nil {
 		return content.Result{}, err
 	}
+
+	// Derive the repository's stored config-artifact rows from the committed
+	// content, last of all (#8155). The derive never fails the Write; see
+	// deriveConfigArtifacts.
+	w.deriveConfigArtifacts(ctx, cloned)
 
 	return result, nil
 }

@@ -97,7 +97,7 @@ restored with `git checkout`):
 | M5 read the version after the list | `TestDeriveReadsVersionBeforeListLive` |
 | M6 no deadline check before step 3 | `TestDeriveCPUBoundOverrunIsATimeout` |
 | M7 failure update sets `content_version = NULL` | `TestDeriveLoadErrorRecordsFailure`, `TestDeriveRollbackLeavesRowsAndStateLive` |
-| M8 failure update on the canceled derive context | `TestDeriveCanceledCallerIsAnError` |
+| M8 failure update on the canceled derive context | `TestDeriveCanceledCallerIsCanceled` |
 | M9 no panic recovery | `TestDeriveRecoversPanic` |
 | M10 failure update locks its own key copy (`repo_id` only) | `TestDeriveWriteAndFailureRecordShareOneRepositoryLock`, `TestDeriveFailureRecordWaitsOnTheWriteLockLive` |
 | M11 failure update takes no lock | `TestDeriveWriteAndFailureRecordShareOneRepositoryLock`, `TestDeriveFailureRecordWaitsOnTheWriteLockLive` |
