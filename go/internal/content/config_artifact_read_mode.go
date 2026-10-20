@@ -17,9 +17,11 @@ const (
 	ConfigArtifactReadModeEnv = "ESHU_CONFIG_ARTIFACT_READ_MODE"
 )
 
-// ReadMode is the config-artifact read mode of the API (#8155 PR3c). The zero
-// value is live, so a loader that never sets the mode serves exactly today's
-// read.
+// ReadMode is the config-artifact read mode of the API (#8155 PR3c). The
+// zero value is not ReadModeLive: it is the blank mode that ParseReadMode
+// and the loader normalize to live. A struct literal that leaves Mode unset
+// therefore serves exactly today's read, but spell ReadModeLive wherever
+// live is meant.
 type ReadMode string
 
 const (

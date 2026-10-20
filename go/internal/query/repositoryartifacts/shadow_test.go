@@ -106,6 +106,41 @@ func shadowLoader(stored *fakeStoredReader, reported *[]ShadowReport) configArti
 	return loader
 }
 
+// TestShadowNilReporterIssuesNoStoredStatement pins the misconfiguration
+// guard: an enabled shadow with no reporter skips the stored read entirely,
+// so it costs no statement while still serving the live answer.
+func TestShadowNilReporterIssuesNoStoredStatement(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContentStore(map[string][]querycontract.FileContent{
+		"anchor": loaderFiles(),
+		"repo-a": loaderFiles(),
+	})
+	graph := &fakeArtifactGraph{related: []repositoryArtifactSource{
+		{RepoID: "repo-a", RepoName: "name-a"},
+	}}
+	stored := &fakeStoredReader{}
+	loader := productionConfigArtifactLoader
+	loader.shadow = ShadowConfig{Enabled: true, Reader: stored, Reporter: nil}
+
+	var stats ConfigArtifactReadStats
+	shadowed, err := loader.loadShared(context.Background(), graph, store, "anchor", "svc", loaderFiles(), &stats)
+	if err != nil {
+		t.Fatalf("shadow load error = %v", err)
+	}
+	var liveStats ConfigArtifactReadStats
+	liveMerged, err := productionConfigArtifactLoader.loadShared(context.Background(), graph, store, "anchor", "svc", loaderFiles(), &liveStats)
+	if err != nil {
+		t.Fatalf("live load error = %v", err)
+	}
+	if got, want := querycontract.MapSliceValue(shadowed, "config_paths"), querycontract.MapSliceValue(liveMerged, "config_paths"); !equalRowLists(got, want) {
+		t.Fatalf("nil-reporter shadow changed the merged rows:\n got: %v\nwant: %v", got, want)
+	}
+	if len(stored.calls) != 0 {
+		t.Fatalf("nil-reporter shadow issued %d stored reads, want none", len(stored.calls))
+	}
+}
+
 // TestShadowServesLiveWhileReportingMatch shadows two related repositories
 // whose stored rows mirror the live rows: the merged answer is the live
 // answer and the report counts two matches.

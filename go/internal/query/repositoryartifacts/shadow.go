@@ -73,9 +73,11 @@ type ShadowConfig struct {
 	// be set when Enabled is set; an enabled shadow with no reader reports
 	// a read error instead of failing the request.
 	Reader StoredReader
-	// Reporter receives one report per shadowed request. Nil drops the
-	// report. It runs inline on the request path, so it must stay cheap
-	// (a counter and a log) and must not fail: the wiring slice owns it.
+	// Reporter receives one report per shadowed request. Nil disables
+	// the compare: with no receiver the stored read is skipped, so a
+	// misconfigured shadow costs no statement. It runs inline on the
+	// request path, so it must stay cheap (a counter and a log) and must
+	// not fail: the wiring slice owns it.
 	Reporter func(ShadowReport)
 }
 
@@ -84,7 +86,7 @@ type ShadowConfig struct {
 // failure lands in the report while the caller keeps serving the live
 // answer it already computed.
 func (l configArtifactLoader) maybeShadow(ctx context.Context, res configArtifactLoadResult) {
-	if !l.shadow.Enabled {
+	if !l.shadow.Enabled || l.shadow.Reporter == nil {
 		return
 	}
 	report := ShadowReport{}
