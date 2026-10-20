@@ -4,7 +4,7 @@
 package main
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8155 disposable PostgreSQL 18 proof of the wired config-artifact walker cycle: two never-derived repositories repair through the real dirty join, deriver and walk claim, the backfill marker records on the clean wrap, and a second cycle matches both as already current; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8155 disposable PostgreSQL 18 proof of the wired config-artifact walker cycle: two never-derived repositories repair through the real dirty join, deriver and walk claim, the backfill marker records on the clean wrap, and a second cycle finds nothing dirty and skips the walk claim, issuing zero derives; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN
 
 import (
@@ -57,8 +57,9 @@ ON CONFLICT (repo_id) DO NOTHING`, repo); err != nil {
 // TestConfigArtifactWalkerCycleLive drives one walker cycle through the real
 // stack: the wired runner lists the dirty join, derives each repository with
 // the production Deriver, advances the shared walk, and records the backfill
-// marker when the walk wraps clean. A second cycle finds both repositories
-// already current and reports match without writing.
+// marker when the walk wraps clean. A second cycle finds nothing dirty and,
+// with the marker recorded, skips the walk claim entirely: steady state
+// issues no derives.
 func TestConfigArtifactWalkerCycleLive(t *testing.T) {
 	ctx, database := openWalkerDatabase(t)
 	seedWalkerVersions(t, ctx, database, "repository:walker-a", "repository:walker-b")
@@ -86,8 +87,8 @@ func TestConfigArtifactWalkerCycleLive(t *testing.T) {
 
 	second, err := runner.RunOnce(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 2, second.Derived)
-	require.Equal(t, 2, second.Matched)
+	require.Equal(t, 0, second.Derived)
+	require.Equal(t, 0, second.Matched)
 	require.False(t, second.MarkerRecorded)
 
 	var rm metricdata.ResourceMetrics
@@ -96,14 +97,30 @@ func TestConfigArtifactWalkerCycleLive(t *testing.T) {
 		"eshu_dp_config_artifact_derives_total",
 		map[string]string{"trigger": "repair", "outcome": "ok"}))
 	require.Equal(t, int64(2), testutil.CounterValue(t, rm,
-		"eshu_dp_config_artifact_derives_total",
-		map[string]string{"trigger": "backfill", "outcome": "superseded"}))
-	require.Equal(t, int64(2), testutil.CounterValue(t, rm,
 		"eshu_dp_config_artifact_reconcile_total",
 		map[string]string{"outcome": "repaired"}))
-	require.Equal(t, int64(2), testutil.CounterValue(t, rm,
-		"eshu_dp_config_artifact_reconcile_total",
-		map[string]string{"outcome": "match"}))
+	// The second cycle issued no derives, so no backfill or match series is
+	// exported at all (CounterValue would fatal on the absent series).
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, m := range scopeMetrics.Metrics {
+			if m.Name != "eshu_dp_config_artifact_derives_total" &&
+				m.Name != "eshu_dp_config_artifact_reconcile_total" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			require.True(t, ok, "metric %s data = %T", m.Name, m.Data)
+			for _, dp := range sum.DataPoints {
+				if v, ok := dp.Attributes.Value("trigger"); ok {
+					require.NotEqual(t, "backfill", v.AsString(),
+						"second cycle must not derive")
+				}
+				if v, ok := dp.Attributes.Value("outcome"); ok {
+					require.NotEqual(t, "match", v.AsString(),
+						"second cycle must not match")
+				}
+			}
+		}
+	}
 	// The second cycle drained the missing reason back to zero; the gauge
 	// carries the zero instead of a stale-high count.
 	require.Equal(t, int64(0), testutil.GaugeValue(t, rm,

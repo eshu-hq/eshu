@@ -117,21 +117,25 @@ shared host, 2026-10-20 (throwaway harness in the style of S1, deleted before
 the PR): a repair cycle over 20 never-derived (empty) repositories took
 21.5 ms wall (about 1.1 ms per repository) and recorded the marker; five
 steady match cycles over the same 20 took 7.1-9.2 ms, mean 8.0 ms (about
-0.4 ms per repository). The per-repository derive is the same
+0.4 ms per repository) — measured pre-gate, with the walk claim and match
+derives included, so the gated steady state below is strictly cheaper. The
+per-repository derive is the same
 `DeriveRepository` S1 measured on the built binaries (golden corpus median
 +0.8 to +1.1 ms added Write wall; 5,000-file monster +0.21 s against the 2 s
 worst-repository bar), so a full backfill is dominated by the largest
-repositories and costs seconds once. An idle clean cycle issues only the
-dirty join and one walk claim (both milliseconds; the steady-cycle figure
-covers them). The poll interval (5 minutes) bounds the steady-state rate;
-each cycle's work is bounded by the page budget (500) times K=4 workers.
+repositories and costs seconds once. Post-backfill the walk claim is skipped
+(review P1 on #8655): a steady clean cycle issues only the marker check and
+the dirty join (both milliseconds, both indexed). The poll interval
+(5 minutes) bounds the steady-state rate; each cycle's work is bounded by
+the page budget (500) times K=4 workers.
 
 No-Regression Evidence: the walker is a new side runner, so the regression
 surface is the reducer without it: disabled (the turned-off path) builds no
 walker and issues no statement (`TestConfigArtifactWalkerRunnerForDisabled`
-counts zero statements); enabled, an empty cycle issues three bounded indexed
-statements per 5 minutes (marker check, dirty join, walk claim) and no
-derive — five on a wrapping clean cycle (plus relist and marker record). No existing path is edited except additive
+counts zero statements); enabled, a steady post-marker cycle issues two
+bounded indexed statements per 5 minutes (marker check, dirty join) and no
+derive — no walk claim, so the corpus is never re-derived at idle. The
+pre-marker backfill still walks once to the marker. No existing path is edited except additive
 service assembly (one field, one start block, one builder call with error
 propagation); the Write path, projector wiring, reader, and retention are
 untouched.

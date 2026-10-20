@@ -215,13 +215,24 @@ func (r *Runner) RunOnce(ctx context.Context) (Batch, error) {
 		return batch, nil
 	}
 
-	page, _, err := r.Claimer.ClaimPage(ctx, cfg.PageBudget)
-	if err != nil {
-		batch.Duration = time.Since(start)
-		r.logCycle(ctx, batch)
-		return batch, fmt.Errorf("claim config artifact walk page: %w", err)
+	// Post-backfill the walk claim is skipped: the dirty join already covers
+	// every not-current state (missing, failed, retry, stale_version,
+	// stale_extractor) over the same versions universe the walk scans, so
+	// steady state costs one marker check plus the dirty join per poll
+	// interval. Claiming unconditionally would re-derive the full corpus
+	// every cycle and never let the poll interval engage (#8655 P1).
+	var page []string
+	wrapped := true
+	if !markerComplete {
+		claimed, _, err := r.Claimer.ClaimPage(ctx, cfg.PageBudget)
+		if err != nil {
+			batch.Duration = time.Since(start)
+			r.logCycle(ctx, batch)
+			return batch, fmt.Errorf("claim config artifact walk page: %w", err)
+		}
+		page = claimed
+		wrapped = len(page) < cfg.PageBudget
 	}
-	wrapped := len(page) < cfg.PageBudget
 	batch.WalkWrapped = wrapped
 	walk := make([]string, 0, len(page))
 	for _, repoID := range page {

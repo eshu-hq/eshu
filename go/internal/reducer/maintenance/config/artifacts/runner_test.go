@@ -294,8 +294,19 @@ func TestRunnerWalkSkipsFailedRepositories(t *testing.T) {
 		"eshu_dp_config_artifact_reconcile_total",
 		map[string]string{"outcome": "skipped"}))
 
-	lister.skipErr = errors.New("connection refused")
-	if _, err := runner.RunOnce(ctx); err == nil {
+	// The walk skip check still fails a pre-marker cycle: a fresh runner
+	// with an unrecorded marker claims the walk page and hits the check
+	// error. Post-marker the walk (and its skip check) is skipped by
+	// TestRunnerSkipsWalkClaimOnceMarkerComplete above.
+	runner2 := &Runner{
+		Lister:      &fakeLister{lists: [][]DirtyRepo{{}}, skipErr: errors.New("connection refused")},
+		Claimer:     &fakeClaimer{pages: [][]string{{"repo-walk-skip"}}},
+		Deriver:     &fakeDeriver{},
+		Marker:      &fakeMarker{},
+		Config:      Config{Workers: 2, PageBudget: 10, SkipAfterFailures: 5, PollInterval: time.Minute},
+		Instruments: inst,
+	}
+	if _, err := runner2.RunOnce(ctx); err == nil {
 		t.Fatal("RunOnce with a failing skip check = nil, want the check error")
 	}
 }
@@ -666,4 +677,35 @@ func TestRunnerErrorWaitsPollInterval(t *testing.T) {
 	// then the canceled context ends the run).
 	require.Equal(t, 2, len(lister.calls))
 	require.Equal(t, int32(2), waits.Load())
+}
+
+// TestRunnerSkipsWalkClaimOnceMarkerComplete pins the post-backfill steady
+// state (review P1 on #8655): after the backfill marker records, a cycle
+// with a non-empty walk page issues no walk claim and no walk derive. The
+// dirty join already covers every not-current state (missing, failed, retry,
+// stale_version, stale_extractor), so steady state costs one marker check
+// plus the dirty join per poll interval instead of a full re-derive.
+func TestRunnerSkipsWalkClaimOnceMarkerComplete(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	inst, _ := newWalkerTestInstruments(t)
+	lister := &fakeLister{lists: [][]DirtyRepo{{}}}
+	claimer := &fakeClaimer{pages: [][]string{{"repo-walk-a", "repo-walk-b"}}}
+	deriver := &fakeDeriver{}
+	marker := &fakeMarker{complete: true}
+	runner := &Runner{
+		Lister:      lister,
+		Claimer:     claimer,
+		Deriver:     deriver,
+		Marker:      marker,
+		Config:      Config{Workers: 2, PageBudget: 10, SkipAfterFailures: 5, PollInterval: time.Minute},
+		Tracer:      sdktrace.NewTracerProvider().Tracer("test"),
+		Instruments: inst,
+	}
+	batch, err := runner.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Empty(t, claimer.calls)
+	require.Empty(t, deriver.calls)
+	require.Equal(t, 0, batch.Derived)
+	require.False(t, batch.MarkerRecorded)
 }

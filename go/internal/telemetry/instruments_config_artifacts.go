@@ -225,6 +225,7 @@ func registerConfigArtifactWalkerInstruments(meter metric.Meter, inst *Instrumen
 		"eshu_dp_config_artifact_stale_repos",
 		metric.WithDescription("Config-artifact repositories needing a derive at the last walker cycle, "+
 			"by dirty-join reason (missing, failed, stale_version, stale_extractor, retry) (#8155). "+
+			"Bounded to the walk page budget (PageBudget, 500 by default): a larger backlog reads as the budget, not the true backlog. "+
 			"Skipped repositories stay counted under their reason. No repository label"),
 	); err != nil {
 		return fmt.Errorf("register ConfigArtifactStaleRepos gauge: %w", err)

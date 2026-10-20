@@ -2,7 +2,7 @@ tests:
   - file: go/cmd/reducer/config_artifact_walker_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8155 disposable PostgreSQL 18 proof of the wired config-artifact walker cycle: two never-derived repositories repair through the real dirty join, deriver and walk claim, the backfill marker records on the clean wrap, and a second cycle matches both as already current; enrolled in the live-postgres-readiness runner"
+    reason: "#8155 disposable PostgreSQL 18 proof of the wired config-artifact walker cycle: two never-derived repositories repair through the real dirty join, deriver and walk claim, the backfill marker records on the clean wrap, and a second cycle finds nothing dirty and skips the walk claim, issuing zero derives; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/cmd/reducer/package_manifest_backfill_live_test.go
     tag: ~
