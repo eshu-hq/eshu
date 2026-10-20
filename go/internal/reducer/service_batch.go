@@ -28,6 +28,23 @@ type batchAckItem struct {
 	workerID  int
 }
 
+// batchWorkerTestHooks are the ordering points the batch-cancel proofs use
+// to put shutdown at an exact place inside one worker handoff. The fields
+// are unexported and only same-package tests set them; production wiring
+// never does, so every hook is nil there and each call site is a single nil
+// check (#8636). They live beside the worker loop rather than in their own
+// file so the seam never splits the handoff ownership proof from its
+// branch. Mirrors the generationRetentionTestHooks precedent in
+// internal/storage/postgres.
+type batchWorkerTestHooks struct {
+	// afterWorkReceive runs after a worker completes a handoff rendezvous
+	// receive and before its post-receive cancellation check, so a test can
+	// land shutdown exactly in the post-receive drop window. Cancelling from
+	// the test goroutine instead would race the select rendezvous-vs-cancel
+	// outcome and prove nothing about that window.
+	afterWorkReceive func()
+}
+
 // runBatchConcurrent uses a single claimer goroutine to claim batches of work
 // and hand them only to ready worker goroutines. A separate acker goroutine
 // batches acknowledgments. This reduces Postgres round-trips from O(items) to
@@ -205,6 +222,9 @@ func (s Service) runBatchConcurrent(
 					wi = next
 				case <-ctx.Done():
 					return
+				}
+				if s.afterWorkReceive != nil {
+					s.afterWorkReceive()
 				}
 				if ctx.Err() != nil {
 					// Shutdown landed after the receive rendezvous completed
