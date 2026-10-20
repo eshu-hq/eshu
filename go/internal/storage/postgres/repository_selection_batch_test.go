@@ -20,7 +20,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 )
 
-var batchNow = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+// batchNow is the fixture clock, pinned to the test run (#8658): rows
+// carry a 48h liveness window, so an absolute date goes stale and every
+// scripted row reads non-live, collapsing the aggregates to unknown. Times
+// stay relative so the live/settled relations and rule-(d) margins hold.
+var batchNow = time.Now().UTC()
 
 // batchObsRow is one liveScopeObservationsBatchQuery row.
 func batchObsRow(scope, selector, state string, cycles int, classification, successor string) []any {
