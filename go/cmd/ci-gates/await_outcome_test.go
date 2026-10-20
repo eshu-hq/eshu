@@ -99,6 +99,20 @@ func TestAwaitOutcomeForReuse(t *testing.T) {
 	}
 }
 
+// A smoke pass is a distinct outcome (#8617 step 5): the fast subset ran
+// and passed, heavy verdicts transferred, and the publisher must say so.
+func TestAwaitOutcomeForSmoke(t *testing.T) {
+	t.Parallel()
+
+	got := classifyAwaitOutcome(errSmokeProven)
+	if got != awaitOutcomeSmokePassed {
+		t.Fatalf("classifyAwaitOutcome(errSmokeProven) = %v, want %v", got, awaitOutcomeSmokePassed)
+	}
+	if got.exitCode() != 15 {
+		t.Fatalf("smoke exit code = %d, want 15", got.exitCode())
+	}
+}
+
 func TestAwaitOutcomeForSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -125,6 +139,7 @@ func TestAwaitOutcomeExitCodesAreDistinct(t *testing.T) {
 		awaitOutcomeBroken,
 		awaitOutcomeGateCancelled,
 		awaitOutcomeReused,
+		awaitOutcomeSmokePassed,
 	} {
 		if prev, dup := seen[o.exitCode()]; dup {
 			t.Fatalf("outcomes %v and %v share exit code %d", prev, o, o.exitCode())

@@ -83,10 +83,41 @@ func runAwait(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Clean-rebase smoke tier (#8617 step 5): when the replaced head was
+	// fully green and everything that changed since is disjoint from
+	// this PR's files, only the fast subset re-runs; heavy verdicts
+	// transfer. A truncated path list already over-selected above, so
+	// smoke never applies to it. Like reuse, a probe failure means the
+	// full await, never a verdict.
+	smoke := false
+	if !truncated && len(resolved) > 0 {
+		contexts := make([]string, 0, len(reg.RequiredStatusChecks))
+		for _, check := range reg.RequiredStatusChecks {
+			contexts = append(contexts, check.Context)
+		}
+		applied, smokeErr := probeSmoke(ctx, runner, *repo, *pr, *headSHA, paths, contexts)
+		if smokeErr != nil {
+			_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke probe failed (%v); awaiting full selection\n", smokeErr)
+		} else if applied {
+			if subset := smokeSubset(reg, resolved); len(subset) == 0 {
+				_, _ = fmt.Fprintln(os.Stdout, "required-gates: smoke subset empty (all-heavy selection); awaiting full selection")
+			} else {
+				smoke = true
+				resolved = subset
+				_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke tier applies (clean rebase, disjoint base delta); awaiting %d fast job(s), heavy verdicts transfer\n", len(resolved))
+			}
+		}
+	}
 	if err := awaitPRRequiredChecks(ctx, runner, *repo, *pr, *headSHA, resolved, *pollInterval, os.Stdout); err != nil {
 		return err
 	}
-	return verifyPRHead(ctx, runner, *repo, *pr, *headSHA)
+	if err := verifyPRHead(ctx, runner, *repo, *pr, *headSHA); err != nil {
+		return err
+	}
+	if smoke {
+		return errSmokeProven
+	}
+	return nil
 }
 
 // selectRequiredGates resolves the blocking gates for a changed-path set to
