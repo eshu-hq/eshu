@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // tableInDatabaseRelationship records a Timestream table's membership in its
@@ -102,7 +103,7 @@ func tableRejectedDataS3Relationship(boundary awscloud.Boundary, table Table) *a
 		SourceARN:        strings.TrimSpace(table.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   tableID + "->" + awscloud.RelationshipTimestreamTableRejectsToS3 + ":" + bucketARN,
 	}

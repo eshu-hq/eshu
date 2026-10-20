@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -74,7 +75,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	gateway := resourceByType(t, envelopes, awscloud.ResourceTypeStorageGatewayGateway)
+	gateway := resourceByType(t, envelopes, catalog.ResourceTypeStorageGatewayGateway)
 	if got, want := gateway.Payload["resource_id"], gatewayARN; got != want {
 		t.Fatalf("gateway resource_id = %#v, want %q", got, want)
 	}
@@ -86,7 +87,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 		t.Fatalf("gateway endpoint_type = %#v, want %q", got, want)
 	}
 
-	volume := resourceByType(t, envelopes, awscloud.ResourceTypeStorageGatewayVolume)
+	volume := resourceByType(t, envelopes, catalog.ResourceTypeStorageGatewayVolume)
 	if got, want := volume.Payload["resource_id"], volumeARN; got != want {
 		t.Fatalf("volume resource_id = %#v, want %q", got, want)
 	}
@@ -98,7 +99,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 		t.Fatalf("volume size_in_bytes = %#v, want %d", got, want)
 	}
 
-	share := resourceByType(t, envelopes, awscloud.ResourceTypeStorageGatewayFileShare)
+	share := resourceByType(t, envelopes, catalog.ResourceTypeStorageGatewayFileShare)
 	if got, want := share.Payload["resource_id"], shareARN; got != want {
 		t.Fatalf("share resource_id = %#v, want %q", got, want)
 	}
@@ -113,33 +114,33 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 		}
 	}
 
-	volumeGateway := relationshipByType(t, envelopes, awscloud.RelationshipStorageGatewayVolumeOnGateway)
+	volumeGateway := relationshipByType(t, envelopes, catalog.RelationshipStorageGatewayVolumeOnGateway)
 	if got, want := volumeGateway.Payload["source_resource_id"], volumeARN; got != want {
 		t.Fatalf("volume->gateway source_resource_id = %#v, want %q", got, want)
 	}
 	if got, want := volumeGateway.Payload["target_resource_id"], gatewayARN; got != want {
 		t.Fatalf("volume->gateway target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := volumeGateway.Payload["target_type"], awscloud.ResourceTypeStorageGatewayGateway; got != want {
+	if got, want := volumeGateway.Payload["target_type"], catalog.ResourceTypeStorageGatewayGateway; got != want {
 		t.Fatalf("volume->gateway target_type = %#v, want %q", got, want)
 	}
 
-	shareGateway := relationshipByType(t, envelopes, awscloud.RelationshipStorageGatewayFileShareOnGateway)
+	shareGateway := relationshipByType(t, envelopes, catalog.RelationshipStorageGatewayFileShareOnGateway)
 	if got, want := shareGateway.Payload["target_resource_id"], gatewayARN; got != want {
 		t.Fatalf("share->gateway target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := shareGateway.Payload["target_type"], awscloud.ResourceTypeStorageGatewayGateway; got != want {
+	if got, want := shareGateway.Payload["target_type"], catalog.ResourceTypeStorageGatewayGateway; got != want {
 		t.Fatalf("share->gateway target_type = %#v, want %q", got, want)
 	}
 
-	shareS3 := relationshipByType(t, envelopes, awscloud.RelationshipStorageGatewayFileShareStoresInS3Bucket)
+	shareS3 := relationshipByType(t, envelopes, catalog.RelationshipStorageGatewayFileShareStoresInS3Bucket)
 	if got, want := shareS3.Payload["target_resource_id"], "arn:aws:s3:::orders-archive"; got != want {
 		t.Fatalf("share->s3 target_resource_id = %#v, want %q", got, want)
 	}
 	if got, want := shareS3.Payload["target_arn"], "arn:aws:s3:::orders-archive"; got != want {
 		t.Fatalf("share->s3 target_arn = %#v, want %q", got, want)
 	}
-	if got, want := shareS3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := shareS3.Payload["target_type"], catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("share->s3 target_type = %#v, want %q", got, want)
 	}
 	shareS3Attributes := attributesOf(t, shareS3)
@@ -150,7 +151,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 		t.Fatalf("share->s3 object_key_prefix attribute = %#v, want %q", got, want)
 	}
 
-	shareRole := relationshipByType(t, envelopes, awscloud.RelationshipStorageGatewayFileShareUsesIAMRole)
+	shareRole := relationshipByType(t, envelopes, catalog.RelationshipStorageGatewayFileShareUsesIAMRole)
 	if got, want := shareRole.Payload["target_resource_id"], roleARN; got != want {
 		t.Fatalf("share->role target_resource_id = %#v, want %q", got, want)
 	}
@@ -158,7 +159,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 		t.Fatalf("share->role target_type = %#v, want %q", got, want)
 	}
 
-	shareKMS := relationshipByType(t, envelopes, awscloud.RelationshipStorageGatewayFileShareUsesKMSKey)
+	shareKMS := relationshipByType(t, envelopes, catalog.RelationshipStorageGatewayFileShareUsesKMSKey)
 	if got, want := shareKMS.Payload["target_resource_id"], kmsARN; got != want {
 		t.Fatalf("share->kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -166,7 +167,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 		t.Fatalf("share->kms target_type = %#v, want %q", got, want)
 	}
 
-	shareLog := relationshipByType(t, envelopes, awscloud.RelationshipStorageGatewayFileShareLogsToCloudWatch)
+	shareLog := relationshipByType(t, envelopes, catalog.RelationshipStorageGatewayFileShareLogsToCloudWatch)
 	if got, want := shareLog.Payload["target_resource_id"], logGroupARN; got != want {
 		t.Fatalf("share->log target_resource_id = %#v, want %q", got, want)
 	}
@@ -174,7 +175,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 		t.Fatalf("share->log target_type = %#v, want %q", got, want)
 	}
 
-	gatewayVPCE := relationshipByType(t, envelopes, awscloud.RelationshipStorageGatewayGatewayUsesVPCEndpoint)
+	gatewayVPCE := relationshipByType(t, envelopes, catalog.RelationshipStorageGatewayGatewayUsesVPCEndpoint)
 	if got, want := gatewayVPCE.Payload["source_resource_id"], gatewayARN; got != want {
 		t.Fatalf("gateway->vpce source_resource_id = %#v, want %q", got, want)
 	}
@@ -269,9 +270,9 @@ func TestScannerOmitsRoleKMSAndLogRelationshipsWhenNotARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipStorageGatewayFileShareUsesIAMRole,
-		awscloud.RelationshipStorageGatewayFileShareUsesKMSKey,
-		awscloud.RelationshipStorageGatewayFileShareLogsToCloudWatch,
+		catalog.RelationshipStorageGatewayFileShareUsesIAMRole,
+		catalog.RelationshipStorageGatewayFileShareUsesKMSKey,
+		catalog.RelationshipStorageGatewayFileShareLogsToCloudWatch,
 	} {
 		if got := countRelationships(envelopes, relationshipType); got != 0 {
 			t.Fatalf("%s relationship count = %d, want 0 for non-ARN identity", relationshipType, got)
@@ -292,7 +293,7 @@ func TestScannerOmitsVPCEndpointRelationshipForNonVpceValue(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Scan() error = %v, want nil", err)
 		}
-		if got := countRelationships(envelopes, awscloud.RelationshipStorageGatewayGatewayUsesVPCEndpoint); got != 0 {
+		if got := countRelationships(envelopes, catalog.RelationshipStorageGatewayGatewayUsesVPCEndpoint); got != 0 {
 			t.Fatalf("gateway->vpce count = %d, want 0 for VPCEndpoint %q", got, value)
 		}
 	}
@@ -307,17 +308,17 @@ func TestScannerOmitsGatewayEdgesWhenGatewayARNMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipStorageGatewayVolumeOnGateway); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipStorageGatewayVolumeOnGateway); got != 0 {
 		t.Fatalf("volume->gateway count = %d, want 0 when gateway ARN missing", got)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipStorageGatewayFileShareOnGateway); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipStorageGatewayFileShareOnGateway); got != 0 {
 		t.Fatalf("share->gateway count = %d, want 0 when gateway ARN missing", got)
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 	if _, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary); err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}
@@ -333,7 +334,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceStorageGateway,
+		ServiceKind:         catalog.ServiceStorageGateway,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:storagegateway:1",
 		CollectorInstanceID: "aws-prod",

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -66,7 +67,7 @@ func TestScannerEmitsFileSystemTopologyAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	fs := resourceByType(t, envelopes, awscloud.ResourceTypeEFSFileSystem)
+	fs := resourceByType(t, envelopes, catalog.ResourceTypeEFSFileSystem)
 	attributes := attributesOf(t, fs)
 	if got, want := attributes["performance_mode"], "generalPurpose"; got != want {
 		t.Fatalf("performance_mode = %#v, want %q", got, want)
@@ -90,7 +91,7 @@ func TestScannerEmitsFileSystemTopologyAndRelationships(t *testing.T) {
 		t.Fatalf("file system ARN = %#v, want %q", got, want)
 	}
 
-	accessPoint := resourceByType(t, envelopes, awscloud.ResourceTypeEFSAccessPoint)
+	accessPoint := resourceByType(t, envelopes, catalog.ResourceTypeEFSAccessPoint)
 	if got, want := accessPoint.Payload["arn"], apARN; got != want {
 		t.Fatalf("access point ARN = %#v, want %q", got, want)
 	}
@@ -98,17 +99,17 @@ func TestScannerEmitsFileSystemTopologyAndRelationships(t *testing.T) {
 		t.Fatalf("root_directory = %#v, want %q", got, want)
 	}
 
-	resourceByType(t, envelopes, awscloud.ResourceTypeEFSMountTarget)
-	resourceByType(t, envelopes, awscloud.ResourceTypeEFSReplicationConfiguration)
+	resourceByType(t, envelopes, catalog.ResourceTypeEFSMountTarget)
+	resourceByType(t, envelopes, catalog.ResourceTypeEFSReplicationConfiguration)
 
-	assertRelationship(t, envelopes, awscloud.RelationshipEFSMountTargetInSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipEFSMountTargetUsesSecurityGroup)
-	assertRelationship(t, envelopes, awscloud.RelationshipEFSFileSystemUsesKMSKey)
-	assertRelationship(t, envelopes, awscloud.RelationshipEFSAccessPointTargetsFileSystem)
-	assertRelationship(t, envelopes, awscloud.RelationshipEFSReplicationTargetsFileSystem)
+	assertRelationship(t, envelopes, catalog.RelationshipEFSMountTargetInSubnet)
+	assertRelationship(t, envelopes, catalog.RelationshipEFSMountTargetUsesSecurityGroup)
+	assertRelationship(t, envelopes, catalog.RelationshipEFSFileSystemUsesKMSKey)
+	assertRelationship(t, envelopes, catalog.RelationshipEFSAccessPointTargetsFileSystem)
+	assertRelationship(t, envelopes, catalog.RelationshipEFSReplicationTargetsFileSystem)
 
 	// Two security groups produce two distinct uses-security-group relationships.
-	if got, want := countRelationships(envelopes, awscloud.RelationshipEFSMountTargetUsesSecurityGroup), 2; got != want {
+	if got, want := countRelationships(envelopes, catalog.RelationshipEFSMountTargetUsesSecurityGroup), 2; got != want {
 		t.Fatalf("uses-security-group relationships = %d, want %d", got, want)
 	}
 }
@@ -127,7 +128,7 @@ func TestScannerOmitsKMSRelationshipWhenUnencrypted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipEFSFileSystemUsesKMSKey); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipEFSFileSystemUsesKMSKey); got != 0 {
 		t.Fatalf("file-system-uses-kms-key relationships = %d, want 0 for unencrypted file system", got)
 	}
 }
@@ -152,7 +153,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceEFS,
+		ServiceKind:         catalog.ServiceEFS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:efs:1",
 		CollectorInstanceID: "aws-prod",

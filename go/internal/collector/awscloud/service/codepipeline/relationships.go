@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // ResourceTypeCodePipelineSourceProvider names the synthetic provider category
@@ -84,7 +85,7 @@ func artifactBucketRelationship(
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       map[string]any{"bucket_name": bucket},
 		SourceRecordID:   pipelineID + "#artifact-bucket#" + bucket,
 	}, true

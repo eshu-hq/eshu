@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -73,7 +74,7 @@ func TestScannerEmitsCanaryMetadataAndRelationships(t *testing.T) {
 	// S3 scanner publishes (extracted from the artifact location path).
 	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipSyntheticsCanaryUsesS3Bucket)
 	wantBucketARN := "arn:aws:s3:::checkout-artifacts"
-	assertEdgeTarget(t, s3Edge, awscloud.ResourceTypeS3Bucket, wantBucketARN)
+	assertEdgeTarget(t, s3Edge, catalog.ResourceTypeS3Bucket, wantBucketARN)
 	if got, want := s3Edge.Payload["source_resource_id"], testCanaryARN; got != want {
 		t.Fatalf("canary->s3 source_resource_id = %#v, want %q", got, want)
 	}
@@ -192,7 +193,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

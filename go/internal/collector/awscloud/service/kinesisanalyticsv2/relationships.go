@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // applicationRelationships builds every metadata-derived edge for one
@@ -128,7 +129,7 @@ func codeBucketRelationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipManagedFlinkApplicationUsesS3CodeBucket + ":" + bucketARN,
 	}, true

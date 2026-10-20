@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // assessmentFrameworkRelationship records an assessment's dependency on the
@@ -66,7 +67,7 @@ func assessmentReportsS3Relationship(
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       map[string]any{"bucket": bucket},
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAuditManagerAssessmentReportsToS3 + ":" + bucketARN,
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // instanceRelationships records a replication instance's placement and
@@ -163,7 +164,7 @@ func endpointRelationships(
 				sourceARN,
 				bucketARN,
 				bucketARN,
-				awscloud.ResourceTypeS3Bucket,
+				catalog.ResourceTypeS3Bucket,
 				map[string]any{"bucket": bucket},
 			))
 		}

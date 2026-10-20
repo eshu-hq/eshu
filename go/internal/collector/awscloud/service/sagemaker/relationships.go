@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // containerImageTargetType labels a container image URI relationship target.
@@ -101,7 +102,7 @@ func modelArtifactRelationship(
 		SourceARN:        strings.TrimSpace(modelARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   modelID + "#artifact#" + artifact,
 	}, true

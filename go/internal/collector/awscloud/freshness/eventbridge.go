@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 const (
@@ -253,7 +254,7 @@ var configResourceTypeServices = map[string]string{
 	"AWS::RedshiftServerless::Namespace":        awscloud.ServiceRedshift,
 	"AWS::RedshiftServerless::Workgroup":        awscloud.ServiceRedshift,
 	"AWS::Route53::HostedZone":                  awscloud.ServiceRoute53,
-	"AWS::S3::Bucket":                           awscloud.ServiceS3,
+	"AWS::S3::Bucket":                           catalog.ServiceS3,
 	"AWS::SecretsManager::Secret":               awscloud.ServiceSecretsManager,
 	"AWS::SecurityHub::Hub":                     awscloud.ServiceSecurityHub,
 	"AWS::SNS::Topic":                           awscloud.ServiceSNS,
@@ -280,7 +281,7 @@ var cloudTrailSourceServices = map[string]string{
 	"redshift.amazonaws.com":             awscloud.ServiceRedshift,
 	"redshift-serverless.amazonaws.com":  awscloud.ServiceRedshift,
 	"route53.amazonaws.com":              awscloud.ServiceRoute53,
-	"s3.amazonaws.com":                   awscloud.ServiceS3,
+	"s3.amazonaws.com":                   catalog.ServiceS3,
 	"secretsmanager.amazonaws.com":       awscloud.ServiceSecretsManager,
 	"securityhub.amazonaws.com":          awscloud.ServiceSecurityHub,
 	"sns.amazonaws.com":                  awscloud.ServiceSNS,
@@ -307,7 +308,7 @@ var cloudTrailResourceIDKeys = map[string][]string{
 		"workgroupArn",
 		"scheduledActionName",
 	},
-	awscloud.ServiceS3:             {"bucketName"},
+	catalog.ServiceS3:              {"bucketName"},
 	awscloud.ServiceSecretsManager: {"secretId"},
 	awscloud.ServiceSecurityHub:    {"hubArn", "standardsSubscriptionArn", "standardsControlArn", "insightArn", "actionTargetArn", "accountId"},
 	awscloud.ServiceSSM:            {"name"},

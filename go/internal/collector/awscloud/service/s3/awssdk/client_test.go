@@ -15,6 +15,7 @@ import (
 	"github.com/aws/smithy-go"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListBucketsReadsSafeMetadataOnly(t *testing.T) {
@@ -96,7 +97,7 @@ func TestClientListBucketsReadsSafeMetadataOnly(t *testing.T) {
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: catalog.ServiceS3,
 		},
 	}
 
@@ -197,7 +198,7 @@ func TestClientListBucketsUsesMaxBucketsAndContinuationToken(t *testing.T) {
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: catalog.ServiceS3,
 		},
 	}
 
@@ -223,7 +224,7 @@ func TestClientListBucketsRejectsGlobalS3Boundary(t *testing.T) {
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "aws-global",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: catalog.ServiceS3,
 		},
 	}
 
@@ -261,7 +262,7 @@ func TestClientListBucketsTreatsMissingOptionalBucketConfigAsEmptyMetadata(t *te
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: catalog.ServiceS3,
 		},
 	}
 

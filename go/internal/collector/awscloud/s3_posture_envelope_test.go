@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -15,7 +16,7 @@ func s3PostureBoundary(observedAt time.Time) Boundary {
 	return Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         ServiceS3,
+		ServiceKind:         catalog.ServiceS3,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:s3:1",
 		CollectorInstanceID: "aws-prod",
@@ -75,7 +76,7 @@ func TestNewS3BucketPostureEnvelopeCarriesDerivedPosture(t *testing.T) {
 	wantString := map[string]string{
 		"account_id":            "123456789012",
 		"region":                "us-east-1",
-		"service_kind":          ServiceS3,
+		"service_kind":          catalog.ServiceS3,
 		"collector_instance_id": "aws-prod",
 		"bucket_arn":            "arn:aws:s3:::orders-artifacts",
 		"bucket_name":           "orders-artifacts",

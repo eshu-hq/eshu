@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -95,7 +96,7 @@ func TestScannerModelRelationshipsTargetTypes(t *testing.T) {
 	if got, want := artifact.Payload["target_resource_id"], "arn:aws:s3:::artifacts"; got != want {
 		t.Fatalf("model artifact target = %#v, want %q", got, want)
 	}
-	if got, want := artifact.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := artifact.Payload["target_type"], catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("model artifact target_type = %#v, want %q", got, want)
 	}
 	image := relationshipByType(t, envelopes, awscloud.RelationshipSageMakerModelUsesContainerImage)

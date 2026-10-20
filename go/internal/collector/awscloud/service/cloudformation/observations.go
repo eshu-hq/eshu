@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -232,7 +233,7 @@ func stackRelationships(boundary awscloud.Boundary, stack Stack) []awscloud.Rela
 			SourceResourceID: sourceID,
 			SourceARN:        stackID,
 			TargetResourceID: templateURL,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       catalog.ResourceTypeS3Bucket,
 			SourceRecordID:   sourceID + "->template:" + templateURL,
 		})
 	}

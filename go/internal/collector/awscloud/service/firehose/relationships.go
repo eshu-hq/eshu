@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // deliveryStreamRelationships builds every graph-join edge a single Firehose
@@ -94,7 +95,7 @@ func stagingS3Relationship(
 		SourceARN:        streamARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       map[string]any{"staging_bucket": true},
 		SourceRecordID:   streamID + "#s3-staging#" + bucketARN,
 	}, true
@@ -281,7 +282,7 @@ func destinationTargetRelationship(
 		base.RelationshipType = awscloud.RelationshipFirehoseStreamDeliversToS3Bucket
 		base.TargetResourceID = bucketARN
 		base.TargetARN = bucketARN
-		base.TargetType = awscloud.ResourceTypeS3Bucket
+		base.TargetType = catalog.ResourceTypeS3Bucket
 		base.SourceRecordID = streamID + "#s3#" + bucketARN
 		return base, true
 	case destinationKindRedshift:

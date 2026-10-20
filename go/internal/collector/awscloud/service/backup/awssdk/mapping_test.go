@@ -13,6 +13,7 @@ import (
 	awsbackuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestConditionTypeOperator asserts every AWS Backup ListOfTags ConditionType
@@ -75,7 +76,7 @@ func TestClientListBackupSelectionsMapsNonEqualsListOfTagsOperator(t *testing.T)
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBackup},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBackup},
 	}
 	selections, err := adapter.ListBackupSelections(context.Background(), planID)
 	if err != nil {

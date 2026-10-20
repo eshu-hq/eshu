@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // fleetRelationships returns the reported dependency edges for one fleet: VPC
@@ -213,7 +214,7 @@ func stackS3Relationships(boundary awscloud.Boundary, stack Stack) []awscloud.Re
 			SourceARN:        stackARN,
 			TargetResourceID: bucketARN,
 			TargetARN:        bucketARN,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       catalog.ResourceTypeS3Bucket,
 			Attributes: map[string]any{
 				"bucket": bucket,
 				"usage":  bucketUses[bucket],

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -255,7 +256,7 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 	}
 
 	bucket := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelinePipelineStoresArtifactsInS3Bucket)
-	if len(bucket) != 1 || bucket[0]["target_type"] != awscloud.ResourceTypeS3Bucket {
+	if len(bucket) != 1 || bucket[0]["target_type"] != catalog.ResourceTypeS3Bucket {
 		t.Fatalf("pipeline->S3 = %#v", bucket)
 	}
 	if bucket[0]["target_resource_id"] != "arn:aws:s3:::checkout-artifacts" {

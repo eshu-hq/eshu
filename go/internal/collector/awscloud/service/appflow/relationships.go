@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // flowResourceID is the identity the flow node publishes as its resource_id.
@@ -84,7 +85,7 @@ func flowS3Relationship(
 		SourceARN:        strings.TrimSpace(flow.ARN),
 		TargetResourceID: arn,
 		TargetARN:        arn,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes: map[string]any{
 			"bucket":    bucket,
 			"direction": direction,

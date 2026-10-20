@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // volumeOnGatewayRelationship records a volume's parent gateway. The edge keys
@@ -21,12 +22,12 @@ func volumeOnGatewayRelationship(boundary awscloud.Boundary, volume Volume) *aws
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStorageGatewayVolumeOnGateway,
+		RelationshipType: catalog.RelationshipStorageGatewayVolumeOnGateway,
 		SourceResourceID: volumeID,
 		TargetResourceID: gatewayARN,
 		TargetARN:        gatewayARN,
-		TargetType:       awscloud.ResourceTypeStorageGatewayGateway,
-		SourceRecordID:   volumeID + "->" + awscloud.RelationshipStorageGatewayVolumeOnGateway + ":" + gatewayARN,
+		TargetType:       catalog.ResourceTypeStorageGatewayGateway,
+		SourceRecordID:   volumeID + "->" + catalog.RelationshipStorageGatewayVolumeOnGateway + ":" + gatewayARN,
 	}
 }
 
@@ -41,12 +42,12 @@ func fileShareOnGatewayRelationship(boundary awscloud.Boundary, share FileShare)
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStorageGatewayFileShareOnGateway,
+		RelationshipType: catalog.RelationshipStorageGatewayFileShareOnGateway,
 		SourceResourceID: shareID,
 		TargetResourceID: gatewayARN,
 		TargetARN:        gatewayARN,
-		TargetType:       awscloud.ResourceTypeStorageGatewayGateway,
-		SourceRecordID:   shareID + "->" + awscloud.RelationshipStorageGatewayFileShareOnGateway + ":" + gatewayARN,
+		TargetType:       catalog.ResourceTypeStorageGatewayGateway,
+		SourceRecordID:   shareID + "->" + catalog.RelationshipStorageGatewayFileShareOnGateway + ":" + gatewayARN,
 	}
 }
 
@@ -70,13 +71,13 @@ func fileShareS3BucketRelationship(boundary awscloud.Boundary, share FileShare) 
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStorageGatewayFileShareStoresInS3Bucket,
+		RelationshipType: catalog.RelationshipStorageGatewayFileShareStoresInS3Bucket,
 		SourceResourceID: shareID,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   shareID + "->" + awscloud.RelationshipStorageGatewayFileShareStoresInS3Bucket + ":" + bucketARN,
+		SourceRecordID:   shareID + "->" + catalog.RelationshipStorageGatewayFileShareStoresInS3Bucket + ":" + bucketARN,
 	}
 }
 
@@ -91,12 +92,12 @@ func fileShareRoleRelationship(boundary awscloud.Boundary, share FileShare) *aws
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStorageGatewayFileShareUsesIAMRole,
+		RelationshipType: catalog.RelationshipStorageGatewayFileShareUsesIAMRole,
 		SourceResourceID: shareID,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   shareID + "->" + awscloud.RelationshipStorageGatewayFileShareUsesIAMRole + ":" + roleARN,
+		SourceRecordID:   shareID + "->" + catalog.RelationshipStorageGatewayFileShareUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -113,12 +114,12 @@ func fileShareKMSKeyRelationship(boundary awscloud.Boundary, share FileShare) *a
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStorageGatewayFileShareUsesKMSKey,
+		RelationshipType: catalog.RelationshipStorageGatewayFileShareUsesKMSKey,
 		SourceResourceID: shareID,
 		TargetResourceID: kmsKeyARN,
 		TargetARN:        kmsKeyARN,
 		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   shareID + "->" + awscloud.RelationshipStorageGatewayFileShareUsesKMSKey + ":" + kmsKeyARN,
+		SourceRecordID:   shareID + "->" + catalog.RelationshipStorageGatewayFileShareUsesKMSKey + ":" + kmsKeyARN,
 	}
 }
 
@@ -134,12 +135,12 @@ func fileShareLogGroupRelationship(boundary awscloud.Boundary, share FileShare) 
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStorageGatewayFileShareLogsToCloudWatch,
+		RelationshipType: catalog.RelationshipStorageGatewayFileShareLogsToCloudWatch,
 		SourceResourceID: shareID,
 		TargetResourceID: logGroupARN,
 		TargetARN:        logGroupARN,
 		TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
-		SourceRecordID:   shareID + "->" + awscloud.RelationshipStorageGatewayFileShareLogsToCloudWatch + ":" + logGroupARN,
+		SourceRecordID:   shareID + "->" + catalog.RelationshipStorageGatewayFileShareLogsToCloudWatch + ":" + logGroupARN,
 	}
 }
 
@@ -156,12 +157,12 @@ func gatewayVPCEndpointRelationship(boundary awscloud.Boundary, gateway Gateway)
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStorageGatewayGatewayUsesVPCEndpoint,
+		RelationshipType: catalog.RelationshipStorageGatewayGatewayUsesVPCEndpoint,
 		SourceResourceID: gatewayARN,
 		SourceARN:        gatewayARN,
 		TargetResourceID: endpointID,
 		TargetType:       awscloud.ResourceTypeVPCEndpoint,
-		SourceRecordID:   gatewayARN + "->" + awscloud.RelationshipStorageGatewayGatewayUsesVPCEndpoint + ":" + endpointID,
+		SourceRecordID:   gatewayARN + "->" + catalog.RelationshipStorageGatewayGatewayUsesVPCEndpoint + ":" + endpointID,
 	}
 }
 

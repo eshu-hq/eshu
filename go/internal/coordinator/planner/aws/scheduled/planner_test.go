@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -109,7 +110,7 @@ func TestAWSScheduledWorkPlannerSkipsInvalidGlobalRegionPairs(t *testing.T) {
 		"aws:123456789012:aws-global:" + awscloud.ServiceIAM,
 		"aws:123456789012:aws-global:" + awscloud.ServiceRoute53,
 		"aws:123456789012:us-east-1:" + awscloud.ServiceLambda,
-		"aws:123456789012:us-east-1:" + awscloud.ServiceS3,
+		"aws:123456789012:us-east-1:" + catalog.ServiceS3,
 	}
 	slices.Sort(gotScopeIDs)
 	if !slices.Equal(gotScopeIDs, wantScopeIDs) {
@@ -137,7 +138,7 @@ func TestAWSScheduledWorkPlannerSkipsInvalidGlobalRegionPairs(t *testing.T) {
 	}
 	wantSkipped := map[string]string{
 		"aws-global/" + awscloud.ServiceLambda:    "regional_service_aws_global",
-		"aws-global/" + awscloud.ServiceS3:        "regional_service_aws_global",
+		"aws-global/" + catalog.ServiceS3:         "regional_service_aws_global",
 		"us-east-1/" + awscloud.ServiceCloudFront: "global_service_regional_region",
 		"us-east-1/" + awscloud.ServiceIAM:        "global_service_regional_region",
 		"us-east-1/" + awscloud.ServiceRoute53:    "global_service_regional_region",

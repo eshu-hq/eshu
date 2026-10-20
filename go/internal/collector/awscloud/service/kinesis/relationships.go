@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func dataStreamRelationships(boundary awscloud.Boundary, stream DataStream) []awscloud.RelationshipObservation {
@@ -127,7 +128,7 @@ func destinationTargetRelationship(
 		base.RelationshipType = awscloud.RelationshipFirehoseDeliveryStreamDeliversToS3
 		base.TargetResourceID = bucketARN
 		base.TargetARN = bucketARN
-		base.TargetType = awscloud.ResourceTypeS3Bucket
+		base.TargetType = catalog.ResourceTypeS3Bucket
 		base.SourceRecordID = streamID + "#s3#" + bucketARN
 		return base, true
 	case FirehoseDestinationKindRedshift:

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -188,7 +189,7 @@ func crlBucketRelationship(boundary awscloud.Boundary, caARN string, authority C
 		SourceResourceID: caARN,
 		SourceARN:        caARN,
 		TargetResourceID: bucket,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		SourceRecordID:   caARN + "->s3:" + bucket,
 	}, true
 }

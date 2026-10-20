@@ -270,7 +270,7 @@ type ResourcePolicyPermissionObservation struct {
 	// bucket or KMS key), i.e. the resource the grant applies to.
 	ResourceARN string
 	// ResourceType is the resource type the policy is attached to, for example
-	// ResourceTypeS3Bucket or ResourceTypeKMSKey.
+	// catalog.ResourceTypeS3Bucket or ResourceTypeKMSKey.
 	ResourceType string
 	// StatementSID is the source statement Sid. It is used only to keep the
 	// derived fact's source-record id stable across re-observation; it is never

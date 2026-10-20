@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // repositorySourceTargetType labels a Git source-provider relationship target.
@@ -199,7 +200,7 @@ func sourceRelationship(
 			SourceARN:        projectARN,
 			TargetResourceID: bucketARN,
 			TargetARN:        bucketARN,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       catalog.ResourceTypeS3Bucket,
 			Attributes: map[string]any{
 				"source_type":       sourceType,
 				"source_location":   location,
@@ -264,7 +265,7 @@ func artifactRelationship(
 		SourceARN:        projectARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes: map[string]any{
 			"artifact_location":   location,
 			"artifact_identifier": strings.TrimSpace(artifact.ArtifactIdentifier),

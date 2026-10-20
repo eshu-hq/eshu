@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -103,7 +104,7 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 	// S3 scanner publishes for a bucket node.
 	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamTableRejectsToS3)
 	wantBucketARN := "arn:aws:s3:::rejected-data-bucket"
-	assertEdgeTarget(t, tableS3, awscloud.ResourceTypeS3Bucket, wantBucketARN)
+	assertEdgeTarget(t, tableS3, catalog.ResourceTypeS3Bucket, wantBucketARN)
 	if got, want := tableS3.Payload["source_resource_id"], testTableARN; got != want {
 		t.Fatalf("table->s3 source_resource_id = %#v, want %q", got, want)
 	}
@@ -246,7 +247,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

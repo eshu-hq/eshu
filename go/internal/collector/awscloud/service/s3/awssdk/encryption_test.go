@@ -12,6 +12,7 @@ import (
 	awss3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestGetBucketEncryptionSSES3AlgorithmProducesNoKMSKey proves that SSE-S3
@@ -42,7 +43,7 @@ func TestGetBucketEncryptionSSES3AlgorithmProducesNoKMSKey(t *testing.T) {
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: catalog.ServiceS3,
 		},
 	}
 	buckets, err := adapter.ListBuckets(context.Background())
@@ -96,7 +97,7 @@ func TestGetBucketEncryptionKMSAliasKeyIDPassedThrough(t *testing.T) {
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: catalog.ServiceS3,
 		},
 	}
 	buckets, err := adapter.ListBuckets(context.Background())
@@ -156,7 +157,7 @@ func TestGetBucketEncryptionMultipleRulesAllMapped(t *testing.T) {
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceS3,
+			ServiceKind: catalog.ServiceS3,
 		},
 	}
 	buckets, err := adapter.ListBuckets(context.Background())

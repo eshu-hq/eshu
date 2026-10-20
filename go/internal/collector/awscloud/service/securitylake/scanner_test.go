@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -83,7 +84,7 @@ func TestScannerEmitsSecurityLakeMetadataAndRelationships(t *testing.T) {
 
 	// data lake -> S3 bucket edge, keyed by the bucket ARN the S3 scanner publishes.
 	lakeS3 := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeDataLakeUsesS3Bucket)
-	assertEdgeTarget(t, lakeS3, awscloud.ResourceTypeS3Bucket, testS3BucketARN)
+	assertEdgeTarget(t, lakeS3, catalog.ResourceTypeS3Bucket, testS3BucketARN)
 
 	// data lake -> KMS key edge.
 	lakeKMS := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeDataLakeUsesKMSKey)
@@ -110,7 +111,7 @@ func TestScannerEmitsSecurityLakeMetadataAndRelationships(t *testing.T) {
 
 	// subscriber -> S3 bucket edge.
 	subS3 := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeSubscriberUsesS3Bucket)
-	assertEdgeTarget(t, subS3, awscloud.ResourceTypeS3Bucket, testSubBucketARN)
+	assertEdgeTarget(t, subS3, catalog.ResourceTypeS3Bucket, testSubBucketARN)
 
 	// No subscriber credential / external id / endpoint leakage.
 	for _, envelope := range envelopes {
@@ -225,7 +226,7 @@ func TestScannerSynthesizesPartitionAwareIdentities(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // pipelineRelationships returns every cross-resource edge an image pipeline
@@ -116,7 +117,7 @@ func infraConfigS3LoggingEdge(
 	edge := arnEdge(
 		boundary, sourceID,
 		awscloud.RelationshipImageBuilderInfraConfigLogsToS3,
-		bucketARN, awscloud.ResourceTypeS3Bucket,
+		bucketARN, catalog.ResourceTypeS3Bucket,
 	)
 	edge.Attributes = attributes
 	return &edge

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -139,7 +140,7 @@ func TestScannerEmitsDataSyncMetadataResourcesAndRelationships(t *testing.T) {
 	if got, want := s3Edge.Payload["target_arn"], "arn:aws:s3:::archive-source"; got != want {
 		t.Fatalf("location->s3 target_arn = %#v, want %q", got, want)
 	}
-	if got, want := s3Edge.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := s3Edge.Payload["target_type"], catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("location->s3 target_type = %#v, want %q", got, want)
 	}
 
@@ -148,7 +149,7 @@ func TestScannerEmitsDataSyncMetadataResourcesAndRelationships(t *testing.T) {
 	if got, want := efsEdge.Payload["target_resource_id"], wantEFSARN; got != want {
 		t.Fatalf("location->efs target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := efsEdge.Payload["target_type"], awscloud.ResourceTypeEFSFileSystem; got != want {
+	if got, want := efsEdge.Payload["target_type"], catalog.ResourceTypeEFSFileSystem; got != want {
 		t.Fatalf("location->efs target_type = %#v, want %q", got, want)
 	}
 
@@ -189,7 +190,7 @@ func TestScannerEmitsFSxFileSystemRelationshipFromReportedARN(t *testing.T) {
 	if got, want := edge.Payload["target_arn"], fsARN; got != want {
 		t.Fatalf("location->fsx target_arn = %#v, want %q", got, want)
 	}
-	if got, want := edge.Payload["target_type"], awscloud.ResourceTypeFSxFileSystem; got != want {
+	if got, want := edge.Payload["target_type"], catalog.ResourceTypeFSxFileSystem; got != want {
 		t.Fatalf("location->fsx target_type = %#v, want %q", got, want)
 	}
 }
@@ -263,7 +264,7 @@ func TestScannerOmitsTaskEdgesWhenARNsAreNotARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

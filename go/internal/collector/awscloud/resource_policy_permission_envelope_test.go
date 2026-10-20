@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -14,7 +15,7 @@ import (
 func resourcePolicyBoundary(observedAt time.Time) Boundary {
 	boundary := testBoundary(observedAt)
 	boundary.Region = "us-east-1"
-	boundary.ServiceKind = ServiceS3
+	boundary.ServiceKind = catalog.ServiceS3
 	boundary.ScopeID = "aws:123456789012:us-east-1"
 	boundary.GenerationID = "aws:123456789012:us-east-1:s3:1"
 	return boundary
@@ -25,7 +26,7 @@ func TestNewResourcePolicyPermissionEnvelopeCrossAccountAllow(t *testing.T) {
 	envelope, err := NewResourcePolicyPermissionEnvelope(ResourcePolicyPermissionObservation{
 		Boundary:            boundary,
 		ResourceARN:         "arn:aws:s3:::eshu-shared-bucket",
-		ResourceType:        ResourceTypeS3Bucket,
+		ResourceType:        catalog.ResourceTypeS3Bucket,
 		StatementSID:        "AllowPartner",
 		Effect:              "Allow",
 		Actions:             []string{"s3:GetObject", "s3:getobject", "  S3:ListBucket  "},
@@ -45,7 +46,7 @@ func TestNewResourcePolicyPermissionEnvelopeCrossAccountAllow(t *testing.T) {
 		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.AWSResourcePolicyPermissionSchemaVersion)
 	}
 	assertPayloadString(t, envelope.Payload, "resource_arn", "arn:aws:s3:::eshu-shared-bucket")
-	assertPayloadString(t, envelope.Payload, "resource_type", ResourceTypeS3Bucket)
+	assertPayloadString(t, envelope.Payload, "resource_type", catalog.ResourceTypeS3Bucket)
 	assertPayloadString(t, envelope.Payload, "account_id", "123456789012")
 	assertPayloadString(t, envelope.Payload, "region", "us-east-1")
 	assertPayloadString(t, envelope.Payload, "policy_source", ResourcePolicySourceResource)
@@ -78,7 +79,7 @@ func TestNewResourcePolicyPermissionEnvelopePublicPrincipal(t *testing.T) {
 	envelope, err := NewResourcePolicyPermissionEnvelope(ResourcePolicyPermissionObservation{
 		Boundary:       boundary,
 		ResourceARN:    "arn:aws:s3:::eshu-public-bucket",
-		ResourceType:   ResourceTypeS3Bucket,
+		ResourceType:   catalog.ResourceTypeS3Bucket,
 		Effect:         "Allow",
 		Actions:        []string{"s3:GetObject"},
 		Resources:      []string{"arn:aws:s3:::eshu-public-bucket/*"},
@@ -121,7 +122,7 @@ func TestNewResourcePolicyPermissionEnvelopeConditionKeysCarryNamesOnly(t *testi
 	envelope, err := NewResourcePolicyPermissionEnvelope(ResourcePolicyPermissionObservation{
 		Boundary:      boundary,
 		ResourceARN:   "arn:aws:s3:::eshu-conditioned",
-		ResourceType:  ResourceTypeS3Bucket,
+		ResourceType:  catalog.ResourceTypeS3Bucket,
 		Effect:        "Allow",
 		Actions:       []string{"s3:GetObject"},
 		Resources:     []string{"arn:aws:s3:::eshu-conditioned/*"},
@@ -152,7 +153,7 @@ func TestNewResourcePolicyPermissionEnvelopeWildcardActionAndResource(t *testing
 	envelope, err := NewResourcePolicyPermissionEnvelope(ResourcePolicyPermissionObservation{
 		Boundary:     boundary,
 		ResourceARN:  "arn:aws:s3:::eshu-wild",
-		ResourceType: ResourceTypeS3Bucket,
+		ResourceType: catalog.ResourceTypeS3Bucket,
 		Effect:       "Allow",
 		Actions:      []string{"*"},
 		Resources:    []string{"*"},
@@ -169,7 +170,7 @@ func TestNewResourcePolicyPermissionEnvelopeRequiresIdentityFields(t *testing.T)
 	boundary := resourcePolicyBoundary(time.Now())
 	if _, err := NewResourcePolicyPermissionEnvelope(ResourcePolicyPermissionObservation{
 		Boundary:     boundary,
-		ResourceType: ResourceTypeS3Bucket,
+		ResourceType: catalog.ResourceTypeS3Bucket,
 		Effect:       "Allow",
 		Actions:      []string{"s3:GetObject"},
 	}); err == nil {
@@ -186,7 +187,7 @@ func TestNewResourcePolicyPermissionEnvelopeRequiresIdentityFields(t *testing.T)
 	if _, err := NewResourcePolicyPermissionEnvelope(ResourcePolicyPermissionObservation{
 		Boundary:     boundary,
 		ResourceARN:  "arn:aws:s3:::eshu-bucket",
-		ResourceType: ResourceTypeS3Bucket,
+		ResourceType: catalog.ResourceTypeS3Bucket,
 		Effect:       "Permit",
 		Actions:      []string{"s3:GetObject"},
 	}); err == nil {
@@ -199,7 +200,7 @@ func TestNewResourcePolicyPermissionEnvelopeStableIdentityIgnoresActionCasing(t 
 	base := ResourcePolicyPermissionObservation{
 		Boundary:     boundary,
 		ResourceARN:  "arn:aws:s3:::eshu-shared-bucket",
-		ResourceType: ResourceTypeS3Bucket,
+		ResourceType: catalog.ResourceTypeS3Bucket,
 		StatementSID: "AllowPartner",
 		Effect:       "Allow",
 		Actions:      []string{"s3:GetObject"},
@@ -235,7 +236,7 @@ func TestNewResourcePolicyPermissionEnvelopeStableIdentityIncludesConditionSumma
 	base := ResourcePolicyPermissionObservation{
 		Boundary:            boundary,
 		ResourceARN:         "arn:aws:s3:::eshu-shared-bucket",
-		ResourceType:        ResourceTypeS3Bucket,
+		ResourceType:        catalog.ResourceTypeS3Bucket,
 		Effect:              "Allow",
 		Actions:             []string{"s3:GetObject"},
 		Resources:           []string{"arn:aws:s3:::eshu-shared-bucket/*"},
@@ -258,7 +259,7 @@ func TestNewResourcePolicyPermissionEnvelopeStableIdentityIncludesConditionSumma
 		"principal_arns":        "arn:aws:iam::111122223333:role/partner",
 		"region":                boundary.Region,
 		"resource_arn":          "arn:aws:s3:::eshu-shared-bucket",
-		"resource_type":         ResourceTypeS3Bucket,
+		"resource_type":         catalog.ResourceTypeS3Bucket,
 		"resources":             "arn:aws:s3:::eshu-shared-bucket/*",
 		"statement_sid":         "",
 	})
@@ -298,7 +299,7 @@ func TestNewResourcePolicyPermissionEnvelopeNeverPersistsForbiddenFields(t *test
 	envelope, err := NewResourcePolicyPermissionEnvelope(ResourcePolicyPermissionObservation{
 		Boundary:      boundary,
 		ResourceARN:   "arn:aws:s3:::eshu-shared-bucket",
-		ResourceType:  ResourceTypeS3Bucket,
+		ResourceType:  catalog.ResourceTypeS3Bucket,
 		StatementSID:  "AllowPartner",
 		Effect:        "Allow",
 		Actions:       []string{"s3:GetObject"},

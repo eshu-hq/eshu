@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // datasetReadsS3Relationship records a DataBrew dataset's Amazon S3 input
@@ -37,7 +38,7 @@ func datasetReadsS3Relationship(boundary awscloud.Boundary, dataset Dataset) *aw
 		SourceARN:        strings.TrimSpace(dataset.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatabrewDatasetReadsS3 + ":" + bucketARN,
 	}
@@ -104,7 +105,7 @@ func jobWritesS3Relationships(boundary awscloud.Boundary, job Job) []awscloud.Re
 			SourceARN:        strings.TrimSpace(job.ARN),
 			TargetResourceID: bucketARN,
 			TargetARN:        bucketARN,
-			TargetType:       awscloud.ResourceTypeS3Bucket,
+			TargetType:       catalog.ResourceTypeS3Bucket,
 			Attributes:       map[string]any{"bucket": strings.TrimSpace(bucket)},
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatabrewJobWritesS3 + ":" + bucketARN,
 		})

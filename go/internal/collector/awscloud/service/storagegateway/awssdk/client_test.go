@@ -14,6 +14,7 @@ import (
 	sgtypes "github.com/aws/aws-sdk-go-v2/service/storagegateway/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientInterfaceExcludesMutationAndCacheOperations is the security gate
@@ -104,7 +105,7 @@ func TestClientReadsStorageGatewayMetadata(t *testing.T) {
 			AdminUserList:   []string{"admin"},
 		}}},
 	}
-	client := &Client{client: api, boundary: awscloud.Boundary{ServiceKind: awscloud.ServiceStorageGateway, Region: "us-east-1"}}
+	client := &Client{client: api, boundary: awscloud.Boundary{ServiceKind: catalog.ServiceStorageGateway, Region: "us-east-1"}}
 
 	gateways, err := client.ListGateways(context.Background())
 	if err != nil {

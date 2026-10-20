@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -145,7 +146,7 @@ func TestScannerCustomModelRelationshipTargetTypes(t *testing.T) {
 	if got, want := s3.Payload["target_resource_id"], "arn:aws:s3:::custom-model-output"; got != want {
 		t.Fatalf("custom model S3 output target = %#v, want %q", got, want)
 	}
-	if got, want := s3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := s3.Payload["target_type"], catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("custom model S3 output target_type = %#v, want %q", got, want)
 	}
 
@@ -176,7 +177,7 @@ func TestScannerKnowledgeBaseDataSourceTargets(t *testing.T) {
 	if got, want := s3.Payload["target_resource_id"], "arn:aws:s3:::kb-docs"; got != want {
 		t.Fatalf("kb S3 data source target = %#v, want %q", got, want)
 	}
-	if got, want := s3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := s3.Payload["target_type"], catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("kb S3 data source target_type = %#v, want %q", got, want)
 	}
 

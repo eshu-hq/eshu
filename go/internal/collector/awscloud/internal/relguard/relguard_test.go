@@ -18,12 +18,17 @@ import (
 // writeFixtureTree writes a minimal awscloud-shaped source tree under a temp dir
 // and returns the awscloud and services directories. It lets the guard run
 // against controlled inputs, including the negative cases the guard must catch,
-// without touching the live tree.
+// without touching the live tree. It always creates the catalog/
+// consolidation directory (empty unless the test writes category files into
+// it) so fixtures match the live tree shape the derivation walks.
 func writeFixtureTree(t *testing.T, constantsSrc string, services map[string]string) (awscloudDir, servicesDir string) {
 	t.Helper()
 	awscloudDir = t.TempDir()
 	if err := os.WriteFile(filepath.Join(awscloudDir, "constants_fixture.go"), []byte(constantsSrc), 0o600); err != nil {
 		t.Fatalf("write constants fixture: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(awscloudDir, "catalog"), 0o750); err != nil {
+		t.Fatalf("mkdir catalog fixture dir: %v", err)
 	}
 	servicesDir = filepath.Join(awscloudDir, "services")
 	for service, relationshipsSrc := range services {
@@ -65,7 +70,8 @@ type RelationshipObservation struct {
 `
 
 // relationshipsHeaderWithImport is relationshipsHeader for fixtures that
-// reference a qualified awscloud.ResourceType* selector. The import must precede
+// reference a qualified ResourceType* selector (awscloud for root constants,
+// catalog for #6696 consolidated category constants). The import must precede
 // the type declaration to parse.
 const relationshipsHeaderWithImport = `package fixture
 
@@ -81,18 +87,29 @@ type RelationshipObservation struct {
 `
 
 // TestDeclaredResourceTypeValues proves the static layer reads every
-// ResourceType constant value from the awscloud source and nothing else.
+// ResourceType constant value from the awscloud source and the catalog
+// consolidation directory, and nothing else.
 func TestDeclaredResourceTypeValues(t *testing.T) {
 	awscloudDir, _ := writeFixtureTree(t, fixtureConstants, nil)
+	const catalogSrc = `package catalog
+
+const (
+	ResourceTypeStorageGatewayGateway = "aws_storagegateway_gateway"
+)
+`
+	if err := os.WriteFile(filepath.Join(awscloudDir, "catalog", "storage.go"), []byte(catalogSrc), 0o600); err != nil {
+		t.Fatalf("write catalog fixture: %v", err)
+	}
 	values, err := relguard.DeclaredResourceTypeValues(awscloudDir)
 	if err != nil {
 		t.Fatalf("DeclaredResourceTypeValues() error = %v", err)
 	}
 	want := map[string]bool{
-		"aws_ec2_vpc":   true,
-		"aws_s3_bucket": true,
-		"aws_resource":  true,
-		"aws_iam_role":  true,
+		"aws_ec2_vpc":                true,
+		"aws_s3_bucket":              true,
+		"aws_resource":               true,
+		"aws_iam_role":               true,
+		"aws_storagegateway_gateway": true,
 	}
 	if len(values) != len(want) {
 		t.Fatalf("DeclaredResourceTypeValues() = %v, want %d values", values, len(want))
@@ -163,8 +180,9 @@ func localAssign() RelationshipObservation {
 }
 
 // TestEmittedSkipsHelperAndConstBacked proves a helper-call target is left
-// unresolved (handed to the runtime layer) and an awscloud.ResourceType*
-// selector is recorded as const-backed, not as an unknown literal.
+// unresolved (handed to the runtime layer) while a ResourceType* selector is
+// recorded as const-backed, not as an unknown literal — through either the
+// legacy awscloud qualifier or the catalog qualifier post-consolidation.
 func TestEmittedSkipsHelperAndConstBacked(t *testing.T) {
 	src := relationshipsHeaderWithImport + `
 func helperTarget(s string) RelationshipObservation {
@@ -172,6 +190,10 @@ func helperTarget(s string) RelationshipObservation {
 }
 
 func constBacked() RelationshipObservation {
+	return RelationshipObservation{RelationshipType: "r2", TargetType: catalog.ResourceTypeS3Bucket}
+}
+
+func constBackedLegacy() RelationshipObservation {
 	return RelationshipObservation{RelationshipType: "r2", TargetType: awscloud.ResourceTypeS3Bucket}
 }
 
@@ -191,8 +213,8 @@ func classify(s string) string { return s }
 			constBacked++
 		}
 	}
-	if constBacked != 1 {
-		t.Errorf("const-backed = %d, want 1 (the awscloud.ResourceType* selector)", constBacked)
+	if constBacked != 2 {
+		t.Errorf("const-backed = %d, want 2 (the catalog and awscloud ResourceType* selectors)", constBacked)
 	}
 }
 

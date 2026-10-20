@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/efs/runtimebind"
 )
 
 // TestEFSRuntimeBindRegisters confirms importing the binding installs the EFS
 // scanner builder.
 func TestEFSRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceEFS)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceEFS)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceEFS)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceEFS)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceEFS},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceEFS},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

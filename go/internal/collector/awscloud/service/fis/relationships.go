@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // templateRelationships builds every resolvable relationship an experiment
@@ -264,7 +265,7 @@ func templateS3Relationship(
 		SourceARN:        strings.TrimSpace(template.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeS3Bucket,
+		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipFISTemplateLogsToS3 + ":" + bucketARN,
 	}

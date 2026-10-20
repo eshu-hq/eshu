@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -39,7 +40,7 @@ func TestNewS3ExternalPrincipalGrantEnvelopeCarriesBoundedMetadata(t *testing.T)
 	wantString := map[string]string{
 		"account_id":           "123456789012",
 		"region":               "us-east-1",
-		"service_kind":         ServiceS3,
+		"service_kind":         catalog.ServiceS3,
 		"bucket_arn":           "arn:aws:s3:::orders-artifacts",
 		"bucket_name":          "orders-artifacts",
 		"principal_kind":       S3ExternalPrincipalKindAWSAccount,

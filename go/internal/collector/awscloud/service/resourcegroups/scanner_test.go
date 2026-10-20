@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 )
 
@@ -54,7 +55,7 @@ func TestScannerEmitsGroupResourceAndMembershipEdges(t *testing.T) {
 	// S3 bucket is an ARN-keyed family: target_resource_id and target_arn are the
 	// member ARN.
 	s3Edge := relationshipTo(t, envelopes, awscloud.RelationshipResourceGroupsGroupContainsResource, bucketARN)
-	if got, want := s3Edge.TargetType, awscloud.ResourceTypeS3Bucket; got != want {
+	if got, want := s3Edge.TargetType, catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("s3 member target_type = %q, want %q", got, want)
 	}
 	if got, want := s3Edge.TargetARN, bucketARN; got != want {
@@ -89,7 +90,7 @@ func TestClassifyMemberCoversFamilies(t *testing.T) {
 		wantID     string
 		wantARNKey bool
 	}{
-		{"s3 bucket", "arn:aws:s3:::example-assets", awscloud.ResourceTypeS3Bucket, "arn:aws:s3:::example-assets", true},
+		{"s3 bucket", "arn:aws:s3:::example-assets", catalog.ResourceTypeS3Bucket, "arn:aws:s3:::example-assets", true},
 		{"lambda function", "arn:aws:lambda:us-east-1:123456789012:function:handler", awscloud.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:handler", true},
 		{"dynamodb table", "arn:aws:dynamodb:us-east-1:123456789012:table/users", awscloud.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/users", true},
 		{"sqs queue", "arn:aws:sqs:us-east-1:123456789012:orders", awscloud.ResourceTypeSQSQueue, "arn:aws:sqs:us-east-1:123456789012:orders", true},

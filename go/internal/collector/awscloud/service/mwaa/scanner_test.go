@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -94,7 +95,7 @@ func TestScannerEmitsMWAAEnvironmentResourceAndRelationships(t *testing.T) {
 	}
 
 	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentUsesS3Bucket)
-	assertEdge(t, s3Edge, environmentARN, bucketARN, awscloud.ResourceTypeS3Bucket)
+	assertEdge(t, s3Edge, environmentARN, bucketARN, catalog.ResourceTypeS3Bucket)
 	if got, want := s3Edge.Payload["target_arn"], bucketARN; got != want {
 		t.Fatalf("env->s3 target_arn = %#v, want %q", got, want)
 	}

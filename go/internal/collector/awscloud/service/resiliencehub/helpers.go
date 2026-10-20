@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // appResourceID returns the resource_id the application node publishes: its ARN
@@ -75,7 +76,7 @@ func protectedResourceTargetType(resilienceHubType string) string {
 	case "AWS::ECS::Service":
 		return awscloud.ResourceTypeECSService
 	case "AWS::EFS::FileSystem":
-		return awscloud.ResourceTypeEFSFileSystem
+		return catalog.ResourceTypeEFSFileSystem
 	case "AWS::ElasticLoadBalancingV2::LoadBalancer":
 		return awscloud.ResourceTypeELBv2LoadBalancer
 	case "AWS::Lambda::Function":
