@@ -1,0 +1,14 @@
+go/internal/replay/offlinetier/delta_tier_canonical_kustomize_extends_base_edge_retract_live_test.go
+  h_78a442cba0b3e6 44,65,83,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "544adeafe5ba4802bacb1714350de95784e58179",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
