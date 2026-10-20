@@ -17,6 +17,14 @@ var schemaPerformanceIndexes = []string{
 	// instead of scanning every code-entity label in large corpora.
 	"CREATE INDEX function_repo_id IF NOT EXISTS FOR (f:Function) ON (f.repo_id)",
 	"CREATE INDEX function_path IF NOT EXISTS FOR (f:Function) ON (f.path)",
+	// The retirement G5f File retract (#8659) anchors on `(f:File)` by
+	// `repo_id`, the same shape as the function retracts above. Declared
+	// for both backends so the retract seeks on Neo4j and NornicDB alike:
+	// live Neo4j EXPLAIN moved the statement from NodeByLabelScan to a
+	// RANGE seek on this index. `f.repo_id` is immutable per node (a File
+	// belongs to one repository for its whole life), so every write after
+	// the first maintains the value already held.
+	"CREATE INDEX file_repo_id IF NOT EXISTS FOR (f:File) ON (f.repo_id)",
 	// The directory language-query route (#6541) seeks a granted repository's
 	// directories by `(d:Directory {repo_id: rid})` instead of walking a
 	// variable-length CONTAINS chain to a Repository node. On the pinned
@@ -334,6 +342,19 @@ var nornicDBMergeLookupIndexes = []string{
 	"CREATE INDEX nornicdb_environment_name_lookup IF NOT EXISTS FOR (e:Environment) ON (e.name)",
 	"CREATE INDEX nornicdb_source_local_record_scope_lookup IF NOT EXISTS FOR (n:SourceLocalRecord) ON (n.scope_id)",
 	"CREATE INDEX nornicdb_parameter_path_lookup IF NOT EXISTS FOR (n:Parameter) ON (n.path)",
+}
+
+// neo4jRetirementLookupIndexes are single-property RANGE indexes applied
+// on Neo4j only for the #8659 graph retraction. parameter_path backs the
+// G5p root-prefix Parameter seek: the composite Parameter uniqueness
+// constraint leads with name, so a path-only predicate cannot seek it,
+// and live Neo4j EXPLAIN moved the prefix match from NodeByLabelScan to
+// NodeIndexSeekByRange on this index. NornicDB keeps its existing
+// nornicdb_parameter_path_lookup for the same label and property, which
+// already seeks that shape there, so no backend ever holds two indexes
+// on Parameter.path.
+var neo4jRetirementLookupIndexes = []string{
+	"CREATE INDEX parameter_path IF NOT EXISTS FOR (p:Parameter) ON (p.path)",
 }
 
 // neo4jUIDLookupIndexes are uid RANGE indexes applied on Neo4j only, the

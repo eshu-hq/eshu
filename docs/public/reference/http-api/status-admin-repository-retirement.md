@@ -83,3 +83,15 @@ Read surfaces report a fenced repository as `retiring` and a purged one as
   completed, failed, and denied inputs.
 
 See [Retirement Trigger And Purge Signals](../telemetry/retirement-purge.md).
+
+## Inspecting a retirement
+
+The `repository_retirements` row carries the phase state: `phase`
+(`fenced` while the narrowed purge owns the row, `done` with `state`
+`complete` after it), `intent_barrier_at` (stamped after
+the shared-intent delete commits, before the graph retraction waits out
+pre-barrier partition leases), and the graph-phase capture
+`graph_repo_root` / `graph_scope_ids` (the stable keys the retraction
+and the residue census run on once the purge deletes the live rows).
+A `complete` row's `rows_deleted` ledger names every deleted-row count;
+`failure_class` / `failure_details` name a closed failure instead.
