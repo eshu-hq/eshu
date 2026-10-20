@@ -101,7 +101,7 @@ func commitUnionGen(ctx context.Context, h *overlayHarness, gen overlayGen, enti
 	repoPath := h.repo.LocalPath
 	envelopes := []facts.Envelope{gitcontent.RepositoryFactEnvelope(
 		repoPath, h.repo, "run-"+gen.id, h.scope.ScopeID, gen.id, observed, len(gen.files),
-		nil, false, "main", nil, gen.delta, gen.changed, gen.deleted, false,
+		nil, false, "main", nil, gen.delta, gen.changed, gen.deleted, false, false,
 	)}
 	for _, file := range gen.files {
 		envelopes = append(envelopes,

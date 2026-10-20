@@ -150,6 +150,11 @@ func RepositoryFactEnvelope(
 	deltaRelativePaths []string,
 	deltaDeletedRelativePaths []string,
 	reconcile bool,
+	// emptyScope declares the scope genuinely fileless: the collector walked
+	// the scope and observed zero files, so a file-less materialization is
+	// genuine emptiness rather than facts gone missing (issues #8657/#8668).
+	// The writer-side conditional retract honors it as the escape hatch.
+	emptyScope bool,
 ) facts.Envelope {
 	payload := map[string]any{
 		"graph_id":          repo.ID,
@@ -184,6 +189,9 @@ func RepositoryFactEnvelope(
 	}
 	if reconcile {
 		payload["reconciliation_generation"] = true
+	}
+	if emptyScope {
+		payload["empty_scope"] = true
 	}
 	if strings.TrimSpace(sourceRunID) != "" {
 		payload["source_run_id"] = sourceRunID

@@ -197,7 +197,7 @@ func streamFacts(
 
 	w := model.NewFactStreamWriter(ch, count, ref)
 
-	// Repository fact
+	// Repository fact (empty_scope declared only for walked-empty snapshots).
 	w.Send(gitcontent.RepositoryFactEnvelope(
 		repoPath, repo, sourceRunID, scopeID, generationID, observedAt,
 		snapshot.FileCount, snapshot.ImportsMap, isDependency,
@@ -205,6 +205,7 @@ func streamFacts(
 		repositoryFactGitRefsPayload(snapshot.GitRefs),
 		snapshot.Delta, snapshot.DeltaRelativePaths, snapshot.DeletedRelativePaths,
 		snapshot.Reconcile,
+		snapshotDeclaresEmptyScope(snapshot),
 	))
 
 	// Terraform state candidate facts. These are metadata-only advisory facts;
