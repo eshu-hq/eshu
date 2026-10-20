@@ -28,7 +28,8 @@ func TestLoadRejectsMissingTier(t *testing.T) {
 	}
 
 	_, err = Load(path)
-	if err == nil || !strings.Contains(err.Error(), "has invalid tier") {
+	if err == nil || !strings.Contains(err.Error(), "has invalid tier") ||
+		!strings.Contains(err.Error(), "(tier is required)") {
 		t.Fatalf("Load() error = %v, want invalid-tier error", err)
 	}
 }
@@ -49,7 +50,8 @@ func TestLoadRejectsUnknownTier(t *testing.T) {
 	}
 
 	_, err = Load(path)
-	if err == nil || !strings.Contains(err.Error(), "has invalid tier") {
+	if err == nil || !strings.Contains(err.Error(), "has invalid tier") ||
+		!strings.Contains(err.Error(), "(tier is required)") {
 		t.Fatalf("Load() error = %v, want invalid-tier error", err)
 	}
 }
@@ -61,7 +63,7 @@ func TestCommittedRegistryEveryGateHasValidTier(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join("..", "..", "..", "specs", "ci-gates.v1.yaml")
 	if _, err := os.Stat(path); err != nil {
-		t.Skipf("committed registry not present: %v", err)
+		t.Fatalf("committed registry not present: %v", err)
 	}
 	reg, err := Load(path)
 	if err != nil {
