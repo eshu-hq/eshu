@@ -1,0 +1,18 @@
+scripts/test-pre-push.sh
+  h_78a442cba0b3e6 63-74
+scripts/test-query-methodology-comparison-identity.py
+  h_78a442cba0b3e6 11,22-34,37
+scripts/test-verify-agent-hygiene.sh
+  h_78a442cba0b3e6 11-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f02c302f792b2d5339628d77019d2d1ae4f0f46",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
