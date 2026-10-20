@@ -67,6 +67,9 @@ type configArtifactLoader struct {
 	floor  int
 	budget int
 	load   configArtifactLoad
+	// shadow runs the stored-vs-live compare after the live load (#8155
+	// PR3c). The zero value disables it: no stored statement, no report.
+	shadow ShadowConfig
 }
 
 // productionConfigArtifactLoader is the loader every route uses.

@@ -13,6 +13,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/config/artifacts"
 )
 
@@ -229,5 +230,37 @@ func assertConfigArtifactDeriveKeys(t *testing.T, name string, set attribute.Set
 	slices.Sort(keys)
 	if !slices.Equal(keys, want) {
 		t.Fatalf("%s label keys = %v, want %v", name, keys, want)
+	}
+}
+
+// TestConfigArtifactShadowCompareLabelValuesAreClosed pins the closed outcome
+// set of the config-artifact shadow compare counter (#8155 PR3c).
+func TestConfigArtifactShadowCompareLabelValuesAreClosed(t *testing.T) {
+	t.Parallel()
+
+	if want := []string{"match", "mismatch", "stored_missing"}; !slices.Equal(ConfigArtifactShadowCompareOutcomes(), want) {
+		t.Fatalf("ConfigArtifactShadowCompareOutcomes() = %v, want %v", ConfigArtifactShadowCompareOutcomes(), want)
+	}
+	outcomes := ConfigArtifactShadowCompareOutcomes()
+	outcomes[0] = "mutated"
+	if ConfigArtifactShadowCompareOutcomes()[0] != "match" {
+		t.Fatal("label value accessor returned a shared slice")
+	}
+}
+
+// TestConfigArtifactShadowCompareLabelsMatchRowConstants pins the telemetry
+// outcome set to the neutral package's shadow compare alphabet (#8155 PR3c):
+// a renamed, added or dropped outcome must change both sides, or the wiring
+// counts a label the compare never returns (or drops one it does).
+func TestConfigArtifactShadowCompareLabelsMatchRowConstants(t *testing.T) {
+	t.Parallel()
+
+	rows := []string{
+		contentartifacts.ShadowOutcomeMatch,
+		contentartifacts.ShadowOutcomeMismatch,
+		contentartifacts.ShadowOutcomeStoredMissing,
+	}
+	if got := ConfigArtifactShadowCompareOutcomes(); !slices.Equal(got, rows) {
+		t.Fatalf("telemetry outcomes = %v, row outcomes = %v", got, rows)
 	}
 }

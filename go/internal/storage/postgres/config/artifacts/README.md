@@ -49,6 +49,9 @@ because each derive rewrites a repository's rows.
   start-up check of the five fence triggers (S3 ruling)
 - `Reader`, `Repository`, `Row`, `State`, `Reason`, `Classify` — the
   read-model port and the trust condition
+- `NewPostgresReader`, `PostgresReader` — the Postgres implementation of the
+  port (PR3c): one statement, one snapshot, per-repository Classify, one
+  Repository per distinct requested id in request order
 - `ClaimPage`, `LoadCursor` — the walker's cursor claim over the versions
   table
 - `ListDirty`, `DirtyRequest`, `Dirty` — the walker's dirty join
@@ -429,3 +432,29 @@ ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN='postgres://USER@HOST:PORT/postgres?sslmode
 ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1 \
   go test ./internal/storage/postgres/config/artifacts -count=1 -run Live
 ```
+
+## Performance Evidence (PR3c shadow slice)
+
+No-Regression Evidence: the live default path is statement-identical to
+before this slice. `TestDisabledShadowIssuesNoStoredStatement` proves the
+zero `ShadowConfig` issues no stored statement, and every pre-existing
+suite in the touched packages passes unchanged, so served responses are
+byte-identical. Baseline: live-only read, 0 stored statements per call.
+
+Benchmark Evidence: `ReadStored` issues exactly 1 statement per call for
+any non-empty id set (`TestReadStoredReturnsTrustedRowsInRequestOrder`,
+`TestReadStoredDedupesIDsAndKeepsOrder`, which also prove dedup and
+request-order preservation), and 0 statements for empty input
+(`TestReadStoredEmptyIDsSendsNoStatement`). Backend: scripted fake
+(`storedFakeDB`); no live backend ran in this slice. Input shape: fixed
+fixture row sets (multi-id with duplicates, empty, error). Row counts:
+one `Repository` per distinct requested id. After: 1 stored statement per
+read call in shadow/stored mode, short-circuited before any TOAST-heavy
+path. A stored-read error keeps serving live
+(`TestShadowReadErrorKeepsServingLive`), so the bound holds on failure too.
+
+No-Observability-Change: the live path emits no new signal. The
+`eshu_dp_config_artifact_shadow_compare_total` counter is registered in
+this slice; first emission and the `config_artifacts.shadow.mismatch` log
+land with the shadow wiring slice. The live QA shadow run is that slice's
+measurement, not this one's.
