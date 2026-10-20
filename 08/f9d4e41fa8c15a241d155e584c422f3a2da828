@@ -1,0 +1,20 @@
+docs/internal/design/5385-workload-identity-compatibility.md
+  h_78a442cba0b3e6 56,58
+docs/public/reference/local-performance-envelope.md
+  h_78a442cba0b3e6 843,871
+docs/public/reference/nornicdb-pitfalls.md
+  h_78a442cba0b3e6 1250-1252
+go/internal/storage/cypher/README.md
+  h_78a442cba0b3e6 1658,1684,1848
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "08f9d4e41fa8c15a241d155e584c422f3a2da828",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
