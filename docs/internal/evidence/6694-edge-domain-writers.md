@@ -34,8 +34,9 @@ Shared-helper handling (issue's "split shared helpers before moving leaves"):
   with them in `code_taint_evidence_writer.go`. No root stayer references a
   moved symbol (verified by full-module build).
 
-Root keeps its own bolt harness (`bolt_harness_test.go`, restored byte-faithful
-from the pre-move file): the remaining root live tests
+Root keeps its own bolt harness (`bolt_harness_test.go`, restored verbatim
+from the pre-move file modulo the trailing blank line, which gofumpt drops
+at EOF): the remaining root live tests
 (`canonical_index_key_live_test.go`, `canonical_moved_block_live_test.go`,
 `harness_test.go`, `tfstate_state_match_edge_live_test.go`) still resolve
 `boltRetractTestRunner` in-package. No new duplication: the leaf copy serves
