@@ -246,7 +246,7 @@ type SupplyChainSecurityHandlers struct {
 	// enqueue, which is the flag-off posture: without a registered
 	// projection domain the row would sit unclaimed. Wire it exactly when
 	// SecretsIAMGraphWriter is wired.
-	SecretsIAMGraphProjectionFollowUp SecretsIAMGraphProjectionFollowUpWriter
+	SecretsIAMGraphProjectionFollowUp secretsiam.GraphProjectionFollowUpWriter
 
 	// SecretsIAMGraphWriter projects exact reducer-owned secrets/IAM
 	// read-model rows (identity_trust_chain, secret_access_path) into the four
