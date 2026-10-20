@@ -1,0 +1,14 @@
+scripts/test-verify-filename-stutter.sh
+  h_78a442cba0b3e6 20-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9250514756c68f84734ab8b5f7badd8fdf881ae2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
