@@ -143,3 +143,14 @@ log keys, all built here:
   `graph_scope_ids` per the arbiter's D2) and migration 209
   (`claimed_at`), both applied live (227/227) with manifest, digest, and
   parity pins.
+
+## Live run status (ledger `scheduled` rows)
+
+- Green in this lane, both backends:
+  `TestRetirementGraphRetractLive` on disposable NornicDB (1.1s) and
+  Neo4j (28.9s).
+- Not yet run against a live backend in this lane (env-gated Skip;
+  `scheduled` rows): `TestRetirementDemotedRepositoryReapedAfterTTL`,
+  `TestRetirementBarrier*Live`, `TestRetirementCapture*Live`,
+  `TestRetirementPurgeScale*Live`, `TestRetirementTableCensus*Live`.
+  Promote with measured timing evidence before any runner enrollment.
