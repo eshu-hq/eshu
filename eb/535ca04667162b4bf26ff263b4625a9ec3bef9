@@ -1,0 +1,242 @@
+go/cmd/reducer/canonical_graph_writers.go
+  h_78a442cba0b3e6 17,87,236
+go/cmd/reducer/container_image_identity_performance_head_test.go
+  h_78a442cba0b3e6 10,24,30
+go/cmd/reducer/container_image_identity_performance_legacy_writer_test.go
+  h_78a442cba0b3e6 16,36-37,104,109
+go/cmd/reducer/container_image_identity_performance_live_test.go
+  h_78a442cba0b3e6 26,185
+go/cmd/reducer/container_image_identity_performance_main_test.go
+  h_78a442cba0b3e6 10,26
+go/cmd/reducer/container_image_identity_retirement_postgres_live_test.go
+  h_78a442cba0b3e6 19,96,106
+go/cmd/reducer/container_image_identity_writer_performance_live_test.go
+  h_78a442cba0b3e6 19,120-121,124,136
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 28,30,32,270,340,400
+go/cmd/reducer/service_materialization.go
+  h_78a442cba0b3e6 7-8,18,58,63
+go/cmd/reducer/wiring_handlers.go
+  h_78a442cba0b3e6 21,40,45
+go/internal/ifa/familyodu/shell_exec_family_odu.go
+  h_78a442cba0b3e6 17,132,226,289,330-331
+go/internal/ifa/materializededges/shell_exec.go
+  h_78a442cba0b3e6 12,32,59,112
+go/internal/ifa/materializededges/shell_exec_test.go
+  h_78a442cba0b3e6 21,195
+go/internal/ifa/testdata/shellexec/ifa-shell-exec-family-expected-edges.json
+  h_78a442cba0b3e6 3
+go/internal/reducer/aws_cloud_runtime_drift_wiring_test_helpers_test.go
+  h_78a442cba0b3e6 10,37-39
+go/internal/reducer/aws_relationship_input_invalid_test.go
+  h_78a442cba0b3e6 11,25,102
+go/internal/reducer/aws_relationship_join.go
+  h_78a442cba0b3e6 52,61,151,169
+go/internal/reducer/aws_relationship_join_test.go
+  h_78a442cba0b3e6 11,71-72,318-319
+go/internal/reducer/aws_relationship_materialization_bench_test.go
+  h_78a442cba0b3e6 12,82,84
+go/internal/reducer/aws_relationship_materialization_ledger_test.go
+  h_78a442cba0b3e6 12,53,237-238
+go/internal/reducer/aws_resource_materialization.go
+  h_78a442cba0b3e6 17,408
+go/internal/reducer/aws_resource_materialization_retract_test.go
+  h_78a442cba0b3e6 13,114
+go/internal/reducer/aws_resource_materialization_test.go
+  h_78a442cba0b3e6 15,150
+go/internal/reducer/aws_resource_running_image.go
+  h_78a442cba0b3e6 8-9,151
+go/internal/reducer/azure_relationship_input_invalid_test.go
+  h_78a442cba0b3e6 10,26,78
+go/internal/reducer/azure_relationship_materialization_ledger_test.go
+  h_78a442cba0b3e6 12,78,194,196
+go/internal/reducer/azure_resource_materialization.go
+  h_78a442cba0b3e6 15,246
+go/internal/reducer/azure_resource_materialization_retract_test.go
+  h_78a442cba0b3e6 12,68
+go/internal/reducer/azure_resource_materialization_test.go
+  h_78a442cba0b3e6 13,62
+go/internal/reducer/cicdrun/AGENTS.md
+  h_78a442cba0b3e6 49
+go/internal/reducer/cicdrun/README.md
+  h_78a442cba0b3e6 25,30-33,82-85
+go/internal/reducer/cloudjoin/doc.go
+  h_78a442cba0b3e6 26-28
+go/internal/reducer/code/shell/README.md
+  h_78a442cba0b3e6 40-43,46-47,100-101
+go/internal/reducer/code/shell/doc.go
+  h_78a442cba0b3e6 18,21-24
+go/internal/reducer/codedataflow_bench_test.go
+  h_78a442cba0b3e6 12,175
+go/internal/reducer/codedataflow_idempotency_test.go
+  h_78a442cba0b3e6 11,161-162
+go/internal/reducer/compat_alias_retirement_cloud_test.go
+  h_78a442cba0b3e6 1-164
+go/internal/reducer/compat_cloud.go
+  h_78a442cba0b3e6 6-15,17-28
+go/internal/reducer/container_image_identity_root_test_doubles_test.go
+  h_78a442cba0b3e6 13,87,95,110-111,115,117
+go/internal/reducer/contract/provenance_edges.go
+  h_78a442cba0b3e6 19-20
+go/internal/reducer/correlated_workload_projection_input_loader_test.go
+  h_78a442cba0b3e6 17,434,568
+go/internal/reducer/defaults.go
+  h_78a442cba0b3e6 10,17,21,31,33,50-52,99,246,264,296,406,422,428,479
+go/internal/reducer/defaults_additive_domains_cloud_relationships.go
+  h_78a442cba0b3e6 7,10,40-41,70-71
+go/internal/reducer/defaults_additive_domains_correlation.go
+  h_78a442cba0b3e6 9,89
+go/internal/reducer/defaults_additive_domains_secrets_drift.go
+  h_78a442cba0b3e6 7,54
+go/internal/reducer/defaults_additive_domains_supply_chain.go
+  h_78a442cba0b3e6 8,27
+go/internal/reducer/defaults_cross_repo_scope_repos_wiring_test.go
+  h_78a442cba0b3e6 76,78
+go/internal/reducer/defaults_domain_catalog.go
+  h_78a442cba0b3e6 9,12,52,124
+go/internal/reducer/defaults_handlers.go
+  h_78a442cba0b3e6 9,70-71,77,84
+go/internal/reducer/defaults_observability_coverage_materialization_test.go
+  h_78a442cba0b3e6 9-10,76,78
+go/internal/reducer/defaults_observability_coverage_test.go
+  h_78a442cba0b3e6 9-10,22-24,51,53
+go/internal/reducer/defaults_platform_lock_test.go
+  h_78a442cba0b3e6 31
+go/internal/reducer/defaults_semantic_entity_domain_wiring_test.go
+  h_78a442cba0b3e6 15,35
+go/internal/reducer/defaults_test.go
+  h_78a442cba0b3e6 11-12,22,99,308,372,374,407,409,455-456,556,558
+go/internal/reducer/factload_materialization_bench_test.go
+  h_78a442cba0b3e6 13,90,119,254
+go/internal/reducer/gcp_relationship_join.go
+  h_78a442cba0b3e6 107
+go/internal/reducer/gcp_relationship_materialization_ledger_test.go
+  h_78a442cba0b3e6 12,72,187-188
+go/internal/reducer/gcp_resource_input_invalid_test.go
+  h_78a442cba0b3e6 11,28,96
+go/internal/reducer/gcp_resource_materialization.go
+  h_78a442cba0b3e6 15,350
+go/internal/reducer/gcp_resource_materialization_retract_test.go
+  h_78a442cba0b3e6 12,67
+go/internal/reducer/gcp_resource_materialization_test.go
+  h_78a442cba0b3e6 13,127
+go/internal/reducer/idempotency_additive_test.go
+  h_78a442cba0b3e6 117,126,151,155
+go/internal/reducer/idempotency_cases_test.go
+  h_78a442cba0b3e6 15,116,340
+go/internal/reducer/infrastructure_platform_extractor.go
+  h_78a442cba0b3e6 201-202
+go/internal/reducer/kubernetescorrelation/kubernetes_correlation_materialization.go
+  h_78a442cba0b3e6 33
+go/internal/reducer/materialization_subduration_test.go
+  h_78a442cba0b3e6 41,45,54,56,78,80
+go/internal/reducer/partitioning_test.go
+  h_78a442cba0b3e6 8-9,15,19,38,40,53,66,68,71,81,86
+go/internal/reducer/platform_infra_materialization.go
+  h_78a442cba0b3e6 14,37
+go/internal/reducer/platform_materialization_test_helpers_test.go
+  h_78a442cba0b3e6 9-10,23-24,30-31
+go/internal/reducer/platforms.go
+  h_78a442cba0b3e6 9-10,120,125
+go/internal/reducer/projected_source_edge_backfill_test.go
+  h_78a442cba0b3e6 12-13,210,221,235,237
+go/internal/reducer/projection_test.go
+  h_78a442cba0b3e6 9,549,598-599
+go/internal/reducer/projection_workloadid_test.go
+  h_78a442cba0b3e6 9,138
+go/internal/reducer/provenance_edge_submission_metrics_test.go
+  h_78a442cba0b3e6 12,76,107,121,123,177,210,223,248,271,274
+go/internal/reducer/provenance_edges_bench_test.go
+  h_78a442cba0b3e6 10,48-49,52,105,119-121,127,138,143,165
+go/internal/reducer/provenance_replay_tombstone_live_test.go
+  h_78a442cba0b3e6 84,108,310
+go/internal/reducer/repo_dependency_projection_replay_skip_test.go
+  h_78a442cba0b3e6 21,312
+go/internal/reducer/repo_dependency_projection_runner.go
+  h_78a442cba0b3e6 22,52
+go/internal/reducer/secgroup/README.md
+  h_78a442cba0b3e6 109
+go/internal/reducer/shared_projection_test.go
+  h_78a442cba0b3e6 222,224
+go/internal/reducer/shared_projection_worker_process_test.go
+  h_78a442cba0b3e6 474,476
+go/internal/reducer/shared_projection_worker_refresh_redelivery_test.go
+  h_78a442cba0b3e6 85,90
+go/internal/reducer/shared_projection_worker_retract_race_test.go
+  h_78a442cba0b3e6 291
+go/internal/reducer/sibling_edge_intent_delta_gate_test.go
+  h_78a442cba0b3e6 11,146
+go/internal/reducer/sibling_edge_intent_retract_reachability_test.go
+  h_78a442cba0b3e6 11,68
+go/internal/reducer/workload_materialization_handler_test.go
+  h_78a442cba0b3e6 17,838
+go/internal/replay/costcounting/AGENTS.md
+  h_78a442cba0b3e6 20
+go/internal/replay/costcounting/README.md
+  h_78a442cba0b3e6 21,32
+go/internal/replay/costcounting/aws_cloud_runtime_drift_cost_test.go
+  h_78a442cba0b3e6 22,31,177,179,192,201,238,261,344,403
+go/internal/replay/costcounting/container_image_identity_cost_test.go
+  h_78a442cba0b3e6 16,74-76,85,89,98,107,139,217,225
+go/internal/replay/costcounting/doc.go
+  h_78a442cba0b3e6 43
+go/internal/replay/costcounting/evidence-4367-cost-cloud-posture.md
+  h_78a442cba0b3e6 13-14,77
+go/internal/replay/offlinetier/repo_dependency_ifa_concurrency_live_test.go
+  h_78a442cba0b3e6 24,453
+go/internal/storage/cypher/edge/writer/unusable_delta_fail_closed_test.go
+  h_78a442cba0b3e6 14,162
+go/internal/storage/postgres/README.md
+  h_78a442cba0b3e6 640
+go/internal/storage/postgres/aws_cloud_runtime_drift_admission_beginner.go
+  h_78a442cba0b3e6 12,16,25,29
+go/internal/storage/postgres/aws_cloud_runtime_drift_admission_live_test.go
+  h_78a442cba0b3e6 19,64,70,90,108-109,163,167,312,324,344
+go/internal/storage/postgres/aws_cloud_runtime_drift_elapsed_bound_queue_test.go
+  h_78a442cba0b3e6 18,121-122,124,128,198
+go/internal/storage/postgres/aws_cloud_runtime_drift_evidence.go
+  h_78a442cba0b3e6 66
+go/internal/storage/postgres/aws_cloud_runtime_drift_fencing_token.go
+  h_78a442cba0b3e6 28
+go/internal/storage/postgres/aws_cloud_runtime_drift_lambda_completeness_live_test.go
+  h_78a442cba0b3e6 16,125,128
+go/internal/storage/postgres/aws_cloud_runtime_drift_readiness.go
+  h_78a442cba0b3e6 45
+go/internal/storage/postgres/aws_cloud_runtime_drift_readiness_deterministic_live_test.go
+  h_78a442cba0b3e6 16,121,135,174
+go/internal/storage/postgres/aws_cloud_runtime_drift_reopen_anchor_live_test.go
+  h_78a442cba0b3e6 13,155,160
+go/internal/storage/postgres/aws_cloud_runtime_drift_value_collapse_live_test.go
+  h_78a442cba0b3e6 16,96,99
+go/internal/storage/postgres/container_image_identity_beginner.go
+  h_78a442cba0b3e6 12,24
+go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_test.go
+  h_78a442cba0b3e6 17,62,74,76,367
+go/internal/storage/postgres/container_image_identity_fence_live_helpers_test.go
+  h_78a442cba0b3e6 16,139-140,147
+go/internal/storage/postgres/container_image_identity_held_support.go
+  h_78a442cba0b3e6 12,39,59,61
+go/internal/storage/postgres/container_image_identity_v3_migration_helpers_postgres_live_test.go
+  h_78a442cba0b3e6 14,98,103,107,116-117
+go/internal/storage/postgres/reducer_fact_batch_insert_fence_live_test.go
+  h_78a442cba0b3e6 14,47,85,88,101
+go/internal/storage/postgres/reducer_queue_aws_cloud_runtime_drift_readiness_test.go
+  h_78a442cba0b3e6 12,33,51,59,111,120,161
+go/internal/storage/postgres/reducer_queue_readiness_sql.go
+  h_78a442cba0b3e6 13,25,80-81,122,129
+go/internal/storage/postgres/shared_intents_partition_candidates_test.go
+  h_78a442cba0b3e6 48,63,131,326,335,339,359,429,432,452,471,510
+go/internal/storage/postgres/shared_intents_upsert.go
+  h_78a442cba0b3e6 137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb535ca04667162b4bf26ff263b4625a9ec3bef9",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
