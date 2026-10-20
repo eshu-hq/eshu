@@ -30,8 +30,8 @@ import (
 const (
 	// TriggerOutcomeAccepted counts a committed tombstone mark.
 	TriggerOutcomeAccepted = "accepted"
-	// TriggerOutcomeRefused counts a mark conflict, a validation refusal,
-	// or a fence refusal: nothing was purged.
+	// TriggerOutcomeRefused counts a mark conflict or a fence refusal:
+	// nothing was purged.
 	TriggerOutcomeRefused = "refused"
 	// TriggerOutcomeBlocked counts a designed purge exit that wrote
 	// nothing: the fenced tombstone stays open for a later pass.

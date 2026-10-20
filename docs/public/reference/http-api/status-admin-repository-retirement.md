@@ -58,8 +58,8 @@ Read surfaces report a fenced repository as `retiring` and a purged one as
 
 ## Observability
 
-- `eshu_dp_repository_retirements_total{outcome}` — one `accepted` per
-  marked repository plus exactly one terminal outcome per repository.
+- `eshu_dp_repository_retirements_total{outcome}` -- one `accepted` per
+  marked repository plus exactly one terminal outcome per marked repository.
 - `eshu_dp_repository_retirements_purged_total` — purge completions.
 - WARN `repository retirement refused at fence`, INFO `repository
   retirement purged`, WARN `repository retirement blocked: terminal
