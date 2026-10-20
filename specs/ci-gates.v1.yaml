@@ -119,3 +119,5 @@ non_gate_workflows:
     reason: "scheduled/manual cassette refresh, not a PR gate"
   - file: postgres-scheduled-live.yml
     reason: "daily/manual PostgreSQL live proof enrollment; scheduled verification, not a PR or merge gate pending repeated cost evidence"
+  - file: ci-census.yml
+    reason: "daily CI cost census telemetry (#8617); reports run counts, cancelled share, and duration percentiles to a job summary, posts no merge-relevant status"
