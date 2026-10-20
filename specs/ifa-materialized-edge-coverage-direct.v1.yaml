@@ -351,12 +351,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the multi-type direct table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
+    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the multi-type direct table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: offline Odu, vacuity guard, and expected-edge-set fixture landed; no live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:incident_routing_evidence"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the multi-type direct table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: no Odu, expected-edge-set fixture, or live matrix yet (per-family leaf owns coverage rows + roster flag)"
+    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the multi-type direct table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: offline Odu, vacuity guard, and expected-edge-set fixture landed; no live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:kubernetes_correlation"
     proof_gate: ifa-determinism
     issue: "#6228"

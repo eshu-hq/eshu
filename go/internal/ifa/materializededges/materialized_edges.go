@@ -228,6 +228,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 	// matrices drive them; the rest still carry their waiver rows. The ledger,
 	// not this comment, is the source of truth for which is which: a count or
 	// a name list written here goes stale the day a family is proven (#8359).
+	// incident_routing_evidence is offline-only: its guard has no live
+	// matrix driving it, so it keeps its waiver row.
 	// What these arms buy is that a coverage row COULD resolve, which is one
 	// of the three things those waiver reasons said was missing.
 	case kubernetesNamespaceEnvironmentFamily:
@@ -280,6 +282,8 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 		return resolveDerivedFromMaterializedEdges(odu, derivedFromExpectedEdgesPath(r.RepoRoot))
 	case publishesFamily:
 		return resolvePublishesMaterializedEdges(odu, publishesExpectedEdgesPath(r.RepoRoot))
+	case incidentRoutingEvidenceFamily:
+		return resolveIncidentRoutingEvidenceMaterializedEdges(odu, incidentRoutingEvidenceExpectedEdgesPath(r.RepoRoot))
 	default:
 		return false, fmt.Sprintf("no vacuity guard registered for materialized-edge family %q", family)
 	}
