@@ -29,7 +29,9 @@ Positive case (repository-only and repository-plus-entities inputs with zero
 file facts fail loud naming generation and scope), negative cases (first
 generation, delta, all-tombstone mass delete, and empty input still succeed),
 and the ambiguous case (entity rows without file evidence still fail loud)
-are pinned by `builder_zero_live_guard_test.go` (6 tests, RED first). No
+are pinned by `builder_zero_live_guard_test.go` (5 tests, RED first; a sixth
+all-tombstone test was dropped as a duplicate of the #8660-merged identical
+test). No
 fixture truth changed, so no compose re-verification applies. The graph
 after the guard matches input intent: file evidence present means files
 project; explicit tombstone deletes mean an empty graph; no file evidence at
