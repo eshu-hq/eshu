@@ -1171,10 +1171,19 @@ type Instruments struct {
 	// superseded, error, panic, timeout, canceled, encoding_unsupported,
 	// fence_missing), and ConfigArtifactDeriveDuration records each derive's
 	// wall time by trigger, on buckets from 1 ms to 30 s. No repository
-	// label. Registered in instruments_config_artifacts.go; nothing
-	// emits them until PR3b-2c-2 wires the derive into the content Write.
+	// label. Registered in instruments_config_artifacts.go; the content
+	// Write emits trigger write since PR3b-2c-2, the reducer walker emits
+	// triggers backfill and repair since PR3b-2.
 	ConfigArtifactDerives        metric.Int64Counter
 	ConfigArtifactDeriveDuration metric.Float64Histogram
+	// ConfigArtifactReconcile counts per-repository config-artifact walker
+	// outcomes (#8155) by outcome (match, repaired, superseded, error,
+	// skipped), and ConfigArtifactStaleRepos gauges the repositories
+	// needing a derive at the last walker cycle by dirty-join reason. No
+	// repository label. Registered and emitted since PR3b-2 in
+	// instruments_config_artifacts.go.
+	ConfigArtifactReconcile  metric.Int64Counter
+	ConfigArtifactStaleRepos metric.Int64Gauge
 	// QueryK8sSelectCandidateScanTruncated counts k8s SELECTS relationship
 	// builds (GET /api/v0/entities/{id}/context on a Service or Deployment
 	// K8sResource) whose K8sResource candidate scan hit the
@@ -5903,6 +5912,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerConfigArtifactDeriveInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerConfigArtifactWalkerInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {

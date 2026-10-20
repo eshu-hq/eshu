@@ -1,17 +1,19 @@
-# Config Artifact Walker (skeleton)
+# Config Artifact Walker
 
 ## Purpose
 
-Defines the shape of the reducer walker that repairs and backfills the
-config-artifact read model (#7126). The walker finds repositories whose
-stored `config_paths` rows are missing or stale, then walks every repository
-from a persisted cursor, and derives each one with the same protocol as a
-content Write. See the decision record
+Runs the reducer walker that repairs and backfills the config-artifact read
+model (#7126, #8155). Each cycle derives the dirty join's repositories with
+trigger `repair`, then derives one claimed walk page with trigger `backfill`,
+over K workers that partition by `repo_id`. When a claimed page reaches the
+end of the walk and nothing is dirty anymore, the cycle records the backfill
+marker: the first full walk is done. See the decision record
 `docs/internal/design/7126-ingest-time-config-artifacts.md` and its protocol
 companion, sections 3 and 4.
 
-PR3b-1a ships the skeleton only. No code here runs a derive, and
-`cmd/reducer` does not wire it yet.
+`cmd/reducer` wires the `Runner` into the reducer service; the walker's
+environment variables (`ESHU_CONFIG_ARTIFACT_WALKER_ENABLED`,
+`ESHU_CONFIG_ARTIFACT_WALKER_WORKERS`) are read once at reducer start.
 
 ## Ownership boundary
 
@@ -25,7 +27,19 @@ itself: those live in `internal/storage/postgres/config/artifacts`, and
 - `Config` and its defaults: `DefaultWorkers` (K = 4),
   `DefaultSkipAfterFailures` (5), `DefaultPageBudget`, `DefaultPollInterval`
 - `Claimer` — claims the next page of the shared walk
-- `Deriver` — runs the derive protocol for one repository (PR3b-2)
+- `Deriver` — runs the derive protocol for one repository and returns its
+  outcome label
+- `Lister`, `DirtyRepo` — the dirty join's work items (reason, skipped flag)
+- `Marker` — reads and records the backfill completion marker
+- `Runner`, `Batch` — the cycle loop; what one bounded cycle did
+- `TriggerRepair`, `TriggerBackfill` — the derive trigger labels, pinned
+  equal to the storage constants by the `cmd/reducer` parity test
+- `DeriveOutcomeOK`, `DeriveOutcomeSuperseded`,
+  `DeriveOutcomeEncodingUnsupported`, `DeriveOutcomeFenceMissing` — the
+  derive outcomes the reconcile mapping branches on, pinned equal to the
+  storage constants by the same parity test; any other outcome maps to
+  reconcile `error`
+- `StaleReasons` — the closed dirty-join reason set the stale gauge covers
 - `Assign` — splits a page over K workers by a stable FNV-1a hash of
   `repo_id`; a repeated id is assigned once
 
@@ -45,10 +59,16 @@ Standard library only. Never `internal/reducer`.
 
 ## Telemetry
 
-None yet. The walker emits nothing until PR3b-2 wires it. The record names
-`eshu_dp_config_artifact_derives_total{trigger,outcome}`,
-`eshu_dp_config_artifact_reconcile_total{outcome}` and
-`eshu_dp_config_artifact_stale_repos{reason}` for that PR.
+Each derived repository emits one `config_artifacts.derive` span and one
+`eshu_dp_config_artifact_derives_total{trigger,outcome}` point plus a
+`eshu_dp_config_artifact_derive_duration_seconds{trigger}` observation, with
+trigger `repair` (dirty join) or `backfill` (cursor walk), and one
+`eshu_dp_config_artifact_reconcile_total{outcome}` point (`repaired`,
+`match`, `superseded`, `error`, `skipped`). Each cycle sets
+`eshu_dp_config_artifact_stale_repos{reason}` for every dirty-join reason,
+including zero. A derive the shutdown cancels records nothing. Cycle failures
+log `config_artifacts.walker.cycle_failed` at ERROR; the backfill marker logs
+at INFO; routine cycles log at DEBUG.
 
 ## Related docs
 

@@ -27,6 +27,14 @@ also does not import storage: `cmd/reducer` adapts the storage functions to
   owning a repository: the derive's advisory lock and advance-only write
   carry that.
 - Serialization is not a fix: do not drop K to 1 to avoid a race.
+- The backfill marker records only when a wrapped walk leaves the dirty join
+  empty. Skipped repositories keep it pending; their next content Write or an
+  extractor change retries them. Do not carve skipped repositories out of the
+  marker condition without fresh arbitration: the record says every
+  repository has a current state row.
+- A read-model-off refusal (encoding_unsupported, fence_missing) aborts the
+  cycle after counting the derives that ran. Never derive around it or retry
+  it inside the cycle: nothing can succeed until the read model is installed.
 
 ## Gates that will fire on your change
 

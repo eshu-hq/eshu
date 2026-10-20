@@ -1,4 +1,9 @@
 tests:
+  - file: go/cmd/reducer/config_artifact_walker_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 disposable PostgreSQL 18 proof of the wired config-artifact walker cycle: two never-derived repositories repair through the real dirty join, deriver and walk claim, the backfill marker records on the clean wrap, and a second cycle finds nothing dirty and skips the walk claim, issuing zero derives; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/cmd/reducer/package_manifest_backfill_live_test.go
     tag: ~
     class: postgres_ci
@@ -329,6 +334,11 @@ tests:
     class: postgres_ci
     reason: "#7592 disposable PostgreSQL 18 proof that the reachability edge loader reads the consumer scope's own edges only (a chain X -> Z.g -> P never lands in X); enrolled in the live-postgres-readiness runner. Upper-bound timing: 1.31s cold including one-time schema bootstrap, 0.09s warm, on local postgres:18"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/backfill_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7126 disposable PostgreSQL 18 proof of the config-artifact backfill marker: absent after bootstrap, present after one record, stable across a second record from a second writer; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/config/artifacts/derive_duplicate_live_test.go
     tag: ~
     class: postgres_ci
@@ -428,6 +438,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7126 disposable PostgreSQL 18 proof of migration 170: row_digest equals a Go and a SQL recomputation over separators, multi-byte text, empty fields and a 20,000-character path; the digest key rejects a duplicate row; the wrapper is IMMUTABLE; autovacuum 0.02; exactly the four migration 186 fence triggers on content_files; the migration re-runs; enrolled in the live-postgres-readiness runner; nine proofs took 0.88-1.15s each and 9.1s for the package (disposable database plus full bootstrap per test) on a local PostgreSQL 18.6 on 2026-10-11; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/config/artifacts/skipped_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8155 disposable PostgreSQL 18 proof of the walker walk filter: only the repository over the failure limit for the current extractor version is reported skipped; under-limit, old-extractor-failure, and successful repositories are not; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/config/artifacts/walk_live_test.go
     tag: ~

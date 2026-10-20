@@ -172,3 +172,63 @@ func registerConfigArtifactDerives() {
 	metricDimensionKeys = append(metricDimensionKeys, contract.MetricDimensionTrigger)
 	spanNames = append(spanNames, contract.SpanConfigArtifactsDerive)
 }
+
+// Outcome values of eshu_dp_config_artifact_reconcile_total (#8155, decision
+// record section 3.5). The set is closed. The reducer walker reports one
+// point per repository per cycle: repaired (the derive wrote rows), match (a
+// backfill walk found the repository already current, so the advance-only
+// write rolled back), superseded (a repair lost to a racing Write),
+// error (any failure, including the read-model-off refusals), skipped (over
+// the failure limit, not derived). reason is already in the root registry.
+const (
+	// ConfigArtifactReconcileOutcomeMatch is a walk derive that found the
+	// repository already current and wrote nothing.
+	ConfigArtifactReconcileOutcomeMatch = "match"
+	// ConfigArtifactReconcileOutcomeRepaired is a derive that wrote rows.
+	ConfigArtifactReconcileOutcomeRepaired = "repaired"
+	// ConfigArtifactReconcileOutcomeSuperseded is a repair derive that
+	// rolled back because a racing Write owns a newer version.
+	ConfigArtifactReconcileOutcomeSuperseded = "superseded"
+	// ConfigArtifactReconcileOutcomeError is a derive that failed, or a
+	// transport failure calling it.
+	ConfigArtifactReconcileOutcomeError = "error"
+	// ConfigArtifactReconcileOutcomeSkipped is a dirty-listed repository the
+	// walker did not derive because it is over the failure limit.
+	ConfigArtifactReconcileOutcomeSkipped = "skipped"
+)
+
+// ConfigArtifactReconcileOutcomes returns a copy of the closed reconcile
+// outcome set, in declaration order.
+func ConfigArtifactReconcileOutcomes() []string {
+	return []string{
+		ConfigArtifactReconcileOutcomeMatch,
+		ConfigArtifactReconcileOutcomeRepaired,
+		ConfigArtifactReconcileOutcomeSuperseded,
+		ConfigArtifactReconcileOutcomeError,
+		ConfigArtifactReconcileOutcomeSkipped,
+	}
+}
+
+// registerConfigArtifactWalkerInstruments registers the #8155 walker counter
+// and stale-repos gauge on inst. PR3b-2 first emits them.
+func registerConfigArtifactWalkerInstruments(meter metric.Meter, inst *Instruments) error {
+	var err error
+	if inst.ConfigArtifactReconcile, err = meter.Int64Counter(
+		"eshu_dp_config_artifact_reconcile_total",
+		metric.WithDescription("Per-repository config-artifact walker outcomes by outcome "+
+			"(match, repaired, superseded, error, skipped) (#8155). "+
+			"No repository label"),
+	); err != nil {
+		return fmt.Errorf("register ConfigArtifactReconcile counter: %w", err)
+	}
+	if inst.ConfigArtifactStaleRepos, err = meter.Int64Gauge(
+		"eshu_dp_config_artifact_stale_repos",
+		metric.WithDescription("Config-artifact repositories needing a derive at the last walker cycle, "+
+			"by dirty-join reason (missing, failed, stale_version, stale_extractor, retry) (#8155). "+
+			"Bounded to the walk page budget (PageBudget, 500 by default): a larger backlog reads as the budget, not the true backlog. "+
+			"Skipped repositories stay counted under their reason. No repository label"),
+	); err != nil {
+		return fmt.Errorf("register ConfigArtifactStaleRepos gauge: %w", err)
+	}
+	return nil
+}

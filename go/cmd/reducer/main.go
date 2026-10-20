@@ -424,6 +424,11 @@ func buildReducerService(
 
 	reducerGraphDrain := reducerGraphDrainFor(projectorDrainGate, database)
 
+	configArtifactWalker, err := configArtifactWalkerRunnerFor(ctx, getenv, database, tracer, instruments, logger)
+	if err != nil {
+		return reducer.Service{}, err
+	}
+
 	workers := loadReducerWorkerCount(getenv, graphBackend)
 	return reducer.Service{
 		PollInterval:               time.Second,
@@ -507,6 +512,7 @@ func buildReducerService(
 		GenerationRetentionRunner:       generationRetentionRunner,
 		ChangedSinceLinkRunner:          changedSinceLinkRunnerFor(getenv, database, tracer, instruments, logger),
 		InfraInventoryReconcileRunner:   infraInventoryReconcileRunnerFor(getenv, database, tracer, instruments, logger),
+		ConfigArtifactWalkerRunner:      configArtifactWalker,
 		GenerationLivenessRunner:        generationLivenessRunner,
 		PoisonLivenessRunner:            poisonLivenessRunner,
 		ActivationObligationRunner:      runners.obligation,

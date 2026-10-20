@@ -52,6 +52,9 @@ because each derive rewrites a repository's rows.
 - `ClaimPage`, `LoadCursor` — the walker's cursor claim over the versions
   table
 - `ListDirty`, `DirtyRequest`, `Dirty` — the walker's dirty join
+- `BackfillMarker`, `BackfillComplete`, `RecordBackfillMarker` — the
+  walker's backfill completion marker (PR3b-2); the name is pinned because
+  renaming it orphans installs that already recorded it
 - `NewDeriver`, `Deriver`, `DeriverConfig`, `Database`, `Request`, `Result`,
   `DefaultDeriveTimeout` — the derive core (protocol section 3)
 - `Trigger`, `Outcome`, `Status*`, `Reason*` — labels and status values
