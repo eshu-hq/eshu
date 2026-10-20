@@ -64,8 +64,8 @@ func seededControlPlaneStructured() map[string]any {
 
 // TestPilotStatusMCPRequiresSeededPayload is the RED/GREEN pair for the three
 // #7009 status-proxy MCP Expect contracts: the declared seeded payload
-// passes, and a wrong envelope identity, a mirrored-resource mismatch, or a
-// payload missing its route identity fails.
+// passes, and a wrong envelope identity, a mirrored-resource mismatch, a
+// payload missing its route identity, or present-but-wrong route values fail.
 func TestPilotStatusMCPRequiresSeededPayload(t *testing.T) {
 	t.Parallel()
 
@@ -99,6 +99,17 @@ func TestPilotStatusMCPRequiresSeededPayload(t *testing.T) {
 			delete(payload, "state")
 			delete(payload, "ingesters")
 			delete(payload, "reducer_domains")
+		},
+		"wrong_values": func(envelope map[string]any) {
+			payload := structuredPayload(envelope)
+			payload["state"] = "bogus"
+			payload["ingesters"] = []any{map[string]any{"name": "other"}}
+			payload["queue"] = "plain string"
+			raw, err := json.Marshal(payload)
+			if err != nil {
+				panic(err)
+			}
+			envelope["result"].(map[string]any)["content"].([]any)[1].(map[string]any)["resource"].(map[string]any)["text"] = string(raw)
 		},
 	}
 	for expect := range structured {

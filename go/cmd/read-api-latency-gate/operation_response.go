@@ -34,39 +34,15 @@ func validatePilotResponse(expect string, body []byte) error {
 		}
 		return validateStatusMCPIdentity(expect, structured)
 	case "mcp_index_status":
-		if payload["jsonrpc"] != "2.0" || payload["id"] != float64(1) || payload["error"] != nil {
-			return fmt.Errorf("MCP response identity or error mismatch")
-		}
-		result, ok := payload["result"].(map[string]any)
-		if !ok || result["isError"] == true {
-			return fmt.Errorf("MCP tool result missing or failed")
-		}
-		structured, ok := result["structuredContent"].(map[string]any)
-		if !ok {
-			return fmt.Errorf("MCP structured content missing")
+		result, structured, err := validateMCPEnvelopeHead(payload)
+		if err != nil {
+			return err
 		}
 		if err := validateIndexStatus(structured); err != nil {
 			return err
 		}
-		content, ok := result["content"].([]any)
-		if !ok || len(content) != 2 {
-			return fmt.Errorf("MCP tool content missing summary or resource")
-		}
-		resourceBlock, ok := content[1].(map[string]any)
-		if !ok || resourceBlock["type"] != "resource" {
-			return fmt.Errorf("MCP resource block missing")
-		}
-		resource, ok := resourceBlock["resource"].(map[string]any)
-		if !ok {
-			return fmt.Errorf("MCP resource missing")
-		}
-		resourceText, ok := resource["text"].(string)
-		if !ok {
-			return fmt.Errorf("MCP resource text missing")
-		}
-		var duplicate map[string]any
-		if json.Unmarshal([]byte(resourceText), &duplicate) != nil || !reflect.DeepEqual(duplicate, structured) {
-			return fmt.Errorf("MCP resource and structured payload differ")
+		if err := validateMCPContentMirror(result, structured); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("unknown pilot expectation %q", expect)
@@ -85,38 +61,57 @@ func object(value any) bool {
 // mirroring structured content. A successful status with an empty or
 // unrelated payload is not a latency proof.
 func validateStatusMCPEnvelope(payload map[string]any) (map[string]any, error) {
+	result, structured, err := validateMCPEnvelopeHead(payload)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateMCPContentMirror(result, structured); err != nil {
+		return nil, err
+	}
+	return structured, nil
+}
+
+// validateMCPEnvelopeHead checks the tools/call head shared by every MCP
+// pilot: the JSON-RPC identity, a non-error result, and structured content.
+func validateMCPEnvelopeHead(payload map[string]any) (map[string]any, map[string]any, error) {
 	if payload["jsonrpc"] != "2.0" || payload["id"] != float64(1) || payload["error"] != nil {
-		return nil, fmt.Errorf("MCP response identity or error mismatch")
+		return nil, nil, fmt.Errorf("MCP response identity or error mismatch")
 	}
 	result, ok := payload["result"].(map[string]any)
 	if !ok || result["isError"] == true {
-		return nil, fmt.Errorf("MCP tool result missing or failed")
+		return nil, nil, fmt.Errorf("MCP tool result missing or failed")
 	}
 	structured, ok := result["structuredContent"].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("MCP structured content missing")
+		return nil, nil, fmt.Errorf("MCP structured content missing")
 	}
+	return result, structured, nil
+}
+
+// validateMCPContentMirror checks the two-block content shape and that the
+// resource text mirrors structured content.
+func validateMCPContentMirror(result, structured map[string]any) error {
 	content, ok := result["content"].([]any)
 	if !ok || len(content) != 2 {
-		return nil, fmt.Errorf("MCP tool content missing summary or resource")
+		return fmt.Errorf("MCP tool content missing summary or resource")
 	}
 	resourceBlock, ok := content[1].(map[string]any)
 	if !ok || resourceBlock["type"] != "resource" {
-		return nil, fmt.Errorf("MCP resource block missing")
+		return fmt.Errorf("MCP resource block missing")
 	}
 	resource, ok := resourceBlock["resource"].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("MCP resource missing")
+		return fmt.Errorf("MCP resource missing")
 	}
 	resourceText, ok := resource["text"].(string)
 	if !ok {
-		return nil, fmt.Errorf("MCP resource text missing")
+		return fmt.Errorf("MCP resource text missing")
 	}
 	var duplicate map[string]any
 	if json.Unmarshal([]byte(resourceText), &duplicate) != nil || !reflect.DeepEqual(duplicate, structured) {
-		return nil, fmt.Errorf("MCP resource and structured payload differ")
+		return fmt.Errorf("MCP resource and structured payload differ")
 	}
-	return structured, nil
+	return nil
 }
 
 // validateStatusMCPIdentity checks the route identity inside structured
