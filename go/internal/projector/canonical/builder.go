@@ -84,6 +84,10 @@ func BuildMaterialization(
 	// Its retractions then count on the drift-retraction metric (review F5).
 	mat.ReconciliationProjection = (extractReconciliationProjection(inputFacts) ||
 		generation.Status == scope.GenerationStatusActive) && !mat.DeltaProjection
+	// A scope that is genuinely fileless declares it on its repository fact
+	// (issue #8668); the flag rides the materialization to the #8657
+	// writer-side conditional retract, which honors it as the escape hatch.
+	mat.DeclaredEmptyScope = extractDeclaredEmptyScope(inputFacts)
 
 	// Extract files.
 	var parsedFiles []parsedFileRef

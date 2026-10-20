@@ -38,6 +38,28 @@ func extractReconciliationProjection(envelopes []facts.Envelope) bool {
 	return reconcile != nil && *reconcile
 }
 
+// extractDeclaredEmptyScope reports whether the generation's repository fact
+// declares `empty_scope`: the collector observed zero files, so a file-less
+// materialization is genuine filelessness rather than facts gone missing
+// downstream (issue #8668). It follows the same in-band declaration pattern
+// as the delta and reconciliation keys above: a raw optional bool on the
+// repository fact, read off the handed envelopes with no store access, so
+// replay of the same facts derives the same value. Only an explicit true
+// declares -- through decode.PayloadBoolPtr, so a parseable-string "true"
+// declares exactly as it would for the delta keys; an absent key, an
+// explicit false, or an unparseable value declares nothing.
+// The declaration excuses only zero-file-fact builds at
+// the writer-side retract check (#8657): live file facts that drop still
+// fail loud through rejectSilentFilelessWipe, marker or not.
+func extractDeclaredEmptyScope(envelopes []facts.Envelope) bool {
+	repoFacts := decode.FilterRepositoryFacts(envelopes)
+	if len(repoFacts) == 0 {
+		return false
+	}
+	declared := decode.PayloadBoolPtr(repoFacts[0].Payload, "empty_scope")
+	return declared != nil && *declared
+}
+
 func qualifyDeltaRelativePaths(repoPath string, relativePaths []string) []string {
 	if len(relativePaths) == 0 {
 		return nil
