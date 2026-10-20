@@ -33,8 +33,8 @@ Time 38 ms, DbHits 1,899, identical ordered (depth, name, id) sequence and
 identical truncated=true (tie order among equal (depth, name, id) paths may
 differ; the contract leaves it unspecified). Query-time reduction ~99%,
 DbHits reduction >99.99%. Per-depth slice equality: depths 1..4 counts
-120/863/18485/169849 equal both shapes with md5-identical ordered (name, id)
-sequences; two further anchors plus the consumers branch show ordered-key
+equal both shapes (d2-d4: 863/18485/169849) with md5-identical ordered
+(name, id) sequences; two further anchors plus the consumers branch show ordered-key
 page equality; a d1-exhausted anchor shows the d1+d2 interleave merge equals
 the baseline page. Small anchors issue up to maxDepth cheap statements
 instead of one; each is milliseconds (depth-1 PROFILE above), so the added
@@ -94,8 +94,21 @@ and must go green in CI before merge.
 - Differential always-empty-read (9): depths 2-4 return empty on both
   backends because the capture corpus anchors expose depth-1 paths only.
   Fix: 6 `read_exemptions` in `statement-builders.yaml` (callsite +
-  per-depth anchor + this reason); non-empty per-depth execution stays
-  proven by the shim above.
-- Differential quorum (511 infra-search divergences): under diagnosis via
-  failed-job retry on the same head; no change-surface statement appears
-  in the divergence sample, and the branch touches no corpus fixture.
+  per-depth anchor + this reason). 9 recordings map to 6 exemptions: the 3
+  outgoing statements run at one LIMIT width while each of the 3 consumers
+  statements was recorded at LIMIT 10 and LIMIT 11; the
+  exemption key is callsite + anchor, so one covers both widths.
+  Non-empty per-depth execution stays proven by the shim above.
+- Differential quorum (511 infra-search divergences): the full-workflow
+  re-run reproduces the identical 511 on the same head, and the identical
+  511 reproduce offline from main's own successful-run captures (run
+  39503054144) with the same gate binary and allowlist; main's compare job
+  logs the same quorum FAIL line while the job succeeds through
+  `continue-on-error: true` on the compare step
+  (`.github/workflows/golden-corpus-gate.yml`). Verdict: a pre-existing
+  environmental condition (Neo4j-only `CountUnkeyedSearchable` probes
+  reproducing across pairings), not branch-caused. No change-surface
+  statement appears in the divergence sample, and the branch touches no
+  corpus fixture. The job-level failure on this PR comes from
+  statements_executed (the 9 always-empty reads), covered by the 6
+  exemptions above.
