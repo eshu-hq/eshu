@@ -33,6 +33,10 @@ import (
 // rather than a malformed individual payload) is returned as an error: the
 // codegraph extractors propagate it instead of skipping the fact, so the build
 // fails loudly instead of projecting a silent zero-File success (issue #7671).
+// The same loud failure applies when a non-first, non-delta build drops every
+// live file fact yet materializes zero File rows: succeeding would hand the
+// writer a file-less materialization whose unbounded retract wipes every
+// prior File node (see rejectSilentFilelessWipe).
 // Callers must treat a non-nil error as authoritative and discard the returned
 // materialization.
 func BuildMaterialization(
@@ -88,6 +92,14 @@ func BuildMaterialization(
 		return CanonicalMaterialization{}, quarantined, fmt.Errorf("build codegraph file materialization: %w", err)
 	}
 	quarantined = append(quarantined, codegraphQuarantined...)
+
+	// A non-first, non-delta build that drops every live file fact hands the
+	// writer a file-less materialization whose unbounded retract wipes every
+	// prior File node and writes zero replacements, yet reports success
+	// (issue #7671). Fail loudly and name the dropped facts instead.
+	if err := rejectSilentFilelessWipe(inputFacts, mat, quarantined); err != nil {
+		return CanonicalMaterialization{}, quarantined, err
+	}
 
 	// Build directory chain from file paths.
 	mat.Directories = buildDirectoryChain(mat.Files, repoPath, repoID)
