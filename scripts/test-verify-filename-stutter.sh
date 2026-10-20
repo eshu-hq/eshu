@@ -17,10 +17,10 @@ failures=0
 # bash 3.2 at exit.
 tmp_list="$(mktemp)"
 cleanup() {
-  local d
-  while IFS= read -r d; do
-    [ -n "$d" ] && rm -rf "$d"
-  done <"$tmp_list"
+  # Retry each rm: async host indexer may hold fixture .git open (ENOTEMPTY race).
+  local d i; while IFS= read -r d; do [ -n "$d" ] || continue
+    for i in 1 2 3 4 5; do rm -rf "$d" 2>/dev/null && break || sleep 1; done
+    rm -rf "$d" || exit 1; done <"$tmp_list"
   rm -f "$tmp_list"
 }
 trap cleanup EXIT
