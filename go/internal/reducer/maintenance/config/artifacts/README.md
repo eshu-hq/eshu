@@ -34,6 +34,11 @@ itself: those live in `internal/storage/postgres/config/artifacts`, and
 - `Runner`, `Batch` — the cycle loop; what one bounded cycle did
 - `TriggerRepair`, `TriggerBackfill` — the derive trigger labels, pinned
   equal to the storage constants by the `cmd/reducer` parity test
+- `DeriveOutcomeOK`, `DeriveOutcomeSuperseded`,
+  `DeriveOutcomeEncodingUnsupported`, `DeriveOutcomeFenceMissing` — the
+  derive outcomes the reconcile mapping branches on, pinned equal to the
+  storage constants by the same parity test; any other outcome maps to
+  reconcile `error`
 - `StaleReasons` — the closed dirty-join reason set the stale gauge covers
 - `Assign` — splits a page over K workers by a stable FNV-1a hash of
   `repo_id`; a repeated id is assigned once

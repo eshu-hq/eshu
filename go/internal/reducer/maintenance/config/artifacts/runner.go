@@ -13,11 +13,9 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // Trigger labels of a walker derive. They must equal the storage
@@ -32,16 +30,26 @@ const (
 	TriggerBackfill = "backfill"
 )
 
-// Derive outcomes that refuse without a statement, naming the storage
-// artifacts.Outcome values of the same meaning: the process-start encoding or
-// fence check failed, so the read model is off and no derive can run. The
-// walker aborts the cycle on the first refusal instead of refusing every
-// repository one by one.
+// Derive outcomes the reconcile mapping branches on. They must equal the
+// storage artifacts.Outcome values of the same name: the leaf carries its
+// own copies because it must never import storage, and the cmd/reducer
+// parity test pins the equality. `ok` repairs; `superseded` reports match on
+// a backfill walk and stays superseded on a repair; the two refusals mean
+// the process-start encoding or fence check failed, so the read model is off
+// and no derive can run — the walker aborts the cycle on the first refusal
+// instead of refusing every repository one by one. Any other outcome maps
+// to reconcile error.
 const (
-	outcomeEncodingUnsupported = "encoding_unsupported"
-	outcomeFenceMissing        = "fence_missing"
-	outcomeOK                  = "ok"
-	outcomeSuperseded          = "superseded"
+	// DeriveOutcomeOK is a derive that wrote rows.
+	DeriveOutcomeOK = "ok"
+	// DeriveOutcomeSuperseded is a derive that rolled back without writing.
+	DeriveOutcomeSuperseded = "superseded"
+	// DeriveOutcomeEncodingUnsupported is a derive refused because the
+	// start-up encoding check failed.
+	DeriveOutcomeEncodingUnsupported = "encoding_unsupported"
+	// DeriveOutcomeFenceMissing is a derive refused because the start-up
+	// fence check failed.
+	DeriveOutcomeFenceMissing = "fence_missing"
 )
 
 // StaleReasons is the closed reason set the dirty join reports, naming the
@@ -63,10 +71,16 @@ type DirtyRepo struct {
 	Skipped bool
 }
 
-// Lister finds the walker's repair work through the dirty join.
-// cmd/reducer adapts storageartifacts.ListDirty to it.
+// Lister finds the walker's repair work through the dirty join and answers
+// the skip check for walk-claimed ids. cmd/reducer adapts
+// storageartifacts.ListDirty and storageartifacts.SkippedRepos to it.
 type Lister interface {
 	ListDirtyRepos(ctx context.Context, limit int) ([]DirtyRepo, error)
+	// SkippedRepos reports which of repoIDs are over the failure limit for
+	// the current extractor version. The walker filters them out of the
+	// walk page: the dirty list that named the skipped set is bounded while
+	// the walk is not, so the page carries its own check.
+	SkippedRepos(ctx context.Context, repoIDs []string) ([]string, error)
 }
 
 // Marker reads and records the backfill completion marker.
@@ -125,8 +139,9 @@ type Runner struct {
 
 // Run walks until the context is canceled. A productive cycle loops
 // immediately so a backlog drains; an empty or refused cycle waits the poll
-// interval. A failed cycle is logged and retried on the next interval.
-// Shutdown is prompt and silent: cancellation is not an error.
+// interval. A failed cycle is logged and waits the poll interval before the
+// retry, so a persistent failure cannot spin the loop. Shutdown is prompt
+// and silent: cancellation is not an error.
 func (r *Runner) Run(ctx context.Context) error {
 	if err := r.validate(); err != nil {
 		return err
@@ -142,13 +157,14 @@ func (r *Runner) Run(ctx context.Context) error {
 				return nil
 			}
 			r.recordFailure(ctx, err)
-		} else if batch.Derived == 0 || batch.Refused {
-			if err := r.wait(ctx, cfg.PollInterval); err != nil {
-				if contextDone(ctx, err) {
-					return nil
-				}
-				return fmt.Errorf("wait for config artifact walk: %w", err)
+		} else if batch.Derived > 0 && !batch.Refused {
+			continue
+		}
+		if err := r.wait(ctx, cfg.PollInterval); err != nil {
+			if contextDone(ctx, err) {
+				return nil
 			}
+			return fmt.Errorf("wait for config artifact walk: %w", err)
 		}
 	}
 }
@@ -178,10 +194,12 @@ func (r *Runner) RunOnce(ctx context.Context) (Batch, error) {
 	r.recordStale(ctx, dirty)
 
 	repairs := make([]string, 0, len(dirty))
+	skippedSet := make(map[string]struct{}, len(dirty))
 	for _, item := range dirty {
 		if item.Skipped {
 			batch.Skipped++
 			r.emitReconcile(ctx, telemetry.ConfigArtifactReconcileOutcomeSkipped)
+			skippedSet[item.RepoID] = struct{}{}
 			continue
 		}
 		repairs = append(repairs, item.RepoID)
@@ -211,6 +229,36 @@ func (r *Runner) RunOnce(ctx context.Context) (Batch, error) {
 			continue
 		}
 		walk = append(walk, repoID)
+	}
+	// The walk claim is a range scan with no skip filter, so a repository
+	// over the failure limit would be re-derived here with trigger
+	// backfill. Filter the page against the skip check; skippedSet keeps a
+	// repository the dirty list already counted from being counted twice.
+	if len(walk) > 0 {
+		skipped, err := r.Lister.SkippedRepos(ctx, walk)
+		if err != nil {
+			batch.Duration = time.Since(start)
+			r.logCycle(ctx, batch)
+			return batch, fmt.Errorf("list skipped config artifact repositories: %w", err)
+		}
+		if len(skipped) > 0 {
+			skippedNow := make(map[string]struct{}, len(skipped))
+			for _, repoID := range skipped {
+				skippedNow[repoID] = struct{}{}
+				if _, ok := skippedSet[repoID]; !ok {
+					batch.Skipped++
+					r.emitReconcile(ctx, telemetry.ConfigArtifactReconcileOutcomeSkipped)
+					skippedSet[repoID] = struct{}{}
+				}
+			}
+			kept := walk[:0]
+			for _, repoID := range walk {
+				if _, ok := skippedNow[repoID]; !ok {
+					kept = append(kept, repoID)
+				}
+			}
+			walk = kept
+		}
 	}
 	if r.deriveGroup(ctx, walk, TriggerBackfill, cfg.Workers, &batch) {
 		batch.Refused = true
@@ -279,7 +327,8 @@ func (r *Runner) deriveGroup(
 					return
 				}
 				r.emitDerive(ctx, trigger, deriveOutcomeLabel(outcome, adapterErr), duration)
-				switch reconcileOutcome(trigger, outcome, adapterErr) {
+				recOutcome := reconcileOutcome(trigger, outcome, adapterErr)
+				switch recOutcome {
 				case telemetry.ConfigArtifactReconcileOutcomeRepaired:
 					batch.Repaired++
 				case telemetry.ConfigArtifactReconcileOutcomeMatch:
@@ -289,7 +338,7 @@ func (r *Runner) deriveGroup(
 				default:
 					batch.Failed++
 				}
-				r.emitReconcile(ctx, reconcileOutcome(trigger, outcome, adapterErr))
+				r.emitReconcile(ctx, recOutcome)
 				if adapterErr == nil && isRefusal(outcome) {
 					refused.Store(true)
 					mu.Unlock()
@@ -330,92 +379,6 @@ func (r *Runner) deriveOne(ctx context.Context, repoID, trigger string) (string,
 	return outcome, duration, err
 }
 
-// isRefusal reports whether outcome refuses without a statement because the
-// read model is off in this process.
-func isRefusal(outcome string) bool {
-	return outcome == outcomeEncodingUnsupported || outcome == outcomeFenceMissing
-}
-
-// deriveOutcomeLabel maps an adapter result to the derives_total outcome
-// label: the derive outcome, or error for a transport failure.
-func deriveOutcomeLabel(outcome string, adapterErr error) string {
-	if adapterErr != nil {
-		return "error"
-	}
-	return outcome
-}
-
-// reconcileOutcome maps a derive to the reconcile_total outcome: ok repaired,
-// a backfill walk that found a repository already current matched (the
-// advance-only write rolled back with superseded), a repair superseded by a
-// racing Write superseded, every failure error. A backfill superseded by a
-// racing Write misreports match for one cycle; the repository stays dirty and
-// the next cycle repairs it, so the label self-corrects.
-func reconcileOutcome(trigger, outcome string, adapterErr error) string {
-	if adapterErr != nil {
-		return telemetry.ConfigArtifactReconcileOutcomeError
-	}
-	switch outcome {
-	case outcomeOK:
-		return telemetry.ConfigArtifactReconcileOutcomeRepaired
-	case outcomeSuperseded:
-		if trigger == TriggerBackfill {
-			return telemetry.ConfigArtifactReconcileOutcomeMatch
-		}
-		return telemetry.ConfigArtifactReconcileOutcomeSuperseded
-	default:
-		return telemetry.ConfigArtifactReconcileOutcomeError
-	}
-}
-
-// emitDerive counts one walker derive on derives_total and observes its wall
-// time on the derive duration histogram. A nil Instruments records nothing,
-// so wiring tests run without a meter.
-func (r *Runner) emitDerive(ctx context.Context, trigger, outcome string, duration time.Duration) {
-	if r.Instruments == nil {
-		return
-	}
-	r.Instruments.ConfigArtifactDerives.Add(ctx, 1, metric.WithAttributes(
-		telemetry.AttrTrigger(trigger),
-		telemetry.AttrOutcome(outcome),
-	))
-	r.Instruments.ConfigArtifactDeriveDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(
-		telemetry.AttrTrigger(trigger),
-	))
-}
-
-// emitReconcile counts one repository on reconcile_total. A nil Instruments
-// records nothing.
-func (r *Runner) emitReconcile(ctx context.Context, outcome string) {
-	if r.Instruments == nil {
-		return
-	}
-	r.Instruments.ConfigArtifactReconcile.Add(ctx, 1, metric.WithAttributes(
-		telemetry.AttrOutcome(outcome),
-	))
-}
-
-// recordStale sets the stale_repos gauge for every dirty-join reason,
-// including zero, so a drained reason does not keep a stale-high gauge. A
-// nil Instruments records nothing.
-func (r *Runner) recordStale(ctx context.Context, dirty []DirtyRepo) {
-	if r.Instruments == nil {
-		return
-	}
-	counts := make(map[string]int64, len(StaleReasons))
-	for _, reason := range StaleReasons {
-		counts[reason] = 0
-	}
-	for _, item := range dirty {
-		counts[item.Reason]++
-	}
-	for reason, count := range counts {
-		r.Instruments.ConfigArtifactStaleRepos.Record(ctx, count, metric.WithAttributes(
-			telemetry.AttrReason(reason),
-		))
-	}
-}
-
 func (r *Runner) validate() error {
 	switch {
 	case r.Lister == nil:
@@ -443,43 +406,6 @@ func (r *Runner) wait(ctx context.Context, d time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
-}
-
-func (r *Runner) recordFailure(ctx context.Context, err error) {
-	if r.Logger != nil {
-		r.Logger.ErrorContext(ctx, "config artifact walker cycle failed",
-			slog.String("event_name", "config_artifacts.walker.cycle_failed"),
-			log.Err(err),
-			telemetry.FailureClassAttr("config_artifact_walker_error"),
-			telemetry.PhaseAttr(telemetry.PhaseReduction),
-		)
-	}
-}
-
-// logCycle logs one cycle at DEBUG, or at INFO when it recorded the backfill
-// marker. The counters and the stale gauge carry the per-cycle detail; the
-// log carries the shape for operators without a metrics read.
-func (r *Runner) logCycle(ctx context.Context, batch Batch) {
-	if r.Logger == nil {
-		return
-	}
-	attrs := []any{
-		slog.String("event_name", "config_artifacts.walker.cycle"),
-		slog.Int("derived", batch.Derived),
-		slog.Int("repaired", batch.Repaired),
-		slog.Int("matched", batch.Matched),
-		slog.Int("superseded", batch.Superseded),
-		slog.Int("failed", batch.Failed),
-		slog.Int("skipped", batch.Skipped),
-		slog.Bool("walk_wrapped", batch.WalkWrapped),
-		slog.Bool("marker_recorded", batch.MarkerRecorded),
-		slog.Float64("duration_seconds", batch.Duration.Seconds()),
-	}
-	if batch.MarkerRecorded {
-		r.Logger.InfoContext(ctx, "config artifact walker recorded the backfill marker", attrs...)
-		return
-	}
-	r.Logger.DebugContext(ctx, "config artifact walker cycle done", attrs...)
 }
 
 // contextDone reports whether err (or ctx) signals cancellation. It

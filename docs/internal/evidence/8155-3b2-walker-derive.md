@@ -16,16 +16,22 @@ Refs #8155. Arbiter verdict 2026-10-19: APPROVED-WITH-AMENDMENTS A1-A4.
   each cycle derives the dirty join's repositories with trigger `repair`,
   then one claimed walk page with trigger `backfill`, over K workers that
   partition by `repo_id` (`Assign`). Skipped repositories are counted and
-  never derived. When a claimed page reaches the end of the walk and a fresh
-  dirty re-list is empty, the cycle records `config_artifact_paths_v1` in
+  never derived: the dirty path skips them from the repair group, and the
+  walk page — a range scan with no skip filter — is filtered against the
+  skip check (`SkippedRepos`: failure count at the limit for the current
+  extractor), so a skipped repository is never re-derived as backfill. When
+  a claimed page reaches the end of the walk and a fresh dirty re-list is
+  empty, the cycle records `config_artifact_paths_v1` in
   `config_artifact_backfill_markers`: the first full walk is done.
 - Outcome mapping to `eshu_dp_config_artifact_reconcile_total`: `ok` repairs;
   a `backfill` derive that rolls back reports `match` (the repository was
   already current); a `repair` that loses to a racing Write reports
   `superseded`; every failure reports `error`; skipped reports `skipped`
   without a derive. A backfill `superseded` by a racing Write misreports
-  `match` for one cycle; the repository stays dirty and the next cycle
-  repairs it, so the label self-corrects.
+  `match` for one cycle: when the racing Write's derive failed the
+  repository stays dirty and the next cycle repairs it, and when it
+  succeeded the repository is already clean and the one wrong point simply
+  stands; either way the next cycle labels correctly.
 - A read-model-off refusal (`encoding_unsupported`, `fence_missing`) aborts
   the cycle after counting the derives that ran: no walk claim, no marker,
   no immediate retry. A derive the shutdown cancels records nothing.
@@ -70,10 +76,16 @@ Refs #8155. Arbiter verdict 2026-10-19: APPROVED-WITH-AMENDMENTS A1-A4.
 ## Proof
 
 - Hermetic (`go/internal/reducer/maintenance/config/artifacts`): cycle order
-  and trigger labels, repair-before-walk with dedup, skipped-never-derived,
-  the outcome mapping, marker-only-on-clean-wrap (failure, full page, and
+  and trigger labels, repair-before-walk with dedup, skipped-never-derived
+  on both paths (dirty-skipped counted once, walk-only skipped filtered by
+  the skip check and counted once, failing skip check fails the cycle), the
+  outcome mapping, marker-only-on-clean-wrap (failure, full page, and
   clean cases), refusal abort (single- and multi-worker), shutdown silence,
-  dependency validation, drain-then-wait.
+  dependency validation, drain-then-wait plus error-then-wait (a failed
+  cycle waits the poll interval before the retry).
+- Hermetic (`go/internal/storage/postgres/config/artifacts`): the skip
+  check plumbing (passthrough, empty-ids short-circuit, query errors
+  including a missing table).
 - Hermetic (`go/internal/content`, `go/cmd/reducer`, `go/internal/reducer`):
   loader defaults/parsing/rejections, wiring defaults/disabled/invalid
   (bad workers, bad timeout, pool without transactions), refused checks
@@ -88,6 +100,13 @@ Refs #8155. Arbiter verdict 2026-10-19: APPROVED-WITH-AMENDMENTS A1-A4.
   `content_version=1` with non-NULL `row_count`.
 - Live (`TestBackfillMarkerRoundTripLive`): absent after bootstrap, present
   after one record, stable across a second record.
+- Live (`TestSkippedReposPredicateLive`): only the repository over the
+  failure limit for the current extractor is reported skipped; under-limit,
+  old-extractor-failure, and successful repositories are not.
+- Live (`TestConfigArtifactWalkerSkipsFailedRepositoriesLive`): a skipped
+  repository is never derived on either path while its sibling repairs; the
+  marker stays pending; the skipped failure record is untouched (still five
+  failures, still NULL `row_count`).
 - S4 (`TestDeriveStoredRowsEqualLivePathLive`, PR3b gate): re-run against
   this head 2026-10-20 on disposable Postgres 18.6: 220 repositories
   (43 with rows), 160 live rows, 160 stored rows, differing 0/0, PASS in
@@ -108,7 +127,7 @@ covers them). The poll interval (5 minutes) bounds the steady-state rate;
 each cycle's work is bounded by the page budget (500) times K=4 workers.
 
 No-Regression Evidence: the walker is a new side runner, so the regression
-surface is the reducer without it: disabled (the default-off path) builds no
+surface is the reducer without it: disabled (the turned-off path) builds no
 walker and issues no statement (`TestConfigArtifactWalkerRunnerForDisabled`
 counts zero statements); enabled, an empty cycle issues two bounded indexed
 statements per 5 minutes (dirty join over the versions/state tables, one

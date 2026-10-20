@@ -116,6 +116,14 @@ func TestConfigArtifactWalkerRunnerForInvalidConfig(t *testing.T) {
 	for _, env := range []map[string]string{
 		{content.ConfigArtifactWalkerWorkersEnv: "0"},
 		{content.ConfigArtifactDeriveTimeoutEnv: "forever"},
+		{
+			content.ConfigArtifactWalkerEnabledEnv: "false",
+			content.ConfigArtifactDeriveTimeoutEnv: "forever",
+		},
+		{
+			content.ConfigArtifactWalkerEnabledEnv: "false",
+			content.ConfigArtifactWalkerWorkersEnv: "0",
+		},
 	} {
 		if _, err := configArtifactWalkerRunnerFor(ctx,
 			func(key string) string { return env[key] },
@@ -192,5 +200,50 @@ func TestConfigArtifactWalkerTriggerAndReasonParity(t *testing.T) {
 	}
 	if contentartifacts.ExtractorVersion < 1 {
 		t.Fatalf("ExtractorVersion = %d, want the guard-pinned positive version", contentartifacts.ExtractorVersion)
+	}
+}
+
+// TestConfigArtifactWalkerOutcomeParity pins the derive outcomes the leaf
+// reconcile mapping branches on to the storage Outcome constants: ok,
+// superseded, and the two read-model-off refusals. Any other outcome maps
+// to reconcile error by default, so a new outcome degrades to error loudly
+// rather than matching a wrong branch silently. A renamed storage value must
+// move the leaf copy in the same PR.
+func TestConfigArtifactWalkerOutcomeParity(t *testing.T) {
+	t.Parallel()
+
+	if string(storageartifacts.OutcomeOK) != walkartifacts.DeriveOutcomeOK {
+		t.Fatalf("ok: storage %q != leaf %q",
+			string(storageartifacts.OutcomeOK), walkartifacts.DeriveOutcomeOK)
+	}
+	if string(storageartifacts.OutcomeSuperseded) != walkartifacts.DeriveOutcomeSuperseded {
+		t.Fatalf("superseded: storage %q != leaf %q",
+			string(storageartifacts.OutcomeSuperseded), walkartifacts.DeriveOutcomeSuperseded)
+	}
+	if string(storageartifacts.OutcomeEncodingUnsupported) != walkartifacts.DeriveOutcomeEncodingUnsupported {
+		t.Fatalf("encoding_unsupported: storage %q != leaf %q",
+			string(storageartifacts.OutcomeEncodingUnsupported), walkartifacts.DeriveOutcomeEncodingUnsupported)
+	}
+	if string(storageartifacts.OutcomeFenceMissing) != walkartifacts.DeriveOutcomeFenceMissing {
+		t.Fatalf("fence_missing: storage %q != leaf %q",
+			string(storageartifacts.OutcomeFenceMissing), walkartifacts.DeriveOutcomeFenceMissing)
+	}
+}
+
+// TestConfigArtifactWalkerStoreSkippedReposReportsQueryFailure pins the
+// adapter's error path: a refused skip check fails the cycle instead of
+// deriving blind.
+func TestConfigArtifactWalkerStoreSkippedReposReportsQueryFailure(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	database := &refusingWalkerDB{}
+	runner, err := configArtifactWalkerRunnerFor(ctx,
+		func(string) string { return "" }, database, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("configArtifactWalkerRunnerFor() error = %v", err)
+	}
+	if _, err := runner.Lister.(configArtifactWalkerStore).SkippedRepos(ctx, []string{"repo-a"}); err == nil {
+		t.Fatal("SkippedRepos(refused checks) = nil, want the query error")
 	}
 }

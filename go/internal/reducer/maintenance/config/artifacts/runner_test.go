@@ -21,12 +21,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// fakeLister answers ListDirtyRepos from a script, one entry per call.
+// fakeLister answers ListDirtyRepos from a script, one entry per call, and
+// the skip check from a set.
 type fakeLister struct {
-	mu    sync.Mutex
-	lists [][]DirtyRepo
-	errs  []error
-	calls []int
+	mu      sync.Mutex
+	lists   [][]DirtyRepo
+	errs    []error
+	calls   []int
+	skipped map[string]bool
+	skipErr error
 }
 
 func (f *fakeLister) ListDirtyRepos(_ context.Context, limit int) ([]DirtyRepo, error) {
@@ -41,6 +44,21 @@ func (f *fakeLister) ListDirtyRepos(_ context.Context, limit int) ([]DirtyRepo, 
 		return f.lists[i], nil
 	}
 	return nil, nil
+}
+
+func (f *fakeLister) SkippedRepos(_ context.Context, repoIDs []string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.skipErr != nil {
+		return nil, f.skipErr
+	}
+	var out []string
+	for _, repoID := range repoIDs {
+		if f.skipped[repoID] {
+			out = append(out, repoID)
+		}
+	}
+	return out, nil
 }
 
 // fakeClaimer answers ClaimPage from a script of pages.
@@ -214,6 +232,71 @@ func TestRunnerDerivesDirtyAsRepairAndWalkAsBackfill(t *testing.T) {
 	require.Len(t, spans.Ended(), 2)
 	for _, span := range spans.Ended() {
 		require.Equal(t, "config_artifacts.derive", span.Name())
+	}
+}
+
+// TestRunnerWalkSkipsFailedRepositories pins the walk skip filter (protocol
+// section 4): a repository over the failure limit is never derived, whether
+// the dirty list names it skipped or only the walk page carries it. The
+// dirty-skipped repository is counted once, the walk-only skipped repository
+// is counted once, and a failing skip check fails the cycle.
+func TestRunnerWalkSkipsFailedRepositories(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	inst, reader := newWalkerTestInstruments(t)
+	lister := &fakeLister{
+		lists: [][]DirtyRepo{
+			{
+				{RepoID: "repo-repair", Reason: "stale_version"},
+				{RepoID: "repo-dirty-skip", Reason: "failed", Skipped: true},
+			},
+			{},
+		},
+		skipped: map[string]bool{
+			"repo-dirty-skip": true,
+			"repo-walk-skip":  true,
+		},
+	}
+	claimer := &fakeClaimer{pages: [][]string{
+		{"repo-dirty-skip", "repo-walk-skip", "repo-walk"},
+		{"repo-x"},
+	}}
+	deriver := &fakeDeriver{}
+	marker := &fakeMarker{}
+	runner := &Runner{
+		Lister:      lister,
+		Claimer:     claimer,
+		Deriver:     deriver,
+		Marker:      marker,
+		Config:      Config{Workers: 2, PageBudget: 10, SkipAfterFailures: 5, PollInterval: time.Minute},
+		Instruments: inst,
+	}
+
+	batch, err := runner.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 2, batch.Derived)
+	require.Equal(t, 2, batch.Skipped)
+
+	got := map[string]string{}
+	for _, call := range deriver.calls {
+		if prev, ok := got[call.repoID]; ok {
+			t.Fatalf("repository %s derived twice (triggers %s and %s)", call.repoID, prev, call.trigger)
+		}
+		got[call.repoID] = call.trigger
+	}
+	require.Equal(t, map[string]string{
+		"repo-repair": "repair",
+		"repo-walk":   "backfill",
+	}, got)
+
+	rm := collectMetrics(t, reader)
+	require.Equal(t, int64(2), testutil.CounterValue(t, rm,
+		"eshu_dp_config_artifact_reconcile_total",
+		map[string]string{"outcome": "skipped"}))
+
+	lister.skipErr = errors.New("connection refused")
+	if _, err := runner.RunOnce(ctx); err == nil {
+		t.Fatal("RunOnce with a failing skip check = nil, want the check error")
 	}
 }
 
@@ -542,4 +625,45 @@ func TestRunnerDrainsThenWaits(t *testing.T) {
 	// (waits once, then the canceled context ends the run).
 	require.Equal(t, 2, len(lister.calls))
 	require.Equal(t, int32(1), waits.Load())
+}
+
+// TestRunnerErrorWaitsPollInterval pins the failure backoff: a failed cycle
+// is logged and waits the poll interval before the retry, so a persistent
+// failure (a database down) cannot spin the loop at full speed.
+func TestRunnerErrorWaitsPollInterval(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var waits atomic.Int32
+	lister := &fakeLister{
+		lists: [][]DirtyRepo{nil},
+		errs:  []error{errors.New("connection refused")},
+	}
+	runner := &Runner{
+		Lister:  lister,
+		Claimer: &fakeClaimer{pages: [][]string{nil}},
+		Deriver: &fakeDeriver{},
+		Marker:  &fakeMarker{complete: true},
+		Config:  Config{Workers: 1, PageBudget: 10, SkipAfterFailures: 5, PollInterval: time.Hour},
+		Wait: func(ctx context.Context, _ time.Duration) error {
+			if waits.Add(1) == 2 {
+				cancel()
+				<-ctx.Done()
+				return ctx.Err()
+			}
+			return nil
+		},
+	}
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(ctx) }()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not stop after the waits")
+	}
+	// Cycle 1 fails on the dirty list (waits); cycle 2 is empty (waits,
+	// then the canceled context ends the run).
+	require.Equal(t, 2, len(lister.calls))
+	require.Equal(t, int32(2), waits.Load())
 }

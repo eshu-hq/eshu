@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"testing"
 	"time"
@@ -113,4 +114,58 @@ func TestConfigArtifactWalkerCycleLive(t *testing.T) {
 	require.NoError(t, database.DB.QueryRowContext(ctx,
 		`SELECT count(*) FROM config_artifact_repo_state WHERE repo_id IN ('repository:walker-a','repository:walker-b') AND content_version = 1 AND row_count IS NOT NULL`).Scan(&rowCount))
 	require.Equal(t, 2, rowCount)
+}
+
+// TestConfigArtifactWalkerSkipsFailedRepositoriesLive proves the skip rule
+// through the real stack: a repository over the failure limit for the
+// current extractor is counted skipped and never derived — neither as a
+// dirty repair nor as a backfill walk — while its sibling repairs normally.
+// The backfill marker stays pending while the skipped repository is dirty.
+func TestConfigArtifactWalkerSkipsFailedRepositoriesLive(t *testing.T) {
+	ctx, database := openWalkerDatabase(t)
+	seedWalkerVersions(t, ctx, database, "repository:walker-c", "repository:walker-skip")
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO config_artifact_repo_state
+    (repo_id, extractor_version, failure_count, last_error_class,
+     last_failure_at, last_failure_extractor_version)
+VALUES ('repository:walker-skip', 1, 5, 'error', now(), 1)`); err != nil {
+		t.Fatalf("seed skipped state: %v", err)
+	}
+
+	reader := metric.NewManualReader()
+	inst, err := telemetry.NewInstruments(
+		metric.NewMeterProvider(metric.WithReader(reader)).Meter("walker-skip-live-test"))
+	require.NoError(t, err)
+	runner, err := configArtifactWalkerRunnerFor(ctx,
+		func(string) string { return "" }, database, nil, inst, nil)
+	require.NoError(t, err)
+
+	batch, err := runner.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, batch.Derived)
+	require.Equal(t, 1, batch.Repaired)
+	require.Equal(t, 1, batch.Skipped)
+	require.False(t, batch.MarkerRecorded)
+
+	complete, err := storageartifacts.BackfillComplete(ctx, database)
+	require.NoError(t, err)
+	require.False(t, complete)
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(ctx, &rm))
+	require.Equal(t, int64(1), testutil.CounterValue(t, rm,
+		"eshu_dp_config_artifact_derives_total",
+		map[string]string{"trigger": "repair", "outcome": "ok"}))
+	require.Equal(t, int64(1), testutil.CounterValue(t, rm,
+		"eshu_dp_config_artifact_reconcile_total",
+		map[string]string{"outcome": "skipped"}))
+
+	// The skipped repository's failure record is untouched: still five
+	// failures, still no successful derive.
+	var failures int
+	var rowCount sql.NullInt64
+	require.NoError(t, database.DB.QueryRowContext(ctx,
+		`SELECT failure_count, row_count FROM config_artifact_repo_state WHERE repo_id = 'repository:walker-skip'`).Scan(&failures, &rowCount))
+	require.Equal(t, 5, failures)
+	require.False(t, rowCount.Valid)
 }

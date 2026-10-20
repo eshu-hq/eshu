@@ -24,6 +24,10 @@ func (c *countingWalkerLister) ListDirtyRepos(context.Context, int) ([]walkartif
 	return nil, nil
 }
 
+func (c *countingWalkerLister) SkippedRepos(context.Context, []string) ([]string, error) {
+	return nil, nil
+}
+
 type emptyWalkerClaimer struct{}
 
 func (emptyWalkerClaimer) ClaimPage(context.Context, int) ([]string, string, error) {

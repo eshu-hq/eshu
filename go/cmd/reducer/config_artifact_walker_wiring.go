@@ -68,16 +68,20 @@ func configArtifactWalkerRunnerFor(
 	if err != nil {
 		return nil, err
 	}
+	// The shared derive deadline is validated even when the walker is
+	// disabled, so turning the switch back on cannot surface a latent
+	// startup error — the same rule the derive loader keeps for its own
+	// switch.
+	deriveCfg, err := content.LoadConfigArtifactDeriveConfig(getenv)
+	if err != nil {
+		return nil, err
+	}
 	if !walkerCfg.Enabled {
 		if logger != nil {
 			logger.InfoContext(ctx, "config artifact walker disabled; stored rows fall behind until content Writes derive them",
 				"event_name", walkerDisabledEvent)
 		}
 		return nil, nil
-	}
-	deriveCfg, err := content.LoadConfigArtifactDeriveConfig(getenv)
-	if err != nil {
-		return nil, err
 	}
 	pool, ok := database.(storageartifacts.Database)
 	if !ok {
@@ -152,6 +156,15 @@ func (s configArtifactWalkerStore) ListDirtyRepos(ctx context.Context, limit int
 // ClaimPage claims the next page of the shared walk.
 func (s configArtifactWalkerStore) ClaimPage(ctx context.Context, budget int) ([]string, string, error) {
 	return storageartifacts.ClaimPage(ctx, s.database, budget)
+}
+
+// SkippedRepos reports which of the walk-claimed ids are over the failure
+// limit for the running extractor version.
+func (s configArtifactWalkerStore) SkippedRepos(ctx context.Context, repoIDs []string) ([]string, error) {
+	return storageartifacts.SkippedRepos(ctx, s.database, storageartifacts.SkippedRequest{
+		ExtractorVersion:  contentartifacts.ExtractorVersion,
+		SkipAfterFailures: s.skipAfter,
+	}, repoIDs)
 }
 
 // BackfillRecorded reports whether the backfill marker exists.
