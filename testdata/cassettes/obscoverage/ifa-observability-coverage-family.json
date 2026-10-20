@@ -1,0 +1,444 @@
+{
+  "collector": "aws",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "aws:eshu-fixture-observability-coverage",
+      "source_system": "aws",
+      "scope_kind": "region",
+      "collector_kind": "aws",
+      "partition_key": "aws:eshu-fixture-observability-coverage",
+      "metadata": {
+        "account_id": "123456789012",
+        "region": "us-east-1",
+        "service_kind": "observability-coverage",
+        "fixture": "ifa-observability-coverage-family"
+      },
+      "generation_id": "gen-ifa-observability-coverage-family-1",
+      "observed_at": "2026-09-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-cpu-high",
+            "name": "orders-cpu-high",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-cpu-high",
+            "resource_type": "aws_cloudwatch_alarm"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-cpu-high"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:checkout-rollup",
+            "name": "checkout-rollup",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:checkout-rollup",
+            "resource_type": "aws_cloudwatch_composite_alarm"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:checkout-rollup"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:cloudwatch:us-east-1:123456789012:dashboard/orders-overview",
+            "name": "orders-overview",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:cloudwatch:us-east-1:123456789012:dashboard/orders-overview",
+            "resource_type": "aws_cloudwatch_dashboard"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-overview"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:logs:us-east-1:123456789012:log-group:/orders/api",
+            "name": "/orders/api",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:logs:us-east-1:123456789012:log-group:/orders/api",
+            "resource_type": "aws_cloudwatch_logs_log_group"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:/orders/api"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:xray:us-east-1:123456789012:sampling-rule/orders-rule",
+            "name": "orders-rule",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:xray:us-east-1:123456789012:sampling-rule/orders-rule",
+            "resource_type": "aws_xray_sampling_rule"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-rule"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-metric-only",
+            "name": "orders-metric-only",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-metric-only",
+            "resource_type": "aws_cloudwatch_alarm"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-metric-only"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:xray:us-east-1:123456789012:sampling-rule/checkout-service-rule",
+            "name": "checkout-service-rule",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:xray:us-east-1:123456789012:sampling-rule/checkout-service-rule",
+            "resource_type": "aws_xray_sampling_rule"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:checkout-service-rule"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-ghost-target",
+            "name": "orders-ghost-target",
+            "region": "us-east-1",
+            "resource_id": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-ghost-target",
+            "resource_type": "aws_cloudwatch_alarm"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-ghost-target"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc123def4567890",
+            "name": "orders-ec2",
+            "region": "us-east-1",
+            "resource_id": "i-0abc123def4567890",
+            "resource_type": "aws_ec2_instance"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-ec2"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:lambda:us-east-1:123456789012:function:orders-api",
+            "name": "orders-lambda",
+            "region": "us-east-1",
+            "resource_id": "orders-api",
+            "resource_type": "aws_lambda_function"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-lambda"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:rds:us-east-1:123456789012:db:orders-db",
+            "name": "orders-db",
+            "region": "us-east-1",
+            "resource_id": "orders-db",
+            "resource_type": "aws_rds_instance"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-db"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:sqs:us-east-1:123456789012:orders-queue",
+            "name": "orders-queue",
+            "region": "us-east-1",
+            "resource_id": "orders-queue",
+            "resource_type": "aws_sqs_queue"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-queue"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_resource",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "arn": "arn:aws:dynamodb:us-east-1:123456789012:table/orders-table",
+            "name": "orders-table",
+            "region": "us-east-1",
+            "resource_id": "orders-table",
+            "resource_type": "aws_dynamodb_table"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_resource:orders-table"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_relationship",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "attributes": {
+              "dimensions": [
+                {
+                  "name": "InstanceId",
+                  "value": "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc123def4567890"
+                }
+              ],
+              "metric_name": "CPUUtilization",
+              "namespace": "AWS/EC2"
+            },
+            "region": "us-east-1",
+            "relationship_type": "cloudwatch_alarm_observes_metric",
+            "source_arn": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-cpu-high",
+            "source_resource_id": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-cpu-high",
+            "target_resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc123def4567890"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_relationship:arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-cpu-high"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_relationship",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "attributes": {
+              "dimensions": [
+                {
+                  "name": "InstanceId",
+                  "value": "arn:aws:lambda:us-east-1:123456789012:function:orders-api"
+                }
+              ],
+              "metric_name": "CPUUtilization",
+              "namespace": "AWS/EC2"
+            },
+            "region": "us-east-1",
+            "relationship_type": "cloudwatch_alarm_observes_metric",
+            "source_arn": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:checkout-rollup",
+            "source_resource_id": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:checkout-rollup",
+            "target_resource_id": "arn:aws:lambda:us-east-1:123456789012:function:orders-api"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_relationship:arn:aws:cloudwatch:us-east-1:123456789012:alarm:checkout-rollup"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_relationship",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "attributes": {
+              "dimensions": [
+                {
+                  "name": "InstanceId",
+                  "value": "orders-db"
+                }
+              ],
+              "metric_name": "CPUUtilization",
+              "namespace": "AWS/EC2"
+            },
+            "region": "us-east-1",
+            "relationship_type": "cloudwatch_alarm_observes_metric",
+            "source_arn": "arn:aws:cloudwatch:us-east-1:123456789012:dashboard/orders-overview",
+            "source_resource_id": "arn:aws:cloudwatch:us-east-1:123456789012:dashboard/orders-overview",
+            "target_resource_id": "orders-db"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_relationship:arn:aws:cloudwatch:us-east-1:123456789012:dashboard/orders-overview"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_relationship",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "attributes": {
+              "dimensions": [
+                {
+                  "name": "InstanceId",
+                  "value": "arn:aws:sqs:us-east-1:123456789012:orders-queue"
+                }
+              ],
+              "metric_name": "CPUUtilization",
+              "namespace": "AWS/EC2"
+            },
+            "region": "us-east-1",
+            "relationship_type": "cloudwatch_alarm_observes_metric",
+            "source_arn": "arn:aws:logs:us-east-1:123456789012:log-group:/orders/api",
+            "source_resource_id": "arn:aws:logs:us-east-1:123456789012:log-group:/orders/api",
+            "target_resource_id": "arn:aws:sqs:us-east-1:123456789012:orders-queue"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_relationship:arn:aws:logs:us-east-1:123456789012:log-group:/orders/api"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_relationship",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "attributes": {
+              "dimensions": [
+                {
+                  "name": "InstanceId",
+                  "value": "arn:aws:dynamodb:us-east-1:123456789012:table/orders-table"
+                }
+              ],
+              "metric_name": "CPUUtilization",
+              "namespace": "AWS/EC2"
+            },
+            "region": "us-east-1",
+            "relationship_type": "cloudwatch_alarm_observes_metric",
+            "source_arn": "arn:aws:xray:us-east-1:123456789012:sampling-rule/orders-rule",
+            "source_resource_id": "arn:aws:xray:us-east-1:123456789012:sampling-rule/orders-rule",
+            "target_resource_id": "arn:aws:dynamodb:us-east-1:123456789012:table/orders-table"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_relationship:arn:aws:xray:us-east-1:123456789012:sampling-rule/orders-rule"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_relationship",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "relationship_type": "cloudwatch_alarm_observes_metric",
+            "source_arn": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-metric-only",
+            "source_resource_id": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-metric-only",
+            "target_resource_id": ""
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_relationship:arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-metric-only"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_relationship",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "attributes": {
+              "service_name": "checkout-service"
+            },
+            "region": "us-east-1",
+            "relationship_type": "xray_sampling_rule_matches_service",
+            "source_arn": "arn:aws:xray:us-east-1:123456789012:sampling-rule/checkout-service-rule",
+            "source_resource_id": "arn:aws:xray:us-east-1:123456789012:sampling-rule/checkout-service-rule",
+            "target_resource_id": ""
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_relationship:arn:aws:xray:us-east-1:123456789012:sampling-rule/checkout-service-rule"
+        },
+        {
+          "collector_kind": "aws",
+          "fact_kind": "aws_relationship",
+          "fencing_token": 1,
+          "is_tombstone": false,
+          "payload": {
+            "account_id": "123456789012",
+            "attributes": {
+              "dimensions": [
+                {
+                  "name": "InstanceId",
+                  "value": "arn:aws:ec2:us-east-1:123456789012:instance/i-ghost00000000000000"
+                }
+              ],
+              "metric_name": "CPUUtilization",
+              "namespace": "AWS/EC2"
+            },
+            "region": "us-east-1",
+            "relationship_type": "cloudwatch_alarm_observes_metric",
+            "source_arn": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-ghost-target",
+            "source_resource_id": "arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-ghost-target",
+            "target_resource_id": "arn:aws:ec2:us-east-1:123456789012:instance/i-ghost00000000000000"
+          },
+          "schema_version": "1.0.0",
+          "source_confidence": "observed",
+          "stable_fact_key": "aws:123456789012:us-east-1:aws_relationship:arn:aws:cloudwatch:us-east-1:123456789012:alarm:orders-ghost-target"
+        }
+      ]
+    }
+  ]
+}

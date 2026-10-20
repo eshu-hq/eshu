@@ -30,6 +30,7 @@ func TestHeldRetractVariantsCoverEveryProductionDelete(t *testing.T) {
 
 	files := []string{
 		filepath.Join("..", "..", "code_taint_evidence_writer.go"),
+		filepath.Join("..", "..", "code_interproc_evidence_writer.go"),
 		filepath.Join("..", "..", "incident_routing_evidence_writer.go"),
 		filepath.Join("..", "..", "observability_coverage_edge_writer.go"),
 		filepath.Join("..", "..", "cloud", "aws", "security", "group", "security_reachability_edge_writer.go"),

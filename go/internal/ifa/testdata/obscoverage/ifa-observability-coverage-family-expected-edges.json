@@ -1,0 +1,51 @@
+{
+  "odu": "odu:ifa-observability-coverage-family",
+  "note": "Hand-derived from CanonicalObservabilityCoverageEdgeUpsertCypherFormat (go/internal/storage/cypher/observability_coverage_edge_writer.go): `UNWIND $rows AS row MATCH (obs:CloudResource {uid: row.observability_uid}) MATCH (target:CloudResource {uid: row.target_uid}) MERGE (obs)-[rel:%s]->(target) SET ...`, with the %s filled per row by canonicalObservabilityCoverageCypherType from the row's coverage_signal screened against the closed observabilityCoverageSignalVocabulary (alarm, composite_alarm, dashboard, log_group, trace_sampling) -- NOT from the port or family name. Each endpoint is a reducer.cloudjoin.CloudResourceUID value = sha256 over account_id, region, resource_type, resource_id, with account_id 123456789012 and region us-east-1 everywhere. Exactly five edges, one per vocabulary member: the orders-cpu-high alarm covers the orders EC2 instance (arn mode), the checkout-rollup composite alarm covers the orders Lambda (arn mode), the orders-overview dashboard covers the orders database by bare id (bare_id mode, proving the mode pin is not a vacuous constant), the /orders/api log group covers the orders queue (arn mode), and the orders X-Ray sampling rule covers the orders table by ARN dimension (arn mode; the classifier keys relationships by source ref alone, so a dimension-bearing relationship sourced at the rule's ARN classifies exact under the rule's own trace_sampling signal). The three restraints contribute nothing on purpose -- the metric-name-only alarm carries no dimensions (rejected, never fabricated), the checkout-service X-Ray match resolves by service name (derived provenance-only, never an edge), and the ghost-target alarm names an unscanned identity (unresolved gap, never an edge). coverage_signal and resolution_mode ride as Properties pins (the template SETs them as plain strings from the row); scope_id, generation_id, and evidence_source are writer-stamped per run and cannot be pinned statically.",
+  "edges": [
+    {
+      "relationship_type": "AWS_COVERS_alarm",
+      "source_entity_id": "87121798b91af38c479a6600ad85fa65cffddd894d7744826e350574ba7170b3",
+      "target_entity_id": "3002c2a1babd82be27f3f107bd3b8d9690e432bfcf9f6862d3ee5ea2849640fd",
+      "properties": {
+        "coverage_signal": "alarm",
+        "resolution_mode": "arn"
+      }
+    },
+    {
+      "relationship_type": "AWS_COVERS_composite_alarm",
+      "source_entity_id": "811b2ec11b8c19db706fba0fa3fb232c069432d3d1b141ced4a54ec3cfc65a06",
+      "target_entity_id": "5b7e6838f6b84b6d4523e0ebc2609c013132c2686b669e471373855a5cffbae4",
+      "properties": {
+        "coverage_signal": "composite_alarm",
+        "resolution_mode": "arn"
+      }
+    },
+    {
+      "relationship_type": "AWS_COVERS_dashboard",
+      "source_entity_id": "4a4abce467996bd589d1e08739df0667bb49e4fad57ae35eac8233cc66e2684f",
+      "target_entity_id": "f88fc0d7d22d5f9d32b4e3c06fd5a0771fa5d3aeb72e72389a4068555f2d9839",
+      "properties": {
+        "coverage_signal": "dashboard",
+        "resolution_mode": "bare_id"
+      }
+    },
+    {
+      "relationship_type": "AWS_COVERS_log_group",
+      "source_entity_id": "cf0b2e7f4ff74c8b11f04dec9f2ed995766cddc25d57a79d47fb6f1fae2d0082",
+      "target_entity_id": "9a6d44238346b059bd629d7df78de2d66377b0ff6780362b16cbe801999b5afe",
+      "properties": {
+        "coverage_signal": "log_group",
+        "resolution_mode": "arn"
+      }
+    },
+    {
+      "relationship_type": "AWS_COVERS_trace_sampling",
+      "source_entity_id": "79f6a30476a9157bc649e03c60c3d792f2d2a8b55516affca9a3a08e0073f4ba",
+      "target_entity_id": "90a9e13ff443441593f4e1baf0bc1a50e6dcfeb4a1c956bdc6716e9e77ed66a7",
+      "properties": {
+        "coverage_signal": "trace_sampling",
+        "resolution_mode": "arn"
+      }
+    }
+  ]
+}

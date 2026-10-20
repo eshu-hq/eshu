@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // guardedDirectFamily is one #6228 direct-materialization family that has been
@@ -111,6 +112,27 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		Family:    kubernetesCorrelationFamily,
 		OduName:   ifa.KubernetesCorrelationFamilyOduName,
 		EdgeTypes: []string{"RUNS_IMAGE"},
+	},
+	{
+		Family:    codeTaintEvidenceFamily,
+		OduName:   ifa.CodeTaintEvidenceFamilyOduName,
+		EdgeTypes: []string{"HAS_TAINT_EVIDENCE"},
+	},
+	{
+		Family:  observabilityCoverageFamily,
+		OduName: ifa.ObservabilityCoverageFamilyOduName,
+		EdgeTypes: []string{
+			"AWS_COVERS_alarm",
+			"AWS_COVERS_composite_alarm",
+			"AWS_COVERS_dashboard",
+			"AWS_COVERS_log_group",
+			"AWS_COVERS_trace_sampling",
+		},
+	},
+	{
+		Family:    codeInterprocEvidenceFamily,
+		OduName:   ifa.CodeInterprocEvidenceFamilyOduName,
+		EdgeTypes: []string{"TAINT_FLOWS_TO"},
 	},
 	{
 		Family:    semanticEntityContainmentFamily,
@@ -276,6 +298,17 @@ func TestGuardedDirectFamiliesResolveToTheirWrittenEdgeTypes(t *testing.T) {
 // that is internally consistent between a registry and its retract but names an
 // edge the graph never carries. Such a type would make the live gate assert an
 // always-empty population -- a guard that can never fail.
+//
+// Vocabulary-closed families (split verdict kind C, currently only
+// observability_coverage) compose their types at runtime as AWS_<signal>
+// tokens, and the canonical registry deliberately excludes such
+// runtime-composed types (go/internal/graph/edgetype AGENTS.md anti-patterns:
+// only the closed single-member AWS_lambda_function_uses_image is
+// registered). Their third source is therefore the writer's own closed
+// vocabulary derivation -- a different production const than either the
+// registry map or the retract, so a typo shared by those two still reds
+// here -- with the token-composition rule itself pinned by the writer's
+// round-trip validator test in go/internal/storage/cypher.
 func TestGuardedDirectFamilyEdgeTypesAreCanonical(t *testing.T) {
 	t.Parallel()
 
@@ -286,11 +319,20 @@ func TestGuardedDirectFamilyEdgeTypesAreCanonical(t *testing.T) {
 	if len(canonical) == 0 {
 		t.Fatal("edgetype.All() is empty; this test would pass vacuously")
 	}
+	vocabularyDerived := map[string]map[string]struct{}{
+		observabilityCoverageFamily: edgeTypeSet(sourcecypher.ObservabilityCoverageRelationshipTypes()),
+	}
 	for _, entry := range guardedDirectMaterializedEdgeFamilies {
 		for _, edgeTypeName := range entry.EdgeTypes {
-			if _, ok := canonical[edgeTypeName]; !ok {
-				t.Errorf("family %q names %q, which the canonical edgetype registry does not define; the live gate would assert an always-empty population for it", entry.Family, edgeTypeName)
+			if _, ok := canonical[edgeTypeName]; ok {
+				continue
 			}
+			if derived, ok := vocabularyDerived[entry.Family]; ok {
+				if _, ok := derived[edgeTypeName]; ok {
+					continue
+				}
+			}
+			t.Errorf("family %q names %q, which neither the canonical edgetype registry nor its writer's closed vocabulary derivation defines; the live gate would assert an always-empty population for it", entry.Family, edgeTypeName)
 		}
 	}
 }

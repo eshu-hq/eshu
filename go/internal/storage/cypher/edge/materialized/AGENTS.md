@@ -4,7 +4,8 @@
 
 1. `README.md` and `doc.go` in this directory.
 2. `../../AGENTS.md` for Cypher storage conventions.
-3. `families.go` for the family registries,
+3. `families.go` for the shared-projection family registry,
+   `single_type_families.go` for the single-type DIRECT half,
    `direct_families.go` for the multi-type DIRECT
    table (`RetractKind`, `RetractVariants`),
    `family_identity.go` for the identity and

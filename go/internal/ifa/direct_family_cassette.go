@@ -39,9 +39,14 @@ const (
 	// workloadCloudRelationshipFamilyCassettePath,
 	// iamEscalationFamilyCassettePath, ec2UsesProfileFamilyCassettePath,
 	// s3LogsToFamilyCassettePath, kubernetesCorrelationFamilyCassettePath,
-	// and authenticatesVaultRoleFamilyCassettePath
-	// are repo-root-relative so the constants stay machine-independent;
-	// callers join a repo root onto them through the exported helpers below.
+	// authenticatesVaultRoleFamilyCassettePath,
+	// usesVaultPolicyFamilyCassettePath,
+	// semanticEntityContainmentFamilyCassettePath,
+	// cloudResourceFamilyCassettePath, codeTaintEvidenceFamilyCassettePath,
+	// observabilityCoverageFamilyCassettePath, and
+	// codeInterprocEvidenceFamilyCassettePath are repo-root-relative so the
+	// constants stay machine-independent; callers join a repo root onto
+	// them through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
 	iamInstanceProfileRoleFamilyCassettePath         = "testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json"
 	iamCanAssumeFamilyCassettePath                   = "testdata/cassettes/iamcanassume/ifa-iam-can-assume-family.json"
@@ -55,6 +60,9 @@ const (
 	kubernetesCorrelationFamilyCassettePath          = "testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
 	semanticEntityContainmentFamilyCassettePath      = "testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
 	cloudResourceFamilyCassettePath                  = "testdata/cassettes/cloudresource/ifa-cloud-resource-family.json"
+	codeTaintEvidenceFamilyCassettePath              = "testdata/cassettes/codetaint/ifa-code-taint-evidence-family.json"
+	observabilityCoverageFamilyCassettePath          = "testdata/cassettes/obscoverage/ifa-observability-coverage-family.json"
+	codeInterprocEvidenceFamilyCassettePath          = "testdata/cassettes/codeinterproc/ifa-code-interproc-evidence-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -298,6 +306,45 @@ func LoadCloudResourceFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 		envelopes = append(envelopes, projectDirectFamilyScopeFacts(scope)...)
 	}
 	return familyodu.Odu{Name: CloudResourceFamilyOduName, Facts: envelopes}, nil
+}
+
+// CodeTaintEvidenceFamilyCassetteFullPath joins repoRoot onto the committed
+// code_taint_evidence family cassette path.
+func CodeTaintEvidenceFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, codeTaintEvidenceFamilyCassettePath)
+}
+
+// LoadCodeTaintEvidenceFamilyOdu reads the committed cassette and projects
+// it onto the fact envelopes the reducer's extractor consumes, the
+// code_taint_evidence counterpart to LoadKubernetesCorrelationFamilyOdu.
+func LoadCodeTaintEvidenceFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, CodeTaintEvidenceFamilyOduName)
+}
+
+// ObservabilityCoverageFamilyCassetteFullPath joins repoRoot onto the
+// committed observability_coverage family cassette path.
+func ObservabilityCoverageFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, observabilityCoverageFamilyCassettePath)
+}
+
+// LoadObservabilityCoverageFamilyOdu reads the committed cassette and
+// projects it onto the fact envelopes the reducer's extractor consumes, the
+// observability_coverage counterpart to LoadCodeTaintEvidenceFamilyOdu.
+func LoadObservabilityCoverageFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, ObservabilityCoverageFamilyOduName)
+}
+
+// CodeInterprocEvidenceFamilyCassetteFullPath joins repoRoot onto the
+// committed code_interproc_evidence family cassette path.
+func CodeInterprocEvidenceFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, codeInterprocEvidenceFamilyCassettePath)
+}
+
+// LoadCodeInterprocEvidenceFamilyOdu reads the committed cassette and
+// projects it onto the fact envelopes the reducer's extractor consumes, the
+// code_interproc_evidence counterpart to LoadObservabilityCoverageFamilyOdu.
+func LoadCodeInterprocEvidenceFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, CodeInterprocEvidenceFamilyOduName)
 }
 
 // parseDirectFamilyCassette is the shared strict decode behind the loaders.

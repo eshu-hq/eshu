@@ -169,6 +169,24 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.UsesVaultPolicyFamilyCassetteFullPath,
 			load:         ifa.LoadUsesVaultPolicyFamilyOdu,
 		},
+		{
+			name:         ifa.CodeTaintEvidenceFamilyOduName,
+			compiled:     ifa.CodeTaintEvidenceFamilyOdu,
+			cassettePath: ifa.CodeTaintEvidenceFamilyCassetteFullPath,
+			load:         ifa.LoadCodeTaintEvidenceFamilyOdu,
+		},
+		{
+			name:         ifa.ObservabilityCoverageFamilyOduName,
+			compiled:     ifa.ObservabilityCoverageFamilyOdu,
+			cassettePath: ifa.ObservabilityCoverageFamilyCassetteFullPath,
+			load:         ifa.LoadObservabilityCoverageFamilyOdu,
+		},
+		{
+			name:         ifa.CodeInterprocEvidenceFamilyOduName,
+			compiled:     ifa.CodeInterprocEvidenceFamilyOdu,
+			cassettePath: ifa.CodeInterprocEvidenceFamilyCassetteFullPath,
+			load:         ifa.LoadCodeInterprocEvidenceFamilyOdu,
+		},
 	}
 }
 
