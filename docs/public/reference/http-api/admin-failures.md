@@ -137,9 +137,6 @@ so retry with a fresh `idempotency_key`.
 | `POST /api/v0/admin/reopen` | idempotency claim | `reopen idempotency claim failed` |
 | `POST /api/v0/admin/reopen` | reopen transaction | `reopen failed` |
 | `POST /api/v0/admin/reopen` | ledger finalize | `reopen applied but recording its idempotency outcome failed` |
-| `POST /api/v0/admin/repositories/retire` | repository selector lookup | `repository retirement selector lookup failed` |
-| `POST /api/v0/admin/repositories/retire` | fence transaction | `repository retirement trigger failed` |
-| `POST /api/v0/admin/repositories/retire` | purge transaction | `repository retirement trigger failed` |
 
 A selector that matches no repository, or several, still answers `400` and
 names the selector. A failed catalog lookup answers `500` without it.
@@ -154,12 +151,6 @@ not apply. Before you retry, read the state the route writes:
   `499` there means nothing changed and the idempotency key is unused.
 - Refinalize, recover-generations, and reopen write in one transaction. A
   cancel rolls it back unless it lands while the commit runs.
-- The retirement trigger fences in one transaction, then purges one
-  repository per transaction. A cancel can land after the fence committed
-  with the purge unrun: retry with the same idempotency key, which resumes
-  the open tombstone rows instead of opening second ones. A cancel during a
-  repository purge is ambiguous the same way, never partial, and a blocked
-  repository keeps its fenced tombstone open for the later pass.
 - Dead-letter, skip, backfill, both reindex watermarks, and the idempotency
   claim are single statements. A cancel can arrive after the statement
   committed. Re-running dead-letter, skip, or a reindex is safe. A second

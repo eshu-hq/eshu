@@ -2,8 +2,7 @@
 
 The admin HTTP surface for operators: recovery, work-item inspection,
 dead-lettering and dead-letter reads, replay with idempotency, backfill,
-replay events, projection decisions, input-invalid facts, and the repository
-retirement trigger (`POST /api/v0/admin/repositories/retire`, #8602).
+replay events, projection decisions, and input-invalid facts.
 
 Layout:
 

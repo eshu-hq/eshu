@@ -18,9 +18,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// Purge refusal sentinels. The operator trigger maps them to 409 without
-// reading error text: an unfenced repository and a tombstone the owning
-// runner moved past pending/fenced both refuse, never purge partially.
+// Purge refusal sentinels. An unfenced repository and a tombstone the
+// owning runner moved past pending/fenced both refuse, never purge
+// partially; the sentinels let callers match the cause with errors.Is
+// instead of reading error text. The operator trigger reports a purge
+// error as a failed outcome retried with the same idempotency key.
 // ErrRetirementNoOpenTombstone reports a purge for a repository with no
 // open tombstone row: the repository was never fenced.
 var ErrRetirementNoOpenTombstone = errors.New("retirement purge: no open tombstone")

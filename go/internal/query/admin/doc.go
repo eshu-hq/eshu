@@ -3,8 +3,7 @@
 
 // Package admin holds the admin-handler family (Issue #6060, lane B): the
 // Handler HTTP surface (recovery, work-item inspection, dead-lettering,
-// replay, backfill, replay events, decisions, input-invalid facts, the
-// repository retirement trigger) plus every
+// replay, backfill, replay events, decisions, input-invalid facts) plus every
 // file that declares one of its methods, the shared work-item/decision row
 // and filter models, the Store port, and the replay-safety set behind the
 // replay guard.

@@ -336,8 +336,8 @@ func TestRecordRetirementPurgedNilSafe(t *testing.T) {
 }
 
 // TestPurgeRefusalsAreSentinelMapped proves the unfenced and wrong-phase
-// purge exits match the operator trigger's 409 sentinels, so the trigger
-// classifies refusals with errors.Is and never reads error text.
+// purge exits carry matchable sentinels, so callers classify refusals with
+// errors.Is and never read error text; both exits roll back.
 func TestPurgeRefusalsAreSentinelMapped(t *testing.T) {
 	t.Parallel()
 

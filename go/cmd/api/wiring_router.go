@@ -337,13 +337,6 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 	router.Admin.Reindexer = reindexer
 	router.Admin.Repositories = contentReader
 	router.Admin.RepositoryReindexer = maintenancestore.NewRepositoryReindexStore(pgstatus.SQLDB{DB: writer})
-	// The operator retirement trigger (#8602) fences then purges through
-	// the writer: the purge counter rides on the API instruments so
-	// completed retirements stay visible without a runner.
-	retirementPurger := pgstatus.NewRetirementPurger(pgstatus.SQLDB{DB: writer}, pgstatus.SQLDB{DB: writer})
-	retirementPurger.Instruments = instruments
-	router.Admin.RetirementFencer = pgstatus.NewRetirementFencer(pgstatus.SQLDB{DB: writer}, pgstatus.SQLDB{DB: writer})
-	router.Admin.RetirementPurger = retirementPurger
 	router.Admin.ReindexProgress = reindexProgressSource{
 		state:   maintenancestore.NewStatusRequestStore(pgstatus.SQLDB{DB: writer}),
 		perRepo: maintenancestore.NewRepositoryReindexStore(pgstatus.SQLDB{DB: writer}),

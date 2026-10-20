@@ -176,6 +176,19 @@ func runAdminRepositoryRetire(cmd *cobra.Command, args []string) error {
 	repositories, _ := cmd.Flags().GetStringArray("repository")
 	reason, _ := cmd.Flags().GetString("reason")
 	idempotencyKey, _ := cmd.Flags().GetString("idempotency-key")
+	if strings.TrimSpace(idempotencyKey) == "" {
+		// Mint and print the key before the POST: when the call fails
+		// after the fence commits, the operator retries with this same
+		// key instead of minting a fresh one into already_open. A
+		// production retirement should still pass an explicit
+		// --idempotency-key recorded with the change.
+		generated, err := admin.NewRetireIdempotencyKey()
+		if err != nil {
+			return err
+		}
+		idempotencyKey = generated
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "generated idempotency key: %s (reuse it with --idempotency-key to retry)\n", idempotencyKey)
+	}
 	result, err := admin.Retire(apiClientFromCmd(cmd), admin.RetireInput{
 		Repositories:   repositories,
 		Reason:         reason,
@@ -201,49 +214,6 @@ func runAdminReindex(cmd *cobra.Command, args []string) error {
 		Scope:        scope,
 		Force:        force,
 		Repositories: repositories,
-	})
-	if err != nil {
-		return err
-	}
-	printJSON(result)
-	return nil
-}
-
-// newAdminRetireRepositoriesCmd builds `eshu admin retire-repositories`.
-func newAdminRetireRepositoriesCmd() *cobra.Command {
-	retireCmd := &cobra.Command{
-		Use:   "retire-repositories",
-		Short: "Mark git repositories retiring, fence their scopes, then purge the fenced rows",
-		RunE:  runAdminRetireRepositories,
-	}
-	retireCmd.Flags().StringArray("repository", nil, "Repository selector (repository ID, scope ID, name, slug, or path) to retire; repeatable, 1 to 25")
-	retireCmd.Flags().String("reason", "", "Why the retirement is safe (required)")
-	retireCmd.Flags().String("idempotency-key", "", "Idempotency key; one is generated when empty")
-	addRemoteFlags(retireCmd)
-	return retireCmd
-}
-
-func runAdminRetireRepositories(cmd *cobra.Command, args []string) error {
-	repositories, _ := cmd.Flags().GetStringArray("repository")
-	reason, _ := cmd.Flags().GetString("reason")
-	idempotencyKey, _ := cmd.Flags().GetString("idempotency-key")
-	if strings.TrimSpace(idempotencyKey) == "" {
-		// Mint and print the key before the POST: when the call fails
-		// after the fence commits, the operator retries with this same
-		// key instead of minting a fresh one into already_open. A
-		// production retirement should still pass an explicit
-		// --idempotency-key recorded with the change.
-		generated, err := admin.NewRetireIdempotencyKey()
-		if err != nil {
-			return err
-		}
-		idempotencyKey = generated
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "generated idempotency key: %s (reuse it with --idempotency-key to retry)\n", idempotencyKey)
-	}
-	result, err := admin.RetireRepositories(apiClientFromCmd(cmd), admin.RetireRepositoriesInput{
-		Repositories:   repositories,
-		Reason:         reason,
-		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
 		return err

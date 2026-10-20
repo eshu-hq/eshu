@@ -53,9 +53,6 @@ const (
 	reopenFailedMessage                = "reopen failed"
 	reopenRecordFailedMessage          = "reopen applied but recording its idempotency outcome failed"
 
-	retireLookupFailedMessage = "repository retirement selector lookup failed"
-	retireFailedMessage       = "repository retirement trigger failed"
-
 	deltaUnionCompletenessFailedMessage = "delta-union completeness check failed"
 )
 

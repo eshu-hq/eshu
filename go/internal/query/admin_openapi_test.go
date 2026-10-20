@@ -43,7 +43,6 @@ func TestOpenAPISpecAdminPathsMatchMountedContract(t *testing.T) {
 		"/api/v0/admin/skip",
 		"/api/v0/admin/replay",
 		"/api/v0/admin/reopen",
-		"/api/v0/admin/repositories/retire",
 		"/api/v0/admin/backfill",
 		"/api/v0/admin/replay-events/query",
 		"/api/v0/admin/repository-retirements",
