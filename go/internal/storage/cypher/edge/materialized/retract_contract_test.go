@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // relTypeAlternation pulls every [rel:A|B] alternative out of a Cypher template.
@@ -152,8 +152,8 @@ func deriveEvidenceNodeDetachTypes(t *testing.T, family string, entry materializ
 		// source, cross-checked against the slot vocabulary it is screened
 		// by — a slot the map forgot (or one the vocabulary rejects) turns
 		// the build red here rather than on a live gate.
-		slotTypes := sourcecypher.IncidentRoutingEvidenceRelationshipTypes()
-		slots := sourcecypher.IncidentRoutingEvidenceSlotVocabulary()
+		slotTypes := edgewriter.IncidentRoutingEvidenceRelationshipTypes()
+		slots := edgewriter.IncidentRoutingEvidenceSlotVocabulary()
 		var unmapped, unscreened []string
 		for slot := range slots {
 			if _, ok := slotTypes[slot]; !ok {
@@ -352,13 +352,13 @@ func TestMultiTypeDirectTableDerivationsMatchWriterVocabularies(t *testing.T) {
 		"security_group_sg_rule":    {},
 		"incident_routing_evidence": {},
 	}
-	for relType := range sourcecypher.ObservabilityCoverageRelationshipTypes() {
+	for relType := range edgewriter.ObservabilityCoverageRelationshipTypes() {
 		derived["observability_coverage"][relType] = struct{}{}
 	}
 	for relType := range group.SecurityGroupSGRuleRelationshipTypes() {
 		derived["security_group_sg_rule"][relType] = struct{}{}
 	}
-	for _, relType := range sourcecypher.IncidentRoutingEvidenceRelationshipTypes() {
+	for _, relType := range edgewriter.IncidentRoutingEvidenceRelationshipTypes() {
 		derived["incident_routing_evidence"][relType] = struct{}{}
 	}
 	for family, want := range derived {

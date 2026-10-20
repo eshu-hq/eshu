@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 const (
@@ -121,15 +122,15 @@ func IncidentRoutingEvidenceRelationshipTypes() map[string]string {
 // IncidentRoutingEvidenceWriter materializes exact PagerDuty incident-routing
 // evidence into reducer-owned graph evidence nodes and relationships.
 type IncidentRoutingEvidenceWriter struct {
-	executor  Executor
+	executor  sourcecypher.Executor
 	batchSize int
 }
 
 // NewIncidentRoutingEvidenceWriter returns an IncidentRoutingEvidenceWriter
 // backed by the given Executor. A batchSize of 0 or less uses DefaultBatchSize.
-func NewIncidentRoutingEvidenceWriter(executor Executor, batchSize int) *IncidentRoutingEvidenceWriter {
+func NewIncidentRoutingEvidenceWriter(executor sourcecypher.Executor, batchSize int) *IncidentRoutingEvidenceWriter {
 	if batchSize <= 0 {
-		batchSize = DefaultBatchSize
+		batchSize = sourcecypher.DefaultBatchSize
 	}
 	return &IncidentRoutingEvidenceWriter{executor: executor, batchSize: batchSize}
 }
@@ -158,7 +159,7 @@ func (w *IncidentRoutingEvidenceWriter) WriteIncidentRoutingEvidence(
 		if err != nil {
 			return err
 		}
-		cloned := CloneRowWith(row, map[string]any{
+		cloned := sourcecypher.CloneRowWith(row, map[string]any{
 			"scope_id":        scopeID,
 			"generation_id":   generationID,
 			"evidence_source": evidenceSource,
@@ -170,16 +171,16 @@ func (w *IncidentRoutingEvidenceWriter) WriteIncidentRoutingEvidence(
 	}
 	sort.Strings(slots)
 
-	var stmts []Statement
+	var stmts []sourcecypher.Statement
 	for _, slot := range slots {
 		relType := incidentRoutingSlotRelationshipTypes[slot]
 		cypher := fmt.Sprintf(canonicalIncidentRoutingEvidenceUpsertCypherFormat, relType)
-		batches := BuildBatchedStatements(cypher, grouped[slot], w.batchSize)
+		batches := sourcecypher.BuildBatchedStatements(cypher, grouped[slot], w.batchSize)
 		for index := range batches {
 			batchRows := batches[index].Parameters["rows"].([]map[string]any)
-			batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseIncidentRoutingEvidence
-			batches[index].Parameters[StatementMetadataEntityLabelKey] = incidentRoutingEvidenceLabel
-			batches[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+			batches[index].Parameters[sourcecypher.StatementMetadataPhaseKey] = canonicalPhaseIncidentRoutingEvidence
+			batches[index].Parameters[sourcecypher.StatementMetadataEntityLabelKey] = incidentRoutingEvidenceLabel
+			batches[index].Parameters[sourcecypher.StatementMetadataSummaryKey] = fmt.Sprintf(
 				"label=%s slot=%s rows=%d",
 				incidentRoutingEvidenceLabel,
 				slot,
@@ -205,15 +206,15 @@ func (w *IncidentRoutingEvidenceWriter) RetractIncidentRoutingEvidence(
 	if w.executor == nil {
 		return fmt.Errorf("incident routing evidence writer executor is required")
 	}
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    retractIncidentRoutingEvidenceCypher,
 		Parameters: map[string]any{
-			"scope_ids":                     scopeIDs,
-			"evidence_source":               evidenceSource,
-			StatementMetadataPhaseKey:       canonicalPhaseIncidentRoutingEvidence,
-			StatementMetadataEntityLabelKey: incidentRoutingEvidenceLabel,
-			StatementMetadataSummaryKey: fmt.Sprintf(
+			"scope_ids":                                  scopeIDs,
+			"evidence_source":                            evidenceSource,
+			sourcecypher.StatementMetadataPhaseKey:       canonicalPhaseIncidentRoutingEvidence,
+			sourcecypher.StatementMetadataEntityLabelKey: incidentRoutingEvidenceLabel,
+			sourcecypher.StatementMetadataSummaryKey: fmt.Sprintf(
 				"label=%s retract scopes=%d generation=%s",
 				incidentRoutingEvidenceLabel,
 				len(scopeIDs),
@@ -221,26 +222,26 @@ func (w *IncidentRoutingEvidenceWriter) RetractIncidentRoutingEvidence(
 			),
 		},
 	}
-	return w.dispatchRetract(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []sourcecypher.Statement{stmt})
 }
 
 func validateIncidentRoutingSlot(row map[string]any) (string, error) {
-	return ValidateStaticGraphToken(row, "slot", incidentRoutingSlotVocabulary, "incident routing slot")
+	return sourcecypher.ValidateStaticGraphToken(row, "slot", incidentRoutingSlotVocabulary, "incident routing slot")
 }
 
-func (w *IncidentRoutingEvidenceWriter) dispatch(ctx context.Context, stmts []Statement) error {
+func (w *IncidentRoutingEvidenceWriter) dispatch(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
-	if ge, ok := w.executor.(GroupExecutor); ok {
+	if ge, ok := w.executor.(sourcecypher.GroupExecutor); ok {
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil
@@ -252,13 +253,13 @@ func (w *IncidentRoutingEvidenceWriter) dispatch(ctx context.Context, stmts []St
 // statement (#4367/#5128/#5146/#5152). RetractIncidentRoutingEvidence routes
 // through this so the retract is never batched with a sibling write via
 // ExecuteGroup.
-func (w *IncidentRoutingEvidenceWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+func (w *IncidentRoutingEvidenceWriter) dispatchRetract(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil

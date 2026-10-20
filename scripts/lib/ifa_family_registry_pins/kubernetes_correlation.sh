@@ -24,7 +24,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # (go/internal/reducer/kubernetescorrelation/kubernetes_correlation_materialization.go:35).
 IFA_FAMILY_PIN_WAIT_KEY="kubernetes_correlation_materialization"
 
-# go/internal/storage/cypher/kubernetes_correlation_edge_writer.go:51 reads
+# go/internal/storage/cypher/edge/writer/kubernetes_correlation.go:56 reads
 # `MERGE (w)-[rel:RUNS_IMAGE]->(img)`. The anchor is matched against EXECUTED
 # statement text, so it carries the filled form: RUNS_IMAGE is a static
 # token in the template, kept out of the MERGE property map, so the

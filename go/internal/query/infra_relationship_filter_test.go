@@ -236,7 +236,7 @@ func TestWhatDeploysSurfacesRuntimeDeploymentSourceEdge(t *testing.T) {
 
 // TestInfraRelationshipsWhatRunsImageSurfacesOutgoingEdge is the #5436
 // regression guard for the KubernetesWorkload-[:RUNS_IMAGE]->OciImageManifest
-// edge, which storage/cypher/kubernetes_correlation_edge_writer.go writes but
+// edge, which storage/cypher/edge/writer/kubernetes_correlation.go writes but
 // which had no declared query/MCP read path before this change. Anchored on a
 // KubernetesWorkload, what_runs_image must bound the Cypher to :RUNS_IMAGE and
 // the response must surface the resolved image as an outgoing relationship.

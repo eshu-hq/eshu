@@ -56,14 +56,14 @@ type canonicalGraphWriters struct {
 	kubernetesNamespaceNode         *sourcecypher.KubernetesNamespaceNodeWriter
 	securityGroupEndpointNode       *group.SecurityGroupEndpointNodeWriter
 	securityGroupReachability       *group.SecurityGroupReachabilityWriter
-	kubernetesCorrelationEdge       *sourcecypher.KubernetesCorrelationEdgeWriter
+	kubernetesCorrelationEdge       *edgewriter.KubernetesCorrelationEdgeWriter
 	crossplaneSatisfiedByEdge       *sourcecypher.CrossplaneSatisfiedByEdgeWriter
 	iamEscalationEdge               *iam.IAMEscalationEdgeWriter
 	iamCanPerformEdge               *iam.IAMCanPerformEdgeWriter
-	observabilityCoverageEdge       *sourcecypher.ObservabilityCoverageEdgeWriter
-	incidentRoutingEvidence         *sourcecypher.IncidentRoutingEvidenceWriter
-	codeTaintEvidence               *sourcecypher.CodeTaintEvidenceWriter
-	codeInterprocEvidence           *sourcecypher.CodeInterprocEvidenceWriter
+	observabilityCoverageEdge       *edgewriter.ObservabilityCoverageEdgeWriter
+	incidentRoutingEvidence         *edgewriter.IncidentRoutingEvidenceWriter
+	codeTaintEvidence               *edgewriter.CodeTaintEvidenceWriter
+	codeInterprocEvidence           *edgewriter.CodeInterprocEvidenceWriter
 	iamCanAssumeEdge                *iam.IAMCanAssumeEdgeWriter
 	s3LogsToEdge                    *s3.S3LogsToEdgeWriter
 	s3ExternalPrincipalGrant        *s3.S3ExternalPrincipalGrantWriter
@@ -143,14 +143,14 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 		kubernetesNamespaceNode:         kubernetesNamespaceNode,
 		securityGroupEndpointNode:       group.NewSecurityGroupEndpointNodeWriter(exec, batchSize),
 		securityGroupReachability:       group.NewSecurityGroupReachabilityWriter(exec, batchSize),
-		kubernetesCorrelationEdge:       sourcecypher.NewKubernetesCorrelationEdgeWriter(exec, batchSize),
+		kubernetesCorrelationEdge:       edgewriter.NewKubernetesCorrelationEdgeWriter(exec, batchSize),
 		crossplaneSatisfiedByEdge:       sourcecypher.NewCrossplaneSatisfiedByEdgeWriter(exec, batchSize),
 		iamEscalationEdge:               iam.NewIAMEscalationEdgeWriter(exec, batchSize),
 		iamCanPerformEdge:               iam.NewIAMCanPerformEdgeWriter(exec, batchSize),
-		observabilityCoverageEdge:       sourcecypher.NewObservabilityCoverageEdgeWriter(exec, batchSize),
-		incidentRoutingEvidence:         sourcecypher.NewIncidentRoutingEvidenceWriter(exec, batchSize),
-		codeTaintEvidence:               sourcecypher.NewCodeTaintEvidenceWriter(exec, batchSize),
-		codeInterprocEvidence:           sourcecypher.NewCodeInterprocEvidenceWriter(exec, batchSize),
+		observabilityCoverageEdge:       edgewriter.NewObservabilityCoverageEdgeWriter(exec, batchSize),
+		incidentRoutingEvidence:         edgewriter.NewIncidentRoutingEvidenceWriter(exec, batchSize),
+		codeTaintEvidence:               edgewriter.NewCodeTaintEvidenceWriter(exec, batchSize),
+		codeInterprocEvidence:           edgewriter.NewCodeInterprocEvidenceWriter(exec, batchSize),
 		iamCanAssumeEdge:                iam.NewIAMCanAssumeEdgeWriter(exec, batchSize),
 		s3LogsToEdge:                    s3.NewS3LogsToEdgeWriter(exec, batchSize),
 		s3ExternalPrincipalGrant:        s3.NewS3ExternalPrincipalGrantWriter(exec, batchSize),

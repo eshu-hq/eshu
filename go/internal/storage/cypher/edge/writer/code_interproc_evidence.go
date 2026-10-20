@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 const (
@@ -110,15 +111,15 @@ const (
 // CodeInterprocEvidenceWriter materializes reducer-owned cross-function taint
 // evidence as TAINT_FLOWS_TO edges between Function nodes.
 type CodeInterprocEvidenceWriter struct {
-	executor  Executor
+	executor  sourcecypher.Executor
 	batchSize int
 }
 
 // NewCodeInterprocEvidenceWriter returns a CodeInterprocEvidenceWriter backed by
 // the given Executor. A batchSize of 0 or less uses DefaultBatchSize.
-func NewCodeInterprocEvidenceWriter(executor Executor, batchSize int) *CodeInterprocEvidenceWriter {
+func NewCodeInterprocEvidenceWriter(executor sourcecypher.Executor, batchSize int) *CodeInterprocEvidenceWriter {
 	if batchSize <= 0 {
-		batchSize = DefaultBatchSize
+		batchSize = sourcecypher.DefaultBatchSize
 	}
 	return &CodeInterprocEvidenceWriter{executor: executor, batchSize: batchSize}
 }
@@ -142,7 +143,7 @@ func (w *CodeInterprocEvidenceWriter) WriteCodeInterprocEvidence(
 
 	stamped := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		cloned := CloneRowWith(row, map[string]any{
+		cloned := sourcecypher.CloneRowWith(row, map[string]any{
 			"scope_id":        scopeID,
 			"generation_id":   generationID,
 			"evidence_source": evidenceSource,
@@ -159,12 +160,12 @@ func (w *CodeInterprocEvidenceWriter) WriteCodeInterprocEvidence(
 		stamped = append(stamped, cloned)
 	}
 
-	batches := BuildBatchedStatements(codeInterprocEvidenceUpsertCypher, stamped, w.batchSize)
+	batches := sourcecypher.BuildBatchedStatements(codeInterprocEvidenceUpsertCypher, stamped, w.batchSize)
 	for index := range batches {
 		batchRows := batches[index].Parameters["rows"].([]map[string]any)
-		batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseCodeInterprocEvidence
-		batches[index].Parameters[StatementMetadataEntityLabelKey] = codeInterprocEvidenceRelType
-		batches[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+		batches[index].Parameters[sourcecypher.StatementMetadataPhaseKey] = canonicalPhaseCodeInterprocEvidence
+		batches[index].Parameters[sourcecypher.StatementMetadataEntityLabelKey] = codeInterprocEvidenceRelType
+		batches[index].Parameters[sourcecypher.StatementMetadataSummaryKey] = fmt.Sprintf(
 			"edge=%s rows=%d",
 			codeInterprocEvidenceRelType,
 			len(batchRows),
@@ -187,15 +188,15 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidence(
 	if w.executor == nil {
 		return fmt.Errorf("code interproc evidence writer executor is required")
 	}
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    retractCodeInterprocEvidenceCypher,
 		Parameters: map[string]any{
-			"scope_ids":                     scopeIDs,
-			"evidence_source":               evidenceSource,
-			StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
-			StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
-			StatementMetadataSummaryKey: fmt.Sprintf(
+			"scope_ids":                                  scopeIDs,
+			"evidence_source":                            evidenceSource,
+			sourcecypher.StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
+			sourcecypher.StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+			sourcecypher.StatementMetadataSummaryKey: fmt.Sprintf(
 				"edge=%s retract scopes=%d generation=%s",
 				codeInterprocEvidenceRelType,
 				len(scopeIDs),
@@ -203,7 +204,7 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidence(
 			),
 		},
 	}
-	return w.dispatchRetract(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []sourcecypher.Statement{stmt})
 }
 
 // RetractCodeInterprocEvidenceSource removes all reducer-owned TAINT_FLOWS_TO
@@ -219,21 +220,21 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSource(
 	if w.executor == nil {
 		return fmt.Errorf("code interproc evidence writer executor is required")
 	}
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    retractCodeInterprocEvidenceSourceCypher,
 		Parameters: map[string]any{
-			"evidence_source":               evidenceSource,
-			StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
-			StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
-			StatementMetadataSummaryKey: fmt.Sprintf(
+			"evidence_source":                            evidenceSource,
+			sourcecypher.StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
+			sourcecypher.StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+			sourcecypher.StatementMetadataSummaryKey: fmt.Sprintf(
 				"edge=%s retract evidence_source=%s",
 				codeInterprocEvidenceRelType,
 				evidenceSource,
 			),
 		},
 	}
-	return w.dispatchRetract(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []sourcecypher.Statement{stmt})
 }
 
 // RetractStaleCodeInterprocEvidence removes one bounded batch of TAINT_FLOWS_TO
@@ -255,24 +256,24 @@ func (w *CodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidence(
 		return fmt.Errorf("code interproc evidence writer executor is required")
 	}
 	limit = positiveEvidenceCleanupLimit(limit)
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    retractStaleCodeInterprocEvidenceCypher,
 		Parameters: map[string]any{
-			"scope_id":                      scopeID,
-			"generation_id":                 generationID,
-			"evidence_source":               evidenceSource,
-			"limit":                         limit,
-			StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
-			StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
-			StatementMetadataSummaryKey: fmt.Sprintf(
+			"scope_id":                             scopeID,
+			"generation_id":                        generationID,
+			"evidence_source":                      evidenceSource,
+			"limit":                                limit,
+			sourcecypher.StatementMetadataPhaseKey: canonicalPhaseCodeInterprocEvidence,
+			sourcecypher.StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+			sourcecypher.StatementMetadataSummaryKey: fmt.Sprintf(
 				"edge=%s stale_retract scopes=1 current_generations=1 limit=%d",
 				codeInterprocEvidenceRelType,
 				limit,
 			),
 		},
 	}
-	return w.dispatchRetract(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []sourcecypher.Statement{stmt})
 }
 
 // RetractCodeInterprocEvidenceByUIDs removes reducer-owned TAINT_FLOWS_TO edges
@@ -290,19 +291,19 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceByUIDs(
 	if w.executor == nil {
 		return fmt.Errorf("code interproc evidence writer executor is required")
 	}
-	batches := ChunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
-	stmts := make([]Statement, 0, len(batches))
+	batches := sourcecypher.ChunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
+	stmts := make([]sourcecypher.Statement, 0, len(batches))
 	for _, batch := range batches {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
+		stmts = append(stmts, sourcecypher.Statement{
+			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher:    retractCodeInterprocEvidenceByUIDsCypher,
 			Parameters: map[string]any{
-				"source_uids":                   batch,
-				"scope_ids":                     scopeIDs,
-				"evidence_source":               evidenceSource,
-				StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
-				StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
-				StatementMetadataSummaryKey:     fmt.Sprintf("edge=%s retract_by_uids scopes=%d uids=%d", codeInterprocEvidenceRelType, len(scopeIDs), len(batch)),
+				"source_uids":                          batch,
+				"scope_ids":                            scopeIDs,
+				"evidence_source":                      evidenceSource,
+				sourcecypher.StatementMetadataPhaseKey: canonicalPhaseCodeInterprocEvidence,
+				sourcecypher.StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+				sourcecypher.StatementMetadataSummaryKey:     fmt.Sprintf("edge=%s retract_by_uids scopes=%d uids=%d", codeInterprocEvidenceRelType, len(scopeIDs), len(batch)),
 			},
 		})
 	}
@@ -324,18 +325,18 @@ func (w *CodeInterprocEvidenceWriter) RetractCodeInterprocEvidenceSourceByUIDs(
 	if w.executor == nil {
 		return fmt.Errorf("code interproc evidence writer executor is required")
 	}
-	batches := ChunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
-	stmts := make([]Statement, 0, len(batches))
+	batches := sourcecypher.ChunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
+	stmts := make([]sourcecypher.Statement, 0, len(batches))
 	for _, batch := range batches {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
+		stmts = append(stmts, sourcecypher.Statement{
+			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher:    retractCodeInterprocEvidenceSourceByUIDsCypher,
 			Parameters: map[string]any{
-				"source_uids":                   batch,
-				"evidence_source":               evidenceSource,
-				StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
-				StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
-				StatementMetadataSummaryKey:     fmt.Sprintf("edge=%s retract_source_by_uids source=%s uids=%d", codeInterprocEvidenceRelType, evidenceSource, len(batch)),
+				"source_uids":                                batch,
+				"evidence_source":                            evidenceSource,
+				sourcecypher.StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
+				sourcecypher.StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+				sourcecypher.StatementMetadataSummaryKey:     fmt.Sprintf("edge=%s retract_source_by_uids source=%s uids=%d", codeInterprocEvidenceRelType, evidenceSource, len(batch)),
 			},
 		})
 	}
@@ -361,39 +362,39 @@ func (w *CodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidenceByUIDs(
 	if w.executor == nil {
 		return fmt.Errorf("code interproc evidence writer executor is required")
 	}
-	batches := ChunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
-	stmts := make([]Statement, 0, len(batches))
+	batches := sourcecypher.ChunkStrings(sourceUIDs, codeInterprocEvidenceRetractUIDBatchSize)
+	stmts := make([]sourcecypher.Statement, 0, len(batches))
 	for _, batch := range batches {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
+		stmts = append(stmts, sourcecypher.Statement{
+			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher:    retractStaleCodeInterprocEvidenceByUIDsCypher,
 			Parameters: map[string]any{
-				"source_uids":                   batch,
-				"scope_id":                      scopeID,
-				"generation_id":                 generationID,
-				"evidence_source":               evidenceSource,
-				StatementMetadataPhaseKey:       canonicalPhaseCodeInterprocEvidence,
-				StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
-				StatementMetadataSummaryKey:     fmt.Sprintf("edge=%s stale_retract_by_uids scope=%s generation=%s uids=%d", codeInterprocEvidenceRelType, scopeID, generationID, len(batch)),
+				"source_uids":                          batch,
+				"scope_id":                             scopeID,
+				"generation_id":                        generationID,
+				"evidence_source":                      evidenceSource,
+				sourcecypher.StatementMetadataPhaseKey: canonicalPhaseCodeInterprocEvidence,
+				sourcecypher.StatementMetadataEntityLabelKey: codeInterprocEvidenceRelType,
+				sourcecypher.StatementMetadataSummaryKey:     fmt.Sprintf("edge=%s stale_retract_by_uids scope=%s generation=%s uids=%d", codeInterprocEvidenceRelType, scopeID, generationID, len(batch)),
 			},
 		})
 	}
 	return w.dispatchRetract(ctx, stmts)
 }
 
-func (w *CodeInterprocEvidenceWriter) dispatch(ctx context.Context, stmts []Statement) error {
+func (w *CodeInterprocEvidenceWriter) dispatch(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
-	if ge, ok := w.executor.(GroupExecutor); ok {
+	if ge, ok := w.executor.(sourcecypher.GroupExecutor); ok {
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil
@@ -409,31 +410,14 @@ func (w *CodeInterprocEvidenceWriter) dispatch(ctx context.Context, stmts []Stat
 // the edge in place while the same statement auto-committed deletes it;
 // #5128/#5146 measured the same for multi-statement groups). Every
 // TAINT_FLOWS_TO retract routes through this.
-func (w *CodeInterprocEvidenceWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+func (w *CodeInterprocEvidenceWriter) dispatchRetract(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil
-}
-
-// ChunkStrings splits a slice of strings into chunks of at most chunkSize
-// elements.
-func ChunkStrings(items []string, chunkSize int) [][]string {
-	if len(items) == 0 {
-		return nil
-	}
-	chunks := make([][]string, 0, (len(items)+chunkSize-1)/chunkSize)
-	for i := 0; i < len(items); i += chunkSize {
-		end := i + chunkSize
-		if end > len(items) {
-			end = len(items)
-		}
-		chunks = append(chunks, items[i:end])
-	}
-	return chunks
 }

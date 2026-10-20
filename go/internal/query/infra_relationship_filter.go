@@ -268,7 +268,7 @@ func filterNullRelationships(v any) []map[string]any {
 //
 // what_runs_image resolves to RUNS_IMAGE, the live-workload image edge
 // (KubernetesWorkload)-[:RUNS_IMAGE]->(OciImageManifest|OciImageIndex|
-// OciImageDescriptor) written by kubernetes_correlation_edge_writer.go (#388).
+// OciImageDescriptor) written by edge/writer/kubernetes_correlation.go (#388).
 // The edge existed only as a graph write with no declared query/MCP read path
 // before #5436; this alias gives it one through the existing bidirectional
 // getRelationships pattern (anchor on the workload to see the image, or anchor

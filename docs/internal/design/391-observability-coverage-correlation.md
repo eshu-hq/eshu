@@ -560,8 +560,8 @@ What shipped:
   mirroring the #805 split of `aws_resource_materialization` (nodes) from
   `aws_relationship_materialization` (edges). The fact-only read model still
   populates without the gate; only the edge phase is gated.
-- **Backend-neutral edge writer** `cypher.ObservabilityCoverageEdgeWriter`
-  (`go/internal/storage/cypher/observability_coverage_edge_writer.go`) mirroring
+- **Backend-neutral edge writer** `edgewriter.ObservabilityCoverageEdgeWriter`
+  (`go/internal/storage/cypher/edge/writer/observability_coverage.go`) mirroring
   `cloud_resource_edge_writer.go`: batched `UNWIND` + two `MATCH (:CloudResource
   {uid})` before the `MERGE (obs)-[:AWS_COVERS_<signal>]->(target)`, so a missing
   endpoint is a no-op and no node is fabricated. The signal token is validated to a

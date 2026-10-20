@@ -223,7 +223,7 @@ func TestCodeInterprocTaintEdgeRetractGraphTruth(t *testing.T) {
 
 	seedContentEdgeNodes(ctx, t, exec)
 
-	writer := cypher.NewCodeInterprocEvidenceWriter(exec, 0)
+	writer := edgewriter.NewCodeInterprocEvidenceWriter(exec, 0)
 	// The writer stamps scope, generation, and evidence source per call, so the
 	// in-scope and out-of-scope edges are written in separate calls, exactly as
 	// production writes one scope at a time.

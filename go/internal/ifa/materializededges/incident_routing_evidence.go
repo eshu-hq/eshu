@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/hcl"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // incidentRoutingEvidenceFamily is the materialized-edge family key this
@@ -182,7 +182,7 @@ func incidentRoutingEvidenceRowsToExpectedEdges(
 	rows []map[string]any,
 	registry map[string]struct{},
 ) ([]ExpectedEdge, string) {
-	slotTypes := cypher.IncidentRoutingEvidenceRelationshipTypes()
+	slotTypes := edgewriter.IncidentRoutingEvidenceRelationshipTypes()
 	edges := make([]ExpectedEdge, 0, len(rows))
 	for index, row := range rows {
 		slot, _ := row["slot"].(string)

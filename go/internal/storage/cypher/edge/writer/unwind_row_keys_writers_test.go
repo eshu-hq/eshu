@@ -9,7 +9,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // edgeWriterSparseCase drives one EdgeWriter domain with only the identity
@@ -255,7 +254,7 @@ func TestCodeInterprocEvidenceRowsCarryEveryReferencedKey(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewCodeInterprocEvidenceWriter(executor, 0)
+	writer := NewCodeInterprocEvidenceWriter(executor, 0)
 	rows := []map[string]any{{
 		"uid":                 "flow-1",
 		"source_function_uid": "fn-src",

@@ -39,7 +39,7 @@ IFA_FAMILY_ASSERT_FN[kubernetes_correlation]="ifa_kubernetes_correlation_assert"
 IFA_FAMILY_CASSETTE_VAR[kubernetes_correlation]="kubernetes_correlation_cassette"
 IFA_FAMILY_EXPECTED_VAR[kubernetes_correlation]="kubernetes_correlation_expected_edges"
 
-# go/internal/storage/cypher/kubernetes_correlation_edge_writer.go:51, which
+# go/internal/storage/cypher/edge/writer/kubernetes_correlation.go:56, which
 # reads `MERGE (w)-[rel:RUNS_IMAGE]->(img)` in source. The anchor is
 # matched against EXECUTED statement text, so it carries the filled form:
 # RUNS_IMAGE is a static token in

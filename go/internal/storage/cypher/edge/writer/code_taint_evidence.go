@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"context"
 	"fmt"
 	"strings"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 const (
@@ -105,15 +107,15 @@ const (
 // CodeTaintEvidenceWriter materializes reducer-owned value-flow taint evidence
 // into graph nodes and Function relationships.
 type CodeTaintEvidenceWriter struct {
-	executor  Executor
+	executor  sourcecypher.Executor
 	batchSize int
 }
 
 // NewCodeTaintEvidenceWriter returns a CodeTaintEvidenceWriter backed by the
 // given Executor. A batchSize of 0 or less uses DefaultBatchSize.
-func NewCodeTaintEvidenceWriter(executor Executor, batchSize int) *CodeTaintEvidenceWriter {
+func NewCodeTaintEvidenceWriter(executor sourcecypher.Executor, batchSize int) *CodeTaintEvidenceWriter {
 	if batchSize <= 0 {
-		batchSize = DefaultBatchSize
+		batchSize = sourcecypher.DefaultBatchSize
 	}
 	return &CodeTaintEvidenceWriter{executor: executor, batchSize: batchSize}
 }
@@ -137,19 +139,19 @@ func (w *CodeTaintEvidenceWriter) WriteCodeTaintEvidence(
 
 	stamped := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		stamped = append(stamped, CloneRowWith(row, map[string]any{
+		stamped = append(stamped, sourcecypher.CloneRowWith(row, map[string]any{
 			"scope_id":        scopeID,
 			"generation_id":   generationID,
 			"evidence_source": evidenceSource,
 		}))
 	}
 
-	batches := BuildBatchedStatements(codeTaintEvidenceUpsertCypher, stamped, w.batchSize)
+	batches := sourcecypher.BuildBatchedStatements(codeTaintEvidenceUpsertCypher, stamped, w.batchSize)
 	for index := range batches {
 		batchRows := batches[index].Parameters["rows"].([]map[string]any)
-		batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseCodeTaintEvidence
-		batches[index].Parameters[StatementMetadataEntityLabelKey] = codeTaintEvidenceLabel
-		batches[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+		batches[index].Parameters[sourcecypher.StatementMetadataPhaseKey] = canonicalPhaseCodeTaintEvidence
+		batches[index].Parameters[sourcecypher.StatementMetadataEntityLabelKey] = codeTaintEvidenceLabel
+		batches[index].Parameters[sourcecypher.StatementMetadataSummaryKey] = fmt.Sprintf(
 			"label=%s rows=%d",
 			codeTaintEvidenceLabel,
 			len(batchRows),
@@ -172,15 +174,15 @@ func (w *CodeTaintEvidenceWriter) RetractCodeTaintEvidence(
 	if w.executor == nil {
 		return fmt.Errorf("code taint evidence writer executor is required")
 	}
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    retractCodeTaintEvidenceCypher,
 		Parameters: map[string]any{
-			"scope_ids":                     scopeIDs,
-			"evidence_source":               evidenceSource,
-			StatementMetadataPhaseKey:       canonicalPhaseCodeTaintEvidence,
-			StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
-			StatementMetadataSummaryKey: fmt.Sprintf(
+			"scope_ids":                                  scopeIDs,
+			"evidence_source":                            evidenceSource,
+			sourcecypher.StatementMetadataPhaseKey:       canonicalPhaseCodeTaintEvidence,
+			sourcecypher.StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
+			sourcecypher.StatementMetadataSummaryKey: fmt.Sprintf(
 				"label=%s retract scopes=%d generation=%s",
 				codeTaintEvidenceLabel,
 				len(scopeIDs),
@@ -188,7 +190,7 @@ func (w *CodeTaintEvidenceWriter) RetractCodeTaintEvidence(
 			),
 		},
 	}
-	return w.dispatchRetract(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []sourcecypher.Statement{stmt})
 }
 
 // RetractStaleCodeTaintEvidence removes one bounded batch of taint evidence
@@ -210,24 +212,24 @@ func (w *CodeTaintEvidenceWriter) RetractStaleCodeTaintEvidence(
 		return fmt.Errorf("code taint evidence writer executor is required")
 	}
 	limit = positiveEvidenceCleanupLimit(limit)
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    retractStaleCodeTaintEvidenceCypher,
 		Parameters: map[string]any{
-			"scope_id":                      scopeID,
-			"generation_id":                 generationID,
-			"evidence_source":               evidenceSource,
-			"limit":                         limit,
-			StatementMetadataPhaseKey:       canonicalPhaseCodeTaintEvidence,
-			StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
-			StatementMetadataSummaryKey: fmt.Sprintf(
+			"scope_id":                             scopeID,
+			"generation_id":                        generationID,
+			"evidence_source":                      evidenceSource,
+			"limit":                                limit,
+			sourcecypher.StatementMetadataPhaseKey: canonicalPhaseCodeTaintEvidence,
+			sourcecypher.StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
+			sourcecypher.StatementMetadataSummaryKey: fmt.Sprintf(
 				"label=%s stale_retract scopes=1 current_generations=1 limit=%d",
 				codeTaintEvidenceLabel,
 				limit,
 			),
 		},
 	}
-	return w.dispatchRetract(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []sourcecypher.Statement{stmt})
 }
 
 // RetractCodeTaintEvidenceByUIDs removes reducer-owned taint evidence nodes for
@@ -245,19 +247,19 @@ func (w *CodeTaintEvidenceWriter) RetractCodeTaintEvidenceByUIDs(
 	if w.executor == nil {
 		return fmt.Errorf("code taint evidence writer executor is required")
 	}
-	batches := ChunkStrings(nodeUIDs, codeTaintEvidenceRetractUIDBatchSize)
-	stmts := make([]Statement, 0, len(batches))
+	batches := sourcecypher.ChunkStrings(nodeUIDs, codeTaintEvidenceRetractUIDBatchSize)
+	stmts := make([]sourcecypher.Statement, 0, len(batches))
 	for _, batch := range batches {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
+		stmts = append(stmts, sourcecypher.Statement{
+			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher:    retractCodeTaintEvidenceByUIDsCypher,
 			Parameters: map[string]any{
-				"node_uids":                     batch,
-				"scope_ids":                     scopeIDs,
-				"evidence_source":               evidenceSource,
-				StatementMetadataPhaseKey:       canonicalPhaseCodeTaintEvidence,
-				StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
-				StatementMetadataSummaryKey:     fmt.Sprintf("label=%s retract_by_uids scopes=%d uids=%d", codeTaintEvidenceLabel, len(scopeIDs), len(batch)),
+				"node_uids":                            batch,
+				"scope_ids":                            scopeIDs,
+				"evidence_source":                      evidenceSource,
+				sourcecypher.StatementMetadataPhaseKey: canonicalPhaseCodeTaintEvidence,
+				sourcecypher.StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
+				sourcecypher.StatementMetadataSummaryKey:     fmt.Sprintf("label=%s retract_by_uids scopes=%d uids=%d", codeTaintEvidenceLabel, len(scopeIDs), len(batch)),
 			},
 		})
 	}
@@ -283,39 +285,39 @@ func (w *CodeTaintEvidenceWriter) RetractStaleCodeTaintEvidenceByUIDs(
 	if w.executor == nil {
 		return fmt.Errorf("code taint evidence writer executor is required")
 	}
-	batches := ChunkStrings(nodeUIDs, codeTaintEvidenceRetractUIDBatchSize)
-	stmts := make([]Statement, 0, len(batches))
+	batches := sourcecypher.ChunkStrings(nodeUIDs, codeTaintEvidenceRetractUIDBatchSize)
+	stmts := make([]sourcecypher.Statement, 0, len(batches))
 	for _, batch := range batches {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
+		stmts = append(stmts, sourcecypher.Statement{
+			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher:    retractStaleCodeTaintEvidenceByUIDsCypher,
 			Parameters: map[string]any{
-				"node_uids":                     batch,
-				"scope_id":                      scopeID,
-				"generation_id":                 generationID,
-				"evidence_source":               evidenceSource,
-				StatementMetadataPhaseKey:       canonicalPhaseCodeTaintEvidence,
-				StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
-				StatementMetadataSummaryKey:     fmt.Sprintf("label=%s stale_retract_by_uids scope=%s generation=%s uids=%d", codeTaintEvidenceLabel, scopeID, generationID, len(batch)),
+				"node_uids":                            batch,
+				"scope_id":                             scopeID,
+				"generation_id":                        generationID,
+				"evidence_source":                      evidenceSource,
+				sourcecypher.StatementMetadataPhaseKey: canonicalPhaseCodeTaintEvidence,
+				sourcecypher.StatementMetadataEntityLabelKey: codeTaintEvidenceLabel,
+				sourcecypher.StatementMetadataSummaryKey:     fmt.Sprintf("label=%s stale_retract_by_uids scope=%s generation=%s uids=%d", codeTaintEvidenceLabel, scopeID, generationID, len(batch)),
 			},
 		})
 	}
 	return w.dispatchRetract(ctx, stmts)
 }
 
-func (w *CodeTaintEvidenceWriter) dispatch(ctx context.Context, stmts []Statement) error {
+func (w *CodeTaintEvidenceWriter) dispatch(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
-	if ge, ok := w.executor.(GroupExecutor); ok {
+	if ge, ok := w.executor.(sourcecypher.GroupExecutor); ok {
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil
@@ -325,13 +327,13 @@ func (w *CodeTaintEvidenceWriter) dispatch(ctx context.Context, stmts []Statemen
 // never ExecuteGroup. See CodeInterprocEvidenceWriter.dispatchRetract for the
 // rationale: NornicDB v1.1.9 bolt driver bug with UNWIND/MATCH/DELETE inside
 // session.ExecuteWrite / tx.Run.
-func (w *CodeTaintEvidenceWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+func (w *CodeTaintEvidenceWriter) dispatchRetract(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil
@@ -352,7 +354,7 @@ func validateStaleEvidenceRetractInputs(scopeID string, generationID string, evi
 
 func positiveEvidenceCleanupLimit(limit int) int {
 	if limit <= 0 {
-		return DefaultBatchSize
+		return sourcecypher.DefaultBatchSize
 	}
 	return limit
 }

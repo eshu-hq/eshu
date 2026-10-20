@@ -7,9 +7,9 @@ import (
 	"context"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	azureleaf "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/azure/relationship"
 	gcpleaf "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/gcp/relationship"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // TestCloudResourceEdgeFamilyRetractByUIDsRoutesThroughAutocommitExecute
@@ -57,7 +57,7 @@ func TestCloudResourceEdgeFamilyRetractByUIDsRoutesThroughAutocommitExecute(t *t
 	t.Run("observability", func(t *testing.T) {
 		t.Parallel()
 		rec := &dispatchRouteRecorder{}
-		w := sourcecypher.NewObservabilityCoverageEdgeWriter(rec, 0)
+		w := edgewriter.NewObservabilityCoverageEdgeWriter(rec, 0)
 		if err := w.RetractObservabilityCoverageEdgesByUIDs(context.Background(), []string{"obs-1"}, []string{"scope-1"}, "reducer/observability-coverage"); err != nil {
 			t.Fatalf("RetractObservabilityCoverageEdgesByUIDs returned error: %v", err)
 		}

@@ -274,6 +274,70 @@ builders:
             - template: MATCH (source:CloudResource)-[rel]->() WHERE source.uid IN $source_uids AND rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
           source_sha256: 89b8f653ebd5ab627f96eb6aed8d661519d8d715ebf98b5ca03798415554eaff
           exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+    - file: internal/storage/cypher/edge/writer/code_interproc_evidence.go
+      builders:
+        - symbol: (*CodeInterprocEvidenceWriter).RetractCodeInterprocEvidence
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (:Function)-[rel:TAINT_FLOWS_TO]->(:Function) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: ca974260f67de82895cb86a9773db36b8efa60120b8bd68f61c296ccb58ec47a
+        - symbol: (*CodeInterprocEvidenceWriter).RetractCodeInterprocEvidenceByUIDs
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'UNWIND $source_uids AS suid MATCH (s:Function {uid: suid})-[rel:TAINT_FLOWS_TO]->(:Function) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel'
+          source_sha256: 4e86e224e5e315007f8aea4bc6a5e235a726d295d172975b5c35e138e974f789
+        - symbol: (*CodeInterprocEvidenceWriter).RetractCodeInterprocEvidenceSource
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (:Function)-[rel:TAINT_FLOWS_TO]->(:Function) WHERE rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 009527967b06acdc4dd46956177c04c26b7749bdf76ed88abfd18b0cef538f89
+        - symbol: (*CodeInterprocEvidenceWriter).RetractCodeInterprocEvidenceSourceByUIDs
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'UNWIND $source_uids AS suid MATCH (s:Function {uid: suid})-[rel:TAINT_FLOWS_TO]->(:Function) WHERE rel.evidence_source = $evidence_source DELETE rel'
+          source_sha256: a668ce778b221868f75e3bd9bbc25a41e4ebeeaff28c1b4554da08c2bf0a1208
+        - symbol: (*CodeInterprocEvidenceWriter).RetractStaleCodeInterprocEvidence
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (:Function)-[rel:TAINT_FLOWS_TO]->(:Function) WHERE rel.scope_id = $scope_id AND rel.evidence_source = $evidence_source AND rel.generation_id <> $generation_id WITH rel LIMIT $limit DELETE rel
+          source_sha256: 36c2fa0a477836bb609fe2f53e74da25f2c1f727f9176bf88d7cfcf6d85caabc
+        - symbol: (*CodeInterprocEvidenceWriter).RetractStaleCodeInterprocEvidenceByUIDs
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'UNWIND $source_uids AS suid MATCH (s:Function {uid: suid})-[rel:TAINT_FLOWS_TO]->(:Function) WHERE rel.scope_id = $scope_id AND rel.evidence_source = $evidence_source AND rel.generation_id <> $generation_id DELETE rel'
+          source_sha256: 467774e453804f296e1b745e71c6646dafacb4d27457a2dadc5b2d489fec6605
+    - file: internal/storage/cypher/edge/writer/code_taint_evidence.go
+      builders:
+        - symbol: (*CodeTaintEvidenceWriter).RetractCodeTaintEvidence
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (n:CodeTaintEvidence) WHERE n.scope_id IN $scope_ids AND n.evidence_source = $evidence_source DETACH DELETE n
+          source_sha256: 51eb39a3cc36a00b6648f8ac54722c85370994c3dcb29d5804a4cf2e03c7f282
+        - symbol: (*CodeTaintEvidenceWriter).RetractCodeTaintEvidenceByUIDs
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'UNWIND $node_uids AS nuid MATCH (n:CodeTaintEvidence {uid: nuid}) WHERE n.scope_id IN $scope_ids AND n.evidence_source = $evidence_source DETACH DELETE n'
+          source_sha256: f434f1f1b4ad0b99b9737023d619df4301277b67ed81d3a8f2c210e46e560fb1
+        - symbol: (*CodeTaintEvidenceWriter).RetractStaleCodeTaintEvidence
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (n:CodeTaintEvidence) WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source AND n.generation_id <> $generation_id WITH n LIMIT $limit DETACH DELETE n
+          source_sha256: 7a52d82e74e20843cbc964c16af6356cacb60705fe1e94edca55f1214ea10b22
+        - symbol: (*CodeTaintEvidenceWriter).RetractStaleCodeTaintEvidenceByUIDs
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'UNWIND $node_uids AS nuid MATCH (n:CodeTaintEvidence {uid: nuid}) WHERE n.scope_id = $scope_id AND n.evidence_source = $evidence_source AND n.generation_id <> $generation_id DETACH DELETE n'
+          source_sha256: 0f4f0c953639c196724631cd66dca4d86e0a052864d98fb5fd56fb20f151ded5
     - file: internal/storage/cypher/edge/writer/deployable_unit_verify.go
       builders:
         - symbol: buildDeployableUnitEdgeProbe
@@ -312,6 +376,36 @@ builders:
             - template: MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->() WHERE section.scope_id IN $scope_ids AND section.uid IN $section_uids AND rel.evidence_source = $evidence_source DELETE rel
           source_sha256: 8d00858a92e6df12673635ce1d93574c8b98622dad955176f13e384cca432e0d
           exempt: B-7 captures contain zero Documentation writes on either backend, so no retract scope exists for this builder
+    - file: internal/storage/cypher/edge/writer/incident_routing_evidence.go
+      builders:
+        - symbol: (*IncidentRoutingEvidenceWriter).RetractIncidentRoutingEvidence
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (n:IncidentRoutingEvidence) WHERE n.scope_id IN $scope_ids AND n.evidence_source = $evidence_source DETACH DELETE n
+          source_sha256: d8a63cd7911767af58d2a2026afba5b6eeb10b71f8b6274e8253ba340b2aff1b
+    - file: internal/storage/cypher/edge/writer/kubernetes_correlation.go
+      builders:
+        - symbol: (*KubernetesCorrelationEdgeWriter).RetractKubernetesCorrelationEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (w:KubernetesWorkload)-[rel:RUNS_IMAGE]->() WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: 9687b25d0d644fe3d0320c382fd120159b2939893fff5a19801c27abfd8a0e34
+    - file: internal/storage/cypher/edge/writer/observability_coverage.go
+      builders:
+        - symbol: (*ObservabilityCoverageEdgeWriter).RetractObservabilityCoverageEdges
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (obs:CloudResource)-[rel:AWS_COVERS_alarm|AWS_COVERS_composite_alarm|AWS_COVERS_dashboard|AWS_COVERS_log_group|AWS_COVERS_trace_sampling]->(:CloudResource) WHERE rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: da15f2d191d5ba4663075a6605df7ad6b2d502154bea767bc72ec396d65811d7
+        - symbol: (*ObservabilityCoverageEdgeWriter).RetractObservabilityCoverageEdgesByUIDs
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: MATCH (obs:CloudResource)-[rel:AWS_COVERS_alarm|AWS_COVERS_composite_alarm|AWS_COVERS_dashboard|AWS_COVERS_log_group|AWS_COVERS_trace_sampling]->() WHERE obs.uid IN $source_uids AND rel.scope_id IN $scope_ids AND rel.evidence_source = $evidence_source DELETE rel
+          source_sha256: c27f0b7c9102ba9ed720b65be20538ae24a58bb168a0287340921faa9e52a1de
     - file: internal/storage/cypher/edge/writer/provenance.go
       builders:
         - symbol: (*ProvenanceEdgeWriter).retract

@@ -294,7 +294,7 @@ func (w *ProvenanceEdgeWriter) WriteBuiltFromEdges(
 // dispatched as a sequential autocommit Execute, never ExecuteGroup: on the
 // pinned NornicDB v1.1.11 a DELETE dispatched through a managed transaction
 // under-applies, even a single statement (see
-// kubernetes_correlation_edge_writer.go dispatchRetract and
+// kubernetes_correlation.go dispatchRetract and
 // docs/public/reference/nornicdb-pitfalls.md).
 func (w *ProvenanceEdgeWriter) RetractPublishesEdges(
 	ctx context.Context,

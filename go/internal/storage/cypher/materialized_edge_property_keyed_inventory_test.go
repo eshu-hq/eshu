@@ -89,7 +89,7 @@ func TestPropertyKeyedRelationshipMergesMatchKnownAllowList(t *testing.T) {
 	want := map[string]int{
 		"DECLARES_CODEOWNER": 1, // canonical/node/codeowners_edges.go -- gated, covered above.
 		"PINS_SUBMODULE":     1, // canonical/node/submodule_edges.go -- gated, covered above.
-		"TAINT_FLOWS_TO":     1, // code_interproc_evidence_writer.go -- outside the registry scope.
+		"TAINT_FLOWS_TO":     1, // code_interproc_evidence.go -- outside the registry scope.
 		"DERIVED_FROM":       1, // edge/writer/derived_from.go -- registered (derived_from row), identity held, not asserted here.
 		"PUBLISHES":          2, // edge/writer/provenance.go -- Package + PackageVersion targets; registered (publishes row).
 		"BUILT_FROM":         1, // edge/writer/provenance.go -- registered (built_from row), identity held, not asserted here.

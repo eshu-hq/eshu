@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"context"
 	"testing"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // dispatchRouteRecorder is a GroupExecutor-capable fake that records which
@@ -23,12 +25,12 @@ type dispatchRouteRecorder struct {
 	groupCyphers   []string
 }
 
-func (r *dispatchRouteRecorder) Execute(_ context.Context, statement Statement) error {
+func (r *dispatchRouteRecorder) Execute(_ context.Context, statement sourcecypher.Statement) error {
 	r.executeCyphers = append(r.executeCyphers, statement.Cypher)
 	return nil
 }
 
-func (r *dispatchRouteRecorder) ExecuteGroup(_ context.Context, statements []Statement) error {
+func (r *dispatchRouteRecorder) ExecuteGroup(_ context.Context, statements []sourcecypher.Statement) error {
 	for _, statement := range statements {
 		r.groupCyphers = append(r.groupCyphers, statement.Cypher)
 	}

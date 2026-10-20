@@ -12,13 +12,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // incidentRoutingEvidenceBudgetRelPath is the committed cost budget for the
 // incident_routing_materialization scenario (fact-kind-registry family
 // incident_routing, specs/fact-kind-registry.v1.yaml:186-200, reducer_domain
 // incident_routing_materialization). Like ec2_instance_node_materialization,
-// this projection writes through cypher.IncidentRoutingEvidenceWriter over
+// this projection writes through edgewriter.IncidentRoutingEvidenceWriter over
 // flat map[string]any rows, not a CanonicalMaterialization, so the fixture
 // rows live inline in this file and the budget records that explicitly
 // instead of pointing at a cassette path.
@@ -93,7 +94,7 @@ func incidentRoutingEvidenceFixtureRows() []map[string]any {
 
 // newInstrumentedIncidentRoutingEvidenceWriter builds the PRODUCTION
 // incident-routing write dispatch: the raw
-// cypher.IncidentRoutingEvidenceWriter (constructed unwrapped at
+// edgewriter.IncidentRoutingEvidenceWriter (constructed unwrapped at
 // go/cmd/reducer/canonical_graph_writers.go:71 — no graphowner gate wraps
 // this evidence writer) over a groupCountingExecutor wrapped by the
 // production cypher.InstrumentedExecutor, the same wrapper
@@ -103,7 +104,7 @@ func incidentRoutingEvidenceFixtureRows() []map[string]any {
 // on every UNWIND-shaped statement — the PRIMARY instrument this scenario
 // asserts, not a hand-counted statement slice.
 func newInstrumentedIncidentRoutingEvidenceWriter(t *testing.T) (
-	writer *cypher.IncidentRoutingEvidenceWriter,
+	writer *edgewriter.IncidentRoutingEvidenceWriter,
 	exec *groupCountingExecutor,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -112,7 +113,7 @@ func newInstrumentedIncidentRoutingEvidenceWriter(t *testing.T) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	writer = cypher.NewIncidentRoutingEvidenceWriter(instrumented, 500)
+	writer = edgewriter.NewIncidentRoutingEvidenceWriter(instrumented, 500)
 	return writer, exec, manualReader
 }
 
@@ -121,7 +122,7 @@ func newInstrumentedIncidentRoutingEvidenceWriter(t *testing.T) (
 // projection (the incident_routing family in
 // specs/fact-kind-registry.v1.yaml, C-14 issue #4367). It drives the
 // production DIRECT dispatch —
-// cypher.IncidentRoutingEvidenceWriter.WriteIncidentRoutingEvidence,
+// edgewriter.IncidentRoutingEvidenceWriter.WriteIncidentRoutingEvidence,
 // unwrapped by any owner-ledger gate — over two deterministic same-slot rows
 // from distinct incidents in one scope, through a real
 // InstrumentedExecutor-backed sdkmetric.ManualReader, then asserts

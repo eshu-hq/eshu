@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"context"
 	"fmt"
 	"sort"
 	"strings"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // canonicalPhaseKubernetesCorrelationEdge names the live-workload RUNS_IMAGE edge
@@ -78,16 +80,16 @@ DELETE rel`
 // reducer-owned edge-writer consumer interface and writes through the
 // backend-neutral Executor seam.
 type KubernetesCorrelationEdgeWriter struct {
-	executor  Executor
+	executor  sourcecypher.Executor
 	batchSize int
 }
 
 // NewKubernetesCorrelationEdgeWriter returns a KubernetesCorrelationEdgeWriter
 // backed by the given Executor. A batchSize of 0 or less uses DefaultBatchSize
 // (500).
-func NewKubernetesCorrelationEdgeWriter(executor Executor, batchSize int) *KubernetesCorrelationEdgeWriter {
+func NewKubernetesCorrelationEdgeWriter(executor sourcecypher.Executor, batchSize int) *KubernetesCorrelationEdgeWriter {
 	if batchSize <= 0 {
-		batchSize = DefaultBatchSize
+		batchSize = sourcecypher.DefaultBatchSize
 	}
 	return &KubernetesCorrelationEdgeWriter{executor: executor, batchSize: batchSize}
 }
@@ -141,15 +143,15 @@ func (w *KubernetesCorrelationEdgeWriter) WriteKubernetesCorrelationEdges(
 	}
 	sort.Strings(labels)
 
-	var stmts []Statement
+	var stmts []sourcecypher.Statement
 	for _, label := range labels {
 		cypher := fmt.Sprintf(CanonicalKubernetesCorrelationEdgeUpsertCypherFormat, label)
-		batches := BuildBatchedStatements(cypher, grouped[label], w.batchSize)
+		batches := sourcecypher.BuildBatchedStatements(cypher, grouped[label], w.batchSize)
 		for index := range batches {
 			batchRows := batches[index].Parameters["rows"].([]map[string]any)
-			batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseKubernetesCorrelationEdge
-			batches[index].Parameters[StatementMetadataEntityLabelKey] = kubernetesCorrelationEdgeLabel
-			batches[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+			batches[index].Parameters[sourcecypher.StatementMetadataPhaseKey] = canonicalPhaseKubernetesCorrelationEdge
+			batches[index].Parameters[sourcecypher.StatementMetadataEntityLabelKey] = kubernetesCorrelationEdgeLabel
+			batches[index].Parameters[sourcecypher.StatementMetadataSummaryKey] = fmt.Sprintf(
 				"edge=%s source=%s rows=%d",
 				kubernetesCorrelationEdgeLabel,
 				label,
@@ -205,15 +207,15 @@ func (w *KubernetesCorrelationEdgeWriter) RetractKubernetesCorrelationEdges(
 		return fmt.Errorf("kubernetes correlation edge writer executor is required")
 	}
 
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    RetractKubernetesCorrelationEdgesCypher,
 		Parameters: map[string]any{
-			"scope_ids":                     scopeIDs,
-			"evidence_source":               evidenceSource,
-			StatementMetadataPhaseKey:       canonicalPhaseKubernetesCorrelationEdge,
-			StatementMetadataEntityLabelKey: kubernetesCorrelationEdgeLabel,
-			StatementMetadataSummaryKey: fmt.Sprintf(
+			"scope_ids":                                  scopeIDs,
+			"evidence_source":                            evidenceSource,
+			sourcecypher.StatementMetadataPhaseKey:       canonicalPhaseKubernetesCorrelationEdge,
+			sourcecypher.StatementMetadataEntityLabelKey: kubernetesCorrelationEdgeLabel,
+			sourcecypher.StatementMetadataSummaryKey: fmt.Sprintf(
 				"edge=%s retract scopes=%d generation=%s",
 				kubernetesCorrelationEdgeLabel,
 				len(scopeIDs),
@@ -222,26 +224,26 @@ func (w *KubernetesCorrelationEdgeWriter) RetractKubernetesCorrelationEdges(
 		},
 	}
 
-	return w.dispatchRetract(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []sourcecypher.Statement{stmt})
 }
 
 // dispatch runs the prepared statements as one atomic group when the executor
 // supports grouping, otherwise sequentially. Transient backend errors are
 // classified retryable so the durable reducer queue can re-run the idempotent
 // batch.
-func (w *KubernetesCorrelationEdgeWriter) dispatch(ctx context.Context, stmts []Statement) error {
+func (w *KubernetesCorrelationEdgeWriter) dispatch(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
-	if ge, ok := w.executor.(GroupExecutor); ok {
+	if ge, ok := w.executor.(sourcecypher.GroupExecutor); ok {
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil
@@ -255,13 +257,13 @@ func (w *KubernetesCorrelationEdgeWriter) dispatch(ctx context.Context, stmts []
 // docs/public/reference/nornicdb-pitfalls.md and
 // CodeInterprocEvidenceWriter.dispatchRetract for the same rationale applied
 // to the code-interproc evidence retract.
-func (w *KubernetesCorrelationEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+func (w *KubernetesCorrelationEdgeWriter) dispatchRetract(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil

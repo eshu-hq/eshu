@@ -4,8 +4,8 @@
 package materialized
 
 import (
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // multiTypeDirectMaterializedEdgeFamilies indexes the direct-materialization
@@ -31,13 +31,13 @@ var multiTypeDirectMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// against is the derivation source the drift guard reads.
 	"incident_routing_evidence": {
 		EdgeTypes: map[string]string{
-			"HAS_INTENDED_ROUTING": "intended routing edge (IncidentRoutingEvidenceWriter in incident_routing_evidence_writer.go)",
-			"HAS_APPLIED_ROUTING":  "applied routing edge (IncidentRoutingEvidenceWriter in incident_routing_evidence_writer.go)",
-			"HAS_LIVE_ROUTING":     "live routing edge (IncidentRoutingEvidenceWriter in incident_routing_evidence_writer.go)",
+			"HAS_INTENDED_ROUTING": "intended routing edge (IncidentRoutingEvidenceWriter in edge/writer/incident_routing_evidence.go)",
+			"HAS_APPLIED_ROUTING":  "applied routing edge (IncidentRoutingEvidenceWriter in edge/writer/incident_routing_evidence.go)",
+			"HAS_LIVE_ROUTING":     "live routing edge (IncidentRoutingEvidenceWriter in edge/writer/incident_routing_evidence.go)",
 		},
 		RetractKind:    retractKindEvidenceNodeDetach,
-		RetractCypher:  sourcecypher.RetractIncidentRoutingEvidenceCypher,
-		IdentityCypher: sourcecypher.CanonicalIncidentRoutingEvidenceUpsertCypherFormat,
+		RetractCypher:  edgewriter.RetractIncidentRoutingEvidenceCypher,
+		IdentityCypher: edgewriter.CanonicalIncidentRoutingEvidenceUpsertCypherFormat,
 	},
 	// observability_coverage is a closed-vocabulary relAlternation family
 	// (#6228 split verdict, kind C): five AWS_COVERS_<signal> types named in
@@ -45,17 +45,17 @@ var multiTypeDirectMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// against is the derivation source the drift guard reads.
 	"observability_coverage": {
 		EdgeTypes: map[string]string{
-			"AWS_COVERS_alarm":           "alarm coverage edge (ObservabilityCoverageEdgeWriter in observability_coverage_edge_writer.go)",
-			"AWS_COVERS_composite_alarm": "composite alarm coverage edge (ObservabilityCoverageEdgeWriter in observability_coverage_edge_writer.go)",
-			"AWS_COVERS_dashboard":       "dashboard coverage edge (ObservabilityCoverageEdgeWriter in observability_coverage_edge_writer.go)",
-			"AWS_COVERS_log_group":       "log group coverage edge (ObservabilityCoverageEdgeWriter in observability_coverage_edge_writer.go)",
-			"AWS_COVERS_trace_sampling":  "trace sampling coverage edge (ObservabilityCoverageEdgeWriter in observability_coverage_edge_writer.go)",
+			"AWS_COVERS_alarm":           "alarm coverage edge (ObservabilityCoverageEdgeWriter in edge/writer/observability_coverage.go)",
+			"AWS_COVERS_composite_alarm": "composite alarm coverage edge (ObservabilityCoverageEdgeWriter in edge/writer/observability_coverage.go)",
+			"AWS_COVERS_dashboard":       "dashboard coverage edge (ObservabilityCoverageEdgeWriter in edge/writer/observability_coverage.go)",
+			"AWS_COVERS_log_group":       "log group coverage edge (ObservabilityCoverageEdgeWriter in edge/writer/observability_coverage.go)",
+			"AWS_COVERS_trace_sampling":  "trace sampling coverage edge (ObservabilityCoverageEdgeWriter in edge/writer/observability_coverage.go)",
 		},
-		RetractCypher: sourcecypher.RetractObservabilityCoverageEdgesCypher,
+		RetractCypher: edgewriter.RetractObservabilityCoverageEdgesCypher,
 		RetractVariants: []string{
-			sourcecypher.RetractObservabilityCoverageEdgesByUIDsCypher,
+			edgewriter.RetractObservabilityCoverageEdgesByUIDsCypher,
 		},
-		IdentityCypher: sourcecypher.CanonicalObservabilityCoverageEdgeUpsertCypherFormat,
+		IdentityCypher: edgewriter.CanonicalObservabilityCoverageEdgeUpsertCypherFormat,
 	},
 	// security_group_sg_rule is a closed-vocabulary relAlternation family
 	// (#6228 split verdict, kind C): ALLOWS_INGRESS and ALLOWS_EGRESS named in

@@ -11,8 +11,13 @@
 // shell-exec, SQL, workload, handles-route, runs-in, deployable-unit,
 // repo-dependency, codeowners, submodule, invokes-cloud-action, and the
 // cross-repo/retract roles); RetractEdges reaps the same families by scope.
-// Every Cypher statement template lives beside the writer that emits it and
-// moves byte-identically with it.
+// The leaf also homes the five standalone domain evidence writers
+// (code taint, code interproc, incident routing, Kubernetes correlation,
+// observability coverage), constructed directly by cmd/reducer rather than
+// through WriteEdges dispatch. Their templates stay beside them and stay
+// exported for the edge/materialized sibling. Every Cypher statement
+// template lives beside the writer that emits it and moves byte-identically
+// with it.
 //
 // VerifyDeployableUnitEdges reads admitted CORRELATES_DEPLOYABLE_UNIT edges
 // back after WriteEdges (#8283) with one single-pattern probe per distinct

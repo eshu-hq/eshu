@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"context"
 	"fmt"
 	"sort"
 	"strings"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // canonicalPhaseObservabilityCoverageEdge names the observability COVERS edge
@@ -138,16 +140,16 @@ const observabilityCoverageEdgeRetractUIDBatchSize = 500
 // satisfies the reducer-owned coverage-edge-writer consumer interface and writes
 // through the backend-neutral Executor seam.
 type ObservabilityCoverageEdgeWriter struct {
-	executor  Executor
+	executor  sourcecypher.Executor
 	batchSize int
 }
 
 // NewObservabilityCoverageEdgeWriter returns an ObservabilityCoverageEdgeWriter
 // backed by the given Executor. A batchSize of 0 or less uses DefaultBatchSize
 // (500).
-func NewObservabilityCoverageEdgeWriter(executor Executor, batchSize int) *ObservabilityCoverageEdgeWriter {
+func NewObservabilityCoverageEdgeWriter(executor sourcecypher.Executor, batchSize int) *ObservabilityCoverageEdgeWriter {
 	if batchSize <= 0 {
-		batchSize = DefaultBatchSize
+		batchSize = sourcecypher.DefaultBatchSize
 	}
 	return &ObservabilityCoverageEdgeWriter{executor: executor, batchSize: batchSize}
 }
@@ -200,15 +202,15 @@ func (w *ObservabilityCoverageEdgeWriter) WriteObservabilityCoverageEdges(
 	}
 	sort.Strings(cypherTypes)
 
-	var stmts []Statement
+	var stmts []sourcecypher.Statement
 	for _, cypherType := range cypherTypes {
 		cypher := fmt.Sprintf(canonicalObservabilityCoverageEdgeUpsertCypherFormat, cypherType)
-		batches := BuildBatchedStatements(cypher, grouped[cypherType], w.batchSize)
+		batches := sourcecypher.BuildBatchedStatements(cypher, grouped[cypherType], w.batchSize)
 		for index := range batches {
 			batchRows := batches[index].Parameters["rows"].([]map[string]any)
-			batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseObservabilityCoverageEdge
-			batches[index].Parameters[StatementMetadataEntityLabelKey] = observabilityCoverageEdgeLabel
-			batches[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+			batches[index].Parameters[sourcecypher.StatementMetadataPhaseKey] = canonicalPhaseObservabilityCoverageEdge
+			batches[index].Parameters[sourcecypher.StatementMetadataEntityLabelKey] = observabilityCoverageEdgeLabel
+			batches[index].Parameters[sourcecypher.StatementMetadataSummaryKey] = fmt.Sprintf(
 				"edge=%s type=%s rows=%d",
 				observabilityCoverageEdgeLabel,
 				cypherType,
@@ -265,15 +267,15 @@ func (w *ObservabilityCoverageEdgeWriter) RetractObservabilityCoverageEdges(
 		return fmt.Errorf("observability coverage edge writer executor is required")
 	}
 
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    retractObservabilityCoverageEdgesCypher,
 		Parameters: map[string]any{
-			"scope_ids":                     scopeIDs,
-			"evidence_source":               evidenceSource,
-			StatementMetadataPhaseKey:       canonicalPhaseObservabilityCoverageEdge,
-			StatementMetadataEntityLabelKey: observabilityCoverageEdgeLabel,
-			StatementMetadataSummaryKey: fmt.Sprintf(
+			"scope_ids":                                  scopeIDs,
+			"evidence_source":                            evidenceSource,
+			sourcecypher.StatementMetadataPhaseKey:       canonicalPhaseObservabilityCoverageEdge,
+			sourcecypher.StatementMetadataEntityLabelKey: observabilityCoverageEdgeLabel,
+			sourcecypher.StatementMetadataSummaryKey: fmt.Sprintf(
 				"edge=%s retract scopes=%d generation=%s",
 				observabilityCoverageEdgeLabel,
 				len(scopeIDs),
@@ -282,7 +284,7 @@ func (w *ObservabilityCoverageEdgeWriter) RetractObservabilityCoverageEdges(
 		},
 	}
 
-	return w.dispatchRetract(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []sourcecypher.Statement{stmt})
 }
 
 // RetractObservabilityCoverageEdgesByUIDs removes this reducer's COVERS edges
@@ -301,19 +303,19 @@ func (w *ObservabilityCoverageEdgeWriter) RetractObservabilityCoverageEdgesByUID
 	if w.executor == nil {
 		return fmt.Errorf("observability coverage edge writer executor is required")
 	}
-	batches := ChunkStrings(sourceUIDs, observabilityCoverageEdgeRetractUIDBatchSize)
-	stmts := make([]Statement, 0, len(batches))
+	batches := sourcecypher.ChunkStrings(sourceUIDs, observabilityCoverageEdgeRetractUIDBatchSize)
+	stmts := make([]sourcecypher.Statement, 0, len(batches))
 	for _, batch := range batches {
-		stmts = append(stmts, Statement{
-			Operation: OperationCanonicalRetract,
+		stmts = append(stmts, sourcecypher.Statement{
+			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher:    retractObservabilityCoverageEdgesByUIDsCypher,
 			Parameters: map[string]any{
-				"source_uids":                   batch,
-				"scope_ids":                     scopeIDs,
-				"evidence_source":               evidenceSource,
-				StatementMetadataPhaseKey:       canonicalPhaseObservabilityCoverageEdge,
-				StatementMetadataEntityLabelKey: observabilityCoverageEdgeLabel,
-				StatementMetadataSummaryKey: fmt.Sprintf(
+				"source_uids":                          batch,
+				"scope_ids":                            scopeIDs,
+				"evidence_source":                      evidenceSource,
+				sourcecypher.StatementMetadataPhaseKey: canonicalPhaseObservabilityCoverageEdge,
+				sourcecypher.StatementMetadataEntityLabelKey: observabilityCoverageEdgeLabel,
+				sourcecypher.StatementMetadataSummaryKey: fmt.Sprintf(
 					"edge=%s retract_by_uids scopes=%d uids=%d",
 					observabilityCoverageEdgeLabel,
 					len(scopeIDs),
@@ -329,19 +331,19 @@ func (w *ObservabilityCoverageEdgeWriter) RetractObservabilityCoverageEdgesByUID
 // supports grouping, otherwise sequentially. Transient backend errors are
 // classified retryable so the durable reducer queue can re-run the idempotent
 // batch.
-func (w *ObservabilityCoverageEdgeWriter) dispatch(ctx context.Context, stmts []Statement) error {
+func (w *ObservabilityCoverageEdgeWriter) dispatch(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
-	if ge, ok := w.executor.(GroupExecutor); ok {
+	if ge, ok := w.executor.(sourcecypher.GroupExecutor); ok {
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil
@@ -350,13 +352,13 @@ func (w *ObservabilityCoverageEdgeWriter) dispatch(ctx context.Context, stmts []
 // dispatchRetract routes anchored-retract statements through sequential
 // Execute calls, never ExecuteGroup, for the same NornicDB bolt-driver reason
 // documented on CloudResourceEdgeWriter.dispatchRetract.
-func (w *ObservabilityCoverageEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+func (w *ObservabilityCoverageEdgeWriter) dispatchRetract(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil

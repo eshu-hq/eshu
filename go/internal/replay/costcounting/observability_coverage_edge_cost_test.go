@@ -12,13 +12,14 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // observabilityCoverageEdgeBudgetRelPath is the committed cost budget for the
 // observability_coverage_correlation scenario (fact-kind-registry family
 // observability, specs/fact-kind-registry.v1.yaml:216-234, reducer_domain
 // observability_coverage_correlation). Like ec2_instance_node_materialization,
-// this projection writes through cypher.ObservabilityCoverageEdgeWriter over
+// this projection writes through edgewriter.ObservabilityCoverageEdgeWriter over
 // flat map[string]any rows, not a CanonicalMaterialization, so the fixture
 // rows live inline in this file and the budget records that explicitly
 // instead of pointing at a cassette path.
@@ -66,7 +67,7 @@ func observabilityCoverageEdgeFixtureRows() []map[string]any {
 
 // newInstrumentedObservabilityCoverageEdgeWriter builds the PRODUCTION
 // observability-coverage write dispatch: the raw
-// cypher.ObservabilityCoverageEdgeWriter (constructed unwrapped at
+// edgewriter.ObservabilityCoverageEdgeWriter (constructed unwrapped at
 // go/cmd/reducer/canonical_graph_writers.go:70 — no graphowner gate wraps
 // this edge writer) over a groupCountingExecutor wrapped by the production
 // cypher.InstrumentedExecutor, the same wrapper
@@ -76,7 +77,7 @@ func observabilityCoverageEdgeFixtureRows() []map[string]any {
 // on every UNWIND-shaped statement — the PRIMARY instrument this scenario
 // asserts, not a hand-counted statement slice.
 func newInstrumentedObservabilityCoverageEdgeWriter(t *testing.T) (
-	writer *cypher.ObservabilityCoverageEdgeWriter,
+	writer *edgewriter.ObservabilityCoverageEdgeWriter,
 	exec *groupCountingExecutor,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -85,7 +86,7 @@ func newInstrumentedObservabilityCoverageEdgeWriter(t *testing.T) (
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	writer = cypher.NewObservabilityCoverageEdgeWriter(instrumented, 500)
+	writer = edgewriter.NewObservabilityCoverageEdgeWriter(instrumented, 500)
 	return writer, exec, manualReader
 }
 
@@ -94,7 +95,7 @@ func newInstrumentedObservabilityCoverageEdgeWriter(t *testing.T) (
 // projection (the observability family in
 // specs/fact-kind-registry.v1.yaml, C-14 issue #4367). It drives the
 // production DIRECT dispatch —
-// cypher.ObservabilityCoverageEdgeWriter.WriteObservabilityCoverageEdges,
+// edgewriter.ObservabilityCoverageEdgeWriter.WriteObservabilityCoverageEdges,
 // unwrapped by any owner-ledger gate — over two deterministic same-signal
 // rows in one scope, through a real InstrumentedExecutor-backed
 // sdkmetric.ManualReader, then asserts eshu_dp_neo4j_batches_executed_total is

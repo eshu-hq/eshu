@@ -22,7 +22,7 @@
 // retract through sequential Execute, never ExecuteGroup.
 //
 // The test drives the REAL production writer constructors and methods
-// (cypher.NewKubernetesCorrelationEdgeWriter, s3.NewS3LogsToEdgeWriter,
+// (edgewriter.NewKubernetesCorrelationEdgeWriter, s3.NewS3LogsToEdgeWriter,
 // s3.NewS3ExternalPrincipalGrantWriter,
 // iam.NewIAMInstanceProfileRoleEdgeWriter) against liveExecutor, which
 // implements GroupExecutor exactly like production's reducerNeo4jExecutor, so
@@ -46,6 +46,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -107,7 +108,7 @@ func TestReducerCloudEdgeRetractGraphTruth(t *testing.T) {
 
 	seedCloudEdgeNodes(ctx, t, exec)
 
-	kcWriter := cypher.NewKubernetesCorrelationEdgeWriter(exec, 0)
+	kcWriter := edgewriter.NewKubernetesCorrelationEdgeWriter(exec, 0)
 	s3LogsWriter := s3.NewS3LogsToEdgeWriter(exec, 0)
 	grantWriter := s3.NewS3ExternalPrincipalGrantWriter(exec, 0)
 	iamWriter := iam.NewIAMInstanceProfileRoleEdgeWriter(exec, 0)

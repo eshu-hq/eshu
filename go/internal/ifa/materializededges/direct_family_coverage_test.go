@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // guardedDirectFamily is one #6228 direct-materialization family that has been
@@ -318,7 +318,7 @@ func TestGuardedDirectFamiliesResolveToTheirWrittenEdgeTypes(t *testing.T) {
 // vocabulary derivation -- a different production const than either the
 // registry map or the retract, so a typo shared by those two still reds
 // here -- with the token-composition rule itself pinned by the writer's
-// round-trip validator test in go/internal/storage/cypher.
+// round-trip validator test in go/internal/storage/cypher/edge/writer.
 func TestGuardedDirectFamilyEdgeTypesAreCanonical(t *testing.T) {
 	t.Parallel()
 
@@ -330,7 +330,7 @@ func TestGuardedDirectFamilyEdgeTypesAreCanonical(t *testing.T) {
 		t.Fatal("edgetype.All() is empty; this test would pass vacuously")
 	}
 	vocabularyDerived := map[string]map[string]struct{}{
-		observabilityCoverageFamily: edgeTypeSet(sourcecypher.ObservabilityCoverageRelationshipTypes()),
+		observabilityCoverageFamily: edgeTypeSet(edgewriter.ObservabilityCoverageRelationshipTypes()),
 	}
 	for _, entry := range guardedDirectMaterializedEdgeFamilies {
 		for _, edgeTypeName := range entry.EdgeTypes {
