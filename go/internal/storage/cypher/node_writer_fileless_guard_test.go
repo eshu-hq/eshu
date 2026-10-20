@@ -222,6 +222,21 @@ func TestFilelessWipeGuardSkipsNonWipeShapes(t *testing.T) {
 // declared filelessness skips the probe and lets the retract authorize the
 // wipe. The declaration rides the materialization after that lane lands;
 // this pins the guard half of the contract against the seam it will read.
+// TestDeclaredEmptyScopeForGuardReadsMaterialization pins the #8668 seam:
+// the guard honors the live DeclaredEmptyScope field, not a stub.
+func TestDeclaredEmptyScopeForGuardReadsMaterialization(t *testing.T) {
+	t.Parallel()
+
+	declared := filelessGuardMat()
+	declared.DeclaredEmptyScope = true
+	if !declaredEmptyScopeForGuard(declared) {
+		t.Fatal("declaredEmptyScopeForGuard(DeclaredEmptyScope=true) = false, want true")
+	}
+	if declaredEmptyScopeForGuard(filelessGuardMat()) {
+		t.Fatal("declaredEmptyScopeForGuard(zero mat) = true, want false")
+	}
+}
+
 func TestFilelessWipeGuardHonorsDeclaredEmptyScope(t *testing.T) {
 	t.Parallel()
 

@@ -42,16 +42,13 @@ func usesUnboundedFileRetract(mat canonical.CanonicalMaterialization) bool {
 
 // declaredEmptyScopeForGuard reports whether mat carries the collector's
 // genuine-filelessness declaration (the `empty_scope` repository-fact key,
-// issue #8668). It returns false until that lane lands its
-// CanonicalMaterialization.DeclaredEmptyScope field and this seam is wired
-// to read it; until then every file-less wipe over prior File nodes fails
-// loud, and the refusal error points at the marker. The guard-level test
-// pins the declared-empty path through checkFilelessWipeGuard directly, so
-// flipping this seam needs no guard change.
-//
-// TODO(#8668): return mat.DeclaredEmptyScope once #8670 merges.
-func declaredEmptyScopeForGuard(canonical.CanonicalMaterialization) bool {
-	return false
+// issue #8668, field landed via #8670). A declared-empty file-less build
+// over prior File nodes succeeds; every other file-less wipe over prior
+// File nodes fails loud, and the refusal error points at the marker. The
+// guard-level test pins the declared-empty path through
+// checkFilelessWipeGuard directly.
+func declaredEmptyScopeForGuard(mat canonical.CanonicalMaterialization) bool {
+	return mat.DeclaredEmptyScope
 }
 
 // filelessWipeRefusedError is the loud failure a file-less build over prior
