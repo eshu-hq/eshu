@@ -2,8 +2,8 @@
 id: reducer/reducer_shared_projection_row_repo_i_d
 family_id: reducer_derived
 reducer_dir: go/internal/reducer
-symbol: sharedProjectionRowRepoID
+symbol: buildCodeImportOwnerIndex
 kinds:
     - reducer_package_ownership_correlation
     - reducer_package_publication_correlation
-declaration: go/internal/reducer/fact_bindings.go:58
+declaration: go/internal/reducer/fact_bindings.go:61

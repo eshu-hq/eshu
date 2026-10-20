@@ -5,4 +5,4 @@ reducer_dir: go/internal/reducer
 symbol: Handle
 kinds:
     - submodule.pin
-declaration: go/internal/reducer/fact_bindings.go:66
+declaration: go/internal/reducer/fact_bindings.go:69
