@@ -157,6 +157,12 @@ class InventoryFragmentTest(unittest.TestCase):
                  'ESHU_CHANGED_SINCE_LINK_SCALE_PROOF: "p8b"', "freshness"),
                 ('ESHU_7127_W11_COST: "1"',
                  'ESHU_7127_W11_COST: "0"', "freshness"),
+                ("ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/"
+                 "eshu_freshness_a?sslmode=disable\n"
+                 '          ESHU_7127_W11_COST: "1"',
+                 "ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/"
+                 "eshu_freshness_a?sslmode=disable",
+                 "freshness"),
                 ("-timeout=30m ./internal/storage/postgres/freshness/links",
                  "-timeout=6m ./internal/storage/postgres/freshness/links",
                  "selector"),

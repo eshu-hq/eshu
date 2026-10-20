@@ -22,7 +22,7 @@ from postgres_scheduled_workflow import (
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
-WORKFLOW_SHA256 = "5cd43f568b7be7e962e074131702a520432e2b219c5aaf6e5f161acd9257c552"
+WORKFLOW_SHA256 = "784a2050fad3b3eb4a836dabc1c606141219fc8a58e44a7689814649f86fb6b8"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 GROUP_LABELS = {
     "crossplane": "Crossplane",
@@ -168,6 +168,9 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
                     raise ValueError(f"secondary DSN differs for {group}")
             if group == "search" and step.count('ESHU_SEARCH_INDEX_PARTITION_LIVE: "1"') != 1:
                 raise ValueError("search partition opt-in missing")
+            if group == "freshness_links_a":
+                if step.count('          ESHU_7127_W11_COST: "1"') != 1:
+                    raise ValueError("missing freshness cost opt-in for chunk A")
             if group == "freshness_links_scale":
                 for line in (
                     'ESHU_7127_W11_COST: "1"',

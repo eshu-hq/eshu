@@ -383,6 +383,7 @@ jobs:
         working-directory: go
         env:
           ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu_freshness_a?sslmode=disable
+          ESHU_7127_W11_COST: "1"
         run: |
           set -euo pipefail
           test -z "${GOFLAGS:-}"
