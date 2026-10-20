@@ -20,7 +20,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
 )
 
-var batchNow = time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+// batchNow anchors the fixture to the test-run clock (#8658): the store
+// reads with the real wall clock, so a fixed fixture timestamp goes stale
+// once its 48h liveness window passes and every scope reads unknown with no
+// follow-up queries. All fixture offsets stay relative, so liveness,
+// confirmation, and rule (d) invariants hold at any run time.
+var batchNow = time.Now().UTC().Truncate(time.Second)
 
 // batchObsRow is one liveScopeObservationsBatchQuery row.
 func batchObsRow(scope, selector, state string, cycles int, classification, successor string) []any {
