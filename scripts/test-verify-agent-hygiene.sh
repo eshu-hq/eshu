@@ -8,7 +8,11 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$here/.." && pwd)"
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+# Retry teardown: an async host indexer may hold a fixture .git entry open in
+# the teardown window; a single rm then fails ENOTEMPTY and masks green
+# assertions. Retry briefly, then fail loud.
+clean_tmp() { local i; for i in 1 2 3 4 5; do rm -rf "$tmp" 2>/dev/null && return 0; sleep 1; done; rm -rf "$tmp" || exit 1; }
+trap 'clean_tmp' EXIT
 
 pass=0
 fail=0

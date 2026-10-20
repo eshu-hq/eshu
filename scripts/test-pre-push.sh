@@ -60,7 +60,18 @@ require "names the CI required-gates aggregate on success" 'required-gates-compl
 # Behavioral: execute the real driver against a hermetic fixture repo.
 # ---------------------------------------------------------------------------
 temp_root="$(mktemp -d)"
-trap 'rm -rf "${temp_root}"' EXIT
+# Retry teardown: an async host indexer (git-ai daemon via Trace2) may hold a
+# fixture .git/ai entry open in the teardown window; a single rm then fails
+# with ENOTEMPTY and masks green assertions. Retry briefly, then fail loud.
+clean_temp_root() {
+	local i
+	for i in 1 2 3 4 5; do
+		rm -rf "${temp_root}" 2>/dev/null && return 0
+		sleep 1
+	done
+	rm -rf "${temp_root}" || exit 1
+}
+trap 'clean_temp_root' EXIT
 
 # build_fixture creates a throwaway git repo with fake toolchain stand-ins and
 # copies the REAL driver plus its REAL sourced libs into it, so the assertions

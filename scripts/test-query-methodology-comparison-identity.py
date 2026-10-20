@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -18,9 +19,22 @@ RESOLVER = Path(__file__).resolve().parent / "lib/query-methodology-comparison-i
 class ComparisonIdentityTest(unittest.TestCase):
     """Check real Git ancestry and event identities, including combined heads."""
 
+    def retry_temporary_cleanup(self) -> None:
+        # Retry teardown: an async host indexer (git-ai daemon via
+        # Trace2) may hold a fixture .git/ai entry open in the
+        # teardown window; a single cleanup then raises ENOTEMPTY
+        # and masks green assertions. Retry briefly, then fail loud.
+        for _ in range(5):
+            try:
+                self.temporary.cleanup()
+                return
+            except OSError:
+                time.sleep(1)
+        self.temporary.cleanup()
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
+        self.addCleanup(self.retry_temporary_cleanup)
         self.root = Path(self.temporary.name)
         self.git("init", "--quiet", "--initial-branch=main")
         self.git("config", "user.name", "Eshu Test")
