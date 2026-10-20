@@ -162,10 +162,13 @@ bundle verify, retain). The freshness split and leg budgets rest on run
 Leg caps: setup 15, scale 45, chunks 25, ack 30, bulk 40, aggregate 15.
 The runner pins the matrix shape (one selector per group across legs, fresh
 database and DSN per group, per-leg stream uploads, aggregate fan-in and exact
-bundle paths) and the workflow SHA256. Proof owed: a CI wave on the step-7 PR
-showing the slowest leg under 25 minutes against the 45.7m serial
-freshness_links baseline. No Go production code, SQL, fixture, or telemetry
-contract changed.
+bundle paths) and the workflow SHA256. Acceptance (#8617 step 7, as amended
+2026-10-20; the original 25-minute figure was a pre-measurement estimate):
+slowest leg under 35 minutes against the 45.7m serial freshness_links
+baseline. Measured on run 39421484741 (all legs green, aggregate SUCCESS):
+scale 32m20s, bulk 26m33s, ack 23m09s, chunks ~7-8m, setup 50s, aggregate 16s.
+Leg caps above are timeout kill limits, not the acceptance bound. No Go
+production code, SQL, fixture, or telemetry contract changed.
 
 ## Boundaries
 

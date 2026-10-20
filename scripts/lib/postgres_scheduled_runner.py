@@ -22,7 +22,7 @@ from postgres_scheduled_workflow import (
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
-WORKFLOW_SHA256 = "784a2050fad3b3eb4a836dabc1c606141219fc8a58e44a7689814649f86fb6b8"
+WORKFLOW_SHA256 = "c9c3f3ba3bdc4c46dad46149ddcd99605de172273bc3a4e88b47d5429e8cd5f5"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 GROUP_LABELS = {
     "crossplane": "Crossplane",

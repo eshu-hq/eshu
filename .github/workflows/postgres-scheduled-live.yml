@@ -13,7 +13,8 @@ name: Scheduled PostgreSQL Live Proofs
 # every leg stream, verifies the bundle, and retains it. Measured walls from
 # run 39339606297 (success): ACK 22.4m, freshness_links 45.7m, bulk families
 # ~16m of tests; per-test artifact timings put the scale chunk at ~16.6m, chunk
-# A at ~5.7m, and chunk B at ~4.3m. Proof owed: slowest leg under 25 minutes.
+# A at ~5.7m, and chunk B at ~4.3m. Acceptance (#8617 step 7, as amended
+# 2026-10-20): slowest leg under 35 minutes; measured 32m20s in run 39421484741.
 on:
   schedule:
     - cron: '35 4 * * *'
