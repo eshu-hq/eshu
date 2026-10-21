@@ -465,7 +465,7 @@ builders:
             - template: 'UNWIND $repo_ids AS repo_id MATCH (f:Function {repo_id: repo_id})-[rel:RUNS_IN]->(:Workload) WHERE rel.evidence_source = $evidence_source DELETE rel'
             - template: 'UNWIND $repo_ids AS repo_id MATCH (func:Function {repo_id: repo_id})-[rel:INVOKES_CLOUD_ACTION]->(:CloudAction) WHERE rel.evidence_source = $evidence_source DELETE rel'
             - {}
-          source_sha256: 01ded3a63937c4a73ad645ebaf9ab778326d2660c70074f4b326123aa5ed945f
+          source_sha256: b4a1f75d61e575cfbc48ca87e96d23c87fd50531259b440d85d86a2ff106582b
           exempt: dispatcher; its HandlesRoute/RunsIn/InvokesCloudAction const templates never fire on the B-7 corpus (absent both backends); delegated domains execute through callee builders (BuildRetractShellExecEdges inventoried and executed, the rest unattributed)
     - file: internal/storage/cypher/edge/writer/retract_repo.go
       builders:
@@ -525,7 +525,7 @@ builders:
             - fragments:
                 - MATCH
                 - RETURN 1 LIMIT 1
-          source_sha256: bd47ba75368d78aed38754968b1d36d63f747f23f8fb08b497de8bf0b1418f6a
+          source_sha256: 775cff77834da929d784e8f8f993193a265c8f1e3a94f657bc763dbf20affd16
           exempt: strings.Builder-composed probe text is opaque to static matching; executions recorded as probe records
     - file: internal/storage/cypher/kubernetes/namespace.go
       builders:
