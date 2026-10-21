@@ -125,7 +125,7 @@ func (l configArtifactLoader) loadForSourcesStored(
 			continue
 		}
 		named := contentartifacts.ApplyStoredNameStep(source.RepoName, repo.Rows)
-		storedRows[i+1] = contentartifacts.NamedRowsToMaps(named)
+		storedRows[i+1] = namedRowsToMaps(named)
 		stats.StoredRepositoryCount++
 		stats.StoredRowCount += len(repo.Rows)
 		if repo.ListTruncated {

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package artifacts
+package repositoryartifacts
 
 import (
 	"reflect"
 	"testing"
+
+	contentartifacts "github.com/eshu-hq/eshu/go/internal/content/artifacts"
 )
 
 // TestNamedRowsToMapsRendersRowMaps pins the stored path's merge input: one
@@ -14,7 +16,7 @@ import (
 func TestNamedRowsToMapsRendersRowMaps(t *testing.T) {
 	t.Parallel()
 
-	got := NamedRowsToMaps([]NamedRow{
+	got := namedRowsToMaps([]contentartifacts.NamedRow{
 		{Path: "overlays/prod/kustomization.yaml", SourceRepo: "svc", RelativePath: "overlays/prod/kustomization.yaml", EvidenceKind: "kustomize"},
 		{Path: "", SourceRepo: "", RelativePath: "", EvidenceKind: ""},
 	})
@@ -23,11 +25,11 @@ func TestNamedRowsToMapsRendersRowMaps(t *testing.T) {
 		{"path": "", "source_repo": "", "relative_path": "", "evidence_kind": ""},
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("NamedRowsToMaps = %#v, want %#v", got, want)
+		t.Fatalf("namedRowsToMaps = %#v, want %#v", got, want)
 	}
 	for _, row := range got {
-		if len(row) != len(configPathKeyOrder) {
-			t.Fatalf("NamedRowsToMaps row has %d keys, want exactly the %d merge-identity keys: %#v", len(row), len(configPathKeyOrder), row)
+		if len(row) != 4 {
+			t.Fatalf("namedRowsToMaps row has %d keys, want exactly the 4 merge-identity keys: %#v", len(row), row)
 		}
 	}
 }
@@ -37,11 +39,11 @@ func TestNamedRowsToMapsRendersRowMaps(t *testing.T) {
 func TestNamedRowsToMapsEmptyIsNil(t *testing.T) {
 	t.Parallel()
 
-	if got := NamedRowsToMaps(nil); got != nil {
-		t.Fatalf("NamedRowsToMaps(nil) = %#v, want nil", got)
+	if got := namedRowsToMaps(nil); got != nil {
+		t.Fatalf("namedRowsToMaps(nil) = %#v, want nil", got)
 	}
-	if got := NamedRowsToMaps([]NamedRow{}); got != nil {
-		t.Fatalf("NamedRowsToMaps(empty) = %#v, want nil", got)
+	if got := namedRowsToMaps([]contentartifacts.NamedRow{}); got != nil {
+		t.Fatalf("namedRowsToMaps(empty) = %#v, want nil", got)
 	}
 }
 
@@ -51,7 +53,7 @@ func TestNamedRowsToMapsEmptyIsNil(t *testing.T) {
 func TestNamedRowsToMapsMergeParity(t *testing.T) {
 	t.Parallel()
 
-	named := []NamedRow{
+	named := []contentartifacts.NamedRow{
 		{Path: "b.yaml", SourceRepo: "svc", RelativePath: "b.yaml", EvidenceKind: "ansible"},
 		{Path: "a.yaml", SourceRepo: "svc", RelativePath: "a.yaml", EvidenceKind: "ansible"},
 		{Path: "a.yaml", SourceRepo: "svc", RelativePath: "a.yaml", EvidenceKind: "ansible"},
@@ -61,9 +63,9 @@ func TestNamedRowsToMapsMergeParity(t *testing.T) {
 		{"path": "a.yaml", "source_repo": "svc", "relative_path": "a.yaml", "evidence_kind": "ansible"},
 		{"path": "a.yaml", "source_repo": "svc", "relative_path": "a.yaml", "evidence_kind": "ansible"},
 	}
-	viaConverter := MergeConfigPaths(NamedRowsToMaps(named))
-	direct := MergeConfigPaths(maps)
+	viaConverter := contentartifacts.MergeConfigPaths(namedRowsToMaps(named))
+	direct := contentartifacts.MergeConfigPaths(maps)
 	if !reflect.DeepEqual(viaConverter, direct) {
-		t.Fatalf("MergeConfigPaths(NamedRowsToMaps) = %#v, want %#v", viaConverter, direct)
+		t.Fatalf("MergeConfigPaths(namedRowsToMaps) = %#v, want %#v", viaConverter, direct)
 	}
 }
