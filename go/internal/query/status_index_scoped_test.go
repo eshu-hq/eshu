@@ -54,11 +54,12 @@ func (g *indexStatusRepoGraph) Run(_ context.Context, cypher string, params map[
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.calls = append(g.calls, indexStatusGraphCall{cypher: cypher, params: params})
-	if strings.Contains(cypher, "evidence_source") {
+	if strings.Contains(cypher, "AS src") {
 		// The double holds no per-repository evidence source: every held
 		// repository reads canonically evidenced, and the stub side
-		// zero-fills in the handler.
-		return []map[string]any{{"idx": true, "count": int64(len(g.repos))}}, nil
+		// zero-fills in the handler. Rows follow the source-grouped
+		// shape the production count-split statement returns (#8689).
+		return []map[string]any{{"src": "projector/canonical", "count": int64(len(g.repos))}}, nil
 	}
 	return nil, nil
 }

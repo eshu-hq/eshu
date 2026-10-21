@@ -11,24 +11,34 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
+// canonicalEvidenceSource is the Repository evidence_source value the
+// projector writes for indexed repositories. The by-state split compares
+// it in Go instead of in Cypher: the pinned NornicDB build folds an
+// inline `prop = 'literal'` comparison to null for every row (#8689), so
+// a Cypher-side boolean would report every repository as stub there.
+const canonicalEvidenceSource = "projector/canonical"
+
 // indexStatusRepositoryCountByStateCypher groups Repository nodes by
-// canonical evidence: indexed rows carry evidence_source
-// 'projector/canonical', every other row reads stub. It is the graph half
+// evidence source and counts each group. The caller maps the canonical
+// group to indexed and every other group to stub. It is the graph half
 // of the #7766 repository_count_by_state block; the tombstone half reads
-// Postgres.
+// Postgres. Grouping by the projected property (instead of a Cypher-side
+// boolean) keeps the comparison backend-neutral: both backends return
+// one row per distinct source with agreeing digests (#8689).
 const indexStatusRepositoryCountByStateCypher = `MATCH (r:Repository)
-WITH r.evidence_source = 'projector/canonical' AS idx
-RETURN idx, count(*) AS count`
+RETURN r.evidence_source AS src, count(*) AS count`
 
 // indexStatusRepositoryCountByState splits the deployment's repository
 // count into indexed versus stub from the graph evidence source. A nil
 // graph answers zeros without a read, the same historical contract the
 // repository_count path keeps for a driverless reader. Absent row keys
-// zero-fill: the backend returns at most one row per side.
+// zero-fill: a backend with no repositories returns no rows. Rows
+// accumulate, so several groups for one side add up instead of the last
+// overwriting the rest.
 func indexStatusRepositoryCountByState(ctx context.Context, graph GraphQuery) (map[string]any, error) {
-	counts := map[string]any{"indexed": 0, "stub": 0}
+	indexed, stub := 0, 0
 	if graph == nil {
-		return counts, nil
+		return map[string]any{"indexed": indexed, "stub": stub}, nil
 	}
 	rows, err := graph.Run(ctx, indexStatusRepositoryCountByStateCypher, nil)
 	if err != nil {
@@ -38,13 +48,13 @@ func indexStatusRepositoryCountByState(ctx context.Context, graph GraphQuery) (m
 		if row == nil {
 			return nil, fmt.Errorf("index status repository count by state: count query returned a nil row")
 		}
-		if BoolVal(row, "idx") {
-			counts["indexed"] = IntVal(row, "count")
+		if StringVal(row, "src") == canonicalEvidenceSource {
+			indexed += IntVal(row, "count")
 		} else {
-			counts["stub"] = IntVal(row, "count")
+			stub += IntVal(row, "count")
 		}
 	}
-	return counts, nil
+	return map[string]any{"indexed": indexed, "stub": stub}, nil
 }
 
 // indexRetirementSummaryToMap renders the tombstone aggregate as the
