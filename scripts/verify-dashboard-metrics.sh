@@ -59,7 +59,8 @@ dashboard_files_tmp="$(mktemp)"
 metrics_dashboard_tmp="$(mktemp)"
 instruments_metrics_tmp="$(mktemp)"
 validate_tmp="$(mktemp)"
-trap 'rm -f "${dashboard_files_tmp}" "${metrics_dashboard_tmp}" "${instruments_metrics_tmp}" "${validate_tmp}"' EXIT
+go_files_tmp="$(mktemp)"
+trap 'rm -f "${dashboard_files_tmp}" "${metrics_dashboard_tmp}" "${instruments_metrics_tmp}" "${validate_tmp}" "${go_files_tmp}"' EXIT
 
 if [ -n "${single_dashboard}" ]; then
   if [ ! -f "${single_dashboard}" ]; then
@@ -102,11 +103,22 @@ fi
 # telemetry package (instruments.go plus per-metric registration files).
 # PCRE2 mode (-P) is required so \s can match across newlines between the
 # constructor open paren and the metric name. Test files are excluded: their
-# literals are fixtures, not registrations.
-rg -UPo --no-filename '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
-  --replace '$1' -g '*.go' -g '!*_test.go' "${instruments_dir}" 2>/dev/null \
-  | rg '^eshu_dp_' \
-  | sort -u >"${instruments_metrics_tmp}" || true
+# literals are fixtures, not registrations. Full-line comments are stripped
+# per file before extraction so a constructor-shaped literal in a doc-comment
+# usage example does not count as a registration (false-green). Inline
+# trailing comments are NOT stripped: that needs a Go-aware strip, and no
+# such instance exists today.
+: >"${instruments_metrics_tmp}"
+rg --files -g '*.go' -g '!*_test.go' "${instruments_dir}" 2>/dev/null \
+  >"${go_files_tmp}" || true
+while IFS= read -r gf; do
+  [ -n "${gf}" ] || continue
+  rg -v '^\s*(//|\*|/\*)' "${gf}" 2>/dev/null \
+    | rg -UPo '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
+      --replace '$1' 2>/dev/null \
+    | rg '^eshu_dp_' >>"${instruments_metrics_tmp}" || true
+done <"${go_files_tmp}"
+sort -u -o "${instruments_metrics_tmp}" "${instruments_metrics_tmp}"
 
 if [ ! -s "${instruments_metrics_tmp}" ]; then
   printf 'verify-dashboard-metrics: no eshu_dp_* metrics found in %s\n' "${instruments_dir}" >&2

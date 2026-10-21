@@ -218,6 +218,22 @@ expect_fail "fails when only package prose names the dashboard metric" \
   "${case_prose}"
 
 # ---------------------------------------------------------------------------
+# Case 9: a constructor-pattern literal inside a .go full-line comment must
+# NOT count as registration. Doc comments with usage examples would
+# otherwise silently whitelist an orphan dashboard reference (false-green).
+# Inline trailing comments are out of scope: stripping them needs a fuller
+# Go-aware strip, tracked as a verifier limitation.
+# ---------------------------------------------------------------------------
+case_gocomment="$(init_fixture case-gocomment)"
+make_dashboard "${case_gocomment}/docs/dashboards" "gocomment.json" \
+  eshu_dp_comment_only_metric_total
+printf '%s\n' '' '// Usage example (not a registration):' \
+  '// _, _ = meter.Int64Counter("eshu_dp_comment_only_metric_total")' \
+  >>"${case_gocomment}/go/internal/telemetry/instruments.go"
+expect_fail "fails when only a .go comment names the dashboard metric" \
+  "${case_gocomment}"
+
+# ---------------------------------------------------------------------------
 # Results.
 # ---------------------------------------------------------------------------
 if [ "${FAIL}" -ne 0 ]; then
