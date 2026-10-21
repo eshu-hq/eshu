@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -22,7 +23,7 @@ import (
 // both delta path slices unconditionally once the snapshot is a delta, but
 // writes local_path only when repositoryidentity resolved one -- and it never
 // writes "path" at all. The reducer's delta-scope builders qualify every
-// relative path against that checkout path (semanticQualifyDeltaPath returns ""
+// relative path against that checkout path (payloadcore.QualifyDeltaPath returns ""
 // for an empty repoPath), so this fact yields hasDelta=true with NO qualified
 // path for its own repository.
 //
@@ -36,7 +37,7 @@ import (
 // pre-relativization delta.
 func deltaRepositoryFactWithoutCheckoutPath(repoID, scopeID string) facts.Envelope {
 	return facts.Envelope{
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		ScopeID:  scopeID,
 		Payload: map[string]any{
 			"graph_id":                     repoID,
@@ -64,7 +65,7 @@ func deltaRepositoryFactWithCheckoutPath(repoID, scopeID string) facts.Envelope 
 // repo-wide retract is the correct scope for it.
 func fullGenerationRepositoryFact(repoID, scopeID string) facts.Envelope {
 	return facts.Envelope{
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		ScopeID:  scopeID,
 		Payload: map[string]any{
 			"graph_id":      repoID,

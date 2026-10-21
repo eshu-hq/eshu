@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
 // workloadIdentityFactKind aliases the exported contract constant so the
@@ -22,7 +23,7 @@ const workloadIdentityFactKind = reducercontract.WorkloadIdentityFactKind
 // PostgresWorkloadIdentityWriter persists one workload-identity reducer
 // reconciliation into the shared fact store.
 type PostgresWorkloadIdentityWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -44,13 +45,13 @@ func (w PostgresWorkloadIdentityWriter) WriteWorkloadIdentity(
 
 	if _, err := w.DB.ExecContext(
 		ctx,
-		canonicalReducerFactInsertQuery,
+		factwrite.SingleInsertQuery,
 		write.IntentID,
 		write.ScopeID,
 		write.GenerationID,
 		workloadIdentityFactKind,
 		workloadIdentityStableFactKey(write),
-		reducerFactCollectorKind(write.SourceSystem),
+		factwrite.CollectorKind(write.SourceSystem),
 		facts.SourceConfidenceInferred,
 		write.SourceSystem,
 		write.IntentID,
@@ -76,7 +77,7 @@ func (w PostgresWorkloadIdentityWriter) WriteWorkloadIdentity(
 }
 
 func (w PostgresWorkloadIdentityWriter) now() time.Time {
-	return reducerWriterNow(w.Now)
+	return factwrite.Now(w.Now)
 }
 
 func workloadIdentityStableFactKey(write WorkloadIdentityWrite) string {

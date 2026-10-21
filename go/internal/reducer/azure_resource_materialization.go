@@ -14,7 +14,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -43,14 +46,14 @@ const azureResourceEvidenceSource = "reducer/azure-resources"
 // intent into canonical CloudResource node writes and publishes the
 // canonical-nodes readiness phase that Azure relationship projection gates on.
 type AzureResourceMaterializationHandler struct {
-	FactLoader     FactLoader
+	FactLoader     factload.FactLoader
 	NodeWriter     CloudResourceNodeWriter
 	PhasePublisher gpphase.PhasePublisher
 	PresenceWriter gpphase.EndpointPresenceWriter
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
 	// for a per-fact quarantined azure_cloud_resource decode failure. A nil
 	// Instruments only skips the counter increment; the quarantine and
-	// structured error log still happen via recordQuarantinedFacts.
+	// structured error log still happen via factdecode.RecordQuarantinedFacts.
 	Instruments *telemetry.Instruments
 	// NodeRetracter deletes predecessor-only uids under the globally-gated
 	// #6887 retract. Nil skips the retract so the domain stays safe to
@@ -75,7 +78,7 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, []string{cloud.AzureCloudResourceFactKind})
+	envelopes, err := factload.LoadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, []string{cloud.AzureCloudResourceFactKind})
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load facts for azure resource materialization: %w", err)
 	}
@@ -85,7 +88,7 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 	rows, quarantined, err := ExtractAzureCloudResourceNodeRows(envelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
-		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
 		return reducercontract.Result{}, err
 	}
@@ -95,7 +98,7 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 	// still materializes its node below and the canonical-nodes-committed phase
 	// still publishes, so one bad fact never stalls the scope generation's node
 	// substrate.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainAzureResourceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainAzureResourceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration
@@ -162,7 +165,7 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf("materialized %d canonical cloud resource node(s) from %d azure resource fact(s); %d dead node(s) retracted", len(rows), len(envelopes), retractedNodes),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -170,17 +173,17 @@ func (h AzureResourceMaterializationHandler) Handle(ctx context.Context, intent 
 // deterministic CloudResource rows keyed by normalized ARM identity. Facts
 // decode through the factschema.DecodeAzureCloudResource contracts seam; a
 // fact missing a required identity field (arm_resource_id, resource_type,
-// subscription_id, location) is routed through partitionDecodeFailures into
+// subscription_id, location) is routed through factdecode.PartitionDecodeFailures into
 // the returned quarantine list rather than silently entering the join index
 // under an empty-string identity segment. Any OTHER decode error (a transient
-// condition partitionDecodeFailures does not quarantine) is returned fatally
+// condition factdecode.PartitionDecodeFailures does not quarantine) is returned fatally
 // so the caller fails the whole intent.
-func ExtractAzureCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []quarantinedFact, error) {
+func ExtractAzureCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []factdecode.QuarantinedFact, error) {
 	if len(envelopes) == 0 {
 		return nil, nil, nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != cloud.AzureCloudResourceFactKind || env.IsTombstone {
@@ -188,7 +191,7 @@ func ExtractAzureCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string
 		}
 		row, uid, _, ok, err := azureCloudResourceNodeRow(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -234,7 +237,7 @@ func ExtractAzureCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string
 // discipline (~10% diagnostic band) would otherwise flag as an avoidable
 // regression on the relationship join-index build path.
 func azureCloudResourceNodeRow(env facts.Envelope) (row map[string]any, uid string, resourceID string, ok bool, err error) {
-	resource, err := decodeAzureCloudResource(env)
+	resource, err := schemadecode.DecodeAzureCloudResource(env)
 	if err != nil {
 		return nil, "", "", false, err
 	}

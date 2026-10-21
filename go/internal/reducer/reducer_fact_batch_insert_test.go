@@ -8,21 +8,23 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
 // TestReducerBatchInsertFactsChunksByBatchSize proves the insert is bounded:
-// rows are split into ceil(N/reducerFactBatchSize) statements, each carrying at
-// most reducerFactBatchSize rows. This is the property that keeps a single large
+// rows are split into ceil(N/factwrite.BatchSize) statements, each carrying at
+// most factwrite.BatchSize rows. This is the property that keeps a single large
 // scope from emitting a single statement with an unbounded parameter count
 // (Postgres caps bind parameters at 65535).
 func TestReducerBatchInsertFactsChunksByBatchSize(t *testing.T) {
 	t.Parallel()
 
-	const rowCount = reducerFactBatchSize*2 + 7
-	rows := make([]reducerFactRow, rowCount)
+	const rowCount = factwrite.BatchSize*2 + 7
+	rows := make([]factwrite.Row, rowCount)
 	now := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
 	for i := range rows {
-		rows[i] = reducerFactRow{
+		rows[i] = factwrite.Row{
 			FactID:           fmt.Sprintf("fact-%d", i),
 			ScopeID:          "scope",
 			GenerationID:     "gen",
@@ -39,8 +41,8 @@ func TestReducerBatchInsertFactsChunksByBatchSize(t *testing.T) {
 	}
 
 	db := &fakeWorkloadIdentityExecer{}
-	if err := reducerBatchInsertFacts(context.Background(), db, rows); err != nil {
-		t.Fatalf("reducerBatchInsertFacts() error = %v", err)
+	if err := factwrite.BatchInsertFacts(context.Background(), db, rows); err != nil {
+		t.Fatalf("factwrite.BatchInsertFacts() error = %v", err)
 	}
 
 	if got, want := len(db.execs), 3; got != want {
@@ -51,8 +53,8 @@ func TestReducerBatchInsertFactsChunksByBatchSize(t *testing.T) {
 		if !ok {
 			t.Fatalf("exec %d fact_id arg type = %T, want []string", i, call.args[0])
 		}
-		if len(factIDs) > reducerFactBatchSize {
-			t.Fatalf("exec %d carried %d rows, want <= %d", i, len(factIDs), reducerFactBatchSize)
+		if len(factIDs) > factwrite.BatchSize {
+			t.Fatalf("exec %d carried %d rows, want <= %d", i, len(factIDs), factwrite.BatchSize)
 		}
 	}
 
@@ -74,8 +76,8 @@ func TestReducerBatchInsertFactsEmptyIssuesNoStatements(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeWorkloadIdentityExecer{}
-	if err := reducerBatchInsertFacts(context.Background(), db, nil); err != nil {
-		t.Fatalf("reducerBatchInsertFacts() error = %v", err)
+	if err := factwrite.BatchInsertFacts(context.Background(), db, nil); err != nil {
+		t.Fatalf("factwrite.BatchInsertFacts() error = %v", err)
 	}
 	if got := len(db.execs); got != 0 {
 		t.Fatalf("ExecContext calls = %d, want 0 for empty rows", got)

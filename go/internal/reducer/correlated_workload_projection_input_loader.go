@@ -13,6 +13,7 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -103,7 +104,7 @@ func (workloadMaterializationResolutionNotReadyError) FailureClass() string {
 // CorrelatedWorkloadProjectionInputLoader reuses deployable-unit correlation
 // semantics as the authoritative gate for workload materialization inputs.
 type CorrelatedWorkloadProjectionInputLoader struct {
-	FactLoader     FactLoader
+	FactLoader     factload.FactLoader
 	ResolvedLoader ResolvedRelationshipLoader
 	ScopeResolver  DeploymentRepoScopeResolver
 	// ResolutionActiveLookup backs the resolution-readiness gate: the load
@@ -160,12 +161,12 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInpu
 		return WorkloadProjectionInputs{}, fmt.Errorf("correlated workload projection fact loader is required")
 	}
 
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		l.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{factKindRepository, factKindFile},
+		[]string{factload.FactKindRepository, factload.FactKindFile},
 	)
 	if err != nil {
 		return WorkloadProjectionInputs{}, fmt.Errorf("load facts for correlated workload projection: %w", err)

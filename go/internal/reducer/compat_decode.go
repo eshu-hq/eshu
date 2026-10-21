@@ -29,18 +29,8 @@ package reducer
 //     #6061; folded from shared_projection.go)
 
 import (
-	"context"
-	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
-	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
-	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Stanza: decode_seam_compat.go (merged; do not recreate this file).
@@ -54,143 +44,20 @@ import (
 // The four code-function/taint/interproc entries were removed when their last
 // caller (codedataflow_input_invalid_test.go) named schemadecode directly
 // (#6626 batch 6 bucket 3).
+// The 14 decode* aliases were retired once their last callers named [schemadecode] directly (#6626).
 
-var (
-	decodeAWSRelationship            = schemadecode.DecodeAWSRelationship
-	decodeAWSResource                = schemadecode.DecodeAWSResource
-	decodeAzureCloudRelationship     = schemadecode.DecodeAzureCloudRelationship
-	decodeAzureCloudResource         = schemadecode.DecodeAzureCloudResource
-	decodeCodegraphFile              = schemadecode.DecodeCodegraphFile
-	decodeDocumentationDocument      = schemadecode.DecodeDocumentationDocument
-	decodeDocumentationEntityMention = schemadecode.DecodeDocumentationEntityMention
-	decodeGCPCloudRelationship       = schemadecode.DecodeGCPCloudRelationship
-	decodeGCPCloudResource           = schemadecode.DecodeGCPCloudResource
-	decodeKubernetesLiveNamespace    = schemadecode.DecodeKubernetesLiveNamespace
-	decodeKubernetesLivePodTemplate  = schemadecode.DecodeKubernetesLivePodTemplate
-)
-
-// Stanza: quarantine_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the fact-decode and
 // quarantine mechanism that moved to [factdecode] (issue #6061). Reducer-root
 // call sites and the external packages that name the exported quarantine types
 // keep their current spelling; each entry is deleted once its last caller has
 // moved into a family subpackage.
-
-// QuarantinedFactRecord is the durable dead-letter row for one malformed fact.
-type QuarantinedFactRecord = factdecode.QuarantinedFactRecord
-
-// QuarantinedFactWriter persists quarantined facts, implemented by the Postgres
-// input-invalid fact store.
-type QuarantinedFactWriter = factdecode.QuarantinedFactWriter
-
-// quarantinedFact is the in-flight quarantine value produced by a decode
-// failure, before it is persisted as a QuarantinedFactRecord.
-type quarantinedFact = factdecode.QuarantinedFact
-
-// factDecodeError classifies a malformed payload as a terminal dead letter.
-type factDecodeError = factdecode.FactDecodeError
-
-// WithQuarantineWriter forwards to [factdecode.WithQuarantineWriter].
-func WithQuarantineWriter(ctx context.Context, writer QuarantinedFactWriter) context.Context {
-	return factdecode.WithQuarantineWriter(ctx, writer)
-}
-
-// newFactDecodeError forwards to [factdecode.NewFactDecodeError].
-func newFactDecodeError(factKind string, err error) *factDecodeError {
-	return factdecode.NewFactDecodeError(factKind, err)
-}
-
-// partitionDecodeFailures forwards to [factdecode.PartitionDecodeFailures].
-func partitionDecodeFailures(env facts.Envelope, err error) (quarantinedFact, bool, error) {
-	return factdecode.PartitionDecodeFailures(env, err)
-}
-
-// quarantinedAttributeShapeFact forwards to
-// [factdecode.QuarantinedAttributeShapeFact].
-func quarantinedAttributeShapeFact(env facts.Envelope, err error) quarantinedFact {
-	return factdecode.QuarantinedAttributeShapeFact(env, err)
-}
-
-// attributeShapeAsFactDecodeError forwards to
-// [factdecode.AttributeShapeAsFactDecodeError].
-func attributeShapeAsFactDecodeError(factKind string, err error) error {
-	return factdecode.AttributeShapeAsFactDecodeError(factKind, err)
-}
-
-// inputInvalidSubSignals forwards to [factdecode.InputInvalidSubSignals].
-func inputInvalidSubSignals(count int) map[string]float64 {
-	return factdecode.InputInvalidSubSignals(count)
-}
-
-// recordQuarantinedFacts forwards to [factdecode.RecordQuarantinedFacts].
-func recordQuarantinedFacts(
-	ctx context.Context,
-	instruments *telemetry.Instruments,
-	domain reducercontract.Domain,
-	scopeID, generationID string,
-	quarantined []quarantinedFact,
-) int {
-	return factdecode.RecordQuarantinedFacts(ctx, instruments, domain, scopeID, generationID, quarantined)
-}
+// The 11 quarantine aliases and forwarders were retired once their last callers named [factdecode] directly (#6626).
 
 // Stanza: reducer_fact_write_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the reducer fact
 // batch writers that moved to [factwrite] (issue #6061). Each entry is deleted
 // once its last reducer-root caller has moved into a family subpackage.
-
-// workloadIdentityExecer is the minimal ExecContext surface the batch writers
-// need.
-type workloadIdentityExecer = factwrite.Execer
-
-// reducerFactRow is one row of a reducer-owned fact batch insert.
-type reducerFactRow = factwrite.Row
-
-// reducerFactVersionedRow is one row of a versioned reducer fact batch insert.
-type reducerFactVersionedRow = factwrite.VersionedRow
-
-// Batch-insert statements and the chunk size the writers use.
-const (
-	reducerFactBatchInsertQuery = factwrite.BatchInsertQuery
-	reducerFactBatchSize        = factwrite.BatchSize
-
-	reducerFactBatchInsertVersionedQuery = factwrite.BatchInsertVersionedQuery
-
-	// canonicalReducerFactInsertQuery is the canonical single-row upsert every
-	// reducer-owned fact writer uses. See [factwrite.SingleInsertQuery].
-	canonicalReducerFactInsertQuery = factwrite.SingleInsertQuery
-)
-
-// reducerBatchInsertFacts forwards to [factwrite.BatchInsertFacts].
-func reducerBatchInsertFacts(ctx context.Context, db workloadIdentityExecer, rows []reducerFactRow) error {
-	return factwrite.BatchInsertFacts(ctx, db, rows)
-}
-
-// reducerBatchInsertVersionedFacts forwards to
-// [factwrite.BatchInsertVersionedFacts].
-func reducerBatchInsertVersionedFacts(
-	ctx context.Context,
-	db workloadIdentityExecer,
-	rows []reducerFactVersionedRow,
-) error {
-	return factwrite.BatchInsertVersionedFacts(ctx, db, rows)
-}
-
-// dedupeReducerFactRowsByFactID forwards to [factwrite.DedupeRowsByFactID]. It
-// stays generic: a function-valued variable cannot carry a type parameter, and
-// a func statement keeps the call inlinable.
-func dedupeReducerFactRowsByFactID[T any](rows []T, factID func(T) string) []T {
-	return factwrite.DedupeRowsByFactID(rows, factID)
-}
-
-// reducerWriterNow forwards to [factwrite.Now].
-func reducerWriterNow(now func() time.Time) time.Time {
-	return factwrite.Now(now)
-}
-
-// reducerFactCollectorKind forwards to [factwrite.CollectorKind].
-func reducerFactCollectorKind(sourceSystem string) string {
-	return factwrite.CollectorKind(sourceSystem)
-}
+// The 12 fact-writer aliases and forwarders were retired once their last callers named [factwrite] directly (#6626).
 
 // Stanza: scoped_fact_loader_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the scoped fact
@@ -201,27 +68,6 @@ func reducerFactCollectorKind(sourceSystem string) string {
 // FactLoader loads fact envelopes for one scope generation.
 type FactLoader = factload.FactLoader
 
-// Fact-kind names the scoped loader filters on.
-const (
-	factKindContentEntity       = factload.FactKindContentEntity
-	factKindFile                = factload.FactKindFile
-	factKindParsedFile          = factload.FactKindParsedFile
-	factKindRepository          = factload.FactKindRepository
-	factKindCodeownersOwnership = factload.FactKindCodeownersOwnership
-	factKindSubmodulePin        = factload.FactKindSubmodulePin
-)
-
-// loadFactsForKinds forwards to [factload.LoadFactsForKinds].
-func loadFactsForKinds(
-	ctx context.Context,
-	loader FactLoader,
-	scopeID string,
-	generationID string,
-	factKinds []string,
-) ([]facts.Envelope, error) {
-	return factload.LoadFactsForKinds(ctx, loader, scopeID, generationID, factKinds)
-}
-
 // Stanza: shared_payload_delta_compat.go (merged; do not recreate this file).
 // This file holds the payload/delta forwarders that used to live in the
 // semantic_entity_*.go files before the semantic_entity family moved to
@@ -231,36 +77,12 @@ func loadFactsForKinds(
 // code/semantic calls the shared-tier functions directly instead of
 // reaching back into root for these.
 
-// payloadMap forwards to [payloadcore.PayloadMap].
-func payloadMap(payload map[string]any, key string) map[string]any {
-	return payloadcore.PayloadMap(payload, key)
-}
-
-// semanticPayloadString forwards to [payloadcore.SemanticPayloadString].
-func semanticPayloadString(payload map[string]any, key string) string {
-	return payloadcore.SemanticPayloadString(payload, key)
-}
-
-// semanticPayloadStringSlice forwards to [payloadcore.SemanticPayloadStringSlice].
-func semanticPayloadStringSlice(payload map[string]any, key string) []string {
-	return payloadcore.SemanticPayloadStringSlice(payload, key)
-}
-
-// semanticQualifyDeltaPath forwards to [payloadcore.QualifyDeltaPath].
-func semanticQualifyDeltaPath(repoPath string, relativePath string) string {
-	return payloadcore.QualifyDeltaPath(repoPath, relativePath)
-}
-
-// semanticDeltaPayloadBool forwards to [payloadcore.DeltaPayloadBool].
-func semanticDeltaPayloadBool(payload map[string]any, key string) bool {
-	return payloadcore.DeltaPayloadBool(payload, key)
-}
-
 // deltaScopeRepositorySet, uniqueRepositoryIDs, applyRepoRefreshDeltaScope,
 // and sharedProjectionRowRepoID were retired once their last callers named
 // [sharedintent.DeltaScopeRepositorySet], [sharedintent.UniqueRepositoryIDs],
 // [sharedintent.ApplyRepoRefreshDeltaScope], and [sharedintent.RowRepoID]
 // directly (#6626 tail bucket 2).
+// The 5 payload/delta forwarders were retired once their last callers named [payloadcore] directly (#6626).
 
 // Stanza: decode_seam_compat2.go (merged; do not recreate this file).
 
@@ -275,12 +97,7 @@ func semanticDeltaPayloadBool(payload map[string]any, key string) bool {
 // schemadecode directly. The 9 vulnerability/scanner/package-consumption
 // entries were removed with the supplychain/core move: their only callers
 // were supply-chain files that now import schemadecode directly (#6061).
-
-var (
-	decodeReducerPackageOwnershipCorrelation   = schemadecode.DecodeReducerPackageOwnershipCorrelation
-	decodeReducerPackagePublicationCorrelation = schemadecode.DecodeReducerPackagePublicationCorrelation
-	decodeSubmodulePin                         = schemadecode.DecodeSubmodulePin
-)
+// The 3 remaining aliases were retired once their last callers named [schemadecode] directly (#6626).
 
 // Stanza: decode_seam_compat3.go (merged; do not recreate this file).
 
@@ -297,27 +114,7 @@ var (
 // wiring and the reducer root's factload_materialization_bench_test.go
 // corpus-coverage guard. Each entry is deleted once its last caller names
 // [owners] directly.
-
-// CodeownersOwnershipEdgeMaterializationHandler is the root spelling of
-// [owners.Handler].
-type CodeownersOwnershipEdgeMaterializationHandler = owners.Handler
-
-// codeownersMaterializationFactKinds is the root spelling of
-// [owners.MaterializationFactKinds]. The reducer root's
-// factload_materialization_bench_test.go corpus-coverage guard reads it.
-var codeownersMaterializationFactKinds = owners.MaterializationFactKinds()
-
-// loadCodeownersOwnershipMaterializationFacts forwards to
-// [owners.LoadMaterializationFacts]. The reducer root's
-// factload_materialization_bench_test.go benches it under this spelling.
-func loadCodeownersOwnershipMaterializationFacts(
-	ctx context.Context,
-	loader FactLoader,
-	scopeID string,
-	generationID string,
-) ([]facts.Envelope, error) {
-	return owners.LoadMaterializationFacts(ctx, loader, scopeID, generationID)
-}
+// The 3 codeowners entries were retired once their last callers named [owners] directly (#6626).
 
 // Stanza: cross_scope_readiness_compat.go (merged; do not recreate this
 // file). Relocated byte-identical from compat_projection.go (issue #6061
@@ -327,13 +124,8 @@ func loadCodeownersOwnershipMaterializationFacts(
 // last callers named [crossscope] directly (#6626 tail bucket 2);
 // CrossScopeDependency (a [reducercontract] alias, not a crossscope entry)
 // stays until its own callers move.
-
-// CrossScopeDependency declares that a consumer reducer domain reads canonical
-// facts a producer domain writes in a DIFFERENT ingestion scope. The consumer's
-// cross-scope active-fact load can run before the producer has committed its
-// latest output, so producer completion must schedule the canonical consumer
-// again.
-type CrossScopeDependency = reducercontract.CrossScopeDependency
+// CrossScopeDependency (a [reducercontract] alias, not a crossscope entry)
+// was retired once its own callers named [reducercontract] directly (#6626).
 
 // CrossScopeCompletionEdges, crossScopeDependenciesForRegistration,
 // CrossScopeProducerNotReadyFailureClass, crossScopeProducerNotReadyError,

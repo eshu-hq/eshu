@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 // TestExtractDocumentationEdgeRowsQuarantinesMissingDocumentID proves the
@@ -124,7 +125,7 @@ func TestExtractDocumentationEdgeRowsTrimsDocumentAndSectionIDs(t *testing.T) {
 // TestExtractDocumentationEdgeRowsUnsupportedMajorIsFatal proves the
 // classification behavior the decode-site comment documents: an unsupported
 // schema major is classified input_invalid by the contracts module
-// (decodeLatestMajor), but partitionDecodeFailures escalates the
+// (decodeLatestMajor), but factdecode.PartitionDecodeFailures escalates the
 // ErrUnsupportedSchemaMajor sentinel to a FATAL error (isQuarantine=false,
 // non-nil error) rather than a per-fact quarantine, because version skew must
 // fail the whole intent for durable triage (it can succeed once the reducer
@@ -268,7 +269,7 @@ func TestDocumentationMaterializationHandlerRecordsQuarantinedMentionInputInvali
 // documentation_document kind (Contract System v1 Wave 4e): a document fact
 // whose required document_id key is ABSENT is QUARANTINED as an
 // input_invalid dead-letter rather than the pre-typing behavior of silently
-// excluding it from delta scope (semanticPayloadString returning "" and the
+// excluding it from delta scope (payloadcore.SemanticPayloadString returning "" and the
 // `if documentID == "" { continue }` early-continue, with no operator signal
 // at all). A fully valid sibling document in the same batch must still
 // contribute to the delta scope.
@@ -281,7 +282,7 @@ func TestBuildDocumentationDeltaScopeWithQuarantineQuarantinesMissingDocumentID(
 	// unrelated repo-delta-path candidate-id synthesis (changedCandidateDocumentIDs)
 	// would otherwise mask a decode-quarantine regression in this assertion.
 	repoDelta := facts.Envelope{
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		Payload: map[string]any{
 			"repo_id":                      "repo-123",
 			"local_path":                   "/repo",

@@ -57,8 +57,8 @@ func TestLoadAgainstRealReducer(t *testing.T) {
 		t.Fatal("FactKindAWSResource not found in manifest")
 	}
 
-	if awsResource.DecodeFunc != "decodeAWSResource" {
-		t.Errorf("DecodeFunc = %q, want decodeAWSResource", awsResource.DecodeFunc)
+	if awsResource.DecodeFunc != "DecodeAWSResource" {
+		t.Errorf("DecodeFunc = %q, want DecodeAWSResource", awsResource.DecodeFunc)
 	}
 	if awsResource.StructType != "awsv1.Resource" {
 		t.Errorf("StructType = %q, want awsv1.Resource", awsResource.StructType)
@@ -361,8 +361,8 @@ func TestLoadCoversWiredAzureKinds(t *testing.T) {
 		structType string
 		usedFile   string
 	}{
-		"FactKindAzureCloudResource":     {"decodeAzureCloudResource", "azurev1.CloudResource", "azure_resource_materialization.go"},
-		"FactKindAzureCloudRelationship": {"decodeAzureCloudRelationship", "azurev1.CloudRelationship", "azure_relationship_join.go"},
+		"FactKindAzureCloudResource":     {"DecodeAzureCloudResource", "azurev1.CloudResource", "azure_resource_materialization.go"},
+		"FactKindAzureCloudRelationship": {"DecodeAzureCloudRelationship", "azurev1.CloudRelationship", "azure_relationship_join.go"},
 		"FactKindAzureImageReference":    {"DecodeAzureImageReference", "azurev1.ImageReference", "containerimage/container_image_identity_typed_evidence.go"},
 		"FactKindAzureTagObservation":    {"decodeAzureTagObservation", "azurev1.TagObservation", "cloud_tag_evidence.go"},
 	}

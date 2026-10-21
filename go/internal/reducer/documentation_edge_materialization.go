@@ -12,6 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -78,7 +80,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 		return reducercontract.Result{}, err
 	}
 	quarantined := append(deltaQuarantined, mentionQuarantined...)
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainDocumentationMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainDocumentationMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 
 	skipRetract, err := h.shouldSkipDocumentationRetract(ctx, intent)
 	if err != nil {
@@ -120,7 +122,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf("materialized %d canonical documentation edges", len(writeRows)),
 		CanonicalWrites: len(writeRows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -155,7 +157,7 @@ func (h DocumentationEdgeMaterializationHandler) shouldSkipDocumentationRetract(
 // exists solely to serve the pre-existing single-return table tests. Do NOT
 // wire this into a production path: because it drops the error, a fatal
 // decode failure (an unsupported schema major, escalated by
-// partitionDecodeFailures) would surface as silently truncated rows. A
+// factdecode.PartitionDecodeFailures) would surface as silently truncated rows. A
 // production consumer MUST call the WithQuarantine variant and handle its
 // error. TestExtractDocumentationEdgeRowsUnsupportedMajorIsFatal covers the
 // fatal path on the WithQuarantine function.
@@ -167,31 +169,31 @@ func ExtractDocumentationEdgeRows(envelopes []facts.Envelope, scopeID string) []
 // ExtractDocumentationEdgeRowsWithQuarantine is the typed-decode counterpart
 // of ExtractDocumentationEdgeRows (Contract System v1 Wave 4e): it decodes
 // each documentation_entity_mention envelope through the sdk/go/factschema
-// seam (decodeDocumentationEntityMention) instead of raw payloadStr/mapSlice
+// seam (schemadecode.DecodeDocumentationEntityMention) instead of raw payloadStr/mapSlice
 // map lookups. A mention fact missing its required document_id, section_id,
 // or resolution_status field is quarantined per-fact via
-// partitionDecodeFailures rather than the pre-typing behavior of silently
+// factdecode.PartitionDecodeFailures rather than the pre-typing behavior of silently
 // skipping the fact via the old `if targetID == "" || documentID == "" ||
 // sectionID == "" { continue }` check (a missing key and a present-but-empty
 // key were indistinguishable, and neither produced any operator signal).
 // Every valid mention in the same batch still projects. An unsupported schema
 // major is classified input_invalid by the contracts module (decodeLatestMajor
-// tags it ClassificationInputInvalid), but partitionDecodeFailures escalates
+// tags it ClassificationInputInvalid), but factdecode.PartitionDecodeFailures escalates
 // the ErrUnsupportedSchemaMajor sentinel to a FATAL error — isQuarantine=false,
 // non-nil error returned here — so version skew fails the whole intent for
 // durable triage rather than being quarantined per-fact and silently skipped
 // (it can succeed once the reducer supports the major).
-func ExtractDocumentationEdgeRowsWithQuarantine(envelopes []facts.Envelope, scopeID string) ([]map[string]any, []quarantinedFact, error) {
+func ExtractDocumentationEdgeRowsWithQuarantine(envelopes []facts.Envelope, scopeID string) ([]map[string]any, []factdecode.QuarantinedFact, error) {
 	rows := make([]map[string]any, 0)
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	seen := make(map[string]struct{})
 	for _, env := range envelopes {
 		if env.FactKind != docs.EntityMentionFactKind || env.IsTombstone {
 			continue
 		}
-		mention, err := decodeDocumentationEntityMention(env)
+		mention, err := schemadecode.DecodeDocumentationEntityMention(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}

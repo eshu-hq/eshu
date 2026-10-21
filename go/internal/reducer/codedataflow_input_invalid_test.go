@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
@@ -42,14 +43,14 @@ func TestDecodeCodeTaintEvidenceQuarantinesMissingFunctionUID(t *testing.T) {
 
 	_, err := schemadecode.DecodeCodeTaintEvidence(malformed)
 	if err == nil {
-		t.Fatalf("schemadecode.DecodeCodeTaintEvidence(missing function_uid) error = nil, want an input_invalid *factDecodeError")
+		t.Fatalf("schemadecode.DecodeCodeTaintEvidence(missing function_uid) error = nil, want an input_invalid *factdecode.FactDecodeError")
 	}
-	q, quarantinable, fatal := partitionDecodeFailures(malformed, err)
+	q, quarantinable, fatal := factdecode.PartitionDecodeFailures(malformed, err)
 	if !quarantinable {
-		t.Fatalf("partitionDecodeFailures classified the missing-function_uid decode error as fatal (%v), want a quarantinable input_invalid", fatal)
+		t.Fatalf("factdecode.PartitionDecodeFailures classified the missing-function_uid decode error as fatal (%v), want a quarantinable input_invalid", fatal)
 	}
 	if q.Field != "function_uid" || q.Classification != "input_invalid" {
-		t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {function_uid input_invalid}", q.Field, q.Classification)
+		t.Fatalf("factdecode.QuarantinedFact = {field:%q classification:%q}, want {function_uid input_invalid}", q.Field, q.Classification)
 	}
 
 	// A valid sibling fact in the same batch must still decode and be usable
@@ -110,14 +111,14 @@ func TestDecodeCodeInterprocEvidenceQuarantinesMissingEndpoint(t *testing.T) {
 		},
 	}
 	if _, err := schemadecode.DecodeCodeInterprocEvidence(missingSource); err == nil {
-		t.Fatalf("schemadecode.DecodeCodeInterprocEvidence(missing source_function_uid) error = nil, want an input_invalid *factDecodeError")
+		t.Fatalf("schemadecode.DecodeCodeInterprocEvidence(missing source_function_uid) error = nil, want an input_invalid *factdecode.FactDecodeError")
 	} else {
-		q, quarantinable, fatal := partitionDecodeFailures(missingSource, err)
+		q, quarantinable, fatal := factdecode.PartitionDecodeFailures(missingSource, err)
 		if !quarantinable {
-			t.Fatalf("partitionDecodeFailures classified the missing-source_function_uid decode error as fatal (%v), want a quarantinable input_invalid", fatal)
+			t.Fatalf("factdecode.PartitionDecodeFailures classified the missing-source_function_uid decode error as fatal (%v), want a quarantinable input_invalid", fatal)
 		}
 		if q.Field != "source_function_uid" || q.Classification != "input_invalid" {
-			t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {source_function_uid input_invalid}", q.Field, q.Classification)
+			t.Fatalf("factdecode.QuarantinedFact = {field:%q classification:%q}, want {source_function_uid input_invalid}", q.Field, q.Classification)
 		}
 	}
 
@@ -167,14 +168,14 @@ func TestDecodeCodeFunctionSummaryQuarantinesMissingFunctionID(t *testing.T) {
 		},
 	}
 	if _, err := schemadecode.DecodeCodeFunctionSummary(malformed); err == nil {
-		t.Fatalf("schemadecode.DecodeCodeFunctionSummary(missing function_id) error = nil, want an input_invalid *factDecodeError")
+		t.Fatalf("schemadecode.DecodeCodeFunctionSummary(missing function_id) error = nil, want an input_invalid *factdecode.FactDecodeError")
 	} else {
-		q, quarantinable, fatal := partitionDecodeFailures(malformed, err)
+		q, quarantinable, fatal := factdecode.PartitionDecodeFailures(malformed, err)
 		if !quarantinable {
-			t.Fatalf("partitionDecodeFailures classified the missing-function_id decode error as fatal (%v), want a quarantinable input_invalid", fatal)
+			t.Fatalf("factdecode.PartitionDecodeFailures classified the missing-function_id decode error as fatal (%v), want a quarantinable input_invalid", fatal)
 		}
 		if q.Field != "function_id" || q.Classification != "input_invalid" {
-			t.Fatalf("quarantinedFact = {field:%q classification:%q}, want {function_id input_invalid}", q.Field, q.Classification)
+			t.Fatalf("factdecode.QuarantinedFact = {field:%q classification:%q}, want {function_id input_invalid}", q.Field, q.Classification)
 		}
 	}
 
@@ -215,14 +216,14 @@ func TestDecodeCodeFunctionSourceQuarantinesMissingRequiredFields(t *testing.T) 
 		},
 	}
 	if _, err := schemadecode.DecodeCodeFunctionSource(missingKind); err == nil {
-		t.Fatalf("schemadecode.DecodeCodeFunctionSource(missing kind) error = nil, want an input_invalid *factDecodeError")
+		t.Fatalf("schemadecode.DecodeCodeFunctionSource(missing kind) error = nil, want an input_invalid *factdecode.FactDecodeError")
 	} else {
-		q, quarantinable, _ := partitionDecodeFailures(missingKind, err)
+		q, quarantinable, _ := factdecode.PartitionDecodeFailures(missingKind, err)
 		if !quarantinable {
-			t.Fatalf("partitionDecodeFailures did not classify the missing-kind decode error as quarantinable input_invalid")
+			t.Fatalf("factdecode.PartitionDecodeFailures did not classify the missing-kind decode error as quarantinable input_invalid")
 		}
 		if q.Field != "kind" {
-			t.Fatalf("quarantinedFact.Field = %q, want kind", q.Field)
+			t.Fatalf("factdecode.QuarantinedFact.Field = %q, want kind", q.Field)
 		}
 	}
 

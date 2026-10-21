@@ -11,6 +11,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -21,7 +24,7 @@ const submodulePinEvidenceSource = "reducer/submodule"
 // SubmodulePinEdgeMaterializationHandler projects
 // Repository-[:PINS_SUBMODULE]->Repository edges from directly-emitted
 // submodule.pin facts (issue #5420 Phase 3). It mirrors
-// CodeownersOwnershipEdgeMaterializationHandler: submodule.pin is a
+// owners.Handler: submodule.pin is a
 // direct-emitted fact (not a parser entity), so the reducer consumes it and
 // rides the shared-projection intent-queue path rather than the
 // canonical-projector entity path. Unlike codeowners' new CodeownerTeam
@@ -70,7 +73,7 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("extract submodule pin edge rows: %w", err)
 	}
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSubmodulePin, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainSubmodulePin, intent.ScopeID, intent.GenerationID, quarantined)
 
 	repositoryIDs := submodulePinRepositoryIDs(rows, deltaScope)
 
@@ -114,7 +117,7 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 		Status:          ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf("materialized %d canonical submodule pin edges", len(writeRows)),
 		CanonicalWrites: len(writeRows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -158,13 +161,13 @@ func submodulePinRepositoryIDs(rows []map[string]any, deltaScope submodulePinDel
 }
 
 // ExtractSubmodulePinEdgeRowsWithQuarantine decodes every submodule.pin
-// envelope through the sdk/go/factschema seam (decodeSubmodulePin) and builds
+// envelope through the sdk/go/factschema seam (schemadecode.DecodeSubmodulePin) and builds
 // one PINS_SUBMODULE edge row per fact whose submodule URL resolved to a
 // known repository (ResolvedRepoID non-empty). A fact missing a required
 // field (parent_repo_id, submodule_path) is quarantined per-fact via
-// partitionDecodeFailures rather than dropped silently; an unsupported schema
+// factdecode.PartitionDecodeFailures rather than dropped silently; an unsupported schema
 // major is escalated to a fatal error for durable triage (see
-// partitionDecodeFailures).
+// factdecode.PartitionDecodeFailures).
 //
 // A fact whose URL never resolved to a known repository (ResolvedRepoID nil)
 // projects no edge: the parent-repository half of the join is always known,
@@ -183,17 +186,17 @@ func submodulePinRepositoryIDs(rows []map[string]any, deltaScope submodulePinDel
 func ExtractSubmodulePinEdgeRowsWithQuarantine(
 	envelopes []facts.Envelope,
 	generationID string,
-) ([]map[string]any, []quarantinedFact, error) {
+) ([]map[string]any, []factdecode.QuarantinedFact, error) {
 	rows := make([]map[string]any, 0)
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	rowIndexByKey := make(map[string]int)
 	for _, env := range envelopes {
-		if env.FactKind != factKindSubmodulePin || env.IsTombstone {
+		if env.FactKind != factload.FactKindSubmodulePin || env.IsTombstone {
 			continue
 		}
-		pin, err := decodeSubmodulePin(env)
+		pin, err := schemadecode.DecodeSubmodulePin(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}

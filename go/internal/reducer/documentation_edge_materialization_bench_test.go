@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 // benchDocumentationMentionEnvelopes returns n synthetic
@@ -71,7 +72,7 @@ func benchDocumentationDeltaEnvelopes(n int) []facts.Envelope {
 	}
 	envelopes := make([]facts.Envelope, 0, n+1)
 	envelopes = append(envelopes, facts.Envelope{
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		Payload: map[string]any{
 			"repo_id":                      "bench-repo",
 			"local_path":                   "/repo",

@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 )
 
 func TestReducerInputInvalidFactSchemaSQL(t *testing.T) {
@@ -69,9 +69,9 @@ func TestReducerInputInvalidFactStoreWriteBatchesAndUsesConflictDoNothing(t *tes
 
 	// One row over the batch size forces two statements, proving the batching
 	// loop actually splits work rather than building one unbounded statement.
-	records := make([]reducer.QuarantinedFactRecord, reducerInputInvalidFactBatchSize+1)
+	records := make([]factdecode.QuarantinedFactRecord, reducerInputInvalidFactBatchSize+1)
 	for i := range records {
-		records[i] = reducer.QuarantinedFactRecord{
+		records[i] = factdecode.QuarantinedFactRecord{
 			FactID:       fmt.Sprintf("fact-%d", i),
 			FactKind:     "aws_resource",
 			MissingField: "account_id",

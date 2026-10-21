@@ -6,9 +6,11 @@ package reducer
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
-// decodedBatchedFactRow is one row recovered from a reducerFactBatchInsertQuery
+// decodedBatchedFactRow is one row recovered from a factwrite.BatchInsertQuery
 // ExecContext call. Tests assert on the decoded rows so a batched writer can be
 // checked the same way a per-row writer was: by fact_id, fact_kind, payload, etc.
 type decodedBatchedFactRow struct {
@@ -32,13 +34,13 @@ type decodedBatchedFactRow struct {
 
 // decodeBatchedFactCalls flattens every batched ExecContext call recorded by a
 // fakeWorkloadIdentityExecer into the per-row records they encode. It asserts
-// each call used reducerFactBatchInsertQuery so a regression to per-row inserts
-// (which use canonicalReducerFactInsertQuery) fails loudly here.
+// each call used factwrite.BatchInsertQuery so a regression to per-row inserts
+// (which use factwrite.SingleInsertQuery) fails loudly here.
 func decodeBatchedFactCalls(t *testing.T, calls []fakeWorkloadIdentityExecCall) []decodedBatchedFactRow {
 	t.Helper()
 	var rows []decodedBatchedFactRow
 	for callIndex, call := range calls {
-		if call.query != reducerFactBatchInsertQuery {
+		if call.query != factwrite.BatchInsertQuery {
 			t.Fatalf("exec %d query = %q, want batched fact insert", callIndex, call.query)
 		}
 		rows = append(rows, decodeBatchedFactCall(t, call)...)
@@ -96,7 +98,7 @@ func decodeBatchedFactCall(t *testing.T, call fakeWorkloadIdentityExecCall) []de
 }
 
 // decodedBatchedVersionedFactRow is one row recovered from a
-// reducerFactBatchInsertVersionedQuery ExecContext call. It mirrors
+// factwrite.BatchInsertVersionedQuery ExecContext call. It mirrors
 // decodedBatchedFactRow with an added SchemaVersion field, plus FencingToken
 // (#5848) now that the versioned insert carries it too.
 type decodedBatchedVersionedFactRow struct {
@@ -121,13 +123,13 @@ type decodedBatchedVersionedFactRow struct {
 
 // decodeBatchedVersionedFactCalls flattens every batched ExecContext call
 // recorded by a fakeWorkloadIdentityExecer into the per-row records they
-// encode. It asserts each call used reducerFactBatchInsertVersionedQuery so a
+// encode. It asserts each call used factwrite.BatchInsertVersionedQuery so a
 // regression to a per-row versioned insert fails loudly here.
 func decodeBatchedVersionedFactCalls(t *testing.T, calls []fakeWorkloadIdentityExecCall) []decodedBatchedVersionedFactRow {
 	t.Helper()
 	var rows []decodedBatchedVersionedFactRow
 	for callIndex, call := range calls {
-		if call.query != reducerFactBatchInsertVersionedQuery {
+		if call.query != factwrite.BatchInsertVersionedQuery {
 			t.Fatalf("exec %d query = %q, want batched versioned fact insert", callIndex, call.query)
 		}
 		rows = append(rows, decodeBatchedVersionedFactCall(t, call)...)

@@ -13,7 +13,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 )
 
 // TestReducerInputInvalidFactStoreLive is the real-Postgres proof for issue
@@ -89,7 +89,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 	}
 
 	store := NewReducerInputInvalidFactStore(db)
-	records := []reducer.QuarantinedFactRecord{
+	records := []factdecode.QuarantinedFactRecord{
 		{
 			FactID: "fact-" + suffix + "-1", FactKind: "aws_resource", MissingField: "account_id",
 			FailureClass: "input_invalid", Domain: "aws_resource_materialization",
@@ -119,7 +119,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 
 	// Idempotent replay: the exact same batch again (decided_at advanced, as a
 	// real retry's timestamp would be) must not duplicate rows or error.
-	replay := make([]reducer.QuarantinedFactRecord, len(records))
+	replay := make([]factdecode.QuarantinedFactRecord, len(records))
 	copy(replay, records)
 	for i := range replay {
 		replay[i].DecidedAt = now.Add(time.Minute)
@@ -143,7 +143,7 @@ func TestReducerInputInvalidFactStoreLive(t *testing.T) {
 	// codex P2 finding on PR #5252: without domain in the natural key/ON
 	// CONFLICT target, the second domain's insert would be a no-op and a
 	// domain-filtered read for the second domain would falsely return empty.
-	secondDomainRecords := []reducer.QuarantinedFactRecord{
+	secondDomainRecords := []factdecode.QuarantinedFactRecord{
 		{
 			FactID: records[0].FactID, FactKind: records[0].FactKind, MissingField: records[0].MissingField,
 			FailureClass: "input_invalid", Domain: "aws_relationship_join",

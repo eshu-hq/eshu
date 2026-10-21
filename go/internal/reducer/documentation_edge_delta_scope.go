@@ -11,6 +11,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	documentationv1 "github.com/eshu-hq/eshu/sdk/go/factschema/documentation/v1"
 )
@@ -25,7 +29,7 @@ type documentationDeltaScope struct {
 // loadDocumentationMaterializationFacts requests; the bench corpus guard in
 // factload_materialization_bench_test.go reads the same slice.
 var documentationMaterializationFactKinds = []string{
-	factKindRepository,
+	factload.FactKindRepository,
 	docs.DocumentFactKind,
 	docs.EntityMentionFactKind,
 }
@@ -36,7 +40,7 @@ func loadDocumentationMaterializationFacts(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	return loadFactsForKinds(
+	return factload.LoadFactsForKinds(
 		ctx,
 		loader,
 		scopeID,
@@ -58,7 +62,7 @@ func loadDocumentationMaterializationFacts(
 // calls buildDocumentationDeltaScopeWithQuarantine directly so it can
 // propagate a fatal decode error and record quarantines. Do NOT wire this
 // into a production path: it drops the error, so a fatal decode failure (an
-// unsupported schema major, escalated by partitionDecodeFailures) would
+// unsupported schema major, escalated by factdecode.PartitionDecodeFailures) would
 // surface as a silently empty delta scope. A production consumer MUST call
 // the WithQuarantine variant and handle its error.
 func buildDocumentationDeltaScope(envelopes []facts.Envelope, scopeID string) documentationDeltaScope {
@@ -69,23 +73,23 @@ func buildDocumentationDeltaScope(envelopes []facts.Envelope, scopeID string) do
 // buildDocumentationDeltaScopeWithQuarantine is the typed-decode counterpart
 // of buildDocumentationDeltaScope (Contract System v1 Wave 4e): it decodes
 // each documentation_document envelope through the sdk/go/factschema seam
-// (decodeDocumentationDocument) instead of raw semanticPayloadString map
+// (schemadecode.DecodeDocumentationDocument) instead of raw payloadcore.SemanticPayloadString map
 // lookups. A document fact missing its required document_id field is
-// quarantined per-fact via partitionDecodeFailures rather than the
+// quarantined per-fact via factdecode.PartitionDecodeFailures rather than the
 // pre-typing behavior of silently excluding it from delta tracking via the
 // `if documentID == "" { continue }` check (a missing key and a
 // present-but-empty key were indistinguishable, and neither produced any
 // operator signal). An unsupported schema major is classified input_invalid
-// by the contracts module (decodeLatestMajor), but partitionDecodeFailures
+// by the contracts module (decodeLatestMajor), but factdecode.PartitionDecodeFailures
 // escalates the ErrUnsupportedSchemaMajor sentinel to a FATAL error, so
 // version skew fails the whole intent for durable triage rather than being
 // quarantined per-fact and silently skipped.
 func buildDocumentationDeltaScopeWithQuarantine(
 	envelopes []facts.Envelope,
 	scopeID string,
-) (documentationDeltaScope, []quarantinedFact, error) {
+) (documentationDeltaScope, []factdecode.QuarantinedFact, error) {
 	scope := documentationDeltaScope{}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	changedPathsByRepoID := make(map[string]map[string]struct{})
 	deletedPathsByRepoID := make(map[string]map[string]struct{})
 	changedCandidateDocumentIDs := make(map[string]struct{})
@@ -105,12 +109,12 @@ func buildDocumentationDeltaScopeWithQuarantine(
 	}
 
 	for _, env := range envelopes {
-		if env.FactKind != factKindRepository || !semanticDeltaPayloadBool(env.Payload, "delta_generation") {
+		if env.FactKind != factload.FactKindRepository || !payloadcore.DeltaPayloadBool(env.Payload, "delta_generation") {
 			continue
 		}
-		repositoryID := semanticPayloadString(env.Payload, "repo_id")
+		repositoryID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
 		if repositoryID == "" {
-			repositoryID = semanticPayloadString(env.Payload, "graph_id")
+			repositoryID = payloadcore.SemanticPayloadString(env.Payload, "graph_id")
 		}
 		if repositoryID == "" {
 			continue
@@ -141,9 +145,9 @@ func buildDocumentationDeltaScopeWithQuarantine(
 		if env.FactKind != docs.DocumentFactKind || env.IsTombstone {
 			continue
 		}
-		document, err := decodeDocumentationDocument(env)
+		document, err := schemadecode.DecodeDocumentationDocument(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return documentationDeltaScope{}, nil, fatal
 			}
@@ -153,7 +157,7 @@ func buildDocumentationDeltaScopeWithQuarantine(
 			continue
 		}
 		// Trim document_id exactly where the pre-typing raw path did:
-		// semanticPayloadString returned strings.TrimSpace(str)
+		// payloadcore.SemanticPayloadString returned strings.TrimSpace(str)
 		// (the shared-payload-delta stanza of compat_decode.go), so a
 		// surrounding-whitespace document_id was trimmed before the empty
 		// check and before it flowed into the changedDocumentIDs map keys and
@@ -224,7 +228,7 @@ func documentSourceMetadataString(document documentationv1.Document, key string)
 func documentationDeltaRelativePaths(payload map[string]any, key string) []string {
 	seen := make(map[string]struct{})
 	var paths []string
-	for _, relativePath := range semanticPayloadStringSlice(payload, key) {
+	for _, relativePath := range payloadcore.SemanticPayloadStringSlice(payload, key) {
 		if _, ok := seen[relativePath]; ok {
 			continue
 		}

@@ -33,7 +33,7 @@ func TestDomainDefinitionValidatesCrossScopeDependencies(t *testing.T) {
 		t.Fatalf("borrowed base definition %q is not valid: %v", base.Domain, err)
 	}
 
-	base.CrossScopeDependencies = []CrossScopeDependency{{}}
+	base.CrossScopeDependencies = []reducercontract.CrossScopeDependency{{}}
 	if err := base.Validate(); err == nil {
 		t.Fatal("definition with an empty cross-scope dependency must be rejected")
 	}

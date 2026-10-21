@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 )
 
 const (
@@ -66,10 +66,10 @@ ON CONFLICT (scope_id, generation_id, fact_id, missing_field, domain) DO NOTHING
 `
 
 // ReducerInputInvalidFactStore persists durable reducer_input_invalid_facts
-// rows and implements reducer.QuarantinedFactWriter directly (mirroring
+// rows and implements factdecode.QuarantinedFactWriter directly (mirroring
 // GraphProjectionPhaseStateStore's direct implementation of
 // gpphase.PhasePublisher): the reducer package's DTOs
-// (reducer.QuarantinedFactRecord) are used as-is, with no separate cmd/reducer
+// (factdecode.QuarantinedFactRecord) are used as-is, with no separate cmd/reducer
 // adapter required.
 type ReducerInputInvalidFactStore struct {
 	database db.ExecQueryer
@@ -92,14 +92,14 @@ func (s *ReducerInputInvalidFactStore) EnsureSchema(ctx context.Context) error {
 	return err
 }
 
-// WriteQuarantinedFacts implements reducer.QuarantinedFactWriter. It writes
+// WriteQuarantinedFacts implements factdecode.QuarantinedFactWriter. It writes
 // records in bounded batches, each batch one INSERT statement (one round trip
 // per up-to-reducerInputInvalidFactBatchSize rows), with ON CONFLICT DO
 // NOTHING on the natural key so replaying the same quarantine is a no-op
 // rather than a duplicate row or an error.
 func (s *ReducerInputInvalidFactStore) WriteQuarantinedFacts(
 	ctx context.Context,
-	records []reducer.QuarantinedFactRecord,
+	records []factdecode.QuarantinedFactRecord,
 ) error {
 	if len(records) == 0 {
 		return nil
@@ -119,7 +119,7 @@ func (s *ReducerInputInvalidFactStore) WriteQuarantinedFacts(
 func insertReducerInputInvalidFactBatch(
 	ctx context.Context,
 	database db.ExecQueryer,
-	batch []reducer.QuarantinedFactRecord,
+	batch []factdecode.QuarantinedFactRecord,
 ) error {
 	if len(batch) == 0 {
 		return nil

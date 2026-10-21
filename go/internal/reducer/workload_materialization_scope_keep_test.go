@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
@@ -53,7 +54,7 @@ func scopeKeepIDs() (string, string) {
 func scopeKeepFacts(withWorkload bool) []facts.Envelope {
 	now := time.Now().UTC()
 	envelopes := []facts.Envelope{{
-		FactID: "fact-repo", ScopeID: scopeKeepScopeID, FactKind: factKindRepository, ObservedAt: now,
+		FactID: "fact-repo", ScopeID: scopeKeepScopeID, FactKind: factload.FactKindRepository, ObservedAt: now,
 		Payload: map[string]any{"graph_id": scopeKeepRepoID, "name": scopeKeepRepoName},
 	}}
 	if !withWorkload {
@@ -61,7 +62,7 @@ func scopeKeepFacts(withWorkload bool) []facts.Envelope {
 	}
 	return append(envelopes,
 		facts.Envelope{
-			FactID: "fact-application", ScopeID: scopeKeepScopeID, FactKind: factKindFile, ObservedAt: now,
+			FactID: "fact-application", ScopeID: scopeKeepScopeID, FactKind: factload.FactKindFile, ObservedAt: now,
 			Payload: map[string]any{
 				"repo_id": scopeKeepRepoID, "relative_path": "deploy/application.yaml",
 				"artifact_type": "argocd", "language": "yaml",
@@ -71,7 +72,7 @@ func scopeKeepFacts(withWorkload bool) []facts.Envelope {
 			},
 		},
 		facts.Envelope{
-			FactID: "fact-openapi", ScopeID: scopeKeepScopeID, FactKind: factKindFile, ObservedAt: now,
+			FactID: "fact-openapi", ScopeID: scopeKeepScopeID, FactKind: factload.FactKindFile, ObservedAt: now,
 			Payload: map[string]any{
 				"repo_id": scopeKeepRepoID, "relative_path": "specs/openapi.yaml",
 				"parsed_file_data": map[string]any{"source": "openapi: 3.1.0\ninfo:\n  version: v1\n" +

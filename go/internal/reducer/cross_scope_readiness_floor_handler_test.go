@@ -71,7 +71,7 @@ func (r *fixedCrossScopeReadiness) CrossScopeProducersReady(
 // #6061), so each keeps its own copy of the trivial fixtures below.
 const testCICDDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 
-// stubCICDRunCorrelationFactLoader implements the base FactLoader, the by-kind
+// stubCICDRunCorrelationFactLoader implements the base factload.FactLoader, the by-kind
 // load, and the cross-scope active-identity load cicdrun.CICDRunCorrelationHandler.Handle
 // needs, so this file can drive Handle end to end without a real store.
 type stubCICDRunCorrelationFactLoader struct {
@@ -147,7 +147,7 @@ func cicdDecisionsByRun(decisions []cicdrun.CICDRunCorrelationDecision) map[stri
 	return out
 }
 
-// scopeOnlyCICDRunFactLoader implements the base FactLoader and the by-kind
+// scopeOnlyCICDRunFactLoader implements the base factload.FactLoader and the by-kind
 // load the handler needs, but NOT activeCICDRunCorrelationFactLoader. It stands
 // in for a deployment or an alternative adapter with no cross-scope identity
 // seam at all.
@@ -338,7 +338,7 @@ func TestCICDRunCorrelationDoesNotDeferARunWithNoImageArtifacts(t *testing.T) {
 }
 
 // TestCICDRunCorrelationDoesNotDeferWithoutTheCrossScopeLoaderSeam is the
-// #5709 P2-5 guard. A FactLoader that does not implement the cross-scope seam
+// #5709 P2-5 guard. A factload.FactLoader that does not implement the cross-scope seam
 // returns no envelopes without querying anything, so the empty result is a
 // missing capability, not a producer that has not activated.
 func TestCICDRunCorrelationDoesNotDeferWithoutTheCrossScopeLoaderSeam(t *testing.T) {

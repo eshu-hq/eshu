@@ -11,11 +11,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/refresh"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -71,7 +73,7 @@ func codeownersOwnershipReplayEnvelope(repoID, sourcePath, pattern string, owner
 		panic(err)
 	}
 	return facts.Envelope{
-		FactKind: factKindCodeownersOwnership,
+		FactKind: factload.FactKindCodeownersOwnership,
 		Payload:  payload,
 	}
 }
@@ -442,7 +444,7 @@ func codeownersOwnershipReplayCase() idempotencyReplayCase {
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
 			writer := &replayRecordingCodeownersOwnershipEdgeWriter{}
-			handler := CodeownersOwnershipEdgeMaterializationHandler{
+			handler := owners.Handler{
 				FactLoader: &stubFactLoader{envelopes: fencedFacts(codeownersOwnershipReplayFacts())},
 				EdgeWriter: writer,
 				PriorGenerationCheck: func(context.Context, string, string) (bool, error) {

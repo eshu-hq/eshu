@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
 // relationshipTypeEC2InstanceUsesAMI is the one AWS relationship whose SOURCE
@@ -76,7 +77,7 @@ func (awsRelationshipEC2InstanceNodesNotReadyError) FailureClass() string {
 // types are actually present.
 func batchNeedsEC2InstanceNodes(relationshipEnvelopes []facts.Envelope) bool {
 	for _, env := range relationshipEnvelopes {
-		resource, err := decodeAWSRelationship(env)
+		resource, err := schemadecode.DecodeAWSRelationship(env)
 		if err != nil {
 			// A payload this handler cannot decode is dead-lettered downstream
 			// by the ordinary extract path. Do not gate on it here: refusing to

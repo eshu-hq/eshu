@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 // TestCodeTaintEvidenceReplayIsIdempotent proves that decoding and extracting
@@ -121,7 +122,7 @@ func TestCodeInterprocEvidenceReplayIsIdempotent(t *testing.T) {
 }
 
 // TestExtractShellExecRowsReplayIsIdempotent proves the shell-exec identity
-// conversion (decodeCodegraphRepository/decodeCodegraphFile) produces
+// conversion (decodeCodegraphRepository/schemadecode.DecodeCodegraphFile) produces
 // byte-identical rows across repeated extraction of the same envelope batch,
 // the same replay-safety contract the taint/interproc tests above establish.
 func TestExtractShellExecRowsReplayIsIdempotent(t *testing.T) {
@@ -130,12 +131,12 @@ func TestExtractShellExecRowsReplayIsIdempotent(t *testing.T) {
 	envelopes := []facts.Envelope{
 		{
 			FactID:   "repo-shell",
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			Payload:  map[string]any{"repo_id": "repo-shell"},
 		},
 		{
 			FactID:   "file-shell",
-			FactKind: factKindFile,
+			FactKind: factload.FactKindFile,
 			Payload: map[string]any{
 				"repo_id":       "repo-shell",
 				"relative_path": "cmd/tool/main.go",

@@ -372,7 +372,7 @@
 // active generation returns Unavailable so callers never read zero deltas as
 // confident truth.
 // ReducerInputInvalidFactStore persists durable reducer_input_invalid_facts
-// rows (issue #4630) and implements reducer.QuarantinedFactWriter directly,
+// rows (issue #4630) and implements factdecode.QuarantinedFactWriter directly,
 // mirroring GraphProjectionPhaseStateStore's direct implementation of
 // gpphase.PhasePublisher. WriteQuarantinedFacts batches records
 // into bounded multi-row INSERT statements with an ON CONFLICT (scope_id,

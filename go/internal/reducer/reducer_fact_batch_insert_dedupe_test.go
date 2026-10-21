@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
 // TestDedupeReducerFactRowsByFactIDKeepsLastOccurrence proves the dedupe that
@@ -16,12 +18,12 @@ import (
 func TestDedupeReducerFactRowsByFactIDKeepsLastOccurrence(t *testing.T) {
 	t.Parallel()
 
-	rows := []reducerFactRow{
+	rows := []factwrite.Row{
 		{FactID: "X", Payload: "v0"},
 		{FactID: "Y", Payload: "y"},
 		{FactID: "X", Payload: "v2"}, // later duplicate of X wins
 	}
-	got := dedupeReducerFactRowsByFactID(rows, func(r reducerFactRow) string { return r.FactID })
+	got := factwrite.DedupeRowsByFactID(rows, func(r factwrite.Row) string { return r.FactID })
 	if len(got) != 2 {
 		t.Fatalf("deduped len = %d, want 2 (one row per fact_id)", len(got))
 	}
@@ -34,8 +36,8 @@ func TestDedupeReducerFactRowsByFactIDKeepsLastOccurrence(t *testing.T) {
 	}
 
 	// No-duplicate slice passes through unchanged (same backing array).
-	unique := []reducerFactRow{{FactID: "A"}, {FactID: "B"}}
-	if out := dedupeReducerFactRowsByFactID(unique, func(r reducerFactRow) string { return r.FactID }); len(out) != 2 {
+	unique := []factwrite.Row{{FactID: "A"}, {FactID: "B"}}
+	if out := factwrite.DedupeRowsByFactID(unique, func(r factwrite.Row) string { return r.FactID }); len(out) != 2 {
 		t.Fatalf("unique passthrough len = %d, want 2", len(out))
 	}
 }
@@ -49,14 +51,14 @@ func TestReducerBatchInsertFactsDedupesDuplicateFactID(t *testing.T) {
 	t.Parallel()
 
 	now := time.Unix(1_700_000_000, 0).UTC()
-	rows := []reducerFactRow{
+	rows := []factwrite.Row{
 		{FactID: "dup", FactKind: "k", StableFactKey: "sk1", Payload: `{"v":0}`, ObservedAt: now, IngestedAt: now},
 		{FactID: "other", FactKind: "k", StableFactKey: "sk2", Payload: `{"v":9}`, ObservedAt: now, IngestedAt: now},
 		{FactID: "dup", FactKind: "k", StableFactKey: "sk3", Payload: `{"v":2}`, ObservedAt: now, IngestedAt: now},
 	}
 	exec := &fakeWorkloadIdentityExecer{}
-	if err := reducerBatchInsertFacts(context.Background(), exec, rows); err != nil {
-		t.Fatalf("reducerBatchInsertFacts error = %v", err)
+	if err := factwrite.BatchInsertFacts(context.Background(), exec, rows); err != nil {
+		t.Fatalf("factwrite.BatchInsertFacts error = %v", err)
 	}
 	decoded := decodeBatchedFactCalls(t, exec.execs)
 	if len(decoded) != 2 {
@@ -87,13 +89,13 @@ func TestReducerBatchInsertVersionedFactsDedupesDuplicateFactID(t *testing.T) {
 	t.Parallel()
 
 	now := time.Unix(1_700_000_000, 0).UTC()
-	rows := []reducerFactVersionedRow{
+	rows := []factwrite.VersionedRow{
 		{FactID: "dup", FactKind: "k", StableFactKey: "sk1", SchemaVersion: "1.0.0", Payload: `{"v":0}`, ObservedAt: now, IngestedAt: now},
 		{FactID: "dup", FactKind: "k", StableFactKey: "sk2", SchemaVersion: "1.0.0", Payload: `{"v":1}`, ObservedAt: now, IngestedAt: now},
 	}
 	exec := &fakeWorkloadIdentityExecer{}
-	if err := reducerBatchInsertVersionedFacts(context.Background(), exec, rows); err != nil {
-		t.Fatalf("reducerBatchInsertVersionedFacts error = %v", err)
+	if err := factwrite.BatchInsertVersionedFacts(context.Background(), exec, rows); err != nil {
+		t.Fatalf("factwrite.BatchInsertVersionedFacts error = %v", err)
 	}
 	decoded := decodeBatchedVersionedFactCalls(t, exec.execs)
 	if len(decoded) != 1 {

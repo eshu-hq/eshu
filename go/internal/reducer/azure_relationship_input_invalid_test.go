@@ -30,7 +30,7 @@ import (
 // After the migration ExtractAzureCloudResourceNodeRows decodes each
 // azure_cloud_resource fact through factschema.DecodeAzureCloudResource; the
 // malformed fact yields a classified *factschema.DecodeError that
-// partitionDecodeFailures routes to a per-fact quarantine. The row extractor
+// factdecode.PartitionDecodeFailures routes to a per-fact quarantine. The row extractor
 // skips the malformed fact and continues, so the batch's valid resource still
 // materializes and no row references an empty-resource_type uid.
 func TestAzureRelationshipMaterializationQuarantinesMissingResourceType(t *testing.T) {

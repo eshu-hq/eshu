@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -308,7 +309,7 @@ func deployableUnitRetractRowsFromFacts(
 ) []sharedintent.Row {
 	var rows []sharedintent.Row
 	for _, envelope := range envelopes {
-		if envelope.FactKind != factKindRepository {
+		if envelope.FactKind != factload.FactKindRepository {
 			continue
 		}
 		repoID := strings.TrimSpace(anyToString(envelope.Payload["graph_id"]))

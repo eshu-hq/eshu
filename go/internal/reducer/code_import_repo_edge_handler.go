@@ -17,6 +17,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -32,12 +34,12 @@ type activePackageOwnershipFactLoader interface {
 	ListActivePackageOwnershipFacts(ctx context.Context) ([]facts.Envelope, error)
 }
 
-// codeImportOwnershipLoader reports whether the wired FactLoader can serve the
+// codeImportOwnershipLoader reports whether the wired factload.FactLoader can serve the
 // bounded cross-scope package-ownership facts the code-import projection needs.
 // The default reducer binary wires the Postgres FactStore, which satisfies the
 // interface; test doubles and fact-only profiles that do not implement it leave
 // the code-import domain unregistered so no intent is silently dropped.
-func codeImportOwnershipLoader(loader FactLoader) (activePackageOwnershipFactLoader, bool) {
+func codeImportOwnershipLoader(loader factload.FactLoader) (activePackageOwnershipFactLoader, bool) {
 	if loader == nil {
 		return nil, false
 	}
@@ -59,7 +61,7 @@ func codeImportOwnershipLoader(loader FactLoader) (activePackageOwnershipFactLoa
 // or the ownership loader is nil the handler is a no-op, so a deployment without
 // package-registry ingestion stays unaffected.
 type CodeImportRepoEdgeHandler struct {
-	FactLoader                 FactLoader
+	FactLoader                 factload.FactLoader
 	OwnershipLoader            activePackageOwnershipFactLoader
 	RepoDependencyIntentWriter crossrepo.RepoDependencyIntentWriter
 	Instruments                *telemetry.Instruments
@@ -90,12 +92,12 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 		return h.skippedResult(intent, "code import repo edge writer or ownership loader not wired"), nil
 	}
 
-	fileEnvelopes, err := loadFactsForKinds(
+	fileEnvelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{factKindFile},
+		[]string{factload.FactKindFile},
 	)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load file facts for code import repo edge: %w", err)
@@ -114,7 +116,7 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 		return reducercontract.Result{}, fmt.Errorf("decode package publication correlations: %w", err)
 	}
 	quarantined := append(ownershipQuarantined, publicationQuarantined...)
-	inputInvalidCount := recordQuarantinedFacts(
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(
 		ctx,
 		h.Instruments,
 		DomainCodeImportRepoEdge,
@@ -205,7 +207,7 @@ func (h CodeImportRepoEdgeHandler) succeededResult(
 			counts.skippedSelf,
 			counts.skippedMalformedFile,
 		),
-		SubSignals: inputInvalidSubSignals(inputInvalidCount),
+		SubSignals: factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}
 }
 

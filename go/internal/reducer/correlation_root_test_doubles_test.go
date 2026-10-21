@@ -150,7 +150,7 @@ func packageManifestDependencyFact(
 // moved family tests; the two bodies are byte-identical by construction and
 // must stay that way — a fixture that drifts from the moved copy silently
 // changes what the staying tests cover. It uses only facts and the
-// staying factKindContentEntity const, never family code.
+// staying factload.FactKindContentEntity const, never family code.
 func packageManifestDependencyFactWithMetadata(
 	repositoryID string,
 	repositoryName string,
@@ -169,7 +169,7 @@ func packageManifestDependencyFactWithMetadata(
 	}
 	return facts.Envelope{
 		FactID:        "manifest-dep:" + repositoryID + ":" + dependencyName,
-		FactKind:      factKindContentEntity,
+		FactKind:      factload.FactKindContentEntity,
 		ObservedAt:    observedAt,
 		IsTombstone:   false,
 		SourceRef:     facts.Ref{SourceSystem: "git"},

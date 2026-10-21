@@ -17,7 +17,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -27,7 +30,7 @@ import (
 // awsResourceMaterializationDomainDefinition returns the additive definition
 // for AWS resource node materialization. It is additive (not part of
 // DefaultDomainDefinitions) because the handler requires an explicitly wired
-// CloudResourceNodeWriter and FactLoader — registering it without them would
+// CloudResourceNodeWriter and factload.FactLoader — registering it without them would
 // silently drop every intent. See
 // docs/internal/aws-relationship-edge-materialization-design.md.
 func awsResourceMaterializationDomainDefinition() DomainDefinition {
@@ -76,7 +79,7 @@ type CloudResourceNodeWriter interface {
 // readiness phase. Stage B (PR #2) gates its edge projection on this phase, so
 // edges never resolve against a generation whose nodes have not yet committed.
 type AWSResourceMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter CloudResourceNodeWriter
 	// PhasePublisher records the canonical-nodes-committed readiness phase that
 	// gates the AWS relationship edge projection. A nil publisher is a no-op so
@@ -129,7 +132,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -145,7 +148,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 	rows, quarantined, err := ExtractCloudResourceNodeRows(envelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
-		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
 		return reducercontract.Result{}, err
 	}
@@ -154,7 +157,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 	// counter + structured error log — while every valid fact still materializes
 	// its node below and the canonical-nodes-committed phase still publishes, so
 	// one bad fact never stalls the scope generation's node substrate.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainAWSResourceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainAWSResourceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration
@@ -248,7 +251,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 			retractedNodes,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      h.refreshResultSignals(ctx, intent, inputInvalidSubSignals(inputInvalidCount), len(rows), rows),
+		SubSignals:      h.refreshResultSignals(ctx, intent, factdecode.InputInvalidSubSignals(inputInvalidCount), len(rows), rows),
 	}, nil
 }
 
@@ -256,19 +259,19 @@ func (h AWSResourceMaterializationHandler) Handle(
 // deterministic CloudResource node rows keyed by a stable uid. Each fact is
 // decoded through the factschema seam, so a payload missing a required identity
 // field is quarantined as a per-fact input_invalid dead-letter (returned in the
-// []quarantinedFact slice) rather than fabricating a node with an empty-string
+// []factdecode.QuarantinedFact slice) rather than fabricating a node with an empty-string
 // uid OR aborting the whole batch: every valid fact still projects. Rows are
 // deduplicated by uid so duplicate facts (retries, overlapping scans) converge
 // on a single node, and incomplete-but-valid identities (present-but-empty
 // resource_type, or both resource_id and arn empty) are dropped rather than
 // fabricating a node. The returned rows are sorted by uid for deterministic
 // batch output.
-func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []quarantinedFact, error) {
+func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []factdecode.QuarantinedFact, error) {
 	if len(envelopes) == 0 {
 		return nil, nil, nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != cloud.AWSResourceFactKind {
@@ -276,7 +279,7 @@ func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any,
 		}
 		row, uid, ok, err := cloudResourceNodeRow(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -336,7 +339,7 @@ func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any,
 // ec2_instance_identity_rows.go), which only ever augments an
 // already-materialized node and never creates or overwrites a base field.
 func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
-	resource, err := decodeAWSResource(env)
+	resource, err := schemadecode.DecodeAWSResource(env)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -378,11 +381,11 @@ func cloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, err
 		sourceOrderKeyField:   sourceOrderKey(env),
 	}
 	if err := applyCloudResourceServiceAnchorFields(row, resource); err != nil {
-		return nil, "", false, attributeShapeAsFactDecodeError(env.FactKind, err)
+		return nil, "", false, factdecode.AttributeShapeAsFactDecodeError(env.FactKind, err)
 	}
 	runningImageFields, err := cloudResourceRunningImageFields(resource)
 	if err != nil {
-		return nil, "", false, attributeShapeAsFactDecodeError(env.FactKind, err)
+		return nil, "", false, factdecode.AttributeShapeAsFactDecodeError(env.FactKind, err)
 	}
 	for key, value := range runningImageFields {
 		row[key] = value

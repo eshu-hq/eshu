@@ -31,7 +31,7 @@ import (
 // After the migration ExtractGCPCloudResourceNodeRows decodes each
 // gcp_cloud_resource fact through factschema.DecodeGCPCloudResource; the
 // malformed fact yields a classified *factschema.DecodeError that
-// partitionDecodeFailures routes to a per-fact quarantine. The handler records
+// factdecode.PartitionDecodeFailures routes to a per-fact quarantine. The handler records
 // it (metric + structured log + the input_invalid_facts SubSignal) and
 // continues, so the batch's valid resource still materializes its node.
 func TestGCPResourceMaterializationQuarantinesMissingFullResourceName(t *testing.T) {

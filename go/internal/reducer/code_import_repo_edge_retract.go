@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -44,7 +46,7 @@ func BuildCodeImportRepoEdgeRefreshIntents(
 	candidates := make(map[string]struct{})
 
 	for _, envelope := range input.FileEnvelopes {
-		if envelope.FactKind != factKindFile {
+		if envelope.FactKind != factload.FactKindFile {
 			continue
 		}
 		file, ok := decodeCodegraphFileImportIdentity(envelope)

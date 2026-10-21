@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
@@ -145,7 +146,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				IntentWriter: handlers.RationaleEdgeIntentWriter,
 			}
 		case DomainCodeownersOwnership:
-			def.Handler = CodeownersOwnershipEdgeMaterializationHandler{
+			def.Handler = owners.Handler{
 				FactLoader:           handlers.FactLoader,
 				EdgeWriter:           handlers.CodeownersOwnershipEdgeWriter,
 				PriorGenerationCheck: handlers.PriorGenerationCheck,

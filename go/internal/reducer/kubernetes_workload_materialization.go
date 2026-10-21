@@ -16,7 +16,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -113,7 +116,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -129,7 +132,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 	rows, quarantined, err := ExtractKubernetesWorkloadNodeRows(envelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
-		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
 		return reducercontract.Result{}, err
 	}
@@ -138,7 +141,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 	// dead-letter — counter + structured error log — while every valid fact
 	// still materializes its node below, so one bad fact never stalls the
 	// scope generation's node substrate.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesWorkloadMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesWorkloadMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration
@@ -201,7 +204,7 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -223,7 +226,7 @@ func (h KubernetesWorkloadMaterializationHandler) recordNodesMaterialized(ctx co
 // envelopes into deterministic KubernetesWorkload node rows keyed by the stable
 // collector-emitted object_id. Each fact is decoded through the factschema
 // seam, so a payload missing the required object_id key is quarantined as a
-// per-fact input_invalid dead-letter (returned in the []quarantinedFact slice)
+// per-fact input_invalid dead-letter (returned in the []factdecode.QuarantinedFact slice)
 // rather than fabricating a node with an empty-string uid OR aborting the
 // whole batch: every valid fact still projects. Rows are deduplicated by
 // object_id so duplicate facts (retries, overlapping snapshots) converge on a
@@ -231,12 +234,12 @@ func (h KubernetesWorkloadMaterializationHandler) recordNodesMaterialized(ctx co
 // running) are dropped rather than asserting a phantom node. The returned
 // rows are sorted by uid for deterministic batch output. Mirrors
 // ExtractGCPCloudResourceNodeRows (gcp_resource_materialization.go).
-func ExtractKubernetesWorkloadNodeRows(envelopes []facts.Envelope) ([]map[string]any, []quarantinedFact, error) {
+func ExtractKubernetesWorkloadNodeRows(envelopes []facts.Envelope) ([]map[string]any, []factdecode.QuarantinedFact, error) {
 	if len(envelopes) == 0 {
 		return nil, nil, nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != cloud.KubernetesPodTemplateFactKind {
@@ -249,7 +252,7 @@ func ExtractKubernetesWorkloadNodeRows(envelopes []facts.Envelope) ([]map[string
 		}
 		row, uid, ok, err := kubernetesWorkloadNodeRow(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -296,7 +299,7 @@ func ExtractKubernetesWorkloadNodeRows(envelopes []facts.Envelope) ([]map[string
 // carried as the workload_uid property only, never the node identity (the
 // object_id already folds metadata.uid into its identity tuple).
 func kubernetesWorkloadNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
-	podTemplate, err := decodeKubernetesLivePodTemplate(env)
+	podTemplate, err := schemadecode.DecodeKubernetesLivePodTemplate(env)
 	if err != nil {
 		return nil, "", false, err
 	}

@@ -17,6 +17,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -27,7 +29,7 @@ import (
 // awsRelationshipMaterializationDomainDefinition returns the additive
 // definition for AWS relationship edge projection. It is additive (not part of
 // DefaultDomainDefinitions) because the handler requires an explicitly wired
-// CloudResourceEdgeWriter and FactLoader; registering it without them would
+// CloudResourceEdgeWriter and factload.FactLoader; registering it without them would
 // silently drop every intent. See
 // docs/internal/aws-relationship-edge-materialization-design.md §5–§8.
 func awsRelationshipMaterializationDomainDefinition() DomainDefinition {
@@ -87,7 +89,7 @@ type CloudResourceEdgeWriter interface {
 //
 // See docs/internal/aws-relationship-edge-materialization-design.md §5–§8.
 type AWSRelationshipMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	EdgeWriter CloudResourceEdgeWriter
 	// ReadinessLookup reports whether the canonical-nodes-committed phase has
 	// been published for the intent's scope generation. A nil lookup keeps the
@@ -148,7 +150,7 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -183,7 +185,7 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 		resourceEnvelopes, relationshipEnvelopes, intent.ScopeID)
 	if err != nil {
 		// A non-decode error (transient fact-load, unsupported major, or other
-		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
+		// fatal condition factdecode.PartitionDecodeFailures did NOT quarantine) fails the
 		// whole intent so the durable queue triages it correctly.
 		return reducercontract.Result{}, err
 	}
@@ -192,7 +194,7 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 	// dead-letter — counter + structured error log — while the batch's valid
 	// facts still materialize below and the readiness phase still publishes, so
 	// one bad fact never stalls the scope generation's graph.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainAWSRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainAWSRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -275,7 +277,7 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -89,7 +90,7 @@ func (w *rationaleStateModelingEdgeWriter) WriteEdges(
 		}
 		targetPath := anyToString(row.Payload["target_path"])
 		if repoPath := w.repoPathByRepoID[repoID]; repoPath != "" {
-			targetPath = semanticQualifyDeltaPath(repoPath, targetPath)
+			targetPath = payloadcore.QualifyDeltaPath(repoPath, targetPath)
 		}
 		edges[rationaleTestEdgeKey(row.Payload)] = targetPath
 	}
@@ -178,7 +179,7 @@ func rationaleConvergenceFixture(repoID, repoPath string, delta bool, changedRel
 	const scopeID = "scope-rationale"
 	entity := func(id, name, relPath, kind, text string) facts.Envelope {
 		return facts.Envelope{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			ScopeID:  scopeID,
 			Payload: map[string]any{
 				"repo_id":       repoID,
@@ -206,7 +207,7 @@ func rationaleConvergenceFixture(repoID, repoPath string, delta bool, changedRel
 	}
 
 	repository := facts.Envelope{
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		ScopeID:  scopeID,
 		Payload: map[string]any{
 			"repo_id":       repoID,

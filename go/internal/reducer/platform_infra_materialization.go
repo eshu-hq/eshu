@@ -11,6 +11,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -56,12 +57,12 @@ func (h PlatformInfraMaterializationHandler) Handle(ctx context.Context, intent 
 	totalStart := time.Now()
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{factKindRepository, factKindFile, factKindParsedFile},
+		[]string{factload.FactKindRepository, factload.FactKindFile, factload.FactKindParsedFile},
 	)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load facts for platform infra materialization: %w", err)

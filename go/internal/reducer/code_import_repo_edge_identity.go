@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
 // codeImportFileIdentity carries the decoded "file" fact fields the
@@ -22,7 +23,7 @@ type codeImportFileIdentity struct {
 }
 
 // decodeCodegraphFileImportIdentity decodes one "file" envelope through the
-// codegraph contracts seam (decodeCodegraphFile) and extracts the fields the
+// codegraph contracts seam (schemadecode.DecodeCodegraphFile) and extracts the fields the
 // code-import repo-edge builders (BuildCodeImportRepoDependencyIntents,
 // classifyCodeImportEdges, BuildCodeImportRepoEdgeRefreshIntents, and the
 // retract-scope builder in code_import_repo_edge_retract.go) need for their
@@ -35,7 +36,7 @@ type codeImportFileIdentity struct {
 // (matching the pre-Contract-System payloadStr reads); language stays "" when
 // the parser did not detect one (File.Language is optional).
 func decodeCodegraphFileImportIdentity(envelope facts.Envelope) (codeImportFileIdentity, bool) {
-	file, err := decodeCodegraphFile(envelope)
+	file, err := schemadecode.DecodeCodegraphFile(envelope)
 	if err != nil {
 		return codeImportFileIdentity{}, false
 	}

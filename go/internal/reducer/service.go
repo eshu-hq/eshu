@@ -21,6 +21,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	freshnesslinks "github.com/eshu-hq/eshu/go/internal/reducer/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/config/artifacts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/evidence"
@@ -113,7 +114,7 @@ type Service struct {
 	// reachable-set read model. Nil disables it.
 	CodeReachabilityProjectionRunner *codeintel.CodeReachabilityProjectionRunner
 
-	// GraphProjectionPhaseRepairer retries exact readiness publications that
+	// repair.Repairer retries exact readiness publications that
 	// failed after the underlying graph write already committed.
 	GraphProjectionPhaseRepairer *repair.Repairer
 
@@ -182,12 +183,12 @@ type Service struct {
 	// QuarantineWriter persists durable per-fact input_invalid quarantine rows
 	// (issue #4630) to the reducer_input_invalid_facts read surface.
 	// executeWithTelemetry stashes it on the execution context via
-	// WithQuarantineWriter once per claimed intent so every domain handler's
-	// recordQuarantinedFacts call (the quarantine stanza of compat_decode.go, factdecode/quarantine_record.go)
+	// factdecode.WithQuarantineWriter once per claimed intent so every domain handler's
+	// factdecode.RecordQuarantinedFacts call (the quarantine stanza of compat_decode.go, factdecode/quarantine_record.go)
 	// can reach it without a per-handler field. Nil disables durable
 	// persistence; the existing eshu_dp_reducer_input_invalid_facts_total
 	// counter and structured error log are unaffected.
-	QuarantineWriter QuarantinedFactWriter
+	QuarantineWriter factdecode.QuarantinedFactWriter
 
 	// IsDeferredFailureClass reports whether a failure class is one the queue
 	// exempts from the retry budget (a readiness wait). Such a failure records
@@ -450,7 +451,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontrac
 		}
 	}
 
-	execCtx = WithQuarantineWriter(execCtx, s.QuarantineWriter)
+	execCtx = factdecode.WithQuarantineWriter(execCtx, s.QuarantineWriter)
 	execStart := time.Now()
 	result, err, abandoned := s.executeHandler(execCtx, ctx, intent)
 	if abandoned {

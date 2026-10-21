@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -94,7 +95,7 @@ func BenchmarkRationaleEdgeMaterializationHandlerRepoScale(b *testing.B) {
 func rationaleHandlerBenchmarkFacts(positiveEvery int) []facts.Envelope {
 	envelopes := make([]facts.Envelope, 0, rationaleHandlerBenchmarkEntityCount+1)
 	envelopes = append(envelopes, facts.Envelope{
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		ScopeID:  "scope-rationale-benchmark",
 		Payload: map[string]any{
 			"repo_id": "repo-123", "local_path": "/repo",
@@ -117,7 +118,7 @@ func rationaleHandlerBenchmarkFacts(positiveEvery int) []facts.Envelope {
 				}},
 			}
 		}
-		envelopes = append(envelopes, facts.Envelope{FactKind: factKindContentEntity, Payload: payload})
+		envelopes = append(envelopes, facts.Envelope{FactKind: factload.FactKindContentEntity, Payload: payload})
 	}
 	return envelopes
 }
@@ -158,8 +159,8 @@ func (l *rationaleBenchmarkFactLoader) ListFactsByKind(
 	factKinds []string,
 ) ([]facts.Envelope, error) {
 	l.listFactsByKindCalls++
-	if len(factKinds) != 2 || factKinds[0] != factKindRepository || factKinds[1] != factKindContentEntity {
-		return nil, fmt.Errorf("fact kinds = %q, want [%s %s]", factKinds, factKindRepository, factKindContentEntity)
+	if len(factKinds) != 2 || factKinds[0] != factload.FactKindRepository || factKinds[1] != factload.FactKindContentEntity {
+		return nil, fmt.Errorf("fact kinds = %q, want [%s %s]", factKinds, factload.FactKindRepository, factload.FactKindContentEntity)
 	}
 	return l.envelopes, nil
 }

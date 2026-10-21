@@ -29,7 +29,7 @@ import (
 //
 // After the migration the join index decodes each aws_resource fact through
 // factschema.DecodeAWSResource; the malformed fact yields a classified
-// *factschema.DecodeError that partitionDecodeFailures routes to a per-fact
+// *factschema.DecodeError that factdecode.PartitionDecodeFailures routes to a per-fact
 // quarantine. The handler records it (metric + structured log + the
 // input_invalid_facts SubSignal) and continues, so the batch's valid
 // source→target edge still materializes and no edge references an empty-account

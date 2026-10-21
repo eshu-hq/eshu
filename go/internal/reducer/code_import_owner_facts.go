@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
 // The cross-scope fact kinds the code-import projection consumes
@@ -24,16 +26,16 @@ import (
 // kinds are ignored.
 func decodePackageOwnershipCorrelationDecisions(
 	envelopes []facts.Envelope,
-) ([]correlation.PackageSourceDecision, []quarantinedFact, error) {
+) ([]correlation.PackageSourceDecision, []factdecode.QuarantinedFact, error) {
 	decisions := make([]correlation.PackageSourceDecision, 0)
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
 		if envelope.FactKind != correlation.PackageOwnershipFactKind || envelope.IsTombstone {
 			continue
 		}
-		ownership, err := decodeReducerPackageOwnershipCorrelation(envelope)
+		ownership, err := schemadecode.DecodeReducerPackageOwnershipCorrelation(envelope)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -63,16 +65,16 @@ func decodePackageOwnershipCorrelationDecisions(
 // participate in owner resolution. Non-publication fact kinds are ignored.
 func decodePackagePublicationCorrelationDecisions(
 	envelopes []facts.Envelope,
-) ([]correlation.PackagePublicationDecision, []quarantinedFact, error) {
+) ([]correlation.PackagePublicationDecision, []factdecode.QuarantinedFact, error) {
 	decisions := make([]correlation.PackagePublicationDecision, 0)
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
 		if envelope.FactKind != correlation.PackagePublicationFactKind || envelope.IsTombstone {
 			continue
 		}
-		publication, err := decodeReducerPackagePublicationCorrelation(envelope)
+		publication, err := schemadecode.DecodeReducerPackagePublicationCorrelation(envelope)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}

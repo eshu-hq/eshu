@@ -18,7 +18,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/handle"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -139,13 +142,8 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		})
 	}
 
-	envelopes, err := loadFactsForKinds(
-		ctx,
-		h.FactLoader,
-		intent.ScopeID,
-		intent.GenerationID,
-		[]string{cloud.AWSResourceFactKind},
-	)
+	envelopes, err := factload.LoadFactsForKinds(ctx, h.FactLoader, intent.ScopeID,
+		intent.GenerationID, []string{cloud.AWSResourceFactKind})
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load facts for workload cloud relationship materialization: %w", err)
 	}
@@ -153,7 +151,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 	rows, tally, quarantined, err := ExtractWorkloadCloudRelationshipRows(envelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
-		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
 		return reducercontract.Result{}, err
 	}
@@ -165,7 +163,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 	// identity field) is quarantined as a visible input_invalid dead-letter —
 	// counter + structured error log — while every valid workload anchor still
 	// projects its edge below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainWorkloadCloudRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainWorkloadCloudRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	eval, err := wait.Evaluate(ctx, intent, existingWait, waitFound, workloadCloudRelationshipAnchors(rows))
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("workload cloud relationship: %w", err)
@@ -195,7 +193,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 			len(eval.Missing),
 		),
 		CanonicalWrites: readyRows,
-		SubSignals:      h.refreshResultSignals(ctx, intent, inputInvalidSubSignals(inputInvalidCount), readyRows, rows),
+		SubSignals:      h.refreshResultSignals(ctx, intent, factdecode.InputInvalidSubSignals(inputInvalidCount), readyRows, rows),
 	})
 }
 
@@ -390,7 +388,7 @@ func (t workloadCloudRelationshipTally) totalSkipped() int {
 // a required identity field dead-letters (input_invalid); the workload anchor and
 // environment (service-specific fields) are read from the decoded struct's
 // untyped Attributes pass-through.
-func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[string]any, workloadCloudRelationshipTally, []quarantinedFact, error) {
+func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[string]any, workloadCloudRelationshipTally, []factdecode.QuarantinedFact, error) {
 	tally := newWorkloadCloudRelationshipTally()
 	if len(envelopes) == 0 {
 		return nil, tally, nil, nil
@@ -401,16 +399,16 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 		environment string
 		cloud       string
 	}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	seen := make(map[edgeKey]struct{}, len(envelopes))
 	rows := make([]map[string]any, 0, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != cloud.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
-		resource, err := decodeAWSResource(env)
+		resource, err := schemadecode.DecodeAWSResource(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, tally, nil, fatal
 			}
@@ -426,7 +424,7 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 		// silently mis-key or mis-drop a workload-to-cloud-resource USES edge.
 		workloadAnchor, attrErr := awsv1.DecodeResourceAnchorAttributes(resource)
 		if attrErr != nil {
-			quarantined = append(quarantined, quarantinedAttributeShapeFact(env, attrErr))
+			quarantined = append(quarantined, factdecode.QuarantinedAttributeShapeFact(env, attrErr))
 			continue
 		}
 		workloadIDs := uniqueSortedStrings(workloadAnchor.WorkloadIDs)
@@ -460,7 +458,7 @@ func ExtractWorkloadCloudRelationshipRows(envelopes []facts.Envelope) ([]map[str
 		}
 		anchor, err := cloudResourceServiceAnchorDecisionForPayload(resource)
 		if err != nil {
-			quarantined = append(quarantined, quarantinedAttributeShapeFact(env, err))
+			quarantined = append(quarantined, factdecode.QuarantinedAttributeShapeFact(env, err))
 			continue
 		}
 		seen[key] = struct{}{}

@@ -36,10 +36,11 @@
 // (compat_cloud.go, compat_correlation.go, compat_decode.go,
 // compat_projection.go) may export a compatibility surface for callers outside
 // it; those files are the authoritative list, and as of this commit the whole
-// of it is the quarantine stanza of compat_decode.go's QuarantinedFactRecord
-// and QuarantinedFactWriter,
+// of it is factdecode's QuarantinedFactRecord and QuarantinedFactWriter
+// (retired from compat_decode.go once every caller named [factdecode]
+// directly),
 // which internal/storage/postgres constructs and implements,
-// WithQuarantineWriter, which Service stashes on the execution context,
+// factdecode.WithQuarantineWriter, which Service stashes on the execution context,
 // the factload stanza of compat_decode.go's FactLoader, which internal/storage/cypher's
 // edge/writer/unusable_delta_fail_closed_test.go names to type its
 // materialization-handler test harness, and the retired secrets stanza of
@@ -336,13 +337,14 @@
 // code-call intent rows and the existing code-call materialization completion
 // logs; no metric, span, status field, route, or log contract changes.
 //
-// recordQuarantinedFacts (the quarantine stanza of compat_decode.go, forwarding to
-// factdecode/quarantine_record.go) also best-effort persists each
+// factdecode.RecordQuarantinedFacts (factdecode/quarantine_record.go,
+// retired from compat_decode.go once every caller named [factdecode] directly)
+// also best-effort persists each
 // quarantined input_invalid fact to the durable reducer_input_invalid_facts
 // read surface (issue #4630) through an optional QuarantinedFactWriter
 // (factdecode/quarantine_writer.go). Service stashes the writer on the execution context
-// once per claimed intent via WithQuarantineWriter, so every domain handler's
-// existing recordQuarantinedFacts call reaches it without a per-handler field.
+// once per claimed intent via factdecode.WithQuarantineWriter, so every domain handler's
+// existing RecordQuarantinedFacts call reaches it without a per-handler field.
 // The write is batched (one round trip per intent), idempotent under
 // reduction replay (a natural-key ON CONFLICT DO NOTHING upsert), and strictly
 // best-effort: a durable-write failure is logged and counted but never fails

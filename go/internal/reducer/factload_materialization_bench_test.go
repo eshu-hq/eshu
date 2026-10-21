@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
@@ -23,14 +24,14 @@ import (
 func benchFactloadCorpusEnvelopes(n int) []facts.Envelope {
 	envelopes := make([]facts.Envelope, 0, 6*n+1)
 	envelopes = append(envelopes, facts.Envelope{
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		FactID:   "fact-repo",
 		Payload:  map[string]any{"repo_id": "bench-repo"},
 	})
 	for i := 0; i < n; i++ {
 		envelopes = append(envelopes,
 			facts.Envelope{
-				FactKind: factKindCodeownersOwnership,
+				FactKind: factload.FactKindCodeownersOwnership,
 				FactID:   fmt.Sprintf("fact-codeowners-%d", i),
 				Payload:  map[string]any{"repo_id": "bench-repo"},
 			},
@@ -49,17 +50,17 @@ func benchFactloadCorpusEnvelopes(n int) []facts.Envelope {
 				},
 			},
 			facts.Envelope{
-				FactKind: factKindContentEntity,
+				FactKind: factload.FactKindContentEntity,
 				FactID:   fmt.Sprintf("fact-entity-%d", i),
 				Payload:  map[string]any{"repo_id": "bench-repo"},
 			},
 			facts.Envelope{
-				FactKind: factKindFile,
+				FactKind: factload.FactKindFile,
 				FactID:   fmt.Sprintf("fact-file-%d", i),
 				Payload:  map[string]any{"repo_id": "bench-repo"},
 			},
 			facts.Envelope{
-				FactKind: factKindSubmodulePin,
+				FactKind: factload.FactKindSubmodulePin,
 				FactID:   fmt.Sprintf("fact-submodule-%d", i),
 				Payload:  map[string]any{"repo_id": "bench-repo"},
 			},
@@ -84,7 +85,7 @@ func TestBenchFactloadCorpusCoversRequestedKinds(t *testing.T) {
 	}
 	requestedBy := map[string]string{}
 	for name, kinds := range map[string][]string{
-		"codeowners":    codeownersMaterializationFactKinds,
+		"codeowners":    owners.MaterializationFactKinds(),
 		"documentation": documentationMaterializationFactKinds,
 		"rationale":     rationaleMaterializationFactKinds,
 		"shellexec":     shell.MaterializationFactKinds(),
@@ -113,7 +114,7 @@ func TestFactloadMaterializationWrappersReturnSeededEnvelopes(t *testing.T) {
 	ctx := context.Background()
 
 	wrappers := map[string]func(context.Context, FactLoader, string, string) ([]facts.Envelope, error){
-		"codeowners":    loadCodeownersOwnershipMaterializationFacts,
+		"codeowners":    owners.LoadMaterializationFacts,
 		"documentation": loadDocumentationMaterializationFacts,
 		"rationale":     loadRationaleMaterializationFacts,
 		"shellexec":     shell.LoadMaterializationFacts,
@@ -168,7 +169,7 @@ func BenchmarkFactloadWrapperFrameOverhead(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			got, err := factload.LoadFactsForKinds(ctx, loader, "scope", "gen", codeownersMaterializationFactKinds)
+			got, err := factload.LoadFactsForKinds(ctx, loader, "scope", "gen", owners.MaterializationFactKinds())
 			if err != nil {
 				b.Fatalf("error = %v", err)
 			}
@@ -182,7 +183,7 @@ func BenchmarkFactloadWrapperFrameOverhead(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			got, err := loadCodeownersOwnershipMaterializationFacts(ctx, loader, "scope", "gen")
+			got, err := owners.LoadMaterializationFacts(ctx, loader, "scope", "gen")
 			if err != nil {
 				b.Fatalf("error = %v", err)
 			}
@@ -200,7 +201,7 @@ func BenchmarkLoadCodeownersOwnershipMaterializationFacts(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		got, err := loadCodeownersOwnershipMaterializationFacts(ctx, loader, "scope", "gen")
+		got, err := owners.LoadMaterializationFacts(ctx, loader, "scope", "gen")
 		if err != nil {
 			b.Fatalf("error = %v", err)
 		}
