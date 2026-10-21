@@ -282,6 +282,60 @@ func ncStatements() []ncStatement {
 	return out
 }
 
+// ncProofTables are the relations the no-candidate proof reads. Their planner
+// statistics must be identical for the before and after EXPLAINs.
+var ncProofTables = []string{
+	"fact_work_items",
+	"scope_generations",
+	"ingestion_scopes",
+	"projector_scope_claim_fences",
+}
+
+// ncPinStats disables the autovacuum daemon on the proof tables. Every seed
+// ends in explicit ANALYZE, so the daemon adds nothing — and an autoanalyze
+// committed from a partially seeded heap after our explicit ANALYZE flips
+// near-tie join order between the two texts (#8571 run 4). The setting
+// persists on the table across TRUNCATEs; calling it per seed is idempotent.
+func ncPinStats(t *testing.T, database *sql.DB) {
+	t.Helper()
+	for _, table := range ncProofTables {
+		if _, err := database.Exec(`ALTER TABLE ` + table + ` SET (autovacuum_enabled = false)`); err != nil {
+			t.Fatalf("pin stats on %s: %v", table, err)
+		}
+	}
+}
+
+// ncStatSnapshot reports per-table liveness and vacuum/analyze state for the
+// proof tables, so a plan-shape mismatch names the statistics layer behind it.
+func ncStatSnapshot(database *sql.DB) string {
+	rows, err := database.Query(`SELECT schemaname || '.' || relname, n_live_tup, n_dead_tup,
+		last_vacuum, last_autovacuum, last_analyze, last_autoanalyze
+		FROM pg_stat_user_tables WHERE relname = ANY ($1) ORDER BY 1`,
+		"{"+strings.Join(ncProofTables, ",")+"}")
+	if err != nil {
+		return "(stats unavailable: " + err.Error() + ")"
+	}
+	defer func() { _ = rows.Close() }()
+	var out string
+	for rows.Next() {
+		var name string
+		var live, dead sql.NullInt64
+		var vac, avac, ana, aana sql.NullString
+		if err := rows.Scan(&name, &live, &dead, &vac, &avac, &ana, &aana); err != nil {
+			return "(stats scan: " + err.Error() + ")"
+		}
+		out += fmt.Sprintf("\n%s live=%v dead=%v vacuum=%v autovacuum=%v analyze=%v autoanalyze=%v",
+			name, live.Int64, dead.Int64, vac.String, avac.String, ana.String, aana.String)
+	}
+	if err := rows.Err(); err != nil {
+		return "(stats rows: " + err.Error() + ")"
+	}
+	if out == "" {
+		return "(no pg_stat rows for proof tables)"
+	}
+	return out
+}
+
 // ncSeed seeds n scopes whose only work row is a pending one on the current
 // generation, so a claim sweep has no supersede candidate. staleRows of the
 // scopes also get an older failed generation with a dead-lettered row carrying
@@ -289,6 +343,7 @@ func ncStatements() []ncStatement {
 func ncSeed(t *testing.T, database *sql.DB, projector bool, n, staleRows int) {
 	t.Helper()
 	costReset(t, database)
+	ncPinStats(t, database)
 	scopeStatus, genStatus, stage, domain, oldGen := "active", "active", "reducer", "zz_probe_domain", "superseded"
 	if projector {
 		scopeStatus, genStatus, stage, domain, oldGen = "pending", "pending", "projector", "source_local", "failed"
@@ -311,7 +366,7 @@ SELECT 'scope-'||i||'-g1','scope-'||i,'push', now()-interval '2 hours', now()-in
 			fmt.Sprintf(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, last_attempt_at, failure_class, failure_message, failure_details, payload, created_at, updated_at)
 SELECT '%s_scope-'||i||'_g1','scope-'||i,'scope-'||i||'-g1','%s','%s','dead_letter',3, now()-interval '90 minutes','graph_write_timeout','timed out', %s,'{}'::jsonb, now()-interval '2 hours', now()-interval '90 minutes' FROM generate_series(1,%d) i`, stage, stage, domain, costDetailExpr(800), staleRows))
 	}
-	costExec(t, database, append(stmts, `VACUUM ANALYZE fact_work_items`, `ANALYZE scope_generations`, `ANALYZE ingestion_scopes`)...)
+	costExec(t, database, append(stmts, `VACUUM ANALYZE fact_work_items`, `ANALYZE scope_generations`, `ANALYZE ingestion_scopes`, `ANALYZE projector_scope_claim_fences`)...)
 }
 
 // ncPlanNode is the part of an EXPLAIN (FORMAT JSON) node the proof reads.
