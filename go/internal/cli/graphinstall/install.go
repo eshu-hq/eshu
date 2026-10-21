@@ -118,17 +118,13 @@ func Install(opts Options) (Result, error) {
 		}
 	}
 
-	source, err := prepareInstallSource(opts.Context, sourceRef, opts.ReadVersion)
+	source, err := prepareInstallSource(opts.Context, sourceRef, opts.SHA256, opts.ReadVersion)
 	if err != nil {
 		return Result{}, err
 	}
 	defer func() {
 		_ = source.Close()
 	}()
-
-	if expected := strings.ToLower(strings.TrimSpace(opts.SHA256)); expected != "" && expected != source.SourceSHA256 {
-		return Result{}, fmt.Errorf("sha256 mismatch for %q: got %s, want %s", source.SourcePath, source.SourceSHA256, expected)
-	}
 
 	targetPath, err := managedBinaryPath()
 	if err != nil {
@@ -238,7 +234,7 @@ func writeInstallManifest(targetPath, manifestPath string, source preparedInstal
 }
 
 func sha256File(path string) (string, error) {
-	file, err := os.Open(path) // #nosec G703 G304 -- path is the program-managed nornicdb install source path, not user input
+	file, err := os.Open(path) // #nosec G703 G304 -- path is the operator-selected local binary or a verified downloaded/extracted artifact; reading it is the explicit install operation
 	if err != nil {
 		return "", fmt.Errorf("open %q for sha256: %w", path, err)
 	}
@@ -253,7 +249,7 @@ func sha256File(path string) (string, error) {
 }
 
 func copyExecutableFile(sourcePath, targetPath string) error {
-	source, err := os.Open(sourcePath) // #nosec G304 -- sourcePath is the program-managed nornicdb install source path, not user input
+	source, err := os.Open(sourcePath) // #nosec G304 -- sourcePath is the operator-selected local binary or a verified downloaded/extracted artifact; copying it into the managed install is the explicit install operation
 	if err != nil {
 		return fmt.Errorf("open nornicdb source binary: %w", err)
 	}

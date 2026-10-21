@@ -34,6 +34,9 @@ describe("classifyAsset", () => {
     expect(classifyAsset("cytoscape.esm-CUqq0XTU.js")).toBe("cytoscape");
     expect(classifyAsset("wardley-L42UT6IY-Dk4Hwjct.js")).toBe("wardley");
     expect(classifyAsset("katex-C5jXJg4s.js")).toBe("katex");
+    expect(classifyAsset("elk-QONTBCTQ-0CGR9iUw.js")).toBe("elk");
+    expect(classifyAsset("elkish-QONTBCTQ-0CGR9iUw.js")).toBe("async-chunk");
+    expect(classifyAsset("elk-unhashed.js")).toBe("async-chunk");
   });
 
   it("treats any other javascript chunk as a generic async chunk", () => {
@@ -63,6 +66,7 @@ describe("evaluateBundleBudget", () => {
     "react-vendor": 200_000,
     mermaid: 900_000,
     "async-chunk": 700_000,
+    elk: 1_536_000,
   };
   const defaultBudgetBytes = 700_000;
 
@@ -80,6 +84,35 @@ describe("evaluateBundleBudget", () => {
     expect(result.ok).toBe(true);
     expect(result.violations).toEqual([]);
     expect(result.checked).toHaveLength(3);
+  });
+
+  it("permits one bounded ELK asset while keeping ordinary async chunks on the default budget", () => {
+    const result = evaluateBundleBudget({
+      files: [
+        { name: "elk-QONTBCTQ-0CGR9iUw.js", bytes: 1_477_168 },
+        { name: "WorkspacePage-eeee.js", bytes: 700_001 },
+      ],
+      budgets,
+      defaultBudgetBytes,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.violations).toHaveLength(1);
+    expect(result.violations[0]).toMatchObject({ key: "async-chunk", budgetBytes: 700_000 });
+  });
+
+  it("bounds aggregate ELK payload so duplicate ELK chunks cannot multiply the allowance", () => {
+    const result = evaluateBundleBudget({
+      files: [
+        { name: "elk-QONTBCTQ-0CGR9iUw.js", bytes: 900_000 },
+        { name: "elk-KLMPWXYZ-8gQm3F2x.js", bytes: 700_000 },
+      ],
+      budgets,
+      defaultBudgetBytes,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.violations).toContainEqual(
+      expect.objectContaining({ key: "elk", bytes: 1_600_000, budgetBytes: 1_536_000 }),
+    );
   });
 
   it("flags a chunk that exceeds its specific budget", () => {

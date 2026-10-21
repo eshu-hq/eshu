@@ -178,6 +178,26 @@ func TestLoadRuntimeConfigParsesResourceOverrides(t *testing.T) {
 	}
 }
 
+func TestEnvIntWithMaxChecksRangeAndInput(t *testing.T) {
+	t.Parallel()
+
+	const maxInt32 = int64(1<<31 - 1)
+	got, err := envIntWithMax(func(string) string { return "2147483647" }, envMaxFacts, 1, maxInt32)
+	if err != nil || got != int(maxInt32) {
+		t.Fatalf("envIntWithMax(max) = (%d, %v), want (%d, nil)", got, err, maxInt32)
+	}
+
+	for _, value := range []string{"2147483648", "0", "-1", "not-an-int"} {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+			_, err := envIntWithMax(func(string) string { return value }, envMaxFacts, 1, maxInt32)
+			if err == nil {
+				t.Fatalf("envIntWithMax(%q) error = nil, want rejected input", value)
+			}
+		})
+	}
+}
+
 func TestLoadRuntimeConfigParsesOSPackageTargets(t *testing.T) {
 	t.Parallel()
 

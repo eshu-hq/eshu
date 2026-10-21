@@ -73,11 +73,18 @@ func TestInstallNornicDBRejectsChecksumMismatch(t *testing.T) {
 	t.Setenv("ESHU_HOME", t.TempDir())
 	source := writeFakeNornicDBBinary(t, "NornicDB v1.0.42\n")
 
+	versionRead := false
 	_, err := Install(Options{
-		From:        source,
-		SHA256:      strings.Repeat("0", 64),
-		ReadVersion: execNornicDBVersion,
+		From:   source,
+		SHA256: strings.Repeat("0", 64),
+		ReadVersion: func(string) (string, error) {
+			versionRead = true
+			return "v1.0.42", nil
+		},
 	})
+	if versionRead {
+		t.Fatal("Install() executed an artifact before verifying its checksum")
+	}
 	if err == nil {
 		t.Fatal("Install() error = nil, want checksum error")
 	}
