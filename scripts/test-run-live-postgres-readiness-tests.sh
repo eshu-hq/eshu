@@ -177,6 +177,81 @@ for pkg in "${packages[@]}"; do
   out="$(run_runner)" && fail "go nonzero exit in ${pkg} passed"
   [[ "${out}" == *"${pkg}: go test exited 1"* ]] || fail "go exit in ${pkg} not reported: ${out}"
 done
+
+# A package that exits nonzero preserves its event stream and stderr for
+# post-mortem: the death point (mid-test cutoff vs exact-name omission) is
+# what distinguishes a dying binary from a selection fault (#8662). The
+# scratch dir is trap-deleted, so the copies must land outside it.
+write_events
+printf '1\n' >"${fake}/$(pkg_key "${first_pkg}").exit"
+{
+  printf '{"Action":"run","Test":"%s"}\n' "${first_proof}"
+  printf '{"Action":"output","Test":"%s","Output":"SEED-DEATH-MARKER\\n"}\n' "${first_proof}"
+} >>"$(events_of "${first_pkg}")"
+# Per-package debug dirs carry the runner loop index: distinct packages with
+# identical sanitized names must not overwrite each other's evidence.
+# In unsharded order first_pkg is iteration 1 and last_pkg is iteration N.
+debug_pkgdir() { printf '%s/.readiness-debug/%s-%d' "${seed_dir}" "$(printf '%s' "$1" | tr -c '[:alnum:]' '_')" "$2"; }
+first_debugdir="$(debug_pkgdir "${first_pkg}" 1)"
+last_debugdir="$(debug_pkgdir "${last_pkg}" "${#packages[@]}")"
+# No tautological suffix asserts here: the -f/cmp pins below already fail
+# if the runner drops -${i} (the expected path would not exist), and the
+# helper's own format string proves nothing about the runner.
+export LIVE_READINESS_DEBUG_DIR="${seed_dir}/.readiness-debug"
+out="$(run_runner)" && fail "go nonzero exit in ${first_pkg} passed"
+[[ -f "${first_debugdir}/events.jsonl" ]] || fail "debug events not preserved for ${first_pkg}"
+cmp -s "$(events_of "${first_pkg}")" "${first_debugdir}/events.jsonl" ||
+  fail "debug events differ from the stream for ${first_pkg}"
+[[ -f "${first_debugdir}/stderr.txt" ]] || fail "debug stderr not preserved for ${first_pkg}"
+[[ "${out}" == *"SEED-DEATH-MARKER"* ]] || fail "death-point tail not printed: ${out}"
+
+# Two failed packages keep separate evidence dirs even when their sanitized
+# names collide: each copy must byte-match its own package stream.
+[[ "${#packages[@]}" -ge 2 && "${first_pkg}" != "${last_pkg}" ]] ||
+  fail "need two distinct packages for the collision case"
+write_events
+printf '1\n' >"${fake}/$(pkg_key "${first_pkg}").exit"
+printf '1\n' >"${fake}/$(pkg_key "${last_pkg}").exit"
+out="$(run_runner)" && fail "go nonzero exits passed"
+[[ -d "${first_debugdir}" && -d "${last_debugdir}" ]] || fail "failed packages share one debug dir"
+[[ "${first_debugdir}" != "${last_debugdir}" ]] || fail "debug dirs collide"
+cmp -s "$(events_of "${first_pkg}")" "${first_debugdir}/events.jsonl" ||
+  fail "first package events overwritten"
+cmp -s "$(events_of "${last_pkg}")" "${last_debugdir}/events.jsonl" ||
+  fail "last package events overwritten"
+unset LIVE_READINESS_DEBUG_DIR
+
+# The debug dir is cleared every run, so its leaf name is pinned: /, $HOME,
+# or any other meaningful dir dies here instead of being wiped.
+for bad in / "${seed_dir}" -rf; do
+  out="$(LIVE_READINESS_DEBUG_DIR="${bad}" bash "${runner}" 2>&1)" && fail "debug dir ${bad} passed"
+  [[ "${out}" == *"must end in /.readiness-debug"* ]] || fail "debug dir ${bad} not refused: ${out}"
+done
+
+# A verify failure (go exit 0, expectations unmet) preserves its events too:
+# that stream is equally trap-deleted with scratch.
+write_events
+sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${first_proof}\"/\"Action\":\"fail\",\"Test\":\"${first_proof}\"/" "$(events_of "${first_pkg}")"
+export LIVE_READINESS_DEBUG_DIR="${seed_dir}/.readiness-debug"
+out="$(run_runner)" && fail "verify failure in ${first_pkg} passed"
+[[ "${out}" == *"${first_pkg}: expected tests did not all pass"* ]] || fail "verify failure not named: ${out}"
+[[ -f "${first_debugdir}/events.jsonl" ]] || fail "debug events not preserved on verify failure"
+unset LIVE_READINESS_DEBUG_DIR
+
+# A failed preservation warns and the loop continues: every package still
+# runs so one CI run reports every broken proof. A file where the debug dir
+# must go makes mkdir fail.
+write_events
+printf '1\n' >"${fake}/$(pkg_key "${first_pkg}").exit"
+touch "${seed_dir}/debug-block"
+export LIVE_READINESS_DEBUG_DIR="${seed_dir}/debug-block/.readiness-debug"
+: >"${fake}/calls"
+out="$(run_runner)" && fail "go nonzero exit in ${first_pkg} passed"
+[[ "${out}" == *"WARNING: debug preservation failed, continuing"* ]] || fail "preservation failure not warned: ${out}"
+[[ "${out}" == *"${first_pkg}: go test exited 1"* ]] || fail "failed package not reported: ${out}"
+rg -q -F -- "${last_pkg}" "${fake}/calls" || fail "package loop aborted after preservation failure"
+rm -f "${seed_dir}/debug-block"
+unset LIVE_READINESS_DEBUG_DIR
 write_events
 sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${first_proof}\"/\"Action\":\"fail\",\"Test\":\"${first_proof}\"/" "$(events_of "${first_pkg}")"
 sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${last_proof}\"/\"Action\":\"skip\",\"Test\":\"${last_proof}\"/" "$(events_of "${last_pkg}")"

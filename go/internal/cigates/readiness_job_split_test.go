@@ -264,6 +264,17 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		if step.Uses != "actions/upload-artifact@v4" {
 			continue
 		}
+		// Failure-only death-point evidence uploads (#8662) ride alongside
+		// the report attestation without weakening it: the report step
+		// below still fails the leg when the report is absent. The
+		// carve-out names the exact diagnostic shape (path, name, gate)
+		// so a future failure-gated report attestation cannot silently
+		// escape the shape check.
+		if step.With["path"] == ".readiness-debug/" &&
+			strings.Contains(step.With["name"], "readiness-debug-") &&
+			strings.Contains(step.If, "failure()") {
+			continue
+		}
 		if step.With["path"] != "readiness-shard-report.json" ||
 			step.With["if-no-files-found"] != "error" ||
 			!strings.Contains(step.With["name"], "${{ matrix.shard }}") {
