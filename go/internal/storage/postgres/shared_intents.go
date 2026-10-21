@@ -84,6 +84,11 @@ CREATE TABLE IF NOT EXISTS shared_projection_partition_leases (
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (projection_domain, partition_id, partition_count)
 );
+-- Claim epoch for the retirement barrier (#8659): set when a new owner
+-- takes the lease, kept across that owner's heartbeats. Migration 209
+-- carries the same statement for deployed databases.
+ALTER TABLE shared_projection_partition_leases
+    ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ NULL;
 `
 
 // SharedIntentSchemaSQL returns the DDL for shared projection intent tables.
@@ -166,8 +171,8 @@ WITH domain_claim_lock AS (
 )
 INSERT INTO shared_projection_partition_leases (
     projection_domain, partition_id, partition_count,
-    lease_owner, lease_expires_at, updated_at
-) SELECT $1, $2, $3, $4, clock_timestamp() + ($5::double precision * INTERVAL '1 second'), $6
+    lease_owner, lease_expires_at, claimed_at, updated_at
+) SELECT $1, $2, $3, $4, clock_timestamp() + ($5::double precision * INTERVAL '1 second'), clock_timestamp(), $6
 FROM domain_claim_lock
 WHERE NOT EXISTS (
     SELECT 1
@@ -180,6 +185,16 @@ WHERE NOT EXISTS (
 ON CONFLICT (projection_domain, partition_id, partition_count) DO UPDATE
 SET lease_owner = EXCLUDED.lease_owner,
     lease_expires_at = EXCLUDED.lease_expires_at,
+    -- Claim-epoch rule for the retirement barrier (#8659): the same owner
+    -- keeps its epoch across heartbeats, every other take starts a fresh
+    -- one. A release nulls the owner, so the next claim after a release
+    -- (NULL = claimant is never true) always starts fresh even for the
+    -- same worker: epochs turn over every worker cycle, which is what
+    -- lets the 2b' wait terminate on healthy workers instead of holding
+    -- on a pre-barrier epoch forever.
+    claimed_at = CASE WHEN shared_projection_partition_leases.lease_owner = EXCLUDED.lease_owner
+                      THEN shared_projection_partition_leases.claimed_at
+                      ELSE clock_timestamp() END,
     updated_at = EXCLUDED.updated_at
 WHERE shared_projection_partition_leases.lease_expires_at IS NULL
    OR shared_projection_partition_leases.lease_expires_at <= clock_timestamp()

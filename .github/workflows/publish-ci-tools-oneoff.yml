@@ -1,0 +1,73 @@
+# One-off publisher for the static-gate ci-tools image (go1.26.10 rebuild).
+# NOT part of the permanent gate set: delete before merging the bump PR.
+# Run via: gh workflow run publish-ci-tools-oneoff.yml --ref chore/go-1.26.10
+# Emits the pushed digest plus per-arch inventory hashes for specs/ci-images.v1.json.
+name: Publish ci-tools image (one-off)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DOCKERHUB_LOGIN_ENABLED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+    steps:
+      - name: Checkout selected ref
+        uses: actions/checkout@v5
+      - name: Assert bumped Go version
+        run: |
+          set -euo pipefail
+          test "$(grep -E '^ARG GO_VERSION=' scripts/ci/tools.Dockerfile | cut -d= -f2)" = "1.26.10"
+      - name: Log in to Docker Hub for setup-qemu binfmt pull
+        if: env.DOCKERHUB_LOGIN_ENABLED == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push ci-tools image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./scripts/ci/tools.Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ghcr.io/eshu-hq/ci-tools:go1.26.10
+          provenance: false
+      - name: Emit digest and per-arch inventories
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          echo "IMAGE_DIGEST=${DIGEST}"
+          for arch in amd64 arm64; do
+            platform="linux/${arch}"
+            manifest="$(docker buildx imagetools inspect "ghcr.io/eshu-hq/ci-tools@${DIGEST}" --format '{{json .Manifest}}' | jq -r ".manifests[] | select(.platform.architecture==\"${arch}\") | .digest")"
+            echo "MANIFEST_DIGEST_${arch}=${manifest}"
+            rootfs="$(mktemp -d)"
+            docker pull --platform "${platform}" "ghcr.io/eshu-hq/ci-tools@${manifest}" >/dev/null
+            docker run --rm --platform "${platform}" \
+              -v "${rootfs}:/out" "ghcr.io/eshu-hq/ci-tools@${manifest}" \
+              bash -c 'cp /usr/local/share/ci-tools/packages.tsv /usr/local/share/ci-tools/downloads.tsv /out/'
+            echo "APT_PACKAGES_${arch}=$(grep -c '' "${rootfs}/packages.tsv")"
+            echo "DOWNLOADS_${arch}=$(grep -cE '^(go|yq|ripgrep|docker-cli|docker-compose)' "${rootfs}/downloads.tsv")"
+            echo "PACKAGES_SHA256_${arch}=$(sha256sum "${rootfs}/packages.tsv" | awk '{print $1}')"
+            echo "DOWNLOADS_SHA256_${arch}=$(sha256sum "${rootfs}/downloads.tsv" | awk '{print $1}')"
+            rm -rf "${rootfs}"
+          done

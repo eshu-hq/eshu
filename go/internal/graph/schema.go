@@ -70,6 +70,12 @@ type schemaDialect struct {
 	// includeInfraSearchKeyIndex adds the #7245 infra search key FULLTEXT
 	// index (neo4jInfraSearchKeyIndexes).
 	includeInfraSearchKeyIndex bool
+	// includeRetirementLookupIndexes adds the #8659 retirement RANGE
+	// indexes (neo4jRetirementLookupIndexes). Neo4j only: NornicDB keeps
+	// its own same-shape lookup indexes, and a second property index on
+	// the same label and property would re-backfill every existing
+	// NornicDB store (nornicdb-pitfalls.md).
+	includeRetirementLookupIndexes bool
 	// retiredConstraints names the uniqueness constraints narrower than the
 	// canonical uid identity that this dialect drops (DROP CONSTRAINT ... IF
 	// EXISTS) before any other statement (#7095, #7097).
@@ -87,12 +93,13 @@ func schemaDialectForBackend(backend SchemaBackend) (schemaDialect, error) {
 	switch normalized {
 	case SchemaBackendNeo4j:
 		return schemaDialect{
-			backend:                      normalized,
-			constraint:                   neo4jSchemaConstraint,
-			includeNeo4jUIDLookupIndexes: true,
-			includeInfraSearchKeyIndex:   true,
-			retiredConstraints:           neo4jRetiredUniqueConstraints,
-			retiredConstraintPathIndexes: neo4jRetiredConstraintPathIndexes,
+			backend:                        normalized,
+			constraint:                     neo4jSchemaConstraint,
+			includeNeo4jUIDLookupIndexes:   true,
+			includeInfraSearchKeyIndex:     true,
+			includeRetirementLookupIndexes: true,
+			retiredConstraints:             neo4jRetiredUniqueConstraints,
+			retiredConstraintPathIndexes:   neo4jRetiredConstraintPathIndexes,
 		}, nil
 	case SchemaBackendNornicDB:
 		return schemaDialect{
