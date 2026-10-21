@@ -146,9 +146,9 @@
     {
       "id": "golang",
       "env": "ESHU_GO_IMAGE",
-      "source": "docker.io/library/golang:1.26.9-alpine",
+      "source": "docker.io/library/golang:1.26.10-alpine",
       "destination": "ghcr.io/eshu-hq/ci-mirror-golang",
-      "digest": "sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0",
+      "digest": "sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca",
       "runtime_sources": [],
       "platforms": [
         "linux/amd64",
@@ -160,7 +160,7 @@
         "linux/s390x"
       ],
       "source_records": [
-        "https://go.dev/dl/#go1.26.9",
+        "https://go.dev/dl/#go1.26.10",
         "https://gitlab.alpinelinux.org/alpine/aports"
       ],
       "notice_policy": "Preserve upstream layers and all included license and copyright notices.",
@@ -242,23 +242,23 @@
   ],
   "tools": {
     "destination": "ghcr.io/eshu-hq/ci-tools",
-    "digest": "sha256:05ab9636508dd971fc39f532e5b13ef7088209f89be30172e403c98e9fab1738",
-    "recipe_sha256": "aef0a8c34e01c0be290bc1625c87b363ac4d9ac2d63b2bcb799a4601c2dcc7e3",
+    "digest": "sha256:2cd4305390057560cd876df8c3350e296b7df0b4b11a3d04e3a7d904d169a776",
+    "recipe_sha256": "e5aa965cb418783a1827123d9bb01bed9ec8f644547feb0944f9186fed7cec6a",
     "platforms": ["linux/amd64", "linux/arm64"],
     "inventories": {
       "linux/amd64": {
-        "manifest_digest": "sha256:fa47b8288cb8a722d7db4dd1784639d8abc7e7e18cd8257adfcd5e72361aa3bc",
+        "manifest_digest": "sha256:14be4d046bcc70b9dc7db3f0a8eba7b07e7c2d7c126b6329ff8bc15a9d842164",
         "apt_packages": 190,
         "downloads": 5,
-        "packages_sha256": "614128f59568c39816e0793e57a575c8bb0bfd6fcad05ec1904c85f1340ecb55",
-        "downloads_sha256": "280f79ea202bc2ad845f862be7a481b86cdef8c3b72c32cfb92dcc879f17c56b"
+        "packages_sha256": "89db9c0561872873d9819eb01bc1a1b33be6e3b6d7d3a409c17c10a3e7f1d4ed",
+        "downloads_sha256": "9c702a372417b755ac2fc2748c323b621252f490e9b5988033358288950560a2"
       },
       "linux/arm64": {
-        "manifest_digest": "sha256:261849bd0e466597f451f15dc1797357162ba8384c6655f6349317a7ddc4eef5",
+        "manifest_digest": "sha256:c955bbd5497ea153a7213c3378dd9e376567cdd277fbee63f85d965c03c7f31b",
         "apt_packages": 189,
         "downloads": 5,
-        "packages_sha256": "f3b6b54b98b7e9ee113a25beae211931a65d8f7c789b9986d4aab87993eed714",
-        "downloads_sha256": "2353c5aebc29cb520f2f04a4664a3d8ffb19e191c230e0ce128f8d64b3dd91b3"
+        "packages_sha256": "c0aa73b6b15d8b9b04dc67ae62624414bf2e10bd661ced9a22433cc94113bc3e",
+        "downloads_sha256": "fd07abb73c067a1c54a39a863a186b750a3b5ec61357362f7942f5e6d887e4dc"
       }
     }
   }

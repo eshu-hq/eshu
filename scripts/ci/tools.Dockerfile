@@ -13,9 +13,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Direct apt dependencies carry Ubuntu 24.04 package version pins. The build
 # records all transitive versions in the image inventory emitted below.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates=20260601~24.04.1 \
-      curl=8.5.0-2ubuntu10.15 \
-      git=1:2.43.0-1ubuntu7.3 \
+      ca-certificates=20260816ubuntu0.24.04.1 \
+      curl=8.5.0-2ubuntu10.16 \
+      git=1:2.43.0-1ubuntu7.4 \
       jq=1.7.1-3ubuntu0.24.04.2 \
       python3=3.12.3-0ubuntu2.1 \
       build-essential=12.10ubuntu1 \
@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       perl=5.38.2-3.2ubuntu0.6 \
     && rm -rf /var/lib/apt/lists/*
 
-ARG GO_VERSION=1.26.9
+ARG GO_VERSION=1.26.10
 ARG RIPGREP_VERSION=15.2.0
 # Minimum supported yq is 4.44.3 (#8397): the oldest release the gate scripts'
 # strenv(TAB) rows are proven on (4.44.3/4.49.2/4.54.1). CI runs the pin below.
@@ -34,14 +34,14 @@ ARG COMPOSE_VERSION=2.40.3
 
 RUN set -eux; \
     case "${TARGETARCH}" in \
-      amd64) go_sha=42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d; \
+      amd64) go_sha=ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5; \
              rg_target=x86_64-unknown-linux-musl; \
              rg_sha=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c; \
              yq_sha=8e34fc298390875de416e6a4afcb8cabeceb25d9aa8506c1a2f9353cf702ea5f; \
              docker_arch=x86_64; \
              docker_sha=c019c608ba2bb009dd673f3230e4d743f36a78d36166c6c2444c05d0aa9ff0d9; \
              compose_sha=dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372 ;; \
-      arm64) go_sha=4a97373d49fcacdcf3694fea368a500b00ee3e963974f3e7514132717632f052; \
+      arm64) go_sha=3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797; \
              rg_target=aarch64-unknown-linux-gnu; \
              rg_sha=a740b91c82eaf9914cfedd353572f2791cbe0162c84101ee0951058f4dcbc90d; \
              yq_sha=189088da0c6429ec5178dfaab1a114805f6cab0b61b165ab236efedf1d57a71b; \
