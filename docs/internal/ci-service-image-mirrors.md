@@ -2,7 +2,7 @@
 
 Docker Hub's anonymous rate limit can stop hosted jobs while GitHub Actions
 initializes PostgreSQL and Neo4j service containers, before Eshu tests run.
-`docker-publish.yml` has a manual-only mirror mode that copies three pinned
+`docker-publish.yml` has a manual-only mirror mode that copies four pinned
 upstream OCI indexes to dedicated Eshu GHCR packages. It does not rebuild them.
 
 | Upstream index | Eshu GHCR reference | Index digest |
@@ -10,6 +10,7 @@ upstream OCI indexes to dedicated Eshu GHCR packages. It does not rebuild them.
 | `mirror.gcr.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873` | `ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873` | `sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873` |
 | `mirror.gcr.io/library/postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c` | `ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c` | `sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c` |
 | `mirror.gcr.io/library/neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f` | `ghcr.io/eshu-hq/ci-neo4j-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f` | `sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f` |
+| `mirror.gcr.io/library/golang:1.26.10-alpine@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca` | `ghcr.io/eshu-hq/ci-mirror-golang@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca` | `sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca` |
 
 The digest-qualified Neo4j source is an earlier `2026-community` index. The
 unqualified tag has since moved; the publisher does not follow it.
@@ -35,9 +36,12 @@ normal Eshu image, chart, and release job.
    The initial three indexes were published from the reviewed bootstrap branch
    in [run 38000888647](https://github.com/eshu-hq/eshu/actions/runs/38000888647)
    before the `main`-only restriction. Do not reuse that branch for refreshes.
+   The golang index was added later for the Go 1.26.10 toolchain (see #8693);
+   unlike the other three, its `ci-mirror-golang` package already exists and is
+   public, so publishing a new digest to it needs no visibility change.
 
 2. New GHCR container packages start private. Before changing visibility, a
-   package admin must inspect **every version** in each of the three packages
+   package admin must inspect **every version** in each of the four packages
    in the GitHub organization Packages UI. Confirm that the package contains
    only the approved upstream copies above, with the exact
    index digests. A 403 or 404 from a token without `read:packages` is not
