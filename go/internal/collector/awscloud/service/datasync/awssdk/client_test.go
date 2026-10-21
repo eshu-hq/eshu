@@ -14,6 +14,7 @@ import (
 	awsdatasynctypes "github.com/aws/aws-sdk-go-v2/service/datasync/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientInterfaceExcludesMutationAndUnsafeReadAPIs is the primary contract
@@ -191,7 +192,7 @@ func TestClientListAgentsResolvesAgentMetadata(t *testing.T) {
 func newTestClient(fake *fakeDataSyncAPI) *Client {
 	return &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceDataSync},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceDataSync},
 	}
 }
 

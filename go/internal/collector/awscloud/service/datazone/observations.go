@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // domainObservation builds the metadata-only resource observation for one
@@ -22,7 +23,7 @@ func domainObservation(boundary awscloud.Boundary, domain Domain) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDatazoneDomain,
+		ResourceType: catalog.ResourceTypeDatazoneDomain,
 		Name:         name,
 		State:        strings.TrimSpace(domain.Status),
 		Tags:         cloneStringMap(domain.Tags),
@@ -49,7 +50,7 @@ func projectObservation(boundary awscloud.Boundary, project Project) awscloud.Re
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDatazoneProject,
+		ResourceType: catalog.ResourceTypeDatazoneProject,
 		Name:         name,
 		State:        strings.TrimSpace(project.Status),
 		Attributes: map[string]any{
@@ -74,7 +75,7 @@ func environmentObservation(boundary awscloud.Boundary, environment Environment)
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDatazoneEnvironment,
+		ResourceType: catalog.ResourceTypeDatazoneEnvironment,
 		Name:         name,
 		State:        strings.TrimSpace(environment.Status),
 		Attributes: map[string]any{
@@ -105,7 +106,7 @@ func dataSourceObservation(boundary awscloud.Boundary, dataSource DataSource) aw
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDatazoneDataSource,
+		ResourceType: catalog.ResourceTypeDatazoneDataSource,
 		Name:         name,
 		State:        strings.TrimSpace(dataSource.Status),
 		Attributes: map[string]any{

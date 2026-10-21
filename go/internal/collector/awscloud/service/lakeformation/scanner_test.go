@@ -124,7 +124,7 @@ func TestScannerEmitsLakeFormationMetadataResourcesAndRelationships(t *testing.T
 	if got, want := permTable.Payload["target_resource_id"], "analytics/orders"; got != want {
 		t.Fatalf("permission->table target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := permTable.Payload["target_type"], awscloud.ResourceTypeGlueTable; got != want {
+	if got, want := permTable.Payload["target_type"], catalog.ResourceTypeGlueTable; got != want {
 		t.Fatalf("permission->table target_type = %#v, want %q", got, want)
 	}
 
@@ -133,7 +133,7 @@ func TestScannerEmitsLakeFormationMetadataResourcesAndRelationships(t *testing.T
 	if got, want := permDB.Payload["target_resource_id"], "analytics"; got != want {
 		t.Fatalf("permission->database target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := permDB.Payload["target_type"], awscloud.ResourceTypeGlueDatabase; got != want {
+	if got, want := permDB.Payload["target_type"], catalog.ResourceTypeGlueDatabase; got != want {
 		t.Fatalf("permission->database target_type = %#v, want %q", got, want)
 	}
 
@@ -247,7 +247,7 @@ func TestScannerEmitsDatabaseEdgeForTableWildcardGrant(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceGlue
+	boundary.ServiceKind = catalog.ServiceGlue
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

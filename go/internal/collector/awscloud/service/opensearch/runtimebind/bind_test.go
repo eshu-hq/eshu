@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/opensearch/runtimebind"
 )
 
 // TestOpenSearchRuntimeBindRegisters confirms importing the binding installs
 // the OpenSearch scanner builder.
 func TestOpenSearchRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceOpenSearch)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceOpenSearch)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceOpenSearch)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceOpenSearch)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceOpenSearch},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceOpenSearch},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

@@ -86,7 +86,7 @@ func TestScannerEmitsDatazoneMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	domain := resourceByType(t, envelopes, awscloud.ResourceTypeDatazoneDomain)
+	domain := resourceByType(t, envelopes, catalog.ResourceTypeDatazoneDomain)
 	if got, want := domain.Payload["resource_id"], testDomainID; got != want {
 		t.Fatalf("domain resource_id = %#v, want %q", got, want)
 	}
@@ -97,24 +97,24 @@ func TestScannerEmitsDatazoneMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, domainAttrs, "kms_key_identifier", testKMSARN)
 	assertAttribute(t, domainAttrs, "domain_execution_role", testExecutionRole)
 
-	project := resourceByType(t, envelopes, awscloud.ResourceTypeDatazoneProject)
+	project := resourceByType(t, envelopes, catalog.ResourceTypeDatazoneProject)
 	if got, want := project.Payload["resource_id"], testProjectID; got != want {
 		t.Fatalf("project resource_id = %#v, want %q", got, want)
 	}
-	environment := resourceByType(t, envelopes, awscloud.ResourceTypeDatazoneEnvironment)
+	environment := resourceByType(t, envelopes, catalog.ResourceTypeDatazoneEnvironment)
 	if got, want := environment.Payload["resource_id"], testEnvironmentID; got != want {
 		t.Fatalf("environment resource_id = %#v, want %q", got, want)
 	}
 
 	// domain -> KMS key edge.
-	dbKMS := relationshipByType(t, envelopes, awscloud.RelationshipDatazoneDomainUsesKMSKey)
+	dbKMS := relationshipByType(t, envelopes, catalog.RelationshipDatazoneDomainUsesKMSKey)
 	assertEdgeTarget(t, dbKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
 	if got, want := dbKMS.Payload["source_resource_id"], testDomainID; got != want {
 		t.Fatalf("domain->kms source_resource_id = %#v, want %q", got, want)
 	}
 
 	// domain -> IAM role edges (execution + service): both target the IAM role ARN.
-	roleEdges := relationshipsByType(envelopes, awscloud.RelationshipDatazoneDomainUsesIAMRole)
+	roleEdges := relationshipsByType(envelopes, catalog.RelationshipDatazoneDomainUsesIAMRole)
 	if len(roleEdges) != 2 {
 		t.Fatalf("domain->iam edge count = %d, want 2", len(roleEdges))
 	}
@@ -128,29 +128,29 @@ func TestScannerEmitsDatazoneMetadataAndRelationships(t *testing.T) {
 	}
 
 	// project -> domain edge keyed by domain id.
-	projInDomain := relationshipByType(t, envelopes, awscloud.RelationshipDatazoneProjectInDomain)
-	assertEdgeTarget(t, projInDomain, awscloud.ResourceTypeDatazoneDomain, testDomainID)
+	projInDomain := relationshipByType(t, envelopes, catalog.RelationshipDatazoneProjectInDomain)
+	assertEdgeTarget(t, projInDomain, catalog.ResourceTypeDatazoneDomain, testDomainID)
 	if got, want := projInDomain.Payload["source_resource_id"], testProjectID; got != want {
 		t.Fatalf("project->domain source_resource_id = %#v, want %q", got, want)
 	}
 
 	// environment -> domain edge.
-	envInDomain := relationshipByType(t, envelopes, awscloud.RelationshipDatazoneEnvironmentInDomain)
-	assertEdgeTarget(t, envInDomain, awscloud.ResourceTypeDatazoneDomain, testDomainID)
+	envInDomain := relationshipByType(t, envelopes, catalog.RelationshipDatazoneEnvironmentInDomain)
+	assertEdgeTarget(t, envInDomain, catalog.ResourceTypeDatazoneDomain, testDomainID)
 
 	// data source -> domain edge.
-	dsInDomain := relationshipByType(t, envelopes, awscloud.RelationshipDatazoneDataSourceInDomain)
-	assertEdgeTarget(t, dsInDomain, awscloud.ResourceTypeDatazoneDomain, testDomainID)
+	dsInDomain := relationshipByType(t, envelopes, catalog.RelationshipDatazoneDataSourceInDomain)
+	assertEdgeTarget(t, dsInDomain, catalog.ResourceTypeDatazoneDomain, testDomainID)
 
 	// data source -> Glue database edge keyed by database name.
-	glueEdge := relationshipByType(t, envelopes, awscloud.RelationshipDatazoneDataSourceBacksGlueDatabase)
-	assertEdgeTarget(t, glueEdge, awscloud.ResourceTypeGlueDatabase, "sales_db")
+	glueEdge := relationshipByType(t, envelopes, catalog.RelationshipDatazoneDataSourceBacksGlueDatabase)
+	assertEdgeTarget(t, glueEdge, catalog.ResourceTypeGlueDatabase, "sales_db")
 	if got, want := glueEdge.Payload["source_resource_id"], testGlueDataSource; got != want {
 		t.Fatalf("data_source->glue source_resource_id = %#v, want %q", got, want)
 	}
 
 	// data source -> Redshift cluster edge keyed by synthesized partition-aware ARN.
-	rsEdge := relationshipByType(t, envelopes, awscloud.RelationshipDatazoneDataSourceBacksRedshiftCluster)
+	rsEdge := relationshipByType(t, envelopes, catalog.RelationshipDatazoneDataSourceBacksRedshiftCluster)
 	wantClusterARN := "arn:aws:redshift:us-east-1:123456789012:cluster:analytics-cluster"
 	assertEdgeTarget(t, rsEdge, awscloud.ResourceTypeRedshiftCluster, wantClusterARN)
 	if got, want := rsEdge.Payload["target_arn"], wantClusterARN; got != want {
@@ -183,7 +183,7 @@ func TestScannerSynthesizesGovCloudRedshiftClusterARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rsEdge := relationshipByType(t, envelopes, awscloud.RelationshipDatazoneDataSourceBacksRedshiftCluster)
+	rsEdge := relationshipByType(t, envelopes, catalog.RelationshipDatazoneDataSourceBacksRedshiftCluster)
 	wantARN := "arn:aws-us-gov:redshift:us-gov-west-1:123456789012:cluster:analytics-cluster"
 	if got := rsEdge.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud redshift target_resource_id = %#v, want %q", got, wantARN)
@@ -206,7 +206,7 @@ func TestScannerSynthesizesCrossAccountRedshiftClusterARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rsEdge := relationshipByType(t, envelopes, awscloud.RelationshipDatazoneDataSourceBacksRedshiftCluster)
+	rsEdge := relationshipByType(t, envelopes, catalog.RelationshipDatazoneDataSourceBacksRedshiftCluster)
 	wantARN := "arn:aws:redshift:us-west-2:999988887777:cluster:shared-cluster"
 	if got := rsEdge.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("cross-account redshift target_resource_id = %#v, want %q", got, wantARN)
@@ -245,7 +245,7 @@ func TestScannerOmitsNonRoleIAMTargetAndAliasKeyKMS(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	// KMS edge keeps the alias value but no ARN.
-	dbKMS := relationshipByType(t, envelopes, awscloud.RelationshipDatazoneDomainUsesKMSKey)
+	dbKMS := relationshipByType(t, envelopes, catalog.RelationshipDatazoneDomainUsesKMSKey)
 	if got, want := dbKMS.Payload["target_resource_id"], "alias/datazone-key"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -257,7 +257,7 @@ func TestScannerOmitsNonRoleIAMTargetAndAliasKeyKMS(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if envelope.Payload["relationship_type"] == awscloud.RelationshipDatazoneDomainUsesIAMRole {
+		if envelope.Payload["relationship_type"] == catalog.RelationshipDatazoneDomainUsesIAMRole {
 			t.Fatalf("non-role principal produced an IAM role edge: %#v", envelope.Payload)
 		}
 	}
@@ -270,17 +270,17 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 	var observations []awscloud.RelationshipObservation
 	observations = append(observations, domainRelationships(boundary, domain)...)
 	for _, project := range domain.Projects {
-		if rel := childInDomainRelationship(boundary, awscloud.RelationshipDatazoneProjectInDomain, project.ID, "", domainID); rel != nil {
+		if rel := childInDomainRelationship(boundary, catalog.RelationshipDatazoneProjectInDomain, project.ID, "", domainID); rel != nil {
 			observations = append(observations, *rel)
 		}
 	}
 	for _, env := range domain.Environments {
-		if rel := childInDomainRelationship(boundary, awscloud.RelationshipDatazoneEnvironmentInDomain, env.ID, "", domainID); rel != nil {
+		if rel := childInDomainRelationship(boundary, catalog.RelationshipDatazoneEnvironmentInDomain, env.ID, "", domainID); rel != nil {
 			observations = append(observations, *rel)
 		}
 	}
 	for _, ds := range domain.DataSources {
-		if rel := childInDomainRelationship(boundary, awscloud.RelationshipDatazoneDataSourceInDomain, ds.ID, "", domainID); rel != nil {
+		if rel := childInDomainRelationship(boundary, catalog.RelationshipDatazoneDataSourceInDomain, ds.ID, "", domainID); rel != nil {
 			observations = append(observations, *rel)
 		}
 		observations = append(observations, dataSourceGlueRelationships(boundary, ds)...)

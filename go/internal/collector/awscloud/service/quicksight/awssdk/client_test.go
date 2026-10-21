@@ -13,6 +13,7 @@ import (
 	awsquicksighttypes "github.com/aws/aws-sdk-go-v2/service/quicksight/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	quicksightservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/quicksight"
 )
 
@@ -254,7 +255,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceQuickSight,
+		ServiceKind: catalog.ServiceQuickSight,
 	}
 }
 

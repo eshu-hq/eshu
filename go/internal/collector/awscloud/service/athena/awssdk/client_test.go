@@ -15,6 +15,7 @@ import (
 	awsathenatypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListWorkGroupsReadsSafeMetadataAndDiscardsForbiddenFields(t *testing.T) {
@@ -66,7 +67,7 @@ func TestClientListWorkGroupsReadsSafeMetadataAndDiscardsForbiddenFields(t *test
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAthena,
+			ServiceKind: catalog.ServiceAthena,
 		},
 		workGroupARN: func(_ awscloud.Boundary, name string) string {
 			if name == "primary" {
@@ -157,7 +158,7 @@ func TestClientListDataCatalogsReadsSafeMetadata(t *testing.T) {
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAthena,
+			ServiceKind: catalog.ServiceAthena,
 		},
 		dataCatalogARN: func(_ awscloud.Boundary, name string) string {
 			return "arn:aws:athena:us-east-1:123456789012:datacatalog/" + name
@@ -211,7 +212,7 @@ func TestClientListPreparedStatementsReadsNamesAndNeverCallsGetPreparedStatement
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAthena,
+			ServiceKind: catalog.ServiceAthena,
 		},
 	}
 
@@ -263,7 +264,7 @@ func TestClientListNamedQueriesStripsSQLBodyBeforeReturningToScanner(t *testing.
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAthena,
+			ServiceKind: catalog.ServiceAthena,
 		},
 	}
 
@@ -324,7 +325,7 @@ func TestClientNeverCallsGetNamedQuery(t *testing.T) {
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAthena,
+			ServiceKind: catalog.ServiceAthena,
 		},
 	}
 

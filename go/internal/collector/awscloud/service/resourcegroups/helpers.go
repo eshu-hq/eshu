@@ -139,7 +139,7 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 		return arnTarget(catalog.ResourceTypeSNSTopic, arn), true
 	case "kinesis":
 		if resourceType == "stream" {
-			return arnTarget(awscloud.ResourceTypeKinesisDataStream, arn), true
+			return arnTarget(catalog.ResourceTypeKinesisDataStream, arn), true
 		}
 	case "rds":
 		switch resourceType {

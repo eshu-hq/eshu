@@ -15,6 +15,7 @@ import (
 	awsbedrockagenttypes "github.com/aws/aws-sdk-go-v2/service/bedrockagent/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListCustomModelsReadsJobAndOutputNotHyperParameters(t *testing.T) {
@@ -293,6 +294,6 @@ func newTestClient(bedrockAPI bedrockAPIClient, agentAPI bedrockAgentAPIClient) 
 	return &Client{
 		bedrock:  bedrockAPI,
 		agent:    agentAPI,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBedrock},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBedrock},
 	}
 }

@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/quicksight/runtimebind"
 )
 
 // TestQuickSightRuntimeBindRegisters confirms importing the binding installs the
 // QuickSight scanner builder.
 func TestQuickSightRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceQuickSight)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceQuickSight)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceQuickSight)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceQuickSight)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceQuickSight,
+			ServiceKind: catalog.ServiceQuickSight,
 		},
 	})
 	if err != nil {

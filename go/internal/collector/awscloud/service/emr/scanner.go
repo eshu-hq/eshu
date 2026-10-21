@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,10 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("emr scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceEMR:
+	case "", catalog.ServiceEMR:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceEMR
+		boundary.ServiceKind = catalog.ServiceEMR
 	default:
 		return nil, fmt.Errorf("emr scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -143,7 +144,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   clusterID,
-		ResourceType: awscloud.ResourceTypeEMRCluster,
+		ResourceType: catalog.ResourceTypeEMRCluster,
 		Name:         strings.TrimSpace(cluster.Name),
 		State:        strings.TrimSpace(cluster.State),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -184,7 +185,7 @@ func instanceGroupObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   groupID,
-		ResourceType: awscloud.ResourceTypeEMRInstanceGroup,
+		ResourceType: catalog.ResourceTypeEMRInstanceGroup,
 		Name:         strings.TrimSpace(group.Name),
 		State:        strings.TrimSpace(group.State),
 		Attributes: map[string]any{
@@ -211,7 +212,7 @@ func instanceFleetObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   fleetID,
-		ResourceType: awscloud.ResourceTypeEMRInstanceFleet,
+		ResourceType: catalog.ResourceTypeEMRInstanceFleet,
 		Name:         strings.TrimSpace(fleet.Name),
 		State:        strings.TrimSpace(fleet.State),
 		Attributes: map[string]any{
@@ -238,7 +239,7 @@ func securityConfigurationObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeEMRSecurityConfiguration,
+		ResourceType: catalog.ResourceTypeEMRSecurityConfiguration,
 		Name:         name,
 		Attributes: map[string]any{
 			"created_at": timeOrNil(config.CreatedAt),
@@ -277,7 +278,7 @@ func serverlessApplicationObservation(
 		Boundary:     boundary,
 		ARN:          applicationARN,
 		ResourceID:   applicationID,
-		ResourceType: awscloud.ResourceTypeEMRServerlessApplication,
+		ResourceType: catalog.ResourceTypeEMRServerlessApplication,
 		Name:         strings.TrimSpace(application.Name),
 		State:        strings.TrimSpace(application.State),
 		Tags:         cloneStringMap(application.Tags),
@@ -337,7 +338,7 @@ func studioObservation(boundary awscloud.Boundary, studio Studio) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          studioARN,
 		ResourceID:   studioID,
-		ResourceType: awscloud.ResourceTypeEMRStudio,
+		ResourceType: catalog.ResourceTypeEMRStudio,
 		Name:         strings.TrimSpace(studio.Name),
 		Tags:         cloneStringMap(studio.Tags),
 		Attributes: map[string]any{
@@ -368,7 +369,7 @@ func sessionMappingObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   mappingID,
-		ResourceType: awscloud.ResourceTypeEMRStudioSessionMapping,
+		ResourceType: catalog.ResourceTypeEMRStudioSessionMapping,
 		Name:         strings.TrimSpace(mapping.IdentityName),
 		Attributes: map[string]any{
 			"studio_id":          strings.TrimSpace(studio.ID),

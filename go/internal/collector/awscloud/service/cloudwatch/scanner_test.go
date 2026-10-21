@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -180,7 +181,7 @@ func TestScannerEmitsAllFiveResourceTypesWithRelationships(t *testing.T) {
 	// The target_type must match the resource_type the kinesis scanner publishes
 	// for Firehose delivery streams, or the edge dangles and never joins the
 	// Firehose node. Regression for the #804 graph-join defect class.
-	if got, want := firehoseRels[0].Payload["target_type"], awscloud.ResourceTypeKinesisFirehoseDeliveryStream; got != want {
+	if got, want := firehoseRels[0].Payload["target_type"], catalog.ResourceTypeKinesisFirehoseDeliveryStream; got != want {
 		t.Fatalf("firehose target_type = %#v, want %q (the type kinesis publishes for Firehose)", got, want)
 	}
 

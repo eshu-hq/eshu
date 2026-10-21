@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/emr/runtimebind"
 )
 
 // TestEMRRuntimeBindRegisters confirms importing the binding installs the EMR
 // scanner builder and that the builder returns a non-nil scanner.
 func TestEMRRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceEMR)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceEMR)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceEMR)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceEMR)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceEMR},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceEMR},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

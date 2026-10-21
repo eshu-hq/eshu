@@ -14,7 +14,7 @@ import (
 // target. Bedrock base and foundation model ARNs are managed by AWS and are not
 // emitted as scanner resources of their own, so the target is the foundation
 // model resource type the scanner does emit for the read-only model list.
-const foundationModelTargetType = awscloud.ResourceTypeBedrockFoundationModel
+const foundationModelTargetType = catalog.ResourceTypeBedrockFoundationModel
 
 func customModelRelationships(model CustomModel) []awscloud.RelationshipObservation {
 	id := firstNonEmpty(model.ARN, model.Name)
@@ -24,7 +24,7 @@ func customModelRelationships(model CustomModel) []awscloud.RelationshipObservat
 	var observations []awscloud.RelationshipObservation
 	if base := strings.TrimSpace(model.BaseModelARN); isARN(base) {
 		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockCustomModelUsesBaseModel,
+			RelationshipType: catalog.RelationshipBedrockCustomModelUsesBaseModel,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(model.ARN),
 			TargetResourceID: base,
@@ -35,12 +35,12 @@ func customModelRelationships(model CustomModel) []awscloud.RelationshipObservat
 	}
 	if job := strings.TrimSpace(model.JobARN); isARN(job) {
 		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockCustomModelFromCustomizationJob,
+			RelationshipType: catalog.RelationshipBedrockCustomModelFromCustomizationJob,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(model.ARN),
 			TargetResourceID: job,
 			TargetARN:        job,
-			TargetType:       awscloud.ResourceTypeBedrockModelCustomizationJob,
+			TargetType:       catalog.ResourceTypeBedrockModelCustomizationJob,
 			SourceRecordID:   id + "#job#" + job,
 		})
 	}
@@ -69,7 +69,7 @@ func customModelS3Relationship(modelID, modelARN, outputURI string) (awscloud.Re
 		attributes["object_key"] = key
 	}
 	return awscloud.RelationshipObservation{
-		RelationshipType: awscloud.RelationshipBedrockCustomModelUsesS3Output,
+		RelationshipType: catalog.RelationshipBedrockCustomModelUsesS3Output,
 		SourceResourceID: modelID,
 		SourceARN:        strings.TrimSpace(modelARN),
 		TargetResourceID: bucketARN,
@@ -87,7 +87,7 @@ func provisionedThroughputRelationships(pt ProvisionedModelThroughput) []awsclou
 		return nil
 	}
 	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipBedrockProvisionedThroughputUsesModel,
+		RelationshipType: catalog.RelationshipBedrockProvisionedThroughputUsesModel,
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(pt.ARN),
 		TargetResourceID: model,
@@ -105,7 +105,7 @@ func agentRelationships(agent Agent) []awscloud.RelationshipObservation {
 	var observations []awscloud.RelationshipObservation
 	if model := strings.TrimSpace(agent.FoundationModel); model != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockAgentUsesFoundationModel,
+			RelationshipType: catalog.RelationshipBedrockAgentUsesFoundationModel,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(agent.ARN),
 			TargetResourceID: model,
@@ -124,11 +124,11 @@ func agentRelationships(agent Agent) []awscloud.RelationshipObservation {
 		}
 		seen[kbID] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockAgentUsesKnowledgeBase,
+			RelationshipType: catalog.RelationshipBedrockAgentUsesKnowledgeBase,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(agent.ARN),
 			TargetResourceID: kbID,
-			TargetType:       awscloud.ResourceTypeBedrockKnowledgeBase,
+			TargetType:       catalog.ResourceTypeBedrockKnowledgeBase,
 			SourceRecordID:   id + "#knowledge-base#" + kbID,
 		})
 	}
@@ -143,16 +143,16 @@ func actionGroupRelationships(group AgentActionGroup) []awscloud.RelationshipObs
 	var observations []awscloud.RelationshipObservation
 	if agentID := strings.TrimSpace(group.AgentID); agentID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockAgentHasActionGroup,
+			RelationshipType: catalog.RelationshipBedrockAgentHasActionGroup,
 			SourceResourceID: agentID,
 			TargetResourceID: id,
-			TargetType:       awscloud.ResourceTypeBedrockAgentActionGroup,
+			TargetType:       catalog.ResourceTypeBedrockAgentActionGroup,
 			SourceRecordID:   agentID + "#action-group#" + id,
 		})
 	}
 	if lambda := strings.TrimSpace(group.LambdaARN); isARN(lambda) {
 		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockActionGroupUsesLambda,
+			RelationshipType: catalog.RelationshipBedrockActionGroupUsesLambda,
 			SourceResourceID: id,
 			TargetResourceID: lambda,
 			TargetARN:        lambda,
@@ -203,7 +203,7 @@ func knowledgeBaseDataSourceRelationship(
 			return awscloud.RelationshipObservation{}, false
 		}
 		return awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipBedrockKnowledgeBaseUsesS3DataSource,
+			RelationshipType: catalog.RelationshipBedrockKnowledgeBaseUsesS3DataSource,
 			SourceResourceID: kbID,
 			SourceARN:        strings.TrimSpace(kbARN),
 			TargetResourceID: bucketARN,
@@ -239,11 +239,11 @@ func knowledgeBaseDataSourceRelationship(
 func urlDataSourceKinds(dataSourceType string) (relationshipType, targetType string, ok bool) {
 	switch strings.ToUpper(strings.TrimSpace(dataSourceType)) {
 	case "CONFLUENCE":
-		return awscloud.RelationshipBedrockKnowledgeBaseUsesConfluence, "confluence_data_source", true
+		return catalog.RelationshipBedrockKnowledgeBaseUsesConfluence, "confluence_data_source", true
 	case "SHAREPOINT":
-		return awscloud.RelationshipBedrockKnowledgeBaseUsesSharePoint, "sharepoint_data_source", true
+		return catalog.RelationshipBedrockKnowledgeBaseUsesSharePoint, "sharepoint_data_source", true
 	case "WEB":
-		return awscloud.RelationshipBedrockKnowledgeBaseUsesWebCrawler, "web_data_source", true
+		return catalog.RelationshipBedrockKnowledgeBaseUsesWebCrawler, "web_data_source", true
 	default:
 		return "", "", false
 	}

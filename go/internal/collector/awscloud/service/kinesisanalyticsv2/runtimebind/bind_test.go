@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/kinesisanalyticsv2/runtimebind"
 )
 
 // TestKinesisAnalyticsV2RuntimeBindRegisters confirms importing the binding
 // installs the Managed Flink scanner builder.
 func TestKinesisAnalyticsV2RuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceKinesisAnalyticsV2)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceKinesisAnalyticsV2)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceKinesisAnalyticsV2)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceKinesisAnalyticsV2)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceKinesisAnalyticsV2,
+			ServiceKind: catalog.ServiceKinesisAnalyticsV2,
 		},
 	})
 	if err != nil {

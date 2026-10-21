@@ -122,7 +122,7 @@ func sourceKinesisStreamRelationship(
 		SourceARN:        streamARN,
 		TargetResourceID: sourceARN,
 		TargetARN:        sourceARN,
-		TargetType:       awscloud.ResourceTypeKinesisDataStream,
+		TargetType:       catalog.ResourceTypeKinesisDataStream,
 		SourceRecordID:   streamID + "#kinesis-source#" + sourceARN,
 	}, true
 }
@@ -303,7 +303,7 @@ func destinationTargetRelationship(
 		base.RelationshipType = catalog.RelationshipFirehoseStreamDeliversToOpenSearchDomain
 		base.TargetResourceID = domainARN
 		base.TargetARN = domainARN
-		base.TargetType = awscloud.ResourceTypeOpenSearchDomain
+		base.TargetType = catalog.ResourceTypeOpenSearchDomain
 		base.SourceRecordID = streamID + "#opensearch#" + domainARN
 		return base, true
 	default:

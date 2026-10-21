@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -97,8 +97,8 @@ func TestAgentAndGuardrailEmitNoForbiddenAttributeKeys(t *testing.T) {
 	}
 
 	envelopes := scanFixture(t, client)
-	agent := resourceByType(t, envelopes, awscloud.ResourceTypeBedrockAgent)
-	guardrail := resourceByType(t, envelopes, awscloud.ResourceTypeBedrockGuardrail)
+	agent := resourceByType(t, envelopes, catalog.ResourceTypeBedrockAgent)
+	guardrail := resourceByType(t, envelopes, catalog.ResourceTypeBedrockGuardrail)
 	for _, envelope := range []facts.Envelope{agent, guardrail} {
 		attributes, ok := envelope.Payload["attributes"].(map[string]any)
 		if !ok {

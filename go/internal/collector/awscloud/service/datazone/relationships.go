@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // domainKMSRelationship records a DataZone domain's reported KMS encryption key
@@ -29,13 +30,13 @@ func domainKMSRelationship(boundary awscloud.Boundary, domain Domain) *awscloud.
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDatazoneDomainUsesKMSKey,
+		RelationshipType: catalog.RelationshipDatazoneDomainUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatazoneDomainUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipDatazoneDomainUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -60,7 +61,7 @@ func domainIAMRoleRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDatazoneDomainUsesIAMRole,
+		RelationshipType: catalog.RelationshipDatazoneDomainUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: roleARN,
@@ -69,7 +70,7 @@ func domainIAMRoleRelationship(
 		Attributes: map[string]any{
 			"role_kind": roleKind,
 		},
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipDatazoneDomainUsesIAMRole + ":" + roleARN,
+		SourceRecordID: sourceID + "->" + catalog.RelationshipDatazoneDomainUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -101,7 +102,7 @@ func childInDomainRelationship(
 		SourceARN:        strings.TrimSpace(childARN),
 		TargetResourceID: domainID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeDatazoneDomain,
+		TargetType:       catalog.ResourceTypeDatazoneDomain,
 		SourceRecordID:   childID + "->" + relationshipType + ":" + domainID,
 	}
 }
@@ -122,11 +123,11 @@ func dataSourceGlueRelationships(
 	for _, database := range cloneStrings(dataSource.GlueDatabaseNames) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDatazoneDataSourceBacksGlueDatabase,
+			RelationshipType: catalog.RelationshipDatazoneDataSourceBacksGlueDatabase,
 			SourceResourceID: sourceID,
 			TargetResourceID: database,
-			TargetType:       awscloud.ResourceTypeGlueDatabase,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatazoneDataSourceBacksGlueDatabase + ":" + database,
+			TargetType:       catalog.ResourceTypeGlueDatabase,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipDatazoneDataSourceBacksGlueDatabase + ":" + database,
 		})
 	}
 	return observations
@@ -156,7 +157,7 @@ func dataSourceRedshiftRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDatazoneDataSourceBacksRedshiftCluster,
+		RelationshipType: catalog.RelationshipDatazoneDataSourceBacksRedshiftCluster,
 		SourceResourceID: sourceID,
 		TargetResourceID: clusterARN,
 		TargetARN:        clusterARN,
@@ -164,7 +165,7 @@ func dataSourceRedshiftRelationship(
 		Attributes: map[string]any{
 			"cluster_name": strings.TrimSpace(dataSource.RedshiftClusterName),
 		},
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipDatazoneDataSourceBacksRedshiftCluster + ":" + clusterARN,
+		SourceRecordID: sourceID + "->" + catalog.RelationshipDatazoneDataSourceBacksRedshiftCluster + ":" + clusterARN,
 	}
 }
 

@@ -95,7 +95,7 @@ func TestClassifyMemberCoversFamilies(t *testing.T) {
 		{"dynamodb table", "arn:aws:dynamodb:us-east-1:123456789012:table/users", awscloud.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/users", true},
 		{"sqs queue", "arn:aws:sqs:us-east-1:123456789012:orders", catalog.ResourceTypeSQSQueue, "arn:aws:sqs:us-east-1:123456789012:orders", true},
 		{"sns topic", "arn:aws:sns:us-east-1:123456789012:alerts", catalog.ResourceTypeSNSTopic, "arn:aws:sns:us-east-1:123456789012:alerts", true},
-		{"kinesis stream", "arn:aws:kinesis:us-east-1:123456789012:stream/events", awscloud.ResourceTypeKinesisDataStream, "arn:aws:kinesis:us-east-1:123456789012:stream/events", true},
+		{"kinesis stream", "arn:aws:kinesis:us-east-1:123456789012:stream/events", catalog.ResourceTypeKinesisDataStream, "arn:aws:kinesis:us-east-1:123456789012:stream/events", true},
 		{"rds instance", "arn:aws:rds:us-east-1:123456789012:db:prod-db", awscloud.ResourceTypeRDSDBInstance, "arn:aws:rds:us-east-1:123456789012:db:prod-db", true},
 		{"rds cluster", "arn:aws:rds:us-east-1:123456789012:cluster:prod-cluster", awscloud.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:prod-cluster", true},
 		{"ecs cluster", "arn:aws:ecs:us-east-1:123456789012:cluster/main", catalog.ResourceTypeECSCluster, "arn:aws:ecs:us-east-1:123456789012:cluster/main", true},

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func notebookObservation(notebook NotebookInstance) awscloud.ResourceObservation {
@@ -15,7 +16,7 @@ func notebookObservation(notebook NotebookInstance) awscloud.ResourceObservation
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerNotebookInstance,
+		ResourceType: catalog.ResourceTypeSageMakerNotebookInstance,
 		Name:         strings.TrimSpace(notebook.Name),
 		State:        strings.TrimSpace(notebook.Status),
 		Tags:         cloneStringMap(notebook.Tags),
@@ -40,7 +41,7 @@ func modelObservation(model Model) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerModel,
+		ResourceType: catalog.ResourceTypeSageMakerModel,
 		Name:         strings.TrimSpace(model.Name),
 		Tags:         cloneStringMap(model.Tags),
 		Attributes: map[string]any{
@@ -63,7 +64,7 @@ func endpointObservation(endpoint Endpoint) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerEndpoint,
+		ResourceType: catalog.ResourceTypeSageMakerEndpoint,
 		Name:         strings.TrimSpace(endpoint.Name),
 		State:        strings.TrimSpace(endpoint.Status),
 		Tags:         cloneStringMap(endpoint.Tags),
@@ -83,7 +84,7 @@ func endpointConfigObservation(config EndpointConfig) awscloud.ResourceObservati
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerEndpointConfig,
+		ResourceType: catalog.ResourceTypeSageMakerEndpointConfig,
 		Name:         strings.TrimSpace(config.Name),
 		Tags:         cloneStringMap(config.Tags),
 		Attributes: map[string]any{
@@ -106,7 +107,7 @@ func trainingJobObservation(job TrainingJob) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerTrainingJob,
+		ResourceType: catalog.ResourceTypeSageMakerTrainingJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
@@ -128,7 +129,7 @@ func processingJobObservation(job ProcessingJob) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerProcessingJob,
+		ResourceType: catalog.ResourceTypeSageMakerProcessingJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
@@ -148,7 +149,7 @@ func transformJobObservation(job TransformJob) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerTransformJob,
+		ResourceType: catalog.ResourceTypeSageMakerTransformJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
@@ -170,7 +171,7 @@ func tuningJobObservation(job HyperParameterTuningJob) awscloud.ResourceObservat
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerHyperParameterTuningJob,
+		ResourceType: catalog.ResourceTypeSageMakerHyperParameterTuningJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
@@ -190,7 +191,7 @@ func projectObservation(project Project) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerProject,
+		ResourceType: catalog.ResourceTypeSageMakerProject,
 		Name:         strings.TrimSpace(project.Name),
 		State:        strings.TrimSpace(project.Status),
 		Tags:         cloneStringMap(project.Tags),
@@ -211,7 +212,7 @@ func pipelineObservation(pipeline Pipeline) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerPipeline,
+		ResourceType: catalog.ResourceTypeSageMakerPipeline,
 		Name:         strings.TrimSpace(pipeline.Name),
 		Tags:         cloneStringMap(pipeline.Tags),
 		Attributes: map[string]any{
@@ -231,7 +232,7 @@ func featureGroupObservation(group FeatureGroup) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerFeatureGroup,
+		ResourceType: catalog.ResourceTypeSageMakerFeatureGroup,
 		Name:         strings.TrimSpace(group.Name),
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),

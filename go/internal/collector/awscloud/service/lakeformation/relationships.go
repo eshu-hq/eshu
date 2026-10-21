@@ -105,7 +105,7 @@ func permissionResourceRelationship(boundary awscloud.Boundary, permissionID str
 				RelationshipType: awscloud.RelationshipLakeFormationPermissionOnGlueDatabase,
 				SourceResourceID: permissionID,
 				TargetResourceID: databaseName,
-				TargetType:       awscloud.ResourceTypeGlueDatabase,
+				TargetType:       catalog.ResourceTypeGlueDatabase,
 				Attributes:       map[string]any{"table_wildcard": true},
 				SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
 			}
@@ -119,7 +119,7 @@ func permissionResourceRelationship(boundary awscloud.Boundary, permissionID str
 			RelationshipType: awscloud.RelationshipLakeFormationPermissionOnGlueTable,
 			SourceResourceID: permissionID,
 			TargetResourceID: tableID,
-			TargetType:       awscloud.ResourceTypeGlueTable,
+			TargetType:       catalog.ResourceTypeGlueTable,
 			Attributes:       map[string]any{"database_name": databaseName},
 			SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueTable + ":" + tableID,
 		}
@@ -132,7 +132,7 @@ func permissionResourceRelationship(boundary awscloud.Boundary, permissionID str
 			RelationshipType: awscloud.RelationshipLakeFormationPermissionOnGlueDatabase,
 			SourceResourceID: permissionID,
 			TargetResourceID: databaseName,
-			TargetType:       awscloud.ResourceTypeGlueDatabase,
+			TargetType:       catalog.ResourceTypeGlueDatabase,
 			SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
 		}
 	default:

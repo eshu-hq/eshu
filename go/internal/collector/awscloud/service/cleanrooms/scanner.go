@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -29,10 +30,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("cleanrooms scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCleanRooms:
+	case "", catalog.ServiceCleanRooms:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCleanRooms
+		boundary.ServiceKind = catalog.ServiceCleanRooms
 	default:
 		return nil, fmt.Errorf("cleanrooms scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -120,7 +121,7 @@ func collaborationObservation(boundary awscloud.Boundary, collaboration Collabor
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCleanRoomsCollaboration,
+		ResourceType: catalog.ResourceTypeCleanRoomsCollaboration,
 		Name:         name,
 		State:        strings.TrimSpace(collaboration.MemberStatus),
 		Tags:         cloneStringMap(collaboration.Tags),
@@ -146,7 +147,7 @@ func configuredTableObservation(boundary awscloud.Boundary, table ConfiguredTabl
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCleanRoomsConfiguredTable,
+		ResourceType: catalog.ResourceTypeCleanRoomsConfiguredTable,
 		Name:         name,
 		Tags:         cloneStringMap(table.Tags),
 		Attributes: map[string]any{
@@ -173,7 +174,7 @@ func membershipObservation(boundary awscloud.Boundary, membership Membership) aw
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCleanRoomsMembership,
+		ResourceType: catalog.ResourceTypeCleanRoomsMembership,
 		Name:         collaborationName,
 		State:        strings.TrimSpace(membership.Status),
 		Tags:         cloneStringMap(membership.Tags),

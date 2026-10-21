@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -27,10 +28,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("athena scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAthena:
+	case "", catalog.ServiceAthena:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAthena
+		boundary.ServiceKind = catalog.ServiceAthena
 	default:
 		return nil, fmt.Errorf("athena scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -128,7 +129,7 @@ func workGroupObservation(boundary awscloud.Boundary, workGroup WorkGroup) awscl
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeAthenaWorkGroup,
+		ResourceType: catalog.ResourceTypeAthenaWorkGroup,
 		Name:         name,
 		State:        strings.TrimSpace(workGroup.State),
 		Tags:         cloneStringMap(workGroup.Tags),
@@ -151,17 +152,17 @@ func workGroupObservation(boundary awscloud.Boundary, workGroup WorkGroup) awscl
 	}
 }
 
-func dataCatalogObservation(boundary awscloud.Boundary, catalog DataCatalog) awscloud.ResourceObservation {
-	name := strings.TrimSpace(catalog.Name)
+func dataCatalogObservation(boundary awscloud.Boundary, dataCatalog DataCatalog) awscloud.ResourceObservation {
+	name := strings.TrimSpace(dataCatalog.Name)
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeAthenaDataCatalog,
+		ResourceType: catalog.ResourceTypeAthenaDataCatalog,
 		Name:         name,
-		Tags:         cloneStringMap(catalog.Tags),
+		Tags:         cloneStringMap(dataCatalog.Tags),
 		Attributes: map[string]any{
-			"catalog_type": strings.TrimSpace(catalog.Type),
-			"description":  strings.TrimSpace(catalog.Description),
+			"catalog_type": strings.TrimSpace(dataCatalog.Type),
+			"description":  strings.TrimSpace(dataCatalog.Description),
 		},
 		CorrelationAnchors: []string{name},
 		SourceRecordID:     name,
@@ -173,7 +174,7 @@ func preparedStatementObservation(boundary awscloud.Boundary, statement Prepared
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAthenaPreparedStatement,
+		ResourceType: catalog.ResourceTypeAthenaPreparedStatement,
 		Name:         strings.TrimSpace(statement.StatementName),
 		Attributes: map[string]any{
 			"statement_name":     strings.TrimSpace(statement.StatementName),
@@ -190,7 +191,7 @@ func namedQueryObservation(boundary awscloud.Boundary, query NamedQuery) awsclou
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAthenaNamedQuery,
+		ResourceType: catalog.ResourceTypeAthenaNamedQuery,
 		Name:         strings.TrimSpace(query.Name),
 		Attributes: map[string]any{
 			"named_query_id": strings.TrimSpace(query.NamedQueryID),

@@ -13,6 +13,7 @@ import (
 	emrserverlesstypes "github.com/aws/aws-sdk-go-v2/service/emrserverless/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestEMRAPIClientInterfaceExcludesMutationAndBodyAPIs proves the AWS SDK EMR
@@ -110,7 +111,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceEMR,
+		ServiceKind: catalog.ServiceEMR,
 	}
 }
 

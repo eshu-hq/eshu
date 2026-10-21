@@ -30,7 +30,7 @@
 - Add a new metadata attribute by extending the relevant scanner-owned type and
   its observation builder, with a scanner test written first.
 - Add a new relationship by adding a constant in
-  `../../constants_kinesis.go`, extending the relationship builder, and proving
+  `../../catalog/analytics.go`, extending the relationship builder, and proving
   positive and negative (non-ARN or missing-identity) cases.
 
 ## What Not To Change Without An ADR

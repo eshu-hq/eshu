@@ -71,7 +71,7 @@ func TestScannerEmitsAthenaMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	workGroup := resourceByType(t, envelopes, awscloud.ResourceTypeAthenaWorkGroup)
+	workGroup := resourceByType(t, envelopes, catalog.ResourceTypeAthenaWorkGroup)
 	if got, want := workGroup.Payload["resource_id"], "primary"; got != want {
 		t.Fatalf("workgroup resource_id = %#v, want %q", got, want)
 	}
@@ -105,7 +105,7 @@ func TestScannerEmitsAthenaMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	catalogs := resourcesByType(envelopes, awscloud.ResourceTypeAthenaDataCatalog)
+	catalogs := resourcesByType(envelopes, catalog.ResourceTypeAthenaDataCatalog)
 	if got, want := len(catalogs), 2; got != want {
 		t.Fatalf("len(data catalogs) = %d, want %d", got, want)
 	}
@@ -119,7 +119,7 @@ func TestScannerEmitsAthenaMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("catalog names = %#v, want %#v", catalogNames, want)
 	}
 
-	preparedStatements := resourcesByType(envelopes, awscloud.ResourceTypeAthenaPreparedStatement)
+	preparedStatements := resourcesByType(envelopes, catalog.ResourceTypeAthenaPreparedStatement)
 	if got, want := len(preparedStatements), 1; got != want {
 		t.Fatalf("len(prepared statements) = %d, want %d", got, want)
 	}
@@ -148,13 +148,13 @@ func TestScannerEmitsAthenaMetadataOnlyFactsAndRelationships(t *testing.T) {
 	statementInWorkGroup := relationshipByType(
 		t,
 		envelopes,
-		awscloud.RelationshipAthenaPreparedStatementInWorkGroup,
+		catalog.RelationshipAthenaPreparedStatementInWorkGroup,
 	)
 	if got, want := statementInWorkGroup.Payload["target_resource_id"], "primary"; got != want {
 		t.Fatalf("prepared statement->workgroup target_resource_id = %#v, want %q", got, want)
 	}
 
-	namedQueries := resourcesByType(envelopes, awscloud.ResourceTypeAthenaNamedQuery)
+	namedQueries := resourcesByType(envelopes, catalog.ResourceTypeAthenaNamedQuery)
 	if got, want := len(namedQueries), 1; got != want {
 		t.Fatalf("len(named queries) = %d, want %d", got, want)
 	}
@@ -189,7 +189,7 @@ func TestScannerEmitsAthenaMetadataOnlyFactsAndRelationships(t *testing.T) {
 	namedQueryInWorkGroup := relationshipByType(
 		t,
 		envelopes,
-		awscloud.RelationshipAthenaNamedQueryInWorkGroup,
+		catalog.RelationshipAthenaNamedQueryInWorkGroup,
 	)
 	if got, want := namedQueryInWorkGroup.Payload["target_resource_id"], "primary"; got != want {
 		t.Fatalf("named query->workgroup target_resource_id = %#v, want %q", got, want)
@@ -198,7 +198,7 @@ func TestScannerEmitsAthenaMetadataOnlyFactsAndRelationships(t *testing.T) {
 	resultBucketRelationship := relationshipByType(
 		t,
 		envelopes,
-		awscloud.RelationshipAthenaWorkGroupUsesResultBucket,
+		catalog.RelationshipAthenaWorkGroupUsesResultBucket,
 	)
 	if got, want := resultBucketRelationship.Payload["target_resource_id"], resultBucketARN; got != want {
 		t.Fatalf("result bucket target_resource_id = %#v, want %q", got, want)
@@ -222,7 +222,7 @@ func TestScannerEmitsAthenaMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	kmsRelationship := relationshipByType(t, envelopes, awscloud.RelationshipAthenaWorkGroupUsesKMSKey)
+	kmsRelationship := relationshipByType(t, envelopes, catalog.RelationshipAthenaWorkGroupUsesKMSKey)
 	if got, want := kmsRelationship.Payload["target_resource_id"], kmsARN; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -239,7 +239,7 @@ func TestScannerOmitsBucketRelationshipForNonS3OutputLocation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipAthenaWorkGroupUsesResultBucket); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipAthenaWorkGroupUsesResultBucket); got != 0 {
 		t.Fatalf("result bucket relationships = %d, want 0 for empty output location", got)
 	}
 }
@@ -255,7 +255,7 @@ func TestScannerEmitsBucketRelationshipForBareBucketName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipAthenaWorkGroupUsesResultBucket)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipAthenaWorkGroupUsesResultBucket)
 	want := "arn:aws:s3:::athena-results-orders"
 	if got := relationship.Payload["target_resource_id"]; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
@@ -277,7 +277,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipAthenaWorkGroupUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipAthenaWorkGroupUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/athena"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -334,7 +334,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAthena,
+		ServiceKind:         catalog.ServiceAthena,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:athena:1",
 		CollectorInstanceID: "aws-prod",

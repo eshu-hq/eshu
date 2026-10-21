@@ -18,11 +18,11 @@ func tableInDatabaseRelationship(boundary awscloud.Boundary, table Table) *awscl
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlueTableInDatabase,
+		RelationshipType: catalog.RelationshipGlueTableInDatabase,
 		SourceResourceID: tableID,
 		TargetResourceID: databaseName,
-		TargetType:       awscloud.ResourceTypeGlueDatabase,
-		SourceRecordID:   tableID + "->" + awscloud.RelationshipGlueTableInDatabase + ":" + databaseName,
+		TargetType:       catalog.ResourceTypeGlueDatabase,
+		SourceRecordID:   tableID + "->" + catalog.RelationshipGlueTableInDatabase + ":" + databaseName,
 	}
 }
 
@@ -46,13 +46,13 @@ func tableS3LocationRelationship(boundary awscloud.Boundary, table Table) *awscl
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlueTableStoredAtS3Location,
+		RelationshipType: catalog.RelationshipGlueTableStoredAtS3Location,
 		SourceResourceID: tableID,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   tableID + "->" + awscloud.RelationshipGlueTableStoredAtS3Location + ":" + bucketARN,
+		SourceRecordID:   tableID + "->" + catalog.RelationshipGlueTableStoredAtS3Location + ":" + bucketARN,
 	}
 }
 
@@ -89,11 +89,11 @@ func crawlerDatabaseRelationship(boundary awscloud.Boundary, crawler Crawler) *a
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlueCrawlerTargetsDatabase,
+		RelationshipType: catalog.RelationshipGlueCrawlerTargetsDatabase,
 		SourceResourceID: crawlerName,
 		TargetResourceID: databaseName,
-		TargetType:       awscloud.ResourceTypeGlueDatabase,
-		SourceRecordID:   crawlerName + "->" + awscloud.RelationshipGlueCrawlerTargetsDatabase + ":" + databaseName,
+		TargetType:       catalog.ResourceTypeGlueDatabase,
+		SourceRecordID:   crawlerName + "->" + catalog.RelationshipGlueCrawlerTargetsDatabase + ":" + databaseName,
 	}
 }
 
@@ -108,12 +108,12 @@ func crawlerRoleRelationship(boundary awscloud.Boundary, crawler Crawler) *awscl
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlueCrawlerUsesIAMRole,
+		RelationshipType: catalog.RelationshipGlueCrawlerUsesIAMRole,
 		SourceResourceID: crawlerName,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   crawlerName + "->" + awscloud.RelationshipGlueCrawlerUsesIAMRole + ":" + roleARN,
+		SourceRecordID:   crawlerName + "->" + catalog.RelationshipGlueCrawlerUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -128,12 +128,12 @@ func jobRoleRelationship(boundary awscloud.Boundary, job Job) *awscloud.Relation
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlueJobUsesIAMRole,
+		RelationshipType: catalog.RelationshipGlueJobUsesIAMRole,
 		SourceResourceID: jobName,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   jobName + "->" + awscloud.RelationshipGlueJobUsesIAMRole + ":" + roleARN,
+		SourceRecordID:   jobName + "->" + catalog.RelationshipGlueJobUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -155,11 +155,11 @@ func triggerJobRelationships(boundary awscloud.Boundary, trigger Trigger) []awsc
 		seen[target] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipGlueTriggerInvokesJob,
+			RelationshipType: catalog.RelationshipGlueTriggerInvokesJob,
 			SourceResourceID: triggerName,
 			TargetResourceID: target,
-			TargetType:       awscloud.ResourceTypeGlueJob,
-			SourceRecordID:   triggerName + "->" + awscloud.RelationshipGlueTriggerInvokesJob + ":" + target,
+			TargetType:       catalog.ResourceTypeGlueJob,
+			SourceRecordID:   triggerName + "->" + catalog.RelationshipGlueTriggerInvokesJob + ":" + target,
 		})
 	}
 	if len(observations) == 0 {

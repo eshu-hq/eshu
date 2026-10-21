@@ -204,7 +204,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForGlue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceGlue; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], catalog.ServiceGlue; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {

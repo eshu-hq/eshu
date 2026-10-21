@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("opensearchserverless scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceOpenSearchServerless:
+	case "", catalog.ServiceOpenSearchServerless:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceOpenSearchServerless
+		boundary.ServiceKind = catalog.ServiceOpenSearchServerless
 	default:
 		return nil, fmt.Errorf("opensearchserverless scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -129,7 +130,7 @@ func collectionObservation(boundary awscloud.Boundary, collection Collection) aw
 		Boundary:     boundary,
 		ARN:          collectionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessAOSSCollection,
+		ResourceType: catalog.ResourceTypeOpenSearchServerlessAOSSCollection,
 		Name:         name,
 		State:        strings.TrimSpace(collection.Status),
 		Tags:         cloneStringMap(collection.Tags),
@@ -154,7 +155,7 @@ func securityPolicyEnvelope(boundary awscloud.Boundary, policy SecurityPolicy) (
 	envelope, err := awscloud.NewResourceEnvelope(awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessSecurityPolicy,
+		ResourceType: catalog.ResourceTypeOpenSearchServerlessSecurityPolicy,
 		Name:         strings.TrimSpace(policy.Name),
 		Attributes: map[string]any{
 			"policy_type":        strings.TrimSpace(policy.Type),
@@ -178,7 +179,7 @@ func vpcEndpointObservation(boundary awscloud.Boundary, endpoint VPCEndpoint) aw
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessAOSSVPCEndpoint,
+		ResourceType: catalog.ResourceTypeOpenSearchServerlessAOSSVPCEndpoint,
 		Name:         name,
 		State:        strings.TrimSpace(endpoint.Status),
 		Attributes: map[string]any{

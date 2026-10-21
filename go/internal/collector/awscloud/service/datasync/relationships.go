@@ -22,13 +22,13 @@ func taskSourceLocationRelationship(boundary awscloud.Boundary, task Task) *awsc
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDataSyncTaskSourceLocation,
+		RelationshipType: catalog.RelationshipDataSyncTaskSourceLocation,
 		SourceResourceID: taskARN,
 		SourceARN:        taskARN,
 		TargetResourceID: locationARN,
 		TargetARN:        locationARN,
-		TargetType:       awscloud.ResourceTypeDataSyncLocation,
-		SourceRecordID:   taskARN + "->" + awscloud.RelationshipDataSyncTaskSourceLocation + ":" + locationARN,
+		TargetType:       catalog.ResourceTypeDataSyncLocation,
+		SourceRecordID:   taskARN + "->" + catalog.RelationshipDataSyncTaskSourceLocation + ":" + locationARN,
 	}
 }
 
@@ -42,13 +42,13 @@ func taskDestinationLocationRelationship(boundary awscloud.Boundary, task Task) 
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDataSyncTaskDestinationLocation,
+		RelationshipType: catalog.RelationshipDataSyncTaskDestinationLocation,
 		SourceResourceID: taskARN,
 		SourceARN:        taskARN,
 		TargetResourceID: locationARN,
 		TargetARN:        locationARN,
-		TargetType:       awscloud.ResourceTypeDataSyncLocation,
-		SourceRecordID:   taskARN + "->" + awscloud.RelationshipDataSyncTaskDestinationLocation + ":" + locationARN,
+		TargetType:       catalog.ResourceTypeDataSyncLocation,
+		SourceRecordID:   taskARN + "->" + catalog.RelationshipDataSyncTaskDestinationLocation + ":" + locationARN,
 	}
 }
 
@@ -64,13 +64,13 @@ func taskLogGroupRelationship(boundary awscloud.Boundary, task Task) *awscloud.R
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDataSyncTaskLogsToCloudWatch,
+		RelationshipType: catalog.RelationshipDataSyncTaskLogsToCloudWatch,
 		SourceResourceID: taskARN,
 		SourceARN:        taskARN,
 		TargetResourceID: logGroupARN,
 		TargetARN:        logGroupARN,
 		TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
-		SourceRecordID:   taskARN + "->" + awscloud.RelationshipDataSyncTaskLogsToCloudWatch + ":" + logGroupARN,
+		SourceRecordID:   taskARN + "->" + catalog.RelationshipDataSyncTaskLogsToCloudWatch + ":" + logGroupARN,
 	}
 }
 
@@ -89,14 +89,14 @@ func locationS3Relationship(boundary awscloud.Boundary, location Location) *awsc
 	bucketARN := "arn:" + partition(boundary) + ":s3:::" + bucket
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDataSyncLocationTargetsS3Bucket,
+		RelationshipType: catalog.RelationshipDataSyncLocationTargetsS3Bucket,
 		SourceResourceID: locationARN,
 		SourceARN:        locationARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       map[string]any{"bucket": bucket},
-		SourceRecordID:   locationARN + "->" + awscloud.RelationshipDataSyncLocationTargetsS3Bucket + ":" + bucketARN,
+		SourceRecordID:   locationARN + "->" + catalog.RelationshipDataSyncLocationTargetsS3Bucket + ":" + bucketARN,
 	}
 }
 
@@ -121,14 +121,14 @@ func locationEFSRelationship(boundary awscloud.Boundary, location Location) *aws
 	fileSystemARN := "arn:" + partition(boundary) + ":elasticfilesystem:" + region + ":" + account + ":file-system/" + fileSystemID
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDataSyncLocationTargetsEFSFileSystem,
+		RelationshipType: catalog.RelationshipDataSyncLocationTargetsEFSFileSystem,
 		SourceResourceID: locationARN,
 		SourceARN:        locationARN,
 		TargetResourceID: fileSystemARN,
 		TargetARN:        fileSystemARN,
 		TargetType:       catalog.ResourceTypeEFSFileSystem,
 		Attributes:       map[string]any{"file_system_id": fileSystemID},
-		SourceRecordID:   locationARN + "->" + awscloud.RelationshipDataSyncLocationTargetsEFSFileSystem + ":" + fileSystemARN,
+		SourceRecordID:   locationARN + "->" + catalog.RelationshipDataSyncLocationTargetsEFSFileSystem + ":" + fileSystemARN,
 	}
 }
 
@@ -165,14 +165,14 @@ func locationFSxRelationship(boundary awscloud.Boundary, location Location) *aws
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDataSyncLocationTargetsFSxFileSystem,
+		RelationshipType: catalog.RelationshipDataSyncLocationTargetsFSxFileSystem,
 		SourceResourceID: locationARN,
 		SourceARN:        locationARN,
 		TargetResourceID: fileSystemARN,
 		TargetARN:        fileSystemARN,
 		TargetType:       catalog.ResourceTypeFSxFileSystem,
 		Attributes:       attributes,
-		SourceRecordID:   locationARN + "->" + awscloud.RelationshipDataSyncLocationTargetsFSxFileSystem + ":" + fileSystemARN,
+		SourceRecordID:   locationARN + "->" + catalog.RelationshipDataSyncLocationTargetsFSxFileSystem + ":" + fileSystemARN,
 	}
 }
 
@@ -188,13 +188,13 @@ func locationRoleRelationship(boundary awscloud.Boundary, location Location) *aw
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDataSyncLocationUsesIAMRole,
+		RelationshipType: catalog.RelationshipDataSyncLocationUsesIAMRole,
 		SourceResourceID: locationARN,
 		SourceARN:        locationARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   locationARN + "->" + awscloud.RelationshipDataSyncLocationUsesIAMRole + ":" + roleARN,
+		SourceRecordID:   locationARN + "->" + catalog.RelationshipDataSyncLocationUsesIAMRole + ":" + roleARN,
 	}
 }
 

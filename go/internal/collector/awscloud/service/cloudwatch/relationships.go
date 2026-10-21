@@ -130,7 +130,7 @@ func metricStreamFirehoseRelationship(
 		SourceARN:        strings.TrimSpace(stream.ARN),
 		TargetResourceID: firehoseARN,
 		TargetARN:        firehoseARN,
-		TargetType:       awscloud.ResourceTypeKinesisFirehoseDeliveryStream,
+		TargetType:       catalog.ResourceTypeKinesisFirehoseDeliveryStream,
 		Attributes: map[string]any{
 			"output_format": strings.TrimSpace(stream.OutputFormat),
 			"stream_name":   strings.TrimSpace(stream.Name),

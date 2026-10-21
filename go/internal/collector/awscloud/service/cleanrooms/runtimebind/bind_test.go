@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/cleanrooms/runtimebind"
 )
 
 // TestCleanRoomsRuntimeBindRegisters confirms importing the binding installs the
 // Clean Rooms scanner builder.
 func TestCleanRoomsRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCleanRooms)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceCleanRooms)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCleanRooms)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceCleanRooms)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceCleanRooms,
+			ServiceKind: catalog.ServiceCleanRooms,
 		},
 	})
 	if err != nil {

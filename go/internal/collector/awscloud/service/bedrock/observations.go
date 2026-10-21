@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func foundationModelObservation(model FoundationModel) awscloud.ResourceObservation {
@@ -15,7 +16,7 @@ func foundationModelObservation(model FoundationModel) awscloud.ResourceObservat
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockFoundationModel,
+		ResourceType: catalog.ResourceTypeBedrockFoundationModel,
 		Name:         strings.TrimSpace(model.ModelID),
 		State:        strings.TrimSpace(model.LifecycleStatus),
 		Attributes: map[string]any{
@@ -36,7 +37,7 @@ func customModelObservation(model CustomModel) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockCustomModel,
+		ResourceType: catalog.ResourceTypeBedrockCustomModel,
 		Name:         strings.TrimSpace(model.Name),
 		Tags:         cloneStringMap(model.Tags),
 		Attributes: map[string]any{
@@ -56,7 +57,7 @@ func customizationJobObservation(job ModelCustomizationJob) awscloud.ResourceObs
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockModelCustomizationJob,
+		ResourceType: catalog.ResourceTypeBedrockModelCustomizationJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
@@ -77,7 +78,7 @@ func provisionedThroughputObservation(pt ProvisionedModelThroughput) awscloud.Re
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockProvisionedModelThroughput,
+		ResourceType: catalog.ResourceTypeBedrockProvisionedModelThroughput,
 		Name:         strings.TrimSpace(pt.Name),
 		State:        strings.TrimSpace(pt.Status),
 		Tags:         cloneStringMap(pt.Tags),
@@ -100,7 +101,7 @@ func guardrailObservation(guardrail Guardrail) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockGuardrail,
+		ResourceType: catalog.ResourceTypeBedrockGuardrail,
 		Name:         strings.TrimSpace(guardrail.Name),
 		State:        strings.TrimSpace(guardrail.Status),
 		Tags:         cloneStringMap(guardrail.Tags),
@@ -125,7 +126,7 @@ func agentObservation(agent Agent) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockAgent,
+		ResourceType: catalog.ResourceTypeBedrockAgent,
 		Name:         strings.TrimSpace(agent.Name),
 		State:        strings.TrimSpace(agent.Status),
 		Tags:         cloneStringMap(agent.Tags),
@@ -147,7 +148,7 @@ func actionGroupObservation(group AgentActionGroup) awscloud.ResourceObservation
 	// for them. Only the name, state, and Lambda executor ARN are metadata.
 	return awscloud.ResourceObservation{
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockAgentActionGroup,
+		ResourceType: catalog.ResourceTypeBedrockAgentActionGroup,
 		Name:         strings.TrimSpace(group.Name),
 		State:        strings.TrimSpace(group.State),
 		Attributes: map[string]any{
@@ -169,7 +170,7 @@ func knowledgeBaseObservation(kb KnowledgeBase) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeBedrockKnowledgeBase,
+		ResourceType: catalog.ResourceTypeBedrockKnowledgeBase,
 		Name:         strings.TrimSpace(kb.Name),
 		State:        strings.TrimSpace(kb.Status),
 		Tags:         cloneStringMap(kb.Tags),

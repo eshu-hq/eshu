@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -33,10 +34,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("kinesisanalyticsv2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceKinesisAnalyticsV2:
+	case "", catalog.ServiceKinesisAnalyticsV2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceKinesisAnalyticsV2
+		boundary.ServiceKind = catalog.ServiceKinesisAnalyticsV2
 	default:
 		return nil, fmt.Errorf("kinesisanalyticsv2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -129,7 +130,7 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeManagedFlinkApplication,
+		ResourceType:       catalog.ResourceTypeManagedFlinkApplication,
 		Name:               name,
 		State:              strings.TrimSpace(application.Status),
 		Tags:               cloneStringMap(application.Tags),

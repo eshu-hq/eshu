@@ -8,5 +8,5 @@
 // awsruntime/bindings) makes the opensearchserverless service_kind discoverable
 // to the ingester without the runtime importing the scanner or its SDK adapter
 // directly. The registration wires the SDK-backed client into the scanner under
-// the ServiceOpenSearchServerless service kind.
+// the catalog.ServiceOpenSearchServerless service kind.
 package runtimebind

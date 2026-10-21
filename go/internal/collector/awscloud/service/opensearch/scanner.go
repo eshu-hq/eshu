@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("opensearch scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceOpenSearch:
+	case "", catalog.ServiceOpenSearch:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceOpenSearch
+		boundary.ServiceKind = catalog.ServiceOpenSearch
 	default:
 		return nil, fmt.Errorf("opensearch scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -145,7 +146,7 @@ func domainObservation(boundary awscloud.Boundary, domain Domain) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          domainARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchDomain,
+		ResourceType: catalog.ResourceTypeOpenSearchDomain,
 		Name:         name,
 		State:        strings.TrimSpace(domain.State),
 		Tags:         cloneStringMap(domain.Tags),
@@ -180,7 +181,7 @@ func packageObservation(boundary awscloud.Boundary, pkg Package) awscloud.Resour
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeOpenSearchPackage,
+		ResourceType: catalog.ResourceTypeOpenSearchPackage,
 		Name:         strings.TrimSpace(pkg.Name),
 		State:        strings.TrimSpace(pkg.Status),
 		Attributes: map[string]any{
@@ -202,7 +203,7 @@ func collectionObservation(boundary awscloud.Boundary, collection Collection) aw
 		Boundary:     boundary,
 		ARN:          collectionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessCollection,
+		ResourceType: catalog.ResourceTypeOpenSearchServerlessCollection,
 		Name:         strings.TrimSpace(collection.Name),
 		State:        strings.TrimSpace(collection.Status),
 		Attributes: map[string]any{
@@ -223,7 +224,7 @@ func securityConfigObservation(boundary awscloud.Boundary, config SecurityConfig
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessSecurityConfig,
+		ResourceType: catalog.ResourceTypeOpenSearchServerlessSecurityConfig,
 		Name:         id,
 		Attributes: map[string]any{
 			"security_config_type": strings.TrimSpace(config.Type),
@@ -241,7 +242,7 @@ func vpcEndpointObservation(boundary awscloud.Boundary, endpoint VPCEndpoint) aw
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOpenSearchServerlessVPCEndpoint,
+		ResourceType: catalog.ResourceTypeOpenSearchServerlessVPCEndpoint,
 		Name:         strings.TrimSpace(endpoint.Name),
 		State:        strings.TrimSpace(endpoint.Status),
 		Attributes: map[string]any{

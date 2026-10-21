@@ -50,10 +50,43 @@ avoid.
   `RelationshipStepFunctions*`, `RelationshipMQ*`, `RelationshipMSK*`,
   `RelationshipSES*`, `RelationshipPinpoint*`, `RelationshipFirehose*` —
   messaging-category reducer relationship types
+- `ServiceAthena`, `ServiceEMR`, `ServiceGlue`, `ServiceKinesis`,
+  `ServiceKinesisAnalyticsV2`, `ServiceOpenSearch`,
+  `ServiceOpenSearchServerless` — analytics-category service-kind strings
+  (query, processing, streaming, and search, in `analytics.go`)
+- `ResourceTypeAthena*`, `ResourceTypeEMR*`, `ResourceTypeGlue*`,
+  `ResourceTypeKinesis*`, `ResourceTypeManagedFlink*`,
+  `ResourceTypeFirehose*`, `ResourceTypeSplunk*`,
+  `ResourceTypeOpenSearch*` — analytics-category fact-schema resource-type
+  tokens
+- `RelationshipAthena*`, `RelationshipEMR*`, `RelationshipGlue*`,
+  `RelationshipKinesis*`, `RelationshipManagedFlink*`,
+  `RelationshipFirehoseDeliveryStream*`, `RelationshipOpenSearch*` —
+  analytics-category reducer relationship types
+- `ServiceQuickSight`, `ServiceCleanRooms`, `ServiceDatazone`,
+  `ServiceDatabrew`, `ServiceDataSync` — analytics-category service-kind
+  strings (BI, collaboration, governance, preparation, and movement, in
+  `analytics_data.go`)
+- `ResourceTypeQuickSight*`, `ResourceTypeCleanRooms*`,
+  `ResourceTypeDatazone*`, `ResourceTypeDatabrew*`, `ResourceTypeDataSync*` —
+  analytics-category fact-schema resource-type tokens
+- `RelationshipQuickSight*`, `RelationshipCleanRooms*`,
+  `RelationshipDatazone*`, `RelationshipDatabrew*`, `RelationshipDataSync*` —
+  analytics-category reducer relationship types
+- `ServiceSageMaker`, `ServiceBedrock` — analytics-category service-kind
+  strings (machine learning, in `analytics_ml.go`)
+- `ResourceTypeSageMaker*`, `ResourceTypeBedrock*` — analytics-category
+  fact-schema resource-type tokens
+- `RelationshipSageMaker*`, `RelationshipBedrock*` — analytics-category
+  reducer relationship types
 
 See `doc.go` for the full contract. Each follow-up category lands as one more
-`<category>.go` file with the same shape; the remaining ~114 `constants_*`
-files stay in the awscloud root until their category lands.
+`<category>.go` file with the same shape; the analytics category ships as
+three files (`analytics.go` for query, processing, streaming, and search;
+`analytics_data.go` for BI, collaboration, governance, preparation, and
+movement; `analytics_ml.go` for machine learning) because one file would pass
+the 500-line Go cap at ~989 lines. The remaining ~100 `constants_*` files stay
+in the awscloud root until their category lands.
 
 ## Dependencies
 
@@ -73,9 +106,9 @@ that consume these constants keep their existing counters; see
 ## Gotchas / invariants
 
 - A consolidation move must never change a value. `storage_test.go`,
-  `compute_test.go`, and `messaging_test.go` pin every constant
-  byte-identical to its pre-consolidation value; a red test there is a
-  behavior change, not a move.
+  `compute_test.go`, `messaging_test.go`, and `analytics_test.go` pin every
+  constant byte-identical to its pre-consolidation value; a red test there
+  is a behavior change, not a move.
 
 ## Consolidation proof
 
@@ -154,6 +187,34 @@ and runs no stage; scanner emission stays covered by
 because the Go compiler resolves every moved reference, the value-pinning
 test fails on any drift, and the relguard/redaction disk-walk derivations
 already cover the catalog directory.
+
+No-Regression Evidence: the analytics-category consolidation (Refs #6696)
+moves 197 string constants from fourteen `constants_<service>.go` root files
+(athena, emr, glue, kinesis, kinesisanalyticsv2, opensearch,
+opensearchserverless, quicksight, cleanrooms, datazone, databrew, datasync,
+sagemaker, bedrock) into `catalog/analytics.go`, `catalog/analytics_data.go`,
+and `catalog/analytics_ml.go` verbatim (only the package clause changes); the
+125 referencing `.go` files change only the qualifier (`awscloud.` to
+`catalog.`, plus the leaf import, dropping it where it goes unused), plus one
+shadowing parameter rename in the athena scanner and one doc-comment
+qualifier. Baseline: the pre-move values read from the base tree
+(`git show origin/main:go/internal/collector/awscloud/constants_<service>.go`)
+are pinned in `analytics_test.go` (197/197 byte-identical,
+`go test ./internal/collector/awscloud/catalog/ -count=1` green) and the full
+affected suite (collector tree, `go/cmd/collector-aws-cloud`) is green after
+the move; `go build ./...` and `go vet ./...` are clean. The
+redaction-derivation and relguard walks needed no change: the storage slice
+already generalized them to every catalog category file, and they pass with
+the analytics files present. Backend/version: none — a pure compile-time
+constant relocation with no query, graph write, queue, lease, worker,
+batching, or Compose/Helm change, so there are no row counts to regress.
+No-Observability-Change: the leaf declares no instrument and runs no stage;
+scanner emission stays covered by `eshu_dp_aws_resources_emitted_total` and
+`eshu_dp_aws_scan_duration_seconds` (AWS cloud row in
+`docs/public/observability/telemetry-coverage.md`). Safe because the Go
+compiler resolves every moved reference, the value-pinning test fails on any
+drift, and the relguard/redaction disk-walk derivations already cover the
+catalog directory.
 - When a category carrying `Service*` constants lands, extend the
   `go/cmd/collector-aws-cloud` redaction-derivation test's constants walk to
   parse this directory too — it resolves every `runtimebind` `ServiceKind`
