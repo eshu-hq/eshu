@@ -50,12 +50,16 @@ The no-argument installer is intentionally unavailable while this policy is in
 effect because Eshu is not pinning release assets yet. Headless remains the
 default laptop artifact. Use --from with a verified full-binary artifact when
 you need the larger full binary.
+Remote HTTP and HTTPS sources require --sha256. Obtain the expected digest
+independently from a trusted release channel; Eshu checks it before extracting
+an archive or asking the candidate binary for its version. Local paths and
+file:// sources may omit --sha256.
 Signature verification is still future work.
 `),
 		RunE: runInstallNornicDB,
 	}
 	installNornicDBCmd.Flags().String("from", "", "Install from a local NornicDB binary, local archive/package, or release URL")
-	installNornicDBCmd.Flags().String("sha256", "", "Expected SHA-256 checksum for the --from artifact")
+	installNornicDBCmd.Flags().String("sha256", "", "Expected SHA-256 for --from (required for HTTP/HTTPS sources)")
 	installNornicDBCmd.Flags().Bool("force", false, "Replace an existing managed NornicDB binary")
 	installNornicDBCmd.Flags().Bool("full", false, "Reserved for future no-argument release installs; use --from for full binary artifacts today")
 	installCmd.AddCommand(installNornicDBCmd)
@@ -115,12 +119,15 @@ archive/package, and URL sources as eshu install nornicdb:
   eshu graph upgrade --from /absolute/path/to/nornicdb-headless
   eshu graph upgrade --from https://example.com/releases/nornicdb-headless-darwin-arm64.tar.gz --sha256 <expected-sha256>
   eshu graph upgrade --from https://example.com/releases/NornicDB-1.0.42-hotfix-arm64-lite.pkg --sha256 <expected-sha256>
+
+Remote HTTP and HTTPS sources require an independently verified --sha256.
+The checksum is checked before extraction or version inspection.
 `),
 		RunE: runGraphUpgrade,
 	}
 	graphUpgradeCmd.Flags().String("workspace-root", "", "Explicit workspace root for local graph upgrade")
 	graphUpgradeCmd.Flags().String("from", "", "Upgrade from an existing local NornicDB binary")
-	graphUpgradeCmd.Flags().String("sha256", "", "Expected SHA-256 checksum for --from")
+	graphUpgradeCmd.Flags().String("sha256", "", "Expected SHA-256 for --from (required for HTTP/HTTPS sources)")
 	graphCmd.AddCommand(graphUpgradeCmd)
 }
 

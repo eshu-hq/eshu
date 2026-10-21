@@ -75,7 +75,13 @@ Accepted sources are a local executable, `.tar`, `.tar.gz`, `.tgz`, or macOS
 `.pkg` containing `nornicdb-headless` or `nornicdb`, or an `http://`,
 `https://`, or `file://` URL to one of those artifacts.
 
-Use `--sha256` to verify the source artifact:
+Remote `http://` and `https://` sources require `--sha256`. Obtain the expected
+digest independently from a trusted release channel. Eshu verifies it before
+extracting an archive or asking the candidate binary for its version. Local
+paths and `file://` sources may omit the checksum; if supplied, it must be 64
+hexadecimal characters.
+
+For example:
 
 ```bash
 eshu install nornicdb \
@@ -87,7 +93,8 @@ Remote downloads default to `30s`; override only for slow artifact hosts:
 
 ```bash
 ESHU_NORNICDB_INSTALL_TIMEOUT=2m \
-eshu install nornicdb --from https://example.com/nornicdb-headless.tar.gz
+eshu install nornicdb --from https://example.com/nornicdb-headless.tar.gz \
+  --sha256 <expected-source-sha256>
 ```
 
 Managed install wins over `PATH`. To test another binary for one run, set both
@@ -137,7 +144,8 @@ managed process-mode binary.
 ## Supply Chain Status
 
 - explicit-source local or remote installs
-- optional source-artifact SHA-256 checking with `--sha256`
+- required source-artifact SHA-256 verification for HTTP and HTTPS downloads
+- optional source-artifact SHA-256 verification for local paths and `file://`
 
 ## Non-Goals
 

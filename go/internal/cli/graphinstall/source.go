@@ -33,7 +33,7 @@ const (
 )
 
 var expandPackage = func(pkgPath, targetDir string) error {
-	cmd := exec.Command("pkgutil", "--expand-full", pkgPath, targetDir) // #nosec G204 -- fixed binary "pkgutil"; pkgPath and targetDir are program-managed temp paths constructed by this function
+	cmd := exec.Command("pkgutil", "--expand-full", pkgPath, targetDir) // #nosec G204 -- fixed binary "pkgutil" with arguments only; pkgPath is the explicitly selected package artifact and targetDir is an isolated temp directory
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("expand package %q: %w: %s", pkgPath, err, strings.TrimSpace(string(output)))
@@ -59,8 +59,13 @@ func (s preparedInstallSource) Close() error {
 	return s.cleanup()
 }
 
-func prepareInstallSource(ctx context.Context, sourceRef string, readVersion VersionReader) (preparedInstallSource, error) {
+func prepareInstallSource(ctx context.Context, sourceRef, expectedSHA string, readVersion VersionReader) (preparedInstallSource, error) {
 	sourceRef = strings.TrimSpace(sourceRef)
+	remote := isRemoteInstallSource(sourceRef)
+	expectedSHA, err := normalizeInstallSHA256(expectedSHA, remote)
+	if err != nil {
+		return preparedInstallSource{}, err
+	}
 	localPath, kind, cleanup, err := materializeInstallSource(ctx, sourceRef)
 	if err != nil {
 		return preparedInstallSource{}, err
@@ -72,6 +77,11 @@ func prepareInstallSource(ctx context.Context, sourceRef string, readVersion Ver
 		return preparedInstallSource{}, err
 	}
 
+	if expectedSHA != "" && expectedSHA != sourceSHA {
+		_ = cleanup()
+		return preparedInstallSource{}, fmt.Errorf("sha256 mismatch for %q: got %s, want %s", sourceRef, sourceSHA, expectedSHA)
+	}
+
 	prepared, err := inspectInstallSource(sourceRef, localPath, kind, readVersion)
 	if err != nil {
 		_ = cleanup()
@@ -80,6 +90,38 @@ func prepareInstallSource(ctx context.Context, sourceRef string, readVersion Ver
 	prepared.SourceSHA256 = sourceSHA
 	prepared.cleanup = combineInstallCleanups(prepared.cleanup, cleanup)
 	return prepared, nil
+}
+
+func isRemoteInstallSource(sourceRef string) bool {
+	parsed, err := url.Parse(sourceRef)
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "http", "https":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeInstallSHA256(raw string, required bool) (string, error) {
+	checksum := strings.ToLower(strings.TrimSpace(raw))
+	if checksum == "" {
+		if required {
+			return "", fmt.Errorf("remote nornicdb sources require --sha256 with the independently verified artifact checksum")
+		}
+		return "", nil
+	}
+	if len(checksum) != 64 {
+		return "", fmt.Errorf("invalid nornicdb source sha256: expected 64 hexadecimal characters")
+	}
+	for _, character := range checksum {
+		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
+			return "", fmt.Errorf("invalid nornicdb source sha256: expected 64 hexadecimal characters")
+		}
+	}
+	return checksum, nil
 }
 
 // combineInstallCleanups preserves independent source and extraction cleanup
@@ -102,6 +144,9 @@ func combineInstallCleanups(cleanups ...func() error) func() error {
 func materializeInstallSource(ctx context.Context, sourceRef string) (string, installSourceKind, func() error, error) {
 	parsed, err := url.Parse(sourceRef)
 	if err == nil && parsed.Scheme != "" && parsed.Scheme != "file" {
+		if !isRemoteInstallSource(sourceRef) {
+			return "", "", nil, fmt.Errorf("unsupported nornicdb source URL scheme %q; use http, https, or file", parsed.Scheme)
+		}
 		path, err := downloadInstallSource(ctx, sourceRef)
 		if err != nil {
 			return "", "", nil, err
@@ -275,7 +320,7 @@ func installDownloadTimeout() (time.Duration, error) {
 }
 
 func extractBinaryFromArchive(archivePath string) (string, string, func() error, error) {
-	file, err := os.Open(archivePath) // #nosec G304 -- archivePath is a program-managed temp file path created by downloadInstallSource, not user-supplied input
+	file, err := os.Open(archivePath) // #nosec G304 -- archivePath is the explicitly selected local artifact or a downloaded temp file; extraction writes only fixed allowlisted basenames under a fresh temp directory
 	if err != nil {
 		return "", "", nil, fmt.Errorf("open nornicdb archive %q: %w", archivePath, err)
 	}

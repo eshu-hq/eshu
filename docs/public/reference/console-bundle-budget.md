@@ -57,11 +57,14 @@ broken or CSS-only build.
 
 Heavy code is kept off the critical first-load path:
 
-- **Diagram / graph libraries** (`mermaid`, `cytoscape`, `wardley`, `katex`) are
+- **Diagram / graph libraries** (`mermaid`, `cytoscape`, `wardley`, `katex`, and `elk`) are
   lazy-loaded on demand. Mermaid is imported dynamically
   (`apps/console/src/components/ask/mermaid.ts`), so it and its transitive
   dependencies (cytoscape, wardley, katex, and the per-diagram chunks) only
-  download when a user actually renders a diagram artifact.
+  download when a user actually renders a diagram artifact. Mermaid 12 loads
+  its ELK layout engine only when a diagram is rendered with ELK layout; the
+  console renderer explicitly defaults to Dagre, so ordinary flowcharts and
+  the other supported diagram types do not request ELK.
 - **d3** (force simulation, scales, shapes) is used only by the workspace and
   service-relationship views. The `/workspace/:entityKind/:entityId` route is
   code-split with `React.lazy` + `Suspense` in `apps/console/src/App.tsx`, and
@@ -83,7 +86,8 @@ above have been split out; what remains is application code.
 Budgets live in `BUDGETS` and `DEFAULT_ASYNC_BUDGET_BYTES` in
 `scripts/console-bundle-budget.mjs`. Each threshold has deliberate headroom over
 the current measured size so ordinary churn does not trip the gate but a large
-regression does.
+regression does. The ELK allowance is an aggregate cap, so duplicate ELK chunks
+cannot each consume the full exception.
 
 | Budget key     | Threshold | What it covers                                              |
 | -------------- | --------- | ----------------------------------------------------------- |
@@ -95,12 +99,15 @@ regression does.
 | `cytoscape`    | 700 KiB   | Cytoscape (lazy, pulled in by Mermaid)                      |
 | `wardley`      | 900 KiB   | Wardley map diagram (lazy)                                  |
 | `katex`        | 400 KiB   | KaTeX math rendering (lazy, pulled in by Mermaid)           |
+| `elk`          | 1,500 KiB | ELK layout engine (lazy, aggregate across ELK chunks)       |
 | _(default)_    | 700 KiB   | Any other async chunk (e.g. an individual lazy diagram)     |
 
 Vite's generic 500 kB chunk-size warning is raised to `726` (the main-chunk
 budget) in `apps/console/vite.config.ts` so the build log is not noisy about the
 intentionally eager main chunk and the lazy diagram libraries. The bundle budget
-script is the authoritative gate, not the Vite warning.
+script is the authoritative gate, not the Vite warning. The ELK allowance is
+limited to hashed `elk-*.js` assets; other async chunks still use the 700 KiB
+default.
 
 ## Changing a threshold
 

@@ -70,6 +70,10 @@ export const BUDGETS = {
   cytoscape: 700 * KIB,
   wardley: 900 * KIB,
   katex: 400 * KIB,
+  // Mermaid 12 emits ELK as an optional layout engine. It is requested only
+  // for explicit ELK diagrams; the aggregate cap prevents duplicate chunks
+  // from multiplying the exception.
+  elk: 1500 * KIB,
 };
 
 // DEFAULT_ASYNC_BUDGET_BYTES bounds any other lazily-loaded chunk (e.g. a route
@@ -90,6 +94,7 @@ export function classifyAsset(name) {
   if (name.startsWith("cytoscape")) return "cytoscape";
   if (name.startsWith("wardley")) return "wardley";
   if (name.startsWith("katex")) return "katex";
+  if (/^elk-[A-Z0-9]{8}-[A-Za-z0-9_-]{8,}\.js$/.test(name)) return "elk";
   return "async-chunk";
 }
 
@@ -114,6 +119,17 @@ export function evaluateBundleBudget({ files, budgets, defaultBudgetBytes, requi
     const entry = { key, name: file.name, bytes: file.bytes, budgetBytes };
     checked.push(entry);
     if (file.bytes > budgetBytes) violations.push(entry);
+  }
+  const elkChunks = checked.filter((entry) => entry.key === "elk");
+  const elkTotalBytes = elkChunks.reduce((total, entry) => total + entry.bytes, 0);
+  const elkBudgetBytes = budgets.elk;
+  if (elkChunks.length > 0 && elkBudgetBytes !== undefined && elkTotalBytes > elkBudgetBytes) {
+    violations.push({
+      key: "elk",
+      name: "ELK aggregate payload",
+      bytes: elkTotalBytes,
+      budgetBytes: elkBudgetBytes,
+    });
   }
   const missingAnchor =
     requireAnchor !== null && !checked.some((entry) => entry.key === requireAnchor)

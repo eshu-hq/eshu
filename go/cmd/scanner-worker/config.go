@@ -256,9 +256,16 @@ func envInt64(getenv func(string) string, key string, fallback int64) (int64, er
 }
 
 func envInt(getenv func(string) string, key string, fallback int) (int, error) {
+	return envIntWithMax(getenv, key, fallback, int64(^uint(0)>>1))
+}
+
+func envIntWithMax(getenv func(string) string, key string, fallback int, maxInt int64) (int, error) {
 	value, err := envInt64(getenv, key, int64(fallback))
 	if err != nil {
 		return 0, err
+	}
+	if value > maxInt {
+		return 0, fmt.Errorf("%s exceeds the maximum supported value %d", key, maxInt)
 	}
 	return int(value), nil
 }

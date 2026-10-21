@@ -27,6 +27,7 @@ const CHUNK_SEMANTICS = {
   cytoscape: { dependency: "cytoscape", firstLoad: false },
   wardley: { dependency: "wardley", firstLoad: false },
   katex: { dependency: "katex", firstLoad: false },
+  elk: { dependency: "elk (ELK diagrams only)", firstLoad: false },
   "async-chunk": { dependency: "app/async", firstLoad: false },
 };
 

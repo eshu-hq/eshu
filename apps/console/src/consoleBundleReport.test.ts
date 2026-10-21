@@ -18,6 +18,7 @@ describe("evaluateBundleReport", () => {
       { name: "d3-Dd44.js", bytes: 111 * 1024 },
       { name: "icons-Ee55.js", bytes: 20 * 1024 },
       { name: "mermaid.core-Ff66.js", bytes: 300 * 1024 },
+      { name: "elk-QONTBCTQ-0CGR9iUw.js", bytes: 1_477_168 },
       { name: "index-Gg77.css", bytes: 18 * 1024 },
     ]);
 
@@ -29,6 +30,7 @@ describe("evaluateBundleReport", () => {
         "| index-Cc33.js | app/main | 640.0 | yes |",
         "| react-vendor-Aa11.js | react/react-dom/react-router | 52.0 | yes |",
         "| icons-Ee55.js | lucide-react | 20.0 | yes |",
+        "| elk-QONTBCTQ-0CGR9iUw.js | elk (ELK diagrams only) | 1442.5 | no |",
         "| mermaid.core-Ff66.js | mermaid | 300.0 | no |",
         "| d3-Dd44.js | d3 | 111.0 | no |",
         "| WorkspacePage-Bb22.js | app/async | 40.0 | no |",

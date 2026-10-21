@@ -17,6 +17,8 @@ export async function renderMermaid(id: string, source: string): Promise<string>
       startOnLoad: false,
       theme: "dark",
       securityLevel: "strict",
+      layout: "dagre",
+      look: "classic",
       fontFamily: "JetBrains Mono, ui-monospace, monospace",
       themeVariables: {
         primaryColor: "#141d27",
@@ -24,8 +26,8 @@ export async function renderMermaid(id: string, source: string): Promise<string>
         primaryTextColor: "#f3ebdd",
         lineColor: "#6b7682",
         secondaryColor: "#10171f",
-        tertiaryColor: "#0c1219"
-      }
+        tertiaryColor: "#0c1219",
+      },
     });
     initialized = true;
   }

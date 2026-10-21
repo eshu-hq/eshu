@@ -65,7 +65,7 @@ func TestPrepareNornicDBInstallSourceClosesArchiveExtraction(t *testing.T) {
 	archivePath := filepath.Join(t.TempDir(), "nornicdb-headless-darwin-arm64.tar.gz")
 	writeTarGzWithBinary(t, archivePath, "release/bin/nornicdb-headless", sourceBinary)
 
-	prepared, err := prepareInstallSource(context.Background(), archivePath, execNornicDBVersion)
+	prepared, err := prepareInstallSource(context.Background(), archivePath, "", execNornicDBVersion)
 	if err != nil {
 		t.Fatalf("prepareInstallSource() error = %v, want nil", err)
 	}
@@ -120,6 +120,69 @@ func TestInstallNornicDBDownloadsArchiveFromURL(t *testing.T) {
 	}
 }
 
+func TestPrepareNornicDBInstallSourceRequiresValidRemoteChecksum(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	for _, tc := range []struct {
+		name string
+		sha  string
+	}{
+		{name: "missing"},
+		{name: "malformed", sha: "not-a-sha256"},
+		{name: "non-hex", sha: strings.Repeat("g", 64)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			versionRead := false
+			_, err := prepareInstallSource(context.Background(), server.URL+"/nornicdb-headless", tc.sha, func(string) (string, error) {
+				versionRead = true
+				return "v1.0.42", nil
+			})
+			if err == nil {
+				t.Fatal("prepareInstallSource() error = nil, want rejected remote checksum")
+			}
+			if versionRead {
+				t.Fatal("prepareInstallSource() inspected a remote artifact before validating its checksum")
+			}
+			if requests != 0 {
+				t.Fatalf("remote requests = %d, want 0 for an invalid checksum", requests)
+			}
+		})
+	}
+}
+
+func TestPrepareNornicDBInstallSourceChecksumMismatchCleansDownload(t *testing.T) {
+	tempRoot := t.TempDir()
+	t.Setenv("TMPDIR", tempRoot)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("untrusted remote archive"))
+	}))
+	defer server.Close()
+
+	versionRead := false
+	_, err := prepareInstallSource(context.Background(), server.URL+"/nornicdb-headless.tar.gz", strings.Repeat("0", 64), func(string) (string, error) {
+		versionRead = true
+		return "v1.0.42", nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "sha256 mismatch") {
+		t.Fatalf("prepareInstallSource() error = %v, want checksum mismatch", err)
+	}
+	if versionRead {
+		t.Fatal("prepareInstallSource() inspected a remote artifact before verifying its checksum")
+	}
+	entries, err := os.ReadDir(tempRoot)
+	if err != nil {
+		t.Fatalf("os.ReadDir(tempRoot) error = %v, want nil", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("temporary download entries = %v, want empty after checksum rejection", entries)
+	}
+}
+
 func TestInstallNornicDBMarksFullPackageAsNonHeadless(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skip("package install path is only supported on darwin")
@@ -171,7 +234,7 @@ func TestPrepareNornicDBInstallSourceDownloadHonorsContextCancellation(t *testin
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := prepareInstallSource(ctx, server.URL+"/nornicdb-headless-darwin-arm64.tar.gz", execNornicDBVersion)
+	_, err := prepareInstallSource(ctx, server.URL+"/nornicdb-headless-darwin-arm64.tar.gz", strings.Repeat("0", 64), execNornicDBVersion)
 	if err == nil {
 		t.Fatal("prepareInstallSource() error = nil, want context cancellation")
 	}
