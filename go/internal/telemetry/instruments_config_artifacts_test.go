@@ -264,3 +264,56 @@ func TestConfigArtifactShadowCompareLabelsMatchRowConstants(t *testing.T) {
 		t.Fatalf("telemetry outcomes = %v, row outcomes = %v", got, rows)
 	}
 }
+
+// TestConfigArtifactReadLabelValuesAreClosed pins the closed source and
+// reason sets of the config-artifact reads counter (#8155 PR3c stored
+// cutover). stored/trusted is a repository served from trusted stored rows;
+// live carries the fallback reason, mode_live when the mode serves everything
+// live, stored_error when the whole stored read failed.
+func TestConfigArtifactReadLabelValuesAreClosed(t *testing.T) {
+	t.Parallel()
+
+	if want := []string{"stored", "live"}; !slices.Equal(ConfigArtifactReadSources(), want) {
+		t.Fatalf("ConfigArtifactReadSources() = %v, want %v", ConfigArtifactReadSources(), want)
+	}
+	want := []string{"trusted", "missing", "stale_version", "stale_extractor", "failed", "mode_live", "stored_error"}
+	if got := ConfigArtifactReadReasons(); !slices.Equal(got, want) {
+		t.Fatalf("ConfigArtifactReadReasons() = %v, want %v", got, want)
+	}
+
+	// The accessors return copies: a caller cannot widen the closed set.
+	sources := ConfigArtifactReadSources()
+	reasons := ConfigArtifactReadReasons()
+	sources[0] = "mutated"
+	reasons[0] = "mutated"
+	if ConfigArtifactReadSources()[0] != "stored" || ConfigArtifactReadReasons()[0] != "trusted" {
+		t.Fatal("label value accessors returned shared slices")
+	}
+}
+
+// TestConfigArtifactReadReasonsMatchStorageConstants pins the telemetry
+// fallback reasons to the storage read-model reasons (#8155 PR3c): a renamed,
+// added or dropped reason must change both sides, or the wiring counts a
+// label the stored reader never returns (or drops one it does).
+func TestConfigArtifactReadReasonsMatchStorageConstants(t *testing.T) {
+	t.Parallel()
+
+	storage := map[string]string{
+		"missing":         string(artifacts.ReasonMissing),
+		"stale_version":   string(artifacts.ReasonStaleVersion),
+		"stale_extractor": string(artifacts.ReasonStaleExtractor),
+		"failed":          string(artifacts.ReasonFailed),
+	}
+	reasons := map[string]bool{}
+	for _, reason := range ConfigArtifactReadReasons() {
+		reasons[reason] = true
+	}
+	for name, value := range storage {
+		if name != value {
+			t.Fatalf("storage reason %q has value %q: the adapter maps reasons 1:1, so they must be identical", name, value)
+		}
+		if !reasons[value] {
+			t.Fatalf("telemetry reasons lack the storage reason %q", value)
+		}
+	}
+}
