@@ -30,8 +30,9 @@
 - Keep Module keyed on (name, lang) everywhere (reads, writes, cursor,
   anti-join): keying on name alone lets a connected same-named sibling mask
   a true orphan.
-- Keep `int64Count` behavior-identical to its twin in the parent
-  (`provenance_counts.go`): the two sides cannot share one definition.
+- Keep `int64Count` behavior-identical to its twin in the edge-writer
+  leaf (`../../edge/writer/provenance_counts.go`): the two sides cannot
+  share one definition.
 - Keep the package clause as `package orphan`; external callers use the
   default name, or `sweeporphan` where `orphan` is taken
   (the maintenance `orphan` package in `cmd/reducer`).

@@ -736,10 +736,10 @@ read_exemptions:
   - callsite: internal/query/relationships_catalog.go:(*InfraHandler).relationshipSourceToolBreakdown
     anchor: "MATCH (s:WorkloadInstance)-[r:RUNS_ON]->() WHERE r.source_tool IS NOT NULL"
     reason: every RUNS_ON write in B-7 sets rel.source_tool = null, so IS NOT NULL matches nothing by construction
-  - callsite: internal/storage/cypher/provenance_counts.go:(*ProvenanceCountStore).EdgesBySourceTool
+  - callsite: internal/storage/cypher/edge/writer/provenance_counts.go:(*ProvenanceCountStore).EdgesBySourceTool
     anchor: "MATCH ()-[r:READS_CONFIG_FROM]->() WHERE r.source_tool IS NOT NULL"
     reason: provenance gauge refresher count read (#7062), 7 executions per backend per capture run, all empty; B-7 captures contain zero READS_CONFIG_FROM writes (no write statement names the verb and no execution reports a READS_CONFIG_FROM relationship created)
-  - callsite: internal/storage/cypher/provenance_counts.go:(*ProvenanceCountStore).EdgesBySourceTool
+  - callsite: internal/storage/cypher/edge/writer/provenance_counts.go:(*ProvenanceCountStore).EdgesBySourceTool
     anchor: "MATCH ()-[r:RUNS_ON]->() WHERE r.source_tool IS NOT NULL"
     reason: provenance gauge refresher count read (#7062), 7 executions per backend per capture run, all empty; every RUNS_ON write in B-7 sets rel.source_tool = null, so IS NOT NULL matches nothing by construction (same cause as the WorkloadInstance RUNS_ON read above)
   - callsite: internal/query/relationships_catalog.go:(*InfraHandler).relationshipEdges

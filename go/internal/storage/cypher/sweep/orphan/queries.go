@@ -441,9 +441,10 @@ func (s *OrphanSweepStore) readConnectedKeysChunk(
 }
 
 // int64Count coerces backend count columns to int64. It duplicates the
-// helper of the same name in the parent cypher package
-// (provenance_counts.go): this leaf imports the parent, so the two sides
-// cannot share one definition. Keep the copies behavior-identical.
+// helper of the same name in the edge-writer leaf
+// (../../edge/writer/provenance_counts.go): this leaf imports the parent,
+// so the two sides cannot share one definition. Keep the copies
+// behavior-identical.
 func int64Count(value any) (int64, bool) {
 	switch typed := value.(type) {
 	case int:
