@@ -1,35 +1,24 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package gcpcloud
+package gcpcloud //nolint:dirgate // #6696 wave-1: flat extractor moves to extractor/<group> in a later slice
 
 import (
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // Asset type constants for the compute Subnetwork typed-depth extractor and the
 // relationship endpoint it derives. The target asset type names the CAI asset
 // type of the parent-network edge so the reducer can resolve both endpoints
 // exactly before materializing.
-const (
-	assetTypeComputeSubnetwork = "compute.googleapis.com/Subnetwork"
-	assetTypeComputeNetwork    = "compute.googleapis.com/Network"
-)
-
 // relationshipTypeSubnetworkInNetwork is the bounded provider relationship type
 // for the subnet -> parent VPC network edge carried on a gcp_cloud_relationship
 // fact. The reducer materializes the edge only when both endpoints resolve
 // exactly.
 const relationshipTypeSubnetworkInNetwork = "subnetwork_in_network"
-
-// computeResourceNamePrefix is the Cloud Asset Inventory full-resource-name
-// prefix for compute Engine resources, used to build the parent-network edge
-// endpoint from a subnet's network self-link.
-const computeResourceNamePrefix = "//compute.googleapis.com/"
 
 func init() {
 	RegisterAssetExtractor(assetTypeComputeSubnetwork, extractSubnetwork)
@@ -194,28 +183,6 @@ func cidrPrefixLength(cidr string) (int64, bool) {
 		return 0, false
 	}
 	return prefix, true
-}
-
-// normalizeRFC3339 parses a compute API RFC3339 timestamp (which carries a zone
-// offset and optional fractional seconds) and returns it as an RFC3339 UTC
-// string. A blank or unparseable value yields ok=false so the attribute is
-// omitted rather than written as the zero time.
-func normalizeRFC3339(value string) (string, bool) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return "", false
-	}
-	parsed, err := time.Parse(time.RFC3339, trimmed)
-	if err != nil {
-		// Some GCP APIs (e.g. Dataplex) report sub-second createTime; RFC3339Nano
-		// accepts the fractional-second form that strict RFC3339 rejects. The
-		// output is still normalized to whole-second RFC3339.
-		parsed, err = time.Parse(time.RFC3339Nano, trimmed)
-		if err != nil {
-			return "", false
-		}
-	}
-	return parsed.UTC().Format(time.RFC3339), true
 }
 
 func subnetworkEdge(ctx ExtractContext, relationshipType, targetName, targetType string) RelationshipObservation {

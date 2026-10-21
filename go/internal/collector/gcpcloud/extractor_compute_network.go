@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package gcpcloud
+package gcpcloud //nolint:dirgate // #6696 wave-1: flat extractor moves to extractor/<group> in a later slice
 
 import (
 	"encoding/json"
@@ -17,15 +17,12 @@ import (
 // reference the network from their own resource.data and are emitted by those
 // asset types' own extractors, not this one. The asset type constants
 // (assetTypeComputeNetwork, assetTypeComputeSubnetwork) and
-// computeResourceNamePrefix are shared with the Subnetwork extractor in
-// extractor_subnetwork.go.
+// computeResourceNamePrefix live in the extractor leaf package (aliased here
+// via compat_extractor.go) so every extractor group can share them.
 const (
 	relationshipTypeNetworkContainsSubnetwork = "vpc_network_contains_subnetwork"
 	relationshipTypeNetworkPeersWithNetwork   = "vpc_network_peers_with_network"
 
-	// computeSelfLinkMarker delimits the API version segment in a Compute Engine
-	// selfLink; the path after the version segment is the CAI resource path.
-	computeSelfLinkMarker = "/compute/"
 	// peeringStateActive is the Compute Network peering state that exchanges
 	// routes/connectivity. Only ACTIVE peerings become materializing edges.
 	peeringStateActive = "ACTIVE"
@@ -138,59 +135,6 @@ func computeNetworkAttributes(data computeNetworkData) map[string]any {
 // computeFullResourceNameFromSelfLink converts a Compute Engine selfLink or a
 // peering network reference into its Cloud Asset Inventory full resource name.
 // The Compute API expresses these references as a full selfLink
-// (https://.../compute/<version>/projects/...), a project-qualified partial
-// (projects/p/...), or a project-less partial (global/networks/n,
-// regions/r/subnetworks/s); project-less partials resolve against sourceProjectID
-// (the source network's project). A value already in CAI full-resource-name form
-// is returned unchanged. An empty string is returned for a blank reference, an
-// unrecognized shape, or a project-less partial with no source project, so only
-// well-formed resource identities become edge endpoints.
-func computeFullResourceNameFromSelfLink(selfLink, sourceProjectID string) string {
-	trimmed := strings.TrimSpace(selfLink)
-	if trimmed == "" {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, computeResourceNamePrefix) {
-		return trimmed
-	}
-	// Full selfLink: take the path after the /compute/<version>/ segment.
-	if idx := strings.Index(trimmed, computeSelfLinkMarker); idx >= 0 {
-		afterMarker := trimmed[idx+len(computeSelfLinkMarker):]
-		if _, path, ok := strings.Cut(afterMarker, "/"); ok {
-			if normalized := computeResourceNameFromPath(path, sourceProjectID); normalized != "" {
-				return normalized
-			}
-		}
-		return ""
-	}
-	// Partial reference (no scheme, no /compute/ segment).
-	return computeResourceNameFromPath(trimmed, sourceProjectID)
-}
-
-// computeResourceNameFromPath builds a CAI full resource name from a Compute
-// resource path that is either project-qualified (projects/p/...) or a
-// project-less partial (global/..., regions/..., zones/...) resolved against
-// sourceProjectID. It returns an empty string for any other shape.
-func computeResourceNameFromPath(path, sourceProjectID string) string {
-	path = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(path), "/"))
-	switch {
-	case path == "":
-		return ""
-	case strings.HasPrefix(path, "projects/"):
-		return computeResourceNamePrefix + path
-	case strings.HasPrefix(path, "global/"),
-		strings.HasPrefix(path, "regions/"),
-		strings.HasPrefix(path, "zones/"):
-		project := strings.TrimSpace(sourceProjectID)
-		if project == "" {
-			return ""
-		}
-		return computeResourceNamePrefix + "projects/" + project + "/" + path
-	default:
-		return ""
-	}
-}
-
 func computeNetworkEdge(ctx ExtractContext, relationshipType, targetName, targetType string) RelationshipObservation {
 	return RelationshipObservation{
 		SourceFullResourceName: ctx.FullResourceName,

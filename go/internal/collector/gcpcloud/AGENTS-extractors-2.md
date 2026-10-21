@@ -31,7 +31,7 @@ ascending.
    configs; there is no cross-project destination signal in CAI to prefer. The
    `params` map (user query text, source object paths, and the source-side
    project/dataset ids of a copy job) is never decoded and never leaves the parser.
-48. `extractor_workflows_workflow.go` - typed-depth extractor for
+48. `extractor/serverless/workflows_workflow.go` - typed-depth extractor for
    `workflows.googleapis.com/Workflow` (deployment state, revision id, call-log
    level, execution-history level, create/update/revision-create time, a
    source-contents presence flag, the normalized CMEK key relative name, and
@@ -259,7 +259,7 @@ ascending.
    never decoded into Go memory at all — `interconnectAttachmentData`
    declares no struct field for any of them, so encoding/json silently
    ignores those keys during Unmarshal.
-56. `extractor_composer_environment.go` - typed-depth extractor for
+56. `extractor/serverless/composer_environment.go` - typed-depth extractor for
    `composer.googleapis.com/Environment` (lifecycle state, creation time,
    environment size, resilience mode, Airflow image version, CMEK posture,
    private-environment and private-GKE-endpoint posture, networking connection
@@ -388,7 +388,8 @@ ascending.
    a bare `projectId` against the trigger's own project the same way the Build
    extractor's `repoSource.projectId` default resolves (a project id is parsed
    from the trigger's own CAI full resource name via the domain-agnostic
-   `eventarcProjectLocation` helper from `extractor_eventarc_trigger.go`, never
+   `extractor.EventarcProjectLocation` helper from the extractor leaf
+   (promoted out of the flat root by the #6696 serverless slice), never
    a Cloud-Build-specific parser, since both extractors need only the generic
    `projects/<id>/locations/<id>` segments); and `trigger_source_repository_link`
    to the newly-declared `assetTypeDeveloperConnectGitRepositoryLink`

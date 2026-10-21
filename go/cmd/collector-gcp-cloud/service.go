@@ -19,6 +19,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	// Blank import: the serverless extractor group self-registers its asset
+	// types from init functions. Without this import the binary silently
+	// drops serverless typed depth (see TestServerlessExtractorsRegistered).
+	_ "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor/serverless"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/gcpruntime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	cassette "github.com/eshu-hq/eshu/go/internal/replay/cassette"

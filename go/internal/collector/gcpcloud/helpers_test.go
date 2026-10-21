@@ -20,3 +20,12 @@ func containsAny(haystack string, needles ...string) bool {
 	}
 	return false
 }
+
+func containsStringSlice(haystack []string, needle string) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
+}

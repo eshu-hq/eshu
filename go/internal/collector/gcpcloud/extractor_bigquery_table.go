@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package gcpcloud
+package gcpcloud //nolint:dirgate // #6696 wave-1: flat extractor moves to extractor/<group> in a later slice
 
 import (
 	"encoding/json"
@@ -17,8 +17,6 @@ import (
 const (
 	assetTypeBigQueryTable   = "bigquery.googleapis.com/Table"
 	assetTypeBigQueryDataset = "bigquery.googleapis.com/Dataset"
-	assetTypeKMSCryptoKey    = "cloudkms.googleapis.com/CryptoKey"
-	assetTypeStorageBucket   = "storage.googleapis.com/Bucket"
 )
 
 // Bounded relationship types for BigQuery Table edges. They are stable, bounded
@@ -28,16 +26,8 @@ const (
 	relationshipTypeBigQueryTableInDataset      = "bigquery_table_in_dataset"
 	relationshipTypeBigQueryTableKMSKey         = "bigquery_table_encrypted_by_kms_key"
 	relationshipTypeBigQueryTableExternalSource = "bigquery_table_reads_external_source"
-	cloudKMSResourceNamePrefix                  = "//cloudkms.googleapis.com/"
 	bigQueryResourceNamePrefix                  = "//bigquery.googleapis.com/"
 )
-
-// storageBucketResourceNamePrefixFmt is a plain string prefix, not a
-// fmt.Sprintf format string, despite the "Fmt" suffix: it carries no `%` verb.
-// Every caller across this package builds a bucket full resource name by
-// concatenating the bucket name directly onto this prefix (e.g.
-// storageBucketResourceNamePrefixFmt+bucket), never via fmt.Sprintf.
-const storageBucketResourceNamePrefixFmt = "//storage.googleapis.com/projects/_/buckets/"
 
 func init() {
 	RegisterAssetExtractor(assetTypeBigQueryTable, extractBigQueryTable)
@@ -206,18 +196,6 @@ func externalBucketNames(data bigQueryTableData) []string {
 	return dedupeNonEmpty(names)
 }
 
-// gcsBucketFromURI extracts only the bucket name from a gs://bucket/object URI.
-// The object path is never returned so no data-plane locator leaves the parser.
-func gcsBucketFromURI(uri string) string {
-	trimmed := strings.TrimSpace(uri)
-	rest, ok := strings.CutPrefix(trimmed, "gs://")
-	if !ok {
-		return ""
-	}
-	bucket, _, _ := strings.Cut(rest, "/")
-	return strings.TrimSpace(bucket)
-}
-
 func bigQueryTableEdge(ctx ExtractContext, relationshipType, targetName, targetType string) RelationshipObservation {
 	return RelationshipObservation{
 		SourceFullResourceName: ctx.FullResourceName,
@@ -258,29 +236,6 @@ func trimmedStrings(input []string) []string {
 		if trimmed := strings.TrimSpace(v); trimmed != "" {
 			out = append(out, trimmed)
 		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-func dedupeNonEmpty(input []string) []string {
-	if len(input) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(input))
-	out := make([]string, 0, len(input))
-	for _, v := range input {
-		trimmed := strings.TrimSpace(v)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		out = append(out, trimmed)
 	}
 	if len(out) == 0 {
 		return nil

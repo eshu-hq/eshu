@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package gcpcloud
+package gcpcloud //nolint:dirgate // #6696 wave-1: flat extractor moves to extractor/<group> in a later slice
 
 import (
 	"encoding/json"
@@ -10,13 +10,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
-
-// assetTypeGKECluster is the Cloud Asset Inventory asset type for a GKE
-// cluster. Its edge targets reuse asset-type constants and helpers already
-// declared elsewhere in this package: assetTypeComputeNetwork /
-// assetTypeComputeSubnetwork and computeFullResourceNameFromSelfLink (Compute
-// extractors).
-const assetTypeGKECluster = "container.googleapis.com/Cluster"
 
 // Bounded provider relationship types for GKE Cluster edges. Each is a stable
 // string carried on a gcp_cloud_relationship fact; the reducer materializes an
@@ -28,11 +21,6 @@ const (
 	relationshipTypeGKEClusterUsesNetwork    = "gke_cluster_uses_network"
 	relationshipTypeGKEClusterUsesSubnetwork = "gke_cluster_uses_subnetwork"
 )
-
-// defaultServiceAccountSentinel is the GKE API's sentinel value for "use the
-// project's default Compute Engine service account". It is not a resolvable
-// service-account email, so it must never be fingerprinted or anchored.
-const defaultServiceAccountSentinel = "default"
 
 func init() {
 	RegisterAssetExtractor(assetTypeGKECluster, extractGKECluster)
