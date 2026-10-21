@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
@@ -192,7 +193,7 @@ func sqlRelationshipConvergenceFixture(repoID, repoPath string, delta bool, chan
 		if metadata != nil {
 			payload["entity_metadata"] = metadata
 		}
-		return facts.Envelope{FactKind: factKindContentEntity, ScopeID: scopeID, Payload: payload}
+		return facts.Envelope{FactKind: factload.FactKindContentEntity, ScopeID: scopeID, Payload: payload}
 	}
 
 	envelopes := []facts.Envelope{
@@ -215,7 +216,7 @@ func sqlRelationshipConvergenceFixture(repoID, repoPath string, delta bool, chan
 	}
 
 	repository := facts.Envelope{
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		ScopeID:  scopeID,
 		Payload: map[string]any{
 			"repo_id":       repoID,

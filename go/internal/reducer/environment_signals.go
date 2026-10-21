@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 // This file broadens deployment-environment detection beyond the directory
@@ -174,12 +175,12 @@ func (l CorrelatedWorkloadProjectionInputLoader) enrichDeploymentRepoEnvironment
 	}
 
 	for repoID, identity := range identities {
-		envelopes, err := loadFactsForKinds(
+		envelopes, err := factload.LoadFactsForKinds(
 			ctx,
 			l.FactLoader,
 			identity.ScopeID,
 			identity.GenerationID,
-			[]string{factKindFile},
+			[]string{factload.FactKindFile},
 		)
 		if err != nil {
 			slog.Warn("load deployment repo facts for environment extraction",

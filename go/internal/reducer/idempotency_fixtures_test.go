@@ -3,7 +3,10 @@
 
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/facts"
+import (
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+)
 
 // Fact fixtures for the B-6 (#3799) idempotency replay suite. Each builder
 // returns a static fact set that drives its handler's emit path to exactly one
@@ -74,7 +77,7 @@ func shellExecReplayFacts() []facts.Envelope {
 	return []facts.Envelope{
 		sqlRelationshipRepositoryEnvelope(false, nil),
 		{
-			FactKind: factKindFile,
+			FactKind: factload.FactKindFile,
 			ScopeID:  "scope-db",
 			Payload: map[string]any{
 				"repo_id":       "repo-123",

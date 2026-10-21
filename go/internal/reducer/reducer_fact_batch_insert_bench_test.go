@@ -11,16 +11,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// benchFactRows builds n deterministic reducerFactRow values for the insert
+// benchFactRows builds n deterministic factwrite.Row values for the insert
 // benchmark. Distinct fact_ids so no dedupe collapse skews the row count.
-func benchFactRows(n int) []reducerFactRow {
+func benchFactRows(n int) []factwrite.Row {
 	now := time.Now().UTC()
-	rows := make([]reducerFactRow, n)
+	rows := make([]factwrite.Row, n)
 	for i := range rows {
-		rows[i] = reducerFactRow{
+		rows[i] = factwrite.Row{
 			FactID:           fmt.Sprintf("bench-fact:%08d", i),
 			ScopeID:          "bench-scope",
 			GenerationID:     "bench-gen-1",
@@ -40,10 +42,10 @@ func benchFactRows(n int) []reducerFactRow {
 }
 
 // insertReducerFactPerRow reproduces the pre-#5317 per-row loop: one ExecContext
-// round-trip per fact row through canonicalReducerFactInsertQuery.
-func insertReducerFactPerRow(ctx context.Context, db workloadIdentityExecer, rows []reducerFactRow) error {
+// round-trip per fact row through factwrite.SingleInsertQuery.
+func insertReducerFactPerRow(ctx context.Context, db factwrite.Execer, rows []factwrite.Row) error {
 	for _, r := range rows {
-		if _, err := db.ExecContext(ctx, canonicalReducerFactInsertQuery,
+		if _, err := db.ExecContext(ctx, factwrite.SingleInsertQuery,
 			r.FactID, r.ScopeID, r.GenerationID, r.FactKind, r.StableFactKey,
 			r.CollectorKind, r.SourceConfidence, r.SourceSystem, r.SourceFactKey,
 			r.SourceURI, r.SourceRecordID, r.ObservedAt, r.IngestedAt, r.IsTombstone, r.Payload,
@@ -106,7 +108,7 @@ func BenchmarkReducerFactInsertPerRowVsBatched(b *testing.B) {
 		b.Run(fmt.Sprintf("batched/N=%d", n), func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				if err := reducerBatchInsertFacts(ctx, db, rows); err != nil {
+				if err := factwrite.BatchInsertFacts(ctx, db, rows); err != nil {
 					b.Fatalf("batched insert: %v", err)
 				}
 			}

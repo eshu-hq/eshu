@@ -30,7 +30,7 @@ import (
 // required key would NOT have been caught the same way. After the migration
 // ExtractKubernetesWorkloadNodeRows decodes each kubernetes_live.pod_template
 // fact through factschema.DecodeKubernetesLivePodTemplate; the malformed fact
-// yields a classified *factschema.DecodeError that partitionDecodeFailures
+// yields a classified *factschema.DecodeError that factdecode.PartitionDecodeFailures
 // routes to a per-fact quarantine. The handler records it (metric + structured
 // log + the input_invalid_facts SubSignal) and continues, so the batch's
 // valid workload still materializes its node.

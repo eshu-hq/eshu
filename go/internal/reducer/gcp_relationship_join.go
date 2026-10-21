@@ -8,6 +8,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
 // GCP relationship support states, mirrored from the gcpcloud collector
@@ -102,22 +104,22 @@ type gcpResolvedResource struct {
 // materialization committed. Each fact is decoded through the factschema seam
 // (via gcpCloudResourceNodeRow); a payload missing a required identity field
 // (full_resource_name, asset_type) is QUARANTINED per-fact via
-// partitionDecodeFailures — that one fact is skipped and returned in the
+// factdecode.PartitionDecodeFailures — that one fact is skipped and returned in the
 // quarantined slice, while every valid resource is still indexed. A non-decode
 // error is returned fatally. Mirrors cloudjoin.BuildCloudResourceJoinIndex
 // (aws_relationship_join.go).
-func buildGCPCloudResourceJoinIndex(envelopes []facts.Envelope) (gcpCloudResourceJoinIndex, []quarantinedFact, error) {
+func buildGCPCloudResourceJoinIndex(envelopes []facts.Envelope) (gcpCloudResourceJoinIndex, []factdecode.QuarantinedFact, error) {
 	index := gcpCloudResourceJoinIndex{
 		byFullResourceName: make(map[string]gcpResolvedResource, len(envelopes)),
 	}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != cloud.GCPCloudResourceFactKind {
 			continue
 		}
 		row, uid, ok, err := gcpCloudResourceNodeRow(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return gcpCloudResourceJoinIndex{}, nil, fatal
 			}
@@ -273,7 +275,7 @@ func gcpRelationshipTypeValid(value string) bool {
 // each gcp_cloud_relationship fact are decoded through the factschema seam, so
 // a payload missing a required field (source_full_resource_name,
 // target_full_resource_name, relationship_type) is QUARANTINED per-fact via
-// partitionDecodeFailures rather than resolving an edge against an
+// factdecode.PartitionDecodeFailures rather than resolving an edge against an
 // empty-string identity: that one fact is skipped and returned in the
 // quarantined slice, while every valid fact still projects. A non-decode error
 // is returned fatally. Mirrors ExtractAWSRelationshipEdgeRows
@@ -294,7 +296,7 @@ func ExtractGCPRelationshipEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
 	intentScopeID string,
-) ([]map[string]any, gcpRelationshipEdgeTally, []quarantinedFact, error) {
+) ([]map[string]any, gcpRelationshipEdgeTally, []factdecode.QuarantinedFact, error) {
 	tally := newGCPRelationshipEdgeTally()
 	if len(relationshipEnvelopes) == 0 {
 		return nil, tally, nil, nil
@@ -317,9 +319,9 @@ func ExtractGCPRelationshipEdgeRows(
 		if env.FactKind != cloud.GCPCloudRelationshipFactKind {
 			continue
 		}
-		relationship, err := decodeGCPCloudRelationship(env)
+		relationship, err := schemadecode.DecodeGCPCloudRelationship(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, tally, nil, fatal
 			}

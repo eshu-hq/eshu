@@ -14,7 +14,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -194,7 +196,7 @@ func TestRationaleHandlerSkipsWhenNoProjectionContext(t *testing.T) {
 	handler := RationaleEdgeMaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
-				FactKind: factKindContentEntity,
+				FactKind: factload.FactKindContentEntity,
 				Payload: map[string]any{
 					"repo_id":       "repo-1",
 					"entity_id":     "content-entity:func",
@@ -246,7 +248,7 @@ func TestBuildRationaleRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	if got, ok := payload["delta_projection"].(bool); !ok || !got {
 		t.Fatalf("delta_projection = %#v, want true", payload["delta_projection"])
 	}
-	if gotPaths := semanticPayloadStringSlice(payload, "delta_file_paths"); len(gotPaths) != 0 {
+	if gotPaths := payloadcore.SemanticPayloadStringSlice(payload, "delta_file_paths"); len(gotPaths) != 0 {
 		t.Fatalf("delta_file_paths = %#v, want empty malformed delta scope", gotPaths)
 	}
 }
@@ -256,7 +258,7 @@ func TestExtractRationaleEdgeRowsEmitsExplainsEdge(t *testing.T) {
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
 				"entity_id":     "content-entity:func",
@@ -302,7 +304,7 @@ func TestExtractRationaleEdgeRowsSkipsEntitiesWithoutRationale(t *testing.T) {
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			Payload: map[string]any{
 				"repo_id":     "repo-1",
 				"entity_id":   "content-entity:plain",
@@ -326,7 +328,7 @@ func TestExtractRationaleEdgeRowsDeduplicatesIdenticalComment(t *testing.T) {
 
 	comment := map[string]any{"kind": "HACK", "text": "same"}
 	envelopes := []facts.Envelope{
-		{FactKind: factKindContentEntity, Payload: map[string]any{
+		{FactKind: factload.FactKindContentEntity, Payload: map[string]any{
 			"repo_id": "repo-1", "entity_id": "e1", "entity_type": "Function",
 			"entity_metadata": map[string]any{"rationale_comments": []any{comment, comment}},
 		}},
@@ -356,7 +358,7 @@ func TestLoadRationaleMaterializationFactsUsesSingleLegacyFallback(t *testing.T)
 func rationaleDeltaEntityFacts() []facts.Envelope {
 	return []facts.Envelope{
 		{
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			ScopeID:  "scope-code",
 			Payload: map[string]any{
 				"repo_id":                      "repo-123",
@@ -368,7 +370,7 @@ func rationaleDeltaEntityFacts() []facts.Envelope {
 			},
 		},
 		{
-			FactKind: factKindContentEntity,
+			FactKind: factload.FactKindContentEntity,
 			ScopeID:  "scope-code",
 			Payload: map[string]any{
 				"repo_id":       "repo-123",

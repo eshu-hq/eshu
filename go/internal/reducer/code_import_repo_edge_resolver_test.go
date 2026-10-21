@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
@@ -440,7 +441,7 @@ func TestBuildCodeImportRepoDependencyIntentsTsConfigBaseUrlDropped(t *testing.T
 		},
 	}
 	envelope := facts.Envelope{
-		FactKind: factKindFile,
+		FactKind: factload.FactKindFile,
 		Payload: map[string]any{
 			"repo_id":          "consumer-repo",
 			"relative_path":    "src/App.tsx",

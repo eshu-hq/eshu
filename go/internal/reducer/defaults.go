@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
@@ -64,8 +65,8 @@ type DefaultHandlers struct {
 	// RepositoryEdgeReader guards the #7285 stale DEFINES/EXPOSES_ENDPOINT retract.
 	RepositoryEdgeReader retract.Reader
 
-	// FactLoader loads fact envelopes for workload and platform materialization.
-	FactLoader FactLoader
+	// factload.FactLoader loads fact envelopes for workload and platform materialization.
+	FactLoader factload.FactLoader
 
 	// AdmissionDecisionWriter persists shared explainability decisions for
 	// reducer domains that map local admission outcomes to the cross-domain
@@ -201,7 +202,7 @@ type DefaultHandlers struct {
 
 	// CloudResourceNodeWriter materializes aws_resource facts into canonical
 	// CloudResource graph nodes (issue #805). It must be non-nil alongside
-	// FactLoader for the registry to register DomainAWSResourceMaterialization;
+	// factload.FactLoader for the registry to register DomainAWSResourceMaterialization;
 	// missing either one would drop every aws_resource fact before it reaches
 	// the graph.
 	CloudResourceNodeWriter CloudResourceNodeWriter
@@ -214,7 +215,7 @@ type DefaultHandlers struct {
 
 	// EC2InstanceNodeWriter materializes ec2_instance_posture facts into canonical
 	// :CloudResource graph nodes on the existing cloud_resource_uid keyspace (issue
-	// #1146 PR-A). It must be non-nil alongside FactLoader for the registry to
+	// #1146 PR-A). It must be non-nil alongside factload.FactLoader for the registry to
 	// register DomainEC2InstanceNodeMaterialization; missing either one would drop
 	// every ec2_instance_posture fact before it reached the graph. The handler also
 	// publishes the canonical-nodes-committed phase through
@@ -230,7 +231,7 @@ type DefaultHandlers struct {
 
 	// CloudResourceEdgeWriter projects aws_relationship facts into canonical
 	// AWS relationship edges between CloudResource nodes (issue #805 PR 2). It
-	// must be non-nil alongside FactLoader for the registry to register
+	// must be non-nil alongside factload.FactLoader for the registry to register
 	// DomainAWSRelationshipMaterialization; missing either one would drop every
 	// aws_relationship fact before it reaches the graph. The handler also gates
 	// on ReadinessLookup so edges never resolve against uncommitted nodes.
@@ -240,7 +241,7 @@ type DefaultHandlers struct {
 	// ecs_task_definition_uses_image aws_relationship facts into canonical
 	// CloudResource -> ContainerImage edges (issue #5450), the additive sibling
 	// of CloudResourceEdgeWriter for cross-label targets (an image is not a
-	// CloudResource). Non-nil alongside FactLoader registers
+	// CloudResource). Non-nil alongside factload.FactLoader registers
 	// DomainAWSCloudImageMaterialization; the handler gates on ReadinessLookup
 	// so edges never resolve against an uncommitted source.
 	CloudResourceContainerImageEdgeWriter awscloud.CloudResourceContainerImageEdgeWriter
@@ -265,7 +266,7 @@ type DefaultHandlers struct {
 
 	// GCPCloudResourceEdgeWriter projects gcp_cloud_relationship facts into
 	// canonical GCP relationship edges between CloudResource nodes (issue #2348).
-	// It must be non-nil alongside FactLoader for the registry to register
+	// It must be non-nil alongside factload.FactLoader for the registry to register
 	// DomainGCPRelationshipMaterialization; missing either one would drop every
 	// gcp_cloud_relationship fact before it reaches the graph. The handler gates
 	// on ReadinessLookup so edges never resolve against uncommitted GCP nodes.
@@ -273,7 +274,7 @@ type DefaultHandlers struct {
 
 	// AzureCloudResourceEdgeWriter projects azure_cloud_relationship facts into
 	// canonical Azure relationship edges between CloudResource nodes. It must be
-	// non-nil alongside FactLoader for the registry to register
+	// non-nil alongside factload.FactLoader for the registry to register
 	// DomainAzureRelationshipMaterialization; missing either one would drop every
 	// azure_cloud_relationship fact before it reaches the graph. The handler gates
 	// on ReadinessLookup so edges never resolve against uncommitted Azure nodes.
@@ -281,14 +282,14 @@ type DefaultHandlers struct {
 
 	// WorkloadCloudRelationshipEdgeWriter projects exact workload anchors on
 	// CloudResource facts into canonical WorkloadInstance USES CloudResource
-	// edges. It must be non-nil alongside FactLoader for the registry to register
+	// edges. It must be non-nil alongside factload.FactLoader for the registry to register
 	// DomainWorkloadCloudRelationshipMaterialization; missing either one keeps the
 	// domain unregistered rather than dropping graph truth.
 	WorkloadCloudRelationshipEdgeWriter WorkloadCloudRelationshipEdgeWriter
 
 	// ObservabilityCoverageEdgeWriter projects exact observability coverage
 	// decisions into canonical COVERS edges between CloudResource nodes (issue
-	// #391 PR3). It must be non-nil alongside FactLoader for the registry to
+	// #391 PR3). It must be non-nil alongside factload.FactLoader for the registry to
 	// register DomainObservabilityCoverageMaterialization; missing either one
 	// would drop every coverage materialization intent before it reaches the
 	// graph. The handler also gates on ReadinessLookup so edges never resolve
@@ -308,7 +309,7 @@ type DefaultHandlers struct {
 
 	// IAMCanAssumeEdgeWriter projects aws_iam_permission trust statements into
 	// canonical CAN_ASSUME edges between IAM CloudResource nodes (issue #1134
-	// PR2). It must be non-nil alongside FactLoader for the registry to register
+	// PR2). It must be non-nil alongside factload.FactLoader for the registry to register
 	// DomainIAMCanAssumeMaterialization; missing either one would drop every
 	// CAN_ASSUME materialization intent before it reaches the graph. The handler
 	// also gates on ReadinessLookup so edges never resolve against uncommitted
@@ -317,7 +318,7 @@ type DefaultHandlers struct {
 
 	// S3LogsToEdgeWriter projects s3_bucket_posture logging_target_bucket fields
 	// into canonical LOGS_TO edges between S3 bucket CloudResource nodes (issue
-	// #1144 PR2). It must be non-nil alongside FactLoader for the registry to
+	// #1144 PR2). It must be non-nil alongside factload.FactLoader for the registry to
 	// register DomainS3LogsToMaterialization; missing either one would drop every
 	// LOGS_TO materialization intent before it reaches the graph. The handler
 	// also gates on ReadinessLookup so edges never resolve against uncommitted
@@ -327,7 +328,7 @@ type DefaultHandlers struct {
 	// S3ExternalPrincipalGrantWriter projects metadata-only
 	// s3_external_principal_grant facts into canonical ExternalPrincipal nodes
 	// and GRANTS_ACCESS_TO edges (issue #1231). It must be non-nil alongside
-	// FactLoader for the registry to register
+	// factload.FactLoader for the registry to register
 	// DomainS3ExternalPrincipalGrantMaterialization; missing either one would
 	// drop every external-principal grant intent before it reaches graph truth.
 	// The handler also gates on ReadinessLookup so source S3 buckets resolve only
@@ -335,7 +336,7 @@ type DefaultHandlers struct {
 	S3ExternalPrincipalGrantWriter s3grant.S3ExternalPrincipalGrantWriter
 
 	// RDSPostureNodeWriter projects rds_instance_posture facts onto existing RDS
-	// CloudResource nodes (issue #1233). It must be non-nil alongside FactLoader
+	// CloudResource nodes (issue #1233). It must be non-nil alongside factload.FactLoader
 	// for the registry to register DomainRDSPostureMaterialization; missing either
 	// one would drop every RDS posture intent before it reaches graph truth. The
 	// handler also gates on ReadinessLookup so posture fields never write against
@@ -344,7 +345,7 @@ type DefaultHandlers struct {
 	// EC2InstanceIdentityNodeWriter projects the #5448 aws_ec2_instance
 	// aws_resource fact's ami_id onto the already-materialized EC2 instance
 	// CloudResource node (owned by DomainEC2InstanceNodeMaterialization). It
-	// must be non-nil alongside FactLoader for the registry to register
+	// must be non-nil alongside factload.FactLoader for the registry to register
 	// DomainEC2InstanceIdentityMaterialization; missing either one would drop
 	// every EC2 instance identity intent before it reaches graph truth. The
 	// handler gates on ReadinessLookup against the EC2 instance node phase
@@ -355,7 +356,7 @@ type DefaultHandlers struct {
 	// EC2UsesProfileEdgeWriter projects ec2_instance_posture instance_profile_arn
 	// into canonical USES_PROFILE edges between an EC2 instance CloudResource node
 	// and the IAM instance-profile CloudResource node it uses (issue #1146 PR-B). It
-	// must be non-nil alongside FactLoader for the registry to register
+	// must be non-nil alongside factload.FactLoader for the registry to register
 	// DomainEC2UsesProfileMaterialization; missing either one would drop every
 	// USES_PROFILE materialization intent before it reaches the graph. The handler
 	// gates on a DUAL readiness lookup — both the EC2 instance node phase and the
@@ -365,7 +366,7 @@ type DefaultHandlers struct {
 
 	// IAMInstanceProfileRoleEdgeWriter projects IAM instance-profile role_arns
 	// into canonical HAS_ROLE edges between IAM instance-profile and role
-	// CloudResource nodes (issue #1299). It must be non-nil alongside FactLoader
+	// CloudResource nodes (issue #1299). It must be non-nil alongside factload.FactLoader
 	// for the registry to register DomainIAMInstanceProfileRoleMaterialization;
 	// missing either one would drop every HAS_ROLE materialization intent before it
 	// reaches graph truth. The handler also gates on ReadinessLookup so edges never
@@ -375,7 +376,7 @@ type DefaultHandlers struct {
 	// EC2BlockDeviceKMSPostureNodeWriter derives EC2 block-device KMS posture
 	// from ec2_instance_posture block devices joined to EBS volume and KMS facts,
 	// then writes reducer-owned properties onto existing EC2 CloudResource nodes
-	// (issue #1304). It must be non-nil alongside FactLoader for the registry to
+	// (issue #1304). It must be non-nil alongside factload.FactLoader for the registry to
 	// register DomainEC2BlockDeviceKMSPostureMaterialization; missing either one
 	// would drop every posture intent before it reaches graph truth. The handler
 	// gates on a DUAL readiness lookup — the EC2 instance node phase plus the
@@ -385,7 +386,7 @@ type DefaultHandlers struct {
 
 	// S3InternetExposureNodeWriter derives s3_bucket_posture internet exposure
 	// state and writes reducer-owned properties onto existing S3 CloudResource
-	// nodes (issue #1232). It must be non-nil alongside FactLoader for the
+	// nodes (issue #1232). It must be non-nil alongside factload.FactLoader for the
 	// registry to register DomainS3InternetExposureMaterialization; missing either
 	// one would drop every exposure materialization intent before it reaches the
 	// graph. The handler also gates on ReadinessLookup so node properties never
@@ -394,7 +395,7 @@ type DefaultHandlers struct {
 
 	// EC2InternetExposureNodeWriter derives ec2_instance_posture internet
 	// exposure state and writes reducer-owned properties onto existing EC2
-	// CloudResource nodes (issue #1301). It must be non-nil alongside FactLoader
+	// CloudResource nodes (issue #1301). It must be non-nil alongside factload.FactLoader
 	// for the registry to register DomainEC2InternetExposureMaterialization;
 	// missing either one would drop every exposure materialization intent before
 	// it reaches the graph. The handler gates on ReadinessLookup so node
@@ -481,7 +482,7 @@ type DefaultHandlers struct {
 	// SecurityGroupEndpointNodeWriter materializes the CIDR and managed
 	// prefix-list source endpoints of aws_security_group_rule facts into canonical
 	// CidrBlock and PrefixList graph nodes (issue #1135 PR2a). It must be non-nil
-	// alongside FactLoader for the registry to register
+	// alongside factload.FactLoader for the registry to register
 	// DomainSecurityGroupCidrMaterialization; missing either one would drop every
 	// security-group rule endpoint before it reaches the graph. The handler also
 	// publishes the canonical-nodes-committed phase through
@@ -493,13 +494,13 @@ type DefaultHandlers struct {
 	// SecurityGroupRuleNodeWriter materializes aws_security_group_rule facts into
 	// canonical port-precise :SecurityGroupRule graph nodes and (via the handler)
 	// publishes the rule-uid canonical-nodes phase the edge slice gates on (issue
-	// #1135 PR2b, Option D). Required alongside FactLoader to register
+	// #1135 PR2b, Option D). Required alongside factload.FactLoader to register
 	// DomainSecurityGroupRuleMaterialization.
 	SecurityGroupRuleNodeWriter secgroup.SecurityGroupRuleNodeWriter
 
 	// SecurityGroupReachabilityWriter projects aws_security_group_rule facts into
 	// the Option D reachability edges (SecurityGroup -> rule ALLOWS_INGRESS/EGRESS,
-	// rule -[:TO]-> endpoint). Required alongside FactLoader to register
+	// rule -[:TO]-> endpoint). Required alongside factload.FactLoader to register
 	// DomainSecurityGroupReachabilityMaterialization; the handler gates on the rule,
 	// endpoint, and SG node keyspaces via ReadinessLookup (#1135 PR2b).
 	SecurityGroupReachabilityWriter secgroup.SecurityGroupReachabilityWriter
@@ -507,7 +508,7 @@ type DefaultHandlers struct {
 	// IAMEscalationEdgeWriter projects merged aws_iam_permission facts into
 	// conservative IAM CAN_ESCALATE_TO privilege-escalation edges between IAM
 	// principal and target CloudResource nodes (issue #1134 PR3). It must be non-nil
-	// alongside FactLoader for the registry to register
+	// alongside factload.FactLoader for the registry to register
 	// DomainIAMEscalationMaterialization; missing either one would drop every
 	// escalation intent before it reached the graph. The handler also gates on
 	// ReadinessLookup so edges never resolve against uncommitted IAM nodes.
@@ -517,7 +518,7 @@ type DefaultHandlers struct {
 	// conservative identity-policy-only IAM CAN_PERFORM effective-permission edges
 	// between an IAM principal and the resource CloudResource node an identity
 	// policy grants a catalogued sensitive action on (issue #1134 PR4a). It must be
-	// non-nil alongside FactLoader for the registry to register
+	// non-nil alongside factload.FactLoader for the registry to register
 	// DomainIAMCanPerformMaterialization; missing either one would drop every
 	// CAN_PERFORM intent before it reached the graph. The handler also gates on
 	// ReadinessLookup so edges never resolve against uncommitted nodes.

@@ -6,10 +6,12 @@ package reducer
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
 // reducerFactBatchInsertVersionedConflictGuard is the FROZEN normalized tail of
-// reducerFactBatchInsertVersionedQuery (#5848): its whole ON CONFLICT clause,
+// factwrite.BatchInsertVersionedQuery (#5848): its whole ON CONFLICT clause,
 // including the `fencing_token <= EXCLUDED.fencing_token` guard.
 //
 // This mirrors reducerFactBatchInsertConflictGuard for the versioned family.
@@ -50,7 +52,7 @@ const reducerFactBatchInsertVersionedConflictGuard = "ON CONFLICT (fact_id) DO U
 func TestReducerFactBatchInsertVersionedFreezesItsConflictGuard(t *testing.T) {
 	t.Parallel()
 
-	normalized := normalizeReducerSQL(reducerFactBatchInsertVersionedQuery)
+	normalized := normalizeReducerSQL(factwrite.BatchInsertVersionedQuery)
 	if !strings.HasSuffix(normalized, reducerFactBatchInsertVersionedConflictGuard) {
 		t.Fatalf(
 			"the versioned batched insert's ON CONFLICT clause changed.\n got: %s\nwant suffix: %s\n"+

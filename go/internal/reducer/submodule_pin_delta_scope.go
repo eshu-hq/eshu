@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -39,7 +41,7 @@ type submodulePinDeltaScope struct {
 // submodulePinMaterializationFactKinds is the single source for the kind set
 // loadSubmodulePinMaterializationFacts requests; the bench corpus guard in
 // factload_materialization_bench_test.go reads the same slice.
-var submodulePinMaterializationFactKinds = []string{factKindRepository, factKindSubmodulePin}
+var submodulePinMaterializationFactKinds = []string{factload.FactKindRepository, factload.FactKindSubmodulePin}
 
 // loadSubmodulePinMaterializationFacts loads the repository delta facts plus
 // every submodule.pin fact for the generation. submodule.pin is a
@@ -51,7 +53,7 @@ func loadSubmodulePinMaterializationFacts(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	return loadFactsForKinds(
+	return factload.LoadFactsForKinds(
 		ctx,
 		loader,
 		scopeID,
@@ -68,12 +70,12 @@ func buildSubmodulePinDeltaScope(envelopes []facts.Envelope) submodulePinDeltaSc
 	seenRepoIDs := make(map[string]struct{})
 	scope := submodulePinDeltaScope{}
 	for _, env := range envelopes {
-		if env.FactKind != factKindRepository || !semanticDeltaPayloadBool(env.Payload, "delta_generation") {
+		if env.FactKind != factload.FactKindRepository || !payloadcore.DeltaPayloadBool(env.Payload, "delta_generation") {
 			continue
 		}
-		repositoryID := semanticPayloadString(env.Payload, "repo_id")
+		repositoryID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
 		if repositoryID == "" {
-			repositoryID = semanticPayloadString(env.Payload, "graph_id")
+			repositoryID = payloadcore.SemanticPayloadString(env.Payload, "graph_id")
 		}
 		if repositoryID == "" {
 			continue
@@ -98,7 +100,7 @@ func buildSubmodulePinDeltaScope(envelopes []facts.Envelope) submodulePinDeltaSc
 // changed or deleted relative paths include ".gitmodules".
 func submodulePinDeltaTouchesGitmodules(payload map[string]any) bool {
 	for _, key := range []string{"delta_relative_paths", "delta_deleted_relative_paths"} {
-		for _, relativePath := range semanticPayloadStringSlice(payload, key) {
+		for _, relativePath := range payloadcore.SemanticPayloadStringSlice(payload, key) {
 			if strings.TrimSpace(relativePath) == submodulePinGitmodulesRelativePath {
 				return true
 			}

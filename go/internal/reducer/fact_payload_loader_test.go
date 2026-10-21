@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
@@ -22,7 +23,7 @@ func TestInheritanceMaterializationHandlerUsesPayloadFilteredContentEntities(t *
 		byPayload: inheritanceEntityContentFacts(),
 		all:       []facts.Envelope{{FactKind: "file"}},
 		byKind: []facts.Envelope{{
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
 				"path":          "/repo",
@@ -57,7 +58,7 @@ func TestInheritanceMaterializationHandlerUsesPayloadFilteredContentEntities(t *
 		t.Fatalf("ListFactsByKind() kinds = %q, want %q", got, want)
 	}
 	call := loader.payloadCalls[0]
-	if got, want := call.factKind, factKindContentEntity; got != want {
+	if got, want := call.factKind, factload.FactKindContentEntity; got != want {
 		t.Fatalf("payload fact kind = %q, want %q", got, want)
 	}
 	if got, want := call.payloadKey, "entity_type"; got != want {
@@ -77,7 +78,7 @@ func TestSQLRelationshipHandlerUsesPayloadFilteredContentEntities(t *testing.T) 
 	loader := &recordingPayloadFactLoader{
 		byPayload: []facts.Envelope{
 			{
-				FactKind: factKindContentEntity,
+				FactKind: factload.FactKindContentEntity,
 				Payload: map[string]any{
 					"repo_id":     "repo-1",
 					"entity_id":   "content-entity:table-1",
@@ -88,7 +89,7 @@ func TestSQLRelationshipHandlerUsesPayloadFilteredContentEntities(t *testing.T) 
 		},
 		all: []facts.Envelope{{FactKind: "file"}},
 		byKind: []facts.Envelope{{
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			Payload:  map[string]any{"repo_id": "repo-1"},
 		}},
 	}
@@ -122,7 +123,7 @@ func TestSQLRelationshipHandlerUsesPayloadFilteredContentEntities(t *testing.T) 
 		t.Fatalf("ListFactsByKind() second kinds = %q, want %q", got, want)
 	}
 	call := loader.payloadCalls[0]
-	if got, want := call.factKind, factKindContentEntity; got != want {
+	if got, want := call.factKind, factload.FactKindContentEntity; got != want {
 		t.Fatalf("payload fact kind = %q, want %q", got, want)
 	}
 	if got, want := call.payloadKey, "entity_type"; got != want {

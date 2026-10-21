@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -21,7 +23,7 @@ type rationaleDeltaScope struct {
 // rationaleMaterializationFactKinds is the single source for the kind set
 // loadRationaleMaterializationFacts requests; the bench corpus guard in
 // factload_materialization_bench_test.go reads the same slice.
-var rationaleMaterializationFactKinds = []string{factKindRepository, factKindContentEntity}
+var rationaleMaterializationFactKinds = []string{factload.FactKindRepository, factload.FactKindContentEntity}
 
 func loadRationaleMaterializationFacts(
 	ctx context.Context,
@@ -29,7 +31,7 @@ func loadRationaleMaterializationFacts(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	return loadFactsForKinds(
+	return factload.LoadFactsForKinds(
 		ctx,
 		loader,
 		scopeID,
@@ -43,12 +45,12 @@ func buildRationaleDeltaScope(envelopes []facts.Envelope) rationaleDeltaScope {
 	seenPathsByRepoID := make(map[string]map[string]struct{})
 	scope := rationaleDeltaScope{}
 	for _, env := range envelopes {
-		if env.FactKind != factKindRepository || !semanticDeltaPayloadBool(env.Payload, "delta_generation") {
+		if env.FactKind != factload.FactKindRepository || !payloadcore.DeltaPayloadBool(env.Payload, "delta_generation") {
 			continue
 		}
-		repositoryID := semanticPayloadString(env.Payload, "repo_id")
+		repositoryID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
 		if repositoryID == "" {
-			repositoryID = semanticPayloadString(env.Payload, "graph_id")
+			repositoryID = payloadcore.SemanticPayloadString(env.Payload, "graph_id")
 		}
 		if repositoryID == "" {
 			continue
@@ -58,12 +60,12 @@ func buildRationaleDeltaScope(envelopes []facts.Envelope) rationaleDeltaScope {
 			seenRepoIDs[repositoryID] = struct{}{}
 			scope.repositoryIDs = append(scope.repositoryIDs, repositoryID)
 		}
-		repoPath := semanticPayloadString(env.Payload, "path")
+		repoPath := payloadcore.SemanticPayloadString(env.Payload, "path")
 		if repoPath == "" {
-			repoPath = semanticPayloadString(env.Payload, "local_path")
+			repoPath = payloadcore.SemanticPayloadString(env.Payload, "local_path")
 		}
 		for _, relativePath := range rationaleDeltaRelativePaths(env.Payload) {
-			filePath := semanticQualifyDeltaPath(repoPath, relativePath)
+			filePath := payloadcore.QualifyDeltaPath(repoPath, relativePath)
 			if filePath == "" {
 				continue
 			}
@@ -96,7 +98,7 @@ func rationaleDeltaRelativePaths(payload map[string]any) []string {
 	seen := make(map[string]struct{})
 	var paths []string
 	for _, key := range []string{"delta_relative_paths", "delta_deleted_relative_paths"} {
-		for _, relativePath := range semanticPayloadStringSlice(payload, key) {
+		for _, relativePath := range payloadcore.SemanticPayloadStringSlice(payload, key) {
 			if _, ok := seen[relativePath]; ok {
 				continue
 			}

@@ -14,6 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -135,11 +137,11 @@ func ExtractRationaleEdgeRows(envelopes []facts.Envelope) ([]string, []map[strin
 	rows := make([]map[string]any, 0)
 	seen := make(map[string]struct{})
 	for _, env := range envelopes {
-		if env.FactKind != factKindContentEntity || env.IsTombstone {
+		if env.FactKind != factload.FactKindContentEntity || env.IsTombstone {
 			continue
 		}
-		entityID := semanticPayloadString(env.Payload, "entity_id")
-		repoID := semanticPayloadString(env.Payload, "repo_id")
+		entityID := payloadcore.SemanticPayloadString(env.Payload, "entity_id")
+		repoID := payloadcore.SemanticPayloadString(env.Payload, "repo_id")
 		if entityID == "" || repoID == "" {
 			continue
 		}
@@ -157,7 +159,7 @@ func ExtractRationaleEdgeRows(envelopes []facts.Envelope) ([]string, []map[strin
 		// rationaleFilePartitionKey was blank. The bug survived because the only
 		// fixtures exercising it supplied "path" -- the key the extractor wanted
 		// rather than the one the collector sends (#5998).
-		targetPath := semanticPayloadString(env.Payload, "relative_path")
+		targetPath := payloadcore.SemanticPayloadString(env.Payload, "relative_path")
 		for _, comment := range rationalePayloadComments(env.Payload) {
 			kind := strings.TrimSpace(anyToString(comment["kind"]))
 			text := strings.TrimSpace(anyToString(comment["text"]))
@@ -197,7 +199,7 @@ func rationalePayloadComments(payload map[string]any) []map[string]any {
 	if comments := mapSlice(payload["rationale_comments"]); len(comments) > 0 {
 		return comments
 	}
-	return mapSlice(payloadMap(payload, "entity_metadata")["rationale_comments"])
+	return mapSlice(payloadcore.PayloadMap(payload, "entity_metadata")["rationale_comments"])
 }
 
 func rationaleExcerptHash(text string) string {

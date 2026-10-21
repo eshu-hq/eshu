@@ -14,7 +14,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -110,7 +113,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -126,7 +129,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 	rows, quarantined, err := ExtractGCPCloudResourceNodeRows(envelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
-		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
 		return reducercontract.Result{}, err
 	}
@@ -135,7 +138,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 	// counter + structured error log — while every valid fact still materializes
 	// its node below and the canonical-nodes-committed phase still publishes, so
 	// one bad fact never stalls the scope generation's node substrate.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainGCPResourceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainGCPResourceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration
@@ -229,7 +232,7 @@ func (h GCPResourceMaterializationHandler) Handle(
 			retractedNodes,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -255,18 +258,18 @@ func (h GCPResourceMaterializationHandler) recordMetrics(
 // deterministic CloudResource node rows keyed by a stable uid. Each fact is
 // decoded through the factschema seam, so a payload missing a required identity
 // field (full_resource_name, asset_type) is quarantined as a per-fact
-// input_invalid dead-letter (returned in the []quarantinedFact slice) rather
+// input_invalid dead-letter (returned in the []factdecode.QuarantinedFact slice) rather
 // than fabricating a node with an empty-string uid OR aborting the whole batch:
 // every valid fact still projects. Rows are deduplicated by uid so duplicate
 // facts (retries, overlapping scans) converge on a single node. The returned
 // rows are sorted by uid for deterministic batch output. Mirrors
 // ExtractCloudResourceNodeRows (aws_resource_materialization.go).
-func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []quarantinedFact, error) {
+func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []factdecode.QuarantinedFact, error) {
 	if len(envelopes) == 0 {
 		return nil, nil, nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != cloud.GCPCloudResourceFactKind {
@@ -274,7 +277,7 @@ func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]a
 		}
 		row, uid, ok, err := gcpCloudResourceNodeRow(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -331,7 +334,7 @@ func ExtractGCPCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]a
 // endpoints by full_resource_name (stored as resource_id), so a resource that
 // does not materialize here is also not a join target — never a fabricated node.
 func gcpCloudResourceNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
-	resource, err := decodeGCPCloudResource(env)
+	resource, err := schemadecode.DecodeGCPCloudResource(env)
 	if err != nil {
 		return nil, "", false, err
 	}

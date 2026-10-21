@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -269,9 +270,9 @@ func TestLambdaFunctionImageFieldsDigestShapeMatchesECS(t *testing.T) {
 // literal that could silently drift from the typed contract).
 func decodeTestAWSResourceForRunningImage(t *testing.T, payload map[string]any) awsv1.Resource {
 	t.Helper()
-	resource, err := decodeAWSResource(awsResourceEnvelope(payload))
+	resource, err := schemadecode.DecodeAWSResource(awsResourceEnvelope(payload))
 	if err != nil {
-		t.Fatalf("decodeAWSResource() error = %v", err)
+		t.Fatalf("schemadecode.DecodeAWSResource() error = %v", err)
 	}
 	return resource
 }

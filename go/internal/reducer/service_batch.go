@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -483,7 +484,7 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 		_ = stopHeartbeat()
 	}()
 
-	execCtx = WithQuarantineWriter(execCtx, s.QuarantineWriter)
+	execCtx = factdecode.WithQuarantineWriter(execCtx, s.QuarantineWriter)
 	execStart := time.Now()
 	result, err, abandoned := s.executeHandler(execCtx, ctx, intent)
 	if abandoned {

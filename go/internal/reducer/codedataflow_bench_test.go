@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 // benchmarkCodeTaintEvidenceCorpus builds a synthetic corpus of count
@@ -132,13 +133,13 @@ func benchmarkShellExecCorpus(fileCount int) []facts.Envelope {
 	envelopes := make([]facts.Envelope, 0, fileCount+1)
 	envelopes = append(envelopes, facts.Envelope{
 		FactID:   "repo-bench",
-		FactKind: factKindRepository,
+		FactKind: factload.FactKindRepository,
 		Payload:  map[string]any{"repo_id": "repo-bench"},
 	})
 	for i := 0; i < fileCount; i++ {
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   fmt.Sprintf("file-%d", i),
-			FactKind: factKindFile,
+			FactKind: factload.FactKindFile,
 			Payload: map[string]any{
 				"repo_id":       "repo-bench",
 				"relative_path": fmt.Sprintf("cmd/tool%d/main.go", i),
@@ -166,7 +167,7 @@ func benchmarkShellExecCorpus(fileCount int) []facts.Envelope {
 // BenchmarkExtractShellExecRows measures ExtractShellExecRows's typed-decode
 // path (Contract System v1 Wave 4f S2, issue #4754) for a realistic
 // repository+file corpus, the no-regression baseline against the
-// pre-migration semanticPayloadString/payloadMap reads.
+// pre-migration payloadcore.SemanticPayloadString/payloadcore.PayloadMap reads.
 func BenchmarkExtractShellExecRows(b *testing.B) {
 	envelopes := benchmarkShellExecCorpus(1000)
 	b.ReportAllocs()

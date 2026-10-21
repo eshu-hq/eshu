@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 // CloudResourceNodeRetracter deletes globally-dead CloudResource node uids
@@ -42,7 +43,7 @@ type CloudResourceNodeRetracter interface {
 // generation materialized. Only valid predecessor rows seed candidates.
 func retractDeadCloudResourceNodes(
 	ctx context.Context,
-	loader FactLoader,
+	loader factload.FactLoader,
 	priorGeneration PriorGenerationID,
 	retracter CloudResourceNodeRetracter,
 	scopeID string,
@@ -62,7 +63,7 @@ func retractDeadCloudResourceNodes(
 	if !found {
 		return 0, nil
 	}
-	priorEnvelopes, err := loadFactsForKinds(ctx, loader, scopeID, prior, factKinds)
+	priorEnvelopes, err := factload.LoadFactsForKinds(ctx, loader, scopeID, prior, factKinds)
 	if err != nil {
 		return 0, fmt.Errorf("load prior generation facts for cloud resource retract: %w", err)
 	}

@@ -6,10 +6,12 @@ package reducer
 import (
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
 // reducerFactBatchInsertConflictGuard is the FROZEN normalized tail of
-// reducerFactBatchInsertQuery: its whole ON CONFLICT clause, including the
+// factwrite.BatchInsertQuery: its whole ON CONFLICT clause, including the
 // `fencing_token <= EXCLUDED.fencing_token` guard.
 //
 // The guard is what makes the token mean anything. Without it a pass that read
@@ -60,7 +62,7 @@ const reducerFactBatchInsertConflictGuard = "ON CONFLICT (fact_id) DO UPDATE SET
 // which counts U+00A0 NO-BREAK SPACE and the rest of the Unicode space class as
 // whitespace — but PostgreSQL does not, and rejects a statement containing one.
 // Normalizing those away would let a byte Postgres refuses pass a byte-exact
-// comparison: with `0xC2 0xA0` injected into reducerFactBatchInsertQuery's
+// comparison: with `0xC2 0xA0` injected into factwrite.BatchInsertQuery's
 // `ON CONFLICT`, a strings.Fields normalizer erases it again and the statement
 // still compares equal to the frozen guard above. Splitting on ASCII space alone
 // leaves the NO-BREAK SPACE inside a field, so it survives into the joined
@@ -93,7 +95,7 @@ func isASCIISQLWhitespace(r rune) bool {
 func TestReducerFactBatchInsertFreezesItsConflictGuard(t *testing.T) {
 	t.Parallel()
 
-	normalized := normalizeReducerSQL(reducerFactBatchInsertQuery)
+	normalized := normalizeReducerSQL(factwrite.BatchInsertQuery)
 	if !strings.HasSuffix(normalized, reducerFactBatchInsertConflictGuard) {
 		t.Fatalf(
 			"the batched insert's ON CONFLICT clause changed.\n got: %s\nwant suffix: %s\n"+
@@ -121,12 +123,12 @@ func TestReducerSQLNormalizerKeepsNonASCIIWhitespace(t *testing.T) {
 
 	const noBreakSpace = "\u00a0"
 	injected := strings.Replace(
-		reducerFactBatchInsertQuery,
+		factwrite.BatchInsertQuery,
 		"ON CONFLICT",
 		"ON"+noBreakSpace+"CONFLICT",
 		1,
 	)
-	if injected == reducerFactBatchInsertQuery {
+	if injected == factwrite.BatchInsertQuery {
 		t.Fatalf("injection rewrote nothing; the probe no longer probes the shipped statement")
 	}
 

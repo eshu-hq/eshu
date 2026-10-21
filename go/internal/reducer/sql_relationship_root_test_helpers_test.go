@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -49,7 +50,7 @@ func sqlRelationshipRepositoryEnvelope(delta bool, changedRelPaths []string) fac
 		payload["delta_generation"] = true
 		payload["delta_relative_paths"] = changedRelPaths
 	}
-	return facts.Envelope{FactKind: factKindRepository, ScopeID: "scope-db", Payload: payload}
+	return facts.Envelope{FactKind: factload.FactKindRepository, ScopeID: "scope-db", Payload: payload}
 }
 
 // sqlRelationshipContentEntity returns one content_entity envelope under the
@@ -66,7 +67,7 @@ func sqlRelationshipContentEntity(id, entityType, name, relPath string, metadata
 	if metadata != nil {
 		payload["entity_metadata"] = metadata
 	}
-	return facts.Envelope{FactKind: factKindContentEntity, ScopeID: "scope-db", Payload: payload}
+	return facts.Envelope{FactKind: factload.FactKindContentEntity, ScopeID: "scope-db", Payload: payload}
 }
 
 // sqlRelationshipEntityFacts returns the shared repo-123 table/view fixture:

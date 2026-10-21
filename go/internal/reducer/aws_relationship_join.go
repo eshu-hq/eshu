@@ -11,7 +11,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
 // Join modes for the AWS relationship edge projection (issue #805). These are
@@ -160,7 +162,7 @@ func ExtractAWSRelationshipEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
 	intentScopeID string,
-) ([]map[string]any, awsRelationshipEdgeTally, []quarantinedFact, error) {
+) ([]map[string]any, awsRelationshipEdgeTally, []factdecode.QuarantinedFact, error) {
 	tally := newAWSRelationshipEdgeTally()
 	if len(relationshipEnvelopes) == 0 {
 		return nil, tally, nil, nil
@@ -183,9 +185,9 @@ func ExtractAWSRelationshipEdgeRows(
 		if env.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		relationship, err := decodeAWSRelationship(env)
+		relationship, err := schemadecode.DecodeAWSRelationship(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, tally, nil, fatal
 			}

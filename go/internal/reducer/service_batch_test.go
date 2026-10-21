@@ -12,6 +12,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 )
 
 // fakeBatchWorkSource implements both WorkSource (single) and BatchWorkSource.
@@ -144,7 +145,7 @@ func (e *countingExecutor) Execute(_ context.Context, intent reducercontract.Int
 type batchQuarantineExecutor struct{}
 
 func (batchQuarantineExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
-	recordQuarantinedFacts(ctx, nil, intent.Domain, intent.ScopeID, intent.GenerationID, []quarantinedFact{{
+	factdecode.RecordQuarantinedFacts(ctx, nil, intent.Domain, intent.ScopeID, intent.GenerationID, []factdecode.QuarantinedFact{{
 		FactID:         "fact-1",
 		FactKind:       "vulnerability.suppression",
 		Field:          "justification",

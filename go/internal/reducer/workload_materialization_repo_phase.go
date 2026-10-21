@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workload/retract"
 )
@@ -250,7 +251,7 @@ func loadScopeRepositoryFacts(ctx context.Context, loader FactLoader, scopeID, g
 	if loader == nil {
 		return nil, nil
 	}
-	envelopes, err := loadFactsForKinds(ctx, loader, scopeID, generationID, []string{factKindRepository})
+	envelopes, err := factload.LoadFactsForKinds(ctx, loader, scopeID, generationID, []string{factload.FactKindRepository})
 	if err != nil {
 		return nil, fmt.Errorf("load repository facts for workload materialization: %w", err)
 	}
@@ -368,7 +369,7 @@ func repositoryGraphIDsFromEnvelopes(envelopes []facts.Envelope) []string {
 	seen := make(map[string]struct{})
 	repoIDs := make([]string, 0)
 	for _, env := range envelopes {
-		if env.FactKind != factKindRepository {
+		if env.FactKind != factload.FactKindRepository {
 			continue
 		}
 		repoID := strings.TrimSpace(payloadStr(env.Payload, "graph_id"))

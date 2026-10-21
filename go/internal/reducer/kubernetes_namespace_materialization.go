@@ -15,6 +15,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -154,7 +157,7 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -171,7 +174,7 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 	if err != nil {
 		return reducercontract.Result{}, err
 	}
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesNamespaceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainKubernetesNamespaceMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	reconcileComplete, _ := intent.Payload["reconcile_complete"].(bool)
 	clusterID := ""
 	if reconcileComplete {
@@ -247,7 +250,7 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 			reconciliationStatus,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -256,7 +259,7 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 // stable collector-emitted object_id. Each fact is decoded through the
 // factschema seam, so a payload missing the required object_id key is
 // quarantined as a per-fact input_invalid dead-letter (returned in the
-// []quarantinedFact slice) rather than fabricating a node with an
+// []factdecode.QuarantinedFact slice) rather than fabricating a node with an
 // empty-string uid: every valid fact still projects. For each namespace,
 // namespaceEnvironmentFromLabels decides the environment binding; a row
 // carries a non-empty "environment" property ONLY when an alias-recognized
@@ -264,12 +267,12 @@ func (h KubernetesNamespaceMaterializationHandler) Handle(
 // unbound namespace. Rows are deduplicated by object_id so duplicate facts
 // converge on a single node. The returned rows are sorted by uid for
 // deterministic batch output. Mirrors ExtractKubernetesWorkloadNodeRows.
-func ExtractKubernetesNamespaceNodeRows(envelopes []facts.Envelope) ([]map[string]any, int, []quarantinedFact, error) {
+func ExtractKubernetesNamespaceNodeRows(envelopes []facts.Envelope) ([]map[string]any, int, []factdecode.QuarantinedFact, error) {
 	if len(envelopes) == 0 {
 		return nil, 0, nil, nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != cloud.KubernetesNamespaceFactKind {
@@ -280,7 +283,7 @@ func ExtractKubernetesNamespaceNodeRows(envelopes []facts.Envelope) ([]map[strin
 		}
 		row, uid, ok, err := kubernetesNamespaceNodeRow(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, 0, nil, fatal
 			}
@@ -324,7 +327,7 @@ func ExtractKubernetesNamespaceNodeRows(envelopes []facts.Envelope) ([]map[strin
 // It returns ok=false (with a nil error) only for a decoded-but-empty
 // object_id.
 func kubernetesNamespaceNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
-	namespace, err := decodeKubernetesLiveNamespace(env)
+	namespace, err := schemadecode.DecodeKubernetesLiveNamespace(env)
 	if err != nil {
 		return nil, "", false, err
 	}

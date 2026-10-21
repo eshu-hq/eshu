@@ -15,6 +15,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -51,7 +53,7 @@ func AzureRelationshipEvidenceSource() string { return azureRelationshipEvidence
 // gates on Azure CloudResource node readiness and resolves endpoints only
 // through exact normalized ARM resource ids from materialized resource facts.
 type AzureRelationshipMaterializationHandler struct {
-	FactLoader           FactLoader
+	FactLoader           factload.FactLoader
 	EdgeWriter           CloudResourceEdgeWriter
 	ReadinessLookup      gpphase.ReadinessLookup
 	PriorGenerationCheck PriorGenerationCheck
@@ -66,7 +68,7 @@ type AzureRelationshipMaterializationHandler struct {
 	// for a per-fact quarantined azure_cloud_resource/azure_cloud_relationship
 	// decode failure. A nil Instruments only skips the counter increment; the
 	// quarantine and structured error log still happen via
-	// recordQuarantinedFacts.
+	// factdecode.RecordQuarantinedFacts.
 	Instruments *telemetry.Instruments
 }
 
@@ -103,7 +105,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, []string{
+	envelopes, err := factload.LoadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, []string{
 		cloud.AzureCloudResourceFactKind,
 		cloud.AzureCloudRelationshipFactKind,
 	})
@@ -118,7 +120,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 	rows, tally, quarantined, err := ExtractAzureRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
-		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
 		return reducercontract.Result{}, err
 	}
@@ -126,7 +128,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 	// azure_cloud_relationship fact is quarantined as a visible input_invalid
 	// dead-letter — counter + structured error log — while every valid fact
 	// still materializes its edge below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainAzureRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainAzureRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -200,7 +202,7 @@ func (h AzureRelationshipMaterializationHandler) Handle(ctx context.Context, int
 			tally.skippedCount(),
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

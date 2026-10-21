@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 // makeCodeImportFileEnvelopeEntries builds a file-kind envelope whose
@@ -17,7 +18,7 @@ import (
 // no "source"; JS/TS/Python emit "name"=imported symbol and "source"=module.
 func makeCodeImportFileEnvelopeEntries(repoID, relPath, language string, entries []map[string]any) facts.Envelope {
 	return facts.Envelope{
-		FactKind: factKindFile,
+		FactKind: factload.FactKindFile,
 		Payload: map[string]any{
 			"repo_id":       repoID,
 			"relative_path": relPath,

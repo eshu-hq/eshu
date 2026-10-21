@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -86,7 +87,7 @@ func BuildCodeImportRepoDependencyIntents(
 	order := make([]string, 0)
 
 	for _, envelope := range input.FileEnvelopes {
-		if envelope.FactKind != factKindFile {
+		if envelope.FactKind != factload.FactKindFile {
 			continue
 		}
 		file, ok := decodeCodegraphFileImportIdentity(envelope)
@@ -366,7 +367,7 @@ type codeImportEdgeCounts struct {
 func classifyCodeImportEdges(input CodeImportRepoDependencyInput) codeImportEdgeCounts {
 	var counts codeImportEdgeCounts
 	for _, envelope := range input.FileEnvelopes {
-		if envelope.FactKind != factKindFile {
+		if envelope.FactKind != factload.FactKindFile {
 			continue
 		}
 		file, ok := decodeCodegraphFileImportIdentity(envelope)

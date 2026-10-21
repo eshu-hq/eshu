@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
 // codeImportTestOwners returns a stable owner index for intent builder tests.
@@ -28,7 +29,7 @@ func makeCodeImportFileEnvelope(repoID, relPath, language string, importSources 
 		imports = append(imports, map[string]any{"source": src})
 	}
 	return facts.Envelope{
-		FactKind: factKindFile,
+		FactKind: factload.FactKindFile,
 		Payload: map[string]any{
 			"repo_id":       repoID,
 			"relative_path": relPath,

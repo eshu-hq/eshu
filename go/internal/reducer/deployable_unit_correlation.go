@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/accepted"
 )
@@ -112,12 +113,12 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return reducercontract.Result{}, err
 	}
 
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{factKindRepository, factKindFile},
+		[]string{factload.FactKindRepository, factload.FactKindFile},
 	)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load facts for deployable unit correlation: %w", err)

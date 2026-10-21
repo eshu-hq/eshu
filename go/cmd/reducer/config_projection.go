@@ -15,6 +15,7 @@ import (
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 

@@ -12,6 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -58,7 +60,7 @@ func TestDocumentationMaterializationHandlerScopesDeltaRetractToDocuments(t *tes
 	if !reflect.DeepEqual(gotDocIDs, wantDocIDs) {
 		t.Fatalf("document_ids = %#v, want %#v", gotDocIDs, wantDocIDs)
 	}
-	if gotSectionUIDs := semanticPayloadStringSlice(payload, "section_uids"); len(gotSectionUIDs) != 0 {
+	if gotSectionUIDs := payloadcore.SemanticPayloadStringSlice(payload, "section_uids"); len(gotSectionUIDs) != 0 {
 		t.Fatalf("section_uids = %#v, want empty for file-granular delta", gotSectionUIDs)
 	}
 	if len(writer.writeRows) != 1 {
@@ -73,7 +75,7 @@ func TestDocumentationMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWrite
 	handler := DocumentationEdgeMaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				Payload: map[string]any{
 					"repo_id":                      "repo-123",
 					"local_path":                   "/repo",
@@ -136,10 +138,10 @@ func TestBuildDocumentationRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	if got, ok := payload["delta_projection"].(bool); !ok || !got {
 		t.Fatalf("delta_projection = %#v, want true", payload["delta_projection"])
 	}
-	if gotDocIDs := semanticPayloadStringSlice(payload, "document_ids"); len(gotDocIDs) != 0 {
+	if gotDocIDs := payloadcore.SemanticPayloadStringSlice(payload, "document_ids"); len(gotDocIDs) != 0 {
 		t.Fatalf("document_ids = %#v, want empty malformed delta scope", gotDocIDs)
 	}
-	if gotSectionUIDs := semanticPayloadStringSlice(payload, "section_uids"); len(gotSectionUIDs) != 0 {
+	if gotSectionUIDs := payloadcore.SemanticPayloadStringSlice(payload, "section_uids"); len(gotSectionUIDs) != 0 {
 		t.Fatalf("section_uids = %#v, want empty malformed delta scope", gotSectionUIDs)
 	}
 }
@@ -172,7 +174,7 @@ func TestBuildDocumentationDeltaScopeIgnoresExternalDocumentPathMetadata(t *test
 
 	scope := buildDocumentationDeltaScope([]facts.Envelope{
 		{
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			Payload: map[string]any{
 				"repo_id":          "repo-123",
 				"local_path":       "/repo",
@@ -296,7 +298,7 @@ func TestExtractDocumentationEdgeRowsEmitsWorkloadEdge(t *testing.T) {
 func documentationDeltaFacts() []facts.Envelope {
 	return []facts.Envelope{
 		{
-			FactKind: factKindRepository,
+			FactKind: factload.FactKindRepository,
 			Payload: map[string]any{
 				"repo_id":                      "repo-123",
 				"local_path":                   "/repo",

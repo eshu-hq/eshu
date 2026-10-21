@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
@@ -318,18 +319,18 @@ func TestLoadFactsForKindsMarksUnexpectedEOFRetryable(t *testing.T) {
 		byKindErr: fmt.Errorf("list facts by kind: %w", io.ErrUnexpectedEOF),
 	}
 
-	_, err := loadFactsForKinds(
+	_, err := factload.LoadFactsForKinds(
 		context.Background(),
 		loader,
 		"scope-1",
 		"generation-1",
-		[]string{factKindRepository, factKindFile},
+		[]string{factload.FactKindRepository, factload.FactKindFile},
 	)
 	if err == nil {
-		t.Fatal("loadFactsForKinds() error = nil, want unexpected EOF")
+		t.Fatal("factload.LoadFactsForKinds() error = nil, want unexpected EOF")
 	}
 	if !IsRetryable(err) {
-		t.Fatalf("loadFactsForKinds() retryable = false, want true for %v", err)
+		t.Fatalf("factload.LoadFactsForKinds() retryable = false, want true for %v", err)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -20,7 +21,7 @@ func TestRationaleHandlerRefreshesValidFullRepositoryWithNoEdges(t *testing.T) {
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			rationaleRepositoryContextFact("run-full-zero"),
 			{
-				FactKind: factKindContentEntity,
+				FactKind: factload.FactKindContentEntity,
 				Payload: map[string]any{
 					"repo_id":       "repo-123",
 					"entity_id":     "content-entity:plain",
@@ -130,7 +131,7 @@ func rationaleRepositoryContextFact(sourceRunID string) facts.Envelope {
 	if sourceRunID != "" {
 		payload["source_run_id"] = sourceRunID
 	}
-	return facts.Envelope{FactKind: factKindRepository, ScopeID: "scope-code", Payload: payload}
+	return facts.Envelope{FactKind: factload.FactKindRepository, ScopeID: "scope-code", Payload: payload}
 }
 
 func rationaleMaterializationIntent() reducercontract.Intent {

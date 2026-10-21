@@ -16,6 +16,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -132,7 +134,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -151,7 +153,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 		resourceEnvelopes, relationshipEnvelopes, intent.ScopeID)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
-		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
 		return reducercontract.Result{}, err
 	}
@@ -159,7 +161,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 	// fact (a missing required identity field) is quarantined as a visible
 	// input_invalid dead-letter — counter + structured error log — while every
 	// valid relationship still materializes its edge below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainGCPRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, DomainGCPRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -241,7 +243,7 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 

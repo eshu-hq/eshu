@@ -14,6 +14,7 @@ import (
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/facts/semantic"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -174,18 +175,18 @@ func TestPartitionDecodeFailures(t *testing.T) {
 	t.Run("input_invalid decode error is quarantined", func(t *testing.T) {
 		t.Parallel()
 
-		// A *factDecodeError classified input_invalid (a missing required field)
+		// A *factdecode.FactDecodeError classified input_invalid (a missing required field)
 		// is the ONLY quarantinable error: the extractor skips the one fact and
 		// keeps projecting the rest.
-		decodeErr := newFactDecodeError(factschema.FactKindAWSResource, &factschema.DecodeError{
+		decodeErr := factdecode.NewFactDecodeError(factschema.FactKindAWSResource, &factschema.DecodeError{
 			FactKind:       factschema.FactKindAWSResource,
 			Classification: factschema.ClassificationInputInvalid,
 			Field:          "account_id",
 		})
 
-		q, ok, fatal := partitionDecodeFailures(env, decodeErr)
+		q, ok, fatal := factdecode.PartitionDecodeFailures(env, decodeErr)
 		if !ok {
-			t.Fatal("ok = false; an input_invalid *factDecodeError must be quarantinable")
+			t.Fatal("ok = false; an input_invalid *factdecode.FactDecodeError must be quarantinable")
 		}
 		if fatal != nil {
 			t.Fatalf("fatal = %v, want nil for a quarantinable error", fatal)
@@ -205,37 +206,37 @@ func TestPartitionDecodeFailures(t *testing.T) {
 		t.Parallel()
 
 		// A transient fact-load / graph-write / projection error is NOT a
-		// *factDecodeError: it must be returned unchanged so the handler fails the
+		// *factdecode.FactDecodeError: it must be returned unchanged so the handler fails the
 		// whole intent and the durable queue triages it (retry / dependency /
 		// projection bug), never silently dropped as a quarantine.
 		sentinel := errors.New("transient graph write failure")
 
-		q, ok, fatal := partitionDecodeFailures(env, sentinel)
+		q, ok, fatal := factdecode.PartitionDecodeFailures(env, sentinel)
 		if ok {
 			t.Fatal("ok = true; a non-decode error must NOT be quarantined")
 		}
 		if !errors.Is(fatal, sentinel) {
 			t.Fatalf("fatal = %v, want the original error returned unchanged", fatal)
 		}
-		if (q != quarantinedFact{}) {
-			t.Fatalf("quarantinedFact = %+v, want zero value for a fatal error", q)
+		if (q != factdecode.QuarantinedFact{}) {
+			t.Fatalf("factdecode.QuarantinedFact = %+v, want zero value for a fatal error", q)
 		}
 	})
 
 	t.Run("wrapped non-input_invalid decode error stays fatal", func(t *testing.T) {
 		t.Parallel()
 
-		// A *factDecodeError whose classification is NOT input_invalid (for
+		// A *factdecode.FactDecodeError whose classification is NOT input_invalid (for
 		// example a future unsupported-major or schema-mismatch class) is terminal
 		// but not a per-fact quarantine: it must stay fatal so the operator sees
 		// the real classification rather than a mislabeled input_invalid skip.
-		decodeErr := newFactDecodeError(factschema.FactKindAWSResource, &factschema.DecodeError{
+		decodeErr := factdecode.NewFactDecodeError(factschema.FactKindAWSResource, &factschema.DecodeError{
 			FactKind:       factschema.FactKindAWSResource,
 			Classification: "schema_mismatch",
 			Err:            fmt.Errorf("unexpected shape"),
 		})
 
-		_, ok, fatal := partitionDecodeFailures(env, decodeErr)
+		_, ok, fatal := factdecode.PartitionDecodeFailures(env, decodeErr)
 		if ok {
 			t.Fatal("ok = true; only ClassificationInputInvalid is quarantinable")
 		}
@@ -249,18 +250,18 @@ func TestPartitionDecodeFailures(t *testing.T) {
 
 		// The contracts module currently labels an unsupported schema major
 		// input_invalid, but it is version skew, not a malformed individual
-		// payload. partitionDecodeFailures excludes the ErrUnsupportedSchemaMajor
+		// payload. factdecode.PartitionDecodeFailures excludes the ErrUnsupportedSchemaMajor
 		// sentinel from the quarantine path so a schema-rollout / version-skew fact
 		// fails the whole work item for durable triage (it can succeed once the
 		// reducer supports the major) rather than being silently skipped per-fact
 		// as if the collector had dropped a required field.
-		decodeErr := newFactDecodeError(factschema.FactKindAWSResource, &factschema.DecodeError{
+		decodeErr := factdecode.NewFactDecodeError(factschema.FactKindAWSResource, &factschema.DecodeError{
 			FactKind:       factschema.FactKindAWSResource,
 			Classification: factschema.ClassificationInputInvalid,
 			Err:            fmt.Errorf("%w: %q", factschema.ErrUnsupportedSchemaMajor, "2.0.0"),
 		})
 
-		q, ok, fatal := partitionDecodeFailures(env, decodeErr)
+		q, ok, fatal := factdecode.PartitionDecodeFailures(env, decodeErr)
 		if ok {
 			t.Fatal("ok = true; an unsupported schema major must NOT be quarantined per-fact")
 		}
@@ -270,8 +271,8 @@ func TestPartitionDecodeFailures(t *testing.T) {
 		if !errors.Is(fatal, factschema.ErrUnsupportedSchemaMajor) {
 			t.Fatalf("fatal = %v, want it to wrap ErrUnsupportedSchemaMajor", fatal)
 		}
-		if (q != quarantinedFact{}) {
-			t.Fatalf("quarantinedFact = %+v, want zero value for a fatal error", q)
+		if (q != factdecode.QuarantinedFact{}) {
+			t.Fatalf("factdecode.QuarantinedFact = %+v, want zero value for a fatal error", q)
 		}
 	})
 }

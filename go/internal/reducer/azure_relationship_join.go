@@ -8,6 +8,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	azurev1 "github.com/eshu-hq/eshu/sdk/go/factschema/azure/v1"
 )
 
@@ -42,19 +44,19 @@ type azureCloudResourceJoinIndex struct {
 // buildAzureCloudResourceJoinIndex decodes each azure_cloud_resource fact
 // through the contracts seam and indexes it by its normalized/ARM resource id
 // for relationship endpoint resolution. A fact missing a required identity
-// field is routed through partitionDecodeFailures into the returned
+// field is routed through factdecode.PartitionDecodeFailures into the returned
 // quarantine list rather than silently joining under an empty-string key; any
 // other decode error is returned fatally.
-func buildAzureCloudResourceJoinIndex(envelopes []facts.Envelope) (azureCloudResourceJoinIndex, []quarantinedFact, error) {
+func buildAzureCloudResourceJoinIndex(envelopes []facts.Envelope) (azureCloudResourceJoinIndex, []factdecode.QuarantinedFact, error) {
 	index := azureCloudResourceJoinIndex{byResourceID: make(map[string]string, len(envelopes))}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != cloud.AzureCloudResourceFactKind || env.IsTombstone {
 			continue
 		}
 		_, uid, resourceID, ok, err := azureCloudResourceNodeRow(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return azureCloudResourceJoinIndex{}, nil, fatal
 			}
@@ -148,7 +150,7 @@ func azureRelationshipTypeSupported(value string) bool {
 func ExtractAzureRelationshipEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
-) ([]map[string]any, azureRelationshipEdgeTally, []quarantinedFact, error) {
+) ([]map[string]any, azureRelationshipEdgeTally, []factdecode.QuarantinedFact, error) {
 	tally := newAzureRelationshipEdgeTally()
 	if len(relationshipEnvelopes) == 0 {
 		return nil, tally, nil, nil
@@ -170,9 +172,9 @@ func ExtractAzureRelationshipEdgeRows(
 		if env.FactKind != cloud.AzureCloudRelationshipFactKind || env.IsTombstone {
 			continue
 		}
-		relationship, err := decodeAzureCloudRelationship(env)
+		relationship, err := schemadecode.DecodeAzureCloudRelationship(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, tally, nil, fatal
 			}

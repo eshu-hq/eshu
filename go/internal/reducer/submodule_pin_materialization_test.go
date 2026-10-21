@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	submodulev1 "github.com/eshu-hq/eshu/sdk/go/factschema/submodule/v1"
@@ -58,7 +59,7 @@ func submodulePinEnvelope(parentRepoID, submodulePath string, resolvedRepoID, pi
 		panic(err)
 	}
 	return facts.Envelope{
-		FactKind: factKindSubmodulePin,
+		FactKind: factload.FactKindSubmodulePin,
 		Payload:  payload,
 	}
 }
@@ -186,7 +187,7 @@ func TestSubmodulePinHandlerDeletedFileRetractsWithoutWrites(t *testing.T) {
 	handler := SubmodulePinEdgeMaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				Payload: map[string]any{
 					"repo_id":                      "repo-parent",
 					"local_path":                   "/repo",
@@ -237,7 +238,7 @@ func TestSubmodulePinHandlerNonGitmodulesDeltaSkipsRetract(t *testing.T) {
 	handler := SubmodulePinEdgeMaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				Payload: map[string]any{
 					"repo_id":              "repo-parent",
 					"local_path":           "/repo",
@@ -275,7 +276,7 @@ func TestSubmodulePinHandlerChangedGitmodulesForcesWholeRepoRetract(t *testing.T
 	handler := SubmodulePinEdgeMaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				Payload: map[string]any{
 					"repo_id":              "repo-parent",
 					"local_path":           "/repo",
@@ -316,7 +317,7 @@ func TestExtractSubmodulePinEdgeRowsSkipsUnresolvedAndQuarantinesMissingRequired
 		submodulePinEnvelope("repo-parent", "vendor/lib-a", strPtr("repo-lib-a"), strPtr("abc123")),
 		submodulePinEnvelope("repo-parent", "vendor/unresolved", nil, nil),
 		{
-			FactKind: factKindSubmodulePin,
+			FactKind: factload.FactKindSubmodulePin,
 			FactID:   "fact-bad-1",
 			Payload: map[string]any{
 				"submodule_path": "vendor/lib-c",
