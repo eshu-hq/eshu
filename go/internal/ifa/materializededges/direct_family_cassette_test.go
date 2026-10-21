@@ -187,6 +187,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.CodeInterprocEvidenceFamilyCassetteFullPath,
 			load:         ifa.LoadCodeInterprocEvidenceFamilyOdu,
 		},
+		{
+			name:         ifa.BuiltFromFamilyOduName,
+			compiled:     ifa.BuiltFromFamilyOdu,
+			cassettePath: ifa.BuiltFromFamilyCassetteFullPath,
+			load:         ifa.LoadBuiltFromFamilyOdu,
+		},
 	}
 }
 

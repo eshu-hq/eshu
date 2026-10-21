@@ -137,10 +137,9 @@ ifa:
   - 'specs/fact-kind-registry.v1.yaml'
   - 'specs/replay-coverage-manifest.v1.yaml'
   - 'testdata/golden/e2e-20repo-snapshot.json'
-  # The shell family registry. The Go blocker-shape lockstep test parses
-  # these rows and binds each family's declared blocker_kind to its real
-  # handler's write shape, so a row edit must select this gate's CI check.
-  # A single '*' does not cross '/' in a dorny filter, hence the '**' here.
+  # Shell family registry: the blocker-shape lockstep test binds each row's
+  # blocker_kind to its handler's write shape. A single '*' does not cross
+  # '/' in a dorny filter, hence the '**' here.
   - 'scripts/lib/ifa_family_registry.sh'
   - 'scripts/lib/ifa_family_registry/**'
   # #5351 materialized-edge exhaustiveness gate: the SQL relationship
@@ -201,6 +200,7 @@ ifa:
   - 'testdata/cassettes/rationale/**'
   - 'testdata/cassettes/repodependency/**'
   - 'testdata/cassettes/s3logsto/**'
+  - 'testdata/cassettes/builtfrom/**'
   - 'testdata/cassettes/shellexec/**'
   - 'testdata/cassettes/submodulepin/**'
   - 'testdata/cassettes/workloaddependency/**'

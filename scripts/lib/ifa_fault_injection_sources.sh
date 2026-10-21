@@ -110,5 +110,7 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_can_perfor
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_ec2_uses_profile_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_s3_logs_to_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_s3_logs_to_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_built_from_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_built_from_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_cloud_resource_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_cloud_resource_cells.sh"

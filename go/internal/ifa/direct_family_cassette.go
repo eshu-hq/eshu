@@ -43,8 +43,9 @@ const (
 	// usesVaultPolicyFamilyCassettePath,
 	// semanticEntityContainmentFamilyCassettePath,
 	// cloudResourceFamilyCassettePath, codeTaintEvidenceFamilyCassettePath,
-	// observabilityCoverageFamilyCassettePath, and
-	// codeInterprocEvidenceFamilyCassettePath are repo-root-relative so the
+	// observabilityCoverageFamilyCassettePath,
+	// codeInterprocEvidenceFamilyCassettePath, and
+	// builtFromFamilyCassettePath are repo-root-relative so the
 	// constants stay machine-independent; callers join a repo root onto
 	// them through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
@@ -57,6 +58,7 @@ const (
 	s3LogsToFamilyCassettePath                       = "testdata/cassettes/s3logsto/ifa-s3-logs-to-family.json"
 	authenticatesVaultRoleFamilyCassettePath         = "testdata/cassettes/authenticatesvaultrole/ifa-authenticates-vault-role-family.json"
 	usesVaultPolicyFamilyCassettePath                = "testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json"
+	builtFromFamilyCassettePath                      = "testdata/cassettes/builtfrom/ifa-built-from-family.json"
 	kubernetesCorrelationFamilyCassettePath          = "testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
 	semanticEntityContainmentFamilyCassettePath      = "testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
 	cloudResourceFamilyCassettePath                  = "testdata/cassettes/cloudresource/ifa-cloud-resource-family.json"
@@ -243,6 +245,19 @@ func UsesVaultPolicyFamilyCassetteFullPath(repoRoot string) string {
 // uses_vault_policy counterpart to LoadAuthenticatesVaultRoleFamilyOdu.
 func LoadUsesVaultPolicyFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, UsesVaultPolicyFamilyOduName)
+}
+
+// BuiltFromFamilyCassetteFullPath joins repoRoot onto the committed
+// built_from family cassette path.
+func BuiltFromFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, builtFromFamilyCassettePath)
+}
+
+// LoadBuiltFromFamilyOdu reads the committed cassette and projects it onto
+// the fact envelopes the reducer's extractor consumes, the built_from
+// counterpart to LoadUsesVaultPolicyFamilyOdu.
+func LoadBuiltFromFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, BuiltFromFamilyOduName)
 }
 
 // KubernetesCorrelationFamilyCassetteFullPath joins repoRoot onto the committed

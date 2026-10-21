@@ -195,6 +195,15 @@ semantic_entity_containment_expected_edges_nornicdb="${repo_root}/go/internal/if
 # its scope like every sibling above.
 cloud_resource_cassette="${repo_root}/testdata/cassettes/cloudresource/ifa-cloud-resource-family.json"
 cloud_resource_expected_edges="${repo_root}/go/internal/ifa/testdata/cloudresource/ifa-cloud-resource-family-expected-edges.json"
+# built_from (#6228 slice C live leaf): a projection of the compiled
+# BuiltFromFamilyOdu by construction (TestDirectFamilyCassettesMatchTheirCompiledOdu
+# holds it to that) -- one repository fact, four OCI manifest facts (two
+# edge-producing builds plus the no-build-evidence and unscanned-builder
+# non-producers), and the deploy-only Kubernetes reference proving a runtime
+# reference never confers build provenance (#5796). The single git
+# repository scope owns its own ACTIVE generation, like every sibling above.
+built_from_cassette="${repo_root}/testdata/cassettes/builtfrom/ifa-built-from-family.json"
+built_from_expected_edges="${repo_root}/go/internal/ifa/testdata/builtfrom/ifa-built-from-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -261,6 +270,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${semantic_entity_containment_expected_edges_nornicdb}" ]] || { echo "${gate}: semantic-entity-containment NornicDB expected-edge set not found: ${semantic_entity_containment_expected_edges_nornicdb}" >&2; exit 1; }
 	[[ -f "${cloud_resource_cassette}" ]] || { echo "${gate}: cloud-resource cassette not found: ${cloud_resource_cassette}" >&2; exit 1; }
 	[[ -f "${cloud_resource_expected_edges}" ]] || { echo "${gate}: cloud-resource expected-edge set not found: ${cloud_resource_expected_edges}" >&2; exit 1; }
+	[[ -f "${built_from_cassette}" ]] || { echo "${gate}: built-from cassette not found: ${built_from_cassette}" >&2; exit 1; }
+	[[ -f "${built_from_expected_edges}" ]] || { echo "${gate}: built-from expected-edge set not found: ${built_from_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
 	# stamps fact.source_system from the scope, and the
 	# container-image-identity loader the handler reads only accepts OCI
@@ -270,4 +281,16 @@ ifa_family_fixtures_require() {
 	# named instead of late at the exact-set assert.
 	kubernetes_correlation_scope_system="$(jq -r '.scopes[0].source_system' "${kubernetes_correlation_cassette}")"
 	[[ "${kubernetes_correlation_scope_system}" == "oci_registry" ]] || { echo "${gate}: kubernetes-correlation cassette scope source_system is ${kubernetes_correlation_scope_system:-missing}, want oci_registry" >&2; exit 1; }
+	# The built_from scope is a git repository scope, so its stamp stays
+	# 'git' (the semantic_entity_containment precedent). Unlike
+	# kubernetes_correlation -- whose handler reads ONLY through the
+	# cross-scope identity loader that filters on source_system -- the
+	# writing handler here is ContainerImageIdentityHandler itself, whose
+	# scope-local LoadFactsForKinds (repository, content_entity, OCI
+	# manifest) carries no source_system predicate; the cross-scope active
+	# loads are supplement-only and dedupe-covered. A 'git' stamp that
+	# drifted to something else would mislabel the owning scope without
+	# changing what the handler reads, so pin the honest value.
+	built_from_scope_system="$(jq -r '.scopes[0].source_system' "${built_from_cassette}")"
+	[[ "${built_from_scope_system}" == "git" ]] || { echo "${gate}: built-from cassette scope source_system is ${built_from_scope_system:-missing}, want git" >&2; exit 1; }
 }
