@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/ses/runtimebind"
 )
 
@@ -17,16 +18,16 @@ import (
 // scanner builder so the runtime resolves service_kind "ses" without a central
 // switch.
 func TestSESRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceSES)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceSES)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceSES)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceSES)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceSES,
+			ServiceKind: catalog.ServiceSES,
 		},
 	})
 	if err != nil {

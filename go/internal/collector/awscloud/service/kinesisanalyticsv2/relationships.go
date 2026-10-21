@@ -40,13 +40,13 @@ func applicationRelationships(boundary awscloud.Boundary, application Applicatio
 		observations, boundary, sourceID, sourceARN,
 		application.InputFirehoseStreamARNs,
 		awscloud.RelationshipManagedFlinkApplicationReadsFromFirehoseStream,
-		awscloud.ResourceTypeFirehoseDeliveryStream,
+		catalog.ResourceTypeFirehoseDeliveryStream,
 	)
 	observations = appendStreamEdges(
 		observations, boundary, sourceID, sourceARN,
 		application.OutputFirehoseStreamARNs,
 		awscloud.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
-		awscloud.ResourceTypeFirehoseDeliveryStream,
+		catalog.ResourceTypeFirehoseDeliveryStream,
 	)
 
 	if edge, ok := codeBucketRelationship(boundary, sourceID, sourceARN, application); ok {

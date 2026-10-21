@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func clusterRelationships(
@@ -66,7 +67,7 @@ func clusterRelationships(
 			SourceARN:        clusterARN,
 			TargetResourceID: topicARN,
 			TargetARN:        topicARN,
-			TargetType:       awscloud.ResourceTypeSNSTopic,
+			TargetType:       catalog.ResourceTypeSNSTopic,
 			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipMemoryDBClusterNotifiesSNSTopic, topicARN),
 		})
 	}

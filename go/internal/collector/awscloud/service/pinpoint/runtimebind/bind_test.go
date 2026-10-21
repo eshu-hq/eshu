@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/pinpoint/runtimebind"
 )
 
 // TestPinpointRuntimeBindRegisters confirms importing the binding installs the
 // Pinpoint scanner builder.
 func TestPinpointRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServicePinpoint)
+	build, ok := awsruntime.LookupBuilder(catalog.ServicePinpoint)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServicePinpoint)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServicePinpoint)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServicePinpoint,
+			ServiceKind: catalog.ServicePinpoint,
 		},
 	})
 	if err != nil {

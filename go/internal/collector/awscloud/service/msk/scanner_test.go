@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -98,7 +99,7 @@ func TestScannerEmitsMSKClusterConfigurationReplicatorMetadataAndRelationships(t
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeMSKCluster)
+	cluster := resourceByType(t, envelopes, catalog.ResourceTypeMSKCluster)
 	clusterAttributes := attributesOf(t, cluster)
 	if got, want := clusterAttributes["kafka_version"], "3.6.0"; got != want {
 		t.Fatalf("kafka_version = %#v, want %q", got, want)
@@ -112,7 +113,7 @@ func TestScannerEmitsMSKClusterConfigurationReplicatorMetadataAndRelationships(t
 		}
 	}
 
-	configuration := resourceByType(t, envelopes, awscloud.ResourceTypeMSKConfiguration)
+	configuration := resourceByType(t, envelopes, catalog.ResourceTypeMSKConfiguration)
 	configurationAttributes := attributesOf(t, configuration)
 	latest, ok := configurationAttributes["latest_revision"].(map[string]any)
 	if !ok {
@@ -127,7 +128,7 @@ func TestScannerEmitsMSKClusterConfigurationReplicatorMetadataAndRelationships(t
 		}
 	}
 
-	replicator := resourceByType(t, envelopes, awscloud.ResourceTypeMSKReplicator)
+	replicator := resourceByType(t, envelopes, catalog.ResourceTypeMSKReplicator)
 	replicatorAttributes := attributesOf(t, replicator)
 	infos, ok := replicatorAttributes["replication_info"].([]map[string]any)
 	if !ok {
@@ -142,11 +143,11 @@ func TestScannerEmitsMSKClusterConfigurationReplicatorMetadataAndRelationships(t
 		}
 	}
 
-	assertRelationship(t, envelopes, awscloud.RelationshipMSKClusterUsesSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipMSKClusterUsesSecurityGroup)
-	assertRelationship(t, envelopes, awscloud.RelationshipMSKClusterUsesKMSKey)
-	assertRelationship(t, envelopes, awscloud.RelationshipMSKClusterUsesConfiguration)
-	assertRelationship(t, envelopes, awscloud.RelationshipMSKReplicatorUsesIAMRole)
+	assertRelationship(t, envelopes, catalog.RelationshipMSKClusterUsesSubnet)
+	assertRelationship(t, envelopes, catalog.RelationshipMSKClusterUsesSecurityGroup)
+	assertRelationship(t, envelopes, catalog.RelationshipMSKClusterUsesKMSKey)
+	assertRelationship(t, envelopes, catalog.RelationshipMSKClusterUsesConfiguration)
+	assertRelationship(t, envelopes, catalog.RelationshipMSKReplicatorUsesIAMRole)
 }
 
 func TestScannerSkipsNonARNKMSAndConfigurationRelationships(t *testing.T) {
@@ -176,16 +177,16 @@ func TestScannerSkipsNonARNKMSAndConfigurationRelationships(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipMSKClusterUsesKMSKey); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipMSKClusterUsesKMSKey); got != 0 {
 		t.Fatalf("kms relationship count = %d, want 0 when KMS identity is not an ARN", got)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipMSKClusterUsesConfiguration); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipMSKClusterUsesConfiguration); got != 0 {
 		t.Fatalf("configuration relationship count = %d, want 0 when configuration identity is not an ARN", got)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipMSKClusterUsesSubnet); got != 1 {
+	if got := countRelationships(envelopes, catalog.RelationshipMSKClusterUsesSubnet); got != 1 {
 		t.Fatalf("serverless subnet relationship count = %d, want 1", got)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipMSKClusterUsesSecurityGroup); got != 1 {
+	if got := countRelationships(envelopes, catalog.RelationshipMSKClusterUsesSecurityGroup); got != 1 {
 		t.Fatalf("serverless security group relationship count = %d, want 1", got)
 	}
 }
@@ -202,14 +203,14 @@ func TestScannerSkipsReplicatorIAMRoleWhenNotARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipMSKReplicatorUsesIAMRole); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipMSKReplicatorUsesIAMRole); got != 0 {
 		t.Fatalf("replicator iam role relationship count = %d, want 0 when role identity is not an ARN", got)
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceSNS
+	boundary.ServiceKind = catalog.ServiceSNS
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -227,7 +228,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceMSK,
+		ServiceKind:         catalog.ServiceMSK,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:msk:1",
 		CollectorInstanceID: "aws-prod",

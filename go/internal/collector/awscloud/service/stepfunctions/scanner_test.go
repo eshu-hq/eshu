@@ -62,7 +62,7 @@ func TestScannerEmitsStateMachineAndActivityMetadataAndRelationships(t *testing.
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	stateMachine := resourceByType(t, envelopes, awscloud.ResourceTypeStepFunctionsStateMachine)
+	stateMachine := resourceByType(t, envelopes, catalog.ResourceTypeStepFunctionsStateMachine)
 	if got, want := stateMachine.Payload["arn"], stateMachineARN; got != want {
 		t.Fatalf("state machine arn = %#v, want %q", got, want)
 	}
@@ -133,7 +133,7 @@ func TestScannerEmitsStateMachineAndActivityMetadataAndRelationships(t *testing.
 		}
 	}
 
-	role := relationshipByType(t, envelopes, awscloud.RelationshipStepFunctionsStateMachineUsesIAMRole)
+	role := relationshipByType(t, envelopes, catalog.RelationshipStepFunctionsStateMachineUsesIAMRole)
 	if got, want := role.Payload["target_arn"], roleARN; got != want {
 		t.Fatalf("role target_arn = %#v, want %q", got, want)
 	}
@@ -150,11 +150,11 @@ func TestScannerEmitsStateMachineAndActivityMetadataAndRelationships(t *testing.
 	if got, want := references[lambdaARN], catalog.ResourceTypeLambdaFunction; got != want {
 		t.Fatalf("lambda reference target_type = %q, want %q", got, want)
 	}
-	if got, want := references[snsARN], awscloud.ResourceTypeSNSTopic; got != want {
+	if got, want := references[snsARN], catalog.ResourceTypeSNSTopic; got != want {
 		t.Fatalf("sns reference target_type = %q, want %q", got, want)
 	}
 
-	activity := resourceByType(t, envelopes, awscloud.ResourceTypeStepFunctionsActivity)
+	activity := resourceByType(t, envelopes, catalog.ResourceTypeStepFunctionsActivity)
 	if got, want := activity.Payload["arn"], activityARN; got != want {
 		t.Fatalf("activity arn = %#v, want %q", got, want)
 	}
@@ -191,13 +191,13 @@ func TestScannerSkipsReferencedResourcesThatAreNotARNs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipStepFunctionsStateMachineReferencesResource); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipStepFunctionsStateMachineReferencesResource); got != 0 {
 		t.Fatalf("references relationship count = %d, want 0 for non-ARN reference", got)
 	}
 
 	// The state node attribute must also drop the non-ARN literal so the
 	// scanner does not persist service-integration identifiers as Resource ARNs.
-	stateMachine := resourceByType(t, envelopes, awscloud.ResourceTypeStepFunctionsStateMachine)
+	stateMachine := resourceByType(t, envelopes, catalog.ResourceTypeStepFunctionsStateMachine)
 	states, ok := attributesOf(t, stateMachine)["states"].([]map[string]any)
 	if !ok {
 		t.Fatalf("states attribute missing or wrong shape: %#v", attributesOf(t, stateMachine)["states"])
@@ -226,14 +226,14 @@ func TestScannerSkipsRoleRelationshipWhenRoleARNMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipStepFunctionsStateMachineUsesIAMRole); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipStepFunctionsStateMachineUsesIAMRole); got != 0 {
 		t.Fatalf("role relationship count = %d, want 0 when role missing", got)
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceSNS
+	boundary.ServiceKind = catalog.ServiceSNS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -252,7 +252,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceStepFunctions,
+		ServiceKind:         catalog.ServiceStepFunctions,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:stepfunctions:1",
 		CollectorInstanceID: "aws-prod",
@@ -321,7 +321,7 @@ func referencedTargets(envelopes []facts.Envelope) map[string]string {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got != awscloud.RelationshipStepFunctionsStateMachineReferencesResource {
+		if got, _ := envelope.Payload["relationship_type"].(string); got != catalog.RelationshipStepFunctionsStateMachineReferencesResource {
 			continue
 		}
 		targetARN, _ := envelope.Payload["target_arn"].(string)

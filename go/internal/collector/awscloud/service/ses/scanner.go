@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -34,8 +35,8 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("ses scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSES:
-		boundary.ServiceKind = awscloud.ServiceSES
+	case "", catalog.ServiceSES:
+		boundary.ServiceKind = catalog.ServiceSES
 	default:
 		return nil, fmt.Errorf("ses scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -163,7 +164,7 @@ func identityObservation(boundary awscloud.Boundary, identity EmailIdentity) aws
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSESEmailIdentity,
+		ResourceType: catalog.ResourceTypeSESEmailIdentity,
 		Name:         name,
 		State:        strings.TrimSpace(identity.VerificationStatus),
 		Tags:         cloneStringMap(identity.Tags),
@@ -196,7 +197,7 @@ func configurationSetObservation(boundary awscloud.Boundary, set ConfigurationSe
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSESConfigurationSet,
+		ResourceType: catalog.ResourceTypeSESConfigurationSet,
 		Name:         name,
 		Tags:         cloneStringMap(set.Tags),
 		Attributes: map[string]any{
@@ -222,7 +223,7 @@ func eventDestinationObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSESEventDestination,
+		ResourceType: catalog.ResourceTypeSESEventDestination,
 		Name:         name,
 		Attributes: map[string]any{
 			"configuration_set_name":       strings.TrimSpace(configurationSet),
@@ -248,7 +249,7 @@ func dedicatedIPPoolObservation(boundary awscloud.Boundary, pool DedicatedIPPool
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSESDedicatedIPPool,
+		ResourceType: catalog.ResourceTypeSESDedicatedIPPool,
 		Name:         name,
 		Attributes: map[string]any{
 			"pool_name": name,

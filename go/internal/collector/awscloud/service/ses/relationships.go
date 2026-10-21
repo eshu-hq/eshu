@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // identityConfigurationSetRelationship records an SES email identity's reported
@@ -27,13 +28,13 @@ func identityConfigurationSetRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSESEmailIdentityUsesConfigurationSet,
+		RelationshipType: catalog.RelationshipSESEmailIdentityUsesConfigurationSet,
 		SourceResourceID: sourceID,
 		SourceARN:        identityARN(boundary, identity),
 		TargetResourceID: setName,
-		TargetType:       awscloud.ResourceTypeSESConfigurationSet,
+		TargetType:       catalog.ResourceTypeSESConfigurationSet,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipSESEmailIdentityUsesConfigurationSet + ":" + setName,
+			catalog.RelationshipSESEmailIdentityUsesConfigurationSet + ":" + setName,
 	}
 }
 
@@ -61,14 +62,14 @@ func identityDKIMKMSRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSESEmailIdentityDKIMUsesKMSKey,
+		RelationshipType: catalog.RelationshipSESEmailIdentityDKIMUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        identityARN(boundary, identity),
 		TargetResourceID: keyID,
 		TargetARN:        targetARN,
 		TargetType:       awscloud.ResourceTypeKMSKey,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipSESEmailIdentityDKIMUsesKMSKey + ":" + keyID,
+			catalog.RelationshipSESEmailIdentityDKIMUsesKMSKey + ":" + keyID,
 	}
 }
 
@@ -90,13 +91,13 @@ func configurationSetDedicatedIPPoolRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSESConfigurationSetUsesDedicatedIPPool,
+		RelationshipType: catalog.RelationshipSESConfigurationSetUsesDedicatedIPPool,
 		SourceResourceID: sourceID,
 		SourceARN:        configurationSetARN(boundary, set),
 		TargetResourceID: poolName,
-		TargetType:       awscloud.ResourceTypeSESDedicatedIPPool,
+		TargetType:       catalog.ResourceTypeSESDedicatedIPPool,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipSESConfigurationSetUsesDedicatedIPPool + ":" + poolName,
+			catalog.RelationshipSESConfigurationSetUsesDedicatedIPPool + ":" + poolName,
 	}
 }
 
@@ -120,13 +121,13 @@ func eventDestinationSNSTopicRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSESEventDestinationPublishesToSNSTopic,
+		RelationshipType: catalog.RelationshipSESEventDestinationPublishesToSNSTopic,
 		SourceResourceID: sourceID,
 		TargetResourceID: topicARN,
 		TargetARN:        topicARN,
-		TargetType:       awscloud.ResourceTypeSNSTopic,
+		TargetType:       catalog.ResourceTypeSNSTopic,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipSESEventDestinationPublishesToSNSTopic + ":" + topicARN,
+			catalog.RelationshipSESEventDestinationPublishesToSNSTopic + ":" + topicARN,
 	}
 }
 
@@ -156,13 +157,13 @@ func eventDestinationFirehoseRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSESEventDestinationStreamsToFirehose,
+		RelationshipType: catalog.RelationshipSESEventDestinationStreamsToFirehose,
 		SourceResourceID: sourceID,
 		TargetResourceID: streamARN,
 		TargetARN:        streamARN,
-		TargetType:       awscloud.ResourceTypeFirehoseDeliveryStream,
+		TargetType:       catalog.ResourceTypeFirehoseDeliveryStream,
 		Attributes:       attributes,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipSESEventDestinationStreamsToFirehose + ":" + streamARN,
+			catalog.RelationshipSESEventDestinationStreamsToFirehose + ":" + streamARN,
 	}
 }

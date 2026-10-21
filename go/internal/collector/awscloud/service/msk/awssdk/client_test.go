@@ -14,6 +14,7 @@ import (
 	awskafkatypes "github.com/aws/aws-sdk-go-v2/service/kafka/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientNeverIncludesForbiddenMethods asserts the narrow apiClient
@@ -133,7 +134,7 @@ func TestClientListClustersMapsProvisionedAndServerlessMetadataSafely(t *testing
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMSK},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMSK},
 	}
 
 	clusters, err := adapter.ListClusters(context.Background())
@@ -201,7 +202,7 @@ func TestClientListConfigurationsCapturesIdentityNotBody(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMSK},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMSK},
 	}
 
 	configurations, err := adapter.ListConfigurations(context.Background())
@@ -266,7 +267,7 @@ func TestClientListReplicatorsDescribesEachForRoleClustersAndPatternCounts(t *te
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMSK},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMSK},
 	}
 
 	replicators, err := adapter.ListReplicators(context.Background())

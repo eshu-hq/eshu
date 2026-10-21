@@ -71,7 +71,7 @@ func TestScannerEmitsSESMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	identity := resourceByType(t, envelopes, awscloud.ResourceTypeSESEmailIdentity)
+	identity := resourceByType(t, envelopes, catalog.ResourceTypeSESEmailIdentity)
 	if got, want := identity.Payload["resource_id"], "marketing.example.com"; got != want {
 		t.Fatalf("identity resource_id = %#v, want %q", got, want)
 	}
@@ -85,7 +85,7 @@ func TestScannerEmitsSESMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, idAttrs, "dkim_signing_attributes_origin", "AWS_SES")
 	assertAttribute(t, idAttrs, "mail_from_domain", "mail.example.com")
 
-	set := resourceByType(t, envelopes, awscloud.ResourceTypeSESConfigurationSet)
+	set := resourceByType(t, envelopes, catalog.ResourceTypeSESConfigurationSet)
 	if got, want := set.Payload["resource_id"], "primary"; got != want {
 		t.Fatalf("configuration set resource_id = %#v, want %q", got, want)
 	}
@@ -94,7 +94,7 @@ func TestScannerEmitsSESMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, setAttrs, "sending_pool_name", "dedicated-prod")
 	assertAttribute(t, setAttrs, "event_destination_count", 1)
 
-	destination := resourceByType(t, envelopes, awscloud.ResourceTypeSESEventDestination)
+	destination := resourceByType(t, envelopes, catalog.ResourceTypeSESEventDestination)
 	if got, want := destination.Payload["resource_id"], "primary/all-events"; got != want {
 		t.Fatalf("event destination resource_id = %#v, want %q", got, want)
 	}
@@ -102,25 +102,25 @@ func TestScannerEmitsSESMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, destAttrs, "matching_event_types", []string{"SEND", "DELIVERY", "BOUNCE"})
 	assertAttribute(t, destAttrs, "destination_classes", []string{"sns", "kinesis_firehose", "cloud_watch"})
 
-	pool := resourceByType(t, envelopes, awscloud.ResourceTypeSESDedicatedIPPool)
+	pool := resourceByType(t, envelopes, catalog.ResourceTypeSESDedicatedIPPool)
 	if got, want := pool.Payload["resource_id"], "dedicated-prod"; got != want {
 		t.Fatalf("dedicated ip pool resource_id = %#v, want %q", got, want)
 	}
 
 	// identity -> default configuration set edge, keyed by the set name.
-	idSet := relationshipByType(t, envelopes, awscloud.RelationshipSESEmailIdentityUsesConfigurationSet)
-	assertEdgeTarget(t, idSet, awscloud.ResourceTypeSESConfigurationSet, "primary")
+	idSet := relationshipByType(t, envelopes, catalog.RelationshipSESEmailIdentityUsesConfigurationSet)
+	assertEdgeTarget(t, idSet, catalog.ResourceTypeSESConfigurationSet, "primary")
 	if got, want := idSet.Payload["source_resource_id"], "marketing.example.com"; got != want {
 		t.Fatalf("identity->set source_resource_id = %#v, want %q", got, want)
 	}
 
 	// configuration set -> dedicated IP pool edge, keyed by the pool name.
-	setPool := relationshipByType(t, envelopes, awscloud.RelationshipSESConfigurationSetUsesDedicatedIPPool)
-	assertEdgeTarget(t, setPool, awscloud.ResourceTypeSESDedicatedIPPool, "dedicated-prod")
+	setPool := relationshipByType(t, envelopes, catalog.RelationshipSESConfigurationSetUsesDedicatedIPPool)
+	assertEdgeTarget(t, setPool, catalog.ResourceTypeSESDedicatedIPPool, "dedicated-prod")
 
 	// event destination -> SNS topic edge, keyed by the reported topic ARN.
-	destSNS := relationshipByType(t, envelopes, awscloud.RelationshipSESEventDestinationPublishesToSNSTopic)
-	assertEdgeTarget(t, destSNS, awscloud.ResourceTypeSNSTopic, testTopicARN)
+	destSNS := relationshipByType(t, envelopes, catalog.RelationshipSESEventDestinationPublishesToSNSTopic)
+	assertEdgeTarget(t, destSNS, catalog.ResourceTypeSNSTopic, testTopicARN)
 	if got, want := destSNS.Payload["target_arn"], testTopicARN; got != want {
 		t.Fatalf("dest->sns target_arn = %#v, want %q", got, want)
 	}
@@ -129,8 +129,8 @@ func TestScannerEmitsSESMetadataAndRelationships(t *testing.T) {
 	}
 
 	// event destination -> Firehose delivery stream edge, keyed by the stream ARN.
-	destFirehose := relationshipByType(t, envelopes, awscloud.RelationshipSESEventDestinationStreamsToFirehose)
-	assertEdgeTarget(t, destFirehose, awscloud.ResourceTypeFirehoseDeliveryStream, testFirehoseARN)
+	destFirehose := relationshipByType(t, envelopes, catalog.RelationshipSESEventDestinationStreamsToFirehose)
+	assertEdgeTarget(t, destFirehose, catalog.ResourceTypeFirehoseDeliveryStream, testFirehoseARN)
 	if got, want := destFirehose.Payload["target_arn"], testFirehoseARN; got != want {
 		t.Fatalf("dest->firehose target_arn = %#v, want %q", got, want)
 	}
@@ -151,7 +151,7 @@ func TestScannerSynthesizesGovCloudIdentityARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	identity := resourceByType(t, envelopes, awscloud.ResourceTypeSESEmailIdentity)
+	identity := resourceByType(t, envelopes, catalog.ResourceTypeSESEmailIdentity)
 	want := "arn:aws-us-gov:ses:us-gov-west-1:123456789012:identity/gov.example.com"
 	if got := identity.Payload["arn"]; got != want {
 		t.Fatalf("GovCloud identity arn = %#v, want %q", got, want)
@@ -167,7 +167,7 @@ func TestScannerSynthesizesChinaConfigurationSetARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	set := resourceByType(t, envelopes, awscloud.ResourceTypeSESConfigurationSet)
+	set := resourceByType(t, envelopes, catalog.ResourceTypeSESConfigurationSet)
 	want := "arn:aws-cn:ses:cn-north-1:123456789012:configuration-set/cn-set"
 	if got := set.Payload["arn"]; got != want {
 		t.Fatalf("China configuration set arn = %#v, want %q", got, want)
@@ -202,7 +202,7 @@ func TestScannerEmitsDefensiveDKIMKMSEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	dkimKMS := relationshipByType(t, envelopes, awscloud.RelationshipSESEmailIdentityDKIMUsesKMSKey)
+	dkimKMS := relationshipByType(t, envelopes, catalog.RelationshipSESEmailIdentityDKIMUsesKMSKey)
 	assertEdgeTarget(t, dkimKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
 	if got, want := dkimKMS.Payload["target_arn"], testKMSARN; got != want {
 		t.Fatalf("dkim->kms target_arn = %#v, want %q", got, want)
@@ -254,8 +254,8 @@ func TestScannerCanonicalizesBlankServiceKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	pool := resourceByType(t, envelopes, awscloud.ResourceTypeSESDedicatedIPPool)
-	if got, want := pool.Payload["service_kind"], awscloud.ServiceSES; got != want {
+	pool := resourceByType(t, envelopes, catalog.ResourceTypeSESDedicatedIPPool)
+	if got, want := pool.Payload["service_kind"], catalog.ServiceSES; got != want {
 		t.Fatalf("service_kind = %#v, want %q", got, want)
 	}
 }
@@ -312,7 +312,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSES,
+		ServiceKind:         catalog.ServiceSES,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:ses:1",
 		CollectorInstanceID: "aws-prod",

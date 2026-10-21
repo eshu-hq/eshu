@@ -14,6 +14,7 @@ import (
 	awssesv2types "github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientExcludesSendAndMutationOperations is the metadata-only exclusion
@@ -213,7 +214,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSES,
+		ServiceKind: catalog.ServiceSES,
 		ScopeID:     "aws:123456789012:us-east-1",
 	}
 }

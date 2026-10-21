@@ -132,11 +132,11 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 	case "sqs":
 		// SQS queue ARNs have no resource-type token; the resource segment is the
 		// queue name. The sqs scanner keys the queue by its ARN.
-		return arnTarget(awscloud.ResourceTypeSQSQueue, arn), true
+		return arnTarget(catalog.ResourceTypeSQSQueue, arn), true
 	case "sns":
 		// SNS topic ARNs have no resource-type token; the resource segment is the
 		// topic name. The sns scanner keys the topic by its ARN.
-		return arnTarget(awscloud.ResourceTypeSNSTopic, arn), true
+		return arnTarget(catalog.ResourceTypeSNSTopic, arn), true
 	case "kinesis":
 		if resourceType == "stream" {
 			return arnTarget(awscloud.ResourceTypeKinesisDataStream, arn), true

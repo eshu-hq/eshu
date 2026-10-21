@@ -14,6 +14,7 @@ import (
 	awssfntypes "github.com/aws/aws-sdk-go-v2/service/sfn/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListStateMachinesProjectsSafeMetadataAndDefinitionShape(t *testing.T) {
@@ -84,7 +85,7 @@ func TestClientListStateMachinesProjectsSafeMetadataAndDefinitionShape(t *testin
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceStepFunctions},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceStepFunctions},
 	}
 
 	machines, err := adapter.ListStateMachines(context.Background())
@@ -182,7 +183,7 @@ func TestClientListStateMachinesSkipsActivitiesAndDoesNotMutate(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceStepFunctions},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceStepFunctions},
 	}
 	if _, err := adapter.ListStateMachines(context.Background()); err != nil {
 		t.Fatalf("ListStateMachines() error = %v, want nil", err)

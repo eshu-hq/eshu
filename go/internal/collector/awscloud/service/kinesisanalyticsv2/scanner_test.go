@@ -97,9 +97,9 @@ func TestScannerEmitsApplicationMetadataAndRelationships(t *testing.T) {
 	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationWritesToKinesisStream,
 		awscloud.ResourceTypeKinesisDataStream, testOutputKDS, testAppARN)
 	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationReadsFromFirehoseStream,
-		awscloud.ResourceTypeFirehoseDeliveryStream, testInputFH, testAppARN)
+		catalog.ResourceTypeFirehoseDeliveryStream, testInputFH, testAppARN)
 	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
-		awscloud.ResourceTypeFirehoseDeliveryStream, testOutputFH, testAppARN)
+		catalog.ResourceTypeFirehoseDeliveryStream, testOutputFH, testAppARN)
 	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
 		catalog.ResourceTypeS3Bucket, testCodeBucket, testAppARN)
 	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesIAMRole,

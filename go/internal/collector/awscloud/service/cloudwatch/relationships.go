@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -58,7 +59,7 @@ func alarmSNSRelationships(
 			SourceARN:        strings.TrimSpace(alarmARN),
 			TargetResourceID: topicARN,
 			TargetARN:        topicARN,
-			TargetType:       awscloud.ResourceTypeSNSTopic,
+			TargetType:       catalog.ResourceTypeSNSTopic,
 			Attributes: map[string]any{
 				"alarm_name":     strings.TrimSpace(alarmName),
 				"action_classes": categories,

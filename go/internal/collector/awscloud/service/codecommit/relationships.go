@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // kmsKeyRelationship records the KMS key a CodeCommit repository is encrypted
@@ -69,7 +70,7 @@ func triggerRelationships(boundary awscloud.Boundary, repository Repository) []a
 			SourceARN:        strings.TrimSpace(repository.ARN),
 			TargetResourceID: destination,
 			TargetARN:        destination,
-			TargetType:       awscloud.ResourceTypeSNSTopic,
+			TargetType:       catalog.ResourceTypeSNSTopic,
 			Attributes: map[string]any{
 				"trigger_name": strings.TrimSpace(trigger.Name),
 				"events":       cloneStringSlice(trigger.Events),

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -53,7 +54,7 @@ func TestScannerEmitsEventBridgeMetadataOnlyFactsAndRelationships(t *testing.T) 
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	bus := resourceByType(t, envelopes, awscloud.ResourceTypeEventBridgeEventBus)
+	bus := resourceByType(t, envelopes, catalog.ResourceTypeEventBridgeEventBus)
 	busAttributes := attributesOf(t, bus)
 	if got, want := busAttributes["description"], "orders event bus"; got != want {
 		t.Fatalf("bus description = %#v, want %q", got, want)
@@ -62,7 +63,7 @@ func TestScannerEmitsEventBridgeMetadataOnlyFactsAndRelationships(t *testing.T) 
 		t.Fatalf("policy attribute persisted; EventBridge scanner must not store event bus policy JSON")
 	}
 
-	rule := resourceByType(t, envelopes, awscloud.ResourceTypeEventBridgeRule)
+	rule := resourceByType(t, envelopes, catalog.ResourceTypeEventBridgeRule)
 	ruleAttributes := attributesOf(t, rule)
 	if got, want := ruleAttributes["event_pattern"], `{"source":["orders"]}`; got != want {
 		t.Fatalf("event_pattern = %#v, want %q", got, want)
@@ -79,12 +80,12 @@ func TestScannerEmitsEventBridgeMetadataOnlyFactsAndRelationships(t *testing.T) 
 		}
 	}
 
-	ruleBus := relationshipByType(t, envelopes, awscloud.RelationshipEventBridgeRuleOnEventBus)
+	ruleBus := relationshipByType(t, envelopes, catalog.RelationshipEventBridgeRuleOnEventBus)
 	if got, want := ruleBus.Payload["target_arn"], busARN; got != want {
 		t.Fatalf("rule bus target_arn = %#v, want %q", got, want)
 	}
 
-	target := relationshipByType(t, envelopes, awscloud.RelationshipEventBridgeRuleTargetsResource)
+	target := relationshipByType(t, envelopes, catalog.RelationshipEventBridgeRuleTargetsResource)
 	if got, want := target.Payload["target_arn"], targetARN; got != want {
 		t.Fatalf("target_arn = %#v, want %q", got, want)
 	}
@@ -118,7 +119,7 @@ func TestScannerSkipsNonARNTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipEventBridgeRuleTargetsResource); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipEventBridgeRuleTargetsResource); got != 0 {
 		t.Fatalf("target relationship count = %d, want 0 for non-ARN target", got)
 	}
 }
@@ -152,7 +153,7 @@ func TestScannerUsesRuleQualifiedSourceRecordIDForTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	recordIDs := relationshipSourceRecordIDs(envelopes, awscloud.RelationshipEventBridgeRuleTargetsResource)
+	recordIDs := relationshipSourceRecordIDs(envelopes, catalog.RelationshipEventBridgeRuleTargetsResource)
 	want := map[string]bool{
 		firstRuleARN + "->shared-target-id":  true,
 		secondRuleARN + "->shared-target-id": true,
@@ -167,7 +168,7 @@ func TestScannerUsesRuleQualifiedSourceRecordIDForTargets(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceSNS
+	boundary.ServiceKind = catalog.ServiceSNS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -179,7 +180,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceEventBridge,
+		ServiceKind:         catalog.ServiceEventBridge,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:eventbridge:1",
 		CollectorInstanceID: "aws-prod",

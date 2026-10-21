@@ -28,10 +28,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("eventbridge scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceEventBridge:
+	case "", catalog.ServiceEventBridge:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceEventBridge
+		boundary.ServiceKind = catalog.ServiceEventBridge
 	default:
 		return nil, fmt.Errorf("eventbridge scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -83,7 +83,7 @@ func eventBusObservation(boundary awscloud.Boundary, bus EventBus) awscloud.Reso
 		Boundary:     boundary,
 		ARN:          busARN,
 		ResourceID:   firstNonEmpty(busARN, bus.Name),
-		ResourceType: awscloud.ResourceTypeEventBridgeEventBus,
+		ResourceType: catalog.ResourceTypeEventBridgeEventBus,
 		Name:         strings.TrimSpace(bus.Name),
 		Tags:         cloneStringMap(bus.Tags),
 		Attributes: map[string]any{
@@ -103,7 +103,7 @@ func ruleObservation(boundary awscloud.Boundary, rule Rule) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          ruleARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeEventBridgeRule,
+		ResourceType: catalog.ResourceTypeEventBridgeRule,
 		Name:         strings.TrimSpace(rule.Name),
 		State:        strings.TrimSpace(rule.State),
 		Tags:         cloneStringMap(rule.Tags),
@@ -133,12 +133,12 @@ func ruleBusRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEventBridgeRuleOnEventBus,
+		RelationshipType: catalog.RelationshipEventBridgeRuleOnEventBus,
 		SourceResourceID: ruleID,
 		SourceARN:        strings.TrimSpace(rule.ARN),
 		TargetResourceID: busID,
 		TargetARN:        strings.TrimSpace(bus.ARN),
-		TargetType:       awscloud.ResourceTypeEventBridgeEventBus,
+		TargetType:       catalog.ResourceTypeEventBridgeEventBus,
 		Attributes: map[string]any{
 			"event_bus_name": strings.TrimSpace(firstNonEmpty(rule.EventBusName, bus.Name)),
 			"rule_name":      strings.TrimSpace(rule.Name),
@@ -159,7 +159,7 @@ func ruleTargetRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEventBridgeRuleTargetsResource,
+		RelationshipType: catalog.RelationshipEventBridgeRuleTargetsResource,
 		SourceResourceID: ruleID,
 		SourceARN:        strings.TrimSpace(rule.ARN),
 		TargetResourceID: targetARN,
@@ -181,9 +181,9 @@ func targetTypeForARN(arn string) string {
 	case strings.Contains(arn, ":lambda:"):
 		return catalog.ResourceTypeLambdaFunction
 	case strings.Contains(arn, ":sqs:"):
-		return awscloud.ResourceTypeSQSQueue
+		return catalog.ResourceTypeSQSQueue
 	case strings.Contains(arn, ":sns:"):
-		return awscloud.ResourceTypeSNSTopic
+		return catalog.ResourceTypeSNSTopic
 	case strings.Contains(arn, ":ecs:"):
 		return catalog.ResourceTypeECSCluster
 	default:

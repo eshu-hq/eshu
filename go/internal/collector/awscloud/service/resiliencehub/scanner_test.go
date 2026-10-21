@@ -133,8 +133,8 @@ func TestScannerEmitsResilienceHubMetadataAndRelationships(t *testing.T) {
 	if gotTargets[testLambdaARN] != catalog.ResourceTypeLambdaFunction {
 		t.Fatalf("lambda protect edge target_type = %q, want %q", gotTargets[testLambdaARN], catalog.ResourceTypeLambdaFunction)
 	}
-	if gotTargets[testTopicARN] != awscloud.ResourceTypeSNSTopic {
-		t.Fatalf("sns protect edge target_type = %q, want %q", gotTargets[testTopicARN], awscloud.ResourceTypeSNSTopic)
+	if gotTargets[testTopicARN] != catalog.ResourceTypeSNSTopic {
+		t.Fatalf("sns protect edge target_type = %q, want %q", gotTargets[testTopicARN], catalog.ResourceTypeSNSTopic)
 	}
 
 	// component -> app, input source -> app, assessment -> app edges.

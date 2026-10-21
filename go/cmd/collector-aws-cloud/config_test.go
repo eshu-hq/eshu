@@ -102,7 +102,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForSQS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceSQS; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], catalog.ServiceSQS; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -136,7 +136,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForSNS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceSNS; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], catalog.ServiceSNS; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -170,7 +170,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForEventBridge(t *testing.T)
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceEventBridge; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], catalog.ServiceEventBridge; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -238,7 +238,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForMSK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceMSK; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], catalog.ServiceMSK; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {
@@ -272,7 +272,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForStepFunctions(t *testing.
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceStepFunctions; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], catalog.ServiceStepFunctions; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {

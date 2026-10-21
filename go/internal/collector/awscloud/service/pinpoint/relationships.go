@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // applicationHasSegmentRelationship records a Pinpoint segment's membership in
@@ -25,12 +26,12 @@ func applicationHasSegmentRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipPinpointApplicationHasSegment,
+		RelationshipType: catalog.RelationshipPinpointApplicationHasSegment,
 		SourceResourceID: applicationID,
 		TargetResourceID: segmentID,
 		TargetARN:        strings.TrimSpace(segment.ARN),
-		TargetType:       awscloud.ResourceTypePinpointSegment,
-		SourceRecordID:   applicationID + "->" + awscloud.RelationshipPinpointApplicationHasSegment + ":" + segmentID,
+		TargetType:       catalog.ResourceTypePinpointSegment,
+		SourceRecordID:   applicationID + "->" + catalog.RelationshipPinpointApplicationHasSegment + ":" + segmentID,
 	}
 }
 
@@ -50,11 +51,11 @@ func channelInApplicationRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipPinpointChannelInApplication,
+		RelationshipType: catalog.RelationshipPinpointChannelInApplication,
 		SourceResourceID: channelID,
 		TargetResourceID: applicationID,
-		TargetType:       awscloud.ResourceTypePinpointApplication,
-		SourceRecordID:   channelID + "->" + awscloud.RelationshipPinpointChannelInApplication + ":" + applicationID,
+		TargetType:       catalog.ResourceTypePinpointApplication,
+		SourceRecordID:   channelID + "->" + catalog.RelationshipPinpointChannelInApplication + ":" + applicationID,
 	}
 }
 
@@ -82,14 +83,14 @@ func emailChannelSESIdentityRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipPinpointEmailChannelUsesSESIdentity,
+		RelationshipType: catalog.RelationshipPinpointEmailChannelUsesSESIdentity,
 		SourceResourceID: channelID,
 		TargetResourceID: identityName,
-		TargetType:       awscloud.ResourceTypeSESEmailIdentity,
+		TargetType:       catalog.ResourceTypeSESEmailIdentity,
 		Attributes: map[string]any{
 			"ses_identity_arn": strings.TrimSpace(channel.SESIdentityARN),
 		},
-		SourceRecordID: channelID + "->" + awscloud.RelationshipPinpointEmailChannelUsesSESIdentity + ":" + identityName,
+		SourceRecordID: channelID + "->" + catalog.RelationshipPinpointEmailChannelUsesSESIdentity + ":" + identityName,
 	}
 }
 
@@ -112,10 +113,10 @@ func emailChannelSESConfigurationSetRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipPinpointEmailChannelUsesSESConfigurationSet,
+		RelationshipType: catalog.RelationshipPinpointEmailChannelUsesSESConfigurationSet,
 		SourceResourceID: channelID,
 		TargetResourceID: configSet,
-		TargetType:       awscloud.ResourceTypeSESConfigurationSet,
-		SourceRecordID:   channelID + "->" + awscloud.RelationshipPinpointEmailChannelUsesSESConfigurationSet + ":" + configSet,
+		TargetType:       catalog.ResourceTypeSESConfigurationSet,
+		SourceRecordID:   channelID + "->" + catalog.RelationshipPinpointEmailChannelUsesSESConfigurationSet + ":" + configSet,
 	}
 }

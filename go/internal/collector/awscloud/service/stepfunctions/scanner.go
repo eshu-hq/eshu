@@ -31,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("stepfunctions scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceStepFunctions:
+	case "", catalog.ServiceStepFunctions:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceStepFunctions
+		boundary.ServiceKind = catalog.ServiceStepFunctions
 	default:
 		return nil, fmt.Errorf("stepfunctions scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -91,7 +91,7 @@ func stateMachineObservation(
 		Boundary:     boundary,
 		ARN:          machineARN,
 		ResourceID:   firstNonEmpty(machineARN, machine.Name),
-		ResourceType: awscloud.ResourceTypeStepFunctionsStateMachine,
+		ResourceType: catalog.ResourceTypeStepFunctionsStateMachine,
 		Name:         strings.TrimSpace(machine.Name),
 		State:        strings.TrimSpace(machine.Status),
 		Tags:         cloneStringMap(machine.Tags),
@@ -115,7 +115,7 @@ func activityObservation(boundary awscloud.Boundary, activity Activity) awscloud
 		Boundary:     boundary,
 		ARN:          activityARN,
 		ResourceID:   firstNonEmpty(activityARN, activity.Name),
-		ResourceType: awscloud.ResourceTypeStepFunctionsActivity,
+		ResourceType: catalog.ResourceTypeStepFunctionsActivity,
 		Name:         strings.TrimSpace(activity.Name),
 		Tags:         cloneStringMap(activity.Tags),
 		Attributes: map[string]any{
@@ -137,7 +137,7 @@ func stateMachineRoleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStepFunctionsStateMachineUsesIAMRole,
+		RelationshipType: catalog.RelationshipStepFunctionsStateMachineUsesIAMRole,
 		SourceResourceID: machineARN,
 		SourceARN:        machineARN,
 		TargetResourceID: roleARN,
@@ -155,7 +155,7 @@ func stateMachineReferenceRelationship(
 	machineARN := strings.TrimSpace(machine.ARN)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipStepFunctionsStateMachineReferencesResource,
+		RelationshipType: catalog.RelationshipStepFunctionsStateMachineReferencesResource,
 		SourceResourceID: firstNonEmpty(machineARN, machine.Name),
 		SourceARN:        machineARN,
 		TargetResourceID: targetARN,
@@ -212,11 +212,11 @@ func targetTypeForARN(arn string) string {
 	case strings.Contains(arn, ":lambda:"):
 		return catalog.ResourceTypeLambdaFunction
 	case strings.Contains(arn, ":sns:"):
-		return awscloud.ResourceTypeSNSTopic
+		return catalog.ResourceTypeSNSTopic
 	case strings.Contains(arn, ":sqs:"):
-		return awscloud.ResourceTypeSQSQueue
+		return catalog.ResourceTypeSQSQueue
 	case strings.Contains(arn, ":states:"):
-		return awscloud.ResourceTypeStepFunctionsStateMachine
+		return catalog.ResourceTypeStepFunctionsStateMachine
 	case strings.Contains(arn, ":dynamodb:"):
 		return awscloud.ResourceTypeDynamoDBTable
 	case strings.Contains(arn, ":ecs:"):

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -64,7 +65,7 @@ func TestBrokerConfigurationRelationshipTargetsConfigurationARN(t *testing.T) {
 	}
 
 	observations := brokerRelationships(boundary, broker, map[string]string{"c-2222": configARN})
-	config := relationshipByTypeObs(t, observations, awscloud.RelationshipMQBrokerUsesConfiguration)
+	config := relationshipByTypeObs(t, observations, catalog.RelationshipMQBrokerUsesConfiguration)
 	if got := config.TargetResourceID; got != configARN {
 		t.Fatalf("configuration TargetResourceID = %q, want %q", got, configARN)
 	}
@@ -88,7 +89,7 @@ func TestBrokerConfigurationRelationshipFallsBackToIDWhenARNUnknown(t *testing.T
 	}
 
 	observations := brokerRelationships(boundary, broker, map[string]string{"c-2222": "arn:aws:mq:us-east-1:123456789012:configuration:c-2222"})
-	config := relationshipByTypeObs(t, observations, awscloud.RelationshipMQBrokerUsesConfiguration)
+	config := relationshipByTypeObs(t, observations, catalog.RelationshipMQBrokerUsesConfiguration)
 	if got, want := config.TargetResourceID, "c-9999"; got != want {
 		t.Fatalf("configuration TargetResourceID = %q, want %q", got, want)
 	}
@@ -130,7 +131,7 @@ func TestBrokerLogsRelationshipTargetsLogGroupARNInNonAWSPartition(t *testing.T)
 func logRelationshipByKind(t *testing.T, observations []awscloud.RelationshipObservation, kind string) awscloud.RelationshipObservation {
 	t.Helper()
 	for _, observation := range observations {
-		if observation.RelationshipType != awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup {
+		if observation.RelationshipType != catalog.RelationshipMQBrokerLogsToCloudWatchLogGroup {
 			continue
 		}
 		if got, _ := observation.Attributes["log_kind"].(string); got == kind {

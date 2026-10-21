@@ -219,7 +219,7 @@ func TestScannerEmitsInfraConfigEdges(t *testing.T) {
 	}
 
 	snsEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigUsesSNSTopic)
-	assertEdgeTarget(t, snsEdge, awscloud.ResourceTypeSNSTopic, testSNSTopicARN)
+	assertEdgeTarget(t, snsEdge, catalog.ResourceTypeSNSTopic, testSNSTopicARN)
 
 	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigLogsToS3)
 	assertEdgeTarget(t, s3Edge, catalog.ResourceTypeS3Bucket, testWantLogARN)

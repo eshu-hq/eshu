@@ -13,6 +13,7 @@ import (
 	awseventstypes "github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListEventBusesReadsSafeMetadataRulesTargetsAndTags(t *testing.T) {
@@ -71,7 +72,7 @@ func TestClientListEventBusesReadsSafeMetadataRulesTargetsAndTags(t *testing.T) 
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceEventBridge},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceEventBridge},
 	}
 
 	buses, err := adapter.ListEventBuses(context.Background())
