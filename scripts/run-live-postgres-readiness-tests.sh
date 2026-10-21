@@ -107,13 +107,15 @@ fi
 
 started="${SECONDS}"
 failed_packages=()
-# A package that exits nonzero leaves its go test -json event stream and
-# stderr here, outside the trap-deleted scratch dir, so a dying binary keeps
-# its death point for post-mortem instead of the 20-line stderr cap (#8662).
-# The CI shard job uploads this dir on failure; green runs never create it.
+# A failed package leaves its go test -json event stream and stderr here,
+# outside the trap-deleted scratch dir, so a dying binary keeps its death
+# point for post-mortem instead of the 20-line stderr cap (#8662). The CI
+# shard job uploads this dir on failure; green runs never create it. The dir
+# is cleared every run, so its leaf name is pinned: an env typo pointing at
+# $HOME, the repo root, or / dies here instead of wiping a meaningful tree.
 debug_dir="${LIVE_READINESS_DEBUG_DIR:-${repo_root}/.readiness-debug}"
-[[ "${debug_dir}" != "/" ]] || die "LIVE_READINESS_DEBUG_DIR must not be the filesystem root"
-rm -rf "${debug_dir}"
+[[ "${debug_dir}" == */.readiness-debug ]] || die "LIVE_READINESS_DEBUG_DIR must end in /.readiness-debug"
+rm -rf -- "${debug_dir}"
 
 # Every package runs even after an earlier one fails, so one CI run reports
 # every broken proof. The final status fails closed if any package failed.
@@ -145,20 +147,32 @@ while IFS=$'\t' read -r package pattern tests; do
     # stream. Limit them here so a failed proof cannot flood the CI log.
     sed -n '1,20p' "${scratch}/stderr-${i}" | cut -c 1-300 >&2
     printf 'live-postgres-readiness: %s: go test exited %s\n' "${package}" "${go_status}" >&2
-    # Preserve the full event stream and stderr outside the trap-deleted
-    # scratch dir, and print the stream tail inline: its last lines are the
-    # death point that tells a dying binary from a selection fault (#8662).
-    debug_pkgdir="${debug_dir}/$(printf '%s' "${package}" | tr -c '[:alnum:]' '_')"
-    mkdir -p "${debug_pkgdir}"
-    cp "${events}" "${debug_pkgdir}/events.jsonl"
-    cp "${scratch}/stderr-${i}" "${debug_pkgdir}/stderr.txt"
-    printf '%s\n' "${go_status}" >"${debug_pkgdir}/exit"
-    printf 'live-postgres-readiness: %s: event stream tail:\n' "${package}" >&2
-    tail -n 5 "${events}" | cut -c 1-300 >&2
-    printf 'live-postgres-readiness: %s: debug events preserved in %s\n' "${package}" "${debug_pkgdir}" >&2
-    failed_packages+=("${package}")
+    pkg_failed=1
   elif [[ "${results_status}" -ne 0 ]]; then
     printf 'live-postgres-readiness: %s: expected tests did not all pass\n' "${package}" >&2
+    pkg_failed=1
+  else
+    pkg_failed=0
+  fi
+  if [[ "${pkg_failed}" -ne 0 ]]; then
+    # Preserve the full event stream and stderr outside the trap-deleted
+    # scratch dir on EITHER failure branch (a verify failure's events are
+    # equally destroyed), and print the stream tail inline: its last lines
+    # are the death point that tells a dying binary from a selection
+    # fault (#8662). Preservation warns instead of dying: a failed copy
+    # (e.g. a full disk, plausible when keeping large failure streams) must
+    # not abort the every-package-runs loop above.
+    debug_pkgdir="${debug_dir}/$(printf '%s' "${package}" | tr -c '[:alnum:]' '_')"
+    if mkdir -p -- "${debug_pkgdir}" &&
+      cp -- "${events}" "${debug_pkgdir}/events.jsonl" &&
+      cp -- "${scratch}/stderr-${i}" "${debug_pkgdir}/stderr.txt" &&
+      printf '%s %s\n' "${go_status}" "${results_status}" >"${debug_pkgdir}/exit"; then
+      printf 'live-postgres-readiness: %s: event stream tail:\n' "${package}" >&2
+      tail -n 5 -- "${events}" | cut -c 1-300 >&2
+      printf 'live-postgres-readiness: %s: debug events preserved in %s\n' "${package}" "${debug_pkgdir}" >&2
+    else
+      printf 'live-postgres-readiness: %s: WARNING: debug preservation failed, continuing\n' "${package}" >&2
+    fi
     failed_packages+=("${package}")
   fi
   if [[ "${shard}" != "all" ]]; then

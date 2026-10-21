@@ -65,6 +65,8 @@ var readinessWorkflowMutations = []struct {
 	{"missing shard download", "actions/download-artifact@v4", "actions/download-artifact@v3"},
 	{"missing shard upload", "          path: readiness-shard-report.json", "          path: readiness-shard-report.json.missing"},
 	{"debug upload without failure gate", "failure() && (github.event_name", "always() && (github.event_name"},
+	{"debug upload wrong path", "path: .readiness-debug/", "path: .other-debug/"},
+	{"debug upload wrong name", "name: readiness-debug-${{ github.run_id }}", "name: readiness-shard-${{ github.run_id }}"},
 }
 
 var readinessServiceMutations = []struct {
