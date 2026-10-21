@@ -22,17 +22,29 @@ predecessor-only graph resource nodes through the existing generation-aware
 materialization path, subject to that path's runtime configuration. Neither
 production fact records nor deployed graph state were inspected or changed here.
 
-**No-regression evidence:** The B-7 Neo4j corpus gate ran against a local
-PostgreSQL fixture with the readback filter in place. A matched before/after
-`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` comparison used the same projection,
-joins, predicates, ordering, and limit across five interleaved pairs. Median
-execution was 1.326 ms without the filter and 1.247 ms with it; both used
-`fact_records_collector_status_active_idx`, returned 51 rows, and recorded 232
-shared buffer hits with no reads. These fixture timings are not production
-p95 evidence and do not establish a speedup. B-7 completed in 8m23s with 616
-passes, no required failures, and two advisory timing warnings.
+Performance Evidence: This change adds a selective predicate to the
+cloud-inventory readback query. It does not change fact writes, graph writes, or
+queue processing.
 
-**Observability evidence:** No runtime instrumentation changed. The query
+Benchmark Evidence: The before query is the production projection, joins,
+filters, ordering, and limit with only the legacy-key predicate removed; the
+after query adds `payload->>'resource_type' IS DISTINCT FROM
+'aws_appsync_api_key'`. Five interleaved pairs ran `EXPLAIN (ANALYZE, BUFFERS,
+FORMAT JSON)` against the local B-7 PostgreSQL 18.6 fixture (35 repositories,
+76 active scopes, 121 active canonical identities). Median execution was 1.326
+ms before and 1.247 ms after. Both plans used
+`fact_records_collector_status_active_idx`, returned 51 rows, and recorded 232
+shared buffer hits with zero reads. The filter preserves records with a missing
+or JSON-null `resource_type`, as asserted by the seeded live PostgreSQL test.
+
+No-Regression Evidence: B-7 completed with 616 passes, 0 required failures,
+and 2 advisory timing warnings. Its terminal state had 0 residual work items, 0
+nonterminal shared-projection intents, and 0 unroutable intents. The matched
+local fixture timings and plan shape show no regression; they are not production
+p95 evidence and do not establish a speedup. The exact predicate was also
+validated against the red pre-filter query in the live regression.
+
+Observability Evidence: No runtime instrumentation changed. The query
 continues to use the existing `postgres.query` span and error recording.
 
 Before treating deployed exposure as resolved, rotate AppSync API keys for the
