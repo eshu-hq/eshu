@@ -19,6 +19,10 @@ tests:
     class: verified_scheduled
     reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/projector_queue_claim_postfence_revival_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#8695 post-fence revival pin, gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; measured once locally on disposable Postgres 18.6 — promote to verified_scheduled after a scheduled green run"
   - file: go/internal/storage/postgres/projector_queue_delta_baseline_concurrency_live_test.go
     tag: ~
     class: scheduled

@@ -23,7 +23,12 @@ func TestProjectorClaimSweepsPostFenceRevivedRow(t *testing.T) {
 	oldSupersededAt := seedSupersededClaimScope(t, database, "scope-rv",
 		supersededClaimRow{workItemID: workItemID, status: "dead_letter"})
 
-	// Post-fence revival with the poison RecoverDeadLetters SET shape.
+	// Post-fence revival with the poison RecoverDeadLetters SET shape (see
+	// RecoverDeadLettersQuery in poison/liveness_sql.go: the UPDATE leg
+	// re-verifies only the dead_letter status, so a SELECT snapshot taken
+	// before the supersede commits still revives the row after it. The
+	// fixture tracks that production statement; if its SET shape changes,
+	// update this UPDATE to match.
 	revived, err := database.ExecContext(ctx, `
 UPDATE fact_work_items AS target
 SET status = 'pending',
