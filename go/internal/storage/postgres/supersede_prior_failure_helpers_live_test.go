@@ -327,6 +327,9 @@ func ncStatSnapshot(database *sql.DB) string {
 		out += fmt.Sprintf("\n%s live=%v dead=%v vacuum=%v autovacuum=%v analyze=%v autoanalyze=%v",
 			name, live.Int64, dead.Int64, vac.String, avac.String, ana.String, aana.String)
 	}
+	if err := rows.Err(); err != nil {
+		return "(stats rows: " + err.Error() + ")"
+	}
 	return out
 }
 
@@ -360,7 +363,7 @@ SELECT 'scope-'||i||'-g1','scope-'||i,'push', now()-interval '2 hours', now()-in
 			fmt.Sprintf(`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, status, attempt_count, last_attempt_at, failure_class, failure_message, failure_details, payload, created_at, updated_at)
 SELECT '%s_scope-'||i||'_g1','scope-'||i,'scope-'||i||'-g1','%s','%s','dead_letter',3, now()-interval '90 minutes','graph_write_timeout','timed out', %s,'{}'::jsonb, now()-interval '2 hours', now()-interval '90 minutes' FROM generate_series(1,%d) i`, stage, stage, domain, costDetailExpr(800), staleRows))
 	}
-	costExec(t, database, append(stmts, `VACUUM ANALYZE fact_work_items`, `ANALYZE scope_generations`, `ANALYZE ingestion_scopes`)...)
+	costExec(t, database, append(stmts, `VACUUM ANALYZE fact_work_items`, `ANALYZE scope_generations`, `ANALYZE ingestion_scopes`, `ANALYZE projector_scope_claim_fences`)...)
 }
 
 // ncPlanNode is the part of an EXPLAIN (FORMAT JSON) node the proof reads.
