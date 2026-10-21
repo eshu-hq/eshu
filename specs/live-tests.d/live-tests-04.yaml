@@ -129,7 +129,7 @@ tests:
     class: scheduled
     reason: "untagged live proof gated by env Skip; proves the #5385 T4 repository retirement cascade and regeneration case on the writer path: retirement deletes owned Workload, WorkloadInstance, and Endpoint labels before path cleanup, the sibling nodes and SAME_NAME edges survive, and USES/DOCUMENTS edges survive regeneration with zero orphan edges; local run on neo4j:2026-community took 10.9s on a shared host — promote to blocking with repeated timing evidence"
     backends: neo4j
-  - file: go/internal/storage/cypher/provenance_counts_tiebreak_live_test.go
+  - file: go/internal/storage/cypher/edge/writer/provenance_counts_tiebreak_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
     reason: "#7711 deterministic seeded proof that the provenance count reads deliver tied groups in tiebreaker order on each backend leg (exact row sequence asserted); local run 0.03 s on NornicDB, 0.52 s on Neo4j"

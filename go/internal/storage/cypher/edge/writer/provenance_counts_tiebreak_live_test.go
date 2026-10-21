@@ -21,15 +21,15 @@
 //	  ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-500-e022384c@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1
 //	docker run -d --name eshu-live-neo4j -p 127.0.0.1:27950:7687 -e NEO4J_AUTH=none \
 //	  neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
-//	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27940 go test ./internal/storage/cypher \
+//	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27940 go test ./internal/storage/cypher/edge/writer \
 //	  -tags live_nornicdb_answer_truth -run TestLiveProvenanceCountsTiebreakIsDeterministic -count=1 -v
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27950 ESHU_LIVE_GRAPH_BACKEND=neo4j \
-//	  go test ./internal/storage/cypher -tags live_nornicdb_answer_truth \
+//	  go test ./internal/storage/cypher/edge/writer -tags live_nornicdb_answer_truth \
 //	  -run TestLiveProvenanceCountsTiebreakIsDeterministic -count=1 -v
 //
 // ESHU_LIVE_GRAPH_BACKEND is nornicdb (default) or neo4j. ESHU_LIVE_GRAPH_DATABASE
 // defaults to "nornic" for NornicDB and "neo4j" for Neo4j.
-package cypher_test
+package writer_test
 
 import (
 	"context"
@@ -42,7 +42,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const liveTiebreakPrefix = "live-7711-tiebreak:"
@@ -84,7 +84,7 @@ func TestLiveProvenanceCountsTiebreakIsDeterministic(t *testing.T) {
 	file("f5", "js")
 
 	rec := &recordingTiebreakReader{live: live}
-	store := sourcecypher.NewProvenanceCountStore(rec)
+	store := edgewriter.NewProvenanceCountStore(rec)
 	edgeCounts, err := store.EdgesBySourceTool(ctx)
 	if err != nil {
 		t.Fatalf("EdgesBySourceTool: %v", err)

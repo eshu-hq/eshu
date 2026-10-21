@@ -9,7 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/telemetry/snapshot"
 	"go.opentelemetry.io/otel/metric"
@@ -136,7 +136,7 @@ func registerProvenanceCoverageGauges(
 	graphReader query.GraphQuery,
 	getenv func(string) string,
 ) error {
-	store := sourcecypher.NewProvenanceCountStore(graphReader)
+	store := edgewriter.NewProvenanceCountStore(graphReader)
 	store.GroupLimit = loadPositiveIntOrDefault(getenv, graphCountLimitEnv, defaultGraphCountLimit)
 	edges, err := refresher.Register(gaugeEdgesBySourceTool, store.EdgesBySourceTool)
 	if err != nil {

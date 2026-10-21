@@ -283,6 +283,13 @@ go/cmd/reducer/evidence-5048-executor-retry-seam.md:go/cmd/reducer/reducer_execu
 go/internal/storage/cypher/evidence-4367-cloud-edge-retract.md:go/cmd/reducer/reducer_executor_adapters.go
 go/internal/storage/cypher/evidence-4367-iam-variable-retract.md:go/cmd/reducer/reducer_executor_adapters.go
 
+# #6694 provenance-counts leaf move: a dated evidence note that records the
+# writer source path as it stood when that evidence was written (#7711
+# backend-diff dispositions). Repointing would falsify the record of which
+# file stamped the gauge reads under test. The live pointer is
+# go/internal/storage/cypher/edge/writer/provenance_counts.go.
+docs/internal/evidence/7711-backend-diff-dispositions.md:go/internal/storage/cypher/provenance_counts.go
+
 # #6777 telemetry contract nest: dated evidence notes that record the
 # service-scope changed-since span attribute and grant-refusal vocabulary as
 # declared in the flat go/internal/telemetry/contract_zzzz_service_changed_since.go
