@@ -6,6 +6,7 @@ set -euo pipefail
 readonly alpine_digest='sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873'
 readonly bookworm_digest='sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c'
 readonly neo4j_digest='sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f'
+readonly golang_digest='sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca'
 readonly crane_bin="${CRANE_BIN:-crane}"
 
 if [[ "$#" -ne 1 ]]; then
@@ -94,7 +95,10 @@ if [[ "$1" == publish ]]; then
   publish_one neo4j-community \
     "mirror.gcr.io/library/neo4j:2026-community@${neo4j_digest}" \
     "ghcr.io/eshu-hq/ci-neo4j-community@${neo4j_digest}" "${neo4j_digest}"
-  printf 'New GHCR packages may be private. Make all three public, then run verify-public before changing consumers.\n'
+  publish_one golang \
+    "mirror.gcr.io/library/golang:1.26.10-alpine@${golang_digest}" \
+    "ghcr.io/eshu-hq/ci-mirror-golang@${golang_digest}" "${golang_digest}"
+  printf 'New GHCR packages may be private. Verify all four are public, then run verify-public before changing consumers.\n'
   exit 0
 fi
 
@@ -106,3 +110,4 @@ export DOCKER_CONFIG="${anonymous_config}"
 verify_public_one postgres-alpine "ghcr.io/eshu-hq/ci-postgres-alpine@${alpine_digest}" "${alpine_digest}"
 verify_public_one postgres-bookworm "ghcr.io/eshu-hq/ci-postgres-bookworm@${bookworm_digest}" "${bookworm_digest}"
 verify_public_one neo4j-community "ghcr.io/eshu-hq/ci-neo4j-community@${neo4j_digest}" "${neo4j_digest}"
+verify_public_one golang "ghcr.io/eshu-hq/ci-mirror-golang@${golang_digest}" "${golang_digest}"
