@@ -3,6 +3,20 @@
 Three readers use an issue: the owner skims it, an executor agent acts on it,
 and a reviewer reads it a year later with no context. Write for all three.
 
+## Choose the artifact
+
+Use the order below for a bug or feature issue. Preserve required issue-form
+fields and an explicit request to retain an existing format. A release or
+operational checklist has different work to communicate: prerequisites, approval
+boundaries, and what to monitor afterward. Keep that structure and run
+`check-shape.sh --issue-checklist checklist.md`. It still checks paragraph length
+and private identifiers, including inside evidence blocks; it does not require a
+bold lead or bug-report headings. The default `--issue` checks remain unchanged.
+
+For a checklist, state the purpose, then list the prerequisites and monitoring
+steps. Keep technical identifiers, but explain unfamiliar shorthand in context.
+Do not replace incomplete work with claims that it is already done.
+
 ## Order
 
 1. **Lead.** One bold sentence: what is wrong, and for whom or what.

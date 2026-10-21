@@ -1,8 +1,8 @@
 # Owner report
 
 The owner follows many sessions at once and reads a page faster than terminal
-text. A status or result report to the owner is one HTML page in STE-style
-wording. The chat message stays short and points to it.
+text. A status or result report to the owner is one HTML page using the repository
+communication standard. The chat message stays short and points to it.
 
 ## When to use the page
 
@@ -17,7 +17,8 @@ wording. The chat message stays short and points to it.
 1. Copy [the skeleton](owner-report-skeleton.html) to your scratch directory as
    `show-me-<topic>.html`. Do not write into the repository.
 2. Fill the sections in the order below. Delete a section that has no content.
-3. Run the STE linter on the page text when it is available.
+3. Review the text against the repository communication standard; no global
+   skill or external writing linter is required.
 4. Open the file. Use `open <file>` on macOS, or open it in a browser. The page
    fetches Mermaid from jsdelivr when it opens online. Offline, the diagram
    source stays readable.

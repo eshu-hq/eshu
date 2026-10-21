@@ -4,10 +4,10 @@
 #
 # check-shape.sh - advisory shape check for a PR body or issue draft.
 #
-# Usage: check-shape.sh [--pr|--issue] <file>
+# Usage: check-shape.sh [--pr|--issue|--issue-checklist] <file>
 #
 # Run it on the draft before you capture a review receipt. It checks the shape
-# rules of the eshu-publish skill, not the wording; use ste-lint.py for wording.
+# rules of the eshu-publish skill. Review wording with its repository guide.
 #
 #   FAIL: the text breaks a rule that makes it hard to read. Fix it.
 #   WARN: advice. Judge it.
@@ -32,6 +32,7 @@ for arg in "$@"; do
   case "${arg}" in
     --pr) mode="pr" ;;
     --issue) mode="issue" ;;
+    --issue-checklist) mode="issue-checklist" ;;
     -h | --help)
       sed -n '5,21p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -40,7 +41,7 @@ for arg in "$@"; do
   esac
 done
 if [ -z "${file}" ] || [ ! -f "${file}" ]; then
-  echo "usage: check-shape.sh [--pr|--issue] <file>" >&2
+  echo "usage: check-shape.sh [--pr|--issue|--issue-checklist] <file>" >&2
   exit 2
 fi
 
@@ -158,7 +159,8 @@ END {
       firstreal !~ /^(Refs|Fixes|Closes|Resolves|Partial-closes) #[0-9]+/ &&
       firstreal !~ /^Refs [A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_.-]+#[0-9]+\./)
     fail("ref", "the first line must start with Refs #N., Fixes #N., or Refs owner/repo#N.")
-  if (!leadseen) fail("lead", "no lead: the first paragraph after the Refs line must be bold from start to end")
+  if (!started) fail("empty", "the draft is empty")
+  if (!leadseen && mode != "issue-checklist") fail("lead", "no lead: the first paragraph after the Refs line must be bold from start to end")
   else if (leadwords > 45) warn("lead", "the lead has " leadwords " words; aim for 45 or fewer")
   if (mode == "pr") {
     if (!glance) {
@@ -167,7 +169,7 @@ END {
     }
     if (total > 1200 && h2 < 2) warn("headings", "a body over 1200 characters should have at least 2 ## headings")
     if (!notchecked) warn("notchecked", "no NOT_CHECKED line; say what you did not run")
-  } else {
+  } else if (mode == "issue") {
     if (!problem) fail("problem", "no ## Problem heading")
     if (!accept) fail("acceptance", "no ## Acceptance criteria heading")
   }
