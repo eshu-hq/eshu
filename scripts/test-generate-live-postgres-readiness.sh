@@ -38,6 +38,13 @@ out="$(python3 "${generator}" --check 2>&1)" || fail "clean tree --check failed:
 # specs/scripts/workflow inputs and outputs, committed so the ledger
 # validator's git ls-files sees the same universe.
 scratch="$(mktemp -d)"
+# #8673: keep fixture repos out of the host git-ai daemon's Trace2 tracking.
+# The daemon keys on its Trace2 socket env; any git process that emits to it
+# teaches the daemon the fixture path (fixtures and their gate runs inherit
+# this env). GIT_TRACE2_EVENT=0 disables the event stream (same convention as
+# test-verify-moved-file-refs.sh); PERF likewise. Teardown retries stay as
+# belt-and-braces.
+export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
 trap 'rm -rf "${scratch}"' EXIT
 if ! cp -al "${repo_root}/go" "${scratch}/go" 2>/dev/null; then
   rm -rf "${scratch}/go"

@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-parser-relationship-kit.sh"
 
-tmp_root="$(mktemp -d)"
+tmp_root="$(mktemp -d)"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: keep fixture git out of host daemon Trace2 tracking (cf. test-verify-moved-file-refs.sh).
 trap 'rm -rf "${tmp_root}"' EXIT
 
 # shellcheck source=scripts/lib/test-verify-parser-relationship-kit-fixture-git.sh
