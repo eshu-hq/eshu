@@ -1,0 +1,28 @@
+.github/workflows/docker-publish.yml
+  h_78a442cba0b3e6 48
+.github/workflows/e2e-tests.yml
+  h_78a442cba0b3e6 52
+.github/workflows/frontend.yml
+  h_78a442cba0b3e6 92
+.github/workflows/golden-corpus-gate.yml
+  h_78a442cba0b3e6 220
+.github/workflows/ifa-determinism-gate.yml
+  h_78a442cba0b3e6 131
+.github/workflows/live-backend-tests.yml
+  h_78a442cba0b3e6 115
+.github/workflows/read-api-latency-gate.yml
+  h_78a442cba0b3e6 107
+.github/workflows/test.yml
+  h_78a442cba0b3e6 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9fd1a473318bb5735fd0ab85feda241655ceedc",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
