@@ -146,9 +146,10 @@ const (
 	ResourceTypeAppSyncFunction = "aws_appsync_function"
 	// ResourceTypeAppSyncSchema identifies AppSync schema metadata for one API.
 	ResourceTypeAppSyncSchema = "aws_appsync_schema"
-	// ResourceTypeAppSyncAPIKey identifies AppSync API key metadata. The key
-	// value is never observed or persisted.
-	ResourceTypeAppSyncAPIKey = "aws_appsync_api_key" // #nosec G101 -- resource-type identifier for AppSync API key metadata, not a credential value
+	// Per-key AppSync API key resources are intentionally absent: key IDs
+	// must not become graph identities. The scanner emits only key counts
+	// and lifecycle timestamps on the owning API; historical
+	// aws_appsync_api_key rows are matched by literal in read paths.
 )
 
 const (

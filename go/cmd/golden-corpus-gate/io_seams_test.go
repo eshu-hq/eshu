@@ -104,6 +104,8 @@ func pinnedSelfLoopCounts() map[string]int64 {
 // instance identity materialization's disjoint augment property); and the
 // #5717 entry pins identity via a CloudResource node carrying resource_type
 // aws_ec2_ami (the AMI node class that lets the #5448 relationship resolve);
+// and the new AppSync API resource identity (whose lifecycle summary is
+// asserted on cloud inventory readback);
 // see testdata/golden/e2e-20repo-snapshot.json.
 func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	langs := make([]string, 10)
@@ -112,7 +114,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 	}
 	nodes := map[string]int64{
 		"File":                   int64(len(langs)),
-		"CloudResource":          2,
+		"CloudResource":          3,
 		"FluxKustomization":      1,
 		"FluxGitRepository":      1,
 		"FluxOCIRepository":      1,
@@ -147,6 +149,7 @@ func fileLanguageFloor() (map[string]int64, map[string][]string) {
 			// resource_type via the generic AWS resource node materialization
 			// path.
 			"aws_ec2_ami",
+			"aws_appsync_graphql_api",
 		},
 		"CloudResource|ami_id":                         {"ami-000000000000000a"},
 		"FluxKustomization|source_ref_kind":            {"GitRepository"},

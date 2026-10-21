@@ -53,8 +53,9 @@ Each AWS operation runs inside `recordAPICall`, which starts the
   `Resolver.ResponseMappingTemplate`, `Resolver.Code`,
   `FunctionConfiguration.RequestMappingTemplate`,
   `FunctionConfiguration.ResponseMappingTemplate`, `FunctionConfiguration.Code`,
-  the HTTP `AuthorizationConfig`, the RDS `AwsSecretStoreArn`, or any API key
-  value. The scanner-owned types have no field for them.
+  the HTTP `AuthorizationConfig`, the RDS `AwsSecretStoreArn`, API key `Id`
+  (the bearer credential), or the free-text API key description. Only key
+  expiry and deletion timestamps cross the adapter boundary.
 - Pagination follows `NextToken` and stops on nil or empty; treating empty as
   continuation would loop forever. Nil pages are guarded.
 

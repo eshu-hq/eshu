@@ -36,8 +36,9 @@
   its words would rewrite service and type segments everywhere, so `set`
   refuses it; extend the vocabulary, never bypass the refusal. The reducer
   extractors are
-  the judge: `TestAWSCorpusShapePreserved` compares raw and pseudonymized
-  rows and must stay at the design's exact numbers.
+  the judge: `TestAWSCorpusShapePreserved` keeps the seven-scope, 22-fact
+  #6965 baseline at its exact numbers. Additive fixture scopes need separate
+  full-corpus assertions; do not replace the baseline counts with new totals.
 - **Verify mirrors the gate.** The allow forms in `verify_forms.go` follow
   `scripts/lib/cassette_private_data_pattern.sh`; when the gate's allowlist
   changes, change both and keep `TestVerifyAgreesWithGateOnCommittedCorpus`

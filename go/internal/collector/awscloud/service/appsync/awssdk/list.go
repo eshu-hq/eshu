@@ -108,8 +108,9 @@ func (c *Client) listFunctions(ctx context.Context, apiID string) ([]appsyncserv
 	}
 }
 
-// listAPIKeys paginates ListApiKeys for one API. AppSync ListApiKeys never
-// returns the key value, and the scanner-owned APIKey type has no field for it.
+// listAPIKeys paginates ListApiKeys for one API. The SDK's Id contains the
+// bearer API key, so the adapter maps only lifecycle timestamps and discards
+// the identifier and free-text description.
 func (c *Client) listAPIKeys(ctx context.Context, apiID string) ([]appsyncservice.APIKey, error) {
 	var keys []appsyncservice.APIKey
 	var nextToken *string

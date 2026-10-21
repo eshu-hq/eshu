@@ -4,9 +4,9 @@
 
 `internal/collector/awscloud/service/appsync` owns the AppSync scanner
 contract for the AWS cloud collector. It converts GraphQL APIs, data sources,
-resolvers, pipeline functions, schema metadata, and API key metadata into
-reported AWS facts and relationship evidence for one claimed account and
-region.
+resolvers, pipeline functions, schema metadata, and API-level API key lifecycle
+summaries into reported AWS facts and relationship evidence for one claimed
+account and region.
 
 ## Ownership boundary
 
@@ -25,7 +25,6 @@ flowchart LR
   C --> F["aws_resource (resolver)"]
   C --> G["aws_resource (function)"]
   C --> H["aws_resource (schema)"]
-  C --> I["aws_resource (api key)"]
   C --> J["aws_relationship (api->data source)"]
   C --> K["aws_relationship (resolver/function->data source)"]
   C --> L["aws_relationship (data source->backing resource)"]
@@ -44,7 +43,9 @@ See `doc.go` for the godoc contract.
 - `Snapshot` - the scanner-owned metadata view returned by the adapter.
 - `GraphQLAPI`, `DataSource`, `Resolver`, `Function`, `SchemaMetadata`,
   `APIKey`, `LogConfig`, `UserPoolRef` - scanner-owned metadata types. None
-  carries the schema SDL, mapping templates, function code, or API key value.
+  carries the schema SDL, mapping templates, function code, API key values, key
+  IDs, or descriptions. The API resource carries the observed key count and
+  sorted expiry/deletion timestamps only.
 
 ## Dependencies
 
@@ -69,9 +70,11 @@ bounded AWS collector labels.
 - The scanner is metadata-only. It must never persist the schema SDL body
   (exposes the data model and PII field names), resolver request/response
   mapping templates (VTL or JS, often containing inline authorization
-  conditions), pipeline function code bodies, or API key values. The
-  scanner-owned types have no field for any of them; a struct-reflection test
-  asserts no string-bearing field can carry one.
+  conditions), pipeline function code bodies, API key values, key IDs, or key
+  descriptions. AppSync's SDK `Id` field is the bearer key itself. The adapter
+  discards it and the API resource retains only a key count and sorted lifecycle
+  timestamps. The scanner-owned types have no field for identifiers or free
+  text; struct and serialized-envelope tests enforce that boundary.
 - Every relationship sets a non-empty `target_type`. The API-to-user-pool edge
   targets the bare Cognito user pool ID, matching the resource_id the Cognito
   scanner publishes for the user pool node; targeting the compound
@@ -95,12 +98,14 @@ covers the bounded AppSync metadata path: paginated ListGraphqlApis discovery,
 per-API ListDataSources, ListTypes (names only) feeding ListResolvers per type,
 ListFunctions, GetSchemaCreationStatus for schema status and type count, and
 ListApiKeys, with no mapping-template, code, schema-body, or mutation calls.
+API key IDs and descriptions are discarded at the SDK boundary; only API-level
+counts and lifecycle timestamps are emitted, never per-key resource identities.
 
 No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
 covers AppSync resource and relationship fact emission, the partition-derived
 DynamoDB target ARN, the Cognito user pool join key, omission of SDL, mapping
-template, function code, and API key value payloads, runtime registration, and
-command configuration.
+template, function code, API key values, IDs, and descriptions, lifecycle
+summary ordering, runtime registration, and command configuration.
 
 Collector Observability Evidence: AppSync uses the existing AWS collector
 `aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,

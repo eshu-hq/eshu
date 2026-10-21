@@ -12,7 +12,8 @@
 // EvaluateMappingTemplate, EvaluateCode, GetIntrospectionSchema,
 // StartSchemaCreation, GetDataSourceIntrospection, or any mutation API, and it
 // never maps the schema SDL body, resolver or function mapping templates,
-// function code bodies, or API key values. Callers must handle AWS
+// function code bodies, API key Id values, or API key descriptions. Only
+// expiry and deletion timestamps cross into scanner-owned types. Callers must handle AWS
 // authorization, throttling, and partial service failures as normal scanner
 // errors.
 package awssdk

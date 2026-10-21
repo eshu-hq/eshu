@@ -28,9 +28,10 @@ const listPageSize int32 = 25
 // StartSchemaCreation, GetDataSourceIntrospection, and every Create/Update/Delete
 // operation. ListResolvers and ListFunctions responses do include mapping-template
 // and code fields, but the mapper deliberately never reads or copies them, so no
-// template, code, or key-value body reaches a fact; GetSchemaCreationStatus returns
-// only a status string. A reflection test asserts the forbidden methods stay absent
-// from this interface, and a mapping test asserts those body fields are not persisted.
+// template, code, API key Id, or key description reaches a fact;
+// GetSchemaCreationStatus returns only a status string. A reflection test asserts
+// the forbidden methods stay absent from this interface, and mapping tests assert
+// those body and credential fields are not persisted.
 type appsyncAPI interface {
 	ListGraphqlApis(context.Context, *awsappsync.ListGraphqlApisInput, ...func(*awsappsync.Options)) (*awsappsync.ListGraphqlApisOutput, error)
 	ListDataSources(context.Context, *awsappsync.ListDataSourcesInput, ...func(*awsappsync.Options)) (*awsappsync.ListDataSourcesOutput, error)
@@ -44,7 +45,8 @@ type appsyncAPI interface {
 // Client adapts AWS SDK AppSync read-only calls into scanner-owned metadata. It
 // never calls EvaluateMappingTemplate, EvaluateCode, GetIntrospectionSchema, any
 // schema-creation, introspection, or mutation API, and never maps the schema SDL
-// body, resolver/function mapping templates, function code, or API key values.
+// body, resolver/function mapping templates, function code, API key Id values,
+// or API key descriptions.
 type Client struct {
 	api         appsyncAPI
 	boundary    awscloud.Boundary
@@ -68,7 +70,7 @@ func NewClient(
 }
 
 // Snapshot returns GraphQL API, data source, resolver, function, schema, and
-// API key metadata visible to the configured AWS credentials.
+// API key lifecycle summaries visible to the configured AWS credentials.
 func (c *Client) Snapshot(ctx context.Context) (appsyncservice.Snapshot, error) {
 	apis, err := c.listGraphQLAPIs(ctx)
 	if err != nil {

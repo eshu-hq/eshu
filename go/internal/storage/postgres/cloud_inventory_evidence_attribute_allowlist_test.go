@@ -29,7 +29,9 @@ func TestCloudInventoryRecordFromRowAWSRawLocatorsNotSurfaced(t *testing.T) {
 		"region":"us-east-1",
 		"attributes":{
 			"uri":"https://example.invalid/raw/locator",
-			"cluster_arn":"` + arn + `"
+			"cluster_arn":"` + arn + `",
+			"api_key_count":99,
+			"api_key_lifecycles":[{"expires":"2027-01-31T00:00:00Z"}]
 		}
 	}`)
 
@@ -39,6 +41,52 @@ func TestCloudInventoryRecordFromRowAWSRawLocatorsNotSurfaced(t *testing.T) {
 	}
 	if record.Attributes != nil {
 		t.Fatalf("AWS Attributes = %#v, want nil (no allowlisted keys present)", record.Attributes)
+	}
+}
+
+func TestCloudInventoryRecordFromRowAppSyncLifecycleAllowlist(t *testing.T) {
+	t.Parallel()
+
+	arn := "arn:aws:appsync:us-east-1:000000000000:apis/api-orders"
+	payload := []byte(`{
+		"arn":"` + arn + `",
+		"resource_type":"aws_appsync_graphql_api",
+		"account_id":"000000000000",
+		"resource_id":"api-orders",
+		"region":"us-east-1",
+		"attributes":{
+			"api_key_count":2,
+			"api_key_lifecycles":[
+				{"expires":"2026-12-31T00:00:00Z","deletes":null,"key_id":"da2-second-secret","description":"other private text"},
+				{"expires":"2027-01-31T00:00:00Z","deletes":"2027-02-28T00:00:00Z","key_id":"da2-secret","description":"private text"}
+			],
+			"raw_secret":"must-not-surface"
+		}
+	}`)
+
+	record, ok := cloudInventoryRecordFromRow(cloud.AWSResourceFactKind, arn, payload)
+	if !ok {
+		t.Fatal("cloudInventoryRecordFromRow() ok = false, want true")
+	}
+	if got, want := record.Attributes["api_key_count"], "2"; got != want {
+		t.Fatalf("api_key_count = %#v, want %q", got, want)
+	}
+	lifecycles, ok := record.Attributes["api_key_lifecycles"].([]map[string]any)
+	if !ok || len(lifecycles) != 2 {
+		t.Fatalf("api_key_lifecycles = %#v, want two lifecycle records", record.Attributes["api_key_lifecycles"])
+	}
+	if got, want := lifecycles[0]["expires"], "2026-12-31T00:00:00Z"; got != want {
+		t.Fatalf("first lifecycle expiry = %#v, want %q", got, want)
+	}
+	for _, lifecycle := range lifecycles {
+		for _, forbidden := range []string{"key_id", "description", "raw_secret"} {
+			if _, present := lifecycle[forbidden]; present {
+				t.Fatalf("forbidden lifecycle key %q surfaced: %#v", forbidden, lifecycle)
+			}
+		}
+	}
+	if _, present := record.Attributes["raw_secret"]; present {
+		t.Fatalf("raw_secret surfaced: %#v", record.Attributes)
 	}
 }
 

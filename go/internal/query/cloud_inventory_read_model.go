@@ -245,10 +245,10 @@ var cloudInventoryContainerAttributeKeys = map[string]struct{}{
 // cloudInventoryAttributes projects the bounded provider-specific attributes map
 // from the canonical identity payload. It keeps only non-blank string keys (cap
 // 64) whose values are string, bool, float64, or []string/[]any-of-strings, plus
-// the allowlisted "containers" nested array-of-objects reduced to {image,
-// image_digest} per element. Nested maps under any other key, and any other
-// value type, are dropped so no malformed payload content can leak unexpected
-// structured data through the readback wire.
+// the allowlisted "containers" nested array reduced to {image, image_digest}
+// and AppSync lifecycle entries reduced to expiry/deletion timestamps. Nested
+// maps under any other key, and any other value type, are dropped so malformed
+// payload content cannot leak unexpected structured data through readback.
 func cloudInventoryAttributes(payload map[string]any) map[string]any {
 	const maxKeys = 64
 	object, ok := payload["attributes"].(map[string]any)
@@ -266,6 +266,12 @@ func cloudInventoryAttributes(payload map[string]any) map[string]any {
 		if key == cloudInventoryContainersAttributeKey {
 			if containers := cloudInventoryContainerAttributes(value); len(containers) > 0 {
 				out[key] = containers
+			}
+			continue
+		}
+		if key == cloudInventoryAppSyncKeyLifecyclesAttributeKey {
+			if lifecycles := cloudInventoryAppSyncKeyLifecycleAttributes(value); len(lifecycles) > 0 {
+				out[key] = lifecycles
 			}
 			continue
 		}
