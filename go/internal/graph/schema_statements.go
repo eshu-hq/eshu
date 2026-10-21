@@ -33,6 +33,7 @@ func SchemaStatementsForBackend(backend SchemaBackend) ([]string, error) {
 		len(schemaConstraints)+
 			len(uidConstraintLabels)+
 			len(schemaPerformanceIndexes)+
+			len(neo4jRetirementLookupIndexes)+
 			len(schemaFulltextIndexes))
 	stmts = append(stmts, retiredConstraintDrops(dialect.retiredConstraints)...)
 	for _, cypher := range schemaConstraints {
@@ -43,6 +44,9 @@ func SchemaStatementsForBackend(backend SchemaBackend) ([]string, error) {
 	stmts = append(stmts, schemaPerformanceIndexes...)
 	if dialect.includeNeo4jUIDLookupIndexes {
 		stmts = append(stmts, neo4jUIDLookupIndexes...)
+	}
+	if dialect.includeRetirementLookupIndexes {
+		stmts = append(stmts, neo4jRetirementLookupIndexes...)
 	}
 	if dialect.includeInfraSearchKeyIndex {
 		stmts = append(stmts, neo4jInfraSearchKeyIndexes...)

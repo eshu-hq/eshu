@@ -43,14 +43,18 @@ func ensureSchemaWithBackend(
 		dialect: dialect,
 		total:   schemaStatementTotal(dialect),
 	}
+	// apply runs one statement list under a single schema phase, folding
+	// its non-context failures into the shared count and stopping at the
+	// first context failure.
+	apply := func(phase string, stmts []string) error {
+		n, err := state.executeList(ctx, executor, phase, stmts)
+		failed += n
+		return err
+	}
 
-	for _, cypher := range retiredConstraintDrops(dialect.retiredConstraints) {
-		if err := state.execute(ctx, executor, string(dialect.backend)+"_retired_constraint_drops", cypher); err != nil {
-			if isSchemaContextFailure(err) {
-				return err
-			}
-			failed++
-		}
+	if err := apply(string(dialect.backend)+"_retired_constraint_drops",
+		retiredConstraintDrops(dialect.retiredConstraints)); err != nil {
+		return err
 	}
 
 	for _, cypher := range schemaConstraints {
@@ -66,58 +70,34 @@ func ensureSchemaWithBackend(
 		}
 	}
 
-	for _, cypher := range schemaPerformanceIndexes {
-		if err := state.execute(ctx, executor, "performance_indexes", cypher); err != nil {
-			if isSchemaContextFailure(err) {
-				return err
-			}
-			failed++
-		}
+	if err := apply("performance_indexes", schemaPerformanceIndexes); err != nil {
+		return err
 	}
 	if dialect.includeNeo4jUIDLookupIndexes {
-		for _, cypher := range neo4jUIDLookupIndexes {
-			if err := state.execute(ctx, executor, "neo4j_uid_lookup_indexes", cypher); err != nil {
-				if isSchemaContextFailure(err) {
-					return err
-				}
-				failed++
-			}
+		if err := apply("neo4j_uid_lookup_indexes", neo4jUIDLookupIndexes); err != nil {
+			return err
 		}
 	}
 	if dialect.includeInfraSearchKeyIndex {
-		for _, cypher := range neo4jInfraSearchKeyIndexes {
-			if err := state.execute(ctx, executor, "neo4j_infra_search_key_index", cypher); err != nil {
-				if isSchemaContextFailure(err) {
-					return err
-				}
-				failed++
-			}
+		if err := apply("neo4j_infra_search_key_index", neo4jInfraSearchKeyIndexes); err != nil {
+			return err
 		}
 	}
-	for _, cypher := range dialect.retiredConstraintPathIndexes {
-		if err := state.execute(ctx, executor, string(dialect.backend)+"_retired_constraint_path_indexes", cypher); err != nil {
-			if isSchemaContextFailure(err) {
-				return err
-			}
-			failed++
+	if dialect.includeRetirementLookupIndexes {
+		if err := apply("neo4j_retirement_lookup_indexes", neo4jRetirementLookupIndexes); err != nil {
+			return err
 		}
+	}
+	if err := apply(string(dialect.backend)+"_retired_constraint_path_indexes",
+		dialect.retiredConstraintPathIndexes); err != nil {
+		return err
 	}
 	if dialect.includeMergeLookupIndexes {
-		for _, cypher := range nornicDBMergeLookupIndexes {
-			if err := state.execute(ctx, executor, "nornicdb_merge_lookup_indexes", cypher); err != nil {
-				if isSchemaContextFailure(err) {
-					return err
-				}
-				failed++
-			}
+		if err := apply("nornicdb_merge_lookup_indexes", nornicDBMergeLookupIndexes); err != nil {
+			return err
 		}
-		for _, cypher := range nornicDBUIDLookupIndexes() {
-			if err := state.execute(ctx, executor, "nornicdb_uid_lookup_indexes", cypher); err != nil {
-				if isSchemaContextFailure(err) {
-					return err
-				}
-				failed++
-			}
+		if err := apply("nornicdb_uid_lookup_indexes", nornicDBUIDLookupIndexes()); err != nil {
+			return err
 		}
 	}
 
@@ -163,6 +143,28 @@ func ensureSchemaWithBackend(
 	}
 
 	return nil
+}
+
+// executeList runs every statement in order under one schema phase. It
+// returns the count of non-context failures and stops at the first
+// context failure, matching the inline loops it replaces in
+// ensureSchemaWithBackend.
+func (s *schemaExecutionState) executeList(
+	ctx context.Context,
+	executor CypherExecutor,
+	phase string,
+	stmts []string,
+) (int, error) {
+	var failed int
+	for _, cypher := range stmts {
+		if err := s.execute(ctx, executor, phase, cypher); err != nil {
+			if isSchemaContextFailure(err) {
+				return failed, err
+			}
+			failed++
+		}
+	}
+	return failed, nil
 }
 
 func (s *schemaExecutionState) execute(
@@ -222,6 +224,9 @@ func schemaStatementTotal(dialect schemaDialect) int {
 	}
 	if dialect.includeInfraSearchKeyIndex {
 		total += len(neo4jInfraSearchKeyIndexes)
+	}
+	if dialect.includeRetirementLookupIndexes {
+		total += len(neo4jRetirementLookupIndexes)
 	}
 	if dialect.includeMergeLookupIndexes {
 		total += len(nornicDBMergeLookupIndexes)

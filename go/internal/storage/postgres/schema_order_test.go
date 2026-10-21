@@ -535,4 +535,15 @@ var orderedBootstrapDefinitionNames = []string{
 	// indexes. Tombstone rows are opened by the operator-driven retirement
 	// mark; no backfill exists.
 	"repository_retirements",
+	// Migration 208 (#8659, Deliverable 2 step 2c) adds the graph-retraction
+	// capture columns to the tombstone: the stable copy of the repo root
+	// and scope ids every 2c resume and the 2z census read instead of the
+	// live rows the purge may already have deleted. DDL only, no backfill:
+	// captures are written per retirement by the 2c entry write.
+	"repository_retirement_graph_capture",
+	// Migration 209 (#8659, Deliverable 2 steps 2b/2b') adds the lease
+	// claim-epoch column the shared-projection barrier predicate reads
+	// (claimed_at IS NULL OR claimed_at <= intent_barrier_at). DDL only,
+	// no backfill: claimed_at is stamped when a new owner takes the lease.
+	"partition_lease_claimed_at",
 }

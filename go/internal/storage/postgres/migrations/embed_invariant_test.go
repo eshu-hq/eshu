@@ -115,13 +115,16 @@ import (
 // upsert, so no backfill half exists).
 // #7766 adds 207_repository_retirements.sql (retirement tombstone marker
 // table plus its open-row, runnable, scope, and idempotency indexes).
-const goldenBootstrapDefinitionsDigest = "da988e770c713a7da7ec55d52c602c9e8d0a0218098eb7deecc0fb3fcea8b6f4"
+// #8659 adds 208_repository_retirement_graph_capture.sql (graph_repo_root
+// plus graph_scope_ids capture columns for the 2c graph retraction) and
+// 209_partition_lease_claimed_at.sql (claim epoch for the 2b' barrier).
+const goldenBootstrapDefinitionsDigest = "0813bb3b0e916c3fd964764dae97df23111111eccbebf71138a19ce9112ed76a"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 225
+const goldenBootstrapDefinitionsCount = 227
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
