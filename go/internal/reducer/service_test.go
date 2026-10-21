@@ -14,6 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
 )
 
 func TestServiceRunClaimsExecutesAndAcknowledges(t *testing.T) {
@@ -267,12 +269,12 @@ func TestServiceRunStartsGraphProjectionPhaseRepairer(t *testing.T) {
 		WorkSource:   &stubReducerWorkSource{},
 		Executor:     &stubReducerExecutor{},
 		WorkSink:     &stubReducerWorkSink{},
-		GraphProjectionPhaseRepairer: &GraphProjectionPhaseRepairer{
+		GraphProjectionPhaseRepairer: &repair.Repairer{
 			Queue:       queue,
 			AcceptedGen: acceptedGenerationFixed("", false),
 			StateLookup: graphProjectionPhaseLookupFixed(false, false, nil),
 			Publisher:   &recordingGraphProjectionPhasePublisher{},
-			Config: GraphProjectionPhaseRepairerConfig{
+			Config: repair.Config{
 				PollInterval: 10 * time.Millisecond,
 				BatchLimit:   10,
 				RetryDelay:   time.Minute,
@@ -389,20 +391,20 @@ type serviceRepairQueue struct {
 	listCalls int
 }
 
-func (s *serviceRepairQueue) Enqueue(context.Context, []GraphProjectionPhaseRepair) error {
+func (s *serviceRepairQueue) Enqueue(context.Context, []gpphase.PhaseRepair) error {
 	return nil
 }
 
-func (s *serviceRepairQueue) ListDue(context.Context, time.Time, int) ([]GraphProjectionPhaseRepair, error) {
+func (s *serviceRepairQueue) ListDue(context.Context, time.Time, int) ([]gpphase.PhaseRepair, error) {
 	s.listCalls++
 	return nil, nil
 }
 
-func (s *serviceRepairQueue) Delete(context.Context, []GraphProjectionPhaseRepair) error {
+func (s *serviceRepairQueue) Delete(context.Context, []gpphase.PhaseRepair) error {
 	return nil
 }
 
-func (s *serviceRepairQueue) MarkFailed(context.Context, GraphProjectionPhaseRepair, time.Time, string) error {
+func (s *serviceRepairQueue) MarkFailed(context.Context, gpphase.PhaseRepair, time.Time, string) error {
 	return nil
 }
 

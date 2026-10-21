@@ -58,7 +58,7 @@ flowchart TB
   Service --> SPR["SharedProjectionRunner.Run()\ngoroutine"]
   Service --> CCPR["CodeCallProjectionRunner.Run()\ngoroutine"]
   Service --> RDPR["RepoDependencyProjectionRunner.Run()\ngoroutine"]
-  Service --> Repair["GraphProjectionPhaseRepairer.Run()\ngoroutine"]
+  Service --> Repair["repair.Repairer.Run()\ngoroutine"]
   Service --> Orphans["GraphOrphanSweepRunner.Run()\ngoroutine"]
   Service --> Liveness["GenerationLivenessRunner.Run()\ngoroutine"]
   Service --> SearchVectors["SearchVectorBuildRunner.Run()\ngoroutine"]
@@ -188,8 +188,7 @@ Core interfaces:
 - `BatchWorkSource`, `BatchWorkSink` — `service.go:43–51`
 - `Handler`, `HandlerFunc` — `registry.go:70–78`
 - `PhasePublisher` — `gpphase/phasestate.go:25`
-- `GraphProjectionPhaseRepairQueue` (alias of `gpphase.PhaseRepairQueue`) —
-  `graph_projection_phase_repair.go`
+- `gpphase.PhaseRepairQueue` — `gpphase/repair.go`
 - `StateLookup` (`internal/reducer/intents/phase/repair`, no root alias) —
   `intents/phase/repair/runner.go`
 
@@ -243,7 +242,7 @@ Domain and intent helpers:
 
 - `ParseDomain(raw)` — `domain.go:24`.
 - `IsRetryable(err)` — `intent.go:127`.
-- `GraphProjectionPhaseRepairsFromStates` — `graph_projection_phase_repair.go:45`.
+- `gpphase.PhaseRepairsFromStates` — `gpphase/repair.go`.
 - `ExtractOverlayEnvironments` — `projection.go:207` — the four directory-pattern
   regexes (`overlays/<env>/`, `env|environments/<env>/`, `inventory/<env>`,
   `group_vars/<env>`).
@@ -400,7 +399,7 @@ values each counter carries.
   `eshu_dp_reducer_executions_total{status="deferred"}` and a WARN
   `reducer execution deferred` log; every other failure stays `failed`/ERROR.
 - **Phase publications and graph writes are not atomic** — if a graph write
-  commits but the phase publication fails, `GraphProjectionPhaseRepairQueue`
+  commits but the phase publication fails, `gpphase.PhaseRepairQueue`
   captures the retry.
 - **Container image identity is digest-first and active-set authoritative** —
   only explicit digests or single-tag-to-digest matches enter a complete,

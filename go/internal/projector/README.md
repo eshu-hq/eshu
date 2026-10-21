@@ -171,7 +171,7 @@ See `doc.go` for the full godoc contract.
 - `internal/queue` — `queue.FailureRecord`; `ClassifyFailure.ToFailureRecord`
   converts to this for queue persistence
 - `internal/reducer` / `internal/reducer/contract` — `reducercontract.Domain`, `gpphase.PhasePublisher`,
-  `reducer.GraphProjectionPhaseRepairQueue`, `gpphase.PhaseState`,
+  `gpphase.PhaseRepairQueue`, `gpphase.PhaseState`,
   `reducer.DomainSemanticEntityMaterialization`; projector emits intents and
   phase state that reducer consumes
 - `internal/scope` — `scope.IngestionScope`, `scope.ScopeGeneration`; scope

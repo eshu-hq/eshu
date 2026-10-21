@@ -13,7 +13,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
@@ -23,7 +22,7 @@ func TestGraphProjectionPhaseRepairQueueStoreEnqueueAndListDue(t *testing.T) {
 	database := newGraphProjectionPhaseRepairQueueTestDB()
 	store := NewGraphProjectionPhaseRepairQueueStore(database)
 	now := time.Date(2026, time.April, 17, 11, 0, 0, 0, time.UTC)
-	repair := reducer.GraphProjectionPhaseRepair{
+	repair := gpphase.PhaseRepair{
 		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
@@ -38,7 +37,7 @@ func TestGraphProjectionPhaseRepairQueueStoreEnqueueAndListDue(t *testing.T) {
 		LastError:     "publish failed",
 	}
 
-	if err := store.Enqueue(context.Background(), []reducer.GraphProjectionPhaseRepair{repair}); err != nil {
+	if err := store.Enqueue(context.Background(), []gpphase.PhaseRepair{repair}); err != nil {
 		t.Fatalf("Enqueue() error = %v", err)
 	}
 
@@ -60,7 +59,7 @@ func TestGraphProjectionPhaseRepairQueueStoreDelete(t *testing.T) {
 	database := newGraphProjectionPhaseRepairQueueTestDB()
 	store := NewGraphProjectionPhaseRepairQueueStore(database)
 	now := time.Date(2026, time.April, 17, 11, 0, 0, 0, time.UTC)
-	repair := reducer.GraphProjectionPhaseRepair{
+	repair := gpphase.PhaseRepair{
 		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
@@ -74,10 +73,10 @@ func TestGraphProjectionPhaseRepairQueueStoreDelete(t *testing.T) {
 		NextAttemptAt: now,
 	}
 
-	if err := store.Enqueue(context.Background(), []reducer.GraphProjectionPhaseRepair{repair}); err != nil {
+	if err := store.Enqueue(context.Background(), []gpphase.PhaseRepair{repair}); err != nil {
 		t.Fatalf("Enqueue() error = %v", err)
 	}
-	if err := store.Delete(context.Background(), []reducer.GraphProjectionPhaseRepair{repair}); err != nil {
+	if err := store.Delete(context.Background(), []gpphase.PhaseRepair{repair}); err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
 
@@ -96,7 +95,7 @@ func TestGraphProjectionPhaseRepairQueueStoreMarkFailed(t *testing.T) {
 	database := newGraphProjectionPhaseRepairQueueTestDB()
 	store := NewGraphProjectionPhaseRepairQueueStore(database)
 	now := time.Date(2026, time.April, 17, 11, 0, 0, 0, time.UTC)
-	repair := reducer.GraphProjectionPhaseRepair{
+	repair := gpphase.PhaseRepair{
 		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
@@ -110,7 +109,7 @@ func TestGraphProjectionPhaseRepairQueueStoreMarkFailed(t *testing.T) {
 		NextAttemptAt: now,
 	}
 
-	if err := store.Enqueue(context.Background(), []reducer.GraphProjectionPhaseRepair{repair}); err != nil {
+	if err := store.Enqueue(context.Background(), []gpphase.PhaseRepair{repair}); err != nil {
 		t.Fatalf("Enqueue() error = %v", err)
 	}
 	nextAttemptAt := now.Add(5 * time.Minute)

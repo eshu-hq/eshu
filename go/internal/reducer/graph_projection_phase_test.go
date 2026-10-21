@@ -14,7 +14,7 @@ import (
 func TestGraphProjectionPhaseRepairValidate(t *testing.T) {
 	t.Parallel()
 
-	repair := GraphProjectionPhaseRepair{
+	repair := gpphase.PhaseRepair{
 		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
@@ -35,7 +35,7 @@ func TestGraphProjectionPhaseRepairValidate(t *testing.T) {
 func TestGraphProjectionPhaseRepairValidateRejectsBlankPhase(t *testing.T) {
 	t.Parallel()
 
-	repair := GraphProjectionPhaseRepair{
+	repair := gpphase.PhaseRepair{
 		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",

@@ -24,12 +24,9 @@ package reducer
 //     folded from graph_projection_phase_repair.go and
 //     graph_projection_phase_repair_runner.go)
 
-import (
-	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
-	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
-)
+// This bucket currently carries no live entries: every stanza below is a
+// retired ledger. Each entry was deleted once its last caller moved; see the
+// importer-migration child issue.
 
 // Stanza ci_cd_run_correlation_compat.go: fully retired (#6626 tail bucket 2).
 // Every caller names [cicdrun] directly; the notes below are ledger.
@@ -63,17 +60,12 @@ import (
 
 // Stanza: graph-projection phase repair (H5 root-remnant fold, issue #6061;
 // folded from graph_projection_phase_repair.go and
-// graph_projection_phase_repair_runner.go).
-type (
-	GraphProjectionPhaseRepair         = gpphase.PhaseRepair
-	GraphProjectionPhaseRepairQueue    = gpphase.PhaseRepairQueue
-	GraphProjectionPhaseRepairerConfig = repair.Config
-	GraphProjectionPhaseRepairer       = repair.Repairer
-)
-
-func GraphProjectionPhaseRepairsFromStates(states []gpphase.PhaseState, lastError string, enqueuedAt time.Time) []GraphProjectionPhaseRepair {
-	return gpphase.PhaseRepairsFromStates(states, lastError, enqueuedAt)
-}
+// graph_projection_phase_repair_runner.go): fully retired once every caller
+// named [gpphase] and [repair] directly (#6626 gpphase micro-batch).
+// GraphProjectionPhaseRepair, GraphProjectionPhaseRepairQueue,
+// GraphProjectionPhaseRepairerConfig, GraphProjectionPhaseRepairer, and
+// GraphProjectionPhaseRepairsFromStates were deleted with their last callers;
+// the notes above are ledger.
 
 // repoWideRetractRefreshPartitionKey was retired once its last callers
 // named [sharedintent.RepoWideRetractRefreshPartitionKey] directly (#6626

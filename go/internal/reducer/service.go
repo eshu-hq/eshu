@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 
@@ -114,7 +115,7 @@ type Service struct {
 
 	// GraphProjectionPhaseRepairer retries exact readiness publications that
 	// failed after the underlying graph write already committed.
-	GraphProjectionPhaseRepairer *GraphProjectionPhaseRepairer
+	GraphProjectionPhaseRepairer *repair.Repairer
 
 	// GenerationRetentionRunner prunes superseded source-generation history in
 	// bounded transactions. Nil disables automated cleanup.

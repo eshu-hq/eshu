@@ -16,7 +16,7 @@ import (
 // TestSemanticEntityRepairQueueAdapterEnqueueTranslatesAllFields drives a
 // fully populated semantic.GraphProjectionPhaseRepair row through
 // semanticEntityRepairQueueAdapter.Enqueue and asserts every field of the
-// recorded root-typed row equals the input.
+// recorded gpphase-typed row equals the input.
 //
 // PR #6536 review: the existing wiring tests
 // (defaults_domain_catalog_semantic_repair_queue_test.go) only assert the
@@ -57,7 +57,7 @@ func TestSemanticEntityRepairQueueAdapterEnqueueTranslatesAllFields(t *testing.T
 	}
 	got := rootQueue.calls[0][0]
 
-	want := GraphProjectionPhaseRepair{
+	want := gpphase.PhaseRepair{
 		Key:           in.Key,
 		Phase:         in.Phase,
 		CommittedAt:   in.CommittedAt,
@@ -73,29 +73,28 @@ func TestSemanticEntityRepairQueueAdapterEnqueueTranslatesAllFields(t *testing.T
 }
 
 // TestGraphProjectionPhaseRepairStructsStayFieldForFieldParity pins the two
-// independently declared GraphProjectionPhaseRepair struct copies --
-// graph_projection_phase_repair.go (root) and code/semantic/graph_ports.go
-// -- field-for-field. code/semantic cannot import the root's struct (issue
-// #6061: a family subpackage never imports the reducer root), so the two
-// declarations are hand-copied and nothing but code review previously
+// independently declared repair struct copies -- gpphase/repair.go and
+// code/semantic/graph_ports.go -- field-for-field. code/semantic keeps its
+// own copy (issue #6061: the port stays narrow and local to the family), so
+// the two declarations are hand-copied and nothing but code review previously
 // caught them drifting apart. PR #6536 review, second half.
 func TestGraphProjectionPhaseRepairStructsStayFieldForFieldParity(t *testing.T) {
 	t.Parallel()
 
-	rootType := reflect.TypeOf(GraphProjectionPhaseRepair{})
+	leafType := reflect.TypeOf(gpphase.PhaseRepair{})
 	semanticType := reflect.TypeOf(semantic.GraphProjectionPhaseRepair{})
 
-	if rootType.NumField() != semanticType.NumField() {
-		t.Fatalf("field count = %d (root) vs %d (code/semantic), want equal", rootType.NumField(), semanticType.NumField())
+	if leafType.NumField() != semanticType.NumField() {
+		t.Fatalf("field count = %d (gpphase) vs %d (code/semantic), want equal", leafType.NumField(), semanticType.NumField())
 	}
-	for i := 0; i < rootType.NumField(); i++ {
-		rootField := rootType.Field(i)
+	for i := 0; i < leafType.NumField(); i++ {
+		leafField := leafType.Field(i)
 		semanticField := semanticType.Field(i)
-		if rootField.Name != semanticField.Name {
-			t.Fatalf("field %d name = %q (root) vs %q (code/semantic), want equal", i, rootField.Name, semanticField.Name)
+		if leafField.Name != semanticField.Name {
+			t.Fatalf("field %d name = %q (gpphase) vs %q (code/semantic), want equal", i, leafField.Name, semanticField.Name)
 		}
-		if rootField.Type != semanticField.Type {
-			t.Fatalf("field %q type = %s (root) vs %s (code/semantic), want equal", rootField.Name, rootField.Type, semanticField.Type)
+		if leafField.Type != semanticField.Type {
+			t.Fatalf("field %q type = %s (gpphase) vs %s (code/semantic), want equal", leafField.Name, leafField.Type, semanticField.Type)
 		}
 	}
 }

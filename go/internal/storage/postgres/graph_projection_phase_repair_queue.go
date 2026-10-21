@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 const (
@@ -129,7 +129,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) EnsureSchema(ctx context.Context)
 }
 
 // Enqueue inserts repair rows idempotently in batches.
-func (s *GraphProjectionPhaseRepairQueueStore) Enqueue(ctx context.Context, repairs []reducer.GraphProjectionPhaseRepair) error {
+func (s *GraphProjectionPhaseRepairQueueStore) Enqueue(ctx context.Context, repairs []gpphase.PhaseRepair) error {
 	if len(repairs) == 0 {
 		return nil
 	}
@@ -148,7 +148,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) Enqueue(ctx context.Context, repa
 }
 
 // ListDue returns repair rows that are ready to retry at or before now.
-func (s *GraphProjectionPhaseRepairQueueStore) ListDue(ctx context.Context, now time.Time, limit int) ([]reducer.GraphProjectionPhaseRepair, error) {
+func (s *GraphProjectionPhaseRepairQueueStore) ListDue(ctx context.Context, now time.Time, limit int) ([]gpphase.PhaseRepair, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
@@ -159,9 +159,9 @@ func (s *GraphProjectionPhaseRepairQueueStore) ListDue(ctx context.Context, now 
 	}
 	defer func() { _ = rows.Close() }()
 
-	repairs := make([]reducer.GraphProjectionPhaseRepair, 0)
+	repairs := make([]gpphase.PhaseRepair, 0)
 	for rows.Next() {
-		var repair reducer.GraphProjectionPhaseRepair
+		var repair gpphase.PhaseRepair
 		if err := rows.Scan(
 			&repair.Key.ScopeID,
 			&repair.Key.AcceptanceUnitID,
@@ -187,7 +187,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) ListDue(ctx context.Context, now 
 }
 
 // Delete removes successfully repaired rows from the queue.
-func (s *GraphProjectionPhaseRepairQueueStore) Delete(ctx context.Context, repairs []reducer.GraphProjectionPhaseRepair) error {
+func (s *GraphProjectionPhaseRepairQueueStore) Delete(ctx context.Context, repairs []gpphase.PhaseRepair) error {
 	if len(repairs) == 0 {
 		return nil
 	}
@@ -208,7 +208,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) Delete(ctx context.Context, repai
 // MarkFailed records the latest publication error and moves the retry time.
 func (s *GraphProjectionPhaseRepairQueueStore) MarkFailed(
 	ctx context.Context,
-	repair reducer.GraphProjectionPhaseRepair,
+	repair gpphase.PhaseRepair,
 	nextAttemptAt time.Time,
 	lastError string,
 ) error {
@@ -236,7 +236,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) MarkFailed(
 	return nil
 }
 
-func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, database db.ExecQueryer, batch []reducer.GraphProjectionPhaseRepair, now time.Time) error {
+func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, database db.ExecQueryer, batch []gpphase.PhaseRepair, now time.Time) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -294,7 +294,7 @@ func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, database db.Exe
 	return nil
 }
 
-func deleteGraphProjectionPhaseRepairBatch(ctx context.Context, database db.ExecQueryer, batch []reducer.GraphProjectionPhaseRepair) error {
+func deleteGraphProjectionPhaseRepairBatch(ctx context.Context, database db.ExecQueryer, batch []gpphase.PhaseRepair) error {
 	args := make([]any, 0, len(batch)*graphProjectionPhaseRepairQueueDeleteKeyWidth)
 	var tuples strings.Builder
 

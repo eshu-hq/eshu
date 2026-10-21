@@ -57,32 +57,32 @@ func (p *recordingSemanticEntityPhasePublisher) PublishGraphProjectionPhases(_ c
 	return p.err
 }
 
-// recordingSemanticEntityRepairQueue is a GraphProjectionPhaseRepairQueue
-// double, using the reducer root's own GraphProjectionPhaseRepair type. It is
+// recordingSemanticEntityRepairQueue is a gpphase.PhaseRepairQueue
+// double, using gpphase's own PhaseRepair type. It is
 // wired directly into root handlers under test (e.g.
-// WorkloadMaterializationHandler) that still take the root's full repair
+// WorkloadMaterializationHandler) that still take the full repair
 // queue interface, not into semantic.Handler
 // (which takes its own local, narrower interface and is reached only through
 // semanticEntityRepairQueueAdapter).
 type recordingSemanticEntityRepairQueue struct {
-	calls [][]GraphProjectionPhaseRepair
+	calls [][]gpphase.PhaseRepair
 }
 
-func (q *recordingSemanticEntityRepairQueue) Enqueue(_ context.Context, repairs []GraphProjectionPhaseRepair) error {
-	cloned := make([]GraphProjectionPhaseRepair, len(repairs))
+func (q *recordingSemanticEntityRepairQueue) Enqueue(_ context.Context, repairs []gpphase.PhaseRepair) error {
+	cloned := make([]gpphase.PhaseRepair, len(repairs))
 	copy(cloned, repairs)
 	q.calls = append(q.calls, cloned)
 	return nil
 }
 
-func (q *recordingSemanticEntityRepairQueue) ListDue(context.Context, time.Time, int) ([]GraphProjectionPhaseRepair, error) {
+func (q *recordingSemanticEntityRepairQueue) ListDue(context.Context, time.Time, int) ([]gpphase.PhaseRepair, error) {
 	return nil, nil
 }
 
-func (q *recordingSemanticEntityRepairQueue) Delete(context.Context, []GraphProjectionPhaseRepair) error {
+func (q *recordingSemanticEntityRepairQueue) Delete(context.Context, []gpphase.PhaseRepair) error {
 	return nil
 }
 
-func (q *recordingSemanticEntityRepairQueue) MarkFailed(context.Context, GraphProjectionPhaseRepair, time.Time, string) error {
+func (q *recordingSemanticEntityRepairQueue) MarkFailed(context.Context, gpphase.PhaseRepair, time.Time, string) error {
 	return nil
 }

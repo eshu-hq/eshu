@@ -68,17 +68,16 @@ root repair queue is present (`defaults_domain_catalog.go:97-114`).
 
 `GraphProjectionPhaseRepairQueue` and `GraphProjectionPhaseRepair` are
 declared locally in `graph_ports.go` rather than reusing `gpphase`'s
-`PhaseRepairQueue`/`PhaseRepair` directly (the root's own
-`GraphProjectionPhaseRepairQueue`/`GraphProjectionPhaseRepair` spellings,
-declared in the root's `compat_correlation.go` bucket, are themselves now
-aliases to those two `gpphase` types as of issue #6061's H3): the concrete
+`PhaseRepairQueue`/`PhaseRepair` directly (the retired root aliases lived in
+the `compat_correlation.go` bucket until #6626 retired them): the concrete
 repair queue this package's `RepairQueue` field is wired to at runtime is
-drained by `intents/phase/repair/runner.go` and typed at the reducer root
-(`workload_materialization_handler.go`, `workload_materialization_repo_phase.go`).
+drained by `intents/phase/repair/runner.go` and held by the reducer root
+handlers (`workload_materialization_handler.go`,
+`workload_materialization_repo_phase.go`) as `gpphase.PhaseRepairQueue`.
 Unlike the codetaint ports this pattern follows, this interface's `Enqueue`
 method takes a named struct parameter, and Go requires exact type identity
-for that, not just a matching method set — a queue built against the
-root's/`gpphase`'s `GraphProjectionPhaseRepair`/`PhaseRepair` cannot satisfy
+for that, not just a matching method set — a queue built against
+`gpphase`'s `PhaseRepair` cannot satisfy
 this package's `GraphProjectionPhaseRepairQueue` directly, even though every
 field matches. The root wires it through
 `semanticEntityRepairQueueAdapter`
@@ -296,12 +295,12 @@ grow).
   other root domains still call unqualified; they live in
   the shared-payload-delta stanza of `compat_decode.go`. Do not reintroduce a
   local copy — call the shared-tier function they forward to.
-- **`GraphProjectionPhaseRepairQueue` here is narrower than the root's.** It
+- **`GraphProjectionPhaseRepairQueue` here is narrower than `gpphase`'s.** It
   declares only `Enqueue`, the one method `Handler`
-  calls, not the root's full `Enqueue`/`ListDue`/`Delete`/`MarkFailed` set
+  calls, not `gpphase`'s full `Enqueue`/`ListDue`/`Delete`/`MarkFailed` set
   the repair runner needs. Narrowing the method set is not enough on its own:
   a wider implementation satisfies this interface only if its `Enqueue` takes
-  `[]semantic.GraphProjectionPhaseRepair`. The root's takes the root's
+  `[]semantic.GraphProjectionPhaseRepair`. `gpphase`'s takes `gpphase`'s
   own struct, and Go requires exact type identity in a method signature, which
   is why `semanticEntityRepairQueueAdapter` exists. Do not delete it.
 - **Delta scoping is per repository**, carried on each generation's

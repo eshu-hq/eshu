@@ -29,10 +29,11 @@ instead, alongside the rest of that package's readiness vocabulary.
 | `Config` | polling interval, batch limit, retry delay |
 | `StateLookup` | resolves whether one exact readiness phase is already published |
 
-The reducer root keeps `GraphProjectionPhaseRepairer` (aliased to `Repairer`)
-and `GraphProjectionPhaseRepairerConfig` (aliased to `Config`) so
 `cmd/reducer`'s construction (`main_helpers.go`, `config_projection.go`) and
-`internal/reducer/service.go`'s field keep their existing spelling.
+`internal/reducer/service.go`'s field name the `repair` leaf directly
+(`Repairer`, `Config`): #6626 retired the `GraphProjectionPhaseRepairer` /
+`GraphProjectionPhaseRepairerConfig` root aliases once those last callers
+moved.
 
 ## Dependencies
 

@@ -24,7 +24,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	projectorentity "github.com/eshu-hq/eshu/go/internal/projector/semantic/entity"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -44,7 +43,7 @@ type Runtime struct {
 	ContentWriter   content.Writer
 	IntentWriter    ReducerIntentWriter
 	PhasePublisher  gpphase.PhasePublisher
-	RepairQueue     reducer.GraphProjectionPhaseRepairQueue
+	RepairQueue     gpphase.PhaseRepairQueue
 	RetryInjector   failure.RetryInjector
 	// PackageRegistryIdentityLocker coordinates package UID writes across
 	// projector processes before canonical graph projection reaches the backend.

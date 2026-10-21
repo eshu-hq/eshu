@@ -108,7 +108,7 @@ type DefaultHandlers struct {
 	// GraphProjectionPhasePublisher persists durable graph-readiness publications
 	// for canonical and semantic node writers.
 	GraphProjectionPhasePublisher gpphase.PhasePublisher
-	GraphProjectionRepairQueue    GraphProjectionPhaseRepairQueue
+	GraphProjectionRepairQueue    gpphase.PhaseRepairQueue
 	ReadinessLookup               gpphase.ReadinessLookup
 	ReadinessPrefetch             gpphase.ReadinessPrefetch
 

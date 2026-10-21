@@ -24,17 +24,16 @@ signal about where the symbol belongs, not a reason to reach upward:
   `GraphProjectionPhase*` keyspace/phase/key/state/publisher vocabulary are
   all root type aliases to `reducer/contract`, `reducer/factload`, and
   `reducer/gpphase` — import those packages directly, never the root alias;
-- a symbol whose root spelling is itself now a type alias to a leaf this
-  package cannot import without recreating the blocker the leaf exists to
-  break (the repair queue: `GraphProjectionPhaseRepair`/
-  `GraphProjectionPhaseRepairQueue` alias `gpphase.PhaseRepair`/
-  `gpphase.PhaseRepairQueue` as of issue #6061's H3) gets a structurally
-  identical local declaration in `graph_ports.go`, following the pattern
+- a symbol whose root spelling was a type alias to a leaf gets a structurally
+  identical local declaration in `graph_ports.go` (the repair queue:
+  `GraphProjectionPhaseRepair`/`GraphProjectionPhaseRepairQueue` were root
+  aliases to `gpphase.PhaseRepair`/`gpphase.PhaseRepairQueue` until #6626
+  retired them), following the pattern
   `code/taint/graph_ports.go` established. Copy a function body byte-for-byte
   if you must copy at all — never re-derive it from memory. Unlike
   codetaint's ports, `GraphProjectionPhaseRepairQueue.Enqueue` takes a named
-  struct parameter, so Go's exact-type-identity rule means neither the
-  root's alias nor `gpphase`'s concrete queue satisfies this package's
+  struct parameter, so Go's exact-type-identity rule means
+  `gpphase`'s concrete queue does not satisfy this package's
   interface for free the way it would with a primitive-only method set; the
   root bridges the two named types with `semanticEntityRepairQueueAdapter`
   (`internal/reducer/semantic_entity_repair_queue_adapter.go`). Issue #6061's
@@ -79,15 +78,15 @@ to.
   `GenerationCheck` keeps the legacy run-to-completion path — add no
   second wiring knob. `materialization.go` sits near the 500-line cap, so
   new fence logic goes in `generation_gates.go`, never inline in `Handle`.
-- **`GraphProjectionPhaseRepairQueue` here is intentionally narrower than the
-  root's.** It declares only `Enqueue`. Do not widen it to mirror the root's
-  full interface unless this package actually starts calling
+- **`GraphProjectionPhaseRepairQueue` here is intentionally narrower than
+  `gpphase`'s.** It declares only `Enqueue`. Do not widen it to mirror
+  `gpphase`'s full interface unless this package actually starts calling
   `ListDue`/`Delete`/`MarkFailed` — a wider local interface would force every
   caller's concrete queue to satisfy methods this package never uses, for no
-  benefit. That said, the narrowing does not make the root's concrete queue
+  benefit. That said, the narrowing does not make `gpphase`'s concrete queue
   satisfy this interface directly: `Enqueue` takes a named
   `GraphProjectionPhaseRepair` struct, and this package's is a distinct
-  type from the root's, so Go's exact-type-identity rule for method
+  type from `gpphase`'s, so Go's exact-type-identity rule for method
   signatures still requires the `semanticEntityRepairQueueAdapter` bridge in
   root. Only a plain, primitive-only method (like `codetaint.GraphQueryRunner.Run`)
   gets free structural satisfaction from a root concrete type.
@@ -137,6 +136,6 @@ to.
   under that name for this family's own logic either — extend this package
   instead.
 - Do not suppress `dirgate` with `//nolint`.
-- Do not widen `GraphProjectionPhaseRepairQueue` to the root's full
+- Do not widen `GraphProjectionPhaseRepairQueue` to `gpphase`'s full
   interface without a new caller in this package that needs the extra
   methods.

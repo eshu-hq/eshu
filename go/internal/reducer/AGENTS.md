@@ -39,7 +39,7 @@ before touching any file in this directory.
   `resolved_relationships` must have a post-Phase-3 reopen mechanism. See
   `bootstrap-index/main.go:273`. Its consumers' own gate (`crossrepo.EvaluateOwnGate`, #7597) fails a dead-lettered producer in the counting `*_producer_dead_lettered` classes and a missing one in `*_producer_missing` (never enroll them as non-counting); the producer's relationship-generation activation reopens those consumers in the same transaction.
 - **Phase publications and graph writes are not atomic** — if a write
-  commits but the publication fails, `GraphProjectionPhaseRepairQueue`
+  commits but the publication fails, `gpphase.PhaseRepairQueue`
   captures the retry. Do not skip enqueueing to the repair queue when a
   publish fails.
 - **Shared projection intent IDs are stable SHA256 hashes** —
@@ -163,7 +163,7 @@ before touching any file in this directory.
   `semantic_nodes_committed` or `canonical_nodes_committed` rows for the
   affected `AcceptanceUnitID`.
 - **Repair queue growth**: `graph_projection_phase_repair` table grows
-  without drain. Check `GraphProjectionPhaseRepairer` logs for
+  without drain. Check `repair.Repairer` logs for
   `graph_projection_repair_publish_failed`; verify the phase publisher's
   Postgres connection is healthy.
 - **Generation supersession flood**: `reducer_executions_total{status="superseded"}`
@@ -2151,7 +2151,7 @@ completion logs).
 
 - Do not add `if backend == nornicdb` (or equivalent) logic inside domain
   handlers. Backend differences belong in `storage/cypher` narrow seams.
-- Do not skip `GraphProjectionPhaseRepairQueue.Enqueue` on publish failure.
+- Do not skip `gpphase.PhaseRepairQueue.Enqueue` on publish failure.
   Swallowing the error hides missing readiness rows.
 - Do not build a new domain that writes edges before confirming the
   appropriate readiness phase is published. Edge writes without a readiness
@@ -2171,7 +2171,7 @@ completion logs).
   durable canonical write or bounded counter emission).
 - The heartbeat / lease / retry contract in `service.go`.
 - The `BuildSharedProjectionIntent` SHA256 identity function.
-- The `GraphProjectionPhaseRepairQueue` contract (removing it breaks
+- The `gpphase.PhaseRepairQueue` contract (removing it breaks
   the non-atomic write/publish recovery path).
 - The ordering of phases in `worker.ReadinessPhase`
   (`intents/shared/worker/domains.go`).

@@ -14,7 +14,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
@@ -29,7 +28,7 @@ func (r Runtime) publishCanonicalGraphPhases(ctx context.Context, generationID s
 	}
 	if err := r.PhasePublisher.PublishGraphProjectionPhases(ctx, rows); err != nil {
 		if r.RepairQueue != nil {
-			repairs := reducer.GraphProjectionPhaseRepairsFromStates(rows, err.Error(), time.Now().UTC())
+			repairs := gpphase.PhaseRepairsFromStates(rows, err.Error(), time.Now().UTC())
 			if enqueueErr := r.RepairQueue.Enqueue(ctx, repairs); enqueueErr != nil {
 				return fmt.Errorf("publish canonical graph phases: %w (enqueue repairs: %v)", err, enqueueErr)
 			}
