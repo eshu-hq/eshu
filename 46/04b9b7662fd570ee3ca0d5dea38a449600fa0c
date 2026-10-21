@@ -1,0 +1,16 @@
+apps/console/package-lock.json
+  h_78a442cba0b3e6 2822-2824,4104-4106,4110
+package-lock.json
+  h_78a442cba0b3e6 1250-1252,4156-4158,4850-4858,6121-6123,6128,6131,6137,6140-6141,7256-7261,7811-7813,7817
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4604b9b7662fd570ee3ca0d5dea38a449600fa0c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+scripts/ci/test-tools-image.sh
+  h_78a442cba0b3e6 45
+scripts/ci/tools.Dockerfile
+  h_78a442cba0b3e6 16-18,27,37,44
+scripts/ci/tools.README.md
+  h_78a442cba0b3e6 45-46,60
+.github/workflows/publish-ci-tools-oneoff.yml
+  h_78a442cba0b3e6 1-17,18-19,20-22,23-32,33-60,61,62-63,64,65,66,67-73
+specs/ci-gates.v1.yaml
+  h_78a442cba0b3e6 124-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6afa3dbb985f3699080d81f6f98d975671b087de",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

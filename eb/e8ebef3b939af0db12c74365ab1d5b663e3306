@@ -1,0 +1,18 @@
+.github/workflows/static-contract-gates.yml
+  h_78a442cba0b3e6 192
+scripts/ci/test-tools-workflow.py
+  h_78a442cba0b3e6 35
+specs/ci-images.v1.json
+  h_78a442cba0b3e6 245-246,250,253-254,257,260-261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ebe8ebef3b939af0db12c74365ab1d5b663e3306",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
