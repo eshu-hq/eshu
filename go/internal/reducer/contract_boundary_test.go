@@ -25,7 +25,6 @@ func TestReducerContractAliasesPreserveTypeIdentity(t *testing.T) {
 		{name: "FailureRecord", root: FailureRecord{}, contract: reducercontract.FailureRecord{}},
 		{name: "RetryableError", root: (*RetryableError)(nil), contract: (*reducercontract.RetryableError)(nil)},
 		{name: "OwnershipShape", root: OwnershipShape{}, contract: reducercontract.OwnershipShape{}},
-		{name: "reducercontract.CrossScopeDependency", root: reducercontract.CrossScopeDependency{}, contract: reducercontract.CrossScopeDependency{}},
 		{name: "DomainDefinition", root: DomainDefinition{}, contract: reducercontract.DomainDefinition{}},
 		{name: "Handler", root: (*Handler)(nil), contract: (*reducercontract.Handler)(nil)},
 		{name: "HandlerFunc", root: HandlerFunc(nil), contract: reducercontract.HandlerFunc(nil)},

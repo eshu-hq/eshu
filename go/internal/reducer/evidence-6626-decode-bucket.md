@@ -38,7 +38,7 @@ caller now spells the owning subpackage:
   `loadCodeownersOwnershipMaterializationFacts`.
 - `reducercontract` (1): `CrossScopeDependency`. `Domain*` consts stay for a
   later slice.
-- `gpphase` + `intents/phase/repair` (5+1): `GraphProjectionPhaseRepair`,
+- `gpphase` + `intents/phase/repair` (5): `GraphProjectionPhaseRepair`,
   `GraphProjectionPhaseRepairQueue`, `GraphProjectionPhaseRepairerConfig`,
   `GraphProjectionPhaseRepairer`, `GraphProjectionPhaseRepairsFromStates`.
 
