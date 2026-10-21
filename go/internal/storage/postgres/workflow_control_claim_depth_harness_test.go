@@ -125,12 +125,42 @@ func (r claimDepthResult) ClaimsPerSecond() float64 {
 // for windows where peers keep granting.
 const maxClaimDepthConsecutiveEmpties = 200
 
+// claimDepthStreakAction is the idle-exit step decision for a claimer that
+// has just observed a consecutive run of empty ClaimNextEligible returns.
+type claimDepthStreakAction int
+
+const (
+	// claimDepthStreakPoll keeps polling: the streak is below budget.
+	claimDepthStreakPoll claimDepthStreakAction = iota
+	// claimDepthStreakReset restarts the streak: the budget was reached but a
+	// global grant landed during it, so the streak is head-of-line
+	// contention, not a drained backlog. Each reset consumes at least one
+	// finite global grant, so the loop still ends once peers stop granting.
+	claimDepthStreakReset
+	// claimDepthStreakIdle idles the claimer: quiescence is proven.
+	claimDepthStreakIdle
+)
+
+// claimDepthStreakStep decides idle, reset, or poll for a streak of
+// consecutiveEmpties consecutive empty returns, where progressed reports
+// whether a global grant landed during the streak. Idling requires
+// quiescence proof: the streak reached the budget AND no grant landed
+// globally during it. A streak that overlaps any grant is head-of-line
+// contention, not a drained backlog, so the claimer must keep polling (#8725).
+func claimDepthStreakStep(consecutiveEmpties int, progressed bool) claimDepthStreakAction {
+	if consecutiveEmpties < maxClaimDepthConsecutiveEmpties {
+		return claimDepthStreakPoll
+	}
+	if progressed {
+		return claimDepthStreakReset
+	}
+	return claimDepthStreakIdle
+}
+
 // claimDepthQuiescent reports whether a claimer that has just observed
 // consecutiveEmpties consecutive empty ClaimNextEligible returns may idle.
-// Idling requires quiescence proof: the streak reached the budget AND no
-// grant landed globally during the streak (seqNow == seqAtStreakStart). A
-// streak that overlaps any grant is head-of-line contention, not a drained
-// backlog, so the claimer must keep polling.
+// It is the quiescence leg of claimDepthStreakStep, kept for the predicate
+// truth-table test: idle requires the budget AND a quiet streak.
 func claimDepthQuiescent(consecutiveEmpties int, seqAtStreakStart, seqNow int64) bool {
 	if consecutiveEmpties < maxClaimDepthConsecutiveEmpties {
 		return false
@@ -291,6 +321,7 @@ func drainClaimDepthBacklog(
 			}
 			consecutiveEmpties := 0
 			var seqAtStreakStart int64
+		drainLoop:
 			for attempt := 0; ; attempt++ {
 				selector := workflow.ClaimSelector{
 					CollectorKind:       scope.CollectorGit,
@@ -327,16 +358,16 @@ func drainClaimDepthBacklog(
 						seqAtStreakStart = seq.Load()
 					}
 					consecutiveEmpties++
-					if claimDepthQuiescent(consecutiveEmpties, seqAtStreakStart, seq.Load()) {
-						break
-					}
-					if consecutiveEmpties >= maxClaimDepthConsecutiveEmpties {
+					switch claimDepthStreakStep(consecutiveEmpties, seq.Load() != seqAtStreakStart) {
+					case claimDepthStreakIdle:
+						break drainLoop
+					case claimDepthStreakReset:
 						// Budget reached but grants landed during the
 						// streak: contention, not quiescence. Start a
-						// fresh streak from the new baseline. Each reset
-						// consumes at least one finite global grant, so
-						// the loop still ends once peers stop granting.
+						// fresh streak from the new baseline.
 						consecutiveEmpties = 0
+					case claimDepthStreakPoll:
+						// Below budget: keep polling.
 					}
 					time.Sleep(time.Duration(rand.Int63n(5)) * time.Millisecond)
 					continue

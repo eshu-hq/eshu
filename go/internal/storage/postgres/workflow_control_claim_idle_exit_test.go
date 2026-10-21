@@ -46,3 +46,26 @@ func TestClaimDepthQuiescentRequiresQuiescenceProof(t *testing.T) {
 		t.Fatalf("quiescent(0 empties) = true, want false")
 	}
 }
+
+// TestClaimDepthStreakStepResetTransition is the #8734 review follow-up: the
+// streak-reset transition (budget reached while grants landed) must be covered
+// deterministically, not only by the live drain.
+func TestClaimDepthStreakStepResetTransition(t *testing.T) {
+	t.Parallel()
+
+	if got := claimDepthStreakStep(maxClaimDepthConsecutiveEmpties-1, false); got != claimDepthStreakPoll {
+		t.Fatalf("step(budget-1, quiet) = %v, want poll", got)
+	}
+	if got := claimDepthStreakStep(maxClaimDepthConsecutiveEmpties, true); got != claimDepthStreakReset {
+		t.Fatalf("step(budget, progressed) = %v, want reset", got)
+	}
+	if got := claimDepthStreakStep(maxClaimDepthConsecutiveEmpties, false); got != claimDepthStreakIdle {
+		t.Fatalf("step(budget, quiet) = %v, want idle", got)
+	}
+	if got := claimDepthStreakStep(maxClaimDepthConsecutiveEmpties+40, true); got != claimDepthStreakReset {
+		t.Fatalf("step(budget+40, progressed) = %v, want reset", got)
+	}
+	if got := claimDepthStreakStep(0, true); got != claimDepthStreakPoll {
+		t.Fatalf("step(0, progressed) = %v, want poll", got)
+	}
+}
