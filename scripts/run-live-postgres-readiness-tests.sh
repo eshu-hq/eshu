@@ -112,6 +112,7 @@ failed_packages=()
 # its death point for post-mortem instead of the 20-line stderr cap (#8662).
 # The CI shard job uploads this dir on failure; green runs never create it.
 debug_dir="${LIVE_READINESS_DEBUG_DIR:-${repo_root}/.readiness-debug}"
+[[ "${debug_dir}" != "/" ]] || die "LIVE_READINESS_DEBUG_DIR must not be the filesystem root"
 rm -rf "${debug_dir}"
 
 # Every package runs even after an earlier one fails, so one CI run reports

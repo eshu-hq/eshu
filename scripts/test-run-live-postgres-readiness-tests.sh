@@ -197,6 +197,10 @@ cmp -s "$(events_of "${first_pkg}")" "${debug_pkgdir}/events.jsonl" ||
 [[ -f "${debug_pkgdir}/stderr.txt" ]] || fail "debug stderr not preserved for ${first_pkg}"
 [[ "${out}" == *"SEED-DEATH-MARKER"* ]] || fail "death-point tail not printed: ${out}"
 unset LIVE_READINESS_DEBUG_DIR
+
+# A debug dir of / must be refused before anything is cleared.
+out="$(LIVE_READINESS_DEBUG_DIR=/ bash "${runner}" 2>&1)" && fail "filesystem-root debug dir passed"
+[[ "${out}" == *"must not be the filesystem root"* ]] || fail "root debug dir not refused: ${out}"
 write_events
 sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${first_proof}\"/\"Action\":\"fail\",\"Test\":\"${first_proof}\"/" "$(events_of "${first_pkg}")"
 sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${last_proof}\"/\"Action\":\"skip\",\"Test\":\"${last_proof}\"/" "$(events_of "${last_pkg}")"
