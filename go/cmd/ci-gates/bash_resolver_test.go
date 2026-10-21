@@ -90,6 +90,54 @@ func TestResolveBash44Dir_FallsBackCleanly(t *testing.T) {
 	}
 }
 
+// TestGateSubprocessEnvNoFallbackKeepsPath proves the fallback path preserves
+// the inherited PATH when no fallback bash resolves (#8709 F1). A temp dir
+// holding an exit-1 `bash` fixture is prepended to PATH so LookPath finds a
+// non-qualifying bash while resolveBash44Dir finds nothing; with GOROOT set
+// the env must be non-nil with exactly one PATH entry equal to the caller
+// PATH. The pre-fix code filtered PATH unconditionally and emitted zero PATH
+// entries here, breaking every bare command lookup in the gate subprocess.
+func TestGateSubprocessEnvNoFallbackKeepsPath(t *testing.T) {
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "bash")
+	script := "#!/bin/sh\nexit 1\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil { //nolint:gosec // test fixture needs to be executable
+		t.Fatalf("write fake bash fixture: %v", err)
+	}
+	if _, err := exec.LookPath("bash"); err == nil {
+		t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	} else {
+		t.Setenv("PATH", dir)
+	}
+	if p, err := exec.LookPath("bash"); err != nil || bashAtLeast44(p) {
+		t.Skipf("could not force a non-qualifying PATH bash (lookpath=%q err=%v)", p, err)
+	}
+	if d := resolveBash44Dir(); d != "" {
+		t.Skipf("fallback bash resolves at %q on this host; nothing to preserve", d)
+	}
+	t.Setenv("GOROOT", "/fake/toolchain@v0.0.1-go1.99.9/root")
+	callerPath := os.Getenv("PATH")
+
+	env := gateSubprocessEnv()
+	if env == nil {
+		t.Fatal("GOROOT is set, but gateSubprocessEnv returned nil (inherit unchanged)")
+	}
+	pathVal := ""
+	count := 0
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "PATH=") {
+			count++
+			pathVal = strings.TrimPrefix(kv, "PATH=")
+		}
+	}
+	if count != 1 {
+		t.Fatalf("gateSubprocessEnv emitted %d PATH entries, want exactly 1", count)
+	}
+	if pathVal != callerPath {
+		t.Fatalf("PATH was rewritten without a fallback to steer to\n  want: %q\n  got:  %q", callerPath, pathVal)
+	}
+}
+
 // TestGateSubprocessEnvSteersFallbackBashDir proves the PATH-steering wiring
 // runShellCommand depends on for hosts whose PATH-resolved bash does NOT
 // qualify (macOS /bin/bash 3.2): gateSubprocessEnv must return an environment

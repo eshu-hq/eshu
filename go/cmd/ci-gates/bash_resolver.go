@@ -58,9 +58,12 @@ func resolveBash44Dir() string {
 
 // gateSubprocessEnv returns the environment a gate subprocess should run with:
 // os.Environ() with any GOROOT entry removed, and with a bash >= 4.4 directory
-// prepended to PATH when resolveBash44Dir finds one, so a gate command that
-// shells out to "bash scripts/*.sh" resolves the inner bash to a working
-// interpreter instead of macOS's 3.2.
+// prepended to PATH only when the PATH-resolved bash does not qualify and
+// resolveBash44Dir finds a fallback, so a gate command that shells out to
+// "bash scripts/*.sh" resolves the inner bash to a working interpreter
+// instead of macOS's 3.2. On hosts where PATH already resolves a qualifying
+// bash, PATH is left untouched so caller-installed tools keep their order
+// (#8709).
 //
 // The GOROOT strip is load-bearing, not defensive noise. This binary is
 // launched via `go -C go run ./cmd/ci-gates run` (scripts/dev/
@@ -104,7 +107,13 @@ func gateSubprocessEnv() []string {
 	base := os.Environ()
 	env := make([]string, 0, len(base)+1)
 	for _, kv := range base {
-		if strings.HasPrefix(kv, "GOROOT=") || strings.HasPrefix(kv, "PATH=") {
+		if strings.HasPrefix(kv, "GOROOT=") {
+			continue
+		}
+		// Filter PATH only when steering: with no fallback dir the
+		// inherited PATH must survive intact, or the subprocess loses
+		// every command lookup (#8709 F1).
+		if dir != "" && strings.HasPrefix(kv, "PATH=") {
 			continue
 		}
 		env = append(env, kv)
