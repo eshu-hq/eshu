@@ -18,7 +18,7 @@ its protocol companion.
 | PR3b-2a | `CheckFence`, the start-up check of the five fence triggers (no caller yet) |
 | PR3b-2b | `Deriver.DeriveRepository`, the derive core of protocol section 3 (no caller yet) |
 | PR3b-2 (rest) | the derive call in `ContentWriter.Write`, the walker derive, the start-up wiring of `CheckEncoding` and `CheckFence`, the derive counter, histogram and span, env variables |
-| PR3c | the stored reader, the read mode, the `/admin/status` field |
+| PR3c | the stored reader, the read mode, the `/admin/status` field (status field still open); the stored cutover adds `list_truncated` to the stored read, reported only for trusted repositories |
 
 From PR3b-1b on, every `content_files` write bumps
 `config_artifact_content_versions`. PR3b-2b adds the derive that reads it;
