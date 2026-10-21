@@ -1,0 +1,14 @@
+go/internal/payloadusage/load_test.go
+  h_78a442cba0b3e6 60-61,364-365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "89895ae29cc90f3c0897368a0b8f453feee60666",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
