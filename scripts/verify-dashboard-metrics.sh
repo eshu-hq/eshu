@@ -104,7 +104,7 @@ fi
 # constructor open paren and the metric name. Test files are excluded: their
 # literals are fixtures, not registrations.
 rg -UPo --no-filename '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
-  --replace '$1' -g '!*_test.go' "${instruments_dir}" 2>/dev/null \
+  --replace '$1' -g '*.go' -g '!*_test.go' "${instruments_dir}" 2>/dev/null \
   | rg '^eshu_dp_' \
   | sort -u >"${instruments_metrics_tmp}" || true
 

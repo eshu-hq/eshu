@@ -204,6 +204,20 @@ expect_pass "passes when a dashboard metric is registered in a sibling file" \
   "${case_sibling}"
 
 # ---------------------------------------------------------------------------
+# Case 8: a constructor-pattern literal in package prose (a .md example) must
+# NOT count as registration. Otherwise any plausible eshu_dp_* name in a doc
+# example silently whitelists an orphan dashboard reference (false-green).
+# ---------------------------------------------------------------------------
+case_prose="$(init_fixture case-prose)"
+make_dashboard "${case_prose}/docs/dashboards" "prose.json" \
+  eshu_dp_prose_only_metric_total
+printf '%s\n' '# Example (not a registration):' \
+  'Call `meter.Int64Counter("eshu_dp_prose_only_metric_total", ...)` in code.' \
+  >"${case_prose}/go/internal/telemetry/EXAMPLE.md"
+expect_fail "fails when only package prose names the dashboard metric" \
+  "${case_prose}"
+
+# ---------------------------------------------------------------------------
 # Results.
 # ---------------------------------------------------------------------------
 if [ "${FAIL}" -ne 0 ]; then
