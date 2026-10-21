@@ -44,6 +44,7 @@ Go package terminal elapsed values were `github.com/eshu-hq/eshu/go/internal/sto
 | `go/internal/storage/postgres/generation_uncovered_writers_live_test.go` | 1 | 0.46s |
 | `go/internal/storage/postgres/ingestion_published_generation_recommit_live_test.go` | 2 | 0.35s |
 | `go/internal/storage/postgres/installed_advisory_targets_paging_live_test.go` | 4 | 21.88s |
+| `go/internal/storage/postgres/projector_fenced_revival_guard_live_test.go` | 2 | 1.36s |
 | `go/internal/storage/postgres/projector_heartbeat_refusal_lock_order_live_test.go` | 1 | 1.60s |
 | `go/internal/storage/postgres/projector_heartbeat_write_marker_interleave_live_test.go` | 1 | 3.44s |
 | `go/internal/storage/postgres/projector_queue_ack_scope_wait_live_test.go` | 1 | 2.09s |
