@@ -11,11 +11,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// secretManagerSecretAssetType is the Cloud Asset Inventory asset type for a
-// Secret Manager secret. A permission grant whose bound resource is a secret is
-// flagged so the reducer can surface Secret Manager resource-grant posture.
-const secretManagerSecretAssetType = "secretmanager.googleapis.com/Secret"
-
 // serviceAccountAssetType is the Cloud Asset Inventory asset type for a GCP IAM
 // service account. Trust bindings on this resource become
 // gcp_iam_trust_policy facts.

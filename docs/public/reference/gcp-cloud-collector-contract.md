@@ -274,9 +274,9 @@ responses, not local repository observations.
 The parser drops the raw `resource.data` blob at the redaction choke point, but
 each supported asset type can recover a bounded, redaction-safe slice of it
 through a per-asset-type extractor registry
-(`go/internal/collector/gcpcloud/extractor.go`). Each asset type registers an
-`AssetAttributeExtractor` in its own `extractor_<type>.go` file via `init()`, so
-new types fan out without a shared parser switch. The parser hands the extractor
+(`go/internal/collector/gcpcloud/extractor/registry.go`). Each asset type registers an
+`AssetAttributeExtractor` in its own `extractor_<type>.go` file (or group `<resource>.go`)
+via `init()`, so new types fan out without a shared parser switch. The parser hands the extractor
 the raw `resource.data` transiently; the extractor returns only:
 
 - a bounded `attributes` map of control-plane fields usable for Terraform

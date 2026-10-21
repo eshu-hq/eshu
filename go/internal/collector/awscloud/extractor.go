@@ -10,9 +10,9 @@ import (
 )
 
 // This file is the awscloud half of the typed-depth extractor registry, mirroring
-// go/internal/collector/gcpcloud/extractor.go: one resource type per file,
-// registered from that file's init, dispatched through a map rather than a
-// shared switch.
+// go/internal/collector/gcpcloud/extractor/registry.go: one resource type per
+// file, registered from that file's init, dispatched through a map rather than
+// a shared switch.
 //
 // The types are declared here rather than shared with gcpcloud on purpose.
 // gcpcloud's ExtractContext is CAI-shaped (full resource name, asset type,

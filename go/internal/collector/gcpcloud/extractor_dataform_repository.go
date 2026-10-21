@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package gcpcloud
+package gcpcloud //nolint:dirgate // #6696 wave-1: flat extractor moves to extractor/<group> in a later slice
 
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
@@ -137,34 +136,6 @@ func dataformGitHostFingerprint(rawURL string) string {
 		return ""
 	}
 	return "sha256:" + facts.StableID("GCPDataformGitRemoteHost", map[string]any{"host": host})
-}
-
-// gitRemoteHost extracts the lowercase host from a git remote reference,
-// supporting both URL forms (https://, ssh://, git://) and the SCP-like syntax
-// git remotes commonly use ([user@]host.xz:path/to/repo.git). It returns "" when
-// no host can be determined. The path and any embedded credentials are dropped.
-func gitRemoteHost(rawURL string) string {
-	trimmed := strings.TrimSpace(rawURL)
-	if trimmed == "" {
-		return ""
-	}
-	// SCP-like syntax has no scheme and a ":" that precedes the first "/".
-	if !strings.Contains(trimmed, "://") {
-		if colon := strings.Index(trimmed, ":"); colon >= 0 {
-			if slash := strings.Index(trimmed, "/"); slash == -1 || colon < slash {
-				hostPart := trimmed[:colon]
-				if at := strings.LastIndex(hostPart, "@"); at >= 0 {
-					hostPart = hostPart[at+1:]
-				}
-				return strings.ToLower(strings.TrimSpace(hostPart))
-			}
-		}
-	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil {
-		return ""
-	}
-	return strings.ToLower(strings.TrimSpace(parsed.Hostname()))
 }
 
 // dataformKMSKeyFullName builds the CAI CryptoKey full resource name from a

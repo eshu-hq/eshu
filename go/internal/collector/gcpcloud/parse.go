@@ -13,8 +13,6 @@ import (
 
 const (
 	assetTypeDNSResourceRecordSet = "dns.googleapis.com/ResourceRecordSet"
-	assetTypeRunJob               = "run.googleapis.com/Job"
-	assetTypeRunService           = "run.googleapis.com/Service"
 )
 
 // AssetsListPage is the parsed, redacted result of one Cloud Asset Inventory
@@ -287,15 +285,6 @@ func parseTime(value string) time.Time {
 	return parsed.UTC()
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if trimmed := strings.TrimSpace(v); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
 func displayNameForAsset(assetType, displayName, dataName string) string {
 	if strings.TrimSpace(assetType) == assetTypeDNSResourceRecordSet {
 		return ""
@@ -429,18 +418,6 @@ func isCloudRunRuntimeAsset(assetType string) bool {
 	default:
 		return false
 	}
-}
-
-func imageDigestFromReference(imageReference string) string {
-	_, digest, ok := strings.Cut(strings.TrimSpace(imageReference), "@")
-	if !ok {
-		return ""
-	}
-	digest = strings.TrimSpace(digest)
-	if strings.HasPrefix(digest, "sha256:") {
-		return digest
-	}
-	return ""
 }
 
 func dnsManagedZoneName(assetName string) string {

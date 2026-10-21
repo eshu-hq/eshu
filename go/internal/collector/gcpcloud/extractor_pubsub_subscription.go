@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package gcpcloud
+package gcpcloud //nolint:dirgate // #6696 wave-1: flat extractor moves to extractor/<group> in a later slice
 
 import (
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // assetTypePubSubSubscription is the CAI asset type for a Pub/Sub Subscription.
@@ -25,11 +23,6 @@ const assetTypeBigtableTable = "bigtableadmin.googleapis.com/Table"
 // bigtableResourceNamePrefix is the CAI full-resource-name prefix for Bigtable
 // resources.
 const bigtableResourceNamePrefix = "//bigtableadmin.googleapis.com/"
-
-// pubSubDeletedTopicSentinel is the value Pub/Sub reports for a subscription's
-// topic when the topic has been deleted while the subscription still exists. It
-// names no resolvable Topic resource, so it yields no edge.
-const pubSubDeletedTopicSentinel = "_deleted-topic_"
 
 // Bounded provider relationship types for Pub/Sub Subscription edges. Each is a
 // stable string carried on a gcp_cloud_relationship fact; the reducer
@@ -221,32 +214,6 @@ func pubSubPushEndpointPosture(endpoint string) (scheme, hostFingerprint string)
 		return "", ""
 	}
 	return strings.ToLower(parsed.Scheme), pubSubPushEndpointHostFingerprint(parsed.Hostname())
-}
-
-// pubSubPushEndpointHostFingerprint returns a stable, case-normalized digest of a
-// push endpoint host so subscriptions sharing an endpoint can be correlated
-// without persisting the raw DNS name. A blank host fingerprints to "".
-func pubSubPushEndpointHostFingerprint(host string) string {
-	normalized := strings.ToLower(strings.TrimSpace(host))
-	if normalized == "" {
-		return ""
-	}
-	return "sha256:" + facts.StableID("GCPPubSubPushEndpointHost", map[string]any{"host": normalized})
-}
-
-// pubSubTopicRefFullName builds the CAI Pub/Sub Topic full resource name from a
-// topic reference (projects/.../topics/...). An already-normalized CAI full
-// resource name is returned unchanged. It returns "" for a blank reference, the
-// deleted-topic sentinel, or a reference that does not name a topic.
-func pubSubTopicRefFullName(topicRef string) string {
-	trimmed := strings.TrimSpace(topicRef)
-	if trimmed == "" || trimmed == pubSubDeletedTopicSentinel || !strings.Contains(trimmed, "/topics/") {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
-	}
-	return pubSubResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // pubSubBigQueryConfigTableFullName builds the CAI BigQuery Table full resource

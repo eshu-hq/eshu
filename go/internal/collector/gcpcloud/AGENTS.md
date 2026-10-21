@@ -21,9 +21,14 @@
    fingerprinting.
 11. `generation.go` - generation accumulation, dedupe, and fencing.
 12. `metrics.go` - scoped OTEL instruments with bounded labels.
-13. `extractor.go` - the per-asset-type typed-depth extractor registry
+13. `extractor/registry.go` - the per-asset-type typed-depth extractor registry
    (`RegisterAssetExtractor`, `AttributeExtraction`, `ExtractContext`).
-The per-asset-type typed-depth extractors (`extractor_<type>.go`) are
+   The registry and the shared extractor foundation live in the
+   `extractor/` leaf package; the root `compat_extractor.go` aliases keep
+   unmoved callers compiling. Grouped extractors live under
+   `extractor/<group>/` (starting with `extractor/serverless/`, issue #6696).
+The per-asset-type typed-depth extractors (`extractor_<type>.go`, or
+`<resource>.go` inside a group directory) are
 catalogued in two sibling files. Read the relevant one before adding or
 modifying an extractor:
 
@@ -68,8 +73,8 @@ valid.
   data blob in facts. The parser is the single redaction choke point for the data
   blob.
 - Typed depth is per-asset-type: register one `AssetAttributeExtractor` per asset
-  type in its own `extractor_<type>.go` file via `init()`; never grow a shared
-  parser switch. An extractor receives the raw resource.data transiently and
+  type in its own `extractor_<type>.go` file (or `<resource>.go` inside a
+  group directory) via `init()`; never grow a shared parser switch. An extractor receives the raw resource.data transiently and
   returns only bounded, redaction-safe attributes, correlation anchors, and typed
   relationships. Drop data-plane locators (object paths inside source URIs,
   request bodies); keep only resource identities (bucket, dataset, KMS key names).
@@ -95,7 +100,8 @@ valid.
   in `CoreFactKinds()`.
 - Keep every source file under 500 lines; split into a sibling before the cap.
 - Normalize a CMEK CryptoKey reference through the shared
-  `cmekKeyFullResourceName` in `extractor_helpers.go`; do NOT copy the
+  `extractor.CMEKKeyFullResourceName` in the `extractor/` leaf package
+  (aliased as `cmekKeyFullResourceName` for unmoved callers); do NOT copy the
   trim/`//`-guard/prefix logic into a new per-extractor helper. It is strict:
   a blank yields "", an absolute name passes through only for the Cloud KMS
   domain (any other `//service.googleapis.com/...` is rejected so a malformed
@@ -104,7 +110,8 @@ valid.
   validation wraps it (see `sqlInstanceKMSKeyFullName`). The Disk
   `kmsCryptoKeyFullName` self-link parser (strips a trailing
   `/cryptoKeyVersions/`) serves a different input contract and is intentionally
-  separate. Use `dedupeSortedNonEmpty` (also in `extractor_helpers.go`) for a
+  separate. Use `extractor.DedupeSortedNonEmpty` (also in the `extractor/`
+  leaf, aliased as `dedupeSortedNonEmpty`) for a
   sorted-unique attribute slice rather than a bespoke set type.
 - Update `README.md`, `doc.go`, and this file when the exported surface or
   contract changes. When adding or changing a typed-depth extractor, also update
@@ -114,7 +121,8 @@ valid.
 ### KMS/dedup helper consolidation evidence (#4400)
 
 The #4400 consolidation of the per-extractor CMEK full-name and sorted-dedup
-helpers into `extractor_helpers.go` is a pure refactor of in-process,
+helpers into the shared extractor foundation (now `extractor/shared.go` after
+the #6696 serverless slice, without behavior change) is a pure refactor of in-process,
 allocation-bounded string helpers on the collector's parse path; it changes no
 query, graph write, worker, lease, batch, or Compose/Helm knob.
 
@@ -130,7 +138,7 @@ query, graph write, worker, lease, batch, or Compose/Helm knob.
   wrong-domain absolute CMEK reference — which real Cloud Asset Inventory never
   emits — is now dropped instead of surfaced, proven by the new
   `TestExtract*WrongDomainKMSKey*` extraction tests.
-- No-Observability-Change: `extractor_helpers.go` registers no metric; extraction
+- No-Observability-Change: the shared extractor helpers register no metric; extraction
   outcomes remain covered by the collector-local
   `eshu_dp_gcp_cloud_attribute_extractions_total` and
   `eshu_dp_gcp_cloud_facts_emitted_total` counters (see

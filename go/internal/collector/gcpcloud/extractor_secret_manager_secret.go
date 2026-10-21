@@ -1,21 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package gcpcloud
+package gcpcloud //nolint:dirgate // #6696 wave-1: flat extractor moves to extractor/<group> in a later slice
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
-
-// Asset type and full-resource-name prefix for the Pub/Sub topic endpoint a
-// Secret Manager Secret derives from its rotation notification topics. The KMS
-// CryptoKey endpoint reuses assetTypeKMSCryptoKey and cloudKMSResourceNamePrefix
-// already declared by the BigQuery Table extractor in this package.
-const (
-	assetTypePubSubTopic     = "pubsub.googleapis.com/Topic"
-	pubSubResourceNamePrefix = "//pubsub.googleapis.com/"
 )
 
 // Bounded provider relationship types for Secret Manager Secret edges. Each is a
@@ -193,22 +184,6 @@ func secretManagerTopicFullNames(data secretManagerSecretData) []string {
 		}
 	}
 	return dedupeNonEmpty(names)
-}
-
-// secretManagerTopicFullName builds the CAI Pub/Sub topic full resource name from
-// a topic reference (projects/.../topics/...). An already-normalized CAI full
-// resource name (//pubsub.googleapis.com/...) is returned unchanged so the prefix
-// is never doubled. It returns "" for a blank reference or one that does not name
-// a topic so the caller emits no topic edge.
-func secretManagerTopicFullName(topicRef string) string {
-	trimmed := strings.TrimSpace(topicRef)
-	if trimmed == "" || !strings.Contains(trimmed, "/topics/") {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "//") {
-		return trimmed
-	}
-	return pubSubResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 func secretManagerSecretEdge(ctx ExtractContext, relationshipType, targetName, targetType string) RelationshipObservation {
