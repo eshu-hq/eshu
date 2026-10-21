@@ -1,0 +1,14 @@
+.github/workflows/publish-ci-tools-oneoff.yml
+  h_78a442cba0b3e6 18-19,23-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "79c0c56aea27893be7cdd97c2b072ad4decd548b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
