@@ -40,14 +40,14 @@ func collectionKMSRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOpenSearchServerlessCollectionUsesKMSKey,
+		RelationshipType: catalog.RelationshipOpenSearchServerlessCollectionUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(collection.ARN),
 		TargetResourceID: keyARN,
 		TargetARN:        targetARN,
 		TargetType:       awscloud.ResourceTypeKMSKey,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipOpenSearchServerlessCollectionUsesKMSKey + ":" + keyARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipOpenSearchServerlessCollectionUsesKMSKey + ":" + keyARN,
 	}
 }
 
@@ -65,7 +65,7 @@ func vpcEndpointRelationships(boundary awscloud.Boundary, endpoint VPCEndpoint) 
 	if vpcID := strings.TrimSpace(endpoint.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchServerlessVPCEndpointInVPC,
+			RelationshipType: catalog.RelationshipOpenSearchServerlessVPCEndpointInVPC,
 			SourceResourceID: endpointID,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -75,7 +75,7 @@ func vpcEndpointRelationships(boundary awscloud.Boundary, endpoint VPCEndpoint) 
 	for _, subnetID := range cloneStrings(endpoint.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchServerlessVPCEndpointInSubnet,
+			RelationshipType: catalog.RelationshipOpenSearchServerlessVPCEndpointInSubnet,
 			SourceResourceID: endpointID,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
@@ -85,7 +85,7 @@ func vpcEndpointRelationships(boundary awscloud.Boundary, endpoint VPCEndpoint) 
 	for _, groupID := range cloneStrings(endpoint.SecurityGroupIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchServerlessVPCEndpointUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipOpenSearchServerlessVPCEndpointUsesSecurityGroup,
 			SourceResourceID: endpointID,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,

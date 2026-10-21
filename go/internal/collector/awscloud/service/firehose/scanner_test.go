@@ -87,7 +87,7 @@ func TestScannerEmitsFirehoseMetadataResourceAndRelationships(t *testing.T) {
 	}
 
 	source := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamSourcedFromKinesisStream)
-	assertEdge(t, source, streamARN, sourceStreamARN, sourceStreamARN, awscloud.ResourceTypeKinesisDataStream)
+	assertEdge(t, source, streamARN, sourceStreamARN, sourceStreamARN, catalog.ResourceTypeKinesisDataStream)
 
 	kms := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamUsesKMSKey)
 	assertEdge(t, kms, streamARN, kmsKeyARN, kmsKeyARN, awscloud.ResourceTypeKMSKey)
@@ -111,7 +111,7 @@ func TestScannerEmitsFirehoseMetadataResourceAndRelationships(t *testing.T) {
 	assertEdge(t, s3, streamARN, bucketARN, bucketARN, catalog.ResourceTypeS3Bucket)
 
 	opensearch := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamDeliversToOpenSearchDomain)
-	assertEdge(t, opensearch, streamARN, domainARN, domainARN, awscloud.ResourceTypeOpenSearchDomain)
+	assertEdge(t, opensearch, streamARN, domainARN, domainARN, catalog.ResourceTypeOpenSearchDomain)
 }
 
 func TestScannerEmitsRedshiftDestinationEdgeKeyedByClusterIdentifier(t *testing.T) {
@@ -233,7 +233,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceKinesis
+	boundary.ServiceKind = catalog.ServiceKinesis
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

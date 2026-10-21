@@ -27,25 +27,25 @@ func applicationRelationships(boundary awscloud.Boundary, application Applicatio
 	observations = appendStreamEdges(
 		observations, boundary, sourceID, sourceARN,
 		application.InputKinesisStreamARNs,
-		awscloud.RelationshipManagedFlinkApplicationReadsFromKinesisStream,
-		awscloud.ResourceTypeKinesisDataStream,
+		catalog.RelationshipManagedFlinkApplicationReadsFromKinesisStream,
+		catalog.ResourceTypeKinesisDataStream,
 	)
 	observations = appendStreamEdges(
 		observations, boundary, sourceID, sourceARN,
 		application.OutputKinesisStreamARNs,
-		awscloud.RelationshipManagedFlinkApplicationWritesToKinesisStream,
-		awscloud.ResourceTypeKinesisDataStream,
+		catalog.RelationshipManagedFlinkApplicationWritesToKinesisStream,
+		catalog.ResourceTypeKinesisDataStream,
 	)
 	observations = appendStreamEdges(
 		observations, boundary, sourceID, sourceARN,
 		application.InputFirehoseStreamARNs,
-		awscloud.RelationshipManagedFlinkApplicationReadsFromFirehoseStream,
+		catalog.RelationshipManagedFlinkApplicationReadsFromFirehoseStream,
 		catalog.ResourceTypeFirehoseDeliveryStream,
 	)
 	observations = appendStreamEdges(
 		observations, boundary, sourceID, sourceARN,
 		application.OutputFirehoseStreamARNs,
-		awscloud.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
+		catalog.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
 		catalog.ResourceTypeFirehoseDeliveryStream,
 	)
 
@@ -124,14 +124,14 @@ func codeBucketRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
+		RelationshipType: catalog.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipManagedFlinkApplicationUsesS3CodeBucket + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipManagedFlinkApplicationUsesS3CodeBucket + ":" + bucketARN,
 	}, true
 }
 
@@ -160,7 +160,7 @@ func networkRelationships(
 			seenSubnets[subnetID] = struct{}{}
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipManagedFlinkApplicationUsesSubnet,
+				RelationshipType: catalog.RelationshipManagedFlinkApplicationUsesSubnet,
 				SourceResourceID: sourceID,
 				SourceARN:        sourceARN,
 				TargetResourceID: subnetID,
@@ -180,7 +180,7 @@ func networkRelationships(
 			seenGroups[groupID] = struct{}{}
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipManagedFlinkApplicationUsesSecurityGroup,
+				RelationshipType: catalog.RelationshipManagedFlinkApplicationUsesSecurityGroup,
 				SourceResourceID: sourceID,
 				SourceARN:        sourceARN,
 				TargetResourceID: groupID,
@@ -207,7 +207,7 @@ func iamRoleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipManagedFlinkApplicationUsesIAMRole,
+		RelationshipType: catalog.RelationshipManagedFlinkApplicationUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
@@ -243,7 +243,7 @@ func appendLogGroupEdges(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
+			RelationshipType: catalog.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: logGroupARN,

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("datazone scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDatazone:
+	case "", catalog.ServiceDatazone:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDatazone
+		boundary.ServiceKind = catalog.ServiceDatazone
 	default:
 		return nil, fmt.Errorf("datazone scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -134,7 +135,7 @@ func projectEnvelopes(boundary awscloud.Boundary, domainID string, project Proje
 	envelopes := []facts.Envelope{resource}
 	if relationship := childInDomainRelationship(
 		boundary,
-		awscloud.RelationshipDatazoneProjectInDomain,
+		catalog.RelationshipDatazoneProjectInDomain,
 		strings.TrimSpace(project.ID),
 		"",
 		domainID,
@@ -156,7 +157,7 @@ func environmentEnvelopes(boundary awscloud.Boundary, domainID string, environme
 	envelopes := []facts.Envelope{resource}
 	if relationship := childInDomainRelationship(
 		boundary,
-		awscloud.RelationshipDatazoneEnvironmentInDomain,
+		catalog.RelationshipDatazoneEnvironmentInDomain,
 		strings.TrimSpace(environment.ID),
 		"",
 		domainID,
@@ -180,7 +181,7 @@ func dataSourceEnvelopes(boundary awscloud.Boundary, domainID string, dataSource
 	var relationships []awscloud.RelationshipObservation
 	if relationship := childInDomainRelationship(
 		boundary,
-		awscloud.RelationshipDatazoneDataSourceInDomain,
+		catalog.RelationshipDatazoneDataSourceInDomain,
 		strings.TrimSpace(dataSource.ID),
 		"",
 		domainID,

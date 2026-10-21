@@ -17,6 +17,7 @@ import (
 	awsbedrockagenttypes "github.com/aws/aws-sdk-go-v2/service/bedrockagent/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	bedrocksvc "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/bedrock"
 )
 
@@ -263,7 +264,7 @@ func redactionBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceBedrock,
+		ServiceKind:         catalog.ServiceBedrock,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:bedrock:1",
 		CollectorInstanceID: "aws-prod",

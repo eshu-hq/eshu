@@ -13,6 +13,7 @@ import (
 	awsdatazonetypes "github.com/aws/aws-sdk-go-v2/service/datazone/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	datazoneservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/datazone"
 )
 
@@ -184,6 +185,6 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDatazone,
+		ServiceKind: catalog.ServiceDatazone,
 	}
 }

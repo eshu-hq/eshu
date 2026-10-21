@@ -164,7 +164,7 @@ func TestScannerEmitsDMSMetadataAndRelationships(t *testing.T) {
 
 	// endpoint -> Kinesis stream edge.
 	epStream := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointTargetsKinesisStream)
-	assertEdgeTarget(t, epStream, awscloud.ResourceTypeKinesisDataStream, testStreamARN)
+	assertEdgeTarget(t, epStream, catalog.ResourceTypeKinesisDataStream, testStreamARN)
 
 	// endpoint -> S3 bucket edge keyed by the synthesized partition-aware ARN.
 	epS3 := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointTargetsS3Bucket)

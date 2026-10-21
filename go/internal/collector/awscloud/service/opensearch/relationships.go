@@ -21,37 +21,37 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 	if vpcID := strings.TrimSpace(domain.VPCID); vpcID != "" {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchDomainInVPC,
+			RelationshipType: catalog.RelationshipOpenSearchDomainInVPC,
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes:       map[string]any{"vpc_id": vpcID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainInVPC, vpcID),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipOpenSearchDomainInVPC, vpcID),
 		})
 	}
 	for _, subnetID := range cloneStrings(domain.SubnetIDs) {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchDomainInSubnet,
+			RelationshipType: catalog.RelationshipOpenSearchDomainInSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes:       map[string]any{"subnet_id": subnetID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainInSubnet, subnetID),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipOpenSearchDomainInSubnet, subnetID),
 		})
 	}
 	for _, groupID := range cloneStrings(domain.SecurityGroupIDs) {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchDomainUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipOpenSearchDomainUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			Attributes:       map[string]any{"security_group_id": groupID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainUsesSecurityGroup, groupID),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipOpenSearchDomainUsesSecurityGroup, groupID),
 		})
 	}
 	if kmsKey := strings.TrimSpace(domain.KMSKeyID); kmsKey != "" {
@@ -61,13 +61,13 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchDomainUsesKMSKey,
+			RelationshipType: catalog.RelationshipOpenSearchDomainUsesKMSKey,
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: kmsKey,
 			TargetARN:        targetARN,
 			TargetType:       awscloud.ResourceTypeKMSKey,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainUsesKMSKey, kmsKey),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipOpenSearchDomainUsesKMSKey, kmsKey),
 		})
 	}
 	seenRoles := make(map[string]struct{}, len(domain.MasterUserRoleARNs))
@@ -78,13 +78,13 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 		seenRoles[roleARN] = struct{}{}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchDomainUsesIAMRole,
+			RelationshipType: catalog.RelationshipOpenSearchDomainUsesIAMRole,
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
 			TargetType:       awscloud.ResourceTypeIAMRole,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainUsesIAMRole, roleARN),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipOpenSearchDomainUsesIAMRole, roleARN),
 		})
 	}
 	return relationships
@@ -113,13 +113,13 @@ func packageDomainRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOpenSearchPackageAssociatedWithDomain,
+		RelationshipType: catalog.RelationshipOpenSearchPackageAssociatedWithDomain,
 		SourceResourceID: sourceID,
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeOpenSearchDomain,
+		TargetType:       catalog.ResourceTypeOpenSearchDomain,
 		Attributes:       attributes,
-		SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchPackageAssociatedWithDomain, targetID),
+		SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipOpenSearchPackageAssociatedWithDomain, targetID),
 	}, true
 }
 
@@ -152,13 +152,13 @@ func collectionRelationships(
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchCollectionUsesKMSKey,
+			RelationshipType: catalog.RelationshipOpenSearchCollectionUsesKMSKey,
 			SourceResourceID: sourceID,
 			SourceARN:        collectionARN,
 			TargetResourceID: kmsKey,
 			TargetARN:        targetARN,
 			TargetType:       awscloud.ResourceTypeKMSKey,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchCollectionUsesKMSKey, kmsKey),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipOpenSearchCollectionUsesKMSKey, kmsKey),
 		})
 	}
 

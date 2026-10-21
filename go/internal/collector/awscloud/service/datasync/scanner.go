@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("datasync scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDataSync:
+	case "", catalog.ServiceDataSync:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDataSync
+		boundary.ServiceKind = catalog.ServiceDataSync
 	default:
 		return nil, fmt.Errorf("datasync scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -133,7 +134,7 @@ func taskObservation(boundary awscloud.Boundary, task Task) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeDataSyncTask,
+		ResourceType: catalog.ResourceTypeDataSyncTask,
 		Name:         name,
 		State:        strings.TrimSpace(task.Status),
 		Attributes: map[string]any{
@@ -157,7 +158,7 @@ func locationObservation(boundary awscloud.Boundary, location Location) awscloud
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeDataSyncLocation,
+		ResourceType: catalog.ResourceTypeDataSyncLocation,
 		Name:         uri,
 		Attributes: map[string]any{
 			"location_type":      strings.TrimSpace(location.Type),
@@ -180,7 +181,7 @@ func agentObservation(boundary awscloud.Boundary, agent Agent) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeDataSyncAgent,
+		ResourceType: catalog.ResourceTypeDataSyncAgent,
 		Name:         name,
 		State:        strings.TrimSpace(agent.Status),
 		Attributes: map[string]any{

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/bedrock/runtimebind"
 )
 
@@ -17,13 +18,13 @@ import (
 // Bedrock scanner builder and that the builder constructs a non-nil scanner
 // without any optional dependency.
 func TestBedrockRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceBedrock)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceBedrock)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceBedrock)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceBedrock)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBedrock},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBedrock},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

@@ -16,6 +16,7 @@ import (
 	awskinesisvideotypes "github.com/aws/aws-sdk-go-v2/service/kinesisvideo/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListDataStreamsMapsSummaryAndTags(t *testing.T) {
@@ -300,7 +301,7 @@ func TestClientListVideoStreamsMapsStreamInfoAndTags(t *testing.T) {
 }
 
 func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKinesis}
+	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceKinesis}
 }
 
 type fakeDataStreamsAPI struct {

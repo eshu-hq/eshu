@@ -27,31 +27,31 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 	for _, subnetID := range dedupe(append([]string{cluster.SubnetID}, cluster.RequestedSubnetIDs...)) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRClusterUsesSubnet,
+			RelationshipType: catalog.RelationshipEMRClusterUsesSubnet,
 			SourceResourceID: clusterID,
 			SourceARN:        clusterARN,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
-			SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterUsesSubnet, subnetID),
+			SourceRecordID:   relationshipRecordID(clusterID, catalog.RelationshipEMRClusterUsesSubnet, subnetID),
 		})
 	}
 
 	for _, groupID := range dedupe(cluster.SecurityGroupIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRClusterUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipEMRClusterUsesSecurityGroup,
 			SourceResourceID: clusterID,
 			SourceARN:        clusterARN,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterUsesSecurityGroup, groupID),
+			SourceRecordID:   relationshipRecordID(clusterID, catalog.RelationshipEMRClusterUsesSecurityGroup, groupID),
 		})
 	}
 
 	for _, role := range dedupe([]string{cluster.ServiceRole, cluster.AutoScalingRole}) {
 		observations = append(observations, iamRoleRelationship(
 			boundary,
-			awscloud.RelationshipEMRClusterUsesIAMRole,
+			catalog.RelationshipEMRClusterUsesIAMRole,
 			clusterID,
 			clusterARN,
 			role,
@@ -61,32 +61,32 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 	if profile := strings.TrimSpace(cluster.InstanceProfile); profile != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRClusterUsesInstanceProfile,
+			RelationshipType: catalog.RelationshipEMRClusterUsesInstanceProfile,
 			SourceResourceID: clusterID,
 			SourceARN:        clusterARN,
 			TargetResourceID: profile,
 			TargetARN:        arnOrEmpty(profile),
 			TargetType:       awscloud.ResourceTypeIAMInstanceProfile,
-			SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterUsesInstanceProfile, profile),
+			SourceRecordID:   relationshipRecordID(clusterID, catalog.RelationshipEMRClusterUsesInstanceProfile, profile),
 		})
 	}
 
 	if config := strings.TrimSpace(cluster.SecurityConfigName); config != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRClusterUsesSecurityConfiguration,
+			RelationshipType: catalog.RelationshipEMRClusterUsesSecurityConfiguration,
 			SourceResourceID: clusterID,
 			SourceARN:        clusterARN,
 			TargetResourceID: config,
-			TargetType:       awscloud.ResourceTypeEMRSecurityConfiguration,
-			SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterUsesSecurityConfiguration, config),
+			TargetType:       catalog.ResourceTypeEMRSecurityConfiguration,
+			SourceRecordID:   relationshipRecordID(clusterID, catalog.RelationshipEMRClusterUsesSecurityConfiguration, config),
 		})
 	}
 
 	if kmsKey := strings.TrimSpace(cluster.LogEncryptionKMSKey); kmsKey != "" {
 		observations = append(observations, kmsKeyRelationship(
 			boundary,
-			awscloud.RelationshipEMRClusterUsesKMSKey,
+			catalog.RelationshipEMRClusterUsesKMSKey,
 			clusterID,
 			clusterARN,
 			kmsKey,
@@ -108,12 +108,12 @@ func clusterInstanceGroupRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEMRClusterHasInstanceGroup,
+		RelationshipType: catalog.RelationshipEMRClusterHasInstanceGroup,
 		SourceResourceID: clusterID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: groupID,
-		TargetType:       awscloud.ResourceTypeEMRInstanceGroup,
-		SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterHasInstanceGroup, groupID),
+		TargetType:       catalog.ResourceTypeEMRInstanceGroup,
+		SourceRecordID:   relationshipRecordID(clusterID, catalog.RelationshipEMRClusterHasInstanceGroup, groupID),
 	}, true
 }
 
@@ -129,12 +129,12 @@ func clusterInstanceFleetRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEMRClusterHasInstanceFleet,
+		RelationshipType: catalog.RelationshipEMRClusterHasInstanceFleet,
 		SourceResourceID: clusterID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: fleetID,
-		TargetType:       awscloud.ResourceTypeEMRInstanceFleet,
-		SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterHasInstanceFleet, fleetID),
+		TargetType:       catalog.ResourceTypeEMRInstanceFleet,
+		SourceRecordID:   relationshipRecordID(clusterID, catalog.RelationshipEMRClusterHasInstanceFleet, fleetID),
 	}, true
 }
 
@@ -156,31 +156,31 @@ func serverlessApplicationRelationships(
 	for _, subnetID := range dedupe(application.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRServerlessApplicationUsesSubnet,
+			RelationshipType: catalog.RelationshipEMRServerlessApplicationUsesSubnet,
 			SourceResourceID: applicationID,
 			SourceARN:        applicationARN,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
-			SourceRecordID:   relationshipRecordID(applicationID, awscloud.RelationshipEMRServerlessApplicationUsesSubnet, subnetID),
+			SourceRecordID:   relationshipRecordID(applicationID, catalog.RelationshipEMRServerlessApplicationUsesSubnet, subnetID),
 		})
 	}
 
 	for _, groupID := range dedupe(application.SecurityGroupIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRServerlessApplicationUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipEMRServerlessApplicationUsesSecurityGroup,
 			SourceResourceID: applicationID,
 			SourceARN:        applicationARN,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   relationshipRecordID(applicationID, awscloud.RelationshipEMRServerlessApplicationUsesSecurityGroup, groupID),
+			SourceRecordID:   relationshipRecordID(applicationID, catalog.RelationshipEMRServerlessApplicationUsesSecurityGroup, groupID),
 		})
 	}
 
 	if kmsKey := strings.TrimSpace(application.DiskEncryptKMS); kmsKey != "" {
 		observations = append(observations, kmsKeyRelationship(
 			boundary,
-			awscloud.RelationshipEMRServerlessApplicationUsesKMSKey,
+			catalog.RelationshipEMRServerlessApplicationUsesKMSKey,
 			applicationID,
 			applicationARN,
 			kmsKey,
@@ -201,43 +201,43 @@ func studioRelationships(boundary awscloud.Boundary, studio Studio) []awscloud.R
 	if vpcID := strings.TrimSpace(studio.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRStudioInVPC,
+			RelationshipType: catalog.RelationshipEMRStudioInVPC,
 			SourceResourceID: studioID,
 			SourceARN:        studioARN,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
-			SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioInVPC, vpcID),
+			SourceRecordID:   relationshipRecordID(studioID, catalog.RelationshipEMRStudioInVPC, vpcID),
 		})
 	}
 
 	for _, subnetID := range dedupe(studio.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRStudioUsesSubnet,
+			RelationshipType: catalog.RelationshipEMRStudioUsesSubnet,
 			SourceResourceID: studioID,
 			SourceARN:        studioARN,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
-			SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioUsesSubnet, subnetID),
+			SourceRecordID:   relationshipRecordID(studioID, catalog.RelationshipEMRStudioUsesSubnet, subnetID),
 		})
 	}
 
 	for _, groupID := range dedupe([]string{studio.EngineSecGroupID, studio.WorkspaceSecGroup}) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEMRStudioUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipEMRStudioUsesSecurityGroup,
 			SourceResourceID: studioID,
 			SourceARN:        studioARN,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioUsesSecurityGroup, groupID),
+			SourceRecordID:   relationshipRecordID(studioID, catalog.RelationshipEMRStudioUsesSecurityGroup, groupID),
 		})
 	}
 
 	for _, role := range dedupe([]string{studio.ServiceRole, studio.UserRole}) {
 		observations = append(observations, iamRoleRelationship(
 			boundary,
-			awscloud.RelationshipEMRStudioUsesIAMRole,
+			catalog.RelationshipEMRStudioUsesIAMRole,
 			studioID,
 			studioARN,
 			role,
@@ -247,7 +247,7 @@ func studioRelationships(boundary awscloud.Boundary, studio Studio) []awscloud.R
 	if kmsKey := strings.TrimSpace(studio.EncryptionKeyARN); kmsKey != "" {
 		observations = append(observations, kmsKeyRelationship(
 			boundary,
-			awscloud.RelationshipEMRStudioUsesKMSKey,
+			catalog.RelationshipEMRStudioUsesKMSKey,
 			studioID,
 			studioARN,
 			kmsKey,
@@ -269,12 +269,12 @@ func studioSessionMappingRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEMRStudioHasSessionMapping,
+		RelationshipType: catalog.RelationshipEMRStudioHasSessionMapping,
 		SourceResourceID: studioID,
 		SourceARN:        strings.TrimSpace(studio.ARN),
 		TargetResourceID: mappingID,
-		TargetType:       awscloud.ResourceTypeEMRStudioSessionMapping,
-		SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioHasSessionMapping, mappingID),
+		TargetType:       catalog.ResourceTypeEMRStudioSessionMapping,
+		SourceRecordID:   relationshipRecordID(studioID, catalog.RelationshipEMRStudioHasSessionMapping, mappingID),
 	}, true
 }
 

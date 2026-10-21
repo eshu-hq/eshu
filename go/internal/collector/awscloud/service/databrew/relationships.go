@@ -33,14 +33,14 @@ func datasetReadsS3Relationship(boundary awscloud.Boundary, dataset Dataset) *aw
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDatabrewDatasetReadsS3,
+		RelationshipType: catalog.RelationshipDatabrewDatasetReadsS3,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(dataset.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatabrewDatasetReadsS3 + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipDatabrewDatasetReadsS3 + ":" + bucketARN,
 	}
 }
 
@@ -72,13 +72,13 @@ func datasetReadsGlueTableRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDatabrewDatasetReadsGlueTable,
+		RelationshipType: catalog.RelationshipDatabrewDatasetReadsGlueTable,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(dataset.ARN),
 		TargetResourceID: targetID,
-		TargetType:       awscloud.ResourceTypeGlueTable,
+		TargetType:       catalog.ResourceTypeGlueTable,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatabrewDatasetReadsGlueTable + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipDatabrewDatasetReadsGlueTable + ":" + targetID,
 	}
 }
 
@@ -100,14 +100,14 @@ func jobWritesS3Relationships(boundary awscloud.Boundary, job Job) []awscloud.Re
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDatabrewJobWritesS3,
+			RelationshipType: catalog.RelationshipDatabrewJobWritesS3,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(job.ARN),
 			TargetResourceID: bucketARN,
 			TargetARN:        bucketARN,
 			TargetType:       catalog.ResourceTypeS3Bucket,
 			Attributes:       map[string]any{"bucket": strings.TrimSpace(bucket)},
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipDatabrewJobWritesS3 + ":" + bucketARN,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipDatabrewJobWritesS3 + ":" + bucketARN,
 		})
 	}
 	return observations
@@ -122,7 +122,7 @@ func jobAssumesRoleRelationship(boundary awscloud.Boundary, job Job) *awscloud.R
 		jobResourceID(job),
 		strings.TrimSpace(job.ARN),
 		strings.TrimSpace(job.RoleARN),
-		awscloud.RelationshipDatabrewJobAssumesRole,
+		catalog.RelationshipDatabrewJobAssumesRole,
 	)
 }
 
@@ -135,8 +135,8 @@ func jobProcessesDatasetRelationship(boundary awscloud.Boundary, job Job) *awscl
 		jobResourceID(job),
 		strings.TrimSpace(job.ARN),
 		strings.TrimSpace(job.DatasetName),
-		awscloud.RelationshipDatabrewJobProcessesDataset,
-		awscloud.ResourceTypeDatabrewDataset,
+		catalog.RelationshipDatabrewJobProcessesDataset,
+		catalog.ResourceTypeDatabrewDataset,
 	)
 }
 
@@ -149,8 +149,8 @@ func projectUsesDatasetRelationship(boundary awscloud.Boundary, project Project)
 		projectResourceID(project),
 		strings.TrimSpace(project.ARN),
 		strings.TrimSpace(project.DatasetName),
-		awscloud.RelationshipDatabrewProjectUsesDataset,
-		awscloud.ResourceTypeDatabrewDataset,
+		catalog.RelationshipDatabrewProjectUsesDataset,
+		catalog.ResourceTypeDatabrewDataset,
 	)
 }
 
@@ -163,8 +163,8 @@ func projectUsesRecipeRelationship(boundary awscloud.Boundary, project Project) 
 		projectResourceID(project),
 		strings.TrimSpace(project.ARN),
 		strings.TrimSpace(project.RecipeName),
-		awscloud.RelationshipDatabrewProjectUsesRecipe,
-		awscloud.ResourceTypeDatabrewRecipe,
+		catalog.RelationshipDatabrewProjectUsesRecipe,
+		catalog.ResourceTypeDatabrewRecipe,
 	)
 }
 
@@ -177,7 +177,7 @@ func projectAssumesRoleRelationship(boundary awscloud.Boundary, project Project)
 		projectResourceID(project),
 		strings.TrimSpace(project.ARN),
 		strings.TrimSpace(project.RoleARN),
-		awscloud.RelationshipDatabrewProjectAssumesRole,
+		catalog.RelationshipDatabrewProjectAssumesRole,
 	)
 }
 

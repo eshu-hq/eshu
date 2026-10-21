@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -29,10 +30,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("kinesis scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceKinesis:
+	case "", catalog.ServiceKinesis:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceKinesis
+		boundary.ServiceKind = catalog.ServiceKinesis
 	default:
 		return nil, fmt.Errorf("kinesis scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -111,7 +112,7 @@ func dataStreamObservation(boundary awscloud.Boundary, stream DataStream) awsclo
 		Boundary:     boundary,
 		ARN:          streamARN,
 		ResourceID:   firstNonEmpty(streamARN, stream.Name),
-		ResourceType: awscloud.ResourceTypeKinesisDataStream,
+		ResourceType: catalog.ResourceTypeKinesisDataStream,
 		Name:         strings.TrimSpace(stream.Name),
 		State:        strings.TrimSpace(stream.Status),
 		Tags:         cloneStringMap(stream.Tags),
@@ -134,7 +135,7 @@ func deliveryStreamObservation(boundary awscloud.Boundary, stream FirehoseDelive
 		Boundary:     boundary,
 		ARN:          streamARN,
 		ResourceID:   firstNonEmpty(streamARN, stream.Name),
-		ResourceType: awscloud.ResourceTypeKinesisFirehoseDeliveryStream,
+		ResourceType: catalog.ResourceTypeKinesisFirehoseDeliveryStream,
 		Name:         strings.TrimSpace(stream.Name),
 		State:        strings.TrimSpace(stream.Status),
 		Tags:         cloneStringMap(stream.Tags),
@@ -158,7 +159,7 @@ func videoStreamObservation(boundary awscloud.Boundary, stream VideoStream) awsc
 		Boundary:     boundary,
 		ARN:          streamARN,
 		ResourceID:   firstNonEmpty(streamARN, stream.Name),
-		ResourceType: awscloud.ResourceTypeKinesisVideoStream,
+		ResourceType: catalog.ResourceTypeKinesisVideoStream,
 		Name:         strings.TrimSpace(stream.Name),
 		State:        strings.TrimSpace(stream.Status),
 		Tags:         cloneStringMap(stream.Tags),

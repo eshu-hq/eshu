@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -34,10 +35,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("quicksight scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceQuickSight:
+	case "", catalog.ServiceQuickSight:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceQuickSight
+		boundary.ServiceKind = catalog.ServiceQuickSight
 	default:
 		return nil, fmt.Errorf("quicksight scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -187,7 +188,7 @@ func dataSourceObservation(boundary awscloud.Boundary, dataSource DataSource) aw
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeQuickSightDataSource,
+		ResourceType:       catalog.ResourceTypeQuickSightDataSource,
 		Name:               name,
 		State:              strings.TrimSpace(dataSource.Status),
 		Tags:               cloneStringMap(dataSource.Tags),
@@ -205,7 +206,7 @@ func dataSetObservation(boundary awscloud.Boundary, dataSet DataSet) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeQuickSightDataSet,
+		ResourceType: catalog.ResourceTypeQuickSightDataSet,
 		Name:         name,
 		Tags:         cloneStringMap(dataSet.Tags),
 		Attributes: map[string]any{
@@ -237,7 +238,7 @@ func dashboardObservation(boundary awscloud.Boundary, dashboard Dashboard) awscl
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeQuickSightDashboard,
+		ResourceType:       catalog.ResourceTypeQuickSightDashboard,
 		Name:               name,
 		Tags:               cloneStringMap(dashboard.Tags),
 		Attributes:         attributes,
@@ -254,7 +255,7 @@ func analysisObservation(boundary awscloud.Boundary, analysis Analysis) awscloud
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeQuickSightAnalysis,
+		ResourceType: catalog.ResourceTypeQuickSightAnalysis,
 		Name:         name,
 		State:        strings.TrimSpace(analysis.Status),
 		Tags:         cloneStringMap(analysis.Tags),

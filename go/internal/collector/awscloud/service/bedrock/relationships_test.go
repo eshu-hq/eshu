@@ -6,7 +6,7 @@ package bedrock
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestNormalizeS3BucketARNRejectsEmptyBucket proves the S3 bucket ARN
@@ -97,7 +97,7 @@ func TestKnowledgeBaseS3SourceWithEmptyBucketEmitsNoRelationship(t *testing.T) {
 
 	var s3Targets []string
 	for _, obs := range observations {
-		if obs.RelationshipType == awscloud.RelationshipBedrockKnowledgeBaseUsesS3DataSource {
+		if obs.RelationshipType == catalog.RelationshipBedrockKnowledgeBaseUsesS3DataSource {
 			s3Targets = append(s3Targets, obs.TargetResourceID)
 		}
 	}

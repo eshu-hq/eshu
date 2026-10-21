@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // configuredTableGlueRelationship records a Clean Rooms configured table's
@@ -39,15 +40,15 @@ func configuredTableGlueRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCleanRoomsConfiguredTableUsesGlueTable,
+		RelationshipType: catalog.RelationshipCleanRoomsConfiguredTableUsesGlueTable,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(table.ARN),
 		TargetResourceID: targetID,
 		// The Glue table node publishes a "<database>/<table>" resource_id, not an
 		// ARN, so target_arn is left empty.
-		TargetType:     awscloud.ResourceTypeGlueTable,
+		TargetType:     catalog.ResourceTypeGlueTable,
 		Attributes:     attributes,
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipCleanRoomsConfiguredTableUsesGlueTable + ":" + targetID,
+		SourceRecordID: sourceID + "->" + catalog.RelationshipCleanRoomsConfiguredTableUsesGlueTable + ":" + targetID,
 	}
 }
 
@@ -84,13 +85,13 @@ func membershipCollaborationRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCleanRoomsMembershipInCollaboration,
+		RelationshipType: catalog.RelationshipCleanRoomsMembershipInCollaboration,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(membership.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeCleanRoomsCollaboration,
+		TargetType:       catalog.ResourceTypeCleanRoomsCollaboration,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCleanRoomsMembershipInCollaboration + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipCleanRoomsMembershipInCollaboration + ":" + targetID,
 	}
 }

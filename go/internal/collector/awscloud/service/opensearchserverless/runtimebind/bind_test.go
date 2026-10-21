@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/opensearchserverless/runtimebind"
 )
 
 // TestOpenSearchServerlessRuntimeBindRegisters confirms importing the binding
 // installs the OpenSearch Serverless scanner builder under its service kind.
 func TestOpenSearchServerlessRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceOpenSearchServerless)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceOpenSearchServerless)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceOpenSearchServerless)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceOpenSearchServerless)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceOpenSearchServerless,
+			ServiceKind: catalog.ServiceOpenSearchServerless,
 		},
 	})
 	if err != nil {

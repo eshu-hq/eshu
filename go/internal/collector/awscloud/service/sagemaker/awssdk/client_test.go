@@ -13,6 +13,7 @@ import (
 	awssagemakertypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListModelsMapsImageArtifactRoleAndDropsEnvironment(t *testing.T) {
@@ -216,7 +217,7 @@ func TestClientListPipelinesNeverReadsDefinitionBody(t *testing.T) {
 func newTestClient(api apiClient) *Client {
 	return &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSageMaker},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSageMaker},
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("databrew scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDatabrew:
+	case "", catalog.ServiceDatabrew:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDatabrew
+		boundary.ServiceKind = catalog.ServiceDatabrew
 	default:
 		return nil, fmt.Errorf("databrew scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -169,7 +170,7 @@ func datasetObservation(boundary awscloud.Boundary, dataset Dataset) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDatabrewDataset,
+		ResourceType: catalog.ResourceTypeDatabrewDataset,
 		Name:         name,
 		Tags:         cloneStringMap(dataset.Tags),
 		Attributes: map[string]any{
@@ -197,7 +198,7 @@ func recipeObservation(boundary awscloud.Boundary, recipe Recipe) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDatabrewRecipe,
+		ResourceType: catalog.ResourceTypeDatabrewRecipe,
 		Name:         name,
 		Tags:         cloneStringMap(recipe.Tags),
 		Attributes: map[string]any{
@@ -221,7 +222,7 @@ func jobObservation(boundary awscloud.Boundary, job Job) awscloud.ResourceObserv
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDatabrewJob,
+		ResourceType: catalog.ResourceTypeDatabrewJob,
 		Name:         name,
 		Tags:         cloneStringMap(job.Tags),
 		Attributes: map[string]any{
@@ -248,7 +249,7 @@ func projectObservation(boundary awscloud.Boundary, project Project) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDatabrewProject,
+		ResourceType: catalog.ResourceTypeDatabrewProject,
 		Name:         name,
 		Tags:         cloneStringMap(project.Tags),
 		Attributes: map[string]any{

@@ -178,7 +178,7 @@ func endpointRelationships(
 			sourceARN,
 			streamARN,
 			arnIfARN(streamARN),
-			awscloud.ResourceTypeKinesisDataStream,
+			catalog.ResourceTypeKinesisDataStream,
 			nil,
 		))
 	}

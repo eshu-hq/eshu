@@ -33,23 +33,23 @@ func dataSourceBackingRelationship(
 	}
 	switch dataSource.Backing.Kind {
 	case BackingStoreRedshiftCluster:
-		base.RelationshipType = awscloud.RelationshipQuickSightDataSourceUsesRedshiftCluster
+		base.RelationshipType = catalog.RelationshipQuickSightDataSourceUsesRedshiftCluster
 		base.TargetResourceID = identifier
 		base.TargetType = awscloud.ResourceTypeRedshiftCluster
 	case BackingStoreRDSInstance:
-		base.RelationshipType = awscloud.RelationshipQuickSightDataSourceUsesRDSInstance
+		base.RelationshipType = catalog.RelationshipQuickSightDataSourceUsesRDSInstance
 		base.TargetResourceID = identifier
 		base.TargetType = awscloud.ResourceTypeRDSDBInstance
 	case BackingStoreAthenaWorkGroup:
-		base.RelationshipType = awscloud.RelationshipQuickSightDataSourceUsesAthenaWorkGroup
+		base.RelationshipType = catalog.RelationshipQuickSightDataSourceUsesAthenaWorkGroup
 		base.TargetResourceID = identifier
-		base.TargetType = awscloud.ResourceTypeAthenaWorkGroup
+		base.TargetType = catalog.ResourceTypeAthenaWorkGroup
 	case BackingStoreS3Bucket:
 		bucketARN := arnForBucket(awscloud.PartitionForBoundary(boundary), identifier)
 		if bucketARN == "" {
 			return nil
 		}
-		base.RelationshipType = awscloud.RelationshipQuickSightDataSourceUsesS3Bucket
+		base.RelationshipType = catalog.RelationshipQuickSightDataSourceUsesS3Bucket
 		base.TargetResourceID = bucketARN
 		base.TargetARN = bucketARN
 		base.TargetType = catalog.ResourceTypeS3Bucket
@@ -91,25 +91,25 @@ func dataSourceVPCRelationships(
 	for _, groupID := range dedupeStrings(resolved.SecurityGroupIDs) {
 		edges = append(edges, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipQuickSightDataSourceUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipQuickSightDataSourceUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			Attributes:       map[string]any{"vpc_connection_id": connID},
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipQuickSightDataSourceUsesSecurityGroup + ":" + groupID,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipQuickSightDataSourceUsesSecurityGroup + ":" + groupID,
 		})
 	}
 	for _, subnetID := range dedupeStrings(resolved.SubnetIDs) {
 		edges = append(edges, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipQuickSightDataSourceUsesSubnet,
+			RelationshipType: catalog.RelationshipQuickSightDataSourceUsesSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes:       map[string]any{"vpc_connection_id": connID},
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipQuickSightDataSourceUsesSubnet + ":" + subnetID,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipQuickSightDataSourceUsesSubnet + ":" + subnetID,
 		})
 	}
 	return edges
@@ -133,13 +133,13 @@ func dataSetDataSourceRelationships(
 	for _, targetARN := range dedupeStrings(dataSet.DataSourceARNs) {
 		edges = append(edges, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipQuickSightDataSetReadsDataSource,
+			RelationshipType: catalog.RelationshipQuickSightDataSetReadsDataSource,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: targetARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeQuickSightDataSource,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipQuickSightDataSetReadsDataSource + ":" + targetARN,
+			TargetType:       catalog.ResourceTypeQuickSightDataSource,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipQuickSightDataSetReadsDataSource + ":" + targetARN,
 		})
 	}
 	return edges
@@ -161,13 +161,13 @@ func dashboardDataSetRelationships(
 	for _, targetARN := range dedupeStrings(dashboard.DataSetARNs) {
 		edges = append(edges, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipQuickSightDashboardReadsDataSet,
+			RelationshipType: catalog.RelationshipQuickSightDashboardReadsDataSet,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: targetARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeQuickSightDataSet,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipQuickSightDashboardReadsDataSet + ":" + targetARN,
+			TargetType:       catalog.ResourceTypeQuickSightDataSet,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipQuickSightDashboardReadsDataSet + ":" + targetARN,
 		})
 	}
 	return edges
@@ -189,13 +189,13 @@ func analysisDataSetRelationships(
 	for _, targetARN := range dedupeStrings(analysis.DataSetARNs) {
 		edges = append(edges, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipQuickSightAnalysisReadsDataSet,
+			RelationshipType: catalog.RelationshipQuickSightAnalysisReadsDataSet,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: targetARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeQuickSightDataSet,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipQuickSightAnalysisReadsDataSet + ":" + targetARN,
+			TargetType:       catalog.ResourceTypeQuickSightDataSet,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipQuickSightAnalysisReadsDataSet + ":" + targetARN,
 		})
 	}
 	return edges

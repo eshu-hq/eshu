@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/datazone/runtimebind"
 )
 
 // TestDatazoneRuntimeBindRegisters confirms importing the binding installs the
 // DataZone scanner builder.
 func TestDatazoneRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceDatazone)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceDatazone)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceDatazone)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceDatazone)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceDatazone,
+			ServiceKind: catalog.ServiceDatazone,
 		},
 	})
 	if err != nil {

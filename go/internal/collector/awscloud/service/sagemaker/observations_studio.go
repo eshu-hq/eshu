@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func domainObservation(domain Domain) awscloud.ResourceObservation {
@@ -15,7 +16,7 @@ func domainObservation(domain Domain) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerDomain,
+		ResourceType: catalog.ResourceTypeSageMakerDomain,
 		Name:         strings.TrimSpace(domain.Name),
 		State:        strings.TrimSpace(domain.Status),
 		Tags:         cloneStringMap(domain.Tags),
@@ -41,7 +42,7 @@ func userProfileObservation(profile UserProfile) awscloud.ResourceObservation {
 	id := firstNonEmpty(userProfileID(domainID, name), name)
 	return awscloud.ResourceObservation{
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerUserProfile,
+		ResourceType: catalog.ResourceTypeSageMakerUserProfile,
 		Name:         name,
 		State:        strings.TrimSpace(profile.Status),
 		Attributes: map[string]any{
@@ -60,7 +61,7 @@ func appObservation(app App) awscloud.ResourceObservation {
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerApp,
+		ResourceType: catalog.ResourceTypeSageMakerApp,
 		Name:         strings.TrimSpace(app.Name),
 		State:        strings.TrimSpace(app.Status),
 		Attributes: map[string]any{
@@ -81,7 +82,7 @@ func inferenceComponentObservation(component InferenceComponent) awscloud.Resour
 	return awscloud.ResourceObservation{
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeSageMakerInferenceComponent,
+		ResourceType: catalog.ResourceTypeSageMakerInferenceComponent,
 		Name:         strings.TrimSpace(component.Name),
 		State:        strings.TrimSpace(component.Status),
 		Attributes: map[string]any{

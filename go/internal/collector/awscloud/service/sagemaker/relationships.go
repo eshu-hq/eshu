@@ -23,7 +23,7 @@ func notebookRelationships(notebook NotebookInstance) []awscloud.RelationshipObs
 		return nil
 	}
 	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipSageMakerNotebookInstanceUsesSubnet,
+		RelationshipType: catalog.RelationshipSageMakerNotebookInstanceUsesSubnet,
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(notebook.ARN),
 		TargetResourceID: subnet,
@@ -40,7 +40,7 @@ func modelRelationships(model Model) []awscloud.RelationshipObservation {
 	var observations []awscloud.RelationshipObservation
 	if role := strings.TrimSpace(model.ExecutionRole); isARN(role) {
 		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipSageMakerModelUsesIAMRole,
+			RelationshipType: catalog.RelationshipSageMakerModelUsesIAMRole,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(model.ARN),
 			TargetResourceID: role,
@@ -56,7 +56,7 @@ func modelRelationships(model Model) []awscloud.RelationshipObservation {
 			if _, ok := seenImage[image]; !ok {
 				seenImage[image] = struct{}{}
 				observations = append(observations, awscloud.RelationshipObservation{
-					RelationshipType: awscloud.RelationshipSageMakerModelUsesContainerImage,
+					RelationshipType: catalog.RelationshipSageMakerModelUsesContainerImage,
 					SourceResourceID: id,
 					SourceARN:        strings.TrimSpace(model.ARN),
 					TargetResourceID: image,
@@ -97,7 +97,7 @@ func modelArtifactRelationship(
 		attributes["object_key"] = key
 	}
 	return awscloud.RelationshipObservation{
-		RelationshipType: awscloud.RelationshipSageMakerModelUsesS3Artifact,
+		RelationshipType: catalog.RelationshipSageMakerModelUsesS3Artifact,
 		SourceResourceID: modelID,
 		SourceARN:        strings.TrimSpace(modelARN),
 		TargetResourceID: bucketARN,
@@ -135,11 +135,11 @@ func endpointRelationships(endpoint Endpoint) []awscloud.RelationshipObservation
 		return nil
 	}
 	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipSageMakerEndpointUsesEndpointConfig,
+		RelationshipType: catalog.RelationshipSageMakerEndpointUsesEndpointConfig,
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(endpoint.ARN),
 		TargetResourceID: config,
-		TargetType:       awscloud.ResourceTypeSageMakerEndpointConfig,
+		TargetType:       catalog.ResourceTypeSageMakerEndpointConfig,
 		SourceRecordID:   id + "#endpoint-config#" + config,
 	}}
 }
@@ -161,11 +161,11 @@ func endpointConfigRelationships(config EndpointConfig) []awscloud.RelationshipO
 		}
 		seen[model] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
-			RelationshipType: awscloud.RelationshipSageMakerEndpointConfigUsesModel,
+			RelationshipType: catalog.RelationshipSageMakerEndpointConfigUsesModel,
 			SourceResourceID: id,
 			SourceARN:        strings.TrimSpace(config.ARN),
 			TargetResourceID: model,
-			TargetType:       awscloud.ResourceTypeSageMakerModel,
+			TargetType:       catalog.ResourceTypeSageMakerModel,
 			SourceRecordID:   id + "#model#" + model,
 		})
 	}
@@ -179,7 +179,7 @@ func trainingJobRelationships(job TrainingJob) []awscloud.RelationshipObservatio
 		return nil
 	}
 	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipSageMakerTrainingJobUsesIAMRole,
+		RelationshipType: catalog.RelationshipSageMakerTrainingJobUsesIAMRole,
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(job.ARN),
 		TargetResourceID: role,
@@ -196,7 +196,7 @@ func domainRelationships(domain Domain) []awscloud.RelationshipObservation {
 		return nil
 	}
 	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipSageMakerDomainUsesVPC,
+		RelationshipType: catalog.RelationshipSageMakerDomainUsesVPC,
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: vpc,
@@ -213,10 +213,10 @@ func userProfileRelationships(profile UserProfile) []awscloud.RelationshipObserv
 		return nil
 	}
 	return []awscloud.RelationshipObservation{{
-		RelationshipType: awscloud.RelationshipSageMakerUserProfileInDomain,
+		RelationshipType: catalog.RelationshipSageMakerUserProfileInDomain,
 		SourceResourceID: id,
 		TargetResourceID: domainID,
-		TargetType:       awscloud.ResourceTypeSageMakerDomain,
+		TargetType:       catalog.ResourceTypeSageMakerDomain,
 		SourceRecordID:   id + "#domain#" + domainID,
 	}}
 }

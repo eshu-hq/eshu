@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("glue scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceGlue:
+	case "", catalog.ServiceGlue:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceGlue
+		boundary.ServiceKind = catalog.ServiceGlue
 	default:
 		return nil, fmt.Errorf("glue scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -206,7 +207,7 @@ func databaseObservation(boundary awscloud.Boundary, database Database) awscloud
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueDatabase,
+		ResourceType: catalog.ResourceTypeGlueDatabase,
 		Name:         name,
 		Attributes: map[string]any{
 			"catalog_id":   strings.TrimSpace(database.CatalogID),
@@ -226,7 +227,7 @@ func tableObservation(boundary awscloud.Boundary, table Table) awscloud.Resource
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   tableID,
-		ResourceType: awscloud.ResourceTypeGlueTable,
+		ResourceType: catalog.ResourceTypeGlueTable,
 		Name:         strings.TrimSpace(table.Name),
 		Attributes: map[string]any{
 			"catalog_id":         strings.TrimSpace(table.CatalogID),
@@ -259,7 +260,7 @@ func crawlerObservation(boundary awscloud.Boundary, crawler Crawler) awscloud.Re
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueCrawler,
+		ResourceType: catalog.ResourceTypeGlueCrawler,
 		Name:         name,
 		State:        strings.TrimSpace(crawler.State),
 		Attributes: map[string]any{
@@ -293,7 +294,7 @@ func jobObservation(boundary awscloud.Boundary, job Job) awscloud.ResourceObserv
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueJob,
+		ResourceType: catalog.ResourceTypeGlueJob,
 		Name:         name,
 		Attributes: map[string]any{
 			"description":                   strings.TrimSpace(job.Description),
@@ -323,7 +324,7 @@ func triggerObservation(boundary awscloud.Boundary, trigger Trigger) awscloud.Re
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueTrigger,
+		ResourceType: catalog.ResourceTypeGlueTrigger,
 		Name:         name,
 		State:        strings.TrimSpace(trigger.State),
 		Attributes: map[string]any{
@@ -343,7 +344,7 @@ func workflowObservation(boundary awscloud.Boundary, workflow Workflow) awscloud
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueWorkflow,
+		ResourceType: catalog.ResourceTypeGlueWorkflow,
 		Name:         name,
 		Attributes: map[string]any{
 			"description":              strings.TrimSpace(workflow.Description),
@@ -362,7 +363,7 @@ func connectionObservation(boundary awscloud.Boundary, connection Connection) aw
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeGlueConnection,
+		ResourceType: catalog.ResourceTypeGlueConnection,
 		Name:         name,
 		Attributes: map[string]any{
 			"description":        strings.TrimSpace(connection.Description),

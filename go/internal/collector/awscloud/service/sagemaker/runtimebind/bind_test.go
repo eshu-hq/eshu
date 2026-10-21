@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/sagemaker/runtimebind"
 )
 
@@ -17,13 +18,13 @@ import (
 // SageMaker scanner builder and that the builder constructs a non-nil scanner
 // without any optional dependency.
 func TestSageMakerRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceSageMaker)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceSageMaker)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceSageMaker)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceSageMaker)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSageMaker},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSageMaker},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

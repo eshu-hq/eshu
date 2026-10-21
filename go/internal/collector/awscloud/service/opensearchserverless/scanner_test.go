@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 )
 
@@ -21,7 +22,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceOpenSearchServerless,
+		ServiceKind:         catalog.ServiceOpenSearchServerless,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:opensearchserverless:1",
 		CollectorInstanceID: "aws-prod",
@@ -92,13 +93,13 @@ func TestScannerEmitsCollectionsPoliciesEndpoints(t *testing.T) {
 		}
 	}
 	wants := map[string]int{
-		awscloud.ResourceTypeOpenSearchServerlessAOSSCollection:               1,
-		awscloud.ResourceTypeOpenSearchServerlessSecurityPolicy:               1,
-		awscloud.ResourceTypeOpenSearchServerlessAOSSVPCEndpoint:              1,
-		awscloud.RelationshipOpenSearchServerlessCollectionUsesKMSKey:         1,
-		awscloud.RelationshipOpenSearchServerlessVPCEndpointInVPC:             1,
-		awscloud.RelationshipOpenSearchServerlessVPCEndpointInSubnet:          2,
-		awscloud.RelationshipOpenSearchServerlessVPCEndpointUsesSecurityGroup: 1,
+		catalog.ResourceTypeOpenSearchServerlessAOSSCollection:               1,
+		catalog.ResourceTypeOpenSearchServerlessSecurityPolicy:               1,
+		catalog.ResourceTypeOpenSearchServerlessAOSSVPCEndpoint:              1,
+		catalog.RelationshipOpenSearchServerlessCollectionUsesKMSKey:         1,
+		catalog.RelationshipOpenSearchServerlessVPCEndpointInVPC:             1,
+		catalog.RelationshipOpenSearchServerlessVPCEndpointInSubnet:          2,
+		catalog.RelationshipOpenSearchServerlessVPCEndpointUsesSecurityGroup: 1,
 	}
 	for key, want := range wants {
 		if counts[key] != want {
@@ -128,7 +129,7 @@ func TestScannerCollectionKMSUsesMostSpecificPolicy(t *testing.T) {
 	}
 	var found bool
 	for _, envelope := range envelopes {
-		if envelope.Payload["relationship_type"] != awscloud.RelationshipOpenSearchServerlessCollectionUsesKMSKey {
+		if envelope.Payload["relationship_type"] != catalog.RelationshipOpenSearchServerlessCollectionUsesKMSKey {
 			continue
 		}
 		found = true
@@ -159,7 +160,7 @@ func TestScannerSkipsKMSEdgeForAWSOwnedKey(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 	for _, envelope := range envelopes {
-		if envelope.Payload["relationship_type"] == awscloud.RelationshipOpenSearchServerlessCollectionUsesKMSKey {
+		if envelope.Payload["relationship_type"] == catalog.RelationshipOpenSearchServerlessCollectionUsesKMSKey {
 			t.Fatal("AWS-owned-key policy must not emit a collection-to-KMS edge")
 		}
 	}

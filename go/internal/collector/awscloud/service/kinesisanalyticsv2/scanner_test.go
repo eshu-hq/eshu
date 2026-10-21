@@ -76,7 +76,7 @@ func TestScannerEmitsApplicationMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	app := resourceByType(t, envelopes, awscloud.ResourceTypeManagedFlinkApplication)
+	app := resourceByType(t, envelopes, catalog.ResourceTypeManagedFlinkApplication)
 	if got, want := app.Payload["resource_id"], testAppARN; got != want {
 		t.Fatalf("application resource_id = %#v, want %q", got, want)
 	}
@@ -92,27 +92,27 @@ func TestScannerEmitsApplicationMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, attrs, "parallelism", int32(4))
 	assertAttribute(t, attrs, "snapshot_names", []string{"snapshot-001"})
 
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationReadsFromKinesisStream,
-		awscloud.ResourceTypeKinesisDataStream, testInputKDS, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationWritesToKinesisStream,
-		awscloud.ResourceTypeKinesisDataStream, testOutputKDS, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationReadsFromFirehoseStream,
+	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationReadsFromKinesisStream,
+		catalog.ResourceTypeKinesisDataStream, testInputKDS, testAppARN)
+	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationWritesToKinesisStream,
+		catalog.ResourceTypeKinesisDataStream, testOutputKDS, testAppARN)
+	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationReadsFromFirehoseStream,
 		catalog.ResourceTypeFirehoseDeliveryStream, testInputFH, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
+	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationWritesToFirehoseStream,
 		catalog.ResourceTypeFirehoseDeliveryStream, testOutputFH, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
+	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
 		catalog.ResourceTypeS3Bucket, testCodeBucket, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesIAMRole,
+	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationUsesIAMRole,
 		awscloud.ResourceTypeIAMRole, testRoleARN, testAppARN)
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
+	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
 		awscloud.ResourceTypeCloudWatchLogsLogGroup, testLogGroupARN, testAppARN)
 
 	// Two distinct subnet edges, both bare ids.
-	subnetTargets := relationshipTargets(envelopes, awscloud.RelationshipManagedFlinkApplicationUsesSubnet)
+	subnetTargets := relationshipTargets(envelopes, catalog.RelationshipManagedFlinkApplicationUsesSubnet)
 	if len(subnetTargets) != 2 {
 		t.Fatalf("subnet edge count = %d, want 2 (%#v)", len(subnetTargets), subnetTargets)
 	}
-	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesSecurityGroup,
+	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationUsesSecurityGroup,
 		catalog.ResourceTypeEC2SecurityGroup, "sg-0a1b2c3d", testAppARN)
 
 	// Code body / SQL / environment property leakage must not appear.
@@ -144,10 +144,10 @@ func TestScannerDedupesAndKeysBareSubnetTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := relationshipTargets(envelopes, awscloud.RelationshipManagedFlinkApplicationUsesSubnet); len(got) != 1 {
+	if got := relationshipTargets(envelopes, catalog.RelationshipManagedFlinkApplicationUsesSubnet); len(got) != 1 {
 		t.Fatalf("subnet edge count = %d, want 1 deduped (%#v)", len(got), got)
 	}
-	if got := relationshipTargets(envelopes, awscloud.RelationshipManagedFlinkApplicationUsesSecurityGroup); len(got) != 1 {
+	if got := relationshipTargets(envelopes, catalog.RelationshipManagedFlinkApplicationUsesSecurityGroup); len(got) != 1 {
 		t.Fatalf("security group edge count = %d, want 1 deduped (%#v)", len(got), got)
 	}
 }
@@ -206,7 +206,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceKinesisAnalyticsV2,
+		ServiceKind:         catalog.ServiceKinesisAnalyticsV2,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:kinesisanalyticsv2:1",
 		CollectorInstanceID: "aws-prod",
