@@ -162,7 +162,10 @@ while IFS=$'\t' read -r package pattern tests; do
     # fault (#8662). Preservation warns instead of dying: a failed copy
     # (e.g. a full disk, plausible when keeping large failure streams) must
     # not abort the every-package-runs loop above.
-    debug_pkgdir="${debug_dir}/$(printf '%s' "${package}" | tr -c '[:alnum:]' '_')"
+    # The loop index suffix keeps distinct packages with identical
+    # sanitized names (e.g. ./foo-bar/baz vs ./foo/bar-baz) from
+    # overwriting each other's evidence when both fail in one run.
+    debug_pkgdir="${debug_dir}/$(printf '%s' "${package}" | tr -c '[:alnum:]' '_')-${i}"
     if mkdir -p -- "${debug_pkgdir}" &&
       cp -- "${events}" "${debug_pkgdir}/events.jsonl" &&
       cp -- "${scratch}/stderr-${i}" "${debug_pkgdir}/stderr.txt" &&

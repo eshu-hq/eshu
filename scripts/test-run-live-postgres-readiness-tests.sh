@@ -188,14 +188,34 @@ printf '1\n' >"${fake}/$(pkg_key "${first_pkg}").exit"
   printf '{"Action":"run","Test":"%s"}\n' "${first_proof}"
   printf '{"Action":"output","Test":"%s","Output":"SEED-DEATH-MARKER\\n"}\n' "${first_proof}"
 } >>"$(events_of "${first_pkg}")"
+# Per-package debug dirs carry the runner loop index: distinct packages with
+# identical sanitized names must not overwrite each other's evidence.
+# In unsharded order first_pkg is iteration 1 and last_pkg is iteration N.
+debug_pkgdir() { printf '%s/.readiness-debug/%s-%d' "${seed_dir}" "$(printf '%s' "$1" | tr -c '[:alnum:]' '_')" "$2"; }
+first_debugdir="$(debug_pkgdir "${first_pkg}" 1)"
+last_debugdir="$(debug_pkgdir "${last_pkg}" "${#packages[@]}")"
 export LIVE_READINESS_DEBUG_DIR="${seed_dir}/.readiness-debug"
 out="$(run_runner)" && fail "go nonzero exit in ${first_pkg} passed"
-debug_pkgdir="${seed_dir}/.readiness-debug/$(printf '%s' "${first_pkg}" | tr -c '[:alnum:]' '_')"
-[[ -f "${debug_pkgdir}/events.jsonl" ]] || fail "debug events not preserved for ${first_pkg}"
-cmp -s "$(events_of "${first_pkg}")" "${debug_pkgdir}/events.jsonl" ||
+[[ -f "${first_debugdir}/events.jsonl" ]] || fail "debug events not preserved for ${first_pkg}"
+cmp -s "$(events_of "${first_pkg}")" "${first_debugdir}/events.jsonl" ||
   fail "debug events differ from the stream for ${first_pkg}"
-[[ -f "${debug_pkgdir}/stderr.txt" ]] || fail "debug stderr not preserved for ${first_pkg}"
+[[ -f "${first_debugdir}/stderr.txt" ]] || fail "debug stderr not preserved for ${first_pkg}"
 [[ "${out}" == *"SEED-DEATH-MARKER"* ]] || fail "death-point tail not printed: ${out}"
+
+# Two failed packages keep separate evidence dirs even when their sanitized
+# names collide: each copy must byte-match its own package stream.
+[[ "${#packages[@]}" -ge 2 && "${first_pkg}" != "${last_pkg}" ]] ||
+  fail "need two distinct packages for the collision case"
+write_events
+printf '1\n' >"${fake}/$(pkg_key "${first_pkg}").exit"
+printf '1\n' >"${fake}/$(pkg_key "${last_pkg}").exit"
+out="$(run_runner)" && fail "go nonzero exits passed"
+[[ -d "${first_debugdir}" && -d "${last_debugdir}" ]] || fail "failed packages share one debug dir"
+[[ "${first_debugdir}" != "${last_debugdir}" ]] || fail "debug dirs collide"
+cmp -s "$(events_of "${first_pkg}")" "${first_debugdir}/events.jsonl" ||
+  fail "first package events overwritten"
+cmp -s "$(events_of "${last_pkg}")" "${last_debugdir}/events.jsonl" ||
+  fail "last package events overwritten"
 unset LIVE_READINESS_DEBUG_DIR
 
 # The debug dir is cleared every run, so its leaf name is pinned: /, $HOME,
@@ -212,8 +232,7 @@ sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${first_proof}\"/\"Action\":\"fail\
 export LIVE_READINESS_DEBUG_DIR="${seed_dir}/.readiness-debug"
 out="$(run_runner)" && fail "verify failure in ${first_pkg} passed"
 [[ "${out}" == *"${first_pkg}: expected tests did not all pass"* ]] || fail "verify failure not named: ${out}"
-debug_pkgdir="${seed_dir}/.readiness-debug/$(printf '%s' "${first_pkg}" | tr -c '[:alnum:]' '_')"
-[[ -f "${debug_pkgdir}/events.jsonl" ]] || fail "debug events not preserved on verify failure"
+[[ -f "${first_debugdir}/events.jsonl" ]] || fail "debug events not preserved on verify failure"
 unset LIVE_READINESS_DEBUG_DIR
 
 # A failed preservation warns and the loop continues: every package still
