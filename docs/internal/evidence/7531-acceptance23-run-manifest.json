@@ -1,0 +1,35 @@
+{
+  "issue": 7531,
+  "acceptances": [2, 3],
+  "status": "BLOCKED_NOT_LAUNCHED",
+  "gate_probe": "2026-10-21",
+  "arms": ["WITH", "WITHOUT"],
+  "locks": {
+    "corpus_repo_count": 984,
+    "corpus_id": "TBD-at-launch",
+    "graph_backend": "neo4j",
+    "image_id": "TBD-at-launch",
+    "reviewed_commit": "TBD-at-launch",
+    "profile_topology": "accepted-full-corpus-profile-unchanged",
+    "volume_state": "clean-at-arm-start",
+    "retention_mode": "stop-and-preserve",
+    "lane": "dedicated-quiet-no-peer-stacks"
+  },
+  "postgres": {
+    "auto_explain_log_min_duration": "60s",
+    "auto_explain_log_analyze": "off"
+  },
+  "without_arm_index_step": "DROP INDEX code_fingerprint_band_entity_idx AFTER db-migrate BEFORE bootstrap-index",
+  "pre_stage_reads": [
+    "pg_stat_user_indexes.idx_scan for code_fingerprint_band_entity_idx",
+    "pg_class.relallvisible for code_fingerprint_band"
+  ],
+  "terminal_condition": "succeeded == total AND pending/in_flight/retrying/failed/dead_letter == 0",
+  "report_per_arm": [
+    "phase wall seconds + human duration",
+    "final queue table",
+    "auto_explain plans for code_drifted items >= 60s",
+    "pre/post idx_scan and relallvisible",
+    "upsert_fingerprints sums, counts, distribution"
+  ]
+}
