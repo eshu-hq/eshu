@@ -418,7 +418,7 @@ ifa_live_gate_common_seams=(
 	# moved here from the determinism-only table when the fault cells landed.
 	# iam_can_assume, iam_can_perform, ec2_uses_profile, and s3_logs_to join
 	# them with the #6228 fault halves: same move, same reason.
-	'go/internal/storage/cypher/kubernetes_namespace_node_writer.go|go/internal/storage/cypher/kubernetes_namespace_node_writer.go'
+	'go/internal/storage/cypher/kubernetes/namespace.go|go/internal/storage/cypher/kubernetes/namespace.go'
 	'go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go|go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go'
 	'go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go|go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go'
 	'go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go|go/internal/storage/cypher/cloud/aws/ec2/uses_profile_edge_writer.go'

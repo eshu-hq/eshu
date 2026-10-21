@@ -256,7 +256,7 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   lookup index (issue #5651), plus `kubernetes_namespace_cluster_id` and
   `kubernetes_namespace_namespace` secondary indexes in
   `schema_tables_indexes.go`. The label already existed (the #5434 reducer
-  writes it via `kubernetes_namespace_node_writer.go`'s `MERGE (n:
+  writes it via `kubernetes/namespace.go`'s `MERGE (n:
   KubernetesNamespace {uid: row.uid})`), but had no backing index of any
   kind before this change — every write MERGE and every future
   cluster/namespace-scoped read fell back to a `KubernetesNamespace` label
@@ -343,7 +343,7 @@ image, ports 17474/17687, no shared state with any Compose stack) was seeded
 with 200,000 `KubernetesNamespace` nodes (8,000 synthetic clusters x 25
 namespaces each, unique `uid`/`cluster_id`/`namespace` triples) via batched
 `UNWIND ... CREATE` — representative of the reducer's own row shape
-(`kubernetes_namespace_node_writer.go`). Each shape below is `time.perf_counter`
+(`kubernetes/namespace.go`). Each shape below is `time.perf_counter`
 wall time over the Bolt-HTTP `tx/commit` endpoint, 2 warm-up + 7 measured
 requests, reporting the median:
 

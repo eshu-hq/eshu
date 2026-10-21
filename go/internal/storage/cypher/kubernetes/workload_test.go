@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package kubernetes
 
 import (
 	"context"
@@ -38,7 +38,7 @@ func TestKubernetesWorkloadNodeWriterEmptyRowsIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewKubernetesWorkloadNodeWriter(executor, 0)
+	writer := NewWorkloadNodeWriter(executor, 0)
 
 	if err := writer.WriteKubernetesWorkloadNodes(context.Background(), nil, "reducer/kubernetes-workloads"); err != nil {
 		t.Fatalf("WriteKubernetesWorkloadNodes returned error: %v", err)
@@ -52,7 +52,7 @@ func TestKubernetesWorkloadNodeWriterMergesOnUID(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewKubernetesWorkloadNodeWriter(executor, 0)
+	writer := NewWorkloadNodeWriter(executor, 0)
 
 	if err := writer.WriteKubernetesWorkloadNodes(context.Background(), kubernetesWorkloadRows(1), "reducer/kubernetes-workloads"); err != nil {
 		t.Fatalf("WriteKubernetesWorkloadNodes returned error: %v", err)
@@ -89,7 +89,7 @@ func TestKubernetesWorkloadNodeWriterBatchesRows(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewKubernetesWorkloadNodeWriter(executor, 2)
+	writer := NewWorkloadNodeWriter(executor, 2)
 
 	if err := writer.WriteKubernetesWorkloadNodes(context.Background(), kubernetesWorkloadRows(5), "reducer/kubernetes-workloads"); err != nil {
 		t.Fatalf("WriteKubernetesWorkloadNodes returned error: %v", err)
@@ -104,7 +104,7 @@ func TestKubernetesWorkloadNodeWriterUsesGroupExecutorAtomically(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := NewKubernetesWorkloadNodeWriter(executor, 2)
+	writer := NewWorkloadNodeWriter(executor, 2)
 
 	if err := writer.WriteKubernetesWorkloadNodes(context.Background(), kubernetesWorkloadRows(5), "reducer/kubernetes-workloads"); err != nil {
 		t.Fatalf("WriteKubernetesWorkloadNodes returned error: %v", err)
@@ -124,5 +124,5 @@ func TestKubernetesWorkloadNodeWriterSatisfiesReducerInterface(t *testing.T) {
 	// consumer interface. This test fails to compile if the method set drifts.
 	var _ interface {
 		WriteKubernetesWorkloadNodes(ctx context.Context, rows []map[string]any, evidenceSource string) error
-	} = NewKubernetesWorkloadNodeWriter(&recordingExecutor{}, 0)
+	} = NewWorkloadNodeWriter(&recordingExecutor{}, 0)
 }

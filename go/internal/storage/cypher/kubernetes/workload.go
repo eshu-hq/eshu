@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package kubernetes
 
 import (
 	"context"
 	"fmt"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // canonicalPhaseKubernetesWorkload names the live KubernetesWorkload node
@@ -44,22 +46,22 @@ SET w.id = row.uid,
     w.collector_kind = row.collector_kind,
     w.evidence_source = row.evidence_source`
 
-// KubernetesWorkloadNodeWriter materializes kubernetes_live.pod_template facts
+// WorkloadNodeWriter materializes kubernetes_live.pod_template facts
 // into canonical KubernetesWorkload graph nodes. It satisfies the reducer-owned
 // KubernetesWorkloadNodeWriter consumer interface and writes through the
 // backend-neutral Executor seam.
-type KubernetesWorkloadNodeWriter struct {
-	executor  Executor
+type WorkloadNodeWriter struct {
+	executor  sourcecypher.Executor
 	batchSize int
 }
 
-// NewKubernetesWorkloadNodeWriter returns a KubernetesWorkloadNodeWriter backed
+// NewWorkloadNodeWriter returns a WorkloadNodeWriter backed
 // by the given Executor. A batchSize of 0 or less uses DefaultBatchSize (500).
-func NewKubernetesWorkloadNodeWriter(executor Executor, batchSize int) *KubernetesWorkloadNodeWriter {
+func NewWorkloadNodeWriter(executor sourcecypher.Executor, batchSize int) *WorkloadNodeWriter {
 	if batchSize <= 0 {
-		batchSize = DefaultBatchSize
+		batchSize = sourcecypher.DefaultBatchSize
 	}
-	return &KubernetesWorkloadNodeWriter{executor: executor, batchSize: batchSize}
+	return &WorkloadNodeWriter{executor: executor, batchSize: batchSize}
 }
 
 // WriteKubernetesWorkloadNodes upserts KubernetesWorkload nodes for the given
@@ -67,7 +69,7 @@ func NewKubernetesWorkloadNodeWriter(executor Executor, batchSize int) *Kubernet
 // GroupExecutor all batches are dispatched in a single atomic transaction;
 // otherwise they run sequentially. The write is idempotent: the same uid
 // converges on one node across batches, retries, and generations.
-func (w *KubernetesWorkloadNodeWriter) WriteKubernetesWorkloadNodes(
+func (w *WorkloadNodeWriter) WriteKubernetesWorkloadNodes(
 	ctx context.Context,
 	rows []map[string]any,
 	evidenceSource string,
@@ -89,28 +91,28 @@ func (w *KubernetesWorkloadNodeWriter) WriteKubernetesWorkloadNodes(
 		annotated = append(annotated, cloned)
 	}
 
-	stmts := BuildBatchedStatements(canonicalKubernetesWorkloadUpsertCypher, annotated, w.batchSize)
+	stmts := sourcecypher.BuildBatchedStatements(canonicalKubernetesWorkloadUpsertCypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
-		stmts[index].Operation = OperationCanonicalUpsert
-		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseKubernetesWorkload
-		stmts[index].Parameters[StatementMetadataEntityLabelKey] = "KubernetesWorkload"
-		stmts[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+		stmts[index].Operation = sourcecypher.OperationCanonicalUpsert
+		stmts[index].Parameters[sourcecypher.StatementMetadataPhaseKey] = canonicalPhaseKubernetesWorkload
+		stmts[index].Parameters[sourcecypher.StatementMetadataEntityLabelKey] = "KubernetesWorkload"
+		stmts[index].Parameters[sourcecypher.StatementMetadataSummaryKey] = fmt.Sprintf(
 			"label=KubernetesWorkload rows=%d",
 			len(batchRows),
 		)
 	}
 
-	if ge, ok := w.executor.(GroupExecutor); ok {
+	if ge, ok := w.executor.(sourcecypher.GroupExecutor); ok {
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 		return nil
 	}
 
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil

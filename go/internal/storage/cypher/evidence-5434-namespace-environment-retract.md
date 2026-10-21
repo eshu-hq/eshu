@@ -2,8 +2,8 @@
 
 ## Problem
 
-`KubernetesNamespaceNodeWriter.WriteKubernetesNamespaceNodes`
-(`kubernetes_namespace_node_writer.go`) MERGEs a
+`NamespaceNodeWriter.WriteKubernetesNamespaceNodes`
+(`kubernetes/namespace.go`) MERGEs a
 `(:KubernetesNamespace)-[:TARGETS_ENVIRONMENT]->(:Environment)` edge for
 environment-bound rows and REMOVEs node properties (never the edge) for
 unbound rows, but never retracted a PRE-EXISTING `TARGETS_ENVIRONMENT` edge:

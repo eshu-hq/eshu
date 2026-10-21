@@ -633,7 +633,7 @@ leakage). Until that redesign lands they correctly stay on the explicit
 Four **node** domains are **retract-clear** — a pure idempotent uid-keyed `MERGE`
 with no Retract method and no `DELETE`/`REMOVE` anywhere, mirroring #2782's promoted
 AWS resource node: EC2 instance node (`ec2_instance_node_writer.go:28`), K8s
-workload node (`kubernetes_workload_node_writer.go:24`), SG rule node and SG cidr
+workload node (`kubernetes/workload.go:24`), SG rule node and SG cidr
 node. They carry no over-retract hazard; the only gap before promotion to a
 per-resource key is a partition-filtered / bounded-load contention proof (the same
 proof shape #2782 delivered for the AWS node). They are the promote-now candidates;

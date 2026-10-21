@@ -32,7 +32,7 @@
 # under domain "kubernetes_namespace_materialization", loads its facts via
 # FactStore.ListFactsByKind -> FROM fact_records, and writes the
 # TARGETS_ENVIRONMENT edges DIRECTLY to the graph through its cypher writer
-# (go/internal/storage/cypher/kubernetes_namespace_node_writer.go:90), then
+# (go/internal/storage/cypher/kubernetes/namespace.go:92), then
 # acks. There is no shared_projection_intents row and no second-stage runner
 # lease -- the two blocker kinds the registry schema offers that this family
 # cannot use (see rows/12_kubernetes_namespace_environment.sh).
@@ -216,7 +216,7 @@ cell_killworker_kubernetes_namespace_environment() {
 # TARGETS_ENVIRONMENT MERGE exactly once, proves the fault decorator's durable
 # marker names that write, and requires the full two-edge set to converge
 # without dead letters. Anchor read off the writer's executed statement text
-# (go/internal/storage/cypher/kubernetes_namespace_node_writer.go:90):
+# (go/internal/storage/cypher/kubernetes/namespace.go:92):
 # MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env).
 cell_failgraphwrite_kubernetes_namespace_environment() {
 	local cell_start

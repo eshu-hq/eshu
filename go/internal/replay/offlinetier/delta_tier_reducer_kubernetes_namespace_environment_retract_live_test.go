@@ -35,7 +35,7 @@
 // in this writer already using SET.
 //
 // This test drives the REAL production write path
-// (cypher.KubernetesNamespaceNodeWriter.WriteKubernetesNamespaceNodes) twice
+// (k8snodewriter.NamespaceNodeWriter.WriteKubernetesNamespaceNodes) twice
 // per subtest -- mimicking two reducer generations for the same namespace --
 // through the exact production dispatch shape: exec (liveExecutor) is passed
 // directly as the writer's Executor, so the upsert statements dispatch
@@ -55,6 +55,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	k8snodewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/kubernetes"
 )
 
 const (
@@ -126,7 +127,7 @@ func TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth(t *testing.T) {
 		cleanupNsEnvRetractScope(cleanCtx, t, exec)
 	})
 
-	writer := cypher.NewKubernetesNamespaceNodeWriter(exec, 0)
+	writer := k8snodewriter.NewNamespaceNodeWriter(exec, 0)
 	const evidenceSource = "reducer/kubernetes-namespaces"
 
 	edgeQ := "MATCH (:KubernetesNamespace {uid: $uid})-[r:TARGETS_ENVIRONMENT]->(e:Environment) RETURN e.name AS env"

@@ -25,8 +25,8 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # DomainKubernetesNamespaceMaterialization.
 IFA_FAMILY_PIN_WAIT_KEY="kubernetes_namespace_materialization"
 
-# go/internal/storage/cypher/kubernetes_namespace_node_writer.go:90. The
-# preceding line (:89) MERGEs the Environment node by name; the anchor names the
+# go/internal/storage/cypher/kubernetes/namespace.go:92. The
+# preceding line (:91) MERGEs the Environment node by name; the anchor names the
 # RELATIONSHIP merge because that is the write the fault cell interrupts.
 IFA_FAMILY_PIN_ANCHOR="MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)"
 # shared_cell: a plain reducer family needing no maintenance pass, so it is

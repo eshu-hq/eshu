@@ -16,13 +16,14 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	k8snodewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/kubernetes"
 )
 
 // kubernetesWorkloadNodeBudgetRelPath is the committed cost budget for the
 // kubernetes_correlation scenario (fact-kind-registry family kubernetes_live,
 // specs/fact-kind-registry.v1.yaml:202-213, reducer_domain
 // kubernetes_correlation). Like ec2_instance_node_materialization, this
-// projection writes through cypher.KubernetesWorkloadNodeWriter over flat
+// projection writes through k8snodewriter.WorkloadNodeWriter over flat
 // map[string]any rows, not a CanonicalMaterialization, so the fixture rows
 // live inline in this file and the budget records that explicitly instead of
 // pointing at a cassette path.
@@ -50,7 +51,7 @@ const (
 // (go/internal/reducer/kubernetes_workload_materialization.go:295-325). The
 // node uid is the live object_id (never the raw metadata.uid, which is
 // carried as workload_uid only — see that function's doc comment).
-// cypher.KubernetesWorkloadNodeWriter has one Cypher template and no per-row
+// k8snodewriter.WorkloadNodeWriter has one Cypher template and no per-row
 // batching split, so any two distinct rows are sufficient to prove the N+1
 // control.
 func kubernetesWorkloadNodeFixtureRows() []map[string]any {
@@ -141,7 +142,7 @@ func (b *kubernetesFakeOwnerBeginner) Begin(context.Context) (db.Transaction, er
 
 // newGatedInstrumentedKubernetesWorkloadWriter builds the PRODUCTION
 // Kubernetes write dispatch: graphowner.NewKubernetesWorkloadGatedWriter over
-// the raw cypher.KubernetesWorkloadNodeWriter's WriteKubernetesWorkloadNodes
+// the raw k8snodewriter.WorkloadNodeWriter's WriteKubernetesWorkloadNodes
 // method, mirroring go/cmd/reducer/canonical_graph_writers.go:52/64 exactly.
 // As with EC2/Azure/GCP, the #5007 owner-ledger Gate chunks rows, opens one
 // owner-ledger Postgres transaction per chunk against the REAL
@@ -162,7 +163,7 @@ func newGatedInstrumentedKubernetesWorkloadWriter(t *testing.T, winners map[stri
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
 	instrumented := &cypher.InstrumentedExecutor{Inner: exec, Instruments: inst}
-	raw := cypher.NewKubernetesWorkloadNodeWriter(instrumented, 500)
+	raw := k8snodewriter.NewWorkloadNodeWriter(instrumented, 500)
 	gate := graphowner.NewGate(&kubernetesFakeOwnerBeginner{winners: winners})
 	gate.Instruments = inst
 	gated = graphowner.NewKubernetesWorkloadGatedWriter(gate, raw.WriteKubernetesWorkloadNodes)
@@ -185,7 +186,7 @@ func kubernetesWorkloadOwnedAllWinners() map[string]string {
 // kubernetes_live family in specs/fact-kind-registry.v1.yaml, C-14 issue
 // #4367). It drives the production GATED dispatch —
 // graphowner.KubernetesWorkloadGatedWriter.WriteKubernetesWorkloadNodes over
-// the raw cypher.KubernetesWorkloadNodeWriter, per
+// the raw k8snodewriter.WorkloadNodeWriter, per
 // canonical_graph_writers.go:52/64 — over two deterministic rows in the
 // owned-all (non-contended) case, through a real InstrumentedExecutor-backed
 // sdkmetric.ManualReader, then asserts eshu_dp_neo4j_batches_executed_total is

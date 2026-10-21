@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package kubernetes
 
 import (
 	"context"
 	"fmt"
 	"strings"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // canonicalPhaseKubernetesNamespace names the live KubernetesNamespace node
@@ -67,7 +69,7 @@ SET n.id = row.uid,
 // on one canonical Environment node per name. Only rows the reducer
 // classified as environment-bound (a non-empty row.environment) are ever
 // routed through this query; see
-// KubernetesNamespaceNodeWriter.WriteKubernetesNamespaceNodes.
+// NamespaceNodeWriter.WriteKubernetesNamespaceNodes.
 const CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher = `UNWIND $rows AS row
 MERGE (n:KubernetesNamespace {uid: row.uid})
 SET n.id = row.uid,
@@ -137,24 +139,24 @@ WHERE n.evidence_source = $evidence_source
   AND coalesce(n.generation_id, "") <> $generation_id
 DETACH DELETE n`
 
-// KubernetesNamespaceNodeWriter materializes kubernetes_live.namespace facts
+// NamespaceNodeWriter materializes kubernetes_live.namespace facts
 // into canonical KubernetesNamespace graph nodes, binding an Environment node
 // only for rows carrying a non-empty "environment" property. It satisfies
 // the reducer-owned KubernetesNamespaceNodeWriter consumer interface and
 // writes through the backend-neutral Executor seam.
-type KubernetesNamespaceNodeWriter struct {
-	executor  Executor
+type NamespaceNodeWriter struct {
+	executor  sourcecypher.Executor
 	batchSize int
 }
 
-// NewKubernetesNamespaceNodeWriter returns a KubernetesNamespaceNodeWriter
+// NewNamespaceNodeWriter returns a NamespaceNodeWriter
 // backed by the given Executor. A batchSize of 0 or less uses
 // DefaultBatchSize (500).
-func NewKubernetesNamespaceNodeWriter(executor Executor, batchSize int) *KubernetesNamespaceNodeWriter {
+func NewNamespaceNodeWriter(executor sourcecypher.Executor, batchSize int) *NamespaceNodeWriter {
 	if batchSize <= 0 {
-		batchSize = DefaultBatchSize
+		batchSize = sourcecypher.DefaultBatchSize
 	}
-	return &KubernetesNamespaceNodeWriter{executor: executor, batchSize: batchSize}
+	return &NamespaceNodeWriter{executor: executor, batchSize: batchSize}
 }
 
 // WriteKubernetesNamespaceNodes upserts KubernetesNamespace nodes for the
@@ -171,7 +173,7 @@ func NewKubernetesNamespaceNodeWriter(executor Executor, batchSize int) *Kuberne
 // retract with sequential Execute calls, NEVER through GroupExecutor: on the
 // pinned NornicDB v1.1.11 a relationship DELETE dispatched through
 // ExecuteGroup (the real production reducer executor -- cmd/reducer wires
-// KubernetesNamespaceNodeWriter through reducerNeo4jExecutor.ExecuteGroup,
+// NamespaceNodeWriter through reducerNeo4jExecutor.ExecuteGroup,
 // one managed Bolt transaction, for every backend including NornicDB) can
 // under-apply even as the sole statement in the group, while the identical
 // statement run auto-commit (Execute) deletes correctly -- the same class of
@@ -185,7 +187,7 @@ func NewKubernetesNamespaceNodeWriter(executor Executor, batchSize int) *Kuberne
 // how the upsert batches are dispatched below. The write is idempotent: the
 // same uid converges on one node and at most one TARGETS_ENVIRONMENT edge
 // across batches, retries, and generations.
-func (w *KubernetesNamespaceNodeWriter) WriteKubernetesNamespaceNodes(
+func (w *NamespaceNodeWriter) WriteKubernetesNamespaceNodes(
 	ctx context.Context,
 	rows []map[string]any,
 	evidenceSource string,
@@ -223,16 +225,16 @@ func (w *KubernetesNamespaceNodeWriter) WriteKubernetesNamespaceNodes(
 		return nil
 	}
 
-	if ge, ok := w.executor.(GroupExecutor); ok {
+	if ge, ok := w.executor.(sourcecypher.GroupExecutor); ok {
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 		return nil
 	}
 
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil
@@ -242,7 +244,7 @@ func (w *KubernetesNamespaceNodeWriter) WriteKubernetesNamespaceNodes(
 // absent from one complete cluster snapshot. The statement is drain-marked so
 // NornicDB-aware executors can bound the DETACH DELETE; reducer executors that
 // do not expose the phase-drain seam execute the cluster-scoped statement once.
-func (w *KubernetesNamespaceNodeWriter) RetractStaleKubernetesNamespaceNodes(
+func (w *NamespaceNodeWriter) RetractStaleKubernetesNamespaceNodes(
 	ctx context.Context,
 	clusterID string,
 	generationID string,
@@ -263,22 +265,22 @@ func (w *KubernetesNamespaceNodeWriter) RetractStaleKubernetesNamespaceNodes(
 	if w.executor == nil {
 		return fmt.Errorf("kubernetes namespace node writer executor is required")
 	}
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    retractStaleKubernetesNamespaceNodesCypher,
 		Parameters: map[string]any{
-			"cluster_id":                    clusterID,
-			"generation_id":                 generationID,
-			"evidence_source":               evidenceSource,
-			StatementMetadataPhaseKey:       canonicalPhaseKubernetesNamespace,
-			StatementMetadataEntityLabelKey: "KubernetesNamespace",
-			StatementMetadataSummaryKey:     "label=KubernetesNamespace retract_absent complete_snapshot=true",
+			"cluster_id":                                 clusterID,
+			"generation_id":                              generationID,
+			"evidence_source":                            evidenceSource,
+			sourcecypher.StatementMetadataPhaseKey:       canonicalPhaseKubernetesNamespace,
+			sourcecypher.StatementMetadataEntityLabelKey: "KubernetesNamespace",
+			sourcecypher.StatementMetadataSummaryKey:     "label=KubernetesNamespace retract_absent complete_snapshot=true",
 		},
 		Drain:    true,
 		DrainVar: "n",
 	}
 	if err := w.executor.Execute(ctx, stmt); err != nil {
-		return WrapRetryableNeo4jError(err)
+		return sourcecypher.WrapRetryableNeo4jError(err)
 	}
 	return nil
 }
@@ -287,26 +289,26 @@ func (w *KubernetesNamespaceNodeWriter) RetractStaleKubernetesNamespaceNodes(
 // never through GroupExecutor/ExecuteGroup -- see the dispatch-mechanism note
 // on WriteKubernetesNamespaceNodes. Mirrors
 // AzureCloudResourceEdgeWriter.dispatchRetract.
-func (w *KubernetesNamespaceNodeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+func (w *NamespaceNodeWriter) dispatchRetract(ctx context.Context, stmts []sourcecypher.Statement) error {
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil
 }
 
-func (w *KubernetesNamespaceNodeWriter) buildStatements(rows []map[string]any, cypherText string) []Statement {
+func (w *NamespaceNodeWriter) buildStatements(rows []map[string]any, cypherText string) []sourcecypher.Statement {
 	if len(rows) == 0 {
 		return nil
 	}
-	stmts := BuildBatchedStatements(cypherText, rows, w.batchSize)
+	stmts := sourcecypher.BuildBatchedStatements(cypherText, rows, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
-		stmts[index].Operation = OperationCanonicalUpsert
-		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseKubernetesNamespace
-		stmts[index].Parameters[StatementMetadataEntityLabelKey] = "KubernetesNamespace"
-		stmts[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+		stmts[index].Operation = sourcecypher.OperationCanonicalUpsert
+		stmts[index].Parameters[sourcecypher.StatementMetadataPhaseKey] = canonicalPhaseKubernetesNamespace
+		stmts[index].Parameters[sourcecypher.StatementMetadataEntityLabelKey] = "KubernetesNamespace"
+		stmts[index].Parameters[sourcecypher.StatementMetadataSummaryKey] = fmt.Sprintf(
 			"label=KubernetesNamespace rows=%d",
 			len(batchRows),
 		)
@@ -318,20 +320,51 @@ func (w *KubernetesNamespaceNodeWriter) buildStatements(rows []map[string]any, c
 // RetractKubernetesNamespaceStaleTargetsEnvironmentCypher statements for
 // every row in this write (bound and unbound alike), for dispatchRetract to
 // run sequentially ahead of the upsert statements.
-func (w *KubernetesNamespaceNodeWriter) buildRetractStatements(rows []map[string]any, evidenceSource string) []Statement {
+func (w *NamespaceNodeWriter) buildRetractStatements(rows []map[string]any, evidenceSource string) []sourcecypher.Statement {
 	if len(rows) == 0 {
 		return nil
 	}
-	stmts := buildBatchedRetractStatements(RetractKubernetesNamespaceStaleTargetsEnvironmentCypher, rows, w.batchSize)
+	stmts := buildBatchedNamespaceRetractStatements(RetractKubernetesNamespaceStaleTargetsEnvironmentCypher, rows, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters["evidence_source"] = evidenceSource
-		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseKubernetesNamespace
-		stmts[index].Parameters[StatementMetadataEntityLabelKey] = "KubernetesNamespace"
-		stmts[index].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+		stmts[index].Parameters[sourcecypher.StatementMetadataPhaseKey] = canonicalPhaseKubernetesNamespace
+		stmts[index].Parameters[sourcecypher.StatementMetadataEntityLabelKey] = "KubernetesNamespace"
+		stmts[index].Parameters[sourcecypher.StatementMetadataSummaryKey] = fmt.Sprintf(
 			"edge=TARGETS_ENVIRONMENT retract_stale label=KubernetesNamespace rows=%d",
 			len(batchRows),
 		)
+	}
+	return stmts
+}
+
+// buildBatchedNamespaceRetractStatements splits rows into batches and returns
+// one retract Statement per batch. It duplicates the unexported
+// buildBatchedRetractStatements helper from the parent cypher package
+// (canonical_node_writer_phases.go): test fakes and unexported helpers cannot
+// be imported across the package split, so each side carries its own copy,
+// and the root copy stays for the canonical retract path that still uses it.
+// The copy carries a leaf-specific name because the ifa direct-family scan
+// merges every scanned leaf into one key space keyed by bare function name —
+// a same-named copy would fatal that guard.
+func buildBatchedNamespaceRetractStatements(cypher string, rows []map[string]any, batchSize int) []sourcecypher.Statement {
+	if len(rows) == 0 {
+		return nil
+	}
+	if batchSize <= 0 {
+		batchSize = len(rows)
+	}
+	stmts := make([]sourcecypher.Statement, 0, (len(rows)+batchSize-1)/batchSize)
+	for start := 0; start < len(rows); start += batchSize {
+		end := start + batchSize
+		if end > len(rows) {
+			end = len(rows)
+		}
+		stmts = append(stmts, sourcecypher.Statement{
+			Operation:  sourcecypher.OperationCanonicalRetract,
+			Cypher:     cypher,
+			Parameters: map[string]any{"rows": rows[start:end]},
+		})
 	}
 	return stmts
 }

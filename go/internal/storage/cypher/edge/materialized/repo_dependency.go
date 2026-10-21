@@ -60,7 +60,7 @@ import (
 //     them. Covering them needs an id-normalized assertion, not this exact-set
 //     gate. Stated residual gap, not an oversight.
 //   - TARGETS_ENVIRONMENT. It is written here from an EvidenceArtifact source
-//     and by kubernetes_namespace_node_writer.go from a KubernetesNamespace one,
+//     and by kubernetes/namespace.go from a KubernetesNamespace one,
 //     so the two ARE label-separable and endpoints.go could now
 //     express that. It stays excluded on the same ground as the two edges below:
 //     its source EvidenceArtifact is MERGEd with a generation-embedded id, so its

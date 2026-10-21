@@ -25,7 +25,7 @@ package deployment
 //     or by-id impact reads silently stop finding state-observed resources),
 //     TerraformModule (tfstate_canonical_writer.go),
 //     TerraformOutput (tfstate_canonical_writer.go),
-//     KubernetesWorkload (kubernetes_workload_node_writer.go).
+//     KubernetesWorkload (kubernetes/workload.go).
 //     For these labels the `id` value equals the `uid` value, so a caller that
 //     passes the node's uid as the query parameter will resolve via `id`.
 //     The prior unlabeled scan found them; the labeled disjunction must too.

@@ -5,6 +5,7 @@ package materialized
 
 import (
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
+	k8snodewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/kubernetes"
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/crossplane"
@@ -128,8 +129,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// this edge keys on its two endpoint nodes alone.
 	"kubernetes_namespace_environment": {
 		EdgeTypes:      map[string]string{"TARGETS_ENVIRONMENT": "namespace-to-environment binding (CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher)"},
-		RetractCypher:  sourcecypher.RetractKubernetesNamespaceStaleTargetsEnvironmentCypher,
-		IdentityCypher: sourcecypher.CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher,
+		RetractCypher:  k8snodewriter.RetractKubernetesNamespaceStaleTargetsEnvironmentCypher,
+		IdentityCypher: k8snodewriter.CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher,
 	},
 	// iam_instance_profile_role's IdentityCypher holds the %s FORMAT const
 	// itself, unformatted. The token substituted into it comes from

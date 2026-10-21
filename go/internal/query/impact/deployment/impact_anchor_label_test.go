@@ -83,11 +83,11 @@ func TestImpactAnchorLabelDisjunctionIncludesTerraformOutput(t *testing.T) {
 
 // TestImpactAnchorLabelDisjunctionIncludesKubernetesWorkload proves
 // KubernetesWorkload is present. KubernetesWorkload nodes are written with
-// SET w.id = row.uid (go/internal/storage/cypher/kubernetes_workload_node_writer.go)
+// SET w.id = row.uid (go/internal/storage/cypher/kubernetes/workload.go)
 // so callers that pass a KubernetesWorkload uid as start_id must resolve.
 func TestImpactAnchorLabelDisjunctionIncludesKubernetesWorkload(t *testing.T) {
 	t.Parallel()
 	if !strings.Contains(impactAnchorLabelDisjunction, "KubernetesWorkload") {
-		t.Fatalf("impactAnchorLabelDisjunction must include KubernetesWorkload (its .id is set to row.uid by kubernetes_workload_node_writer); got: %s", impactAnchorLabelDisjunction)
+		t.Fatalf("impactAnchorLabelDisjunction must include KubernetesWorkload (its .id is set to row.uid by kubernetes/workload.go); got: %s", impactAnchorLabelDisjunction)
 	}
 }
