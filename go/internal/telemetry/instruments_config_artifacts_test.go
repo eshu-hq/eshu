@@ -264,3 +264,84 @@ func TestConfigArtifactShadowCompareLabelsMatchRowConstants(t *testing.T) {
 		t.Fatalf("telemetry outcomes = %v, row outcomes = %v", got, rows)
 	}
 }
+
+// TestConfigArtifactReadLabelValuesAreClosed pins the closed source and
+// reason sets of the config-artifact reads counter (#8155 PR3c stored
+// cutover). stored/trusted is a repository served from trusted stored rows;
+// live carries the fallback reason, mode_live when the mode serves everything
+// live, stored_error when the whole stored read failed.
+func TestConfigArtifactReadLabelValuesAreClosed(t *testing.T) {
+	t.Parallel()
+
+	if want := []string{"stored", "live"}; !slices.Equal(ConfigArtifactReadSources(), want) {
+		t.Fatalf("ConfigArtifactReadSources() = %v, want %v", ConfigArtifactReadSources(), want)
+	}
+	want := []string{"trusted", "missing", "stale_version", "stale_extractor", "failed", "mode_live", "stored_error"}
+	if got := ConfigArtifactReadReasons(); !slices.Equal(got, want) {
+		t.Fatalf("ConfigArtifactReadReasons() = %v, want %v", got, want)
+	}
+
+	// The accessors return copies: a caller cannot widen the closed set.
+	sources := ConfigArtifactReadSources()
+	reasons := ConfigArtifactReadReasons()
+	sources[0] = "mutated"
+	reasons[0] = "mutated"
+	if ConfigArtifactReadSources()[0] != "stored" || ConfigArtifactReadReasons()[0] != "trusted" {
+		t.Fatal("label value accessors returned shared slices")
+	}
+}
+
+// TestConfigArtifactReadReasonsMatchStorageConstants pins the telemetry
+// fallback reasons to the storage read-model reasons (#8155 PR3c): a renamed,
+// added or dropped reason must change both sides, or the wiring counts a
+// label the stored reader never returns (or drops one it does). Every
+// declared storage Reason has a pinned disposition below, so a new constant
+// has nowhere to hide: list it here with its expected label or absence.
+func TestConfigArtifactReadReasonsMatchStorageConstants(t *testing.T) {
+	t.Parallel()
+
+	// The full declared storage set, with the intended telemetry
+	// disposition of each: fallback reasons map 1:1 to the label,
+	// ReasonTrusted maps to the "trusted" label, and ReasonRetry must stay
+	// absent because Classify never returns it (the rows are still exact).
+	storage := map[artifacts.Reason]string{
+		artifacts.ReasonMissing:        "missing",
+		artifacts.ReasonStaleVersion:   "stale_version",
+		artifacts.ReasonStaleExtractor: "stale_extractor",
+		artifacts.ReasonFailed:         "failed",
+		artifacts.ReasonTrusted:        "trusted",
+	}
+	reasons := map[string]bool{}
+	for _, reason := range ConfigArtifactReadReasons() {
+		reasons[reason] = true
+	}
+	for reason, label := range storage {
+		if string(reason) != "" && string(reason) != label && reason != artifacts.ReasonTrusted {
+			t.Fatalf("storage reason has value %q: the adapter maps reasons 1:1, so the label must be identical", string(reason))
+		}
+		if !reasons[label] {
+			t.Fatalf("telemetry reasons lack the label %q for storage reason %q", label, string(reason))
+		}
+	}
+	if reasons[string(artifacts.ReasonRetry)] {
+		t.Fatalf("telemetry reasons carry %q, which Classify never returns", string(artifacts.ReasonRetry))
+	}
+	if reasons[string(artifacts.ReasonTrusted)] {
+		t.Fatalf("telemetry reasons carry the raw trusted value %q; it must map to %q", string(artifacts.ReasonTrusted), "trusted")
+	}
+	// Exact set equality in the other direction: every telemetry reason is
+	// either a pinned storage label above or a declared wiring-only reason.
+	// A fifth storage reason flowing 1:1 into a label fails here.
+	wiring := map[string]bool{"mode_live": true, "stored_error": true}
+	for _, reason := range ConfigArtifactReadReasons() {
+		pinned := wiring[reason]
+		for _, label := range storage {
+			if reason == label {
+				pinned = true
+			}
+		}
+		if !pinned {
+			t.Fatalf("telemetry reason %q is neither a pinned storage label nor a wiring reason", reason)
+		}
+	}
+}

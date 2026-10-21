@@ -369,6 +369,7 @@ func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 			storyLimitations, storyTruncated = append(storyLimitations, bound...), true
 		}
 		RecordDeploymentArtifactCandidates(r.Context(), h.Instruments, deploymentStats)
+		RecordDeploymentArtifactReads(r.Context(), h.Instruments, deploymentStats)
 		timer.Done(r.Context(), deploymentArtifactsStageAttrs(deploymentOverview != nil, deploymentErr, deploymentStats)...)
 		timer = startRepositoryQueryStage(r.Context(), h.Logger, "repository_story", repoID, "narrative_files")
 		narrativeFiles, err = hydrateRepositoryNarrativeFiles(r.Context(), h.Content, repoID, files)

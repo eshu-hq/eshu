@@ -276,3 +276,87 @@ func registerConfigArtifactShadowCompareInstruments(meter metric.Meter, inst *In
 	}
 	return nil
 }
+
+// Source values of eshu_dp_config_artifact_reads_total (#8155, decision
+// record section 3.5). The set is closed.
+const (
+	// ConfigArtifactReadSourceStored is a related repository served from
+	// trusted stored rows.
+	ConfigArtifactReadSourceStored = "stored"
+	// ConfigArtifactReadSourceLive is a related repository served live: the
+	// whole mode in live and shadow mode, and the per-repository fallback
+	// in stored mode.
+	ConfigArtifactReadSourceLive = "live"
+)
+
+// Reason values of eshu_dp_config_artifact_reads_total (#8155, decision
+// record section 3.5). The set is closed. missing, stale_version,
+// stale_extractor and failed match the storage read-model reasons 1:1 (a
+// parity test pins both sides); trusted, mode_live and stored_error extend
+// the proposed set so every serving counts somewhere: the record's names are
+// Proposed, and a closed counter needs a label for stored servings, for
+// servings under a serve-live mode, and for the whole-read fallback.
+const (
+	// ConfigArtifactReadReasonTrusted is a related repository served from
+	// trusted stored rows.
+	ConfigArtifactReadReasonTrusted = "trusted"
+	// ConfigArtifactReadReasonMissing is a stored-mode fallback for a
+	// repository the stored read dropped.
+	ConfigArtifactReadReasonMissing = "missing"
+	// ConfigArtifactReadReasonStaleVersion is a stored-mode fallback for a
+	// repository derived from older content than the current version.
+	ConfigArtifactReadReasonStaleVersion = "stale_version"
+	// ConfigArtifactReadReasonStaleExtractor is a stored-mode fallback for a
+	// repository derived by another extractor version than the reader's.
+	ConfigArtifactReadReasonStaleExtractor = "stale_extractor"
+	// ConfigArtifactReadReasonFailed is a stored-mode fallback for a
+	// repository with no successful derive yet.
+	ConfigArtifactReadReasonFailed = "failed"
+	// ConfigArtifactReadReasonModeLive is a related repository served live
+	// because the mode serves everything live (live and shadow mode).
+	ConfigArtifactReadReasonModeLive = "mode_live"
+	// ConfigArtifactReadReasonStoredError is a stored-mode fallback for a
+	// repository served live because the whole stored read failed (or no
+	// reader is configured).
+	ConfigArtifactReadReasonStoredError = "stored_error"
+)
+
+// ConfigArtifactReadSources returns a copy of the closed reads source set,
+// in declaration order.
+func ConfigArtifactReadSources() []string {
+	return []string{
+		ConfigArtifactReadSourceStored,
+		ConfigArtifactReadSourceLive,
+	}
+}
+
+// ConfigArtifactReadReasons returns a copy of the closed reads reason set,
+// in declaration order.
+func ConfigArtifactReadReasons() []string {
+	return []string{
+		ConfigArtifactReadReasonTrusted,
+		ConfigArtifactReadReasonMissing,
+		ConfigArtifactReadReasonStaleVersion,
+		ConfigArtifactReadReasonStaleExtractor,
+		ConfigArtifactReadReasonFailed,
+		ConfigArtifactReadReasonModeLive,
+		ConfigArtifactReadReasonStoredError,
+	}
+}
+
+// registerConfigArtifactReadInstruments registers the #8155 reads counter on
+// inst. The stored cutover registers it; the wiring slice first emits it.
+// source and reason are already in the root dimension registry.
+func registerConfigArtifactReadInstruments(meter metric.Meter, inst *Instruments) error {
+	var err error
+	if inst.ConfigArtifactReads, err = meter.Int64Counter(
+		"eshu_dp_config_artifact_reads_total",
+		metric.WithDescription("Related repositories of the deployment-artifact read path served stored or live, "+
+			"by source (stored: trusted stored rows; live: the whole mode in live and shadow mode, the per-repository fallback in stored mode) "+
+			"and reason (trusted, missing, stale_version, stale_extractor, failed, mode_live, stored_error) (#8155). "+
+			"No repository label"),
+	); err != nil {
+		return fmt.Errorf("register ConfigArtifactReads counter: %w", err)
+	}
+	return nil
+}

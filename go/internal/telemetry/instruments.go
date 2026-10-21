@@ -1192,6 +1192,15 @@ type Instruments struct {
 	// instruments_config_artifacts.go since PR3c-shadow; the shadow wiring
 	// slice first emits it.
 	ConfigArtifactShadowCompare metric.Int64Counter
+	// ConfigArtifactReads counts related repositories of the
+	// deployment-artifact read path served stored or live (#8155 PR3c
+	// stored cutover) by source (stored, live) and reason (trusted,
+	// missing, stale_version, stale_extractor, failed, mode_live,
+	// stored_error). At 3 AM a slow story shows as a high source="live"
+	// share, and its reason label names the cause. No repository label.
+	// Registered in instruments_config_artifacts.go; the wiring slice
+	// first emits it.
+	ConfigArtifactReads metric.Int64Counter
 	// QueryK8sSelectCandidateScanTruncated counts k8s SELECTS relationship
 	// builds (GET /api/v0/entities/{id}/context on a Service or Deployment
 	// K8sResource) whose K8sResource candidate scan hit the
@@ -5935,6 +5944,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerConfigArtifactShadowCompareInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerConfigArtifactReadInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerAuthIdentityStoreUnavailable(meter, inst); err != nil {

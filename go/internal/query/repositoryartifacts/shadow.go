@@ -12,16 +12,27 @@ import (
 )
 
 // StoredRepository is one related repository's stored answer for the shadow
-// compare: its trusted rows, or Trusted false when the stored read has
-// nothing to compare for it. The production API wiring adapts the storage
-// read-model port to this shape; tests use a fake.
+// compare and the stored read: its trusted rows, or Trusted false when the
+// stored read has nothing to serve or compare for it. The production API
+// wiring adapts the storage read-model port to this shape; tests use a fake.
 type StoredRepository struct {
 	RepoID string
 	// Trusted reports whether Rows are exact for the current content and
 	// extractor. Only a trusted repository is compared; any other one
 	// counts stored_missing, never a mismatch.
 	Trusted bool
-	Rows    []contentartifacts.StoredRow
+	// Reason is why the repository is served live when Trusted is false:
+	// one of the storage read-model reasons (missing, stale_version,
+	// stale_extractor, failed) or empty when the read dropped the id. The
+	// stored path counts it on eshu_dp_config_artifact_reads_total; the
+	// shadow compare ignores it.
+	Reason string
+	// ListTruncated carries the trusted state row's list_truncated: the
+	// stored 5,000-window reason input. It is meaningful only when Trusted
+	// is true; an untrusted repository's live fallback load owns the window
+	// reason, so its bit stays false here.
+	ListTruncated bool
+	Rows          []contentartifacts.StoredRow
 }
 
 // StoredReader is the leaf's port to the stored config-artifact read model:
@@ -77,25 +88,37 @@ type ShadowConfig struct {
 	// the compare: with no receiver the stored read is skipped, so a
 	// misconfigured shadow costs no statement. It runs inline on the
 	// request path, so it must stay cheap (a counter and a log) and must
-	// not fail: the wiring slice owns it.
-	Reporter func(ShadowReport)
+	// not fail: the wiring slice owns it. It takes the request context so
+	// the production reporter emits under the request span.
+	Reporter func(context.Context, ShadowReport)
 }
 
 // maybeShadow runs the shadow compare when the loader's shadow config
 // enables it, and reports it. It never fails the request: a stored-read
 // failure lands in the report while the caller keeps serving the live
-// answer it already computed.
-func (l configArtifactLoader) maybeShadow(ctx context.Context, res configArtifactLoadResult) {
-	if !l.shadow.Enabled || l.shadow.Reporter == nil {
+// answer it already computed. It never runs on a stored load: the stored
+// answer has no live rows to compare against. It never runs on a live load
+// the shared request budget truncated: whole stored rows compared against
+// truncated live rows report a false mismatch for rows that are exactly
+// right (#8714 P1). Skipping is request-level, so one truncated repository
+// also drops the valid matches of its non-truncated siblings; per-repo
+// truncation attribution in the compare is the fuller fix if QA shows the
+// skip hiding real signal.
+func (l configArtifactLoader) maybeShadow(ctx context.Context, res configArtifactLoadResult, stats *ConfigArtifactReadStats) {
+	if !l.shadow.Enabled || l.shadow.Reporter == nil || l.stored.Enabled {
+		return
+	}
+	if stats.CandidatesUnhydrated > 0 {
 		return
 	}
 	report := ShadowReport{}
 	if l.shadow.Reader == nil {
 		report.ReadErr = errors.New("config artifact shadow: enabled with no stored reader")
 	} else {
+		stats.StoredStatements++
 		report = compareShadow(ctx, l.shadow.Reader, res)
 	}
-	l.shadow.Reporter(report)
+	l.shadow.Reporter(ctx, report)
 }
 
 // compareShadow reads the stored rows of the related repositories and

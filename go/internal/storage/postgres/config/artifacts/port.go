@@ -88,13 +88,19 @@ func Classify(state *State, version *int64, extractorVersion int) Reason {
 	}
 }
 
-// Repository is the stored-read answer for one related repository. Rows is
-// meaningful only when Reason is ReasonTrusted; otherwise the caller serves
-// the repository live and counts Reason.
+// Repository is the stored-read answer for one related repository. Rows and
+// ListTruncated are meaningful only when Reason is ReasonTrusted; otherwise
+// the caller serves the repository live and counts Reason. ListTruncated
+// carries the state's list_truncated so the caller derives the 5,000-window
+// reason from it (#8155 PR3c); it is false for every untrusted repository
+// because its live fallback load owns the window reason.
 type Repository struct {
 	RepoID string
 	Reason Reason
 	Rows   []Row
+	// ListTruncated is true when the trusted state row's list was cut at the
+	// 5,000-file window.
+	ListTruncated bool
 }
 
 // Reader is the read-model port the story and context routes read stored

@@ -82,7 +82,18 @@ importing a query package. This package keeps:
   enabled `ShadowConfig` reads the related repositories' stored rows through
   the `StoredReader` port, compares each against its live rows, and reports a
   `ShadowReport` without changing the response. Disabled (the zero value) it
-  issues no stored statement.
+  issues no stored statement;
+- the stored load (`stored.go`, #8155 PR3c stored cutover): with an enabled
+  `StoredConfig` the anchor loads live, every trusted related repository
+  serves its stored rows converted through `namedRowsToMaps` (beside its
+  inverse `namedLiveRows`; the neutral package's name-scope guard forbids a
+  generic row-map builder there), and every other related repository falls
+  back to the live load with its reason counted. One stored statement answers
+  the whole related set; a failed read serves everything live. Stored
+  repositories spend no request budget and never emit the budget reason;
+  their 5,000-window reason comes from the state's `list_truncated`.
+  `ConfigureProductionShadowReads`, `ConfigureProductionStoredReads` and
+  `ResetProductionReads` (tests only) own the production loader's mode.
 
 ## Candidate floor and request budget (#7951)
 

@@ -6,6 +6,9 @@ package repository
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
+	"strings"
 
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
@@ -33,10 +36,17 @@ const deploymentArtifactsReadDegradedReason = "deployment_artifacts_read_degrade
 // deployment_evidence. The candidate counts (#7951) are summed per request:
 // candidates_unhydrated above zero means the request budget bit, and
 // repositories_list_truncated above zero means a related file list was cut at
-// the 5,000-file window.
+// the 5,000-file window. The stored-cutover fields (#8155 PR3c) name the read
+// mode and the stored-vs-live partition of the related set on every load.
 func DeploymentArtifactsReadCountAttrs(stats artifacts.ConfigArtifactReadStats) []slog.Attr {
 	return []slog.Attr{
+		slog.String("read_mode", stats.ReadMode),
 		slog.Int("related_repository_count", stats.RelatedRepositoryCount),
+		slog.Int("stored_repository_count", stats.StoredRepositoryCount),
+		slog.Int("live_repository_count", stats.LiveRepositoryCount),
+		slog.String("live_reasons", stats.LiveReasonsSummary()),
+		slog.Int("stored_row_count", stats.StoredRowCount),
+		slog.Int("stored_statements", stats.StoredStatements),
 		slog.Int("files_listed", stats.FilesListed),
 		slog.Int("files_hydrated", stats.FilesHydrated),
 		slog.Int("files_skipped", stats.FilesSkipped),
@@ -86,6 +96,73 @@ func RecordDeploymentArtifactCandidates(ctx context.Context, instruments *teleme
 			instruments.ConfigArtifactCandidates.Add(ctx, int64(outcome.count), metric.WithAttributes(telemetry.AttrOutcome(outcome.name)))
 		}
 	}
+}
+
+// RecordDeploymentArtifactReads adds one deployment-artifact load's
+// stored-vs-live partition to eshu_dp_config_artifact_reads_total (#8155
+// PR3c): the stored-served related repositories as source="stored"
+// reason="trusted", and the live-served ones by their reason (mode_live in
+// live and shadow mode; the fallback reason in stored mode). A zero count is
+// not added, so a series exists only once its label pair happened. Nil
+// instruments record nothing. It carries no repository label.
+func RecordDeploymentArtifactReads(ctx context.Context, instruments *telemetry.Instruments, stats artifacts.ConfigArtifactReadStats) {
+	if instruments == nil || instruments.ConfigArtifactReads == nil {
+		return
+	}
+	if stats.StoredRepositoryCount > 0 {
+		instruments.ConfigArtifactReads.Add(ctx, int64(stats.StoredRepositoryCount), metric.WithAttributes(
+			telemetry.AttrSource(telemetry.ConfigArtifactReadSourceStored),
+			telemetry.AttrReason(telemetry.ConfigArtifactReadReasonTrusted),
+		))
+	}
+	for _, reason := range slices.Sorted(maps.Keys(stats.LiveReasons)) {
+		if stats.LiveReasons[reason] > 0 {
+			instruments.ConfigArtifactReads.Add(ctx, int64(stats.LiveReasons[reason]), metric.WithAttributes(
+				telemetry.AttrSource(telemetry.ConfigArtifactReadSourceLive),
+				telemetry.AttrReason(reason),
+			))
+		}
+	}
+}
+
+// ReportConfigArtifactShadow emits one shadow compare report (#8155 PR3c):
+// eshu_dp_config_artifact_shadow_compare_total points per outcome with a
+// nonzero count, and a WARN log naming the mismatched repositories when any
+// mismatched, or the read error when the stored read failed. The request
+// still serves the live answer either way. Nil instruments record no points;
+// a nil logger logs nothing. It carries no repository label on the metric;
+// the log names repository ids, as the derive failure log does.
+func ReportConfigArtifactShadow(ctx context.Context, instruments *telemetry.Instruments, logger *slog.Logger, report artifacts.ShadowReport) {
+	if instruments != nil && instruments.ConfigArtifactShadowCompare != nil {
+		for _, outcome := range telemetry.ConfigArtifactShadowCompareOutcomes() {
+			if count := report.Count(outcome); count > 0 {
+				instruments.ConfigArtifactShadowCompare.Add(ctx, int64(count), metric.WithAttributes(telemetry.AttrOutcome(outcome)))
+			}
+		}
+	}
+	if logger == nil {
+		return
+	}
+	if report.ReadErr != nil {
+		logger.LogAttrs(ctx, slog.LevelWarn, "config-artifact shadow read failed; serving live without a compare",
+			telemetry.EventAttr("config_artifacts.shadow.read_error"),
+			slog.String("error", report.ReadErr.Error()))
+		return
+	}
+	mismatched := report.Count(telemetry.ConfigArtifactShadowCompareOutcomeMismatch)
+	if mismatched == 0 {
+		return
+	}
+	ids := make([]string, 0, mismatched)
+	for _, result := range report.Repositories {
+		if result.Outcome == telemetry.ConfigArtifactShadowCompareOutcomeMismatch {
+			ids = append(ids, result.RepoID)
+		}
+	}
+	logger.LogAttrs(ctx, slog.LevelWarn, "config-artifact shadow compare mismatched stored and live rows; serving live",
+		telemetry.EventAttr("config_artifacts.shadow.mismatch"),
+		slog.Int("mismatch_count", mismatched),
+		slog.String("repositories", strings.Join(ids, ",")))
 }
 
 // deploymentArtifactsStageAttrs builds the attributes the story's

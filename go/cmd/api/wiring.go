@@ -257,6 +257,13 @@ func wireAPI(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("new router: %w", err)
 	}
+	// Config-artifact read mode (#8155 PR3c): live by default, shadow or
+	// stored over the replica read store. Wired post-construction, like the
+	// keyrings below, instead of threaded through the router constructor's
+	// parameter list. Unknown modes and a missing reader fail startup.
+	if err := configureConfigArtifactReads(getenv, readStore, instruments, logger); err != nil {
+		return nil, nil, nil, fmt.Errorf("configure config artifact reads: %w", err)
+	}
 	if err := startInfraSearchKeyRead(ctx, getenv, router.Infra, graphBackend, driver != nil, graphReader, logger, instruments); err != nil {
 		return nil, nil, nil, err
 	}
