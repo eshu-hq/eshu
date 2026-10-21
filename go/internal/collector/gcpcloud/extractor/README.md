@@ -39,9 +39,10 @@ See `doc.go` for the full contract.
 
 ## Dependencies
 
-Standard library only (`encoding/json`, `fmt`, `sort`, `strings`, `time`).
-The parent `gcpcloud` package and every extractor group depend on this leaf;
-nothing here depends on them.
+Standard library plus `go/internal/facts` (`StableID` for push-endpoint
+fingerprints only; this leaf still imports neither the parent `gcpcloud`
+package nor any extractor group). The parent `gcpcloud` package and every
+extractor group depend on this leaf; nothing here depends on them.
 
 ## Telemetry
 

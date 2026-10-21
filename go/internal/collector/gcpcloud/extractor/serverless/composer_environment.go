@@ -19,7 +19,7 @@ import (
 // extractor.ComputeFullResourceNameFromSelfLink (Compute extractors), extractor.AssetTypeStorageBucket,
 // extractor.StorageBucketResourceNamePrefixFmt, and extractor.GCSBucketFromURI (BigQuery Table
 // extractor), and extractor.AssetTypeKMSCryptoKey and the strict-domain
-// extractor.CMEKKeyFullResourceName (extractor_helpers.go).
+// extractor.CMEKKeyFullResourceName (shared.go).
 const assetTypeComposerEnvironment = "composer.googleapis.com/Environment"
 
 // Bounded provider relationship types for Composer Environment edges. Each is

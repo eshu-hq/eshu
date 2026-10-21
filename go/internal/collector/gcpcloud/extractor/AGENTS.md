@@ -12,7 +12,8 @@
 
 ## Invariants
 
-- Standard library only. This leaf must never import the parent `gcpcloud`
+- Standard library plus `go/internal/facts` (`StableID` for push-endpoint
+  fingerprints only). This leaf must never import the parent `gcpcloud`
   package or any extractor group: the parent and the groups both depend on
   this leaf, so any reverse edge is an import cycle.
 - Registration is init-driven and fails loudly: blank asset type, nil

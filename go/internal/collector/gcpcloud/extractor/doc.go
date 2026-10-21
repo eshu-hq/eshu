@@ -9,7 +9,8 @@
 // AttributeExtraction), the provider relationship observation shape, the claim
 // Boundary and ParentScopeKind, and the small shared helpers extractors use
 // (CMEK key normalization, sorted dedup, RFC3339 normalization). It imports
-// only the standard library, so both the parent gcpcloud package and every
+// only the standard library plus go/internal/facts (StableID for
+// push-endpoint fingerprints), so both the parent gcpcloud package and every
 // extractor group package can depend on it without forming an import cycle.
 //
 // Registration is init-driven: each extractor group package registers its
