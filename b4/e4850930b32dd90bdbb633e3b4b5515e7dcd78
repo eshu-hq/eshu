@@ -1,0 +1,412 @@
+go/cmd/reducer/admission_decision_wiring_test.go
+  h_78a442cba0b3e6 13,43,55-56
+go/cmd/reducer/executor_adapters_probe_test.go
+  h_78a442cba0b3e6 12,220,240
+go/cmd/reducer/repo_dependency_commit_response_loss_prove_theory_live_test.go
+  h_78a442cba0b3e6 24,96,110
+go/cmd/reducer/runs_on_concurrent_writers_live_test.go
+  h_78a442cba0b3e6 19,179
+go/cmd/reducer/runs_on_pair_isolation_nornicdb_live_test.go
+  h_78a442cba0b3e6 17,96,158
+go/internal/ifa/materializededges/handles_route.go
+  h_78a442cba0b3e6 13,106
+go/internal/ifa/materializededges/handles_route_test.go
+  h_78a442cba0b3e6 12,20
+go/internal/ifa/materializededges/invokes_cloud_action.go
+  h_78a442cba0b3e6 11,60
+go/internal/ifa/materializededges/invokes_cloud_action_test.go
+  h_78a442cba0b3e6 12,25,32
+go/internal/ifa/materializededges/runs_in.go
+  h_78a442cba0b3e6 13,117
+go/internal/ifa/materializededges/runs_in_test.go
+  h_78a442cba0b3e6 11,19
+go/internal/ifa/materializededges/workload_dependency.go
+  h_78a442cba0b3e6 23
+go/internal/reducer/acceptance_observability_test.go
+  h_78a442cba0b3e6 12-13,38,48
+go/internal/reducer/admission_decision_mapping_test.go
+  h_78a442cba0b3e6 161-162
+go/internal/reducer/code/value/cloud_sink_fence_domains_test.go
+  h_78a442cba0b3e6 51,194-195,206
+go/internal/reducer/code_import_repo_edge.go
+  h_78a442cba0b3e6 12-13,266
+go/internal/reducer/code_import_repo_edge_handler.go
+  h_78a442cba0b3e6 226,256
+go/internal/reducer/code_import_repo_edge_retract.go
+  h_78a442cba0b3e6 11-12,115
+go/internal/reducer/compat_alias_retirement_factloader_test.go
+  h_78a442cba0b3e6 1-99
+go/internal/reducer/compat_decode.go
+  h_78a442cba0b3e6 57,127-129
+go/internal/reducer/contract_boundary_test.go
+  h_78a442cba0b3e6 195,203,209,211,222,229,231,242,245-246,259,262,264,267
+go/internal/reducer/dependency_domain.go
+  h_78a442cba0b3e6 12-13,80,127
+go/internal/reducer/dependency_domain_test.go
+  h_78a442cba0b3e6 10-11,57,92,252,324,328,335,349,353,360,374,378
+go/internal/reducer/deployable_unit_admission_decisions.go
+  h_78a442cba0b3e6 139
+go/internal/reducer/deployable_unit_correlation.go
+  h_78a442cba0b3e6 50
+go/internal/reducer/deployable_unit_correlation_edges.go
+  h_78a442cba0b3e6 237,250,327,374
+go/internal/reducer/deployable_unit_correlation_edges_test.go
+  h_78a442cba0b3e6 10-11,148-149
+go/internal/reducer/deployable_unit_correlation_retract_scope_test.go
+  h_78a442cba0b3e6 61,82
+go/internal/reducer/documentation_edge_delta_scope.go
+  h_78a442cba0b3e6 39
+go/internal/reducer/documentation_edge_materialization.go
+  h_78a442cba0b3e6 12-13,32,94,106,282
+go/internal/reducer/documentation_edge_materialization_test.go
+  h_78a442cba0b3e6 45-46,109-110
+go/internal/reducer/domain.go
+  h_78a442cba0b3e6 31,35
+go/internal/reducer/domain_test.go
+  h_78a442cba0b3e6 28,55
+go/internal/reducer/evidence-6626-factloader-domain.md
+  h_78a442cba0b3e6 1-67
+go/internal/reducer/factload_materialization_bench_test.go
+  h_78a442cba0b3e6 116
+go/internal/reducer/gcp_relationship_materialization.go
+  h_78a442cba0b3e6 76
+go/internal/reducer/gcp_resource_materialization.go
+  h_78a442cba0b3e6 74
+go/internal/reducer/graph_projection_phase_test.go
+  h_78a442cba0b3e6 10-11,67,86
+go/internal/reducer/handles_route_endpoint_presence_test.go
+  h_78a442cba0b3e6 12-13,25,208,244,281,312,332,351
+go/internal/reducer/handles_route_projection_process_test.go
+  h_78a442cba0b3e6 11-12,42,128,193
+go/internal/reducer/handles_route_readiness_test.go
+  h_78a442cba0b3e6 9-10,18,33,36,46
+go/internal/reducer/idempotency_additive_test.go
+  h_78a442cba0b3e6 57-58
+go/internal/reducer/ifa_family_registry_wait_key_coherence_test.go
+  h_78a442cba0b3e6 107-108
+go/internal/reducer/kubernetes_namespace_materialization.go
+  h_78a442cba0b3e6 134
+go/internal/reducer/kubernetes_workload_materialization.go
+  h_78a442cba0b3e6 83
+go/internal/reducer/materialized_edge_families.go
+  h_78a442cba0b3e6 6-9,55-56
+go/internal/reducer/materialized_edge_families_test.go
+  h_78a442cba0b3e6 9-10,26-27,63,68
+go/internal/reducer/materialized_edge_family_blocker_lockstep_guards_test.go
+  h_78a442cba0b3e6 9-10,74
+go/internal/reducer/materialized_edge_family_blocker_shape_test.go
+  h_78a442cba0b3e6 114,119,122,125,128,132,142,146,160-165
+go/internal/reducer/materialized_edge_family_runner_lease_hold_test.go
+  h_78a442cba0b3e6 11-12,106-109
+go/internal/reducer/platform_infra_materialization.go
+  h_78a442cba0b3e6 36
+go/internal/reducer/rationale_delta_scope.go
+  h_78a442cba0b3e6 30
+go/internal/reducer/rationale_edge_delta_cassette_test.go
+  h_78a442cba0b3e6 65
+go/internal/reducer/rationale_edge_intent_retract_reachability_test.go
+  h_78a442cba0b3e6 12-13,101
+go/internal/reducer/rationale_edge_intents.go
+  h_78a442cba0b3e6 13-14,60,108,162
+go/internal/reducer/rationale_edge_materialization.go
+  h_78a442cba0b3e6 44
+go/internal/reducer/rationale_edge_materialization_partition_test.go
+  h_78a442cba0b3e6 13-14,157,259,271,298,304,349,355
+go/internal/reducer/rationale_edge_materialization_test.go
+  h_78a442cba0b3e6 118-119
+go/internal/reducer/rationale_edge_zero_refresh_test.go
+  h_78a442cba0b3e6 56,63,66
+go/internal/reducer/repo_dependency_absent_acceptance_test.go
+  h_78a442cba0b3e6 11-12,52,63,165,177
+go/internal/reducer/repo_dependency_projection_acceptance_cycle.go
+  h_78a442cba0b3e6 69,79,177,217
+go/internal/reducer/repo_dependency_projection_concurrency_proof_test.go
+  h_78a442cba0b3e6 15-16,245
+go/internal/reducer/repo_dependency_projection_quarantine.go
+  h_78a442cba0b3e6 14-15,73
+go/internal/reducer/repo_dependency_projection_quarantine_telemetry_test.go
+  h_78a442cba0b3e6 11-12,59
+go/internal/reducer/repo_dependency_projection_quiescence_test.go
+  h_78a442cba0b3e6 12-13,92,152,193
+go/internal/reducer/repo_dependency_projection_runner.go
+  h_78a442cba0b3e6 15-16,178,189,269,353,370,481,510,542
+go/internal/reducer/repo_dependency_projection_runner_test.go
+  h_78a442cba0b3e6 15-16,414
+go/internal/reducer/repo_dependency_projection_shard_paging_test.go
+  h_78a442cba0b3e6 13-14,86,109
+go/internal/reducer/repo_dependency_projection_telemetry.go
+  h_78a442cba0b3e6 14-15,38,98,118,178,184,255,296,313,324,427,456
+go/internal/reducer/repo_workload_presence_test.go
+  h_78a442cba0b3e6 24,136,172,196,226
+go/internal/reducer/repository_stub_live_test.go
+  h_78a442cba0b3e6 19,72,82
+go/internal/reducer/runs_in_readiness_test.go
+  h_78a442cba0b3e6 9-10,18,35,45
+go/internal/reducer/service_ack_observability_test.go
+  h_78a442cba0b3e6 31,115
+go/internal/reducer/service_ack_single_retry_test.go
+  h_78a442cba0b3e6 108
+go/internal/reducer/service_batch_duplicate_claim_ack_test.go
+  h_78a442cba0b3e6 65
+go/internal/reducer/service_batch_stale_ack_test.go
+  h_78a442cba0b3e6 105,155
+go/internal/reducer/shared_projection_runner_partition_error_test.go
+  h_78a442cba0b3e6 15-16,43,89-90
+go/internal/reducer/shared_projection_runner_polling_test.go
+  h_78a442cba0b3e6 12-13,82,177
+go/internal/reducer/shared_projection_test.go
+  h_78a442cba0b3e6 10-11,20,42,67,99,115-116,152
+go/internal/reducer/shared_projection_worker_process_test.go
+  h_78a442cba0b3e6 11-12,26,37,52,179,194,367,390
+go/internal/reducer/shared_projection_worker_refresh_fence_test.go
+  h_78a442cba0b3e6 9-10,48,55,65-66
+go/internal/reducer/shared_projection_worker_refresh_redelivery_test.go
+  h_78a442cba0b3e6 13-14,88,127-128,145,225
+go/internal/reducer/shared_projection_worker_retract_race_test.go
+  h_78a442cba0b3e6 12-13,185-186,203,219,293,401
+go/internal/reducer/shared_projection_worker_test.go
+  h_78a442cba0b3e6 11-12,292,303,314,325,336,351,381,397,419
+go/internal/reducer/sibling_edge_intent_retract_reachability_test.go
+  h_78a442cba0b3e6 11-12,34,48,62
+go/internal/reducer/sql_relationship_partition_convergence_test.go
+  h_78a442cba0b3e6 13-14,161,241,253,281,287,339,345
+go/internal/reducer/submodule_pin_delta_scope.go
+  h_78a442cba0b3e6 52
+go/internal/reducer/submodule_pin_materialization.go
+  h_78a442cba0b3e6 34,88,99,254
+go/internal/reducer/submodule_pin_materialization_test.go
+  h_78a442cba0b3e6 111-112,213-214
+go/internal/reducer/workload_cloud_relationship_materialization.go
+  h_78a442cba0b3e6 65
+go/internal/reducer/workload_materialization_handler.go
+  h_78a442cba0b3e6 11-12,117,389,403
+go/internal/reducer/workload_materialization_repo_phase.go
+  h_78a442cba0b3e6 250
+go/internal/reducer/workload_materialization_repo_readiness_test.go
+  h_78a442cba0b3e6 85,113,147,176,203,223,240
+go/internal/replay/costcounting/codeowners_ownership_cost_test.go
+  h_78a442cba0b3e6 15,64,141,214
+go/internal/replay/costcounting/documentation_edges_cost_test.go
+  h_78a442cba0b3e6 14,61,67,133,206
+go/internal/replay/costcounting/submodule_pin_cost_test.go
+  h_78a442cba0b3e6 15,63,137,210
+go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go
+  h_78a442cba0b3e6 30,104,114,124,156,166,174
+go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go
+  h_78a442cba0b3e6 18,37,105,129
+go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go
+  h_78a442cba0b3e6 17,34,115,151
+go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go
+  h_78a442cba0b3e6 16,32,89,107
+go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go
+  h_78a442cba0b3e6 22,40,100,126,155
+go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go
+  h_78a442cba0b3e6 19,40,121,149
+go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go
+  h_78a442cba0b3e6 31,88,96,104,112,153-156
+go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go
+  h_78a442cba0b3e6 20,132,147,189
+go/internal/replay/offlinetier/repo_dependency_ifa_process_death_live_test.go
+  h_78a442cba0b3e6 22,118,133
+go/internal/replay/offlinetier/repo_dependency_ifa_quarantine_live_test.go
+  h_78a442cba0b3e6 25,124,146,382,422
+go/internal/replay/offlinetier/repo_dependency_keyed_concurrency_prove_live_test.go
+  h_78a442cba0b3e6 32,195,198,296
+go/internal/storage/cypher/edge/writer/batching_test.go
+  h_78a442cba0b3e6 13,27,45,68,106,132,159-160,177,213,264,326
+go/internal/storage/cypher/edge/writer/canonical_codeowners_edges_test.go
+  h_78a442cba0b3e6 15,185,245,270,308
+go/internal/storage/cypher/edge/writer/canonical_submodule_edges_test.go
+  h_78a442cba0b3e6 15,170,203,238
+go/internal/storage/cypher/edge/writer/code_call_bench_test.go
+  h_78a442cba0b3e6 11,62,65
+go/internal/storage/cypher/edge/writer/code_call_labels_test.go
+  h_78a442cba0b3e6 11,34,71,106,137,175
+go/internal/storage/cypher/edge/writer/cross_repo_resolution_integration_test.go
+  h_78a442cba0b3e6 15,105
+go/internal/storage/cypher/edge/writer/deployable_unit_bench_test.go
+  h_78a442cba0b3e6 11,53
+go/internal/storage/cypher/edge/writer/deployable_unit_target_presence_test.go
+  h_78a442cba0b3e6 12,48,79,157
+go/internal/storage/cypher/edge/writer/deployable_unit_test.go
+  h_78a442cba0b3e6 12,42,94
+go/internal/storage/cypher/edge/writer/deployable_unit_verify.go
+  h_78a442cba0b3e6 15,134,147,215
+go/internal/storage/cypher/edge/writer/deployable_unit_verify_live_test.go
+  h_78a442cba0b3e6 20,146
+go/internal/storage/cypher/edge/writer/dispatch_test.go
+  h_78a442cba0b3e6 15,41,98,136,184,223,257,293,315,353,372,413,460,475
+go/internal/storage/cypher/edge/writer/documentation_test.go
+  h_78a442cba0b3e6 14,221,265,303,343,380
+go/internal/storage/cypher/edge/writer/domains_test.go
+  h_78a442cba0b3e6 13,26,31,36,88,133-134,158,216,260,287-288,301,338,370,375
+go/internal/storage/cypher/edge/writer/generation_reconciliation_converge_test.go
+  h_78a442cba0b3e6 13,61,75,87,128,138,152
+go/internal/storage/cypher/edge/writer/generation_reconciliation_p2_test.go
+  h_78a442cba0b3e6 12,33,43,65,103,111,143,152,195,204
+go/internal/storage/cypher/edge/writer/handles_route_test.go
+  h_78a442cba0b3e6 11,38,98-99,112
+go/internal/storage/cypher/edge/writer/inheritance_override_test.go
+  h_78a442cba0b3e6 14,37,76,125,155,183
+go/internal/storage/cypher/edge/writer/inheritance_retract_test.go
+  h_78a442cba0b3e6 15,148,187,221
+go/internal/storage/cypher/edge/writer/invokes_cloud_action_test.go
+  h_78a442cba0b3e6 11,37,94-95,108
+go/internal/storage/cypher/edge/writer/metrics.go
+  h_78a442cba0b3e6 13,46
+go/internal/storage/cypher/edge/writer/rationale_delta_probe_test.go
+  h_78a442cba0b3e6 16,66,90,109,129
+go/internal/storage/cypher/edge/writer/rationale_mixed_scope_test.go
+  h_78a442cba0b3e6 11,61,143
+go/internal/storage/cypher/edge/writer/rationale_nondelta_scope_test.go
+  h_78a442cba0b3e6 13,91
+go/internal/storage/cypher/edge/writer/rationale_retract_probe_test.go
+  h_78a442cba0b3e6 16,133,163,196,222,249
+go/internal/storage/cypher/edge/writer/rationale_test.go
+  h_78a442cba0b3e6 14,78,115,228,287,323
+go/internal/storage/cypher/edge/writer/repo_dependency_artifact_live_test.go
+  h_78a442cba0b3e6 16,159
+go/internal/storage/cypher/edge/writer/repo_dependency_artifact_test.go
+  h_78a442cba0b3e6 13,63
+go/internal/storage/cypher/edge/writer/repo_dependency_bench_test.go
+  h_78a442cba0b3e6 11,37
+go/internal/storage/cypher/edge/writer/repository_stubs.go
+  h_78a442cba0b3e6 15,49,51
+go/internal/storage/cypher/edge/writer/repository_stubs_test.go
+  h_78a442cba0b3e6 21,164,170,176,182,188,194,257,279,316
+go/internal/storage/cypher/edge/writer/retract.go
+  h_78a442cba0b3e6 14,48,63,98,113,116,281,301,303,305,314,323,332,340,380,409,440,469
+go/internal/storage/cypher/edge/writer/retract_narrowing_test.go
+  h_78a442cba0b3e6 16,176,179,183
+go/internal/storage/cypher/edge/writer/retract_repo.go
+  h_78a442cba0b3e6 16,159,163,185
+go/internal/storage/cypher/edge/writer/retract_repo_live_test.go
+  h_78a442cba0b3e6 10,112
+go/internal/storage/cypher/edge/writer/retract_repo_test.go
+  h_78a442cba0b3e6 17,31,80,99,148,212,261,287,324
+go/internal/storage/cypher/edge/writer/retract_scope.go
+  h_78a442cba0b3e6 18,423-429
+go/internal/storage/cypher/edge/writer/retract_scope_test.go
+  h_78a442cba0b3e6 23,55
+go/internal/storage/cypher/edge/writer/retract_telemetry_test.go
+  h_78a442cba0b3e6 13,37,46,59
+go/internal/storage/cypher/edge/writer/retract_test.go
+  h_78a442cba0b3e6 13,27
+go/internal/storage/cypher/edge/writer/row_keys_test.go
+  h_78a442cba0b3e6 10,65,93
+go/internal/storage/cypher/edge/writer/runs_in_test.go
+  h_78a442cba0b3e6 11,35,90-91,104
+go/internal/storage/cypher/edge/writer/runs_on_concurrency_live_test.go
+  h_78a442cba0b3e6 13,136
+go/internal/storage/cypher/edge/writer/runs_on_mixed_group_retry_test.go
+  h_78a442cba0b3e6 17,105
+go/internal/storage/cypher/edge/writer/runs_on_precedence_live_test.go
+  h_78a442cba0b3e6 19,178,244
+go/internal/storage/cypher/edge/writer/runs_on_retry_test.go
+  h_78a442cba0b3e6 15,100
+go/internal/storage/cypher/edge/writer/shell_exec_antijoin_live_test.go
+  h_78a442cba0b3e6 14,179
+go/internal/storage/cypher/edge/writer/shell_exec_test.go
+  h_78a442cba0b3e6 14,43,91,136,166,192,219,354
+go/internal/storage/cypher/edge/writer/sibling_mixed_scope_test.go
+  h_78a442cba0b3e6 11,31,37,43
+go/internal/storage/cypher/edge/writer/sibling_nondelta_scope_test.go
+  h_78a442cba0b3e6 10,39-41
+go/internal/storage/cypher/edge/writer/source_tool_test.go
+  h_78a442cba0b3e6 13,103
+go/internal/storage/cypher/edge/writer/sql_indexes_test.go
+  h_78a442cba0b3e6 11,40
+go/internal/storage/cypher/edge/writer/sql_queries_table_test.go
+  h_78a442cba0b3e6 11,36,73
+go/internal/storage/cypher/edge/writer/sql_retract_test.go
+  h_78a442cba0b3e6 13,164,228,285
+go/internal/storage/cypher/edge/writer/sql_transaction_test.go
+  h_78a442cba0b3e6 14,53,85,126
+go/internal/storage/cypher/edge/writer/target_miss_class_test.go
+  h_78a442cba0b3e6 12,40,75
+go/internal/storage/cypher/edge/writer/target_presence_live_test.go
+  h_78a442cba0b3e6 13,108,149,234,261,307
+go/internal/storage/cypher/edge/writer/target_presence_test.go
+  h_78a442cba0b3e6 15,90,119,146,171,199,220,265,313
+go/internal/storage/cypher/edge/writer/target_probe.go
+  h_78a442cba0b3e6 13,23-25,77,104,114
+go/internal/storage/cypher/edge/writer/telemetry_test.go
+  h_78a442cba0b3e6 16,39,51,110,179,246,258,285,319,328,354,363,528,592,602,604,606
+go/internal/storage/cypher/edge/writer/typed_relationship_test.go
+  h_78a442cba0b3e6 14,86,224,305
+go/internal/storage/cypher/edge/writer/unroutable.go
+  h_78a442cba0b3e6 17,81
+go/internal/storage/cypher/edge/writer/unroutable_bench_test.go
+  h_78a442cba0b3e6 11,81
+go/internal/storage/cypher/edge/writer/unroutable_telemetry_test.go
+  h_78a442cba0b3e6 13,46,58,87,103,131
+go/internal/storage/cypher/edge/writer/unroutable_test.go
+  h_78a442cba0b3e6 14,70-71,100,130,147,193,234,276
+go/internal/storage/cypher/edge/writer/unusable_delta_fail_closed_test.go
+  h_78a442cba0b3e6 16,65,96,106,111,122,127,138,143,154,159
+go/internal/storage/cypher/edge/writer/unwind_row_keys_writers_test.go
+  h_78a442cba0b3e6 10,28,52,57,70,81,89,94,104,111,119,124,129,134,141,196,202,208
+go/internal/storage/cypher/edge/writer/workload_dependency_live_test.go
+  h_78a442cba0b3e6 16,126,226
+go/internal/storage/cypher/edge/writer/writer.go
+  h_78a442cba0b3e6 18,73,88,90,95,100,159,202,258,275,303,322,324,326,328,330,332,334,348,350,352,354,356,358,360,390,443,455,458,461,464,467,470,473,476,479,482,485,488
+go/internal/storage/cypher/repo_dependency_source_tool_live_test.go
+  h_78a442cba0b3e6 49,101
+go/internal/storage/cypher/unwind_row_keys_live_test.go
+  h_78a442cba0b3e6 29,73,80,85
+go/internal/storage/postgres/code_call_intent_writer_test.go
+  h_78a442cba0b3e6 20,42
+go/internal/storage/postgres/lock/shared_intent_acceptance_writer_test.go
+  h_78a442cba0b3e6 18,36,91,123,154-157,194,207,254,285,297,332
+go/internal/storage/postgres/recovery_refinalize_failed_scope_live_test.go
+  h_78a442cba0b3e6 14,154
+go/internal/storage/postgres/recovery_refinalize_rebuild_guard_live_test.go
+  h_78a442cba0b3e6 12,71
+go/internal/storage/postgres/recovery_refinalize_rebuild_reset_core_test.go
+  h_78a442cba0b3e6 17,91,104
+go/internal/storage/postgres/recovery_refinalize_rebuild_reset_lane_test.go
+  h_78a442cba0b3e6 14,54,108,182,234,249
+go/internal/storage/postgres/reducer_queue_shared_edge_target_readiness_test.go
+  h_78a442cba0b3e6 47
+go/internal/storage/postgres/repo_dependency_acceptance_gate_expiry_test.go
+  h_78a442cba0b3e6 183
+go/internal/storage/postgres/shared_intent_acceptance_writer.go
+  h_78a442cba0b3e6 20,101
+go/internal/storage/postgres/shared_intents_code_call_fence_integration_test.go
+  h_78a442cba0b3e6 15,69,83,88,97,102,159,171,180,191,196
+go/internal/storage/postgres/shared_intents_history_test.go
+  h_78a442cba0b3e6 17,32,44,56,76,97,117,127,199,224,231,279,305,403,411,444,455
+go/internal/storage/postgres/shared_intents_lease_rescale_test.go
+  h_78a442cba0b3e6 19,28
+go/internal/storage/postgres/shared_intents_partition_candidates_test.go
+  h_78a442cba0b3e6 18,38,53,70,108,121,136,315,348,368,441,460,479
+go/internal/storage/postgres/shared_intents_partition_test.go
+  h_78a442cba0b3e6 17,30,44,58,73,91
+go/internal/storage/postgres/shared_intents_refresh_fence_live_test.go
+  h_78a442cba0b3e6 15,75,101,135
+go/internal/storage/postgres/shared_intents_refresh_fence_test.go
+  h_78a442cba0b3e6 13,30,45
+go/internal/storage/postgres/shared_intents_test.go
+  h_78a442cba0b3e6 17,32,64,80,126,140,178,189,203,226,250,305,403,444,457,476,488,509,522,542,554
+go/internal/storage/postgres/shared_intents_upsert_created_at_live_test.go
+  h_78a442cba0b3e6 12,49
+go/internal/storage/postgres/shared_projection_acceptance_contention_live_test.go
+  h_78a442cba0b3e6 17,287-288
+go/internal/storage/postgres/shared_projection_acceptance_stale_test.go
+  h_78a442cba0b3e6 16,69,107-108
+go/internal/storage/postgres/shared_projection_lease_heartbeat_proof_test.go
+  h_78a442cba0b3e6 20,376,391
+go/internal/storage/postgres/value_flow_refresh_ack.go
+  h_78a442cba0b3e6 273-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b4e4850930b32dd90bdbb633e3b4b5515e7dcd78",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
