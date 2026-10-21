@@ -34,10 +34,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("acmpca scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceACMPCA:
+	case "", catalog.ServiceACMPCA:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceACMPCA
+		boundary.ServiceKind = catalog.ServiceACMPCA
 	default:
 		return nil, fmt.Errorf("acmpca scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -139,12 +139,12 @@ func kmsKeyRelationship(boundary awscloud.Boundary, caARN string, authority Cert
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipACMPCACertificateAuthorityUsesKMSKey,
+		RelationshipType: catalog.RelationshipACMPCACertificateAuthorityUsesKMSKey,
 		SourceResourceID: caARN,
 		SourceARN:        caARN,
 		TargetResourceID: kmsKeyARN,
 		TargetARN:        kmsKeyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   caARN + "->" + kmsKeyARN,
 	}, true
 }
@@ -164,7 +164,7 @@ func parentRelationship(boundary awscloud.Boundary, caARN string, authority Cert
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent,
+		RelationshipType: catalog.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent,
 		SourceResourceID: caARN,
 		SourceARN:        caARN,
 		TargetResourceID: parentARN,
@@ -185,7 +185,7 @@ func crlBucketRelationship(boundary awscloud.Boundary, caARN string, authority C
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipACMPCACertificateAuthorityPublishesCRLToBucket,
+		RelationshipType: catalog.RelationshipACMPCACertificateAuthorityPublishesCRLToBucket,
 		SourceResourceID: caARN,
 		SourceARN:        caARN,
 		TargetResourceID: bucket,

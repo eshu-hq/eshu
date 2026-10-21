@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -36,7 +37,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceShield,
+		ServiceKind:         catalog.ServiceShield,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-1",
@@ -63,7 +64,7 @@ func TestScannerEmitsProtectionResources(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	protections := allResources(envelopes, awscloud.ResourceTypeShieldProtection)
+	protections := allResources(envelopes, catalog.ResourceTypeShieldProtection)
 	if got, want := len(protections), 6; got != want {
 		t.Fatalf("protection resource count = %d, want %d", got, want)
 	}
@@ -95,7 +96,7 @@ func TestScannerClassifiesProtectedResourceTargets(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	edges := allRelationships(envelopes, awscloud.RelationshipShieldProtectionProtectsResource)
+	edges := allRelationships(envelopes, catalog.RelationshipShieldProtectionProtectsResource)
 	// Five recognized families emit an edge; the SQS protection is skipped.
 	if got, want := len(edges), 5; got != want {
 		t.Fatalf("protection edge count = %d, want %d", got, want)
@@ -146,10 +147,10 @@ func TestScannerSkipsUnrecognizedProtectedResource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := len(allResources(envelopes, awscloud.ResourceTypeShieldProtection)); got != 1 {
+	if got := len(allResources(envelopes, catalog.ResourceTypeShieldProtection)); got != 1 {
 		t.Fatalf("protection resource count = %d, want 1", got)
 	}
-	if edges := allRelationships(envelopes, awscloud.RelationshipShieldProtectionProtectsResource); len(edges) != 0 {
+	if edges := allRelationships(envelopes, catalog.RelationshipShieldProtectionProtectsResource); len(edges) != 0 {
 		t.Fatalf("unrecognized protected ARN emitted %d edges, want 0", len(edges))
 	}
 }
@@ -162,7 +163,7 @@ func TestScannerSkipsProtectionWithoutProtectedARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if edges := allRelationships(envelopes, awscloud.RelationshipShieldProtectionProtectsResource); len(edges) != 0 {
+	if edges := allRelationships(envelopes, catalog.RelationshipShieldProtectionProtectsResource); len(edges) != 0 {
 		t.Fatalf("protection with empty protected ARN emitted %d edges, want 0", len(edges))
 	}
 }
@@ -176,7 +177,7 @@ func TestScannerEmitsSubscriptionResource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	subscription := assertResource(t, envelopes, awscloud.ResourceTypeShieldSubscription)
+	subscription := assertResource(t, envelopes, catalog.ResourceTypeShieldSubscription)
 	if got := subscription.Payload["state"]; got != "ACTIVE" {
 		t.Fatalf("subscription state = %v, want ACTIVE", got)
 	}
@@ -197,7 +198,7 @@ func TestScannerEmitsSubscriptionResourceWithoutARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	subscription := assertResource(t, envelopes, awscloud.ResourceTypeShieldSubscription)
+	subscription := assertResource(t, envelopes, catalog.ResourceTypeShieldSubscription)
 	if got := subscription.Payload["resource_id"]; got != "shield-subscription/123456789012" {
 		t.Fatalf("subscription resource_id = %v, want shield-subscription/123456789012", got)
 	}
@@ -209,7 +210,7 @@ func TestScannerOmitsSubscriptionWhenAbsent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := len(allResources(envelopes, awscloud.ResourceTypeShieldSubscription)); got != 0 {
+	if got := len(allResources(envelopes, catalog.ResourceTypeShieldSubscription)); got != 0 {
 		t.Fatalf("subscription resource count = %d, want 0", got)
 	}
 }
@@ -235,9 +236,9 @@ func TestScannerDefaultsServiceKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	resource := assertResource(t, envelopes, awscloud.ResourceTypeShieldProtection)
-	if got := resource.Payload["service_kind"]; got != awscloud.ServiceShield {
-		t.Fatalf("service_kind = %v, want %v", got, awscloud.ServiceShield)
+	resource := assertResource(t, envelopes, catalog.ResourceTypeShieldProtection)
+	if got := resource.Payload["service_kind"]; got != catalog.ServiceShield {
+		t.Fatalf("service_kind = %v, want %v", got, catalog.ServiceShield)
 	}
 }
 

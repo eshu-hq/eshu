@@ -55,7 +55,7 @@ func workspaceIAMRoleRelationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipGrafanaWorkspaceUsesIAMRole + ":" + roleARN,
 	}, true
 }

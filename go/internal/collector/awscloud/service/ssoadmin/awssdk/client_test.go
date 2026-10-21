@@ -15,6 +15,7 @@ import (
 	"github.com/aws/smithy-go"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestSnapshotReadsMetadataOnlyAndResolvesPrincipals(t *testing.T) {
@@ -193,7 +194,7 @@ func newTestAdapter(ssoAdmin ssoAdminAPI, store identityStoreAPI) *Client {
 	return &Client{
 		ssoAdmin:      ssoAdmin,
 		identityStore: store,
-		boundary:      awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSSOAdmin},
+		boundary:      awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSSOAdmin},
 	}
 }
 

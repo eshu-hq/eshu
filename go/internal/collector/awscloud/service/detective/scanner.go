@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,10 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("detective scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDetective:
+	case "", catalog.ServiceDetective:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDetective
+		boundary.ServiceKind = catalog.ServiceDetective
 	default:
 		return nil, fmt.Errorf("detective scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -123,7 +124,7 @@ func graphObservation(
 		Boundary:     boundary,
 		ARN:          graphARN,
 		ResourceID:   graphARN,
-		ResourceType: awscloud.ResourceTypeDetectiveGraph,
+		ResourceType: catalog.ResourceTypeDetectiveGraph,
 		Name:         graphName(graphARN),
 		Tags:         cloneStringMap(tags),
 		Attributes: map[string]any{
@@ -150,7 +151,7 @@ func memberObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   memberResourceID(graphARN, accountID),
-		ResourceType: awscloud.ResourceTypeDetectiveMemberAccount,
+		ResourceType: catalog.ResourceTypeDetectiveMemberAccount,
 		Name:         accountID,
 		State:        strings.TrimSpace(member.Status),
 		Attributes: map[string]any{

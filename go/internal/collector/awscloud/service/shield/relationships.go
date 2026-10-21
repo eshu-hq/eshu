@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // protectionRelationship builds the protection-to-protected-resource edge for
@@ -34,7 +35,7 @@ func protectionRelationship(
 	protectedARN := strings.TrimSpace(protection.ResourceARN)
 	observation := &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipShieldProtectionProtectsResource,
+		RelationshipType: catalog.RelationshipShieldProtectionProtectsResource,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(protection.ARN),
 		TargetResourceID: target.TargetResourceID,
@@ -43,7 +44,7 @@ func protectionRelationship(
 			"protected_resource_arn": protectedARN,
 		},
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipShieldProtectionProtectsResource + ":" +
+			catalog.RelationshipShieldProtectionProtectsResource + ":" +
 			target.TargetResourceID,
 	}
 	if target.ARNKeyed {

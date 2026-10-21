@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/replay/recordpseudo"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -306,7 +307,7 @@ func validateServiceRegionCompatibility(services []string, regions []string) err
 			if len(regions) != 1 || strings.TrimSpace(regions[0]) != "us-east-1" {
 				return fmt.Errorf(`organizations scans require allowed_regions ["us-east-1"]`)
 			}
-		case awscloud.ServiceSSOAdmin:
+		case catalog.ServiceSSOAdmin:
 			if len(regions) != 1 || strings.TrimSpace(regions[0]) != "us-east-1" {
 				return fmt.Errorf(`ssoadmin scans require allowed_regions ["us-east-1"]`)
 			}

@@ -136,7 +136,7 @@ func TestScannerEmitsAppStreamMetadataAndRelationships(t *testing.T) {
 
 	// fleet -> IAM role edge keyed by role ARN.
 	roleEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamFleetUsesIAMRole)
-	assertEdgeTarget(t, roleEdge, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, roleEdge, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got := roleEdge.Payload["target_arn"]; got != testRoleARN {
 		t.Fatalf("fleet->role target_arn = %#v, want %q", got, testRoleARN)
 	}
@@ -154,7 +154,7 @@ func TestScannerEmitsAppStreamMetadataAndRelationships(t *testing.T) {
 
 	// image builder edges resolve too.
 	builderRole := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamImageBuilderUsesIAMRole)
-	assertEdgeTarget(t, builderRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, builderRole, catalog.ResourceTypeIAMRole, testRoleARN)
 	builderImage := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamImageBuilderUsesImage)
 	assertEdgeTarget(t, builderImage, awscloud.ResourceTypeAppStreamImage, testImageARN)
 

@@ -32,7 +32,7 @@ func kmsKeyRelationship(boundary awscloud.Boundary, repository Repository) *awsc
 		SourceResourceID: repositoryID,
 		SourceARN:        strings.TrimSpace(repository.ARN),
 		TargetResourceID: keyID,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   repositoryID + "->" + awscloud.RelationshipCodeCommitRepositoryEncryptedWithKMSKey + ":" + keyID,
 	}
 	if isARN(keyID) {

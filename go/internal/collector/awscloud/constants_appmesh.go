@@ -106,7 +106,7 @@ const (
 	// Manager Private CA certificate authority. App Mesh client TLS trust ARNs
 	// point at ACM Private CA (acm-pca) certificate authorities, not public ACM
 	// certificates, so the virtual-node trust edge targets this type. The
-	// acm-pca scanner (ServiceACMPCA) publishes certificate authority resources
+	// acm-pca scanner (catalog.ServiceACMPCA) publishes certificate authority resources
 	// keyed by the certificate authority ARN, which is the resource_id this
 	// constant joins against, so the trust edge resolves.
 	ResourceTypeACMPCACertificateAuthority = "aws_acmpca_certificate_authority"

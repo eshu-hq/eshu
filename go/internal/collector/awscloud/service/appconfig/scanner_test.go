@@ -145,7 +145,7 @@ func TestScannerEmitsAppConfigMetadataAndRelationships(t *testing.T) {
 
 	// environment -> IAM role edge (monitor alarm role).
 	envRole := relationshipByType(t, envelopes, awscloud.RelationshipAppConfigEnvironmentUsesMonitorRole)
-	assertEdgeTarget(t, envRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, envRole, catalog.ResourceTypeIAMRole, testRoleARN)
 
 	// No configuration content / values anywhere in the resource payloads.
 	for _, envelope := range envelopes {

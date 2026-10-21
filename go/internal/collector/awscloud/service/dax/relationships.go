@@ -59,7 +59,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 			SourceARN:        sourceARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXClusterAssumesIAMRole, roleARN),
 		})
 	}

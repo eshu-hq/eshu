@@ -9,8 +9,10 @@
    `DNSRoutingPolicy`, `DNSGeoLocation`, `WarningObservation`).
 3. `constants_<service>.go` (one file per AWS service slice, plus
    `constants_common.go` for cross-service targets like `ResourceTypeAWSAccount`
-   and `constants_guardduty.go` for the GuardDuty slice) - service, resource type,
-   and relationship constants. New service constants MUST land in their own
+   and `constants_cloudtrail.go` for the CloudTrail slice) - service, resource type,
+   and relationship constants. Consolidated categories live in `catalog/`
+   instead (GuardDuty now lives in `catalog/security_threat.go`). New service
+   constants MUST land in their own
    `constants_<service>.go` sibling, not back in `types.go`, so the 500-line
    cap stays satisfied.
 4. `apicall.go` and `scan_status.go` - bounded API-call accounting and
@@ -75,15 +77,20 @@ trust:
   warn about.
 
   **The 21 are not all non-constants, and the row's label is not a bucket
-  boundary.** `constants_acm.go`, `constants_cloudtrail.go` and
-  `constants_guardduty.go` hold service and resource constants; before this
-  leaf they used the older `_types.go` naming and landed in this row only
-  because they did not match `constants_*.go`. Despite the old names,
-  all three declare **zero** Go types and zero funcs — they are constants files
-  whose names predate the convention.
+  boundary.** `constants_cloudtrail.go` holds service and resource constants;
+  before this leaf it used the older `_types.go` naming alongside
+  `constants_acm.go` and `constants_guardduty.go`, and landed in this row only
+  because it did not match `constants_*.go`. Despite the old name, it
+  declares **zero** Go types and zero funcs — it is a constants file whose
+  name predates the convention. Its two former companions have since
+  consolidated into the catalog leaf (`catalog/security.go` and
+  `catalog/security_threat.go`, #6696), so re-derive the set by content:
+  exactly one of the row-4 members is now a typeless, funcless constants
+  file.
 
   Re-derive that set by **content, not by filename**: across the 21, exactly
-  three declare constants while declaring no types and no funcs. Seven other root
+  one still declares constants while declaring no types and no funcs (the
+  other two consolidated into the catalog leaf above). Seven other root
   files also declare constants (`partition.go`, `redaction.go`,
   `iam_permission_envelope.go`, `s3_external_principal_grant_envelope.go`,
   `scan_status.go`, `security_group_rule_envelope.go`, `types.go`) and every one

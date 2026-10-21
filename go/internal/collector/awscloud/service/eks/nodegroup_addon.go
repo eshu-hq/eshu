@@ -164,7 +164,7 @@ func addonRoleRelationship(
 		SourceARN:        strings.TrimSpace(addon.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   addonID + "#role#" + roleARN,
 	}, true
 }

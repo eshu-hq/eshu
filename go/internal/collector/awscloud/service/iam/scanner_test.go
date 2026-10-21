@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
@@ -69,9 +70,9 @@ func TestScannerEmitsIAMResourcesAndRelationships(t *testing.T) {
 			t.Fatalf("FencingToken = %d, want 42", envelope.FencingToken)
 		}
 	}
-	assertRelationshipType(t, envelopes, awscloud.RelationshipIAMRoleTrustsPrincipal)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipIAMRoleAttachedPolicy)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipIAMRoleInInstanceProfile)
+	assertRelationshipType(t, envelopes, catalog.RelationshipIAMRoleTrustsPrincipal)
+	assertRelationshipType(t, envelopes, catalog.RelationshipIAMRoleAttachedPolicy)
+	assertRelationshipType(t, envelopes, catalog.RelationshipIAMRoleInInstanceProfile)
 }
 
 func TestScannerEmitsDerivedPermissionFacts(t *testing.T) {
@@ -144,10 +145,10 @@ func TestScannerEmitsDerivedPermissionFacts(t *testing.T) {
 		t.Fatalf("aws_resource count = %d, want 2 (role + user)", counts[cloud.AWSResourceFactKind])
 	}
 
-	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourceTrust, "sts:assumerole")
-	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourceInline, "iam:passrole")
-	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourcePermissionBoundary, "s3:getobject")
-	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:user/breakglass", awscloud.IAMPolicySourceInline, "iam:attachuserpolicy")
+	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", catalog.IAMPolicySourceTrust, "sts:assumerole")
+	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", catalog.IAMPolicySourceInline, "iam:passrole")
+	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", catalog.IAMPolicySourcePermissionBoundary, "s3:getobject")
+	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:user/breakglass", catalog.IAMPolicySourceInline, "iam:attachuserpolicy")
 
 	assertNoRawPolicyJSON(t, envelopes)
 }
@@ -293,7 +294,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "aws-global",
-		ServiceKind:         awscloud.ServiceIAM,
+		ServiceKind:         catalog.ServiceIAM,
 		ScopeID:             "aws:123456789012:aws-global",
 		GenerationID:        "aws:123456789012:aws-global:iam:1",
 		CollectorInstanceID: "aws-prod",

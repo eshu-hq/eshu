@@ -17,12 +17,12 @@ func TestAWSCloudResourceTypeConstantsMatchFactSchema(t *testing.T) {
 		got  string
 		want string
 	}{
-		"iam_role":             {got: ResourceTypeIAMRole, want: awsv1.ResourceTypeIAMRole},
-		"iam_user":             {got: ResourceTypeIAMUser, want: awsv1.ResourceTypeIAMUser},
-		"iam_group":            {got: ResourceTypeIAMGroup, want: awsv1.ResourceTypeIAMGroup},
-		"iam_policy":           {got: ResourceTypeIAMPolicy, want: awsv1.ResourceTypeIAMPolicy},
-		"iam_instance_profile": {got: ResourceTypeIAMInstanceProfile, want: awsv1.ResourceTypeIAMInstanceProfile},
-		"iam_principal":        {got: ResourceTypeIAMPrincipal, want: awsv1.ResourceTypeIAMPrincipal},
+		"iam_role":             {got: catalog.ResourceTypeIAMRole, want: awsv1.ResourceTypeIAMRole},
+		"iam_user":             {got: catalog.ResourceTypeIAMUser, want: awsv1.ResourceTypeIAMUser},
+		"iam_group":            {got: catalog.ResourceTypeIAMGroup, want: awsv1.ResourceTypeIAMGroup},
+		"iam_policy":           {got: catalog.ResourceTypeIAMPolicy, want: awsv1.ResourceTypeIAMPolicy},
+		"iam_instance_profile": {got: catalog.ResourceTypeIAMInstanceProfile, want: awsv1.ResourceTypeIAMInstanceProfile},
+		"iam_principal":        {got: catalog.ResourceTypeIAMPrincipal, want: awsv1.ResourceTypeIAMPrincipal},
 		"ec2_vpc":              {got: catalog.ResourceTypeEC2VPC, want: awsv1.ResourceTypeEC2VPC},
 		"ec2_subnet":           {got: catalog.ResourceTypeEC2Subnet, want: awsv1.ResourceTypeEC2Subnet},
 		"ec2_security_group":   {got: catalog.ResourceTypeEC2SecurityGroup, want: awsv1.ResourceTypeEC2SecurityGroup},

@@ -35,7 +35,7 @@ func domainKMSRelationship(boundary awscloud.Boundary, domain Domain) *awscloud.
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   sourceID + "->" + catalog.RelationshipDatazoneDomainUsesKMSKey + ":" + targetID,
 	}
 }
@@ -66,7 +66,7 @@ func domainIAMRoleRelationship(
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		Attributes: map[string]any{
 			"role_kind": roleKind,
 		},

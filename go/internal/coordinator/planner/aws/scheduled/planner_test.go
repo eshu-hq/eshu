@@ -107,7 +107,7 @@ func TestAWSScheduledWorkPlannerSkipsInvalidGlobalRegionPairs(t *testing.T) {
 	}
 	wantScopeIDs := []string{
 		"aws:123456789012:aws-global:" + awscloud.ServiceCloudFront,
-		"aws:123456789012:aws-global:" + awscloud.ServiceIAM,
+		"aws:123456789012:aws-global:" + catalog.ServiceIAM,
 		"aws:123456789012:aws-global:" + awscloud.ServiceRoute53,
 		"aws:123456789012:us-east-1:" + catalog.ServiceLambda,
 		"aws:123456789012:us-east-1:" + catalog.ServiceS3,
@@ -119,7 +119,7 @@ func TestAWSScheduledWorkPlannerSkipsInvalidGlobalRegionPairs(t *testing.T) {
 	if slices.Contains(gotScopeIDs, "aws:123456789012:aws-global:"+catalog.ServiceLambda) {
 		t.Fatalf("planned aws-global lambda target; regional services must not run against aws-global")
 	}
-	if slices.Contains(gotScopeIDs, "aws:123456789012:us-east-1:"+awscloud.ServiceIAM) {
+	if slices.Contains(gotScopeIDs, "aws:123456789012:us-east-1:"+catalog.ServiceIAM) {
 		t.Fatalf("planned regional IAM target; global services must stay on aws-global")
 	}
 
@@ -140,7 +140,7 @@ func TestAWSScheduledWorkPlannerSkipsInvalidGlobalRegionPairs(t *testing.T) {
 		"aws-global/" + catalog.ServiceLambda:     "regional_service_aws_global",
 		"aws-global/" + catalog.ServiceS3:         "regional_service_aws_global",
 		"us-east-1/" + awscloud.ServiceCloudFront: "global_service_regional_region",
-		"us-east-1/" + awscloud.ServiceIAM:        "global_service_regional_region",
+		"us-east-1/" + catalog.ServiceIAM:         "global_service_regional_region",
 		"us-east-1/" + awscloud.ServiceRoute53:    "global_service_regional_region",
 	}
 	for _, skipped := range requested.SkippedTargets {

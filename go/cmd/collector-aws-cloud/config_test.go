@@ -62,7 +62,7 @@ func TestLoadRuntimeConfigMapsAWSTargetScopes(t *testing.T) {
 	if target.AllowedRegions[0] != "us-east-1" {
 		t.Fatalf("AllowedRegions = %v", target.AllowedRegions)
 	}
-	if target.AllowedServices[0] != awscloud.ServiceIAM {
+	if target.AllowedServices[0] != catalog.ServiceIAM {
 		t.Fatalf("AllowedServices = %v", target.AllowedServices)
 	}
 	if target.MaxConcurrentClaims != 2 {

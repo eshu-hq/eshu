@@ -45,7 +45,7 @@ func modelRelationships(model Model) []awscloud.RelationshipObservation {
 			SourceARN:        strings.TrimSpace(model.ARN),
 			TargetResourceID: role,
 			TargetARN:        role,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   id + "#role#" + role,
 		})
 	}
@@ -184,7 +184,7 @@ func trainingJobRelationships(job TrainingJob) []awscloud.RelationshipObservatio
 		SourceARN:        strings.TrimSpace(job.ARN),
 		TargetResourceID: role,
 		TargetARN:        role,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   id + "#role#" + role,
 	}}
 }

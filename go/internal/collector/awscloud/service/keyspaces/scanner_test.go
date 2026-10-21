@@ -138,7 +138,7 @@ func TestScannerEmitsKeyspaceAndTableMetadataWithEdges(t *testing.T) {
 	if got, want := usesKMS.Payload["target_resource_id"], testKMSARN; got != want {
 		t.Fatalf("table-uses-kms target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := usesKMS.Payload["target_type"], awscloud.ResourceTypeKMSKey; got != want {
+	if got, want := usesKMS.Payload["target_type"], catalog.ResourceTypeKMSKey; got != want {
 		t.Fatalf("table-uses-kms target_type = %#v, want %q", got, want)
 	}
 	if got, want := usesKMS.Payload["target_arn"], testKMSARN; got != want {

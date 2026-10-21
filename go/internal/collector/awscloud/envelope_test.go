@@ -28,13 +28,13 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 			return NewResourceEnvelope(ResourceObservation{
 				Boundary:     boundary,
 				ARN:          "arn:aws:iam::123456789012:role/eshu-runtime",
-				ResourceType: ResourceTypeIAMRole,
+				ResourceType: catalog.ResourceTypeIAMRole,
 			})
 		},
 		cloud.AWSRelationshipFactKind: func() (facts.Envelope, error) {
 			return NewRelationshipEnvelope(RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: RelationshipIAMRoleAttachedPolicy,
+				RelationshipType: catalog.RelationshipIAMRoleAttachedPolicy,
 				SourceARN:        "arn:aws:iam::123456789012:role/eshu-runtime",
 				TargetARN:        "arn:aws:iam::aws:policy/ReadOnlyAccess",
 			})
@@ -69,8 +69,8 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 			return NewIAMPermissionEnvelope(IAMPermissionObservation{
 				Boundary:      boundary,
 				PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
-				PrincipalType: ResourceTypeIAMRole,
-				PolicySource:  IAMPolicySourceInline,
+				PrincipalType: catalog.ResourceTypeIAMRole,
+				PolicySource:  catalog.IAMPolicySourceInline,
 				Effect:        "Allow",
 				Actions:       []string{"iam:PassRole"},
 				Resources:     []string{"*"},
@@ -142,7 +142,7 @@ func TestNewResourceEnvelopeCarriesAWSProvenance(t *testing.T) {
 	envelope, err := NewResourceEnvelope(ResourceObservation{
 		Boundary:     testBoundary(observedAt),
 		ARN:          "arn:aws:iam::123456789012:role/eshu-runtime",
-		ResourceType: ResourceTypeIAMRole,
+		ResourceType: catalog.ResourceTypeIAMRole,
 		Name:         "eshu-runtime",
 		Tags:         map[string]string{"Environment": "prod"},
 		Attributes:   map[string]any{"path": "/service/"},
@@ -168,8 +168,8 @@ func TestNewResourceEnvelopeCarriesAWSProvenance(t *testing.T) {
 	}
 	assertPayloadString(t, envelope.Payload, "account_id", "123456789012")
 	assertPayloadString(t, envelope.Payload, "region", "aws-global")
-	assertPayloadString(t, envelope.Payload, "service_kind", ServiceIAM)
-	assertPayloadString(t, envelope.Payload, "resource_type", ResourceTypeIAMRole)
+	assertPayloadString(t, envelope.Payload, "service_kind", catalog.ServiceIAM)
+	assertPayloadString(t, envelope.Payload, "resource_type", catalog.ResourceTypeIAMRole)
 	assertPayloadString(t, envelope.Payload, "arn", "arn:aws:iam::123456789012:role/eshu-runtime")
 	if got := envelope.SourceRef.SourceSystem; got != CollectorKind {
 		t.Fatalf("SourceRef.SourceSystem = %q, want %q", got, CollectorKind)
@@ -179,7 +179,7 @@ func TestNewResourceEnvelopeCarriesAWSProvenance(t *testing.T) {
 func TestNewRelationshipEnvelopeRequiresSourceAndTarget(t *testing.T) {
 	_, err := NewRelationshipEnvelope(RelationshipObservation{
 		Boundary:         testBoundary(time.Now()),
-		RelationshipType: RelationshipIAMRoleAttachedPolicy,
+		RelationshipType: catalog.RelationshipIAMRoleAttachedPolicy,
 		SourceARN:        "arn:aws:iam::123456789012:role/eshu-runtime",
 	})
 	if err == nil {
@@ -193,7 +193,7 @@ func TestNewResourceEnvelopeRequiresPositiveFencingToken(t *testing.T) {
 	_, err := NewResourceEnvelope(ResourceObservation{
 		Boundary:     boundary,
 		ARN:          "arn:aws:iam::123456789012:role/app",
-		ResourceType: ResourceTypeIAMRole,
+		ResourceType: catalog.ResourceTypeIAMRole,
 	})
 	if err == nil {
 		t.Fatalf("NewResourceEnvelope() error = nil, want fencing token error")
@@ -369,7 +369,7 @@ func testBoundary(observedAt time.Time) Boundary {
 	return Boundary{
 		AccountID:           "123456789012",
 		Region:              "aws-global",
-		ServiceKind:         ServiceIAM,
+		ServiceKind:         catalog.ServiceIAM,
 		ScopeID:             "aws:123456789012:aws-global",
 		GenerationID:        "aws:123456789012:aws-global:iam:1",
 		CollectorInstanceID: "aws-prod",

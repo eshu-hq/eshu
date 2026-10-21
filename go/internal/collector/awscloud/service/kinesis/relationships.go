@@ -24,7 +24,7 @@ func dataStreamRelationships(boundary awscloud.Boundary, stream DataStream) []aw
 			SourceARN:        strings.TrimSpace(stream.ARN),
 			TargetResourceID: kmsARN,
 			TargetARN:        kmsARN,
-			TargetType:       awscloud.ResourceTypeKMSKey,
+			TargetType:       catalog.ResourceTypeKMSKey,
 			SourceRecordID:   streamID + "#kms-key#" + kmsARN,
 		})
 	}
@@ -45,7 +45,7 @@ func videoStreamRelationships(boundary awscloud.Boundary, stream VideoStream) []
 			SourceARN:        strings.TrimSpace(stream.ARN),
 			TargetResourceID: kmsARN,
 			TargetARN:        kmsARN,
-			TargetType:       awscloud.ResourceTypeKMSKey,
+			TargetType:       catalog.ResourceTypeKMSKey,
 			SourceRecordID:   streamID + "#kms-key#" + kmsARN,
 		})
 	}
@@ -72,7 +72,7 @@ func deliveryStreamRelationships(boundary awscloud.Boundary, stream FirehoseDeli
 					SourceARN:        streamARN,
 					TargetResourceID: roleARN,
 					TargetARN:        roleARN,
-					TargetType:       awscloud.ResourceTypeIAMRole,
+					TargetType:       catalog.ResourceTypeIAMRole,
 					SourceRecordID:   streamID + "#role#" + roleARN,
 				})
 			}

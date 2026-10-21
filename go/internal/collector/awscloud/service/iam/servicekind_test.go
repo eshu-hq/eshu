@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestScannerCanonicalizesPaddedServiceKind proves a whitespace-padded
@@ -17,7 +18,7 @@ import (
 // joins/filters that key on the canonical "iam".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceIAM + "  "
+	boundary.ServiceKind = "  " + catalog.ServiceIAM + "  "
 	client := fakeClient{
 		roles: []Role{{
 			ARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
@@ -36,7 +37,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		if envelope.CollectorKind != awscloud.CollectorKind {
 			continue
 		}
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceIAM; got != want {
+		if got, want := envelope.Payload["service_kind"], catalog.ServiceIAM; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

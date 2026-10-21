@@ -142,7 +142,7 @@ func stateMachineRoleRelationship(
 		SourceARN:        machineARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   machineARN + "#execution-role#" + roleARN,
 	}, true
 }

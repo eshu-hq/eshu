@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // encryptionConfigKMSRelationship emits a single edge from the X-Ray
@@ -35,9 +36,9 @@ func encryptionConfigKMSRelationship(
 	if keyRef == "" {
 		return awscloud.RelationshipObservation{}, false
 	}
-	targetType := awscloud.ResourceTypeKMSKey
+	targetType := catalog.ResourceTypeKMSKey
 	if isKMSAliasReference(keyRef) {
-		targetType = awscloud.ResourceTypeKMSAlias
+		targetType = catalog.ResourceTypeKMSAlias
 	}
 	source := encryptionConfigResourceID(boundary)
 	relationship := awscloud.RelationshipObservation{

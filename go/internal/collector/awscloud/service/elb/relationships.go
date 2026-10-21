@@ -143,7 +143,7 @@ func certificateRelationships(
 func certificateEdgeKind(certificateARN string) (relationshipType, targetType string, ok bool) {
 	switch {
 	case arnService(certificateARN) == "acm":
-		return awscloud.RelationshipELBLoadBalancerUsesACMCertificate, awscloud.ResourceTypeACMCertificate, true
+		return awscloud.RelationshipELBLoadBalancerUsesACMCertificate, catalog.ResourceTypeACMCertificate, true
 	case arnService(certificateARN) == "iam":
 		return awscloud.RelationshipELBLoadBalancerUsesIAMServerCertificate, iamServerCertificateTargetType, true
 	default:

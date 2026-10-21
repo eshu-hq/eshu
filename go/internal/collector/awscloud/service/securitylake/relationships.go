@@ -22,13 +22,13 @@ func dataLakeS3Relationship(boundary awscloud.Boundary, lake DataLake) *awscloud
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecurityLakeDataLakeUsesS3Bucket,
+		RelationshipType: catalog.RelationshipSecurityLakeDataLakeUsesS3Bucket,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(lake.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecurityLakeDataLakeUsesS3Bucket + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSecurityLakeDataLakeUsesS3Bucket + ":" + bucketARN,
 	}
 }
 
@@ -54,13 +54,13 @@ func dataLakeKMSRelationship(boundary awscloud.Boundary, lake DataLake) *awsclou
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecurityLakeDataLakeUsesKMSKey,
+		RelationshipType: catalog.RelationshipSecurityLakeDataLakeUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(lake.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecurityLakeDataLakeUsesKMSKey + ":" + targetID,
+		TargetType:       catalog.ResourceTypeKMSKey,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSecurityLakeDataLakeUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -77,13 +77,13 @@ func dataLakeLakeFormationRelationship(boundary awscloud.Boundary, lake DataLake
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecurityLakeDataLakeRegisteredInLakeFormation,
+		RelationshipType: catalog.RelationshipSecurityLakeDataLakeRegisteredInLakeFormation,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(lake.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       awscloud.ResourceTypeLakeFormationResource,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecurityLakeDataLakeRegisteredInLakeFormation + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSecurityLakeDataLakeRegisteredInLakeFormation + ":" + bucketARN,
 	}
 }
 
@@ -107,12 +107,12 @@ func logSourceInDataLakeRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecurityLakeLogSourceInDataLake,
+		RelationshipType: catalog.RelationshipSecurityLakeLogSourceInDataLake,
 		SourceResourceID: sourceID,
 		TargetResourceID: dataLakeID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeSecurityLakeDataLake,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecurityLakeLogSourceInDataLake + ":" + dataLakeID,
+		TargetType:       catalog.ResourceTypeSecurityLakeDataLake,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSecurityLakeLogSourceInDataLake + ":" + dataLakeID,
 	}
 }
 
@@ -131,12 +131,12 @@ func logSourceIAMRoleRelationship(boundary awscloud.Boundary, source LogSource) 
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecurityLakeLogSourceUsesIAMRole,
+		RelationshipType: catalog.RelationshipSecurityLakeLogSourceUsesIAMRole,
 		SourceResourceID: sourceID,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecurityLakeLogSourceUsesIAMRole + ":" + roleARN,
+		TargetType:       catalog.ResourceTypeIAMRole,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSecurityLakeLogSourceUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -154,13 +154,13 @@ func subscriberIAMRoleRelationship(boundary awscloud.Boundary, subscriber Subscr
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecurityLakeSubscriberUsesIAMRole,
+		RelationshipType: catalog.RelationshipSecurityLakeSubscriberUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(subscriber.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecurityLakeSubscriberUsesIAMRole + ":" + roleARN,
+		TargetType:       catalog.ResourceTypeIAMRole,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSecurityLakeSubscriberUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -175,13 +175,13 @@ func subscriberS3Relationship(boundary awscloud.Boundary, subscriber Subscriber)
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecurityLakeSubscriberUsesS3Bucket,
+		RelationshipType: catalog.RelationshipSecurityLakeSubscriberUsesS3Bucket,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(subscriber.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecurityLakeSubscriberUsesS3Bucket + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSecurityLakeSubscriberUsesS3Bucket + ":" + bucketARN,
 	}
 }
 

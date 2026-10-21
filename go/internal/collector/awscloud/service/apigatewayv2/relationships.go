@@ -234,7 +234,7 @@ func domainRelationships(boundary awscloud.Boundary, domain DomainName) []awsclo
 			SourceARN:        strings.TrimSpace(domain.ARN),
 			TargetResourceID: certificateARN,
 			TargetARN:        certificateARN,
-			TargetType:       awscloud.ResourceTypeACMCertificate,
+			TargetType:       catalog.ResourceTypeACMCertificate,
 			Attributes: map[string]any{
 				"domain": strings.TrimSpace(domain.Name),
 			},

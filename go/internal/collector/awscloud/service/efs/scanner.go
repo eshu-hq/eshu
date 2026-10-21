@@ -77,7 +77,7 @@ func fileSystemEnvelopes(boundary awscloud.Boundary, system FileSystem) ([]facts
 			SourceARN:        system.ARN,
 			TargetResourceID: kmsKey,
 			TargetARN:        kmsKey,
-			TargetType:       awscloud.ResourceTypeKMSKey,
+			TargetType:       catalog.ResourceTypeKMSKey,
 		})
 		if err != nil {
 			return nil, err

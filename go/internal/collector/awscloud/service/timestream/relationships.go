@@ -64,7 +64,7 @@ func databaseKMSRelationship(boundary awscloud.Boundary, database Database) *aws
 		SourceARN:        strings.TrimSpace(database.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipTimestreamDatabaseUsesKMSKey + ":" + targetID,
 	}
 }

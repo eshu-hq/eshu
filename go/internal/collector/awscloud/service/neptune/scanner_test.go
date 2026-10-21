@@ -208,7 +208,7 @@ func TestScannerEmitsNeptuneMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipNeptuneGraphUsesKMSKey, kmsARN)
 
 	roleRel := relationshipByType(t, envelopes, awscloud.RelationshipNeptuneClusterUsesIAMRole)
-	if got, want := roleRel.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := roleRel.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 		t.Fatalf("cluster-uses-iam-role target_type = %#v, want %q", got, want)
 	}
 
@@ -225,7 +225,7 @@ func TestScannerEmitsNeptuneMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertAttribute(t, attributesOf(t, globalRel), "is_writer", true)
 
 	graphKMSRel := relationshipByType(t, envelopes, awscloud.RelationshipNeptuneGraphUsesKMSKey)
-	if got, want := graphKMSRel.Payload["target_type"], awscloud.ResourceTypeKMSKey; got != want {
+	if got, want := graphKMSRel.Payload["target_type"], catalog.ResourceTypeKMSKey; got != want {
 		t.Fatalf("graph-uses-kms target_type = %#v, want %q", got, want)
 	}
 }

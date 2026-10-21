@@ -79,14 +79,41 @@ avoid.
   fact-schema resource-type tokens
 - `RelationshipSageMaker*`, `RelationshipBedrock*` — analytics-category
   reducer relationship types
+- `ServiceIAM`, `ServiceKMS`, `ServiceACM`, `ServiceACMPCA`,
+  `ServiceSigner`, `ServiceSSOAdmin` — security-category service-kind
+  strings (identity, access, and cryptography, in `security.go`)
+- `ResourceTypeIAM*`, `ResourceTypeKMS*`, `ResourceTypeACMCertificate`,
+  `ResourceTypeSigner*`, `ResourceTypeSSOAdmin*`, `IAMPolicySource*` —
+  security-category fact-schema resource-type tokens
+- `RelationshipIAM*`, `RelationshipKMS*`,
+  `RelationshipACMCertificateUsedByResource`,
+  `RelationshipACMPCA*`, `RelationshipSigner*`, `RelationshipSSOAdmin*` —
+  security-category reducer relationship types
+- `ServiceGuardDuty`, `ServiceSecurityHub`, `ServiceSecurityLake`,
+  `ServiceDetective`, `ServiceInspector2`, `ServiceMacie`, `ServiceShield`,
+  `ServiceFMS` — security-threat-category service-kind strings
+  (detection and response, in `security_threat.go`)
+- `ResourceTypeGuardDuty*`, `ResourceTypeSecurityHub*`,
+  `ResourceTypeSecurityLake*`, `ResourceTypeDetective*`,
+  `ResourceTypeInspector2*`, `ResourceTypeMacie*`, `ResourceTypeShield*`,
+  `ResourceTypeFMSPolicy` — security-threat-category fact-schema
+  resource-type tokens
+- `RelationshipGuardDuty*`, `RelationshipSecurityHub*`,
+  `RelationshipSecurityLake*`, `RelationshipDetective*`,
+  `RelationshipInspector2*`, `RelationshipMacie*`,
+  `RelationshipShield*`, `RelationshipFMS*` — security-threat-category
+  reducer relationship types
 
 See `doc.go` for the full contract. Each follow-up category lands as one more
-`<category>.go` file with the same shape; the analytics category ships as
+`<category>.go` file with the same shape. The analytics category ships as
 three files (`analytics.go` for query, processing, streaming, and search;
 `analytics_data.go` for BI, collaboration, governance, preparation, and
 movement; `analytics_ml.go` for machine learning) because one file would pass
-the 500-line Go cap at ~989 lines. The remaining ~100 `constants_*` files stay
-in the awscloud root until their category lands.
+the 500-line Go cap at ~989 lines. The security category ships as two files
+(`security.go` for identity, access, and cryptography; `security_threat.go`
+for detection and response) because one file would pass the 500-line Go cap;
+all stay under it. The remaining `constants_*` files stay in the awscloud root
+until their category lands.
 
 ## Dependencies
 
@@ -106,9 +133,9 @@ that consume these constants keep their existing counters; see
 ## Gotchas / invariants
 
 - A consolidation move must never change a value. `storage_test.go`,
-  `compute_test.go`, `messaging_test.go`, and `analytics_test.go` pin every
-  constant byte-identical to its pre-consolidation value; a red test there
-  is a behavior change, not a move.
+  `compute_test.go`, `messaging_test.go`, `analytics_test.go`, and
+  `security_test.go` pin every constant byte-identical to its
+  pre-consolidation value; a red test there is a behavior change, not a move.
 
 ## Consolidation proof
 
@@ -205,9 +232,35 @@ affected suite (collector tree, `go/cmd/collector-aws-cloud`) is green after
 the move; `go build ./...` and `go vet ./...` are clean. The
 redaction-derivation and relguard walks needed no change: the storage slice
 already generalized them to every catalog category file, and they pass with
-the analytics files present. Backend/version: none — a pure compile-time
-constant relocation with no query, graph write, queue, lease, worker,
-batching, or Compose/Helm change, so there are no row counts to regress.
+the analytics files present.
+
+No-Regression Evidence: the security-category consolidation (Refs #6696)
+moves 107 string constants from fourteen `constants_<service>.go` root files
+(iam, kms, acm, acmpca, guardduty, securityhub, securitylake, detective,
+inspector2, macie, shield, signer, ssoadmin, fms) into `catalog/security.go`
+(identity, access, and cryptography) and `catalog/security_threat.go`
+(detection and response) verbatim (only the package clause changes; the six
+IAM resource-type tokens keep their `awsv1.*` fact-schema references, and
+the contract imports nothing back so the leaf still cannot cycle). The split
+is a size measure only: one file would pass the 500-line Go cap at ~577
+lines, so the category ships as two files, both under the cap. The 244
+referencing `.go` files change only the qualifier (`awscloud.` to
+`catalog.`, plus the leaf import, dropping it where it goes unused);
+same-package root files qualify previously bare identifiers, and two
+symbol-name comments point at the new leaf. Baseline: the
+pre-move values read from the base tree
+(`git show origin/main:go/internal/collector/awscloud/constants_<service>.go`)
+are pinned in `security_test.go` (107/107 byte-identical,
+`go test ./internal/collector/awscloud/catalog/ -count=1` green) and the
+full affected suite (collector tree, reducer, coordinator, storage,
+extensionconformance, `go/cmd/collector-aws-cloud`,
+`go/cmd/webhook-listener`) is green after the move; `go build ./...` and
+`go vet ./...` are clean. The redaction-derivation and relguard walks needed
+no change: the storage slice already generalized them to every catalog
+category file, and they pass with `security.go` and `security_threat.go`
+present. Backend/version for both: none — pure compile-time constant
+relocations with no query, graph write, queue, lease, worker, batching, or
+Compose/Helm change, so there are no row counts to regress.
 No-Observability-Change: the leaf declares no instrument and runs no stage;
 scanner emission stays covered by `eshu_dp_aws_resources_emitted_total` and
 `eshu_dp_aws_scan_duration_seconds` (AWS cloud row in

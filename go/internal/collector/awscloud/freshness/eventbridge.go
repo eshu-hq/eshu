@@ -153,7 +153,7 @@ func normalizeTriggerRegion(serviceKind string, region string) string {
 
 func isGlobalService(serviceKind string) bool {
 	switch serviceKind {
-	case awscloud.ServiceIAM, awscloud.ServiceRoute53, awscloud.ServiceCloudFront:
+	case catalog.ServiceIAM, awscloud.ServiceRoute53, awscloud.ServiceCloudFront:
 		return true
 	default:
 		return false
@@ -238,10 +238,10 @@ var configResourceTypeServices = map[string]string{
 	"AWS::Glue::Table":                          catalog.ServiceGlue,
 	"AWS::Glue::Trigger":                        catalog.ServiceGlue,
 	"AWS::Glue::Workflow":                       catalog.ServiceGlue,
-	"AWS::IAM::InstanceProfile":                 awscloud.ServiceIAM,
-	"AWS::IAM::ManagedPolicy":                   awscloud.ServiceIAM,
-	"AWS::IAM::Policy":                          awscloud.ServiceIAM,
-	"AWS::IAM::Role":                            awscloud.ServiceIAM,
+	"AWS::IAM::InstanceProfile":                 catalog.ServiceIAM,
+	"AWS::IAM::ManagedPolicy":                   catalog.ServiceIAM,
+	"AWS::IAM::Policy":                          catalog.ServiceIAM,
+	"AWS::IAM::Role":                            catalog.ServiceIAM,
 	"AWS::Lambda::Function":                     catalog.ServiceLambda,
 	"AWS::Logs::LogGroup":                       awscloud.ServiceCloudWatchLogs,
 	"AWS::RDS::DBCluster":                       awscloud.ServiceRDS,
@@ -256,7 +256,7 @@ var configResourceTypeServices = map[string]string{
 	"AWS::Route53::HostedZone":                  awscloud.ServiceRoute53,
 	"AWS::S3::Bucket":                           catalog.ServiceS3,
 	"AWS::SecretsManager::Secret":               awscloud.ServiceSecretsManager,
-	"AWS::SecurityHub::Hub":                     awscloud.ServiceSecurityHub,
+	"AWS::SecurityHub::Hub":                     catalog.ServiceSecurityHub,
 	"AWS::SNS::Topic":                           catalog.ServiceSNS,
 	"AWS::SQS::Queue":                           catalog.ServiceSQS,
 	"AWS::SSM::Parameter":                       awscloud.ServiceSSM,
@@ -274,7 +274,7 @@ var cloudTrailSourceServices = map[string]string{
 	"elasticloadbalancing.amazonaws.com": awscloud.ServiceELBv2,
 	"events.amazonaws.com":               catalog.ServiceEventBridge,
 	"glue.amazonaws.com":                 catalog.ServiceGlue,
-	"iam.amazonaws.com":                  awscloud.ServiceIAM,
+	"iam.amazonaws.com":                  catalog.ServiceIAM,
 	"lambda.amazonaws.com":               catalog.ServiceLambda,
 	"logs.amazonaws.com":                 awscloud.ServiceCloudWatchLogs,
 	"rds.amazonaws.com":                  awscloud.ServiceRDS,
@@ -283,7 +283,7 @@ var cloudTrailSourceServices = map[string]string{
 	"route53.amazonaws.com":              awscloud.ServiceRoute53,
 	"s3.amazonaws.com":                   catalog.ServiceS3,
 	"secretsmanager.amazonaws.com":       awscloud.ServiceSecretsManager,
-	"securityhub.amazonaws.com":          awscloud.ServiceSecurityHub,
+	"securityhub.amazonaws.com":          catalog.ServiceSecurityHub,
 	"sns.amazonaws.com":                  catalog.ServiceSNS,
 	"sqs.amazonaws.com":                  catalog.ServiceSQS,
 	"ssm.amazonaws.com":                  awscloud.ServiceSSM,
@@ -310,7 +310,7 @@ var cloudTrailResourceIDKeys = map[string][]string{
 	},
 	catalog.ServiceS3:              {"bucketName"},
 	awscloud.ServiceSecretsManager: {"secretId"},
-	awscloud.ServiceSecurityHub:    {"hubArn", "standardsSubscriptionArn", "standardsControlArn", "insightArn", "actionTargetArn", "accountId"},
+	catalog.ServiceSecurityHub:     {"hubArn", "standardsSubscriptionArn", "standardsControlArn", "insightArn", "actionTargetArn", "accountId"},
 	awscloud.ServiceSSM:            {"name"},
 	catalog.ServiceGlue:            {"databaseName", "tableName", "crawlerName", "jobName", "triggerName", "workflowName", "connectionName"},
 }

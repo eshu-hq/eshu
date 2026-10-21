@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -284,8 +285,8 @@ func TestScanEmitsProductToPortfolioEdge(t *testing.T) {
 func TestScanEmitsPortfolioToIAMRoleEdge(t *testing.T) {
 	envelope := findRelationship(t, scanFixture(t, sampleClient()),
 		awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal)
-	if got := envelope.Payload["target_type"]; got != awscloud.ResourceTypeIAMRole {
-		t.Fatalf("target_type = %v, want %v", got, awscloud.ResourceTypeIAMRole)
+	if got := envelope.Payload["target_type"]; got != catalog.ResourceTypeIAMRole {
+		t.Fatalf("target_type = %v, want %v", got, catalog.ResourceTypeIAMRole)
 	}
 	wantTarget := "arn:aws:iam::123456789012:role/ServiceCatalogLaunchRole"
 	if got := envelope.Payload["target_resource_id"]; got != wantTarget {

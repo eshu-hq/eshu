@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -29,7 +29,7 @@ func TestClaimedSourceMapsAllowEmptySuccessorToTrustedDeletion(t *testing.T) {
 				Targets: []TargetScope{{
 					AccountID:           "123456789012",
 					AllowedRegions:      []string{"us-east-1"},
-					AllowedServices:     []string{awscloud.ServiceIAM},
+					AllowedServices:     []string{catalog.ServiceIAM},
 					AllowEmptySuccessor: allowEmpty,
 					Credentials: CredentialConfig{
 						Mode: CredentialModeLocalWorkloadIdentity,
@@ -75,7 +75,7 @@ func TestClaimedSourceGlobalAttestationCoversUnattestedScopes(t *testing.T) {
 				Targets: []TargetScope{{
 					AccountID:       "123456789012",
 					AllowedRegions:  []string{"us-east-1"},
-					AllowedServices: []string{awscloud.ServiceIAM},
+					AllowedServices: []string{catalog.ServiceIAM},
 					Credentials: CredentialConfig{
 						Mode: CredentialModeLocalWorkloadIdentity,
 					},

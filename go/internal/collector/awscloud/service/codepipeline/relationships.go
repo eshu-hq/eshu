@@ -63,7 +63,7 @@ func pipelineRoleRelationship(
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   pipelineID + "#role#" + roleARN,
 	}, true
 }
@@ -109,9 +109,9 @@ func artifactKeyRelationship(
 	// shape (:alias/) and target aws_kms_alias for those; keep aws_kms_key for
 	// key ARNs and bare key ids. Set target_arn only when the value is an ARN.
 	target := keyID
-	targetType := awscloud.ResourceTypeKMSKey
+	targetType := catalog.ResourceTypeKMSKey
 	if strings.Contains(keyID, ":alias/") {
-		targetType = awscloud.ResourceTypeKMSAlias
+		targetType = catalog.ResourceTypeKMSAlias
 	}
 	targetARN := ""
 	if strings.HasPrefix(keyID, "arn:") {

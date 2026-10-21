@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/inspector2/runtimebind"
 )
 
 // TestInspector2RuntimeBindRegisters confirms importing the binding installs
 // the Inspector v2 scanner builder.
 func TestInspector2RuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceInspector2)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceInspector2)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceInspector2)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceInspector2)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceInspector2},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceInspector2},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

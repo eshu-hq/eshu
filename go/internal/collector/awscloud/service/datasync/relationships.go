@@ -193,7 +193,7 @@ func locationRoleRelationship(boundary awscloud.Boundary, location Location) *aw
 		SourceARN:        locationARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   locationARN + "->" + catalog.RelationshipDataSyncLocationUsesIAMRole + ":" + roleARN,
 	}
 }

@@ -16,6 +16,7 @@ import (
 	awssecurityhubtypes "github.com/aws/aws-sdk-go-v2/service/securityhub/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	securityhubservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/securityhub"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -252,7 +253,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSecurityHub,
+		ServiceKind:         catalog.ServiceSecurityHub,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:securityhub:1",
 		CollectorInstanceID: "aws-prod",

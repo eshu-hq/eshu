@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // memberRelationship records that a Macie member account is managed by the
@@ -28,10 +29,10 @@ func memberRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMacieMemberManagedByAdministrator,
+		RelationshipType: catalog.RelationshipMacieMemberManagedByAdministrator,
 		SourceResourceID: memberResourceID(memberID),
 		TargetResourceID: sessionResourceID(adminID),
-		TargetType:       awscloud.ResourceTypeMacieSession,
+		TargetType:       catalog.ResourceTypeMacieSession,
 		Attributes: map[string]any{
 			"account_id":          memberID,
 			"administrator_id":    adminID,

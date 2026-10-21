@@ -82,7 +82,7 @@ func TestScannerEmitsDomainsRepositoriesAndRelationships(t *testing.T) {
 		sourceID:   "acme",
 		targetID:   "arn:aws:kms:us-east-1:123456789012:key/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
 		targetARN:  "arn:aws:kms:us-east-1:123456789012:key/1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-		targetType: awscloud.ResourceTypeKMSKey,
+		targetType: catalog.ResourceTypeKMSKey,
 	})
 	// repository -> upstream repository: target_type aws_codeartifact_repository,
 	// keyed by "<domain>/<upstream>" within the same domain.

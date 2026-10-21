@@ -102,7 +102,7 @@ func assessmentKMSRelationship(
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAuditManagerAssessmentEncryptedWithKMSKey + ":" + targetID,
 	}
 }

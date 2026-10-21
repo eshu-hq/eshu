@@ -203,7 +203,7 @@ func TestScannerEmitsDefensiveDKIMKMSEdge(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	dkimKMS := relationshipByType(t, envelopes, catalog.RelationshipSESEmailIdentityDKIMUsesKMSKey)
-	assertEdgeTarget(t, dkimKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, dkimKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := dkimKMS.Payload["target_arn"], testKMSARN; got != want {
 		t.Fatalf("dkim->kms target_arn = %#v, want %q", got, want)
 	}

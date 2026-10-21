@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("signer scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSigner:
+	case "", catalog.ServiceSigner:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSigner
+		boundary.ServiceKind = catalog.ServiceSigner
 	default:
 		return nil, fmt.Errorf("signer scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -104,7 +105,7 @@ func profileObservation(boundary awscloud.Boundary, profile SigningProfile) awsc
 		Boundary:     boundary,
 		ARN:          profileARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSignerSigningProfile,
+		ResourceType: catalog.ResourceTypeSignerSigningProfile,
 		Name:         name,
 		State:        strings.TrimSpace(profile.Status),
 		Tags:         cloneStringMap(profile.Tags),
@@ -131,7 +132,7 @@ func platformObservation(boundary awscloud.Boundary, platform SigningPlatform) a
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   platformID,
-		ResourceType: awscloud.ResourceTypeSignerSigningPlatform,
+		ResourceType: catalog.ResourceTypeSignerSigningPlatform,
 		Name:         firstNonEmpty(displayName, platformID),
 		Attributes: map[string]any{
 			"platform_id":          platformID,

@@ -15,6 +15,7 @@ import (
 	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientInterfaceExcludesSensitiveAndMutatingOperations is the security
@@ -100,7 +101,7 @@ func TestClientListReadsDescribeAndTagsAndOmitsSensitiveBodies(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceACMPCA},
 	}
 
 	authorities, err := adapter.ListCertificateAuthorities(context.Background())
@@ -189,7 +190,7 @@ func TestClientPaginatesWithoutSameTokenLoop(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceACMPCA},
 	}
 
 	authorities, err := adapter.ListCertificateAuthorities(context.Background())
@@ -219,7 +220,7 @@ func TestClientListBreaksOnRepeatedNextToken(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceACMPCA},
 	}
 
 	_, err := adapter.ListCertificateAuthorities(context.Background())
@@ -251,7 +252,7 @@ func TestClientListTagsBreaksOnRepeatedNextToken(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceACMPCA},
 	}
 
 	authorities, err := adapter.ListCertificateAuthorities(context.Background())
@@ -277,7 +278,7 @@ func TestClientSkipsBlankARNSummaries(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceACMPCA},
 	}
 
 	authorities, err := adapter.ListCertificateAuthorities(context.Background())

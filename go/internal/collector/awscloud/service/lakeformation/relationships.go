@@ -59,7 +59,7 @@ func resourceRoleRelationship(boundary awscloud.Boundary, resource RegisteredRes
 		SourceARN:        resourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   resourceARN + "->" + awscloud.RelationshipLakeFormationResourceUsesIAMRole + ":" + roleARN,
 	}
 }
@@ -155,7 +155,7 @@ func permissionPrincipalRelationship(boundary awscloud.Boundary, permissionID st
 		SourceResourceID: permissionID,
 		TargetResourceID: principalID,
 		TargetARN:        principalID,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionGrantedToPrincipal + ":" + principalID,
 	}
 }

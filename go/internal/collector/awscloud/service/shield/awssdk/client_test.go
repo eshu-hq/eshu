@@ -12,6 +12,7 @@ import (
 	awsshieldtypes "github.com/aws/aws-sdk-go-v2/service/shield/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 const (
@@ -22,7 +23,7 @@ const (
 func testClient(api apiClient) *Client {
 	return &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceShield},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceShield},
 	}
 }
 

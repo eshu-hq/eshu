@@ -14,6 +14,7 @@ import (
 	gdtypes "github.com/aws/aws-sdk-go-v2/service/guardduty/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListDetectorsReadsMetadataAndNeverFetchesFindingBodiesOrListContents(t *testing.T) {
@@ -131,7 +132,7 @@ func TestClientListDetectorsReadsMetadataAndNeverFetchesFindingBodiesOrListConte
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceGuardDuty},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceGuardDuty},
 	}
 
 	detectors, err := adapter.ListDetectors(context.Background())

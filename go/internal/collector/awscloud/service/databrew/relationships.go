@@ -207,7 +207,7 @@ func assumesRoleRelationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   sourceID + "->" + relationshipType + ":" + roleARN,
 	}
 }

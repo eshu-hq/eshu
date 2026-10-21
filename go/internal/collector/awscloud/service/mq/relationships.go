@@ -52,7 +52,7 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 			SourceARN:        brokerARN,
 			TargetResourceID: kmsARN,
 			TargetARN:        kmsARN,
-			TargetType:       awscloud.ResourceTypeKMSKey,
+			TargetType:       catalog.ResourceTypeKMSKey,
 			SourceRecordID:   relationshipRecordID(brokerID, catalog.RelationshipMQBrokerUsesKMSKey, kmsARN),
 		})
 	}

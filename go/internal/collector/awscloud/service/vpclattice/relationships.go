@@ -138,7 +138,7 @@ func serviceCertificateRelationship(
 		SourceARN:        strings.TrimSpace(service.ARN),
 		TargetResourceID: certARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeACMCertificate,
+		TargetType:       catalog.ResourceTypeACMCertificate,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeServiceUsesCertificate + ":" + certARN,
 	}
 }

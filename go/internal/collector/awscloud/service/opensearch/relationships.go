@@ -66,7 +66,7 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 			SourceARN:        domainARN,
 			TargetResourceID: kmsKey,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeKMSKey,
+			TargetType:       catalog.ResourceTypeKMSKey,
 			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipOpenSearchDomainUsesKMSKey, kmsKey),
 		})
 	}
@@ -83,7 +83,7 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 			SourceARN:        domainARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipOpenSearchDomainUsesIAMRole, roleARN),
 		})
 	}
@@ -157,7 +157,7 @@ func collectionRelationships(
 			SourceARN:        collectionARN,
 			TargetResourceID: kmsKey,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeKMSKey,
+			TargetType:       catalog.ResourceTypeKMSKey,
 			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipOpenSearchCollectionUsesKMSKey, kmsKey),
 		})
 	}

@@ -169,7 +169,7 @@ func endpointACMCertificateRelationship(boundary awscloud.Boundary, endpoint End
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: certARN,
 		TargetARN:        certARN,
-		TargetType:       awscloud.ResourceTypeACMCertificate,
+		TargetType:       catalog.ResourceTypeACMCertificate,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointUsesACMCertificate + ":" + certARN,
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // environmentInApplicationRelationship records an AppConfig environment's
@@ -110,7 +111,7 @@ func environmentMonitorRoleRelationship(
 		SourceARN:        environmentARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   environmentARN + "->" + awscloud.RelationshipAppConfigEnvironmentUsesMonitorRole + ":" + roleARN,
 	}
 }

@@ -160,7 +160,7 @@ func flowKMSKeyRelationship(boundary awscloud.Boundary, flow Flow) *awscloud.Rel
 		SourceARN:        strings.TrimSpace(flow.ARN),
 		TargetResourceID: keyARN,
 		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   flowID + "->" + awscloud.RelationshipAppFlowFlowUsesKMSKey + ":" + keyARN,
 	}
 }

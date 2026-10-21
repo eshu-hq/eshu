@@ -92,7 +92,7 @@ func TestScannerEmitsRolesAnywhereMetadataAndRelationships(t *testing.T) {
 
 	// profile -> IAM role edge, keyed by the role ARN the IAM scanner publishes.
 	profileRole := relationshipByType(t, envelopes, awscloud.RelationshipRolesAnywhereProfileAssumesRole)
-	assertEdgeTarget(t, profileRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, profileRole, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got, want := profileRole.Payload["source_resource_id"], testProfileARN; got != want {
 		t.Fatalf("profile->role source_resource_id = %#v, want %q", got, want)
 	}

@@ -80,7 +80,7 @@ func instanceRelationships(
 		sourceID,
 		strings.TrimSpace(instance.ARN),
 		strings.TrimSpace(instance.MonitoringRoleARN),
-		awscloud.ResourceTypeIAMRole,
+		catalog.ResourceTypeIAMRole,
 	)...)
 	for _, group := range instance.ParameterGroups {
 		if name := strings.TrimSpace(group.Name); name != "" {
@@ -159,7 +159,7 @@ func clusterRelationships(
 			strings.TrimSpace(cluster.ARN),
 			roleARN,
 			roleARN,
-			awscloud.ResourceTypeIAMRole,
+			catalog.ResourceTypeIAMRole,
 			nil,
 		))
 	}

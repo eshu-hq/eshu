@@ -74,7 +74,7 @@ func instanceRelationships(
 			sourceARN,
 			kmsKeyID,
 			arnIfARN(kmsKeyID),
-			awscloud.ResourceTypeKMSKey,
+			catalog.ResourceTypeKMSKey,
 			nil,
 		))
 	}
@@ -149,7 +149,7 @@ func endpointRelationships(
 			sourceARN,
 			kmsKeyID,
 			arnIfARN(kmsKeyID),
-			awscloud.ResourceTypeKMSKey,
+			catalog.ResourceTypeKMSKey,
 			nil,
 		))
 	}

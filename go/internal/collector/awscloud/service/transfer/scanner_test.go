@@ -125,7 +125,7 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 
 	// server -> ACM certificate (ARN keyed).
 	certificate := relationshipByType(t, envelopes, awscloud.RelationshipTransferServerUsesACMCertificate)
-	if got, want := certificate.Payload["target_type"], awscloud.ResourceTypeACMCertificate; got != want {
+	if got, want := certificate.Payload["target_type"], catalog.ResourceTypeACMCertificate; got != want {
 		t.Fatalf("server->acm target_type = %#v, want %q", got, want)
 	}
 	if got, want := certificate.Payload["target_resource_id"], certificateARN; got != want {
@@ -137,7 +137,7 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 
 	// server -> logging IAM role (ARN keyed).
 	loggingRole := relationshipByType(t, envelopes, awscloud.RelationshipTransferServerUsesLoggingRole)
-	if got, want := loggingRole.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := loggingRole.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 		t.Fatalf("server->logging-role target_type = %#v, want %q", got, want)
 	}
 	if got, want := loggingRole.Payload["target_resource_id"], loggingRoleARN; got != want {
@@ -158,7 +158,7 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 	if got, want := userRole.Payload["source_resource_id"], userARN; got != want {
 		t.Fatalf("user->role source_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := userRole.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := userRole.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 		t.Fatalf("user->role target_type = %#v, want %q", got, want)
 	}
 	if got, want := userRole.Payload["target_resource_id"], userRoleARN; got != want {

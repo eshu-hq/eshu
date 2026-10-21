@@ -15,6 +15,7 @@ import (
 	acmtypes "github.com/aws/aws-sdk-go-v2/service/acm/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientInterfaceExcludesGetCertificateAndExportCertificate is the
@@ -68,7 +69,7 @@ func TestClientListCertificatesReadsOnlyDescribeAndTagsAndOmitsCertificateBody(t
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACM},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceACM},
 	}
 
 	certificates, err := adapter.ListCertificates(context.Background())
@@ -146,7 +147,7 @@ func TestClientListCertificatesIncludesACMPCAIssuedCertificatesWithoutCallingPCA
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACM},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceACM},
 	}
 
 	certificates, err := adapter.ListCertificates(context.Background())
@@ -191,7 +192,7 @@ func TestClientListCertificatesPaginates(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACM},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceACM},
 	}
 
 	certificates, err := adapter.ListCertificates(context.Background())

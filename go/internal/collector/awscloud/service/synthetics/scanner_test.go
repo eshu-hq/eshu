@@ -81,7 +81,7 @@ func TestScannerEmitsCanaryMetadataAndRelationships(t *testing.T) {
 
 	// canary -> IAM execution role, keyed by the role ARN the IAM scanner publishes.
 	roleEdge := relationshipByType(t, envelopes, awscloud.RelationshipSyntheticsCanaryUsesIAMRole)
-	assertEdgeTarget(t, roleEdge, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, roleEdge, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got, want := roleEdge.Payload["target_arn"], testRoleARN; got != want {
 		t.Fatalf("canary->role target_arn = %#v, want %q", got, want)
 	}

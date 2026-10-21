@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -16,8 +17,8 @@ func TestNewIAMPermissionEnvelopeNormalizesStatement(t *testing.T) {
 	envelope, err := NewIAMPermissionEnvelope(IAMPermissionObservation{
 		Boundary:      boundary,
 		PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
-		PrincipalType: ResourceTypeIAMRole,
-		PolicySource:  IAMPolicySourceInline,
+		PrincipalType: catalog.ResourceTypeIAMRole,
+		PolicySource:  catalog.IAMPolicySourceInline,
 		PolicyName:    "inline-escalate",
 		StatementSID:  "AllowPassRole",
 		Effect:        "Allow",
@@ -40,8 +41,8 @@ func TestNewIAMPermissionEnvelopeNormalizesStatement(t *testing.T) {
 		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, cloud.AWSIAMPermissionSchemaVersion)
 	}
 	assertPayloadString(t, envelope.Payload, "principal_arn", "arn:aws:iam::123456789012:role/eshu-runtime")
-	assertPayloadString(t, envelope.Payload, "principal_type", ResourceTypeIAMRole)
-	assertPayloadString(t, envelope.Payload, "policy_source", IAMPolicySourceInline)
+	assertPayloadString(t, envelope.Payload, "principal_type", catalog.ResourceTypeIAMRole)
+	assertPayloadString(t, envelope.Payload, "policy_source", catalog.IAMPolicySourceInline)
 	assertPayloadString(t, envelope.Payload, "effect", "Allow")
 
 	actions, ok := envelope.Payload["actions"].([]string)
@@ -87,8 +88,8 @@ func TestNewIAMPermissionEnvelopeWildcardActionAndResource(t *testing.T) {
 	envelope, err := NewIAMPermissionEnvelope(IAMPermissionObservation{
 		Boundary:      boundary,
 		PrincipalARN:  "arn:aws:iam::123456789012:user/admin",
-		PrincipalType: ResourceTypeIAMUser,
-		PolicySource:  IAMPolicySourceAttachedManaged,
+		PrincipalType: catalog.ResourceTypeIAMUser,
+		PolicySource:  catalog.IAMPolicySourceAttachedManaged,
 		PolicyARN:     "arn:aws:iam::aws:policy/AdministratorAccess",
 		Effect:        "Allow",
 		Actions:       []string{"*"},
@@ -114,8 +115,8 @@ func TestNewIAMPermissionEnvelopeTrustStatementCapturesAssumePrincipals(t *testi
 	envelope, err := NewIAMPermissionEnvelope(IAMPermissionObservation{
 		Boundary:         boundary,
 		PrincipalARN:     "arn:aws:iam::123456789012:role/eshu-runtime",
-		PrincipalType:    ResourceTypeIAMRole,
-		PolicySource:     IAMPolicySourceTrust,
+		PrincipalType:    catalog.ResourceTypeIAMRole,
+		PolicySource:     catalog.IAMPolicySourceTrust,
 		Effect:           "Allow",
 		Actions:          []string{"sts:AssumeRole"},
 		AssumePrincipals: []string{"arn:aws:iam::111122223333:root", "arn:aws:iam::111122223333:root"},
@@ -123,7 +124,7 @@ func TestNewIAMPermissionEnvelopeTrustStatementCapturesAssumePrincipals(t *testi
 	if err != nil {
 		t.Fatalf("NewIAMPermissionEnvelope returned error: %v", err)
 	}
-	assertPayloadString(t, envelope.Payload, "policy_source", IAMPolicySourceTrust)
+	assertPayloadString(t, envelope.Payload, "policy_source", catalog.IAMPolicySourceTrust)
 	principals, ok := envelope.Payload["assume_principals"].([]string)
 	if !ok {
 		t.Fatalf("assume_principals = %T, want []string", envelope.Payload["assume_principals"])
@@ -137,7 +138,7 @@ func TestNewIAMPermissionEnvelopeRequiresPrincipalAndEffect(t *testing.T) {
 	boundary := testBoundary(time.Now())
 	if _, err := NewIAMPermissionEnvelope(IAMPermissionObservation{
 		Boundary:     boundary,
-		PolicySource: IAMPolicySourceInline,
+		PolicySource: catalog.IAMPolicySourceInline,
 		Effect:       "Allow",
 		Actions:      []string{"s3:GetObject"},
 	}); err == nil {
@@ -146,7 +147,7 @@ func TestNewIAMPermissionEnvelopeRequiresPrincipalAndEffect(t *testing.T) {
 	if _, err := NewIAMPermissionEnvelope(IAMPermissionObservation{
 		Boundary:     boundary,
 		PrincipalARN: "arn:aws:iam::123456789012:role/app",
-		PolicySource: IAMPolicySourceInline,
+		PolicySource: catalog.IAMPolicySourceInline,
 		Actions:      []string{"s3:GetObject"},
 	}); err == nil {
 		t.Fatal("NewIAMPermissionEnvelope() error = nil, want missing effect error")
@@ -158,8 +159,8 @@ func TestNewIAMPermissionEnvelopeStableIdentityIgnoresConditionOrder(t *testing.
 	base := IAMPermissionObservation{
 		Boundary:      boundary,
 		PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
-		PrincipalType: ResourceTypeIAMRole,
-		PolicySource:  IAMPolicySourceInline,
+		PrincipalType: catalog.ResourceTypeIAMRole,
+		PolicySource:  catalog.IAMPolicySourceInline,
 		PolicyName:    "inline-escalate",
 		StatementSID:  "AllowPassRole",
 		Effect:        "Allow",
@@ -196,8 +197,8 @@ func TestNewIAMPermissionEnvelopeStableIdentityIncludesConditionSummary(t *testi
 	base := IAMPermissionObservation{
 		Boundary:      boundary,
 		PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
-		PrincipalType: ResourceTypeIAMRole,
-		PolicySource:  IAMPolicySourceInline,
+		PrincipalType: catalog.ResourceTypeIAMRole,
+		PolicySource:  catalog.IAMPolicySourceInline,
 		PolicyName:    "inline-escalate",
 		Effect:        "Allow",
 		Actions:       []string{"iam:PassRole"},
@@ -215,7 +216,7 @@ func TestNewIAMPermissionEnvelopeStableIdentityIncludesConditionSummary(t *testi
 		"not_resources": "",
 		"policy_arn":    "",
 		"policy_name":   "inline-escalate",
-		"policy_source": IAMPolicySourceInline,
+		"policy_source": catalog.IAMPolicySourceInline,
 		"principal_arn": "arn:aws:iam::123456789012:role/eshu-runtime",
 		"region":        boundary.Region,
 		"resources":     "arn:aws:iam::123456789012:role/*",

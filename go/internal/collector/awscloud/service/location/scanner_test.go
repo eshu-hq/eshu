@@ -116,7 +116,7 @@ func TestScannerEmitsLocationMetadataAndRelationships(t *testing.T) {
 
 	// tracker -> KMS key edge.
 	trackerKMS := relationshipByType(t, envelopes, awscloud.RelationshipLocationTrackerUsesKMSKey)
-	assertEdgeTarget(t, trackerKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, trackerKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := trackerKMS.Payload["source_resource_id"], testTrackerARN; got != want {
 		t.Fatalf("tracker->kms source_resource_id = %#v, want %q", got, want)
 	}
@@ -126,7 +126,7 @@ func TestScannerEmitsLocationMetadataAndRelationships(t *testing.T) {
 
 	// geofence collection -> KMS key edge.
 	collectionKMS := relationshipByType(t, envelopes, awscloud.RelationshipLocationGeofenceCollectionUsesKMSKey)
-	assertEdgeTarget(t, collectionKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, collectionKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := collectionKMS.Payload["source_resource_id"], testCollectionARN; got != want {
 		t.Fatalf("collection->kms source_resource_id = %#v, want %q", got, want)
 	}

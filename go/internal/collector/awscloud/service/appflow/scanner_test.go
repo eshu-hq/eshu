@@ -135,7 +135,7 @@ func TestScannerEmitsAppFlowMetadataResourcesAndRelationships(t *testing.T) {
 	if got, want := flowKMS.Payload["target_arn"], kmsARN; got != want {
 		t.Fatalf("flow->kms target_arn = %#v, want %q", got, want)
 	}
-	if got, want := flowKMS.Payload["target_type"], awscloud.ResourceTypeKMSKey; got != want {
+	if got, want := flowKMS.Payload["target_type"], catalog.ResourceTypeKMSKey; got != want {
 		t.Fatalf("flow->kms target_type = %#v, want %q", got, want)
 	}
 
@@ -300,7 +300,7 @@ func TestScannerCollapsesSameProfileSourceAndDestination(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceKMS
+	boundary.ServiceKind = catalog.ServiceKMS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

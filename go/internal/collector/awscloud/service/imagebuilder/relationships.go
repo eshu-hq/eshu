@@ -41,7 +41,7 @@ func pipelineRelationships(boundary awscloud.Boundary, pipeline ImagePipeline) [
 		pipeline.DistributionConfigurationARN,
 		awscloud.ResourceTypeImageBuilderDistributionConfiguration,
 	)
-	add(awscloud.RelationshipImageBuilderPipelineUsesExecutionRole, pipeline.ExecutionRoleARN, awscloud.ResourceTypeIAMRole)
+	add(awscloud.RelationshipImageBuilderPipelineUsesExecutionRole, pipeline.ExecutionRoleARN, catalog.ResourceTypeIAMRole)
 	return observations
 }
 
@@ -63,7 +63,7 @@ func infraConfigRelationships(boundary awscloud.Boundary, config InfrastructureC
 		observations = append(observations, arnEdge(
 			boundary, sourceID,
 			awscloud.RelationshipImageBuilderInfraConfigUsesInstanceProfile,
-			profileARN, awscloud.ResourceTypeIAMInstanceProfile,
+			profileARN, catalog.ResourceTypeIAMInstanceProfile,
 		))
 	}
 	if subnetID := strings.TrimSpace(config.SubnetID); subnetID != "" {
@@ -198,7 +198,7 @@ func containerRecipeKMSEdge(
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		TargetResourceID: keyID,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipImageBuilderContainerRecipeUsesKMSKey + ":" + keyID,
 	}
 	if isARN(keyID) {

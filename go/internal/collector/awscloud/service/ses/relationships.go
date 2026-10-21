@@ -67,7 +67,7 @@ func identityDKIMKMSRelationship(
 		SourceARN:        identityARN(boundary, identity),
 		TargetResourceID: keyID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID: sourceID + "->" +
 			catalog.RelationshipSESEmailIdentityDKIMUsesKMSKey + ":" + keyID,
 	}

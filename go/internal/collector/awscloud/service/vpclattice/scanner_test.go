@@ -119,7 +119,7 @@ func TestScannerEmitsVPCLatticeMetadataAndRelationships(t *testing.T) {
 
 	// service -> ACM certificate edge.
 	svcCert := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeServiceUsesCertificate)
-	assertEdgeTarget(t, svcCert, awscloud.ResourceTypeACMCertificate, testCertARN)
+	assertEdgeTarget(t, svcCert, catalog.ResourceTypeACMCertificate, testCertARN)
 	if got, want := svcCert.Payload["target_arn"], testCertARN; got != want {
 		t.Fatalf("service -> cert target_arn = %#v, want %q", got, want)
 	}

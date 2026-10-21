@@ -19,7 +19,7 @@ import (
 
 // ec2UsesProfileResourceTypeInstanceProfile is the aws_resource resource_type the
 // IAM scanner emits for an instance-profile node. It mirrors
-// awscloud.ResourceTypeIAMInstanceProfile; the duplication is intentional so the
+// catalog.ResourceTypeIAMInstanceProfile; the duplication is intentional so the
 // reducer does not import the collector package for one string constant.
 const ec2UsesProfileResourceTypeInstanceProfile = awsv1.ResourceTypeIAMInstanceProfile
 

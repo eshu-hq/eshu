@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // tableKeyspaceRelationship emits the table-in-keyspace edge. The keyspace node
@@ -65,7 +66,7 @@ func tableKMSRelationship(boundary awscloud.Boundary, table Table) *awscloud.Rel
 		SourceARN:        sourceID,
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		Attributes: map[string]any{
 			"encryption_type": strings.TrimSpace(table.Encryption.Type),
 		},

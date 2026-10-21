@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // profileACMCertificateRelationship records a signing profile's reported ACM
@@ -29,13 +30,13 @@ func profileACMCertificateRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSignerProfileUsesACMCertificate,
+		RelationshipType: catalog.RelationshipSignerProfileUsesACMCertificate,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(profile.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeACMCertificate,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSignerProfileUsesACMCertificate + ":" + targetARN,
+		TargetType:       catalog.ResourceTypeACMCertificate,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSignerProfileUsesACMCertificate + ":" + targetARN,
 	}
 }
 
@@ -59,11 +60,11 @@ func profileSigningPlatformRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSignerProfileUsesSigningPlatform,
+		RelationshipType: catalog.RelationshipSignerProfileUsesSigningPlatform,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(profile.ARN),
 		TargetResourceID: platformID,
-		TargetType:       awscloud.ResourceTypeSignerSigningPlatform,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSignerProfileUsesSigningPlatform + ":" + platformID,
+		TargetType:       catalog.ResourceTypeSignerSigningPlatform,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSignerProfileUsesSigningPlatform + ":" + platformID,
 	}
 }

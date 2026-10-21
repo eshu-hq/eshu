@@ -15,6 +15,7 @@ import (
 	macietypes "github.com/aws/aws-sdk-go-v2/service/macie2/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientInterfaceExcludesSensitivePayloadAndMutationAPIs is the security
@@ -160,7 +161,7 @@ func TestClientReadsMetadataAndDropsSensitivePayloads(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMacie},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMacie},
 	}
 
 	session, err := adapter.Session(context.Background())
@@ -284,7 +285,7 @@ func TestSessionMapsNotEnabledToDisabled(t *testing.T) {
 	api := &fakeMacie2API{sessionErr: &macietypes.AccessDeniedException{
 		Message: aws.String("Macie is not enabled. Enable Macie and try again."),
 	}}
-	adapter := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMacie}}
+	adapter := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMacie}}
 
 	session, err := adapter.Session(context.Background())
 	if err != nil {
@@ -303,7 +304,7 @@ func TestSessionSurfacesRealAccessDenied(t *testing.T) {
 	api := &fakeMacie2API{sessionErr: &macietypes.AccessDeniedException{
 		Message: aws.String("User is not authorized to perform macie2:GetMacieSession"),
 	}}
-	adapter := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMacie}}
+	adapter := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMacie}}
 
 	_, err := adapter.Session(context.Background())
 	if err == nil {
@@ -318,7 +319,7 @@ func TestAdministratorAccountNotFoundMapsToEmpty(t *testing.T) {
 	api := &fakeMacie2API{administratorErr: &macietypes.ResourceNotFoundException{
 		Message: aws.String("no administrator account"),
 	}}
-	adapter := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMacie}}
+	adapter := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMacie}}
 
 	admin, err := adapter.AdministratorAccountID(context.Background())
 	if err != nil {

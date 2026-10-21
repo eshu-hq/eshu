@@ -248,7 +248,7 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 	}
 
 	role := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelinePipelineUsesIAMRole)
-	if len(role) != 1 || role[0]["target_type"] != awscloud.ResourceTypeIAMRole {
+	if len(role) != 1 || role[0]["target_type"] != catalog.ResourceTypeIAMRole {
 		t.Fatalf("pipeline->IAM-role = %#v", role)
 	}
 	if role[0]["target_arn"] != "arn:aws:iam::123456789012:role/CodePipelineServiceRole" {
@@ -264,7 +264,7 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 	}
 
 	key := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelinePipelineEncryptsArtifactsWithKMSKey)
-	if len(key) != 1 || key[0]["target_type"] != awscloud.ResourceTypeKMSKey {
+	if len(key) != 1 || key[0]["target_type"] != catalog.ResourceTypeKMSKey {
 		t.Fatalf("pipeline->KMS = %#v", key)
 	}
 
@@ -345,21 +345,21 @@ func TestArtifactKeyRelationshipTargetsAliasVersusKey(t *testing.T) {
 		{
 			name:           "alias ARN targets the alias node",
 			keyID:          "arn:aws:kms:us-east-1:123456789012:alias/checkout-artifacts",
-			wantTargetType: awscloud.ResourceTypeKMSAlias,
+			wantTargetType: catalog.ResourceTypeKMSAlias,
 			wantTargetID:   "arn:aws:kms:us-east-1:123456789012:alias/checkout-artifacts",
 			wantTargetARN:  "arn:aws:kms:us-east-1:123456789012:alias/checkout-artifacts",
 		},
 		{
 			name:           "key ARN targets the key node",
 			keyID:          "arn:aws:kms:us-east-1:123456789012:key/abcd-1234",
-			wantTargetType: awscloud.ResourceTypeKMSKey,
+			wantTargetType: catalog.ResourceTypeKMSKey,
 			wantTargetID:   "arn:aws:kms:us-east-1:123456789012:key/abcd-1234",
 			wantTargetARN:  "arn:aws:kms:us-east-1:123456789012:key/abcd-1234",
 		},
 		{
 			name:           "bare key id targets the key node",
 			keyID:          "abcd-1234-ef56",
-			wantTargetType: awscloud.ResourceTypeKMSKey,
+			wantTargetType: catalog.ResourceTypeKMSKey,
 			wantTargetID:   "abcd-1234-ef56",
 			wantTargetARN:  "",
 		},
@@ -421,7 +421,7 @@ func TestScannerRequiresRedactionKey(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceIAM
+	boundary.ServiceKind = catalog.ServiceIAM
 	_, err := Scanner{Client: sampleClient(), RedactionKey: testKey(t)}.Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service-kind mismatch error")

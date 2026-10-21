@@ -54,9 +54,9 @@ func serviceRelationships(boundary awscloud.Boundary, service Service) []awsclou
 	}
 
 	add(awscloud.RelationshipAppRunnerServiceUsesConnection, service.ConnectionARN, awscloud.ResourceTypeAppRunnerConnection, "connection")
-	add(awscloud.RelationshipAppRunnerServiceUsesIAMRole, service.AccessRoleARN, awscloud.ResourceTypeIAMRole, "access-role")
-	add(awscloud.RelationshipAppRunnerServiceUsesIAMRole, service.InstanceRoleARN, awscloud.ResourceTypeIAMRole, "instance-role")
-	add(awscloud.RelationshipAppRunnerServiceUsesKMSKey, service.KMSKey, awscloud.ResourceTypeKMSKey, "kms-key")
+	add(awscloud.RelationshipAppRunnerServiceUsesIAMRole, service.AccessRoleARN, catalog.ResourceTypeIAMRole, "access-role")
+	add(awscloud.RelationshipAppRunnerServiceUsesIAMRole, service.InstanceRoleARN, catalog.ResourceTypeIAMRole, "instance-role")
+	add(awscloud.RelationshipAppRunnerServiceUsesKMSKey, service.KMSKey, catalog.ResourceTypeKMSKey, "kms-key")
 	add(awscloud.RelationshipAppRunnerServiceUsesVpcConnector, service.VpcConnectorARN, awscloud.ResourceTypeAppRunnerVpcConnector, "vpc-connector")
 	add(awscloud.RelationshipAppRunnerServiceUsesAutoScalingConfiguration, service.AutoScalingConfigurationARN, awscloud.ResourceTypeAppRunnerAutoScalingConfiguration, "autoscaling")
 	add(awscloud.RelationshipAppRunnerServiceUsesObservabilityConfiguration, service.ObservabilityConfigurationARN, awscloud.ResourceTypeAppRunnerObservabilityConfiguration, "observability")

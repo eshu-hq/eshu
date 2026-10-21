@@ -246,12 +246,12 @@ func TestComputeEnvironmentRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) 
 		},
 		{
 			relationshipType: catalog.RelationshipBatchComputeEnvironmentUsesIAMRole,
-			targetType:       awscloud.ResourceTypeIAMRole,
+			targetType:       catalog.ResourceTypeIAMRole,
 			targetResourceID: "arn:aws:iam::123456789012:role/batch-service",
 		},
 		{
 			relationshipType: catalog.RelationshipBatchJobDefinitionUsesIAMRole,
-			targetType:       awscloud.ResourceTypeIAMRole,
+			targetType:       catalog.ResourceTypeIAMRole,
 			targetResourceID: "arn:aws:iam::123456789012:role/etl-job",
 		},
 		{
@@ -298,8 +298,8 @@ func TestComputeEnvironmentUsesIAMRoleCoversInstanceProfile(t *testing.T) {
 	var sawInstanceProfile bool
 	for _, relationship := range relationships {
 		if relationship["target_resource_id"] == "arn:aws:iam::123456789012:instance-profile/ecsInstanceRole" {
-			if relationship["target_type"] != awscloud.ResourceTypeIAMInstanceProfile {
-				t.Fatalf("instance-profile target_type = %q, want %q", relationship["target_type"], awscloud.ResourceTypeIAMInstanceProfile)
+			if relationship["target_type"] != catalog.ResourceTypeIAMInstanceProfile {
+				t.Fatalf("instance-profile target_type = %q, want %q", relationship["target_type"], catalog.ResourceTypeIAMInstanceProfile)
 			}
 			sawInstanceProfile = true
 		}

@@ -106,7 +106,7 @@ func TestScannerEmitsProtonMetadataAndRelationships(t *testing.T) {
 
 	// environment -> IAM role edge, keyed by the role ARN the IAM scanner publishes.
 	envRole := relationshipByType(t, envelopes, awscloud.RelationshipProtonEnvironmentUsesRole)
-	assertEdgeTarget(t, envRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, envRole, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got, want := envRole.Payload["source_resource_id"], testEnvironmentARN; got != want {
 		t.Fatalf("environment->role source_resource_id = %#v, want %q", got, want)
 	}

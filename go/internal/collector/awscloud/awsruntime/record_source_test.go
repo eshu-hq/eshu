@@ -30,12 +30,12 @@ func TestRecordSourceWalksEveryTargetTupleWithoutStores(t *testing.T) {
 			Targets: []TargetScope{
 				{
 					AccountID: "123456789012", AllowedRegions: []string{"us-east-1", "eu-west-1"},
-					AllowedServices: []string{awscloud.ServiceIAM, catalog.ServiceECR},
+					AllowedServices: []string{catalog.ServiceIAM, catalog.ServiceECR},
 					Credentials:     CredentialConfig{Mode: CredentialModeLocalWorkloadIdentity},
 				},
 				{
 					AccountID: "000000000000", AllowedRegions: []string{"us-east-1"},
-					AllowedServices: []string{awscloud.ServiceIAM},
+					AllowedServices: []string{catalog.ServiceIAM},
 					Credentials:     CredentialConfig{Mode: CredentialModeLocalWorkloadIdentity},
 				},
 			},

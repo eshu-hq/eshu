@@ -108,7 +108,7 @@ func TestScannerEmitsDatazoneMetadataAndRelationships(t *testing.T) {
 
 	// domain -> KMS key edge.
 	dbKMS := relationshipByType(t, envelopes, catalog.RelationshipDatazoneDomainUsesKMSKey)
-	assertEdgeTarget(t, dbKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, dbKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := dbKMS.Payload["source_resource_id"], testDomainID; got != want {
 		t.Fatalf("domain->kms source_resource_id = %#v, want %q", got, want)
 	}
@@ -120,7 +120,7 @@ func TestScannerEmitsDatazoneMetadataAndRelationships(t *testing.T) {
 	}
 	roleTargets := map[string]bool{}
 	for _, edge := range roleEdges {
-		assertEdgeTarget(t, edge, awscloud.ResourceTypeIAMRole, edge.Payload["target_resource_id"].(string))
+		assertEdgeTarget(t, edge, catalog.ResourceTypeIAMRole, edge.Payload["target_resource_id"].(string))
 		roleTargets[edge.Payload["target_resource_id"].(string)] = true
 	}
 	if !roleTargets[testExecutionRole] || !roleTargets[testServiceRole] {

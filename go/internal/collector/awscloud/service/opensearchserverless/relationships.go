@@ -45,7 +45,7 @@ func collectionKMSRelationship(
 		SourceARN:        strings.TrimSpace(collection.ARN),
 		TargetResourceID: keyARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		Attributes:       attributes,
 		SourceRecordID:   sourceID + "->" + catalog.RelationshipOpenSearchServerlessCollectionUsesKMSKey + ":" + keyARN,
 	}

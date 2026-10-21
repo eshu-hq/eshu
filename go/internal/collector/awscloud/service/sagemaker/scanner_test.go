@@ -104,7 +104,7 @@ func TestScannerModelRelationshipsTargetTypes(t *testing.T) {
 		t.Fatalf("model image target = %#v, want %q", got, want)
 	}
 	role := relationshipByType(t, envelopes, catalog.RelationshipSageMakerModelUsesIAMRole)
-	if got, want := role.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := role.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 		t.Fatalf("model role target_type = %#v, want %q", got, want)
 	}
 }

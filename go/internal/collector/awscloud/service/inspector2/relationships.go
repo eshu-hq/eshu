@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // memberRelationship records that a member account is managed by the delegated
@@ -19,10 +20,10 @@ func memberRelationship(
 	adminID := firstNonEmpty(member.AdministratorID, boundary.AccountID)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipInspector2MemberManagedByAdministrator,
+		RelationshipType: catalog.RelationshipInspector2MemberManagedByAdministrator,
 		SourceResourceID: memberResourceID(memberID),
 		TargetResourceID: accountResourceID(adminID),
-		TargetType:       awscloud.ResourceTypeInspector2Account,
+		TargetType:       catalog.ResourceTypeInspector2Account,
 		Attributes: map[string]any{
 			"account_id":          memberID,
 			"administrator_id":    adminID,
@@ -48,11 +49,11 @@ func cisTargetRelationship(
 	configID := firstNonEmpty(configARN, config.Name)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipInspector2CisScanConfigurationTargetsAccount,
+		RelationshipType: catalog.RelationshipInspector2CisScanConfigurationTargetsAccount,
 		SourceResourceID: configID,
 		SourceARN:        configARN,
 		TargetResourceID: accountResourceID(accountID),
-		TargetType:       awscloud.ResourceTypeInspector2Account,
+		TargetType:       catalog.ResourceTypeInspector2Account,
 		Attributes: map[string]any{
 			"target_account_id": accountID,
 		},

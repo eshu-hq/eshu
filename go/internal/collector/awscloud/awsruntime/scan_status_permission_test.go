@@ -26,7 +26,7 @@ func TestClaimedSourceClassifiesDeniedSmithyAPIErrorsAsTerminalPermissionGaps(t 
 	}{
 		{
 			name:        "access denied",
-			serviceKind: awscloud.ServiceIAM,
+			serviceKind: catalog.ServiceIAM,
 			errorCode:   "AccessDenied",
 			wantClass:   FailureClassPermissionDenied,
 		},
@@ -38,7 +38,7 @@ func TestClaimedSourceClassifiesDeniedSmithyAPIErrorsAsTerminalPermissionGaps(t 
 		},
 		{
 			name:        "unsupported operation",
-			serviceKind: awscloud.ServiceKMS,
+			serviceKind: catalog.ServiceKMS,
 			errorCode:   "UnsupportedOperationException",
 			wantClass:   FailureClassUnsupportedPermission,
 		},

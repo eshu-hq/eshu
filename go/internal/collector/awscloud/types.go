@@ -246,7 +246,7 @@ type IAMPermissionObservation struct {
 	// (for example StringEquals or ForAnyValue:StringLike). Values are omitted.
 	ConditionOperators []string
 	// AssumePrincipals lists the principals a trust statement grants assume-role
-	// to. It is only meaningful when PolicySource is IAMPolicySourceTrust.
+	// to. It is only meaningful when PolicySource is catalog.IAMPolicySourceTrust.
 	AssumePrincipals []string
 	SourceURI        string
 	SourceRecordID   string
@@ -270,7 +270,7 @@ type ResourcePolicyPermissionObservation struct {
 	// bucket or KMS key), i.e. the resource the grant applies to.
 	ResourceARN string
 	// ResourceType is the resource type the policy is attached to, for example
-	// catalog.ResourceTypeS3Bucket or ResourceTypeKMSKey.
+	// catalog.ResourceTypeS3Bucket or catalog.ResourceTypeKMSKey.
 	ResourceType string
 	// StatementSID is the source statement Sid. It is used only to keep the
 	// derived fact's source-record id stable across re-observation; it is never

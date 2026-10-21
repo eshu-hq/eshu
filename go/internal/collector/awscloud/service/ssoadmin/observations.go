@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func instanceObservation(boundary awscloud.Boundary, instance Instance) awscloud.ResourceObservation {
@@ -16,7 +17,7 @@ func instanceObservation(boundary awscloud.Boundary, instance Instance) awscloud
 		Boundary:     boundary,
 		ARN:          instanceARN,
 		ResourceID:   firstNonEmpty(instanceARN, instance.IdentityStoreID),
-		ResourceType: awscloud.ResourceTypeSSOAdminInstance,
+		ResourceType: catalog.ResourceTypeSSOAdminInstance,
 		Name:         strings.TrimSpace(instance.Name),
 		State:        strings.TrimSpace(instance.Status),
 		Tags:         cloneStringMap(instance.Tags),
@@ -39,7 +40,7 @@ func permissionSetObservation(boundary awscloud.Boundary, permSet PermissionSet)
 		Boundary:     boundary,
 		ARN:          permSetARN,
 		ResourceID:   permSetARN,
-		ResourceType: awscloud.ResourceTypeSSOAdminPermissionSet,
+		ResourceType: catalog.ResourceTypeSSOAdminPermissionSet,
 		Name:         strings.TrimSpace(permSet.Name),
 		Tags:         cloneStringMap(permSet.Tags),
 		Attributes: map[string]any{
@@ -61,7 +62,7 @@ func assignmentObservation(boundary awscloud.Boundary, assignment AccountAssignm
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   assignmentID,
-		ResourceType: awscloud.ResourceTypeSSOAdminAccountAssignment,
+		ResourceType: catalog.ResourceTypeSSOAdminAccountAssignment,
 		Attributes: map[string]any{
 			"instance_arn":       strings.TrimSpace(assignment.InstanceARN),
 			"permission_set_arn": strings.TrimSpace(assignment.PermissionSetARN),
@@ -80,7 +81,7 @@ func trustedTokenIssuerObservation(boundary awscloud.Boundary, issuer TrustedTok
 		Boundary:     boundary,
 		ARN:          issuerARN,
 		ResourceID:   issuerARN,
-		ResourceType: awscloud.ResourceTypeSSOAdminTrustedTokenIssuer,
+		ResourceType: catalog.ResourceTypeSSOAdminTrustedTokenIssuer,
 		Name:         strings.TrimSpace(issuer.Name),
 		Attributes: map[string]any{
 			"instance_arn":              strings.TrimSpace(issuer.InstanceARN),
@@ -97,7 +98,7 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 		Boundary:     boundary,
 		ARN:          appARN,
 		ResourceID:   appARN,
-		ResourceType: awscloud.ResourceTypeSSOAdminApplication,
+		ResourceType: catalog.ResourceTypeSSOAdminApplication,
 		Name:         strings.TrimSpace(application.Name),
 		State:        strings.TrimSpace(application.Status),
 		Attributes: map[string]any{
@@ -119,7 +120,7 @@ func (s Scanner) principalObservation(boundary awscloud.Boundary, principal Prin
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   principalID,
-		ResourceType: awscloud.ResourceTypeSSOAdminPrincipal,
+		ResourceType: catalog.ResourceTypeSSOAdminPrincipal,
 		Attributes: map[string]any{
 			"principal_id":   principalID,
 			"principal_type": strings.TrimSpace(principal.Type),
@@ -142,12 +143,12 @@ func permissionSetInInstanceRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSSOAdminPermissionSetInInstance,
+		RelationshipType: catalog.RelationshipSSOAdminPermissionSetInInstance,
 		SourceResourceID: permSetARN,
 		SourceARN:        permSetARN,
 		TargetResourceID: instanceARN,
 		TargetARN:        instanceARN,
-		TargetType:       awscloud.ResourceTypeSSOAdminInstance,
+		TargetType:       catalog.ResourceTypeSSOAdminInstance,
 		SourceRecordID:   permSetARN + "#instance#" + instanceARN,
 	}, true
 }
@@ -163,12 +164,12 @@ func applicationInInstanceRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSSOAdminApplicationInInstance,
+		RelationshipType: catalog.RelationshipSSOAdminApplicationInInstance,
 		SourceResourceID: appARN,
 		SourceARN:        appARN,
 		TargetResourceID: instanceARN,
 		TargetARN:        instanceARN,
-		TargetType:       awscloud.ResourceTypeSSOAdminInstance,
+		TargetType:       catalog.ResourceTypeSSOAdminInstance,
 		SourceRecordID:   appARN + "#instance#" + instanceARN,
 	}, true
 }
@@ -185,12 +186,12 @@ func managedPolicyRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSSOAdminPermissionSetUsesManagedPolicy,
+		RelationshipType: catalog.RelationshipSSOAdminPermissionSetUsesManagedPolicy,
 		SourceResourceID: permSetARN,
 		SourceARN:        permSetARN,
 		TargetResourceID: policyARN,
 		TargetARN:        policyARN,
-		TargetType:       awscloud.ResourceTypeIAMPolicy,
+		TargetType:       catalog.ResourceTypeIAMPolicy,
 		Attributes: map[string]any{
 			"policy_name": strings.TrimSpace(managed.Name),
 		},
@@ -212,11 +213,11 @@ func customerManagedPolicyRelationship(
 	targetID := permSetARN + "#cmp#" + policyPath + policyName
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSSOAdminPermissionSetUsesCustomerManagedPolicy,
+		RelationshipType: catalog.RelationshipSSOAdminPermissionSetUsesCustomerManagedPolicy,
 		SourceResourceID: permSetARN,
 		SourceARN:        permSetARN,
 		TargetResourceID: targetID,
-		TargetType:       awscloud.ResourceTypeIAMPolicy,
+		TargetType:       catalog.ResourceTypeIAMPolicy,
 		Attributes: map[string]any{
 			"policy_name": policyName,
 			"policy_path": policyPath,
@@ -236,11 +237,11 @@ func assignmentUsesPermissionSetRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSSOAdminAssignmentUsesPermissionSet,
+		RelationshipType: catalog.RelationshipSSOAdminAssignmentUsesPermissionSet,
 		SourceResourceID: id,
 		TargetResourceID: permSetARN,
 		TargetARN:        permSetARN,
-		TargetType:       awscloud.ResourceTypeSSOAdminPermissionSet,
+		TargetType:       catalog.ResourceTypeSSOAdminPermissionSet,
 		SourceRecordID:   id + "#permset#" + permSetARN,
 	}, true
 }
@@ -256,7 +257,7 @@ func assignmentTargetsAccountRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSSOAdminAssignmentTargetsAccount,
+		RelationshipType: catalog.RelationshipSSOAdminAssignmentTargetsAccount,
 		SourceResourceID: id,
 		TargetResourceID: accountID,
 		TargetType:       awscloud.ResourceTypeOrganizationsAccount,
@@ -275,10 +276,10 @@ func assignmentGrantsPrincipalRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSSOAdminAssignmentGrantsPrincipal,
+		RelationshipType: catalog.RelationshipSSOAdminAssignmentGrantsPrincipal,
 		SourceResourceID: id,
 		TargetResourceID: principalID,
-		TargetType:       awscloud.ResourceTypeSSOAdminPrincipal,
+		TargetType:       catalog.ResourceTypeSSOAdminPrincipal,
 		Attributes: map[string]any{
 			"principal_type": strings.TrimSpace(assignment.PrincipalType),
 		},

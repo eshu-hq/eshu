@@ -155,7 +155,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 	if got, want := shareRole.Payload["target_resource_id"], roleARN; got != want {
 		t.Fatalf("share->role target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := shareRole.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := shareRole.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 		t.Fatalf("share->role target_type = %#v, want %q", got, want)
 	}
 
@@ -163,7 +163,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 	if got, want := shareKMS.Payload["target_resource_id"], kmsARN; got != want {
 		t.Fatalf("share->kms target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := shareKMS.Payload["target_type"], awscloud.ResourceTypeKMSKey; got != want {
+	if got, want := shareKMS.Payload["target_type"], catalog.ResourceTypeKMSKey; got != want {
 		t.Fatalf("share->kms target_type = %#v, want %q", got, want)
 	}
 

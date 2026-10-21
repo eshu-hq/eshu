@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // externalConnectionTargetType labels a repository external-connection
@@ -88,7 +89,7 @@ func domainKMSKeyRelationship(boundary awscloud.Boundary, domain Domain) *awsclo
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: keyARN,
 		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   domainID + "->" + awscloud.RelationshipCodeArtifactDomainUsesKMSKey + ":" + keyARN,
 	}
 }

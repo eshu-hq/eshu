@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/shield/runtimebind"
 )
 
 // TestShieldRuntimeBindRegisters confirms importing the binding installs the
 // Shield Advanced scanner builder.
 func TestShieldRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceShield)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceShield)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceShield)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceShield)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceShield},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceShield},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

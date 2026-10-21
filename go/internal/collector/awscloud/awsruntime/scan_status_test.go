@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -35,7 +36,7 @@ func TestStartScanStatusClassifiesStaleFenceAsTerminal(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{catalog.ServiceIAM},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -102,7 +103,7 @@ func TestStartScanStatusIncrementsStaleFenceCounter(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{catalog.ServiceIAM},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -124,7 +125,7 @@ func TestStartScanStatusIncrementsStaleFenceCounter(t *testing.T) {
 		t.Fatalf("Collect() err = %v", err)
 	}
 	got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_scan_status_stale_fence_total", map[string]string{
-		telemetry.MetricDimensionService:   awscloud.ServiceIAM,
+		telemetry.MetricDimensionService:   catalog.ServiceIAM,
 		telemetry.MetricDimensionAccount:   "123456789012",
 		telemetry.MetricDimensionRegion:    "us-east-1",
 		telemetry.MetricDimensionOperation: "start",

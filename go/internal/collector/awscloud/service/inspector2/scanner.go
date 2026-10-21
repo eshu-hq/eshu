@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -27,10 +28,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("inspector2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceInspector2:
+	case "", catalog.ServiceInspector2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceInspector2
+		boundary.ServiceKind = catalog.ServiceInspector2
 	default:
 		return nil, fmt.Errorf("inspector2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -132,7 +133,7 @@ func accountObservation(boundary awscloud.Boundary, account AccountStatus) awscl
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   accountResourceID(accountID),
-		ResourceType: awscloud.ResourceTypeInspector2Account,
+		ResourceType: catalog.ResourceTypeInspector2Account,
 		Name:         accountID,
 		State:        strings.TrimSpace(account.Status),
 		Attributes: map[string]any{
@@ -150,7 +151,7 @@ func memberObservation(boundary awscloud.Boundary, member MemberAccount) awsclou
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   memberResourceID(memberID),
-		ResourceType: awscloud.ResourceTypeInspector2MemberAccount,
+		ResourceType: catalog.ResourceTypeInspector2MemberAccount,
 		Name:         memberID,
 		State:        strings.TrimSpace(member.RelationshipStatus),
 		Attributes: map[string]any{
@@ -170,7 +171,7 @@ func filterObservation(boundary awscloud.Boundary, filter FilterSummary) awsclou
 		Boundary:     boundary,
 		ARN:          filterARN,
 		ResourceID:   firstNonEmpty(filterARN, filter.Name),
-		ResourceType: awscloud.ResourceTypeInspector2Filter,
+		ResourceType: catalog.ResourceTypeInspector2Filter,
 		Name:         strings.TrimSpace(filter.Name),
 		Attributes: map[string]any{
 			"action":   strings.TrimSpace(filter.Action),
@@ -187,7 +188,7 @@ func cisConfigObservation(boundary awscloud.Boundary, config CisScanConfiguratio
 		Boundary:     boundary,
 		ARN:          configARN,
 		ResourceID:   firstNonEmpty(configARN, config.Name),
-		ResourceType: awscloud.ResourceTypeInspector2CisScanConfiguration,
+		ResourceType: catalog.ResourceTypeInspector2CisScanConfiguration,
 		Name:         strings.TrimSpace(config.Name),
 		Tags:         cloneStringMap(config.Tags),
 		Attributes: map[string]any{

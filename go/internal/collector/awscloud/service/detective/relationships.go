@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // memberAccountRelationship builds the graph-to-member-account edge. It targets
@@ -25,7 +26,7 @@ func memberAccountRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDetectiveGraphHasMemberAccount,
+		RelationshipType: catalog.RelationshipDetectiveGraphHasMemberAccount,
 		SourceResourceID: graphARN,
 		SourceARN:        graphARN,
 		TargetResourceID: accountID,
@@ -56,11 +57,11 @@ func guardDutyDetectorRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDetectiveGraphSourcesGuardDutyDetector,
+		RelationshipType: catalog.RelationshipDetectiveGraphSourcesGuardDutyDetector,
 		SourceResourceID: graphARN,
 		SourceARN:        graphARN,
 		TargetResourceID: detectorID,
-		TargetType:       awscloud.ResourceTypeGuardDutyDetector,
+		TargetType:       catalog.ResourceTypeGuardDutyDetector,
 		Attributes: map[string]any{
 			"detector_id": detectorID,
 		},
