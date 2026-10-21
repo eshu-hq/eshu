@@ -48,15 +48,15 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# NINE OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# TEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
-# and uses_vault_policy
+# uses_vault_policy, and built_from
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
 # and -- since #6309 for the first two, since the #6228 fault halves and
-# slice A for the other seven -- live ifa-determinism AND ifa-fault-injection
+# slice A for the other eight -- live ifa-determinism AND ifa-fault-injection
 # matrices driving the family
 # and asserting its exact edge set. Their coverage rows below say so. Every
 # other family below still lacks the fourth condition, which is why every
@@ -255,6 +255,23 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-uses-vault-policy-family"
     proof_gate: ifa-fault-injection
+  # built_from: fault-free baseline plus fault-injection recovery, all
+  # asserting the two-edge BUILT_FROM exact set with identical graph digests
+  # (#6228 slice C live leaf). The app and worker digests whose OCI configs
+  # declare the fixture repository as builder each resolve to one edge;
+  # the exact digest with no build evidence, the ghost-builder digest, and
+  # the digest the repository merely deploys (a runtime reference never
+  # confers build provenance, #5796) resolve to nothing.
+  - surface: "materialized_edges:built_from"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-built-from-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:built_from"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-built-from-family"
+    proof_gate: ifa-fault-injection
 
 waivers:
   - surface: "materialized_edges:assumes_iam_role"
@@ -267,16 +284,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteAssumesIAMRoleEdges -> cypher/secrets_iam_graph_writer.go merges SECRETS_IAM_ASSUMES_IAM_ROLE; DEFERRED 2026-09-27, will not be wired: the sole production writer path is DomainSecretsIAMGraphProjection, which stays unregistered unless ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED is set (ADR #1314 keeps repo/chart/operator defaults OFF). If wired later: collector-only cassette plus the full trust-chain -> graph-projection chain in one reducer with the flag on for that cell only; never reducer facts in a cassette, which bypass the analyzer that decides exact vs partial chains"
-  - surface: "materialized_edges:built_from"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteBuiltFromEdges -> cypher/provenance_edge_writer.go merges BUILT_FROM; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
-  - surface: "materialized_edges:built_from"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteBuiltFromEdges -> cypher/provenance_edge_writer.go merges BUILT_FROM; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:cloud_resource"
     proof_gate: ifa-determinism
     issue: "#6228"
