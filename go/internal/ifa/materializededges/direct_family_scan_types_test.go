@@ -65,16 +65,21 @@ func parseCypherPackageWithReducerPorts(
 		// canonical/crossplane leaf holds the callees of the root
 		// CrossplaneSatisfiedBy writer port (its plain helpers
 		// BuildUpsertParts/BuildRetractPart/CloneRowsWithScope collide with
-		// nothing in the merged key space). The flux/inheritance leaves hold
-		// none, and their leaf-local helpers would collide with same-named
-		// root helpers in the merged key space, so only the node, cloud,
-		// crossplane, and semantic leaves are scanned.
+		// nothing in the merged key space); the kubernetes leaf holds the
+		// NamespaceNodeWriter/WorkloadNodeWriter port implementations (its
+		// one duplicated helper carries the leaf-specific
+		// buildBatchedNamespaceRetractStatements name for the same reason).
+		// The flux/inheritance leaves hold none, and their leaf-local helpers
+		// would collide with same-named root helpers in the merged key space,
+		// so only the node, cloud, crossplane, semantic, and kubernetes
+		// leaves are scanned.
 		patterns := []string{
 			"./internal/storage/cypher",
 			"./internal/storage/cypher/canonical/node",
 			"./internal/storage/cypher/canonical/crossplane",
 			"./internal/storage/cypher/cloud/...",
 			"./internal/storage/cypher/edge/...",
+			"./internal/storage/cypher/kubernetes",
 			"./internal/storage/cypher/semantic/...",
 			"./internal/reducer/...",
 		}
@@ -100,6 +105,7 @@ func parseCypherPackageWithReducerPorts(
 			case strings.HasSuffix(pkg.PkgPath, "/internal/storage/cypher"),
 				strings.HasSuffix(pkg.PkgPath, "/internal/storage/cypher/canonical/node"),
 				strings.HasSuffix(pkg.PkgPath, "/internal/storage/cypher/canonical/crossplane"),
+				strings.HasSuffix(pkg.PkgPath, "/internal/storage/cypher/kubernetes"),
 				strings.Contains(pkg.PkgPath, "/internal/storage/cypher/cloud/"),
 				strings.Contains(pkg.PkgPath, "/internal/storage/cypher/edge/"),
 				strings.Contains(pkg.PkgPath, "/internal/storage/cypher/semantic/"):

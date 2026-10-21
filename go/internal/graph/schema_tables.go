@@ -210,7 +210,7 @@ var uidConstraintLabels = []string{
 	"Interface",
 	"K8sResource",
 	// KubernetesNamespace backs the uid MERGE in
-	// kubernetes_namespace_node_writer.go (issue #5651): before this constraint
+	// kubernetes/namespace.go (issue #5651): before this constraint
 	// existed, MERGE (n:KubernetesNamespace {uid: row.uid}) fell back to an
 	// unindexed KubernetesNamespace label scan on every reducer write. See the
 	// kubernetes_namespace_cluster_id / kubernetes_namespace_namespace read

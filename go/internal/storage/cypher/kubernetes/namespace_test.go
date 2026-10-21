@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package writer
+package kubernetes
 
 import (
 	"context"
@@ -34,7 +34,7 @@ func TestKubernetesNamespaceNodeWriterEmptyRowsIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewKubernetesNamespaceNodeWriter(executor, 0)
+	writer := NewNamespaceNodeWriter(executor, 0)
 
 	if err := writer.WriteKubernetesNamespaceNodes(context.Background(), nil, "reducer/kubernetes-namespaces"); err != nil {
 		t.Fatalf("WriteKubernetesNamespaceNodes returned error: %v", err)
@@ -60,7 +60,7 @@ func TestKubernetesNamespaceNodeWriterUnboundRowNeverCreatesEnvironment(t *testi
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewKubernetesNamespaceNodeWriter(executor, 0)
+	writer := NewNamespaceNodeWriter(executor, 0)
 
 	row := kubernetesNamespaceRow("misc", "", "environment-unbound", "")
 	if err := writer.WriteKubernetesNamespaceNodes(context.Background(), []map[string]any{row}, "reducer/kubernetes-namespaces"); err != nil {
@@ -114,7 +114,7 @@ func TestKubernetesNamespaceNodeWriterBoundRowCreatesEnvironment(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewKubernetesNamespaceNodeWriter(executor, 0)
+	writer := NewNamespaceNodeWriter(executor, 0)
 
 	row := kubernetesNamespaceRow("payments-prod", "prod", "bound", "namespace_label")
 	if err := writer.WriteKubernetesNamespaceNodes(context.Background(), []map[string]any{row}, "reducer/kubernetes-namespaces"); err != nil {
@@ -158,7 +158,7 @@ func TestKubernetesNamespaceNodeWriterSplitsMixedBatch(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewKubernetesNamespaceNodeWriter(executor, 0)
+	writer := NewNamespaceNodeWriter(executor, 0)
 
 	bound := kubernetesNamespaceRow("payments-prod", "prod", "bound", "namespace_label")
 	unbound := kubernetesNamespaceRow("misc", "", "environment-unbound", "")
@@ -215,7 +215,7 @@ func TestKubernetesNamespaceNodeWriterUsesGroupExecutorAtomically(t *testing.T) 
 	t.Parallel()
 
 	executor := &recordingGroupExecutor{}
-	writer := sourcecypher.NewKubernetesNamespaceNodeWriter(executor, 0)
+	writer := NewNamespaceNodeWriter(executor, 0)
 
 	bound := kubernetesNamespaceRow("payments-prod", "prod", "bound", "namespace_label")
 	unbound := kubernetesNamespaceRow("misc", "", "environment-unbound", "")
@@ -250,7 +250,7 @@ func TestKubernetesNamespaceNodeWriterRetractNeverGroups(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewKubernetesNamespaceNodeWriter(executor, 0)
+	writer := NewNamespaceNodeWriter(executor, 0)
 
 	row := kubernetesNamespaceRow("payments-prod", "prod", "bound", "namespace_label")
 	if err := writer.WriteKubernetesNamespaceNodes(context.Background(), []map[string]any{row}, "reducer/kubernetes-namespaces"); err != nil {
@@ -293,7 +293,7 @@ func TestKubernetesNamespaceNodeWriterSatisfiesReducerInterface(t *testing.T) {
 	var _ interface {
 		WriteKubernetesNamespaceNodes(ctx context.Context, rows []map[string]any, evidenceSource string) error
 		RetractStaleKubernetesNamespaceNodes(ctx context.Context, clusterID, generationID, evidenceSource string) error
-	} = sourcecypher.NewKubernetesNamespaceNodeWriter(&recordingExecutor{}, 0)
+	} = NewNamespaceNodeWriter(&recordingExecutor{}, 0)
 }
 
 // TestKubernetesNamespaceNodeWriterEmitsRetractBeforeUpsert is the
@@ -309,7 +309,7 @@ func TestKubernetesNamespaceNodeWriterEmitsRetractBeforeUpsert(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := sourcecypher.NewKubernetesNamespaceNodeWriter(executor, 0)
+	writer := NewNamespaceNodeWriter(executor, 0)
 
 	row := kubernetesNamespaceRow("payments-prod", "prod", "bound", "namespace_label")
 	if err := writer.WriteKubernetesNamespaceNodes(context.Background(), []map[string]any{row}, "reducer/kubernetes-namespaces"); err != nil {
@@ -366,7 +366,7 @@ func newNamespaceTargetsEnvironmentGraph() *namespaceTargetsEnvironmentGraph {
 func (g *namespaceTargetsEnvironmentGraph) apply(t *testing.T, stmt sourcecypher.Statement) {
 	t.Helper()
 	switch stmt.Cypher {
-	case sourcecypher.RetractKubernetesNamespaceStaleTargetsEnvironmentCypher:
+	case RetractKubernetesNamespaceStaleTargetsEnvironmentCypher:
 		evidenceSource, _ := stmt.Parameters["evidence_source"].(string)
 		rows, _ := stmt.Parameters["rows"].([]map[string]any)
 		for _, row := range rows {
@@ -378,7 +378,7 @@ func (g *namespaceTargetsEnvironmentGraph) apply(t *testing.T, stmt sourcecypher
 				}
 			}
 		}
-	case sourcecypher.CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher:
+	case CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher:
 		rows, _ := stmt.Parameters["rows"].([]map[string]any)
 		for _, row := range rows {
 			uid, _ := row["uid"].(string)
@@ -386,7 +386,7 @@ func (g *namespaceTargetsEnvironmentGraph) apply(t *testing.T, stmt sourcecypher
 			evidenceSource, _ := row["evidence_source"].(string)
 			g.edges[namespaceTargetsEnvironmentEdgeKey{uid: uid, envName: env}] = evidenceSource
 		}
-	case sourcecypher.CanonicalKubernetesNamespaceUpsertCypher:
+	case CanonicalKubernetesNamespaceUpsertCypher:
 		// The no-environment variant never MERGEs or DELETEs an edge.
 	default:
 		t.Fatalf("namespaceTargetsEnvironmentGraph.apply: unrecognized statement cypher:\n%s", stmt.Cypher)
@@ -423,7 +423,7 @@ func TestKubernetesNamespaceNodeWriterTargetsEnvironmentTransitions(t *testing.T
 		t.Parallel()
 
 		executor := &recordingExecutor{}
-		writer := sourcecypher.NewKubernetesNamespaceNodeWriter(executor, 0)
+		writer := NewNamespaceNodeWriter(executor, 0)
 		graph := newNamespaceTargetsEnvironmentGraph()
 
 		boundRow := kubernetesNamespaceRow("payments-prod", "prod", "bound", "namespace_label")
@@ -455,7 +455,7 @@ func TestKubernetesNamespaceNodeWriterTargetsEnvironmentTransitions(t *testing.T
 		t.Parallel()
 
 		executor := &recordingExecutor{}
-		writer := sourcecypher.NewKubernetesNamespaceNodeWriter(executor, 0)
+		writer := NewNamespaceNodeWriter(executor, 0)
 		graph := newNamespaceTargetsEnvironmentGraph()
 
 		prodRow := kubernetesNamespaceRow("payments", "prod", "bound", "namespace_label")

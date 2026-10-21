@@ -142,7 +142,7 @@ Key metrics (all prefixed `eshu_dp_`):
   `0.93 ms/op`, `1.80 MB/op`, `10,065 allocs/op` for `5,000` manifest facts
   (bounded O(M) build, O(1) resolution, no per-edge round trip and no N+1). The
   cypher write path is benchmarked separately as
-  `BenchmarkKubernetesWorkloadNodeWriter` in `go/internal/storage/cypher`.
+  `BenchmarkKubernetesWorkloadNodeWriter` in `go/internal/storage/cypher/kubernetes`.
   No-Regression Evidence: the node-write path reuses the proven CloudResource
   UNWIND-batched MERGE-on-uid writer and the bounded-join shape from #805 §5.1; it
   adds no graph round trip per node or per digest. `go test ./internal/reducer/...

@@ -16,7 +16,7 @@ import (
 // direct-materialization umbrella).
 //
 // This is a DIRECT-materialization family: the reducer writes it straight to
-// cypher.KubernetesNamespaceNodeWriter through the WriteKubernetesNamespaceNodes
+// k8snodewriter.NamespaceNodeWriter through the WriteKubernetesNamespaceNodes
 // port, with no shared-projection intent row in between. The port's name says
 // "Nodes" and the Cypher it executes MERGEs a TARGETS_ENVIRONMENT
 // RELATIONSHIP; that mismatch is one of the six #6181 names, and the whole

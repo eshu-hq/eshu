@@ -128,7 +128,7 @@ nine exceptions. Each is named, because a bare count is not checkable:
 | `EvidenceArtifact` | `id` | `storage/cypher/canonical_relationships.go:278` | `EdgeWriter` |
 | `CloudAction` | `id` | `storage/cypher/canonical_invokes_cloud_action_edges.go:20` | `EdgeWriter` |
 | `CodeownerTeam` | `ref` | `storage/cypher/canonical_codeowners_edges.go:34` | `EdgeWriter` |
-| `Environment` | `name` | `storage/cypher/canonical_relationships.go:311`, `kubernetes_namespace_node_writer.go:89` | `EdgeWriter`, `KubernetesNamespaceNodeWriter` |
+| `Environment` | `name` | `storage/cypher/canonical_relationships.go:311`, `kubernetes/namespace.go:91` | `EdgeWriter`, `NamespaceNodeWriter` |
 | `Workload` | `id` | `reducer/workload_materializer.go:351` | `WorkloadMaterializer` |
 | `WorkloadInstance` | `id` | `reducer/workload_materializer.go:370` | `WorkloadMaterializer` |
 | `Platform` | `id` | `reducer/workload_materializer.go:400`, `infrastructure_platform_materializer.go:138` | `WorkloadMaterializer`, `InfrastructurePlatformMaterializer` |

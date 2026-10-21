@@ -34,7 +34,7 @@ codeowners_edge_operation_match="MERGE (repo)-[rel:DECLARES_CODEOWNER"  # PREFIX
 submodule_pin_edge_operation_match="MERGE (parent)-[rel:PINS_SUBMODULE"  # PREFIX, verified vs canonical/node/submodule_edges.go:32; see the cells lib header
 
 # The TARGETS_ENVIRONMENT MERGE anchor cell_failgraphwrite_kubernetes_namespace_environment
-# (#6309) targets: go/internal/storage/cypher/kubernetes_namespace_node_writer.go:90 emits
+# (#6309) targets: go/internal/storage/cypher/kubernetes/namespace.go:92 emits
 # this exact MERGE clause text -- read off the writer's executed statement, same
 # rationale as cloud_resource_operation_match above.
 kubernetes_namespace_environment_edge_operation_match="MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)"

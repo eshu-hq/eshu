@@ -202,7 +202,7 @@ nine exceptions. Named, because a count on its own is not checkable:
 | `EvidenceArtifact` | `id` | `storage/cypher/canonical_relationships.go:278` | `EdgeWriter` |
 | `CloudAction` | `id` | `storage/cypher/canonical_invokes_cloud_action_edges.go:20` | `EdgeWriter` |
 | `CodeownerTeam` | `ref` | `storage/cypher/canonical_codeowners_edges.go:34` | `EdgeWriter` |
-| `Environment` | `name` | `storage/cypher/canonical_relationships.go:311` and `kubernetes_namespace_node_writer.go:89` | `EdgeWriter` and `KubernetesNamespaceNodeWriter` |
+| `Environment` | `name` | `storage/cypher/canonical_relationships.go:311` and `kubernetes/namespace.go:91` | `EdgeWriter` and `NamespaceNodeWriter` |
 | `Workload` | `id` | `reducer/workload_materializer.go:351` | `WorkloadMaterializer` |
 | `WorkloadInstance` | `id` | `reducer/workload_materializer.go:370` | `WorkloadMaterializer` |
 | `Platform` | `id` | `reducer/workload_materializer.go:400` and `infrastructure_platform_materializer.go:138` | `WorkloadMaterializer` and `InfrastructurePlatformMaterializer` |

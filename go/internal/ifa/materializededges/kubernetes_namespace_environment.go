@@ -13,7 +13,7 @@ import (
 
 // kubernetesNamespaceEnvironmentFamily is the materialized-edge family key this
 // guard asserts (#6228), matching the key registered in
-// cypher.singleTypeMaterializedEdgeFamilies and the domain
+// materialized.singleTypeMaterializedEdgeFamilies and the domain
 // `eshu-ifa assert-edges -domain <family>` addresses.
 //
 // It is named for the RELATIONSHIP the family materializes, not for its port.
@@ -107,7 +107,7 @@ func resolveKubernetesNamespaceEnvironmentMaterializedEdges(odu ifa.Odu, expecte
 // surviving rows as the edges the write template would MERGE.
 //
 // The predicate is a non-empty row["environment"], exactly what
-// KubernetesNamespaceNodeWriter.WriteKubernetesNamespaceNodes branches on.
+// NamespaceNodeWriter.WriteKubernetesNamespaceNodes branches on.
 // Reproducing it here rather than assuming every row is an edge is what makes
 // the unbound half of the fixture load-bearing.
 //

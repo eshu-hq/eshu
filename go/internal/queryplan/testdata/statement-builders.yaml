@@ -527,6 +527,22 @@ builders:
                 - RETURN 1 LIMIT 1
           source_sha256: bd47ba75368d78aed38754968b1d36d63f747f23f8fb08b497de8bf0b1418f6a
           exempt: strings.Builder-composed probe text is opaque to static matching; executions recorded as probe records
+    - file: internal/storage/cypher/kubernetes/namespace.go
+      builders:
+        - symbol: (*NamespaceNodeWriter).RetractStaleKubernetesNamespaceNodes
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - template: 'MATCH (n:KubernetesNamespace {cluster_id: $cluster_id}) WHERE n.evidence_source = $evidence_source AND coalesce(n.generation_id, "") <> $generation_id DETACH DELETE n'
+          source_sha256: 2854896bbddc30dcff09eec34cf6958ed86741fd889e4733c89b19f2a36a0bd2
+          exempt: B-7 differential captures contain zero executions of this absent-node sweep builder on every backend (pair1+pair2 neo4j+nornicdb, run 39515780996); the sweep runs only after an explicit reconcile-complete snapshot and is pinned by leaf unit tests, not the corpus replay
+        - symbol: buildBatchedNamespaceRetractStatements
+          count: 1
+          operation: sourcecypher.OperationCanonicalRetract
+          variants:
+            - {}
+          source_sha256: 9d90bb2b5c6456c4aaac95c1710e5d117478bd863abc0f0f2f77558ef42f2741
+          exempt: executed but unattributed (stale-edge retract recorded once per backend in the run 39515780996 captures); emits the caller-supplied RetractKubernetesNamespaceStaleTargetsEnvironmentCypher template const that discovery cannot resolve inter-procedurally
     - file: internal/storage/cypher/semantic/entity/delta_retract.go
       builders:
         - symbol: (*SemanticEntityWriter).semanticDeltaCanonicalNodeRetractStatements

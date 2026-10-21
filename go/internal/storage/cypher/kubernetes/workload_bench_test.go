@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package kubernetes
 
 import (
 	"context"
@@ -42,7 +42,7 @@ func benchKubernetesWorkloadRows(n int) []map[string]any {
 // writers stay on the same measured baseline.
 func BenchmarkKubernetesWorkloadNodeWriter(b *testing.B) {
 	rows := benchKubernetesWorkloadRows(5000)
-	writer := NewKubernetesWorkloadNodeWriter(noopGroupExecutor{}, 500)
+	writer := NewWorkloadNodeWriter(noopGroupExecutor{}, 500)
 	ctx := context.Background()
 	b.ReportAllocs()
 	b.ResetTimer()

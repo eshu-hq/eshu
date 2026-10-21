@@ -992,17 +992,17 @@ backend-specific branch.
   (`phase=s3_external_principal_grant`, `label=ExternalPrincipal`) ride each
   statement for the InstrumentedExecutor's graph query duration and batch-size
   metrics; the reducer handler owns the domain span and completion log.
-- `KubernetesWorkloadNodeWriter` — writes canonical `KubernetesWorkload` nodes
+- `WorkloadNodeWriter` (`k8snodewriter`, `go/internal/storage/cypher/kubernetes`) — writes canonical `KubernetesWorkload` nodes
   for the live-workload materialization reducer domain (issue #388);
-  constructed with `NewKubernetesWorkloadNodeWriter`. Batched `UNWIND` +
+  constructed with `NewWorkloadNodeWriter`. Batched `UNWIND` +
   `MERGE (w:KubernetesWorkload {uid: row.uid})` on the collector-emitted
   `object_id` only, mutable properties `SET` separately, idempotent under
   retries and duplicate facts. Mirrors the proven CloudResource node writer so
   it engages the same schema-backed uid lookup; the #388 edge slice (PR3)
   resolves its workload endpoint against these nodes
-- `KubernetesNamespaceNodeWriter` — writes canonical `KubernetesNamespace` nodes
+- `NamespaceNodeWriter` (`k8snodewriter`, `go/internal/storage/cypher/kubernetes`) — writes canonical `KubernetesNamespace` nodes
   for the namespace environment-alias binding reducer domain (issue #5434);
-  constructed with `NewKubernetesNamespaceNodeWriter`. Batched `UNWIND` +
+  constructed with `NewNamespaceNodeWriter`. Batched `UNWIND` +
   `MERGE (n:KubernetesNamespace {uid: row.uid})` on the collector-emitted
   `object_id` only. Routes each row to one of two Cypher variants purely by
   whether `row.environment` is non-empty:
@@ -1409,7 +1409,7 @@ not scanned in this scope.
 
 ### Kubernetes live-workload node writer (issue #388)
 
-`KubernetesWorkloadNodeWriter` materializes `kubernetes_live.pod_template` facts
+`WorkloadNodeWriter` (`go/internal/storage/cypher/kubernetes`) materializes `kubernetes_live.pod_template` facts
 into canonical `KubernetesWorkload` nodes for the live-workload materialization
 reducer domain. The write is a batched `UNWIND $rows AS row` +
 `MERGE (w:KubernetesWorkload {uid: row.uid})` on the collector-emitted
@@ -1425,7 +1425,7 @@ against these nodes exactly as the AWS relationship edge resolves against
 `CloudResource` nodes. Design and decision record:
 `docs/internal/design/388-kubernetes-workload-node.md`.
 
-Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+Benchmark Evidence: `go test ./internal/storage/cypher/kubernetes -run '^$' -bench
 BenchmarkKubernetesWorkloadNodeWriter -benchmem -benchtime=200x` on darwin/arm64
 (Apple M3 Pro), no-op group executor so the number isolates Eshu-side statement
 construction and batching: `5,000` pod-template-backed node rows shaped into
@@ -1436,7 +1436,7 @@ baseline on the same machine and input shape (`2.76 ms/op`, `6.33 MB/op`,
 MERGE-on-uid shape. No-Regression Evidence: the new node-write path adds no new
 per-row cost over the established CloudResource node writer; the write is bounded
 by `ceil(W/batchSize)` statements with no per-node round trip and no N+1.
-`go test ./internal/storage/cypher -run TestKubernetesWorkloadNodeWriter
+`go test ./internal/storage/cypher/kubernetes -run TestKubernetesWorkloadNodeWriter
 -count=1` proves the MERGE-on-uid identity, batching, atomic group dispatch,
 evidence-source annotation, and empty-rows no-op.
 

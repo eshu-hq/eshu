@@ -140,7 +140,7 @@ var schemaPerformanceIndexes = []string{
 	// `MATCH (n:KubernetesNamespace {cluster_id, namespace}) RETURN
 	// n.environment_state` (issue #5651). uidConstraintLabels in
 	// schema_tables.go already backs the reducer's uid MERGE
-	// (kubernetes_namespace_node_writer.go) with a uid uniqueness constraint
+	// (kubernetes/namespace.go) with a uid uniqueness constraint
 	// plus, on NornicDB, a matching uid lookup index; these two mirror the
 	// KubernetesWorkload cluster_id/namespace pair immediately above for the
 	// sibling node label. Without these, a cluster- or namespace-scoped read
@@ -334,7 +334,7 @@ var nornicDBMergeLookupIndexes = []string{
 	"CREATE INDEX nornicdb_evidence_artifact_id_lookup IF NOT EXISTS FOR (a:EvidenceArtifact) ON (a.id)",
 	// KubernetesWorkload has a cluster_id/namespace index pair above but no
 	// .id-property index, unlike the other by-id-anchored labels this handler
-	// serves. The kubernetes_workload_node_writer sets w.id = row.uid (the live
+	// serves. The workload node writer (kubernetes/workload.go) sets w.id = row.uid (the live
 	// object identity), and analyze_infra_relationships/getRelationships anchors
 	// its MATCH on n.id; without this index that anchor falls back to a
 	// KubernetesWorkload label scan (#5436).

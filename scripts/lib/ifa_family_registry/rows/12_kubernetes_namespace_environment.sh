@@ -55,8 +55,8 @@ IFA_FAMILY_ASSERT_FN[kubernetes_namespace_environment]="ifa_kubernetes_namespace
 IFA_FAMILY_CASSETTE_VAR[kubernetes_namespace_environment]="kubernetes_namespace_environment_cassette"
 IFA_FAMILY_EXPECTED_VAR[kubernetes_namespace_environment]="kubernetes_namespace_environment_expected_edges"
 
-# go/internal/storage/cypher/kubernetes_namespace_node_writer.go:90. The same
-# statement MERGEs the Environment node by name first (:89); the anchor names
+# go/internal/storage/cypher/kubernetes/namespace.go:92. The same
+# statement MERGEs the Environment node by name first (:91); the anchor names
 # the RELATIONSHIP merge because that is the write whose failure and recovery
 # a fault cell would have to script. Note the writer routes a row here only when
 # row.environment is non-empty, so an unbound namespace never reaches this

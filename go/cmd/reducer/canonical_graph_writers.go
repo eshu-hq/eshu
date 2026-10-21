@@ -30,6 +30,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/resource"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/infra/search"
+	k8snodewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/kubernetes"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -54,7 +55,7 @@ type canonicalGraphWriters struct {
 	azureCloudResourceEdge          *azurerelationship.AzureCloudResourceEdgeWriter
 	workloadCloudRelationshipEdge   *awsrelationship.WorkloadCloudRelationshipWriter
 	kubernetesWorkloadNode          *graphowner.KubernetesWorkloadGatedWriter
-	kubernetesNamespaceNode         *sourcecypher.KubernetesNamespaceNodeWriter
+	kubernetesNamespaceNode         *k8snodewriter.NamespaceNodeWriter
 	securityGroupEndpointNode       *group.SecurityGroupEndpointNodeWriter
 	securityGroupReachability       *group.SecurityGroupReachabilityWriter
 	kubernetesCorrelationEdge       *edgewriter.KubernetesCorrelationEdgeWriter
@@ -123,8 +124,8 @@ func newGraphOwnerGates(database db.ExecQueryer, instruments *telemetry.Instrume
 // searched CloudResource fields append the key clause on Neo4j only.
 func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.PostureExistenceReader, batchSize int, ownerGate *graphowner.Gate, lockGate *graphowner.LockOnlyGate, searchKey search.Dialect) canonicalGraphWriters {
 	rawCloudResourceNode, rawEC2InstanceNode := newSearchKeyedCloudNodeWriters(exec, batchSize, searchKey)
-	rawKubernetesWorkloadNode := sourcecypher.NewKubernetesWorkloadNodeWriter(exec, batchSize)
-	kubernetesNamespaceNode := sourcecypher.NewKubernetesNamespaceNodeWriter(exec, batchSize)
+	rawKubernetesWorkloadNode := k8snodewriter.NewWorkloadNodeWriter(exec, batchSize)
+	kubernetesNamespaceNode := k8snodewriter.NewNamespaceNodeWriter(exec, batchSize)
 	rawRDSPostureNode := rds.NewRDSPostureNodeWriter(exec, reader, batchSize)
 	rawEC2InternetExposureNode := ec2.NewEC2InternetExposureNodeWriter(exec, reader, batchSize)
 	rawEC2BlockDeviceKMSPostureNode := ec2.NewEC2BlockDeviceKMSPostureNodeWriter(exec, reader, batchSize)

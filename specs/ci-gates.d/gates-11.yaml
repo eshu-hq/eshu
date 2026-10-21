@@ -220,7 +220,7 @@ gates:
       - "go/internal/reducer/kubernetes_namespace_materialization.go"
       - "go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go"
       - "go/internal/reducer/iaminstprofile/iam_instance_profile_role_edge_rows.go"
-      - "go/internal/storage/cypher/kubernetes_namespace_node_writer.go"
+      - "go/internal/storage/cypher/kubernetes/namespace.go"
       - "go/internal/storage/cypher/cloud/aws/iam/instance_profile_role_edge_writer.go"
       - "go/internal/storage/cypher/cloud/aws/iam/can_assume_edge_writer.go"
       - "go/internal/storage/cypher/cloud/aws/iam/can_perform_edge_writer.go"

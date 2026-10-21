@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	k8snodewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/kubernetes"
 )
 
 const nsAbsentRetractCluster = "replay-ns-absent-retract"
@@ -28,7 +29,7 @@ func TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth(t *testing.T) {
 		cleanupNamespaceAbsentRetractScope(cleanCtx, t, exec)
 	})
 
-	writer := cypher.NewKubernetesNamespaceNodeWriter(exec, 0)
+	writer := k8snodewriter.NewNamespaceNodeWriter(exec, 0)
 	const evidenceSource = "reducer/kubernetes-namespaces"
 	legacyUID := nsAbsentRetractCluster + ":legacy-without-generation"
 	if err := exec.Execute(ctx, cypher.Statement{

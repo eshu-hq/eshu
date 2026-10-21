@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package kubernetes
 
 import (
 	"context"
 	"strings"
 	"testing"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 func TestKubernetesNamespaceNodeWriterRetractsOnlyAbsentOwnedClusterNodes(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewKubernetesNamespaceNodeWriter(executor, 0)
+	writer := NewNamespaceNodeWriter(executor, 0)
 	if err := writer.RetractStaleKubernetesNamespaceNodes(
 		context.Background(),
 		"prod-eks",
@@ -26,7 +28,7 @@ func TestKubernetesNamespaceNodeWriterRetractsOnlyAbsentOwnedClusterNodes(t *tes
 		t.Fatalf("Execute calls = %d, want %d", got, want)
 	}
 	stmt := executor.calls[0]
-	if got, want := stmt.Operation, OperationCanonicalRetract; got != want {
+	if got, want := stmt.Operation, sourcecypher.OperationCanonicalRetract; got != want {
 		t.Fatalf("Operation = %q, want %q", got, want)
 	}
 	for _, required := range []string{
@@ -70,7 +72,7 @@ func TestKubernetesNamespaceNodeWriterRetractRequiresScopeIdentity(t *testing.T)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			writer := NewKubernetesNamespaceNodeWriter(&recordingExecutor{}, 0)
+			writer := NewNamespaceNodeWriter(&recordingExecutor{}, 0)
 			err := writer.RetractStaleKubernetesNamespaceNodes(
 				context.Background(), tt.clusterID, tt.generationID, tt.evidenceSource,
 			)
