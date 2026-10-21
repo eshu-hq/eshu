@@ -418,19 +418,22 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download current-attempt shard reports
+      - name: Download run shard reports
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         uses: actions/download-artifact@v4
         with:
-          pattern: readiness-shard-${{ github.run_id }}-${{ github.run_attempt }}-*
+          pattern: readiness-shard-${{ github.run_id }}-*
           path: readiness-shard-reports
 
       - name: Verify complete readiness coverage
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}
         run: |
           python3 scripts/lib/live_postgres_readiness_results.py list-packages > readiness-full.tsv
+          python3 scripts/lib/live_postgres_readiness_shards.py select --head "$(git rev-parse HEAD)" \
+            --plan readiness-full.tsv --output-dir readiness-shard-selected \
+            readiness-shard-reports/*/readiness-shard-report.json
           python3 scripts/lib/live_postgres_readiness_shards.py verify --head "$(git rev-parse HEAD)" \
-            --plan readiness-full.tsv readiness-shard-reports/*/readiness-shard-report.json
+            --plan readiness-full.tsv readiness-shard-selected/*.json
 
       - name: Print suite summary
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}

@@ -69,18 +69,22 @@ class ShardContractTest(unittest.TestCase):
         path.write_text(self.full_tsv_text, encoding="utf-8")
         return path
 
-    def write_manifest(self, shard: str, statuses: dict[str, int] | None = None) -> Path:
-        """Write a runner manifest for the shard's live assigned tests."""
+    def manifest_text(self, shard: str, statuses: dict[str, int] | None = None) -> str:
+        """Render a runner manifest for the shard's live assigned tests."""
         selected = shards.partition_runs(self.flat, shard)
         by_package: dict[str, list[str]] = {}
         for line in selected:
             package, test = line.split("|")
             by_package.setdefault(package, []).append(test)
         statuses = statuses or {}
-        path = self.directory / f"manifest-{shard[0]}.tsv"
-        path.write_text("".join(
+        return "".join(
             f"{package}|{statuses.get(package, 0)}|{','.join(tests)}\n"
-            for package, tests in by_package.items()), encoding="utf-8")
+            for package, tests in by_package.items())
+
+    def write_manifest(self, shard: str, statuses: dict[str, int] | None = None) -> Path:
+        """Write a runner manifest for the shard's live assigned tests."""
+        path = self.directory / f"manifest-{shard[0]}.tsv"
+        path.write_text(self.manifest_text(shard, statuses), encoding="utf-8")
         return path
 
     def write_report(self, shard: str, statuses: dict[str, int] | None = None,
@@ -232,6 +236,77 @@ class ShardContractTest(unittest.TestCase):
         retry = self.invoke("verify", "--head", HEAD, "--plan", str(self.write_full_tsv()),
                             *[str(p) for p in first_three], str(tampered))
         self.assertNotEqual(retry.returncode, 0)
+
+    def layout_report(self, shard: str, attempt: int,
+                      statuses: dict[str, int] | None = None,
+                      run_id: int = 39652375048, head: str = HEAD) -> Path:
+        """Write a report under a CI-shaped rerun artifact directory."""
+        artifact = self.directory / f"readiness-shard-{run_id}-{attempt}-{shard[0]}"
+        artifact.mkdir(parents=True, exist_ok=True)
+        manifest = artifact / "manifest.tsv"
+        manifest.write_text(self.manifest_text(shard, statuses), encoding="utf-8")
+        report_path = artifact / "readiness-shard-report.json"
+        result = self.invoke("report", "--head", head, "--shard", shard,
+                             "--plan", str(self.write_full_tsv()),
+                             "--manifest", str(manifest),
+                             "--output", str(report_path))
+        self.assertTrue(report_path.exists(), result.stderr)
+        return report_path
+
+    def select(self, reports: list[Path]) -> tuple[subprocess.CompletedProcess[str], list[Path]]:
+        """Run newest-valid selection into a fresh directory per call."""
+        self.select_calls = getattr(self, "select_calls", 0) + 1
+        out = self.directory / f"selected-{self.select_calls}"
+        result = self.invoke("select", "--head", HEAD, "--plan", str(self.write_full_tsv()),
+                             "--output-dir", str(out),
+                             *[str(report) for report in reports])
+        return result, sorted(out.glob("*.json")) if out.is_dir() else []
+
+    def mixed_attempt_layout(self) -> list[Path]:
+        """Three attempt-1 greens plus a failed then rerun-green shard 2/4."""
+        package = shards.partition_runs(self.flat, "2/4")[0].split("|")[0]
+        layout = [self.layout_report(shard, 1) for shard in ("1/4", "3/4", "4/4")]
+        layout.append(self.layout_report("2/4", 1, {package: 1}))
+        layout.append(self.layout_report("2/4", 2))
+        return layout
+
+    def test_verify_still_demands_exactly_four_reports(self) -> None:
+        """Raw verify keeps the completeness rule: a rerun layout trips it."""
+        result = self.verify(self.mixed_attempt_layout())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("expected exactly four shard reports, got 5", result.stderr)
+
+    def test_select_mixed_attempts_verifies_green(self) -> None:
+        """Rerun-green shard 2/4 reunites with attempt-1 greens (#8724)."""
+        layout = self.mixed_attempt_layout()
+        result, selected = self.select(layout)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(selected), 4)
+        winners = [line for line in result.stdout.splitlines()
+                   if line.startswith("readiness select: ") and " <- " in line]
+        self.assertEqual(len(winners), 4)
+        rerun = str(layout[-1])
+        self.assertTrue(any(line.endswith(f"2/4 <- {rerun}") for line in winners))
+        self.assertEqual(self.verify(selected).returncode, 0)
+
+    def test_select_rejects_stale_newest_report(self) -> None:
+        """A shard whose rerun report is stale keeps the aggregate red."""
+        package = shards.partition_runs(self.flat, "2/4")[0].split("|")[0]
+        others = [self.layout_report(shard, 1) for shard in ("1/4", "3/4", "4/4")]
+        failed = self.layout_report("2/4", 1, {package: 1})
+        stale = self.layout_report("2/4", 2, head="b" * 40)
+        result, _ = self.select([*others, failed, stale])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no valid report for shard 2/4", result.stderr)
+
+    def test_select_rejects_missing_shard(self) -> None:
+        """A genuinely absent shard still fails selection."""
+        present = [report for report in self.mixed_attempt_layout()
+                   if not str(report.parent.name).endswith("-4")]
+        result, _ = self.select(present)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing shards: ['4/4']", result.stderr)
+        self.assertNotEqual(self.verify(present).returncode, 0)
 
 
 if __name__ == "__main__":
