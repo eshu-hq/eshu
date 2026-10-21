@@ -105,17 +105,17 @@ func TestScannerEmitsRoutingTopologyWithoutTargetHealth(t *testing.T) {
 		t.Fatalf("aws_relationship count = %d, want 4", counts[cloud.AWSRelationshipFactKind])
 	}
 
-	loadBalancer := assertResourceType(t, envelopes, awscloud.ResourceTypeELBv2LoadBalancer)
+	loadBalancer := assertResourceType(t, envelopes, catalog.ResourceTypeELBv2LoadBalancer)
 	assertAttribute(t, loadBalancer, "dns_name", "api-123.us-east-1.elb.amazonaws.com")
-	rule := assertResourceType(t, envelopes, awscloud.ResourceTypeELBv2Rule)
+	rule := assertResourceType(t, envelopes, catalog.ResourceTypeELBv2Rule)
 	assertRuleConditions(t, rule)
-	targetGroup := assertResourceType(t, envelopes, awscloud.ResourceTypeELBv2TargetGroup)
+	targetGroup := assertResourceType(t, envelopes, catalog.ResourceTypeELBv2TargetGroup)
 	assertHealthCheck(t, targetGroup)
 	assertNoTargetHealth(t, targetGroup)
-	assertRelationship(t, envelopes, awscloud.RelationshipELBv2LoadBalancerHasListener)
-	assertRelationship(t, envelopes, awscloud.RelationshipELBv2ListenerHasRule)
-	assertRelationship(t, envelopes, awscloud.RelationshipELBv2TargetGroupAttachedToLoadBalancer)
-	route := assertRelationship(t, envelopes, awscloud.RelationshipELBv2ListenerRoutesToTargetGroup)
+	assertRelationship(t, envelopes, catalog.RelationshipELBv2LoadBalancerHasListener)
+	assertRelationship(t, envelopes, catalog.RelationshipELBv2ListenerHasRule)
+	assertRelationship(t, envelopes, catalog.RelationshipELBv2TargetGroupAttachedToLoadBalancer)
+	route := assertRelationship(t, envelopes, catalog.RelationshipELBv2ListenerRoutesToTargetGroup)
 	assertRouteEvidence(t, route)
 }
 
@@ -132,7 +132,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceELBv2,
+		ServiceKind:         catalog.ServiceELBv2,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:elbv2:1",
 		CollectorInstanceID: "aws-prod",

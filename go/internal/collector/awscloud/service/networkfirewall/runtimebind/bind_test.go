@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/networkfirewall/runtimebind"
 )
 
 // TestNetworkFirewallRuntimeBindRegisters confirms importing the binding
 // installs the Network Firewall scanner builder.
 func TestNetworkFirewallRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceNetworkFirewall)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceNetworkFirewall)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceNetworkFirewall)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceNetworkFirewall)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceNetworkFirewall},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceNetworkFirewall},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)
@@ -35,7 +36,7 @@ func TestNetworkFirewallRuntimeBindRegisters(t *testing.T) {
 // TestNetworkFirewallDoesNotRequireRedactionKey documents that the scanner
 // drops sensitive bodies by never mapping them, so it needs no redaction key.
 func TestNetworkFirewallDoesNotRequireRedactionKey(t *testing.T) {
-	if awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceNetworkFirewall) {
-		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", awscloud.ServiceNetworkFirewall)
+	if awsruntime.ServiceRequiresRedactionKey(catalog.ServiceNetworkFirewall) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", catalog.ServiceNetworkFirewall)
 	}
 }

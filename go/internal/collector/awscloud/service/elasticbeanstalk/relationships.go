@@ -246,7 +246,7 @@ func versionRelationship(
 func loadBalancerTarget(identifier string) (targetType, targetARN string) {
 	id := strings.TrimSpace(identifier)
 	if strings.HasPrefix(id, "arn:") && strings.Contains(id, elbv2ARNMarker) {
-		return awscloud.ResourceTypeELBv2LoadBalancer, id
+		return catalog.ResourceTypeELBv2LoadBalancer, id
 	}
 	return genericResourceTargetType, ""
 }

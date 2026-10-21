@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 type routeRelationshipBuilder struct {
@@ -60,12 +61,12 @@ func (b *routeRelationshipBuilder) observations() []awscloud.RelationshipObserva
 	for _, targetGroupARN := range b.targetARNs {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         b.boundary,
-			RelationshipType: awscloud.RelationshipELBv2ListenerRoutesToTargetGroup,
+			RelationshipType: catalog.RelationshipELBv2ListenerRoutesToTargetGroup,
 			SourceResourceID: listenerARN,
 			SourceARN:        listenerARN,
 			TargetResourceID: targetGroupARN,
 			TargetARN:        targetGroupARN,
-			TargetType:       awscloud.ResourceTypeELBv2TargetGroup,
+			TargetType:       catalog.ResourceTypeELBv2TargetGroup,
 			Attributes: map[string]any{
 				"load_balancer_arn": strings.TrimSpace(b.listener.LoadBalancerARN),
 				"routes":            b.routes[targetGroupARN],

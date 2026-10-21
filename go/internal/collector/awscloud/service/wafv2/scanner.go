@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -277,7 +278,7 @@ func addProtectedResource(
 func protectedResourceTargetType(awsResourceType, targetARN string) string {
 	switch strings.ToUpper(strings.TrimSpace(awsResourceType)) {
 	case "APPLICATION_LOAD_BALANCER":
-		return awscloud.ResourceTypeELBv2LoadBalancer
+		return catalog.ResourceTypeELBv2LoadBalancer
 	case "API_GATEWAY":
 		return awscloud.ResourceTypeAPIGatewayStage
 	}
@@ -292,9 +293,9 @@ func protectedResourceTargetType(awsResourceType, targetARN string) string {
 func targetTypeForProtectedARN(arn string) string {
 	switch {
 	case strings.Contains(arn, ":elasticloadbalancing:"):
-		return awscloud.ResourceTypeELBv2LoadBalancer
+		return catalog.ResourceTypeELBv2LoadBalancer
 	case strings.Contains(arn, ":cloudfront:"):
-		return awscloud.ResourceTypeCloudFrontDistribution
+		return catalog.ResourceTypeCloudFrontDistribution
 	case strings.Contains(arn, ":apigateway:"):
 		return awscloud.ResourceTypeAPIGatewayStage
 	default:

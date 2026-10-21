@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -25,10 +26,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("route53 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRoute53:
+	case "", catalog.ServiceRoute53:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRoute53
+		boundary.ServiceKind = catalog.ServiceRoute53
 	default:
 		return nil, fmt.Errorf("route53 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -80,7 +81,7 @@ func hostedZoneObservation(boundary awscloud.Boundary, hostedZone HostedZone) aw
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   hostedZoneID,
-		ResourceType: awscloud.ResourceTypeRoute53HostedZone,
+		ResourceType: catalog.ResourceTypeRoute53HostedZone,
 		Name:         hostedZone.Name,
 		Tags:         hostedZone.Tags,
 		Attributes: map[string]any{

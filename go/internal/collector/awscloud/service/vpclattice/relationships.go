@@ -33,13 +33,13 @@ func serviceNetworkVPCRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeServiceNetworkAssociatesVPC,
+		RelationshipType: catalog.RelationshipVPCLatticeServiceNetworkAssociatesVPC,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(network.ARN),
 		TargetResourceID: vpcID,
 		TargetType:       catalog.ResourceTypeEC2VPC,
 		Attributes:       attributesOrNil(attributes),
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeServiceNetworkAssociatesVPC + ":" + vpcID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVPCLatticeServiceNetworkAssociatesVPC + ":" + vpcID,
 	}
 }
 
@@ -70,14 +70,14 @@ func serviceNetworkServiceRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeServiceNetworkAssociatesService,
+		RelationshipType: catalog.RelationshipVPCLatticeServiceNetworkAssociatesService,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(network.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeVPCLatticeService,
+		TargetType:       catalog.ResourceTypeVPCLatticeService,
 		Attributes:       attributesOrNil(attributes),
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeServiceNetworkAssociatesService + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVPCLatticeServiceNetworkAssociatesService + ":" + targetID,
 	}
 }
 
@@ -101,13 +101,13 @@ func listenerInServiceRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeListenerInService,
+		RelationshipType: catalog.RelationshipVPCLatticeListenerInService,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(listener.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeVPCLatticeService,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeListenerInService + ":" + targetID,
+		TargetType:       catalog.ResourceTypeVPCLatticeService,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVPCLatticeListenerInService + ":" + targetID,
 	}
 }
 
@@ -133,13 +133,13 @@ func serviceCertificateRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeServiceUsesCertificate,
+		RelationshipType: catalog.RelationshipVPCLatticeServiceUsesCertificate,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(service.ARN),
 		TargetResourceID: certARN,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeACMCertificate,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeServiceUsesCertificate + ":" + certARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVPCLatticeServiceUsesCertificate + ":" + certARN,
 	}
 }
 
@@ -160,12 +160,12 @@ func targetGroupVPCRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeTargetGroupInVPC,
+		RelationshipType: catalog.RelationshipVPCLatticeTargetGroupInVPC,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(group.ARN),
 		TargetResourceID: vpcID,
 		TargetType:       catalog.ResourceTypeEC2VPC,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeTargetGroupInVPC + ":" + vpcID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVPCLatticeTargetGroupInVPC + ":" + vpcID,
 	}
 }
 
@@ -188,13 +188,13 @@ func targetGroupServiceRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVPCLatticeTargetGroupServesService,
+		RelationshipType: catalog.RelationshipVPCLatticeTargetGroupServesService,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(group.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARNValue,
-		TargetType:       awscloud.ResourceTypeVPCLatticeService,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeTargetGroupServesService + ":" + targetID,
+		TargetType:       catalog.ResourceTypeVPCLatticeService,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVPCLatticeTargetGroupServesService + ":" + targetID,
 	}
 }
 
@@ -249,20 +249,20 @@ func resolveTargetEdge(groupType, targetID string) (relationshipType, targetType
 		if !isARN(targetID) {
 			return "", "", "", false
 		}
-		return awscloud.RelationshipVPCLatticeTargetGroupTargetsLambda,
+		return catalog.RelationshipVPCLatticeTargetGroupTargetsLambda,
 			catalog.ResourceTypeLambdaFunction, targetID, true
 	case "INSTANCE":
 		if !isInstanceID(targetID) {
 			return "", "", "", false
 		}
-		return awscloud.RelationshipVPCLatticeTargetGroupTargetsInstance,
+		return catalog.RelationshipVPCLatticeTargetGroupTargetsInstance,
 			ec2InstanceTargetType, "", true
 	case "ALB":
 		if !isARN(targetID) {
 			return "", "", "", false
 		}
-		return awscloud.RelationshipVPCLatticeTargetGroupTargetsLoadBalancer,
-			awscloud.ResourceTypeELBv2LoadBalancer, targetID, true
+		return catalog.RelationshipVPCLatticeTargetGroupTargetsLoadBalancer,
+			catalog.ResourceTypeELBv2LoadBalancer, targetID, true
 	default:
 		// IP target groups register raw IP addresses, which are not a scanned
 		// resource family; skip rather than dangle the edge.

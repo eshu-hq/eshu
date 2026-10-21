@@ -18,10 +18,10 @@ func routeTableRelationships(boundary awscloud.Boundary, rt RouteTable) []awsclo
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransitGatewayRouteTableInTransitGateway,
+		RelationshipType: catalog.RelationshipTransitGatewayRouteTableInTransitGateway,
 		SourceResourceID: id,
 		TargetResourceID: tgwID,
-		TargetType:       awscloud.ResourceTypeTransitGateway,
+		TargetType:       catalog.ResourceTypeTransitGateway,
 		SourceRecordID:   id + "#transit-gateway#" + tgwID,
 	}}
 }
@@ -36,10 +36,10 @@ func attachmentRelationships(boundary awscloud.Boundary, attachment Attachment) 
 	if tgwID := strings.TrimSpace(attachment.TransitGatewayID); tgwID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToTransitGateway,
+			RelationshipType: catalog.RelationshipTransitGatewayAttachmentToTransitGateway,
 			SourceResourceID: id,
 			TargetResourceID: tgwID,
-			TargetType:       awscloud.ResourceTypeTransitGateway,
+			TargetType:       catalog.ResourceTypeTransitGateway,
 			Attributes: map[string]any{
 				"transit_gateway_owner_id": strings.TrimSpace(attachment.TransitGatewayOwnerID),
 			},
@@ -54,10 +54,10 @@ func attachmentRelationships(boundary awscloud.Boundary, attachment Attachment) 
 	if rtID := strings.TrimSpace(attachment.AssociationRouteTableID); rtID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayRouteTableToAttachment,
+			RelationshipType: catalog.RelationshipTransitGatewayRouteTableToAttachment,
 			SourceResourceID: rtID,
 			TargetResourceID: id,
-			TargetType:       awscloud.ResourceTypeTransitGatewayAttachment,
+			TargetType:       catalog.ResourceTypeTransitGatewayAttachment,
 			Attributes: map[string]any{
 				"association_state": strings.TrimSpace(attachment.AssociationState),
 			},
@@ -87,7 +87,7 @@ func attachmentResourceRelationship(
 	case "vpc":
 		return awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToVPC,
+			RelationshipType: catalog.RelationshipTransitGatewayAttachmentToVPC,
 			SourceResourceID: id,
 			TargetResourceID: resourceID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -97,17 +97,17 @@ func attachmentResourceRelationship(
 	case "vpn":
 		return awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToVPNConnection,
+			RelationshipType: catalog.RelationshipTransitGatewayAttachmentToVPNConnection,
 			SourceResourceID: id,
 			TargetResourceID: resourceID,
-			TargetType:       awscloud.ResourceTypeVPCVPNConnection,
+			TargetType:       catalog.ResourceTypeVPCVPNConnection,
 			Attributes:       attachmentResourceAttributes(resourceOwnerID),
 			SourceRecordID:   id + "#vpn#" + resourceID,
 		}, true
 	case "direct-connect-gateway":
 		return awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToDirectConnectGateway,
+			RelationshipType: catalog.RelationshipTransitGatewayAttachmentToDirectConnectGateway,
 			SourceResourceID: id,
 			TargetResourceID: resourceID,
 			TargetType:       "aws_direct_connect_gateway",
@@ -117,10 +117,10 @@ func attachmentResourceRelationship(
 	case "peering":
 		return awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToPeer,
+			RelationshipType: catalog.RelationshipTransitGatewayAttachmentToPeer,
 			SourceResourceID: id,
 			TargetResourceID: resourceID,
-			TargetType:       awscloud.ResourceTypeTransitGatewayPeeringAttachment,
+			TargetType:       catalog.ResourceTypeTransitGatewayPeeringAttachment,
 			Attributes:       attachmentResourceAttributes(resourceOwnerID),
 			SourceRecordID:   id + "#peer#" + resourceID,
 		}, true
@@ -141,7 +141,7 @@ func peeringAttachmentRelationships(
 	if observation, ok := peeringSideRelationship(
 		boundary,
 		id,
-		awscloud.RelationshipTransitGatewayPeeringRequestsTransitGateway,
+		catalog.RelationshipTransitGatewayPeeringRequestsTransitGateway,
 		"requester",
 		peering.Requester,
 	); ok {
@@ -150,7 +150,7 @@ func peeringAttachmentRelationships(
 	if observation, ok := peeringSideRelationship(
 		boundary,
 		id,
-		awscloud.RelationshipTransitGatewayPeeringAcceptsTransitGateway,
+		catalog.RelationshipTransitGatewayPeeringAcceptsTransitGateway,
 		"accepter",
 		peering.Accepter,
 	); ok {
@@ -181,7 +181,7 @@ func peeringSideRelationship(
 		RelationshipType: relationshipType,
 		SourceResourceID: id,
 		TargetResourceID: peerTGW,
-		TargetType:       awscloud.ResourceTypeTransitGateway,
+		TargetType:       catalog.ResourceTypeTransitGateway,
 		Attributes: map[string]any{
 			"core_network_id": strings.TrimSpace(info.CoreNetworkID),
 			"cross_account":   ownerID != "" && ownerID != strings.TrimSpace(boundary.AccountID),
@@ -204,10 +204,10 @@ func multicastDomainRelationships(
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransitGatewayMulticastDomainInTransitGateway,
+		RelationshipType: catalog.RelationshipTransitGatewayMulticastDomainInTransitGateway,
 		SourceResourceID: id,
 		TargetResourceID: tgwID,
-		TargetType:       awscloud.ResourceTypeTransitGateway,
+		TargetType:       catalog.ResourceTypeTransitGateway,
 		SourceRecordID:   id + "#transit-gateway#" + tgwID,
 	}}
 }
@@ -223,10 +223,10 @@ func policyTableRelationships(
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransitGatewayPolicyTableInTransitGateway,
+		RelationshipType: catalog.RelationshipTransitGatewayPolicyTableInTransitGateway,
 		SourceResourceID: id,
 		TargetResourceID: tgwID,
-		TargetType:       awscloud.ResourceTypeTransitGateway,
+		TargetType:       catalog.ResourceTypeTransitGateway,
 		SourceRecordID:   id + "#transit-gateway#" + tgwID,
 	}}
 }

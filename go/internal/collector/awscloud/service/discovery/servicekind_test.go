@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestScannerCanonicalizesPaddedServiceKind proves a whitespace-padded
@@ -21,7 +22,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	envelopes, err := scanner.Scan(context.Background(), awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         "  " + awscloud.ServiceServiceDiscovery + "  ",
+		ServiceKind:         "  " + catalog.ServiceServiceDiscovery + "  ",
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:servicediscovery:1",
 		CollectorInstanceID: "aws-prod",
@@ -35,7 +36,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceServiceDiscovery; got != want {
+		if got, want := envelope.Payload["service_kind"], catalog.ServiceServiceDiscovery; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

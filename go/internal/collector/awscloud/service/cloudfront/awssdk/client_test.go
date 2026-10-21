@@ -13,6 +13,7 @@ import (
 	awscloudfronttypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListsCloudFrontDistributionMetadataOnly(t *testing.T) {
@@ -142,7 +143,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "aws-global",
-		ServiceKind: awscloud.ServiceCloudFront,
+		ServiceKind: catalog.ServiceCloudFront,
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -97,18 +98,18 @@ func scan(t *testing.T, namespaces []Namespace) []facts.Envelope {
 func TestScanEmitsServiceResourceKeyedForAppMeshJoin(t *testing.T) {
 	envelopes := scan(t, inventory())
 
-	service := findResource(t, envelopes, awscloud.ResourceTypeCloudMapService)
+	service := findResource(t, envelopes, catalog.ResourceTypeCloudMapService)
 	if got, want := service.Payload["resource_id"], "apps.local/checkout"; got != want {
 		t.Fatalf("service resource_id = %#v, want %q (App Mesh edge target join key)", got, want)
 	}
-	if got, want := service.Payload["resource_type"], awscloud.ResourceTypeCloudMapService; got != want {
+	if got, want := service.Payload["resource_type"], catalog.ResourceTypeCloudMapService; got != want {
 		t.Fatalf("service resource_type = %#v, want %q", got, want)
 	}
 	// The App Mesh scanner emits its Cloud Map edge with this exact target_type
 	// and target_resource_id. Assert they match the resource this scanner emits.
-	if awscloud.TargetTypeCloudMapService != awscloud.ResourceTypeCloudMapService {
+	if awscloud.TargetTypeCloudMapService != catalog.ResourceTypeCloudMapService {
 		t.Fatalf("App Mesh TargetTypeCloudMapService %q != Cloud Map ResourceTypeCloudMapService %q",
-			awscloud.TargetTypeCloudMapService, awscloud.ResourceTypeCloudMapService)
+			awscloud.TargetTypeCloudMapService, catalog.ResourceTypeCloudMapService)
 	}
 }
 
@@ -117,7 +118,7 @@ func TestScanEmitsServiceResourceKeyedForAppMeshJoin(t *testing.T) {
 func TestScanEmitsNamespaceResources(t *testing.T) {
 	envelopes := scan(t, inventory())
 
-	private := findResourceByID(t, envelopes, awscloud.ResourceTypeCloudMapNamespace, privateNamespaceID)
+	private := findResourceByID(t, envelopes, catalog.ResourceTypeCloudMapNamespace, privateNamespaceID)
 	assertAttribute(t, private, "namespace_type", "DNS_PRIVATE")
 	assertAttribute(t, private, "hosted_zone_id", hostedZoneID)
 	assertAttribute(t, private, "service_count", int64(1))
@@ -125,7 +126,7 @@ func TestScanEmitsNamespaceResources(t *testing.T) {
 		t.Fatalf("namespace arn = %#v, want %q", got, privateNamespaceARN)
 	}
 
-	http := findResourceByID(t, envelopes, awscloud.ResourceTypeCloudMapNamespace, httpNamespaceID)
+	http := findResourceByID(t, envelopes, catalog.ResourceTypeCloudMapNamespace, httpNamespaceID)
 	assertAttribute(t, http, "namespace_type", "HTTP")
 	assertAttribute(t, http, "http_name", "http-apps")
 }
@@ -135,7 +136,7 @@ func TestScanEmitsNamespaceResources(t *testing.T) {
 func TestScanRecordsInstanceCountOnly(t *testing.T) {
 	envelopes := scan(t, inventory())
 
-	service := findResource(t, envelopes, awscloud.ResourceTypeCloudMapService)
+	service := findResource(t, envelopes, catalog.ResourceTypeCloudMapService)
 	assertAttribute(t, service, "instance_count", int64(3))
 	assertAttribute(t, service, "dns_routing_policy", "MULTIVALUE")
 
@@ -153,15 +154,15 @@ func TestScanRecordsInstanceCountOnly(t *testing.T) {
 func TestScanEmitsServiceInNamespaceEdge(t *testing.T) {
 	envelopes := scan(t, inventory())
 
-	rel := findRelationship(t, envelopes, awscloud.RelationshipCloudMapServiceInNamespace)
+	rel := findRelationship(t, envelopes, catalog.RelationshipCloudMapServiceInNamespace)
 	if got, want := rel.Payload["source_resource_id"], "apps.local/checkout"; got != want {
 		t.Fatalf("service->namespace source = %#v, want %q", got, want)
 	}
 	if got := rel.Payload["target_resource_id"]; got != privateNamespaceID {
 		t.Fatalf("service->namespace target = %#v, want %q", got, privateNamespaceID)
 	}
-	if got, _ := rel.Payload["target_type"].(string); got != awscloud.ResourceTypeCloudMapNamespace {
-		t.Fatalf("service->namespace target_type = %q, want %q", got, awscloud.ResourceTypeCloudMapNamespace)
+	if got, _ := rel.Payload["target_type"].(string); got != catalog.ResourceTypeCloudMapNamespace {
+		t.Fatalf("service->namespace target_type = %q, want %q", got, catalog.ResourceTypeCloudMapNamespace)
 	}
 }
 
@@ -171,15 +172,15 @@ func TestScanEmitsServiceInNamespaceEdge(t *testing.T) {
 func TestScanEmitsNamespaceInHostedZoneEdge(t *testing.T) {
 	envelopes := scan(t, inventory())
 
-	rel := findRelationship(t, envelopes, awscloud.RelationshipCloudMapNamespaceInHostedZone)
+	rel := findRelationship(t, envelopes, catalog.RelationshipCloudMapNamespaceInHostedZone)
 	if got := rel.Payload["source_resource_id"]; got != privateNamespaceID {
 		t.Fatalf("namespace->hosted-zone source = %#v, want %q", got, privateNamespaceID)
 	}
 	if got, want := rel.Payload["target_resource_id"], "/hostedzone/"+hostedZoneID; got != want {
 		t.Fatalf("namespace->hosted-zone target = %#v, want %q (route53 resource_id format)", got, want)
 	}
-	if got, _ := rel.Payload["target_type"].(string); got != awscloud.ResourceTypeRoute53HostedZone {
-		t.Fatalf("namespace->hosted-zone target_type = %q, want %q", got, awscloud.ResourceTypeRoute53HostedZone)
+	if got, _ := rel.Payload["target_type"].(string); got != catalog.ResourceTypeRoute53HostedZone {
+		t.Fatalf("namespace->hosted-zone target_type = %q, want %q", got, catalog.ResourceTypeRoute53HostedZone)
 	}
 }
 
@@ -191,7 +192,7 @@ func TestScanHTTPNamespaceEmitsNoHostedZoneEdge(t *testing.T) {
 	count := 0
 	for _, envelope := range envelopes {
 		relType, _ := envelope.Payload["relationship_type"].(string)
-		if relType != awscloud.RelationshipCloudMapNamespaceInHostedZone {
+		if relType != catalog.RelationshipCloudMapNamespaceInHostedZone {
 			continue
 		}
 		if envelope.Payload["source_resource_id"] == httpNamespaceID {
@@ -217,7 +218,7 @@ func TestScanSkipsServiceWithUnkeyableIdentity(t *testing.T) {
 	envelopes := scan(t, namespaces)
 
 	for _, envelope := range envelopes {
-		if got, _ := envelope.Payload["resource_type"].(string); got == awscloud.ResourceTypeCloudMapService {
+		if got, _ := envelope.Payload["resource_type"].(string); got == catalog.ResourceTypeCloudMapService {
 			t.Fatalf("emitted Cloud Map service resource with resource_id %#v for unkeyable service; want none",
 				envelope.Payload["resource_id"])
 		}
@@ -236,7 +237,7 @@ func TestScanSkipsNamespaceWithBlankID(t *testing.T) {
 
 	for _, envelope := range envelopes {
 		gotType, _ := envelope.Payload["resource_type"].(string)
-		if gotType != awscloud.ResourceTypeCloudMapNamespace {
+		if gotType != catalog.ResourceTypeCloudMapNamespace {
 			continue
 		}
 		if envelope.Payload["resource_id"] == privateNamespaceID {
@@ -248,7 +249,7 @@ func TestScanSkipsNamespaceWithBlankID(t *testing.T) {
 		}
 	}
 	// The HTTP namespace (valid id) must still be present.
-	findResourceByID(t, envelopes, awscloud.ResourceTypeCloudMapNamespace, httpNamespaceID)
+	findResourceByID(t, envelopes, catalog.ResourceTypeCloudMapNamespace, httpNamespaceID)
 }
 
 // TestScanRejectsServiceKindMismatch confirms a non-servicediscovery service

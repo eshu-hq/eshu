@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/networkmanager/runtimebind"
 )
 
 // TestNetworkManagerRuntimeBindRegisters confirms importing the binding installs
 // the Network Manager scanner builder under its canonical service kind.
 func TestNetworkManagerRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceNetworkManager)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceNetworkManager)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceNetworkManager)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceNetworkManager)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceNetworkManager,
+			ServiceKind: catalog.ServiceNetworkManager,
 		},
 	})
 	if err != nil {

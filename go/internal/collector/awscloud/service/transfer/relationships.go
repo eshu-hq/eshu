@@ -55,7 +55,7 @@ func serverVPCEndpointRelationship(boundary awscloud.Boundary, serverID string, 
 		SourceResourceID: serverID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: endpointID,
-		TargetType:       awscloud.ResourceTypeVPCEndpoint,
+		TargetType:       catalog.ResourceTypeVPCEndpoint,
 		SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesVPCEndpoint + ":" + endpointID,
 	}
 }
@@ -85,7 +85,7 @@ func serverElasticIPRelationships(boundary awscloud.Boundary, serverID string, s
 			SourceResourceID: serverID,
 			SourceARN:        strings.TrimSpace(server.ARN),
 			TargetResourceID: allocationID,
-			TargetType:       awscloud.ResourceTypeVPCElasticIP,
+			TargetType:       catalog.ResourceTypeVPCElasticIP,
 			SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesElasticIP + ":" + allocationID,
 		})
 	}

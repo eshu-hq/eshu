@@ -198,7 +198,7 @@ func TestScannerEmitsRelationshipsWithJoinKeys(t *testing.T) {
 	}
 
 	zone := relationshipsByType(t, envelopes, awscloud.RelationshipAmplifyAppServesCustomDomainViaHostedZone)
-	if len(zone) != 1 || zone[0]["target_type"] != awscloud.ResourceTypeRoute53HostedZone {
+	if len(zone) != 1 || zone[0]["target_type"] != catalog.ResourceTypeRoute53HostedZone {
 		t.Fatalf("app->Route53 = %#v", zone)
 	}
 	if zone[0]["target_resource_id"] != "storefront.example.com" {
@@ -209,7 +209,7 @@ func TestScannerEmitsRelationshipsWithJoinKeys(t *testing.T) {
 	}
 
 	cf := relationshipsByType(t, envelopes, awscloud.RelationshipAmplifyAppServesCustomDomainViaCloudFront)
-	if len(cf) != 1 || cf[0]["target_type"] != awscloud.ResourceTypeCloudFrontDistribution {
+	if len(cf) != 1 || cf[0]["target_type"] != catalog.ResourceTypeCloudFrontDistribution {
 		t.Fatalf("app->CloudFront = %#v (want 1 deduped edge)", cf)
 	}
 	if cf[0]["target_resource_id"] != "d2example.cloudfront.net" {

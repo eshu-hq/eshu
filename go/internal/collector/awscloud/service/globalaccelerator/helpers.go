@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 const (
@@ -42,9 +42,9 @@ func endpointTargetType(endpointID string) string {
 	id := strings.TrimSpace(endpointID)
 	switch {
 	case strings.Contains(id, ":elasticloadbalancing:"):
-		return awscloud.ResourceTypeELBv2LoadBalancer
+		return catalog.ResourceTypeELBv2LoadBalancer
 	case strings.HasPrefix(id, "eipalloc-"):
-		return awscloud.ResourceTypeVPCElasticIP
+		return catalog.ResourceTypeVPCElasticIP
 	case strings.HasPrefix(id, "i-"):
 		return ec2InstanceTargetType
 	default:

@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestScannerCanonicalizesPaddedServiceKind proves a whitespace-padded
@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "networkfirewall".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceNetworkFirewall + "  "
+	boundary.ServiceKind = "  " + catalog.ServiceNetworkFirewall + "  "
 	client := fakeClient{firewalls: []Firewall{{
 		ARN:    "arn:aws:network-firewall:us-east-1:123456789012:firewall/padded",
 		ID:     "fw-padded",
@@ -34,7 +34,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceNetworkFirewall; got != want {
+		if got, want := envelope.Payload["service_kind"], catalog.ServiceNetworkFirewall; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

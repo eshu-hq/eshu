@@ -114,11 +114,11 @@ func TestScannerClassifiesProtectedResourceTargets(t *testing.T) {
 		wantTargetID   string
 		wantTargetARN  string
 	}{
-		{"elbv2", testProtectionELBARN, awscloud.ResourceTypeELBv2LoadBalancer, testLoadBalancerARN, testLoadBalancerARN},
-		{"cloudfront", testProtectionCFARN, awscloud.ResourceTypeCloudFrontDistribution, testDistributionARN, testDistributionARN},
-		{"eip", testProtectionEIPARN, awscloud.ResourceTypeVPCElasticIP, testElasticIPAllocation, ""},
-		{"route53", testProtectionZoneARN, awscloud.ResourceTypeRoute53HostedZone, "/hostedzone/" + testHostedZoneID, ""},
-		{"globalaccelerator", testProtectionGAARN, awscloud.ResourceTypeGlobalAcceleratorAccelerator, testAcceleratorARN, testAcceleratorARN},
+		{"elbv2", testProtectionELBARN, catalog.ResourceTypeELBv2LoadBalancer, testLoadBalancerARN, testLoadBalancerARN},
+		{"cloudfront", testProtectionCFARN, catalog.ResourceTypeCloudFrontDistribution, testDistributionARN, testDistributionARN},
+		{"eip", testProtectionEIPARN, catalog.ResourceTypeVPCElasticIP, testElasticIPAllocation, ""},
+		{"route53", testProtectionZoneARN, catalog.ResourceTypeRoute53HostedZone, "/hostedzone/" + testHostedZoneID, ""},
+		{"globalaccelerator", testProtectionGAARN, catalog.ResourceTypeGlobalAcceleratorAccelerator, testAcceleratorARN, testAcceleratorARN},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

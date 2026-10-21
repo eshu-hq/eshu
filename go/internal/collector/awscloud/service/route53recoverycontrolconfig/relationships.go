@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // controlPanelInClusterRelationship records a control panel's membership in its
@@ -28,14 +29,14 @@ func controlPanelInClusterRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster,
+		RelationshipType: catalog.RelationshipRoute53RecoveryControlConfigControlPanelInCluster,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(panel.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeRoute53RecoveryControlConfigCluster,
+		TargetType:       catalog.ResourceTypeRoute53RecoveryControlConfigCluster,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster + ":" + targetID,
+			catalog.RelationshipRoute53RecoveryControlConfigControlPanelInCluster + ":" + targetID,
 	}
 }
 
@@ -58,14 +59,14 @@ func routingControlInControlPanelRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel,
+		RelationshipType: catalog.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(control.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel,
+		TargetType:       catalog.ResourceTypeRoute53RecoveryControlConfigControlPanel,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel + ":" + targetID,
+			catalog.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel + ":" + targetID,
 	}
 }
 
@@ -88,13 +89,13 @@ func safetyRuleInControlPanelRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel,
+		RelationshipType: catalog.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(rule.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel,
+		TargetType:       catalog.ResourceTypeRoute53RecoveryControlConfigControlPanel,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel + ":" + targetID,
+			catalog.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel + ":" + targetID,
 	}
 }

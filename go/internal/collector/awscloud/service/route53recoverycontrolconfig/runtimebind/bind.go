@@ -4,15 +4,15 @@
 package runtimebind
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	svc "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/route53recoverycontrolconfig"
 	sdkadapter "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/route53recoverycontrolconfig/awssdk"
 )
 
 func init() {
 	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind: awscloud.ServiceRoute53RecoveryControlConfig,
+		ServiceKind: catalog.ServiceRoute53RecoveryControlConfig,
 		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
 			return svc.Scanner{
 				Client: sdkadapter.NewClient(d.AWSConfig, d.Boundary, d.Tracer, d.Instruments),

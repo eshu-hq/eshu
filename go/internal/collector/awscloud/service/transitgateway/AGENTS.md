@@ -45,8 +45,8 @@
   mapping it through `awscloud` envelope builders.
 - Add new relationship evidence only when the AWS API reports both sides
   directly and the target type already exists (or you add a new
-  `awscloud.RelationshipTransitGatewayXxx` constant alphabetically in
-  `constants_transitgateway.go`).
+  `catalog.RelationshipTransitGatewayXxx` constant alphabetically in
+  `../../catalog/network.go`).
 - Extend SDK pagination, mutation guards, and the apiClient interface only in
   the `awssdk` adapter, never here.
 

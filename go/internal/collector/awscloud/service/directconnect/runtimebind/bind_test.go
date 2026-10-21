@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/directconnect/runtimebind"
 )
 
@@ -17,16 +18,16 @@ import (
 // the Direct Connect scanner builder. Direct Connect does not redact, so the
 // builder must succeed with a zero redaction key.
 func TestDirectConnectRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceDirectConnect)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceDirectConnect)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceDirectConnect)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceDirectConnect)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceDirectConnect,
+			ServiceKind: catalog.ServiceDirectConnect,
 		},
 	})
 	if err != nil {
@@ -41,7 +42,7 @@ func TestDirectConnectRuntimeBindRegisters(t *testing.T) {
 // does not declare RequiresRedactionKey: Direct Connect drops the BGP auth key
 // and MACsec key material by never mapping them, so it never needs a key.
 func TestDirectConnectRuntimeBindDoesNotRequireRedactionKey(t *testing.T) {
-	if awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceDirectConnect) {
-		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false; Direct Connect drops secrets by exclusion", awscloud.ServiceDirectConnect)
+	if awsruntime.ServiceRequiresRedactionKey(catalog.ServiceDirectConnect) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false; Direct Connect drops secrets by exclusion", catalog.ServiceDirectConnect)
 	}
 }

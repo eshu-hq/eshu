@@ -22,7 +22,7 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 	ecrBoundary := boundary
 	ecrBoundary.ServiceKind = catalog.ServiceECR
 	route53Boundary := boundary
-	route53Boundary.ServiceKind = ServiceRoute53
+	route53Boundary.ServiceKind = catalog.ServiceRoute53
 	builders := map[string]func() (facts.Envelope, error){
 		cloud.AWSResourceFactKind: func() (facts.Envelope, error) {
 			return NewResourceEnvelope(ResourceObservation{
@@ -313,7 +313,7 @@ func TestNewImageReferenceEnvelopeRequiresDigest(t *testing.T) {
 
 func TestNewDNSRecordEnvelopePreservesAliasAndZoneEvidence(t *testing.T) {
 	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
-	boundary.ServiceKind = ServiceRoute53
+	boundary.ServiceKind = catalog.ServiceRoute53
 	envelope, err := NewDNSRecordEnvelope(DNSRecordObservation{
 		Boundary:          boundary,
 		HostedZoneID:      "/hostedzone/Z123",

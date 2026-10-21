@@ -31,7 +31,7 @@
 ## Common Changes
 
 - Add a new relationship in `relationships.go` only when a durable topology join
-  needs it; add its constant to `../../constants_elb.go`.
+  needs it; add its constant to `../../catalog/network_edge.go`.
 - Add a new resource attribute in `scanner.go` only when it supports routing,
   network placement, or later correlation.
 - When adding a target type that is not yet a scanned resource, add a documented

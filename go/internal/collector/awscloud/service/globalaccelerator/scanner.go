@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -25,10 +26,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("globalaccelerator scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceGlobalAccelerator:
+	case "", catalog.ServiceGlobalAccelerator:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceGlobalAccelerator
+		boundary.ServiceKind = catalog.ServiceGlobalAccelerator
 	default:
 		return nil, fmt.Errorf("globalaccelerator scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -163,7 +164,7 @@ func acceleratorObservation(boundary awscloud.Boundary, accelerator Accelerator)
 		Boundary:     boundary,
 		ARN:          acceleratorARN,
 		ResourceID:   acceleratorARN,
-		ResourceType: awscloud.ResourceTypeGlobalAcceleratorAccelerator,
+		ResourceType: catalog.ResourceTypeGlobalAcceleratorAccelerator,
 		Name:         name,
 		State:        strings.TrimSpace(accelerator.Status),
 		Tags:         cloneStringMap(accelerator.Tags),
@@ -193,7 +194,7 @@ func listenerObservation(
 		Boundary:     boundary,
 		ARN:          listenerARN,
 		ResourceID:   listenerARN,
-		ResourceType: awscloud.ResourceTypeGlobalAcceleratorListener,
+		ResourceType: catalog.ResourceTypeGlobalAcceleratorListener,
 		Name:         listenerARN,
 		Attributes: map[string]any{
 			"accelerator_arn": acceleratorARN,
@@ -235,7 +236,7 @@ func endpointGroupObservation(
 		Boundary:           boundary,
 		ARN:                groupARN,
 		ResourceID:         groupARN,
-		ResourceType:       awscloud.ResourceTypeGlobalAcceleratorEndpointGroup,
+		ResourceType:       catalog.ResourceTypeGlobalAcceleratorEndpointGroup,
 		Name:               firstNonEmpty(group.Region, groupARN),
 		Attributes:         attributes,
 		CorrelationAnchors: []string{groupARN},
@@ -265,7 +266,7 @@ func endpointObservation(
 	return awscloud.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         endpointResourceID,
-		ResourceType:       awscloud.ResourceTypeGlobalAcceleratorEndpoint,
+		ResourceType:       catalog.ResourceTypeGlobalAcceleratorEndpoint,
 		Name:               endpointID,
 		Attributes:         attributes,
 		CorrelationAnchors: []string{endpointResourceID, endpointID},

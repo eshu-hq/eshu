@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // parentGlobalNetworkRelationship records a child resource's membership in its
@@ -29,7 +30,7 @@ func parentGlobalNetworkRelationship(
 		SourceARN:        strings.TrimSpace(sourceARN),
 		TargetResourceID: parentARN,
 		TargetARN:        parentARN,
-		TargetType:       awscloud.ResourceTypeNetworkManagerGlobalNetwork,
+		TargetType:       catalog.ResourceTypeNetworkManagerGlobalNetwork,
 		SourceRecordID:   sourceID + "->" + relationshipType + ":" + parentARN,
 	}
 }
@@ -45,13 +46,13 @@ func deviceInSiteRelationship(boundary awscloud.Boundary, device Device) *awsclo
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipNetworkManagerDeviceInSite,
+		RelationshipType: catalog.RelationshipNetworkManagerDeviceInSite,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(device.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeNetworkManagerSite,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipNetworkManagerDeviceInSite + ":" + targetARN,
+		TargetType:       catalog.ResourceTypeNetworkManagerSite,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipNetworkManagerDeviceInSite + ":" + targetARN,
 	}
 }
 
@@ -66,13 +67,13 @@ func linkInSiteRelationship(boundary awscloud.Boundary, link Link) *awscloud.Rel
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipNetworkManagerLinkInSite,
+		RelationshipType: catalog.RelationshipNetworkManagerLinkInSite,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(link.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeNetworkManagerSite,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipNetworkManagerLinkInSite + ":" + targetARN,
+		TargetType:       catalog.ResourceTypeNetworkManagerSite,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipNetworkManagerLinkInSite + ":" + targetARN,
 	}
 }
 
@@ -90,13 +91,13 @@ func deviceUsesLinkRelationship(
 	}
 	rel := &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipNetworkManagerDeviceUsesLink,
+		RelationshipType: catalog.RelationshipNetworkManagerDeviceUsesLink,
 		SourceResourceID: sourceARN,
 		SourceARN:        sourceARN,
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeNetworkManagerLink,
-		SourceRecordID:   sourceARN + "->" + awscloud.RelationshipNetworkManagerDeviceUsesLink + ":" + targetARN,
+		TargetType:       catalog.ResourceTypeNetworkManagerLink,
+		SourceRecordID:   sourceARN + "->" + catalog.RelationshipNetworkManagerDeviceUsesLink + ":" + targetARN,
 	}
 	if state := strings.TrimSpace(association.State); state != "" {
 		rel.Attributes = map[string]any{"association_state": state}
@@ -123,13 +124,13 @@ func connectionDeviceRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipNetworkManagerConnectionConnectsDevice,
+			RelationshipType: catalog.RelationshipNetworkManagerConnectionConnectsDevice,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(connection.ARN),
 			TargetResourceID: targetARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeNetworkManagerDevice,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipNetworkManagerConnectionConnectsDevice + ":" + targetARN,
+			TargetType:       catalog.ResourceTypeNetworkManagerDevice,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipNetworkManagerConnectionConnectsDevice + ":" + targetARN,
 		})
 	}
 	return observations
@@ -152,12 +153,12 @@ func registrationRelationship(
 	}
 	rel := &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipNetworkManagerGlobalNetworkRegistersTransitGateway,
+		RelationshipType: catalog.RelationshipNetworkManagerGlobalNetworkRegistersTransitGateway,
 		SourceResourceID: sourceARN,
 		SourceARN:        sourceARN,
 		TargetResourceID: tgwID,
-		TargetType:       awscloud.ResourceTypeTransitGateway,
-		SourceRecordID:   sourceARN + "->" + awscloud.RelationshipNetworkManagerGlobalNetworkRegistersTransitGateway + ":" + tgwID,
+		TargetType:       catalog.ResourceTypeTransitGateway,
+		SourceRecordID:   sourceARN + "->" + catalog.RelationshipNetworkManagerGlobalNetworkRegistersTransitGateway + ":" + tgwID,
 	}
 	if tgwARN := strings.TrimSpace(registration.TransitGatewayARN); isARN(tgwARN) {
 		rel.Attributes = map[string]any{"transit_gateway_arn": tgwARN}
@@ -177,7 +178,7 @@ func registrationRelationship(
 func coreNetworkRelationship(boundary awscloud.Boundary, core CoreNetwork) *awscloud.RelationshipObservation {
 	return parentGlobalNetworkRelationship(
 		boundary,
-		awscloud.RelationshipNetworkManagerCoreNetworkInGlobalNetwork,
+		catalog.RelationshipNetworkManagerCoreNetworkInGlobalNetwork,
 		coreNetworkResourceID(boundary, core),
 		core.ARN,
 		core.GlobalNetworkID,

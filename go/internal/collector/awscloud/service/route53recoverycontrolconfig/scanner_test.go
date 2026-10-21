@@ -71,7 +71,7 @@ func TestScannerEmitsRecoveryControlMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeRoute53RecoveryControlConfigCluster)
+	cluster := resourceByType(t, envelopes, catalog.ResourceTypeRoute53RecoveryControlConfigCluster)
 	if got, want := cluster.Payload["resource_id"], testClusterARN; got != want {
 		t.Fatalf("cluster resource_id = %#v, want %q", got, want)
 	}
@@ -82,7 +82,7 @@ func TestScannerEmitsRecoveryControlMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, clusterAttrs, "network_type", "DUALSTACK")
 	assertAttribute(t, clusterAttrs, "endpoint_regions", []string{"us-east-1", "us-west-2"})
 
-	panel := resourceByType(t, envelopes, awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel)
+	panel := resourceByType(t, envelopes, catalog.ResourceTypeRoute53RecoveryControlConfigControlPanel)
 	if got, want := panel.Payload["resource_id"], testPanelARN; got != want {
 		t.Fatalf("panel resource_id = %#v, want %q", got, want)
 	}
@@ -91,12 +91,12 @@ func TestScannerEmitsRecoveryControlMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, panelAttrs, "routing_control_count", int64(1))
 	assertAttribute(t, panelAttrs, "cluster_arn", testClusterARN)
 
-	control := resourceByType(t, envelopes, awscloud.ResourceTypeRoute53RecoveryControlConfigRoutingControl)
+	control := resourceByType(t, envelopes, catalog.ResourceTypeRoute53RecoveryControlConfigRoutingControl)
 	if got, want := control.Payload["resource_id"], testControlARN; got != want {
 		t.Fatalf("routing control resource_id = %#v, want %q", got, want)
 	}
 
-	rule := resourceByType(t, envelopes, awscloud.ResourceTypeRoute53RecoveryControlConfigSafetyRule)
+	rule := resourceByType(t, envelopes, catalog.ResourceTypeRoute53RecoveryControlConfigSafetyRule)
 	ruleAttrs := attributesOf(t, rule)
 	assertAttribute(t, ruleAttrs, "rule_kind", "ASSERTION")
 	assertAttribute(t, ruleAttrs, "rule_config_type", "ATLEAST")
@@ -105,9 +105,9 @@ func TestScannerEmitsRecoveryControlMetadataAndRelationships(t *testing.T) {
 
 	// control panel -> cluster, keyed by the cluster ARN the cluster node publishes.
 	panelInCluster := relationshipByType(
-		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster,
+		t, envelopes, catalog.RelationshipRoute53RecoveryControlConfigControlPanelInCluster,
 	)
-	assertEdgeTarget(t, panelInCluster, awscloud.ResourceTypeRoute53RecoveryControlConfigCluster, testClusterARN)
+	assertEdgeTarget(t, panelInCluster, catalog.ResourceTypeRoute53RecoveryControlConfigCluster, testClusterARN)
 	if got, want := panelInCluster.Payload["source_resource_id"], testPanelARN; got != want {
 		t.Fatalf("panel->cluster source_resource_id = %#v, want %q", got, want)
 	}
@@ -117,10 +117,10 @@ func TestScannerEmitsRecoveryControlMetadataAndRelationships(t *testing.T) {
 
 	// routing control -> control panel.
 	controlInPanel := relationshipByType(
-		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel,
+		t, envelopes, catalog.RelationshipRoute53RecoveryControlConfigRoutingControlInControlPanel,
 	)
 	assertEdgeTarget(
-		t, controlInPanel, awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel, testPanelARN,
+		t, controlInPanel, catalog.ResourceTypeRoute53RecoveryControlConfigControlPanel, testPanelARN,
 	)
 	if got, want := controlInPanel.Payload["source_resource_id"], testControlARN; got != want {
 		t.Fatalf("control->panel source_resource_id = %#v, want %q", got, want)
@@ -128,9 +128,9 @@ func TestScannerEmitsRecoveryControlMetadataAndRelationships(t *testing.T) {
 
 	// safety rule -> control panel.
 	ruleInPanel := relationshipByType(
-		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel,
+		t, envelopes, catalog.RelationshipRoute53RecoveryControlConfigSafetyRuleInControlPanel,
 	)
-	assertEdgeTarget(t, ruleInPanel, awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel, testPanelARN)
+	assertEdgeTarget(t, ruleInPanel, catalog.ResourceTypeRoute53RecoveryControlConfigControlPanel, testPanelARN)
 	if got, want := ruleInPanel.Payload["source_resource_id"], testRuleARN; got != want {
 		t.Fatalf("rule->panel source_resource_id = %#v, want %q", got, want)
 	}
@@ -175,7 +175,7 @@ func TestScannerEmitsGatingRuleCounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rule := resourceByType(t, envelopes, awscloud.ResourceTypeRoute53RecoveryControlConfigSafetyRule)
+	rule := resourceByType(t, envelopes, catalog.ResourceTypeRoute53RecoveryControlConfigSafetyRule)
 	ruleAttrs := attributesOf(t, rule)
 	assertAttribute(t, ruleAttrs, "rule_kind", "GATING")
 	assertAttribute(t, ruleAttrs, "gating_control_count", int64(1))
@@ -204,7 +204,7 @@ func TestScannerOmitsControlPanelEdgeWhenClusterARNAbsent(t *testing.T) {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got ==
-			awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster {
+			catalog.RelationshipRoute53RecoveryControlConfigControlPanelInCluster {
 			t.Fatalf("unexpected control-panel-in-cluster edge with no cluster ARN")
 		}
 	}
@@ -248,7 +248,7 @@ func TestScannerGovCloudClusterUsesReportedARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	panelInCluster := relationshipByType(
-		t, envelopes, awscloud.RelationshipRoute53RecoveryControlConfigControlPanelInCluster,
+		t, envelopes, catalog.RelationshipRoute53RecoveryControlConfigControlPanelInCluster,
 	)
 	if got := panelInCluster.Payload["target_resource_id"]; got != govClusterARN {
 		t.Fatalf("GovCloud panel->cluster target_resource_id = %#v, want %q", got, govClusterARN)
@@ -301,7 +301,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-west-2",
-		ServiceKind:         awscloud.ServiceRoute53RecoveryControlConfig,
+		ServiceKind:         catalog.ServiceRoute53RecoveryControlConfig,
 		ScopeID:             "aws:123456789012:us-west-2",
 		GenerationID:        "aws:123456789012:us-west-2:route53recoverycontrolconfig:1",
 		CollectorInstanceID: "aws-prod",

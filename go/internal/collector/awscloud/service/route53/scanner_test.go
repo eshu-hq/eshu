@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -88,7 +89,7 @@ func TestScannerEmitsHostedZonesAndDNSRecords(t *testing.T) {
 		t.Fatalf("aws_dns_record count = %d, want 3", counts[cloud.AWSDNSRecordFactKind])
 	}
 
-	hostedZone := assertResourceType(t, envelopes, awscloud.ResourceTypeRoute53HostedZone)
+	hostedZone := assertResourceType(t, envelopes, catalog.ResourceTypeRoute53HostedZone)
 	assertPayloadString(t, hostedZone, "arn", "")
 	assertAttribute(t, hostedZone, "private_zone", false)
 	assertAttribute(t, hostedZone, "record_set_count", int64(4))
@@ -139,7 +140,7 @@ func TestScannerPreservesPrivateZoneEvidence(t *testing.T) {
 		t.Fatalf("Scan returned error: %v", err)
 	}
 
-	hostedZone := assertResourceType(t, envelopes, awscloud.ResourceTypeRoute53HostedZone)
+	hostedZone := assertResourceType(t, envelopes, catalog.ResourceTypeRoute53HostedZone)
 	assertAttribute(t, hostedZone, "private_zone", true)
 	record := assertDNSRecord(t, envelopes, "api.svc.local.", "AAAA")
 	assertPayloadBool(t, record, "hosted_zone_private", true)
@@ -147,7 +148,7 @@ func TestScannerPreservesPrivateZoneEvidence(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceELBv2
+	boundary.ServiceKind = catalog.ServiceELBv2
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -158,7 +159,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "aws-global",
-		ServiceKind:         awscloud.ServiceRoute53,
+		ServiceKind:         catalog.ServiceRoute53,
 		ScopeID:             "aws:123456789012:aws-global",
 		GenerationID:        "aws:123456789012:aws-global:route53:1",
 		CollectorInstanceID: "aws-prod",

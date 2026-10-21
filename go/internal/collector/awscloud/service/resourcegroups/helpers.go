@@ -165,7 +165,7 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 		// arn:p:elasticloadbalancing:region:acct:loadbalancer/app/name/id. The
 		// elbv2 scanner keys the load balancer by its ARN.
 		if resourceType == "loadbalancer" {
-			return arnTarget(awscloud.ResourceTypeELBv2LoadBalancer, arn), true
+			return arnTarget(catalog.ResourceTypeELBv2LoadBalancer, arn), true
 		}
 	case "secretsmanager":
 		if resourceType == "secret" {
@@ -187,7 +187,7 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 		// arn:p:route53:::hostedzone/<id>. The route53 scanner keys the hosted
 		// zone by the "/hostedzone/<id>" prefixed id, so reconstruct that form.
 		if resourceType == "hostedzone" && id != "" {
-			return bareTarget(awscloud.ResourceTypeRoute53HostedZone, "/hostedzone/"+id), true
+			return bareTarget(catalog.ResourceTypeRoute53HostedZone, "/hostedzone/"+id), true
 		}
 	case "ec2":
 		return classifyEC2Member(resourceType, id)
@@ -221,7 +221,7 @@ func classifyEC2Member(resourceType, id string) (memberTarget, bool) {
 	case "launch-template":
 		return bareTarget(catalog.ResourceTypeEC2LaunchTemplate, id), true
 	case "elastic-ip":
-		return bareTarget(awscloud.ResourceTypeVPCElasticIP, id), true
+		return bareTarget(catalog.ResourceTypeVPCElasticIP, id), true
 	default:
 		return memberTarget{}, false
 	}

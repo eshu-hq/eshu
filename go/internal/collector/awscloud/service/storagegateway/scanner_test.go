@@ -182,7 +182,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 	if got, want := gatewayVPCE.Payload["target_resource_id"], "vpce-0a1b2c3d4e5f6a7b8"; got != want {
 		t.Fatalf("gateway->vpce target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := gatewayVPCE.Payload["target_type"], awscloud.ResourceTypeVPCEndpoint; got != want {
+	if got, want := gatewayVPCE.Payload["target_type"], catalog.ResourceTypeVPCEndpoint; got != want {
 		t.Fatalf("gateway->vpce target_type = %#v, want %q", got, want)
 	}
 }

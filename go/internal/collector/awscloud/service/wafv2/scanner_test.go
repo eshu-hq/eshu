@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -92,7 +93,7 @@ func TestScannerSetsProtectedResourceTargetType(t *testing.T) {
 			name:         "alb",
 			resourceType: "APPLICATION_LOAD_BALANCER",
 			targetARN:    "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/1234",
-			wantType:     awscloud.ResourceTypeELBv2LoadBalancer,
+			wantType:     catalog.ResourceTypeELBv2LoadBalancer,
 		},
 		{
 			name:         "api_gateway",
@@ -134,7 +135,7 @@ func TestScannerSetsProtectedResourceTargetType(t *testing.T) {
 			name:         "cloudfront",
 			resourceType: "",
 			targetARN:    "arn:aws:cloudfront::123456789012:distribution/E123",
-			wantType:     awscloud.ResourceTypeCloudFrontDistribution,
+			wantType:     catalog.ResourceTypeCloudFrontDistribution,
 		},
 		{
 			name:         "unknown_arn",
@@ -261,7 +262,7 @@ func TestScannerEmitsCustomerRuleGroupMetadata(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceCloudFront
+	boundary.ServiceKind = catalog.ServiceCloudFront
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

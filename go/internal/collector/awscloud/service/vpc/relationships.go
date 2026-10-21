@@ -19,7 +19,7 @@ func routeTableRelationships(boundary awscloud.Boundary, rt RouteTable) []awsclo
 	if vpcID := strings.TrimSpace(rt.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCRouteTableInVPC,
+			RelationshipType: catalog.RelationshipVPCRouteTableInVPC,
 			SourceResourceID: rtID,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -33,7 +33,7 @@ func routeTableRelationships(boundary awscloud.Boundary, rt RouteTable) []awsclo
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCRouteTableAssociatedWithSubnet,
+			RelationshipType: catalog.RelationshipVPCRouteTableAssociatedWithSubnet,
 			SourceResourceID: rtID,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
@@ -61,10 +61,10 @@ func routeTargetRelationships(
 	if igwID := strings.TrimSpace(route.GatewayID); strings.HasPrefix(igwID, "igw-") {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCRouteTargetsInternetGateway,
+			RelationshipType: catalog.RelationshipVPCRouteTargetsInternetGateway,
 			SourceResourceID: rtID,
 			TargetResourceID: igwID,
-			TargetType:       awscloud.ResourceTypeVPCInternetGateway,
+			TargetType:       catalog.ResourceTypeVPCInternetGateway,
 			Attributes:       routeRelationshipAttributes(route, destination),
 			SourceRecordID:   rtID + "#route#igw#" + destination + "#" + igwID,
 		})
@@ -72,10 +72,10 @@ func routeTargetRelationships(
 	if natID := strings.TrimSpace(route.NATGatewayID); natID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCRouteTargetsNATGateway,
+			RelationshipType: catalog.RelationshipVPCRouteTargetsNATGateway,
 			SourceResourceID: rtID,
 			TargetResourceID: natID,
-			TargetType:       awscloud.ResourceTypeVPCNATGateway,
+			TargetType:       catalog.ResourceTypeVPCNATGateway,
 			Attributes:       routeRelationshipAttributes(route, destination),
 			SourceRecordID:   rtID + "#route#nat#" + destination + "#" + natID,
 		})
@@ -83,10 +83,10 @@ func routeTargetRelationships(
 	if peeringID := strings.TrimSpace(route.VPCPeeringConnectionID); peeringID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCRouteTargetsPeeringConnection,
+			RelationshipType: catalog.RelationshipVPCRouteTargetsPeeringConnection,
 			SourceResourceID: rtID,
 			TargetResourceID: peeringID,
-			TargetType:       awscloud.ResourceTypeVPCPeeringConnection,
+			TargetType:       catalog.ResourceTypeVPCPeeringConnection,
 			Attributes:       routeRelationshipAttributes(route, destination),
 			SourceRecordID:   rtID + "#route#peering#" + destination + "#" + peeringID,
 		})
@@ -94,10 +94,10 @@ func routeTargetRelationships(
 	if endpointID := strings.TrimSpace(route.VPCEndpointID); endpointID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCRouteTargetsVPCEndpoint,
+			RelationshipType: catalog.RelationshipVPCRouteTargetsVPCEndpoint,
 			SourceResourceID: rtID,
 			TargetResourceID: endpointID,
-			TargetType:       awscloud.ResourceTypeVPCEndpoint,
+			TargetType:       catalog.ResourceTypeVPCEndpoint,
 			Attributes:       routeRelationshipAttributes(route, destination),
 			SourceRecordID:   rtID + "#route#endpoint#" + destination + "#" + endpointID,
 		})
@@ -105,7 +105,7 @@ func routeTargetRelationships(
 	if tgwID := strings.TrimSpace(route.TransitGatewayID); tgwID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCRouteTargetsTransitGateway,
+			RelationshipType: catalog.RelationshipVPCRouteTargetsTransitGateway,
 			SourceResourceID: rtID,
 			TargetResourceID: tgwID,
 			TargetType:       "aws_ec2_transit_gateway",
@@ -153,7 +153,7 @@ func internetGatewayRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCInternetGatewayAttachedToVPC,
+			RelationshipType: catalog.RelationshipVPCInternetGatewayAttachedToVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -178,7 +178,7 @@ func natGatewayRelationships(
 	if subnetID := strings.TrimSpace(gateway.SubnetID); subnetID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCNATGatewayInSubnet,
+			RelationshipType: catalog.RelationshipVPCNATGatewayInSubnet,
 			SourceResourceID: id,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
@@ -188,7 +188,7 @@ func natGatewayRelationships(
 	if vpcID := strings.TrimSpace(gateway.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCNATGatewayInVPC,
+			RelationshipType: catalog.RelationshipVPCNATGatewayInVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -210,7 +210,7 @@ func networkACLRelationships(
 	if vpcID := strings.TrimSpace(networkACL.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCNetworkACLInVPC,
+			RelationshipType: catalog.RelationshipVPCNetworkACLInVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -224,7 +224,7 @@ func networkACLRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCNetworkACLAssociatedWithSubnet,
+			RelationshipType: catalog.RelationshipVPCNetworkACLAssociatedWithSubnet,
 			SourceResourceID: id,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
@@ -256,7 +256,7 @@ func vpcPeeringRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCPeeringConnectsVPC,
+			RelationshipType: catalog.RelationshipVPCPeeringConnectsVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -283,7 +283,7 @@ func vpcEndpointRelationships(
 	if vpcID := strings.TrimSpace(endpoint.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCEndpointInVPC,
+			RelationshipType: catalog.RelationshipVPCEndpointInVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -293,7 +293,7 @@ func vpcEndpointRelationships(
 	if service := strings.TrimSpace(endpoint.ServiceName); service != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCEndpointUsesService,
+			RelationshipType: catalog.RelationshipVPCEndpointUsesService,
 			SourceResourceID: id,
 			TargetResourceID: service,
 			TargetType:       "aws_vpc_endpoint_service",
@@ -321,7 +321,7 @@ func elasticIPRelationships(
 	if instanceID := strings.TrimSpace(eip.InstanceID); instanceID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCElasticIPAssociatedWithInstance,
+			RelationshipType: catalog.RelationshipVPCElasticIPAssociatedWithInstance,
 			SourceResourceID: id,
 			TargetResourceID: instanceID,
 			TargetType:       "aws_ec2_instance",
@@ -336,7 +336,7 @@ func elasticIPRelationships(
 	if eniID := strings.TrimSpace(eip.NetworkInterfaceID); eniID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCElasticIPAssociatedWithNetworkInterface,
+			RelationshipType: catalog.RelationshipVPCElasticIPAssociatedWithNetworkInterface,
 			SourceResourceID: id,
 			TargetResourceID: eniID,
 			TargetType:       catalog.ResourceTypeEC2NetworkInterface,
@@ -368,7 +368,7 @@ func vpnGatewayRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCVPNGatewayAttachedToVPC,
+			RelationshipType: catalog.RelationshipVPCVPNGatewayAttachedToVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -393,27 +393,27 @@ func vpnConnectionRelationships(
 	if cgwID := strings.TrimSpace(connection.CustomerGatewayID); cgwID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCVPNConnectionUsesCustomerGateway,
+			RelationshipType: catalog.RelationshipVPCVPNConnectionUsesCustomerGateway,
 			SourceResourceID: id,
 			TargetResourceID: cgwID,
-			TargetType:       awscloud.ResourceTypeVPCCustomerGateway,
+			TargetType:       catalog.ResourceTypeVPCCustomerGateway,
 			SourceRecordID:   id + "#customer-gateway#" + cgwID,
 		})
 	}
 	if vgwID := strings.TrimSpace(connection.VPNGatewayID); vgwID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCVPNConnectionUsesVPNGateway,
+			RelationshipType: catalog.RelationshipVPCVPNConnectionUsesVPNGateway,
 			SourceResourceID: id,
 			TargetResourceID: vgwID,
-			TargetType:       awscloud.ResourceTypeVPCVPNGateway,
+			TargetType:       catalog.ResourceTypeVPCVPNGateway,
 			SourceRecordID:   id + "#vpn-gateway#" + vgwID,
 		})
 	}
 	if tgwID := strings.TrimSpace(connection.TransitGatewayID); tgwID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVPCVPNConnectionUsesTransitGateway,
+			RelationshipType: catalog.RelationshipVPCVPNConnectionUsesTransitGateway,
 			SourceResourceID: id,
 			TargetResourceID: tgwID,
 			TargetType:       "aws_ec2_transit_gateway",

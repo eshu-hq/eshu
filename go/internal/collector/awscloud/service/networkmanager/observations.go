@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // globalNetworkObservation builds the resource observation for a global network.
@@ -20,7 +21,7 @@ func globalNetworkObservation(boundary awscloud.Boundary, network GlobalNetwork)
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerGlobalNetwork,
+		ResourceType: catalog.ResourceTypeNetworkManagerGlobalNetwork,
 		Name:         id,
 		State:        strings.TrimSpace(network.State),
 		Tags:         cloneStringMap(network.Tags),
@@ -43,7 +44,7 @@ func siteObservation(boundary awscloud.Boundary, site Site) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerSite,
+		ResourceType: catalog.ResourceTypeNetworkManagerSite,
 		Name:         id,
 		State:        strings.TrimSpace(site.State),
 		Tags:         cloneStringMap(site.Tags),
@@ -70,7 +71,7 @@ func deviceObservation(boundary awscloud.Boundary, device Device) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerDevice,
+		ResourceType: catalog.ResourceTypeNetworkManagerDevice,
 		Name:         id,
 		State:        strings.TrimSpace(device.State),
 		Tags:         cloneStringMap(device.Tags),
@@ -103,7 +104,7 @@ func linkObservation(boundary awscloud.Boundary, link Link) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerLink,
+		ResourceType: catalog.ResourceTypeNetworkManagerLink,
 		Name:         id,
 		State:        strings.TrimSpace(link.State),
 		Tags:         cloneStringMap(link.Tags),
@@ -132,7 +133,7 @@ func connectionObservation(boundary awscloud.Boundary, connection Connection) aw
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerConnection,
+		ResourceType: catalog.ResourceTypeNetworkManagerConnection,
 		Name:         id,
 		State:        strings.TrimSpace(connection.State),
 		Tags:         cloneStringMap(connection.Tags),
@@ -160,7 +161,7 @@ func coreNetworkObservation(boundary awscloud.Boundary, core CoreNetwork) awsclo
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkManagerCoreNetwork,
+		ResourceType: catalog.ResourceTypeNetworkManagerCoreNetwork,
 		Name:         id,
 		State:        strings.TrimSpace(core.State),
 		Tags:         cloneStringMap(core.Tags),

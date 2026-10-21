@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func acceleratorListenerRelationship(
@@ -16,12 +17,12 @@ func acceleratorListenerRelationship(
 ) awscloud.RelationshipObservation {
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlobalAcceleratorAcceleratorHasListener,
+		RelationshipType: catalog.RelationshipGlobalAcceleratorAcceleratorHasListener,
 		SourceResourceID: acceleratorARN,
 		SourceARN:        acceleratorARN,
 		TargetResourceID: listenerARN,
 		TargetARN:        listenerARN,
-		TargetType:       awscloud.ResourceTypeGlobalAcceleratorListener,
+		TargetType:       catalog.ResourceTypeGlobalAcceleratorListener,
 		SourceRecordID:   acceleratorARN + "#listener#" + listenerARN,
 	}
 }
@@ -34,12 +35,12 @@ func listenerEndpointGroupRelationship(
 ) awscloud.RelationshipObservation {
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlobalAcceleratorListenerHasEndpointGroup,
+		RelationshipType: catalog.RelationshipGlobalAcceleratorListenerHasEndpointGroup,
 		SourceResourceID: listenerARN,
 		SourceARN:        listenerARN,
 		TargetResourceID: groupARN,
 		TargetARN:        groupARN,
-		TargetType:       awscloud.ResourceTypeGlobalAcceleratorEndpointGroup,
+		TargetType:       catalog.ResourceTypeGlobalAcceleratorEndpointGroup,
 		Attributes: map[string]any{
 			"endpoint_group_region": strings.TrimSpace(region),
 		},
@@ -61,11 +62,11 @@ func endpointGroupEndpointRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlobalAcceleratorEndpointGroupHasEndpoint,
+		RelationshipType: catalog.RelationshipGlobalAcceleratorEndpointGroupHasEndpoint,
 		SourceResourceID: groupARN,
 		SourceARN:        groupARN,
 		TargetResourceID: endpointResourceID,
-		TargetType:       awscloud.ResourceTypeGlobalAcceleratorEndpoint,
+		TargetType:       catalog.ResourceTypeGlobalAcceleratorEndpoint,
 		Attributes:       attributes,
 		SourceRecordID:   groupARN + "#endpoint#" + endpointResourceID,
 	}
@@ -93,7 +94,7 @@ func endpointTargetRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGlobalAcceleratorEndpointTargetsResource,
+		RelationshipType: catalog.RelationshipGlobalAcceleratorEndpointTargetsResource,
 		SourceResourceID: endpointResourceID,
 		TargetResourceID: endpointID,
 		TargetARN:        targetARN,

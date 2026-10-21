@@ -101,7 +101,7 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 
 	// server -> VPC endpoint (bare-ID keyed, no target ARN).
 	vpcEndpoint := relationshipByType(t, envelopes, awscloud.RelationshipTransferServerUsesVPCEndpoint)
-	if got, want := vpcEndpoint.Payload["target_type"], awscloud.ResourceTypeVPCEndpoint; got != want {
+	if got, want := vpcEndpoint.Payload["target_type"], catalog.ResourceTypeVPCEndpoint; got != want {
 		t.Fatalf("server->vpc-endpoint target_type = %#v, want %q", got, want)
 	}
 	if got, want := vpcEndpoint.Payload["target_resource_id"], vpcEndpointID; got != want {
@@ -116,7 +116,7 @@ func TestScannerEmitsTransferMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("server->eip relationship count = %d, want 1 (duplicates collapse)", got)
 	}
 	eip := relationshipByType(t, envelopes, awscloud.RelationshipTransferServerUsesElasticIP)
-	if got, want := eip.Payload["target_type"], awscloud.ResourceTypeVPCElasticIP; got != want {
+	if got, want := eip.Payload["target_type"], catalog.ResourceTypeVPCElasticIP; got != want {
 		t.Fatalf("server->eip target_type = %#v, want %q", got, want)
 	}
 	if got, want := eip.Payload["target_resource_id"], allocationID; got != want {

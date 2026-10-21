@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -25,10 +26,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("elbv2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceELBv2:
+	case "", catalog.ServiceELBv2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceELBv2
+		boundary.ServiceKind = catalog.ServiceELBv2
 	default:
 		return nil, fmt.Errorf("elbv2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -133,7 +134,7 @@ func loadBalancerObservation(boundary awscloud.Boundary, loadBalancer LoadBalanc
 		Boundary:     boundary,
 		ARN:          loadBalancerARN,
 		ResourceID:   loadBalancerARN,
-		ResourceType: awscloud.ResourceTypeELBv2LoadBalancer,
+		ResourceType: catalog.ResourceTypeELBv2LoadBalancer,
 		Name:         loadBalancer.Name,
 		State:        loadBalancer.State,
 		Tags:         loadBalancer.Tags,
@@ -159,7 +160,7 @@ func listenerObservation(boundary awscloud.Boundary, listener Listener) awscloud
 		Boundary:     boundary,
 		ARN:          listenerARN,
 		ResourceID:   listenerARN,
-		ResourceType: awscloud.ResourceTypeELBv2Listener,
+		ResourceType: catalog.ResourceTypeELBv2Listener,
 		Name:         listenerARN,
 		Tags:         listener.Tags,
 		Attributes: map[string]any{
@@ -182,7 +183,7 @@ func ruleObservation(boundary awscloud.Boundary, rule Rule) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          ruleARN,
 		ResourceID:   ruleARN,
-		ResourceType: awscloud.ResourceTypeELBv2Rule,
+		ResourceType: catalog.ResourceTypeELBv2Rule,
 		Name:         ruleARN,
 		Tags:         rule.Tags,
 		Attributes: map[string]any{
@@ -203,7 +204,7 @@ func targetGroupObservation(boundary awscloud.Boundary, targetGroup TargetGroup)
 		Boundary:     boundary,
 		ARN:          targetGroupARN,
 		ResourceID:   targetGroupARN,
-		ResourceType: awscloud.ResourceTypeELBv2TargetGroup,
+		ResourceType: catalog.ResourceTypeELBv2TargetGroup,
 		Name:         targetGroup.Name,
 		Tags:         targetGroup.Tags,
 		Attributes: map[string]any{
@@ -247,12 +248,12 @@ func loadBalancerListenerRelationship(
 	loadBalancerARN := strings.TrimSpace(listener.LoadBalancerARN)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipELBv2LoadBalancerHasListener,
+		RelationshipType: catalog.RelationshipELBv2LoadBalancerHasListener,
 		SourceResourceID: loadBalancerARN,
 		SourceARN:        loadBalancerARN,
 		TargetResourceID: listenerARN,
 		TargetARN:        listenerARN,
-		TargetType:       awscloud.ResourceTypeELBv2Listener,
+		TargetType:       catalog.ResourceTypeELBv2Listener,
 		SourceRecordID:   loadBalancerARN + "#listener#" + listenerARN,
 	}
 }
@@ -262,12 +263,12 @@ func listenerRuleRelationship(boundary awscloud.Boundary, rule Rule) awscloud.Re
 	ruleARN := strings.TrimSpace(rule.ARN)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipELBv2ListenerHasRule,
+		RelationshipType: catalog.RelationshipELBv2ListenerHasRule,
 		SourceResourceID: listenerARN,
 		SourceARN:        listenerARN,
 		TargetResourceID: ruleARN,
 		TargetARN:        ruleARN,
-		TargetType:       awscloud.ResourceTypeELBv2Rule,
+		TargetType:       catalog.ResourceTypeELBv2Rule,
 		Attributes: map[string]any{
 			"is_default": rule.IsDefault,
 			"priority":   strings.TrimSpace(rule.Priority),
@@ -285,12 +286,12 @@ func targetGroupLoadBalancerRelationship(
 	loadBalancerARN = strings.TrimSpace(loadBalancerARN)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipELBv2TargetGroupAttachedToLoadBalancer,
+		RelationshipType: catalog.RelationshipELBv2TargetGroupAttachedToLoadBalancer,
 		SourceResourceID: targetGroupARN,
 		SourceARN:        targetGroupARN,
 		TargetResourceID: loadBalancerARN,
 		TargetARN:        loadBalancerARN,
-		TargetType:       awscloud.ResourceTypeELBv2LoadBalancer,
+		TargetType:       catalog.ResourceTypeELBv2LoadBalancer,
 		SourceRecordID:   targetGroupARN + "#load-balancer#" + loadBalancerARN,
 	}
 }

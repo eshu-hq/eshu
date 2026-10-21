@@ -12,6 +12,7 @@ import (
 	awsgatypes "github.com/aws/aws-sdk-go-v2/service/globalaccelerator/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 const (
@@ -141,7 +142,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-west-2",
-		ServiceKind: awscloud.ServiceGlobalAccelerator,
+		ServiceKind: catalog.ServiceGlobalAccelerator,
 	}
 }
 
