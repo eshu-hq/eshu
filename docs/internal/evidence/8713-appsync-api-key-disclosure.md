@@ -37,12 +37,16 @@ ms before and 1.247 ms after. Both plans used
 shared buffer hits with zero reads. The filter preserves records with a missing
 or JSON-null `resource_type`, as asserted by the seeded live PostgreSQL test.
 
-No-Regression Evidence: B-7 completed with 616 passes, 0 required failures,
-and 2 advisory timing warnings. Its terminal state had 0 residual work items, 0
-nonterminal shared-projection intents, and 0 unroutable intents. The matched
-local fixture timings and plan shape show no regression; they are not production
-p95 evidence and do not establish a speedup. The exact predicate was also
-validated against the red pre-filter query in the live regression.
+No-Regression Evidence: The earlier B-7 run at runtime commit
+`457b0ef5b95a4a3e7ac9673808656490f3b3b878` completed with 616 passes, 0
+required failures, and 2 advisory timing warnings. B-7 ran again on final head
+`9ab2dcb0146968561182e5ba0ead560ad2e58f36` inside `make pre-pr`: 615 passes,
+0 required failures, 3 advisory timing warnings, and 376 seconds elapsed. The
+final run ended with 0 residual fact work items, 0 nonterminal
+shared-projection intents, and 0 unroutable intents. The matched local fixture
+timings and plan shape show no regression; they are not production p95 evidence
+and do not establish a speedup. The exact predicate was also validated against
+the red pre-filter query in the live regression.
 
 Observability Evidence: No runtime instrumentation changed. The query
 continues to use the existing `postgres.query` span and error recording.
