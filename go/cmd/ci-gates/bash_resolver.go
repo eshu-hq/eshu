@@ -43,17 +43,7 @@ func resolveBash44Dir() string {
 	if p, err := exec.LookPath("bash"); err == nil {
 		candidates = append(candidates, p)
 	}
-	candidates = append(candidates, "/opt/homebrew/bin/bash", "/usr/local/bin/bash")
-
-	for _, cand := range candidates {
-		if _, err := os.Stat(cand); err != nil {
-			continue
-		}
-		if bashAtLeast44(cand) {
-			return filepath.Dir(cand)
-		}
-	}
-	return ""
+	return firstQualifyingBashDir(append(candidates, bashFallbackCandidates...))
 }
 
 // gateSubprocessEnv returns the environment a gate subprocess should run with:
@@ -87,20 +77,56 @@ func resolveBash44Dir() string {
 // per-script BASH_VERSINFO guard). This is split out from runShellCommand so
 // the wiring is unit-testable rather than only reachable through a live gate
 // run (#5050).
+// bashFallbackCandidates are the non-PATH bash locations checked, in order,
+// when the PATH-resolved bash does not qualify.
+var bashFallbackCandidates = []string{"/opt/homebrew/bin/bash", "/usr/local/bin/bash"}
+
+// firstQualifyingBashDir returns the directory of the first candidate that
+// exists and satisfies the version guard, or "" when none does.
+func firstQualifyingBashDir(candidates []string) string {
+	for _, cand := range candidates {
+		if cand == "" {
+			continue
+		}
+		if _, err := os.Stat(cand); err != nil {
+			continue
+		}
+		if bashAtLeast44(cand) {
+			return filepath.Dir(cand)
+		}
+	}
+	return ""
+}
+
 func gateSubprocessEnv() []string {
+	pathBash, _ := exec.LookPath("bash")
+	return gateSubprocessEnvWith(pathBash, bashFallbackCandidates)
+}
+
+// gateSubprocessEnvWith is gateSubprocessEnv with injectable inputs: the
+// PATH-resolved bash path ("" when PATH has none) and the fallback candidate
+// list (#8711). Production passes the live LookPath result and
+// bashFallbackCandidates; tests pass fixtures, so the fallback-prepend branch
+// is pinned hermetically on every host instead of only where a macOS-class
+// fallback exists.
+func gateSubprocessEnvWith(pathBash string, fallbacks []string) []string {
 	_, gorootSet := os.LookupEnv("GOROOT")
 	// When the PATH-resolved bash already qualifies, there is nothing to
 	// steer: rewriting PATH would only push the caller's own ordering back
 	// (on Linux the resolved dir is /usr/bin, which then shadows
 	// caller-installed tools such as /usr/local/bin/rg — #8709). Only the
 	// GOROOT strip may still apply.
-	if p, err := exec.LookPath("bash"); err == nil && bashAtLeast44(p) {
+	if pathBash != "" && bashAtLeast44(pathBash) {
 		if !gorootSet {
 			return nil
 		}
 		return stripGorootEntry(os.Environ())
 	}
-	dir := resolveBash44Dir()
+	// Only reached when steering to a fallback (or steering nowhere): PATH
+	// is filtered solely to replace it with the single steered entry. With
+	// no fallback dir the inherited PATH must survive intact, or the
+	// subprocess loses every command lookup (#8709 F1).
+	dir := firstQualifyingBashDir(fallbacks)
 	if dir == "" && !gorootSet {
 		return nil
 	}
@@ -110,9 +136,6 @@ func gateSubprocessEnv() []string {
 		if strings.HasPrefix(kv, "GOROOT=") {
 			continue
 		}
-		// Filter PATH only when steering: with no fallback dir the
-		// inherited PATH must survive intact, or the subprocess loses
-		// every command lookup (#8709 F1).
 		if dir != "" && strings.HasPrefix(kv, "PATH=") {
 			continue
 		}

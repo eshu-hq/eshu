@@ -138,6 +138,51 @@ func TestGateSubprocessEnvNoFallbackKeepsPath(t *testing.T) {
 	}
 }
 
+// TestGateSubprocessEnvWithSteersFallback proves the fallback-prepend branch
+// hermetically (#8711): with a non-qualifying PATH-slot bash and a qualifying
+// fallback fixture, gateSubprocessEnvWith must return a single PATH entry
+// starting with the fallback's directory. Runs on every host (no macOS
+// fallback required); the old append-duplicate shape fails the single-entry
+// assertion, and dropping the prepend fails the order assertion.
+func TestGateSubprocessEnvWithSteersFallback(t *testing.T) {
+	dir := t.TempDir()
+	bad := filepath.Join(dir, "bad-bash")
+	if err := os.WriteFile(bad, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil { //nolint:gosec // test fixture needs to be executable
+		t.Fatalf("write bad bash fixture: %v", err)
+	}
+	fallbackDir := t.TempDir()
+	good := filepath.Join(fallbackDir, "bash")
+	if err := os.WriteFile(good, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil { //nolint:gosec // test fixture needs to be executable
+		t.Fatalf("write good bash fixture: %v", err)
+	}
+	if bashAtLeast44(bad) {
+		t.Fatal("bad bash fixture unexpectedly qualifies")
+	}
+	if !bashAtLeast44(good) {
+		t.Fatal("good bash fixture does not qualify")
+	}
+
+	env := gateSubprocessEnvWith(bad, []string{good})
+	if env == nil {
+		t.Fatal("fallback qualifies but gateSubprocessEnvWith returned nil (inherit unchanged) — gate would run the unqualified PATH bash")
+	}
+	pathVal := ""
+	count := 0
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "PATH=") {
+			count++
+			pathVal = strings.TrimPrefix(kv, "PATH=")
+		}
+	}
+	if count != 1 {
+		t.Fatalf("gateSubprocessEnvWith emitted %d PATH entries, want exactly 1", count)
+	}
+	first, _, _ := strings.Cut(pathVal, string(os.PathListSeparator))
+	if first != fallbackDir {
+		t.Fatalf("effective PATH starts with %q, want fallback dir %q", first, fallbackDir)
+	}
+}
+
 // TestGateSubprocessEnvSteersFallbackBashDir proves the PATH-steering wiring
 // runShellCommand depends on for hosts whose PATH-resolved bash does NOT
 // qualify (macOS /bin/bash 3.2): gateSubprocessEnv must return an environment
