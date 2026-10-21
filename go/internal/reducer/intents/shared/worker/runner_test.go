@@ -193,17 +193,23 @@ func TestSharedProjectionRunnerProcessesPendingIntents(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
+	// Drive a single cycle synchronously instead of running the poll loop
+	// against a wall-clock budget: under parallel-package CPU contention
+	// the loop can starve past any fixed timeout with zero intents marked
+	// (#8686), which is indistinguishable from a runner regression. A
+	// single cycle is deterministic and proves the processing contract.
+	result := runner.runOneCycle(context.Background())
 
-	_ = runner.Run(ctx)
+	if result.ProcessedIntents != 1 {
+		t.Fatalf("runOneCycle() ProcessedIntents = %d, want 1", result.ProcessedIntents)
+	}
 
 	reader.mu.Lock()
-	markedCount := len(reader.marked)
+	marked := append([]string(nil), reader.marked...)
 	reader.mu.Unlock()
 
-	if markedCount == 0 {
-		t.Fatal("expected at least one intent to be marked completed")
+	if len(marked) != 1 || marked[0] != "intent-1" {
+		t.Fatalf("marked intents = %v, want [intent-1]", marked)
 	}
 }
 
@@ -225,18 +231,22 @@ func TestSharedProjectionRunnerIteratesAllDomains(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	_ = runner.Run(ctx)
+	// Single synchronous cycle instead of a wall-clock poll-loop budget
+	// (#8686): a fixed timeout can starve under parallel-package CPU
+	// contention before the loop completes one pass. One cycle visits
+	// every cell exactly once, so the claim count is exact.
+	result := runner.runOneCycle(context.Background())
 
 	leaseManager.mu.Lock()
 	claims := leaseManager.claims
 	leaseManager.mu.Unlock()
 
 	wantPerCycle := len(sharedProjectionDomains) * 2
-	if claims < wantPerCycle {
-		t.Fatalf("expected at least %d lease claims (%d domains * 2 partitions), got %d", wantPerCycle, len(sharedProjectionDomains), claims)
+	if result.PartitionsLeaseHeld != wantPerCycle {
+		t.Fatalf("runOneCycle() PartitionsLeaseHeld = %d, want %d", result.PartitionsLeaseHeld, wantPerCycle)
+	}
+	if claims != wantPerCycle {
+		t.Fatalf("expected %d lease claims (%d domains * 2 partitions), got %d", wantPerCycle, len(sharedProjectionDomains), claims)
 	}
 }
 
@@ -364,17 +374,35 @@ func TestSharedProjectionRunnerProcessesNewDomainIntents(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
+	// Drive a single cycle synchronously instead of running the poll loop
+	// against a wall-clock budget: under parallel-package CPU contention
+	// the loop can starve past any fixed timeout with zero intents marked
+	// (#8686), which is indistinguishable from a runner regression. A
+	// single cycle is deterministic and proves the processing contract.
+	result := runner.runOneCycle(context.Background())
 
-	_ = runner.Run(ctx)
+	if result.ProcessedIntents != 2 {
+		t.Fatalf("runOneCycle() ProcessedIntents = %d, want 2", result.ProcessedIntents)
+	}
 
 	reader.mu.Lock()
-	markedCount := len(reader.marked)
+	marked := append([]string(nil), reader.marked...)
 	reader.mu.Unlock()
 
-	if markedCount < 2 {
-		t.Fatalf("expected at least 2 intents marked completed, got %d", markedCount)
+	if len(marked) != 2 {
+		t.Fatalf("marked intents = %v, want exactly [intent-inh-1 intent-sql-1]", marked)
+	}
+	for _, want := range []string{"intent-inh-1", "intent-sql-1"} {
+		found := false
+		for _, got := range marked {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected intent %q to be marked completed, marked = %v", want, marked)
+		}
 	}
 }
 
@@ -423,17 +451,20 @@ func TestSharedProjectionRunnerWithTelemetry(t *testing.T) {
 		Logger:      logger,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
+	// Single synchronous cycle instead of a wall-clock poll-loop budget
+	// (#8686): deterministic under parallel-package CPU contention.
+	result := runner.runOneCycle(context.Background())
 
-	_ = runner.Run(ctx)
+	if result.ProcessedIntents != 1 {
+		t.Fatalf("runOneCycle() ProcessedIntents = %d, want 1", result.ProcessedIntents)
+	}
 
 	reader.mu.Lock()
-	markedCount := len(reader.marked)
+	marked := append([]string(nil), reader.marked...)
 	reader.mu.Unlock()
 
-	if markedCount == 0 {
-		t.Fatal("expected at least one intent to be marked completed")
+	if len(marked) != 1 || marked[0] != "intent-1" {
+		t.Fatalf("marked intents = %v, want [intent-1]", marked)
 	}
 }
 
