@@ -62,6 +62,28 @@ same R1 with route p95 under 1 s and the identical-row proof.
   only the two handler digests (metric emission lines; callsite counts
   unchanged).
 
+## Current Evidence
+
+No-Regression Evidence: this slice changes no production read behavior —
+the read mode defaults to live, so the deployed route serves byte-identical
+live rows until an operator flips ESHU_CONFIG_ARTIFACT_READ_MODE; unknown
+modes fail API startup. The stored path is proven identical by mirror tests
+(TestStoredBodyEqualsLiveBody, TestStoryServesStoredRowsIdentically) and by
+per-reason fallback tests whose bodies equal live in every case; the stored
+statement keeps the PR3c predicates with no new table scan. Baseline: R1
+pre-cutover route p95 ~2.26 s on QA (image sha-6980c08e, Neo4j 1,056,791
+nodes, body sha b3a69151, 3,783,825 B). After-measurement (route p95 under
+1 s on the same R1) is pending a QA deploy with stored mode and will be
+recorded here before stored serves production traffic.
+
+Observability Evidence: every deployment-artifact load emits
+eshu_dp_config_artifact_reads_total{source,reason} (stored vs live
+partition with fallback reasons); shadow mode emits
+eshu_dp_config_artifact_shadow_compare_total{outcome} plus WARN logs on
+mismatch (config_artifacts.shadow.mismatch, repository ids) and read error
+(config_artifacts.shadow.read_error). Stage lines carry read_mode,
+stored/live counts, live_reasons, stored_row_count and stored_statements.
+
 ## Still open (not this slice)
 
 - The `/admin/status` `config_artifacts` field (record section 3.5).
