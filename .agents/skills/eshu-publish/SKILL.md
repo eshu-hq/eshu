@@ -1,13 +1,15 @@
 ---
 name: eshu-publish
-description: Use when writing or editing an Eshu PR, issue, review reply, issue close, decision record, owner report, or other prose a person will read. Gives short ASD-STE100-style wording and a fixed skimmable shape. Uses Mermaid and tables where they help, and collapses evidence below the answer.
+description: Write or rewrite Eshu issues, PRs, commits, review comments, decision records, reports, and documentation for capable colleagues. Preserve technical accuracy, evidence, and required artifact formats; apply the repository communication standard silently.
 ---
 
 # Eshu publish
 
-A reader must get the point in the first 10 seconds and find the proof in the
-next minute. The owner reads many of these at once, so the top of the text is
-the product. Pick the artifact, then read its reference.
+Start with what matters, then give the context and evidence a teammate needs.
+Use the repository [communication standard](../../../docs/internal/writing-for-agents.md)
+for original writing and rewrites. It applies by default, including progress
+updates, without a personal humanizer or global skill. Pick the artifact, then
+read its reference. Keep editing passes internal unless the user requests them.
 
 | Artifact | Reference |
 |---|---|
@@ -23,27 +25,33 @@ use the Wording rules only. The Shape section below does not apply to them.
 Keep their own structure. `<details>` and a bold lead do not belong in a godoc
 comment.
 
-## Wording (STE-flavored)
+## Wording
 
-The full rule set and its sources are in [wording](references/wording.md). The
-shared sentence rules are in `docs/internal/writing-for-agents.md`. These rules
-are specific to published text:
+The shared voice and instruction rules live in
+[Writing For Agents](../../../docs/internal/writing-for-agents.md). The
+[wording reference](references/wording.md) gives examples for conversations,
+commits, PRs, and review comments. Preserve technical terms, explain unfamiliar
+ones in context, and retain reasoning, tradeoffs, and useful uncertainty.
 
-- Keep every hedge. Write "may have failed" as "may have failed". Label a
-  theory as a theory. Never add a fact the source did not state.
-- Keep logs, identifiers, test names, commands, and reviewer text verbatim.
-- Use one word for one thing across the whole text.
-- Say "STE-style". Never claim ASD-STE100 compliance: the approved-word list is
-  not public domain and this skill does not check it.
+- Keep the strength of a claim. "May have failed" stays uncertain; do not turn
+  a theory into a fact or invent successful validation.
+- Keep logs, identifiers, test names, commands, and quoted reviewer text verbatim.
+- Use consistent names for the same technical concept. Explain shorthand such as
+  "initial measurements" instead of leaving a reader to decode "T0 census".
+- Preserve required formats and an explicit request to keep an existing shape.
+  Style advice does not change engineering, evidence, privacy, or approval rules.
 
 ## Shape
 
 This section covers issues, PR bodies, decision records, and owner reports.
+Release and operational checklists keep their existing prerequisite and monitoring
+sections; use `--issue-checklist`. Bug and feature issues use the issue template.
 Replies, closes, and status comments follow [replies](references/replies.md).
 They answer first and need no bold lead, glance table, or `<details>` block.
 
-- **Lead.** The first sentence says what is broken or what changed, and why the
-  reader cares. Bold it. It must make sense with no other context.
+- **Lead (standard issues, PRs, and reports).** The first sentence says what is
+  broken or what changed, and why the reader cares. Bold it. It must make sense
+  with no other context.
 - **At a glance (PRs).** Directly after the lead, a table with the header
   `| At a glance | |` and 4 rows of one sentence each. The rows depend on the
   kind of PR. See the templates. Put counts by package and lists of files in
@@ -51,18 +59,17 @@ They answer first and need no bold lead, glance table, or `<details>` block.
 - **Decisions and blockers** come after the lead. In a PR, they come after the
   At a glance table. Settle a decision with evidence or the arbiter first. Raise
   it to the owner only for an act that only the owner can authorize.
-- **Headings.** Use `Problem`, `Expected`, `Acceptance criteria` for issues and
-  `Problem`, `What changed`, `Proof` for PRs. These match the best existing
-  issues and PRs.
+- **Headings.** Use `Problem`, `Expected`, `Acceptance criteria` for bug or
+  feature issues; use `Problem`, `What changed`, `Proof` for PRs.
 - **Paragraphs.** One topic each. Keep one under about 600 characters. The
   shape check warns above 600 bytes and fails above 800. Split a
   longer one or turn it into a list.
-- **Lists and tables.** Use a list for 3 or more steps, or for 3 or more
-  conditions. Use a table to compare before and after, or claim and evidence.
-- **Pictures.** Use a Mermaid diagram when a flow, a dependency, or a before
-  and after has 3 or more nodes. Label each node with the real identifier.
-  Use a file tree or a `diff` block for a layout change. The `show-me` skill,
-  when your harness has it, helps choose the view.
+- **Lists and tables.** Use lists for steps or conditions that a reader must
+  check separately. Use a table when it helps compare before and after, or claim
+  and evidence.
+- **Pictures.** Use a Mermaid diagram when it clarifies a flow, dependency, or
+  before and after. Label each node with the real identifier.
+  Use a file tree or a `diff` block for a layout change.
 - **Collapse the data.** Always put gate output, quoted reviewer or arbiter
   text, and the evidence section inside `<details>`. Put any other log,
   command output, or file list inside `<details>` when it has more than 10
@@ -74,7 +81,7 @@ They answer first and need no bold lead, glance table, or `<details>` block.
   section. End a PR with a `NOT_CHECKED` line.
 - **Scale to the change.** Delete a section that has nothing to say.
 - **No decoration.** Skip bold for emphasis, emoji, alerts, forced triples, and
-  praise words. Do not explain at a child's level.
+  forced praise. Explain unfamiliar topics to a capable colleague.
 
 ## Rules that do not change
 
@@ -105,7 +112,9 @@ breaks them first.
 ## Check the draft
 
 1. Read the lead alone. Does it stand without the rest?
-2. Run the shape check on the draft, before you capture the review receipt. It
+2. Run the shape check on the draft before you capture the review receipt.
+   For release and operational checklists, select `--issue-checklist` to preserve
+   their sections. The check still enforces privacy and paragraph limits. It
    fails a PR body without a local or qualified `Refs` first line, a bold lead,
    or the glance table, and any prose paragraph over 800 bytes. Fix every `FAIL` line. Skip
    the check for an issue made from an issue form, for a revert, and for an edit
@@ -115,15 +124,12 @@ breaks them first.
 ```bash
 bash .agents/skills/eshu-publish/scripts/check-shape.sh --pr body.md
 bash .agents/skills/eshu-publish/scripts/check-shape.sh --issue issue.md
+bash .agents/skills/eshu-publish/scripts/check-shape.sh --issue-checklist checklist.md
 ```
 
-3. Run the wording linter when it is available. It checks semicolons, long sentences,
-   phrasal verbs, passive voice, and synonym rotation. It is a heuristic.
-   Fix hard findings. Judge advisory findings.
-
-```bash
-python3 -I ~/os-repos/asd-ste100-skill/scripts/ste-lint.py draft.md
-```
+3. Review wording with the repository communication standard. Keep technical
+   meaning, evidence, and useful detail while removing padding and unexplained
+   shorthand. No external linter or global skill is required.
 
 4. Compare every claim that bears on a decision with the diff and the proof.
    Write a derivable figure as a link or a command, not as a hand-typed count

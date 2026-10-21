@@ -1,7 +1,8 @@
 # Replies, closes, and status comments
 
-Write these in a plain human voice. Use "I" for what you did. Relax the length
-caps of the wording rules, but keep one idea in each sentence.
+Use the repository communication standard: friendly, clear, and technically
+precise. Use "I" for what you did. Keep enough context and evidence for the reader
+to act; sentence length is an editing aid, not a cap.
 
 ## Review reply
 
@@ -25,8 +26,8 @@ figure. Name the command, then resolve the thread. The reply names the value, so
 it is not a bare "fixed". See
 [Derivable figures](../../eshu-code-review/references/merge-bar.md#derivable-figures).
 
-A reply is usually 40 to 120 words. The median inline review comment in the
-last 30 PRs was about 70 words. Keep to that range.
+Scale the reply to the finding. A small correction can take one sentence; a
+subtle technical disagreement may need more reasoning and evidence.
 
 ## A review comment with many findings
 

@@ -1,7 +1,11 @@
 # Writing For Agents
 
-Use this page when you write or edit `AGENTS.md`, a skill, or any document an
-agent reads. It adapts the `writing-for-agents` skill from
+This is Eshu's communication standard for conversations, progress updates,
+technical explanations, commits, PRs, reviews, issues, and documentation. It is
+part of the repository: contributors need no personal humanizer, global skill,
+home-directory instruction file, or external writing linter.
+
+The agent-document organization guidance adapts `writing-for-agents` from
 [mattpocock/skills](https://github.com/mattpocock/skills) (MIT license,
 Copyright (c) 2026 Matt Pocock) to Eshu, and adds a wording standard.
 
@@ -36,33 +40,57 @@ defect, even if every line is true.
 Write each step so that an agent can tell done from not done. "Every modified
 model accounted for" is checkable. "Understanding reached" is not.
 
-## Wording standard (Simplified Technical English)
+## Communication standard
 
-Write steps and rules in the style of ASD-STE100:
+Write as a capable colleague sitting beside the reader: friendly, clear, and
+technically precise. Treat readers as intelligent adults with practical
+experience who may be unfamiliar with this subject. Explain clearly to a capable
+colleague who may be unfamiliar with the topic, rather than using a classroom
+or fifth-grader framing.
 
-- Write one instruction in each sentence. Use the imperative: "Run the test."
-- Keep a procedure sentence to 20 words or fewer. Keep a descriptive sentence to
-  25 words or fewer.
-- Put the condition first: "If the test fails, fix the cause."
-- Use one word for one meaning. Choose `run` or `execute`, not both.
-- Use `must` only for a mandatory rule. Use `can` for permission.
-- Use the active voice. Keep the articles (`the`, `a`).
-- Do not use idioms or slang.
+- Use everyday language while preserving technical accuracy, reasoning,
+  tradeoffs, and useful detail. Keep useful technical terms and explain unfamiliar
+  ones briefly in context. Do not replace a technical explanation with an analogy.
+- Be conversational, warm, and direct without forced friendliness, praise,
+  slang, invented personal experience, or a classroom tone.
+- Start with what matters. Match depth to the question and build on the existing
+  conversation. A standalone issue, PR, or handoff still needs enough context for
+  a teammate who did not follow the conversation.
+- Give honest recommendations and disagree respectfully when warranted.
+  Distinguish observations, assumptions, and uncertainty. Preserve evidence,
+  caveats, exact identifiers, and the strength of claims.
+- Avoid corporate language, academic padding, canned introductions, inflated
+  claims, repetitive summaries, and unnecessary headings or bullets. Use structure
+  when it helps readers act or compare options.
+- Apply the style silently to original writing and rewrites. Return the finished
+  answer or copy without drafts, an AI-pattern critique, or editing commentary
+  unless requested. Required progress updates, engineering explanations, review
+  evidence, and completion reports still apply.
 
-Eshu keeps the capital `MUST`, `MUST NOT`, and `NEVER` in hard rules, so that
-an agent reads them as hard rules. This is a deliberate exception to STE.
+Natural phrasing matters more than a word count. Sentence-length targets,
+one-idea-per-sentence advice, and active voice are editing aids, not mechanical
+bans. Keep necessary conditions together even when the sentence is longer. Use
+consistent names for technical concepts without forcing every ordinary verb to
+have only one synonym. Avoiding padding must not remove useful technical detail.
 
-A "leading word" (a pretrained concept such as "tracer bullet") is an idiom.
-Use one only in a pointer or a definition, and define it once.
+## Instructions and artifact formats
 
-This standard comes from the public ASD-STE100 rules. Check a rewrite against the
-public rules when a rule is in doubt.
+Write actionable steps with clear conditions and completion checks. Preserve
+`MUST`, `MUST NOT`, and `NEVER` in hard rules; do not weaken an obligation to make
+it sound friendlier. Keep quoted evidence, commands, and identifiers verbatim.
 
-This is STE-style wording, not certified STE. The sentence rules are checkable.
-The approved-word list is not public domain, so the word rules are a direction.
-For issues, PR bodies, replies, and owner reports, use the `eshu-publish` skill.
-Its wording reference holds the split between checkable and uncheckable rules,
-the strict and flavored modes, and the rule to keep every hedge.
+Commits state the concrete change and explain why when useful. Preserve required
+commit conventions and trailers. PRs explain the problem, resulting behavior,
+and relevant validation, with detail scaled to complexity. Review comments name
+the behavior, its consequence, and a concrete next step when useful.
+
+Use the repository's [publishing skill](../../.agents/skills/eshu-publish/SKILL.md)
+for artifact-specific templates and checks. Preserve required issue-form fields,
+PR formats, and engineering gates. A release checklist keeps its prerequisites
+and monitoring sections instead of acquiring unrelated bug-report headings.
+Follow an explicit request to preserve an existing format. This standard governs
+prose; it does not relax accuracy, performance, concurrency, testing,
+observability, security, or authorization requirements.
 
 ## License notice
 

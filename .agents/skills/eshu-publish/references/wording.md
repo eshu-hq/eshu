@@ -1,68 +1,82 @@
 # Wording
 
-This skill uses Simplified Technical English (ASD-STE100) as a direction, not as
-a certified standard. [ASD-STE100](https://www.asd-ste100.org/) is an
-aerospace controlled language. Its authors built it so a reader who cannot ask a
-question does not misread an instruction. An agent reading an issue, and the
-owner skimming 10 sessions, are in the same position.
-
-## What we can check, and what we cannot
-
-| Kind | Rule | Checkable here |
-|---|---|---|
-| Structure | One instruction in each sentence. 20 words or fewer for a step, 25 for a description. | Yes |
-| Structure | Active voice. Name the actor. | Yes |
-| Structure | No semicolons. | Yes |
-| Structure | No phrasal verbs ("set up", "take off"). | Yes |
-| Structure | A noun cluster has 3 words or fewer. | By reading |
-| Structure | One topic in each paragraph, 6 sentences or fewer. | By reading |
-| Structure | Use a list for 3 or more steps, or for 3 or more conditions. | By reading |
-| Words | One word for one meaning, used the same way each time. | Within one text |
-| Words | The verb, not the noun made from it ("check", not "perform a check"). | Yes |
-| Words | Use only approved words in the approved sense. | No: the ASD dictionary is not public domain and is not in this repo |
-
-Because the dictionary is absent, write "STE-style". Never write "ASD-STE100
-compliant".
-
-## Two modes
-
-- **Strict.** Tool descriptions, error text, and instructions for an agent. Apply
-  every rule above, including one word for one meaning. Also follow
-  `docs/internal/writing-for-agents.md`, which adds `must` for a mandatory rule,
-  `can` for permission, and no idioms. That page owns the shared sentence rules.
-- **STE-flavored.** Issues, PR bodies, replies, and owner reports. Keep the
-  structure rules. Relax the word-choice rules, because prose needs some range.
+Follow Eshu's [communication standard](../../../../docs/internal/writing-for-agents.md)
+for original writing and rewriting. This reference adds examples and preserves
+the distinction between clear prose and proof. It requires no global skill,
+personal configuration, external word dictionary, or writing linter.
 
 ## Keep the claim
 
-A short sentence is not worth a changed claim.
+A shorter sentence is not worth a changed claim. Keep scope, conditions, numbers,
+and the strength of uncertainty. "Could be caused by X" does not mean "X is the
+cause". Keep necessary technical terms and explain unfamiliar ones briefly.
+Never add a source, personal experience, mechanism, or test result merely to
+make the text sound more natural.
 
-- Keep the strength of a hedge: "may have failed" stays "may have failed".
-- Do not turn "could be caused by X" into "X is the cause".
-- Do not add a cause, a frequency, or a mechanism that the source did not state.
-- Keep a longer phrase when a shorter one drops a condition, a scope, or a
-  number. Cutting words is not the goal. Removing doubt is the goal.
-- STE fixes form, not substance. If the text has nothing to say, say that
-  instead of polishing it.
+Keep exact identifiers and quoted evidence. Explain surrounding shorthand in
+ordinary language: "refresh the initial measurements" is clearer than "refresh
+the T0 census". Use headings and lists for the decisions and steps the reader
+needs, rather than to give every answer the same shape.
 
-## Exceptions in this repo
+Review silently. Show only finished writing unless the user requests drafts,
+a critique, or editing commentary. Required progress updates and engineering
+reports still apply. Keep required templates, evidence, and approval boundaries.
 
-- Keep `MUST`, `MUST NOT`, and `NEVER` in capitals in hard rules.
-- Keep necessary technical terms. Define a term once if a reader may not know
-  it.
-- Quoted evidence stays verbatim, even when it breaks these rules.
+## Technical reply
 
-## Linter
+Example context: a charge may be accepted before its response times out. The
+provider's support for idempotency keys has not been checked.
 
-The `ste-lint.py` script of the open-source asd-ste100 skill checks the
-structure rules with regular expressions. It is a heuristic. It never flags
-hedges. It is not part of this repo. Clone it to `~/os-repos` and run it with
-`python3 -I`.
+> More retries could charge the customer twice. The provider may have accepted
+> the first charge before the response timed out, so another request could create
+> a second charge. I recommend reusing one idempotency key for the same payment:
+> a stable identifier that lets the provider recognize a retry. We still need to
+> verify that the provider supports this behavior.
 
-## Sources
+## Commit
 
-- [danyuchn/asd-ste100-skill](https://github.com/danyuchn/asd-ste100-skill), MIT
-  license. This file paraphrases its ideas: the structure and word split, the
-  two modes, and keeping hedges.
-- [ASD-STE100 official site](https://www.asd-ste100.org/)
-- `docs/internal/writing-for-agents.md`, section "Wording standard".
+For a hypothetical patch that reuses a payment key across retries:
+
+```text
+fix(payments): reuse the payment idempotency key across retries
+
+Keep retries tied to the original payment so a timeout does not create a new
+charge. Separate payments still receive separate keys.
+```
+
+Preserve the target repository's commit conventions and required trailers.
+
+## PR description
+
+For a hypothetical patch, suppose the timeout and distinct-payment tests passed,
+but provider-sandbox validation has not run. Use the required Eshu PR template;
+the following illustrates its problem, change, and proof wording only:
+
+> A timeout can happen after the provider accepts a charge. Creating another key
+> on retry can then charge the customer again. This change reuses the original
+> payment key across retries and keeps separate payments distinct.
+>
+> The timeout-after-acceptance regression test and distinct-payments test pass.
+> Provider-sandbox validation has not run, so this does not establish the
+> provider's live behavior.
+
+Report only tests actually run when writing a real PR. Do not copy fictional
+verification into a publication.
+
+## Review comment
+
+For a patch that creates a new key inside the retry loop:
+
+> This creates a new idempotency key on each retry. A provider that uses these
+> keys to recognize repeated requests could treat each attempt as a new payment
+> and charge twice after a timeout. Please create the key before the loop and add
+> a regression test for a timeout after the provider accepts the first attempt.
+
+Name the concrete behavior and consequence, then suggest a useful next step.
+Do not pad the comment with praise or make the reader decode internal shorthand.
+
+## Provenance
+
+Earlier guidance drew on [danyuchn/asd-ste100-skill](https://github.com/danyuchn/asd-ste100-skill)
+(MIT license) and public ASD-STE100 rules. Eshu now owns the communication
+standard above; neither source is an installation or validation prerequisite.

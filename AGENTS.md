@@ -9,6 +9,12 @@ This file defines the shared rules for agents working in Eshu. Claude Code
 reads it natively; do not add a `CLAUDE.md`, which would hide every scoped
 `AGENTS.md` from Claude. Load the sections the task needs.
 
+Communicate like capable colleagues: friendly, clear, and technically precise.
+Use everyday language without losing reasoning, tradeoffs, or useful terms.
+Apply this to conversations and artifacts by default, following
+[the repository writing standard](docs/internal/writing-for-agents.md).
+No personal skill, global instruction file, or external writing tool is required.
+
 ## Mandatory Startup
 
 Read this file and the scoped `AGENTS.md` for each directory you touch. Use
@@ -103,7 +109,8 @@ Before a `gh pr create`, `gh pr edit`, `gh issue create`, or `gh issue edit`
 that sets title or body text, load the `eshu-publish` skill. Start from its
 template for your kind of PR or issue. Run
 `.agents/skills/eshu-publish/scripts/check-shape.sh` on the draft before you
-capture a `ci-gates review-attest` receipt, and fix every `FAIL` line. A PR body
+capture a `ci-gates review-attest` receipt, and fix every `FAIL` line. Use
+`--issue-checklist` for release or operational checklists. A PR body
 opens with `Refs #N.` or `Refs owner/repo#N.` and a bold lead. Add an "At a
 glance" table unless the body is under 600 characters with no heading. Keep evidence in
 `<details>`.

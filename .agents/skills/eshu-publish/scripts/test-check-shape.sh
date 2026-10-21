@@ -130,6 +130,31 @@ expect "issue: missing Problem"        1 "FAIL problem"    issue "${tmp}/no-prob
 rg -v -F '## Acceptance criteria' "${fixtures}/issue-good.md" > "${tmp}/no-accept.md" || true
 expect "issue: missing Acceptance"     1 "FAIL acceptance" issue "${tmp}/no-accept.md"
 
+# --- A release checklist keeps its own sections and still receives safety checks.
+cat > "${tmp}/checklist.md" <<'EOF'
+Part of #1234.
+
+Retention is paused in the QA environment until the pruning fixes are deployed.
+
+Before re-enabling retention:
+
+- Refresh the measurements of generations above the row limit.
+- Deploy the scope-selection and generation-pruning fixes.
+- Obtain approval for the deployment and the data retention will delete.
+
+During the first cycles, watch lock duration, retention backlog, and free disk space.
+EOF
+expect "checklist: preserves a release checklist without bug headings" 0 "OK shape" issue-checklist "${tmp}/checklist.md"
+expect "issue: a checklist does not silently bypass the default issue format" 1 "FAIL lead" issue "${tmp}/checklist.md"
+{ cat "${tmp}/checklist.md"; printf '\n'; ascii 801; printf '\n'; } > "${tmp}/checklist-long.md"
+expect "checklist: an overlong paragraph still fails" 1 "FAIL paragraph" issue-checklist "${tmp}/checklist-long.md"
+printf 'Host: %s.\n' "ops""-qa" >> "${tmp}/checklist.md"
+expect "checklist: a private identifier still fails" 1 "FAIL private-identifier" issue-checklist "${tmp}/checklist.md"
+printf '```text\nhost %s\n```\n' "ops""-qa" > "${tmp}/checklist-private-fence.md"
+expect "checklist: fenced private data still fails" 1 "FAIL private-identifier" issue-checklist "${tmp}/checklist-private-fence.md"
+: > "${tmp}/checklist-empty.md"
+expect "checklist: an empty draft fails" 1 "FAIL empty" issue-checklist "${tmp}/checklist-empty.md"
+
 # --- The paragraph boundary, pinned on both sides (bytes: warn above 600, fail above 800).
 ascii 600 | with p600;  expect_not "paragraph: 600 is quiet"  0 "paragraph" pr "${tmp}/p600.md"
 ascii 601 | with p601;  expect "paragraph: 601 warns"          0 "WARN paragraph" pr "${tmp}/p601.md"
@@ -249,6 +274,7 @@ expect "seeded drift: template without a glance table fails" 1 "FAIL glance" pr 
 set +e; bash "${checker}" >/dev/null 2>&1; rc=$?; set -e
 if [ "${rc}" -eq 2 ]; then echo "ok   usage: no file exits 2"; pass=$((pass + 1)); else echo "FAIL usage: no file exited ${rc}, want 2"; fail=$((fail + 1)); fi
 expect "usage: --help prints the header" 0 "Usage: check-shape.sh" pr "--help"
+expect "usage: --help lists checklist mode" 0 "--issue-checklist" pr "--help"
 
 echo
 echo "test-check-shape: ${pass} passed, ${fail} failed"
