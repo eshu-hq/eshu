@@ -85,21 +85,48 @@ func resolveBash44Dir() string {
 // the wiring is unit-testable rather than only reachable through a live gate
 // run (#5050).
 func gateSubprocessEnv() []string {
-	dir := resolveBash44Dir()
 	_, gorootSet := os.LookupEnv("GOROOT")
+	// When the PATH-resolved bash already qualifies, there is nothing to
+	// steer: rewriting PATH would only push the caller's own ordering back
+	// (on Linux the resolved dir is /usr/bin, which then shadows
+	// caller-installed tools such as /usr/local/bin/rg — #8709). Only the
+	// GOROOT strip may still apply.
+	if p, err := exec.LookPath("bash"); err == nil && bashAtLeast44(p) {
+		if !gorootSet {
+			return nil
+		}
+		return stripGorootEntry(os.Environ())
+	}
+	dir := resolveBash44Dir()
 	if dir == "" && !gorootSet {
 		return nil
 	}
 	base := os.Environ()
 	env := make([]string, 0, len(base)+1)
 	for _, kv := range base {
-		if strings.HasPrefix(kv, "GOROOT=") {
+		if strings.HasPrefix(kv, "GOROOT=") || strings.HasPrefix(kv, "PATH=") {
 			continue
 		}
 		env = append(env, kv)
 	}
 	if dir != "" {
+		// Single PATH entry: appending a second PATH= alongside the
+		// inherited one lets os/exec last-wins discard the caller's order
+		// (#8709). Replace instead so the steered dir genuinely comes first.
 		env = append(env, "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
 	return env
+}
+
+// stripGorootEntry returns env without any GOROOT entry, preserving every
+// other entry (including PATH) byte for byte.
+func stripGorootEntry(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "GOROOT=") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
 }

@@ -5,6 +5,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -89,20 +90,29 @@ func TestResolveBash44Dir_FallsBackCleanly(t *testing.T) {
 	}
 }
 
-// TestGateSubprocessEnvPrependsResolvedBashDir proves the PATH-steering wiring
-// runShellCommand depends on: when a bash >= 4.4 resolves, gateSubprocessEnv
-// must return an environment whose effective PATH begins with that bash's
-// directory, so a gate command's inner `bash scripts/*.sh` token resolves to
-// it. When none resolves it must return nil ("inherit unchanged"). This closes
-// the false-green gap the review flagged — deleting the prepend leaves the
-// resolver tests green but fails this one (#5050 review P2).
-func TestGateSubprocessEnvPrependsResolvedBashDir(t *testing.T) {
+// TestGateSubprocessEnvSteersFallbackBashDir proves the PATH-steering wiring
+// runShellCommand depends on for hosts whose PATH-resolved bash does NOT
+// qualify (macOS /bin/bash 3.2): gateSubprocessEnv must return an environment
+// whose single PATH entry begins with the fallback bash's directory, so a
+// gate command's inner `bash scripts/*.sh` token resolves to it. On hosts
+// where PATH already resolves a qualifying bash there is nothing to steer
+// (see TestGateSubprocessEnvPreservesCallerPathOrder); this test skips there
+// rather than asserting a rewrite that would only shadow caller tools
+// (#8709). When no fallback resolves it must return nil ("inherit
+// unchanged"). This closes the false-green gap the review flagged — deleting
+// the prepend leaves the resolver tests green but fails this one (#5050
+// review P2).
+func TestGateSubprocessEnvSteersFallbackBashDir(t *testing.T) {
 	// Force the GOROOT-unset state so the nil branch below asserts the pure
 	// "nothing to steer, nothing to strip" no-op: under `go test` in go/ the
 	// test process itself usually carries a toolchain-switch GOROOT, which
 	// would legitimately make gateSubprocessEnv return a non-nil env.
 	t.Setenv("GOROOT", "")
 	os.Unsetenv("GOROOT")
+
+	if p, err := exec.LookPath("bash"); err == nil && bashAtLeast44(p) {
+		t.Skip("PATH-resolved bash already qualifies on this host; steering is a no-op (see TestGateSubprocessEnvPreservesCallerPathOrder)")
+	}
 
 	dir := resolveBash44Dir()
 	env := gateSubprocessEnv()
@@ -114,17 +124,18 @@ func TestGateSubprocessEnvPrependsResolvedBashDir(t *testing.T) {
 		return
 	}
 
-	// os/exec keeps the LAST PATH= entry, so the effective value is the last one.
+	// Exactly one PATH entry: duplicates let os/exec last-wins discard the
+	// steered order (#8709).
 	pathVal := ""
-	seen := false
+	seen := 0
 	for _, kv := range env {
 		if strings.HasPrefix(kv, "PATH=") {
 			pathVal = strings.TrimPrefix(kv, "PATH=")
-			seen = true
+			seen++
 		}
 	}
-	if !seen {
-		t.Fatal("gateSubprocessEnv returned an env with no PATH entry")
+	if seen != 1 {
+		t.Fatalf("gateSubprocessEnv returned %d PATH entries, want exactly 1", seen)
 	}
 	// Assert the exact prepend, not just "starts with dir": an exact match can
 	// never false-green on a host where dir already happens to be first in PATH.
@@ -164,6 +175,65 @@ func TestGateSubprocessEnvStripsLeakedGOROOT(t *testing.T) {
 	}
 	if !markerSeen {
 		t.Fatal("gateSubprocessEnv dropped an unrelated variable while stripping GOROOT — it must filter GOROOT only, not rebuild the environment")
+	}
+}
+
+// TestGateSubprocessEnvSinglePathEntry proves gateSubprocessEnv never emits
+// duplicate PATH keys (#8709). The old implementation appended
+// "PATH=<dir>:..." to an env that already contained PATH, and os/exec keeps
+// the LAST value for duplicate keys — so the appended entry always won and
+// the caller's own ordering (e.g. /usr/local/bin/rg 15.2.0 ahead of
+// /usr/bin/rg 15.1.0) was silently discarded for every gate subprocess.
+func TestGateSubprocessEnvSinglePathEntry(t *testing.T) {
+	t.Setenv("GOROOT", "/fake/toolchain@v0.0.1-go1.99.9/root")
+
+	env := gateSubprocessEnv()
+	if env == nil {
+		t.Fatal("GOROOT is set, but gateSubprocessEnv returned nil (inherit unchanged) — the leaked GOROOT would reach every gate subprocess")
+	}
+	count := 0
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "PATH=") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("gateSubprocessEnv emitted %d PATH entries, want exactly 1 — duplicates let os/exec last-wins discard the caller's PATH order", count)
+	}
+}
+
+// TestGateSubprocessEnvPreservesCallerPathOrder proves gateSubprocessEnv does
+// not rewrite PATH when the PATH-resolved bash already qualifies (#8709). The
+// old code unconditionally prepended the resolved bash directory (on Linux:
+// /usr/bin), pushing the caller's first entries back and shadowing
+// caller-installed tools — the reason gitignore-rg-parity saw /usr/bin/rg
+// 15.1.0 despite 15.2.0 being first on the caller's PATH.
+func TestGateSubprocessEnvPreservesCallerPathOrder(t *testing.T) {
+	if p, err := exec.LookPath("bash"); err != nil || !bashAtLeast44(p) {
+		t.Skip("PATH-resolved bash does not qualify on this host; nothing to preserve")
+	}
+	fake := t.TempDir()
+	t.Setenv("PATH", fake+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("GOROOT", "/fake/toolchain@v0.0.1-go1.99.9/root")
+
+	env := gateSubprocessEnv()
+	if env == nil {
+		t.Fatal("GOROOT is set, but gateSubprocessEnv returned nil (inherit unchanged)")
+	}
+	pathVal := ""
+	count := 0
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "PATH=") {
+			count++
+			pathVal = strings.TrimPrefix(kv, "PATH=")
+		}
+	}
+	if count != 1 {
+		t.Fatalf("gateSubprocessEnv emitted %d PATH entries, want exactly 1", count)
+	}
+	first, _, _ := strings.Cut(pathVal, string(os.PathListSeparator))
+	if first != fake {
+		t.Fatalf("effective PATH starts with %q, want the caller's first entry %q — the resolver rewrote caller order", first, fake)
 	}
 }
 
