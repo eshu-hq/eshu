@@ -17,9 +17,10 @@ import (
 )
 
 // boltRetractTestRunner, boltTestExecutor, openBoltTestRunner,
-// boltWriteStatement and boltCount duplicate the live-backend harness from
-// package cypher (code_evidence_bolt_retract_test.go). Test helpers cannot be
-// imported across the package split, so the edge leaf carries its own copy.
+// boltWriteStatement and boltCount are the shared live-backend harness for the
+// evidence writer bolt tests in this package, duplicating the root harness in
+// package cypher (bolt_harness_test.go). Test helpers cannot be imported
+// across the package split, so each package carries its own copy.
 
 // boltRetractTestRunner wraps a Neo4j driver into a minimal cypherRunner
 // equivalent to cmd/reducer's neo4jSessionRunner.RunCypherGroup path. It is the

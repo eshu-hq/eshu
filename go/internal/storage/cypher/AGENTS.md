@@ -324,7 +324,7 @@ runtime knob, backend branch, or new graph-write route.
 nodes attached to their `Function`. It is the reducer-owned graph-write for the
 `code_taint_evidence` projection domain.
 
-No-Regression Evidence: `go test ./internal/storage/cypher -run 'TestCodeTaintEvidenceWriter' -count=1`
+No-Regression Evidence: `go test ./internal/storage/cypher/edge/writer -run 'TestCodeTaintEvidenceWriter' -count=1`
 and `go test ./internal/graph -run 'TestSchemaStatements.*CodeTaintEvidence' -count=1`
 prove the writer emits one batched, backend-neutral `UNWIND $rows` statement that
 `MATCH (f:Function {uid})` (never `MERGE`, so a missing Function adds no orphan
@@ -355,7 +355,7 @@ mirrors the existing reducer-owned scoped edges (`iam_can_assume`,
 `handles_route`): the flow is an edge, not a node, so it needs no new schema
 constraint or index.
 
-No-Regression Evidence: `go test ./internal/storage/cypher -run 'TestCodeInterprocEvidenceWriter' -count=1`
+No-Regression Evidence: `go test ./internal/storage/cypher/edge/writer -run 'TestCodeInterprocEvidenceWriter' -count=1`
 proves the writer emits one batched, backend-neutral `UNWIND $rows` statement that
 `MATCH (s:Function {uid})` and `MATCH (t:Function {uid})` (never `MERGE`, so a
 finding whose endpoint is absent draws no edge to a phantom node),

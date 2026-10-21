@@ -35,7 +35,7 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_cloud_edge_retract_live_test.go": {
-      "sha256": "612b05156f50d21990d029a548bdc2b79c3ae22fdf51d049099bcdcfd45b4c8a",
+      "sha256": "7bde0614e01d04398542b265f0029e7114f5972a749fb706b5c3050ee57af1fd",
       "tests": [
         "TestReducerCloudEdgeRetractGraphTruth"
       ]
@@ -47,7 +47,7 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go": {
-      "sha256": "28def945870d880ae0addd79989e84963424e4f8d22ea10adaa104b98c9e07e0",
+      "sha256": "1dc1c633352586905ef5013cc67c35f544323f33f29ad6695e60225c3cd9f777",
       "tests": [
         "TestReducerContentEdgeRetractGraphTruth",
         "TestCodeInterprocTaintEdgeRetractGraphTruth"

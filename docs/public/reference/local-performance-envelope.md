@@ -614,7 +614,7 @@ never a per-resource predicate):
   workload→cloud (`workload_cloud_relationship_writer.go:36`), all IAM
   (`iam_can_perform_/escalation_/can_assume_/instance_profile_role_edge_writer.go`),
   S3 logs_to + external-grant, EC2 uses_profile, K8s correlation
-  (`kubernetes_correlation_edge_writer.go:67`), SG reachability
+  (`edge/writer/kubernetes_correlation.go:69`), SG reachability
   (`security_group_reachability_edge_writer.go:108`).
 - **posture property `REMOVE`** — `MATCH (resource:CloudResource) WHERE
   resource.<prefix>_scope_id IN $scope_ids ... REMOVE resource.<prefix>_*`: S3/EC2

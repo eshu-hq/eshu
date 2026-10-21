@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
@@ -306,9 +305,9 @@ func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error)
 	case "repo_dependency":
 		return edgeTypeSet(materialized.RepoDependencyMaterializedEdgeTypes()), nil
 	case "incident_routing_evidence":
-		return edgeTypeSet(slotToTypeSet(cypher.IncidentRoutingEvidenceRelationshipTypes())), nil
+		return edgeTypeSet(slotToTypeSet(edgewriter.IncidentRoutingEvidenceRelationshipTypes())), nil
 	case "observability_coverage":
-		return edgeTypeSet(cypher.ObservabilityCoverageRelationshipTypes()), nil
+		return edgeTypeSet(edgewriter.ObservabilityCoverageRelationshipTypes()), nil
 	case "security_group_sg_rule":
 		return edgeTypeSet(group.SecurityGroupSGRuleRelationshipTypes()), nil
 	default:

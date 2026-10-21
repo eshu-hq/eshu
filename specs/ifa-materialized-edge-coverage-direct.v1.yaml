@@ -301,22 +301,22 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCodeInterprocEvidence -> cypher/code_interproc_evidence_writer.go merges TAINT_FLOWS_TO; direct materialization; edge types registered in the single-type table with the property-keyed evidence_uid identity and all six retract variants held (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (offline guard reproduces the exact 2-edge set). Stays waived: no live matrix drives it yet (live leaf owns coverage rows + roster LiveProven flag)"
+    reason: "WriteCodeInterprocEvidence -> cypher/edge/writer/code_interproc_evidence.go merges TAINT_FLOWS_TO; direct materialization; edge types registered in the single-type table with the property-keyed evidence_uid identity and all six retract variants held (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (offline guard reproduces the exact 2-edge set). Stays waived: no live matrix drives it yet (live leaf owns coverage rows + roster LiveProven flag)"
   - surface: "materialized_edges:code_interproc_evidence"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCodeInterprocEvidence -> cypher/code_interproc_evidence_writer.go merges TAINT_FLOWS_TO; direct materialization; edge types registered in the single-type table with the property-keyed evidence_uid identity and all six retract variants held (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (family stays waived: neither live matrix drives it yet)"
+    reason: "WriteCodeInterprocEvidence -> cypher/edge/writer/code_interproc_evidence.go merges TAINT_FLOWS_TO; direct materialization; edge types registered in the single-type table with the property-keyed evidence_uid identity and all six retract variants held (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (family stays waived: neither live matrix drives it yet)"
   - surface: "materialized_edges:code_taint_evidence"
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCodeTaintEvidence -> cypher/code_taint_evidence_writer.go merges HAS_TAINT_EVIDENCE; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the single-type table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (offline guard reproduces the exact 2-edge set). Stays waived: no live matrix drives it yet (live leaf owns coverage rows + roster LiveProven flag)"
+    reason: "WriteCodeTaintEvidence -> cypher/edge/writer/code_taint_evidence.go merges HAS_TAINT_EVIDENCE; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the single-type table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (offline guard reproduces the exact 2-edge set). Stays waived: no live matrix drives it yet (live leaf owns coverage rows + roster LiveProven flag)"
   - surface: "materialized_edges:code_taint_evidence"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteCodeTaintEvidence -> cypher/code_taint_evidence_writer.go merges HAS_TAINT_EVIDENCE; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the single-type table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (family stays waived: neither live matrix drives it yet)"
+    reason: "WriteCodeTaintEvidence -> cypher/edge/writer/code_taint_evidence.go merges HAS_TAINT_EVIDENCE; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the single-type table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (family stays waived: neither live matrix drives it yet)"
   - surface: "materialized_edges:crossplane_satisfied_by"
     proof_gate: ifa-determinism
     issue: "#6228"
@@ -351,32 +351,32 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the multi-type direct table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: offline Odu, vacuity guard, and expected-edge-set fixture landed; no live matrix yet (per-family leaf owns coverage rows + roster flag)"
+    reason: "WriteIncidentRoutingEvidence -> cypher/edge/writer/incident_routing_evidence.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the multi-type direct table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: offline Odu, vacuity guard, and expected-edge-set fixture landed; no live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:incident_routing_evidence"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIncidentRoutingEvidence -> cypher/incident_routing_evidence_writer.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the multi-type direct table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: offline Odu, vacuity guard, and expected-edge-set fixture landed; no live matrix yet (per-family leaf owns coverage rows + roster flag)"
+    reason: "WriteIncidentRoutingEvidence -> cypher/edge/writer/incident_routing_evidence.go merges HAS_INTENDED_ROUTING / HAS_APPLIED_ROUTING / HAS_LIVE_ROUTING, one per routing slot; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the multi-type direct table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Stays waived: offline Odu, vacuity guard, and expected-edge-set fixture landed; no live matrix yet (per-family leaf owns coverage rows + roster flag)"
   - surface: "materialized_edges:kubernetes_correlation"
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteKubernetesCorrelationEdges -> cypher/kubernetes_correlation_edge_writer.go merges RUNS_IMAGE; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the kubernetes-correlation live-cell change, and the live determinism matrix drives the family since that change (registry row 20, shared N={1,2,4} cell + post-delta exact-set assert). Stays waived: the fault-injection matrix does not drive it yet (no fault cells; see the row's cell_kind=custom note)"
+    reason: "WriteKubernetesCorrelationEdges -> cypher/edge/writer/kubernetes_correlation.go merges RUNS_IMAGE; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the kubernetes-correlation live-cell change, and the live determinism matrix drives the family since that change (registry row 20, shared N={1,2,4} cell + post-delta exact-set assert). Stays waived: the fault-injection matrix does not drive it yet (no fault cells; see the row's cell_kind=custom note)"
   - surface: "materialized_edges:kubernetes_correlation"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteKubernetesCorrelationEdges -> cypher/kubernetes_correlation_edge_writer.go merges RUNS_IMAGE; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the kubernetes-correlation live-cell change (family stays waived: the fault-injection matrix does not drive it yet; determinism drives it since the kubernetes-correlation live-cell change)"
+    reason: "WriteKubernetesCorrelationEdges -> cypher/edge/writer/kubernetes_correlation.go merges RUNS_IMAGE; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the kubernetes-correlation live-cell change (family stays waived: the fault-injection matrix does not drive it yet; determinism drives it since the kubernetes-correlation live-cell change)"
   - surface: "materialized_edges:observability_coverage"
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteObservabilityCoverageEdges -> cypher/observability_coverage_edge_writer.go merges one AWS_COVERS_<signal> type per coverage signal from a CLOSED 5-member vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: both retract variants name the 5-type alternation, edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (offline guard reproduces the exact 5-edge set, one per vocabulary member, across arn and bare_id resolution modes). Stays waived: no live matrix drives it yet (live leaf owns coverage rows + roster LiveProven flag)"
+    reason: "WriteObservabilityCoverageEdges -> cypher/edge/writer/observability_coverage.go merges one AWS_COVERS_<signal> type per coverage signal from a CLOSED 5-member vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: both retract variants name the 5-type alternation, edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (offline guard reproduces the exact 5-edge set, one per vocabulary member, across arn and bare_id resolution modes). Stays waived: no live matrix drives it yet (live leaf owns coverage rows + roster LiveProven flag)"
   - surface: "materialized_edges:observability_coverage"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteObservabilityCoverageEdges -> cypher/observability_coverage_edge_writer.go merges one AWS_COVERS_<signal> type per coverage signal from a CLOSED 5-member vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: both retract variants name the 5-type alternation, edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (family stays waived: neither live matrix drives it yet)"
+    reason: "WriteObservabilityCoverageEdges -> cypher/edge/writer/observability_coverage.go merges one AWS_COVERS_<signal> type per coverage signal from a CLOSED 5-member vocabulary (truth correction: the vocabulary was never open); split verdict D kind C: both retract variants name the 5-type alternation, edge types registered in the multi-type direct table with foreign-edge regression proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (family stays waived: neither live matrix drives it yet)"
   - surface: "materialized_edges:publishes"
     proof_gate: ifa-determinism
     issue: "#6228"

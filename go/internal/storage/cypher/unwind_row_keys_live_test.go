@@ -28,7 +28,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
@@ -87,7 +86,7 @@ func TestLiveSparseWriterRowsLeaveOptionalPropertiesNull(t *testing.T) {
 		"parent_repo_id": liveSparsePrefix + "repo-a", "resolved_repo_id": liveSparsePrefix + "repo-c",
 		"submodule_path": "vendor/c",
 	})
-	interproc := sourcecypher.NewCodeInterprocEvidenceWriter(live, 0)
+	interproc := edgewriter.NewCodeInterprocEvidenceWriter(live, 0)
 	if err := interproc.WriteCodeInterprocEvidence(ctx, []map[string]any{{
 		"uid": liveSparsePrefix + "flow-1", "source_function_uid": liveSparsePrefix + "fn-src",
 		"sink_function_uid": liveSparsePrefix + "fn-sink", "relative_path": "app/handler.go",

@@ -103,3 +103,20 @@ func cloneParameters(params map[string]any) map[string]any {
 	}
 	return clone
 }
+
+// ChunkStrings splits a slice of strings into chunks of at most chunkSize
+// elements.
+func ChunkStrings(items []string, chunkSize int) [][]string {
+	if len(items) == 0 {
+		return nil
+	}
+	chunks := make([][]string, 0, (len(items)+chunkSize-1)/chunkSize)
+	for i := 0; i < len(items); i += chunkSize {
+		end := i + chunkSize
+		if end > len(items) {
+			end = len(items)
+		}
+		chunks = append(chunks, items[i:end])
+	}
+	return chunks
+}

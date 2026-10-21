@@ -6,7 +6,9 @@ the package contract.
 
 ## Ownership
 
-- Owner: graph write path (`cmd/reducer` wires `NewEdgeWriter`).
+- Owner: graph write path (`cmd/reducer` wires `NewEdgeWriter` and the five
+  standalone domain evidence writers: code taint, code interproc, incident
+  routing, Kubernetes correlation, observability coverage).
 - Inputs: reducer projection rows, `sourcecypher.Executor` (group-capable).
 - Outputs: Cypher `MERGE`/`MATCH+DELETE` batches against NornicDB/Neo4j.
 

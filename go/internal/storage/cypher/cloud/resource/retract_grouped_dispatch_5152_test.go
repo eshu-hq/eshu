@@ -7,12 +7,12 @@ import (
 	"context"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	ec2leaf "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/ec2"
 	rdsleaf "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/rds"
 	s3leaf "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
 	azureleaf "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/azure/relationship"
 	gcpleaf "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/gcp/relationship"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // TestNonUIDRetractsRouteThroughAutocommitExecute proves the whole-scope
@@ -64,7 +64,7 @@ func TestNonUIDRetractsRouteThroughAutocommitExecute(t *testing.T) {
 	t.Run("code-taint-evidence", func(t *testing.T) {
 		t.Parallel()
 		rec := &dispatchRouteRecorder{}
-		w := sourcecypher.NewCodeTaintEvidenceWriter(rec, 0)
+		w := edgewriter.NewCodeTaintEvidenceWriter(rec, 0)
 		if err := w.RetractCodeTaintEvidence(context.Background(), scopeIDs, gen, src); err != nil {
 			t.Fatalf("RetractCodeTaintEvidence: %v", err)
 		}
@@ -74,7 +74,7 @@ func TestNonUIDRetractsRouteThroughAutocommitExecute(t *testing.T) {
 	t.Run("stale-code-taint-evidence", func(t *testing.T) {
 		t.Parallel()
 		rec := &dispatchRouteRecorder{}
-		w := sourcecypher.NewCodeTaintEvidenceWriter(rec, 0)
+		w := edgewriter.NewCodeTaintEvidenceWriter(rec, 0)
 		if err := w.RetractStaleCodeTaintEvidence(context.Background(), "scope-1", gen, src, 100); err != nil {
 			t.Fatalf("RetractStaleCodeTaintEvidence: %v", err)
 		}
@@ -106,7 +106,7 @@ func TestNonUIDRetractsRouteThroughAutocommitExecute(t *testing.T) {
 	t.Run("incident-routing-evidence", func(t *testing.T) {
 		t.Parallel()
 		rec := &dispatchRouteRecorder{}
-		w := sourcecypher.NewIncidentRoutingEvidenceWriter(rec, 0)
+		w := edgewriter.NewIncidentRoutingEvidenceWriter(rec, 0)
 		if err := w.RetractIncidentRoutingEvidence(context.Background(), scopeIDs, gen, src); err != nil {
 			t.Fatalf("RetractIncidentRoutingEvidence: %v", err)
 		}
@@ -116,7 +116,7 @@ func TestNonUIDRetractsRouteThroughAutocommitExecute(t *testing.T) {
 	t.Run("observability-coverage-edges", func(t *testing.T) {
 		t.Parallel()
 		rec := &dispatchRouteRecorder{}
-		w := sourcecypher.NewObservabilityCoverageEdgeWriter(rec, 0)
+		w := edgewriter.NewObservabilityCoverageEdgeWriter(rec, 0)
 		if err := w.RetractObservabilityCoverageEdges(context.Background(), scopeIDs, gen, src); err != nil {
 			t.Fatalf("RetractObservabilityCoverageEdges: %v", err)
 		}

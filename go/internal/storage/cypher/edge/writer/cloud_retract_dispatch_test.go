@@ -26,7 +26,6 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/iam"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/s3"
 )
@@ -54,7 +53,7 @@ func TestKubernetesCorrelationEdgeWriterRetractNeverGroups(t *testing.T) {
 	t.Parallel()
 
 	executor := &sqlSequentialRecordingExecutor{}
-	writer := sourcecypher.NewKubernetesCorrelationEdgeWriter(executor, 0)
+	writer := NewKubernetesCorrelationEdgeWriter(executor, 0)
 	if err := writer.RetractKubernetesCorrelationEdges(
 		context.Background(), []string{"scope-1"}, "gen-1", "reducer/kubernetes-correlation",
 	); err != nil {

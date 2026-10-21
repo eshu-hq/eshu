@@ -226,7 +226,7 @@ each by tier; only Tier-1/Tier-2 carry a tool.
 | `INVOKES_CLOUD_ACTION` | `aws` | `canonical/node/invokes_cloud_action_edges.go:18` |
 | `HANDLES_ROUTE` | language/framework | `canonical/node/handles_route_edges.go:19` |
 | `RUNS_IN` | runtime (reducer workload binding) | `canonical/node/runs_in_edges.go:27` |
-| `RUNS_IMAGE` | `kubernetes` | `kubernetes_correlation_edge_writer.go:54` |
+| `RUNS_IMAGE` | `kubernetes` | `edge/writer/kubernetes_correlation.go:56` |
 | `CORRELATES_DEPLOYABLE_UNIT` | hybrid ² | `canonical/node/deployable_unit_edges.go:6` |
 | `PUBLISHES` | `unknown` (explicit fallback until ecosystem evidence is wired; issues #5457 and #5827) | `storage/cypher/provenance_edge_writer.go` |
 | `BUILT_FROM` | `oci` for container-image identity; `github_actions` for exact workflow-image correlation (same-pair assertions are isolated by #5827) | `storage/cypher/provenance_edge_writer.go` |

@@ -263,8 +263,8 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// kept honest here by reading the type off the template instead.
 	"kubernetes_correlation": {
 		EdgeTypes:      map[string]string{"RUNS_IMAGE": "Kubernetes-workload to digest-addressed OCI source image attachment (CanonicalKubernetesCorrelationEdgeUpsertCypherFormat)"},
-		RetractCypher:  sourcecypher.RetractKubernetesCorrelationEdgesCypher,
-		IdentityCypher: sourcecypher.CanonicalKubernetesCorrelationEdgeUpsertCypherFormat,
+		RetractCypher:  edgewriter.RetractKubernetesCorrelationEdgesCypher,
+		IdentityCypher: edgewriter.CanonicalKubernetesCorrelationEdgeUpsertCypherFormat,
 	},
 	// code_taint_evidence is the first evidenceNodeDetach family (#6228 split
 	// verdict, kind A). Its edges hang off private CodeTaintEvidence nodes no
@@ -274,15 +274,15 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// here so the resolver scopes assert-edges to it; the drift guard derives
 	// it from the held write template rather than trusting this literal.
 	"code_taint_evidence": {
-		EdgeTypes:     map[string]string{"HAS_TAINT_EVIDENCE": "taint finding edge (CodeTaintEvidenceWriter in code_taint_evidence_writer.go)"},
+		EdgeTypes:     map[string]string{"HAS_TAINT_EVIDENCE": "taint finding edge (CodeTaintEvidenceWriter in edge/writer/code_taint_evidence.go)"},
 		RetractKind:   retractKindEvidenceNodeDetach,
-		RetractCypher: sourcecypher.RetractCodeTaintEvidenceCypher,
+		RetractCypher: edgewriter.RetractCodeTaintEvidenceCypher,
 		RetractVariants: []string{
-			sourcecypher.RetractStaleCodeTaintEvidenceCypher,
-			sourcecypher.RetractCodeTaintEvidenceByUIDsCypher,
-			sourcecypher.RetractStaleCodeTaintEvidenceByUIDsCypher,
+			edgewriter.RetractStaleCodeTaintEvidenceCypher,
+			edgewriter.RetractCodeTaintEvidenceByUIDsCypher,
+			edgewriter.RetractStaleCodeTaintEvidenceByUIDsCypher,
 		},
-		IdentityCypher: sourcecypher.CodeTaintEvidenceUpsertCypher,
+		IdentityCypher: edgewriter.CodeTaintEvidenceUpsertCypher,
 	},
 	// semantic_entity_containment shares its CONTAINS type with the canonical
 	// node writer, so it registers only since #8359 gave it a dedicated
@@ -473,15 +473,15 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	// template's MERGE, never derived from the port or family name.
 	"code_interproc_evidence": {
 		EdgeTypes:     map[string]string{"TAINT_FLOWS_TO": "cross-function value-flow finding edge (CodeInterprocEvidenceUpsertCypher)"},
-		RetractCypher: sourcecypher.RetractCodeInterprocEvidenceCypher,
+		RetractCypher: edgewriter.RetractCodeInterprocEvidenceCypher,
 		RetractVariants: []string{
-			sourcecypher.RetractCodeInterprocEvidenceSourceCypher,
-			sourcecypher.RetractStaleCodeInterprocEvidenceCypher,
-			sourcecypher.RetractCodeInterprocEvidenceByUIDsCypher,
-			sourcecypher.RetractCodeInterprocEvidenceSourceByUIDsCypher,
-			sourcecypher.RetractStaleCodeInterprocEvidenceByUIDsCypher,
+			edgewriter.RetractCodeInterprocEvidenceSourceCypher,
+			edgewriter.RetractStaleCodeInterprocEvidenceCypher,
+			edgewriter.RetractCodeInterprocEvidenceByUIDsCypher,
+			edgewriter.RetractCodeInterprocEvidenceSourceByUIDsCypher,
+			edgewriter.RetractStaleCodeInterprocEvidenceByUIDsCypher,
 		},
-		IdentityCypher:     sourcecypher.CodeInterprocEvidenceUpsertCypher,
+		IdentityCypher:     edgewriter.CodeInterprocEvidenceUpsertCypher,
 		IdentityProperties: []string{"evidence_uid"},
 	},
 }

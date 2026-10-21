@@ -29,10 +29,10 @@ func TestHeldRetractVariantsCoverEveryProductionDelete(t *testing.T) {
 	t.Parallel()
 
 	files := []string{
-		filepath.Join("..", "..", "code_taint_evidence_writer.go"),
-		filepath.Join("..", "..", "code_interproc_evidence_writer.go"),
-		filepath.Join("..", "..", "incident_routing_evidence_writer.go"),
-		filepath.Join("..", "..", "observability_coverage_edge_writer.go"),
+		filepath.Join("..", "writer", "code_taint_evidence.go"),
+		filepath.Join("..", "writer", "code_interproc_evidence.go"),
+		filepath.Join("..", "writer", "incident_routing_evidence.go"),
+		filepath.Join("..", "writer", "observability_coverage.go"),
 		filepath.Join("..", "..", "cloud", "aws", "security", "group", "security_reachability_edge_writer.go"),
 		filepath.Join("..", "..", "cloud", "aws", "security", "group", "security_reachability_edge_writer_ledger.go"),
 	}

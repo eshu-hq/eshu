@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	groupleaf "github.com/eshu-hq/eshu/go/internal/storage/cypher/cloud/aws/security/group"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // DSN-gated live proofs for the #6228 retract-registry contract
@@ -274,7 +274,7 @@ func TestLiveObservabilityCoverageRetractSparesForeignType(t *testing.T) {
 	seedEdge(sibObsUID, sibTgtUID, "AWS_COVERS_dashboard", scopeID, sibSource)
 
 	executor := &boltTestExecutor{runner: runner}
-	writer := sourcecypher.NewObservabilityCoverageEdgeWriter(executor, 0)
+	writer := edgewriter.NewObservabilityCoverageEdgeWriter(executor, 0)
 	if err := writer.RetractObservabilityCoverageEdges(ctx, []string{scopeID}, "gen-2", source); err != nil {
 		t.Fatalf("RetractObservabilityCoverageEdges returned error: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestLiveCodeTaintEvidenceRetractScopesToSourceAndScope(t *testing.T) {
 	}
 
 	executor := &boltTestExecutor{runner: runner}
-	writer := sourcecypher.NewCodeTaintEvidenceWriter(executor, 0)
+	writer := edgewriter.NewCodeTaintEvidenceWriter(executor, 0)
 	if err := writer.RetractCodeTaintEvidence(ctx, []string{scopeA}, "gen-2", sourceS); err != nil {
 		t.Fatalf("RetractCodeTaintEvidence returned error: %v", err)
 	}
@@ -431,7 +431,7 @@ func TestLiveIncidentRoutingEvidenceRetractScopesToSourceAndScope(t *testing.T) 
 	seedPair("sibscope", scopeB, sourceS)
 
 	executor := &boltTestExecutor{runner: runner}
-	writer := sourcecypher.NewIncidentRoutingEvidenceWriter(executor, 0)
+	writer := edgewriter.NewIncidentRoutingEvidenceWriter(executor, 0)
 	if err := writer.RetractIncidentRoutingEvidence(ctx, []string{scopeA}, "gen-2", sourceS); err != nil {
 		t.Fatalf("RetractIncidentRoutingEvidence returned error: %v", err)
 	}
