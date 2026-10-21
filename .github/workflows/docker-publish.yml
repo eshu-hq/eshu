@@ -45,7 +45,7 @@ concurrency:
 env:
   CI_BUILDKIT_IMAGE: ghcr.io/eshu-hq/ci-mirror-buildkit@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
   ESHU_XX_IMAGE: ghcr.io/eshu-hq/ci-mirror-xx@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f
-  ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:cdfd4fe2da6b225d8b40c6b7a105736e548e83ff56d5d8f9394446eeb5eb84e0
+  ESHU_GO_IMAGE: ghcr.io/eshu-hq/ci-mirror-golang@sha256:9ce231b28998b32e116927c61aa5c406183061d4f3f2d61b292c88e7f6bdf7ca
   ESHU_ALPINE_IMAGE: ghcr.io/eshu-hq/ci-mirror-alpine@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
