@@ -112,3 +112,65 @@ func TestServeIndexStatusRetirementBlocks(t *testing.T) {
 		}
 	}
 }
+
+// stubByStateGraph answers the repository count split with fixed
+// source-grouped rows in the shape the production statement returns: one
+// row per distinct evidence_source with its repository count, and no row
+// at all when the graph holds no repositories.
+type stubByStateGraph struct {
+	rows []map[string]any
+	err  error
+}
+
+func (s stubByStateGraph) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
+	return s.rows, s.err
+}
+
+func (s stubByStateGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
+// TestIndexStatusRepositoryCountByStateSplitsBySource proves the #8689
+// by-state mapping: repositories carrying the canonical evidence source
+// count as indexed, every other source (and a missing source) counts as
+// stub. Grouped rows accumulate: two groups for one side add up instead
+// of the second overwriting the first.
+func TestIndexStatusRepositoryCountByStateSplitsBySource(t *testing.T) {
+	t.Parallel()
+
+	graph := stubByStateGraph{rows: []map[string]any{
+		{"src": "projector/canonical", "count": int64(30)},
+		{"src": "projector/canonical", "count": int64(5)},
+		{"src": "reducer/ec2-instances", "count": int64(2)},
+		{"count": int64(1)},
+	}}
+	got, err := indexStatusRepositoryCountByState(context.Background(), graph)
+	if err != nil {
+		t.Fatalf("indexStatusRepositoryCountByState() error = %v", err)
+	}
+	if got["indexed"] != 35 || got["stub"] != 3 {
+		t.Fatalf("indexStatusRepositoryCountByState() = %#v, want indexed 35 stub 3", got)
+	}
+}
+
+// TestIndexStatusRepositoryCountByStateEmptyGraphZeroFills proves the
+// historical nil-graph and empty-rows contracts survive the #8689
+// rewrite: no graph or no rows still yields zeros, never an error.
+func TestIndexStatusRepositoryCountByStateEmptyGraphZeroFills(t *testing.T) {
+	t.Parallel()
+
+	got, err := indexStatusRepositoryCountByState(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("indexStatusRepositoryCountByState(nil) error = %v", err)
+	}
+	if got["indexed"] != 0 || got["stub"] != 0 {
+		t.Fatalf("indexStatusRepositoryCountByState(nil) = %#v, want indexed 0 stub 0", got)
+	}
+	got, err = indexStatusRepositoryCountByState(context.Background(), stubByStateGraph{})
+	if err != nil {
+		t.Fatalf("indexStatusRepositoryCountByState(empty) error = %v", err)
+	}
+	if got["indexed"] != 0 || got["stub"] != 0 {
+		t.Fatalf("indexStatusRepositoryCountByState(empty) = %#v, want indexed 0 stub 0", got)
+	}
+}

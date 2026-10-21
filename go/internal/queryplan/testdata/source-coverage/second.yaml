@@ -385,7 +385,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 267d9f3b990b7527fc1ad1e45e66329aabfe34dd1514ff38f4400dc26c09b953
+          source_sha256: 2f25313e3bcc04592d235caa04c33265eb5ed895452deabeafdaf32db8c1c7ff
           label: "Repository"
           max_results: 1
   - file: supply/chain/kubernetes_runtime_probe_fair.go
