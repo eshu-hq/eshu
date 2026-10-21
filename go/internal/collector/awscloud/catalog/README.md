@@ -242,7 +242,7 @@ inspector2, macie, shield, signer, ssoadmin, fms) into `catalog/security.go`
 (detection and response) verbatim (only the package clause changes; the six
 IAM resource-type tokens keep their `awsv1.*` fact-schema references, and
 the contract imports nothing back so the leaf still cannot cycle). The split
-is a size measure only: one file would pass the 500-line Go cap at ~577
+is a size measure only: one file would pass the 500-line Go cap at ~589
 lines, so the category ships as two files, both under the cap. The 244
 referencing `.go` files change only the qualifier (`awscloud.` to
 `catalog.`, plus the leaf import, dropping it where it goes unused);
