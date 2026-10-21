@@ -34,11 +34,11 @@ func (f *storedFakeDB) QueryContext(ctx context.Context, query string, args ...a
 }
 
 // storedRowValues builds the wire values of one stored-read result row: the
-// state columns of repoID, then one paths row, in storedReadSQL column order.
-// A nil path makes the paths columns NULL (a derived repository with no
-// config artifacts).
-func storedRowValues(repoID string, contentVersion *int64, extractorVersion int, rowCount *int64, version int64, path []any) []any {
-	row := []any{repoID, nil, int64(extractorVersion), nil, version, nil, nil, nil, nil}
+// state columns of repoID, then one paths row, then list_truncated, in
+// storedReadSQL column order. A nil path makes the paths columns NULL (a
+// derived repository with no config artifacts).
+func storedRowValues(repoID string, contentVersion *int64, extractorVersion int, rowCount *int64, version int64, path []any, truncated bool) []any {
+	row := []any{repoID, nil, int64(extractorVersion), nil, version, nil, nil, nil, nil, truncated}
 	if contentVersion != nil {
 		row[1] = *contentVersion
 	}
@@ -57,9 +57,9 @@ func TestReadStoredReturnsTrustedRowsInRequestOrder(t *testing.T) {
 	v := int64(7)
 	n := int64(2)
 	fake := &storedFakeDB{values: [][]any{
-		storedRowValues("r-b", &v, 1, &n, v, []any{"mod/app.hcl", "app.hcl", "terraform", true}),
-		storedRowValues("r-b", &v, 1, &n, v, []any{"chart/values.yaml", "values.yaml", "helm", false}),
-		storedRowValues("r-a", &v, 1, &n, v, nil),
+		storedRowValues("r-b", &v, 1, &n, v, []any{"mod/app.hcl", "app.hcl", "terraform", true}, false),
+		storedRowValues("r-b", &v, 1, &n, v, []any{"chart/values.yaml", "values.yaml", "helm", false}, false),
+		storedRowValues("r-a", &v, 1, &n, v, nil, false),
 	}}
 	got, err := NewPostgresReader(fake).ReadStored(context.Background(), []string{"r-b", "r-a"}, 1)
 	if err != nil {
@@ -129,7 +129,7 @@ func TestReadStoredAgreesWithClassify(t *testing.T) {
 				if tc.version != nil {
 					version = *tc.version
 				}
-				values = [][]any{storedRowValues("r-1", tc.contentVersion, tc.stateExtractor, tc.rowCount, version, nil)}
+				values = [][]any{storedRowValues("r-1", tc.contentVersion, tc.stateExtractor, tc.rowCount, version, nil, false)}
 			}
 			fake := &storedFakeDB{values: values}
 			got, err := NewPostgresReader(fake).ReadStored(context.Background(), []string{"r-1"}, tc.readExtractor)
@@ -158,8 +158,8 @@ func TestReadStoredDedupesIDsAndKeepsOrder(t *testing.T) {
 	v := int64(7)
 	n := int64(1)
 	fake := &storedFakeDB{values: [][]any{
-		storedRowValues("r-a", &v, 1, &n, v, nil),
-		storedRowValues("r-b", &v, 1, &n, v, nil),
+		storedRowValues("r-a", &v, 1, &n, v, nil, false),
+		storedRowValues("r-b", &v, 1, &n, v, nil, false),
 	}}
 	got, err := NewPostgresReader(fake).ReadStored(context.Background(), []string{"r-b", "r-a", "r-b"}, 1)
 	if err != nil {
@@ -197,6 +197,42 @@ func TestReadStoredPropagatesQueryError(t *testing.T) {
 	fake := &storedFakeDB{queryErr: want}
 	if _, err := NewPostgresReader(fake).ReadStored(context.Background(), []string{"r-1"}, 1); !errors.Is(err, want) {
 		t.Fatalf("ReadStored() error = %v, want %v", err, want)
+	}
+}
+
+// TestReadStoredSurfacesListTruncatedOnTrustedOnly pins the stored window
+// reason input (#8155 PR3c): a trusted repository reports the state row's
+// list_truncated, so the leaf derives the 5,000-window reason from it. An
+// untrusted repository reports false even when its state row is truncated,
+// because its live fallback load owns the window reason.
+func TestReadStoredSurfacesListTruncatedOnTrustedOnly(t *testing.T) {
+	t.Parallel()
+
+	v := int64(7)
+	older := int64(6)
+	fake := &storedFakeDB{values: [][]any{
+		storedRowValues("r-truncated", &v, 1, &v, v, nil, true),
+		storedRowValues("r-whole", &v, 1, &v, v, nil, false),
+		storedRowValues("r-stale", &older, 1, &v, v, nil, true),
+	}}
+	got, err := NewPostgresReader(fake).ReadStored(context.Background(), []string{"r-truncated", "r-whole", "r-stale"}, 1)
+	if err != nil {
+		t.Fatalf("ReadStored() error = %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("ReadStored() returned %d repositories, want 3", len(got))
+	}
+	if !got[0].ListTruncated {
+		t.Fatal("trusted truncated repository reports ListTruncated = false, want true")
+	}
+	if got[1].ListTruncated {
+		t.Fatal("trusted whole-window repository reports ListTruncated = true, want false")
+	}
+	if got[2].Reason != ReasonStaleVersion {
+		t.Fatalf("r-stale reason = %q, want stale_version", got[2].Reason)
+	}
+	if got[2].ListTruncated {
+		t.Fatal("untrusted repository reports ListTruncated = true, want false: the live fallback owns the window reason")
 	}
 }
 

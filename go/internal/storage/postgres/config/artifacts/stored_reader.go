@@ -22,12 +22,15 @@ import (
 // with repositories, never a scan of a table that grows with files (S2 bar).
 //
 // Column order: state repo_id, content_version, extractor_version, row_count,
-// current version, then the paths columns. The trust decision stays in Go:
-// ReadStored classifies every repository with Classify, never a SQL copy of
-// the rule.
+// current version, then the paths columns, then the state's list_truncated
+// (the stored 5,000-window reason input, #8155 PR3c). The trust decision stays
+// in Go: ReadStored classifies every repository with Classify, never a SQL
+// copy of the rule. list_truncated rides on rows the join already fetches, so
+// the predicates and the S2 bar (primary-key equality only, never a scan of a
+// file-growth table) are unchanged.
 const storedReadSQL = `
 SELECT s.repo_id, s.content_version, s.extractor_version, s.row_count, v.version,
-       p.raw_path, p.relative_path, p.evidence_kind, p.name_scoped
+       p.raw_path, p.relative_path, p.evidence_kind, p.name_scoped, s.list_truncated
 FROM config_artifact_repo_state AS s
 JOIN config_artifact_content_versions AS v ON v.repo_id = s.repo_id
 LEFT JOIN config_artifact_paths AS p ON p.repo_id = s.repo_id
@@ -82,6 +85,7 @@ type storedState struct {
 	extractorVersion int
 	rowCount         *int
 	version          int64
+	listTruncated    bool
 	rows             []Row
 }
 
@@ -97,14 +101,18 @@ func scanStoredRows(rows db.Rows) (map[string]*storedState, error) {
 		var contentVersion, rowCount, version sql.NullInt64
 		var extractorVersion sql.NullInt64
 		var rawPath, relativePath, evidenceKind sql.NullString
-		var nameScoped sql.NullBool
+		var nameScoped, listTruncated sql.NullBool
 		if err := rows.Scan(&repoID, &contentVersion, &extractorVersion, &rowCount, &version,
-			&rawPath, &relativePath, &evidenceKind, &nameScoped); err != nil {
+			&rawPath, &relativePath, &evidenceKind, &nameScoped, &listTruncated); err != nil {
 			return nil, fmt.Errorf("scan stored config artifacts: %w", err)
 		}
 		entry, ok := scanned[repoID.String]
 		if !ok {
-			entry = &storedState{extractorVersion: int(extractorVersion.Int64), version: version.Int64}
+			entry = &storedState{
+				extractorVersion: int(extractorVersion.Int64),
+				version:          version.Int64,
+				listTruncated:    listTruncated.Bool,
+			}
 			if contentVersion.Valid {
 				entry.contentVersion = &contentVersion.Int64
 			}
@@ -147,7 +155,7 @@ func classifyStored(repoID string, entry *storedState, extractorVersion int) Rep
 	if reason != ReasonTrusted {
 		return Repository{RepoID: repoID, Reason: reason}
 	}
-	return Repository{RepoID: repoID, Reason: ReasonTrusted, Rows: entry.rows}
+	return Repository{RepoID: repoID, Reason: ReasonTrusted, Rows: entry.rows, ListTruncated: entry.listTruncated}
 }
 
 // dedupeRepoIDs drops empty and repeated ids, keeping request order.
