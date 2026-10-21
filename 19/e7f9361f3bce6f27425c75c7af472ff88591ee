@@ -1,0 +1,219 @@
+go/internal/reducer/code_import_repo_edge_identity.go
+  h_78a442cba0b3e6 10,26,39
+go/internal/reducer/reducer_fact_batch_insert_test.go
+  h_78a442cba0b3e6 11-12,16-17,23-24,27,44-45,56-57,79-80
+go/internal/reducer/correlated_workload_projection_input_loader.go
+  h_78a442cba0b3e6 16,107,164,169
+go/internal/reducer/gcp_relationship_materialization.go
+  h_78a442cba0b3e6 19-20,137,156,164,246
+go/internal/reducer/aws_resource_materialization.go
+  h_78a442cba0b3e6 20-21,23,33,82,135,151,160,254,262,269,274,282,342,384,388
+go/internal/reducer/kubernetes_workload_materialization.go
+  h_78a442cba0b3e6 19-20,22,119,135,144,207,229,237,242,255,302
+go/internal/reducer/aws_resource_running_image_test.go
+  h_78a442cba0b3e6 10,273,275
+go/internal/reducer/code_import_repo_edge.go
+  h_78a442cba0b3e6 13,90,370
+go/internal/reducer/code_import_repo_edge_field_test.go
+  h_78a442cba0b3e6 11,21
+go/internal/reducer/documentation_edge_materialization_test.go
+  h_78a442cba0b3e6 15-16,63,78,141,144,177,301
+go/internal/reducer/cross_scope_dependencies_test.go
+  h_78a442cba0b3e6 36
+go/internal/reducer/code_import_owner_facts.go
+  h_78a442cba0b3e6 10,12,29,31,36,38,68,70,75,77
+go/internal/reducer/deployable_unit_correlation_edges.go
+  h_78a442cba0b3e6 19,312
+go/internal/reducer/sql_relationship_root_test_helpers_test.go
+  h_78a442cba0b3e6 10,53,70
+go/internal/reducer/submodule_pin_delta_scope.go
+  h_78a442cba0b3e6 12-13,44,56,73,76,78,103
+go/internal/reducer/cross_scope_readiness_floor_handler_test.go
+  h_78a442cba0b3e6 74,150,341
+go/internal/reducer/azure_relationship_join.go
+  h_78a442cba0b3e6 11-12,47,50,52,59,153,175,177
+go/internal/reducer/gcp_relationship_join.go
+  h_78a442cba0b3e6 11-12,107,111,115,122,278,299,322,324
+go/internal/storage/postgres/reducer_input_invalid_facts_live_test.go
+  h_78a442cba0b3e6 16,92,122,146
+go/internal/reducer/azure_relationship_input_invalid_test.go
+  h_78a442cba0b3e6 33
+go/internal/reducer/service_batch.go
+  h_78a442cba0b3e6 19,487
+go/internal/reducer/rationale_edge_materialization_partition_test.go
+  h_78a442cba0b3e6 14,93,182,210
+go/internal/reducer/service.go
+  h_78a442cba0b3e6 23,25,117,119,186-187,191,454
+go/internal/reducer/submodule_pin_materialization.go
+  h_78a442cba0b3e6 14-16,27,76,120,164,168,170,189,191,194,197,199
+go/internal/reducer/compat_decode.go
+  h_78a442cba0b3e6 47,54,60,85,100,117,127-128
+go/internal/reducer/reducer_fact_batch_insert_guard_test.go
+  h_78a442cba0b3e6 9-10,14,65,98,126,131
+go/internal/storage/postgres/reducer_input_invalid_facts.go
+  h_78a442cba0b3e6 13,69,72,95,102,122
+go/internal/reducer/rationale_edge_materialization_test.go
+  h_78a442cba0b3e6 17,19,199,251,261,307,331,361,373
+go/internal/reducer/submodule_pin_materialization_test.go
+  h_78a442cba0b3e6 13,62,190,241,279,320
+go/internal/reducer/aws_relationship_instance_node_readiness.go
+  h_78a442cba0b3e6 14,80
+go/internal/reducer/doc.go
+  h_78a442cba0b3e6 39-41,340-342,346-347
+  h_78a442cba0b3e6 43
+go/internal/reducer/semantic_entity_repair_queue_adapter.go
+  h_78a442cba0b3e6 10,14,17,19,24,30,32
+go/internal/reducer/rationale_edge_materialization_bench_test.go
+  h_78a442cba0b3e6 16,98,121,162-163
+go/internal/reducer/rationale_edge_materialization.go
+  h_78a442cba0b3e6 17-18,140,143-144,162,202
+go/internal/reducer/semantic_entity_repair_queue_adapter_test.go
+  h_78a442cba0b3e6 60,76,85
+go/internal/reducer/documentation_edge_materialization_bench_test.go
+  h_78a442cba0b3e6 12,75
+go/internal/reducer/code_import_repo_edge_handler.go
+  h_78a442cba0b3e6 20-21,37,42,64,95,100,119,210
+go/internal/reducer/workload_materialization_handler.go
+  h_78a442cba0b3e6 138
+go/internal/reducer/reducer_fact_batch_insert_test_helpers_test.go
+  h_78a442cba0b3e6 9-10,13,37-38,43,101,126,132
+go/internal/reducer/idempotency_fixtures_test.go
+  h_78a442cba0b3e6 6-9,80
+go/internal/reducer/codedataflow_idempotency_test.go
+  h_78a442cba0b3e6 13,125,134,139
+go/internal/reducer/codedataflow_input_invalid_test.go
+  h_78a442cba0b3e6 11,46,48,50,53,114,116,118,121,171,173,175,178,219,221,223,226
+go/internal/storage/postgres/graph_projection_phase_repair_queue.go
+  h_78a442cba0b3e6 14,132,151,162,164,190,211,239,297
+go/internal/reducer/rationale_edge_zero_refresh_test.go
+  h_78a442cba0b3e6 13,24,134
+go/internal/storage/postgres/doc.go
+  h_78a442cba0b3e6 375
+go/internal/reducer/reducer_fact_batch_insert_versioned_guard_test.go
+  h_78a442cba0b3e6 9-10,14,55
+go/internal/reducer/code_import_repo_edge_resolver_test.go
+  h_78a442cba0b3e6 11,444
+go/internal/reducer/kubernetes_namespace_materialization.go
+  h_78a442cba0b3e6 18-20,160,177,253,262,270,275,286,330
+go/internal/reducer/reducer_fact_batch_insert_bench_test.go
+  h_78a442cba0b3e6 14-15,19,21,23,25,45-46,48,111
+go/internal/reducer/workload_materialization_phase_repair_test.go
+  h_78a442cba0b3e6 310-311,318,327
+go/internal/reducer/reducer_fact_batch_insert_dedupe_test.go
+  h_78a442cba0b3e6 10-11,21,26,39-40,54,60-61,92,97-98
+go/internal/reducer/factschema_contract_test.go
+  h_78a442cba0b3e6 17,178,181,187,189,209,214,221-222,229,233,239,253,258,264,274-275
+go/internal/reducer/aws_relationship_join.go
+  h_78a442cba0b3e6 14,16,165,188,190
+go/internal/reducer/workload_identity_writer.go
+  h_78a442cba0b3e6 15,26,48,54,80
+go/internal/reducer/sibling_edge_intent_delta_gate_test.go
+  h_78a442cba0b3e6 12,26,40,68
+go/internal/reducer/evidence-6626-decode-bucket.md
+  h_78a442cba0b3e6 1-88
+go/internal/reducer/azure_resource_materialization.go
+  h_78a442cba0b3e6 17-18,20,49,56,81,91,101,168,176,179,181,186,194,240
+go/internal/reducer/cloud_resource_retract.go
+  h_78a442cba0b3e6 14,46,66
+go/internal/reducer/documentation_input_invalid_test.go
+  h_78a442cba0b3e6 14,128,272,285
+go/internal/reducer/aws_relationship_input_invalid_test.go
+  h_78a442cba0b3e6 32
+go/internal/reducer/workload_materialization_scope_keep_test.go
+  h_78a442cba0b3e6 19,57,65,75
+go/internal/reducer/fact_payload_loader_test.go
+  h_78a442cba0b3e6 14,26,61,81,92,126
+go/internal/reducer/rationale_delta_scope.go
+  h_78a442cba0b3e6 12-13,26,34,48,51,53,63,65,68,101
+go/internal/reducer/semantic_entity_root_test_doubles_test.go
+  h_78a442cba0b3e6 60-61,68,71-72,78,82,86
+go/internal/reducer/service_batch_test.go
+  h_78a442cba0b3e6 15,148
+go/internal/reducer/platform_infra_materialization.go
+  h_78a442cba0b3e6 14,60,65
+go/internal/reducer/aws_relationship_materialization.go
+  h_78a442cba0b3e6 20-21,32,92,153,188,197,280
+go/internal/reducer/environment_signals.go
+  h_78a442cba0b3e6 13,178,183
+go/cmd/reducer/config_projection.go
+  h_78a442cba0b3e6 17,173,178
+go/internal/reducer/codedataflow_bench_test.go
+  h_78a442cba0b3e6 14,136,142,170
+go/internal/projector/runtime/projection_test.go
+  h_78a442cba0b3e6 925,928-929,935,939,943
+go/internal/projector/runtime/projection.go
+  h_78a442cba0b3e6 46
+go/internal/reducer/documentation_edge_materialization.go
+  h_78a442cba0b3e6 15-16,83,125,160,172,175,181,186,188,194,196
+go/internal/projector/runtime/phase.go
+  h_78a442cba0b3e6 31
+go/internal/storage/postgres/graph_projection_phase_repair_queue_test.go
+  h_78a442cba0b3e6 25,40,62,76,79,98,112
+go/internal/reducer/compat_alias_retirement_decode_test.go
+  h_78a442cba0b3e6 1-155
+go/internal/reducer/idempotency_cases_test.go
+  h_78a442cba0b3e6 14,20,76,447
+go/internal/reducer/azure_relationship_materialization.go
+  h_78a442cba0b3e6 18-19,56,71,108,123,131,205
+go/internal/reducer/compat_correlation.go
+  h_78a442cba0b3e6 60-61
+go/internal/reducer/gcp_resource_materialization.go
+  h_78a442cba0b3e6 17-18,20,116,132,141,235,261,267,272,280,337
+go/internal/reducer/factload_materialization_bench_test.go
+  h_78a442cba0b3e6 13,27,34,53,58,63,88,117,172,186,204
+go/internal/reducer/code_import_repo_edge_retract.go
+  h_78a442cba0b3e6 11-12,49
+go/internal/reducer/fact_kind_loader_test.go
+  h_78a442cba0b3e6 17,322,327,330,333
+go/internal/reducer/kubernetes_workload_input_invalid_test.go
+  h_78a442cba0b3e6 33
+go/internal/reducer/graph_projection_phase_publish.go
+  h_78a442cba0b3e6 35,49
+go/internal/reducer/graph_projection_phase_test.go
+  h_78a442cba0b3e6 17,38
+go/internal/reducer/deployable_unit_correlation.go
+  h_78a442cba0b3e6 22,116,121
+go/internal/reducer/workload_materialization_repo_phase.go
+  h_78a442cba0b3e6 16,103,128,169,254,372
+go/internal/reducer/defaults.go
+  h_78a442cba0b3e6 25,68-69,112,205,218,234,244,269,277,285,292,312,321,331,339,348,359,369,379,389,398,485,497,503,511,521
+go/internal/reducer/code_import_repo_edge_test.go
+  h_78a442cba0b3e6 12,32
+go/internal/reducer/contract_boundary_test.go
+  h_78a442cba0b3e6 28
+go/internal/reducer/service_test.go
+  h_78a442cba0b3e6 17-18,272,277,394,398,403,407
+go/internal/reducer/documentation_edge_delta_scope.go
+  h_78a442cba0b3e6 14-17,32,43,65,76,78,83,90,92,112,115,117,148,150,160,231
+go/internal/reducer/gcp_resource_input_invalid_test.go
+  h_78a442cba0b3e6 34
+go/internal/reducer/rationale_edge_extractor_guards_test.go
+  h_78a442cba0b3e6 10,16,51-54,59,77
+go/internal/reducer/defaults_domain_catalog.go
+  h_78a442cba0b3e6 8,149
+go/internal/storage/postgres/reducer_input_invalid_facts_test.go
+  h_78a442cba0b3e6 16,72,74
+go/internal/reducer/sql_relationship_partition_convergence_test.go
+  h_78a442cba0b3e6 14,196,219
+go/internal/reducer/quarantine_writer_fake_test.go
+  h_78a442cba0b3e6 9-10,13,18,23,31
+go/internal/reducer/correlation_root_test_doubles_test.go
+  h_78a442cba0b3e6 153,172
+go/internal/reducer/graph_projection_phase_repair_test.go
+  h_78a442cba0b3e6 15,23,28,38,63,70,72,79,92,105,110,117,140,147,157,178-179,195-196,201,206,210-211,216,221
+go/cmd/reducer/main_helpers.go
+  h_78a442cba0b3e6 28,121,124,128-129
+go/internal/reducer/workload_cloud_relationship_materialization.go
+  h_78a442cba0b3e6 21-22,24,145-146,154,166,196,391,402,409,411,427,461
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "19e7f9361f3bce6f27425c75c7af472ff88591ee",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
