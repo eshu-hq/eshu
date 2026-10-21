@@ -250,11 +250,11 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
         uses: actions/checkout@v5
 
-      - name: Download current-attempt coverage
+      - name: Download run coverage
         if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}
         uses: actions/download-artifact@v4
         with:
-          pattern: live-backend-${{ github.run_id }}-${{ github.run_attempt }}-*
+          pattern: live-backend-${{ github.run_id }}-*
           path: live-backend-reports
 
       - name: Verify complete live-backend coverage
@@ -262,5 +262,8 @@ jobs:
         run: |
           python3 scripts/lib/live_backend_test_targets.py specs/live-tests.v1.yaml . |
             python3 scripts/lib/live_backend_shards.py expand > live-backend-full.plan
+          python3 scripts/lib/live_backend_shards.py select --head "$(git rev-parse HEAD)" \
+            --plan live-backend-full.plan --output-dir live-backend-selected \
+            live-backend-reports/*/live-backend-result.json
           python3 scripts/lib/live_backend_shards.py verify --head "$(git rev-parse HEAD)" \
-            --plan live-backend-full.plan live-backend-reports/*/live-backend-result.json
+            --plan live-backend-full.plan live-backend-selected/*.json

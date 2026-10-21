@@ -35,19 +35,25 @@ func checkReadinessCleanup(job readinessJob) string {
 }
 
 func checkReadinessAggregate(job readinessJob) string {
-	downloaded, verified, summarized := false, false, false
+	downloaded, selected, verified, summarized := false, false, false, false
 	for _, step := range job.Steps {
 		if step.Uses == "actions/download-artifact@v4" {
 			if step.If != readinessQueueSelection || step.ContinueOnError != "" {
 				return "artifact download must use the registry queue selection without waiving failure"
 			}
-			if step.With["pattern"] != "readiness-shard-${{ github.run_id }}-${{ github.run_attempt }}-*" ||
+			if step.With["pattern"] != "readiness-shard-${{ github.run_id }}-*" ||
 				step.With["path"] != readinessArtifactPath ||
 				step.With["merge-multiple"] != "" {
-				return "aggregate must download exactly the current-attempt shard reports"
+				return "aggregate must download the run-scoped shard reports so reruns reunite (#8724)"
 			}
 			downloaded = true
 			continue
+		}
+		if strings.Contains(step.Run, "live_postgres_readiness_shards.py select") {
+			if step.If != readinessQueueSelection || step.ContinueOnError != "" {
+				return "newest-report selection must use the registry queue selection without waiving failure"
+			}
+			selected = true
 		}
 		if strings.Contains(step.Run, "live_postgres_readiness_shards.py verify") {
 			if step.If != readinessQueueSelection || step.ContinueOnError != "" {
@@ -64,6 +70,9 @@ func checkReadinessAggregate(job readinessJob) string {
 	}
 	if !downloaded {
 		return "aggregate must download the shard reports before verifying coverage"
+	}
+	if !selected {
+		return "aggregate must select the newest valid report per shard before verifying coverage (#8724)"
 	}
 	if !verified {
 		return "aggregate must verify the four shard reports cover the full plan"
