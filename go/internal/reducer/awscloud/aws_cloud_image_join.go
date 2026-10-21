@@ -21,7 +21,7 @@ import (
 // aws_relationship verbs issue #5450 disposes of. They duplicate
 // catalog.RelationshipLambdaFunctionUsesImage /
 // RelationshipECSTaskDefinitionUsesImage (go/internal/collector/awscloud/
-// constants_lambda.go, constants_ecs.go) as literals rather than importing the
+// catalog/compute.go) as literals rather than importing the
 // collector package: the reducer package does not depend on collector
 // packages (package-boundary rule), and every other AWS relationship_type
 // value the reducer reads already flows through as an opaque fact string
