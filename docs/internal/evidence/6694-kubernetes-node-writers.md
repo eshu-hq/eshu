@@ -121,8 +121,9 @@ the leaf-specific helper name, and type renames). After:
   (`25069 allocs/op`, matching the README baseline exactly; no
   performance claim, move-only).
 - Dirgate: root `internal/storage/cypher` 58 → 56 non-test files
-  (shrink, no trailer); new leaf `kubernetes/` holds 2 non-test files
-  (under the 40 cap); `namespace.go`/`workload.go` keep the
+  (shrink, no trailer); new leaf `kubernetes/` holds 3 non-test files
+  (`namespace.go`, `workload.go`, `doc.go`, under the 40 cap); the writer
+  files keep the
   `kubernetes_` prefix dropped per the no-stutter file rule and stay under
   500 lines.
 - `gofmt -l` clean on the leaf; `git diff --check` clean.
