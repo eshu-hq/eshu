@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -88,7 +89,7 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if got := service.CodeCallProjectionRunner.Config.PollInterval; got <= 0 {
 		t.Fatalf("buildReducerService() code call poll interval = %v, want positive", got)
 	}
-	if got := service.CodeCallProjectionRunner.Config.LeaseOwner; !strings.HasPrefix(got, reducer.DefaultCodeCallProjectionLeaseOwnerPrefix+":") {
+	if got := service.CodeCallProjectionRunner.Config.LeaseOwner; !strings.HasPrefix(got, projection.DefaultLeaseOwnerPrefix+":") {
 		t.Fatalf("buildReducerService() code call lease owner = %q, want default prefix plus process identity", got)
 	}
 	if got := service.CodeCallProjectionRunner.Config.LeaseTTL; got <= 0 {

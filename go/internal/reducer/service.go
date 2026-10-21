@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:filelength // 501 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap.
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -104,7 +106,7 @@ type Service struct {
 
 	// CodeCallProjectionRunner runs the controlled code-call projection lane
 	// concurrently with the main claim/execute/ack loop. Nil disables the lane.
-	CodeCallProjectionRunner *CodeCallProjectionRunner
+	CodeCallProjectionRunner *projection.Runner
 
 	// RepoDependencyProjectionRunner runs the source-repo-owned repo dependency
 	// projection lane concurrently with the main reducer loop. Nil disables it.
@@ -170,7 +172,7 @@ type Service struct {
 
 	// CodeValueFlowStaleCleanupRunner removes reducer-owned value-flow evidence
 	// from older source generations in bounded batches. Nil disables cleanup.
-	CodeValueFlowStaleCleanupRunner *CodeValueFlowStaleCleanupRunner
+	CodeValueFlowStaleCleanupRunner *cleanup.Runner
 
 	// SearchVectorBuildRunner builds derived search-vector rows for active
 	// curated search documents. Nil disables vector build work.

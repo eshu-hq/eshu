@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 )
 
 func TestValueFlowProgramInputLoaderSQLUsesActiveCompletedCodeCallsAndFunctionMetadata(t *testing.T) {
@@ -100,7 +100,7 @@ func TestValueFlowProgramInputLoaderBuildsBoundedProgramInput(t *testing.T) {
 	if got := input.CallEdges[0].CalleeFunctionID; got != callee {
 		t.Fatalf("CalleeFunctionID = %q, want %q", got, callee)
 	}
-	program, stats := reducer.BuildValueFlowProgram(input)
+	program, stats := value.BuildProgram(input)
 	if stats.ProgramEdgeCount != 1 || stats.SinkCount != 1 {
 		t.Fatalf("program=%#v stats=%#v, want one edge and one sink", program, stats)
 	}

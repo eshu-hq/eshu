@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 )
 
 func TestNewValueFlowFixpointProjectorWiresCloudSinkGraphLoader(t *testing.T) {
@@ -16,16 +16,16 @@ func TestNewValueFlowFixpointProjectorWiresCloudSinkGraphLoader(t *testing.T) {
 
 	componentStore := stubValueFlowFixpointComponentStore{}
 	projector := newValueFlowFixpointProjector(nil, nil, nil, componentStore, stubCypherReader{}, nil, nil)
-	loader, ok := projector.Loader.(reducer.ValueFlowFixpointEvidenceLoader)
+	loader, ok := projector.Loader.(value.FixpointEvidenceLoader)
 	if !ok {
-		t.Fatalf("projector loader = %T, want reducer.ValueFlowFixpointEvidenceLoader", projector.Loader)
+		t.Fatalf("projector loader = %T, want value.FixpointEvidenceLoader", projector.Loader)
 	}
 	if _, ok := loader.FixpointComponentStore.(stubValueFlowFixpointComponentStore); !ok {
 		t.Fatalf("component store = %T, want stubValueFlowFixpointComponentStore", loader.FixpointComponentStore)
 	}
-	cloudLoader, ok := loader.CloudSinkSnapshotLoader.(reducer.GraphValueFlowCloudSinkTargetLoader)
+	cloudLoader, ok := loader.CloudSinkSnapshotLoader.(value.GraphCloudSinkTargetLoader)
 	if !ok {
-		t.Fatalf("cloud sink loader = %T, want reducer.GraphValueFlowCloudSinkTargetLoader", loader.CloudSinkSnapshotLoader)
+		t.Fatalf("cloud sink loader = %T, want value.GraphCloudSinkTargetLoader", loader.CloudSinkSnapshotLoader)
 	}
 	if _, ok := cloudLoader.Graph.(stubCypherReader); !ok {
 		t.Fatalf("cloud sink graph reader = %T, want stubCypherReader", cloudLoader.Graph)

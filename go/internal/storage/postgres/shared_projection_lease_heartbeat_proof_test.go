@@ -16,7 +16,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -337,12 +337,12 @@ func TestCodeCallProjectionRunnerReleasesIdleLeaseAgainstPostgres(t *testing.T) 
 	store := NewSharedIntentStore(SQLDB{DB: db})
 	cycleComplete := make(chan struct{}, 1)
 	runCtx, cancel := context.WithCancel(ctx)
-	runner := reducer.CodeCallProjectionRunner{
+	runner := projection.Runner{
 		IntentReader: &postgresProofNoCodeCallIntentReader{},
 		LeaseManager: store,
 		EdgeWriter:   &postgresProofSlowEdgeWriter{writeBlock: closedChan()},
 		AcceptedGen:  func(sharedintent.AcceptanceKey) (string, bool) { return "gen-1", true },
-		Config: reducer.CodeCallProjectionRunnerConfig{
+		Config: projection.RunnerConfig{
 			LeaseOwner:     "code-call-release-proof",
 			PollInterval:   time.Millisecond,
 			LeaseTTL:       30 * time.Second,

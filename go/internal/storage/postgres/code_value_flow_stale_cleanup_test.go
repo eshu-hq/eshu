@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
 )
 
 func TestCodeValueFlowCurrentGenerationStoreListsActiveRepositoryScopes(t *testing.T) {
@@ -30,7 +30,7 @@ func TestCodeValueFlowCurrentGenerationStoreListsActiveRepositoryScopes(t *testi
 	if err != nil {
 		t.Fatalf("ListCurrentCodeValueFlowGenerations() error = %v, want nil", err)
 	}
-	want := []reducer.CodeValueFlowCurrentGeneration{
+	want := []cleanup.CurrentGeneration{
 		{ScopeID: "scope-a", GenerationID: "gen-a"},
 		{ScopeID: "scope-b", GenerationID: "gen-b"},
 	}
@@ -94,7 +94,7 @@ func (database *codeValueFlowCurrentGenerationDB) QueryContext(_ context.Context
 	return newProofRows(database.rows), nil
 }
 
-func equalCodeValueFlowGenerations(left, right []reducer.CodeValueFlowCurrentGeneration) bool {
+func equalCodeValueFlowGenerations(left, right []cleanup.CurrentGeneration) bool {
 	if len(left) != len(right) {
 		return false
 	}

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -53,7 +55,7 @@ func TestPythonMetaclassMaterializationHandlerWritesCanonicalEdges(t *testing.T)
 		},
 	}
 	writer := &recordingCodeCallIntentWriter{}
-	handler := CodeCallMaterializationHandler{
+	handler := materialization.Handler{
 		FactLoader:   loader,
 		IntentWriter: writer,
 	}
@@ -92,7 +94,7 @@ func TestPythonMetaclassMaterializationHandlerWritesCanonicalEdges(t *testing.T)
 	if got, want := writer.rows[1].Payload["relationship_type"], "USES_METACLASS"; got != want {
 		t.Fatalf("write row relationship_type = %#v, want %#v", got, want)
 	}
-	if got, want := writer.rows[1].Payload["evidence_source"], pythonMetaclassEvidenceSource; got != want {
+	if got, want := writer.rows[1].Payload["evidence_source"], codecall.PythonMetaclassEvidenceSource; got != want {
 		t.Fatalf("write row evidence_source = %#v, want %#v", got, want)
 	}
 	if got, want := result.Status, ResultStatusSucceeded; got != want {

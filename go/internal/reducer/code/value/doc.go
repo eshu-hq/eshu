@@ -61,8 +61,9 @@
 // BackfillStateMarker (backfill_state_marker.go) moved here from the reducer
 // root with the code/ tree move (#6609). Nothing in this package calls it; its
 // only caller is the root's projected_source_edge_backfill family, which names
-// it through the CodeValueFlowBackfillStateMarker alias. This package does not
-// own code_value_flow_stale_cleanup_runner.go, which stays in the reducer
-// root: it is a side runner that needs the root PartitionLeaseManager and only
-// reaches taint's writer/ledger surface.
+// value.BackfillStateMarker directly (#6626 value-flow lane). This package
+// does not own the stale-cleanup side runner, which lives in
+// code/value/cleanup: it is a side runner that needs
+// sharedintent.PartitionLeaseManager and only reaches taint's writer/ledger
+// surface.
 package value

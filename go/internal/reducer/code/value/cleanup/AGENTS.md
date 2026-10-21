@@ -19,9 +19,9 @@ what this package owns and reuses from `code/taint` and `sharedintent`.
 ## Invariants
 
 - **No import of the reducer root, ever.** This package is a leaf below
-  `internal/reducer`: the root imports it (via the value-flow stanza of
-  `compat_projection.go` and `Service.CodeValueFlowStaleCleanupRunner`'s
-  field type), never the reverse.
+  `internal/reducer`: the root imports it (via
+  `Service.CodeValueFlowStaleCleanupRunner`'s field type), never the
+  reverse.
 - **The ledger-driven path and the plain retractor path are mutually
   exclusive per evidence family, checked in `validate`.** Wiring neither
   `TaintEvidence` nor both of `TaintLedger`+`TaintWriter` (same for interproc)

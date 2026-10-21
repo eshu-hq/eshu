@@ -271,8 +271,8 @@ func sampleCodeInterprocInput() taint.InterprocEvidenceInput {
 	}
 }
 
-// fakeBackfillStateMarker satisfies CodeValueFlowBackfillStateMarker (root's
-// own copy — compat_projection.go, shared by this file's
+// fakeBackfillStateMarker satisfies value.BackfillStateMarker (this package's
+// own copy, shared by this file's
 // projected_source_edge_backfill_test.go and taint's own copy of this
 // same fake in code/taint/interproc_projected_edge_backfill_test.go).
 type fakeBackfillStateMarker struct {

@@ -54,12 +54,12 @@ func InterprocEvidenceDomainDefinition() reducercontract.DomainDefinition {
 
 // InterprocEvidenceLoader loads reducer-ready cross-function findings for one
 // scope generation. It is satisfied both by the fixpoint evidence loader
-// (ValueFlowFixpointEvidenceLoader, which SOLVES the cross-repo value-flow
+// (value.FixpointEvidenceLoader, which SOLVES the cross-repo value-flow
 // program from persisted summaries and therefore has no raw fact to decode)
 // and, historically, by the postgres raw-fact loader. The materialization
 // handler no longer uses this interface for raw facts — it uses
 // InterprocEvidenceFactLoader so it can decode + quarantine — but the
-// fixpoint projector (ValueFlowFixpointEvidenceProjector) still consumes this
+// fixpoint projector (value.FixpointEvidenceProjector) still consumes this
 // typed-input interface because its inputs come from an in-memory solve, not
 // a raw decode.
 type InterprocEvidenceLoader interface {

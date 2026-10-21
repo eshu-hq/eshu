@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 )
 
 const listPendingValueFlowProgramInputsSQL = `
@@ -111,7 +111,7 @@ func NewValueFlowProgramInputStore(database db.ExecQueryer) ValueFlowProgramInpu
 func (s ValueFlowProgramInputStore) LoadPendingValueFlowProgramInputs(
 	ctx context.Context,
 	limit int,
-) ([]reducer.ValueFlowProgramInput, error) {
+) ([]value.ProgramInput, error) {
 	if s.database == nil {
 		return nil, fmt.Errorf("value-flow program input store database is required")
 	}
@@ -122,7 +122,7 @@ func (s ValueFlowProgramInputStore) LoadPendingValueFlowProgramInputs(
 	if err != nil {
 		return nil, err
 	}
-	inputs := make([]reducer.ValueFlowProgramInput, 0, len(candidates))
+	inputs := make([]value.ProgramInput, 0, len(candidates))
 	for _, candidate := range candidates {
 		input, err := s.loadValueFlowProgramInput(ctx, candidate)
 		if err != nil {
@@ -174,20 +174,20 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramCandidates(
 func (s ValueFlowProgramInputStore) loadValueFlowProgramInput(
 	ctx context.Context,
 	candidate valueFlowProgramCandidate,
-) (reducer.ValueFlowProgramInput, error) {
+) (value.ProgramInput, error) {
 	edges, skipped, repos, err := s.loadValueFlowProgramCallEdges(ctx, candidate)
 	if err != nil {
-		return reducer.ValueFlowProgramInput{}, err
+		return value.ProgramInput{}, err
 	}
 	summaries, err := s.loadValueFlowProgramSummaries(ctx, repos)
 	if err != nil {
-		return reducer.ValueFlowProgramInput{}, err
+		return value.ProgramInput{}, err
 	}
 	sources, err := s.loadValueFlowProgramSources(ctx, repos)
 	if err != nil {
-		return reducer.ValueFlowProgramInput{}, err
+		return value.ProgramInput{}, err
 	}
-	return reducer.ValueFlowProgramInput{
+	return value.ProgramInput{
 		ScopeID:                candidate.scopeID,
 		GenerationID:           candidate.generationID,
 		RepositoryID:           candidate.repositoryID,
@@ -202,7 +202,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramInput(
 func (s ValueFlowProgramInputStore) loadValueFlowProgramCallEdges(
 	ctx context.Context,
 	candidate valueFlowProgramCandidate,
-) ([]reducer.ValueFlowCallEdge, int, map[string]struct{}, error) {
+) ([]value.CallEdge, int, map[string]struct{}, error) {
 	rows, err := s.database.QueryContext(
 		ctx,
 		listValueFlowProgramCallEdgesSQL,
@@ -216,7 +216,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramCallEdges(
 	}
 	defer func() { _ = rows.Close() }()
 
-	edges := make([]reducer.ValueFlowCallEdge, 0)
+	edges := make([]value.CallEdge, 0)
 	repos := make(map[string]struct{})
 	skipped := 0
 	for rows.Next() {
@@ -232,7 +232,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramCallEdges(
 		}
 		repos[row.caller.repo()] = struct{}{}
 		repos[row.callee.repo()] = struct{}{}
-		edges = append(edges, reducer.ValueFlowCallEdge{
+		edges = append(edges, value.CallEdge{
 			CallerEntityID:   row.callerEntityID,
 			CalleeEntityID:   row.calleeEntityID,
 			CallerFunctionID: callerID,

@@ -105,7 +105,7 @@ func resolveHandlesRouteMaterializedEdges(odu ifa.Odu, expectedEdgesPath string)
 	}
 	rows := symbolRuntimeUpsertRows(odu.Facts, reducercontract.DomainHandlesRoute)
 	if len(rows) == 0 {
-		return false, fmt.Sprintf("odù %q: ExtractSymbolRuntimeIntentRows produced zero HANDLES_ROUTE upsert rows; this fixture cannot prove anything", odu.Name)
+		return false, fmt.Sprintf("odù %q: ExtractIntentRows produced zero HANDLES_ROUTE upsert rows; this fixture cannot prove anything", odu.Name)
 	}
 
 	candidates, deploymentEnvironments := reducer.ExtractWorkloadCandidates(odu.Facts)
@@ -121,7 +121,7 @@ func resolveHandlesRouteMaterializedEdges(odu ifa.Odu, expectedEdgesPath string)
 		return false, mismatch
 	}
 	return true, fmt.Sprintf(
-		"odù %q: ExtractSymbolRuntimeIntentRows + ExtractWorkloadCandidates/BuildProjectionRows reproduces the expected %d-edge HANDLES_ROUTE set exactly, deduped from %d intent row(s) across %d fact envelope(s)",
+		"odù %q: ExtractIntentRows + ExtractWorkloadCandidates/BuildProjectionRows reproduces the expected %d-edge HANDLES_ROUTE set exactly, deduped from %d intent row(s) across %d fact envelope(s)",
 		odu.Name, len(expected), len(rows), len(odu.Facts),
 	)
 }

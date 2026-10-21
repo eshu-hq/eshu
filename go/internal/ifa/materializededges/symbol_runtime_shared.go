@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // The three symbol->runtime families (handles_route #5995, runs_in #6000,
 // invokes_cloud_action #5997) share ONE backend-free extraction seam
-// (reducer.ExtractSymbolRuntimeIntentRows) and ONE cassette/Odù
+// (materialization.ExtractIntentRows) and ONE cassette/Odù
 // (ifa.SymbolRuntimeFamilyOdu / ifa.LoadSymbolRuntimeFamilyOdu) -- this file
 // holds the plumbing all three guards reuse, so a family-specific guard file
 // only ever contains that family's own edge-set derivation.
@@ -35,7 +35,7 @@ import (
 
 // symbolRuntimeGuardGenerationID and symbolRuntimeGuardClock are the fixed,
 // deterministic inputs this guard hands to
-// reducer.ExtractSymbolRuntimeIntentRows. go/internal/ifa/AGENTS.md forbids
+// materialization.ExtractIntentRows. go/internal/ifa/AGENTS.md forbids
 // wall-clock time inside Ifá derivation; neither value participates in the
 // edge-identity comparison any of the three guards performs (mirrors
 // repoDependencyGuardClock's role exactly).
@@ -51,7 +51,7 @@ var symbolRuntimeGuardClock = time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC)
 // (go/internal/reducer/sharedintent/rows.go) a live
 // backend applies before ever reaching a write statement.
 func symbolRuntimeUpsertRows(envelopes []facts.Envelope, domain string) []sharedintent.Row {
-	all := reducer.ExtractSymbolRuntimeIntentRows(envelopes, symbolRuntimeGuardGenerationID, symbolRuntimeGuardClock)
+	all := materialization.ExtractIntentRows(envelopes, symbolRuntimeGuardGenerationID, symbolRuntimeGuardClock)
 	out := make([]sharedintent.Row, 0, len(all))
 	for _, row := range all {
 		if row.ProjectionDomain != domain {

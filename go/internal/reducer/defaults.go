@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -77,7 +78,7 @@ type DefaultHandlers struct {
 
 	// CodeCallIntentWriter persists durable shared-intent rows for code-call
 	// and Python metaclass materialization.
-	CodeCallIntentWriter CodeCallIntentWriter
+	CodeCallIntentWriter materialization.IntentWriter
 
 	// InheritanceIntentWriter persists durable shared-intent rows for inheritance
 	// edge materialization (#2867). The promoted inheritance.MaterializationHandler

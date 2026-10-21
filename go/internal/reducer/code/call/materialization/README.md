@@ -40,11 +40,11 @@ cross-checks against.
 | `ExtractIntentRows` | the backend-free seam: envelopes -> symbol→runtime rows, with no graph/Postgres/clock dependency |
 | `BuildRouteIntentRowsForQueryProof` | drives the real HANDLES_ROUTE pipeline over given envelopes, for query-side false-green-risk proofs |
 
-The reducer root wires `Handler` in `defaults_domain_catalog.go`, keeping the
-`reducer.CodeCallMaterializationHandler`/`reducer.CodeCallIntentWriter`/
-`reducer.ExtractSymbolRuntimeIntentRows`/
-`reducer.BuildHandlesRouteIntentRowsForQueryProof` spellings through the
-code-call stanza of `compat_projection.go`.
+The reducer root wires `Handler` in `defaults_domain_catalog.go`, naming
+`materialization.Handler`/`materialization.IntentWriter`/
+`materialization.ExtractIntentRows`/
+`materialization.BuildRouteIntentRowsForQueryProof` directly (#6626
+value-flow lane retired the code-call stanza of `compat_projection.go`).
 
 ## Dependencies
 

@@ -194,12 +194,13 @@ Core interfaces:
 
 Exported constants:
 
-- `DefaultSharedProjectionLeaseOwnerPrefix` and
-  `DefaultCodeCallProjectionLeaseOwnerPrefix` — root spellings of
-  `worker.DefaultLeaseOwnerPrefix` and `projection.DefaultLeaseOwnerPrefix`,
-  the semantic fallback labels shared by zero-value runner configs and the
-  production process-unique owner loader. Each label is defined once, in its
-  runner's package, so the two paths cannot drift.
+- `DefaultSharedProjectionLeaseOwnerPrefix` — root spelling of
+  `worker.DefaultLeaseOwnerPrefix`, and `projection.DefaultLeaseOwnerPrefix`
+  (`code/call/projection`), the code-call lane's equivalent named directly
+  (#6626 value-flow lane retired the `DefaultCodeCallProjectionLeaseOwnerPrefix`
+  root spelling) — the semantic fallback labels shared by zero-value runner
+  configs and the production process-unique owner loader. Each label is defined
+  once, in its runner's package, so the two paths cannot drift.
 - `RepoRefreshIntentType` — `sharedintent/refresh.go:25`, with a root alias — the
   `intent_type` payload value a repo-wide refresh intent carries. Exported
   because the graph-write side reads it back rather than keeping its own copy:

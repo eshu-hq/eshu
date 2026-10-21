@@ -171,8 +171,8 @@ func ExtractDocumentationEdgeRows(envelopes []facts.Envelope, scopeID string) []
 // ExtractDocumentationEdgeRowsWithQuarantine is the typed-decode counterpart
 // of ExtractDocumentationEdgeRows (Contract System v1 Wave 4e): it decodes
 // each documentation_entity_mention envelope through the sdk/go/factschema
-// seam (schemadecode.DecodeDocumentationEntityMention) instead of raw payloadStr/mapSlice
-// map lookups. A mention fact missing its required document_id, section_id,
+// seam (schemadecode.DecodeDocumentationEntityMention) instead of raw payloadStr/
+// payloadcore.MapSlice map lookups. A mention fact missing its required document_id, section_id,
 // or resolution_status field is quarantined per-fact via
 // factdecode.PartitionDecodeFailures rather than the pre-typing behavior of silently
 // skipping the fact via the old `if targetID == "" || documentID == "" ||

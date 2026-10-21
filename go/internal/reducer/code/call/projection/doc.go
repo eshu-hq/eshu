@@ -20,13 +20,12 @@
 // lane-blocked counter every cycle, the blocking-scope sample and log line
 // rate-limited per episode, #7133).
 //
-// The reducer root imports this package as projection. It keeps the
-// exported CodeCallProjectionRunner/CodeCallProjectionRunnerConfig/
-// ReducerGraphDrain/DefaultCodeCallProjectionLeaseOwnerPrefix/
-// DefaultCodeCallAcceptanceScanLimit/CodeCallProjectionFilePartitionKeyPrefix/
-// CodeCallProjectionPartitionCandidateReader/
-// CodeCallProjectionUnhashedCandidateReader/CodeCallProjectionRefreshFenceLookup
-// spellings through the code-call stanza of compat_projection.go.
+// The reducer tree imports this package as projection, naming
+// Runner/RunnerConfig/ReducerGraphDrain/DefaultLeaseOwnerPrefix/
+// DefaultAcceptanceScanLimit/FilePartitionKeyPrefix/
+// PartitionCandidateReader/UnhashedCandidateReader/RefreshFenceLookup
+// directly (#6626 value-flow lane retired the code-call stanza of
+// compat_projection.go).
 //
 // Dependency rule: from the reducer tree this package imports only the
 // shared tier (contract, gpphase, sharedintent, payloadcore) and the sibling

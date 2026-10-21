@@ -9,7 +9,7 @@ import (
 
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -19,11 +19,11 @@ import (
 // future signature drift from silently dropping the generic runner back to the
 // in-memory domain scan.
 var (
-	_ reducer.CodeCallProjectionPartitionCandidateReader = (*SharedIntentStore)(nil)
-	_ reducer.CodeCallProjectionUnhashedCandidateReader  = (*SharedIntentStore)(nil)
-	_ reducer.CodeCallProjectionRefreshFenceLookup       = (*SharedIntentStore)(nil)
-	_ worker.PartitionCandidateReader                    = (*SharedIntentStore)(nil)
-	_ worker.UnhashedCandidateReader                     = (*SharedIntentStore)(nil)
+	_ projection.PartitionCandidateReader = (*SharedIntentStore)(nil)
+	_ projection.UnhashedCandidateReader  = (*SharedIntentStore)(nil)
+	_ projection.RefreshFenceLookup       = (*SharedIntentStore)(nil)
+	_ worker.PartitionCandidateReader     = (*SharedIntentStore)(nil)
+	_ worker.UnhashedCandidateReader      = (*SharedIntentStore)(nil)
 )
 
 // listPendingDomainPartitionIntentsSQL fetches up to $4 pending intents for

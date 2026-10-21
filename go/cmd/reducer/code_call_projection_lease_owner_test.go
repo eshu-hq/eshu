@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 )
 
 const codeCallProjectionLeaseOwnerHelperEnv = "ESHU_TEST_CODE_CALL_PROJECTION_LEASE_OWNER_HELPER"
@@ -48,7 +48,7 @@ func codeCallProjectionLeaseOwnerFromHelperProcess(t *testing.T) string {
 	}
 	for _, line := range strings.Split(output.String(), "\n") {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, reducer.DefaultCodeCallProjectionLeaseOwnerPrefix+":") {
+		if strings.HasPrefix(line, projection.DefaultLeaseOwnerPrefix+":") {
 			return line
 		}
 	}

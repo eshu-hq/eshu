@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
@@ -303,7 +304,7 @@ func codeCallReplayCase() idempotencyReplayCase {
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
 			writer := &recordingCodeCallIntentWriter{}
-			handler := CodeCallMaterializationHandler{
+			handler := materialization.Handler{
 				FactLoader:   &stubFactLoader{envelopes: fencedFacts(codeCallReplayFacts())},
 				IntentWriter: writer,
 			}

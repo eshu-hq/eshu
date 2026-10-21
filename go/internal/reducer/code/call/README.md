@@ -10,10 +10,10 @@ it resolves each call site to a caller and callee code entity (dispatching to
 one of 14 per-language resolver leaves, the shared `EntityIndex`, import and
 re-export resolution, Python metaclass edges via `code/call/python`) and
 builds the `code_calls` shared-intent rows plus the per-repo refresh intents
-that own the repo-wide CALLS retract. It writes nothing itself. The root
-`CodeCallMaterializationHandler` persists the rows through its
-`CodeCallIntentWriter`; the root code-call projection runner drains them into
-graph edges.
+that own the repo-wide CALLS retract. It writes nothing itself.
+`materialization.Handler` persists the rows through its
+`materialization.IntentWriter`; the code-call projection runner drains them
+into graph edges.
 
 ## Files
 

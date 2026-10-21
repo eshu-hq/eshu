@@ -21,9 +21,8 @@ boundary sections for what this package owns and reuses from
 ## Invariants
 
 - **No import of the reducer root, ever.** This package is a leaf below
-  `internal/reducer`: the root imports it (via the code-call stanza of
-  `compat_projection.go` and `Service.CodeCallProjectionRunner`'s field
-  type), never the reverse.
+  `internal/reducer`: the root imports it (via
+  `Service.CodeCallProjectionRunner`'s field type), never the reverse.
 - **`processPartitionOnce` releases the lease with the caller's context**,
   never the derived lease-heartbeat context that `stopHeartbeat` already
   canceled — see the doc comment at its `defer` block.

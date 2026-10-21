@@ -163,7 +163,7 @@ func ShellExecFamilyOdu() CatalogOdu {
 }
 
 // ShellExecFamilyRepositoryFact encodes the public repository contract.
-// source_run_id is required for buildCodeCallProjectionContexts to yield a
+// source_run_id is required for schemadecode.BuildProjectionContexts to yield a
 // projection context for this repository at Handle() time; local_path
 // qualifies every entity node's path property the same way it does for the
 // SQL family (sqlFamilyLocalPath's doc comment, #5549 P1a).

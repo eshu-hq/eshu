@@ -19,10 +19,10 @@
 // symbol→runtime rows from real production logic instead of hand-inventing
 // literals that could silently diverge.
 //
-// The reducer root imports this package as materialization. It keeps the
-// exported CodeCallMaterializationHandler/CodeCallIntentWriter/
-// ExtractSymbolRuntimeIntentRows/BuildHandlesRouteIntentRowsForQueryProof
-// spellings through the code-call stanza of compat_projection.go.
+// The reducer tree imports this package as materialization, naming
+// Handler/IntentWriter/ExtractIntentRows/BuildRouteIntentRowsForQueryProof
+// directly (#6626 value-flow lane retired the code-call stanza of
+// compat_projection.go).
 //
 // Dependency rule: from the reducer tree this package imports only the
 // shared tier (contract, factdecode, factload, payloadcore, schemadecode,

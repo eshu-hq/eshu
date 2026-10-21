@@ -36,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
@@ -211,7 +212,7 @@ func TestInheritanceMaterializationHandlerSubDurationsStall(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// code_call_materialization (CodeCallMaterializationHandler)
+// code_call_materialization (materialization.Handler)
 // ---------------------------------------------------------------------------
 
 // TestCodeCallMaterializationHandlerSubDurationsWorkHappened asserts the
@@ -219,7 +220,7 @@ func TestInheritanceMaterializationHandlerSubDurationsStall(t *testing.T) {
 func TestCodeCallMaterializationHandlerSubDurationsWorkHappened(t *testing.T) {
 	t.Parallel()
 
-	handler := CodeCallMaterializationHandler{
+	handler := materialization.Handler{
 		FactLoader:   &stubFactLoader{envelopes: codeCallWorkEnvelopes()},
 		IntentWriter: &recordingCodeCallIntentWriter{},
 	}
@@ -243,7 +244,7 @@ func TestCodeCallMaterializationHandlerSubDurationsWorkHappened(t *testing.T) {
 func TestCodeCallMaterializationHandlerSubDurationsContextOnlyRefresh(t *testing.T) {
 	t.Parallel()
 
-	handler := CodeCallMaterializationHandler{
+	handler := materialization.Handler{
 		FactLoader:   &stubFactLoader{envelopes: codeCallContextOnlyEnvelopes()},
 		IntentWriter: &recordingCodeCallIntentWriter{},
 	}
@@ -260,7 +261,7 @@ func TestCodeCallMaterializationHandlerSubDurationsContextOnlyRefresh(t *testing
 func TestCodeCallMaterializationHandlerSubDurationsStall(t *testing.T) {
 	t.Parallel()
 
-	handler := CodeCallMaterializationHandler{
+	handler := materialization.Handler{
 		FactLoader:   &stubFactLoader{envelopes: nil},
 		IntentWriter: &recordingCodeCallIntentWriter{},
 	}

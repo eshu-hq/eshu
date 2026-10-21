@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 )
 
 // TestRouteQueryProofMatrix is the per-language route query-proof matrix
@@ -30,7 +30,7 @@ import (
 // parser route-entries test so route_entries are guaranteed to emit.
 //
 // Each case runs the SAME chain as the Java test: real fixture file -> real
-// parser.DefaultEngine().ParsePath -> reducer.BuildHandlesRouteIntentRowsForQueryProof
+// parser.DefaultEngine().ParsePath -> materialization.BuildRouteIntentRowsForQueryProof
 // -> drive handleRouteToCaller with reducer-derived fakeGraphReader rows and
 // assert the handler entity/language/truth_edge come back. A non-resolving case
 // can still assert the exact silent seam directly when a future language gap is
@@ -198,7 +198,7 @@ type routeQueryProofCase struct {
 // parser -> reducer -> query chain. A resolving case asserts the handler
 // entity, language, file path, and HANDLES_ROUTE truth edge come back from
 // handleRouteToCaller, exactly like TestHandleRouteToCallerResolvesJavaSpringHandler.
-// A non-resolving case asserts reducer.BuildHandlesRouteIntentRowsForQueryProof
+// A non-resolving case asserts materialization.BuildRouteIntentRowsForQueryProof
 // produced no HANDLES_ROUTE intent for the handler function under test, even
 // though that function was really parsed and indexed -- proving the handler
 // name convention itself is the reason for the silent skip, not a missing
@@ -249,7 +249,7 @@ func runRouteQueryProofCase(t *testing.T, tc routeQueryProofCase) {
 			},
 		})
 	}
-	intents := reducer.BuildHandlesRouteIntentRowsForQueryProof(envelopes)
+	intents := materialization.BuildRouteIntentRowsForQueryProof(envelopes)
 	intent, resolved := findQueryProofIntentByFunctionEntityID(intents, handlerUID)
 
 	if !tc.expectResolved {

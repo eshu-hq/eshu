@@ -75,7 +75,7 @@ const (
 // MIGRATES.
 //
 // The repository fact carries both repo_id and source_run_id: without
-// source_run_id, buildCodeCallProjectionContexts (code_call_materialization_
+// source_run_id, schemadecode.BuildProjectionContexts (code_call_materialization_
 // intents.go:59-65) yields no projection context and the handler exits
 // early ("no repositories available"), so every edge would silently fail to
 // materialize even though ExtractSQLRelationshipRows itself derived them.

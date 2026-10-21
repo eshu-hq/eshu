@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
 )
 
 const listCurrentCodeValueFlowGenerationsQuery = `
@@ -46,7 +46,7 @@ func (s CodeValueFlowCurrentGenerationStore) ListCurrentCodeValueFlowGenerations
 	ctx context.Context,
 	afterScopeID string,
 	limit int,
-) ([]reducer.CodeValueFlowCurrentGeneration, error) {
+) ([]cleanup.CurrentGeneration, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
@@ -59,9 +59,9 @@ func (s CodeValueFlowCurrentGenerationStore) ListCurrentCodeValueFlowGenerations
 	}
 	defer func() { _ = rows.Close() }()
 
-	generations := make([]reducer.CodeValueFlowCurrentGeneration, 0, limit)
+	generations := make([]cleanup.CurrentGeneration, 0, limit)
 	for rows.Next() {
-		var row reducer.CodeValueFlowCurrentGeneration
+		var row cleanup.CurrentGeneration
 		if err := rows.Scan(&row.ScopeID, &row.GenerationID); err != nil {
 			return nil, fmt.Errorf("scan current code value-flow generation: %w", err)
 		}

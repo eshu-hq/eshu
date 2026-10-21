@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
@@ -203,7 +204,7 @@ func TestSiblingRefreshIntentsKeepUnusableDeltaFailClosed(t *testing.T) {
 			t.Parallel()
 
 			envelopes := []facts.Envelope{deltaRepositoryFactWithoutCheckoutPath(repoID, scopeID)}
-			contexts := buildCodeCallProjectionContexts(envelopes, genID)
+			contexts := schemadecode.BuildProjectionContexts(envelopes, genID)
 			if _, ok := contexts[repoID]; !ok {
 				t.Fatalf("no projection context built for %q; the fixture repository fact is malformed", repoID)
 			}
@@ -271,7 +272,7 @@ func TestSiblingRefreshIntentsScopeDeltaToItsOwnRepositories(t *testing.T) {
 				deltaRepositoryFactWithoutCheckoutPath(deltaRepoID, scopeID),
 				fullGenerationRepositoryFact(fullRepoID, scopeID),
 			}
-			contexts := buildCodeCallProjectionContexts(envelopes, genID)
+			contexts := schemadecode.BuildProjectionContexts(envelopes, genID)
 			if len(contexts) != 2 {
 				t.Fatalf("projection contexts = %d, want 2; the fixture repository facts are malformed", len(contexts))
 			}
@@ -321,7 +322,7 @@ func TestSiblingRefreshIntentsCarryQualifiedDeltaPaths(t *testing.T) {
 			t.Parallel()
 
 			envelopes := []facts.Envelope{deltaRepositoryFactWithCheckoutPath(repoID, scopeID)}
-			contexts := buildCodeCallProjectionContexts(envelopes, genID)
+			contexts := schemadecode.BuildProjectionContexts(envelopes, genID)
 			intents, _, qualified := tc.build(envelopes, []string{repoID}, contexts, createdAt)
 
 			if got, want := qualified[repoID], "/repo/src/a.py"; len(got) != 1 || got[0] != want {
