@@ -104,7 +104,7 @@ or upgrade the reader; do not filter the log.
 
 - Build pin for the qualified image: RECORDED 2026-10-21.
   Digest `ghcr.io/eshu-hq/postgresql-eshu@sha256:26accacbc9276027930b7a117cf16127a9092021d6fed42a0e0aaf5a3bf93769`
-  (`18.6-eshu-7957`, live-corroborated on the ops-qa reader). Pinned via
+  (`18.6-eshu-7957`, live-corroborated on the deployed reader). Pinned via
   IaC (#289, merged 2026-10-19) and declared via #296 (merged 2026-10-20;
   API reports `qualified=true reason=declared_build`). Package revision:
   NOT RECORDED.
@@ -112,7 +112,7 @@ or upgrade the reader; do not filter the log.
   on a disposable pair (2026-10-21 lane runs) but that host is arm64, so
   the amd64 run the criteria require is still owed, as is every AC5
   measurement (statement counts, fleet benches, endpoint budget). The
-  image is deployed (ops-qa reader) and declared; the primary still runs
+  image is deployed on the read replica and declared; the primary still runs
   bitnami 18.3 on OnDelete hold, promotion pending an owner window.
 - CI standby mirror (`postgres:18.6-bookworm`) and local Compose tag stay
   unqualified until they resolve at or above 18.7 or are replaced.
