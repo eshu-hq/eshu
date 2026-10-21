@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -61,6 +62,132 @@ func TestCloudInventoryAccountAliasCrossProviderIsolationLive(t *testing.T) {
 	if !cloudInventoryEqualStringSets(gcpUIDs, []string{"gcp:compute:colliding-vm"}) {
 		t.Fatalf("provider=gcp project_id=%s rows = %v, want exactly the gcp row -- the aws row sharing the same account_id value must never co-mingle",
 			collidingAccountID, gcpUIDs)
+	}
+}
+
+// TestCloudInventoryReadbackSuppressesLegacyAppSyncKeyLive seeds a bearer-bearing
+// legacy identity beside normal, missing-type, and JSON-null identities, then
+// proves the production Postgres query suppresses only the legacy key row.
+func TestCloudInventoryReadbackSuppressesLegacyAppSyncKeyLive(t *testing.T) {
+	db, ctx, cancel := openCloudInventoryLiveDB(t)
+	defer cancel()
+	seedCloudInventoryCrossProviderCollisionLiveCorpus(t, ctx, db)
+	seedCloudInventoryLegacyAppSyncReadbackRows(t, ctx, db)
+
+	filter := cloudInventoryFilter{
+		AllScopes:         true,
+		Provider:          "aws",
+		AccountAliasKey:   "account_id",
+		AccountAliasValue: "333333333333",
+		Limit:             10,
+	}
+	reader := NewContentReader(db)
+	productionQuery, args := buildCloudInventoryIdentitiesSQL(filter)
+	legacyPredicate := "fact_records.payload->>'resource_type' IS DISTINCT FROM 'aws_appsync_api_key'"
+	if strings.Count(productionQuery, legacyPredicate) != 1 {
+		t.Fatalf("production read query must contain exactly one legacy AppSync predicate:\n%s", productionQuery)
+	}
+	legacyQuery := strings.Replace(productionQuery, " AND "+legacyPredicate, "", 1)
+	legacyRows, err := db.QueryContext(ctx, legacyQuery, args...)
+	if err != nil {
+		t.Fatalf("run pre-fix query on seeded AppSync rows: %v", err)
+	}
+	legacyResults := make([]map[string]any, 0, 4)
+	for legacyRows.Next() {
+		envelope, err := scanJSONPayload(legacyRows)
+		if err != nil {
+			_ = legacyRows.Close()
+			t.Fatalf("scan pre-fix AppSync row: %v", err)
+		}
+		legacyResults = append(legacyResults, envelope)
+	}
+	if err := legacyRows.Err(); err != nil {
+		_ = legacyRows.Close()
+		t.Fatalf("read pre-fix AppSync rows: %v", err)
+	}
+	if err := legacyRows.Close(); err != nil {
+		t.Fatalf("close pre-fix AppSync rows: %v", err)
+	}
+	legacyUIDs := cloudInventoryUIDs(t, legacyResults)
+	if !strings.Contains(strings.Join(legacyUIDs, "\n"), "SYNTHETIC-LEGACY-API-KEY") {
+		t.Fatalf("seeded red case did not expose the legacy key UID before the fix: %v", legacyUIDs)
+	}
+
+	got, err := reader.CloudInventoryIdentities(ctx, filter)
+	if err != nil {
+		t.Fatalf("read AppSync scope with production query: %v", err)
+	}
+	want := []string{
+		"aws:appsync:api-123",
+		"aws:custom:missing-resource-type",
+		"aws:custom:null-resource-type",
+	}
+	gotUIDs := cloudInventoryUIDs(t, got.Resources)
+	if !cloudInventoryEqualStringSets(gotUIDs, want) {
+		t.Fatalf("cloud inventory UIDs = %v, want normal and null/missing-type rows only %v", gotUIDs, want)
+	}
+}
+
+func seedCloudInventoryLegacyAppSyncReadbackRows(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	const scopeID = "aws:cloud:333333333333:us-east-1:appsync"
+	const generationID = "gen-appsync-legacy"
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, parent_scope_id,
+    collector_kind, partition_key, observed_at, ingested_at, status,
+    active_generation_id, payload
+) VALUES ($1, 'region', 'aws', $1, NULL, 'aws', $1, now(), now(), 'active', $2, '{}'::jsonb)
+`, scopeID, generationID); err != nil {
+		t.Fatalf("seed AppSync ingestion scope: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO scope_generations (generation_id, scope_id, status, observed_at, ingested_at, trigger_kind)
+VALUES ($1, $2, 'active', now(), now(), 'snapshot')
+`, generationID, scopeID); err != nil {
+		t.Fatalf("seed AppSync scope generation: %v", err)
+	}
+
+	apiType, keyType := "aws_appsync_graphql_api", "aws_appsync_api_key"
+	rows := []struct {
+		factID, uid  string
+		resourceType *string
+		nullType     bool
+	}{
+		{"legacy-appsync-api", "aws:appsync:api-123", &apiType, false},
+		{"legacy-appsync-key", "aws:appsync:SYNTHETIC-LEGACY-API-KEY", &keyType, false},
+		{"missing-appsync-type", "aws:custom:missing-resource-type", nil, false},
+		{"null-appsync-type", "aws:custom:null-resource-type", nil, true},
+	}
+	for _, row := range rows {
+		payloadFields := map[string]any{
+			"reducer_domain":     "cloud_inventory_admission",
+			"scope_id":           scopeID,
+			"generation_id":      generationID,
+			"cloud_resource_uid": row.uid,
+			"provider":           "aws",
+			"account_id":         "333333333333",
+			"management_origin":  "observed",
+		}
+		if row.resourceType != nil {
+			payloadFields["resource_type"] = *row.resourceType
+		} else if row.nullType {
+			payloadFields["resource_type"] = nil
+		}
+		payload, err := json.Marshal(payloadFields)
+		if err != nil {
+			t.Fatalf("marshal AppSync readback payload: %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (
+    fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
+    collector_kind, fencing_token, source_confidence, source_system, source_fact_key,
+    observed_at, ingested_at, is_tombstone, payload
+) VALUES ($1, $2, $3, 'reducer_cloud_resource_identity', $1, 1, 'aws', 0, 'inferred',
+    'reducer', $1, now(), now(), false, $4::jsonb)
+`, row.factID, scopeID, generationID, string(payload)); err != nil {
+			t.Fatalf("seed AppSync identity %s: %v", row.factID, err)
+		}
 	}
 }
 

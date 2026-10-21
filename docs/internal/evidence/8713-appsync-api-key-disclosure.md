@@ -22,6 +22,19 @@ predecessor-only graph resource nodes through the existing generation-aware
 materialization path, subject to that path's runtime configuration. Neither
 production fact records nor deployed graph state were inspected or changed here.
 
+**No-regression evidence:** The B-7 Neo4j corpus gate ran against a local
+PostgreSQL fixture with the readback filter in place. A matched before/after
+`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` comparison used the same projection,
+joins, predicates, ordering, and limit across five interleaved pairs. Median
+execution was 1.326 ms without the filter and 1.247 ms with it; both used
+`fact_records_collector_status_active_idx`, returned 51 rows, and recorded 232
+shared buffer hits with no reads. These fixture timings are not production
+p95 evidence and do not establish a speedup. B-7 completed in 8m23s with 616
+passes, no required failures, and two advisory timing warnings.
+
+**Observability evidence:** No runtime instrumentation changed. The query
+continues to use the existing `postgres.query` span and error recording.
+
 Before treating deployed exposure as resolved, rotate AppSync API keys for the
 scanned API scopes that used the vulnerable collector, then have the data owner
 assess historical fact and graph cleanup for those exact scopes. Any targeted
