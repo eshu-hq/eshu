@@ -86,6 +86,41 @@ type ConfigArtifactReadStats struct {
 	HydrateDuration time.Duration
 	// ParseDuration is time spent in the config-artifact extractors.
 	ParseDuration time.Duration
+	// ReadMode is the config-artifact read mode the load ran with
+	// (ESHU_CONFIG_ARTIFACT_READ_MODE: live, shadow or stored, #8155 PR3c).
+	// The loader sets it on every load, so the stage line names the mode
+	// even when the mode changed nothing.
+	ReadMode string
+	// StoredRepositoryCount is the number of related repositories served
+	// from trusted stored rows. With the live count it partitions the
+	// related set: every related repository is served stored or live.
+	StoredRepositoryCount int
+	// LiveRepositoryCount is the number of related repositories served
+	// live: every related repository in live and shadow mode, and the
+	// stored-mode fallbacks. The anchor repository is always live and is
+	// never counted here.
+	LiveRepositoryCount int
+	// LiveReasons counts the related repositories served live by reason:
+	// mode_live in live and shadow mode, and the stored-read reason
+	// (missing, stale_version, stale_extractor, failed, stored_error) for
+	// each stored-mode fallback. It feeds eshu_dp_config_artifact_reads_total
+	// and the stage live_reasons field. Nil when no related repository was
+	// served live.
+	LiveReasons map[string]int
+	// StoredRowCount is the number of stored rows served.
+	StoredRowCount int
+	// StoredStatements is the number of stored-read statements the load
+	// issued: one per load when the stored or shadow path ran with a
+	// reader, zero otherwise. The content-store statement count
+	// (Statements) does not carry it: the stored read bypasses the content
+	// store.
+	StoredStatements int
+	// StoredRepositoriesListTruncated is the number of stored-served
+	// related repositories whose state row was cut at the 5,000-file
+	// window. BoundReasons discloses it with the window reason, exactly as
+	// for a live list cut; it never feeds the budget reason or the
+	// candidates counter, which count live loads only.
+	StoredRepositoriesListTruncated int
 }
 
 // addRepository folds the statistics of one repository's load into the stage
@@ -127,7 +162,7 @@ func (s ConfigArtifactReadStats) BoundReasons() []string {
 	if s.CandidatesUnhydrated > 0 {
 		reasons = append(reasons, CandidatesBudgetReachedReason)
 	}
-	if s.RepositoriesListTruncated > 0 {
+	if s.RepositoriesListTruncated > 0 || s.StoredRepositoriesListTruncated > 0 {
 		reasons = append(reasons, RelatedFileListTruncatedReason)
 	}
 	return reasons

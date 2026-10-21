@@ -101,7 +101,7 @@ func shadowLoader(stored *fakeStoredReader, reported *[]ShadowReport) configArti
 	loader.shadow = ShadowConfig{
 		Enabled:  true,
 		Reader:   stored,
-		Reporter: func(r ShadowReport) { *reported = append(*reported, r) },
+		Reporter: func(_ context.Context, r ShadowReport) { *reported = append(*reported, r) },
 	}
 	return loader
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -346,7 +347,9 @@ func TestCandidateBudgetBodyIsStableAcrossGraphOrder(t *testing.T) {
 			if string(body) != firstBody {
 				t.Fatalf("budget %d, order %v: body differs from the first order", budget, order)
 			}
-			if statsCounts(stats) != firstStats {
+			// DeepEqual, not !=: the stats now carry the live-read
+			// reason map (#8155 stored cutover), which == cannot compare.
+			if !reflect.DeepEqual(statsCounts(stats), firstStats) {
 				t.Fatalf("budget %d, order %v: counts %+v differ from %+v", budget, order, statsCounts(stats), firstStats)
 			}
 		}

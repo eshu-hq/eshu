@@ -70,6 +70,13 @@ type configArtifactLoader struct {
 	// shadow runs the stored-vs-live compare after the live load (#8155
 	// PR3c). The zero value disables it: no stored statement, no report.
 	shadow ShadowConfig
+	// stored serves the stored rows of trusted related repositories with a
+	// live fallback per repository (#8155 PR3c stored cutover). The zero
+	// value disables it: every repository loads live, as today. The anchor
+	// repository always loads live. Wiring enables at most one of shadow
+	// and stored; when both are set the stored load wins and the shadow
+	// compare does not run.
+	stored StoredConfig
 }
 
 // productionConfigArtifactLoader is the loader every route uses.

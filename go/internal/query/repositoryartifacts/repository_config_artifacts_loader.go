@@ -66,13 +66,21 @@ func (l configArtifactLoader) loadShared(
 	}
 	slices.SortFunc(relatedSources, func(a, b repositoryArtifactSource) int { return cmp.Compare(a.RepoID, b.RepoID) })
 	sources = append(sources, relatedSources...)
+	stats.ReadMode = l.readMode()
 	stats.RelatedRepositoryCount = len(relatedSources)
 
-	res, err := l.loadForSources(ctx, reader, sources, stats)
+	var res configArtifactLoadResult
+	if l.stored.Enabled {
+		res, err = l.loadForSourcesStored(ctx, reader, sources, stats)
+	} else {
+		// Live and shadow mode serve every related repository live.
+		stats.countLiveRead(StoredReadReasonModeLive, len(relatedSources))
+		res, err = l.loadForSources(ctx, reader, sources, stats)
+	}
 	if err != nil {
 		return nil, err
 	}
-	l.maybeShadow(ctx, res)
+	l.maybeShadow(ctx, res, stats)
 	configArtifacts := res.merged
 	// The overview keeps its shape: production callers hold the anchor list,
 	// so the fallback never fires here and the flag is always false (#8157).
@@ -275,13 +283,7 @@ func (l configArtifactLoader) loadForSources(
 		return configArtifactLoadResult{}, nil
 	}
 
-	ordered := make([]repositoryArtifactSource, 0, len(sources))
-	for _, source := range sources {
-		if source.RepoID == "" || source.RepoName == "" {
-			continue
-		}
-		ordered = append(ordered, source)
-	}
+	ordered := filterOrderedSources(sources)
 	if len(ordered) == 0 {
 		return configArtifactLoadResult{}, nil
 	}

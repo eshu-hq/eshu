@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -168,7 +169,9 @@ func TestConfigArtifactFanOutStaysDeterministicUnderJitter(t *testing.T) {
 		if string(body) != firstBody {
 			t.Fatalf("round %d: body differs under jitter", round)
 		}
-		if counts != firstStats {
+		// DeepEqual, not !=: the stats now carry the live-read
+		// reason map (#8155 stored cutover), which == cannot compare.
+		if !reflect.DeepEqual(counts, firstStats) {
 			t.Fatalf("round %d: counts %+v differ from %+v under jitter", round, counts, firstStats)
 		}
 	}
@@ -232,7 +235,12 @@ func TestConfigArtifactFanOutMatchesSequentialDigests(t *testing.T) {
 	// before/after dump of the oracleCounts body differs only in
 	// BatchStatements (28 to 6) and BatchChunkSize (10 to 50); the rows
 	// and whole digests above are unchanged, so no row moved.
-	if got, want := digest(countsBody), "75f1a21a8b0a4f407f6bd0d57749ed85d7718797a0aedd1cb3cc6b7715ace1ec"; got != want {
+	// counts digest re-pinned by #8155 (stored-cutover stage fields): a
+	// before/after dump of the oracleCounts body differs only in the new
+	// fields ReadMode (live), LiveRepositoryCount (4) and LiveReasons
+	// (mode_live 4), with every stored field zero; the rows and whole
+	// digests above are unchanged, so no row moved.
+	if got, want := digest(countsBody), "07680610a111adbfd5fe827d83393dbf2cd33fabff2a89a1505b44429533e68e"; got != want {
 		t.Fatalf("counts=%s rows=%s whole=%s", got, digest(rowsBody), digest(wholeBody))
 	}
 }
