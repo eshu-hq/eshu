@@ -922,25 +922,25 @@ func (p *failingGraphProjectionPhasePublisher) PublishGraphProjectionPhases(_ co
 }
 
 type recordingGraphProjectionRepairQueue struct {
-	calls [][]reducer.GraphProjectionPhaseRepair
+	calls [][]gpphase.PhaseRepair
 }
 
-func (q *recordingGraphProjectionRepairQueue) Enqueue(_ context.Context, repairs []reducer.GraphProjectionPhaseRepair) error {
-	cloned := make([]reducer.GraphProjectionPhaseRepair, len(repairs))
+func (q *recordingGraphProjectionRepairQueue) Enqueue(_ context.Context, repairs []gpphase.PhaseRepair) error {
+	cloned := make([]gpphase.PhaseRepair, len(repairs))
 	copy(cloned, repairs)
 	q.calls = append(q.calls, cloned)
 	return nil
 }
 
-func (q *recordingGraphProjectionRepairQueue) ListDue(context.Context, time.Time, int) ([]reducer.GraphProjectionPhaseRepair, error) {
+func (q *recordingGraphProjectionRepairQueue) ListDue(context.Context, time.Time, int) ([]gpphase.PhaseRepair, error) {
 	return nil, nil
 }
 
-func (q *recordingGraphProjectionRepairQueue) Delete(context.Context, []reducer.GraphProjectionPhaseRepair) error {
+func (q *recordingGraphProjectionRepairQueue) Delete(context.Context, []gpphase.PhaseRepair) error {
 	return nil
 }
 
-func (q *recordingGraphProjectionRepairQueue) MarkFailed(context.Context, reducer.GraphProjectionPhaseRepair, time.Time, string) error {
+func (q *recordingGraphProjectionRepairQueue) MarkFailed(context.Context, gpphase.PhaseRepair, time.Time, string) error {
 	return nil
 }
 

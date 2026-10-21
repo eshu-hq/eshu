@@ -111,14 +111,16 @@ The reducer root keeps aliases under the original names —
 `GraphProjectionReadinessLookup`, `GraphProjectionReadinessPrefetch`,
 `GraphProjectionPhaseState`, `GraphProjectionPhasePublisher`,
 `EndpointPresenceRow`, `EndpointPresenceWriter`, `EndpointPresenceLookup`,
-`GraphProjectionPhaseRepair`, `GraphProjectionPhaseRepairQueue`, plus one
-alias per constant — and thin forwarder functions for
+plus one alias per constant — and thin forwarder functions for
 `publishIntentGraphPhase`, `graphProjectionPhaseStateForIntent`,
 `publishEndpointPresence`, `publishIntentGraphPhaseWithRepair`,
 `publishGraphProjectionPhaseStatesWithRepair`,
-`GraphProjectionPhaseRepairsFromStates`, `apiEndpointRepoPathPresenceKey`,
+`apiEndpointRepoPathPresenceKey`,
 `repoWorkloadPresenceKey`, and `workloadMaterializationRepoReadinessKey`
 — so every existing caller reaches these through the root unchanged.
+(The `GraphProjectionPhaseRepair`, `GraphProjectionPhaseRepairQueue`, and
+`GraphProjectionPhaseRepairsFromStates` spellings were retired with their
+last callers in #6626; callers name `gpphase`/`repair` directly.)
 `HandlesRouteEndpointPresenceKey` and `RunsInRepoWorkloadPresenceKey` have no
 root forwarder: their only root caller (the symbol→runtime presence gate)
 moved to `internal/reducer/intents/shared/worker` in issue #6061's H5, and

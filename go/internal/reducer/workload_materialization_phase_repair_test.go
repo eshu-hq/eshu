@@ -307,15 +307,15 @@ func (p *sequenceGraphProjectionPhasePublisher) PublishGraphProjectionPhases(
 	return nil
 }
 
-func graphProjectionPhaseRepairsForTest(calls [][]GraphProjectionPhaseRepair) []GraphProjectionPhaseRepair {
-	var repairs []GraphProjectionPhaseRepair
+func graphProjectionPhaseRepairsForTest(calls [][]gpphase.PhaseRepair) []gpphase.PhaseRepair {
+	var repairs []gpphase.PhaseRepair
 	for _, call := range calls {
 		repairs = append(repairs, call...)
 	}
 	return repairs
 }
 
-func graphProjectionPhaseRepairKeysContain(repairs []GraphProjectionPhaseRepair, key gpphase.PhaseKey) bool {
+func graphProjectionPhaseRepairKeysContain(repairs []gpphase.PhaseRepair, key gpphase.PhaseKey) bool {
 	for _, repair := range repairs {
 		if repair.Key == key && repair.Phase == gpphase.PhaseWorkloadMaterialization {
 			return true
@@ -324,7 +324,7 @@ func graphProjectionPhaseRepairKeysContain(repairs []GraphProjectionPhaseRepair,
 	return false
 }
 
-func graphProjectionPhaseRepairKeysForTest(repairs []GraphProjectionPhaseRepair) []gpphase.PhaseKey {
+func graphProjectionPhaseRepairKeysForTest(repairs []gpphase.PhaseRepair) []gpphase.PhaseKey {
 	keys := make([]gpphase.PhaseKey, 0, len(repairs))
 	for _, repair := range repairs {
 		keys = append(keys, repair.Key)

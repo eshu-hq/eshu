@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -169,12 +170,12 @@ func loadSharedEdgeWriterGroupTuning(getenv func(string) string) (int, int) {
 		loadPositiveIntOrDefault(getenv, sqlRelationshipEdgeGroupBatchSizeEnv, defaultSQLRelationshipEdgeGroupBatchSize)
 }
 
-func loadGraphProjectionPhaseRepairConfig(getenv func(string) string) reducer.GraphProjectionPhaseRepairerConfig {
+func loadGraphProjectionPhaseRepairConfig(getenv func(string) string) repair.Config {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
 
-	return reducer.GraphProjectionPhaseRepairerConfig{
+	return repair.Config{
 		PollInterval: loadDurationOrDefault(getenv, graphProjectionRepairPollIntervalEnv, defaultGraphProjectionRepairPollInterval),
 		BatchLimit:   loadPositiveIntOrDefault(getenv, graphProjectionRepairBatchLimitEnv, defaultGraphProjectionRepairBatchLimit),
 		RetryDelay:   loadDurationOrDefault(getenv, graphProjectionRepairRetryDelayEnv, defaultGraphProjectionRepairRetryDelay),

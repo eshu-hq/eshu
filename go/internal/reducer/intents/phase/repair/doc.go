@@ -30,8 +30,8 @@
 // key), and internal/telemetry, plus the standard library. It must never
 // import the reducer root.
 //
-// The root keeps aliases under the original names — GraphProjectionPhaseRepairer
-// (aliased to [Repairer]) and GraphProjectionPhaseRepairerConfig (aliased to
-// [Config]) — so cmd/reducer's construction and internal/reducer's
-// service.go field keep their existing spelling.
+// cmd/reducer constructs [Repairer]/[Config] directly and internal/reducer's
+// service.go holds *Repairer directly: #6626 retired the
+// GraphProjectionPhaseRepairer/GraphProjectionPhaseRepairerConfig root
+// aliases once those last callers moved.
 package repair

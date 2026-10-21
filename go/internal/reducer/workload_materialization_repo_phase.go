@@ -99,7 +99,7 @@ func publishRepoReadinessPhases(
 func publishRepoReadinessPhasesWithRepair(
 	ctx context.Context,
 	publisher gpphase.PhasePublisher,
-	repairQueue GraphProjectionPhaseRepairQueue,
+	repairQueue gpphase.PhaseRepairQueue,
 	presenceWriter gpphase.EndpointPresenceWriter,
 	scopeID, generationID string,
 	repoIDs []string,
@@ -124,7 +124,7 @@ func publishRepoReadinessPhasesWithRepair(
 func publishRepoDependencyReadinessFenceWithRepair(
 	ctx context.Context,
 	publisher gpphase.PhasePublisher,
-	repairQueue GraphProjectionPhaseRepairQueue,
+	repairQueue gpphase.PhaseRepairQueue,
 	intent reducercontract.Intent,
 	observedAt time.Time,
 ) error {
@@ -165,7 +165,7 @@ func publishRepoDependencyReadinessFenceWithRepair(
 
 func enqueueRepoReadinessPhaseRepairs(
 	ctx context.Context,
-	repairQueue GraphProjectionPhaseRepairQueue,
+	repairQueue gpphase.PhaseRepairQueue,
 	presenceWriter gpphase.EndpointPresenceWriter,
 	scopeID, generationID string,
 	repoIDs []string,

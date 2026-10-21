@@ -109,13 +109,13 @@
 // The root keeps aliases and forwarders under the original names —
 // GraphProjectionKeyspace, GraphProjectionPhase, GraphProjectionPhaseKey,
 // GraphProjectionReadinessLookup, GraphProjectionReadinessPrefetch,
-// EndpointPresenceRow, EndpointPresenceWriter, GraphProjectionPhaseRepair,
-// GraphProjectionPhaseRepairQueue, plus one alias per constant, plus thin
+// EndpointPresenceRow, EndpointPresenceWriter,
+// plus one alias per constant, plus thin
 // forwarder functions for publishIntentGraphPhase,
 // graphProjectionPhaseStateForIntent, publishEndpointPresence,
 // publishIntentGraphPhaseWithRepair,
 // publishGraphProjectionPhaseStatesWithRepair,
-// GraphProjectionPhaseRepairsFromStates, apiEndpointRepoPathPresenceKey,
+// apiEndpointRepoPathPresenceKey,
 // repoWorkloadPresenceKey, and workloadMaterializationRepoReadinessKey — so
 // no caller changed when any of this moved. HandlesRouteEndpointPresenceKey
 // and RunsInRepoWorkloadPresenceKey have no root forwarder: their only root

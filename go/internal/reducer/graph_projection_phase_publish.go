@@ -32,7 +32,7 @@ func publishIntentGraphPhase(
 func publishIntentGraphPhaseWithRepair(
 	ctx context.Context,
 	publisher gpphase.PhasePublisher,
-	repairQueue GraphProjectionPhaseRepairQueue,
+	repairQueue gpphase.PhaseRepairQueue,
 	intent reducercontract.Intent,
 	keyspace gpphase.Keyspace,
 	phase gpphase.Phase,
@@ -46,7 +46,7 @@ func publishIntentGraphPhaseWithRepair(
 func publishGraphProjectionPhaseStatesWithRepair(
 	ctx context.Context,
 	publisher gpphase.PhasePublisher,
-	repairQueue GraphProjectionPhaseRepairQueue,
+	repairQueue gpphase.PhaseRepairQueue,
 	states []gpphase.PhaseState,
 ) error {
 	return gpphase.PublishPhaseStatesWithRepair(ctx, publisher, repairQueue, states)

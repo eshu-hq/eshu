@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -117,15 +118,15 @@ func configureGraphProjectionRepairQueue(
 // same time source as the reducer queue. Extracted from buildReducerService to
 // keep the entrypoint within the repo file-size budget.
 func graphProjectionPhaseRepairerFor(
-	queue reducer.GraphProjectionPhaseRepairQueue,
+	queue gpphase.PhaseRepairQueue,
 	database db.ExecQueryer,
 	stateStore *postgres.GraphProjectionPhaseStateStore,
-	config reducer.GraphProjectionPhaseRepairerConfig,
+	config repair.Config,
 	clk clock.Clock,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-) *reducer.GraphProjectionPhaseRepairer {
-	return &reducer.GraphProjectionPhaseRepairer{
+) *repair.Repairer {
+	return &repair.Repairer{
 		Queue:       queue,
 		AcceptedGen: postgres.NewAcceptedGenerationLookup(database),
 		StateLookup: stateStore,

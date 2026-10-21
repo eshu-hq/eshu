@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestGraphProjectionPhaseRepairerRunOnceRepublishesMissingReadiness(t *testing.T) {
@@ -19,12 +19,12 @@ func TestGraphProjectionPhaseRepairerRunOnceRepublishesMissingReadiness(t *testi
 
 	now := time.Date(2026, time.April, 17, 16, 0, 0, 0, time.UTC)
 	queue := &fakeGraphProjectionPhaseRepairQueue{
-		due: []GraphProjectionPhaseRepair{
+		due: []gpphase.PhaseRepair{
 			newGraphProjectionPhaseRepairForTest(now),
 		},
 	}
 	publisher := &recordingGraphProjectionPhasePublisher{}
-	repairer := GraphProjectionPhaseRepairer{
+	repairer := repair.Repairer{
 		Queue: queue,
 		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			if key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1" {
@@ -34,7 +34,7 @@ func TestGraphProjectionPhaseRepairerRunOnceRepublishesMissingReadiness(t *testi
 		},
 		StateLookup: graphProjectionPhaseLookupFixed(false, false, nil),
 		Publisher:   publisher,
-		Config:      GraphProjectionPhaseRepairerConfig{BatchLimit: 10, RetryDelay: time.Minute},
+		Config:      repair.Config{BatchLimit: 10, RetryDelay: time.Minute},
 	}
 
 	repaired, err := repairer.RunOnce(context.Background(), now)
@@ -59,23 +59,23 @@ func TestGraphProjectionPhaseRepairerRunOnceRepublishesWorkloadReadinessWithoutA
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 18, 12, 0, 0, 0, time.UTC)
-	repair := GraphProjectionPhaseRepair{
+	row := gpphase.PhaseRepair{
 		Key:           workloadMaterializationRepoReadinessKey("scope-a", "repository:r_1", "gen-1"),
 		Phase:         gpphase.PhaseWorkloadMaterialization,
 		CommittedAt:   now.Add(-time.Minute),
 		EnqueuedAt:    now.Add(-30 * time.Second),
 		NextAttemptAt: now,
 	}
-	queue := &fakeGraphProjectionPhaseRepairQueue{due: []GraphProjectionPhaseRepair{repair}}
+	queue := &fakeGraphProjectionPhaseRepairQueue{due: []gpphase.PhaseRepair{row}}
 	publisher := &recordingGraphProjectionPhasePublisher{}
-	repairer := GraphProjectionPhaseRepairer{
+	repairer := repair.Repairer{
 		Queue: queue,
 		AcceptedGen: func(sharedintent.AcceptanceKey) (string, bool) {
 			return "", false
 		},
 		StateLookup: graphProjectionPhaseLookupFixed(false, false, nil),
 		Publisher:   publisher,
-		Config:      GraphProjectionPhaseRepairerConfig{BatchLimit: 10, RetryDelay: time.Minute},
+		Config:      repair.Config{BatchLimit: 10, RetryDelay: time.Minute},
 	}
 
 	repaired, err := repairer.RunOnce(context.Background(), now)
@@ -88,7 +88,7 @@ func TestGraphProjectionPhaseRepairerRunOnceRepublishesWorkloadReadinessWithoutA
 	if got, want := len(publisher.calls), 1; got != want {
 		t.Fatalf("publisher calls = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key, repair.Key; got != want {
+	if got, want := publisher.calls[0][0].Key, row.Key; got != want {
 		t.Fatalf("published key = %+v, want %+v", got, want)
 	}
 	if got, want := len(queue.deleted), 1; got != want {
@@ -101,19 +101,19 @@ func TestGraphProjectionPhaseRepairerRunOnceSkipsStaleGeneration(t *testing.T) {
 
 	now := time.Date(2026, time.April, 17, 16, 0, 0, 0, time.UTC)
 	queue := &fakeGraphProjectionPhaseRepairQueue{
-		due: []GraphProjectionPhaseRepair{
+		due: []gpphase.PhaseRepair{
 			newGraphProjectionPhaseRepairForTest(now),
 		},
 	}
 	publisher := &recordingGraphProjectionPhasePublisher{}
-	repairer := GraphProjectionPhaseRepairer{
+	repairer := repair.Repairer{
 		Queue: queue,
 		AcceptedGen: func(sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-new", true
 		},
 		StateLookup: graphProjectionPhaseLookupFixed(false, false, nil),
 		Publisher:   publisher,
-		Config:      GraphProjectionPhaseRepairerConfig{BatchLimit: 10, RetryDelay: time.Minute},
+		Config:      repair.Config{BatchLimit: 10, RetryDelay: time.Minute},
 	}
 
 	repaired, err := repairer.RunOnce(context.Background(), now)
@@ -136,14 +136,14 @@ func TestGraphProjectionPhaseRepairerRunOnceMarksFailedPublicationForRetry(t *te
 
 	now := time.Date(2026, time.April, 17, 16, 0, 0, 0, time.UTC)
 	queue := &fakeGraphProjectionPhaseRepairQueue{
-		due: []GraphProjectionPhaseRepair{
+		due: []gpphase.PhaseRepair{
 			newGraphProjectionPhaseRepairForTest(now),
 		},
 	}
 	publisher := &recordingGraphProjectionPhasePublisher{
 		err: errors.New("publish failed"),
 	}
-	repairer := GraphProjectionPhaseRepairer{
+	repairer := repair.Repairer{
 		Queue: queue,
 		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			if key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1" {
@@ -153,7 +153,7 @@ func TestGraphProjectionPhaseRepairerRunOnceMarksFailedPublicationForRetry(t *te
 		},
 		StateLookup: graphProjectionPhaseLookupFixed(false, false, nil),
 		Publisher:   publisher,
-		Config:      GraphProjectionPhaseRepairerConfig{BatchLimit: 10, RetryDelay: 2 * time.Minute},
+		Config:      repair.Config{BatchLimit: 10, RetryDelay: 2 * time.Minute},
 	}
 
 	repaired, err := repairer.RunOnce(context.Background(), now)
@@ -174,8 +174,8 @@ func TestGraphProjectionPhaseRepairerRunOnceMarksFailedPublicationForRetry(t *te
 	}
 }
 
-func newGraphProjectionPhaseRepairForTest(now time.Time) GraphProjectionPhaseRepair {
-	return GraphProjectionPhaseRepair{
+func newGraphProjectionPhaseRepairForTest(now time.Time) gpphase.PhaseRepair {
+	return gpphase.PhaseRepair{
 		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
@@ -191,33 +191,33 @@ func newGraphProjectionPhaseRepairForTest(now time.Time) GraphProjectionPhaseRep
 }
 
 type fakeGraphProjectionPhaseRepairQueue struct {
-	due     []GraphProjectionPhaseRepair
-	deleted []GraphProjectionPhaseRepair
+	due     []gpphase.PhaseRepair
+	deleted []gpphase.PhaseRepair
 	failed  []failedGraphProjectionRepair
 }
 
 type failedGraphProjectionRepair struct {
-	repair        GraphProjectionPhaseRepair
+	repair        gpphase.PhaseRepair
 	nextAttemptAt time.Time
 	lastError     string
 }
 
-func (f *fakeGraphProjectionPhaseRepairQueue) Enqueue(context.Context, []GraphProjectionPhaseRepair) error {
+func (f *fakeGraphProjectionPhaseRepairQueue) Enqueue(context.Context, []gpphase.PhaseRepair) error {
 	return nil
 }
 
-func (f *fakeGraphProjectionPhaseRepairQueue) ListDue(context.Context, time.Time, int) ([]GraphProjectionPhaseRepair, error) {
-	cloned := make([]GraphProjectionPhaseRepair, len(f.due))
+func (f *fakeGraphProjectionPhaseRepairQueue) ListDue(context.Context, time.Time, int) ([]gpphase.PhaseRepair, error) {
+	cloned := make([]gpphase.PhaseRepair, len(f.due))
 	copy(cloned, f.due)
 	return cloned, nil
 }
 
-func (f *fakeGraphProjectionPhaseRepairQueue) Delete(_ context.Context, repairs []GraphProjectionPhaseRepair) error {
+func (f *fakeGraphProjectionPhaseRepairQueue) Delete(_ context.Context, repairs []gpphase.PhaseRepair) error {
 	f.deleted = append(f.deleted, repairs...)
 	return nil
 }
 
-func (f *fakeGraphProjectionPhaseRepairQueue) MarkFailed(_ context.Context, repair GraphProjectionPhaseRepair, nextAttemptAt time.Time, lastError string) error {
+func (f *fakeGraphProjectionPhaseRepairQueue) MarkFailed(_ context.Context, repair gpphase.PhaseRepair, nextAttemptAt time.Time, lastError string) error {
 	f.failed = append(f.failed, failedGraphProjectionRepair{
 		repair:        repair,
 		nextAttemptAt: nextAttemptAt,

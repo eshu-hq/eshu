@@ -135,7 +135,7 @@ type WorkloadMaterializationHandler struct {
 	PhasePublisher       gpphase.PhasePublisher
 	// RepairQueue captures exact workload-materialization phase rows when graph
 	// writes have committed but phase publication fails.
-	RepairQueue GraphProjectionPhaseRepairQueue
+	RepairQueue gpphase.PhaseRepairQueue
 	// EndpointPresenceWriter records property-keyed (repo_id, path) :Endpoint
 	// presence after the endpoint nodes commit so the handles_route projection
 	// gate can prove a specific endpoint exists (#2809). A nil writer (the

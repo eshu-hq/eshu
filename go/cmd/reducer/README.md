@@ -31,7 +31,7 @@ flowchart TB
   Build --> Handlers["DefaultHandlers wired\n(all domain handlers)"]
   Build --> AdmissionDecisions["AdmissionDecisionWriter\n(admission_decisions)"]
   Build --> Queue["postgres.NewReducerQueue"]
-  Build --> Runners["SharedProjectionRunner\nCodeCallProjectionRunner\nRepoDependencyProjectionRunner\nGraphProjectionPhaseRepairer"]
+  Build --> Runners["SharedProjectionRunner\nCodeCallProjectionRunner\nRepoDependencyProjectionRunner\nrepair.Repairer"]
   Build --> Retention["retention.Runner\nbounded superseded-generation cleanup"]
   Build --> OrphanSweep["orphan.Runner\nbounded zero-relationship graph cleanup"]
   Build --> ValueFlowCleanup["CodeValueFlowStaleCleanupRunner\nbounded stale evidence cleanup"]
@@ -90,7 +90,7 @@ flowchart TB
    cloud sink targets as a distinct `TAINT_FLOWS_TO` evidence source while
    reusing durable value-flow component results across reducer restarts),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
-   `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, the
+   `RepoDependencyProjectionRunner`, `repair.Repairer`, the
    generation retention cleanup runner, the graph orphan cleanup runner, the
    value-flow stale evidence cleanup runner, the shared admission-decision
    writer for mapped reducer admission outcomes, the opt-in local
@@ -465,7 +465,7 @@ The direct process contract includes `eshu-reducer --version` and
 
 - `internal/reducer` — `Service`, `DefaultHandlers`, all domain handler
   types, `SharedProjectionRunner`, `CodeCallProjectionRunner`,
-  `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`,
+  `RepoDependencyProjectionRunner`, `repair.Repairer`,
   `orphan.Runner`, `SearchVectorBuildRunner`
 - `internal/storage/postgres` — `NewReducerQueue`, `InstrumentedDB`,
   `NewSharedIntentStore`, `NewGraphProjectionPhaseStateStore`,

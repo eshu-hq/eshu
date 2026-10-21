@@ -39,16 +39,14 @@
 //
 // [GraphProjectionPhaseRepairQueue] and [GraphProjectionPhaseRepair] are
 // declared locally in graph_ports.go rather than reusing gpphase's
-// PhaseRepairQueue/PhaseRepair directly (the root's own
-// GraphProjectionPhaseRepairQueue/GraphProjectionPhaseRepair spellings are
-// themselves now aliases to those two gpphase types, as of issue #6061's
-// H3): the concrete repair queue this package's RepairQueue field is wired
-// to at runtime is built and typed at the reducer root
-// (graph_projection_phase_repair_runner.go), and Go requires exact type
-// identity for a method whose parameter names a struct, so a queue built
-// against the root's/gpphase's GraphProjectionPhaseRepair/PhaseRepair does
-// not satisfy this package's interface directly even though every field
-// matches; the root wires it through semanticEntityRepairQueueAdapter
+// PhaseRepairQueue/PhaseRepair directly (the retired root aliases lived in
+// the compat_correlation.go bucket until #6626 retired them): the concrete
+// repair queue this package's RepairQueue field is wired to at runtime is
+// built against gpphase's types, and Go requires exact type identity for a
+// method whose parameter names a struct, so a queue built against gpphase's
+// PhaseRepair does not satisfy this package's interface directly even though
+// every field matches; the root wires it through
+// semanticEntityRepairQueueAdapter
 // (internal/reducer/semantic_entity_repair_queue_adapter.go), a narrow
 // translation between the two named types, not a duplicated implementation.
 //
