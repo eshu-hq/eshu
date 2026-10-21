@@ -145,7 +145,8 @@ or upgrade the reader; do not filter the log.
   assessment lane). A same-snapshot-window pinned comparison and any
   surviving 18.3-era log surface stay open if the owner wants them.
 - Stage 3 steps 1-2 observed complete on the QA reader (gauge 1 for the
-  declared member, denial counter flat with zero denied lines). Step 3
+  declared member, zero `snapshot_export_denied` log lines on the pod, so no
+  new denials). Step 3
   (remaining readers, unqualified-reader control) and the primary promotion
   window stay with the owner.
 - CI standby mirror (`postgres:18.6-bookworm`) and local Compose tag stay
