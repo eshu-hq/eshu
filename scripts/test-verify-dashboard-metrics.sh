@@ -169,20 +169,69 @@ expect_fail "fails when --dashboard single file has an orphan" \
   "${case_single}" --dashboard "${case_single}/deploy/grafana/dashboards/ignored.json"
 
 # ---------------------------------------------------------------------------
-# Case 6: missing instruments.go → exits non-zero with a clear message.
+# Case 6: empty metric registry → exits non-zero with a clear message.
 # Must have a dashboard JSON present (otherwise the verifier exits 0 early
 # for "no dashboard JSON files found"); the failure must come from the
-# missing instruments.go check.
+# empty-registry check.
 # ---------------------------------------------------------------------------
 case_no_instruments="$(init_fixture case-no-instruments)"
 make_dashboard "${case_no_instruments}/docs/dashboards" "exists.json" \
   eshu_dp_facts_emitted_total
 rm "${case_no_instruments}/go/internal/telemetry/instruments.go"
 if run_verifier "${case_no_instruments}"; then
-  record_fail "fails when instruments.go is missing in the fixture"
+  record_fail "fails when the telemetry package registers no metrics"
 else
-  record_pass "fails when instruments.go is missing in the fixture"
+  record_pass "fails when the telemetry package registers no metrics"
 fi
+
+# ---------------------------------------------------------------------------
+# Case 7: metric registered in a sibling registration file (not
+# instruments.go) resolves. Per-metric registration files are the package
+# convention (e.g. instruments_fileless_guard.go); the verifier must scan
+# the whole telemetry package, not one file.
+# ---------------------------------------------------------------------------
+case_sibling="$(init_fixture case-sibling)"
+make_dashboard "${case_sibling}/docs/dashboards" "sibling.json" \
+  eshu_dp_sibling_registered_total
+printf '%s\n' 'package telemetry' 'import "go.opentelemetry.io/otel/metric"' \
+  >"${case_sibling}/go/internal/telemetry/instruments_sibling.go"
+cat >>"${case_sibling}/go/internal/telemetry/instruments_sibling.go" <<GO
+func registerSibling(meter metric.Meter) {
+	_, _ = meter.Int64Counter("eshu_dp_sibling_registered_total")
+}
+GO
+expect_pass "passes when a dashboard metric is registered in a sibling file" \
+  "${case_sibling}"
+
+# ---------------------------------------------------------------------------
+# Case 8: a constructor-pattern literal in package prose (a .md example) must
+# NOT count as registration. Otherwise any plausible eshu_dp_* name in a doc
+# example silently whitelists an orphan dashboard reference (false-green).
+# ---------------------------------------------------------------------------
+case_prose="$(init_fixture case-prose)"
+make_dashboard "${case_prose}/docs/dashboards" "prose.json" \
+  eshu_dp_prose_only_metric_total
+printf '%s\n' '# Example (not a registration):' \
+  'Call `meter.Int64Counter("eshu_dp_prose_only_metric_total", ...)` in code.' \
+  >"${case_prose}/go/internal/telemetry/EXAMPLE.md"
+expect_fail "fails when only package prose names the dashboard metric" \
+  "${case_prose}"
+
+# ---------------------------------------------------------------------------
+# Case 9: a constructor-pattern literal inside a .go full-line comment must
+# NOT count as registration. Doc comments with usage examples would
+# otherwise silently whitelist an orphan dashboard reference (false-green).
+# Inline trailing comments are out of scope: stripping them needs a fuller
+# Go-aware strip, tracked as a verifier limitation.
+# ---------------------------------------------------------------------------
+case_gocomment="$(init_fixture case-gocomment)"
+make_dashboard "${case_gocomment}/docs/dashboards" "gocomment.json" \
+  eshu_dp_comment_only_metric_total
+printf '%s\n' '' '// Usage example (not a registration):' \
+  '// _, _ = meter.Int64Counter("eshu_dp_comment_only_metric_total")' \
+  >>"${case_gocomment}/go/internal/telemetry/instruments.go"
+expect_fail "fails when only a .go comment names the dashboard metric" \
+  "${case_gocomment}"
 
 # ---------------------------------------------------------------------------
 # Results.
