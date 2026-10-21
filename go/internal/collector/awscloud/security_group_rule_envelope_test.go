@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -25,7 +26,7 @@ func assertPayloadBool(t *testing.T, payload map[string]any, key string, want bo
 func securityGroupRuleBoundary(observedAt time.Time) Boundary {
 	boundary := testBoundary(observedAt)
 	boundary.Region = "us-east-1"
-	boundary.ServiceKind = ServiceEC2
+	boundary.ServiceKind = catalog.ServiceEC2
 	boundary.ScopeID = "aws:123456789012:us-east-1"
 	boundary.GenerationID = "aws:123456789012:us-east-1:ec2:1"
 	return boundary
@@ -68,7 +69,7 @@ func TestNewSecurityGroupRuleEnvelopeProvenance(t *testing.T) {
 	assertPayloadString(t, envelope.Payload, "ip_protocol", "tcp")
 	assertPayloadString(t, envelope.Payload, "source_kind", SecurityGroupRuleSourceCIDRIPv4)
 	assertPayloadString(t, envelope.Payload, "source_value", "0.0.0.0/0")
-	assertPayloadString(t, envelope.Payload, "service_kind", ServiceEC2)
+	assertPayloadString(t, envelope.Payload, "service_kind", catalog.ServiceEC2)
 	assertPayloadBool(t, envelope.Payload, "is_internet", true)
 	assertPayloadBool(t, envelope.Payload, "is_all_protocols", false)
 	assertPayloadBool(t, envelope.Payload, "is_all_ports", false)

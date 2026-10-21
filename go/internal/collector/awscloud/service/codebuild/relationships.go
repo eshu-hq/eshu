@@ -123,7 +123,7 @@ func vpcRelationships(
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   projectID + "#vpc#" + vpcID,
 		})
 	}
@@ -138,7 +138,7 @@ func vpcRelationships(
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes:       map[string]any{"vpc_id": vpcID},
 			SourceRecordID:   projectID + "#subnet#" + subnetID,
 		})
@@ -154,7 +154,7 @@ func vpcRelationships(
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			Attributes:       map[string]any{"vpc_id": vpcID},
 			SourceRecordID:   projectID + "#security-group#" + groupID,
 		})

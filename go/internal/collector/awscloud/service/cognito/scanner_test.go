@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -178,14 +179,14 @@ func TestScannerEmitsUserPoolAndIdentityPoolMetadata(t *testing.T) {
 	if got, want := payloadString(t, lambdaEdge, "target_resource_id"), lambdaARN; got != want {
 		t.Fatalf("user-pool -> lambda target_resource_id = %q, want %q", got, want)
 	}
-	if got, want := payloadString(t, lambdaEdge, "target_type"), awscloud.ResourceTypeLambdaFunction; got != want {
+	if got, want := payloadString(t, lambdaEdge, "target_type"), catalog.ResourceTypeLambdaFunction; got != want {
 		t.Fatalf("user-pool -> lambda target_type = %q, want %q", got, want)
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECR
+	boundary.ServiceKind = catalog.ServiceECR
 
 	_, err := newScanner(t, fakeClient{}).Scan(context.Background(), boundary)
 	if err == nil {

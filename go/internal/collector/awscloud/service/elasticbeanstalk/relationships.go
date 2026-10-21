@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // Elastic Beanstalk option-setting namespaces and option names that name
@@ -117,7 +118,7 @@ func optionSettingRelationships(
 				SourceResourceID: sourceID,
 				SourceARN:        environmentARN,
 				TargetResourceID: value,
-				TargetType:       awscloud.ResourceTypeEC2VPC,
+				TargetType:       catalog.ResourceTypeEC2VPC,
 				SourceRecordID:   sourceID + "#vpc#" + value,
 			})
 		case namespace == optionNamespaceLaunchConfig && option == optionNameInstanceProfile:
@@ -199,7 +200,7 @@ func resourceRelationships(
 			SourceResourceID: sourceID,
 			SourceARN:        environmentARN,
 			TargetResourceID: id,
-			TargetType:       awscloud.ResourceTypeEC2LaunchTemplate,
+			TargetType:       catalog.ResourceTypeEC2LaunchTemplate,
 			SourceRecordID:   sourceID + "#launch-template#" + id,
 		})
 	}

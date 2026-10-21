@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -140,12 +141,12 @@ func TestScannerEmitsEnvironmentRelationshipsWithJoinKeys(t *testing.T) {
 			"arn:aws:elasticbeanstalk:us-east-1:123456789012:application/checkout",
 			awscloud.ResourceTypeElasticBeanstalkApplication,
 		},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesVPC, "vpc-0123456789abcdef0", awscloud.ResourceTypeEC2VPC},
+		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesVPC, "vpc-0123456789abcdef0", catalog.ResourceTypeEC2VPC},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile, testInstanceProf, awscloud.ResourceTypeIAMInstanceProfile},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesServiceRole, testServiceRole, awscloud.ResourceTypeIAMRole},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer, testLoadBalancerARN, awscloud.ResourceTypeELBv2LoadBalancer},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup, "awseb-e-abc123-stack-AWSEBAutoScalingGroup", awscloud.ResourceTypeAutoScalingGroup},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate, "lt-0123456789abcdef0", awscloud.ResourceTypeEC2LaunchTemplate},
+		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate, "lt-0123456789abcdef0", catalog.ResourceTypeEC2LaunchTemplate},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentRunsVersion, testAppVersionARN, awscloud.ResourceTypeElasticBeanstalkApplicationVersion},
 	}
 	for _, tc := range cases {
@@ -298,7 +299,7 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECS
+	boundary.ServiceKind = catalog.ServiceECS
 	_, err := (Scanner{Client: fullClient(), RedactionKey: testKey(t)}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")

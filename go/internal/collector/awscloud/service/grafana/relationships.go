@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // workspaceRelationships returns every outgoing edge for one Managed Grafana
@@ -79,7 +80,7 @@ func workspaceSubnetRelationships(
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipGrafanaWorkspaceInSubnet + ":" + subnetID,
 		})
 	}
@@ -106,7 +107,7 @@ func workspaceSecurityGroupRelationships(
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipGrafanaWorkspaceUsesSecurityGroup + ":" + groupID,
 		})
 	}

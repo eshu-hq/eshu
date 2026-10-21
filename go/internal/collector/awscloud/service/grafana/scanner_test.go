@@ -84,11 +84,11 @@ func TestScannerEmitsGrafanaMetadataAndRelationships(t *testing.T) {
 	if len(subnetEdges) != 2 {
 		t.Fatalf("got %d subnet edges, want 2", len(subnetEdges))
 	}
-	assertEdgeTargets(t, subnetEdges, awscloud.ResourceTypeEC2Subnet, testSubnetA, testSubnetB)
+	assertEdgeTargets(t, subnetEdges, catalog.ResourceTypeEC2Subnet, testSubnetA, testSubnetB)
 
 	// workspace -> security group edge, keyed by the bare sg id the EC2 scanner publishes.
 	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipGrafanaWorkspaceUsesSecurityGroup)
-	assertEdgeTarget(t, sgEdge, awscloud.ResourceTypeEC2SecurityGroup, testSecurityGrp)
+	assertEdgeTarget(t, sgEdge, catalog.ResourceTypeEC2SecurityGroup, testSecurityGrp)
 	if got := sgEdge.Payload["target_arn"]; got != "" && got != nil {
 		t.Fatalf("workspace->sg target_arn = %#v, want empty (bare id target)", got)
 	}

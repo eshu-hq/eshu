@@ -80,7 +80,7 @@ func TestScannerEmitsScalableTargetAndResourceEdges(t *testing.T) {
 
 	// ecs edge -> long-format service ARN.
 	ecs := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesECSService)
-	assertEdgeTarget(t, ecs, awscloud.ResourceTypeECSService, "arn:aws:ecs:us-east-1:123456789012:service/prod/api")
+	assertEdgeTarget(t, ecs, catalog.ResourceTypeECSService, "arn:aws:ecs:us-east-1:123456789012:service/prod/api")
 
 	// rds edge -> aurora cluster ARN.
 	rds := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesRDSCluster)
@@ -88,7 +88,7 @@ func TestScannerEmitsScalableTargetAndResourceEdges(t *testing.T) {
 
 	// lambda edge -> base function ARN (qualifier dropped).
 	lambda := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesLambdaFunction)
-	assertEdgeTarget(t, lambda, awscloud.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:enricher")
+	assertEdgeTarget(t, lambda, catalog.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:enricher")
 
 	// sagemaker namespace emits a node but no scale edge.
 	for _, envelope := range envelopes {

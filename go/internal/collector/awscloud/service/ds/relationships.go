@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // directoryRelationships returns the VPC and subnet edges reported by one
@@ -27,7 +28,7 @@ func directoryRelationships(boundary awscloud.Boundary, directory Directory) []a
 			RelationshipType: awscloud.RelationshipDSDirectoryInVPC,
 			SourceResourceID: sourceID,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes:       map[string]any{"vpc_id": vpcID},
 			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDSDirectoryInVPC, vpcID),
 		})
@@ -38,7 +39,7 @@ func directoryRelationships(boundary awscloud.Boundary, directory Directory) []a
 			RelationshipType: awscloud.RelationshipDSDirectoryInSubnet,
 			SourceResourceID: sourceID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes:       map[string]any{"subnet_id": subnetID},
 			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDSDirectoryInSubnet, subnetID),
 		})

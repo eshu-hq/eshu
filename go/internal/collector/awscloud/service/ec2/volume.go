@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -39,7 +40,7 @@ func volumeObservation(boundary awscloud.Boundary, volume Volume) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          volumeARN,
 		ResourceID:   volumeID,
-		ResourceType: awscloud.ResourceTypeEC2Volume,
+		ResourceType: catalog.ResourceTypeEC2Volume,
 		Name:         volumeID,
 		State:        strings.TrimSpace(volume.State),
 		Tags:         volume.Tags,
@@ -80,7 +81,7 @@ func volumeKMSRelationship(boundary awscloud.Boundary, volume Volume) (awscloud.
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2VolumeUsesKMSKey,
+		RelationshipType: catalog.RelationshipEC2VolumeUsesKMSKey,
 		SourceResourceID: volumeID,
 		SourceARN:        strings.TrimSpace(volume.ARN),
 		TargetResourceID: keyID,

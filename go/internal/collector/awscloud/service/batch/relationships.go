@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // jobQueueRelationships records the compute-environment dispatch order of a
@@ -25,12 +26,12 @@ func jobQueueRelationships(boundary awscloud.Boundary, jobQueue JobQueue) []awsc
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchJobQueueUsesComputeEnvironment,
+			RelationshipType: catalog.RelationshipBatchJobQueueUsesComputeEnvironment,
 			SourceResourceID: jobQueueID,
 			SourceARN:        strings.TrimSpace(jobQueue.ARN),
 			TargetResourceID: computeEnvironment,
 			TargetARN:        arnOrEmpty(computeEnvironment),
-			TargetType:       awscloud.ResourceTypeBatchComputeEnvironment,
+			TargetType:       catalog.ResourceTypeBatchComputeEnvironment,
 			Attributes:       map[string]any{"order": entry.Order},
 			SourceRecordID:   jobQueueID + "#compute-environment#" + computeEnvironment,
 		})
@@ -59,7 +60,7 @@ func computeEnvironmentRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesIAMRole,
+			RelationshipType: catalog.RelationshipBatchComputeEnvironmentUsesIAMRole,
 			SourceResourceID: computeEnvironmentID,
 			SourceARN:        computeEnvironmentARN,
 			TargetResourceID: roleARN,
@@ -74,11 +75,11 @@ func computeEnvironmentRelationships(
 	for _, subnetID := range dedupeStrings(computeEnvironment.ComputeResource.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesSubnet,
+			RelationshipType: catalog.RelationshipBatchComputeEnvironmentUsesSubnet,
 			SourceResourceID: computeEnvironmentID,
 			SourceARN:        computeEnvironmentARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   computeEnvironmentID + "#subnet#" + subnetID,
 		})
 	}
@@ -86,11 +87,11 @@ func computeEnvironmentRelationships(
 	for _, securityGroupID := range dedupeStrings(computeEnvironment.ComputeResource.SecurityGroupIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipBatchComputeEnvironmentUsesSecurityGroup,
 			SourceResourceID: computeEnvironmentID,
 			SourceARN:        computeEnvironmentARN,
 			TargetResourceID: securityGroupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   computeEnvironmentID + "#security-group#" + securityGroupID,
 		})
 	}
@@ -98,11 +99,11 @@ func computeEnvironmentRelationships(
 	if launchTemplate := launchTemplateTargetID(computeEnvironment.ComputeResource); launchTemplate != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchComputeEnvironmentUsesLaunchTemplate,
+			RelationshipType: catalog.RelationshipBatchComputeEnvironmentUsesLaunchTemplate,
 			SourceResourceID: computeEnvironmentID,
 			SourceARN:        computeEnvironmentARN,
 			TargetResourceID: launchTemplate,
-			TargetType:       awscloud.ResourceTypeEC2LaunchTemplate,
+			TargetType:       catalog.ResourceTypeEC2LaunchTemplate,
 			SourceRecordID:   computeEnvironmentID + "#launch-template#" + launchTemplate,
 		})
 	}
@@ -128,7 +129,7 @@ func jobDefinitionRelationships(
 	for _, roleARN := range dedupeStrings([]string{container.JobRoleARN, container.ExecutionRoleARN}) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchJobDefinitionUsesIAMRole,
+			RelationshipType: catalog.RelationshipBatchJobDefinitionUsesIAMRole,
 			SourceResourceID: jobDefinitionID,
 			SourceARN:        jobDefinitionARN,
 			TargetResourceID: roleARN,
@@ -141,7 +142,7 @@ func jobDefinitionRelationships(
 	if image := strings.TrimSpace(container.Image); image != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchJobDefinitionUsesImage,
+			RelationshipType: catalog.RelationshipBatchJobDefinitionUsesImage,
 			SourceResourceID: jobDefinitionID,
 			SourceARN:        jobDefinitionARN,
 			TargetResourceID: image,
@@ -157,7 +158,7 @@ func jobDefinitionRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipBatchJobDefinitionReferencesSecret,
+			RelationshipType: catalog.RelationshipBatchJobDefinitionReferencesSecret,
 			SourceResourceID: jobDefinitionID,
 			SourceARN:        jobDefinitionARN,
 			TargetResourceID: valueFrom,

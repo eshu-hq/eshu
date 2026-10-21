@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -18,7 +19,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAutoScaling,
+		ServiceKind:         catalog.ServiceAutoScaling,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-aws-1",
@@ -204,7 +205,7 @@ func TestScannerEmitsGroupsLaunchConfigsPoliciesHooksAndScheduledActions(t *test
 		t.Fatalf("group capacity_rebalance = %v, want true", got)
 	}
 
-	launchConfigs := resourcesByType(t, envelopes, awscloud.ResourceTypeAutoScalingLaunchConfiguration)
+	launchConfigs := resourcesByType(t, envelopes, catalog.ResourceTypeAutoScalingLaunchConfiguration)
 	if len(launchConfigs) != 1 {
 		t.Fatalf("launch configuration resources = %d, want 1", len(launchConfigs))
 	}
@@ -212,12 +213,12 @@ func TestScannerEmitsGroupsLaunchConfigsPoliciesHooksAndScheduledActions(t *test
 		t.Fatalf("launch configuration resource_id = %v, want legacy-lc", got)
 	}
 
-	policies := resourcesByType(t, envelopes, awscloud.ResourceTypeAutoScalingPolicy)
+	policies := resourcesByType(t, envelopes, catalog.ResourceTypeAutoScalingPolicy)
 	if len(policies) != 1 {
 		t.Fatalf("scaling policy resources = %d, want 1", len(policies))
 	}
 
-	hooks := resourcesByType(t, envelopes, awscloud.ResourceTypeAutoScalingLifecycleHook)
+	hooks := resourcesByType(t, envelopes, catalog.ResourceTypeAutoScalingLifecycleHook)
 	if len(hooks) != 1 {
 		t.Fatalf("lifecycle hook resources = %d, want 1", len(hooks))
 	}
@@ -225,7 +226,7 @@ func TestScannerEmitsGroupsLaunchConfigsPoliciesHooksAndScheduledActions(t *test
 		t.Fatalf("lifecycle hook resource_id = %v, want checkout-asg/drain-hook", got)
 	}
 
-	actions := resourcesByType(t, envelopes, awscloud.ResourceTypeAutoScalingScheduledAction)
+	actions := resourcesByType(t, envelopes, catalog.ResourceTypeAutoScalingScheduledAction)
 	if len(actions) != 1 {
 		t.Fatalf("scheduled action resources = %d, want 1", len(actions))
 	}
@@ -238,7 +239,7 @@ func TestScannerLaunchConfigurationEmitsNoAttributes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	launchConfigs := resourcesByType(t, envelopes, awscloud.ResourceTypeAutoScalingLaunchConfiguration)
+	launchConfigs := resourcesByType(t, envelopes, catalog.ResourceTypeAutoScalingLaunchConfiguration)
 	if len(launchConfigs) != 1 {
 		t.Fatalf("launch configuration resources = %d, want 1", len(launchConfigs))
 	}
@@ -257,27 +258,27 @@ func TestScannerEmitsGroupRelationshipsWithGreppedJoinKeys(t *testing.T) {
 
 	// asg -> launch template: lt ID matches the EC2 launch-template resource_id
 	// form (lt-...).
-	lt := relationshipsByType(t, envelopes, awscloud.RelationshipAutoScalingGroupUsesLaunchTemplate)
+	lt := relationshipsByType(t, envelopes, catalog.RelationshipAutoScalingGroupUsesLaunchTemplate)
 	if len(lt) != 1 {
 		t.Fatalf("launch-template relationships = %d, want 1", len(lt))
 	}
-	assertEdge(t, lt[0], "checkout-asg", "lt-0abc123", awscloud.ResourceTypeEC2LaunchTemplate)
+	assertEdge(t, lt[0], "checkout-asg", "lt-0abc123", catalog.ResourceTypeEC2LaunchTemplate)
 
 	// asg -> launch configuration: keyed on launch configuration name.
-	lc := relationshipsByType(t, envelopes, awscloud.RelationshipAutoScalingGroupUsesLaunchConfiguration)
+	lc := relationshipsByType(t, envelopes, catalog.RelationshipAutoScalingGroupUsesLaunchConfiguration)
 	if len(lc) != 1 {
 		t.Fatalf("launch-configuration relationships = %d, want 1", len(lc))
 	}
-	assertEdge(t, lc[0], "legacy-asg", "legacy-lc", awscloud.ResourceTypeAutoScalingLaunchConfiguration)
+	assertEdge(t, lc[0], "legacy-asg", "legacy-lc", catalog.ResourceTypeAutoScalingLaunchConfiguration)
 
 	// asg -> subnet: bare subnet IDs matching the EC2-owned subnet resource_id.
-	subnets := relationshipsByType(t, envelopes, awscloud.RelationshipAutoScalingGroupUsesSubnet)
+	subnets := relationshipsByType(t, envelopes, catalog.RelationshipAutoScalingGroupUsesSubnet)
 	if len(subnets) != 3 {
 		t.Fatalf("subnet relationships = %d, want 3", len(subnets))
 	}
 	for _, edge := range subnets {
-		if got := edge["target_type"]; got != awscloud.ResourceTypeEC2Subnet {
-			t.Fatalf("subnet edge target_type = %v, want %s", got, awscloud.ResourceTypeEC2Subnet)
+		if got := edge["target_type"]; got != catalog.ResourceTypeEC2Subnet {
+			t.Fatalf("subnet edge target_type = %v, want %s", got, catalog.ResourceTypeEC2Subnet)
 		}
 		target := edge["target_resource_id"].(string)
 		if len(target) < 7 || target[:7] != "subnet-" {
@@ -287,7 +288,7 @@ func TestScannerEmitsGroupRelationshipsWithGreppedJoinKeys(t *testing.T) {
 
 	// asg -> target group: target group ARN matching the ELBv2-owned
 	// target-group resource_id.
-	tg := relationshipsByType(t, envelopes, awscloud.RelationshipAutoScalingGroupAttachedToTargetGroup)
+	tg := relationshipsByType(t, envelopes, catalog.RelationshipAutoScalingGroupAttachedToTargetGroup)
 	if len(tg) != 1 {
 		t.Fatalf("target-group relationships = %d, want 1", len(tg))
 	}
@@ -296,7 +297,7 @@ func TestScannerEmitsGroupRelationshipsWithGreppedJoinKeys(t *testing.T) {
 		awscloud.ResourceTypeELBv2TargetGroup)
 
 	// asg -> service-linked IAM role: role ARN.
-	role := relationshipsByType(t, envelopes, awscloud.RelationshipAutoScalingGroupUsesIAMRole)
+	role := relationshipsByType(t, envelopes, catalog.RelationshipAutoScalingGroupUsesIAMRole)
 	if len(role) != 1 {
 		t.Fatalf("IAM role relationships = %d, want 1", len(role))
 	}
@@ -311,7 +312,7 @@ func TestScannerEmitsChildToGroupRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	policy := relationshipsByType(t, envelopes, awscloud.RelationshipAutoScalingPolicyTargetsGroup)
+	policy := relationshipsByType(t, envelopes, catalog.RelationshipAutoScalingPolicyTargetsGroup)
 	if len(policy) != 1 {
 		t.Fatalf("policy->group relationships = %d, want 1", len(policy))
 	}
@@ -322,7 +323,7 @@ func TestScannerEmitsChildToGroupRelationships(t *testing.T) {
 		t.Fatalf("policy->group target_type = %v, want %s", got, awscloud.ResourceTypeAutoScalingGroup)
 	}
 
-	hook := relationshipsByType(t, envelopes, awscloud.RelationshipAutoScalingLifecycleHookTargetsGroup)
+	hook := relationshipsByType(t, envelopes, catalog.RelationshipAutoScalingLifecycleHookTargetsGroup)
 	if len(hook) != 1 {
 		t.Fatalf("hook->group relationships = %d, want 1", len(hook))
 	}
@@ -330,7 +331,7 @@ func TestScannerEmitsChildToGroupRelationships(t *testing.T) {
 		t.Fatalf("hook->group target_resource_id = %v, want checkout-asg", got)
 	}
 
-	action := relationshipsByType(t, envelopes, awscloud.RelationshipAutoScalingScheduledActionTargetsGroup)
+	action := relationshipsByType(t, envelopes, catalog.RelationshipAutoScalingScheduledActionTargetsGroup)
 	if len(action) != 1 {
 		t.Fatalf("action->group relationships = %d, want 1", len(action))
 	}
@@ -367,7 +368,7 @@ func TestScannerPropagatesClientError(t *testing.T) {
 
 func TestScannerRejectsForeignServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceBatch
+	boundary.ServiceKind = catalog.ServiceBatch
 	_, err := Scanner{Client: sampleClient()}.Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service_kind rejection")

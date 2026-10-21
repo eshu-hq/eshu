@@ -95,7 +95,7 @@ func dataSourceVPCRelationships(
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			Attributes:       map[string]any{"vpc_connection_id": connID},
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipQuickSightDataSourceUsesSecurityGroup + ":" + groupID,
 		})
@@ -107,7 +107,7 @@ func dataSourceVPCRelationships(
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes:       map[string]any{"vpc_connection_id": connID},
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipQuickSightDataSourceUsesSubnet + ":" + subnetID,
 		})

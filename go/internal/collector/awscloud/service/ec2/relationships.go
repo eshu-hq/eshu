@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func subnetVPCRelationship(boundary awscloud.Boundary, subnet Subnet) (awscloud.RelationshipObservation, bool) {
@@ -17,11 +18,11 @@ func subnetVPCRelationship(boundary awscloud.Boundary, subnet Subnet) (awscloud.
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2SubnetInVPC,
+		RelationshipType: catalog.RelationshipEC2SubnetInVPC,
 		SourceResourceID: subnetID,
 		SourceARN:        strings.TrimSpace(subnet.ARN),
 		TargetResourceID: vpcID,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
+		TargetType:       catalog.ResourceTypeEC2VPC,
 		SourceRecordID:   subnetID + "#vpc#" + vpcID,
 	}, true
 }
@@ -37,10 +38,10 @@ func securityGroupVPCRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2SecurityGroupInVPC,
+		RelationshipType: catalog.RelationshipEC2SecurityGroupInVPC,
 		SourceResourceID: groupID,
 		TargetResourceID: vpcID,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
+		TargetType:       catalog.ResourceTypeEC2VPC,
 		SourceRecordID:   groupID + "#vpc#" + vpcID,
 	}, true
 }
@@ -56,10 +57,10 @@ func securityGroupRuleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2SecurityGroupHasRule,
+		RelationshipType: catalog.RelationshipEC2SecurityGroupHasRule,
 		SourceResourceID: groupID,
 		TargetResourceID: ruleID,
-		TargetType:       awscloud.ResourceTypeEC2SecurityGroupRule,
+		TargetType:       catalog.ResourceTypeEC2SecurityGroupRule,
 		Attributes: map[string]any{
 			"direction": securityGroupRuleDirection(rule),
 		},
@@ -79,20 +80,20 @@ func networkInterfaceRelationships(
 	if subnetID := strings.TrimSpace(networkInterface.SubnetID); subnetID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEC2NetworkInterfaceInSubnet,
+			RelationshipType: catalog.RelationshipEC2NetworkInterfaceInSubnet,
 			SourceResourceID: networkInterfaceID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   networkInterfaceID + "#subnet#" + subnetID,
 		})
 	}
 	if vpcID := strings.TrimSpace(networkInterface.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEC2NetworkInterfaceInVPC,
+			RelationshipType: catalog.RelationshipEC2NetworkInterfaceInVPC,
 			SourceResourceID: networkInterfaceID,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   networkInterfaceID + "#vpc#" + vpcID,
 		})
 	}
@@ -103,10 +104,10 @@ func networkInterfaceRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEC2NetworkInterfaceUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipEC2NetworkInterfaceUsesSecurityGroup,
 			SourceResourceID: networkInterfaceID,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			Attributes: map[string]any{
 				"group_name": strings.TrimSpace(group.Name),
 			},
@@ -134,7 +135,7 @@ func attachmentRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2NetworkInterfaceAttachedToResource,
+		RelationshipType: catalog.RelationshipEC2NetworkInterfaceAttachedToResource,
 		SourceResourceID: networkInterfaceID,
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,

@@ -153,14 +153,14 @@ func TestScannerEmitsVerifiedAccessMetadataAndRelationships(t *testing.T) {
 
 	// endpoint -> subnet edge, keyed by the bare subnet id the EC2 scanner publishes.
 	endpointSubnet := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedAccessEndpointUsesSubnet)
-	assertEdgeTarget(t, endpointSubnet, awscloud.ResourceTypeEC2Subnet, testSubnetID)
+	assertEdgeTarget(t, endpointSubnet, catalog.ResourceTypeEC2Subnet, testSubnetID)
 	if got := endpointSubnet.Payload["target_arn"]; got != "" {
 		t.Fatalf("endpoint->subnet target_arn = %#v, want empty for bare id", got)
 	}
 
 	// endpoint -> security group edge, keyed by the bare sg id.
 	endpointSG := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedAccessEndpointUsesSecurityGroup)
-	assertEdgeTarget(t, endpointSG, awscloud.ResourceTypeEC2SecurityGroup, testSecurityGroupID)
+	assertEdgeTarget(t, endpointSG, catalog.ResourceTypeEC2SecurityGroup, testSecurityGroupID)
 
 	// endpoint -> ACM certificate edge, keyed by the certificate ARN.
 	endpointCert := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedAccessEndpointUsesACMCertificate)

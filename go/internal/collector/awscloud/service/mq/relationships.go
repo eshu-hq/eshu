@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // brokerRelationships builds the relationship observations for one broker.
@@ -28,7 +29,7 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerUsesSubnet, subnetID),
 		})
 	}
@@ -39,7 +40,7 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerUsesSecurityGroup, groupID),
 		})
 	}

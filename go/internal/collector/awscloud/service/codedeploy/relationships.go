@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // deploymentGroupRelationships derives the relationship observations CodeDeploy
@@ -131,7 +132,7 @@ func ecsServiceRelationships(
 			SourceARN:        groupARN,
 			TargetResourceID: target,
 			TargetARN:        serviceARN,
-			TargetType:       awscloud.ResourceTypeECSService,
+			TargetType:       catalog.ResourceTypeECSService,
 			Attributes: map[string]any{
 				"cluster_name": cluster,
 				"service_name": name,
@@ -165,7 +166,7 @@ func lambdaFunctionRelationships(
 			SourceARN:        groupARN,
 			TargetResourceID: target,
 			TargetARN:        functionARN,
-			TargetType:       awscloud.ResourceTypeLambdaFunction,
+			TargetType:       catalog.ResourceTypeLambdaFunction,
 			SourceRecordID:   groupID + "#lambda#" + name,
 		})
 	}

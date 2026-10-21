@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // clusterRelationships builds every resolvable outgoing edge for one cluster:
@@ -55,7 +56,7 @@ func clusterSubnetRelationship(
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: subnetID,
-		TargetType:       awscloud.ResourceTypeEC2Subnet,
+		TargetType:       catalog.ResourceTypeEC2Subnet,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDocDBElasticClusterInSubnet + ":" + subnetID,
 	}
 }
@@ -81,7 +82,7 @@ func clusterSecurityGroupRelationship(
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: groupID,
-		TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+		TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDocDBElasticClusterUsesSecurityGroup + ":" + groupID,
 	}
 }

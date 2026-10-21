@@ -145,7 +145,7 @@ func TestScannerEmitsMGNMetadataAndRelationships(t *testing.T) {
 
 	// launch config -> launch template edge, keyed by the bare launch template id.
 	usesTemplate := relationshipByType(t, envelopes, awscloud.RelationshipMGNLaunchConfigurationUsesLaunchTemplate)
-	assertEdgeTarget(t, usesTemplate, awscloud.ResourceTypeEC2LaunchTemplate, testLaunchTemplate)
+	assertEdgeTarget(t, usesTemplate, catalog.ResourceTypeEC2LaunchTemplate, testLaunchTemplate)
 	if got, want := usesTemplate.Payload["source_resource_id"], testSourceServerID+"/launch-configuration"; got != want {
 		t.Fatalf("config->template source_resource_id = %#v, want %q", got, want)
 	}

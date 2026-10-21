@@ -162,7 +162,7 @@ func TestScannerActionGroupLambdaJoinTarget(t *testing.T) {
 	if got, want := lambda.Payload["target_resource_id"], "arn:aws:lambda:us-east-1:123456789012:function:order-tool"; got != want {
 		t.Fatalf("action group lambda target = %#v, want %q", got, want)
 	}
-	if got, want := lambda.Payload["target_type"], awscloud.ResourceTypeLambdaFunction; got != want {
+	if got, want := lambda.Payload["target_type"], catalog.ResourceTypeLambdaFunction; got != want {
 		t.Fatalf("action group lambda target_type = %#v, want %q", got, want)
 	}
 	if got, want := lambda.Payload["target_arn"], "arn:aws:lambda:us-east-1:123456789012:function:order-tool"; got != want {

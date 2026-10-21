@@ -128,7 +128,7 @@ func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 
 	// scraper -> EKS cluster edge, keyed by the cluster ARN the EKS node publishes.
 	scEKS := relationshipByType(t, envelopes, awscloud.RelationshipAMPScraperScrapesEKSCluster)
-	assertEdgeTarget(t, scEKS, awscloud.ResourceTypeEKSCluster, testClusterARN)
+	assertEdgeTarget(t, scEKS, catalog.ResourceTypeEKSCluster, testClusterARN)
 	if got, want := scEKS.Payload["target_arn"], testClusterARN; got != want {
 		t.Fatalf("scraper->eks target_arn = %#v, want %q", got, want)
 	}
@@ -139,12 +139,12 @@ func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 
 	// scraper -> subnet (bare id) and -> security group (bare id) edges.
 	scSubnet := relationshipByType(t, envelopes, awscloud.RelationshipAMPScraperUsesSubnet)
-	assertEdgeTarget(t, scSubnet, awscloud.ResourceTypeEC2Subnet, "subnet-aaaa1111")
+	assertEdgeTarget(t, scSubnet, catalog.ResourceTypeEC2Subnet, "subnet-aaaa1111")
 	if got := scSubnet.Payload["target_arn"]; got != "" {
 		t.Fatalf("scraper->subnet target_arn = %#v, want empty (bare subnet id)", got)
 	}
 	scGroup := relationshipByType(t, envelopes, awscloud.RelationshipAMPScraperUsesSecurityGroup)
-	assertEdgeTarget(t, scGroup, awscloud.ResourceTypeEC2SecurityGroup, "sg-cccc3333")
+	assertEdgeTarget(t, scGroup, catalog.ResourceTypeEC2SecurityGroup, "sg-cccc3333")
 
 	// No data-plane leakage anywhere in the resource payloads.
 	for _, envelope := range envelopes {

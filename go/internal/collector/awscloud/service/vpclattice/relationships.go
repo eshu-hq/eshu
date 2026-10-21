@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // serviceNetworkVPCRelationship records a service network's association with a
@@ -36,7 +37,7 @@ func serviceNetworkVPCRelationship(
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(network.ARN),
 		TargetResourceID: vpcID,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
+		TargetType:       catalog.ResourceTypeEC2VPC,
 		Attributes:       attributesOrNil(attributes),
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeServiceNetworkAssociatesVPC + ":" + vpcID,
 	}
@@ -163,7 +164,7 @@ func targetGroupVPCRelationship(
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(group.ARN),
 		TargetResourceID: vpcID,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
+		TargetType:       catalog.ResourceTypeEC2VPC,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVPCLatticeTargetGroupInVPC + ":" + vpcID,
 	}
 }
@@ -249,7 +250,7 @@ func resolveTargetEdge(groupType, targetID string) (relationshipType, targetType
 			return "", "", "", false
 		}
 		return awscloud.RelationshipVPCLatticeTargetGroupTargetsLambda,
-			awscloud.ResourceTypeLambdaFunction, targetID, true
+			catalog.ResourceTypeLambdaFunction, targetID, true
 	case "INSTANCE":
 		if !isInstanceID(targetID) {
 			return "", "", "", false

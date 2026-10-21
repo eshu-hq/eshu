@@ -11,6 +11,7 @@ import (
 	awsecr "github.com/aws/aws-sdk-go-v2/service/ecr"
 	awsecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint"
 	ecrservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/ecr"
 )
@@ -110,7 +111,7 @@ func testImageCheckpointKey() checkpoint.Key {
 			CollectorInstanceID: "aws-prod",
 			AccountID:           "123456789012",
 			Region:              "us-east-1",
-			ServiceKind:         awscloud.ServiceECR,
+			ServiceKind:         catalog.ServiceECR,
 			GenerationID:        "generation-1",
 			FencingToken:        7,
 		},
@@ -123,7 +124,7 @@ func testCheckpointBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceECR,
+		ServiceKind:         catalog.ServiceECR,
 		CollectorInstanceID: "aws-prod",
 		GenerationID:        "generation-1",
 		FencingToken:        7,

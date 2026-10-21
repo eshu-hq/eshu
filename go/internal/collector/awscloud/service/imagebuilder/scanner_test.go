@@ -142,7 +142,7 @@ func TestScannerEmitsContainerRecipeECRAndKMSEdges(t *testing.T) {
 	}
 
 	ecrEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderContainerRecipeUsesECRRepository)
-	assertEdgeTarget(t, ecrEdge, awscloud.ResourceTypeECRRepository, testWantECRARN)
+	assertEdgeTarget(t, ecrEdge, catalog.ResourceTypeECRRepository, testWantECRARN)
 	if got, want := ecrEdge.Payload["target_arn"], testWantECRARN; got != want {
 		t.Fatalf("container-recipe->ecr target_arn = %#v, want %q", got, want)
 	}
@@ -200,7 +200,7 @@ func TestScannerEmitsInfraConfigEdges(t *testing.T) {
 	}
 
 	subnetEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigUsesSubnet)
-	assertEdgeTarget(t, subnetEdge, awscloud.ResourceTypeEC2Subnet, "subnet-0abc123")
+	assertEdgeTarget(t, subnetEdge, catalog.ResourceTypeEC2Subnet, "subnet-0abc123")
 	if got := subnetEdge.Payload["target_arn"]; got != "" {
 		t.Fatalf("infra->subnet target_arn = %#v, want empty (bare id target)", got)
 	}
@@ -210,7 +210,7 @@ func TestScannerEmitsInfraConfigEdges(t *testing.T) {
 		t.Fatalf("got %d security-group edges, want 2", len(sgEdges))
 	}
 	for _, edge := range sgEdges {
-		if edge.Payload["target_type"] != awscloud.ResourceTypeEC2SecurityGroup {
+		if edge.Payload["target_type"] != catalog.ResourceTypeEC2SecurityGroup {
 			t.Fatalf("sg edge target_type = %#v", edge.Payload["target_type"])
 		}
 		if got := edge.Payload["target_arn"]; got != "" {

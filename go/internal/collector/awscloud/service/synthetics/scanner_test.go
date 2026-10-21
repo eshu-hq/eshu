@@ -93,8 +93,8 @@ func TestScannerEmitsCanaryMetadataAndRelationships(t *testing.T) {
 	}
 	gotSubnets := map[string]bool{}
 	for _, edge := range subnetEdges {
-		if got := edge.Payload["target_type"]; got != awscloud.ResourceTypeEC2Subnet {
-			t.Fatalf("subnet edge target_type = %#v, want %q", got, awscloud.ResourceTypeEC2Subnet)
+		if got := edge.Payload["target_type"]; got != catalog.ResourceTypeEC2Subnet {
+			t.Fatalf("subnet edge target_type = %#v, want %q", got, catalog.ResourceTypeEC2Subnet)
 		}
 		gotSubnets[edge.Payload["target_resource_id"].(string)] = true
 	}
@@ -106,7 +106,7 @@ func TestScannerEmitsCanaryMetadataAndRelationships(t *testing.T) {
 
 	// canary -> security group edge, keyed by bare sg id.
 	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipSyntheticsCanaryUsesSecurityGroup)
-	assertEdgeTarget(t, sgEdge, awscloud.ResourceTypeEC2SecurityGroup, "sg-9999")
+	assertEdgeTarget(t, sgEdge, catalog.ResourceTypeEC2SecurityGroup, "sg-9999")
 	if got := sgEdge.Payload["target_arn"]; got != "" {
 		t.Fatalf("sg edge target_arn = %#v, want empty for bare sg id", got)
 	}

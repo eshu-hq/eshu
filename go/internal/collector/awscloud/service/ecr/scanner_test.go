@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -62,8 +63,8 @@ func TestScannerEmitsECRRepositoriesImagesAndLifecyclePolicies(t *testing.T) {
 	if counts[cloud.AWSImageReferenceFactKind] != 2 {
 		t.Fatalf("aws_image_reference count = %d, want 2", counts[cloud.AWSImageReferenceFactKind])
 	}
-	assertResourceType(t, envelopes, awscloud.ResourceTypeECRRepository)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeECRLifecyclePolicy)
+	assertResourceType(t, envelopes, catalog.ResourceTypeECRRepository)
+	assertResourceType(t, envelopes, catalog.ResourceTypeECRLifecyclePolicy)
 	assertImageReference(t, envelopes, "team/api", "sha256:image", "latest")
 	assertImageReference(t, envelopes, "team/api", "sha256:image", "v1")
 }
@@ -108,7 +109,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceECR,
+		ServiceKind:         catalog.ServiceECR,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:ecr:1",
 		CollectorInstanceID: "aws-prod",

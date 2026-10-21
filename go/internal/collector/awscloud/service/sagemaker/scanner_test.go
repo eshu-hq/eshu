@@ -111,7 +111,7 @@ func TestScannerModelRelationshipsTargetTypes(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECR
+	boundary.ServiceKind = catalog.ServiceECR
 	if _, err := (Scanner{Client: richClient()}).Scan(context.Background(), boundary); err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}

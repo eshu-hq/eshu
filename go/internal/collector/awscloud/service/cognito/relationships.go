@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // identityProviderTargetType labels the external federation provider an
@@ -71,7 +72,7 @@ func userPoolLambdaTriggerRelationships(
 			SourceARN:        poolARN,
 			TargetResourceID: arn,
 			TargetARN:        arn,
-			TargetType:       awscloud.ResourceTypeLambdaFunction,
+			TargetType:       catalog.ResourceTypeLambdaFunction,
 			Attributes: map[string]any{
 				"trigger": slot,
 			},

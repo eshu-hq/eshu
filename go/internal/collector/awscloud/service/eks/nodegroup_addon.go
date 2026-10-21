@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -58,7 +59,7 @@ func nodegroupObservation(boundary awscloud.Boundary, nodegroup Nodegroup) awscl
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(nodegroup.ARN),
 		ResourceID:   nodegroupID,
-		ResourceType: awscloud.ResourceTypeEKSNodegroup,
+		ResourceType: catalog.ResourceTypeEKSNodegroup,
 		Name:         strings.TrimSpace(nodegroup.Name),
 		State:        strings.TrimSpace(nodegroup.Status),
 		Tags:         nodegroup.Tags,
@@ -109,7 +110,7 @@ func addonObservation(boundary awscloud.Boundary, addon Addon) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(addon.ARN),
 		ResourceID:   addonID,
-		ResourceType: awscloud.ResourceTypeEKSAddon,
+		ResourceType: catalog.ResourceTypeEKSAddon,
 		Name:         strings.TrimSpace(addon.Name),
 		State:        strings.TrimSpace(addon.Status),
 		Tags:         addon.Tags,
@@ -137,12 +138,12 @@ func clusterAddonRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEKSClusterHasAddon,
+		RelationshipType: catalog.RelationshipEKSClusterHasAddon,
 		SourceResourceID: clusterID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: addonID,
 		TargetARN:        strings.TrimSpace(addon.ARN),
-		TargetType:       awscloud.ResourceTypeEKSAddon,
+		TargetType:       catalog.ResourceTypeEKSAddon,
 		SourceRecordID:   clusterID + "#addon#" + addonID,
 	}, true
 }
@@ -158,7 +159,7 @@ func addonRoleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEKSAddonUsesIAMRole,
+		RelationshipType: catalog.RelationshipEKSAddonUsesIAMRole,
 		SourceResourceID: addonID,
 		SourceARN:        strings.TrimSpace(addon.ARN),
 		TargetResourceID: roleARN,

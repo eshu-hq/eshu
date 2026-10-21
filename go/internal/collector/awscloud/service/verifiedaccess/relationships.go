@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // groupInInstanceRelationship records a Verified Access group's membership in
@@ -111,7 +112,7 @@ func endpointSubnetRelationships(boundary awscloud.Boundary, endpoint Endpoint) 
 			SourceResourceID: sourceID,
 			SourceARN:        arnOrEmpty(sourceID),
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointUsesSubnet + ":" + subnetID,
 		})
 	}
@@ -140,7 +141,7 @@ func endpointSecurityGroupRelationships(boundary awscloud.Boundary, endpoint End
 			SourceResourceID: sourceID,
 			SourceARN:        arnOrEmpty(sourceID),
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointUsesSecurityGroup + ":" + groupID,
 		})
 	}

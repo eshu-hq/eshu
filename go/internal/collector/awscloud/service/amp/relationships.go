@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // workspaceKMSRelationship records an AMP workspace's reported customer-managed
@@ -90,7 +91,7 @@ func scraperRelationships(boundary awscloud.Boundary, scraper Scraper) []awsclou
 			SourceARN:        scraperARN,
 			TargetResourceID: clusterARN,
 			TargetARN:        clusterARN,
-			TargetType:       awscloud.ResourceTypeEKSCluster,
+			TargetType:       catalog.ResourceTypeEKSCluster,
 			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperScrapesEKSCluster + ":" + clusterARN,
 		})
 	}
@@ -119,7 +120,7 @@ func scraperRelationships(boundary awscloud.Boundary, scraper Scraper) []awsclou
 			SourceResourceID: scraperID,
 			SourceARN:        scraperARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperUsesSubnet + ":" + subnetID,
 		})
 	}
@@ -131,7 +132,7 @@ func scraperRelationships(boundary awscloud.Boundary, scraper Scraper) []awsclou
 			SourceResourceID: scraperID,
 			SourceARN:        scraperARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperUsesSecurityGroup + ":" + groupID,
 		})
 	}

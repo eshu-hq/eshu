@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func kmsRelationship(boundary awscloud.Boundary, secret Secret) *awscloud.RelationshipObservation {
@@ -45,7 +46,7 @@ func rotationLambdaRelationship(boundary awscloud.Boundary, secret Secret) *awsc
 		SourceARN:        strings.TrimSpace(secret.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeLambdaFunction,
+		TargetType:       catalog.ResourceTypeLambdaFunction,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecretsManagerSecretUsesRotationLambda + ":" + targetARN,
 	}
 	return &relationship

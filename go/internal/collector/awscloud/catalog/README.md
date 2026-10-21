@@ -29,16 +29,29 @@ avoid.
 - `RelationshipS3*`, `RelationshipEFS*`, `RelationshipFSx*`,
   `RelationshipStorageGateway*`, `RelationshipBackup*` — storage-category
   reducer relationship types
+- `ServiceEC2`, `ServiceAutoScaling`, `ServiceLambda`, `ServiceECS`,
+  `ServiceEKS`, `ServiceECR`, `ServiceBatch`, `ServiceLightsail` —
+  compute-category service-kind strings
+- `ResourceTypeEC2*`, `ResourceTypeAutoScaling*`, `ResourceTypeLambda*`,
+  `ResourceTypeECS*`, `ResourceTypeEKS*`, `ResourceTypeECR*`,
+  `ResourceTypeBatch*`, `ResourceTypeLightsail*` — compute-category
+  fact-schema resource-type tokens
+- `RelationshipEC2*`, `RelationshipAutoScaling*`, `RelationshipLambda*`,
+  `RelationshipECS*`, `RelationshipEKS*`, `RelationshipBatch*`,
+  `RelationshipLightsail*` — compute-category reducer relationship types
 
 See `doc.go` for the full contract. Each follow-up category lands as one more
-`<category>.go` file with the same shape; the remaining ~131 `constants_*`
+`<category>.go` file with the same shape; the remaining ~123 `constants_*`
 files stay in the awscloud root until their category lands.
 
 ## Dependencies
 
-None. The package imports only the standard library (tests only). That is
-the point: anything that imports the awscloud root or a service package
-cannot be imported here.
+Almost none. The package imports only the standard library (tests only)
+plus the published fact-schema contract (`sdk/go/factschema/aws/v1`) for
+the eight EC2 resource-type tokens it already owned through that contract
+(`compute.go` keeps the `awsv1.*` references verbatim, #6696). The contract
+imports nothing back, so the leaf still cannot cycle. Anything that imports
+the awscloud root or a service package cannot be imported here.
 
 ## Telemetry
 
@@ -48,9 +61,10 @@ that consume these constants keep their existing counters; see
 
 ## Gotchas / invariants
 
-- A consolidation move must never change a value. `storage_test.go` pins
-  every constant byte-identical to its pre-consolidation value; a red test
-  there is a behavior change, not a move.
+- A consolidation move must never change a value. `storage_test.go` and
+  `compute_test.go` pin every constant byte-identical to its
+  pre-consolidation value; a red test there is a behavior change, not a
+  move.
 
 ## Consolidation proof
 
@@ -75,6 +89,35 @@ instrument and runs no stage; scanner emission stays covered by
 because the Go compiler resolves every moved reference, the value-pinning test
 fails on any drift, and the relguard/redaction disk-walk derivations were
 extended to the catalog directory with their own failing-first tests.
+
+No-Regression Evidence: the compute-category consolidation (Refs #6696)
+moves 91 string constants from eight `constants_<service>.go` root files
+(ec2, autoscaling, lambda, ecs, eks, ecr, batch, lightsail) into
+`catalog/compute.go` verbatim (only the package clause changes; the eight
+EC2 resource-type tokens keep their `awsv1.*` fact-schema references, and
+the contract imports nothing back so the leaf still cannot cycle); the 196
+referencing `.go` files change only the qualifier (`awscloud.` to
+`catalog.`, plus the leaf import, dropping it where it goes unused) and
+same-package root files qualify previously bare identifiers. Baseline: the
+pre-move values read from the base tree
+(`git show origin/main:go/internal/collector/awscloud/constants_<service>.go`)
+are pinned in `compute_test.go` (91/91 byte-identical,
+`go test ./internal/collector/awscloud/catalog/ -count=1` green) and the
+full affected suite (collector tree, reducer, coordinator, storage,
+extensionconformance, `go/cmd/collector-aws-cloud`,
+`go/cmd/webhook-listener`) is green after the move; `go build ./...` and
+`go vet ./...` are clean. The redaction-derivation test needed no walk
+change: the storage slice already generalized it to every catalog category
+file, and it passes with `compute.go` present. Backend/version: none — a
+pure compile-time constant relocation with no query, graph write, queue,
+lease, worker, batching, or Compose/Helm change, so there are no row counts
+to regress. No-Observability-Change: the leaf declares no instrument and
+runs no stage; scanner emission stays covered by
+`eshu_dp_aws_resources_emitted_total` and `eshu_dp_aws_scan_duration_seconds`
+(AWS cloud row in `docs/public/observability/telemetry-coverage.md`). Safe
+because the Go compiler resolves every moved reference, the value-pinning
+test fails on any drift, and the relguard/redaction disk-walk derivations
+already cover the catalog directory.
 - When a category carrying `Service*` constants lands, extend the
   `go/cmd/collector-aws-cloud` redaction-derivation test's constants walk to
   parse this directory too — it resolves every `runtimebind` `ServiceKind`

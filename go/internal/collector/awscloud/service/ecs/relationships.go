@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // taskDefinitionImageRelationships aggregates container evidence by image so
@@ -43,7 +44,7 @@ func taskDefinitionImageRelationships(
 		evidence := byImage[image]
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipECSTaskDefinitionUsesImage,
+			RelationshipType: catalog.RelationshipECSTaskDefinitionUsesImage,
 			SourceResourceID: taskDefinitionARN,
 			SourceARN:        taskDefinitionARN,
 			TargetResourceID: evidence.image,
@@ -73,11 +74,11 @@ func taskNetworkInterfaceRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipECSTaskUsesNetworkInterface,
+			RelationshipType: catalog.RelationshipECSTaskUsesNetworkInterface,
 			SourceResourceID: taskARN,
 			SourceARN:        taskARN,
 			TargetResourceID: networkInterfaceID,
-			TargetType:       awscloud.ResourceTypeEC2NetworkInterface,
+			TargetType:       catalog.ResourceTypeEC2NetworkInterface,
 			Attributes: map[string]any{
 				"mac_address":          strings.TrimSpace(networkInterface.MACAddress),
 				"network_interface_id": networkInterfaceID,

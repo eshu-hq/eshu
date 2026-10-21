@@ -30,7 +30,7 @@ func fileSystemRelationships(boundary awscloud.Boundary, fs FileSystem) []awsclo
 			SourceResourceID: sourceID,
 			SourceARN:        fsARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes:       map[string]any{"vpc_id": vpcID},
 			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipFSxFileSystemInVPC, vpcID),
 		})
@@ -42,7 +42,7 @@ func fileSystemRelationships(boundary awscloud.Boundary, fs FileSystem) []awsclo
 			SourceResourceID: sourceID,
 			SourceARN:        fsARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes: map[string]any{
 				"subnet_id": subnetID,
 				"preferred": subnetID == strings.TrimSpace(fs.PreferredSubnetID),

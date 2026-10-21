@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -118,7 +119,7 @@ func TestScannerEmitsConfigMetadataAndRelationships(t *testing.T) {
 	// rule, targeting the Lambda function ARN (aws_lambda_function).
 	assertRelationshipCount(t, envelopes, awscloud.RelationshipConfigRuleEvaluatedByLambda, 1)
 	lambdaRel := relationshipByType(t, envelopes, awscloud.RelationshipConfigRuleEvaluatedByLambda)
-	if got, want := lambdaRel.Payload["target_type"], awscloud.ResourceTypeLambdaFunction; got != want {
+	if got, want := lambdaRel.Payload["target_type"], catalog.ResourceTypeLambdaFunction; got != want {
 		t.Fatalf("lambda relationship target_type = %#v, want %q", got, want)
 	}
 	if got, want := lambdaRel.Payload["target_resource_id"], "arn:aws-us-gov:lambda:us-gov-west-1:123456789012:function:config-evaluator"; got != want {

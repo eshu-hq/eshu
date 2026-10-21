@@ -71,14 +71,14 @@ func TestScannerEmitsClusterMetadataAndRelationships(t *testing.T) {
 	if len(subnetEdges) != 2 {
 		t.Fatalf("subnet edges = %d, want 2", len(subnetEdges))
 	}
-	assertEdgeTarget(t, subnetEdges[0], awscloud.ResourceTypeEC2Subnet, "subnet-0a1b2c3d")
+	assertEdgeTarget(t, subnetEdges[0], catalog.ResourceTypeEC2Subnet, "subnet-0a1b2c3d")
 	if got := subnetEdges[0].Payload["target_arn"]; got != "" {
 		t.Fatalf("subnet edge target_arn = %#v, want empty (bare id)", got)
 	}
 
 	// cluster -> security group edge, keyed by bare sg id.
 	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipDocDBElasticClusterUsesSecurityGroup)
-	assertEdgeTarget(t, sgEdge, awscloud.ResourceTypeEC2SecurityGroup, "sg-0123456789abcdef0")
+	assertEdgeTarget(t, sgEdge, catalog.ResourceTypeEC2SecurityGroup, "sg-0123456789abcdef0")
 	if got := sgEdge.Payload["target_arn"]; got != "" {
 		t.Fatalf("sg edge target_arn = %#v, want empty (bare id)", got)
 	}

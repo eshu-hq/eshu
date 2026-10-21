@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -209,7 +210,7 @@ func safeStateNodes(states []StateNode) []map[string]any {
 func targetTypeForARN(arn string) string {
 	switch {
 	case strings.Contains(arn, ":lambda:"):
-		return awscloud.ResourceTypeLambdaFunction
+		return catalog.ResourceTypeLambdaFunction
 	case strings.Contains(arn, ":sns:"):
 		return awscloud.ResourceTypeSNSTopic
 	case strings.Contains(arn, ":sqs:"):
@@ -219,7 +220,7 @@ func targetTypeForARN(arn string) string {
 	case strings.Contains(arn, ":dynamodb:"):
 		return awscloud.ResourceTypeDynamoDBTable
 	case strings.Contains(arn, ":ecs:"):
-		return awscloud.ResourceTypeECSTaskDefinition
+		return catalog.ResourceTypeECSTaskDefinition
 	default:
 		return "aws_resource"
 	}

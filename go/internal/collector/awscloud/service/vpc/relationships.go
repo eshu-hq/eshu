@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func routeTableRelationships(boundary awscloud.Boundary, rt RouteTable) []awscloud.RelationshipObservation {
@@ -21,7 +22,7 @@ func routeTableRelationships(boundary awscloud.Boundary, rt RouteTable) []awsclo
 			RelationshipType: awscloud.RelationshipVPCRouteTableInVPC,
 			SourceResourceID: rtID,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   rtID + "#vpc#" + vpcID,
 		})
 	}
@@ -35,7 +36,7 @@ func routeTableRelationships(boundary awscloud.Boundary, rt RouteTable) []awsclo
 			RelationshipType: awscloud.RelationshipVPCRouteTableAssociatedWithSubnet,
 			SourceResourceID: rtID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes: map[string]any{
 				"association_id": strings.TrimSpace(association.AssociationID),
 				"main":           association.Main,
@@ -155,7 +156,7 @@ func internetGatewayRelationships(
 			RelationshipType: awscloud.RelationshipVPCInternetGatewayAttachedToVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes: map[string]any{
 				"state": strings.TrimSpace(attachment.State),
 			},
@@ -180,7 +181,7 @@ func natGatewayRelationships(
 			RelationshipType: awscloud.RelationshipVPCNATGatewayInSubnet,
 			SourceResourceID: id,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   id + "#subnet#" + subnetID,
 		})
 	}
@@ -190,7 +191,7 @@ func natGatewayRelationships(
 			RelationshipType: awscloud.RelationshipVPCNATGatewayInVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   id + "#vpc#" + vpcID,
 		})
 	}
@@ -212,7 +213,7 @@ func networkACLRelationships(
 			RelationshipType: awscloud.RelationshipVPCNetworkACLInVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   id + "#vpc#" + vpcID,
 		})
 	}
@@ -226,7 +227,7 @@ func networkACLRelationships(
 			RelationshipType: awscloud.RelationshipVPCNetworkACLAssociatedWithSubnet,
 			SourceResourceID: id,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes: map[string]any{
 				"association_id": strings.TrimSpace(association.AssociationID),
 			},
@@ -258,7 +259,7 @@ func vpcPeeringRelationships(
 			RelationshipType: awscloud.RelationshipVPCPeeringConnectsVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes: map[string]any{
 				"owner_id": strings.TrimSpace(info.OwnerID),
 				"region":   strings.TrimSpace(info.Region),
@@ -285,7 +286,7 @@ func vpcEndpointRelationships(
 			RelationshipType: awscloud.RelationshipVPCEndpointInVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   id + "#vpc#" + vpcID,
 		})
 	}
@@ -338,7 +339,7 @@ func elasticIPRelationships(
 			RelationshipType: awscloud.RelationshipVPCElasticIPAssociatedWithNetworkInterface,
 			SourceResourceID: id,
 			TargetResourceID: eniID,
-			TargetType:       awscloud.ResourceTypeEC2NetworkInterface,
+			TargetType:       catalog.ResourceTypeEC2NetworkInterface,
 			Attributes: map[string]any{
 				"association_id":             strings.TrimSpace(eip.AssociationID),
 				"network_interface_owner_id": strings.TrimSpace(eip.NetworkInterfaceOwnerID),
@@ -370,7 +371,7 @@ func vpnGatewayRelationships(
 			RelationshipType: awscloud.RelationshipVPCVPNGatewayAttachedToVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes: map[string]any{
 				"state": strings.TrimSpace(attachment.State),
 			},

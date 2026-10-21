@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // clusterRelationships emits the direct dependency edges a DAX cluster reports:
@@ -45,7 +46,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: securityGroupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXClusterUsesSecurityGroup, securityGroupID),
 		})
 	}
@@ -84,7 +85,7 @@ func subnetGroupRelationships(boundary awscloud.Boundary, group SubnetGroup) []a
 			RelationshipType: awscloud.RelationshipDAXSubnetGroupInVPC,
 			SourceResourceID: sourceID,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXSubnetGroupInVPC, vpcID),
 		})
 	}
@@ -95,7 +96,7 @@ func subnetGroupRelationships(boundary awscloud.Boundary, group SubnetGroup) []a
 			RelationshipType: awscloud.RelationshipDAXSubnetGroupHasSubnet,
 			SourceResourceID: sourceID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXSubnetGroupHasSubnet, subnetID),
 		})
 	}

@@ -6,6 +6,7 @@ package awscloud
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -22,17 +23,17 @@ func TestAWSCloudResourceTypeConstantsMatchFactSchema(t *testing.T) {
 		"iam_policy":           {got: ResourceTypeIAMPolicy, want: awsv1.ResourceTypeIAMPolicy},
 		"iam_instance_profile": {got: ResourceTypeIAMInstanceProfile, want: awsv1.ResourceTypeIAMInstanceProfile},
 		"iam_principal":        {got: ResourceTypeIAMPrincipal, want: awsv1.ResourceTypeIAMPrincipal},
-		"ec2_vpc":              {got: ResourceTypeEC2VPC, want: awsv1.ResourceTypeEC2VPC},
-		"ec2_subnet":           {got: ResourceTypeEC2Subnet, want: awsv1.ResourceTypeEC2Subnet},
-		"ec2_security_group":   {got: ResourceTypeEC2SecurityGroup, want: awsv1.ResourceTypeEC2SecurityGroup},
+		"ec2_vpc":              {got: catalog.ResourceTypeEC2VPC, want: awsv1.ResourceTypeEC2VPC},
+		"ec2_subnet":           {got: catalog.ResourceTypeEC2Subnet, want: awsv1.ResourceTypeEC2Subnet},
+		"ec2_security_group":   {got: catalog.ResourceTypeEC2SecurityGroup, want: awsv1.ResourceTypeEC2SecurityGroup},
 		"ec2_security_group_rule": {
-			got:  ResourceTypeEC2SecurityGroupRule,
+			got:  catalog.ResourceTypeEC2SecurityGroupRule,
 			want: awsv1.ResourceTypeEC2SecurityGroupRule,
 		},
-		"ec2_network_interface": {got: ResourceTypeEC2NetworkInterface, want: awsv1.ResourceTypeEC2NetworkInterface},
-		"ec2_volume":            {got: ResourceTypeEC2Volume, want: awsv1.ResourceTypeEC2Volume},
-		"ec2_instance":          {got: ResourceTypeEC2Instance, want: awsv1.ResourceTypeEC2Instance},
-		"ec2_ami":               {got: ResourceTypeEC2AMI, want: awsv1.ResourceTypeEC2AMI},
+		"ec2_network_interface": {got: catalog.ResourceTypeEC2NetworkInterface, want: awsv1.ResourceTypeEC2NetworkInterface},
+		"ec2_volume":            {got: catalog.ResourceTypeEC2Volume, want: awsv1.ResourceTypeEC2Volume},
+		"ec2_instance":          {got: catalog.ResourceTypeEC2Instance, want: awsv1.ResourceTypeEC2Instance},
+		"ec2_ami":               {got: catalog.ResourceTypeEC2AMI, want: awsv1.ResourceTypeEC2AMI},
 	}
 	for name, tt := range tests {
 		name, tt := name, tt

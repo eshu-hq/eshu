@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awscloud.RelationshipObservation {
@@ -18,7 +19,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 	if roleARN := strings.TrimSpace(cluster.RoleARN); roleARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEKSClusterUsesIAMRole,
+			RelationshipType: catalog.RelationshipEKSClusterUsesIAMRole,
 			SourceResourceID: clusterID,
 			SourceARN:        strings.TrimSpace(cluster.ARN),
 			TargetResourceID: roleARN,
@@ -31,11 +32,11 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 		if subnetID = strings.TrimSpace(subnetID); subnetID != "" {
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipEKSClusterUsesSubnet,
+				RelationshipType: catalog.RelationshipEKSClusterUsesSubnet,
 				SourceResourceID: clusterID,
 				SourceARN:        strings.TrimSpace(cluster.ARN),
 				TargetResourceID: subnetID,
-				TargetType:       awscloud.ResourceTypeEC2Subnet,
+				TargetType:       catalog.ResourceTypeEC2Subnet,
 				Attributes:       map[string]any{"vpc_id": strings.TrimSpace(cluster.VPCConfig.VPCID)},
 				SourceRecordID:   clusterID + "#subnet#" + subnetID,
 			})
@@ -54,11 +55,11 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 		seenGroupIDs[groupID] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipEKSClusterUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipEKSClusterUsesSecurityGroup,
 			SourceResourceID: clusterID,
 			SourceARN:        strings.TrimSpace(cluster.ARN),
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			Attributes:       map[string]any{"vpc_id": strings.TrimSpace(cluster.VPCConfig.VPCID)},
 			SourceRecordID:   clusterID + "#security-group#" + groupID,
 		})
@@ -78,12 +79,12 @@ func clusterOIDCProviderRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEKSClusterHasOIDCProvider,
+		RelationshipType: catalog.RelationshipEKSClusterHasOIDCProvider,
 		SourceResourceID: clusterID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: providerID,
 		TargetARN:        strings.TrimSpace(provider.ARN),
-		TargetType:       awscloud.ResourceTypeEKSOIDCProvider,
+		TargetType:       catalog.ResourceTypeEKSOIDCProvider,
 		Attributes:       map[string]any{"issuer_url": strings.TrimSpace(provider.IssuerURL)},
 		SourceRecordID:   clusterID + "#oidc-provider#" + providerID,
 	}, true
@@ -101,12 +102,12 @@ func clusterNodegroupRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEKSClusterHasNodegroup,
+		RelationshipType: catalog.RelationshipEKSClusterHasNodegroup,
 		SourceResourceID: clusterID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: nodegroupID,
 		TargetARN:        strings.TrimSpace(nodegroup.ARN),
-		TargetType:       awscloud.ResourceTypeEKSNodegroup,
+		TargetType:       catalog.ResourceTypeEKSNodegroup,
 		SourceRecordID:   clusterID + "#nodegroup#" + nodegroupID,
 	}, true
 }
@@ -122,7 +123,7 @@ func nodegroupRoleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEKSNodegroupUsesIAMRole,
+		RelationshipType: catalog.RelationshipEKSNodegroupUsesIAMRole,
 		SourceResourceID: nodegroupID,
 		SourceARN:        strings.TrimSpace(nodegroup.ARN),
 		TargetResourceID: roleARN,
@@ -142,11 +143,11 @@ func nodegroupSubnetRelationships(boundary awscloud.Boundary, nodegroup Nodegrou
 		if subnetID = strings.TrimSpace(subnetID); subnetID != "" {
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipEKSNodegroupUsesSubnet,
+				RelationshipType: catalog.RelationshipEKSNodegroupUsesSubnet,
 				SourceResourceID: nodegroupID,
 				SourceARN:        strings.TrimSpace(nodegroup.ARN),
 				TargetResourceID: subnetID,
-				TargetType:       awscloud.ResourceTypeEC2Subnet,
+				TargetType:       catalog.ResourceTypeEC2Subnet,
 				SourceRecordID:   nodegroupID + "#subnet#" + subnetID,
 			})
 		}

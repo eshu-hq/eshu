@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/lambda/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -18,9 +18,9 @@ import (
 // TestLambdaRuntimeBindRegisters confirms importing the binding
 // installs the Lambda scanner builder.
 func TestLambdaRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceLambda)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceLambda)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceLambda)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceLambda)
 	}
 	key, err := redact.NewKey([]byte("aws-redaction-key"))
 	if err != nil {
@@ -28,7 +28,7 @@ func TestLambdaRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceLambda},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceLambda},
 		RedactionKey: key,
 	})
 	if err != nil {
@@ -42,13 +42,13 @@ func TestLambdaRuntimeBindRegisters(t *testing.T) {
 // TestLambdaRuntimeBindRequiresRedactionKey covers the guard the
 // binding inherits from the legacy switch.
 func TestLambdaRuntimeBindRequiresRedactionKey(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceLambda)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceLambda)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceLambda)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceLambda)
 	}
 	_, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceLambda},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceLambda},
 	})
 	if err == nil {
 		t.Fatalf("build() error = nil, want missing redaction key")

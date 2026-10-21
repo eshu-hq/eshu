@@ -325,7 +325,7 @@ func TestScannerEmitsReportPlanRestoreTestingFrameworkMetadata(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECR
+	boundary.ServiceKind = catalog.ServiceECR
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

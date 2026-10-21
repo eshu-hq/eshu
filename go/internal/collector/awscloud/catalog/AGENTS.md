@@ -15,7 +15,11 @@
   `awscloud/service` package, the AWS SDK, or any collector runtime package
   here. Either direction reintroduces the import cycle this package exists
   to break; the build, not a review, is the backstop, but do not rely on
-  that — keep the import list empty by construction.
+  that — keep the import list empty by construction, with one recorded
+  exception: the published fact-schema contract
+  (`sdk/go/factschema/aws/v1`), which owns the shared EC2 resource-type
+  tokens and imports nothing back (`compute.go` keeps the `awsv1.*`
+  references verbatim, #6696).
 - MUST NOT change a constant value in a consolidation move. New code reads
   `catalog.X`; old code read `awscloud.X`; the string must be identical.
   The per-category test pins every value.

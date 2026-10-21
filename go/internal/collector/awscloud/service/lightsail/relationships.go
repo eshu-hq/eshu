@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // loadBalancerInstanceRelationships builds one edge per distinct Lightsail
@@ -35,11 +36,11 @@ func loadBalancerInstanceRelationships(boundary awscloud.Boundary, lb LoadBalanc
 		seen[target] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipLightsailLoadBalancerTargetsInstance,
+			RelationshipType: catalog.RelationshipLightsailLoadBalancerTargetsInstance,
 			SourceResourceID: source,
 			TargetResourceID: target,
-			TargetType:       awscloud.ResourceTypeLightsailInstance,
-			SourceRecordID:   source + "->" + awscloud.RelationshipLightsailLoadBalancerTargetsInstance + ":" + target,
+			TargetType:       catalog.ResourceTypeLightsailInstance,
+			SourceRecordID:   source + "->" + catalog.RelationshipLightsailLoadBalancerTargetsInstance + ":" + target,
 		})
 	}
 	if len(observations) == 0 {
@@ -62,11 +63,11 @@ func instanceDiskRelationship(boundary awscloud.Boundary, disk Disk) *awscloud.R
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLightsailInstanceAttachedToDisk,
+		RelationshipType: catalog.RelationshipLightsailInstanceAttachedToDisk,
 		SourceResourceID: instanceName,
 		TargetResourceID: diskName,
-		TargetType:       awscloud.ResourceTypeLightsailDisk,
-		SourceRecordID:   instanceName + "->" + awscloud.RelationshipLightsailInstanceAttachedToDisk + ":" + diskName,
+		TargetType:       catalog.ResourceTypeLightsailDisk,
+		SourceRecordID:   instanceName + "->" + catalog.RelationshipLightsailInstanceAttachedToDisk + ":" + diskName,
 	}
 }
 
@@ -84,10 +85,10 @@ func instanceStaticIPRelationship(boundary awscloud.Boundary, staticIP StaticIP)
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLightsailInstanceAttachedToStaticIP,
+		RelationshipType: catalog.RelationshipLightsailInstanceAttachedToStaticIP,
 		SourceResourceID: instanceName,
 		TargetResourceID: staticIPName,
-		TargetType:       awscloud.ResourceTypeLightsailStaticIP,
-		SourceRecordID:   instanceName + "->" + awscloud.RelationshipLightsailInstanceAttachedToStaticIP + ":" + staticIPName,
+		TargetType:       catalog.ResourceTypeLightsailStaticIP,
+		SourceRecordID:   instanceName + "->" + catalog.RelationshipLightsailInstanceAttachedToStaticIP + ":" + staticIPName,
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestNormalizeEventBridgeConfigChangeTargetsServiceTuple(t *testing.T) {
@@ -49,8 +50,8 @@ func TestNormalizeEventBridgeConfigChangeTargetsServiceTuple(t *testing.T) {
 	if trigger.Region != "us-east-1" {
 		t.Fatalf("Region = %q, want us-east-1", trigger.Region)
 	}
-	if trigger.ServiceKind != awscloud.ServiceLambda {
-		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, awscloud.ServiceLambda)
+	if trigger.ServiceKind != catalog.ServiceLambda {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceLambda)
 	}
 	if trigger.ResourceType != "AWS::Lambda::Function" {
 		t.Fatalf("ResourceType = %q, want AWS::Lambda::Function", trigger.ResourceType)
@@ -91,8 +92,8 @@ func TestNormalizeEventBridgeCloudTrailAPITargetsServiceTuple(t *testing.T) {
 	if trigger.Kind != EventKindCloudTrailAPI {
 		t.Fatalf("Kind = %q, want %q", trigger.Kind, EventKindCloudTrailAPI)
 	}
-	if trigger.ServiceKind != awscloud.ServiceEC2 {
-		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, awscloud.ServiceEC2)
+	if trigger.ServiceKind != catalog.ServiceEC2 {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceEC2)
 	}
 	if trigger.Region != "us-west-2" {
 		t.Fatalf("Region = %q, want us-west-2", trigger.Region)

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func endpointRelationships(
@@ -24,7 +25,7 @@ func endpointRelationships(
 			RelationshipType: awscloud.RelationshipRoute53ResolverEndpointInVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes: map[string]any{
 				"direction": strings.TrimSpace(endpoint.Direction),
 			},
@@ -46,7 +47,7 @@ func endpointRelationships(
 			RelationshipType: awscloud.RelationshipRoute53ResolverEndpointUsesSubnet,
 			SourceResourceID: id,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   id + "#subnet#" + subnetID,
 		})
 	}
@@ -90,7 +91,7 @@ func ruleAssociationRelationships(
 			RelationshipType: awscloud.RelationshipRoute53ResolverRuleAssociationTargetsVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   id + "#vpc#" + vpcID,
 		})
 	}
@@ -122,7 +123,7 @@ func firewallRuleGroupAssociationRelationships(
 			RelationshipType: awscloud.RelationshipRoute53ResolverFirewallRuleGroupAssociationTargetsVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   id + "#vpc#" + vpcID,
 		})
 	}

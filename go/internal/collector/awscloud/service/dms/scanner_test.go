@@ -126,8 +126,8 @@ func TestScannerEmitsDMSMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("instance->subnet edge count = %d, want 2", len(subnetEdges))
 	}
 	for _, edge := range subnetEdges {
-		if got := edge.Payload["target_type"]; got != awscloud.ResourceTypeEC2Subnet {
-			t.Fatalf("instance->subnet target_type = %#v, want %q", got, awscloud.ResourceTypeEC2Subnet)
+		if got := edge.Payload["target_type"]; got != catalog.ResourceTypeEC2Subnet {
+			t.Fatalf("instance->subnet target_type = %#v, want %q", got, catalog.ResourceTypeEC2Subnet)
 		}
 	}
 
@@ -143,7 +143,7 @@ func TestScannerEmitsDMSMetadataAndRelationships(t *testing.T) {
 
 	// subnet group -> VPC edge (bare vpc id).
 	groupVPC := relationshipByType(t, envelopes, awscloud.RelationshipDMSReplicationSubnetGroupInVPC)
-	assertEdgeTarget(t, groupVPC, awscloud.ResourceTypeEC2VPC, "vpc-0abc1234")
+	assertEdgeTarget(t, groupVPC, catalog.ResourceTypeEC2VPC, "vpc-0abc1234")
 	if got := groupVPC.Payload["source_resource_id"]; got != testSubnetGroupName {
 		t.Fatalf("subnet group->vpc source_resource_id = %#v, want %q", got, testSubnetGroupName)
 	}

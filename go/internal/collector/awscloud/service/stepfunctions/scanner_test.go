@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -146,7 +147,7 @@ func TestScannerEmitsStateMachineAndActivityMetadataAndRelationships(t *testing.
 			t.Fatalf("missing referenced-resource relationship for %q in %#v", want, references)
 		}
 	}
-	if got, want := references[lambdaARN], awscloud.ResourceTypeLambdaFunction; got != want {
+	if got, want := references[lambdaARN], catalog.ResourceTypeLambdaFunction; got != want {
 		t.Fatalf("lambda reference target_type = %q, want %q", got, want)
 	}
 	if got, want := references[snsARN], awscloud.ResourceTypeSNSTopic; got != want {

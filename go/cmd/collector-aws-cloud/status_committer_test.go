@@ -11,16 +11,16 @@ import (
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 func TestAWSStatusCommitterRecordsSuccessfulClaimedCommit(t *testing.T) {
@@ -212,7 +212,7 @@ func TestAWSStatusCommitterClassifiesStaleFenceCommitAsTerminal(t *testing.T) {
 func commitStaleFenceCounterValue(t *testing.T, rm metricdata.ResourceMetrics) int64 {
 	t.Helper()
 	wantAttrs := map[string]string{
-		telemetry.MetricDimensionService:   awscloud.ServiceECR,
+		telemetry.MetricDimensionService:   catalog.ServiceECR,
 		telemetry.MetricDimensionAccount:   "123456789012",
 		telemetry.MetricDimensionRegion:    "us-east-1",
 		telemetry.MetricDimensionOperation: awsruntime.ScanStatusPhaseCommit,
@@ -255,7 +255,7 @@ func awsScope() scope.IngestionScope {
 		Metadata: map[string]string{
 			"account_id":   "123456789012",
 			"region":       "us-east-1",
-			"service_kind": awscloud.ServiceECR,
+			"service_kind": catalog.ServiceECR,
 		},
 	}
 }

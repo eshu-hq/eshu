@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -105,9 +106,9 @@ func TestScannerRelationshipTargetsResolveToTargetScanners(t *testing.T) {
 		targetResourceID string
 	}{
 		{awscloud.RelationshipELBLoadBalancerRegistersInstance, "aws_ec2_instance", "i-0abc"},
-		{awscloud.RelationshipELBLoadBalancerInSubnet, awscloud.ResourceTypeEC2Subnet, "subnet-1"},
-		{awscloud.RelationshipELBLoadBalancerUsesSecurityGroup, awscloud.ResourceTypeEC2SecurityGroup, "sg-1"},
-		{awscloud.RelationshipELBLoadBalancerInVPC, awscloud.ResourceTypeEC2VPC, "vpc-123"},
+		{awscloud.RelationshipELBLoadBalancerInSubnet, catalog.ResourceTypeEC2Subnet, "subnet-1"},
+		{awscloud.RelationshipELBLoadBalancerUsesSecurityGroup, catalog.ResourceTypeEC2SecurityGroup, "sg-1"},
+		{awscloud.RelationshipELBLoadBalancerInVPC, catalog.ResourceTypeEC2VPC, "vpc-123"},
 		{
 			awscloud.RelationshipELBLoadBalancerUsesACMCertificate,
 			awscloud.ResourceTypeACMCertificate,

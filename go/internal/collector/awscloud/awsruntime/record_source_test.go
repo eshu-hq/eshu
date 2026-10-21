@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -29,7 +30,7 @@ func TestRecordSourceWalksEveryTargetTupleWithoutStores(t *testing.T) {
 			Targets: []TargetScope{
 				{
 					AccountID: "123456789012", AllowedRegions: []string{"us-east-1", "eu-west-1"},
-					AllowedServices: []string{awscloud.ServiceIAM, awscloud.ServiceECR},
+					AllowedServices: []string{awscloud.ServiceIAM, catalog.ServiceECR},
 					Credentials:     CredentialConfig{Mode: CredentialModeLocalWorkloadIdentity},
 				},
 				{

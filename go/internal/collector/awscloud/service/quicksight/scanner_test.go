@@ -120,7 +120,7 @@ func TestScannerEmitsQuickSightMetadataAndRelationships(t *testing.T) {
 	if len(sgEdges) != 1 {
 		t.Fatalf("security group edges = %d, want 1 (deduped)", len(sgEdges))
 	}
-	assertEdgeTarget(t, sgEdges[0], awscloud.ResourceTypeEC2SecurityGroup, "sg-0a1b2c3d")
+	assertEdgeTarget(t, sgEdges[0], catalog.ResourceTypeEC2SecurityGroup, "sg-0a1b2c3d")
 	subnetEdges := relationshipsByType(envelopes, awscloud.RelationshipQuickSightDataSourceUsesSubnet)
 	if len(subnetEdges) != 2 {
 		t.Fatalf("subnet edges = %d, want 2", len(subnetEdges))

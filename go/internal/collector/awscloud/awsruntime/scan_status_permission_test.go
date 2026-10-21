@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -32,7 +32,7 @@ func TestClaimedSourceClassifiesDeniedSmithyAPIErrorsAsTerminalPermissionGaps(t 
 		},
 		{
 			name:        "unauthorized operation",
-			serviceKind: awscloud.ServiceEC2,
+			serviceKind: catalog.ServiceEC2,
 			errorCode:   "UnauthorizedOperation",
 			wantClass:   FailureClassPermissionDenied,
 		},

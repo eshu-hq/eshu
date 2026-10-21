@@ -12,12 +12,11 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
-
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // ESHU_FRESHNESS_CLAIM_LEASE_PROOF_DSN gates this suite against a real
@@ -52,8 +51,8 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsIntegration(t *testing.T) {
 		Kind:         freshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  catalog.ServiceLambda,
+		ResourceType: catalog.ResourceTypeLambdaFunction,
 		ResourceID:   "function-expired",
 		ObservedAt:   now,
 	}
@@ -66,8 +65,8 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsIntegration(t *testing.T) {
 		Kind:         freshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-west-2",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  catalog.ServiceLambda,
+		ResourceType: catalog.ResourceTypeLambdaFunction,
 		ResourceID:   "function-live",
 		ObservedAt:   now,
 	}
@@ -157,8 +156,8 @@ func TestAWSFreshnessStoreReapExpiredTriggerClaimsConcurrentSafety(t *testing.T)
 			Kind:         freshness.EventKindConfigChange,
 			AccountID:    "123456789012",
 			Region:       fmt.Sprintf("us-region-%02d", i),
-			ServiceKind:  awscloud.ServiceLambda,
-			ResourceType: awscloud.ResourceTypeLambdaFunction,
+			ServiceKind:  catalog.ServiceLambda,
+			ResourceType: catalog.ResourceTypeLambdaFunction,
 			ResourceID:   fmt.Sprintf("function-concurrent-%d", i),
 			ObservedAt:   now,
 		}
@@ -232,8 +231,8 @@ func TestAWSFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration(t *tes
 		Kind:         freshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  catalog.ServiceLambda,
+		ResourceType: catalog.ResourceTypeLambdaFunction,
 		ResourceID:   "function-stale-holder",
 		ObservedAt:   now,
 	}

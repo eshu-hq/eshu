@@ -113,7 +113,7 @@ func TestScannerEmitsApplicationMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("subnet edge count = %d, want 2 (%#v)", len(subnetTargets), subnetTargets)
 	}
 	assertEdge(t, envelopes, awscloud.RelationshipManagedFlinkApplicationUsesSecurityGroup,
-		awscloud.ResourceTypeEC2SecurityGroup, "sg-0a1b2c3d", testAppARN)
+		catalog.ResourceTypeEC2SecurityGroup, "sg-0a1b2c3d", testAppARN)
 
 	// Code body / SQL / environment property leakage must not appear.
 	for _, envelope := range envelopes {

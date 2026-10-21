@@ -104,7 +104,7 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 
 	// template -> ECS cluster, keyed by the cluster ARN.
 	ecs := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsECSCluster)
-	assertEdgeTarget(t, ecs, awscloud.ResourceTypeECSCluster, testClusterARN)
+	assertEdgeTarget(t, ecs, catalog.ResourceTypeECSCluster, testClusterARN)
 
 	// template -> RDS DB instance and cluster, keyed by ARN.
 	dbInstance := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsRDSDBInstance)

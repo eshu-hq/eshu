@@ -156,7 +156,7 @@ func actionGroupRelationships(group AgentActionGroup) []awscloud.RelationshipObs
 			SourceResourceID: id,
 			TargetResourceID: lambda,
 			TargetARN:        lambda,
-			TargetType:       awscloud.ResourceTypeLambdaFunction,
+			TargetType:       catalog.ResourceTypeLambdaFunction,
 			SourceRecordID:   id + "#lambda#" + lambda,
 		})
 	}

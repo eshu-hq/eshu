@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/apprunner"
 )
 
@@ -160,13 +161,13 @@ func TestServiceRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) {
 		},
 		{
 			relationshipType: awscloud.RelationshipAppRunnerVpcConnectorUsesSubnet,
-			targetType:       awscloud.ResourceTypeEC2Subnet,
+			targetType:       catalog.ResourceTypeEC2Subnet,
 			sourceResourceID: vpcConnectorARN,
 			targetResourceID: "subnet-aaa",
 		},
 		{
 			relationshipType: awscloud.RelationshipAppRunnerVpcConnectorUsesSecurityGroup,
-			targetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			targetType:       catalog.ResourceTypeEC2SecurityGroup,
 			sourceResourceID: vpcConnectorARN,
 			targetResourceID: "sg-111",
 		},

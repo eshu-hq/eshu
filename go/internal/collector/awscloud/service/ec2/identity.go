@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -67,7 +68,7 @@ func instanceIdentityObservation(boundary awscloud.Boundary, instance Instance) 
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeEC2Instance,
+		ResourceType: catalog.ResourceTypeEC2Instance,
 		// The identity fact carries no Name tag, mirroring the posture fact's
 		// own identity derivation: the instance id is the stable name and no
 		// tag value is ever read for identity.
@@ -91,11 +92,11 @@ func instanceAMIRelationship(boundary awscloud.Boundary, instance Instance, amiI
 	sourceID := firstNonEmpty(strings.TrimSpace(instance.ID), strings.TrimSpace(instance.ARN))
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipEC2InstanceUsesAMI,
+		RelationshipType: catalog.RelationshipEC2InstanceUsesAMI,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(instance.ARN),
 		TargetResourceID: amiID,
-		TargetType:       awscloud.ResourceTypeEC2AMI,
+		TargetType:       catalog.ResourceTypeEC2AMI,
 		SourceRecordID:   sourceID + "#ami#" + amiID,
 	}
 }

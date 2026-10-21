@@ -7,22 +7,22 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/autoscaling/runtimebind"
 )
 
 // TestAutoScalingRuntimeBindRegisters confirms importing the binding installs
 // the Auto Scaling scanner builder.
 func TestAutoScalingRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceAutoScaling)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceAutoScaling)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceAutoScaling)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceAutoScaling)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAutoScaling},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAutoScaling},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)
@@ -36,7 +36,7 @@ func TestAutoScalingRuntimeBindRegisters(t *testing.T) {
 // Scaling scanner registers without a redaction-key requirement, because it
 // drops launch configuration and launch template UserData by never mapping it.
 func TestAutoScalingRuntimeBindDoesNotRequireRedactionKey(t *testing.T) {
-	if awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceAutoScaling) {
-		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", awscloud.ServiceAutoScaling)
+	if awsruntime.ServiceRequiresRedactionKey(catalog.ServiceAutoScaling) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", catalog.ServiceAutoScaling)
 	}
 }

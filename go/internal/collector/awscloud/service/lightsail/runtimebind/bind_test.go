@@ -7,22 +7,22 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/lightsail/runtimebind"
 )
 
 // TestLightsailRuntimeBindRegisters confirms importing the binding
 // installs the Lightsail scanner builder.
 func TestLightsailRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceLightsail)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceLightsail)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceLightsail)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceLightsail)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceLightsail},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceLightsail},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

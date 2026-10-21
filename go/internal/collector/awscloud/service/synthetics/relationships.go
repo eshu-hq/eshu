@@ -64,7 +64,7 @@ func canaryRelationships(boundary awscloud.Boundary, canary Canary) []awscloud.R
 			SourceResourceID: canaryID,
 			SourceARN:        canaryARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   canaryID + "#subnet#" + subnetID,
 		})
 	}
@@ -76,7 +76,7 @@ func canaryRelationships(boundary awscloud.Boundary, canary Canary) []awscloud.R
 			SourceResourceID: canaryID,
 			SourceARN:        canaryARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   canaryID + "#security-group#" + groupID,
 		})
 	}

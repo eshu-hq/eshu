@@ -138,7 +138,7 @@ func environmentSubnetRelationships(
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesSubnet + ":" + subnetID,
 		})
 	}
@@ -168,7 +168,7 @@ func environmentSecurityGroupRelationships(
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesSecurityGroup + ":" + groupID,
 		})
 	}

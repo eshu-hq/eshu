@@ -124,7 +124,7 @@ func TestScannerEmitsAppStreamMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("fleet->subnet edge count = %d, want 2", len(subnetEdges))
 	}
 	for _, edge := range subnetEdges {
-		assertEdgeTargetType(t, edge, awscloud.ResourceTypeEC2Subnet)
+		assertEdgeTargetType(t, edge, catalog.ResourceTypeEC2Subnet)
 		if got, _ := edge.Payload["source_resource_id"].(string); got != testFleetARN {
 			t.Fatalf("fleet->subnet source_resource_id = %q, want %q", got, testFleetARN)
 		}
@@ -132,7 +132,7 @@ func TestScannerEmitsAppStreamMetadataAndRelationships(t *testing.T) {
 
 	// fleet -> security group edge keyed by bare sg id.
 	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamFleetUsesSecurityGroup)
-	assertEdgeTarget(t, sgEdge, awscloud.ResourceTypeEC2SecurityGroup, "sg-111")
+	assertEdgeTarget(t, sgEdge, catalog.ResourceTypeEC2SecurityGroup, "sg-111")
 
 	// fleet -> IAM role edge keyed by role ARN.
 	roleEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamFleetUsesIAMRole)

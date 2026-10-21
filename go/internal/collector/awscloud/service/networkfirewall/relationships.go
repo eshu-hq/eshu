@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -29,7 +30,7 @@ func firewallRelationships(boundary awscloud.Boundary, firewall Firewall) []awsc
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   sourceID + "#vpc#" + vpcID,
 		})
 	}
@@ -41,7 +42,7 @@ func firewallRelationships(boundary awscloud.Boundary, firewall Firewall) []awsc
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   sourceID + "#subnet#" + subnetID,
 		})
 	}

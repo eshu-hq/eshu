@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -116,16 +117,16 @@ func TestScannerEmitsECSResourcesWithRedactedTaskDefinitionEnvironment(t *testin
 	if counts[cloud.AWSRelationshipFactKind] != 5 {
 		t.Fatalf("aws_relationship count = %d, want 5", counts[cloud.AWSRelationshipFactKind])
 	}
-	assertResourceType(t, envelopes, awscloud.ResourceTypeECSCluster)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeECSService)
-	taskDefinition := assertResourceType(t, envelopes, awscloud.ResourceTypeECSTaskDefinition)
-	task := assertResourceType(t, envelopes, awscloud.ResourceTypeECSTask)
+	assertResourceType(t, envelopes, catalog.ResourceTypeECSCluster)
+	assertResourceType(t, envelopes, catalog.ResourceTypeECSService)
+	taskDefinition := assertResourceType(t, envelopes, catalog.ResourceTypeECSTaskDefinition)
+	task := assertResourceType(t, envelopes, catalog.ResourceTypeECSTask)
 	assertTaskDefinitionRedaction(t, taskDefinition)
 	assertTaskNetworkInterfaces(t, task)
-	assertRelationship(t, envelopes, awscloud.RelationshipECSServiceUsesTaskDefinition)
-	assertRelationship(t, envelopes, awscloud.RelationshipECSTaskDefinitionUsesImage)
-	assertRelationship(t, envelopes, awscloud.RelationshipECSServiceTargetsLoadBalancer)
-	assertRelationship(t, envelopes, awscloud.RelationshipECSTaskUsesNetworkInterface)
+	assertRelationship(t, envelopes, catalog.RelationshipECSServiceUsesTaskDefinition)
+	assertRelationship(t, envelopes, catalog.RelationshipECSTaskDefinitionUsesImage)
+	assertRelationship(t, envelopes, catalog.RelationshipECSServiceTargetsLoadBalancer)
+	assertRelationship(t, envelopes, catalog.RelationshipECSTaskUsesNetworkInterface)
 }
 
 func TestScannerRequiresRedactionKey(t *testing.T) {
@@ -175,7 +176,7 @@ func TestScannerAggregatesContainerNamesForSharedImageRelationship(t *testing.T)
 		t.Fatalf("Scan returned error: %v", err)
 	}
 
-	relationships := relationshipsByType(envelopes, awscloud.RelationshipECSTaskDefinitionUsesImage)
+	relationships := relationshipsByType(envelopes, catalog.RelationshipECSTaskDefinitionUsesImage)
 	if len(relationships) != 1 {
 		t.Fatalf("image relationship count = %d, want 1: %#v", len(relationships), relationships)
 	}
@@ -193,7 +194,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceECS,
+		ServiceKind:         catalog.ServiceECS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:ecs:1",
 		CollectorInstanceID: "aws-prod",

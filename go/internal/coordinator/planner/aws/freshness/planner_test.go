@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -25,8 +25,8 @@ func TestAWSFreshnessWorkPlannerPlansTargetedAWSClaims(t *testing.T) {
 		Kind:         awsfreshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  catalog.ServiceLambda,
+		ResourceType: catalog.ResourceTypeLambdaFunction,
 		ResourceID:   "function-1",
 		ObservedAt:   observedAt,
 	}, observedAt)
@@ -108,7 +108,7 @@ func TestAWSFreshnessWorkPlannerRejectsUnauthorizedTarget(t *testing.T) {
 		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-west-2",
-		ServiceKind: awscloud.ServiceLambda,
+		ServiceKind: catalog.ServiceLambda,
 		ObservedAt:  observedAt,
 	}, observedAt)
 	if err != nil {
@@ -135,8 +135,8 @@ func testAWSPlannerTrigger(eventID string, observedAt time.Time) awsfreshness.Tr
 		Kind:         awsfreshness.EventKindConfigChange,
 		AccountID:    "123456789012",
 		Region:       "us-east-1",
-		ServiceKind:  awscloud.ServiceLambda,
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ServiceKind:  catalog.ServiceLambda,
+		ResourceType: catalog.ResourceTypeLambdaFunction,
 		ResourceID:   eventID,
 		ObservedAt:   observedAt,
 	}

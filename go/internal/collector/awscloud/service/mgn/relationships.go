@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // ec2InstanceTargetType is the target_type for the source-server-launched-EC2
@@ -97,7 +98,7 @@ func launchConfigurationUsesLaunchTemplateRelationship(
 		RelationshipType: awscloud.RelationshipMGNLaunchConfigurationUsesLaunchTemplate,
 		SourceResourceID: sourceID,
 		TargetResourceID: templateID,
-		TargetType:       awscloud.ResourceTypeEC2LaunchTemplate,
+		TargetType:       catalog.ResourceTypeEC2LaunchTemplate,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMGNLaunchConfigurationUsesLaunchTemplate + ":" + templateID,
 	}
 }

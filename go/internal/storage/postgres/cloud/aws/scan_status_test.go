@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
-
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
 func TestAWSScanStatusSchemaSQL(t *testing.T) {
@@ -242,7 +242,7 @@ func awsScanStatusBoundary(observedAt time.Time) awscloud.Boundary {
 		CollectorInstanceID: "aws-prod",
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceECR,
+		ServiceKind:         catalog.ServiceECR,
 		ScopeID:             "aws:123456789012:us-east-1:ecr",
 		GenerationID:        "generation-1",
 		FencingToken:        4,

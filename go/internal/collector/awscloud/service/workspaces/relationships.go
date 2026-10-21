@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // workspaceInDirectoryRelationship records a WorkSpace's membership in its
@@ -169,7 +170,7 @@ func directorySubnetRelationships(
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnet,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesDirectoryInSubnet + ":" + subnet,
 		})
 	}
@@ -194,7 +195,7 @@ func directoryUsesSecurityGroupRelationship(
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: targetID,
-		TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+		TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesDirectoryUsesSecurityGroup + ":" + targetID,
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -26,10 +27,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("ecr scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceECR:
+	case "", catalog.ServiceECR:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceECR
+		boundary.ServiceKind = catalog.ServiceECR
 	default:
 		return nil, fmt.Errorf("ecr scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -79,7 +80,7 @@ func repositoryObservation(boundary awscloud.Boundary, repository Repository) aw
 		Boundary:     boundary,
 		ARN:          repositoryARN,
 		ResourceID:   firstNonEmpty(repositoryARN, repository.URI, repository.Name),
-		ResourceType: awscloud.ResourceTypeECRRepository,
+		ResourceType: catalog.ResourceTypeECRRepository,
 		Name:         repository.Name,
 		Tags:         repository.Tags,
 		Attributes: map[string]any{
@@ -104,7 +105,7 @@ func lifecyclePolicyObservation(boundary awscloud.Boundary, policy LifecyclePoli
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeECRLifecyclePolicy,
+		ResourceType: catalog.ResourceTypeECRLifecyclePolicy,
 		Name:         strings.TrimSpace(policy.RepositoryName) + ":lifecycle-policy",
 		Attributes: map[string]any{
 			"last_evaluated_at":      timeOrNil(policy.LastEvaluatedAt),

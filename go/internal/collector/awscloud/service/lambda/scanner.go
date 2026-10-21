@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -97,10 +98,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("lambda scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceLambda:
+	case "", catalog.ServiceLambda:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceLambda
+		boundary.ServiceKind = catalog.ServiceLambda
 	default:
 		return nil, fmt.Errorf("lambda scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -173,7 +174,7 @@ func (s Scanner) functionObservation(
 		Boundary:     boundary,
 		ARN:          functionARN,
 		ResourceID:   firstNonEmpty(functionARN, function.Name),
-		ResourceType: awscloud.ResourceTypeLambdaFunction,
+		ResourceType: catalog.ResourceTypeLambdaFunction,
 		Name:         strings.TrimSpace(function.Name),
 		State:        strings.TrimSpace(function.State),
 		Tags:         function.Tags,
@@ -255,7 +256,7 @@ func aliasObservation(
 		Boundary:     boundary,
 		ARN:          aliasARN,
 		ResourceID:   firstNonEmpty(aliasARN, strings.TrimSpace(function.ARN)+":"+strings.TrimSpace(alias.Name)),
-		ResourceType: awscloud.ResourceTypeLambdaAlias,
+		ResourceType: catalog.ResourceTypeLambdaAlias,
 		Name:         strings.TrimSpace(alias.Name),
 		Attributes: map[string]any{
 			"description":      strings.TrimSpace(alias.Description),
@@ -299,7 +300,7 @@ func eventSourceMappingObservation(
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(mapping.ARN),
 		ResourceID:   mappingID,
-		ResourceType: awscloud.ResourceTypeLambdaEventSourceMapping,
+		ResourceType: catalog.ResourceTypeLambdaEventSourceMapping,
 		Name:         strings.TrimSpace(mapping.UUID),
 		State:        strings.TrimSpace(mapping.State),
 		Attributes: map[string]any{

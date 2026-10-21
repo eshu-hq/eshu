@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -57,12 +58,12 @@ func TestScannerEmitsFirewallMetadataAndRelationships(t *testing.T) {
 	}
 
 	vpcEdge := relationshipByTarget(t, envelopes, awscloud.RelationshipNetworkFirewallFirewallInVPC, "vpc-aaa")
-	if got, want := targetType(vpcEdge), awscloud.ResourceTypeEC2VPC; got != want {
+	if got, want := targetType(vpcEdge), catalog.ResourceTypeEC2VPC; got != want {
 		t.Fatalf("firewall-to-VPC target_type = %q, want %q", got, want)
 	}
 
 	subnetEdge := relationshipByTarget(t, envelopes, awscloud.RelationshipNetworkFirewallFirewallUsesSubnet, "subnet-aaa")
-	if got, want := targetType(subnetEdge), awscloud.ResourceTypeEC2Subnet; got != want {
+	if got, want := targetType(subnetEdge), catalog.ResourceTypeEC2Subnet; got != want {
 		t.Fatalf("firewall-to-subnet target_type = %q, want %q", got, want)
 	}
 	relationshipByTarget(t, envelopes, awscloud.RelationshipNetworkFirewallFirewallUsesSubnet, "subnet-bbb")

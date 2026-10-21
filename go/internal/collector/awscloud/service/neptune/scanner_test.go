@@ -255,7 +255,7 @@ func TestScannerClusterInVPCEdgeTargetsEC2VPCType(t *testing.T) {
 	if got, want := rel.Payload["target_resource_id"], "vpc-123"; got != want {
 		t.Fatalf("cluster-in-vpc target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeEC2VPC; got != want {
+	if got, want := rel.Payload["target_type"], catalog.ResourceTypeEC2VPC; got != want {
 		t.Fatalf("cluster-in-vpc target_type = %#v, want %q", got, want)
 	}
 }

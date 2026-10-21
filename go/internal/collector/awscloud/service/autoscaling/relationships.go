@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // groupRelationships records the launch-template, launch-configuration, subnet,
@@ -27,11 +28,11 @@ func groupRelationships(boundary awscloud.Boundary, group Group) []awscloud.Rela
 	if launchTemplate := firstNonEmpty(group.LaunchTemplateID, group.LaunchTemplateName); launchTemplate != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAutoScalingGroupUsesLaunchTemplate,
+			RelationshipType: catalog.RelationshipAutoScalingGroupUsesLaunchTemplate,
 			SourceResourceID: groupName,
 			SourceARN:        groupARN,
 			TargetResourceID: launchTemplate,
-			TargetType:       awscloud.ResourceTypeEC2LaunchTemplate,
+			TargetType:       catalog.ResourceTypeEC2LaunchTemplate,
 			SourceRecordID:   groupName + "#launch-template#" + launchTemplate,
 		})
 	}
@@ -41,11 +42,11 @@ func groupRelationships(boundary awscloud.Boundary, group Group) []awscloud.Rela
 	if launchConfiguration := strings.TrimSpace(group.LaunchConfigurationName); launchConfiguration != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAutoScalingGroupUsesLaunchConfiguration,
+			RelationshipType: catalog.RelationshipAutoScalingGroupUsesLaunchConfiguration,
 			SourceResourceID: groupName,
 			SourceARN:        groupARN,
 			TargetResourceID: launchConfiguration,
-			TargetType:       awscloud.ResourceTypeAutoScalingLaunchConfiguration,
+			TargetType:       catalog.ResourceTypeAutoScalingLaunchConfiguration,
 			SourceRecordID:   groupName + "#launch-configuration#" + launchConfiguration,
 		})
 	}
@@ -55,11 +56,11 @@ func groupRelationships(boundary awscloud.Boundary, group Group) []awscloud.Rela
 	for _, subnetID := range dedupeStrings(group.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAutoScalingGroupUsesSubnet,
+			RelationshipType: catalog.RelationshipAutoScalingGroupUsesSubnet,
 			SourceResourceID: groupName,
 			SourceARN:        groupARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   groupName + "#subnet#" + subnetID,
 		})
 	}
@@ -69,7 +70,7 @@ func groupRelationships(boundary awscloud.Boundary, group Group) []awscloud.Rela
 	for _, targetGroupARN := range dedupeStrings(group.TargetGroupARNs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAutoScalingGroupAttachedToTargetGroup,
+			RelationshipType: catalog.RelationshipAutoScalingGroupAttachedToTargetGroup,
 			SourceResourceID: groupName,
 			SourceARN:        groupARN,
 			TargetResourceID: targetGroupARN,
@@ -83,7 +84,7 @@ func groupRelationships(boundary awscloud.Boundary, group Group) []awscloud.Rela
 	if roleARN := strings.TrimSpace(group.ServiceLinkedRoleARN); roleARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAutoScalingGroupUsesIAMRole,
+			RelationshipType: catalog.RelationshipAutoScalingGroupUsesIAMRole,
 			SourceResourceID: groupName,
 			SourceARN:        groupARN,
 			TargetResourceID: roleARN,
@@ -110,7 +111,7 @@ func scalingPolicyRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAutoScalingPolicyTargetsGroup,
+		RelationshipType: catalog.RelationshipAutoScalingPolicyTargetsGroup,
 		SourceResourceID: policyID,
 		SourceARN:        strings.TrimSpace(policy.ARN),
 		TargetResourceID: groupName,
@@ -133,7 +134,7 @@ func lifecycleHookRelationship(
 	hookID := groupName + "/" + name
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAutoScalingLifecycleHookTargetsGroup,
+		RelationshipType: catalog.RelationshipAutoScalingLifecycleHookTargetsGroup,
 		SourceResourceID: hookID,
 		TargetResourceID: groupName,
 		TargetType:       awscloud.ResourceTypeAutoScalingGroup,
@@ -155,7 +156,7 @@ func scheduledActionRelationship(
 	actionID := firstNonEmpty(action.ARN, groupName+"/"+name)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAutoScalingScheduledActionTargetsGroup,
+		RelationshipType: catalog.RelationshipAutoScalingScheduledActionTargetsGroup,
 		SourceResourceID: actionID,
 		SourceARN:        strings.TrimSpace(action.ARN),
 		TargetResourceID: groupName,

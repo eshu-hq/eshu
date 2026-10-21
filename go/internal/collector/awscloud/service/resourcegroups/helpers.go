@@ -123,7 +123,7 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 		// arn:p:lambda:region:acct:function:name. The lambda scanner keys the
 		// function by its ARN.
 		if resourceType == "function" {
-			return arnTarget(awscloud.ResourceTypeLambdaFunction, arn), true
+			return arnTarget(catalog.ResourceTypeLambdaFunction, arn), true
 		}
 	case "dynamodb":
 		if resourceType == "table" {
@@ -151,15 +151,15 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 	case "ecs":
 		switch resourceType {
 		case "cluster":
-			return arnTarget(awscloud.ResourceTypeECSCluster, arn), true
+			return arnTarget(catalog.ResourceTypeECSCluster, arn), true
 		case "service":
-			return arnTarget(awscloud.ResourceTypeECSService, arn), true
+			return arnTarget(catalog.ResourceTypeECSService, arn), true
 		case "task":
-			return arnTarget(awscloud.ResourceTypeECSTask, arn), true
+			return arnTarget(catalog.ResourceTypeECSTask, arn), true
 		}
 	case "eks":
 		if resourceType == "cluster" {
-			return arnTarget(awscloud.ResourceTypeEKSCluster, arn), true
+			return arnTarget(catalog.ResourceTypeEKSCluster, arn), true
 		}
 	case "elasticloadbalancing":
 		// arn:p:elasticloadbalancing:region:acct:loadbalancer/app/name/id. The
@@ -211,15 +211,15 @@ func classifyEC2Member(resourceType, id string) (memberTarget, bool) {
 		// bare instance id (see relguard.KnownTargetTypeAllowlist).
 		return bareTarget("aws_ec2_instance", id), true
 	case "vpc":
-		return bareTarget(awscloud.ResourceTypeEC2VPC, id), true
+		return bareTarget(catalog.ResourceTypeEC2VPC, id), true
 	case "subnet":
-		return bareTarget(awscloud.ResourceTypeEC2Subnet, id), true
+		return bareTarget(catalog.ResourceTypeEC2Subnet, id), true
 	case "security-group":
-		return bareTarget(awscloud.ResourceTypeEC2SecurityGroup, id), true
+		return bareTarget(catalog.ResourceTypeEC2SecurityGroup, id), true
 	case "network-interface":
-		return bareTarget(awscloud.ResourceTypeEC2NetworkInterface, id), true
+		return bareTarget(catalog.ResourceTypeEC2NetworkInterface, id), true
 	case "launch-template":
-		return bareTarget(awscloud.ResourceTypeEC2LaunchTemplate, id), true
+		return bareTarget(catalog.ResourceTypeEC2LaunchTemplate, id), true
 	case "elastic-ip":
 		return bareTarget(awscloud.ResourceTypeVPCElasticIP, id), true
 	default:
