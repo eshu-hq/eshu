@@ -1,0 +1,16 @@
+.github/workflows/publish-ci-tools-oneoff.yml
+  h_78a442cba0b3e6 1-61
+specs/ci-gates.v1.yaml
+  h_78a442cba0b3e6 124-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03a60b260246426a2d589e1a8984bd108fb5087a",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
