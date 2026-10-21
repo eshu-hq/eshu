@@ -364,7 +364,10 @@ func TestSharedProjectionRunnerProcessesNewDomainIntents(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	// #8686: passing runs already consume the whole 200ms budget, so any
+	// scheduler stall under parallel load starves the poll loop to zero
+	// marks. 2s keeps the timeout-bound shape with headroom to spare.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	_ = runner.Run(ctx)
