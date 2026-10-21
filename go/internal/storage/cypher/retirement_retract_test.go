@@ -104,13 +104,13 @@ func TestBuildRetirementParameterRetractStatement(t *testing.T) {
 func TestRetirementNestedPrefixesNormalized(t *testing.T) {
 	t.Parallel()
 
-	stmt, err := BuildRetirementParameterRetractStatement("/r/retired", []string{"/r/shared", "  ", "/r/kept/"})
+	stmt, err := BuildRetirementParameterRetractStatement("/r/retired", []string{"/r/shared", "  ", "/", "/r/kept/"})
 	if err != nil {
 		t.Fatalf("BuildRetirementParameterRetractStatement: %v", err)
 	}
 	nested, ok := stmt.Parameters["nested_root_prefixes"].([]string)
 	if !ok || len(nested) != 2 || nested[0] != "/r/shared/" || nested[1] != "/r/kept/" {
-		t.Fatalf("nested_root_prefixes = %v, want [/r/shared/ /r/kept/]", stmt.Parameters["nested_root_prefixes"])
+		t.Fatalf("nested_root_prefixes = %v, want [/r/shared/ /r/kept/] (blank and slash entries dropped)", stmt.Parameters["nested_root_prefixes"])
 	}
 
 	checks, err := BuildRetirementResidueCensus("repo-retired", "/r/retired", []string{"/r/shared"}, true)

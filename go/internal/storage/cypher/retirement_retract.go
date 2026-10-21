@@ -102,7 +102,7 @@ func BuildRetirementFileRetractStatement(repoID string) (Statement, error) {
 func normalizeRetirementNestedPrefixes(nestedRootPrefixes []string) []string {
 	nested := make([]string, 0, len(nestedRootPrefixes))
 	for _, n := range nestedRootPrefixes {
-		if p := strings.TrimSpace(n); p != "" {
+		if p := strings.TrimSpace(n); p != "" && p != "/" {
 			nested = append(nested, strings.TrimSuffix(p, "/")+"/")
 		}
 	}
