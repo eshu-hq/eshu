@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func routeTableRelationships(boundary awscloud.Boundary, rt RouteTable) []awscloud.RelationshipObservation {
@@ -89,7 +90,7 @@ func attachmentResourceRelationship(
 			RelationshipType: awscloud.RelationshipTransitGatewayAttachmentToVPC,
 			SourceResourceID: id,
 			TargetResourceID: resourceID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes:       attachmentResourceAttributes(resourceOwnerID),
 			SourceRecordID:   id + "#vpc#" + resourceID,
 		}, true

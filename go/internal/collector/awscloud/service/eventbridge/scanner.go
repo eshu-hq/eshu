@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -178,13 +179,13 @@ func ruleTargetRelationship(
 func targetTypeForARN(arn string) string {
 	switch {
 	case strings.Contains(arn, ":lambda:"):
-		return awscloud.ResourceTypeLambdaFunction
+		return catalog.ResourceTypeLambdaFunction
 	case strings.Contains(arn, ":sqs:"):
 		return awscloud.ResourceTypeSQSQueue
 	case strings.Contains(arn, ":sns:"):
 		return awscloud.ResourceTypeSNSTopic
 	case strings.Contains(arn, ":ecs:"):
-		return awscloud.ResourceTypeECSCluster
+		return catalog.ResourceTypeECSCluster
 	default:
 		return "aws_resource"
 	}

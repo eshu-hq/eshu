@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -24,10 +25,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("eks scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceEKS:
+	case "", catalog.ServiceEKS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceEKS
+		boundary.ServiceKind = catalog.ServiceEKS
 	default:
 		return nil, fmt.Errorf("eks scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -104,7 +105,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   firstNonEmpty(clusterARN, cluster.Name),
-		ResourceType: awscloud.ResourceTypeEKSCluster,
+		ResourceType: catalog.ResourceTypeEKSCluster,
 		Name:         strings.TrimSpace(cluster.Name),
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cluster.Tags,
@@ -164,7 +165,7 @@ func oidcProviderObservation(
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(provider.ARN),
 		ResourceID:   providerID,
-		ResourceType: awscloud.ResourceTypeEKSOIDCProvider,
+		ResourceType: catalog.ResourceTypeEKSOIDCProvider,
 		Name:         strings.TrimSpace(provider.IssuerURL),
 		Attributes: map[string]any{
 			"cluster_arn":  strings.TrimSpace(cluster.ARN),

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -182,12 +183,12 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertAttribute(t, vpcEndpointAttributes, "subnet_ids", []string{"subnet-a"})
 
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainInVPC, "vpc-123")
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainInVPC, awscloud.ResourceTypeEC2VPC)
+	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainInVPC, catalog.ResourceTypeEC2VPC)
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainInSubnet, "subnet-a")
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainInSubnet, "subnet-b")
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainInSubnet, awscloud.ResourceTypeEC2Subnet)
+	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainInSubnet, catalog.ResourceTypeEC2Subnet)
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesSecurityGroup, "sg-123")
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesSecurityGroup, awscloud.ResourceTypeEC2SecurityGroup)
+	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesSecurityGroup, catalog.ResourceTypeEC2SecurityGroup)
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesKMSKey, kmsKeyARN)
 	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesKMSKey, awscloud.ResourceTypeKMSKey)
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchDomainUsesIAMRole, masterRoleARN)
@@ -262,7 +263,7 @@ func TestScannerKeepsNonARNKMSIdentifierWithoutTargetARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceEKS
+	boundary.ServiceKind = catalog.ServiceEKS
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")

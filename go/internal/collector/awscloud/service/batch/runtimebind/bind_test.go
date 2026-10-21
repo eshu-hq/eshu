@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/batch/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -18,9 +18,9 @@ import (
 // TestBatchRuntimeBindRegisters confirms importing the binding installs the
 // Batch scanner builder.
 func TestBatchRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceBatch)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceBatch)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceBatch)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceBatch)
 	}
 	key, err := redact.NewKey([]byte("aws-redaction-key"))
 	if err != nil {
@@ -28,7 +28,7 @@ func TestBatchRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBatch},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBatch},
 		RedactionKey: key,
 	})
 	if err != nil {
@@ -43,13 +43,13 @@ func TestBatchRuntimeBindRegisters(t *testing.T) {
 // because Batch container environment values route through the shared redact
 // library before persistence.
 func TestBatchRuntimeBindRequiresRedactionKey(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceBatch)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceBatch)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceBatch)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceBatch)
 	}
 	_, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceBatch},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceBatch},
 	})
 	if err == nil {
 		t.Fatalf("build() error = nil, want missing redaction key")

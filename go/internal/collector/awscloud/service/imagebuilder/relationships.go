@@ -70,14 +70,14 @@ func infraConfigRelationships(boundary awscloud.Boundary, config InfrastructureC
 		observations = append(observations, bareEdge(
 			boundary, sourceID,
 			awscloud.RelationshipImageBuilderInfraConfigUsesSubnet,
-			subnetID, awscloud.ResourceTypeEC2Subnet,
+			subnetID, catalog.ResourceTypeEC2Subnet,
 		))
 	}
 	for _, groupID := range cloneStrings(config.SecurityGroupIDs) {
 		observations = append(observations, bareEdge(
 			boundary, sourceID,
 			awscloud.RelationshipImageBuilderInfraConfigUsesSecurityGroup,
-			groupID, awscloud.ResourceTypeEC2SecurityGroup,
+			groupID, catalog.ResourceTypeEC2SecurityGroup,
 		))
 	}
 	if topicARN := strings.TrimSpace(config.SNSTopicARN); topicARN != "" {
@@ -172,7 +172,7 @@ func containerRecipeECREdge(
 	edge := arnEdge(
 		boundary, sourceID,
 		awscloud.RelationshipImageBuilderContainerRecipeUsesECRRepository,
-		repoARN, awscloud.ResourceTypeECRRepository,
+		repoARN, catalog.ResourceTypeECRRepository,
 	)
 	edge.Attributes = map[string]any{"repository_name": name}
 	return &edge

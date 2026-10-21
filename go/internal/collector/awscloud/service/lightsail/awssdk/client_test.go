@@ -11,8 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awslightsail "github.com/aws/aws-sdk-go-v2/service/lightsail"
 	awslightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListInstancesMapsSafeMetadataAndPaginates(t *testing.T) {
@@ -191,7 +191,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLightsail,
+		ServiceKind:         catalog.ServiceLightsail,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:lightsail:1",
 		CollectorInstanceID: "aws-prod",

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -33,10 +34,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("ecs scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceECS:
+	case "", catalog.ServiceECS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceECS
+		boundary.ServiceKind = catalog.ServiceECS
 	default:
 		return nil, fmt.Errorf("ecs scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -167,7 +168,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   clusterARN,
-		ResourceType: awscloud.ResourceTypeECSCluster,
+		ResourceType: catalog.ResourceTypeECSCluster,
 		Name:         cluster.Name,
 		State:        cluster.Status,
 		Tags:         cluster.Tags,
@@ -188,7 +189,7 @@ func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.Re
 		Boundary:     boundary,
 		ARN:          serviceARN,
 		ResourceID:   serviceARN,
-		ResourceType: awscloud.ResourceTypeECSService,
+		ResourceType: catalog.ResourceTypeECSService,
 		Name:         service.Name,
 		State:        service.Status,
 		Tags:         service.Tags,
@@ -216,7 +217,7 @@ func (s Scanner) taskDefinitionObservation(
 		Boundary:     boundary,
 		ARN:          taskDefinitionARN,
 		ResourceID:   firstNonEmpty(taskDefinitionARN, taskDefinition.Family+":"+strconv.Itoa(int(taskDefinition.Revision))),
-		ResourceType: awscloud.ResourceTypeECSTaskDefinition,
+		ResourceType: catalog.ResourceTypeECSTaskDefinition,
 		Name:         strings.TrimSpace(taskDefinition.Family),
 		State:        taskDefinition.Status,
 		Tags:         taskDefinition.Tags,
@@ -246,7 +247,7 @@ func taskObservation(boundary awscloud.Boundary, task Task) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          taskARN,
 		ResourceID:   taskARN,
-		ResourceType: awscloud.ResourceTypeECSTask,
+		ResourceType: catalog.ResourceTypeECSTask,
 		Name:         taskARN,
 		State:        task.LastStatus,
 		Attributes: map[string]any{
@@ -293,12 +294,12 @@ func serviceTaskDefinitionRelationship(boundary awscloud.Boundary, service Servi
 	taskDefinitionARN := strings.TrimSpace(service.TaskDefinitionARN)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipECSServiceUsesTaskDefinition,
+		RelationshipType: catalog.RelationshipECSServiceUsesTaskDefinition,
 		SourceResourceID: serviceARN,
 		SourceARN:        serviceARN,
 		TargetResourceID: taskDefinitionARN,
 		TargetARN:        taskDefinitionARN,
-		TargetType:       awscloud.ResourceTypeECSTaskDefinition,
+		TargetType:       catalog.ResourceTypeECSTaskDefinition,
 		SourceRecordID:   serviceARN + "#task-definition#" + taskDefinitionARN,
 	}
 }
@@ -316,7 +317,7 @@ func serviceLoadBalancerRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipECSServiceTargetsLoadBalancer,
+		RelationshipType: catalog.RelationshipECSServiceTargetsLoadBalancer,
 		SourceResourceID: serviceARN,
 		SourceARN:        serviceARN,
 		TargetResourceID: targetID,

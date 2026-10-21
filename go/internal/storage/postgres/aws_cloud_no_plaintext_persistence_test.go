@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	lambdasvc "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/lambda"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -30,7 +31,7 @@ func TestAWSLambdaCommitDoesNotPersistPlaintextEnvironmentValues(t *testing.T) {
 	boundary := awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLambda,
+		ServiceKind:         catalog.ServiceLambda,
 		ScopeID:             "aws:123456789012:us-east-1:lambda",
 		GenerationID:        "aws:123456789012:us-east-1:lambda:1",
 		CollectorInstanceID: "aws-prod",

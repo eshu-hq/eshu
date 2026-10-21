@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // instanceTargetRelationship records that an EC2 instance recommendation
@@ -91,7 +92,7 @@ func lambdaFunctionTargetRelationship(
 		SourceARN:        functionARN,
 		TargetResourceID: functionARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeLambdaFunction,
+		TargetType:       catalog.ResourceTypeLambdaFunction,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipComputeOptimizerRecommendationTargetsFunction + ":" + functionARN,
 	}
 }

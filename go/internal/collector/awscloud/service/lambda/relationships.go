@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func functionRelationships(
@@ -21,7 +22,7 @@ func functionRelationships(
 	if roleARN := strings.TrimSpace(function.RoleARN); roleARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipLambdaFunctionUsesExecutionRole,
+			RelationshipType: catalog.RelationshipLambdaFunctionUsesExecutionRole,
 			SourceResourceID: functionARN,
 			SourceARN:        functionARN,
 			TargetResourceID: roleARN,
@@ -33,7 +34,7 @@ func functionRelationships(
 	if imageURI := strings.TrimSpace(function.ImageURI); imageURI != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipLambdaFunctionUsesImage,
+			RelationshipType: catalog.RelationshipLambdaFunctionUsesImage,
 			SourceResourceID: functionARN,
 			SourceARN:        functionARN,
 			TargetResourceID: imageURI,
@@ -52,11 +53,11 @@ func functionRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipLambdaFunctionUsesSubnet,
+			RelationshipType: catalog.RelationshipLambdaFunctionUsesSubnet,
 			SourceResourceID: functionARN,
 			SourceARN:        functionARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes: map[string]any{
 				"vpc_id": strings.TrimSpace(function.VPCConfig.VPCID),
 			},
@@ -70,11 +71,11 @@ func functionRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipLambdaFunctionUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipLambdaFunctionUsesSecurityGroup,
 			SourceResourceID: functionARN,
 			SourceARN:        functionARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			Attributes: map[string]any{
 				"vpc_id": strings.TrimSpace(function.VPCConfig.VPCID),
 			},
@@ -96,12 +97,12 @@ func aliasFunctionRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLambdaAliasTargetsFunction,
+		RelationshipType: catalog.RelationshipLambdaAliasTargetsFunction,
 		SourceResourceID: aliasARN,
 		SourceARN:        aliasARN,
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeLambdaFunction,
+		TargetType:       catalog.ResourceTypeLambdaFunction,
 		Attributes: map[string]any{
 			"function_version": strings.TrimSpace(alias.FunctionVersion),
 			"routing_weights":  cloneFloatMap(alias.RoutingWeights),
@@ -122,12 +123,12 @@ func eventSourceMappingFunctionRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLambdaEventSourceMappingTargetsFunction,
+		RelationshipType: catalog.RelationshipLambdaEventSourceMappingTargetsFunction,
 		SourceResourceID: mappingID,
 		SourceARN:        strings.TrimSpace(mapping.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeLambdaFunction,
+		TargetType:       catalog.ResourceTypeLambdaFunction,
 		Attributes: map[string]any{
 			"event_source_arn": strings.TrimSpace(mapping.EventSourceARN),
 			"state":            strings.TrimSpace(mapping.State),

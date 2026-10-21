@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 const containerImageTargetType = "container_image"
@@ -97,7 +98,7 @@ func vpcConnectorRelationships(boundary awscloud.Boundary, connector VpcConnecto
 			SourceResourceID: connectorARN,
 			SourceARN:        connectorARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   connectorARN + "#subnet#" + subnetID,
 		})
 	}
@@ -108,7 +109,7 @@ func vpcConnectorRelationships(boundary awscloud.Boundary, connector VpcConnecto
 			SourceResourceID: connectorARN,
 			SourceARN:        connectorARN,
 			TargetResourceID: securityGroupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   connectorARN + "#security-group#" + securityGroupID,
 		})
 	}

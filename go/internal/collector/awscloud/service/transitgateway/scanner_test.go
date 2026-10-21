@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestScannerRequiresClient(t *testing.T) {
@@ -117,7 +118,7 @@ func TestScannerEmitsVPCAttachmentRelationshipsAndRouteTableAssociation(t *testi
 		t.Fatalf("attachment -> tgw target = %q", got)
 	}
 	toVPC := relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayAttachmentToVPC)
-	if got, _ := toVPC.Payload["target_type"].(string); got != awscloud.ResourceTypeEC2VPC {
+	if got, _ := toVPC.Payload["target_type"].(string); got != catalog.ResourceTypeEC2VPC {
 		t.Fatalf("attachment -> vpc target_type = %q", got)
 	}
 	rtToAttachment := relationshipByType(t, envelopes, awscloud.RelationshipTransitGatewayRouteTableToAttachment)

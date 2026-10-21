@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.RelationshipObservation {
@@ -24,7 +25,7 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes:       map[string]any{"vpc_id": vpcID},
 			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainInVPC, vpcID),
 		})
@@ -36,7 +37,7 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes:       map[string]any{"subnet_id": subnetID},
 			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainInSubnet, subnetID),
 		})
@@ -48,7 +49,7 @@ func domainRelationships(boundary awscloud.Boundary, domain Domain) []awscloud.R
 			SourceResourceID: sourceID,
 			SourceARN:        domainARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			Attributes:       map[string]any{"security_group_id": groupID},
 			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchDomainUsesSecurityGroup, groupID),
 		})

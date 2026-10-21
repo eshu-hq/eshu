@@ -226,7 +226,7 @@ func actionTargetRelationship(
 	case "Lambda":
 		arn := lambdaFunctionARN(boundary, name)
 		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsLambdaFunction,
-			awscloud.ResourceTypeLambdaFunction, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
+			catalog.ResourceTypeLambdaFunction, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
 	case "CloudFormation":
 		// The CloudFormation scanner's stack node carries the stack name in its
 		// correlation anchors. CodePipeline reports only the stack name (the
@@ -243,7 +243,7 @@ func actionTargetRelationship(
 		arn := ecsServiceARN(boundary, cluster, service)
 		attrs := map[string]any{"cluster_name": cluster, "service_name": service}
 		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsECSService,
-			awscloud.ResourceTypeECSService, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, attrs), true
+			catalog.ResourceTypeECSService, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, attrs), true
 	default:
 		return awscloud.RelationshipObservation{}, false
 	}

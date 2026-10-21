@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -66,8 +67,8 @@ func TestScannerEmitsClusterInstanceGroupAndAllClusterRelationships(t *testing.T
 	assertResourceType(t, envelopes, awscloud.ResourceTypeEMRInstanceGroup)
 
 	// Subnet join: bare subnet id, target_type aws_ec2_subnet, deduplicated.
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesSubnet, "subnet-aaa", awscloud.ResourceTypeEC2Subnet, "")
-	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesSubnet, "subnet-bbb", awscloud.ResourceTypeEC2Subnet, "")
+	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesSubnet, "subnet-aaa", catalog.ResourceTypeEC2Subnet, "")
+	assertEdge(t, envelopes, awscloud.RelationshipEMRClusterUsesSubnet, "subnet-bbb", catalog.ResourceTypeEC2Subnet, "")
 	if got := countRelationships(envelopes, awscloud.RelationshipEMRClusterUsesSubnet); got != 2 {
 		t.Fatalf("subnet edge count = %d, want 2 (deduplicated)", got)
 	}
@@ -172,9 +173,9 @@ func TestScannerEmitsServerlessApplicationAndRelationships(t *testing.T) {
 		t.Fatalf("application resource_id = %v, want %q", got, appARN)
 	}
 	assertEdge(t, envelopes, awscloud.RelationshipEMRServerlessApplicationUsesSubnet,
-		"subnet-ccc", awscloud.ResourceTypeEC2Subnet, "")
+		"subnet-ccc", catalog.ResourceTypeEC2Subnet, "")
 	assertEdge(t, envelopes, awscloud.RelationshipEMRServerlessApplicationUsesSecurityGroup,
-		"sg-app", awscloud.ResourceTypeEC2SecurityGroup, "")
+		"sg-app", catalog.ResourceTypeEC2SecurityGroup, "")
 	assertEdge(t, envelopes, awscloud.RelationshipEMRServerlessApplicationUsesKMSKey,
 		"arn:aws:kms:us-east-1:123456789012:key/serverless-key", awscloud.ResourceTypeKMSKey,
 		"arn:aws:kms:us-east-1:123456789012:key/serverless-key")
@@ -217,8 +218,8 @@ func TestScannerEmitsStudioVPCSubnetRoleKMSAndSessionMapping(t *testing.T) {
 
 	// Studio->VPC is the only direct VPC join EMR exposes (clusters and
 	// applications derive VPC from subnet membership downstream).
-	assertEdge(t, envelopes, awscloud.RelationshipEMRStudioInVPC, "vpc-123", awscloud.ResourceTypeEC2VPC, "")
-	assertEdge(t, envelopes, awscloud.RelationshipEMRStudioUsesSubnet, "subnet-ddd", awscloud.ResourceTypeEC2Subnet, "")
+	assertEdge(t, envelopes, awscloud.RelationshipEMRStudioInVPC, "vpc-123", catalog.ResourceTypeEC2VPC, "")
+	assertEdge(t, envelopes, awscloud.RelationshipEMRStudioUsesSubnet, "subnet-ddd", catalog.ResourceTypeEC2Subnet, "")
 	if got := countRelationships(envelopes, awscloud.RelationshipEMRStudioUsesSecurityGroup); got != 2 {
 		t.Fatalf("studio security group edge count = %d, want 2", got)
 	}
@@ -278,7 +279,7 @@ func TestScannerSurfacesListErrors(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceLambda
+	boundary.ServiceKind = catalog.ServiceLambda
 	if _, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary); err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
 	}

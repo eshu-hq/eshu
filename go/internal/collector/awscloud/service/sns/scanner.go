@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -118,7 +119,7 @@ func targetTypeForARN(arn string) string {
 	case strings.Contains(arn, ":sqs:"):
 		return awscloud.ResourceTypeSQSQueue
 	case strings.Contains(arn, ":lambda:"):
-		return awscloud.ResourceTypeLambdaFunction
+		return catalog.ResourceTypeLambdaFunction
 	default:
 		return "aws_resource"
 	}

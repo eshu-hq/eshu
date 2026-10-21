@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -47,7 +48,7 @@ func NewEC2InstancePostureEnvelope(observation EC2InstancePostureObservation) (f
 		Region:                    observation.Boundary.Region,
 		ServiceKind:               boundaryValue(observation.Boundary.ServiceKind),
 		CollectorInstanceID:       boundaryValue(observation.Boundary.CollectorInstanceID),
-		ResourceType:              stringValuePtr(ResourceTypeEC2Instance),
+		ResourceType:              stringValuePtr(catalog.ResourceTypeEC2Instance),
 		ARN:                       stringValuePtr(arn),
 		InstanceID:                stringValuePtr(instanceID),
 		State:                     stringValuePtr(strings.TrimSpace(observation.State)),

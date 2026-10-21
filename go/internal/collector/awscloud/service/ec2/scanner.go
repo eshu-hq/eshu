@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -34,10 +35,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("ec2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceEC2:
+	case "", catalog.ServiceEC2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceEC2
+		boundary.ServiceKind = catalog.ServiceEC2
 	default:
 		return nil, fmt.Errorf("ec2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -151,7 +152,7 @@ func vpcObservation(boundary awscloud.Boundary, vpc VPC) awscloud.ResourceObserv
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   vpcID,
-		ResourceType: awscloud.ResourceTypeEC2VPC,
+		ResourceType: catalog.ResourceTypeEC2VPC,
 		Name:         vpcID,
 		State:        vpc.State,
 		Tags:         vpc.Tags,
@@ -192,7 +193,7 @@ func subnetObservation(boundary awscloud.Boundary, subnet Subnet) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          subnetARN,
 		ResourceID:   subnetID,
-		ResourceType: awscloud.ResourceTypeEC2Subnet,
+		ResourceType: catalog.ResourceTypeEC2Subnet,
 		Name:         subnetID,
 		State:        subnet.State,
 		Tags:         subnet.Tags,
@@ -236,7 +237,7 @@ func securityGroupObservation(boundary awscloud.Boundary, group SecurityGroup) a
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   groupID,
-		ResourceType: awscloud.ResourceTypeEC2SecurityGroup,
+		ResourceType: catalog.ResourceTypeEC2SecurityGroup,
 		Name:         group.Name,
 		Tags:         group.Tags,
 		Attributes: map[string]any{
@@ -302,7 +303,7 @@ func securityGroupRuleObservation(boundary awscloud.Boundary, rule SecurityGroup
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   ruleID,
-		ResourceType: awscloud.ResourceTypeEC2SecurityGroupRule,
+		ResourceType: catalog.ResourceTypeEC2SecurityGroupRule,
 		Name:         ruleID,
 		Tags:         rule.Tags,
 		Attributes: map[string]any{
@@ -345,7 +346,7 @@ func networkInterfaceObservation(boundary awscloud.Boundary, networkInterface Ne
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   networkInterfaceID,
-		ResourceType: awscloud.ResourceTypeEC2NetworkInterface,
+		ResourceType: catalog.ResourceTypeEC2NetworkInterface,
 		Name:         networkInterfaceID,
 		State:        networkInterface.Status,
 		Tags:         networkInterface.Tags,

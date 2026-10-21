@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -19,7 +20,7 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 
 	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
 	ecrBoundary := boundary
-	ecrBoundary.ServiceKind = ServiceECR
+	ecrBoundary.ServiceKind = catalog.ServiceECR
 	route53Boundary := boundary
 	route53Boundary.ServiceKind = ServiceRoute53
 	builders := map[string]func() (facts.Envelope, error){
@@ -55,7 +56,7 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 		},
 		cloud.AWSSecurityGroupRuleFactKind: func() (facts.Envelope, error) {
 			ec2Boundary := boundary
-			ec2Boundary.ServiceKind = ServiceEC2
+			ec2Boundary.ServiceKind = catalog.ServiceEC2
 			return NewSecurityGroupRuleEnvelope(SecurityGroupRuleObservation{
 				Boundary:   ec2Boundary,
 				RuleID:     "sgr-123",
@@ -225,7 +226,7 @@ func TestNewWarningEnvelopeUsesGenerationScopedIdentity(t *testing.T) {
 
 func TestNewImageReferenceEnvelopeCarriesDigestTagAndRepository(t *testing.T) {
 	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
-	boundary.ServiceKind = ServiceECR
+	boundary.ServiceKind = catalog.ServiceECR
 	envelope, err := NewImageReferenceEnvelope(ImageReferenceObservation{
 		Boundary:          boundary,
 		RepositoryARN:     "arn:aws:ecr:us-east-1:123456789012:repository/team/api",
@@ -264,7 +265,7 @@ func TestNewImageReferenceEnvelopeCarriesDigestTagAndRepository(t *testing.T) {
 // image reference for the account whose fact loses the collision.
 func TestNewImageReferenceEnvelopeDistinguishesCrossAccountRegistries(t *testing.T) {
 	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
-	boundary.ServiceKind = ServiceECS
+	boundary.ServiceKind = catalog.ServiceECS
 
 	first, err := NewImageReferenceEnvelope(ImageReferenceObservation{
 		Boundary:       boundary,
@@ -300,7 +301,7 @@ func TestNewImageReferenceEnvelopeDistinguishesCrossAccountRegistries(t *testing
 
 func TestNewImageReferenceEnvelopeRequiresDigest(t *testing.T) {
 	boundary := testBoundary(time.Now())
-	boundary.ServiceKind = ServiceECR
+	boundary.ServiceKind = catalog.ServiceECR
 	_, err := NewImageReferenceEnvelope(ImageReferenceObservation{
 		Boundary:       boundary,
 		RepositoryName: "team/api",

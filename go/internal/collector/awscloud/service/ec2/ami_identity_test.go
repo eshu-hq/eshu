@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -52,7 +52,7 @@ func TestScannerDedupesAMIResourceFactAcrossSharedInstances(t *testing.T) {
 		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["resource_type"].(string); got == awscloud.ResourceTypeEC2AMI {
+		if got, _ := envelope.Payload["resource_type"].(string); got == catalog.ResourceTypeEC2AMI {
 			amiResourceCount++
 		}
 	}

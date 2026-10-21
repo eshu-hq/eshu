@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // collectionKMSRelationship records the customer-managed KMS encryption key an
@@ -67,7 +68,7 @@ func vpcEndpointRelationships(boundary awscloud.Boundary, endpoint VPCEndpoint) 
 			RelationshipType: awscloud.RelationshipOpenSearchServerlessVPCEndpointInVPC,
 			SourceResourceID: endpointID,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   endpointID + "#vpc#" + vpcID,
 		})
 	}
@@ -77,7 +78,7 @@ func vpcEndpointRelationships(boundary awscloud.Boundary, endpoint VPCEndpoint) 
 			RelationshipType: awscloud.RelationshipOpenSearchServerlessVPCEndpointInSubnet,
 			SourceResourceID: endpointID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   endpointID + "#subnet#" + subnetID,
 		})
 	}
@@ -87,7 +88,7 @@ func vpcEndpointRelationships(boundary awscloud.Boundary, endpoint VPCEndpoint) 
 			RelationshipType: awscloud.RelationshipOpenSearchServerlessVPCEndpointUsesSecurityGroup,
 			SourceResourceID: endpointID,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   endpointID + "#security-group#" + groupID,
 		})
 	}

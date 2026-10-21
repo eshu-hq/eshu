@@ -16,15 +16,15 @@ import (
 	"testing"
 	"time"
 
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/trace/noop"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // Synthetic values only: the account is the private-data gate's own planted
@@ -160,7 +160,7 @@ type fakeScanner struct {
 
 func (s fakeScanner) Scan(_ context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
 	switch s.target.ServiceKind {
-	case awscloud.ServiceECR:
+	case catalog.ServiceECR:
 		repoARN := "arn:aws:ecr:us-east-1:" + recordAccount + ":repository/" + recordRepo
 		resource, err := awscloud.NewResourceEnvelope(awscloud.ResourceObservation{
 			Boundary: boundary, ARN: repoARN, ResourceID: repoARN, ResourceType: "ecr.repository", Name: recordRepo,

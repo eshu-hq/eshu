@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // clusterVPCRelationship records the VPC that contains a CloudHSM v2 cluster.
@@ -24,7 +25,7 @@ func clusterVPCRelationship(boundary awscloud.Boundary, cluster Cluster) *awsclo
 		RelationshipType: awscloud.RelationshipCloudHSMV2ClusterInVPC,
 		SourceResourceID: sourceID,
 		TargetResourceID: vpcID,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
+		TargetType:       catalog.ResourceTypeEC2VPC,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2ClusterInVPC + ":" + vpcID,
 	}
 }
@@ -44,7 +45,7 @@ func clusterSecurityGroupRelationship(boundary awscloud.Boundary, cluster Cluste
 		RelationshipType: awscloud.RelationshipCloudHSMV2ClusterUsesSecurityGroup,
 		SourceResourceID: sourceID,
 		TargetResourceID: groupID,
-		TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+		TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2ClusterUsesSecurityGroup + ":" + groupID,
 	}
 }
@@ -79,7 +80,7 @@ func clusterSubnetRelationships(boundary awscloud.Boundary, cluster Cluster) []a
 			RelationshipType: awscloud.RelationshipCloudHSMV2ClusterInSubnet,
 			SourceResourceID: sourceID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes:       attributes,
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2ClusterInSubnet + ":" + subnetID,
 		})

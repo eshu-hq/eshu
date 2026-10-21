@@ -4,9 +4,8 @@
 package reducer
 
 import (
-	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
-
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
+	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
 // ecsRunningTaskResourceTypes and lambdaFunctionResourceTypes are the closed,
@@ -15,9 +14,9 @@ import (
 // literal short form the golden-corpus awscloud cassette
 // (testdata/cassettes/awscloud/supply-chain-demo.json) and issue #5450 itself
 // name ("ecs.task" / "lambda.function"), and the live collector's own
-// awscloud.ResourceTypeECSTask / awscloud.ResourceTypeLambdaFunction constants
+// catalog.ResourceTypeECSTask / catalog.ResourceTypeLambdaFunction constants
 // ("aws_ecs_task" / "aws_lambda_function", go/internal/collector/awscloud/
-// constants_ecs.go, constants_lambda.go). The reducer package does not import
+// catalog/compute.go). The reducer package does not import
 // the collector package (package-boundary rule), so the constants are
 // duplicated here as literals rather than imported; gating on both aliases
 // keeps the enrichment correct for real production resource_type values AND

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -37,10 +38,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("batch scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceBatch:
+	case "", catalog.ServiceBatch:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceBatch
+		boundary.ServiceKind = catalog.ServiceBatch
 	default:
 		return nil, fmt.Errorf("batch scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -182,7 +183,7 @@ func computeEnvironmentObservation(
 		Boundary:     boundary,
 		ARN:          computeEnvironmentARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBatchComputeEnvironment,
+		ResourceType: catalog.ResourceTypeBatchComputeEnvironment,
 		Name:         strings.TrimSpace(computeEnvironment.Name),
 		State:        strings.TrimSpace(computeEnvironment.State),
 		Tags:         computeEnvironment.Tags,
@@ -212,7 +213,7 @@ func jobQueueObservation(boundary awscloud.Boundary, jobQueue JobQueue) awscloud
 		Boundary:     boundary,
 		ARN:          jobQueueARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBatchJobQueue,
+		ResourceType: catalog.ResourceTypeBatchJobQueue,
 		Name:         strings.TrimSpace(jobQueue.Name),
 		State:        strings.TrimSpace(jobQueue.State),
 		Tags:         jobQueue.Tags,
@@ -239,7 +240,7 @@ func (s Scanner) jobDefinitionObservation(
 		Boundary:     boundary,
 		ARN:          jobDefinitionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBatchJobDefinition,
+		ResourceType: catalog.ResourceTypeBatchJobDefinition,
 		Name:         strings.TrimSpace(jobDefinition.Name),
 		State:        strings.TrimSpace(jobDefinition.Status),
 		Tags:         jobDefinition.Tags,
@@ -264,7 +265,7 @@ func schedulingPolicyObservation(
 		Boundary:     boundary,
 		ARN:          schedulingPolicyARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBatchSchedulingPolicy,
+		ResourceType: catalog.ResourceTypeBatchSchedulingPolicy,
 		Name:         strings.TrimSpace(schedulingPolicy.Name),
 		Tags:         schedulingPolicy.Tags,
 		// No attributes: the fair-share policy weight state is never persisted.
@@ -280,7 +281,7 @@ func jobObservation(boundary awscloud.Boundary, job Job) awscloud.ResourceObserv
 		Boundary:     boundary,
 		ARN:          jobARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeBatchJob,
+		ResourceType: catalog.ResourceTypeBatchJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.Status),
 		Attributes: map[string]any{

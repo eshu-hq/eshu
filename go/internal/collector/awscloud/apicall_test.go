@@ -6,6 +6,8 @@ package awscloud
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestAPICallRecorderContextCapturesBoundedStats(t *testing.T) {
@@ -15,7 +17,7 @@ func TestAPICallRecorderContextCapturesBoundedStats(t *testing.T) {
 		CollectorInstanceID: "aws-prod",
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         ServiceECR,
+		ServiceKind:         catalog.ServiceECR,
 		GenerationID:        "generation-1",
 		FencingToken:        7,
 	}

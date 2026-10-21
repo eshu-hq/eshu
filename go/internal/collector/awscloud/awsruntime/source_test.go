@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 func TestClaimedSourceScansMatchedIAMClaim(t *testing.T) {
@@ -178,7 +178,7 @@ func TestClaimedSourceRecordsEmissionCounters(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceECR},
+				AllowedServices: []string{catalog.ServiceECR},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -189,13 +189,13 @@ func TestClaimedSourceRecordsEmissionCounters(t *testing.T) {
 			{
 				FactKind: cloud.AWSResourceFactKind,
 				Payload: map[string]any{
-					"resource_type": awscloud.ResourceTypeECRRepository,
+					"resource_type": catalog.ResourceTypeECRRepository,
 				},
 			},
 			{
 				FactKind: cloud.AWSResourceFactKind,
 				Payload: map[string]any{
-					"resource_type": awscloud.ResourceTypeECRLifecyclePolicy,
+					"resource_type": catalog.ResourceTypeECRLifecyclePolicy,
 				},
 			},
 			{FactKind: cloud.AWSRelationshipFactKind},
@@ -222,23 +222,23 @@ func TestClaimedSourceRecordsEmissionCounters(t *testing.T) {
 		t.Fatalf("Collect() error = %v", err)
 	}
 	targetAttrs := map[string]string{
-		telemetry.MetricDimensionService: awscloud.ServiceECR,
+		telemetry.MetricDimensionService: catalog.ServiceECR,
 		telemetry.MetricDimensionAccount: "123456789012",
 		telemetry.MetricDimensionRegion:  "us-east-1",
 	}
 	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_resources_emitted_total", map[string]string{
-		telemetry.MetricDimensionService:      awscloud.ServiceECR,
+		telemetry.MetricDimensionService:      catalog.ServiceECR,
 		telemetry.MetricDimensionAccount:      "123456789012",
 		telemetry.MetricDimensionRegion:       "us-east-1",
-		telemetry.MetricDimensionResourceType: awscloud.ResourceTypeECRRepository,
+		telemetry.MetricDimensionResourceType: catalog.ResourceTypeECRRepository,
 	}); got != 1 {
 		t.Fatalf("repository resource counter = %d, want 1", got)
 	}
 	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_resources_emitted_total", map[string]string{
-		telemetry.MetricDimensionService:      awscloud.ServiceECR,
+		telemetry.MetricDimensionService:      catalog.ServiceECR,
 		telemetry.MetricDimensionAccount:      "123456789012",
 		telemetry.MetricDimensionRegion:       "us-east-1",
-		telemetry.MetricDimensionResourceType: awscloud.ResourceTypeECRLifecyclePolicy,
+		telemetry.MetricDimensionResourceType: catalog.ResourceTypeECRLifecyclePolicy,
 	}); got != 1 {
 		t.Fatalf("lifecycle policy resource counter = %d, want 1", got)
 	}

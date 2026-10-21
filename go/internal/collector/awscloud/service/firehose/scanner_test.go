@@ -105,7 +105,7 @@ func TestScannerEmitsFirehoseMetadataResourceAndRelationships(t *testing.T) {
 	}
 
 	lambda := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamUsesLambdaTransform)
-	assertEdge(t, lambda, streamARN, lambdaARN, lambdaARN, awscloud.ResourceTypeLambdaFunction)
+	assertEdge(t, lambda, streamARN, lambdaARN, lambdaARN, catalog.ResourceTypeLambdaFunction)
 
 	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamDeliversToS3Bucket)
 	assertEdge(t, s3, streamARN, bucketARN, bucketARN, catalog.ResourceTypeS3Bucket)

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 )
 
@@ -58,8 +58,8 @@ func TestWebhookHandlerAcceptsAWSFreshnessEventBridgePayload(t *testing.T) {
 	if trigger.Kind != freshness.EventKindConfigChange {
 		t.Fatalf("Kind = %q, want %q", trigger.Kind, freshness.EventKindConfigChange)
 	}
-	if trigger.ServiceKind != awscloud.ServiceLambda {
-		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, awscloud.ServiceLambda)
+	if trigger.ServiceKind != catalog.ServiceLambda {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceLambda)
 	}
 }
 

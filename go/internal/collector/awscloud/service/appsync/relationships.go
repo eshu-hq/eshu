@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // apiAuthRelationships records the Cognito user pools and OIDC issuers a GraphQL
@@ -161,7 +162,7 @@ type dataSourceTargetRef struct {
 func dataSourceTarget(api GraphQLAPI, ds DataSource) *dataSourceTargetRef {
 	if arn := strings.TrimSpace(ds.LambdaFunctionARN); arn != "" {
 		// The Lambda scanner publishes the function ARN as its resource_id.
-		return &dataSourceTargetRef{resourceID: arn, arn: arn, targetType: awscloud.ResourceTypeLambdaFunction}
+		return &dataSourceTargetRef{resourceID: arn, arn: arn, targetType: catalog.ResourceTypeLambdaFunction}
 	}
 	if name := strings.TrimSpace(ds.DynamoDBTableName); name != "" {
 		// The DynamoDB scanner prefers the table ARN as resource_id and carries

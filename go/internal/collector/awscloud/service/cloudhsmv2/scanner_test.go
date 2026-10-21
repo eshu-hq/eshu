@@ -107,14 +107,14 @@ func TestScannerEmitsCloudHSMMetadataAndRelationships(t *testing.T) {
 
 	// cluster -> VPC edge keyed by the bare vpc id.
 	clusterVPC := relationshipByType(t, envelopes, awscloud.RelationshipCloudHSMV2ClusterInVPC)
-	assertEdgeTarget(t, clusterVPC, awscloud.ResourceTypeEC2VPC, testVPCID)
+	assertEdgeTarget(t, clusterVPC, catalog.ResourceTypeEC2VPC, testVPCID)
 	if got, want := clusterVPC.Payload["source_resource_id"], testClusterID; got != want {
 		t.Fatalf("cluster->vpc source_resource_id = %#v, want %q", got, want)
 	}
 
 	// cluster -> security group edge keyed by the bare sg id.
 	clusterSG := relationshipByType(t, envelopes, awscloud.RelationshipCloudHSMV2ClusterUsesSecurityGroup)
-	assertEdgeTarget(t, clusterSG, awscloud.ResourceTypeEC2SecurityGroup, testGroupID)
+	assertEdgeTarget(t, clusterSG, catalog.ResourceTypeEC2SecurityGroup, testGroupID)
 
 	// cluster -> subnet edges: one per distinct subnet id.
 	subnetTargets := relationshipTargets(envelopes, awscloud.RelationshipCloudHSMV2ClusterInSubnet)

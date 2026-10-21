@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awscloud.RelationshipObservation {
@@ -22,7 +23,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 			SourceResourceID: clusterID,
 			SourceARN:        strings.TrimSpace(cluster.ARN),
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   clusterID + "#subnet#" + subnetID,
 		})
 	}
@@ -33,7 +34,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 			SourceResourceID: clusterID,
 			SourceARN:        strings.TrimSpace(cluster.ARN),
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   clusterID + "#security-group#" + groupID,
 		})
 	}

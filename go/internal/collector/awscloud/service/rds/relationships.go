@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func instanceRelationships(
@@ -61,7 +62,7 @@ func instanceRelationships(
 			strings.TrimSpace(instance.ARN),
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeEC2SecurityGroup,
+			catalog.ResourceTypeEC2SecurityGroup,
 			map[string]any{"security_group_id": groupID},
 		))
 	}
@@ -138,7 +139,7 @@ func clusterRelationships(
 			strings.TrimSpace(cluster.ARN),
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeEC2SecurityGroup,
+			catalog.ResourceTypeEC2SecurityGroup,
 			map[string]any{"security_group_id": groupID},
 		))
 	}

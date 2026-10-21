@@ -246,7 +246,7 @@ func TestScannerEmitsAllFlavorsAndRelationships(t *testing.T) {
 	if got, want := vpcEdge.Payload["target_resource_id"], "vpc-aaa"; got != want {
 		t.Fatalf("file-system->vpc target_resource_id = %#v, want bare %q", got, want)
 	}
-	if got, want := vpcEdge.Payload["target_type"], awscloud.ResourceTypeEC2VPC; got != want {
+	if got, want := vpcEdge.Payload["target_type"], catalog.ResourceTypeEC2VPC; got != want {
 		t.Fatalf("file-system->vpc target_type = %#v, want %q", got, want)
 	}
 

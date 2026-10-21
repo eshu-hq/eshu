@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("autoscaling scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAutoScaling:
+	case "", catalog.ServiceAutoScaling:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAutoScaling
+		boundary.ServiceKind = catalog.ServiceAutoScaling
 	default:
 		return nil, fmt.Errorf("autoscaling scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -220,7 +221,7 @@ func launchConfigurationObservation(
 		Boundary:     boundary,
 		ARN:          launchConfigurationARN,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeAutoScalingLaunchConfiguration,
+		ResourceType: catalog.ResourceTypeAutoScalingLaunchConfiguration,
 		Name:         name,
 		// No attributes: launch configuration UserData and other launch detail
 		// are never persisted. Only identity is emitted.
@@ -237,7 +238,7 @@ func scalingPolicyObservation(boundary awscloud.Boundary, policy ScalingPolicy) 
 		Boundary:     boundary,
 		ARN:          policyARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAutoScalingPolicy,
+		ResourceType: catalog.ResourceTypeAutoScalingPolicy,
 		Name:         name,
 		Attributes: map[string]any{
 			"adjustment_type":         strings.TrimSpace(policy.AdjustmentType),
@@ -257,7 +258,7 @@ func lifecycleHookObservation(boundary awscloud.Boundary, hook LifecycleHook) aw
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAutoScalingLifecycleHook,
+		ResourceType: catalog.ResourceTypeAutoScalingLifecycleHook,
 		Name:         name,
 		Attributes: map[string]any{
 			"auto_scaling_group_name": groupName,
@@ -282,7 +283,7 @@ func scheduledActionObservation(boundary awscloud.Boundary, action ScheduledActi
 		Boundary:     boundary,
 		ARN:          actionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAutoScalingScheduledAction,
+		ResourceType: catalog.ResourceTypeAutoScalingScheduledAction,
 		Name:         name,
 		Attributes: map[string]any{
 			"auto_scaling_group_name": groupName,

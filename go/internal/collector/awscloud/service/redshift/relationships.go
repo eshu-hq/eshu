@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func clusterRelationships(
@@ -29,7 +30,7 @@ func clusterRelationships(
 			sourceID,
 			clusterARN,
 			vpcID,
-			awscloud.ResourceTypeEC2VPC,
+			catalog.ResourceTypeEC2VPC,
 			nil,
 		))
 	}
@@ -66,7 +67,7 @@ func clusterRelationships(
 			clusterARN,
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeEC2SecurityGroup,
+			catalog.ResourceTypeEC2SecurityGroup,
 			map[string]any{"security_group_id": groupID},
 		))
 	}
@@ -109,7 +110,7 @@ func subnetGroupVPCRelationship(
 		sourceID,
 		strings.TrimSpace(group.ARN),
 		vpcID,
-		awscloud.ResourceTypeEC2VPC,
+		catalog.ResourceTypeEC2VPC,
 		nil,
 	), true
 }
@@ -253,7 +254,7 @@ func serverlessWorkgroupRelationships(
 			workgroupARN,
 			subnetID,
 			"",
-			awscloud.ResourceTypeEC2Subnet,
+			catalog.ResourceTypeEC2Subnet,
 			map[string]any{"subnet_id": subnetID},
 		))
 	}
@@ -266,7 +267,7 @@ func serverlessWorkgroupRelationships(
 			workgroupARN,
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeEC2SecurityGroup,
+			catalog.ResourceTypeEC2SecurityGroup,
 			map[string]any{"security_group_id": groupID},
 		))
 	}

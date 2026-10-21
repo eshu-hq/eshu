@@ -221,7 +221,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 	if len(vpc) != 1 {
 		t.Fatalf("project->VPC relationships = %d, want 1", len(vpc))
 	}
-	if vpc[0]["target_type"] != awscloud.ResourceTypeEC2VPC {
+	if vpc[0]["target_type"] != catalog.ResourceTypeEC2VPC {
 		t.Fatalf("project->VPC target_type = %v", vpc[0]["target_type"])
 	}
 	if vpc[0]["target_resource_id"] != "vpc-0abc" {
@@ -229,12 +229,12 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 	}
 
 	subnet := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectUsesSubnet)
-	if len(subnet) != 1 || subnet[0]["target_type"] != awscloud.ResourceTypeEC2Subnet {
+	if len(subnet) != 1 || subnet[0]["target_type"] != catalog.ResourceTypeEC2Subnet {
 		t.Fatalf("project->subnet relationships = %#v", subnet)
 	}
 
 	sg := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectUsesSecurityGroup)
-	if len(sg) != 1 || sg[0]["target_type"] != awscloud.ResourceTypeEC2SecurityGroup {
+	if len(sg) != 1 || sg[0]["target_type"] != catalog.ResourceTypeEC2SecurityGroup {
 		t.Fatalf("project->security-group relationships = %#v", sg)
 	}
 

@@ -113,11 +113,11 @@ func TestScannerEmitsMWAAEnvironmentResourceAndRelationships(t *testing.T) {
 	if got := len(subnetEdges); got != 2 {
 		t.Fatalf("env->subnet edge count = %d, want 2", got)
 	}
-	assertEdge(t, subnetEdges[0], environmentARN, "subnet-aaa", awscloud.ResourceTypeEC2Subnet)
-	assertEdge(t, subnetEdges[1], environmentARN, "subnet-bbb", awscloud.ResourceTypeEC2Subnet)
+	assertEdge(t, subnetEdges[0], environmentARN, "subnet-aaa", catalog.ResourceTypeEC2Subnet)
+	assertEdge(t, subnetEdges[1], environmentARN, "subnet-bbb", catalog.ResourceTypeEC2Subnet)
 
 	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentUsesSecurityGroup)
-	assertEdge(t, sgEdge, environmentARN, "sg-111", awscloud.ResourceTypeEC2SecurityGroup)
+	assertEdge(t, sgEdge, environmentARN, "sg-111", catalog.ResourceTypeEC2SecurityGroup)
 
 	logEdge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup)
 	// The trailing ":*" wildcard suffix MWAA returns must be trimmed so the edge

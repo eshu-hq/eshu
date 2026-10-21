@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -73,17 +74,17 @@ func TestScannerEmitsLambdaFactsWithRedactedEnvironmentAndRelationships(t *testi
 		t.Fatalf("Scan returned error: %v", err)
 	}
 
-	assertResourceType(t, envelopes, awscloud.ResourceTypeLambdaFunction)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeLambdaAlias)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeLambdaEventSourceMapping)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaAliasTargetsFunction)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaEventSourceMappingTargetsFunction)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaFunctionUsesImage)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaFunctionUsesExecutionRole)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaFunctionUsesSubnet)
-	assertRelationship(t, envelopes, awscloud.RelationshipLambdaFunctionUsesSecurityGroup)
+	assertResourceType(t, envelopes, catalog.ResourceTypeLambdaFunction)
+	assertResourceType(t, envelopes, catalog.ResourceTypeLambdaAlias)
+	assertResourceType(t, envelopes, catalog.ResourceTypeLambdaEventSourceMapping)
+	assertRelationship(t, envelopes, catalog.RelationshipLambdaAliasTargetsFunction)
+	assertRelationship(t, envelopes, catalog.RelationshipLambdaEventSourceMappingTargetsFunction)
+	assertRelationship(t, envelopes, catalog.RelationshipLambdaFunctionUsesImage)
+	assertRelationship(t, envelopes, catalog.RelationshipLambdaFunctionUsesExecutionRole)
+	assertRelationship(t, envelopes, catalog.RelationshipLambdaFunctionUsesSubnet)
+	assertRelationship(t, envelopes, catalog.RelationshipLambdaFunctionUsesSecurityGroup)
 
-	function := resourceByType(t, envelopes, awscloud.ResourceTypeLambdaFunction)
+	function := resourceByType(t, envelopes, catalog.ResourceTypeLambdaFunction)
 	attributes := attributesOf(t, function)
 	env, ok := attributes["environment"].(map[string]any)
 	if !ok {
@@ -137,7 +138,7 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 		t.Fatalf("NewKey() error = %v", err)
 	}
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceECS
+	boundary.ServiceKind = catalog.ServiceECS
 	_, err = Scanner{Client: fakeClient{}, RedactionKey: key}.Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")
@@ -148,7 +149,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLambda,
+		ServiceKind:         catalog.ServiceLambda,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:lambda:1",
 		CollectorInstanceID: "aws-prod",

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/route53resolver"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -216,12 +217,12 @@ func TestRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) {
 	}{
 		{
 			relationshipType: awscloud.RelationshipRoute53ResolverEndpointInVPC,
-			targetType:       awscloud.ResourceTypeEC2VPC,
+			targetType:       catalog.ResourceTypeEC2VPC,
 			targetResourceID: "vpc-aaa",
 		},
 		{
 			relationshipType: awscloud.RelationshipRoute53ResolverEndpointUsesSubnet,
-			targetType:       awscloud.ResourceTypeEC2Subnet,
+			targetType:       catalog.ResourceTypeEC2Subnet,
 			targetResourceID: "subnet-aaa",
 		},
 		{
@@ -231,7 +232,7 @@ func TestRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) {
 		},
 		{
 			relationshipType: awscloud.RelationshipRoute53ResolverRuleAssociationTargetsVPC,
-			targetType:       awscloud.ResourceTypeEC2VPC,
+			targetType:       catalog.ResourceTypeEC2VPC,
 			targetResourceID: "vpc-bbb",
 		},
 		{
@@ -241,7 +242,7 @@ func TestRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) {
 		},
 		{
 			relationshipType: awscloud.RelationshipRoute53ResolverFirewallRuleGroupAssociationTargetsVPC,
-			targetType:       awscloud.ResourceTypeEC2VPC,
+			targetType:       catalog.ResourceTypeEC2VPC,
 			targetResourceID: "vpc-ccc",
 		},
 		{

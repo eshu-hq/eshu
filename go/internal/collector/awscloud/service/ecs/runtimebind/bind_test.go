@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/ecs/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -18,9 +18,9 @@ import (
 // TestECSRuntimeBindRegisters confirms importing the binding
 // installs the ECS scanner builder.
 func TestECSRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceECS)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceECS)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceECS)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceECS)
 	}
 	key, err := redact.NewKey([]byte("aws-redaction-key"))
 	if err != nil {
@@ -28,7 +28,7 @@ func TestECSRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceECS},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceECS},
 		RedactionKey: key,
 	})
 	if err != nil {
@@ -42,13 +42,13 @@ func TestECSRuntimeBindRegisters(t *testing.T) {
 // TestECSRuntimeBindRequiresRedactionKey covers the guard the
 // binding inherits from the legacy switch.
 func TestECSRuntimeBindRequiresRedactionKey(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceECS)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceECS)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceECS)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceECS)
 	}
 	_, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceECS},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceECS},
 	})
 	if err == nil {
 		t.Fatalf("build() error = nil, want missing redaction key")

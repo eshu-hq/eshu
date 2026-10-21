@@ -296,7 +296,7 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 
 	const wantECSARN = "arn:aws:ecs:us-east-1:123456789012:service/checkout-cluster/checkout-svc"
 	ecs := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelineActionTargetsECSService)
-	if len(ecs) != 1 || ecs[0]["target_type"] != awscloud.ResourceTypeECSService {
+	if len(ecs) != 1 || ecs[0]["target_type"] != catalog.ResourceTypeECSService {
 		t.Fatalf("action->ECS = %#v", ecs)
 	}
 	if ecs[0]["target_resource_id"] != wantECSARN || ecs[0]["target_arn"] != wantECSARN {
@@ -312,7 +312,7 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 	}
 
 	lambda := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelineActionTargetsLambdaFunction)
-	if len(lambda) != 1 || lambda[0]["target_type"] != awscloud.ResourceTypeLambdaFunction {
+	if len(lambda) != 1 || lambda[0]["target_type"] != catalog.ResourceTypeLambdaFunction {
 		t.Fatalf("action->Lambda = %#v", lambda)
 	}
 	if lambda[0]["target_arn"] != "arn:aws:lambda:us-east-1:123456789012:function:checkout-postdeploy" {

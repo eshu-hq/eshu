@@ -93,7 +93,7 @@ func deliveryStreamRelationships(boundary awscloud.Boundary, stream FirehoseDeli
 				SourceARN:        streamARN,
 				TargetResourceID: lambdaARN,
 				TargetARN:        lambdaARN,
-				TargetType:       awscloud.ResourceTypeLambdaFunction,
+				TargetType:       catalog.ResourceTypeLambdaFunction,
 				SourceRecordID:   streamID + "#lambda-transform#" + lambdaARN,
 			})
 		}

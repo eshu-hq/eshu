@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -146,7 +147,7 @@ func TestScannerDataSourceTargetJoinKeys(t *testing.T) {
 		targetType string
 		wantID     string
 	}{
-		{awscloud.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:orders"},
+		{catalog.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:orders"},
 		{awscloud.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/Orders"},
 		{awscloud.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:orders"},
 		{awscloud.AppSyncDataSourceTargetTypeOpenSearch, "https://search-orders.us-east-1.es.amazonaws.com"},

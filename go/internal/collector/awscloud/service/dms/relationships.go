@@ -48,7 +48,7 @@ func instanceRelationships(
 			sourceARN,
 			subnetID,
 			"",
-			awscloud.ResourceTypeEC2Subnet,
+			catalog.ResourceTypeEC2Subnet,
 			nil,
 		))
 	}
@@ -61,7 +61,7 @@ func instanceRelationships(
 			sourceARN,
 			securityGroupID,
 			"",
-			awscloud.ResourceTypeEC2SecurityGroup,
+			catalog.ResourceTypeEC2SecurityGroup,
 			nil,
 		))
 	}
@@ -103,7 +103,7 @@ func subnetGroupRelationships(
 			"",
 			vpcID,
 			"",
-			awscloud.ResourceTypeEC2VPC,
+			catalog.ResourceTypeEC2VPC,
 			nil,
 		))
 	}
@@ -116,7 +116,7 @@ func subnetGroupRelationships(
 			"",
 			subnetID,
 			"",
-			awscloud.ResourceTypeEC2Subnet,
+			catalog.ResourceTypeEC2Subnet,
 			nil,
 		))
 	}

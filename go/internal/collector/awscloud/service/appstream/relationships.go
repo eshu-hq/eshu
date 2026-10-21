@@ -29,7 +29,7 @@ func fleetRelationships(boundary awscloud.Boundary, fleet Fleet) []awscloud.Rela
 			SourceResourceID: fleetID,
 			SourceARN:        fleetARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   fleetID + "#subnet#" + subnetID,
 		})
 	}
@@ -40,7 +40,7 @@ func fleetRelationships(boundary awscloud.Boundary, fleet Fleet) []awscloud.Rela
 			SourceResourceID: fleetID,
 			SourceARN:        fleetARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   fleetID + "#security-group#" + groupID,
 		})
 	}
@@ -89,7 +89,7 @@ func imageBuilderRelationships(boundary awscloud.Boundary, builder ImageBuilder)
 			SourceResourceID: builderID,
 			SourceARN:        builderARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   builderID + "#subnet#" + subnetID,
 		})
 	}
@@ -100,7 +100,7 @@ func imageBuilderRelationships(boundary awscloud.Boundary, builder ImageBuilder)
 			SourceResourceID: builderID,
 			SourceARN:        builderARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   builderID + "#security-group#" + groupID,
 		})
 	}

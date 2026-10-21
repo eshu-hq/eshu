@@ -19,7 +19,7 @@ import (
 //
 // Declared here rather than imported from go/internal/collector/awscloud to keep
 // the reducer free of a dependency on collector internals. The value must stay
-// equal to awscloud.RelationshipEC2InstanceUsesAMI; a drift
+// equal to catalog.RelationshipEC2InstanceUsesAMI; a drift
 // makes this gate silently stop firing, which is why
 // TestAWSRelationshipInstanceNodeGateMatchesTheCollectorConstant pins them
 // together.

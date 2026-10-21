@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // conformancePackRuleRelationship records that a conformance pack contains a
@@ -62,7 +63,7 @@ func ruleLambdaRelationship(
 		SourceARN:        strings.TrimSpace(rule.ARN),
 		TargetResourceID: lambdaARN,
 		TargetARN:        lambdaARN,
-		TargetType:       awscloud.ResourceTypeLambdaFunction,
+		TargetType:       catalog.ResourceTypeLambdaFunction,
 		Attributes: map[string]any{
 			"config_rule_name": name,
 			"owner":            strings.TrimSpace(rule.Owner),

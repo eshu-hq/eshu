@@ -164,7 +164,7 @@ func networkRelationships(
 				SourceResourceID: sourceID,
 				SourceARN:        sourceARN,
 				TargetResourceID: subnetID,
-				TargetType:       awscloud.ResourceTypeEC2Subnet,
+				TargetType:       catalog.ResourceTypeEC2Subnet,
 				Attributes:       vpcAttribute(vpcID),
 				SourceRecordID:   sourceID + "#subnet#" + subnetID,
 			})
@@ -184,7 +184,7 @@ func networkRelationships(
 				SourceResourceID: sourceID,
 				SourceARN:        sourceARN,
 				TargetResourceID: groupID,
-				TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+				TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 				Attributes:       vpcAttribute(vpcID),
 				SourceRecordID:   sourceID + "#security-group#" + groupID,
 			})

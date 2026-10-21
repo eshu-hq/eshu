@@ -125,7 +125,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 
 	// lambda recommendation -> function edge keyed by ARN.
 	lambdaEdge := relationshipByType(t, envelopes, awscloud.RelationshipComputeOptimizerRecommendationTargetsFunction)
-	assertEdgeTarget(t, lambdaEdge, awscloud.ResourceTypeLambdaFunction, testFunctionARN)
+	assertEdgeTarget(t, lambdaEdge, catalog.ResourceTypeLambdaFunction, testFunctionARN)
 	if got, want := lambdaEdge.Payload["target_arn"], testFunctionARN; got != want {
 		t.Fatalf("lambda edge target_arn = %#v, want %q", got, want)
 	}
@@ -135,7 +135,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["target_type"].(string); got == awscloud.ResourceTypeEC2Volume {
+		if got, _ := envelope.Payload["target_type"].(string); got == catalog.ResourceTypeEC2Volume {
 			t.Fatalf("unexpected EBS volume edge emitted: %#v", envelope.Payload)
 		}
 	}

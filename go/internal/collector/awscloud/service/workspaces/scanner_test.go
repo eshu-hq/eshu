@@ -180,7 +180,7 @@ func TestScannerEmitsWorkSpacesMetadataAndRelationships(t *testing.T) {
 
 	// directory -> security group edge keyed by the bare sg id.
 	dirSG := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesDirectoryUsesSecurityGroup)
-	assertEdgeTarget(t, dirSG, awscloud.ResourceTypeEC2SecurityGroup, testSecGroupID)
+	assertEdgeTarget(t, dirSG, catalog.ResourceTypeEC2SecurityGroup, testSecGroupID)
 
 	// directory -> IAM role edge keyed by the role ARN.
 	dirRole := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesDirectoryUsesIAMRole)

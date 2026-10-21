@@ -11,15 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func TestAWSPaginationCheckpointSchemaSQL(t *testing.T) {
@@ -133,7 +131,7 @@ func TestAWSPaginationCheckpointStoreRecordsStableEventKinds(t *testing.T) {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
 	assertAWSCheckpointCounter(t, rm, map[string]string{
-		telemetry.MetricDimensionService:   awscloud.ServiceECR,
+		telemetry.MetricDimensionService:   catalog.ServiceECR,
 		telemetry.MetricDimensionAccount:   "123456789012",
 		telemetry.MetricDimensionRegion:    "us-east-1",
 		telemetry.MetricDimensionOperation: "DescribeImages",
@@ -141,7 +139,7 @@ func TestAWSPaginationCheckpointStoreRecordsStableEventKinds(t *testing.T) {
 		telemetry.MetricDimensionResult:    "success",
 	})
 	assertAWSCheckpointCounter(t, rm, map[string]string{
-		telemetry.MetricDimensionService:   awscloud.ServiceECR,
+		telemetry.MetricDimensionService:   catalog.ServiceECR,
 		telemetry.MetricDimensionAccount:   "123456789012",
 		telemetry.MetricDimensionRegion:    "us-east-1",
 		telemetry.MetricDimensionOperation: "all",
@@ -168,7 +166,7 @@ func testAWSCheckpointKey() checkpoint.Key {
 			CollectorInstanceID: "aws-prod",
 			AccountID:           "123456789012",
 			Region:              "us-east-1",
-			ServiceKind:         awscloud.ServiceECR,
+			ServiceKind:         catalog.ServiceECR,
 			GenerationID:        "generation-1",
 			FencingToken:        4,
 		},

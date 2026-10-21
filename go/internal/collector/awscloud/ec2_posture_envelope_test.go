@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -16,7 +17,7 @@ func TestNewEC2InstancePostureEnvelopeCarriesDerivedPosture(t *testing.T) {
 
 	boundary := testBoundary(time.Date(2026, 5, 31, 18, 30, 0, 0, time.UTC))
 	boundary.Region = "us-east-1"
-	boundary.ServiceKind = ServiceEC2
+	boundary.ServiceKind = catalog.ServiceEC2
 	imdsv2 := true
 	hopLimit := int32(1)
 	userData := true
@@ -66,10 +67,10 @@ func TestNewEC2InstancePostureEnvelopeCarriesDerivedPosture(t *testing.T) {
 
 	payload := envelope.Payload
 	wantValues := map[string]any{
-		"resource_type":               ResourceTypeEC2Instance,
+		"resource_type":               catalog.ResourceTypeEC2Instance,
 		"collector_instance_id":       "aws-prod",
 		"instance_id":                 "i-1234567890abcdef0",
-		"service_kind":                ServiceEC2,
+		"service_kind":                catalog.ServiceEC2,
 		"state":                       "running",
 		"imds_v2_required":            true,
 		"imds_http_endpoint":          "enabled",
@@ -124,7 +125,7 @@ func TestNewEC2InstancePostureEnvelopeKeepsUnknownSettingsNil(t *testing.T) {
 
 	boundary := testBoundary(time.Date(2026, 5, 31, 18, 30, 0, 0, time.UTC))
 	boundary.Region = "us-east-1"
-	boundary.ServiceKind = ServiceEC2
+	boundary.ServiceKind = catalog.ServiceEC2
 	envelope, err := NewEC2InstancePostureEnvelope(EC2InstancePostureObservation{
 		Boundary:   boundary,
 		InstanceID: "i-unknown",
@@ -147,7 +148,7 @@ func TestNewEC2InstancePostureEnvelopeRequiresIdentity(t *testing.T) {
 	t.Parallel()
 
 	boundary := testBoundary(time.Date(2026, 5, 31, 18, 30, 0, 0, time.UTC))
-	boundary.ServiceKind = ServiceEC2
+	boundary.ServiceKind = catalog.ServiceEC2
 	if _, err := NewEC2InstancePostureEnvelope(EC2InstancePostureObservation{Boundary: boundary}); err == nil {
 		t.Fatalf("NewEC2InstancePostureEnvelope() error = nil, want missing-identity error")
 	}
@@ -157,7 +158,7 @@ func TestNewEC2InstancePostureEnvelopeStableKeyVariesByInstance(t *testing.T) {
 	t.Parallel()
 
 	boundary := testBoundary(time.Date(2026, 5, 31, 18, 30, 0, 0, time.UTC))
-	boundary.ServiceKind = ServiceEC2
+	boundary.ServiceKind = catalog.ServiceEC2
 	first, err := NewEC2InstancePostureEnvelope(EC2InstancePostureObservation{Boundary: boundary, InstanceID: "i-aaa"})
 	if err != nil {
 		t.Fatalf("first posture error = %v", err)

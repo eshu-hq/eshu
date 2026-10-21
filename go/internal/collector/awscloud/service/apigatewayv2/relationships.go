@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // apiHasStageRelationship records stage membership on a v2 API.
@@ -147,7 +148,7 @@ func integrationRelationships(boundary awscloud.Boundary, api API, integration I
 			SourceResourceID: integrationRes,
 			TargetResourceID: lambdaARN,
 			TargetARN:        lambdaARN,
-			TargetType:       awscloud.ResourceTypeLambdaFunction,
+			TargetType:       catalog.ResourceTypeLambdaFunction,
 			Attributes: map[string]any{
 				"integration_type": strings.TrimSpace(integration.Type),
 			},
@@ -197,7 +198,7 @@ func vpcLinkRelationships(boundary awscloud.Boundary, link VPCLink) []awscloud.R
 			RelationshipType: awscloud.RelationshipAPIGatewayV2VPCLinkUsesSubnet,
 			SourceResourceID: linkID,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   linkID + "#subnet#" + subnetID,
 		})
 	}
@@ -207,7 +208,7 @@ func vpcLinkRelationships(boundary awscloud.Boundary, link VPCLink) []awscloud.R
 			RelationshipType: awscloud.RelationshipAPIGatewayV2VPCLinkUsesSecurityGroup,
 			SourceResourceID: linkID,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   linkID + "#security-group#" + groupID,
 		})
 	}

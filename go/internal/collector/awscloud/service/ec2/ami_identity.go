@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -56,7 +57,7 @@ func amiResourceObservation(boundary awscloud.Boundary, amiID string) awscloud.R
 	return awscloud.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         amiID,
-		ResourceType:       awscloud.ResourceTypeEC2AMI,
+		ResourceType:       catalog.ResourceTypeEC2AMI,
 		Name:               amiID,
 		CorrelationAnchors: []string{amiID},
 		SourceRecordID:     amiID,

@@ -203,7 +203,7 @@ func securityGroupRuleObservation() awscloud.SecurityGroupRuleObservation {
 	fromPort := int32(443)
 	toPort := int32(443)
 	return awscloud.SecurityGroupRuleObservation{
-		Boundary:     awsBoundary(awscloud.ServiceEC2, time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)),
+		Boundary:     awsBoundary(catalog.ServiceEC2, time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)),
 		RuleID:       "sgr-123",
 		GroupID:      "sg-123",
 		GroupOwnerID: "123456789012",
@@ -222,7 +222,7 @@ func ec2InstancePostureObservation() awscloud.EC2InstancePostureObservation {
 	userData := true
 	volumeEncrypted := true
 	return awscloud.EC2InstancePostureObservation{
-		Boundary:                awsBoundary(awscloud.ServiceEC2, time.Date(2026, 5, 31, 18, 30, 0, 0, time.UTC)),
+		Boundary:                awsBoundary(catalog.ServiceEC2, time.Date(2026, 5, 31, 18, 30, 0, 0, time.UTC)),
 		ARN:                     "arn:aws:ec2:us-east-1:123456789012:instance/i-1234567890abcdef0",
 		InstanceID:              "i-1234567890abcdef0",
 		State:                   "running",

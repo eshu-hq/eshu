@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -179,7 +180,7 @@ func TestScannerEmitsAPIGatewayV2Metadata(t *testing.T) {
 	if got := payloadString(t, lambdaEdge, "target_resource_id"); got != "arn:aws:lambda:us-east-1:123456789012:function:orders" {
 		t.Fatalf("integration->lambda target = %q", got)
 	}
-	if got := payloadString(t, lambdaEdge, "target_type"); got != awscloud.ResourceTypeLambdaFunction {
+	if got := payloadString(t, lambdaEdge, "target_type"); got != catalog.ResourceTypeLambdaFunction {
 		t.Fatalf("integration->lambda target_type = %q", got)
 	}
 
@@ -225,7 +226,7 @@ func TestScannerEmitsAPIGatewayV2Metadata(t *testing.T) {
 
 	// vpc link -> subnet / security group join by the bare ids the EC2 scanner publishes.
 	subnetEdge := relationshipByType(t, envelopes, awscloud.RelationshipAPIGatewayV2VPCLinkUsesSubnet)
-	if got := payloadString(t, subnetEdge, "target_type"); got != awscloud.ResourceTypeEC2Subnet {
+	if got := payloadString(t, subnetEdge, "target_type"); got != catalog.ResourceTypeEC2Subnet {
 		t.Fatalf("vpc-link->subnet target_type = %q", got)
 	}
 	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipAPIGatewayV2VPCLinkUsesSecurityGroup)

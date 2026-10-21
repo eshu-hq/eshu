@@ -108,7 +108,7 @@ func TestAWSRuntimeResourceRowFromPayloadPopulatesECSContainerImages(t *testing.
 
 // TestAWSRuntimeResourceRowFromPayloadPopulatesLambdaFromProductionResourceType
 // is the #5453 codex/owner P0 regression: the live AWS collector emits
-// resource_type "aws_lambda_function" (constants_lambda.go), not the cassette's
+// resource_type "aws_lambda_function" (catalog/compute.go), not the cassette's
 // short-name "lambda.function". The observed decoder must accept the production
 // string too, or Lambda image/version drift never fires outside the fixtures.
 func TestAWSRuntimeResourceRowFromPayloadPopulatesLambdaFromProductionResourceType(t *testing.T) {
@@ -140,7 +140,7 @@ func TestAWSRuntimeResourceRowFromPayloadPopulatesLambdaFromProductionResourceTy
 
 // TestAWSRuntimeResourceRowFromPayloadPopulatesECSFromProductionResourceType is
 // the ECS half of the same #5453 P0: the live collector emits
-// "aws_ecs_task_definition" (constants_ecs.go), not "ecs.task_definition".
+// "aws_ecs_task_definition" (catalog/compute.go), not "ecs.task_definition".
 func TestAWSRuntimeResourceRowFromPayloadPopulatesECSFromProductionResourceType(t *testing.T) {
 	t.Parallel()
 

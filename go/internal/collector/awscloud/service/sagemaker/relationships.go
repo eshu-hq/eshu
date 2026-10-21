@@ -27,7 +27,7 @@ func notebookRelationships(notebook NotebookInstance) []awscloud.RelationshipObs
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(notebook.ARN),
 		TargetResourceID: subnet,
-		TargetType:       awscloud.ResourceTypeEC2Subnet,
+		TargetType:       catalog.ResourceTypeEC2Subnet,
 		SourceRecordID:   id + "#subnet#" + subnet,
 	}}
 }
@@ -200,7 +200,7 @@ func domainRelationships(domain Domain) []awscloud.RelationshipObservation {
 		SourceResourceID: id,
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: vpc,
-		TargetType:       awscloud.ResourceTypeEC2VPC,
+		TargetType:       catalog.ResourceTypeEC2VPC,
 		SourceRecordID:   id + "#vpc#" + vpc,
 	}}
 }

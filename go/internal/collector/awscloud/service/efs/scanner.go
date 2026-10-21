@@ -147,7 +147,7 @@ func mountTargetEnvelopes(boundary awscloud.Boundary, mountTarget MountTarget) (
 			RelationshipType: catalog.RelationshipEFSMountTargetInSubnet,
 			SourceResourceID: mtID,
 			TargetResourceID: subnet,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 		})
 		if err != nil {
 			return nil, err
@@ -164,7 +164,7 @@ func mountTargetEnvelopes(boundary awscloud.Boundary, mountTarget MountTarget) (
 			RelationshipType: catalog.RelationshipEFSMountTargetUsesSecurityGroup,
 			SourceResourceID: mtID,
 			TargetResourceID: group,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 		})
 		if err != nil {
 			return nil, err

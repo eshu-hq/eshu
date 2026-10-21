@@ -127,7 +127,7 @@ func targetResourceRelationship(
 		return newTargetRelationship(
 			boundary, template, sourceID,
 			awscloud.RelationshipFISTemplateTargetsECSCluster,
-			resourceARN, resourceARN, awscloud.ResourceTypeECSCluster, attributes,
+			resourceARN, resourceARN, catalog.ResourceTypeECSCluster, attributes,
 		)
 	case "rds":
 		segment := arnResourceSegment(resourceARN)

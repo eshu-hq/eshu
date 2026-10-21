@@ -7,22 +7,22 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/ec2/runtimebind"
 )
 
 // TestEC2RuntimeBindRegisters confirms importing the binding
 // installs the EC2 scanner builder.
 func TestEC2RuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceEC2)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceEC2)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceEC2)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceEC2)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceEC2},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceEC2},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

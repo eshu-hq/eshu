@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -47,11 +47,11 @@ func TestDefaultScannerFactoryRequiresRedactionKeyForECS(t *testing.T) {
 	_, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECS,
+		ServiceKind: catalog.ServiceECS,
 	}, awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECS,
+		ServiceKind: catalog.ServiceECS,
 	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want missing ECS redaction key")
@@ -68,11 +68,11 @@ func TestDefaultScannerFactoryRequiresRedactionKeyForLambda(t *testing.T) {
 	_, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceLambda,
+		ServiceKind: catalog.ServiceLambda,
 	}, awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceLambda,
+		ServiceKind: catalog.ServiceLambda,
 	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want missing Lambda redaction key")
@@ -135,11 +135,11 @@ func TestDefaultScannerFactoryBuildsECSWithRedactionKey(t *testing.T) {
 	scanner, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECS,
+		ServiceKind: catalog.ServiceECS,
 	}, awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECS,
+		ServiceKind: catalog.ServiceECS,
 	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
 	if err != nil {
 		t.Fatalf("Scanner() error = %v", err)

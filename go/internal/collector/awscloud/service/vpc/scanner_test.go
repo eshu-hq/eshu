@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -85,7 +86,7 @@ func TestScannerEmitsInternetGatewayWithVPCAttachment(t *testing.T) {
 	if got, want := rel.Payload["target_resource_id"], "vpc-1"; got != want {
 		t.Fatalf("igw attachment target = %#v, want %q", got, want)
 	}
-	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeEC2VPC; got != want {
+	if got, want := rel.Payload["target_type"], catalog.ResourceTypeEC2VPC; got != want {
 		t.Fatalf("igw attachment target_type = %#v, want %q (EC2-owned)", got, want)
 	}
 }
@@ -257,7 +258,7 @@ func TestScannerEmitsElasticIPInstanceAndENIEdges(t *testing.T) {
 		t.Fatalf("EIP->instance target_type = %#v, want %q", got, want)
 	}
 	eniRel := relationshipByType(t, envelopes, awscloud.RelationshipVPCElasticIPAssociatedWithNetworkInterface)
-	if got, want := eniRel.Payload["target_type"], awscloud.ResourceTypeEC2NetworkInterface; got != want {
+	if got, want := eniRel.Payload["target_type"], catalog.ResourceTypeEC2NetworkInterface; got != want {
 		t.Fatalf("EIP->ENI target_type = %#v, want %q (EC2-owned)", got, want)
 	}
 }
@@ -349,7 +350,7 @@ func TestScannerEmitsVPNGatewayAndConnectionEdges(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceEC2
+	boundary.ServiceKind = catalog.ServiceEC2
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -381,11 +382,11 @@ func TestVPCResourceTypesDisjointFromEC2(t *testing.T) {
 	// resource_type. This test pins the boundary so a regression cannot be
 	// merged silently.
 	ec2Owned := map[string]struct{}{
-		awscloud.ResourceTypeEC2VPC:               {},
-		awscloud.ResourceTypeEC2Subnet:            {},
-		awscloud.ResourceTypeEC2SecurityGroup:     {},
-		awscloud.ResourceTypeEC2SecurityGroupRule: {},
-		awscloud.ResourceTypeEC2NetworkInterface:  {},
+		catalog.ResourceTypeEC2VPC:               {},
+		catalog.ResourceTypeEC2Subnet:            {},
+		catalog.ResourceTypeEC2SecurityGroup:     {},
+		catalog.ResourceTypeEC2SecurityGroupRule: {},
+		catalog.ResourceTypeEC2NetworkInterface:  {},
 	}
 	vpcEmitted := []string{
 		awscloud.ResourceTypeVPCRouteTable,

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("lightsail scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceLightsail:
+	case "", catalog.ServiceLightsail:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceLightsail
+		boundary.ServiceKind = catalog.ServiceLightsail
 	default:
 		return nil, fmt.Errorf("lightsail scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -159,7 +160,7 @@ func instanceObservation(boundary awscloud.Boundary, instance Instance) awscloud
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeLightsailInstance,
+		ResourceType: catalog.ResourceTypeLightsailInstance,
 		Name:         name,
 		State:        strings.TrimSpace(instance.State),
 		Tags:         instance.Tags,
@@ -188,7 +189,7 @@ func databaseObservation(boundary awscloud.Boundary, database Database) awscloud
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeLightsailDatabase,
+		ResourceType: catalog.ResourceTypeLightsailDatabase,
 		Name:         name,
 		State:        strings.TrimSpace(database.State),
 		Tags:         database.Tags,
@@ -220,7 +221,7 @@ func loadBalancerObservation(boundary awscloud.Boundary, lb LoadBalancer) awsclo
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeLightsailLoadBalancer,
+		ResourceType: catalog.ResourceTypeLightsailLoadBalancer,
 		Name:         name,
 		State:        strings.TrimSpace(lb.State),
 		Tags:         lb.Tags,
@@ -248,7 +249,7 @@ func diskObservation(boundary awscloud.Boundary, disk Disk) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeLightsailDisk,
+		ResourceType: catalog.ResourceTypeLightsailDisk,
 		Name:         name,
 		State:        strings.TrimSpace(disk.State),
 		Tags:         disk.Tags,
@@ -275,7 +276,7 @@ func staticIPObservation(boundary awscloud.Boundary, staticIP StaticIP) awscloud
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeLightsailStaticIP,
+		ResourceType: catalog.ResourceTypeLightsailStaticIP,
 		Name:         name,
 		Tags:         nil,
 		Attributes: map[string]any{

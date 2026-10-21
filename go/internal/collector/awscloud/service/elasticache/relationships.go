@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []awscloud.RelationshipObservation {
@@ -23,7 +24,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []aw
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes: map[string]any{
 				"vpc_id":                  vpcID,
 				"cache_subnet_group_name": strings.TrimSpace(cluster.SubnetGroupName),
@@ -38,7 +39,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []aw
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes: map[string]any{
 				"subnet_id":               subnetID,
 				"cache_subnet_group_name": strings.TrimSpace(cluster.SubnetGroupName),

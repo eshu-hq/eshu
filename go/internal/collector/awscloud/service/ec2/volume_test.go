@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -63,9 +64,9 @@ func TestScannerEmitsEBSVolumeMetadataAndKMSRelationship(t *testing.T) {
 	if counts[cloud.AWSRelationshipFactKind] != 1 {
 		t.Fatalf("aws_relationship count = %d, want 1", counts[cloud.AWSRelationshipFactKind])
 	}
-	assertNoResourceType(t, envelopes, awscloud.ResourceTypeEC2Instance)
+	assertNoResourceType(t, envelopes, catalog.ResourceTypeEC2Instance)
 
-	volume := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2Volume)
+	volume := assertResourceType(t, envelopes, catalog.ResourceTypeEC2Volume)
 	if got := volume.Payload["resource_id"]; got != "vol-0abc" {
 		t.Fatalf("volume resource_id = %#v, want vol-0abc", got)
 	}
@@ -86,7 +87,7 @@ func TestScannerEmitsEBSVolumeMetadataAndKMSRelationship(t *testing.T) {
 		t.Fatalf("attachment instance_id = %#v, want instance id", got)
 	}
 
-	edge := assertRelationship(t, envelopes, awscloud.RelationshipEC2VolumeUsesKMSKey)
+	edge := assertRelationship(t, envelopes, catalog.RelationshipEC2VolumeUsesKMSKey)
 	if got := edge.Payload["source_resource_id"]; got != "vol-0abc" {
 		t.Fatalf("kms edge source_resource_id = %#v, want vol-0abc", got)
 	}

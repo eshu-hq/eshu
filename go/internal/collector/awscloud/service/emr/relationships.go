@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // clusterRelationships emits the EMR on EC2 cluster join evidence. The EMR
@@ -30,7 +31,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 			SourceResourceID: clusterID,
 			SourceARN:        clusterARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterUsesSubnet, subnetID),
 		})
 	}
@@ -42,7 +43,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 			SourceResourceID: clusterID,
 			SourceARN:        clusterARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   relationshipRecordID(clusterID, awscloud.RelationshipEMRClusterUsesSecurityGroup, groupID),
 		})
 	}
@@ -159,7 +160,7 @@ func serverlessApplicationRelationships(
 			SourceResourceID: applicationID,
 			SourceARN:        applicationARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   relationshipRecordID(applicationID, awscloud.RelationshipEMRServerlessApplicationUsesSubnet, subnetID),
 		})
 	}
@@ -171,7 +172,7 @@ func serverlessApplicationRelationships(
 			SourceResourceID: applicationID,
 			SourceARN:        applicationARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   relationshipRecordID(applicationID, awscloud.RelationshipEMRServerlessApplicationUsesSecurityGroup, groupID),
 		})
 	}
@@ -204,7 +205,7 @@ func studioRelationships(boundary awscloud.Boundary, studio Studio) []awscloud.R
 			SourceResourceID: studioID,
 			SourceARN:        studioARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioInVPC, vpcID),
 		})
 	}
@@ -216,7 +217,7 @@ func studioRelationships(boundary awscloud.Boundary, studio Studio) []awscloud.R
 			SourceResourceID: studioID,
 			SourceARN:        studioARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioUsesSubnet, subnetID),
 		})
 	}
@@ -228,7 +229,7 @@ func studioRelationships(boundary awscloud.Boundary, studio Studio) []awscloud.R
 			SourceResourceID: studioID,
 			SourceARN:        studioARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   relationshipRecordID(studioID, awscloud.RelationshipEMRStudioUsesSecurityGroup, groupID),
 		})
 	}

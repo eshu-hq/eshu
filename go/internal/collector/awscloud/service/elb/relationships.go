@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // loadBalancerARN synthesizes the partition-aware ARN for a Classic load
@@ -56,7 +57,7 @@ func loadBalancerRelationships(
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: subnetID,
-			TargetType:       awscloud.ResourceTypeEC2Subnet,
+			TargetType:       catalog.ResourceTypeEC2Subnet,
 			SourceRecordID:   loadBalancerARN + "#subnet#" + subnetID,
 		})
 	}
@@ -68,7 +69,7 @@ func loadBalancerRelationships(
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeEC2SecurityGroup,
+			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
 			SourceRecordID:   loadBalancerARN + "#security-group#" + groupID,
 		})
 	}
@@ -80,7 +81,7 @@ func loadBalancerRelationships(
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: vpcID,
-			TargetType:       awscloud.ResourceTypeEC2VPC,
+			TargetType:       catalog.ResourceTypeEC2VPC,
 			SourceRecordID:   loadBalancerARN + "#vpc#" + vpcID,
 		})
 	}

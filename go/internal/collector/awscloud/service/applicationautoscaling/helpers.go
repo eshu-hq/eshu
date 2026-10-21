@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // scalableTargetResourceID returns the resource_id the scalable-target node
@@ -68,7 +69,7 @@ func targetResourceARN(
 			return "", ""
 		}
 		return arnPrefix(partition, "ecs", reg, account) + ":service/" + path,
-			awscloud.ResourceTypeECSService
+			catalog.ResourceTypeECSService
 	case "rds":
 		// cluster:<name> -> the Aurora DB cluster ARN.
 		name, ok := strings.CutPrefix(resource, "cluster:")
@@ -85,7 +86,7 @@ func targetResourceARN(
 			return "", ""
 		}
 		return arnPrefix(partition, "lambda", reg, account) + ":function:" + name,
-			awscloud.ResourceTypeLambdaFunction
+			catalog.ResourceTypeLambdaFunction
 	default:
 		return "", ""
 	}

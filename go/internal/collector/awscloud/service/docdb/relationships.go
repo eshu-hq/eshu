@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // subnetGroupIdentity carries the resolved subnet group identity and its
@@ -46,7 +47,7 @@ func clusterRelationships(
 				sourceARN,
 				vpcID,
 				"",
-				awscloud.ResourceTypeEC2VPC,
+				catalog.ResourceTypeEC2VPC,
 				map[string]any{"db_subnet_group_name": subnetGroupName},
 			))
 		}
