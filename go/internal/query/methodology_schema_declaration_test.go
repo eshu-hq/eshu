@@ -38,10 +38,7 @@ var methodologyCommittedSchemaDeclaration = methodologyRewriteDeclaration{
 	// Production sources only: the pin inventory excludes *_test.go, so the
 	// declaration names exactly the differing non-test schema files.
 	Paths: []string{
-		"go/internal/graph/schema.go",
-		"go/internal/graph/schema_application.go",
-		"go/internal/graph/schema_execution.go",
-		"go/internal/graph/schema_statements.go",
+		"go/internal/graph/schema_tables.go",
 		"go/internal/graph/schema_tables_indexes.go",
 	},
 }
