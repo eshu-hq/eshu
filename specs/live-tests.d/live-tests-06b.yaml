@@ -38,6 +38,11 @@ tests:
     class: verified_scheduled
     reason: "Verified daily PostgreSQL liveness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/projector_fenced_revival_guard_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 1.36s); docs/internal/evidence/7533-contention-live-proof.md"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/projector_queue_heartbeat_scope_lock_live_test.go
     tag: ~
     class: dedicated_ci

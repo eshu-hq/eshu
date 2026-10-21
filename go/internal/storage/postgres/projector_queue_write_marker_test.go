@@ -87,6 +87,19 @@ func TestWriteMarkerRefusalClassification(t *testing.T) {
 			workClass: "projector_superseded_by_newer_generation", wantSuperseded: true,
 			wantClass: "projector_superseded_by_newer_generation",
 		},
+		{
+			// #8695 P2-4: the post-fence revival shape. The fence
+			// superseded the generation while its projector row sat in
+			// failed/dead_letter; whatever revived the row (replay, the
+			// opt-in poison auto-retry, or a manual reset) clears the
+			// class, so the refusal carries the retired-generation class.
+			name: "revived_pending_superseded_generation", generationStatus: "superseded", workStatus: "pending",
+			wantSuperseded: true, wantClass: projectorWriteMarkerGenerationRetiredClass,
+		},
+		{
+			name: "revived_claimed_superseded_generation", generationStatus: "superseded", workStatus: "claimed",
+			wantSuperseded: true, wantClass: projectorWriteMarkerGenerationRetiredClass,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

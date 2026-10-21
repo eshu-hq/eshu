@@ -111,6 +111,13 @@
       "TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive"
     ]
   },
+  "go/internal/storage/postgres/projector_fenced_revival_guard_live_test.go": {
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestFencedSupersededRevivalDropsAtMarkerLive",
+      "TestPostFenceRevivalGuardChainDerivedFromShippedSQL"
+    ]
+  },
   "go/internal/storage/postgres/projector_heartbeat_refusal_lock_order_live_test.go": {
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": [
