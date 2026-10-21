@@ -1,0 +1,18 @@
+scripts/ci/test-tools-image.sh
+  h_78a442cba0b3e6 45
+scripts/ci/tools.Dockerfile
+  h_78a442cba0b3e6 16-18,27,37,44
+scripts/ci/tools.README.md
+  h_78a442cba0b3e6 45-46,60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9d194abe6f1d75d2eb318cb49b1479a08d19da8b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
