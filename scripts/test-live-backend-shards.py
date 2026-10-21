@@ -27,10 +27,12 @@ def run(backend: str, name: str, tests: str = "TestOne") -> str:
     return f"{backend}|{compose}|go/pkg/{name}_live_test.go|./pkg|{tests}"
 
 
-def event(line: str, status: int = 0) -> dict[str, object]:
+def event(line: str, status: int = 0,
+          durations: tuple[float, float, float] = (1.0, 2.0, 3.0)) -> dict[str, object]:
     """Build a terminal event with measured phase durations."""
-    return {"run": line, "status": status, "setup_seconds": 1.0,
-            "test_seconds": 2.0, "cleanup_seconds": 3.0}
+    setup, test, cleanup = durations
+    return {"run": line, "status": status, "setup_seconds": setup,
+            "test_seconds": test, "cleanup_seconds": cleanup}
 
 
 class ShardContractTest(unittest.TestCase):
@@ -213,6 +215,99 @@ class ShardContractTest(unittest.TestCase):
                              str(events_path), "--output", str(output))
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(json.loads(output.read_text(encoding="utf-8"))["ok"])
+
+    def layout_report(self, shard: str, events: list[dict[str, object]],
+                      attempt: int, run_id: int = 39652375048,
+                      head: str = HEAD) -> Path:
+        """Write a report under a CI-shaped rerun artifact directory."""
+        artifact = self.directory / f"live-backend-{run_id}-{attempt}-{shard[0]}"
+        artifact.mkdir(parents=True, exist_ok=True)
+        event_path = artifact / "events.jsonl"
+        report_path = artifact / "live-backend-result.json"
+        event_path.write_text("".join(json.dumps(item) + "\n" for item in events),
+                              encoding="utf-8")
+        result = self.invoke("report", "--head", head, "--shard", shard,
+                             "--plan", str(self.write_plan()), "--events",
+                             str(event_path), "--output", str(report_path))
+        self.assertTrue(report_path.exists(), result.stderr)
+        return report_path
+
+    def select(self, reports: list[Path]) -> tuple[subprocess.CompletedProcess[str], list[Path]]:
+        """Run newest-valid selection into a fresh directory per call."""
+        self.select_calls = getattr(self, "select_calls", 0) + 1
+        out = self.directory / f"selected-{self.select_calls}"
+        result = self.invoke("select", "--head", HEAD, "--plan", str(self.write_plan()),
+                             "--output-dir", str(out),
+                             *[str(report) for report in reports])
+        return result, sorted(out.glob("*.json")) if out.is_dir() else []
+
+    def mixed_attempt_layout(self) -> list[Path]:
+        """Three attempt-1 greens plus a failed then rerun-green shard 2/4."""
+        second = shards.partition_runs(self.plan, "2/4")
+        layout = [self.layout_report(shard, [event(line) for line in
+                    shards.partition_runs(self.plan, shard)], 1)
+                  for shard in ("1/4", "3/4", "4/4")]
+        layout.append(self.layout_report("2/4", [event(second[0], 1), event(second[1])], 1))
+        layout.append(self.layout_report("2/4", [event(line) for line in second], 2))
+        return layout
+
+    def test_verify_still_demands_exactly_four_reports(self) -> None:
+        """Raw verify keeps the completeness rule: a rerun layout trips it."""
+        result = self.verify(self.mixed_attempt_layout())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("expected exactly four shard reports, got 5", result.stderr)
+
+    def test_select_mixed_attempts_verifies_green(self) -> None:
+        """Rerun-green shard 2/4 reunites with attempt-1 greens (#8724)."""
+        layout = self.mixed_attempt_layout()
+        result, selected = self.select(layout)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(selected), 4)
+        winners = [line for line in result.stdout.splitlines()
+                   if line.startswith("live backend select: ") and " <- " in line]
+        self.assertEqual(len(winners), 4)
+        rerun = str(layout[-1])
+        self.assertTrue(any(line.endswith(f"2/4 <- {rerun}") for line in winners))
+        self.assertEqual(self.verify(selected).returncode, 0)
+
+    def test_select_prefers_newest_valid_report(self) -> None:
+        """Two green attempts for one shard select the rerun bytes."""
+        second = shards.partition_runs(self.plan, "2/4")
+        older = self.layout_report("2/4", [event(line, durations=(1.0, 2.0, 3.0))
+                                           for line in second], 1)
+        newer = self.layout_report("2/4", [event(line, durations=(4.0, 5.0, 6.0))
+                                           for line in second], 2)
+        others = [self.layout_report(shard, [event(line) for line in
+                    shards.partition_runs(self.plan, shard)], 1)
+                  for shard in ("1/4", "3/4", "4/4")]
+        result, selected = self.select([*others, older, newer])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(selected), 4)
+        bodies = {path.read_bytes() for path in selected}
+        self.assertIn(newer.read_bytes(), bodies)
+        self.assertNotIn(older.read_bytes(), bodies)
+
+    def test_select_rejects_stale_newest_report(self) -> None:
+        """A shard whose rerun report is stale keeps the aggregate red."""
+        second = shards.partition_runs(self.plan, "2/4")
+        others = [self.layout_report(shard, [event(line) for line in
+                    shards.partition_runs(self.plan, shard)], 1)
+                  for shard in ("1/4", "3/4", "4/4")]
+        stale = self.layout_report("2/4", [event(line) for line in second],
+                                   2, head="b" * 40)
+        failed = self.layout_report("2/4", [event(second[0], 1), event(second[1])], 1)
+        result, _ = self.select([*others, failed, stale])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no valid report for shard 2/4", result.stderr)
+
+    def test_select_rejects_missing_shard(self) -> None:
+        """A genuinely absent shard still fails selection."""
+        present = [report for report in self.mixed_attempt_layout()
+                   if not str(report.parent.name).endswith("-4")]
+        result, _ = self.select(present)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing shards: ['4/4']", result.stderr)
+        self.assertNotEqual(self.verify(present).returncode, 0)
 
 
 if __name__ == "__main__":
