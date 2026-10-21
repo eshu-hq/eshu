@@ -16,9 +16,9 @@
 // there is no init()-time registration left in this family. No leaf imports
 // this package, and code/call/shared imports no leaf.
 //
-// The reducer root imports this package as codecall. [materialization]
+// The reducer tree imports this package as codecall. [materialization]
 // (code/call/materialization, issue #6061) holds the handler
-// (materialization.Handler, root spelling CodeCallMaterializationHandler),
+// (materialization.Handler),
 // which calls ExtractAllRelationshipRowsWithIndex, BuildFileScopesByRepoID,
 // BuildRefreshIntentsWithDeltaFileScopes, and BuildSharedIntentRows here and
 // composes the result with the symbol-runtime builders that moved with it

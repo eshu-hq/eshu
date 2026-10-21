@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -98,7 +99,7 @@ func BuildCodeImportRepoDependencyIntents(
 		}
 		consumerRepoID := file.repoID
 
-		for _, entry := range mapSlice(file.imports) {
+		for _, entry := range payloadcore.MapSlice(file.imports) {
 			source := codeImportEntrySource(entry)
 			if source == "" {
 				continue
@@ -378,7 +379,7 @@ func classifyCodeImportEdges(input CodeImportRepoDependencyInput) codeImportEdge
 			continue
 		}
 		consumerRepoID := file.repoID
-		for _, entry := range mapSlice(file.imports) {
+		for _, entry := range payloadcore.MapSlice(file.imports) {
 			source := codeImportEntrySource(entry)
 			if source == "" {
 				continue

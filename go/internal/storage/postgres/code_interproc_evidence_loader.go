@@ -18,7 +18,7 @@ import (
 // endpoint uid dead-letters as an input_invalid quarantine instead of being
 // silently dropped. This is the raw-fact loader path used by the
 // materialization handler; the fixpoint projector reads a separate in-memory
-// solve (reducer.ValueFlowFixpointEvidenceLoader) that produces typed inputs
+// solve (value.FixpointEvidenceLoader) that produces typed inputs
 // directly. Tombstones are filtered by the decode seam, not here.
 func (s FactStore) LoadCodeInterprocEvidenceFacts(
 	ctx context.Context,

@@ -25,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/evidence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
@@ -484,7 +485,7 @@ func buildReducerService(
 			LeaseOwner:   defaultCollectorEvidenceSummaryLeaseOwner(),
 			Logger:       logger,
 		},
-		CodeCallProjectionRunner: &reducer.CodeCallProjectionRunner{
+		CodeCallProjectionRunner: &projection.Runner{
 			IntentReader:        intentStore,
 			LeaseManager:        intentStore,
 			EdgeWriter:          edgeWriter,

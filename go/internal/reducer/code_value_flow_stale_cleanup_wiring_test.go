@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
 )
 
 // TestServiceStartsCodeValueFlowStaleCleanupRunner is the
@@ -22,16 +24,16 @@ func TestServiceStartsCodeValueFlowStaleCleanupRunner(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	reader := &wiringFakeCodeValueFlowCurrentGenerationReader{
-		rows: []CodeValueFlowCurrentGeneration{{ScopeID: "scope-a", GenerationID: "gen-a"}},
+		rows: []cleanup.CurrentGeneration{{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
 	taintSweeper := &wiringRecordingCodeValueFlowTaintSweeper{}
 	interproc := &wiringRecordingCodeValueFlowInterprocSweeper{}
 	started := make(chan struct{}, 1)
-	runner := &CodeValueFlowStaleCleanupRunner{
+	runner := &cleanup.Runner{
 		CurrentGenerations: reader,
 		TaintEvidence:      taintSweeper,
 		InterprocEvidence:  interproc,
-		Config:             CodeValueFlowStaleCleanupRunnerConfig{PollInterval: time.Hour},
+		Config:             cleanup.RunnerConfig{PollInterval: time.Hour},
 		Wait: func(ctx context.Context, _ time.Duration) error {
 			started <- struct{}{}
 			<-ctx.Done()
@@ -66,14 +68,14 @@ func TestServiceStartsCodeValueFlowStaleCleanupRunner(t *testing.T) {
 }
 
 type wiringFakeCodeValueFlowCurrentGenerationReader struct {
-	rows []CodeValueFlowCurrentGeneration
+	rows []cleanup.CurrentGeneration
 }
 
 func (r *wiringFakeCodeValueFlowCurrentGenerationReader) ListCurrentCodeValueFlowGenerations(
 	_ context.Context,
 	_ string,
 	_ int,
-) ([]CodeValueFlowCurrentGeneration, error) {
+) ([]cleanup.CurrentGeneration, error) {
 	return r.rows, nil
 }
 

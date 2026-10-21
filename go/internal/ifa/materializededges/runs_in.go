@@ -116,7 +116,7 @@ func resolveRunsInMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool
 	}
 	rows := symbolRuntimeUpsertRows(odu.Facts, reducercontract.DomainRunsIn)
 	if len(rows) == 0 {
-		return false, fmt.Sprintf("odù %q: ExtractSymbolRuntimeIntentRows produced zero RUNS_IN upsert rows; this fixture cannot prove anything", odu.Name)
+		return false, fmt.Sprintf("odù %q: ExtractIntentRows produced zero RUNS_IN upsert rows; this fixture cannot prove anything", odu.Name)
 	}
 
 	candidates, deploymentEnvironments := reducer.ExtractWorkloadCandidates(odu.Facts)
@@ -132,7 +132,7 @@ func resolveRunsInMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool
 		return false, mismatch
 	}
 	return true, fmt.Sprintf(
-		"odù %q: ExtractSymbolRuntimeIntentRows + ExtractWorkloadCandidates/BuildProjectionRows reproduces the expected %d-edge RUNS_IN set exactly, fanned out from %d intent row(s) across %d fact envelope(s)",
+		"odù %q: ExtractIntentRows + ExtractWorkloadCandidates/BuildProjectionRows reproduces the expected %d-edge RUNS_IN set exactly, fanned out from %d intent row(s) across %d fact envelope(s)",
 		odu.Name, len(expected), len(rows), len(odu.Facts),
 	)
 }

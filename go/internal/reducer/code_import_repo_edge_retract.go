@@ -11,6 +11,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -65,7 +66,7 @@ func BuildCodeImportRepoEdgeRefreshIntents(
 		if _, alreadyCovered := covered[consumerRepoID]; alreadyCovered {
 			continue
 		}
-		for _, entry := range mapSlice(file.imports) {
+		for _, entry := range payloadcore.MapSlice(file.imports) {
 			source := codeImportEntrySource(entry)
 			if source == "" {
 				continue

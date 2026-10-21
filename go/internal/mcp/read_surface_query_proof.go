@@ -136,49 +136,49 @@ var languageParityQueryProofs = map[string]map[string]languageQueryProof{
 	"csharp": {
 		"trace_route_callers": {
 			Test:  "query.TestRouteQueryProofMatrix/csharp",
-			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> reducer.BuildHandlesRouteIntentRowsForQueryProof -> handleRouteToCaller",
+			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> materialization.BuildRouteIntentRowsForQueryProof -> handleRouteToCaller",
 		},
 	},
 	"go": {
 		"trace_route_callers": {
 			Test:  "query.TestRouteQueryProofMatrix/go",
-			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> reducer.BuildHandlesRouteIntentRowsForQueryProof -> handleRouteToCaller",
+			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> materialization.BuildRouteIntentRowsForQueryProof -> handleRouteToCaller",
 		},
 	},
 	"javascript": {
 		"trace_route_callers": {
 			Test:  "query.TestRouteQueryProofMatrix/javascript",
-			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> reducer.BuildHandlesRouteIntentRowsForQueryProof -> handleRouteToCaller",
+			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> materialization.BuildRouteIntentRowsForQueryProof -> handleRouteToCaller",
 		},
 	},
 	"kotlin": {
 		"trace_route_callers": {
 			Test:  "query.TestRouteQueryProofMatrix/kotlin",
-			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> reducer.BuildHandlesRouteIntentRowsForQueryProof -> handleRouteToCaller",
+			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> materialization.BuildRouteIntentRowsForQueryProof -> handleRouteToCaller",
 		},
 	},
 	"php": {
 		"trace_route_callers": {
 			Test:  "query.TestRouteQueryProofMatrix/php",
-			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> reducer.BuildHandlesRouteIntentRowsForQueryProof -> handleRouteToCaller",
+			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> materialization.BuildRouteIntentRowsForQueryProof -> handleRouteToCaller",
 		},
 	},
 	"python": {
 		"trace_route_callers": {
 			Test:  "query.TestRouteQueryProofMatrix/python",
-			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> reducer.BuildHandlesRouteIntentRowsForQueryProof -> handleRouteToCaller",
+			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> materialization.BuildRouteIntentRowsForQueryProof -> handleRouteToCaller",
 		},
 	},
 	"rust": {
 		"trace_route_callers": {
 			Test:  "query.TestRouteQueryProofMatrix/rust",
-			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> reducer.BuildHandlesRouteIntentRowsForQueryProof -> handleRouteToCaller",
+			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> materialization.BuildRouteIntentRowsForQueryProof -> handleRouteToCaller",
 		},
 	},
 	"typescript": {
 		"trace_route_callers": {
 			Test:  "query.TestRouteQueryProofMatrix/typescript",
-			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> reducer.BuildHandlesRouteIntentRowsForQueryProof -> handleRouteToCaller",
+			Chain: "real fixture -> parser.DefaultEngine().ParsePath -> materialization.BuildRouteIntentRowsForQueryProof -> handleRouteToCaller",
 		},
 	},
 	"java": {

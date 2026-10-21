@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
@@ -47,7 +48,7 @@ const (
 	defaultCodeCallProjectionPollInterval        = 500 * time.Millisecond
 	defaultCodeCallProjectionLeaseTTL            = 60 * time.Second
 	defaultCodeCallProjectionBatchLimit          = 100
-	defaultCodeCallProjectionAcceptanceScanLimit = reducer.DefaultCodeCallAcceptanceScanLimit
+	defaultCodeCallProjectionAcceptanceScanLimit = projection.DefaultAcceptanceScanLimit
 	defaultCodeCallProjectionPartitionCount      = 8
 	defaultCodeCallProjectionWorkers             = 4
 	defaultRepoDependencyProjectionPollInterval  = 500 * time.Millisecond
@@ -65,14 +66,14 @@ const (
 	defaultGraphProjectionRepairRetryDelay   = time.Minute
 )
 
-func loadCodeCallProjectionConfig(getenv func(string) string) reducer.CodeCallProjectionRunnerConfig {
+func loadCodeCallProjectionConfig(getenv func(string) string) projection.RunnerConfig {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
 
-	return reducer.CodeCallProjectionRunnerConfig{
+	return projection.RunnerConfig{
 		LeaseOwner: loadProcessUniqueProjectionLeaseOwner(
-			getenv, codeCallProjectionLeaseOwnerEnv, reducer.DefaultCodeCallProjectionLeaseOwnerPrefix,
+			getenv, codeCallProjectionLeaseOwnerEnv, projection.DefaultLeaseOwnerPrefix,
 		),
 		PollInterval:        loadDurationOrDefault(getenv, codeCallProjectionPollIntervalEnv, defaultCodeCallProjectionPollInterval),
 		LeaseTTL:            loadDurationOrDefault(getenv, codeCallProjectionLeaseTTLEnv, defaultCodeCallProjectionLeaseTTL),

@@ -59,7 +59,7 @@ func resolveInvokesCloudActionMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 	}
 	rows := symbolRuntimeUpsertRows(odu.Facts, reducercontract.DomainInvokesCloudAction)
 	if len(rows) == 0 {
-		return false, fmt.Sprintf("odù %q: ExtractSymbolRuntimeIntentRows produced zero INVOKES_CLOUD_ACTION upsert rows; this fixture cannot prove anything", odu.Name)
+		return false, fmt.Sprintf("odù %q: ExtractIntentRows produced zero INVOKES_CLOUD_ACTION upsert rows; this fixture cannot prove anything", odu.Name)
 	}
 
 	actual := invokesCloudActionRowsToExpectedEdges(rows, relType)
@@ -67,7 +67,7 @@ func resolveInvokesCloudActionMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 		return false, mismatch
 	}
 	return true, fmt.Sprintf(
-		"odù %q: ExtractSymbolRuntimeIntentRows reproduces the expected %d-edge INVOKES_CLOUD_ACTION set exactly across %d intent row(s) and %d fact envelope(s); the non-catalog (widget, Frobnicate) call on the same caller function produced zero spurious rows",
+		"odù %q: ExtractIntentRows reproduces the expected %d-edge INVOKES_CLOUD_ACTION set exactly across %d intent row(s) and %d fact envelope(s); the non-catalog (widget, Frobnicate) call on the same caller function produced zero spurious rows",
 		odu.Name, len(expected), len(rows), len(odu.Facts),
 	)
 }

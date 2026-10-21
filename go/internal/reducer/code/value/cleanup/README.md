@@ -36,13 +36,10 @@ cursor-paging cycle (`Run`), and the port interfaces it depends on
 | `ErrCurrentGenerationsRequired` | the validation error when `CurrentGenerations` is unwired |
 
 The reducer root wires `Runner` on `Service.CodeValueFlowStaleCleanupRunner`,
-keeping the `reducer.CodeValueFlowStaleCleanupRunner`/
-`reducer.CodeValueFlowStaleCleanupRunnerConfig`/
-`reducer.CodeValueFlowCurrentGeneration`/
-`reducer.TaintStaleEvidenceRetractor`/
-`reducer.InterprocStaleEvidenceRetractor` spellings through the
-value-flow stanza of `compat_projection.go`, since cmd/reducer's wiring and
-internal/storage/postgres' generation reader both still name them that way.
+naming `cleanup.Runner`/`cleanup.RunnerConfig`/`cleanup.CurrentGeneration`/
+`cleanup.TaintStaleEvidenceRetractor`/
+`cleanup.InterprocStaleEvidenceRetractor` directly (#6626 value-flow lane
+retired the value-flow stanza of `compat_projection.go`).
 
 ## Dependencies
 

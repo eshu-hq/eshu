@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -285,7 +286,7 @@ func TestCodeCallMaterializationHandlerUsesKindFilteredFactLoader(t *testing.T) 
 		},
 	}
 	writer := &recordingCodeCallIntentWriter{}
-	handler := CodeCallMaterializationHandler{
+	handler := materialization.Handler{
 		FactLoader:   loader,
 		IntentWriter: writer,
 	}

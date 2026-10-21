@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 )
 
 // TestHandleRouteToCallerResolvesJavaSpringHandler proves the trace_route_callers
@@ -28,7 +28,7 @@ import (
 // Continuity (#5333 review): this test does not hand-invent its
 // fakeGraphReader HANDLES_ROUTE row. It parses the real java_comprehensive
 // CatalogController.java fixture with the real parser.DefaultEngine(), feeds
-// the JSON-round-tripped result through reducer.BuildHandlesRouteIntentRowsForQueryProof
+// the JSON-round-tripped result through materialization.BuildRouteIntentRowsForQueryProof
 // -- the same materialization pipeline production runs -- and builds the fake
 // graph row's endpoint/handler fields entirely from that real intent output
 // (function_entity_id, framework, path, http_method) and from the same parsed
@@ -76,7 +76,7 @@ func TestHandleRouteToCallerResolvesJavaSpringHandler(t *testing.T) {
 	// entry's handler name cannot resolve to any indexed Function and is
 	// skipped by resolveHandlesRouteFunction, matching production behavior
 	// for a handler this test does not need.
-	intents := reducer.BuildHandlesRouteIntentRowsForQueryProof(envelopes)
+	intents := materialization.BuildRouteIntentRowsForQueryProof(envelopes)
 	if len(intents) != 1 {
 		t.Fatalf("expected 1 HANDLES_ROUTE intent from CatalogController.java, got %d: %#v", len(intents), intents)
 	}

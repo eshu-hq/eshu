@@ -22,9 +22,8 @@ Ownership boundary sections for what this package owns and reuses from
 ## Invariants
 
 - **No import of the reducer root, ever.** This package is a leaf below
-  `internal/reducer`: the root imports it (via the code-call stanza of
-  `compat_projection.go` and `defaults_domain_catalog.go`'s wiring), never
-  the reverse.
+  `internal/reducer`: the root imports it (via
+  `defaults_domain_catalog.go`'s wiring), never the reverse.
 - **Every symbol→runtime domain's per-edge rows MUST be paired with a
   repo-wide refresh row in the same `BuildIntentRows` pass.** Splitting them
   across passes breaks the worker's refresh-fence pairing invariant

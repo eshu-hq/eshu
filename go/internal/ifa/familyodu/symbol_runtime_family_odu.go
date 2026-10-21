@@ -15,14 +15,14 @@ import (
 // The symbol-runtime family Odù (#5995/#6000/#5997, under the #5543
 // umbrella): one repository, one cassette, one shared handler pass driving
 // all three HANDLES_ROUTE/RUNS_IN/INVOKES_CLOUD_ACTION domains
-// (reducer.ExtractSymbolRuntimeIntentRows). All three domains read the same
+// (materialization.ExtractIntentRows). All three domains read the same
 // "repository"/"file" facts through the same entry point
-// (CodeCallMaterializationHandler.Handle), so one fixture proves all three --
+// (materialization.Handler.Handle), so one fixture proves all three --
 // mirroring the build plan's "ONE cassette drives all three families" design.
 //
 // Fixture shape (the full derivation, inline below):
 //   - a repository fact carrying BOTH the typed (repo_id, source_run_id)
-//     identity buildCodeCallProjectionContexts reads AND the (graph_id, name)
+//     identity schemadecode.BuildProjectionContexts reads AND the (graph_id, name)
 //     pair reducer.ExtractWorkloadCandidates reads -- one fact serves both
 //     readers because codegraphv1.Repository's GraphID/Name fields encode to
 //     exactly those payload keys;
@@ -221,7 +221,7 @@ func InvokesCloudActionFamilyExpectedEdgesPath(repoRoot string) string {
 // Jenkinsfile file (the live-admission-passing workload signal pair), one
 // server file (route entries + function calls + functions), three
 // content_entity Function facts, and three shared_followup facts -- wired so
-// reducer.ExtractSymbolRuntimeIntentRows derives exactly
+// materialization.ExtractIntentRows derives exactly
 // four HANDLES_ROUTE upsert rows (GET+POST /widgets, GET /healthz -- three
 // route entries, but /widgets' two methods share one intent-level dedupe
 // key's method dimension so they remain two distinct rows) collapsing to
@@ -281,7 +281,7 @@ func SymbolRuntimeFamilyOdu() CatalogOdu {
 
 // symbolRuntimeFamilyRepositoryFact encodes the public repository contract.
 // It carries BOTH graph_id/name (ExtractWorkloadCandidates' read) and
-// repo_id/source_run_id (buildCodeCallProjectionContexts' read) in the SAME
+// repo_id/source_run_id (schemadecode.BuildProjectionContexts' read) in the SAME
 // fact, matching repoDependencyFamilyRepository's precedent for a family that
 // needs both readers satisfied by one repository fact.
 func symbolRuntimeFamilyRepositoryFact(repository codegraphv1.Repository) facts.Envelope {
@@ -447,7 +447,7 @@ func symbolRuntimeFamilyFileFact(file codegraphv1.File) facts.Envelope {
 // (go/internal/collector/git_followup_facts.go): the shared_followup fact
 // whose reducer_domain payload key is what go/internal/projector's
 // buildReducerIntent turns into a durable fact_work_items row. Neither
-// reducer.ExtractSymbolRuntimeIntentRows nor
+// materialization.ExtractIntentRows nor
 // reducer.ExtractWorkloadCandidates reads this fact kind, so it is inert for
 // the pure vacuity guards but included for fidelity with the live-drive
 // cassette and the real collector's own emission shape. THREE of these are

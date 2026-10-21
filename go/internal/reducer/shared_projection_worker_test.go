@@ -407,7 +407,9 @@ func TestSelectPartitionBatchErrorsWhenScanCapIsReached(t *testing.T) {
 	if err == nil {
 		t.Fatal("worker.SelectPartitionBatch() error = nil, want non-nil")
 	}
-	if got, want := reader.limitRequests[len(reader.limitRequests)-1], maxSharedSelectionScanLimit; got != want {
+	// 10_000 mirrors worker.maxSharedSelectionScanLimit (unexported; const
+	// aliases cannot cross packages to an unexported name).
+	if got, want := reader.limitRequests[len(reader.limitRequests)-1], 10_000; got != want {
 		t.Fatalf("final scan limit = %d, want cap %d", got, want)
 	}
 }

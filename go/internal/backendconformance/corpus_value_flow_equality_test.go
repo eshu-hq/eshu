@@ -8,14 +8,14 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 )
 
 // valueFlowPinnedCases maps each value-flow read case to the production
 // statement it must run verbatim.
 var valueFlowPinnedCases = map[string]string{
-	valueFlowWorkloadRowsCaseName: reducer.ValueFlowCloudSinkWorkloadRowsCypher,
-	valueFlowTargetsCaseName:      reducer.ValueFlowCloudSinkTargetsByPairCypher,
+	valueFlowWorkloadRowsCaseName: value.CloudSinkWorkloadRowsCypher,
+	valueFlowTargetsCaseName:      value.CloudSinkTargetsByPairCypher,
 }
 
 // TestValueFlowReadCasesEqualTheProductionStatements pins each value-flow read

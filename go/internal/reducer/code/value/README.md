@@ -35,8 +35,8 @@ package `cleanup/` (`code/value/cleanup/runner.go`). It only reaches
 
 **Owns but does not use:** `BackfillStateMarker` (`backfill_state_marker.go`),
 moved here from the reducer root under #6609. Its only caller is the root's
-`projected_source_edge_backfill` family, which names it through the
-`CodeValueFlowBackfillStateMarker` alias in `compat_projection.go`.
+`projected_source_edge_backfill` family, which names `value.BackfillStateMarker`
+directly (#6626 value-flow lane retired the `compat_projection.go` stanza).
 Also does not own `InterprocEvidenceHandler` or the
 direct (non-fixpoint) `code_interproc_evidence`/`code_taint_evidence`
 handlers, ports, or ledgers — those are `taint`.

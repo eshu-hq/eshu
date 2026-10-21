@@ -27,8 +27,8 @@ why the stale-evidence cleanup runner lives in the child package `cleanup/`
 ## Invariants
 
 - **No import of the reducer root, ever.** This package is a leaf below
-  `internal/reducer`: the root imports it (via the value-flow stanza of
-  `compat_projection.go` and `cmd/reducer`'s wiring), never the reverse.
+  `internal/reducer`: the root imports it (via `cmd/reducer`'s wiring and
+  `internal/storage/postgres`' readers), never the reverse.
 - **`GraphQueryRunner` in `graph_ports.go` is deliberately re-declared, not
   imported from root.** It is genuinely owned by root (shared with other
   still-in-root families). Go's structural typing makes the local
@@ -78,8 +78,9 @@ from the in-process cache's invalidation behavior.
 
 - Treating `BackfillStateMarker` (`backfill_state_marker.go`) as part of the
   fixpoint. It moved here under #6609 so the root could shed the file; its one
-  caller is the root's `projected_source_edge_backfill` family (through the
-  `CodeValueFlowBackfillStateMarker` alias), and `taint` keeps its own
+  caller is the root's `projected_source_edge_backfill` family (through
+  `value.BackfillStateMarker` directly, #6626 value-flow lane), and `taint`
+  keeps its own
   structural copy because this package imports `taint`.
 - Wiring `ProgramAssemblyRunner` into `cmd/reducer` without first
   checking whether production assembly should stay inline inside

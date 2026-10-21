@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -290,7 +291,7 @@ func TestRationalePartitionConvergesFullReprojection(t *testing.T) {
 	envelopes := rationaleConvergenceFixture(repoID, repoPath, false, nil)
 	repoIDs, rows := ExtractRationaleEdgeRows(envelopes)
 	deltaScope := buildRationaleDeltaScope(envelopes)
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, "gen-1")
 
 	// DIRECT path: seed prior edges, then retract + write.
 	direct := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
@@ -337,7 +338,7 @@ func TestRationalePartitionConvergesDelta(t *testing.T) {
 	envelopes := rationaleConvergenceFixture(repoID, repoPath, true, []string{"a.go", "b.go"})
 	repoIDs, rows := ExtractRationaleEdgeRows(envelopes)
 	deltaScope := buildRationaleDeltaScope(envelopes)
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, "gen-1")
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, "gen-1")
 	if !deltaScope.hasDelta {
 		t.Fatal("fixture must produce a delta scope")
 	}

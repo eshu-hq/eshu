@@ -43,17 +43,12 @@ vocabulary (`codecall`), or the graph-projection phase/readiness vocabulary
 | `DefaultLeaseOwnerPrefix` / `DefaultAcceptanceScanLimit` / `FilePartitionKeyPrefix` | the runner's defaults and the file-scoped partition-key prefix external stores match on |
 
 The reducer root wires `Runner` on `Service.CodeCallProjectionRunner`,
-keeping the `reducer.CodeCallProjectionRunner`/
-`reducer.CodeCallProjectionRunnerConfig`/
-`reducer.DefaultCodeCallProjectionLeaseOwnerPrefix`/
-`reducer.DefaultCodeCallAcceptanceScanLimit`/
-`reducer.CodeCallProjectionFilePartitionKeyPrefix`/
-`reducer.CodeCallProjectionPartitionCandidateReader`/
-`reducer.CodeCallProjectionUnhashedCandidateReader`/
-`reducer.CodeCallProjectionRefreshFenceLookup` spellings through the
-code-call stanza of `compat_projection.go`, since cmd/reducer's wiring and
-internal/storage/postgres' compile-time interface assertions and
-partition-key-prefix helper all still name them that way.
+naming `projection.Runner`/`projection.RunnerConfig`/
+`projection.DefaultLeaseOwnerPrefix`/`projection.DefaultAcceptanceScanLimit`/
+`projection.FilePartitionKeyPrefix`/`projection.PartitionCandidateReader`/
+`projection.UnhashedCandidateReader`/`projection.RefreshFenceLookup`
+directly (#6626 value-flow lane retired the code-call stanza of
+`compat_projection.go`).
 
 ## Blocked-lane visibility
 

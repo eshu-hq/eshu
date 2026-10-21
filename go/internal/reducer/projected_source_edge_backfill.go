@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 )
 
 // ProjectedSourceEdgeRow is one enumerated projected-source edge from the
@@ -71,7 +73,7 @@ type ProjectedSourceEdgeBackfiller struct {
 	// StateMarker is the durable per-source completion-marker store. When
 	// nil, Run is a no-op (see type doc: there is no ledger-based fallback
 	// completion check available for this open-vocabulary edge family).
-	StateMarker CodeValueFlowBackfillStateMarker
+	StateMarker value.BackfillStateMarker
 
 	// EvidenceSources is the set of evidence_source values to backfill: the
 	// five edge families (AWS relationship, Azure relationship, GCP

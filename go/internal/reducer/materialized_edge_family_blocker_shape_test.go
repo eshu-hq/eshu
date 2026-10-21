@@ -158,9 +158,9 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 // handler is reachable through the one switch this test reflects over.
 var materializedEdgeFamilyBlockerLockstepExclusions = map[string]string{
 	reducercontract.DomainDeployableUnitEdges: "wired via registry.go's DomainDeployableUnitCorrelation, not defaults_domain_catalog.go's switch; DeployableUnitCorrelationHandler already has its own correctly-scoped admission_decisions table_lock (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh:296), confirmed by its own row in scripts/lib/ifa_family_registry.sh",
-	reducercontract.DomainHandlesRoute:        "shares CodeCallMaterializationHandler with code_calls: buildSymbolRuntimeIntentRows uses the same handler IntentWriter, so this test's reflection cannot distinguish the family from code_calls. The exclusion is structural, not a coverage waiver: its runner_lease_hold lockstep is checked by TestMaterializedEdgeFamilyRunnerLeaseHoldLockstep, while the anchor-scoped graph-write cell remains family-specific.",
-	reducercontract.DomainRunsIn:              "same shared CodeCallMaterializationHandler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
-	reducercontract.DomainInvokesCloudAction:  "same shared CodeCallMaterializationHandler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
+	reducercontract.DomainHandlesRoute:        "shares materialization.Handler with code_calls: buildSymbolRuntimeIntentRows uses the same handler IntentWriter, so this test's reflection cannot distinguish the family from code_calls. The exclusion is structural, not a coverage waiver: its runner_lease_hold lockstep is checked by TestMaterializedEdgeFamilyRunnerLeaseHoldLockstep, while the anchor-scoped graph-write cell remains family-specific.",
+	reducercontract.DomainRunsIn:              "same shared materialization.Handler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
+	reducercontract.DomainInvokesCloudAction:  "same shared materialization.Handler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
 	reducercontract.DomainRepoDependency:      "three separate producer handlers (crossrepo.CrossRepoRelationshipHandler in cross_repo_resolution.go, the handler in package_source_correlation_handler.go, and code_import_repo_edge_handler.go) with inconsistently named intent-writer fields (IntentWriter vs crossrepo.RepoDependencyIntentWriter) -- not a single handler this test's one-field-name reflection can address",
 	reducercontract.DomainWorkloadDependency:  "written by WorkloadMaterializationHandler.WorkloadDependencyEdgeWriter, a handler shared across many unrelated domains (DomainWorkloadMaterialization etc.) -- not 1:1 with this family",
 }
@@ -195,7 +195,7 @@ func (noopFactLoader) ListFacts(context.Context, string, string) ([]facts.Envelo
 	return nil, nil
 }
 
-// noopIntentWriter satisfies CodeCallIntentWriter, SQLRelationshipIntentWriter,
+// noopIntentWriter satisfies materialization.IntentWriter, SQLRelationshipIntentWriter,
 // ShellExecIntentWriter, InheritanceIntentWriter, and RationaleEdgeIntentWriter
 // -- all five are structurally the same single-method interface
 // (UpsertIntents(context.Context, []sharedintent.Row) error), so one

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 )
@@ -401,7 +401,7 @@ func (s *SharedIntentStore) CodeCallProjectionRowBlockedByRepoFence(
 		return false, nil
 	}
 	rowFiles := sharedIntentPayloadStringSlice(row.Payload, "delta_file_paths")
-	filePartitionPrefix := reducer.CodeCallProjectionFilePartitionKeyPrefix()
+	filePartitionPrefix := projection.FilePartitionKeyPrefix()
 	if !strings.HasPrefix(row.PartitionKey, filePartitionPrefix) {
 		return s.queryCodeCallProjectionFence(
 			ctx,

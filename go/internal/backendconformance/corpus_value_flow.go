@@ -4,7 +4,7 @@
 package backendconformance
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -60,7 +60,7 @@ func valueFlowReadCases() []ReadCase {
 		{
 			Name:       valueFlowWorkloadRowsCaseName,
 			Capability: CapabilityPathTraversal,
-			Cypher:     reducer.ValueFlowCloudSinkWorkloadRowsCypher,
+			Cypher:     value.CloudSinkWorkloadRowsCypher,
 			Parameters: map[string]any{
 				// []string, matching the production call site, which binds
 				// functionUIDs[start:end].
@@ -76,7 +76,7 @@ func valueFlowReadCases() []ReadCase {
 		{
 			Name:       valueFlowTargetsCaseName,
 			Capability: CapabilityPathTraversal,
-			Cypher:     reducer.ValueFlowCloudSinkTargetsByPairCypher,
+			Cypher:     value.CloudSinkTargetsByPairCypher,
 			Parameters: map[string]any{
 				// []map[string]any, matching the production call site's
 				// cloudSinkPairParams. The two-workload pair stands in for a

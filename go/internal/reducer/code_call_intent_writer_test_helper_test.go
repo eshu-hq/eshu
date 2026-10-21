@@ -11,8 +11,8 @@ import (
 
 // recordingCodeCallIntentWriter is a local copy of the [materialization]
 // package's own recordingCodeCallIntentWriter test fake, shared by the root
-// tests that still exercise CodeCallIntentWriter through DefaultHandlers or
-// the root compat spelling (defaults_test.go,
+// tests that exercise materialization.Handler through DefaultHandlers
+// (defaults_test.go,
 // defaults_semantic_entity_domain_wiring_test.go, fact_kind_loader_test.go,
 // idempotency_cases_test.go, materialization_subduration_test.go,
 // materialized_edge_family_blocker_shape_test.go,

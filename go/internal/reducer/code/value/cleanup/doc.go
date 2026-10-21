@@ -10,14 +10,12 @@
 // or, when a projected-node/edge ledger is wired, through the anchored
 // by-UIDs delete path that also prunes the ledger.
 //
-// The reducer root imports this package as cleanup. It keeps the exported
-// CodeValueFlowStaleCleanupRunner/CodeValueFlowStaleCleanupRunnerConfig/
-// CodeValueFlowCurrentGeneration/TaintStaleEvidenceRetractor/
-// InterprocStaleEvidenceRetractor spellings for cmd/reducer's wiring and
-// internal/storage/postgres' generation reader, through the value-flow
-// stanza of the reducer root's compat surface. The runner's Service.
-// startSideRunners wiring test stays in root with its own minimal fakes
-// (Go test files cannot share unexported symbols across a package
+// The reducer tree imports this package as cleanup, naming Runner/
+// RunnerConfig/CurrentGeneration/TaintStaleEvidenceRetractor/
+// InterprocStaleEvidenceRetractor directly (#6626 value-flow lane retired
+// the value-flow stanza of the reducer root's compat surface). The runner's
+// Service.startSideRunners wiring test stays in root with its own minimal
+// fakes (Go test files cannot share unexported symbols across a package
 // boundary).
 //
 // Dependency rule: from the reducer tree this package imports only the

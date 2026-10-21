@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -111,7 +111,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFence(t *testing.T) 
 	ctx := context.Background()
 	row := sharedintent.Row{
 		IntentID:         "caller-edge",
-		PartitionKey:     reducer.CodeCallProjectionFilePartitionKeyPrefix() + "abc123",
+		PartitionKey:     projection.FilePartitionKeyPrefix() + "abc123",
 		RepositoryID:     "repo-a",
 		CreatedAt:        time.Date(2026, time.June, 19, 9, 30, 0, 0, time.UTC),
 		ProjectionDomain: reducercontract.DomainCodeCalls,
@@ -165,7 +165,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFence(t *testing.T) 
 	if got, want := database.queryArgs[7], row.PartitionKey; got != want {
 		t.Fatalf("partition key arg = %#v, want %#v", got, want)
 	}
-	if got, want := database.queryArgs[8], reducer.CodeCallProjectionFilePartitionKeyPrefix()+"%"; got != want {
+	if got, want := database.queryArgs[8], projection.FilePartitionKeyPrefix()+"%"; got != want {
 		t.Fatalf("file prefix arg = %#v, want %#v", got, want)
 	}
 	if got, want := database.queryArgs[9], true; got != want {
@@ -183,7 +183,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceDoesNotFenceFil
 	store := NewSharedIntentStore(database)
 	row := sharedintent.Row{
 		IntentID:     "refresh-edge",
-		PartitionKey: reducer.CodeCallProjectionFilePartitionKeyPrefix() + "abc123",
+		PartitionKey: projection.FilePartitionKeyPrefix() + "abc123",
 		RepositoryID: "repo-a",
 		CreatedAt:    time.Date(2026, time.June, 19, 9, 35, 0, 0, time.UTC),
 		Payload: map[string]any{
@@ -299,7 +299,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceTreatsMissingSe
 		SourceRunID:      "run-1",
 	}, sharedintent.Row{
 		IntentID:     "caller-edge",
-		PartitionKey: reducer.CodeCallProjectionFilePartitionKeyPrefix() + "abc123",
+		PartitionKey: projection.FilePartitionKeyPrefix() + "abc123",
 		RepositoryID: "repo-a",
 		CreatedAt:    time.Date(2026, time.June, 19, 9, 45, 0, 0, time.UTC),
 	}, reducercontract.DomainCodeCalls)

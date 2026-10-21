@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 
 type codeValueFlowStaleCleanupConfig struct {
 	Enabled bool
-	Runner  reducer.CodeValueFlowStaleCleanupRunnerConfig
+	Runner  cleanup.RunnerConfig
 }
 
 func loadCodeValueFlowStaleCleanupConfig(getenv func(string) string) codeValueFlowStaleCleanupConfig {
@@ -39,7 +39,7 @@ func loadCodeValueFlowStaleCleanupConfig(getenv func(string) string) codeValueFl
 	}
 	return codeValueFlowStaleCleanupConfig{
 		Enabled: loadBoolOrDefault(getenv, codeValueFlowStaleCleanupEnabledEnv, true),
-		Runner: reducer.CodeValueFlowStaleCleanupRunnerConfig{
+		Runner: cleanup.RunnerConfig{
 			PollInterval: loadDurationOrDefault(
 				getenv,
 				codeValueFlowStaleCleanupPollIntervalEnv,

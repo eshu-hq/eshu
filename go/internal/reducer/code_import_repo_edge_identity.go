@@ -15,7 +15,7 @@ import (
 // parser-detected language, and the raw parser "imports" value. ParsedFileData
 // itself stays untyped past this point — imports is the untyped
 // ParsedFileData["imports"] value exactly as the pre-Contract-System code read
-// it; callers pass it through mapSlice to get the []map[string]any entries.
+// it; callers pass it through payloadcore.MapSlice to get the []map[string]any entries.
 type codeImportFileIdentity struct {
 	repoID   string
 	language string

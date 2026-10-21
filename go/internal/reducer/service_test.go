@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
@@ -232,12 +233,12 @@ func TestServiceRunStartsCodeCallProjectionRunner(t *testing.T) {
 		WorkSource:   &stubReducerWorkSource{},
 		Executor:     &stubReducerExecutor{},
 		WorkSink:     &stubReducerWorkSink{},
-		CodeCallProjectionRunner: &CodeCallProjectionRunner{
+		CodeCallProjectionRunner: &projection.Runner{
 			IntentReader: store,
 			LeaseManager: store,
 			EdgeWriter:   &recordingCodeCallProjectionEdgeWriter{},
 			AcceptedGen:  acceptedGenerationFixed("", false),
-			Config: CodeCallProjectionRunnerConfig{
+			Config: projection.RunnerConfig{
 				PollInterval: 10 * time.Millisecond,
 			},
 		},

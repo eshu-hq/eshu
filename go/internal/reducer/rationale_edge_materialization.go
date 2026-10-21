@@ -16,6 +16,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -75,7 +76,7 @@ func (h RationaleEdgeMaterializationHandler) Handle(ctx context.Context, intent 
 	deltaScope := buildRationaleDeltaScope(envelopes)
 	repoIDs, rows := ExtractRationaleEdgeRows(envelopes)
 	repoIDs = mergeRationaleRepositoryIDs(repoIDs, deltaScope.repositoryIDs)
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, intent.GenerationID)
 	contextRepoIDs := make([]string, 0, len(contextByRepoID))
 	for repoID := range contextByRepoID {
 		contextRepoIDs = append(contextRepoIDs, repoID)
@@ -196,10 +197,10 @@ func ExtractRationaleEdgeRows(envelopes []facts.Envelope) ([]string, []map[strin
 // that flows through the content-entity snapshot, mirroring how inheritance
 // reads bases.
 func rationalePayloadComments(payload map[string]any) []map[string]any {
-	if comments := mapSlice(payload["rationale_comments"]); len(comments) > 0 {
+	if comments := payloadcore.MapSlice(payload["rationale_comments"]); len(comments) > 0 {
 		return comments
 	}
-	return mapSlice(payloadcore.PayloadMap(payload, "entity_metadata")["rationale_comments"])
+	return payloadcore.MapSlice(payloadcore.PayloadMap(payload, "entity_metadata")["rationale_comments"])
 }
 
 func rationaleExcerptHash(text string) string {
