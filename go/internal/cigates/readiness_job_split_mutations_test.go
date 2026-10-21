@@ -64,6 +64,7 @@ var readinessWorkflowMutations = []struct {
 	{"missing coverage verify", "python3 scripts/lib/live_postgres_readiness_shards.py verify", "true"},
 	{"missing shard download", "actions/download-artifact@v4", "actions/download-artifact@v3"},
 	{"missing shard upload", "          path: readiness-shard-report.json", "          path: readiness-shard-report.json.missing"},
+	{"debug upload without failure gate", "failure() && (github.event_name", "always() && (github.event_name"},
 }
 
 var readinessServiceMutations = []struct {
