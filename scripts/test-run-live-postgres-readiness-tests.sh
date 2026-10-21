@@ -177,6 +177,26 @@ for pkg in "${packages[@]}"; do
   out="$(run_runner)" && fail "go nonzero exit in ${pkg} passed"
   [[ "${out}" == *"${pkg}: go test exited 1"* ]] || fail "go exit in ${pkg} not reported: ${out}"
 done
+
+# A package that exits nonzero preserves its event stream and stderr for
+# post-mortem: the death point (mid-test cutoff vs exact-name omission) is
+# what distinguishes a dying binary from a selection fault (#8662). The
+# scratch dir is trap-deleted, so the copies must land outside it.
+write_events
+printf '1\n' >"${fake}/$(pkg_key "${first_pkg}").exit"
+{
+  printf '{"Action":"run","Test":"%s"}\n' "${first_proof}"
+  printf '{"Action":"output","Test":"%s","Output":"SEED-DEATH-MARKER\\n"}\n' "${first_proof}"
+} >>"$(events_of "${first_pkg}")"
+export LIVE_READINESS_DEBUG_DIR="${seed_dir}/debug"
+out="$(run_runner)" && fail "go nonzero exit in ${first_pkg} passed"
+debug_pkgdir="${seed_dir}/debug/$(printf '%s' "${first_pkg}" | tr -c '[:alnum:]' '_')"
+[[ -f "${debug_pkgdir}/events.jsonl" ]] || fail "debug events not preserved for ${first_pkg}"
+cmp -s "$(events_of "${first_pkg}")" "${debug_pkgdir}/events.jsonl" ||
+  fail "debug events differ from the stream for ${first_pkg}"
+[[ -f "${debug_pkgdir}/stderr.txt" ]] || fail "debug stderr not preserved for ${first_pkg}"
+[[ "${out}" == *"SEED-DEATH-MARKER"* ]] || fail "death-point tail not printed: ${out}"
+unset LIVE_READINESS_DEBUG_DIR
 write_events
 sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${first_proof}\"/\"Action\":\"fail\",\"Test\":\"${first_proof}\"/" "$(events_of "${first_pkg}")"
 sed -i.bak "s/\"Action\":\"pass\",\"Test\":\"${last_proof}\"/\"Action\":\"skip\",\"Test\":\"${last_proof}\"/" "$(events_of "${last_pkg}")"

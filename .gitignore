@@ -112,6 +112,10 @@ todo.md
 .planning/
 .playwright-cli/
 
+# Readiness runner post-mortem (issue #8662): per-package go test -json event
+# streams preserved on package failure, uploaded by CI, never committed.
+.readiness-debug/
+
 # Console live E2E gate artifacts (issue #3326): screenshots, Playwright trace,
 # JSON report, logs, and the local-only env file with the throwaway API key.
 # Durable LOCAL proof only; never commit binaries or the local key.

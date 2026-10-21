@@ -378,6 +378,14 @@ jobs:
           path: readiness-shard-report.json
           if-no-files-found: error
 
+      - name: Upload failed-package event streams
+        if: ${{ failure() && (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: readiness-debug-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: .readiness-debug/
+          if-no-files-found: ignore
+
       - name: Stop disposable physical standby
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) && (always()) }}
         run: bash scripts/ci/live-postgres-standby-fixture.sh stop '${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}'
