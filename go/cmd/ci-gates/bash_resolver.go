@@ -43,24 +43,17 @@ func resolveBash44Dir() string {
 	if p, err := exec.LookPath("bash"); err == nil {
 		candidates = append(candidates, p)
 	}
-	candidates = append(candidates, "/opt/homebrew/bin/bash", "/usr/local/bin/bash")
-
-	for _, cand := range candidates {
-		if _, err := os.Stat(cand); err != nil {
-			continue
-		}
-		if bashAtLeast44(cand) {
-			return filepath.Dir(cand)
-		}
-	}
-	return ""
+	return firstQualifyingBashDir(append(candidates, bashFallbackCandidates...))
 }
 
 // gateSubprocessEnv returns the environment a gate subprocess should run with:
 // os.Environ() with any GOROOT entry removed, and with a bash >= 4.4 directory
-// prepended to PATH when resolveBash44Dir finds one, so a gate command that
-// shells out to "bash scripts/*.sh" resolves the inner bash to a working
-// interpreter instead of macOS's 3.2.
+// prepended to PATH only when the PATH-resolved bash does not qualify and
+// resolveBash44Dir finds a fallback, so a gate command that shells out to
+// "bash scripts/*.sh" resolves the inner bash to a working interpreter
+// instead of macOS's 3.2. On hosts where PATH already resolves a qualifying
+// bash, PATH is left untouched so caller-installed tools keep their order
+// (#8709).
 //
 // The GOROOT strip is load-bearing, not defensive noise. This binary is
 // launched via `go -C go run ./cmd/ci-gates run` (scripts/dev/
@@ -84,9 +77,56 @@ func resolveBash44Dir() string {
 // per-script BASH_VERSINFO guard). This is split out from runShellCommand so
 // the wiring is unit-testable rather than only reachable through a live gate
 // run (#5050).
+// bashFallbackCandidates are the non-PATH bash locations checked, in order,
+// when the PATH-resolved bash does not qualify.
+var bashFallbackCandidates = []string{"/opt/homebrew/bin/bash", "/usr/local/bin/bash"}
+
+// firstQualifyingBashDir returns the directory of the first candidate that
+// exists and satisfies the version guard, or "" when none does.
+func firstQualifyingBashDir(candidates []string) string {
+	for _, cand := range candidates {
+		if cand == "" {
+			continue
+		}
+		if _, err := os.Stat(cand); err != nil {
+			continue
+		}
+		if bashAtLeast44(cand) {
+			return filepath.Dir(cand)
+		}
+	}
+	return ""
+}
+
 func gateSubprocessEnv() []string {
-	dir := resolveBash44Dir()
+	pathBash, _ := exec.LookPath("bash")
+	return gateSubprocessEnvWith(pathBash, bashFallbackCandidates)
+}
+
+// gateSubprocessEnvWith is gateSubprocessEnv with injectable inputs: the
+// PATH-resolved bash path ("" when PATH has none) and the fallback candidate
+// list (#8711). Production passes the live LookPath result and
+// bashFallbackCandidates; tests pass fixtures, so the fallback-prepend branch
+// is pinned hermetically on every host instead of only where a macOS-class
+// fallback exists.
+func gateSubprocessEnvWith(pathBash string, fallbacks []string) []string {
 	_, gorootSet := os.LookupEnv("GOROOT")
+	// When the PATH-resolved bash already qualifies, there is nothing to
+	// steer: rewriting PATH would only push the caller's own ordering back
+	// (on Linux the resolved dir is /usr/bin, which then shadows
+	// caller-installed tools such as /usr/local/bin/rg — #8709). Only the
+	// GOROOT strip may still apply.
+	if pathBash != "" && bashAtLeast44(pathBash) {
+		if !gorootSet {
+			return nil
+		}
+		return stripGorootEntry(os.Environ())
+	}
+	// Only reached when steering to a fallback (or steering nowhere): PATH
+	// is filtered solely to replace it with the single steered entry. With
+	// no fallback dir the inherited PATH must survive intact, or the
+	// subprocess loses every command lookup (#8709 F1).
+	dir := firstQualifyingBashDir(fallbacks)
 	if dir == "" && !gorootSet {
 		return nil
 	}
@@ -96,10 +136,29 @@ func gateSubprocessEnv() []string {
 		if strings.HasPrefix(kv, "GOROOT=") {
 			continue
 		}
+		if dir != "" && strings.HasPrefix(kv, "PATH=") {
+			continue
+		}
 		env = append(env, kv)
 	}
 	if dir != "" {
+		// Single PATH entry: appending a second PATH= alongside the
+		// inherited one lets os/exec last-wins discard the caller's order
+		// (#8709). Replace instead so the steered dir genuinely comes first.
 		env = append(env, "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
 	return env
+}
+
+// stripGorootEntry returns env without any GOROOT entry, preserving every
+// other entry (including PATH) byte for byte.
+func stripGorootEntry(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "GOROOT=") {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
 }
