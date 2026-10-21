@@ -169,20 +169,39 @@ expect_fail "fails when --dashboard single file has an orphan" \
   "${case_single}" --dashboard "${case_single}/deploy/grafana/dashboards/ignored.json"
 
 # ---------------------------------------------------------------------------
-# Case 6: missing instruments.go → exits non-zero with a clear message.
+# Case 6: empty metric registry → exits non-zero with a clear message.
 # Must have a dashboard JSON present (otherwise the verifier exits 0 early
 # for "no dashboard JSON files found"); the failure must come from the
-# missing instruments.go check.
+# empty-registry check.
 # ---------------------------------------------------------------------------
 case_no_instruments="$(init_fixture case-no-instruments)"
 make_dashboard "${case_no_instruments}/docs/dashboards" "exists.json" \
   eshu_dp_facts_emitted_total
 rm "${case_no_instruments}/go/internal/telemetry/instruments.go"
 if run_verifier "${case_no_instruments}"; then
-  record_fail "fails when instruments.go is missing in the fixture"
+  record_fail "fails when the telemetry package registers no metrics"
 else
-  record_pass "fails when instruments.go is missing in the fixture"
+  record_pass "fails when the telemetry package registers no metrics"
 fi
+
+# ---------------------------------------------------------------------------
+# Case 7: metric registered in a sibling registration file (not
+# instruments.go) resolves. Per-metric registration files are the package
+# convention (e.g. instruments_fileless_guard.go); the verifier must scan
+# the whole telemetry package, not one file.
+# ---------------------------------------------------------------------------
+case_sibling="$(init_fixture case-sibling)"
+make_dashboard "${case_sibling}/docs/dashboards" "sibling.json" \
+  eshu_dp_sibling_registered_total
+printf '%s\n' 'package telemetry' 'import "go.opentelemetry.io/otel/metric"' \
+  >"${case_sibling}/go/internal/telemetry/instruments_sibling.go"
+cat >>"${case_sibling}/go/internal/telemetry/instruments_sibling.go" <<GO
+func registerSibling(meter metric.Meter) {
+	_, _ = meter.Int64Counter("eshu_dp_sibling_registered_total")
+}
+GO
+expect_pass "passes when a dashboard metric is registered in a sibling file" \
+  "${case_sibling}"
 
 # ---------------------------------------------------------------------------
 # Results.
