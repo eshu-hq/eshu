@@ -83,6 +83,61 @@ func checkReadinessAggregate(job readinessJob) string {
 	return ""
 }
 
+// backendQueueSelection is the live-backend aggregate guard: same shape as
+// the readiness one, without the extra contains() parentheses the readiness
+// conditions carry. Copy it exactly from live-backend-tests.yml.
+const (
+	backendQueueSelection  = "${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-backend (nornicdb and neo4j)') }}"
+	backendAggregateJob    = "live-backend"
+	backendArtifactPath    = "live-backend-reports"
+	backendArtifactPattern = "live-backend-${{ github.run_id }}-*"
+)
+
+// checkBackendAggregate pins the live-backend aggregate wiring the same way
+// checkReadinessAggregate pins the readiness one: run-scoped download so a
+// failed-job rerun reunites every attempt's reports, then newest-valid select
+// before the exact-four verify (#8724). The backend hunk is small enough to
+// revert silently, so this guard must fail on a planted revert.
+func checkBackendAggregate(job readinessJob) string {
+	downloaded, selected, verified := false, false, false
+	for _, step := range job.Steps {
+		if step.Uses == "actions/download-artifact@v4" {
+			if step.If != backendQueueSelection || step.ContinueOnError != "" {
+				return "artifact download must use the registry queue selection without waiving failure"
+			}
+			if step.With["pattern"] != backendArtifactPattern ||
+				step.With["path"] != backendArtifactPath ||
+				step.With["merge-multiple"] != "" {
+				return "aggregate must download the run-scoped coverage reports so reruns reunite (#8724)"
+			}
+			downloaded = true
+			continue
+		}
+		if strings.Contains(step.Run, "live_backend_shards.py select") {
+			if step.If != backendQueueSelection || step.ContinueOnError != "" {
+				return "newest-report selection must use the registry queue selection without waiving failure"
+			}
+			selected = true
+		}
+		if strings.Contains(step.Run, "live_backend_shards.py verify") {
+			if step.If != backendQueueSelection || step.ContinueOnError != "" {
+				return "coverage verification must use the registry queue selection without waiving failure"
+			}
+			verified = true
+		}
+	}
+	if !downloaded {
+		return "aggregate must download the coverage reports before verifying coverage"
+	}
+	if !selected {
+		return "aggregate must select the newest valid report per shard before verifying coverage (#8724)"
+	}
+	if !verified {
+		return "aggregate must verify the shard reports cover the full plan"
+	}
+	return ""
+}
+
 func checkReadinessNoDockerHubLogin(job readinessJob) string {
 	if _, ok := job.Env["DOCKERHUB_LOGIN_ENABLED"]; ok {
 		return "live job must not carry a Docker Hub login flag: its services use public GHCR mirrors"
