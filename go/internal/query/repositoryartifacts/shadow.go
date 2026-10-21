@@ -97,9 +97,18 @@ type ShadowConfig struct {
 // enables it, and reports it. It never fails the request: a stored-read
 // failure lands in the report while the caller keeps serving the live
 // answer it already computed. It never runs on a stored load: the stored
-// answer has no live rows to compare against.
+// answer has no live rows to compare against. It never runs on a live load
+// the shared request budget truncated: whole stored rows compared against
+// truncated live rows report a false mismatch for rows that are exactly
+// right (#8714 P1). Skipping is request-level, so one truncated repository
+// also drops the valid matches of its non-truncated siblings; per-repo
+// truncation attribution in the compare is the fuller fix if QA shows the
+// skip hiding real signal.
 func (l configArtifactLoader) maybeShadow(ctx context.Context, res configArtifactLoadResult, stats *ConfigArtifactReadStats) {
 	if !l.shadow.Enabled || l.shadow.Reporter == nil || l.stored.Enabled {
+		return
+	}
+	if stats.CandidatesUnhydrated > 0 {
 		return
 	}
 	report := ShadowReport{}

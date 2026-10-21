@@ -294,26 +294,54 @@ func TestConfigArtifactReadLabelValuesAreClosed(t *testing.T) {
 // TestConfigArtifactReadReasonsMatchStorageConstants pins the telemetry
 // fallback reasons to the storage read-model reasons (#8155 PR3c): a renamed,
 // added or dropped reason must change both sides, or the wiring counts a
-// label the stored reader never returns (or drops one it does).
+// label the stored reader never returns (or drops one it does). Every
+// declared storage Reason has a pinned disposition below, so a new constant
+// has nowhere to hide: list it here with its expected label or absence.
 func TestConfigArtifactReadReasonsMatchStorageConstants(t *testing.T) {
 	t.Parallel()
 
-	storage := map[string]string{
-		"missing":         string(artifacts.ReasonMissing),
-		"stale_version":   string(artifacts.ReasonStaleVersion),
-		"stale_extractor": string(artifacts.ReasonStaleExtractor),
-		"failed":          string(artifacts.ReasonFailed),
+	// The full declared storage set, with the intended telemetry
+	// disposition of each: fallback reasons map 1:1 to the label,
+	// ReasonTrusted maps to the "trusted" label, and ReasonRetry must stay
+	// absent because Classify never returns it (the rows are still exact).
+	storage := map[artifacts.Reason]string{
+		artifacts.ReasonMissing:        "missing",
+		artifacts.ReasonStaleVersion:   "stale_version",
+		artifacts.ReasonStaleExtractor: "stale_extractor",
+		artifacts.ReasonFailed:         "failed",
+		artifacts.ReasonTrusted:        "trusted",
 	}
 	reasons := map[string]bool{}
 	for _, reason := range ConfigArtifactReadReasons() {
 		reasons[reason] = true
 	}
-	for name, value := range storage {
-		if name != value {
-			t.Fatalf("storage reason %q has value %q: the adapter maps reasons 1:1, so they must be identical", name, value)
+	for reason, label := range storage {
+		if string(reason) != "" && string(reason) != label && reason != artifacts.ReasonTrusted {
+			t.Fatalf("storage reason has value %q: the adapter maps reasons 1:1, so the label must be identical", string(reason))
 		}
-		if !reasons[value] {
-			t.Fatalf("telemetry reasons lack the storage reason %q", value)
+		if !reasons[label] {
+			t.Fatalf("telemetry reasons lack the label %q for storage reason %q", label, string(reason))
+		}
+	}
+	if reasons[string(artifacts.ReasonRetry)] {
+		t.Fatalf("telemetry reasons carry %q, which Classify never returns", string(artifacts.ReasonRetry))
+	}
+	if reasons[string(artifacts.ReasonTrusted)] {
+		t.Fatalf("telemetry reasons carry the raw trusted value %q; it must map to %q", string(artifacts.ReasonTrusted), "trusted")
+	}
+	// Exact set equality in the other direction: every telemetry reason is
+	// either a pinned storage label above or a declared wiring-only reason.
+	// A fifth storage reason flowing 1:1 into a label fails here.
+	wiring := map[string]bool{"mode_live": true, "stored_error": true}
+	for _, reason := range ConfigArtifactReadReasons() {
+		pinned := wiring[reason]
+		for _, label := range storage {
+			if reason == label {
+				pinned = true
+			}
+		}
+		if !pinned {
+			t.Fatalf("telemetry reason %q is neither a pinned storage label nor a wiring reason", reason)
 		}
 	}
 }

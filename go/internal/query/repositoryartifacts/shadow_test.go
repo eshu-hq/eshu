@@ -307,6 +307,55 @@ func TestShadowReadErrorKeepsServingLive(t *testing.T) {
 	}
 }
 
+// TestShadowSkipsCompareWhenLiveLoadHitTheRequestBudget pins the P1 guard:
+// a live load truncated by the shared request budget must not feed the
+// shadow compare, because whole stored rows compared against truncated live
+// rows report a false mismatch. The request still serves the live answer;
+// it just emits no shadow report and no stored statement.
+func TestShadowSkipsCompareWhenLiveLoadHitTheRequestBudget(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeContentStore(map[string][]querycontract.FileContent{
+		"anchor": loaderFiles(),
+		"repo-a": loaderFiles(),
+		"repo-b": loaderFiles(),
+	})
+	graph := &fakeArtifactGraph{related: []repositoryArtifactSource{
+		{RepoID: "repo-a", RepoName: "name-a"},
+		{RepoID: "repo-b", RepoName: "name-b"},
+	}}
+	live := shadowLiveRows(t, store, []repositoryArtifactSource{
+		{RepoID: "repo-a", RepoName: "name-a"},
+		{RepoID: "repo-b", RepoName: "name-b"},
+	})
+	stored := &fakeStoredReader{repos: map[string]StoredRepository{
+		"repo-a": {RepoID: "repo-a", Trusted: true, Rows: storedRowsMirroringLive(t, liveForRepo(t, live, "name-a"))},
+		"repo-b": {RepoID: "repo-b", Trusted: true, Rows: storedRowsMirroringLive(t, liveForRepo(t, live, "name-b"))},
+	}}
+	var reported []ShadowReport
+	loader := shadowLoader(stored, &reported)
+	loader.floor = 0
+	loader.budget = 1
+
+	var stats ConfigArtifactReadStats
+	shadowed, err := loader.loadShared(context.Background(), graph, store, "anchor", "svc", loaderFiles(), &stats)
+	if err != nil {
+		t.Fatalf("shadow load error = %v", err)
+	}
+	if len(querycontract.MapSliceValue(shadowed, "config_paths")) == 0 {
+		t.Fatal("truncated load answered empty; the live answer must still serve")
+	}
+	if stats.CandidatesUnhydrated == 0 {
+		t.Fatal("fixture did not truncate; the guard test is vacuous")
+	}
+	if len(reported) != 0 {
+		t.Fatalf("reporter received %d reports on a truncated load, want none", len(reported))
+	}
+	if len(stored.calls) != 0 {
+		t.Fatalf("truncated load issued %d stored statements, want none", len(stored.calls))
+	}
+}
+
 // TestDisabledShadowIssuesNoStoredStatement proves the live default costs
 // nothing: with the zero ShadowConfig the loader never calls the stored
 // reader, even a failing one.
