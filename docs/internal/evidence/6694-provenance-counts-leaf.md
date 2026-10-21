@@ -5,7 +5,7 @@
 The provenance count gauges move from the `storage/cypher` root into the
 existing `edge/writer` leaf (`package writer`, external alias `edgewriter`),
 next to the provenance edge writer whose `eshu_dp_edges_by_source_tool` and
-eshu_dp_files_by_language` gauges they serve:
+`eshu_dp_files_by_language` gauges they serve:
 
 - `provenance_counts.go` (implementation diff is the package clause only)
 - `provenance_counts_test.go` (package clause only)
