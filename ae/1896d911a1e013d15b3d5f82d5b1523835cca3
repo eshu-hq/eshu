@@ -1,0 +1,14 @@
+.github/workflows/publish-golang-mirror-oneoff.yml
+  h_78a442cba0b3e6 1-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ae1896d911a1e013d15b3d5f82d5b1523835cca3",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
