@@ -116,6 +116,28 @@ func (r claimDepthResult) ClaimsPerSecond() float64 {
 	return float64(len(r.Records)) / r.Duration.Seconds()
 }
 
+// maxClaimDepthConsecutiveEmpties bounds one claimer's consecutive empty
+// ClaimNextEligible returns before it may idle. #8725 raised the original 50
+// to 200: a 50-empty budget idled a claimer mid-drain under a lock-hot window
+// (all-heads-locked empties while peers still granted), stranding it at 9
+// grants against the 10-grant floor. The larger budget covers all-stalled
+// windows; the quiescence proof in claimDepthQuiescent is the primary guard
+// for windows where peers keep granting.
+const maxClaimDepthConsecutiveEmpties = 200
+
+// claimDepthQuiescent reports whether a claimer that has just observed
+// consecutiveEmpties consecutive empty ClaimNextEligible returns may idle.
+// Idling requires quiescence proof: the streak reached the budget AND no
+// grant landed globally during the streak (seqNow == seqAtStreakStart). A
+// streak that overlaps any grant is head-of-line contention, not a drained
+// backlog, so the claimer must keep polling.
+func claimDepthQuiescent(consecutiveEmpties int, seqAtStreakStart, seqNow int64) bool {
+	if consecutiveEmpties < maxClaimDepthConsecutiveEmpties {
+		return false
+	}
+	return seqNow == seqAtStreakStart
+}
+
 // openClaimDepthHarness opens the isolated-schema workflow store and raises
 // its pool so concurrent claim loops each hold their own connection.
 func openClaimDepthHarness(t *testing.T, claimers int) (*sql.DB, *WorkflowControlStore, context.Context, int) {
@@ -207,10 +229,12 @@ func (c claimDepthConn) ExecContext(ctx context.Context, query string, args ...a
 // drainClaimDepthBacklog runs concurrent claim loops from one start barrier.
 // Each claimer pins its own pool connection for the whole drain, claims
 // through its own WorkflowControlStore over that connection, records the
-// grant, and completes it under its fence. A claimer stops at its first
-// empty return: pending work only shrinks during a drain (nothing
-// requeues), so an empty return means every remaining item is already
-// claimed by a peer that will complete it.
+// grant, and completes it under its fence. A claimer idles only on
+// quiescence proof (claimDepthQuiescent): a full budget of consecutive
+// empties with no global grant landing during the streak. Pending work only
+// shrinks during a drain (nothing requeues), and each streak reset requires
+// at least one global grant, so the loop still ends once peers stop
+// granting.
 func drainClaimDepthBacklog(
 	t *testing.T,
 	database *sql.DB,
@@ -228,7 +252,6 @@ func drainClaimDepthBacklog(
 	backendPIDs := make([]int, claimers)
 	var seq atomic.Int64
 	var emptyAttempts atomic.Int64
-	const maxClaimDepthConsecutiveEmpties = 50
 	// claimDepthStartStagger desynchronizes claimer starts for the
 	// production-like timing case: each claimer waits claimer*stagger after
 	// the start barrier. Zero (the default) keeps the barrier-synchronized
@@ -267,6 +290,7 @@ func drainClaimDepthBacklog(
 				time.Sleep(time.Duration(claimer) * stagger)
 			}
 			consecutiveEmpties := 0
+			var seqAtStreakStart int64
 			for attempt := 0; ; attempt++ {
 				selector := workflow.ClaimSelector{
 					CollectorKind:       scope.CollectorGit,
@@ -289,16 +313,30 @@ func drainClaimDepthBacklog(
 					// while eligible work exists. Production collectors
 					// poll again rather than exit, so the harness
 					// retries a bounded run of consecutive empties
-					// before it idles the claimer. The retry sleeps a
-					// jittered 0-5ms: a fixed sleep re-fires every
-					// collided claimer on the same millisecond and
-					// turns one collision into a synchronized retry
-					// storm. #8470 owns the no-pacing empty-attempt
-					// budget.
+					// before it idles the claimer. Idling additionally
+					// requires quiescence proof (claimDepthQuiescent):
+					// a streak that overlaps any global grant is
+					// contention, not a drained backlog (#8725). The
+					// retry sleeps a jittered 0-5ms: a fixed sleep
+					// re-fires every collided claimer on the same
+					// millisecond and turns one collision into a
+					// synchronized retry storm. #8470 owns the
+					// no-pacing empty-attempt budget.
 					emptyAttempts.Add(1)
+					if consecutiveEmpties == 0 {
+						seqAtStreakStart = seq.Load()
+					}
 					consecutiveEmpties++
-					if consecutiveEmpties >= maxClaimDepthConsecutiveEmpties {
+					if claimDepthQuiescent(consecutiveEmpties, seqAtStreakStart, seq.Load()) {
 						break
+					}
+					if consecutiveEmpties >= maxClaimDepthConsecutiveEmpties {
+						// Budget reached but grants landed during the
+						// streak: contention, not quiescence. Start a
+						// fresh streak from the new baseline. Each reset
+						// consumes at least one finite global grant, so
+						// the loop still ends once peers stop granting.
+						consecutiveEmpties = 0
 					}
 					time.Sleep(time.Duration(rand.Int63n(5)) * time.Millisecond)
 					continue
