@@ -13,7 +13,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -130,7 +130,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeSkipsDeleteWhenProbeFindsNothing(t 
 		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got := len(executor.probeCalls); got != 1 {
@@ -160,7 +160,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeRunsDeleteWhenProbeFindsRows(t *tes
 		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got := len(executor.probeCalls); got != 1 {
@@ -193,7 +193,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeUnsupportedRunsDeleteUnconditionall
 		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got := len(executor.calls); got != 1 {
@@ -219,7 +219,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeErrorRunsDeleteUnconditionally(t *t
 		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got := len(executor.probeCalls); got != 1 {
@@ -246,7 +246,7 @@ func TestEdgeWriterRetractEdgesRationaleProbeUsesSameParametersAsDelete(t *testi
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if len(executor.probeCalls) != 1 || len(executor.executeCalls) != 1 {

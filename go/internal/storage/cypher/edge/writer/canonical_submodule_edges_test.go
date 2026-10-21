@@ -12,7 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -167,7 +167,7 @@ func TestEdgeWriterRetractEdgesSubmodulePinWholeRepoScope(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-parent"},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainSubmodulePinEdges, rows, "reducer/submodule")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainSubmodulePinEdges, rows, "reducer/submodule")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -200,7 +200,7 @@ func TestEdgeWriterRetractEdgesSubmodulePinRepoIDsAreGeneric(t *testing.T) {
 		{IntentID: "i2", RepositoryID: "repo-2"},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainSubmodulePinEdges, rows, "reducer/submodule")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainSubmodulePinEdges, rows, "reducer/submodule")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -235,7 +235,7 @@ func TestEdgeWriterWriteEdgesSubmodulePinRoutesTemplate(t *testing.T) {
 		},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainSubmodulePinEdges, rows, "reducer/submodule")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainSubmodulePinEdges, rows, "reducer/submodule")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}

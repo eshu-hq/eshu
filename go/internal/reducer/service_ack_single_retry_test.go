@@ -105,7 +105,7 @@ func runSingleAckFrom(
 		PollInterval: time.Millisecond,
 		WorkSource:   source,
 		Executor: &stubReducerExecutor{result: reducercontract.Result{
-			Domain: DomainRepoDependency,
+			Domain: reducercontract.DomainRepoDependency,
 			Status: ResultStatusSucceeded,
 		}},
 		WorkSink:     sink,

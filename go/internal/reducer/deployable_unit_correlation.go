@@ -47,7 +47,7 @@ const deployableUnitCorrelationFallbackThreshold = 0.90
 // maintenance pass gap reconciliation deletes the fingerprint rows of
 // admitted anchors the graph left edgeless, so the same pass re-opens them.
 type DeployableUnitCorrelationHandler struct {
-	FactLoader              FactLoader
+	FactLoader              factload.FactLoader
 	ResolvedLoader          ResolvedRelationshipLoader
 	PhasePublisher          gpphase.PhasePublisher
 	EdgeWriter              sharedintent.EdgeWriter

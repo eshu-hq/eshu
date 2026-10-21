@@ -31,7 +31,7 @@ const submodulePinEvidenceSource = "reducer/submodule"
 // label, both PINS_SUBMODULE endpoints are existing Repository nodes, so no
 // new node label or uniqueness constraint is needed.
 type SubmodulePinEdgeMaterializationHandler struct {
-	FactLoader           FactLoader
+	FactLoader           factload.FactLoader
 	EdgeWriter           sharedintent.EdgeWriter
 	PriorGenerationCheck PriorGenerationCheck
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
@@ -85,7 +85,7 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 		retractRows := buildSubmodulePinRetractRows(repositoryIDs, deltaScope)
 		if len(retractRows) > 0 {
 			if err := h.EdgeWriter.RetractEdges(
-				ctx, DomainSubmodulePinEdges, retractRows, submodulePinEvidenceSource,
+				ctx, reducercontract.DomainSubmodulePinEdges, retractRows, submodulePinEvidenceSource,
 			); err != nil {
 				return reducercontract.Result{}, fmt.Errorf("retract canonical submodule pin edges: %w", err)
 			}
@@ -96,7 +96,7 @@ func (h SubmodulePinEdgeMaterializationHandler) Handle(ctx context.Context, inte
 	if len(writeRows) > 0 {
 		if _, err := h.EdgeWriter.WriteEdges(
 			ctx,
-			DomainSubmodulePinEdges,
+			reducercontract.DomainSubmodulePinEdges,
 			writeRows,
 			submodulePinEvidenceSource,
 		); err != nil {
@@ -251,7 +251,7 @@ func buildSubmodulePinIntentRows(rows []map[string]any) []sharedintent.Row {
 	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		intents = append(intents, sharedintent.Row{
-			ProjectionDomain: DomainSubmodulePinEdges,
+			ProjectionDomain: reducercontract.DomainSubmodulePinEdges,
 			PartitionKey:     anyToString(row["parent_repo_id"]) + "->" + anyToString(row["submodule_path"]),
 			RepositoryID:     anyToString(row["parent_repo_id"]),
 			Payload:          copyPayload(row),

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -32,7 +32,7 @@ func TestEdgeWriterWriteEdgesRunsInDispatch(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRunsIn, rows, "reducer/runs-in"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {
@@ -87,8 +87,8 @@ func TestEdgeWriterWriteEdgesRunsInRowsMissingMatchFieldsFailTheIntent(t *testin
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "repo_id": ""}},
 	}
 
-	report, err := writer.WriteEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in")
-	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainRunsIn, 2)
+	report, err := writer.WriteEdges(context.Background(), reducercontract.DomainRunsIn, rows, "reducer/runs-in")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducercontract.DomainRunsIn, 2)
 }
 
 func TestEdgeWriterRetractEdgesRunsInDispatch(t *testing.T) {
@@ -101,7 +101,7 @@ func TestEdgeWriterRetractEdgesRunsInDispatch(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRunsIn, rows, "reducer/runs-in"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRunsIn, rows, "reducer/runs-in"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {

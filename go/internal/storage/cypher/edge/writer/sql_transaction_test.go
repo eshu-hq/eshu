@@ -11,7 +11,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -50,7 +50,7 @@ func TestEdgeWriterSQLRelationshipSequentialWritesBypassManagedTransactions(t *t
 		},
 	}}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "test"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "test"); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 	if len(executor.groupCalls) != 0 {
@@ -82,7 +82,7 @@ func TestEdgeWriterSQLRelationshipSequentialWritesPreserveWorkerConcurrency(t *t
 					"relationship_type":  "WRITES_TO",
 				},
 			}
-			_, writeErr := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, []sharedintent.Row{row}, "test")
+			_, writeErr := writer.WriteEdges(context.Background(), reducercontract.DomainSQLRelationships, []sharedintent.Row{row}, "test")
 			errs <- writeErr
 		}(i)
 	}
@@ -123,7 +123,7 @@ func TestEdgeWriterSQLRelationshipDefaultUsesManagedTransactions(t *testing.T) {
 		},
 	}}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "test"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "test"); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 	if len(executor.executeCalls) != 0 {

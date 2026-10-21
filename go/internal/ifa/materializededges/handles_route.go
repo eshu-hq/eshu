@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -102,7 +103,7 @@ func resolveHandlesRouteMaterializedEdges(odu ifa.Odu, expectedEdgesPath string)
 	if len(odu.Facts) == 0 {
 		return false, fmt.Sprintf("odù %q: carries no facts", odu.Name)
 	}
-	rows := symbolRuntimeUpsertRows(odu.Facts, reducer.DomainHandlesRoute)
+	rows := symbolRuntimeUpsertRows(odu.Facts, reducercontract.DomainHandlesRoute)
 	if len(rows) == 0 {
 		return false, fmt.Sprintf("odù %q: ExtractSymbolRuntimeIntentRows produced zero HANDLES_ROUTE upsert rows; this fixture cannot prove anything", odu.Name)
 	}

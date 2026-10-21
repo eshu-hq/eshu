@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
@@ -409,7 +411,7 @@ func repoDependencyIntentRow(
 ) sharedintent.Row {
 	return sharedintent.Row{
 		IntentID:         intentID,
-		ProjectionDomain: DomainRepoDependency,
+		ProjectionDomain: reducercontract.DomainRepoDependency,
 		PartitionKey:     intentID,
 		ScopeID:          scopeID,
 		AcceptanceUnitID: acceptanceUnitID,

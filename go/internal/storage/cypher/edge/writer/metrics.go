@@ -10,7 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -43,7 +43,7 @@ func (w *EdgeWriter) recordCodeCallBatch(ctx context.Context, duration float64) 
 		return
 	}
 
-	attrs := metric.WithAttributes(telemetry.AttrDomain(reducer.DomainCodeCalls))
+	attrs := metric.WithAttributes(telemetry.AttrDomain(reducercontract.DomainCodeCalls))
 	w.Instruments.CodeCallEdgeBatches.Add(ctx, 1, attrs)
 	w.Instruments.CodeCallEdgeDuration.Record(ctx, duration, attrs)
 }

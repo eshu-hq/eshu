@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -20,7 +22,7 @@ func handlesRouteIntentRow(intentID, repoID, path string) sharedintent.Row {
 	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
 	return sharedintent.Row{
 		IntentID:         intentID,
-		ProjectionDomain: DomainHandlesRoute,
+		ProjectionDomain: reducercontract.DomainHandlesRoute,
 		PartitionKey:     intentID,
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: repoID,
@@ -203,7 +205,7 @@ func TestFilterRowsByReadinessHandlesRouteTerminatesAbsentEndpoint(t *testing.T)
 	}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainHandlesRoute, rows, phaseReady, nil, presence,
+		context.Background(), reducercontract.DomainHandlesRoute, rows, phaseReady, nil, presence,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)
@@ -239,7 +241,7 @@ func TestFilterRowsByReadinessHandlesRoutePhaseBlockedStaysDeferred(t *testing.T
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{}}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainHandlesRoute, rows, phaseNotReady, nil, presence,
+		context.Background(), reducercontract.DomainHandlesRoute, rows, phaseNotReady, nil, presence,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)
@@ -276,7 +278,7 @@ func TestFilterRowsByReadinessHandlesRouteProjectsWhenPresent(t *testing.T) {
 	}}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainHandlesRoute, rows, phaseReady, nil, presence,
+		context.Background(), reducercontract.DomainHandlesRoute, rows, phaseReady, nil, presence,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)
@@ -307,7 +309,7 @@ func TestFilterRowsByReadinessHandlesRouteNilPresenceIsTodaysBehavior(t *testing
 	}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainHandlesRoute, rows, phaseReady, nil, nil,
+		context.Background(), reducercontract.DomainHandlesRoute, rows, phaseReady, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)
@@ -327,7 +329,7 @@ func TestFilterRowsByReadinessNonHandlesRouteIgnoresPresence(t *testing.T) {
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "cc-1",
-			ProjectionDomain: DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "pk-1",
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-1",
@@ -346,7 +348,7 @@ func TestFilterRowsByReadinessNonHandlesRouteIgnoresPresence(t *testing.T) {
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{}}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainCodeCalls, rows, phaseReady, nil, presence,
+		context.Background(), reducercontract.DomainCodeCalls, rows, phaseReady, nil, presence,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)

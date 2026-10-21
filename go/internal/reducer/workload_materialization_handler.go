@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 
 	"go.opentelemetry.io/otel/trace"
@@ -112,7 +114,7 @@ type InfrastructurePlatformLookup interface {
 // runtime platforms). It loads facts from the content store, extracts workload
 // candidates, builds projection rows, and writes them to Neo4j.
 type WorkloadMaterializationHandler struct {
-	FactLoader                   FactLoader
+	FactLoader                   factload.FactLoader
 	ResolvedLoader               ResolvedRelationshipLoader
 	InputLoader                  WorkloadProjectionInputLoader
 	InfrastructurePlatformLookup InfrastructurePlatformLookup
@@ -384,7 +386,7 @@ func (h WorkloadMaterializationHandler) Handle(
 			retractStarted := time.Now()
 			if err := h.WorkloadDependencyEdgeWriter.RetractEdges(
 				ctx,
-				DomainWorkloadDependency,
+				reducercontract.DomainWorkloadDependency,
 				retractRows,
 				EvidenceSourceWorkloads,
 			); err != nil {
@@ -398,7 +400,7 @@ func (h WorkloadMaterializationHandler) Handle(
 			writeStarted := time.Now()
 			if _, err := h.WorkloadDependencyEdgeWriter.WriteEdges(
 				ctx,
-				DomainWorkloadDependency,
+				reducercontract.DomainWorkloadDependency,
 				writeRows,
 				EvidenceSourceWorkloads,
 			); err != nil {

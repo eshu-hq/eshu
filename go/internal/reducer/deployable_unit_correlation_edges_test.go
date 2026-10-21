@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -143,8 +145,8 @@ func TestDeployableUnitCorrelationHandleWritesAdmittedResolvedDeploymentEdge(t *
 		t.Fatalf("write calls = %d, want 1", len(writer.writeCalls))
 	}
 	for _, call := range []deployableUnitEdgeWriterCall{writer.retractCalls[0], writer.writeCalls[0]} {
-		if call.domain != DomainDeployableUnitEdges {
-			t.Fatalf("domain = %q, want %q", call.domain, DomainDeployableUnitEdges)
+		if call.domain != reducercontract.DomainDeployableUnitEdges {
+			t.Fatalf("domain = %q, want %q", call.domain, reducercontract.DomainDeployableUnitEdges)
 		}
 		if call.evidenceSource != deployableUnitCorrelationEvidenceSource {
 			t.Fatalf("evidenceSource = %q, want %q", call.evidenceSource, deployableUnitCorrelationEvidenceSource)

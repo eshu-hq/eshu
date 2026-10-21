@@ -20,7 +20,7 @@ import (
 // delta-flagged and non-delta whole-scope refresh rows are both emitted under
 // the SAME whole-scope partition key
 // ("rationale_edges:refresh:v1:whole:"+repoID -- mirrors the unexported
-// sharedintent.RepoWideRetractRefreshPartitionKey(reducer.DomainRationaleEdges,
+// sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainRationaleEdges,
 // repoID), see rationale_edge_intents.go), which carries no delta/generation
 // component. worker.LatestIntentsByRepoAndPartition therefore collapses the
 // two candidate rows to exactly one survivor per repository per batch before
@@ -52,7 +52,7 @@ func TestCollectDeltaAndWholeScopeRefreshRepoIDsStayDisjointAfterDedup(t *testin
 	t.Parallel()
 
 	const repoID = "repo-disjoint-6165"
-	// Mirrors sharedintent.RepoWideRetractRefreshPartitionKey(reducer.DomainRationaleEdges, repoID).
+	// Mirrors sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainRationaleEdges, repoID).
 	// The helper is unexported, so this cross-package mirror is unavoidable, and
 	// a mirror cannot police itself: if the production key scheme ever started
 	// varying by delta or generation, both rows below would still share this

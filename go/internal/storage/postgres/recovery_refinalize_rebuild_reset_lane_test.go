@@ -11,7 +11,7 @@ import (
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -51,7 +51,7 @@ func TestRefinalizeRetiredGenerationLaneWritesNoEdgesForBypassRun(t *testing.T) 
 	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, repoID, sourceRunID, activeGeneration, now)
 	dependsOn := func(intentID, generationID string) sharedintent.Row {
 		return sharedintent.Row{
-			IntentID: intentID, ProjectionDomain: reducer.DomainRepoDependency,
+			IntentID: intentID, ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey: "depends_on:" + repoID + "->repository:7673-target-" + suffix,
 			ScopeID:      scopeID, AcceptanceUnitID: repoID, RepositoryID: repoID,
 			SourceRunID: sourceRunID, GenerationID: generationID, CreatedAt: now,
@@ -105,7 +105,7 @@ func TestRefinalizeRetiredGenerationLaneWritesNoEdgesForBypassRun(t *testing.T) 
 	seedRefinalizeResetAcceptance(t, ctx, database, controlScope, controlRepo, controlRun, controlActive, now)
 	controlIntent := "lane-7673-control-" + suffix
 	seedRefinalizeResetRepoDependencyIntent(t, ctx, database, sharedintent.Row{
-		IntentID: controlIntent, ProjectionDomain: reducer.DomainRepoDependency,
+		IntentID: controlIntent, ProjectionDomain: reducercontract.DomainRepoDependency,
 		PartitionKey: "depends_on:" + controlRepo + "->repository:7673-target-" + suffix,
 		ScopeID:      controlScope, AcceptanceUnitID: controlRepo, RepositoryID: controlRepo,
 		SourceRunID: controlRun, GenerationID: controlActive, CreatedAt: now,
@@ -179,7 +179,7 @@ func TestBypassedAcceptanceStillDrainsSupersededGenerationWithoutRefinalize(t *t
 	seedRefinalizeResetAcceptance(t, ctx, database, scopeID, repoID, sourceRunID, activeGeneration, now)
 	intentID := "lane-7673-guard-" + suffix
 	seedRefinalizeResetRepoDependencyIntent(t, ctx, database, sharedintent.Row{
-		IntentID: intentID, ProjectionDomain: reducer.DomainRepoDependency,
+		IntentID: intentID, ProjectionDomain: reducercontract.DomainRepoDependency,
 		PartitionKey: "depends_on:" + repoID + "->repository:7673-target-" + suffix,
 		ScopeID:      scopeID, AcceptanceUnitID: repoID, RepositoryID: repoID,
 		SourceRunID: sourceRunID, GenerationID: activeGeneration, CreatedAt: now,
@@ -231,7 +231,7 @@ func TestRefinalizeClearsResolverAcceptanceSoLaneLosesAuthority(t *testing.T) {
 	seedActiveRelationshipGeneration(t, ctx, database, activeGeneration, scopeID)
 	intentID := "lane-7673-runson-" + suffix
 	seedRefinalizeResetRepoDependencyIntent(t, ctx, database, sharedintent.Row{
-		IntentID: intentID, ProjectionDomain: reducer.DomainRepoDependency,
+		IntentID: intentID, ProjectionDomain: reducercontract.DomainRepoDependency,
 		PartitionKey: "runs_on:" + repoID + "->platform:kubernetes:test", ScopeID: scopeID,
 		AcceptanceUnitID: repoID, RepositoryID: repoID, SourceRunID: sourceRunID,
 		GenerationID: activeGeneration, CreatedAt: now,
@@ -246,7 +246,7 @@ func TestRefinalizeClearsResolverAcceptanceSoLaneLosesAuthority(t *testing.T) {
 	lookup := refinalizeResetGatedAcceptedGen(database)
 	readRows := func() []sharedintent.Row {
 		rows, err := NewSharedIntentStore(SQLDB{DB: database}).ListAcceptanceUnitDomainIntents(
-			ctx, repoID, reducer.DomainRepoDependency, 100)
+			ctx, repoID, reducercontract.DomainRepoDependency, 100)
 		if err != nil {
 			t.Fatalf("list acceptance unit intents: %v", err)
 		}

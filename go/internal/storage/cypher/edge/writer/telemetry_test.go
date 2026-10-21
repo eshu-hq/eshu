@@ -13,7 +13,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -36,7 +36,7 @@ func TestEdgeWriterWriteEdgesLogsSharedWriteShape(t *testing.T) {
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "entity:function:e", "callee_entity_id": "entity:function:f"}},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -48,7 +48,7 @@ func TestEdgeWriterWriteEdgesLogsSharedWriteShape(t *testing.T) {
 	if got, want := entry["msg"], "shared edge write completed"; got != want {
 		t.Fatalf("log msg = %v, want %v", got, want)
 	}
-	if got, want := entry["domain"], reducer.DomainCodeCalls; got != want {
+	if got, want := entry["domain"], reducercontract.DomainCodeCalls; got != want {
 		t.Fatalf("domain = %v, want %v", got, want)
 	}
 	if got, want := entry["evidence_source"], "parser/code-calls"; got != want {
@@ -107,7 +107,7 @@ func TestEdgeWriterWriteEdgesLogsDerivedRowsSeparately(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -176,7 +176,7 @@ func TestEdgeWriterWriteEdgesLogsCodeCallRouteSummaries(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -243,7 +243,7 @@ func TestEdgeWriterWriteEdgesCodeCallIsolationRecordsBatchTelemetry(t *testing.T
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "entity:function:e", "callee_entity_id": "entity:function:f"}},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -255,7 +255,7 @@ func TestEdgeWriterWriteEdgesCodeCallIsolationRecordsBatchTelemetry(t *testing.T
 	if got, want := int64(len(executor.groupCalls)), int64(2); got != want {
 		t.Fatalf("isolated group calls = %d, want %d", got, want)
 	}
-	wantAttrs := map[string]string{"domain": reducer.DomainCodeCalls}
+	wantAttrs := map[string]string{"domain": reducercontract.DomainCodeCalls}
 	assertInt64CounterValue(t, rm, "eshu_dp_code_call_edge_batches_total", wantAttrs, 2)
 	assertFloat64HistogramCount(t, rm, "eshu_dp_code_call_edge_batch_duration_seconds", wantAttrs, 2)
 }
@@ -282,7 +282,7 @@ func TestEdgeWriterWriteEdgesNonCodeCallDoesNotRecordCodeCallBatchTelemetry(t *t
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-d"}},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -316,7 +316,7 @@ func TestEdgeWriterWriteEdgesInheritanceRecordsSharedGroupTelemetry(t *testing.T
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"child_entity_id": "entity:class:e", "parent_entity_id": "entity:class:f", "repo_id": "repo-a", "relationship_type": "INHERITS"}},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainInheritanceEdges, rows, "reducer/inheritance"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -325,7 +325,7 @@ func TestEdgeWriterWriteEdgesInheritanceRecordsSharedGroupTelemetry(t *testing.T
 		t.Fatalf("Collect() error = %v", err)
 	}
 
-	wantAttrs := map[string]string{"domain": reducer.DomainInheritanceEdges, "execution_mode": "group"}
+	wantAttrs := map[string]string{"domain": reducercontract.DomainInheritanceEdges, "execution_mode": "group"}
 	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_write_groups_total", wantAttrs, 2)
 	assertFloat64HistogramCount(t, rm, "eshu_dp_shared_edge_write_group_duration_seconds", wantAttrs, 2)
 	assertInt64HistogramCount(t, rm, "eshu_dp_shared_edge_write_group_statement_count", wantAttrs, 2)
@@ -351,7 +351,7 @@ func TestEdgeWriterWriteEdgesRepoDependencyRecordsSharedGroupTelemetry(t *testin
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-d"}},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -360,7 +360,7 @@ func TestEdgeWriterWriteEdgesRepoDependencyRecordsSharedGroupTelemetry(t *testin
 		t.Fatalf("Collect() error = %v", err)
 	}
 
-	wantAttrs := map[string]string{"domain": reducer.DomainRepoDependency, "execution_mode": "group"}
+	wantAttrs := map[string]string{"domain": reducercontract.DomainRepoDependency, "execution_mode": "group"}
 	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_write_groups_total", wantAttrs, 1)
 	assertFloat64HistogramCount(t, rm, "eshu_dp_shared_edge_write_group_duration_seconds", wantAttrs, 1)
 	assertInt64HistogramCount(t, rm, "eshu_dp_shared_edge_write_group_statement_count", wantAttrs, 1)
@@ -525,7 +525,7 @@ func TestEdgeWriterArtifactPhaseLogsOneSummaryEntry(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -589,7 +589,7 @@ func TestEdgeWriterArtifactPhaseRecordsSharedGroupTelemetry(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -599,9 +599,9 @@ func TestEdgeWriterArtifactPhaseRecordsSharedGroupTelemetry(t *testing.T) {
 	}
 
 	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_write_groups_total",
-		map[string]string{"domain": reducer.DomainRepoDependency, "execution_mode": "group"}, 1)
+		map[string]string{"domain": reducercontract.DomainRepoDependency, "execution_mode": "group"}, 1)
 	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_write_groups_total",
-		map[string]string{"domain": reducer.DomainRepoDependency, "execution_mode": "artifact-sequential"}, 1)
+		map[string]string{"domain": reducercontract.DomainRepoDependency, "execution_mode": "artifact-sequential"}, 1)
 	assertInt64HistogramCount(t, rm, "eshu_dp_shared_edge_write_group_statement_count",
-		map[string]string{"domain": reducer.DomainRepoDependency, "execution_mode": "artifact-sequential"}, 1)
+		map[string]string{"domain": reducercontract.DomainRepoDependency, "execution_mode": "artifact-sequential"}, 1)
 }

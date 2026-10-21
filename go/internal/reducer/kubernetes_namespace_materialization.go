@@ -131,7 +131,7 @@ type KubernetesNamespaceNodeWriter interface {
 // deterministic node rows keyed by the collector-emitted object_id, and
 // hands the bounded batch to the node writer.
 type KubernetesNamespaceMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter KubernetesNamespaceNodeWriter
 	// Instruments records the nodes-materialized counter. Nil-safe.
 	Instruments *telemetry.Instruments

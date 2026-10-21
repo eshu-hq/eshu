@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -15,7 +17,7 @@ func TestBuildSharedProjectionIntentDeterministicID(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	input := sharedintent.Input{
-		ProjectionDomain: DomainWorkloadDependency,
+		ProjectionDomain: reducercontract.DomainWorkloadDependency,
 		PartitionKey:     "pk-1",
 		RepositoryID:     "repo-1",
 		SourceRunID:      "run-1",
@@ -37,7 +39,7 @@ func TestBuildSharedProjectionIntentDifferentInputsDifferentIDs(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	base := sharedintent.Input{
-		ProjectionDomain: DomainWorkloadDependency,
+		ProjectionDomain: reducercontract.DomainWorkloadDependency,
 		PartitionKey:     "pk-1",
 		RepositoryID:     "repo-1",
 		SourceRunID:      "run-1",
@@ -62,7 +64,7 @@ func TestBuildSharedProjectionIntentIdentityKeyPreservesStoredPartition(t *testi
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	base := sharedintent.Input{
-		ProjectionDomain: DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey:     "code-calls:v1:files:repo-a:partition",
 		RepositoryID:     "repo-a",
 		SourceRunID:      "run-1",
@@ -94,7 +96,7 @@ func TestBuildSharedProjectionIntentSetsAllFields(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	input := sharedintent.Input{
-		ProjectionDomain: DomainRepoDependency,
+		ProjectionDomain: reducercontract.DomainRepoDependency,
 		PartitionKey:     "pk-test",
 		ScopeID:          "scope-test",
 		AcceptanceUnitID: "unit-test",
@@ -110,8 +112,8 @@ func TestBuildSharedProjectionIntentSetsAllFields(t *testing.T) {
 	if row.IntentID == "" {
 		t.Error("IntentID is empty")
 	}
-	if row.ProjectionDomain != DomainRepoDependency {
-		t.Errorf("ProjectionDomain = %q, want %q", row.ProjectionDomain, DomainRepoDependency)
+	if row.ProjectionDomain != reducercontract.DomainRepoDependency {
+		t.Errorf("ProjectionDomain = %q, want %q", row.ProjectionDomain, reducercontract.DomainRepoDependency)
 	}
 	if row.PartitionKey != "pk-test" {
 		t.Errorf("PartitionKey = %q", row.PartitionKey)
@@ -147,7 +149,7 @@ func TestBuildSharedProjectionIntentDifferentAcceptanceIdentityDifferentIDs(t *t
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	base := sharedintent.Input{
-		ProjectionDomain: DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey:     "caller->callee",
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",

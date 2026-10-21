@@ -14,7 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -284,8 +284,8 @@ func TestSharedIntentAcceptanceWriterStaleWriteCounterLive(t *testing.T) {
 		if err := writer.UpsertIntents(ctx, []sharedintent.Row{intent}); err != nil {
 			t.Fatalf("%s: UpsertIntents() error = %v", step.name, err)
 		}
-		if got := staleWritesByDomain(t, reader)[reducer.DomainCodeCalls]; got != step.wantStale {
-			t.Fatalf("%s: %s{domain=%s} = %d, want %d", step.name, staleWritesMetric, reducer.DomainCodeCalls, got, step.wantStale)
+		if got := staleWritesByDomain(t, reader)[reducercontract.DomainCodeCalls]; got != step.wantStale {
+			t.Fatalf("%s: %s{domain=%s} = %d, want %d", step.name, staleWritesMetric, reducercontract.DomainCodeCalls, got, step.wantStale)
 		}
 		if got := fixture.accepted(t, "run-6679"); got != fixture.genNew {
 			t.Fatalf("%s: accepted generation = %q, want %q", step.name, got, fixture.genNew)

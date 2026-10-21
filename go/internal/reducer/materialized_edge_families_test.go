@@ -6,6 +6,8 @@ package reducer
 import (
 	"sort"
 	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestMaterializedEdgeFamiliesLocksToAllProjectionDomains is the drift-proof
@@ -21,8 +23,8 @@ func TestMaterializedEdgeFamiliesLocksToAllProjectionDomains(t *testing.T) {
 
 	got := MaterializedEdgeFamilies()
 
-	want := make([]string, 0, len(allProjectionDomains))
-	for _, d := range allProjectionDomains {
+	want := make([]string, 0, len(reducercontract.ProjectionDomains()))
+	for _, d := range reducercontract.ProjectionDomains() {
 		want = append(want, string(d))
 	}
 	sort.Strings(want)
@@ -58,12 +60,12 @@ func TestMaterializedEdgeFamiliesContainsSQLRelationships(t *testing.T) {
 
 	found := false
 	for _, f := range MaterializedEdgeFamilies() {
-		if f == DomainSQLRelationships {
+		if f == reducercontract.DomainSQLRelationships {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("MaterializedEdgeFamilies() = %v, want it to contain %q", MaterializedEdgeFamilies(), DomainSQLRelationships)
+		t.Fatalf("MaterializedEdgeFamilies() = %v, want it to contain %q", MaterializedEdgeFamilies(), reducercontract.DomainSQLRelationships)
 	}
 }
 

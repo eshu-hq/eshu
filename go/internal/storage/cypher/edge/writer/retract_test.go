@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -23,7 +24,7 @@ func TestEdgeWriterRetractEdgesWorkloadDependencyDispatch(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainWorkloadDependency, rows, "finalization/workloads")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainWorkloadDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}

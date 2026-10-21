@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -29,7 +29,7 @@ func TestSharedIntentStoreUpsertAndList(t *testing.T) {
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-1",
-			ProjectionDomain: reducer.DomainWorkloadDependency,
+			ProjectionDomain: reducercontract.DomainWorkloadDependency,
 			PartitionKey:     "pk-1",
 			RepositoryID:     "repository:r_payments",
 			SourceRunID:      "run-001",
@@ -61,7 +61,7 @@ func TestSharedIntentStoreUpsertAndList(t *testing.T) {
 	if got[0].IntentID != "si-1" {
 		t.Errorf("IntentID = %q", got[0].IntentID)
 	}
-	if got[0].ProjectionDomain != reducer.DomainWorkloadDependency {
+	if got[0].ProjectionDomain != reducercontract.DomainWorkloadDependency {
 		t.Errorf("ProjectionDomain = %q", got[0].ProjectionDomain)
 	}
 }
@@ -77,7 +77,7 @@ func TestSharedIntentStoreUpsertOverwrites(t *testing.T) {
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-upsert",
-			ProjectionDomain: reducer.DomainWorkloadDependency,
+			ProjectionDomain: reducercontract.DomainWorkloadDependency,
 			PartitionKey:     "pk-1",
 			RepositoryID:     "repository:r_api",
 			SourceRunID:      "run-002",
@@ -123,7 +123,7 @@ func TestSharedIntentStoreUpsertIntentsDeduplicatesBatchIntentIDs(t *testing.T) 
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-duplicate",
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "entity:caller->entity:callee",
 			ScopeID:          "scope:git:repo-1",
 			AcceptanceUnitID: "repository:repo-1",
@@ -137,7 +137,7 @@ func TestSharedIntentStoreUpsertIntentsDeduplicatesBatchIntentIDs(t *testing.T) 
 		},
 		{
 			IntentID:         "si-duplicate",
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "entity:caller->entity:callee",
 			ScopeID:          "scope:git:repo-1",
 			AcceptanceUnitID: "repository:repo-1",
@@ -175,7 +175,7 @@ func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 
 	pending := sharedintent.Row{
 		IntentID:         "si-pending",
-		ProjectionDomain: reducer.DomainWorkloadDependency,
+		ProjectionDomain: reducercontract.DomainWorkloadDependency,
 		PartitionKey:     "pk-1",
 		RepositoryID:     "repository:r_pending",
 		SourceRunID:      "run-p",
@@ -186,7 +186,7 @@ func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 	}
 	done := sharedintent.Row{
 		IntentID:         "si-done",
-		ProjectionDomain: reducer.DomainWorkloadDependency,
+		ProjectionDomain: reducercontract.DomainWorkloadDependency,
 		PartitionKey:     "pk-2",
 		RepositoryID:     "repository:r_done",
 		SourceRunID:      "run-d",
@@ -200,7 +200,7 @@ func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 		t.Fatalf("UpsertIntents: %v", err)
 	}
 
-	got, err := store.ListPendingDomainIntents(ctx, reducer.DomainWorkloadDependency, 100)
+	got, err := store.ListPendingDomainIntents(ctx, reducercontract.DomainWorkloadDependency, 100)
 	if err != nil {
 		t.Fatalf("ListPendingDomainIntents: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestSharedIntentStoreMarkIntentsCompleted(t *testing.T) {
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-mark-1",
-			ProjectionDomain: reducer.DomainWorkloadDependency,
+			ProjectionDomain: reducercontract.DomainWorkloadDependency,
 			PartitionKey:     "pk-1",
 			RepositoryID:     "repository:r_mark",
 			SourceRunID:      "run-m",
@@ -247,7 +247,7 @@ func TestSharedIntentStoreMarkIntentsCompleted(t *testing.T) {
 	}
 
 	// Verify it no longer appears in pending.
-	got, err := store.ListPendingDomainIntents(ctx, reducer.DomainWorkloadDependency, 100)
+	got, err := store.ListPendingDomainIntents(ctx, reducercontract.DomainWorkloadDependency, 100)
 	if err != nil {
 		t.Fatalf("ListPendingDomainIntents: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestSharedIntentStoreUpsertIntentsBatch(t *testing.T) {
 	for i := 0; i < 1200; i++ {
 		rows[i] = sharedintent.Row{
 			IntentID:         fmt.Sprintf("si-batch-%d", i),
-			ProjectionDomain: reducer.DomainWorkloadDependency,
+			ProjectionDomain: reducercontract.DomainWorkloadDependency,
 			PartitionKey:     fmt.Sprintf("pk-%d", i%10),
 			RepositoryID:     "repository:r_batch_test",
 			SourceRunID:      "run-batch",
@@ -400,7 +400,7 @@ func TestSharedIntentStorePersistsAcceptanceIdentity(t *testing.T) {
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-identity",
-			ProjectionDomain: reducer.DomainWorkloadDependency,
+			ProjectionDomain: reducercontract.DomainWorkloadDependency,
 			PartitionKey:     "pk-identity",
 			RepositoryID:     "repository:r_identity",
 			SourceRunID:      "run-identity",
@@ -441,7 +441,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitDomainIntents(t *testing.T) 
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-completed",
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "caller->callee",
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
@@ -454,7 +454,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitDomainIntents(t *testing.T) 
 		},
 		{
 			IntentID:         "si-pending",
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "caller->callee",
 			ScopeID:          "scope-b",
 			AcceptanceUnitID: "repo-a",
@@ -473,7 +473,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitDomainIntents(t *testing.T) 
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
-	}, reducer.DomainCodeCalls)
+	}, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("HasCompletedAcceptanceUnitDomainIntents: %v", err)
 	}
@@ -485,7 +485,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitDomainIntents(t *testing.T) 
 		ScopeID:          "scope-b",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
-	}, reducer.DomainCodeCalls)
+	}, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("HasCompletedAcceptanceUnitDomainIntents pending scope: %v", err)
 	}
@@ -506,7 +506,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunDomainIntents(t *te
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "si-completed-old-run",
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "caller->callee",
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
@@ -519,7 +519,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunDomainIntents(t *te
 		},
 		{
 			IntentID:         "si-completed-current-run",
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "caller->callee",
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
@@ -539,7 +539,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunDomainIntents(t *te
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
-	}, reducer.DomainCodeCalls)
+	}, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("HasCompletedAcceptanceUnitSourceRunDomainIntents: %v", err)
 	}
@@ -551,7 +551,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunDomainIntents(t *te
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-missing",
-	}, reducer.DomainCodeCalls)
+	}, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("HasCompletedAcceptanceUnitSourceRunDomainIntents missing run: %v", err)
 	}

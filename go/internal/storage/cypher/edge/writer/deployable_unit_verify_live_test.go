@@ -17,6 +17,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -142,7 +143,7 @@ func TestLiveVerifyDeployableUnitEdgesEdgePresent(t *testing.T) {
 
 	w := NewEdgeWriter(&boltProbeTestExecutor{runner: runner}, 0)
 	rows := []sharedintent.Row{liveDeployableUnitRow(source, target)}
-	if _, err := w.WriteEdges(ctx, reducer.DomainDeployableUnitEdges, rows, deployableUnitTestEvidenceSource); err != nil {
+	if _, err := w.WriteEdges(ctx, reducercontract.DomainDeployableUnitEdges, rows, deployableUnitTestEvidenceSource); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if err := w.VerifyDeployableUnitEdges(ctx, rows, deployableUnitTestEvidenceSource); err != nil {

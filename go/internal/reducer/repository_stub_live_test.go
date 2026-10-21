@@ -16,7 +16,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -69,7 +69,7 @@ func (l *repoRetryLive) writeStubEdges(ctx context.Context, t *testing.T, w *edg
 			"evidence_count": 1, "resolution_source": "test", "rationale": "#7446", "source_tool": "test",
 		},
 	}}
-	if _, err := w.WriteEdges(ctx, reducer.DomainRepoDependency, dependency, stubRepoDependencySource); err != nil {
+	if _, err := w.WriteEdges(ctx, reducercontract.DomainRepoDependency, dependency, stubRepoDependencySource); err != nil {
 		t.Fatalf("repo_dependency WriteEdges to %s: %v", target, err)
 	}
 	pin := []sharedintent.Row{{
@@ -79,7 +79,7 @@ func (l *repoRetryLive) writeStubEdges(ctx context.Context, t *testing.T, w *edg
 			"generation_id": "reducer-gen",
 		},
 	}}
-	if _, err := w.WriteEdges(ctx, reducer.DomainSubmodulePinEdges, pin, stubSubmodulePinSource); err != nil {
+	if _, err := w.WriteEdges(ctx, reducercontract.DomainSubmodulePinEdges, pin, stubSubmodulePinSource); err != nil {
 		t.Fatalf("submodule_pin WriteEdges to %s: %v", target, err)
 	}
 }

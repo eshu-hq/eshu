@@ -13,7 +13,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -63,7 +63,7 @@ func TestRetractEdgesRationaleDeltaSkipsDeletesWhenProbesFindNothing(t *testing.
 	writer := NewEdgeWriter(executor, 0)
 
 	if err := writer.RetractEdges(
-		context.Background(), reducer.DomainRationaleEdges, rationaleDeltaRows(), canonicalRationaleEvidenceSource,
+		context.Background(), reducercontract.DomainRationaleEdges, rationaleDeltaRows(), canonicalRationaleEvidenceSource,
 	); err != nil {
 		t.Fatalf("RetractEdges() error = %v, want nil", err)
 	}
@@ -87,7 +87,7 @@ func TestRetractEdgesRationaleDeltaRunsDeletesWhenProbesFindRows(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	if err := writer.RetractEdges(
-		context.Background(), reducer.DomainRationaleEdges, rationaleDeltaRows(), canonicalRationaleEvidenceSource,
+		context.Background(), reducercontract.DomainRationaleEdges, rationaleDeltaRows(), canonicalRationaleEvidenceSource,
 	); err != nil {
 		t.Fatalf("RetractEdges() error = %v, want nil", err)
 	}
@@ -106,7 +106,7 @@ func TestRetractEdgesRationaleDeltaProbeErrorStillDeletes(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	if err := writer.RetractEdges(
-		context.Background(), reducer.DomainRationaleEdges, rationaleDeltaRows(), canonicalRationaleEvidenceSource,
+		context.Background(), reducercontract.DomainRationaleEdges, rationaleDeltaRows(), canonicalRationaleEvidenceSource,
 	); err != nil {
 		t.Fatalf("RetractEdges() error = %v, want nil", err)
 	}
@@ -126,7 +126,7 @@ func TestRetractEdgesRationaleDeltaWithoutProbeSupportDeletesEverything(t *testi
 	writer := NewEdgeWriter(executor, 0)
 
 	if err := writer.RetractEdges(
-		context.Background(), reducer.DomainRationaleEdges, rationaleDeltaRows(), canonicalRationaleEvidenceSource,
+		context.Background(), reducercontract.DomainRationaleEdges, rationaleDeltaRows(), canonicalRationaleEvidenceSource,
 	); err != nil {
 		t.Fatalf("RetractEdges() error = %v, want nil", err)
 	}

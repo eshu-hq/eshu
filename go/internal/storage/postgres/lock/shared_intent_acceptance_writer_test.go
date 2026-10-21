@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -33,7 +33,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsUsesTransactionWhenAvailable(t
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "intent-repo-dependency",
-			ProjectionDomain: reducer.DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey:     "repository:source->repository:target",
 			ScopeID:          "scope:git:source",
 			AcceptanceUnitID: "repository:source",
@@ -88,7 +88,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsFallsBackWithoutTransactions(t
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "intent-repo-dependency",
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "repository:source->repository:target",
 			ScopeID:          "scope:git:source",
 			AcceptanceUnitID: "repository:source",
@@ -120,7 +120,7 @@ func TestSharedIntentAcceptanceWriterRejectsRepoDependencyWithoutTransaction(t *
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "intent-repo-dependency",
-			ProjectionDomain: reducer.DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey:     "repository:source->repository:target",
 			ScopeID:          "scope:git:source",
 			AcceptanceUnitID: "repository:source",
@@ -151,10 +151,10 @@ func TestSharedIntentAcceptanceWriterLocksDistinctRepoDependenciesInSortedOrder(
 	writer := postgres.NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	rows := []sharedintent.Row{
-		sharedIntentAcceptanceWriterRow("intent-b", reducer.DomainRepoDependency, "repository:repo-b", now),
-		sharedIntentAcceptanceWriterRow("intent-code", reducer.DomainCodeCalls, "repository:repo-code", now),
-		sharedIntentAcceptanceWriterRow("intent-a", reducer.DomainRepoDependency, "repository:repo-a", now),
-		sharedIntentAcceptanceWriterRow("intent-a-duplicate", reducer.DomainRepoDependency, "repository:repo-a", now),
+		sharedIntentAcceptanceWriterRow("intent-b", reducercontract.DomainRepoDependency, "repository:repo-b", now),
+		sharedIntentAcceptanceWriterRow("intent-code", reducercontract.DomainCodeCalls, "repository:repo-code", now),
+		sharedIntentAcceptanceWriterRow("intent-a", reducercontract.DomainRepoDependency, "repository:repo-a", now),
+		sharedIntentAcceptanceWriterRow("intent-a-duplicate", reducercontract.DomainRepoDependency, "repository:repo-a", now),
 	}
 
 	if err := writer.UpsertIntents(context.Background(), rows); err != nil {
@@ -191,7 +191,7 @@ func TestSharedIntentAcceptanceWriterPreservesDisjointRepoConcurrency(t *testing
 	sameRepoDone := make(chan error, 1)
 	go func() {
 		sameRepoDone <- writer.UpsertIntents(context.Background(), []sharedintent.Row{
-			sharedIntentAcceptanceWriterRow("intent-a", reducer.DomainRepoDependency, "repository:repo-a", now),
+			sharedIntentAcceptanceWriterRow("intent-a", reducercontract.DomainRepoDependency, "repository:repo-a", now),
 		})
 	}()
 
@@ -204,7 +204,7 @@ func TestSharedIntentAcceptanceWriterPreservesDisjointRepoConcurrency(t *testing
 	disjointCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	if err := writer.UpsertIntents(disjointCtx, []sharedintent.Row{
-		sharedIntentAcceptanceWriterRow("intent-b", reducer.DomainRepoDependency, "repository:repo-b", now),
+		sharedIntentAcceptanceWriterRow("intent-b", reducercontract.DomainRepoDependency, "repository:repo-b", now),
 	}); err != nil {
 		t.Fatalf("disjoint repo acceptance blocked: %v", err)
 	}
@@ -251,7 +251,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMissingAcceptanceIdenti
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "intent-missing-identity",
-			ProjectionDomain: reducer.DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey:     "repository:source->repository:target",
 			RepositoryID:     "repository:source",
 			SourceRunID:      "run-001",
@@ -282,7 +282,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMixedGenerationAcceptan
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "intent-1",
-			ProjectionDomain: reducer.DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey:     "repository:source->repository:target-a",
 			ScopeID:          "scope:git:source",
 			AcceptanceUnitID: "repository:source",
@@ -294,7 +294,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMixedGenerationAcceptan
 		},
 		{
 			IntentID:         "intent-2",
-			ProjectionDomain: reducer.DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey:     "repository:source->repository:target-b",
 			ScopeID:          "scope:git:source",
 			AcceptanceUnitID: "repository:source",
@@ -329,7 +329,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRollsBackWhenAcceptanceWriteFa
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "intent-repo-dependency",
-			ProjectionDomain: reducer.DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey:     "repository:source->repository:target",
 			ScopeID:          "scope:git:source",
 			AcceptanceUnitID: "repository:source",

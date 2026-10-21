@@ -29,7 +29,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -192,10 +192,10 @@ func runRepoDependencySourceCycle(
 	// cleanup and idempotent duplicate replay without permitting two workers to
 	// mutate the same source repository concurrently.
 	for replay := 0; replay < 2; replay++ {
-		if err := writer.RetractEdges(ctx, reducer.DomainRepoDependency, retractRows, repoDependencyConcurrencySource); err != nil {
+		if err := writer.RetractEdges(ctx, reducercontract.DomainRepoDependency, retractRows, repoDependencyConcurrencySource); err != nil {
 			return fmt.Errorf("replay %d retract: %w", replay, err)
 		}
-		if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, writes, repoDependencyConcurrencySource); err != nil {
+		if _, err := writer.WriteEdges(ctx, reducercontract.DomainRepoDependency, writes, repoDependencyConcurrencySource); err != nil {
 			return fmt.Errorf("replay %d write: %w", replay, err)
 		}
 	}
@@ -293,7 +293,7 @@ func seedRepoDependencyConcurrencyStaleEdges(
 	}
 	if _, err := edgewriter.NewEdgeWriter(exec, 0).WriteEdges(
 		ctx,
-		reducer.DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		rows,
 		repoDependencyConcurrencySource,
 	); err != nil {

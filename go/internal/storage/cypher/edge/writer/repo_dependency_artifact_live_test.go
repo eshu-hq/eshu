@@ -13,7 +13,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -156,7 +156,7 @@ func TestBoltWriteEdgesRepoDependencyArtifactColdEndpointsPersist(t *testing.T) 
 	for i := 0; i < n; i++ {
 		rows = append(rows, keeperRepoDependencyRow(tag, i))
 	}
-	if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges errored (not the silent-loss defect): %v", err)
 	}
 

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
@@ -62,7 +64,7 @@ func TestSharedProjectionReadinessPhaseUsesCanonicalNodesForCodeCalls(t *testing
 	// the edge writer, so canonical-nodes is the only prerequisite. Gating any of
 	// them on semantic-nodes stalls projection because that phase is published only
 	// when the semantic-entity reducer runs.
-	for _, domain := range []string{DomainCodeCalls, DomainInheritanceEdges, DomainSQLRelationships, DomainRationaleEdges} {
+	for _, domain := range []string{reducercontract.DomainCodeCalls, reducercontract.DomainInheritanceEdges, reducercontract.DomainSQLRelationships, reducercontract.DomainRationaleEdges} {
 		domain := domain
 		t.Run(domain, func(t *testing.T) {
 			t.Parallel()
@@ -81,7 +83,7 @@ func TestSharedProjectionReadinessPhaseUsesCanonicalNodesForCodeCalls(t *testing
 func TestSharedProjectionReadinessPhaseUsesSemanticNodesForSemanticEdgeDomains(t *testing.T) {
 	t.Parallel()
 
-	tests := []string{DomainDocumentationEdges}
+	tests := []string{reducercontract.DomainDocumentationEdges}
 	for _, domain := range tests {
 		domain := domain
 		t.Run(domain, func(t *testing.T) {

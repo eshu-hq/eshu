@@ -15,7 +15,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -420,13 +420,13 @@ func buildDocumentationDeltaRetractStatements(
 // re-introduce the #6166 over-delete with every test in that file green,
 // because no loop here would ever reach it.
 var wholeScopeRetractDomains = map[string]bool{
-	reducer.DomainInheritanceEdges:   true,
-	reducer.DomainRationaleEdges:     true,
-	reducer.DomainSQLRelationships:   true,
-	reducer.DomainShellExec:          true,
-	reducer.DomainHandlesRoute:       false,
-	reducer.DomainRunsIn:             false,
-	reducer.DomainInvokesCloudAction: false,
+	reducercontract.DomainInheritanceEdges:   true,
+	reducercontract.DomainRationaleEdges:     true,
+	reducercontract.DomainSQLRelationships:   true,
+	reducercontract.DomainShellExec:          true,
+	reducercontract.DomainHandlesRoute:       false,
+	reducercontract.DomainRunsIn:             false,
+	reducercontract.DomainInvokesCloudAction: false,
 }
 
 // wholeScopeNarrowedDomains returns the narrowed half of

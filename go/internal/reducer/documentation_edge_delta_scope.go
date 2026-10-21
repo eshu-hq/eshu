@@ -36,7 +36,7 @@ var documentationMaterializationFactKinds = []string{
 
 func loadDocumentationMaterializationFacts(
 	ctx context.Context,
-	loader FactLoader,
+	loader factload.FactLoader,
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {

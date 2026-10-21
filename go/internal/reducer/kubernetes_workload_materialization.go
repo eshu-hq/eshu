@@ -80,7 +80,7 @@ type KubernetesWorkloadNodeWriter interface {
 // gates its projection on this phase, so edges never resolve against a
 // generation whose nodes have not yet committed.
 type KubernetesWorkloadMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter KubernetesWorkloadNodeWriter
 	// PhasePublisher records the canonical-nodes-committed readiness phase that
 	// gates the live-workload edge projection. A nil publisher is a no-op so the

@@ -108,8 +108,8 @@ func TestSubmodulePinHandlerBuildsOneEdgePerResolvedFact(t *testing.T) {
 
 	wantPaths := map[string]bool{"vendor/lib-a": false, "vendor/lib-b": false}
 	for _, row := range writer.writeRows {
-		if row.ProjectionDomain != DomainSubmodulePinEdges {
-			t.Errorf("ProjectionDomain = %q, want %q", row.ProjectionDomain, DomainSubmodulePinEdges)
+		if row.ProjectionDomain != reducercontract.DomainSubmodulePinEdges {
+			t.Errorf("ProjectionDomain = %q, want %q", row.ProjectionDomain, reducercontract.DomainSubmodulePinEdges)
 		}
 		if row.RepositoryID != "repo-parent" {
 			t.Errorf("RepositoryID = %q, want repo-parent", row.RepositoryID)
@@ -210,8 +210,8 @@ func TestSubmodulePinHandlerDeletedFileRetractsWithoutWrites(t *testing.T) {
 	if result.CanonicalWrites != 0 {
 		t.Fatalf("CanonicalWrites = %d, want 0", result.CanonicalWrites)
 	}
-	if writer.retractDomain != DomainSubmodulePinEdges {
-		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainSubmodulePinEdges)
+	if writer.retractDomain != reducercontract.DomainSubmodulePinEdges {
+		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, reducercontract.DomainSubmodulePinEdges)
 	}
 	if len(writer.retractRows) != 1 {
 		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))

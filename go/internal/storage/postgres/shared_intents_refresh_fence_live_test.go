@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -72,7 +72,7 @@ func TestSharedIntentStoreGenerationRefreshFenceAgainstPostgres(t *testing.T) {
 	if err := store.UpsertIntents(ctx, []sharedintent.Row{exactRetry}); err != nil {
 		t.Fatalf("upsert exact same-generation retry: %v", err)
 	}
-	pending, err := store.ListPendingDomainIntents(ctx, reducer.DomainSQLRelationships, 10)
+	pending, err := store.ListPendingDomainIntents(ctx, reducercontract.DomainSQLRelationships, 10)
 	if err != nil {
 		t.Fatalf("list pending after exact retry: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestSharedIntentStoreGenerationRefreshFenceAgainstPostgres(t *testing.T) {
 func refreshFenceProofIntent(generationID string, createdAt time.Time) sharedintent.Row {
 	const repositoryID = "repo-sql"
 	return sharedintent.Build(sharedintent.Input{
-		ProjectionDomain: reducer.DomainSQLRelationships,
+		ProjectionDomain: reducercontract.DomainSQLRelationships,
 		PartitionKey:     "sql_relationships:refresh:v1:whole:" + repositoryID,
 		ScopeID:          "scope-sql",
 		AcceptanceUnitID: repositoryID,
@@ -132,7 +132,7 @@ func assertGenerationRefreshFenceReady(
 		},
 		generationID,
 		partitionKey,
-		reducer.DomainSQLRelationships,
+		reducercontract.DomainSQLRelationships,
 	)
 	if err != nil {
 		t.Fatalf("query generation refresh fence: %v", err)

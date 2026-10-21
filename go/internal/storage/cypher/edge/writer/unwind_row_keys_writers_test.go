@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -25,7 +25,7 @@ type edgeWriterSparseCase struct {
 var edgeWriterSparseCases = []edgeWriterSparseCase{
 	{
 		name:   "repo dependency with a bare evidence artifact",
-		domain: reducer.DomainRepoDependency,
+		domain: reducercontract.DomainRepoDependency,
 		payloads: []map[string]any{
 			{
 				"repo_id":           "repo-a",
@@ -49,12 +49,12 @@ var edgeWriterSparseCases = []edgeWriterSparseCase{
 	},
 	{
 		name:     "workload dependency",
-		domain:   reducer.DomainWorkloadDependency,
+		domain:   reducercontract.DomainWorkloadDependency,
 		payloads: []map[string]any{{"workload_id": "w-1", "target_workload_id": "w-2"}},
 	},
 	{
 		name:   "code calls without call_kind",
-		domain: reducer.DomainCodeCalls,
+		domain: reducercontract.DomainCodeCalls,
 		payloads: []map[string]any{
 			{"caller_entity_id": "f-1", "callee_entity_id": "f-2"},
 			{"caller_entity_id": "f-1", "callee_entity_id": "f-3", "caller_entity_type": "Function", "callee_entity_type": "Function"},
@@ -67,7 +67,7 @@ var edgeWriterSparseCases = []edgeWriterSparseCase{
 	},
 	{
 		name:   "inheritance",
-		domain: reducer.DomainInheritanceEdges,
+		domain: reducercontract.DomainInheritanceEdges,
 		payloads: []map[string]any{
 			{"child_entity_id": "c-1", "parent_entity_id": "c-2"},
 			{"child_entity_id": "c-1", "parent_entity_id": "c-3", "child_entity_type": "Class", "parent_entity_type": "Class"},
@@ -78,7 +78,7 @@ var edgeWriterSparseCases = []edgeWriterSparseCase{
 	},
 	{
 		name:   "documentation",
-		domain: reducer.DomainDocumentationEdges,
+		domain: reducercontract.DomainDocumentationEdges,
 		payloads: []map[string]any{
 			{"section_uid": "s-1", "target_entity_id": "e-1"},
 			{"section_uid": "s-2", "target_entity_id": "w-1", "target_kind": "workload"},
@@ -86,12 +86,12 @@ var edgeWriterSparseCases = []edgeWriterSparseCase{
 	},
 	{
 		name:     "rationale",
-		domain:   reducer.DomainRationaleEdges,
+		domain:   reducercontract.DomainRationaleEdges,
 		payloads: []map[string]any{{"rationale_uid": "r-1", "target_entity_id": "e-1"}},
 	},
 	{
 		name:   "sql relationships",
-		domain: reducer.DomainSQLRelationships,
+		domain: reducercontract.DomainSQLRelationships,
 		payloads: []map[string]any{
 			{"source_entity_id": "q-1", "target_entity_id": "t-1", "relationship_type": "QUERIES_TABLE"},
 			{"source_entity_id": "t-1", "target_entity_id": "col-1", "relationship_type": "HAS_COLUMN"},
@@ -101,14 +101,14 @@ var edgeWriterSparseCases = []edgeWriterSparseCase{
 	},
 	{
 		name:   "shell exec",
-		domain: reducer.DomainShellExec,
+		domain: reducercontract.DomainShellExec,
 		payloads: []map[string]any{
 			{"source_entity_id": "f-1", "target_entity_id": "s-1", "repo_id": "repo-a", "source_path": "run.sh"},
 		},
 	},
 	{
 		name:   "deployable unit correlation",
-		domain: reducer.DomainDeployableUnitEdges,
+		domain: reducercontract.DomainDeployableUnitEdges,
 		payloads: []map[string]any{{
 			"repo_id": "repo-a", "deployment_repo_id": "repo-b", "deployable_unit_key": "unit",
 			"correlation_key": "corr", "relationship_type": "DEPLOYS_FROM",
@@ -116,29 +116,29 @@ var edgeWriterSparseCases = []edgeWriterSparseCase{
 	},
 	{
 		name:     "handles route",
-		domain:   reducer.DomainHandlesRoute,
+		domain:   reducercontract.DomainHandlesRoute,
 		payloads: []map[string]any{{"function_entity_id": "f-1", "repo_id": "repo-a", "path": "/health"}},
 	},
 	{
 		name:     "runs in",
-		domain:   reducer.DomainRunsIn,
+		domain:   reducercontract.DomainRunsIn,
 		payloads: []map[string]any{{"function_id": "f-1", "repo_id": "repo-a"}},
 	},
 	{
 		name:     "invokes cloud action",
-		domain:   reducer.DomainInvokesCloudAction,
+		domain:   reducercontract.DomainInvokesCloudAction,
 		payloads: []map[string]any{{"function_id": "f-1", "cloud_action": "s3:GetObject", "action_id": "act-1"}},
 	},
 	{
 		name:   "codeowners ownership",
-		domain: reducer.DomainCodeownersOwnershipEdges,
+		domain: reducercontract.DomainCodeownersOwnershipEdges,
 		payloads: []map[string]any{
 			{"repo_id": "repo-a", "owner_ref": "@team", "pattern": "*", "source_path": "CODEOWNERS"},
 		},
 	},
 	{
 		name:   "submodule pin without pinned_sha",
-		domain: reducer.DomainSubmodulePinEdges,
+		domain: reducercontract.DomainSubmodulePinEdges,
 		payloads: []map[string]any{
 			{"parent_repo_id": "repo-a", "resolved_repo_id": "repo-b", "submodule_path": "vendor/b"},
 		},
@@ -193,19 +193,19 @@ func TestEdgeWriterSparseOptionalKeysAreNil(t *testing.T) {
 	}{
 		{
 			name:    "code call",
-			domain:  reducer.DomainCodeCalls,
+			domain:  reducercontract.DomainCodeCalls,
 			payload: map[string]any{"caller_entity_id": "f-1", "callee_entity_id": "f-2"},
 			keys:    []string{"call_kind"},
 		},
 		{
 			name:    "submodule pin",
-			domain:  reducer.DomainSubmodulePinEdges,
+			domain:  reducercontract.DomainSubmodulePinEdges,
 			payload: map[string]any{"parent_repo_id": "repo-a", "resolved_repo_id": "repo-b", "submodule_path": "vendor/b"},
 			keys:    []string{"pinned_sha"},
 		},
 		{
 			name:   "evidence artifact",
-			domain: reducer.DomainRepoDependency,
+			domain: reducercontract.DomainRepoDependency,
 			payload: map[string]any{
 				"repo_id": "repo-a", "target_repo_id": "repo-b", "relationship_type": "DEPLOYS_FROM",
 				"evidence_artifacts": []any{map[string]any{"evidence_kind": "HELM_VALUES_REFERENCE", "path": "values.yaml"}},

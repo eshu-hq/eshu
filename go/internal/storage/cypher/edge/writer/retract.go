@@ -11,7 +11,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -45,7 +45,7 @@ func (w *EdgeWriter) RetractEdges(
 		return fmt.Errorf("edge writer executor is required")
 	}
 
-	if domain == reducer.DomainCodeCalls {
+	if domain == reducercontract.DomainCodeCalls {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
 		if err != nil {
 			return err
@@ -60,7 +60,7 @@ func (w *EdgeWriter) RetractEdges(
 		return err
 	}
 
-	if domain == reducer.DomainDocumentationEdges {
+	if domain == reducercontract.DomainDocumentationEdges {
 		// Documentation is scope-scoped: every retract anchors on
 		// section.scope_id, so the durable owner is the row's scope id (not its
 		// repository id). Thread collectScopeIDs here for both the delta and the
@@ -95,7 +95,7 @@ func (w *EdgeWriter) RetractEdges(
 	// domains those are is the narrowed half of wholeScopeRetractDomains
 	// (retract_scope.go), never a count restated here (#6276).
 	repoIDs := collectRepoIDs(rows)
-	if domain == reducer.DomainCodeCalls {
+	if domain == reducercontract.DomainCodeCalls {
 		// Deliberately the batch-wide repoIDs, and NOT the narrowing its
 		// fenced siblings apply -- this branch looks like them and is not one
 		// (#6166). DomainCodeCalls is in NEITHER half of
@@ -110,10 +110,10 @@ func (w *EdgeWriter) RetractEdges(
 		stmts := sourcecypher.BuildRetractCodeCallEdgeStatements(repoIDs, evidenceSource)
 		return w.executeCodeCallRetractStatements(ctx, stmts)
 	}
-	if domain == reducer.DomainRepoDependency {
+	if domain == reducercontract.DomainRepoDependency {
 		return w.executeRepoDependencyRetractStatements(ctx, repoIDs, evidenceSource)
 	}
-	if domain == reducer.DomainCodeownersOwnershipEdges {
+	if domain == reducercontract.DomainCodeownersOwnershipEdges {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
 		if err != nil {
 			return err
@@ -278,7 +278,7 @@ func buildRetractStatement(
 	evidenceSource string,
 ) (sourcecypher.Statement, error) {
 	switch domain {
-	case reducer.DomainWorkloadDependency:
+	case reducercontract.DomainWorkloadDependency:
 		return sourcecypher.BuildRetractWorkloadDependencyEdges(repoIDs, evidenceSource), nil
 	// DomainCodeCalls is handled before this shared repo-id path in RetractEdges
 	// because its retract fans out to one per-source-label statement (#5116) and
@@ -298,11 +298,11 @@ func buildRetractStatement(
 	// statement run sequentially (the SQL sibling of #5116) and must never
 	// reach this single-statement builder; the old unlabeled-scan fallback
 	// silently under-deleted on NornicDB v1.1.11.
-	case reducer.DomainShellExec:
+	case reducercontract.DomainShellExec:
 		return BuildRetractShellExecEdges(repoIDs, evidenceSource), nil
-	case reducer.DomainDeployableUnitEdges:
+	case reducercontract.DomainDeployableUnitEdges:
 		return sourcecypher.BuildRetractDeployableUnitCorrelationEdges(repoIDs, evidenceSource), nil
-	case reducer.DomainHandlesRoute:
+	case reducercontract.DomainHandlesRoute:
 		return sourcecypher.Statement{
 			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher:    node.RetractHandlesRouteEdgesCypher,
@@ -311,7 +311,7 @@ func buildRetractStatement(
 				"evidence_source": evidenceSource,
 			},
 		}, nil
-	case reducer.DomainRunsIn:
+	case reducercontract.DomainRunsIn:
 		return sourcecypher.Statement{
 			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher:    node.RetractRunsInEdgesCypher,
@@ -320,7 +320,7 @@ func buildRetractStatement(
 				"evidence_source": evidenceSource,
 			},
 		}, nil
-	case reducer.DomainInvokesCloudAction:
+	case reducercontract.DomainInvokesCloudAction:
 		return sourcecypher.Statement{
 			Operation: sourcecypher.OperationCanonicalRetract,
 			Cypher:    node.RetractInvokesCloudActionEdgesCypher,
@@ -329,7 +329,7 @@ func buildRetractStatement(
 				"evidence_source": evidenceSource,
 			},
 		}, nil
-	case reducer.DomainCodeownersOwnershipEdges:
+	case reducercontract.DomainCodeownersOwnershipEdges:
 		return sourcecypher.BuildRetractCodeownersOwnershipEdges(repoIDs, evidenceSource), nil
 	// DomainSubmodulePinEdges never reaches the file-path-scoped
 	// collectDeltaFilePaths branch above: buildSubmodulePinRetractRows
@@ -337,7 +337,7 @@ func buildRetractStatement(
 	// whole-repository retract rows (or skips a repo entirely when its delta
 	// did not touch ".gitmodules"), so every retract row lands here with the
 	// single repo-anchored whole-repository statement below.
-	case reducer.DomainSubmodulePinEdges:
+	case reducercontract.DomainSubmodulePinEdges:
 		return sourcecypher.BuildRetractSubmodulePinEdges(repoIDs, evidenceSource), nil
 	default:
 		return sourcecypher.Statement{}, fmt.Errorf("unsupported domain for retract: %q", domain)
@@ -377,7 +377,7 @@ func (w *EdgeWriter) retractFencedRepoWideDomain(
 		return false, nil
 	}
 
-	if domain == reducer.DomainInheritanceEdges {
+	if domain == reducercontract.DomainInheritanceEdges {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
 		if err != nil {
 			return true, err
@@ -406,7 +406,7 @@ func (w *EdgeWriter) retractFencedRepoWideDomain(
 		stmts := sourcecypher.BuildRetractInheritanceEdgeStatements(wholeScopeRepoIDs, evidenceSource)
 		return true, w.executeInheritanceRetractStatements(ctx, stmts)
 	}
-	if domain == reducer.DomainRationaleEdges {
+	if domain == reducercontract.DomainRationaleEdges {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
 		if err != nil {
 			return true, err
@@ -437,7 +437,7 @@ func (w *EdgeWriter) retractFencedRepoWideDomain(
 		return true, w.retractRationaleEdgesWithProbe(ctx, wholeScopeRepoIDs, evidenceSource)
 	}
 
-	if domain == reducer.DomainSQLRelationships {
+	if domain == reducercontract.DomainSQLRelationships {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
 		if err != nil {
 			return true, err
@@ -466,7 +466,7 @@ func (w *EdgeWriter) retractFencedRepoWideDomain(
 		stmts := BuildRetractSQLRelationshipEdgeStatements(wholeScopeRepoIDs, evidenceSource)
 		return true, w.executeSQLRelationshipRetractStatements(ctx, stmts)
 	}
-	if domain == reducer.DomainShellExec {
+	if domain == reducercontract.DomainShellExec {
 		filePaths, hasDeltaScope, err := collectDeltaFilePaths(rows)
 		if err != nil {
 			return true, err

@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -218,7 +218,7 @@ func TestEdgeWriterRetractEdgesDocumentationDeltaUsesDocumentScope(t *testing.T)
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainDocumentationEdges, rows, "reducer/documentation")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainDocumentationEdges, rows, "reducer/documentation")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -262,7 +262,7 @@ func TestEdgeWriterRetractEdgesDocumentationDeltaUsesSectionScope(t *testing.T) 
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainDocumentationEdges, rows, "reducer/documentation")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainDocumentationEdges, rows, "reducer/documentation")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -300,7 +300,7 @@ func TestEdgeWriterRetractEdgesDocumentationWholeScopeBindsScopeIDNotRepoID(t *t
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainDocumentationEdges, rows, "reducer/documentation")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainDocumentationEdges, rows, "reducer/documentation")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -340,7 +340,7 @@ func TestEdgeWriterRetractEdgesDocumentationDeltaBindsScopeIDNotRepoID(t *testin
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainDocumentationEdges, rows, "reducer/documentation")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainDocumentationEdges, rows, "reducer/documentation")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -377,7 +377,7 @@ func TestEdgeWriterRetractEdgesDocumentationRejectsDeltaWithoutIdentity(t *testi
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainDocumentationEdges, rows, "reducer/documentation")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainDocumentationEdges, rows, "reducer/documentation")
 	if err == nil {
 		t.Fatal("RetractEdges() error = nil, want malformed delta scope error")
 	}

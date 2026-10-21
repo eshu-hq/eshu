@@ -21,7 +21,7 @@ func runsInIntentRow(intentID, repoID string) sharedintent.Row {
 	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
 	return sharedintent.Row{
 		IntentID:         intentID,
-		ProjectionDomain: DomainRunsIn,
+		ProjectionDomain: reducercontract.DomainRunsIn,
 		PartitionKey:     intentID,
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: repoID,
@@ -133,7 +133,7 @@ func TestFilterRowsByReadinessRunsInTerminatesAbsentWorkload(t *testing.T) {
 	}}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainRunsIn, rows, phaseReady, nil, presence,
+		context.Background(), reducercontract.DomainRunsIn, rows, phaseReady, nil, presence,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)
@@ -169,7 +169,7 @@ func TestFilterRowsByReadinessRunsInProjectsWhenWorkloadPresent(t *testing.T) {
 	}}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainRunsIn, rows, phaseReady, nil, presence,
+		context.Background(), reducercontract.DomainRunsIn, rows, phaseReady, nil, presence,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)
@@ -193,7 +193,7 @@ func TestFilterRowsByReadinessRunsInNilPresenceIsTodaysBehavior(t *testing.T) {
 	}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainRunsIn, rows, phaseReady, nil, nil,
+		context.Background(), reducercontract.DomainRunsIn, rows, phaseReady, nil, nil,
 	)
 	if err != nil {
 		t.Fatalf("filterRowsByReadiness error = %v", err)
@@ -223,7 +223,7 @@ func TestProcessPartitionOnceRunsInDrainsAbsentWorkload(t *testing.T) {
 	}}
 
 	cfg := worker.PartitionProcessorConfig{
-		Domain:         DomainRunsIn,
+		Domain:         reducercontract.DomainRunsIn,
 		PartitionID:    0,
 		PartitionCount: 1,
 		LeaseOwner:     "worker-1",

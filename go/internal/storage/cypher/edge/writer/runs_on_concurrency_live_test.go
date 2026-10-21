@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -133,7 +133,7 @@ func startRunsOnCrossRepoWrite(
 		notifyRunsOnGate(attempted)
 		_, err := NewEdgeWriter(executor, 1).WriteEdges(
 			ctx,
-			reducer.DomainRepoDependency,
+			reducercontract.DomainRepoDependency,
 			[]sharedintent.Row{{
 				IntentID:     "pr6634-runs-on-concurrent-" + fixture.instanceID,
 				RepositoryID: fixture.repoID,

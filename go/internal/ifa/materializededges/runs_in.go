@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -113,7 +114,7 @@ func resolveRunsInMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool
 	if len(odu.Facts) == 0 {
 		return false, fmt.Sprintf("odù %q: carries no facts", odu.Name)
 	}
-	rows := symbolRuntimeUpsertRows(odu.Facts, reducer.DomainRunsIn)
+	rows := symbolRuntimeUpsertRows(odu.Facts, reducercontract.DomainRunsIn)
 	if len(rows) == 0 {
 		return false, fmt.Sprintf("odù %q: ExtractSymbolRuntimeIntentRows produced zero RUNS_IN upsert rows; this fixture cannot prove anything", odu.Name)
 	}

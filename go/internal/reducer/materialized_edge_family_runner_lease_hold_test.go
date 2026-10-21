@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
@@ -101,10 +103,10 @@ func TestRunnerLeaseHoldLockstepRejectsDedicatedProjectionDomain(t *testing.T) {
 	// shared projection runner. The blocker must require the narrower,
 	// production worker.Domains() set.
 	err := checkRunnerLeaseHoldLockstepWithDomains(
-		map[string]string{DomainRepoDependency: string(blockerRunnerLeaseHold)},
-		map[string]string{DomainRepoDependency: "runner"},
-		map[string]string{DomainRepoDependency: DomainRepoDependency},
-		[]string{DomainCodeCalls},
+		map[string]string{reducercontract.DomainRepoDependency: string(blockerRunnerLeaseHold)},
+		map[string]string{reducercontract.DomainRepoDependency: "runner"},
+		map[string]string{reducercontract.DomainRepoDependency: reducercontract.DomainRepoDependency},
+		[]string{reducercontract.DomainCodeCalls},
 	)
 	if err == nil || !strings.Contains(err.Error(), "worker.Domains()") {
 		t.Fatalf("checkRunnerLeaseHoldLockstep(dedicated projection domain) = %v, want worker.Domains() error", err)

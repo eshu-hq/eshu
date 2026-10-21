@@ -82,7 +82,7 @@ func TestFilterRowsByReadinessHandlesRouteResolvesViaRepoKey(t *testing.T) {
 	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
 	row := sharedintent.Row{
 		IntentID:         "hr-1",
-		ProjectionDomain: DomainHandlesRoute,
+		ProjectionDomain: reducercontract.DomainHandlesRoute,
 		PartitionKey:     "hr-1",
 		ScopeID:          scopeID,
 		AcceptanceUnitID: repoID,
@@ -110,7 +110,7 @@ func TestFilterRowsByReadinessHandlesRouteResolvesViaRepoKey(t *testing.T) {
 	}}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainHandlesRoute,
+		context.Background(), reducercontract.DomainHandlesRoute,
 		[]sharedintent.Row{row}, lookup.lookup, nil, presence,
 	)
 	if err != nil {
@@ -144,7 +144,7 @@ func TestFilterRowsByReadinessHandlesRouteOldStyleKeyStillMisses(t *testing.T) {
 	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
 	row := sharedintent.Row{
 		IntentID:         "hr-1",
-		ProjectionDomain: DomainHandlesRoute,
+		ProjectionDomain: reducercontract.DomainHandlesRoute,
 		PartitionKey:     "hr-1",
 		ScopeID:          scopeID,
 		AcceptanceUnitID: repoID,
@@ -173,7 +173,7 @@ func TestFilterRowsByReadinessHandlesRouteOldStyleKeyStillMisses(t *testing.T) {
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{}}
 
 	ready, blocked, _, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainHandlesRoute,
+		context.Background(), reducercontract.DomainHandlesRoute,
 		[]sharedintent.Row{row}, lookup.lookup, nil, presence,
 	)
 	if err != nil {
@@ -200,7 +200,7 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 
 	row := sharedintent.Row{
 		IntentID:         "cc-1",
-		ProjectionDomain: DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey:     "cc-1",
 		ScopeID:          scopeID,
 		AcceptanceUnitID: repoID,
@@ -220,7 +220,7 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 	}}
 
 	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
-		context.Background(), DomainCodeCalls,
+		context.Background(), reducercontract.DomainCodeCalls,
 		[]sharedintent.Row{row}, lookup.lookup, nil, nil,
 	)
 	if err != nil {
@@ -237,7 +237,7 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 		repoKey: gpphase.PhaseCanonicalNodesCommitted,
 	}}
 	ready, blocked, _, err = worker.FilterRowsByReadiness(
-		context.Background(), DomainCodeCalls,
+		context.Background(), reducercontract.DomainCodeCalls,
 		[]sharedintent.Row{row}, repoOnly.lookup, nil, nil,
 	)
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -58,7 +58,7 @@ func TestEdgeWriterRetractEdgesRationaleMixedBatchRetractsBothDeltaAndWholeScope
 		},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 
@@ -140,7 +140,7 @@ func TestEdgeWriterRetractEdgesRationaleMixedBatchIgnoresUnmarkedLegacyRows(t *t
 		},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 

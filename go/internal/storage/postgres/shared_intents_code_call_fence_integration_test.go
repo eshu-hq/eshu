@@ -12,7 +12,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -66,7 +66,7 @@ INSERT INTO shared_projection_intents
     (intent_id, projection_domain, partition_key, scope_id, acceptance_unit_id,
      repository_id, source_run_id, generation_id, payload, created_at)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
-			intentID, reducer.DomainCodeCalls, partitionKey, scope, au,
+			intentID, reducercontract.DomainCodeCalls, partitionKey, scope, au,
 			repo, run, gen, payload, createdAt)
 		if err != nil {
 			t.Fatalf("insert %s: %v", intentID, err)
@@ -80,12 +80,12 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 	key := sharedintent.AcceptanceKey{ScopeID: scope, AcceptanceUnitID: au, SourceRunID: run}
 
 	wholeRow := sharedintent.Row{
-		IntentID: wholeID, ProjectionDomain: reducer.DomainCodeCalls,
+		IntentID: wholeID, ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey: "code-calls:v1:whole:" + repo, ScopeID: scope, AcceptanceUnitID: au,
 		RepositoryID: repo, SourceRunID: run, GenerationID: gen,
 		Payload: map[string]any{"action": "refresh", "repo_id": repo}, CreatedAt: base.Add(time.Second),
 	}
-	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(ctx, key, wholeRow, reducer.DomainCodeCalls)
+	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(ctx, key, wholeRow, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("fence(whole): %v", err)
 	}
@@ -94,12 +94,12 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 	}
 
 	edgeRow := sharedintent.Row{
-		IntentID: edgeID, ProjectionDomain: reducer.DomainCodeCalls,
+		IntentID: edgeID, ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey: "content-entity:e_a->content-entity:e_b", ScopeID: scope, AcceptanceUnitID: au,
 		RepositoryID: repo, SourceRunID: run, GenerationID: gen,
 		Payload: map[string]any{}, CreatedAt: base,
 	}
-	blocked, err = store.CodeCallProjectionRowBlockedByRepoFence(ctx, key, edgeRow, reducer.DomainCodeCalls)
+	blocked, err = store.CodeCallProjectionRowBlockedByRepoFence(ctx, key, edgeRow, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("fence(edge): %v", err)
 	}
@@ -156,7 +156,7 @@ INSERT INTO shared_projection_intents
     (intent_id, projection_domain, partition_key, scope_id, acceptance_unit_id,
      repository_id, source_run_id, generation_id, payload, created_at)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
-			intentID, reducer.DomainCodeCalls, partitionKey, scope, au,
+			intentID, reducercontract.DomainCodeCalls, partitionKey, scope, au,
 			repo, run, gen, payload, createdAt)
 		if err != nil {
 			t.Fatalf("insert %s: %v", intentID, err)
@@ -168,7 +168,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 
 	key := sharedintent.AcceptanceKey{ScopeID: scope, AcceptanceUnitID: au, SourceRunID: run}
 	refreshRow := sharedintent.Row{
-		IntentID: refreshID, ProjectionDomain: reducer.DomainCodeCalls,
+		IntentID: refreshID, ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey: filePart, ScopeID: scope, AcceptanceUnitID: au,
 		RepositoryID: repo, SourceRunID: run, GenerationID: gen,
 		Payload: map[string]any{
@@ -177,7 +177,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 		},
 		CreatedAt: base.Add(time.Second),
 	}
-	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(ctx, key, refreshRow, reducer.DomainCodeCalls)
+	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(ctx, key, refreshRow, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("fence(file refresh): %v", err)
 	}
@@ -188,12 +188,12 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)`,
 	// The non-file edge must still be fenced behind the file repo_refresh so the
 	// retract runs before the edge writes.
 	edgeRow := sharedintent.Row{
-		IntentID: edgeID, ProjectionDomain: reducer.DomainCodeCalls,
+		IntentID: edgeID, ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey: "content-entity:e_a->content-entity:e_b", ScopeID: scope, AcceptanceUnitID: au,
 		RepositoryID: repo, SourceRunID: run, GenerationID: gen,
 		Payload: map[string]any{"action": "upsert"}, CreatedAt: base,
 	}
-	blocked, err = store.CodeCallProjectionRowBlockedByRepoFence(ctx, key, edgeRow, reducer.DomainCodeCalls)
+	blocked, err = store.CodeCallProjectionRowBlockedByRepoFence(ctx, key, edgeRow, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("fence(edge): %v", err)
 	}

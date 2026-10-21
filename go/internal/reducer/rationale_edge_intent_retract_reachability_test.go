@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -96,7 +98,7 @@ func TestRationaleProductionIntentsNeverReachRetractAsUnmarkedRows(t *testing.T)
 
 	plan, err := worker.PlanRepoWideRetractWork(
 		context.Background(),
-		DomainRationaleEdges,
+		reducercontract.DomainRationaleEdges,
 		roundTripPayloads(t, rows),
 		rejectingFenceLookup{t: t},
 		nil,

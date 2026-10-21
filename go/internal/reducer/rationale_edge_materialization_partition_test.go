@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
@@ -152,7 +154,7 @@ func rationaleTestRepoIDs(rows []sharedintent.Row) []string {
 
 func rationaleFenceConfig(partitionID, partitionCount int) worker.PartitionProcessorConfig {
 	return worker.PartitionProcessorConfig{
-		Domain:         DomainRationaleEdges,
+		Domain:         reducercontract.DomainRationaleEdges,
 		PartitionID:    partitionID,
 		PartitionCount: partitionCount,
 		LeaseOwner:     "worker-1",
@@ -254,7 +256,7 @@ func TestRationaleConvergenceFixtureUsesCollectorAndCanonicalPathShapes(t *testi
 // returns the seeded edge writer.
 func seedPriorRationaleEdges(rows []map[string]any, repoPaths ...map[string]string) *rationaleStateModelingEdgeWriter {
 	edges := newRationaleStateModelingEdgeWriter(repoPaths...)
-	_, _ = edges.WriteEdges(context.Background(), DomainRationaleEdges, rationaleDirectWriteRows(rows), rationaleEvidenceSource)
+	_, _ = edges.WriteEdges(context.Background(), reducercontract.DomainRationaleEdges, rationaleDirectWriteRows(rows), rationaleEvidenceSource)
 	return edges
 }
 
@@ -266,7 +268,7 @@ func rationaleDirectWriteRows(rows []map[string]any) []sharedintent.Row {
 	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		intents = append(intents, sharedintent.Row{
-			ProjectionDomain: DomainRationaleEdges,
+			ProjectionDomain: reducercontract.DomainRationaleEdges,
 			RepositoryID:     anyToString(row["repo_id"]),
 			Payload:          copyPayload(row),
 		})
@@ -293,13 +295,13 @@ func TestRationalePartitionConvergesFullReprojection(t *testing.T) {
 	// DIRECT path: seed prior edges, then retract + write.
 	direct := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
 	if err := direct.RetractEdges(
-		context.Background(), DomainRationaleEdges,
+		context.Background(), reducercontract.DomainRationaleEdges,
 		buildRationaleRetractRows(repoIDs, deltaScope), rationaleEvidenceSource,
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
 	if _, err := direct.WriteEdges(
-		context.Background(), DomainRationaleEdges,
+		context.Background(), reducercontract.DomainRationaleEdges,
 		rationaleDirectWriteRows(rows), rationaleEvidenceSource,
 	); err != nil {
 		t.Fatalf("direct write: %v", err)
@@ -344,13 +346,13 @@ func TestRationalePartitionConvergesDelta(t *testing.T) {
 	direct := seedPriorRationaleEdges(rows, map[string]string{repoID: repoPath})
 	direct.edgesByRepo[repoID]["rationale:stale->ent:removed"] = "/repo/a.go"
 	if err := direct.RetractEdges(
-		context.Background(), DomainRationaleEdges,
+		context.Background(), reducercontract.DomainRationaleEdges,
 		buildRationaleRetractRows(repoIDs, deltaScope), rationaleEvidenceSource,
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
 	if _, err := direct.WriteEdges(
-		context.Background(), DomainRationaleEdges,
+		context.Background(), reducercontract.DomainRationaleEdges,
 		rationaleDirectWriteRows(rows), rationaleEvidenceSource,
 	); err != nil {
 		t.Fatalf("direct write: %v", err)

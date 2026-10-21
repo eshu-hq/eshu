@@ -10,7 +10,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -161,7 +161,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipRunsPerLabelStatementsSequentially
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "reducer/sql-relationships")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -225,7 +225,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipDeltaScopesToFilePaths(t *testing.
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "reducer/sql-relationships")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -282,7 +282,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipRejectsDeltaWithoutFilePaths(t *te
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "reducer/sql-relationships")
 	if err == nil {
 		t.Fatal("RetractEdges() error = nil, want malformed delta scope error")
 	}

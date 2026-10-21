@@ -18,7 +18,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -161,37 +161,37 @@ func TestWriteEdgesCountsRepositoryStubsPerStatementShape(t *testing.T) {
 		want          int64
 	}{
 		{
-			name: "repo_dependency atomic group", domain: reducer.DomainRepoDependency,
+			name: "repo_dependency atomic group", domain: reducercontract.DomainRepoDependency,
 			rows:   []sharedintent.Row{stubRepoDependencyRow("repository:retired")},
 			cypher: sourcecypher.BatchCanonicalRepoDependencyUpsertCypher, grouped: true,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterRepoDependency, want: 1,
 		},
 		{
-			name: "repo_dependency group retried counts the committed attempt once", domain: reducer.DomainRepoDependency,
+			name: "repo_dependency group retried counts the committed attempt once", domain: reducercontract.DomainRepoDependency,
 			rows:   []sharedintent.Row{stubRepoDependencyRow("repository:retired")},
 			cypher: sourcecypher.BatchCanonicalRepoDependencyUpsertCypher, grouped: true, groupAttempts: 3,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterRepoDependency, want: 1,
 		},
 		{
-			name: "repo_dependency sequential", domain: reducer.DomainRepoDependency,
+			name: "repo_dependency sequential", domain: reducercontract.DomainRepoDependency,
 			rows:    []sharedintent.Row{stubRepoDependencyRow("repository:retired")},
 			cypher:  sourcecypher.BatchCanonicalRepoDependencyUpsertCypher,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterRepoDependency, want: 1,
 		},
 		{
-			name: "submodule_pin atomic group", domain: reducer.DomainSubmodulePinEdges,
+			name: "submodule_pin atomic group", domain: reducercontract.DomainSubmodulePinEdges,
 			rows:   []sharedintent.Row{stubSubmodulePinRow("repository:retired")},
 			cypher: node.BatchCanonicalSubmodulePinEdgeCypher, grouped: true,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterSubmodulePin, want: 1,
 		},
 		{
-			name: "submodule_pin sequential", domain: reducer.DomainSubmodulePinEdges,
+			name: "submodule_pin sequential", domain: reducercontract.DomainSubmodulePinEdges,
 			rows:    []sharedintent.Row{stubSubmodulePinRow("repository:retired")},
 			cypher:  node.BatchCanonicalSubmodulePinEdgeCypher,
 			created: 1, writerLabel: telemetry.RepositoryStubWriterSubmodulePin, want: 1,
 		},
 		{
-			name: "repo_dependency to a live target creates nothing", domain: reducer.DomainRepoDependency,
+			name: "repo_dependency to a live target creates nothing", domain: reducercontract.DomainRepoDependency,
 			rows:   []sharedintent.Row{stubRepoDependencyRow("repository:live")},
 			cypher: sourcecypher.BatchCanonicalRepoDependencyUpsertCypher, grouped: true,
 			created: 0, writerLabel: telemetry.RepositoryStubWriterRepoDependency, want: 0,
@@ -254,7 +254,7 @@ func TestWriteEdgesRepositoryStubsNotCountedWithoutWriteSummary(t *testing.T) {
 	writer.Instruments = instruments
 	writer.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	rows := []sharedintent.Row{stubRepoDependencyRow("repository:retired")}
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got := stubCounterTotal(t, reader, telemetry.RepositoryStubWriterRepoDependency); got != 0 {
@@ -276,7 +276,7 @@ func TestWriteEdgesRepositoryStubCaptureForwardsToOuterCollector(t *testing.T) {
 	base := &stubCountingExecutor{nodesCreated: map[string]int64{sourcecypher.BatchCanonicalRepoDependencyUpsertCypher: 1}}
 	writer := NewEdgeWriter(groupStubCountingExecutor{base}, 0)
 	rows := []sharedintent.Row{stubRepoDependencyRow("repository:retired")}
-	if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got := len(outer.Entries()); got != 1 {
@@ -313,7 +313,7 @@ func TestWriteEdgesRepositoryStubMultiRowLogListsUnattributedCandidates(t *testi
 			for i := 0; i < tt.rowCount; i++ {
 				rows = append(rows, stubRepoDependencyRow(fmt.Sprintf("repository:retired-%02d", i)))
 			}
-			if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
+			if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 				t.Fatalf("WriteEdges() error = %v", err)
 			}
 			if got := stubCounterTotal(t, reader, telemetry.RepositoryStubWriterRepoDependency); got != created {

@@ -46,7 +46,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -98,7 +98,7 @@ func TestLiveRepoDependencyWithoutSourceToolStaysUnstamped(t *testing.T) {
 		},
 	}
 	writer := edgewriter.NewEdgeWriter(live, 0)
-	if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -55,7 +57,7 @@ func rationaleFilePartitionKey(repoID, targetPath, edgeIdentity string) string {
 // (#2869/#2898). A whole-scope key hashes to exactly one partition, so the repo's
 // single retract is owned by one partition lease and cannot race itself.
 func rationaleWholeScopePartitionKey(repoID string) string {
-	return sharedintent.RepoWideRetractRefreshPartitionKey(DomainRationaleEdges, repoID)
+	return sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainRationaleEdges, repoID)
 }
 
 // buildRationaleSharedIntentRows promotes extracted rationale EXPLAINS edge rows
@@ -103,7 +105,7 @@ func buildRationaleSharedIntentRows(
 		payload[sharedintent.RetractViaRefreshKey] = true
 
 		intents = append(intents, sharedintent.Build(sharedintent.Input{
-			ProjectionDomain: DomainRationaleEdges,
+			ProjectionDomain: reducercontract.DomainRationaleEdges,
 			PartitionKey:     rationaleFilePartitionKey(repoID, targetPath, edgeIdentity),
 			IdentityKey:      edgeIdentity,
 			ScopeID:          context.ScopeID,
@@ -157,7 +159,7 @@ func buildRationaleRefreshIntents(
 		// rule and why the two obvious alternatives lose edges (#6216).
 		sharedintent.ApplyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.filePathsByRepoID)
 		intents = append(intents, sharedintent.Build(sharedintent.Input{
-			ProjectionDomain: DomainRationaleEdges,
+			ProjectionDomain: reducercontract.DomainRationaleEdges,
 			PartitionKey:     rationaleWholeScopePartitionKey(repoID),
 			ScopeID:          context.ScopeID,
 			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),

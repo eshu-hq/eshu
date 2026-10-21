@@ -104,8 +104,8 @@ func TestIfaFamilyRegistryWaitStageAndKeyCohere(t *testing.T) {
 		t.Fatal("parsed zero wait_key or wait_stage rows -- registry format changed or the rows were emptied")
 	}
 
-	projectionDomains := make(map[reducercontract.Domain]struct{}, len(allProjectionDomains))
-	for _, d := range allProjectionDomains {
+	projectionDomains := make(map[reducercontract.Domain]struct{}, len(reducercontract.ProjectionDomains()))
+	for _, d := range reducercontract.ProjectionDomains() {
 		projectionDomains[d] = struct{}{}
 	}
 

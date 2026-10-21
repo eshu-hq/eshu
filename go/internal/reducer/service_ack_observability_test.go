@@ -28,7 +28,7 @@ func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 		ScopeID:         "scope-ack",
 		GenerationID:    "generation-ack",
 		SourceSystem:    "git",
-		Domain:          DomainRepoDependency,
+		Domain:          reducercontract.DomainRepoDependency,
 		Cause:           "typed relationship follow-up",
 		EntityKeys:      []string{"repo:eshu"},
 		RelatedScopeIDs: []string{"scope-related"},
@@ -112,7 +112,7 @@ func TestServiceRunRecordsStaleAckWithoutSuccess(t *testing.T) {
 		IntentID:     "intent-stale-ack",
 		ScopeID:      "scope-stale-ack",
 		GenerationID: "generation-stale-ack",
-		Domain:       DomainRepoDependency,
+		Domain:       reducercontract.DomainRepoDependency,
 		AvailableAt:  time.Now().UTC(),
 	}
 	var logs bytes.Buffer

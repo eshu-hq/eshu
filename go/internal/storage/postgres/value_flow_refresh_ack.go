@@ -270,8 +270,8 @@ var ValueFlowInputsFenceReducerDomains = []reducercontract.Domain{
 // the solve would again read Functions with no workload. Exported for the
 // same drift guard as ValueFlowInputsFenceReducerDomains.
 var ValueFlowInputsFenceSharedDomains = []reducercontract.Domain{
-	reducer.DomainRunsIn,
-	reducer.DomainInvokesCloudAction,
+	reducercontract.DomainRunsIn,
+	reducercontract.DomainInvokesCloudAction,
 }
 
 // valueFlowInputsFenceStatusList is the fact_work_items status set that holds

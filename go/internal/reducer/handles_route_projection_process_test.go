@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
@@ -37,7 +39,7 @@ func TestProcessPartitionOnceHandlesRouteDrainsAbsentEndpoint(t *testing.T) {
 	}}
 
 	cfg := worker.PartitionProcessorConfig{
-		Domain:         DomainHandlesRoute,
+		Domain:         reducercontract.DomainHandlesRoute,
 		PartitionID:    0,
 		PartitionCount: 1,
 		LeaseOwner:     "worker-1",
@@ -123,7 +125,7 @@ func TestProcessPartitionOnceHandlesRouteAllTerminalRepoDrainsAndRetracts(t *tes
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{}} // nothing present
 
 	cfg := worker.PartitionProcessorConfig{
-		Domain:         DomainHandlesRoute,
+		Domain:         reducercontract.DomainHandlesRoute,
 		PartitionID:    0,
 		PartitionCount: 1,
 		LeaseOwner:     "worker-1",
@@ -188,7 +190,7 @@ func TestProcessPartitionOnceHandlesRouteNilPresenceProjectsAll(t *testing.T) {
 	edges := &stubEdgeWriter{}
 
 	cfg := worker.PartitionProcessorConfig{
-		Domain:         DomainHandlesRoute,
+		Domain:         reducercontract.DomainHandlesRoute,
 		PartitionID:    0,
 		PartitionCount: 1,
 		LeaseOwner:     "worker-1",

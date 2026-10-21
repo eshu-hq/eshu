@@ -113,7 +113,7 @@ func TestFactloadMaterializationWrappersReturnSeededEnvelopes(t *testing.T) {
 	loader := &stubFactLoader{envelopes: envelopes}
 	ctx := context.Background()
 
-	wrappers := map[string]func(context.Context, FactLoader, string, string) ([]facts.Envelope, error){
+	wrappers := map[string]func(context.Context, factload.FactLoader, string, string) ([]facts.Envelope, error){
 		"codeowners":    owners.LoadMaterializationFacts,
 		"documentation": loadDocumentationMaterializationFacts,
 		"rationale":     loadRationaleMaterializationFacts,

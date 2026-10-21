@@ -48,7 +48,7 @@ var cloudSinkChainNodeLabelPattern = regexp.MustCompile(`\(\w*:([A-Z][A-Za-z0-9_
 // keeps its intents open and the fence refuses on them. runs_in is the
 // canonical cover here (invokes_cloud_action is its sibling).
 var cloudSinkChainNodeLabelOwners = map[string]reducercontract.Domain{
-	"Function":         reducer.DomainRunsIn,
+	"Function":         reducercontract.DomainRunsIn,
 	"CloudAction":      reducer.DomainCodeCallMaterialization,
 	"Workload":         reducer.DomainWorkloadMaterialization,
 	"WorkloadInstance": reducer.DomainWorkloadMaterialization,
@@ -191,8 +191,8 @@ var cloudSinkChainRelationshipOwners = map[string]reducercontract.Domain{
 // workload_cloud_relationship is a fact_work_items domain under a shorter
 // family slug.
 var familyToFencedDomain = map[string]reducercontract.Domain{
-	"runs_in":                     reducer.DomainRunsIn,
-	"invokes_cloud_action":        reducer.DomainInvokesCloudAction,
+	"runs_in":                     reducercontract.DomainRunsIn,
+	"invokes_cloud_action":        reducercontract.DomainInvokesCloudAction,
 	"workload_cloud_relationship": reducer.DomainWorkloadCloudRelationshipMaterialization,
 }
 
@@ -203,7 +203,7 @@ var familyToFencedDomain = map[string]reducercontract.Domain{
 // CloudSinkTargetsByPairCypher traverse must resolve, through the
 // materialized-edge family registry or the hand-documented map above, to a
 // domain the fence declares. Seeded violation (run manually, not committed):
-// deleting reducer.DomainRunsIn from
+// deleting reducercontract.DomainRunsIn from
 // postgres.ValueFlowInputsFenceSharedDomains turns this test RED.
 func TestValueFlowInputsFenceDomainsCoverCloudSinkChain(t *testing.T) {
 	t.Parallel()

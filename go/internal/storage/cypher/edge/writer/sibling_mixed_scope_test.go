@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -28,19 +28,19 @@ func siblingDeltaDispatchCases() []siblingDeltaDispatchCase {
 	return []siblingDeltaDispatchCase{
 		{
 			name:           "inheritance",
-			domain:         reducer.DomainInheritanceEdges,
+			domain:         reducercontract.DomainInheritanceEdges,
 			evidenceSource: "reducer/inheritance",
 			deltaFragment:  "child.path IN $file_paths",
 		},
 		{
 			name:           "sql_relationships",
-			domain:         reducer.DomainSQLRelationships,
+			domain:         reducercontract.DomainSQLRelationships,
 			evidenceSource: "reducer/sql-relationships",
 			deltaFragment:  "UNWIND $file_paths AS file_path",
 		},
 		{
 			name:           "shell_exec",
-			domain:         reducer.DomainShellExec,
+			domain:         reducercontract.DomainShellExec,
 			evidenceSource: "reducer/shell-exec",
 			deltaFragment:  "UNWIND $file_paths AS file_path",
 		},

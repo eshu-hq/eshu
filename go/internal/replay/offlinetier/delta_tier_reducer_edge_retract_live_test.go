@@ -15,7 +15,7 @@
 // bound the retract.
 //
 // The test drives the REAL production write and retract paths
-// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for reducer.DomainCodeCalls). It
+// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for reducercontract.DomainCodeCalls). It
 // writes CALLS (Function->Function), REFERENCES (File->TypeAlias), and
 // INSTANTIATES (Function->Class) edges in one repo scope plus an out-of-scope
 // CALLS edge, retracts the in-scope repo, and asserts the in-scope edges are
@@ -34,7 +34,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -102,7 +102,7 @@ func TestReducerCodeCallEdgeRetractGraphTruth(t *testing.T) {
 			"callee_entity_id": reFnOutB, "callee_entity_type": "Function",
 		}},
 	}
-	if _, err := writer.WriteEdges(ctx, reducer.DomainCodeCalls, writeRows, reducerEdgeEvidenceSource); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainCodeCalls, writeRows, reducerEdgeEvidenceSource); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 
@@ -126,7 +126,7 @@ func TestReducerCodeCallEdgeRetractGraphTruth(t *testing.T) {
 	retractRows := []sharedintent.Row{
 		{IntentID: "retract", RepositoryID: reducerEdgeInScopeRepoID},
 	}
-	if err := writer.RetractEdges(ctx, reducer.DomainCodeCalls, retractRows, reducerEdgeEvidenceSource); err != nil {
+	if err := writer.RetractEdges(ctx, reducercontract.DomainCodeCalls, retractRows, reducerEdgeEvidenceSource); err != nil {
 		t.Fatalf("RetractEdges: %v", err)
 	}
 

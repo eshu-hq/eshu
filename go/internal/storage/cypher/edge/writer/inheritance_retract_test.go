@@ -12,7 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -145,7 +145,7 @@ func TestEdgeWriterRetractEdgesInheritanceDeltaUsesFileScope(t *testing.T) {
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainInheritanceEdges, rows, "reducer/inheritance")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -184,7 +184,7 @@ func TestEdgeWriterRetractEdgesInheritanceRepoScope(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainInheritanceEdges, rows, "reducer/inheritance")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -218,7 +218,7 @@ func TestEdgeWriterRetractEdgesInheritanceRejectsDeltaWithoutFilePaths(t *testin
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainInheritanceEdges, rows, "reducer/inheritance")
 	if err == nil {
 		t.Fatal("RetractEdges() error = nil, want malformed delta scope error")
 	}

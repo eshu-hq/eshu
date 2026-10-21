@@ -11,7 +11,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -176,7 +176,7 @@ SET rel.evidence_source = $other_evidence_source`,
 	rows := []sharedintent.Row{
 		{RepositoryID: repoID, Payload: wholeScopeRefreshPayload(repoID)},
 	}
-	if err := writer.RetractEdges(ctx, reducer.DomainShellExec, rows, scopeEvidenceSource); err != nil {
+	if err := writer.RetractEdges(ctx, reducercontract.DomainShellExec, rows, scopeEvidenceSource); err != nil {
 		t.Fatalf("RetractEdges: %v", err)
 	}
 

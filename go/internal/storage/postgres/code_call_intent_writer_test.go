@@ -17,7 +17,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -39,7 +39,7 @@ func TestCodeCallIntentWriterRecordsAcceptanceUpsertMetrics(t *testing.T) {
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "intent-1",
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "caller->callee",
 			ScopeID:          "scope:git:repo-1",
 			AcceptanceUnitID: "repository:repo-1",

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -21,7 +23,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 		pending: []sharedintent.Row{
 			{
 				IntentID:         "blocked-1",
-				ProjectionDomain: DomainDocumentationEdges,
+				ProjectionDomain: reducercontract.DomainDocumentationEdges,
 				PartitionKey:     "pk-a",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-blocked",
@@ -32,7 +34,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 			},
 			{
 				IntentID:         "ready-1",
-				ProjectionDomain: DomainDocumentationEdges,
+				ProjectionDomain: reducercontract.DomainDocumentationEdges,
 				PartitionKey:     "pk-b",
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "repo-ready",
@@ -47,7 +49,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 	result, err := worker.SelectPartitionBatch(
 		context.Background(),
 		reader,
-		DomainDocumentationEdges,
+		reducercontract.DomainDocumentationEdges,
 		0,
 		1,
 		10,
@@ -174,7 +176,7 @@ func TestProcessPartitionOnceReportsReadinessBlockedWait(t *testing.T) {
 		pending: []sharedintent.Row{
 			{
 				IntentID:         "blocked-1",
-				ProjectionDomain: DomainSQLRelationships,
+				ProjectionDomain: reducercontract.DomainSQLRelationships,
 				PartitionKey:     "pk-a",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -189,7 +191,7 @@ func TestProcessPartitionOnceReportsReadinessBlockedWait(t *testing.T) {
 	edges := &stubEdgeWriter{}
 
 	cfg := worker.PartitionProcessorConfig{
-		Domain:         DomainSQLRelationships,
+		Domain:         reducercontract.DomainSQLRelationships,
 		PartitionID:    0,
 		PartitionCount: 1,
 		LeaseOwner:     "worker-1",
@@ -362,7 +364,7 @@ func TestProcessPartitionOnceCodeCallsDomain(t *testing.T) {
 		pending: []sharedintent.Row{
 			{
 				IntentID:         "intent-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "entity:function:caller",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -385,7 +387,7 @@ func TestProcessPartitionOnceCodeCallsDomain(t *testing.T) {
 	lookup := acceptedGenerationFixed("gen-1", true)
 
 	cfg := worker.PartitionProcessorConfig{
-		Domain:         DomainCodeCalls,
+		Domain:         reducercontract.DomainCodeCalls,
 		PartitionID:    0,
 		PartitionCount: 1,
 		LeaseOwner:     "worker-1",

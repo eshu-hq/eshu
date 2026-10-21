@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -109,7 +109,7 @@ RETURN count(r) AS count`, map[string]any{
 	for attempt := 1; attempt <= 2; attempt++ {
 		if err := writer.RetractEdges(
 			ctx,
-			reducer.DomainRepoDependency,
+			reducercontract.DomainRepoDependency,
 			rows,
 			codeImport,
 		); err != nil {

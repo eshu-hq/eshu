@@ -58,7 +58,7 @@ func newStatefulDeployableUnitGraph(seed ...string) *statefulDeployableUnitGraph
 func (g *statefulDeployableUnitGraph) RetractEdges(
 	_ context.Context, domain string, rows []sharedintent.Row, evidenceSource string,
 ) error {
-	if domain != DomainDeployableUnitEdges || evidenceSource != deployableUnitCorrelationEvidenceSource {
+	if domain != reducercontract.DomainDeployableUnitEdges || evidenceSource != deployableUnitCorrelationEvidenceSource {
 		return fmt.Errorf("unexpected retract %s/%s", domain, evidenceSource)
 	}
 	g.statements++
@@ -79,7 +79,7 @@ func (g *statefulDeployableUnitGraph) RetractEdges(
 func (g *statefulDeployableUnitGraph) WriteEdges(
 	_ context.Context, domain string, rows []sharedintent.Row, evidenceSource string,
 ) (sharedintent.WriteReport, error) {
-	if domain != DomainDeployableUnitEdges || evidenceSource != deployableUnitCorrelationEvidenceSource {
+	if domain != reducercontract.DomainDeployableUnitEdges || evidenceSource != deployableUnitCorrelationEvidenceSource {
 		return sharedintent.WriteReport{}, fmt.Errorf("unexpected write %s/%s", domain, evidenceSource)
 	}
 	g.statements++

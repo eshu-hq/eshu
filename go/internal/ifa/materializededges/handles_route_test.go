@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -17,7 +17,7 @@ import (
 // the payload fields handlesRouteRowsToExpectedEdges reads.
 func handlesRouteTestRow(functionID, repoID, path, httpMethod string) sharedintent.Row {
 	return sharedintent.Row{
-		ProjectionDomain: reducer.DomainHandlesRoute,
+		ProjectionDomain: reducercontract.DomainHandlesRoute,
 		Payload: map[string]any{
 			"function_entity_id": functionID,
 			"repo_id":            repoID,

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -52,7 +54,7 @@ func TestBuildRepoDependencyIntentRows_AllUpserts(t *testing.T) {
 
 	// All should be upserts
 	for _, intent := range intents {
-		assert.Equal(t, DomainRepoDependency, intent.ProjectionDomain)
+		assert.Equal(t, reducercontract.DomainRepoDependency, intent.ProjectionDomain)
 		assert.Equal(t, "upsert", intent.Payload["action"])
 		assert.NotEmpty(t, intent.IntentID)
 		assert.NotEmpty(t, intent.PartitionKey)
@@ -87,7 +89,7 @@ func TestBuildRepoDependencyIntentRows_AllRetracts(t *testing.T) {
 
 	// All should be retracts
 	for _, intent := range intents {
-		assert.Equal(t, DomainRepoDependency, intent.ProjectionDomain)
+		assert.Equal(t, reducercontract.DomainRepoDependency, intent.ProjectionDomain)
 		assert.Equal(t, "retract", intent.Payload["action"])
 		assert.Equal(t, "repo1", intent.RepositoryID)
 		assert.Equal(t, "run1", intent.SourceRunID)
@@ -247,7 +249,7 @@ func TestBuildWorkloadDependencyIntentRows_AllUpserts(t *testing.T) {
 
 	// All should be upserts
 	for _, intent := range intents {
-		assert.Equal(t, DomainWorkloadDependency, intent.ProjectionDomain)
+		assert.Equal(t, reducercontract.DomainWorkloadDependency, intent.ProjectionDomain)
 		assert.Equal(t, "upsert", intent.Payload["action"])
 		assert.Equal(t, "repo1", intent.RepositoryID)
 		assert.NotEmpty(t, intent.PartitionKey)
@@ -319,18 +321,18 @@ func TestSharedDependencyProjectionMetrics_SingleGeneration(t *testing.T) {
 	intents := []sharedintent.Row{
 		{
 			RepositoryID:     "repo1",
-			ProjectionDomain: DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 		},
 		{
 			RepositoryID:     "repo2",
-			ProjectionDomain: DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 		},
 	}
 
 	metrics := SharedDependencyProjectionMetrics(intents, contextByRepoID)
 
 	require.NotEmpty(t, metrics)
-	assert.Equal(t, []string{DomainRepoDependency}, metrics["authoritative_domains"])
+	assert.Equal(t, []string{reducercontract.DomainRepoDependency}, metrics["authoritative_domains"])
 	assert.Equal(t, "gen1", metrics["accepted_generation_id"])
 	assert.Equal(t, 2, metrics["intent_count"])
 }
@@ -344,18 +346,18 @@ func TestSharedDependencyProjectionMetrics_MultipleGenerations(t *testing.T) {
 	intents := []sharedintent.Row{
 		{
 			RepositoryID:     "repo1",
-			ProjectionDomain: DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 		},
 		{
 			RepositoryID:     "repo2",
-			ProjectionDomain: DomainWorkloadDependency,
+			ProjectionDomain: reducercontract.DomainWorkloadDependency,
 		},
 	}
 
 	metrics := SharedDependencyProjectionMetrics(intents, contextByRepoID)
 
 	require.NotEmpty(t, metrics)
-	assert.ElementsMatch(t, []string{DomainRepoDependency, DomainWorkloadDependency}, metrics["authoritative_domains"])
+	assert.ElementsMatch(t, []string{reducercontract.DomainRepoDependency, reducercontract.DomainWorkloadDependency}, metrics["authoritative_domains"])
 	assert.Nil(t, metrics["accepted_generation_id"], "should be nil with multiple generation IDs")
 	assert.Equal(t, 2, metrics["intent_count"])
 }
@@ -369,11 +371,11 @@ func TestSharedDependencyProjectionMetrics_MissingContext(t *testing.T) {
 	intents := []sharedintent.Row{
 		{
 			RepositoryID:     "repo1",
-			ProjectionDomain: DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 		},
 		{
 			RepositoryID:     "repo2",
-			ProjectionDomain: DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 		},
 	}
 

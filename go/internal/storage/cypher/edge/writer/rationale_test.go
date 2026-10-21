@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -75,7 +75,7 @@ func TestEdgeWriterRetractEdgesRationaleFullCleansCanonicalAndLegacyEvidenceSour
 		Payload:      wholeScopeRefreshPayload("repo-a"),
 	}}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {
@@ -112,7 +112,7 @@ func TestEdgeWriterRetractEdgesRationaleDoesNotBroadenUnknownEvidenceSource(t *t
 	}}
 
 	const source = "custom/rationale"
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, source); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, source); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {
@@ -225,7 +225,7 @@ func TestEdgeWriterRetractEdgesRationaleDeltaCleansCanonicalAndLegacySourcesSequ
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -284,7 +284,7 @@ func TestEdgeWriterRetractEdgesRationaleDeltaDoesNotBroadenUnknownEvidenceSource
 	}}
 
 	const source = "custom/rationale"
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, source); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, source); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), len(node.RationaleExplainsTargetLabels); got != want {
@@ -320,7 +320,7 @@ func TestEdgeWriterRetractEdgesRationaleRejectsDeltaWithoutFilePaths(t *testing.
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale")
 	if err == nil {
 		t.Fatal("RetractEdges() error = nil, want malformed delta scope error")
 	}

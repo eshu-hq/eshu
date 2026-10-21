@@ -14,7 +14,7 @@
 // transactions — see the #5116 code-call fix).
 //
 // The test drives the production write and retract paths
-// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for reducer.DomainInheritanceEdges).
+// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for reducercontract.DomainInheritanceEdges).
 // It writes INHERITS (Class->Class) and IMPLEMENTS (Class->Interface) edges in
 // one repo scope plus an out-of-scope INHERITS edge, retracts the in-scope repo,
 // and asserts the in-scope edges are gone (0), the out-of-scope edge survives (1,
@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -112,7 +112,7 @@ func TestReducerInheritanceEdgeRetractGraphTruth(t *testing.T) {
 			"parent_entity_id": inhParentC, "parent_entity_type": "Class",
 		}},
 	}
-	if _, err := writer.WriteEdges(ctx, reducer.DomainInheritanceEdges, writeRows, inheritEdgeEvidenceSource); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainInheritanceEdges, writeRows, inheritEdgeEvidenceSource); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 
@@ -148,7 +148,7 @@ func TestReducerInheritanceEdgeRetractGraphTruth(t *testing.T) {
 			Payload: wholeScopeRefreshRetractPayload(inheritEdgeInScopeRepoID),
 		},
 	}
-	if err := writer.RetractEdges(ctx, reducer.DomainInheritanceEdges, retractRows, inheritEdgeEvidenceSource); err != nil {
+	if err := writer.RetractEdges(ctx, reducercontract.DomainInheritanceEdges, retractRows, inheritEdgeEvidenceSource); err != nil {
 		t.Fatalf("RetractEdges: %v", err)
 	}
 

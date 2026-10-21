@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -46,7 +46,7 @@ func TestSharedIntentUpsertCreatedAtLastWriterWinsLive(t *testing.T) {
 	row := func(intentID string, createdAt time.Time, completedAt *time.Time, marker string) sharedintent.Row {
 		return sharedintent.Row{
 			IntentID:         intentID,
-			ProjectionDomain: reducer.DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey:     intentID,
 			ScopeID:          scope,
 			AcceptanceUnitID: repo,

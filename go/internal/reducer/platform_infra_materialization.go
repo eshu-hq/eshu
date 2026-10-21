@@ -33,7 +33,7 @@ import (
 // shared-projection worker — a separate subsystem with no shared serialization —
 // would reintroduce that race.
 type PlatformInfraMaterializationHandler struct {
-	FactLoader                 FactLoader
+	FactLoader                 factload.FactLoader
 	InfrastructureMaterializer *InfrastructurePlatformMaterializer
 	PlatformGraphLocker        platformfam.PlatformGraphLocker
 }

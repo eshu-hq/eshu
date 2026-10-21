@@ -66,7 +66,7 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	// completed without a write; a pure-drain cycle still runs the forced
 	// retract below (#7736 F5). A lookup error fails the cycle instead of
 	// guessing.
-	kept, drainable, err := worker.SplitCoveredByFullSuccessorRows(ctx, reader, DomainRepoDependency, active)
+	kept, drainable, err := worker.SplitCoveredByFullSuccessorRows(ctx, reader, reducercontract.DomainRepoDependency, active)
 	if err != nil {
 		result.LeaseAcquired = true
 		return result, nil, 0, fmt.Errorf("split generations covered by emitted full successor: %w", err)
@@ -76,7 +76,7 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	}
 	active = kept
 	worker.AcceptanceTelemetry{Instruments: r.Instruments, Logger: r.Logger}.RecordCoveredByFullSuccessorIntents(
-		ctx, "repo_dependency_projection", DomainRepoDependency, len(drainable),
+		ctx, "repo_dependency_projection", reducercontract.DomainRepoDependency, len(drainable),
 	)
 	result.StaleIntents = len(staleIDs)
 	result.ActiveIntents = len(active)
@@ -174,7 +174,7 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 				ctx,
 				"repo dependency projection marked fewer intents completed than requested; rows were deleted or completed concurrently",
 				slog.String("runner", "repo_dependency_projection"),
-				log.Domain(DomainRepoDependency),
+				log.Domain(reducercontract.DomainRepoDependency),
 				slog.Int("requested_intents", len(processedIDs)),
 				slog.Int64("completed_intents", affected),
 				telemetry.PhaseAttr(telemetry.PhaseShared),
@@ -214,7 +214,7 @@ func (r *RepoDependencyProjectionRunner) drainUnitAbsentAcceptance(
 	}
 	unitDrained, unitKeptIDs, err := worker.DrainAbsentAcceptance(
 		ctx, now, acceptanceTelemetry,
-		"repo_dependency_projection", DomainRepoDependency, reader, unitAbsent, alreadyReportedTorn,
+		"repo_dependency_projection", reducercontract.DomainRepoDependency, reader, unitAbsent, alreadyReportedTorn,
 	)
 	if err != nil {
 		return 0, 0, fmt.Errorf("drain absent acceptance rows: %w", err)

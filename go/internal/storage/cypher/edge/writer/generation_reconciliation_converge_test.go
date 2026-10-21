@@ -10,7 +10,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -58,7 +58,7 @@ func TestReconciliationConvergesStaleGenerationAfterPartialFailure(t *testing.T)
 	// Pre-reconciliation graph: only the stale gen-1 edge survived the swap.
 	graph := []sourcecypher.GraphDenormalizedEdge{{
 		EdgeKey:       "edge-gen1",
-		Domain:        reducer.DomainRepoDependency,
+		Domain:        reducercontract.DomainRepoDependency,
 		Identity:      identity,
 		RetractAnchor: "repo-a",
 		GenerationID:  "gen-1",
@@ -72,7 +72,7 @@ func TestReconciliationConvergesStaleGenerationAfterPartialFailure(t *testing.T)
 
 	// The pass names the domain-specific retract anchors that hold stranded edges.
 	anchors := report.RepairAnchors()
-	repoAnchors := anchors[reducer.DomainRepoDependency]
+	repoAnchors := anchors[reducercontract.DomainRepoDependency]
 	if len(repoAnchors) != 1 || repoAnchors[0] != "repo-a" {
 		t.Fatalf("reconciliation must target retract anchor repo-a, got %v", repoAnchors)
 	}
@@ -84,7 +84,7 @@ func TestReconciliationConvergesStaleGenerationAfterPartialFailure(t *testing.T)
 	// Authoritative re-projection of gen-2 truth for the repaired unit.
 	authoritativeWrites := []sourcecypher.GraphDenormalizedEdge{{
 		EdgeKey:       "edge-gen2",
-		Domain:        reducer.DomainRepoDependency,
+		Domain:        reducercontract.DomainRepoDependency,
 		Identity:      identity,
 		RetractAnchor: "repo-a",
 		GenerationID:  "gen-2",
@@ -125,7 +125,7 @@ func TestReconciliationDriftDrivesRepoScopedRetract(t *testing.T) {
 	}}
 	graph := []sourcecypher.GraphDenormalizedEdge{{
 		EdgeKey:       "edge-gen1",
-		Domain:        reducer.DomainRepoDependency,
+		Domain:        reducercontract.DomainRepoDependency,
 		Identity:      identity,
 		RetractAnchor: "repo-a",
 		GenerationID:  "gen-1",
@@ -135,7 +135,7 @@ func TestReconciliationDriftDrivesRepoScopedRetract(t *testing.T) {
 	report := sourcecypher.ClassifyReconciliationDrift(authoritative, graph)
 
 	retractRows := make([]sharedintent.Row, 0)
-	for _, anchor := range report.RepairAnchors()[reducer.DomainRepoDependency] {
+	for _, anchor := range report.RepairAnchors()[reducercontract.DomainRepoDependency] {
 		retractRows = append(retractRows, sharedintent.Row{
 			RepositoryID: anchor,
 			Payload:      map[string]any{"repo_id": anchor},
@@ -149,7 +149,7 @@ func TestReconciliationDriftDrivesRepoScopedRetract(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 	if err := writer.RetractEdges(
 		context.Background(),
-		reducer.DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		retractRows,
 		"reconciliation/dual_write",
 	); err != nil {

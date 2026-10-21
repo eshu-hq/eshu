@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
@@ -156,7 +158,7 @@ func sqlRelationshipTestRepoIDs(rows []sharedintent.Row) []string {
 
 func sqlRelationshipFenceConfig(partitionID, partitionCount int) worker.PartitionProcessorConfig {
 	return worker.PartitionProcessorConfig{
-		Domain:         DomainSQLRelationships,
+		Domain:         reducercontract.DomainSQLRelationships,
 		PartitionID:    partitionID,
 		PartitionCount: partitionCount,
 		LeaseOwner:     "worker-1",
@@ -236,7 +238,7 @@ func sqlRelationshipConvergenceFixture(repoID, repoPath string, delta bool, chan
 // returns the seeded edge writer.
 func seedPriorSQLRelationshipEdges(rows []map[string]any) *sqlRelationshipStateModelingEdgeWriter {
 	edges := newSQLRelationshipStateModelingEdgeWriter()
-	_, _ = edges.WriteEdges(context.Background(), DomainSQLRelationships, sqlRelationshipDirectWriteRows(rows), sqlrelationship.EvidenceSource)
+	_, _ = edges.WriteEdges(context.Background(), reducercontract.DomainSQLRelationships, sqlRelationshipDirectWriteRows(rows), sqlrelationship.EvidenceSource)
 	return edges
 }
 
@@ -248,7 +250,7 @@ func sqlRelationshipDirectWriteRows(rows []map[string]any) []sharedintent.Row {
 	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		intents = append(intents, sharedintent.Row{
-			ProjectionDomain: DomainSQLRelationships,
+			ProjectionDomain: reducercontract.DomainSQLRelationships,
 			RepositoryID:     anyToString(row["repo_id"]),
 			Payload:          copyPayload(row),
 		})
@@ -276,13 +278,13 @@ func TestSQLRelationshipPartitionConvergesFullReprojection(t *testing.T) {
 	// DIRECT path: seed prior edges, then retract + write.
 	direct := seedPriorSQLRelationshipEdges(rows)
 	if err := direct.RetractEdges(
-		context.Background(), DomainSQLRelationships,
+		context.Background(), reducercontract.DomainSQLRelationships,
 		sqlrelationship.BuildRetractRows(repoIDs, deltaScope), sqlrelationship.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
 	if _, err := direct.WriteEdges(
-		context.Background(), DomainSQLRelationships,
+		context.Background(), reducercontract.DomainSQLRelationships,
 		sqlRelationshipDirectWriteRows(rows), sqlrelationship.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct write: %v", err)
@@ -334,13 +336,13 @@ func TestSQLRelationshipPartitionConvergesDelta(t *testing.T) {
 	// DIRECT path.
 	direct := seedPriorSQLRelationshipEdges(rows)
 	if err := direct.RetractEdges(
-		context.Background(), DomainSQLRelationships,
+		context.Background(), reducercontract.DomainSQLRelationships,
 		sqlrelationship.BuildRetractRows(repoIDs, deltaScope), sqlrelationship.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct retract: %v", err)
 	}
 	if _, err := direct.WriteEdges(
-		context.Background(), DomainSQLRelationships,
+		context.Background(), reducercontract.DomainSQLRelationships,
 		sqlRelationshipDirectWriteRows(rows), sqlrelationship.EvidenceSource,
 	); err != nil {
 		t.Fatalf("direct write: %v", err)

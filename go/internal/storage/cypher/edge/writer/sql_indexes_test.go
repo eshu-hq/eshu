@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -37,7 +37,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipIndexes(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {

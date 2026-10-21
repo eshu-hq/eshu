@@ -19,7 +19,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -115,7 +115,7 @@ func TestRepoDependencyIfaProcessDeathLive(t *testing.T) {
 	}
 	lease := readRepoDependencyQuarantinedLease(ctx, t, db)
 	claimed, err := store.ClaimPartitionLease(
-		ctx, reducer.DomainRepoDependency, 0, 1, "process-death-owner-b", 36*time.Second,
+		ctx, reducercontract.DomainRepoDependency, 0, 1, "process-death-owner-b", 36*time.Second,
 	)
 	if err != nil {
 		t.Fatalf("claim before killed owner's lease expiry: %v", err)
@@ -130,7 +130,7 @@ func TestRepoDependencyIfaProcessDeathLive(t *testing.T) {
 		  AND partition_id = $2
 		  AND partition_count = $3
 		  AND lease_owner = $4
-	`, reducer.DomainRepoDependency, lease.partitionID, lease.partitionCount, lease.owner); err != nil {
+	`, reducercontract.DomainRepoDependency, lease.partitionID, lease.partitionCount, lease.owner); err != nil {
 		t.Fatalf("expire killed process lease: %v", err)
 	}
 

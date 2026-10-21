@@ -54,8 +54,8 @@ var idempotencyReservedNonRegistrableDomains = map[reducercontract.Domain]struct
 // into this set and forces a case or exemption — the guard cannot silently miss
 // it.
 func registrableReducerDomains() []reducercontract.Domain {
-	projection := make(map[reducercontract.Domain]struct{}, len(allProjectionDomains))
-	for _, domain := range allProjectionDomains {
+	projection := make(map[reducercontract.Domain]struct{}, len(reducercontract.ProjectionDomains()))
+	for _, domain := range reducercontract.ProjectionDomains() {
 		projection[domain] = struct{}{}
 	}
 

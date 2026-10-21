@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -110,7 +112,7 @@ func buildCodeImportRepoEdgeRefreshIntent(
 		"generation_id":   input.GenerationID,
 	}
 	return sharedintent.Build(sharedintent.Input{
-		ProjectionDomain: DomainRepoDependency,
+		ProjectionDomain: reducercontract.DomainRepoDependency,
 		PartitionKey:     fmt.Sprintf("retract:repo:%s|%s", consumerRepoID, codeImportEvidenceSource),
 		ScopeID:          input.ScopeID,
 		AcceptanceUnitID: consumerRepoID,

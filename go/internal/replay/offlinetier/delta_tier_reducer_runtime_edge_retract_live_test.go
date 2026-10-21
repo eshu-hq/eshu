@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -85,7 +85,7 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 		}
 	}
 
-	inRows(reducer.DomainHandlesRoute, []sharedintent.Row{
+	inRows(reducercontract.DomainHandlesRoute, []sharedintent.Row{
 		{IntentID: "route-in", RepositoryID: rtInRepo, Payload: map[string]any{
 			"function_entity_id": rtFnRoute, "repo_id": rtInRepo, "path": rtRoutePath,
 		}},
@@ -93,7 +93,7 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 			"function_entity_id": rtFnOutRoute, "repo_id": rtOutRepo, "path": rtRoutePath,
 		}},
 	})
-	inRows(reducer.DomainRunsIn, []sharedintent.Row{
+	inRows(reducercontract.DomainRunsIn, []sharedintent.Row{
 		{IntentID: "runs-in", RepositoryID: rtInRepo, Payload: map[string]any{
 			"function_id": rtFnRun, "repo_id": rtInRepo,
 		}},
@@ -101,7 +101,7 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 			"function_id": rtFnOutRun, "repo_id": rtOutRepo,
 		}},
 	})
-	inRows(reducer.DomainInvokesCloudAction, []sharedintent.Row{
+	inRows(reducercontract.DomainInvokesCloudAction, []sharedintent.Row{
 		{IntentID: "invoke-in", RepositoryID: rtInRepo, Payload: map[string]any{
 			"function_id": rtFnInvoke, "cloud_action": "s3:GetObject", "action_id": rtActionID,
 		}},
@@ -109,7 +109,7 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 			"function_id": rtFnOutInvoke, "cloud_action": "s3:GetObject", "action_id": rtActionID,
 		}},
 	})
-	inRows(reducer.DomainWorkloadDependency, []sharedintent.Row{
+	inRows(reducercontract.DomainWorkloadDependency, []sharedintent.Row{
 		{IntentID: "wldep-in", RepositoryID: rtInRepo, Payload: map[string]any{
 			"workload_id": rtWorkloadA, "target_workload_id": rtWorkloadB,
 		}},
@@ -150,10 +150,10 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 			t.Fatalf("RetractEdges(%s): %v", domain, err)
 		}
 	}
-	retract(reducer.DomainHandlesRoute)
-	retract(reducer.DomainRunsIn)
-	retract(reducer.DomainInvokesCloudAction)
-	retract(reducer.DomainWorkloadDependency)
+	retract(reducercontract.DomainHandlesRoute)
+	retract(reducercontract.DomainRunsIn)
+	retract(reducercontract.DomainInvokesCloudAction)
+	retract(reducercontract.DomainWorkloadDependency)
 
 	assertEdgeCount(ctx, t, exec, routeQ, inRoute, 0, "retract: in-scope HANDLES_ROUTE gone")
 	assertEdgeCount(ctx, t, exec, runsInQ, inRun, 0, "retract: in-scope RUNS_IN gone")

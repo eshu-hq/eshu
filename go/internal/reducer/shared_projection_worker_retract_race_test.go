@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
@@ -180,8 +182,8 @@ func handlesRouteRepoIntents(t *testing.T, repoID string, perEdgeCount, partitio
 
 	intents := []sharedintent.Row{
 		sharedintent.Build(sharedintent.Input{
-			ProjectionDomain: DomainHandlesRoute,
-			PartitionKey:     sharedintent.RepoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID),
+			ProjectionDomain: reducercontract.DomainHandlesRoute,
+			PartitionKey:     sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainHandlesRoute, repoID),
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: repoID,
 			RepositoryID:     repoID,
@@ -198,7 +200,7 @@ func handlesRouteRepoIntents(t *testing.T, repoID string, perEdgeCount, partitio
 	for p := 0; p < perEdgeCount; p++ {
 		partitionKey := partitionKeyForTestPartition(t, p%partitionCount, partitionCount, repoID+"-route-"+strconv.Itoa(p))
 		intents = append(intents, sharedintent.Build(sharedintent.Input{
-			ProjectionDomain: DomainHandlesRoute,
+			ProjectionDomain: reducercontract.DomainHandlesRoute,
 			PartitionKey:     partitionKey,
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: repoID,
@@ -214,7 +216,7 @@ func handlesRouteRepoIntents(t *testing.T, repoID string, perEdgeCount, partitio
 
 func handlesRouteFenceConfig(partitionID, partitionCount int) worker.PartitionProcessorConfig {
 	return worker.PartitionProcessorConfig{
-		Domain:         DomainHandlesRoute,
+		Domain:         reducercontract.DomainHandlesRoute,
 		PartitionID:    partitionID,
 		PartitionCount: partitionCount,
 		LeaseOwner:     "worker-1",
@@ -288,7 +290,7 @@ func TestProcessPartitionOnceHandlesRouteFenceHoldsWritesBeforeRetract(t *testin
 	const repoID = "repo-b"
 
 	intents := handlesRouteRepoIntents(t, repoID, 3, partitionCount, now.Add(-time.Minute))
-	refreshPartition, err := sharedintent.PartitionForKey(sharedintent.RepoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID), partitionCount)
+	refreshPartition, err := sharedintent.PartitionForKey(sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainHandlesRoute, repoID), partitionCount)
 	if err != nil {
 		t.Fatalf("PartitionForKey: %v", err)
 	}
@@ -396,7 +398,7 @@ func TestProcessPartitionOnceHandlesRouteUnmarkedRowsDrainWhenFenceWired(t *test
 	var intents []sharedintent.Row
 	for p := 0; p < partitionCount; p++ {
 		intents = append(intents, sharedintent.Build(sharedintent.Input{
-			ProjectionDomain: DomainHandlesRoute,
+			ProjectionDomain: reducercontract.DomainHandlesRoute,
 			PartitionKey:     partitionKeyForTestPartition(t, p, partitionCount, repoID+"-legacy-"+strconv.Itoa(p)),
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: repoID,

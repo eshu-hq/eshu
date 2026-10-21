@@ -49,7 +49,7 @@ var submodulePinMaterializationFactKinds = []string{factload.FactKindRepository,
 // parsed_file_data join is needed.
 func loadSubmodulePinMaterializationFacts(
 	ctx context.Context,
-	loader FactLoader,
+	loader factload.FactLoader,
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {

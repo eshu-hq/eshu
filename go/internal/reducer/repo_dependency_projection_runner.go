@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -173,7 +175,7 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 		}
 		if r.Instruments != nil && r.Instruments.SharedProjectionLaneGateDuration != nil {
 			r.Instruments.SharedProjectionLaneGateDuration.Record(ctx, time.Since(gateStart).Seconds(), metric.WithAttributes(
-				telemetry.AttrDomain(DomainRepoDependency),
+				telemetry.AttrDomain(reducercontract.DomainRepoDependency),
 				telemetry.AttrReason(projection.BlockedReasonCanonicalCodeQuiescence),
 			))
 		}
@@ -184,7 +186,7 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	}
 	claimed, err := r.LeaseManager.ClaimPartitionLease(
 		ctx,
-		DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		r.Config.partitionID(),
 		r.Config.partitionCount(),
 		r.Config.leaseOwner(),
@@ -264,7 +266,7 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	ran, gateErr := r.AcceptanceUnitGate.WithAcceptanceUnit(
 		workCtx,
 		RepoDependencyAcceptanceUnitGateKey{
-			Domain:           DomainRepoDependency,
+			Domain:           reducercontract.DomainRepoDependency,
 			AcceptanceUnitID: acceptanceUnitID,
 			PartitionID:      r.Config.partitionID(),
 			PartitionCount:   r.Config.partitionCount(),
@@ -348,7 +350,7 @@ func (r *RepoDependencyProjectionRunner) selectAcceptanceUnitWork(ctx context.Co
 	drainAbsent := func() ([]string, []string, error) {
 		drained, kept, err := worker.DrainAbsentAcceptance(
 			ctx, now, acceptanceTelemetry,
-			"repo_dependency_projection", DomainRepoDependency, r.IntentReader, absentRows, reportedTorn,
+			"repo_dependency_projection", reducercontract.DomainRepoDependency, r.IntentReader, absentRows, reportedTorn,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -365,7 +367,7 @@ func (r *RepoDependencyProjectionRunner) selectAcceptanceUnitWork(ctx context.Co
 	}
 
 	for {
-		pending, err := r.IntentReader.ListPendingDomainIntents(ctx, DomainRepoDependency, scanLimit)
+		pending, err := r.IntentReader.ListPendingDomainIntents(ctx, reducercontract.DomainRepoDependency, scanLimit)
 		if err != nil {
 			return "", 0, nil, fmt.Errorf("list pending repo dependency intents: %w", err)
 		}
@@ -476,7 +478,7 @@ func (r *RepoDependencyProjectionRunner) loadAllAcceptanceUnitIntents(
 		limit = maxRepoDependencyAcceptanceScanLimit
 	}
 	for {
-		rows, err := reader.ListAcceptanceUnitDomainIntents(ctx, acceptanceUnitID, DomainRepoDependency, limit)
+		rows, err := reader.ListAcceptanceUnitDomainIntents(ctx, acceptanceUnitID, reducercontract.DomainRepoDependency, limit)
 		if err != nil {
 			return nil, fmt.Errorf("list repo dependency acceptance intents: %w", err)
 		}
@@ -505,7 +507,7 @@ func (r *RepoDependencyProjectionRunner) retractRepo(ctx context.Context, rows [
 	}
 	sources := repoDependencyEvidenceSources(rows)
 	for _, source := range sources {
-		if err := r.EdgeWriter.RetractEdges(ctx, DomainRepoDependency, retractRows, source); err != nil {
+		if err := r.EdgeWriter.RetractEdges(ctx, reducercontract.DomainRepoDependency, retractRows, source); err != nil {
 			return 0, fmt.Errorf("retract repo dependency edges for %s: %w", source, err)
 		}
 	}
@@ -537,7 +539,7 @@ func (r *RepoDependencyProjectionRunner) writeActiveRows(ctx context.Context, ro
 		// behaviour for this path, not a new loss -- but it IS a remaining gap,
 		// and the compile-forced report is what makes it visible instead of
 		// implicit. Wiring the sink here needs this handler's own proof.
-		if _, err := r.EdgeWriter.WriteEdges(ctx, DomainRepoDependency, group, source); err != nil {
+		if _, err := r.EdgeWriter.WriteEdges(ctx, reducercontract.DomainRepoDependency, group, source); err != nil {
 			return 0, 0, fmt.Errorf("write repo dependency edges for %s: %w", source, err)
 		}
 		writtenRows += len(group)

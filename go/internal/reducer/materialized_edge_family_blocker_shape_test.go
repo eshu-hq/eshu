@@ -111,25 +111,25 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 	// code/call/intents.go:118,221 tag rows
 	// ProjectionDomain: DomainCodeCalls; code/call/materialization/handler.go:236
 	// writes them via h.IntentWriter.UpsertIntents.
-	DomainCodeCalls: {routedDomain: DomainCodeCallMaterialization},
+	reducercontract.DomainCodeCalls: {routedDomain: DomainCodeCallMaterialization},
 	// sqlrelationship/sql_relationship_intents.go:108,167 tag rows
 	// ProjectionDomain: DomainSQLRelationships;
 	// sqlrelationship/sql_relationship_materialization.go:117 writes them via
 	// h.IntentWriter.UpsertIntents.
-	DomainSQLRelationships: {routedDomain: DomainSQLRelationshipMaterialization},
+	reducercontract.DomainSQLRelationships: {routedDomain: DomainSQLRelationshipMaterialization},
 	// code/shell/intents.go tag rows ProjectionDomain: DomainShellExec;
 	// code/shell/handler.go writes them via h.IntentWriter.UpsertIntents.
-	DomainShellExec: {routedDomain: DomainShellExecMaterialization},
+	reducercontract.DomainShellExec: {routedDomain: DomainShellExecMaterialization},
 	// inheritance/intents.go:99,152 tag rows ProjectionDomain: DomainInheritanceEdges;
 	// inheritance/materialization.go writes them via h.IntentWriter.UpsertIntents.
-	DomainInheritanceEdges: {routedDomain: DomainInheritanceMaterialization},
+	reducercontract.DomainInheritanceEdges: {routedDomain: DomainInheritanceMaterialization},
 	// rationale_edge_intents.go:104,164 tag rows ProjectionDomain: DomainRationaleEdges;
 	// rationale_edge_materialization.go:98 writes them via h.IntentWriter.UpsertIntents.
-	DomainRationaleEdges: {routedDomain: DomainRationaleMaterialization},
+	reducercontract.DomainRationaleEdges: {routedDomain: DomainRationaleMaterialization},
 	// documentation_edge_materialization.go:268 tags rows
 	// ProjectionDomain: DomainDocumentationEdges and writes them via
 	// h.EdgeWriter -- no IntentWriter field.
-	DomainDocumentationEdges: {routedDomain: DomainDocumentationMaterialization},
+	reducercontract.DomainDocumentationEdges: {routedDomain: DomainDocumentationMaterialization},
 	// codeowners_ownership_materialization.go:271 tags rows
 	// ProjectionDomain: DomainCodeownersOwnershipEdges and writes them via
 	// h.EdgeWriter -- no IntentWriter field. This is the family
@@ -139,11 +139,11 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 	// table lock, so the registry row and its pin both record
 	// table_lock:fact_records today. The tooth is still the right one to keep --
 	// it is the bug class, not a live bug report.
-	DomainCodeownersOwnershipEdges: {routedDomain: DomainCodeownersOwnership},
+	reducercontract.DomainCodeownersOwnershipEdges: {routedDomain: DomainCodeownersOwnership},
 	// submodule_pin_materialization.go:249 tags rows
 	// ProjectionDomain: DomainSubmodulePinEdges and writes them via
 	// h.EdgeWriter -- no IntentWriter field.
-	DomainSubmodulePinEdges: {routedDomain: DomainSubmodulePin},
+	reducercontract.DomainSubmodulePinEdges: {routedDomain: DomainSubmodulePin},
 }
 
 // materializedEdgeFamilyBlockerLockstepExclusions lists the
@@ -157,12 +157,12 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 // registry landing a row for a family does not change whether that family's
 // handler is reachable through the one switch this test reflects over.
 var materializedEdgeFamilyBlockerLockstepExclusions = map[string]string{
-	DomainDeployableUnitEdges: "wired via registry.go's DomainDeployableUnitCorrelation, not defaults_domain_catalog.go's switch; DeployableUnitCorrelationHandler already has its own correctly-scoped admission_decisions table_lock (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh:296), confirmed by its own row in scripts/lib/ifa_family_registry.sh",
-	DomainHandlesRoute:        "shares CodeCallMaterializationHandler with code_calls: buildSymbolRuntimeIntentRows uses the same handler IntentWriter, so this test's reflection cannot distinguish the family from code_calls. The exclusion is structural, not a coverage waiver: its runner_lease_hold lockstep is checked by TestMaterializedEdgeFamilyRunnerLeaseHoldLockstep, while the anchor-scoped graph-write cell remains family-specific.",
-	DomainRunsIn:              "same shared CodeCallMaterializationHandler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
-	DomainInvokesCloudAction:  "same shared CodeCallMaterializationHandler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
-	DomainRepoDependency:      "three separate producer handlers (crossrepo.CrossRepoRelationshipHandler in cross_repo_resolution.go, the handler in package_source_correlation_handler.go, and code_import_repo_edge_handler.go) with inconsistently named intent-writer fields (IntentWriter vs crossrepo.RepoDependencyIntentWriter) -- not a single handler this test's one-field-name reflection can address",
-	DomainWorkloadDependency:  "written by WorkloadMaterializationHandler.WorkloadDependencyEdgeWriter, a handler shared across many unrelated domains (DomainWorkloadMaterialization etc.) -- not 1:1 with this family",
+	reducercontract.DomainDeployableUnitEdges: "wired via registry.go's DomainDeployableUnitCorrelation, not defaults_domain_catalog.go's switch; DeployableUnitCorrelationHandler already has its own correctly-scoped admission_decisions table_lock (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh:296), confirmed by its own row in scripts/lib/ifa_family_registry.sh",
+	reducercontract.DomainHandlesRoute:        "shares CodeCallMaterializationHandler with code_calls: buildSymbolRuntimeIntentRows uses the same handler IntentWriter, so this test's reflection cannot distinguish the family from code_calls. The exclusion is structural, not a coverage waiver: its runner_lease_hold lockstep is checked by TestMaterializedEdgeFamilyRunnerLeaseHoldLockstep, while the anchor-scoped graph-write cell remains family-specific.",
+	reducercontract.DomainRunsIn:              "same shared CodeCallMaterializationHandler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
+	reducercontract.DomainInvokesCloudAction:  "same shared CodeCallMaterializationHandler reflection limitation as handles_route; its runner_lease_hold lockstep is checked separately, and its anchor-scoped graph-write cell remains family-specific.",
+	reducercontract.DomainRepoDependency:      "three separate producer handlers (crossrepo.CrossRepoRelationshipHandler in cross_repo_resolution.go, the handler in package_source_correlation_handler.go, and code_import_repo_edge_handler.go) with inconsistently named intent-writer fields (IntentWriter vs crossrepo.RepoDependencyIntentWriter) -- not a single handler this test's one-field-name reflection can address",
+	reducercontract.DomainWorkloadDependency:  "written by WorkloadMaterializationHandler.WorkloadDependencyEdgeWriter, a handler shared across many unrelated domains (DomainWorkloadMaterialization etc.) -- not 1:1 with this family",
 }
 
 // materializedEdgeFamilyNotYetInRegistry is the deliberate, reviewed

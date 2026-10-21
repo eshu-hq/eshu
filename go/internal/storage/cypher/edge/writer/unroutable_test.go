@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -67,8 +67,8 @@ func TestEdgeWriterWriteEdgesAllRowsUnroutableReportsEveryLostRow(t *testing.T) 
 		unroutableRepoDependencyRow("i2"),
 	}
 
-	report, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
-	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainRepoDependency, 2)
+	report, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducercontract.DomainRepoDependency, 2)
 
 	seen := map[string]bool{}
 	for _, row := range report.UnroutableRows {
@@ -97,7 +97,7 @@ func TestEdgeWriterWriteEdgesEmptyBatchStaysSuccessful(t *testing.T) {
 
 	if _, err := writer.WriteEdges(
 		context.Background(),
-		reducer.DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		nil,
 		"finalization/workloads",
 	); err != nil {
@@ -127,7 +127,7 @@ func TestEdgeWriterWriteEdgesPartialDropWarnsWithDroppedCount(t *testing.T) {
 
 	if _, err := writer.WriteEdges(
 		context.Background(),
-		reducer.DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		rows,
 		"finalization/workloads",
 	); err != nil {
@@ -144,7 +144,7 @@ func TestEdgeWriterWriteEdgesPartialDropWarnsWithDroppedCount(t *testing.T) {
 	if got, want := entry["level"], "WARN"; got != want {
 		t.Fatalf("dropped-row log level = %v, want %v", got, want)
 	}
-	if got, want := entry["domain"], reducer.DomainRepoDependency; got != want {
+	if got, want := entry["domain"], reducercontract.DomainRepoDependency; got != want {
 		t.Fatalf("dropped-row log domain = %v, want %v", got, want)
 	}
 	if got, want := entry["dropped_rows"], float64(1); got != want {
@@ -190,7 +190,7 @@ func TestEdgeWriterWriteEdgesControlRowOnlyBatchStaysSuccessful(t *testing.T) {
 
 	if _, err := writer.WriteEdges(
 		context.Background(),
-		reducer.DomainCodeCalls,
+		reducercontract.DomainCodeCalls,
 		rows,
 		"parser/code-calls",
 	); err != nil {
@@ -231,7 +231,7 @@ func TestEdgeWriterWriteEdgesControlRowPlusUnroutableRowReportsOnlyTheLostEdge(t
 		unroutableRepoDependencyRow("i2"),
 	}
 
-	report, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	report, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v, want nil", err)
 	}
@@ -273,7 +273,7 @@ func TestEdgeWriterWriteEdgesReportsVersionSkewSeparately(t *testing.T) {
 		},
 	}}
 
-	report, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	report, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v, want nil", err)
 	}

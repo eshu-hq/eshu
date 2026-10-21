@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -78,7 +78,7 @@ func BenchmarkEdgeWriterUnroutableRowLoop(b *testing.B) {
 				// unroutable case returns a REPORT and a nil error -- it is not
 				// a failure, because a payload-deterministic rejection can never
 				// be retried away.
-				_, _ = writer.WriteEdges(ctx, reducer.DomainRepoDependency, tc.rows, "finalization/workloads")
+				_, _ = writer.WriteEdges(ctx, reducercontract.DomainRepoDependency, tc.rows, "finalization/workloads")
 			}
 			b.ReportMetric(float64(len(tc.rows)), "input_rows/op")
 		})

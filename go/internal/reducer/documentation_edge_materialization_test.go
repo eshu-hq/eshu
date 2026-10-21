@@ -42,8 +42,8 @@ func TestDocumentationMaterializationHandlerScopesDeltaRetractToDocuments(t *tes
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if writer.retractDomain != DomainDocumentationEdges {
-		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainDocumentationEdges)
+	if writer.retractDomain != reducercontract.DomainDocumentationEdges {
+		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, reducercontract.DomainDocumentationEdges)
 	}
 	if len(writer.retractRows) != 1 {
 		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
@@ -106,8 +106,8 @@ func TestDocumentationMaterializationHandlerDeletedOnlyDeltaRetractsWithoutWrite
 	if result.CanonicalWrites != 0 {
 		t.Fatalf("CanonicalWrites = %d, want 0", result.CanonicalWrites)
 	}
-	if writer.retractDomain != DomainDocumentationEdges {
-		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainDocumentationEdges)
+	if writer.retractDomain != reducercontract.DomainDocumentationEdges {
+		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, reducercontract.DomainDocumentationEdges)
 	}
 	if len(writer.retractRows) != 1 {
 		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))

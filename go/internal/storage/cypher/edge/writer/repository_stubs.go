@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -46,9 +46,9 @@ var repositoryStubUpsertCyphers = func() map[string]bool {
 // domain, which then pays nothing.
 func repositoryStubWriter(domain string) (string, bool) {
 	switch domain {
-	case reducer.DomainRepoDependency:
+	case reducercontract.DomainRepoDependency:
 		return telemetry.RepositoryStubWriterRepoDependency, true
-	case reducer.DomainSubmodulePinEdges:
+	case reducercontract.DomainSubmodulePinEdges:
 		return telemetry.RepositoryStubWriterSubmodulePin, true
 	default:
 		return "", false

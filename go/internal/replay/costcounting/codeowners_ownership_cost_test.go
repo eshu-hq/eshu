@@ -12,7 +12,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -61,7 +61,7 @@ func codeownersOwnershipEdgeFixtureRows() []sharedintent.Row {
 	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		intents = append(intents, sharedintent.Row{
-			ProjectionDomain: reducer.DomainCodeownersOwnershipEdges,
+			ProjectionDomain: reducercontract.DomainCodeownersOwnershipEdges,
 			PartitionKey: fmt.Sprintf(
 				"%s->%s->%s->%s", row["repo_id"], row["source_path"], row["pattern"], row["owner_ref"],
 			),
@@ -138,7 +138,7 @@ func TestCostBudget_CodeownersOwnership(t *testing.T) {
 
 	if _, err := writer.WriteEdges(
 		context.Background(),
-		reducer.DomainCodeownersOwnershipEdges,
+		reducercontract.DomainCodeownersOwnershipEdges,
 		codeownersOwnershipEdgeFixtureRows(),
 		codeownersOwnershipCostEvidenceSource,
 	); err != nil {
@@ -211,7 +211,7 @@ func TestCostBudget_CodeownersOwnership_N1_ExceedsBudget(t *testing.T) {
 	for _, row := range rows {
 		if _, err := writer.WriteEdges(
 			context.Background(),
-			reducer.DomainCodeownersOwnershipEdges,
+			reducercontract.DomainCodeownersOwnershipEdges,
 			[]sharedintent.Row{row},
 			codeownersOwnershipCostEvidenceSource,
 		); err != nil {

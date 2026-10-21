@@ -10,7 +10,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -43,7 +43,7 @@ func TestEdgeWriterUnroutableRowsCounterRecordsPartialBatch(t *testing.T) {
 	}
 	if _, err := writer.WriteEdges(
 		context.Background(),
-		reducer.DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		rows,
 		"finalization/workloads",
 	); err != nil {
@@ -55,7 +55,7 @@ func TestEdgeWriterUnroutableRowsCounterRecordsPartialBatch(t *testing.T) {
 		t.Fatalf("Collect() error = %v", err)
 	}
 	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_unroutable_rows_total", map[string]string{
-		"domain": reducer.DomainRepoDependency,
+		"domain": reducercontract.DomainRepoDependency,
 		"reason": unroutableReasonPartialBatch,
 	}, 2)
 }
@@ -84,7 +84,7 @@ func TestEdgeWriterUnroutableRowsCounterRecordsWholeBatch(t *testing.T) {
 	// is nothing to retry); the counter and the report carry the loss.
 	report, err := writer.WriteEdges(
 		context.Background(),
-		reducer.DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		rows,
 		"finalization/workloads",
 	)
@@ -100,7 +100,7 @@ func TestEdgeWriterUnroutableRowsCounterRecordsWholeBatch(t *testing.T) {
 		t.Fatalf("Collect() error = %v", err)
 	}
 	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_unroutable_rows_total", map[string]string{
-		"domain": reducer.DomainRepoDependency,
+		"domain": reducercontract.DomainRepoDependency,
 		"reason": unroutableReasonWholeBatch,
 	}, 2)
 }
@@ -128,7 +128,7 @@ func TestEdgeWriterControlRowOnlyBatchRecordsNoUnroutableMetric(t *testing.T) {
 	}}
 	if _, err := writer.WriteEdges(
 		context.Background(),
-		reducer.DomainCodeCalls,
+		reducercontract.DomainCodeCalls,
 		rows,
 		"parser/code-calls",
 	); err != nil {

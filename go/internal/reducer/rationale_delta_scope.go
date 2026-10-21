@@ -27,7 +27,7 @@ var rationaleMaterializationFactKinds = []string{factload.FactKindRepository, fa
 
 func loadRationaleMaterializationFacts(
 	ctx context.Context,
-	loader FactLoader,
+	loader factload.FactLoader,
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {

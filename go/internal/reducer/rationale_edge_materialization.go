@@ -41,7 +41,7 @@ type RationaleEdgeIntentWriter interface {
 // refresh intent per repository owning the retract and each edge fenced behind it
 // (#2869).
 type RationaleEdgeMaterializationHandler struct {
-	FactLoader   FactLoader
+	FactLoader   factload.FactLoader
 	IntentWriter RationaleEdgeIntentWriter
 }
 
