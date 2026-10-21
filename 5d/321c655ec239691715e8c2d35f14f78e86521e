@@ -1,0 +1,16 @@
+Dockerfile
+  h_78a442cba0b3e6 4
+specs/ci-images.v1.json
+  h_78a442cba0b3e6 149,151,163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5d321c655ec239691715e8c2d35f14f78e86521e",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
