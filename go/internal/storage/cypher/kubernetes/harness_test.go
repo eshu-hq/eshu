@@ -69,10 +69,14 @@ func (r *sqlSequentialRecordingExecutor) ExecuteGroup(_ context.Context, stmts [
 	return nil
 }
 
-// noopGroupExecutor duplicates the no-op fake from package cypher
-// (harness_test.go) for the same reason.
+// noopGroupExecutor duplicates the no-op fake from the cloud leaves
+// (cloud/aws/ec2/harness_test.go) for the same reason.
 type noopGroupExecutor struct{}
 
-func (noopGroupExecutor) Execute(context.Context, sourcecypher.Statement) error { return nil }
+func (noopGroupExecutor) Execute(context.Context, sourcecypher.Statement) error {
+	return nil
+}
 
-func (noopGroupExecutor) ExecuteGroup(context.Context, []sourcecypher.Statement) error { return nil }
+func (noopGroupExecutor) ExecuteGroup(context.Context, []sourcecypher.Statement) error {
+	return nil
+}

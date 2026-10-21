@@ -39,6 +39,7 @@ var pinnedFakeCopies = map[string][]string{
 		"cloud/aws/security/group/harness_test.go",
 		"cloud/gcp/relationship/harness_test.go",
 		"cloud/resource/harness_test.go",
+		"kubernetes/harness_test.go",
 	},
 	"backendRestartTerminalGroupExecutor": {
 		"cloud/gcp/relationship/harness_test.go",
@@ -51,6 +52,7 @@ var pinnedFakeCopies = map[string][]string{
 		"cloud/aws/relationship/harness_test.go",
 		"cloud/aws/s3/harness_test.go",
 		"cloud/aws/security/group/harness_test.go",
+		"kubernetes/harness_test.go",
 	},
 }
 
@@ -110,6 +112,58 @@ func renderFakeType(t *testing.T, path string, typeName string) string {
 	// root copies reference them unqualified. Normalize the qualifier so the
 	// comparison pins semantic identity, not spelling.
 	return strings.ReplaceAll(rendered.String(), "sourcecypher.", "")
+}
+
+// renderBatchedRetractHelper parses one file and renders the named free
+// function in canonical form with the name normalized to the root twin, so
+// the comparison pins body identity, not the leaf-specific name.
+func renderBatchedRetractHelper(t *testing.T, path, funcName, asName string) string {
+	t.Helper()
+
+	fileSet := token.NewFileSet()
+	file, err := parser.ParseFile(fileSet, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, decl := range file.Decls {
+		function, ok := decl.(*ast.FuncDecl)
+		if !ok || function.Name.Name != funcName || function.Recv != nil {
+			continue
+		}
+		function.Name.Name = asName
+		var rendered bytes.Buffer
+		if err := printer.Fprint(&rendered, fileSet, function); err != nil {
+			t.Fatalf("render %s %s: %v", path, funcName, err)
+		}
+		// The leaf copy qualifies the root-package types as sourcecypher.X
+		// while the root copy references them unqualified. Normalize the
+		// qualifier so the comparison pins semantic identity, not spelling.
+		return strings.ReplaceAll(rendered.String(), "sourcecypher.", "")
+	}
+	t.Fatalf("%s defines no function %s", path, funcName)
+	return ""
+}
+
+// TestBatchedRetractHelperCopiesStayIdentical fails when the kubernetes leaf
+// copy (buildBatchedNamespaceRetractStatements) drifts from its root twin
+// (buildBatchedRetractStatements, canonical_node_writer_phases.go). The copy
+// carries a leaf-specific name because the ifa direct-family scan keys bare
+// function names; this test pins the bodies identical.
+func TestBatchedRetractHelperCopiesStayIdentical(t *testing.T) {
+	t.Parallel()
+
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller(0) failed")
+	}
+	dir := filepath.Dir(thisFile)
+
+	const twin = "buildBatchedRetractStatements"
+	root := renderBatchedRetractHelper(t, filepath.Join(dir, "canonical_node_writer_phases.go"), twin, twin)
+	leaf := renderBatchedRetractHelper(t, filepath.Join(dir, "kubernetes", "namespace.go"), "buildBatchedNamespaceRetractStatements", twin)
+	if root != leaf {
+		t.Errorf("kubernetes buildBatchedNamespaceRetractStatements drifts from root %s", twin)
+	}
 }
 
 // TestPinnedFakeCopiesStayIdentical fails when any pinned fake copy drifts

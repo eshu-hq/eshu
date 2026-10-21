@@ -72,13 +72,13 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_kubernetes_namespace_absent_retract_live_test.go": {
-      "sha256": "c17b29103e13f49e8db10a54ef6182305cb89005ce7f951d170b1c2f0b7e04cc",
+      "sha256": "8e6ccf8a85ab98e65d348ef0284b44373b88a831bbd0e9a58b550e54f920d643",
       "tests": [
         "TestReducerKubernetesNamespaceAbsentNodeRetractGraphTruth"
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_kubernetes_namespace_environment_retract_live_test.go": {
-      "sha256": "b294b595f4b974091a1d97551d1e63a68d8a678f91a453901776db8390dac3b1",
+      "sha256": "4d212d54d6ad75883987069b61ea200a34e989703e2ebf2ad2b643660fc4e050",
       "tests": [
         "TestReducerKubernetesNamespaceEnvironmentRetractGraphTruth"
       ]
