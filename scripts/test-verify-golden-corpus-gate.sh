@@ -6,6 +6,8 @@
 # pipeline stage and drain, honours the B-13 shared_projection_intents gate, and
 # leaks no private data.
 set -euo pipefail
+# #8673: keep fixture git out of host daemon Trace2 tracking (cf. test-verify-moved-file-refs.sh).
+export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-golden-corpus-gate.sh"
 fixture_lib="${repo_root}/scripts/lib/golden-corpus-fixtures.sh"

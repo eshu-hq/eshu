@@ -31,6 +31,14 @@
 # problems at once. Exit status is non-zero if any step failed.
 set -uo pipefail
 
+# #8673: keep fixture repos out of the host git-ai daemon's Trace2 tracking.
+# The daemon keys on its Trace2 socket env; any git process that emits to it
+# teaches the daemon the fixture path (fixtures and their gate runs inherit
+# this env). GIT_TRACE2_EVENT=0 disables the event stream (same convention as
+# test-verify-moved-file-refs.sh); PERF likewise. Teardown retries stay as
+# belt-and-braces.
+export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 go_dir="${repo_root}/go"
 precommit="${repo_root}/scripts/dev/precommit-go.sh"
