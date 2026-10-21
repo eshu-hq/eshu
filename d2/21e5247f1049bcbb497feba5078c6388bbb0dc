@@ -1,0 +1,20 @@
+docs/internal/ci-service-image-mirrors.md
+  h_78a442cba0b3e6 5,13,39-41,44
+scripts/dev/fixtures/ci-image-mirror-crane-stub.sh
+  h_78a442cba0b3e6 23-26,36-38,55
+scripts/dev/publish-ci-image-mirrors.sh
+  h_78a442cba0b3e6 9,98-101,113
+scripts/dev/test-publish-ci-image-mirrors.sh
+  h_78a442cba0b3e6 37-38,72,82,90,93,97,105,108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d221e5247f1049bcbb497feba5078c6388bbb0dc",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
