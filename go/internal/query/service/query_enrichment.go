@@ -345,6 +345,7 @@ func EnrichServiceQueryContextWithOptions(
 	deploymentEvidence := evidenceLoad.evidence
 	timer.Done(ctx, deploymentEvidenceStageAttrs(evidenceLoad)...)
 	repository.RecordDeploymentArtifactCandidates(ctx, opts.Instruments, evidenceLoad.stats)
+	repository.RecordDeploymentArtifactReads(ctx, opts.Instruments, evidenceLoad.stats)
 	if err != nil {
 		return fmt.Errorf("load service deployment evidence: %w", err)
 	}

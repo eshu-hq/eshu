@@ -226,3 +226,11 @@ func ConfigureProductionShadowReads(reader StoredReader, reporter func(context.C
 func ConfigureProductionStoredReads(reader StoredReader) {
 	productionConfigArtifactLoader.stored = StoredConfig{Enabled: true, Reader: reader}
 }
+
+// ResetProductionReads disables the shadow compare and the stored load,
+// restoring the live read every route used before any Configure call. Tests
+// only: production sets its mode once at API start and never resets it.
+func ResetProductionReads() {
+	productionConfigArtifactLoader.shadow = ShadowConfig{}
+	productionConfigArtifactLoader.stored = StoredConfig{}
+}
