@@ -55,12 +55,11 @@ mirror to regenerate. See
 for why the old ledger was retired. `//nolint:dirgate // <reason>` is the
 naming escape only; it no longer waives the cap.
 
-When a family moves to its own package, keep root callers compiling through a
-compat surface: type aliases and thin forwarders grouped by family under a
-`compat_*.go` file. A family move adds a stanza to an existing compat file; it
-never creates a new one (see `go/internal/reducer/compat_correlation.go` and
-its sibling `compat_*.go` files). Delete each aliased entry once its last
-caller has moved.
+When a family moves to its own package, repoint its root callers at the leaf
+in the same PR. The `compat_*.go` alias surface that used to bridge moves
+(type aliases and thin forwarders grouped by family stanza) was retired in
+#8733 once the last caller moved; do not recreate it. A family move lands
+directly in the leaf package.
 
 Package-move mechanics, in order:
 
