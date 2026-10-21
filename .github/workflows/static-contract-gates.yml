@@ -189,7 +189,7 @@ jobs:
     timeout-minutes: ${{ matrix.timeout }}
     runs-on: ubuntu-latest
     defaults: {run: {shell: bash}}
-    container: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && 'ghcr.io/eshu-hq/ci-tools@sha256:05ab9636508dd971fc39f532e5b13ef7088209f89be30172e403c98e9fab1738' || '' }}
+    container: ${{ (github.event_name != 'merge_group' || matrix.queue_selected) && 'ghcr.io/eshu-hq/ci-tools@sha256:2cd4305390057560cd876df8c3350e296b7df0b4b11a3d04e3a7d904d169a776' || '' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}

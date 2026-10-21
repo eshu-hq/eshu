@@ -42,8 +42,8 @@ the container and use `actions/cache`. `GOTOOLCHAIN=local` makes a `go.mod`
 toolchain bump fail the blocking check until this image is rebuilt, published,
 and pinned to the matching Go version.
 
-Pinned upstream inputs: Go 1.26.9 Linux amd64 tar SHA-256
-`42d158b4d8f7b61ac0a830567c940a86098fb7aac52e467a5ebec03ef5cc2f8d`;
+Pinned upstream inputs: Go 1.26.10 Linux amd64 tar SHA-256
+`ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5`;
 ripgrep 15.2.0 musl tar SHA-256
 `33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c`;
 yq 4.54.1 Linux amd64 SHA-256
@@ -57,7 +57,7 @@ is extracted from Docker's tar; the image has no daemon or container runtime.
 
 | Download | Versioned source and license |
 | --- | --- |
-| Go | [go1.26.9 source](https://github.com/golang/go/tree/go1.26.9), [BSD-3-Clause license](https://github.com/golang/go/blob/go1.26.9/LICENSE) |
+| Go | [go1.26.10 source](https://github.com/golang/go/tree/go1.26.10), [BSD-3-Clause license](https://github.com/golang/go/blob/go1.26.10/LICENSE) |
 | ripgrep | [15.2.0 source](https://github.com/BurntSushi/ripgrep/tree/15.2.0), [MIT license](https://github.com/BurntSushi/ripgrep/blob/15.2.0/LICENSE-MIT) |
 | yq | [v4.54.1 source](https://github.com/mikefarah/yq/tree/v4.54.1), [MIT license](https://github.com/mikefarah/yq/blob/v4.54.1/LICENSE) |
 | Docker CLI | [v29.1.3 source](https://github.com/docker/cli/tree/v29.1.3), [Apache-2.0 license](https://github.com/docker/cli/blob/v29.1.3/LICENSE) |

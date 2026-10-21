@@ -42,7 +42,7 @@ docker run --rm --platform "${platform}" \
       echo "CI tools image has no writable HOME" >&2
       exit 1
     fi
-    test "$(go version | awk "{print \$3}")" = go1.26.9
+    test "$(go version | awk "{print \$3}")" = go1.26.10
     getconf GNU_LIBC_VERSION | rg "^glibc 2\\.39$"
     for tool in bash git curl rg jq yq python3 gh gcc pkg-config docker; do
       command -v "${tool}" >/dev/null
