@@ -330,6 +330,9 @@ func ncStatSnapshot(database *sql.DB) string {
 	if err := rows.Err(); err != nil {
 		return "(stats rows: " + err.Error() + ")"
 	}
+	if out == "" {
+		return "(no pg_stat rows for proof tables)"
+	}
 	return out
 }
 
