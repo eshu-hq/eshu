@@ -60,6 +60,14 @@ require "names the CI required-gates aggregate on success" 'required-gates-compl
 # Behavioral: execute the real driver against a hermetic fixture repo.
 # ---------------------------------------------------------------------------
 temp_root="$(mktemp -d)"
+# #8673: keep fixture repos out of the host git-ai daemon's Trace2 tracking.
+# The daemon keys on its Trace2 socket env; any git process that emits to it
+# teaches the daemon the fixture path, and the daemon may then hold a fixture
+# .git/ai entry open across teardown (ENOTEMPTY masking green assertions).
+# GIT_TRACE2_EVENT=0 disables the event stream (same convention as
+# test-verify-moved-file-refs.sh); PERF likewise. The #8671 teardown retries
+# stay as belt-and-braces.
+export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
 # Retry teardown: an async host indexer (git-ai daemon via Trace2) may hold a
 # fixture .git/ai entry open in the teardown window; a single rm then fails
 # with ENOTEMPTY and masks green assertions. Retry briefly, then fail loud.

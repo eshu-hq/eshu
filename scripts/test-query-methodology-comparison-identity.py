@@ -16,6 +16,17 @@ from pathlib import Path
 RESOLVER = Path(__file__).resolve().parent / "lib/query-methodology-comparison-identity.py"
 
 
+def _fixture_git_env() -> dict[str, str]:
+    """Environment for fixture git: decoupled from Trace2 tracking (#8673).
+
+    The host git-ai daemon keys on its Trace2 socket env; any git process
+    that emits to it teaches the daemon the fixture path. =0 disables the
+    event stream (same convention as test-verify-moved-file-refs.sh); PERF
+    likewise.
+    """
+    return {**os.environ, "GIT_TRACE2_EVENT": "0", "GIT_TRACE2_PERF": "0"}
+
+
 class ComparisonIdentityTest(unittest.TestCase):
     """Check real Git ancestry and event identities, including combined heads."""
 
@@ -61,7 +72,8 @@ class ComparisonIdentityTest(unittest.TestCase):
     def git(self, *arguments: str) -> str:
         """Run Git only in this test's disposable repository."""
         command = subprocess.run(
-            ["git", *arguments], cwd=self.root, capture_output=True, text=True, check=False
+            ["git", *arguments], cwd=self.root, capture_output=True, text=True, check=False,
+            env=_fixture_git_env(),
         )
         self.assertEqual(command.returncode, 0, command.stderr)
         return command.stdout.strip()
@@ -77,7 +89,7 @@ class ComparisonIdentityTest(unittest.TestCase):
     ) -> tuple[subprocess.CompletedProcess[str], Path]:
         """Invoke the real resolver and return its archived identity path."""
         output = self.root / "identity.json"
-        environment = os.environ.copy()
+        environment = _fixture_git_env()
         for key in ("GITHUB_EVENT_NAME", "GITHUB_EVENT_PATH", "GITHUB_SHA", "GITHUB_REF"):
             environment.pop(key, None)
         if event:
@@ -255,13 +267,13 @@ class ComparisonIdentityTest(unittest.TestCase):
         shallow = self.root / "shallow-clone"
         result = subprocess.run(
             ["git", "clone", "--quiet", "--depth=1", "--branch=feature", f"file://{self.root}", str(shallow)],
-            capture_output=True, text=True, check=False,
+            capture_output=True, text=True, check=False, env=_fixture_git_env(),
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         identity = shallow / "identity.json"
         result = subprocess.run(
             [sys.executable, str(RESOLVER), "--root", str(shallow), "--output", str(identity)],
-            cwd=shallow, capture_output=True, text=True, check=False,
+            cwd=shallow, capture_output=True, text=True, check=False, env=_fixture_git_env(),
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("full Git history", result.stderr)
