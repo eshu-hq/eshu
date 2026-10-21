@@ -194,6 +194,10 @@ printf '1\n' >"${fake}/$(pkg_key "${first_pkg}").exit"
 debug_pkgdir() { printf '%s/.readiness-debug/%s-%d' "${seed_dir}" "$(printf '%s' "$1" | tr -c '[:alnum:]' '_')" "$2"; }
 first_debugdir="$(debug_pkgdir "${first_pkg}" 1)"
 last_debugdir="$(debug_pkgdir "${last_pkg}" "${#packages[@]}")"
+# Pin the mechanism independently of the mirror: the dirs must carry the
+# loop-index suffix even when no two enrolled packages sanitize alike.
+[[ "${first_debugdir}" == *-1 ]] || fail "debug dir missing loop-index suffix"
+[[ "${last_debugdir}" == *-"${#packages[@]}" ]] || fail "debug dir missing loop-index suffix"
 export LIVE_READINESS_DEBUG_DIR="${seed_dir}/.readiness-debug"
 out="$(run_runner)" && fail "go nonzero exit in ${first_pkg} passed"
 [[ -f "${first_debugdir}/events.jsonl" ]] || fail "debug events not preserved for ${first_pkg}"
