@@ -183,6 +183,44 @@ func TestGateSubprocessEnvWithSteersFallback(t *testing.T) {
 	}
 }
 
+// TestGateSubprocessEnvWithNoFallbackKeepsPath pins the F1 no-fallback branch
+// hermetically on every host (#8715 review): a non-qualifying PATH-slot bash
+// plus a fallback list that resolves to nothing must preserve the caller PATH
+// byte-for-byte. Unlike TestGateSubprocessEnvNoFallbackKeepsPath, which skips
+// wherever a real fallback resolves, this runs everywhere including
+// macOS-class machines.
+func TestGateSubprocessEnvWithNoFallbackKeepsPath(t *testing.T) {
+	dir := t.TempDir()
+	bad := filepath.Join(dir, "bash")
+	if err := os.WriteFile(bad, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil { //nolint:gosec -- test fixture needs to be executable
+		t.Fatalf("write bad bash fixture: %v", err)
+	}
+	if bashAtLeast44(bad) {
+		t.Fatal("bad bash fixture unexpectedly qualifies")
+	}
+	t.Setenv("GOROOT", "/fake/toolchain@v0.0.1-go1.99.9/root")
+	callerPath := os.Getenv("PATH")
+
+	env := gateSubprocessEnvWith(bad, []string{filepath.Join(t.TempDir(), "no-bash-here")})
+	if env == nil {
+		t.Fatal("GOROOT is set, but gateSubprocessEnvWith returned nil (inherit unchanged)")
+	}
+	pathVal := ""
+	count := 0
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "PATH=") {
+			count++
+			pathVal = strings.TrimPrefix(kv, "PATH=")
+		}
+	}
+	if count != 1 {
+		t.Fatalf("gateSubprocessEnvWith emitted %d PATH entries, want exactly 1", count)
+	}
+	if pathVal != callerPath {
+		t.Fatalf("PATH was rewritten with no fallback to steer to\n  want: %q\n  got:  %q", callerPath, pathVal)
+	}
+}
+
 // TestGateSubprocessEnvSteersFallbackBashDir proves the PATH-steering wiring
 // runShellCommand depends on for hosts whose PATH-resolved bash does NOT
 // qualify (macOS /bin/bash 3.2): gateSubprocessEnv must return an environment
