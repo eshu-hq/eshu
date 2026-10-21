@@ -2,17 +2,18 @@
 #
 # verify-dashboard-metrics.sh — cross-reference every eshu_dp_* metric name
 # referenced in Grafana dashboard JSONs against the canonical metric registry
-# go/internal/telemetry/instruments.go.
+# in go/internal/telemetry/ (instruments.go plus per-metric registration
+# files such as instruments_fileless_guard.go).
 #
 # Direction: dashboard → registry only. This gate catches a panel referencing
 # a non-existent metric; it intentionally does NOT require every registered
 # metric to appear on a dashboard, because not every metric needs a panel.
 # A future reader should not expect registry → dashboard coverage here.
 #
-# Assumption: all metric names in instruments.go are registered with string
-# literals. A metric registered via a constructed (non-literal) name would
-# read as an orphan if a dashboard referenced it. This is not the case today
-# but is worth noting for future maintainers.
+# Assumption: all metric names in the telemetry package are registered with
+# string literals. A metric registered via a constructed (non-literal) name
+# would read as an orphan if a dashboard referenced it. This is not the case
+# today but is worth noting for future maintainers.
 #
 # Exit 0 when every dashboard metric resolves to a registered instrument;
 # exit non-zero when orphan metrics are found.
@@ -24,7 +25,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-instruments_path="${repo_root}/go/internal/telemetry/instruments.go"
+instruments_dir="${repo_root}/go/internal/telemetry"
 dashboards_dir_deploy="${repo_root}/deploy/grafana/dashboards"
 dashboards_dir_docs="${repo_root}/docs/dashboards"
 dashboards_dir_obs="${repo_root}/docs/public/observability/dashboards"
@@ -58,7 +59,8 @@ dashboard_files_tmp="$(mktemp)"
 metrics_dashboard_tmp="$(mktemp)"
 instruments_metrics_tmp="$(mktemp)"
 validate_tmp="$(mktemp)"
-trap 'rm -f "${dashboard_files_tmp}" "${metrics_dashboard_tmp}" "${instruments_metrics_tmp}" "${validate_tmp}"' EXIT
+go_files_tmp="$(mktemp)"
+trap 'rm -f "${dashboard_files_tmp}" "${metrics_dashboard_tmp}" "${instruments_metrics_tmp}" "${validate_tmp}" "${go_files_tmp}"' EXIT
 
 if [ -n "${single_dashboard}" ]; then
   if [ ! -f "${single_dashboard}" ]; then
@@ -97,21 +99,34 @@ if [ ! -s "${metrics_dashboard_tmp}" ]; then
   exit 0
 fi
 
-# instruments_metrics_tmp: every eshu_dp_* name registered in
-# go/internal/telemetry/instruments.go.  PCRE2 mode (-P) is required so \s can
-# match across newlines between the constructor open paren and the metric name.
-rg -UPo '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
-  --replace '$1' "${instruments_path}" 2>/dev/null \
-  | rg '^eshu_dp_' \
-  | sort -u >"${instruments_metrics_tmp}" || true
+# instruments_metrics_tmp: every eshu_dp_* name registered anywhere in the
+# telemetry package (instruments.go plus per-metric registration files).
+# PCRE2 mode (-P) is required so \s can match across newlines between the
+# constructor open paren and the metric name. Test files are excluded: their
+# literals are fixtures, not registrations. Full-line comments are stripped
+# per file before extraction so a constructor-shaped literal in a doc-comment
+# usage example does not count as a registration (false-green). Inline
+# trailing comments are NOT stripped: that needs a Go-aware strip, and no
+# such instance exists today.
+: >"${instruments_metrics_tmp}"
+rg --files -g '*.go' -g '!*_test.go' "${instruments_dir}" 2>/dev/null \
+  >"${go_files_tmp}" || true
+while IFS= read -r gf; do
+  [ -n "${gf}" ] || continue
+  rg -v '^\s*(//|\*|/\*)' "${gf}" 2>/dev/null \
+    | rg -UPo '\.(?:Int64|Float64)(?:Counter|Histogram|UpDownCounter|Gauge|ObservableGauge|ObservableCounter|ObservableUpDownCounter)\(\s*"([a-zA-Z0-9_]+)"' \
+      --replace '$1' 2>/dev/null \
+    | rg '^eshu_dp_' >>"${instruments_metrics_tmp}" || true
+done <"${go_files_tmp}"
+sort -u -o "${instruments_metrics_tmp}" "${instruments_metrics_tmp}"
 
 if [ ! -s "${instruments_metrics_tmp}" ]; then
-  printf 'verify-dashboard-metrics: no eshu_dp_* metrics found in %s\n' "${instruments_path}" >&2
+  printf 'verify-dashboard-metrics: no eshu_dp_* metrics found in %s\n' "${instruments_dir}" >&2
   exit 1
 fi
 
 # is_registered <name> returns 0 when the metric (or its _bucket/_count/_sum
-# -stripped base) appears in instruments.go, 1 otherwise.
+# -stripped base) appears in the telemetry package, 1 otherwise.
 is_registered() {
   local name="$1"
   local base
@@ -138,7 +153,7 @@ done <"${metrics_dashboard_tmp}"
 
 # --- table mode: emit a markdown coverage table ------------------------------
 if [ "${table_mode}" -eq 1 ]; then
-  printf '| Dashboard | Metric | Found in instruments.go | Status |\n'
+  printf '| Dashboard | Metric | Found in telemetry package | Status |\n'
   printf '| --- | --- | --- | --- |\n'
   while IFS=' ' read -r file metric status; do
     dash="$(basename "${file}")"
@@ -163,11 +178,11 @@ fi
 # Build a report for stderr.
 {
   printf 'verify-dashboard-metrics: %d orphan dashboard metric(s) detected\n' "${orphan_count}"
-  printf '\nThe following dashboard metrics are not registered in %s:\n\n' "${instruments_path}"
+  printf '\nThe following dashboard metrics are not registered in %s:\n\n' "${instruments_dir}"
   rg ' orphan$' "${validate_tmp}" | while IFS=' ' read -r file metric _; do
     printf '  %s → %s\n' "$(basename "${file}")" "${metric}"
   done
-  printf '\nFix: register the missing metric in %s, or remove the orphan\n' "${instruments_path}"
+  printf '\nFix: register the missing metric in %s, or remove the orphan\n' "${instruments_dir}"
   printf '     reference from the dashboard.\n'
 } >&2
 exit 1
