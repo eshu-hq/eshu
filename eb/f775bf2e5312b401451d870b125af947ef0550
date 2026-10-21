@@ -1,0 +1,16 @@
+go/internal/reducer/evidence-6626-decode-bucket.md
+  h_78a442cba0b3e6 41
+go/internal/reducer/semantic_entity_repair_queue_adapter_test.go
+  h_78a442cba0b3e6 77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ebf775bf2e5312b401451d870b125af947ef0550",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
