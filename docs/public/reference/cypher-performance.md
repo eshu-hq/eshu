@@ -222,7 +222,7 @@ while the planner seeds a per-label index seek. uid-keyed labels in the set
 (TerraformModule, DataAsset) never satisfy the `id` predicate, so including them
 does not widen the match set. The disjunction-with-property anchor is the shared
 Cypher/Bolt shape the canonical edge writers already use
-(`canonical_instantiates_edges.go`, `canonical.go`), so it is portable across
+(`canonical/node/instantiates_edges.go`, `canonical.go`), so it is portable across
 NornicDB and Neo4j and adds no backend branch.
 
 No-Regression Evidence: this is a correctness-of-shape fix that strictly removes

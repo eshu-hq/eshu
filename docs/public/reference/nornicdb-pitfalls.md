@@ -1247,7 +1247,7 @@ stale-edge retract in `reducer/workload/retract`, which reads each repository's
 `DELETE rel` only for the stale pairs (none in steady state), falling back to its
 keep-list delete when the read fails; that fallback's cost was not measured.
 Known-unguarded: `canonical_retract.go`'s code-call retracts, `edge/writer/sql.go`,
-`canonical_inheritance_retract.go`, `canonical_documentation_edges.go`,
+`canonical_inheritance_retract.go`, `canonical/node/documentation_edges.go`,
 `canonical_codeowners_edges.go`, `canonical_submodule_edges.go`, and
 `canonical_deployable_unit_edges.go` build the same label-anchored
 `MATCH ... DELETE rel` shape and none of them probe. `edge/writer/shell_exec.go`
