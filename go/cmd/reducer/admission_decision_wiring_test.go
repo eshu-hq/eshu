@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/admission"
 )
 
@@ -39,7 +40,7 @@ func TestPostgresAdmissionDecisionMappingPreservesSharedPayload(t *testing.T) {
 		CanonicalWrite: admissiondecision.AdmissionCanonicalWrite{
 			Eligible:   true,
 			Written:    true,
-			TargetKind: reducer.DomainDeployableUnitEdges,
+			TargetKind: reducercontract.DomainDeployableUnitEdges,
 			TargetID:   "edge-one",
 		},
 		RecommendedAction: admissiondecision.AdmissionNextAction{Action: "none"},
@@ -51,8 +52,8 @@ func TestPostgresAdmissionDecisionMappingPreservesSharedPayload(t *testing.T) {
 	if got.State != admissionstore.AdmissionDecisionStateAdmitted {
 		t.Fatalf("State = %q, want %q", got.State, admissionstore.AdmissionDecisionStateAdmitted)
 	}
-	if got.CanonicalWrite.TargetKind != reducer.DomainDeployableUnitEdges {
-		t.Fatalf("TargetKind = %q, want %q", got.CanonicalWrite.TargetKind, reducer.DomainDeployableUnitEdges)
+	if got.CanonicalWrite.TargetKind != reducercontract.DomainDeployableUnitEdges {
+		t.Fatalf("TargetKind = %q, want %q", got.CanonicalWrite.TargetKind, reducercontract.DomainDeployableUnitEdges)
 	}
 	if len(got.SourceHandles) != 1 || got.SourceHandles[0].ID != "fact-one" {
 		t.Fatalf("SourceHandles = %+v, want fact-one handle", got.SourceHandles)

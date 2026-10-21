@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -287,7 +289,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 		pending: []sharedintent.Row{
 			{
 				IntentID:         "other-partition-1",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, 0, partitionCount, "head-a"),
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -298,7 +300,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 			},
 			{
 				IntentID:         "other-partition-2",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, 0, partitionCount, "head-b"),
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "repo-b",
@@ -309,7 +311,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 			},
 			{
 				IntentID:         "other-partition-3",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, 0, partitionCount, "head-c"),
 				ScopeID:          "scope-c",
 				AcceptanceUnitID: "repo-c",
@@ -320,7 +322,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 			},
 			{
 				IntentID:         "other-partition-4",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, 0, partitionCount, "head-d"),
 				ScopeID:          "scope-d",
 				AcceptanceUnitID: "repo-d",
@@ -331,7 +333,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 			},
 			{
 				IntentID:         "target-partition-1",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, targetPartition, partitionCount, "tail"),
 				ScopeID:          "scope-target",
 				AcceptanceUnitID: "repo-target",
@@ -346,7 +348,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 	batch, err := worker.SelectPartitionBatch(
 		context.Background(),
 		reader,
-		DomainWorkloadDependency,
+		reducercontract.DomainWorkloadDependency,
 		targetPartition,
 		partitionCount,
 		1,
@@ -376,7 +378,7 @@ func TestSelectPartitionBatchErrorsWhenScanCapIsReached(t *testing.T) {
 			for i := range rows {
 				rows[i] = sharedintent.Row{
 					IntentID:         "head-intent",
-					ProjectionDomain: DomainWorkloadDependency,
+					ProjectionDomain: reducercontract.DomainWorkloadDependency,
 					PartitionKey:     partitionKeyForTestPartition(t, 0, 2, "cap"),
 					ScopeID:          "scope-a",
 					AcceptanceUnitID: "repo-a",
@@ -392,7 +394,7 @@ func TestSelectPartitionBatchErrorsWhenScanCapIsReached(t *testing.T) {
 	_, err := worker.SelectPartitionBatch(
 		context.Background(),
 		reader,
-		DomainWorkloadDependency,
+		reducercontract.DomainWorkloadDependency,
 		1,
 		2,
 		1,
@@ -414,7 +416,7 @@ func TestSelectPartitionBatchSkipsSQLAndInheritanceRowsUntilSemanticNodesCommitt
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 17, 13, 0, 0, 0, time.UTC)
-	domains := []string{DomainSQLRelationships, DomainInheritanceEdges}
+	domains := []string{reducercontract.DomainSQLRelationships, reducercontract.DomainInheritanceEdges}
 
 	for _, domain := range domains {
 		domain := domain

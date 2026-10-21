@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -173,14 +173,14 @@ func TestNarrowedWholeScopeRepoIDsRejectsUnregisteredDomain(t *testing.T) {
 	t.Parallel()
 
 	writer := NewEdgeWriter(&probeGuardRecordingExecutor{probeFound: true}, 0)
-	repoIDs, skip, err := writer.narrowedWholeScopeRepoIDs(reducer.DomainCodeCalls, unmarkedLegacyRetractRows(), "reducer/test")
+	repoIDs, skip, err := writer.narrowedWholeScopeRepoIDs(reducercontract.DomainCodeCalls, unmarkedLegacyRetractRows(), "reducer/test")
 	if err == nil {
 		t.Fatalf("narrowedWholeScopeRepoIDs(%q) returned no error; an unregistered domain must fail loudly, not skip its retract (repoIDs=%v skip=%v)",
-			reducer.DomainCodeCalls, repoIDs, skip)
+			reducercontract.DomainCodeCalls, repoIDs, skip)
 	}
 	if skip {
 		t.Errorf("narrowedWholeScopeRepoIDs(%q) returned skip=true alongside its error; a caller that checks skip before err would lose the retract silently",
-			reducer.DomainCodeCalls)
+			reducercontract.DomainCodeCalls)
 	}
 	if !strings.Contains(err.Error(), "wholeScopeRetractDomains") {
 		t.Errorf("error does not name the table to register in: %v", err)

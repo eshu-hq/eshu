@@ -12,7 +12,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -102,7 +102,7 @@ func TestCrossRepoResolutionDispatchesTypedRelationshipsIntoNeo4jWrites(t *testi
 	writer := NewEdgeWriter(executor, 0)
 	if _, err := writer.WriteEdges(
 		context.Background(),
-		reducer.DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		intents,
 		"resolver/cross-repo",
 	); err != nil {

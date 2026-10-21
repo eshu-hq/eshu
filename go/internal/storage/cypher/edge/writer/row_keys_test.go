@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -62,7 +62,7 @@ func TestEdgeWriterRepoDependencyRowsCarryEveryReferencedKey(t *testing.T) {
 			},
 		},
 	}
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
@@ -90,7 +90,7 @@ func TestEdgeWriterRepoDependencyAbsentSourceToolIsNil(t *testing.T) {
 			"evidence_type":  "package_consumption",
 		},
 	}}
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	for _, call := range executor.calls {

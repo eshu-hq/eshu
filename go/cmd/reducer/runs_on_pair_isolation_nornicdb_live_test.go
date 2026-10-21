@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -92,7 +93,7 @@ func TestRunsOnPairIsolationLive(t *testing.T) {
 						},
 					})
 				}
-				if _, err := edgeWriter.WriteEdges(ctx, reducer.DomainRepoDependency, rows, crossrepo.CrossRepoEvidenceSource); err != nil {
+				if _, err := edgeWriter.WriteEdges(ctx, reducercontract.DomainRepoDependency, rows, crossrepo.CrossRepoEvidenceSource); err != nil {
 					t.Fatalf("cross-repo WriteEdges(): %v", err)
 				}
 			}
@@ -154,7 +155,7 @@ func TestRunsOnPairIsolationLive(t *testing.T) {
 					})
 				}
 				writer := edgewriter.NewEdgeWriter(newReducerNeo4jExecutor(probe, nil), 2)
-				if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, rows, crossrepo.CrossRepoEvidenceSource); err != nil {
+				if _, err := writer.WriteEdges(ctx, reducercontract.DomainRepoDependency, rows, crossrepo.CrossRepoEvidenceSource); err != nil {
 					t.Fatalf("cross-repo WriteEdges() after synthetic conflict: %v", err)
 				}
 				assertRunsOnPairFixture(t, ctx, runner, fixture, "cross_repo")

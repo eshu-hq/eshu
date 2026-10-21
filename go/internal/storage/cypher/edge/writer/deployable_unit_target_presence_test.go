@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -44,7 +45,7 @@ func TestEdgeWriterWriteEdgesDeployableUnitAbsentTargetFailsClosed(t *testing.T)
 	writer := NewEdgeWriter(executor, 0)
 
 	_, err := writer.WriteEdges(
-		context.Background(), reducer.DomainDeployableUnitEdges,
+		context.Background(), reducercontract.DomainDeployableUnitEdges,
 		[]sharedintent.Row{validDeployableUnitRow()},
 		"reducer/deployable-unit-correlation",
 	)
@@ -75,7 +76,7 @@ func TestEdgeWriterDeployableUnitProbeAnchorsBothRepos(t *testing.T) {
 		"repo_id":            "repo-app",
 		"deployment_repo_id": "repo-deploy",
 	}}
-	probes, ok := buildTargetPresenceProbeStatements(reducer.DomainDeployableUnitEdges, rows)
+	probes, ok := buildTargetPresenceProbeStatements(reducercontract.DomainDeployableUnitEdges, rows)
 	if !ok {
 		t.Fatal("buildTargetPresenceProbeStatements(deployable_unit_edges) = false, want one probe per Repository endpoint")
 	}
@@ -153,7 +154,7 @@ func TestEdgeWriterDeployableUnitProbeChunksPerWriteBatch(t *testing.T) {
 
 	rows := distinctDeployableUnitRows(3)
 	if _, err := writer.WriteEdges(
-		context.Background(), reducer.DomainDeployableUnitEdges,
+		context.Background(), reducercontract.DomainDeployableUnitEdges,
 		rows,
 		"reducer/deployable-unit-correlation",
 	); err != nil {

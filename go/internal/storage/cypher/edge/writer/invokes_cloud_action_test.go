@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -34,7 +34,7 @@ func TestEdgeWriterWriteEdgesInvokesCloudActionDispatch(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainInvokesCloudAction, rows, "parser/aws-sdk-call"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainInvokesCloudAction, rows, "parser/aws-sdk-call"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {
@@ -91,8 +91,8 @@ func TestEdgeWriterWriteEdgesInvokesCloudActionRowsMissingMatchFieldsFailTheInte
 		{IntentID: "i3", RepositoryID: "r1", Payload: map[string]any{"function_id": "f1", "cloud_action": "s3:putobject", "action_id": ""}},
 	}
 
-	report, err := writer.WriteEdges(context.Background(), reducer.DomainInvokesCloudAction, rows, "parser/aws-sdk-call")
-	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainInvokesCloudAction, 3)
+	report, err := writer.WriteEdges(context.Background(), reducercontract.DomainInvokesCloudAction, rows, "parser/aws-sdk-call")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducercontract.DomainInvokesCloudAction, 3)
 }
 
 func TestEdgeWriterRetractEdgesInvokesCloudActionDispatch(t *testing.T) {
@@ -105,7 +105,7 @@ func TestEdgeWriterRetractEdgesInvokesCloudActionDispatch(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainInvokesCloudAction, rows, "parser/aws-sdk-call"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainInvokesCloudAction, rows, "parser/aws-sdk-call"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {

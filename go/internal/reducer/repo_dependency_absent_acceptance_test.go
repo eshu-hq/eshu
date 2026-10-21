@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -47,7 +49,7 @@ func repoDependencyAbsentAcceptanceRows(now time.Time) []sharedintent.Row {
 	return []sharedintent.Row{
 		{
 			IntentID:         "orphan-1",
-			ProjectionDomain: DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey:     "partition-orphan",
 			ScopeID:          "scope-orphan",
 			AcceptanceUnitID: "repository:r_orphan",
@@ -58,7 +60,7 @@ func repoDependencyAbsentAcceptanceRows(now time.Time) []sharedintent.Row {
 		},
 		{
 			IntentID:         "healthy-1",
-			ProjectionDomain: DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey:     "partition-healthy",
 			ScopeID:          "scope-healthy",
 			AcceptanceUnitID: "repository:r_healthy",
@@ -160,7 +162,7 @@ func TestRepoDependencySelectionDrainsAtCapAndRescans(t *testing.T) {
 		gone[gen] = struct{}{}
 		rows = append(rows, sharedintent.Row{
 			IntentID:         "orphan-cap-" + string(rune('a'+(i%26))) + "-" + string(rune('a'+((i/26)%26))) + "-" + string(rune('a'+((i/676)%26))),
-			ProjectionDomain: DomainRepoDependency,
+			ProjectionDomain: reducercontract.DomainRepoDependency,
 			PartitionKey:     "partition-orphan",
 			ScopeID:          "scope-orphan",
 			AcceptanceUnitID: "repository:r_orphan",
@@ -172,7 +174,7 @@ func TestRepoDependencySelectionDrainsAtCapAndRescans(t *testing.T) {
 	}
 	rows = append(rows, sharedintent.Row{
 		IntentID:         "healthy-1",
-		ProjectionDomain: DomainRepoDependency,
+		ProjectionDomain: reducercontract.DomainRepoDependency,
 		PartitionKey:     "partition-healthy",
 		ScopeID:          "scope-healthy",
 		AcceptanceUnitID: "repository:r_healthy",

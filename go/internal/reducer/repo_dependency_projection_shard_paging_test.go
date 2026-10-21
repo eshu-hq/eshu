@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -81,7 +83,7 @@ func TestRepoDependencyShardReaderFailsClosedWithoutContinuation(t *testing.T) {
 		shardID:    shardID,
 		shardCount: shardCount,
 	}
-	if _, err := sharded.ListPendingDomainIntents(context.Background(), DomainRepoDependency, 100); err == nil {
+	if _, err := sharded.ListPendingDomainIntents(context.Background(), reducercontract.DomainRepoDependency, 100); err == nil {
 		t.Fatal("full foreign page without continuation returned a false empty result; want fail-closed error")
 	}
 }
@@ -104,7 +106,7 @@ func TestRepoDependencyShardReaderRejectsNonAdvancingContinuation(t *testing.T) 
 	inner := &nonAdvancingRepoDependencyIntentReader{rows: rows}
 	sharded := &repoDependencyShardReader{inner: inner, shardID: shardID, shardCount: shardCount}
 
-	_, err := sharded.ListPendingDomainIntents(context.Background(), DomainRepoDependency, 100)
+	_, err := sharded.ListPendingDomainIntents(context.Background(), reducercontract.DomainRepoDependency, 100)
 	if err == nil || !strings.Contains(err.Error(), "did not advance") {
 		t.Fatalf("non-advancing continuation error = %v, want explicit cursor error", err)
 	}

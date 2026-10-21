@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -75,7 +77,7 @@ func BuildRepoDependencyIntentRows(
 	}
 
 	return buildDependencyIntents(
-		DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		normalizedRows,
 		existingPairs,
 		contextByRepoID,
@@ -122,7 +124,7 @@ func BuildWorkloadDependencyIntentRows(
 	}
 
 	return buildDependencyIntents(
-		DomainWorkloadDependency,
+		reducercontract.DomainWorkloadDependency,
 		normalizedRows,
 		existingPairs,
 		contextByRepoID,

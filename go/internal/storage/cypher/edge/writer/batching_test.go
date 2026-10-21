@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -24,7 +24,7 @@ func TestEdgeWriterRetractEdgesPropagatesExecutorError(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err == nil {
 		t.Fatal("RetractEdges() error = nil, want non-nil")
 	}
@@ -42,7 +42,7 @@ func TestEdgeWriterRequiresExecutor(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a", "target_repo_id": "repo-b"}},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err == nil {
 		t.Fatal("WriteEdges() error = nil, want non-nil")
 	}
@@ -65,7 +65,7 @@ func TestBatchedWriteEdgesRespectsBatchSize(t *testing.T) {
 		{IntentID: "i5", RepositoryID: "r1", Payload: map[string]any{"repo_id": "r1", "target_repo_id": "r6"}},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -103,7 +103,7 @@ func TestBatchedWriteEdgesDefaultBatchSize(t *testing.T) {
 		}
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -129,7 +129,7 @@ func TestBatchedWriteEdgesSkipsEmptyRequiredFields(t *testing.T) {
 		{IntentID: "i4", RepositoryID: "r1", Payload: map[string]any{"repo_id": "r1", "target_repo_id": "r4"}},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -156,8 +156,8 @@ func TestBatchedWriteEdgesAllRowsInvalidFailsIntent(t *testing.T) {
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{}},
 	}
 
-	report, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
-	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainRepoDependency, 2)
+	report, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducercontract.DomainRepoDependency, 2)
 }
 
 func TestEdgeWriterWriteEdgesCodeCallsChunkManagedGroups(t *testing.T) {
@@ -174,7 +174,7 @@ func TestEdgeWriterWriteEdgesCodeCallsChunkManagedGroups(t *testing.T) {
 		{IntentID: "i3", RepositoryID: "repo-a", Payload: map[string]any{"caller_entity_id": "caller-3", "callee_entity_id": "callee-3"}},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainCodeCalls, rows, "parser/code-calls"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.groupCalls), 2; got != want {
@@ -210,7 +210,7 @@ func TestEdgeWriterWriteEdgesNonCodeCallsKeepSingleManagedGroup(t *testing.T) {
 		{IntentID: "i3", RepositoryID: "r1", Payload: map[string]any{"repo_id": "r1", "target_repo_id": "r4"}},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.groupCalls), 1; got != want {
@@ -261,7 +261,7 @@ func TestEdgeWriterWriteEdgesInheritanceChunkManagedGroups(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainInheritanceEdges, rows, "reducer/inheritance"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.groupCalls), 2; got != want {
@@ -323,7 +323,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipsChunkManagedGroups(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.groupCalls), 2; got != want {

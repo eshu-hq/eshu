@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -67,7 +68,7 @@ func TestOrdinarySharedIntentUpsertStillRefusesToClearCompletedAt(t *testing.T) 
 	intentID := "refinalize-reset-guard-intent-" + suffix
 	row := sharedintent.Row{
 		IntentID:         intentID,
-		ProjectionDomain: reducer.DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey:     "caller->callee",
 		ScopeID:          scopeID,
 		AcceptanceUnitID: "unit-" + suffix,

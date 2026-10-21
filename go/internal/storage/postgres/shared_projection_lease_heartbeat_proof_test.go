@@ -17,6 +17,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -372,7 +373,7 @@ func TestCodeCallProjectionRunnerReleasesIdleLeaseAgainstPostgres(t *testing.T) 
 		SELECT lease_owner, lease_expires_at
 		FROM shared_projection_partition_leases
 		WHERE projection_domain = $1 AND partition_id = 0 AND partition_count = 1
-	`, reducer.DomainCodeCalls).Scan(&leaseOwner, &leaseExpiresAt); err != nil {
+	`, reducercontract.DomainCodeCalls).Scan(&leaseOwner, &leaseExpiresAt); err != nil {
 		cancel()
 		<-runDone
 		t.Fatalf("query code-call lease row: %v", err)
@@ -387,7 +388,7 @@ func TestCodeCallProjectionRunnerReleasesIdleLeaseAgainstPostgres(t *testing.T) 
 
 	claimed, err := store.ClaimPartitionLease(
 		ctx,
-		reducer.DomainCodeCalls,
+		reducercontract.DomainCodeCalls,
 		0,
 		1,
 		"code-call-release-proof-rival",

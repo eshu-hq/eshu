@@ -11,7 +11,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -83,7 +83,7 @@ func TestEdgeWriterWriteEdgesTypedRepoRelationshipDispatch(t *testing.T) {
 		},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "resolver/cross-repo")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -221,7 +221,7 @@ func TestEdgeWriterWriteEdgesMaterializesRepoEvidenceArtifacts(t *testing.T) {
 		},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "resolver/cross-repo")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -302,7 +302,7 @@ func TestEdgeWriterWriteEdgesRunsOnDispatchUsesWorkloadInstanceShape(t *testing.
 		},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "resolver/cross-repo")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}

@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -33,7 +35,7 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycle(
 ) {
 	duration := time.Since(startedAt).Seconds()
 	if r.Instruments != nil {
-		attrs := metric.WithAttributes(telemetry.AttrDomain(DomainRepoDependency))
+		attrs := metric.WithAttributes(telemetry.AttrDomain(reducercontract.DomainRepoDependency))
 		r.Instruments.CanonicalWriteDuration.Record(ctx, duration, attrs)
 		r.Instruments.CanonicalWrites.Add(ctx, int64(writtenRows), attrs)
 		recordRepoDependencyStepDurations(ctx, r.Instruments, timing)
@@ -93,7 +95,7 @@ func (r *RepoDependencyProjectionRunner) startLeaseHeartbeat(ctx context.Context
 			r.Logger.WarnContext(
 				heartbeatCtx,
 				"repo dependency lease heartbeat failed",
-				log.Domain(DomainRepoDependency),
+				log.Domain(reducercontract.DomainRepoDependency),
 				telemetry.PhaseAttr(telemetry.PhaseReduction),
 				log.Err(err),
 			)
@@ -113,7 +115,7 @@ func (r *RepoDependencyProjectionRunner) startLeaseHeartbeat(ctx context.Context
 			case <-ticker.C:
 				claimed, err := r.LeaseManager.ClaimPartitionLease(
 					heartbeatCtx,
-					DomainRepoDependency,
+					reducercontract.DomainRepoDependency,
 					r.Config.partitionID(),
 					r.Config.partitionCount(),
 					r.Config.leaseOwner(),
@@ -173,13 +175,13 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyQuiescenceBlocked(
 ) {
 	duration := time.Since(startedAt).Seconds()
 	if r.Instruments != nil {
-		attrs := metric.WithAttributes(telemetry.AttrDomain(DomainRepoDependency))
+		attrs := metric.WithAttributes(telemetry.AttrDomain(reducercontract.DomainRepoDependency))
 		r.Instruments.CanonicalWriteDuration.Record(ctx, duration, attrs)
 		r.Instruments.CanonicalWrites.Add(ctx, 0, attrs)
 		if r.Instruments.SharedProjectionLaneBlocked != nil {
 			// #7133: the lane-blocked counter both gated lanes share.
 			r.Instruments.SharedProjectionLaneBlocked.Add(ctx, 1, metric.WithAttributes(
-				telemetry.AttrDomain(DomainRepoDependency),
+				telemetry.AttrDomain(reducercontract.DomainRepoDependency),
 				telemetry.AttrReason(projection.BlockedReasonCanonicalCodeQuiescence),
 			))
 		}
@@ -250,7 +252,7 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyWorkloadReadinessBl
 ) {
 	duration := time.Since(startedAt).Seconds()
 	if r.Instruments != nil {
-		attrs := metric.WithAttributes(telemetry.AttrDomain(DomainRepoDependency))
+		attrs := metric.WithAttributes(telemetry.AttrDomain(reducercontract.DomainRepoDependency))
 		r.Instruments.CanonicalWriteDuration.Record(ctx, duration, attrs)
 		r.Instruments.CanonicalWrites.Add(ctx, 0, attrs)
 	}
@@ -291,7 +293,7 @@ func recordRepoDependencyStepDurations(
 			ctx,
 			step.duration,
 			metric.WithAttributes(
-				telemetry.AttrDomain(DomainRepoDependency),
+				telemetry.AttrDomain(reducercontract.DomainRepoDependency),
 				telemetry.AttrWritePhase(step.phase),
 				telemetry.AttrOutcome("completed"),
 			),
@@ -308,7 +310,7 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycleFailure(ctx co
 		failureClass = "repo_dependency_projection_lease_quarantined"
 		if r.Instruments != nil {
 			r.Instruments.SharedProjectionLeaseQuarantines.Add(ctx, 1, metric.WithAttributes(
-				telemetry.AttrDomain(DomainRepoDependency),
+				telemetry.AttrDomain(reducercontract.DomainRepoDependency),
 				attribute.String("reason", quarantineReason),
 			))
 		}
@@ -319,7 +321,7 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycleFailure(ctx co
 		return
 	}
 	logAttrs := make([]any, 0, 8)
-	for _, attr := range telemetry.DomainAttrs(string(DomainRepoDependency), "") {
+	for _, attr := range telemetry.DomainAttrs(string(reducercontract.DomainRepoDependency), "") {
 		logAttrs = append(logAttrs, attr)
 	}
 	logAttrs = append(
@@ -422,7 +424,7 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyReplaySkipped(
 			ctx, "repo dependency workload materialization replay skipped: nothing to replay",
 			log.ScopeID(request.scopeID),
 			log.GenerationID(request.generationID),
-			log.Domain(DomainRepoDependency),
+			log.Domain(reducercontract.DomainRepoDependency),
 			slog.String("entity_key", request.entityKey),
 			slog.Bool("fenced", fenced),
 			slog.String(telemetry.MetricDimensionReason, telemetry.RepoDependencyReplaySkipInactiveGeneration),
@@ -451,7 +453,7 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyGenerationAnomaly(
 			ctx, "repo dependency generation anomaly",
 			log.ScopeID(scopeID),
 			log.GenerationID(generationID),
-			log.Domain(DomainRepoDependency),
+			log.Domain(reducercontract.DomainRepoDependency),
 			slog.String("entity_key", entityKey),
 			slog.Int("rows", rows),
 			slog.String(telemetry.MetricDimensionReason, reason),

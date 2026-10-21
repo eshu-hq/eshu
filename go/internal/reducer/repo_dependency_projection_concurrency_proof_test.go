@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -240,7 +242,7 @@ func (s *proofRepoDependencyStore) completedCount() int {
 func (s *proofRepoDependencyStore) usedGlobalLease() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	want := fmt.Sprintf("%s/0/1", DomainRepoDependency)
+	want := fmt.Sprintf("%s/0/1", reducercontract.DomainRepoDependency)
 	for _, key := range s.leaseKeys {
 		if key == want {
 			return true

@@ -158,8 +158,8 @@ func TestDeployableUnitCorrelationWritesSharedAdmissionDecision(t *testing.T) {
 	if !decision.CanonicalWrite.Eligible || !decision.CanonicalWrite.Written {
 		t.Fatalf("CanonicalWrite = %+v, want eligible and written", decision.CanonicalWrite)
 	}
-	if decision.CanonicalWrite.TargetKind != DomainDeployableUnitEdges {
-		t.Fatalf("TargetKind = %q, want %q", decision.CanonicalWrite.TargetKind, DomainDeployableUnitEdges)
+	if decision.CanonicalWrite.TargetKind != reducercontract.DomainDeployableUnitEdges {
+		t.Fatalf("TargetKind = %q, want %q", decision.CanonicalWrite.TargetKind, reducercontract.DomainDeployableUnitEdges)
 	}
 	if decision.CandidateID == "" || decision.AnchorID == "" {
 		t.Fatalf("CandidateID/AnchorID must be stable, got candidate=%q anchor=%q", decision.CandidateID, decision.AnchorID)

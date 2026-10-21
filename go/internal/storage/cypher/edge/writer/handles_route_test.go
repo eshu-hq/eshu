@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -35,7 +35,7 @@ func TestEdgeWriterWriteEdgesHandlesRouteDispatch(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainHandlesRoute, rows, "parser/framework-routes"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainHandlesRoute, rows, "parser/framework-routes"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {
@@ -95,8 +95,8 @@ func TestEdgeWriterWriteEdgesHandlesRouteRowsMissingMatchFieldsFailTheIntent(t *
 		{IntentID: "i3", RepositoryID: "r1", Payload: map[string]any{"function_entity_id": "f1", "repo_id": "r1", "path": ""}},
 	}
 
-	report, err := writer.WriteEdges(context.Background(), reducer.DomainHandlesRoute, rows, "parser/framework-routes")
-	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainHandlesRoute, 3)
+	report, err := writer.WriteEdges(context.Background(), reducercontract.DomainHandlesRoute, rows, "parser/framework-routes")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducercontract.DomainHandlesRoute, 3)
 }
 
 func TestEdgeWriterRetractEdgesHandlesRouteDispatch(t *testing.T) {
@@ -109,7 +109,7 @@ func TestEdgeWriterRetractEdgesHandlesRouteDispatch(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainHandlesRoute, rows, "parser/framework-routes"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainHandlesRoute, rows, "parser/framework-routes"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {

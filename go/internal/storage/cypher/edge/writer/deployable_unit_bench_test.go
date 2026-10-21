@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -50,7 +50,7 @@ func BenchmarkDeployableUnitCorrelationEdgeWriter(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := writer.WriteEdges(ctx, reducer.DomainDeployableUnitEdges, rows, "reducer/deployable-unit-correlation"); err != nil {
+		if _, err := writer.WriteEdges(ctx, reducercontract.DomainDeployableUnitEdges, rows, "reducer/deployable-unit-correlation"); err != nil {
 			b.Fatalf("WriteEdges: %v", err)
 		}
 	}

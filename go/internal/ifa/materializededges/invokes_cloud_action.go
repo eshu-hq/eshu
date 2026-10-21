@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -57,7 +57,7 @@ func resolveInvokesCloudActionMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 	if len(odu.Facts) == 0 {
 		return false, fmt.Sprintf("odù %q: carries no facts", odu.Name)
 	}
-	rows := symbolRuntimeUpsertRows(odu.Facts, reducer.DomainInvokesCloudAction)
+	rows := symbolRuntimeUpsertRows(odu.Facts, reducercontract.DomainInvokesCloudAction)
 	if len(rows) == 0 {
 		return false, fmt.Sprintf("odù %q: ExtractSymbolRuntimeIntentRows produced zero INVOKES_CLOUD_ACTION upsert rows; this fixture cannot prove anything", odu.Name)
 	}

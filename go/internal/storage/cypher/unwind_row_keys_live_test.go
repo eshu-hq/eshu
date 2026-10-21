@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -70,19 +70,19 @@ func TestLiveSparseWriterRowsLeaveOptionalPropertiesNull(t *testing.T) {
 			t.Fatalf("WriteEdges(%s): %v", domain, err)
 		}
 	}
-	write(reducer.DomainCodeCalls,
+	write(reducercontract.DomainCodeCalls,
 		map[string]any{"caller_entity_id": liveSparsePrefix + "fn-1", "callee_entity_id": liveSparsePrefix + "fn-2"},
 		map[string]any{
 			"caller_entity_id": liveSparsePrefix + "fn-1", "callee_entity_id": liveSparsePrefix + "fn-3",
 			"caller_entity_type": "Function", "callee_entity_type": "Function",
 		},
 	)
-	write(reducer.DomainRepoDependency, map[string]any{
+	write(reducercontract.DomainRepoDependency, map[string]any{
 		"repo_id": liveSparsePrefix + "repo-a", "target_repo_id": liveSparsePrefix + "repo-b",
 		"relationship_type": "DEPLOYS_FROM", "resolved_id": "resolved-1",
 		"evidence_artifacts": []any{map[string]any{"evidence_kind": "HELM_VALUES_REFERENCE", "path": "values.yaml"}},
 	})
-	write(reducer.DomainSubmodulePinEdges, map[string]any{
+	write(reducercontract.DomainSubmodulePinEdges, map[string]any{
 		"parent_repo_id": liveSparsePrefix + "repo-a", "resolved_repo_id": liveSparsePrefix + "repo-c",
 		"submodule_path": "vendor/c",
 	})

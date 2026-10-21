@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
@@ -83,7 +85,7 @@ func TestProcessPartitionOnceSQLRefreshFenceRedeliveryConverges(t *testing.T) {
 			accepted := acceptedGenerationFixed(tt.secondGeneration, true)
 
 			refreshPartition, err := sharedintent.PartitionForKey(
-				sharedintent.RepoWideRetractRefreshPartitionKey(DomainSQLRelationships, repositoryID),
+				sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainSQLRelationships, repositoryID),
 				partitionCount,
 			)
 			if err != nil {
@@ -122,8 +124,8 @@ func sqlRefreshFenceDeliveryIntents(
 	createdAt time.Time,
 ) []sharedintent.Row {
 	refresh := sharedintent.Build(sharedintent.Input{
-		ProjectionDomain: DomainSQLRelationships,
-		PartitionKey:     sharedintent.RepoWideRetractRefreshPartitionKey(DomainSQLRelationships, repositoryID),
+		ProjectionDomain: reducercontract.DomainSQLRelationships,
+		PartitionKey:     sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainSQLRelationships, repositoryID),
 		ScopeID:          "scope-sql",
 		AcceptanceUnitID: repositoryID,
 		RepositoryID:     repositoryID,
@@ -140,7 +142,7 @@ func sqlRefreshFenceDeliveryIntents(
 	for _, relationshipType := range sqlRefreshFenceRelationshipTypes {
 		edgeIdentity := "sql-source->sql-target:" + relationshipType
 		row := sharedintent.Build(sharedintent.Input{
-			ProjectionDomain: DomainSQLRelationships,
+			ProjectionDomain: reducercontract.DomainSQLRelationships,
 			PartitionKey: sqlrelationship.FilePartitionKey(
 				repositoryID,
 				"db/schema.sql",
@@ -220,7 +222,7 @@ func processSQLRefreshFencePartition(
 		context.Background(),
 		now,
 		worker.PartitionProcessorConfig{
-			Domain:         DomainSQLRelationships,
+			Domain:         reducercontract.DomainSQLRelationships,
 			PartitionID:    partitionID,
 			PartitionCount: partitionCount,
 			LeaseOwner:     "sql-refresh-proof",

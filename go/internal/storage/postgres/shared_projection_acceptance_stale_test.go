@@ -13,7 +13,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -66,7 +66,7 @@ func staleWritesByDomain(t *testing.T, reader *sdkmetric.ManualReader) map[strin
 func staleWriteIntent(generationID string, at time.Time) sharedintent.Row {
 	return sharedintent.Row{
 		IntentID:         "intent-6679-" + generationID + "-" + at.Format(time.RFC3339Nano),
-		ProjectionDomain: reducer.DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey:     "caller->callee",
 		ScopeID:          "scope-6679",
 		AcceptanceUnitID: "repository:6679",
@@ -104,8 +104,8 @@ func TestSharedIntentAcceptanceWriterCountsStaleWritesFromReturning(t *testing.T
 		t.Fatalf("UpsertIntents(stale) error = %v", err)
 	}
 	got := staleWritesByDomain(t, reader)
-	if got[reducer.DomainCodeCalls] != 1 || len(got) != 1 {
-		t.Fatalf("stale writes = %v, want {%s: 1}", got, reducer.DomainCodeCalls)
+	if got[reducercontract.DomainCodeCalls] != 1 || len(got) != 1 {
+		t.Fatalf("stale writes = %v, want {%s: 1}", got, reducercontract.DomainCodeCalls)
 	}
 }
 

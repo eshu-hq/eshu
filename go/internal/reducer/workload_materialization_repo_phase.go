@@ -247,7 +247,7 @@ func projectionRepoReadinessRepoIDs(projection *ProjectionResult) []string {
 // the positive evidence of which repositories this generation fully covers
 // for the stale repository-edge retract (#7285). The read is kind-filtered
 // when the store implements FactKindLoader, as the Postgres FactStore does.
-func loadScopeRepositoryFacts(ctx context.Context, loader FactLoader, scopeID, generationID string) ([]facts.Envelope, error) {
+func loadScopeRepositoryFacts(ctx context.Context, loader factload.FactLoader, scopeID, generationID string) ([]facts.Envelope, error) {
 	if loader == nil {
 		return nil, nil
 	}

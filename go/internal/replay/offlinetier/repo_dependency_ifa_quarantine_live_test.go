@@ -22,6 +22,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -120,7 +121,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	}
 	if err := store.ReleasePartitionLease(
 		ctx,
-		reducer.DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		lease.partitionID,
 		lease.partitionCount,
 		"odu-quarantine-owner-b/worker-0-of-4",
@@ -142,7 +143,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 		  AND partition_id = $2
 		  AND partition_count = $3
 		  AND lease_owner = $4
-	`, reducer.DomainRepoDependency, lease.partitionID, lease.partitionCount, lease.owner); err != nil {
+	`, reducercontract.DomainRepoDependency, lease.partitionID, lease.partitionCount, lease.owner); err != nil {
 		t.Fatalf("expire quarantined test lease: %v", err)
 	}
 
@@ -378,7 +379,7 @@ func repoDependencyQuarantineOnlyActiveLease(ctx context.Context, t *testing.T, 
 		WHERE projection_domain = $1
 		  AND lease_owner IS NOT NULL
 		  AND lease_expires_at > CURRENT_TIMESTAMP
-	`, reducer.DomainRepoDependency, partitionID).Scan(&active, &matching); err != nil {
+	`, reducercontract.DomainRepoDependency, partitionID).Scan(&active, &matching); err != nil {
 		t.Fatalf("count active quarantine proof leases: %v", err)
 	}
 	return active == 1 && matching == 1
@@ -418,7 +419,7 @@ func readRepoDependencyQuarantinedLease(ctx context.Context, t *testing.T, datab
 		WHERE projection_domain = $1
 		  AND lease_owner IS NOT NULL
 		  AND lease_expires_at > CURRENT_TIMESTAMP
-	`, reducer.DomainRepoDependency)
+	`, reducercontract.DomainRepoDependency)
 	if err != nil {
 		t.Fatalf("read quarantined lease: %v", err)
 	}

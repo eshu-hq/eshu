@@ -6,6 +6,8 @@ package reducer
 import (
 	"strings"
 	"testing"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestMaterializedEdgeFamilyBlockerLockstepCoversAllFamilies is the totality
@@ -69,7 +71,7 @@ func TestMaterializedEdgeFamilyBlockerLockstepCoversAllFamilies(t *testing.T) {
 func TestMaterializedEdgeFamilyBlockerLockstepCatchesWrongTableDeclaration(t *testing.T) {
 	t.Parallel()
 
-	const family = DomainCodeownersOwnershipEdges
+	const family = reducercontract.DomainCodeownersOwnershipEdges
 	routedDomain := materializedEdgeFamilyBlockerExpectations[family].routedDomain
 	handler := materializedEdgeFamilyHandlersByDomain()[routedDomain]
 

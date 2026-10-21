@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -129,7 +129,7 @@ func TestReducerSQLRelationshipRetractGraphTruth(t *testing.T) {
 			rows := []sharedintent.Row{{
 				IntentID: "sql-retract", RepositoryID: sqlRetractInRepoID, Payload: tc.retractPayload,
 			}}
-			if err := writer.RetractEdges(ctx, reducer.DomainSQLRelationships, rows, sqlRetractEvidence); err != nil {
+			if err := writer.RetractEdges(ctx, reducercontract.DomainSQLRelationships, rows, sqlRetractEvidence); err != nil {
 				t.Fatalf("RetractEdges: %v", err)
 			}
 
@@ -144,7 +144,7 @@ func TestReducerSQLRelationshipRetractGraphTruth(t *testing.T) {
 				}
 			}
 
-			if err := writer.RetractEdges(ctx, reducer.DomainSQLRelationships, rows, sqlRetractEvidence); err != nil {
+			if err := writer.RetractEdges(ctx, reducercontract.DomainSQLRelationships, rows, sqlRetractEvidence); err != nil {
 				t.Fatalf("idempotent RetractEdges: %v", err)
 			}
 			for _, fixture := range sqlRetractInScopeFixtures {
@@ -186,7 +186,7 @@ func writeSQLRetractFixtures(ctx context.Context, t *testing.T, writer *edgewrit
 				"target_entity_id": fixture.targetUID, "target_entity_type": fixture.targetLabel,
 			},
 		}
-		if _, err := writer.WriteEdges(ctx, reducer.DomainSQLRelationships, []sharedintent.Row{row}, fixture.evidence); err != nil {
+		if _, err := writer.WriteEdges(ctx, reducercontract.DomainSQLRelationships, []sharedintent.Row{row}, fixture.evidence); err != nil {
 			t.Fatalf("write %s edge: %v", fixture.name, err)
 		}
 	}

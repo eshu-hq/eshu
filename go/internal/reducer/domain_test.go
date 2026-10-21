@@ -25,7 +25,7 @@ func TestAllDomainsUnionsKnownAndProjectionDomains(t *testing.T) {
 	for d := range knownDomains {
 		want[d] = struct{}{}
 	}
-	for _, d := range allProjectionDomains {
+	for _, d := range reducercontract.ProjectionDomains() {
 		want[d] = struct{}{}
 	}
 	if len(got) != len(want) {
@@ -52,7 +52,7 @@ func TestAllDomainsIncludesSharedProjectionDomains(t *testing.T) {
 	for _, d := range AllDomains() {
 		got[d] = true
 	}
-	for _, d := range []reducercontract.Domain{DomainCodeCalls, DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction, DomainRepoDependency} {
+	for _, d := range []reducercontract.Domain{reducercontract.DomainCodeCalls, reducercontract.DomainHandlesRoute, reducercontract.DomainRunsIn, reducercontract.DomainInvokesCloudAction, reducercontract.DomainRepoDependency} {
 		if !got[d] {
 			t.Errorf("AllDomains() is missing shared-projection domain %q", d)
 		}

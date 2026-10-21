@@ -234,7 +234,7 @@ func (h DeployableUnitCorrelationHandler) materializeDeployableUnitEdges(
 	// behaviour for this path, not a new loss -- but it IS a remaining gap,
 	// and the compile-forced report is what makes it visible instead of
 	// implicit. Wiring the sink here needs this handler's own proof.
-	if _, err := h.EdgeWriter.WriteEdges(ctx, DomainDeployableUnitEdges, writeRows, deployableUnitCorrelationEvidenceSource); err != nil {
+	if _, err := h.EdgeWriter.WriteEdges(ctx, reducercontract.DomainDeployableUnitEdges, writeRows, deployableUnitCorrelationEvidenceSource); err != nil {
 		return 0, fmt.Errorf("write deployable unit correlation edges: %w", err)
 	}
 	return len(writeRows), nil
@@ -247,7 +247,7 @@ func (h DeployableUnitCorrelationHandler) retractDeployableUnitEdges(
 	if h.EdgeWriter == nil || len(rows) == 0 {
 		return nil
 	}
-	if err := h.EdgeWriter.RetractEdges(ctx, DomainDeployableUnitEdges, rows, deployableUnitCorrelationEvidenceSource); err != nil {
+	if err := h.EdgeWriter.RetractEdges(ctx, reducercontract.DomainDeployableUnitEdges, rows, deployableUnitCorrelationEvidenceSource); err != nil {
 		return fmt.Errorf("retract deployable unit correlation edges: %w", err)
 	}
 	return nil
@@ -324,7 +324,7 @@ func deployableUnitRetractRowsFromFacts(
 		}
 		rows = append(rows, sharedintent.Row{
 			IntentID:         intent.IntentID,
-			ProjectionDomain: DomainDeployableUnitEdges,
+			ProjectionDomain: reducercontract.DomainDeployableUnitEdges,
 			PartitionKey:     repoID,
 			ScopeID:          intent.ScopeID,
 			AcceptanceUnitID: deployableUnitAcceptanceUnitID(intent),
@@ -371,7 +371,7 @@ func deployableUnitCorrelationRow(
 	acceptanceUnitID := deployableUnitAcceptanceUnitID(intent)
 	return sharedintent.Row{
 		IntentID:         intent.IntentID,
-		ProjectionDomain: DomainDeployableUnitEdges,
+		ProjectionDomain: reducercontract.DomainDeployableUnitEdges,
 		PartitionKey:     repoID,
 		ScopeID:          intent.ScopeID,
 		AcceptanceUnitID: acceptanceUnitID,

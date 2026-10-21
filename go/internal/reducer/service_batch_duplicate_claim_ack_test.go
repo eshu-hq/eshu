@@ -62,7 +62,7 @@ func TestServiceBatchOpaqueAckErrorStopsReducer(t *testing.T) {
 		IntentID:     "duplicate-claim-ack",
 		ScopeID:      "scope-duplicate-claim-ack",
 		GenerationID: "generation-duplicate-claim-ack",
-		Domain:       reducer.DomainRepoDependency,
+		Domain:       reducercontract.DomainRepoDependency,
 		AvailableAt:  time.Now().UTC(),
 	}
 	source := &staleAckBatchSource{intent: &intent}

@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -61,7 +62,7 @@ func unusableDeltaRepositoryFacts() []facts.Envelope {
 }
 
 // staticFactLoader serves one fixed envelope set to a reducer materialization
-// handler. It implements only reducer.FactLoader, so the handlers take their
+// handler. It implements only factload.FactLoader, so the handlers take their
 // ListFacts fallback rather than a kind-filtered load path.
 type staticFactLoader struct {
 	envelopes []facts.Envelope
@@ -92,7 +93,7 @@ type unusableDeltaCase struct {
 	materializationDomain reducercontract.Domain
 	materialize           func(
 		ctx context.Context,
-		loader reducer.FactLoader,
+		loader factload.FactLoader,
 		writer *capturingIntentWriter,
 		intent reducercontract.Intent,
 	) error
@@ -102,12 +103,12 @@ func unusableDeltaCases() []unusableDeltaCase {
 	return []unusableDeltaCase{
 		{
 			name:                  "inheritance",
-			retractDomain:         reducer.DomainInheritanceEdges,
+			retractDomain:         reducercontract.DomainInheritanceEdges,
 			evidenceSource:        "reducer/inheritance",
 			materializationDomain: reducer.DomainInheritanceMaterialization,
 			materialize: func(
 				ctx context.Context,
-				loader reducer.FactLoader,
+				loader factload.FactLoader,
 				writer *capturingIntentWriter,
 				intent reducercontract.Intent,
 			) error {
@@ -118,12 +119,12 @@ func unusableDeltaCases() []unusableDeltaCase {
 		},
 		{
 			name:                  "rationale",
-			retractDomain:         reducer.DomainRationaleEdges,
+			retractDomain:         reducercontract.DomainRationaleEdges,
 			evidenceSource:        "reducer/rationale",
 			materializationDomain: reducer.DomainRationaleMaterialization,
 			materialize: func(
 				ctx context.Context,
-				loader reducer.FactLoader,
+				loader factload.FactLoader,
 				writer *capturingIntentWriter,
 				intent reducercontract.Intent,
 			) error {
@@ -134,12 +135,12 @@ func unusableDeltaCases() []unusableDeltaCase {
 		},
 		{
 			name:                  "sql_relationships",
-			retractDomain:         reducer.DomainSQLRelationships,
+			retractDomain:         reducercontract.DomainSQLRelationships,
 			evidenceSource:        "reducer/sql-relationships",
 			materializationDomain: reducer.DomainSQLRelationshipMaterialization,
 			materialize: func(
 				ctx context.Context,
-				loader reducer.FactLoader,
+				loader factload.FactLoader,
 				writer *capturingIntentWriter,
 				intent reducercontract.Intent,
 			) error {
@@ -150,12 +151,12 @@ func unusableDeltaCases() []unusableDeltaCase {
 		},
 		{
 			name:                  "shell_exec",
-			retractDomain:         reducer.DomainShellExec,
+			retractDomain:         reducercontract.DomainShellExec,
 			evidenceSource:        "reducer/shell-exec",
 			materializationDomain: reducer.DomainShellExecMaterialization,
 			materialize: func(
 				ctx context.Context,
-				loader reducer.FactLoader,
+				loader factload.FactLoader,
 				writer *capturingIntentWriter,
 				intent reducercontract.Intent,
 			) error {

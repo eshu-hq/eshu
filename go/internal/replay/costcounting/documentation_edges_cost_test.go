@@ -11,7 +11,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -58,13 +58,13 @@ func documentationEdgeFixtureRows() []sharedintent.Row {
 	}
 	return []sharedintent.Row{
 		{
-			ProjectionDomain: reducer.DomainDocumentationEdges,
+			ProjectionDomain: reducercontract.DomainDocumentationEdges,
 			PartitionKey:     "docsection:doc-1|sec-1->uid:func:handler",
 			ScopeID:          "scope-1",
 			Payload:          entityPayload,
 		},
 		{
-			ProjectionDomain: reducer.DomainDocumentationEdges,
+			ProjectionDomain: reducercontract.DomainDocumentationEdges,
 			PartitionKey:     "docsection:doc-1|sec-2->workload-1",
 			ScopeID:          "scope-1",
 			Payload:          workloadPayload,
@@ -130,7 +130,7 @@ func TestCostBudget_DocumentationMaterialization(t *testing.T) {
 
 	if _, err := writer.WriteEdges(
 		context.Background(),
-		reducer.DomainDocumentationEdges,
+		reducercontract.DomainDocumentationEdges,
 		documentationEdgeFixtureRows(),
 		documentationCostEvidenceSource,
 	); err != nil {
@@ -203,7 +203,7 @@ func TestCostBudget_DocumentationMaterialization_N1_ExceedsBudget(t *testing.T) 
 	for _, row := range rows {
 		if _, err := writer.WriteEdges(
 			context.Background(),
-			reducer.DomainDocumentationEdges,
+			reducercontract.DomainDocumentationEdges,
 			[]sharedintent.Row{row},
 			documentationCostEvidenceSource,
 		); err != nil {

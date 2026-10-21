@@ -21,7 +21,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -93,7 +93,7 @@ func TestLiveRepoDependencyGroupedCommitResponseLossIsExactlyReplayable(t *testi
 		newReducerNeo4jExecutor(neo4jSessionRunner{Driver: proxyDriver}, nil),
 		0,
 	)
-	_, writeErr := proxiedWriter.WriteEdges(ctx, reducer.DomainRepoDependency, []sharedintent.Row{row}, evidenceSource)
+	_, writeErr := proxiedWriter.WriteEdges(ctx, reducercontract.DomainRepoDependency, []sharedintent.Row{row}, evidenceSource)
 	if writeErr == nil {
 		t.Fatal("grouped write error = nil after COMMIT SUCCESS was dropped")
 	}
@@ -107,7 +107,7 @@ func TestLiveRepoDependencyGroupedCommitResponseLossIsExactlyReplayable(t *testi
 		newReducerNeo4jExecutor(directRunner, nil),
 		0,
 	)
-	if _, err := directWriter.WriteEdges(ctx, reducer.DomainRepoDependency, []sharedintent.Row{row}, evidenceSource); err != nil {
+	if _, err := directWriter.WriteEdges(ctx, reducercontract.DomainRepoDependency, []sharedintent.Row{row}, evidenceSource); err != nil {
 		t.Fatalf("idempotent replay after ambiguous COMMIT: %v", err)
 	}
 	replayed := readRepoCommitLossEdge(t, ctx, directRunner, sourceID, targetID, evidenceSource, resolvedID)

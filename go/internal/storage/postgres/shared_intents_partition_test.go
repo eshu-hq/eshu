@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -27,7 +27,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 		{
 			row: sharedintent.Row{
 				IntentID:         "si-other-partition",
-				ProjectionDomain: reducer.DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-a:other",
 				RepositoryID:     "repo-a",
 				SourceRunID:      "run-1",
@@ -41,7 +41,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 		{
 			row: sharedintent.Row{
 				IntentID:         "si-target-1",
-				ProjectionDomain: reducer.DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-a:target",
 				RepositoryID:     "repo-a",
 				SourceRunID:      "run-1",
@@ -55,7 +55,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 		{
 			row: sharedintent.Row{
 				IntentID:         "si-target-completed",
-				ProjectionDomain: reducer.DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-a:target",
 				RepositoryID:     "repo-a",
 				SourceRunID:      "run-1",
@@ -70,7 +70,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 		{
 			row: sharedintent.Row{
 				IntentID:         "si-target-other-run",
-				ProjectionDomain: reducer.DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-a:target",
 				RepositoryID:     "repo-a",
 				SourceRunID:      "run-2",
@@ -88,7 +88,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
-	}, reducer.DomainCodeCalls, "code-calls:v1:files:repo-a:target", 100)
+	}, reducercontract.DomainCodeCalls, "code-calls:v1:files:repo-a:target", 100)
 	if err != nil {
 		t.Fatalf("ListPendingAcceptanceUnitPartitionIntents: %v", err)
 	}

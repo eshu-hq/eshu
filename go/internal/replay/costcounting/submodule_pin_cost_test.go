@@ -12,7 +12,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
@@ -60,7 +60,7 @@ func submodulePinEdgeFixtureRows() []sharedintent.Row {
 	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		intents = append(intents, sharedintent.Row{
-			ProjectionDomain: reducer.DomainSubmodulePinEdges,
+			ProjectionDomain: reducercontract.DomainSubmodulePinEdges,
 			PartitionKey: fmt.Sprintf(
 				"%s->%s", row["parent_repo_id"], row["submodule_path"],
 			),
@@ -134,7 +134,7 @@ func TestCostBudget_SubmodulePin(t *testing.T) {
 
 	if _, err := writer.WriteEdges(
 		context.Background(),
-		reducer.DomainSubmodulePinEdges,
+		reducercontract.DomainSubmodulePinEdges,
 		submodulePinEdgeFixtureRows(),
 		submodulePinCostEvidenceSource,
 	); err != nil {
@@ -207,7 +207,7 @@ func TestCostBudget_SubmodulePin_N1_ExceedsBudget(t *testing.T) {
 	for _, row := range rows {
 		if _, err := writer.WriteEdges(
 			context.Background(),
-			reducer.DomainSubmodulePinEdges,
+			reducercontract.DomainSubmodulePinEdges,
 			[]sharedintent.Row{row},
 			submodulePinCostEvidenceSource,
 		); err != nil {

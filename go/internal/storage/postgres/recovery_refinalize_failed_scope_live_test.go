@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -151,7 +151,7 @@ func TestRefinalizeFailedScopeAllScopesEnqueuesNewestFailedGeneration(t *testing
 	intentID := "refinalize-failed-intent-" + suffix
 	if err := NewSharedIntentStore(SQLDB{DB: database}).UpsertIntents(ctx, []sharedintent.Row{{
 		IntentID:         intentID,
-		ProjectionDomain: reducer.DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey:     "caller->callee",
 		ScopeID:          failedScope,
 		AcceptanceUnitID: "unit-" + suffix,

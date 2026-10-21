@@ -6,6 +6,8 @@ package reducer
 import (
 	"testing"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
@@ -13,7 +15,7 @@ import (
 func TestRunsInReadinessGatesOnWorkloadMaterialization(t *testing.T) {
 	t.Parallel()
 
-	phase, gated := worker.ReadinessPhase(DomainRunsIn)
+	phase, gated := worker.ReadinessPhase(reducercontract.DomainRunsIn)
 	if !gated {
 		t.Fatalf("DomainRunsIn must be readiness-gated")
 	}
@@ -30,7 +32,7 @@ func TestRunsInReadinessKeyspaceMatchesWorkloadPublication(t *testing.T) {
 	// published under the service_uid keyspace (see WorkloadMaterializationHandler),
 	// so the readiness gate must look it up under the same keyspace or the edge is
 	// never drained — exactly like handles_route.
-	if got := worker.ReadinessKeyspace(DomainRunsIn); got != gpphase.KeyspaceServiceUID {
+	if got := worker.ReadinessKeyspace(reducercontract.DomainRunsIn); got != gpphase.KeyspaceServiceUID {
 		t.Fatalf("runs_in readiness keyspace = %q, want %q", got, gpphase.KeyspaceServiceUID)
 	}
 }
@@ -40,7 +42,7 @@ func TestRunsInDomainIsDrainedBySharedProjectionRunner(t *testing.T) {
 
 	found := false
 	for _, domain := range worker.Domains() {
-		if domain == DomainRunsIn {
+		if domain == reducercontract.DomainRunsIn {
 			found = true
 			break
 		}

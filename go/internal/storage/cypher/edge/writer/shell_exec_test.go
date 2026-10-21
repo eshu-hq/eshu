@@ -11,7 +11,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -40,7 +40,7 @@ func TestEdgeWriterWriteEdgesShellExec(t *testing.T) {
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {
@@ -88,7 +88,7 @@ func TestEdgeWriterRetractEdgesShellExecDeltaUsesFileScope(t *testing.T) {
 		},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 
@@ -133,7 +133,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupPreservesConnectedCandidate(t *te
 		},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 
@@ -163,7 +163,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupSkipsWriteWhenAllConnected(t *tes
 		},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 
@@ -189,7 +189,7 @@ func TestEdgeWriterRetractEdgesShellExecCleanupSkipsReadsWhenNoCandidates(t *tes
 		},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 
@@ -216,7 +216,7 @@ func TestEdgeWriterRetractEdgesShellExecRequiresReader(t *testing.T) {
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainShellExec, rows, "reducer/shell-exec")
 	if err == nil {
 		t.Fatal("RetractEdges() error = nil, want reader-required error")
 	}
@@ -351,7 +351,7 @@ func TestEdgeWriterRetractEdgesShellExecRunsSequentialOrderedCleanup(t *testing.
 		},
 	}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainShellExec, rows, "reducer/shell-exec"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	// The shell-exec retract runs its edge delete and its anti-join's S3

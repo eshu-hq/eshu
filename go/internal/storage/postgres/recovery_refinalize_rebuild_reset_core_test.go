@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -88,7 +88,7 @@ func TestRefinalizeRebuildResetReopensSharedIntentsForAffectedGenerationsOnly(t 
 	rows := []sharedintent.Row{
 		{
 			IntentID:         "refinalize-reset-active-intent-" + suffix,
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "caller->callee",
 			ScopeID:          scopeID,
 			AcceptanceUnitID: "unit-" + suffix,
@@ -101,7 +101,7 @@ func TestRefinalizeRebuildResetReopensSharedIntentsForAffectedGenerationsOnly(t 
 		},
 		{
 			IntentID:         "refinalize-reset-retired-intent-" + suffix,
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "caller->callee",
 			ScopeID:          scopeID,
 			AcceptanceUnitID: "unit-" + suffix,

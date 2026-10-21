@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -130,7 +131,7 @@ func (w *EdgeWriter) VerifyDeployableUnitEdges(
 		switch outcome {
 		case edgeVerifyMissingTarget:
 			return &targetMissingError{
-				domain:         reducer.DomainDeployableUnitEdges,
+				domain:         reducercontract.DomainDeployableUnitEdges,
 				batchRows:      len(rows),
 				sampleRepoID:   absentRepoID,
 				sampleIntentID: row.IntentID,
@@ -143,7 +144,7 @@ func (w *EdgeWriter) VerifyDeployableUnitEdges(
 			}
 		default:
 			return &targetProbeError{
-				domain:         reducer.DomainDeployableUnitEdges,
+				domain:         reducercontract.DomainDeployableUnitEdges,
 				batchRows:      len(rows),
 				sampleIntentID: row.IntentID,
 				err:            err,
@@ -211,7 +212,7 @@ func (w *EdgeWriter) warnEdgeVerify(
 		return
 	}
 	attrs := []any{
-		"domain", reducer.DomainDeployableUnitEdges,
+		"domain", reducercontract.DomainDeployableUnitEdges,
 		"verdict", outcome,
 		"source_repo_id", pair[0],
 		"target_repo_id", pair[1],

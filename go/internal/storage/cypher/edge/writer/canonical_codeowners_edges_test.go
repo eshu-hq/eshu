@@ -12,7 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -182,7 +182,7 @@ func TestEdgeWriterRetractEdgesCodeownersOwnershipDeltaUsesFilePathScope(t *test
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainCodeownersOwnershipEdges, rows, "reducer/codeowners")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainCodeownersOwnershipEdges, rows, "reducer/codeowners")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -242,7 +242,7 @@ func TestEdgeWriterRetractEdgesCodeownersOwnershipDeltaRepoIDsAreGeneric(t *test
 		},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainCodeownersOwnershipEdges, rows, "reducer/codeowners")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainCodeownersOwnershipEdges, rows, "reducer/codeowners")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -267,7 +267,7 @@ func TestEdgeWriterRetractEdgesCodeownersOwnershipWholeRepoScope(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-1"},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainCodeownersOwnershipEdges, rows, "reducer/codeowners")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainCodeownersOwnershipEdges, rows, "reducer/codeowners")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -305,7 +305,7 @@ func TestEdgeWriterWriteEdgesCodeownersOwnershipRoutesTemplate(t *testing.T) {
 		},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainCodeownersOwnershipEdges, rows, "reducer/codeowners")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainCodeownersOwnershipEdges, rows, "reducer/codeowners")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}

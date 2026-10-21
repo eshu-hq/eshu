@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -36,9 +36,9 @@ func TestEdgeWriterRetractEdgesSiblingNonDeltaBatchIgnoresUnmarkedLegacyRows(t *
 		domain         string
 		evidenceSource string
 	}{
-		{"inheritance", reducer.DomainInheritanceEdges, "reducer/inheritance"},
-		{"sql_relationships", reducer.DomainSQLRelationships, "reducer/sql-relationships"},
-		{"shell_exec", reducer.DomainShellExec, "reducer/shell-exec"},
+		{"inheritance", reducercontract.DomainInheritanceEdges, "reducer/inheritance"},
+		{"sql_relationships", reducercontract.DomainSQLRelationships, "reducer/sql-relationships"},
+		{"shell_exec", reducercontract.DomainShellExec, "reducer/shell-exec"},
 	}
 
 	for _, tc := range cases {

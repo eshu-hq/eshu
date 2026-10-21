@@ -71,7 +71,7 @@ const gcpResourceEvidenceSource = "reducer/gcp-resources"
 //
 // See docs/internal/gcp-cloud-resource-materialization-design.md.
 type GCPResourceMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter CloudResourceNodeWriter
 	// PhasePublisher records the canonical-nodes-committed readiness phase that
 	// gates the GCP relationship edge projection. A nil publisher is a no-op so

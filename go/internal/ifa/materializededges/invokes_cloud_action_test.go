@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -22,14 +22,14 @@ func TestInvokesCloudActionRowsToExpectedEdgesIsOneToOne(t *testing.T) {
 
 	rows := []sharedintent.Row{
 		{
-			ProjectionDomain: reducer.DomainInvokesCloudAction,
+			ProjectionDomain: reducercontract.DomainInvokesCloudAction,
 			Payload: map[string]any{
 				"function_id": "content-entity:fn1",
 				"action_id":   "cloud-action:s3:putobject",
 			},
 		},
 		{
-			ProjectionDomain: reducer.DomainInvokesCloudAction,
+			ProjectionDomain: reducercontract.DomainInvokesCloudAction,
 			Payload: map[string]any{
 				"function_id": "content-entity:fn2",
 				"action_id":   "cloud-action:dynamodb:getitem",

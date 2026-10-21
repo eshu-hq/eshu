@@ -136,7 +136,7 @@ func deployableUnitAdmissionDecision(
 	canonical := admissiondecision.AdmissionCanonicalWrite{
 		Eligible:      false,
 		Written:       false,
-		TargetKind:    DomainDeployableUnitEdges,
+		TargetKind:    reducercontract.DomainDeployableUnitEdges,
 		SkippedReason: "candidate was not admitted",
 	}
 	if candidate.State == correlationmodel.CandidateStateAdmitted {

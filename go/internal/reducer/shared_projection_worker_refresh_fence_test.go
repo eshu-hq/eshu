@@ -6,6 +6,8 @@ package reducer
 import (
 	"testing"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -43,14 +45,14 @@ func TestRepoWideRetractRefreshPartitionKeyShapeIsPinned(t *testing.T) {
 		want   = "rationale_edges:refresh:v1:whole:repo-shape-pin"
 	)
 
-	if got := sharedintent.RepoWideRetractRefreshPartitionKey(DomainRationaleEdges, repoID); got != want {
+	if got := sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainRationaleEdges, repoID); got != want {
 		t.Fatalf("sharedintent.RepoWideRetractRefreshPartitionKey(%q, %q) = %q, want %q\n"+
 			"The whole-scope refresh key scheme changed. storage/cypher's\n"+
 			"edge/writer/retract_scope_test.go mirrors this exact string as a\n"+
 			"literal to prove the delta and whole-scope retract collectors stay\n"+
 			"disjoint; update that mirror in lockstep, or its rows will keep\n"+
 			"sharing the stale key and collapse for the wrong reason.",
-			DomainRationaleEdges, repoID, got, want)
+			reducercontract.DomainRationaleEdges, repoID, got, want)
 	}
 }
 
@@ -60,8 +62,8 @@ func TestRepoWideRetractRefreshPartitionKeyShapeIsPinned(t *testing.T) {
 func TestRepoWideRetractRefreshPartitionKeyTrimsRepoID(t *testing.T) {
 	t.Parallel()
 
-	want := sharedintent.RepoWideRetractRefreshPartitionKey(DomainRationaleEdges, "repo-1")
-	if got := sharedintent.RepoWideRetractRefreshPartitionKey(DomainRationaleEdges, "  repo-1\t"); got != want {
+	want := sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainRationaleEdges, "repo-1")
+	if got := sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainRationaleEdges, "  repo-1\t"); got != want {
 		t.Fatalf("padded repo id produced %q, want %q -- a padded id must not open a second partition for one repository", got, want)
 	}
 }

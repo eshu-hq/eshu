@@ -28,11 +28,11 @@ func knownDomainSet() map[reducercontract.Domain]struct{} {
 // the inventory and cannot drain truth without being tracked. Duplicates across
 // the two registries collapse to one entry.
 func AllDomains() []reducercontract.Domain {
-	set := make(map[reducercontract.Domain]struct{}, len(knownDomains)+len(allProjectionDomains))
+	set := make(map[reducercontract.Domain]struct{}, len(knownDomains)+len(reducercontract.ProjectionDomains()))
 	for domain := range knownDomains {
 		set[domain] = struct{}{}
 	}
-	for _, domain := range allProjectionDomains {
+	for _, domain := range reducercontract.ProjectionDomains() {
 		set[domain] = struct{}{}
 	}
 	domains := make([]reducercontract.Domain, 0, len(set))

@@ -9,7 +9,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -30,7 +30,7 @@ func TestRepairAnchorsYieldDomainRetractAnchorsNotEdgeKeys(t *testing.T) {
 	}}
 	graph := []sourcecypher.GraphDenormalizedEdge{{
 		EdgeKey:       "edge-gen1",
-		Domain:        reducer.DomainRepoDependency,
+		Domain:        reducercontract.DomainRepoDependency,
 		Identity:      sourcecypher.AcceptanceIdentity{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
 		RetractAnchor: "repo-a",
 		GenerationID:  "gen-1",
@@ -40,7 +40,7 @@ func TestRepairAnchorsYieldDomainRetractAnchorsNotEdgeKeys(t *testing.T) {
 	report := sourcecypher.ClassifyReconciliationDrift(authoritative, graph)
 
 	anchors := report.RepairAnchors()
-	got := anchors[reducer.DomainRepoDependency]
+	got := anchors[reducercontract.DomainRepoDependency]
 	if len(got) != 1 || got[0] != "repo-a" {
 		t.Fatalf("repair anchors for repo_dependency = %v, want [repo-a]", got)
 	}
@@ -62,7 +62,7 @@ func TestRepairAnchorsYieldDomainRetractAnchorsNotEdgeKeys(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 	if err := writer.RetractEdges(
 		context.Background(),
-		reducer.DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		retractRows,
 		"reconciliation/dual_write",
 	); err != nil {
@@ -100,7 +100,7 @@ func TestRepairAnchorsScopeAnchoredDomainUsesScopeID(t *testing.T) {
 	}}
 	graph := []sourcecypher.GraphDenormalizedEdge{{
 		EdgeKey:       "edge-doc",
-		Domain:        reducer.DomainDocumentationEdges,
+		Domain:        reducercontract.DomainDocumentationEdges,
 		Identity:      sourcecypher.AcceptanceIdentity{ScopeID: "scope-doc", AcceptanceUnitID: "unit-doc", SourceRunID: "run-1"},
 		RetractAnchor: "section-scope-xyz",
 		GenerationID:  "gen-1",
@@ -108,7 +108,7 @@ func TestRepairAnchorsScopeAnchoredDomainUsesScopeID(t *testing.T) {
 
 	report := sourcecypher.ClassifyReconciliationDrift(authoritative, graph)
 
-	got := report.RepairAnchors()[reducer.DomainDocumentationEdges]
+	got := report.RepairAnchors()[reducercontract.DomainDocumentationEdges]
 	if len(got) != 1 || got[0] != "section-scope-xyz" {
 		t.Fatalf("documentation repair anchor = %v, want [section-scope-xyz]", got)
 	}
@@ -140,7 +140,7 @@ func TestClassifyReconciliationDriftExactAcceptanceIdentityNoCollapse(t *testing
 		{
 			// Belongs to scope-A/run-A; its generation matches gen-A2 → in sync.
 			EdgeKey:       "edge-A",
-			Domain:        reducer.DomainRepoDependency,
+			Domain:        reducercontract.DomainRepoDependency,
 			Identity:      sourcecypher.AcceptanceIdentity{ScopeID: "scope-A", AcceptanceUnitID: "repo-shared", SourceRunID: "run-A"},
 			RetractAnchor: "repo-shared",
 			GenerationID:  "gen-A2",
@@ -149,7 +149,7 @@ func TestClassifyReconciliationDriftExactAcceptanceIdentityNoCollapse(t *testing
 		{
 			// Belongs to scope-B/run-B; its generation matches gen-B5 → in sync.
 			EdgeKey:       "edge-B",
-			Domain:        reducer.DomainRepoDependency,
+			Domain:        reducercontract.DomainRepoDependency,
 			Identity:      sourcecypher.AcceptanceIdentity{ScopeID: "scope-B", AcceptanceUnitID: "repo-shared", SourceRunID: "run-B"},
 			RetractAnchor: "repo-shared",
 			GenerationID:  "gen-B5",
@@ -192,7 +192,7 @@ func TestClassifyReconciliationDriftExactKeyDetectsScopeSpecificDrift(t *testing
 	edges := []sourcecypher.GraphDenormalizedEdge{
 		{
 			EdgeKey:       "edge-A-ok",
-			Domain:        reducer.DomainRepoDependency,
+			Domain:        reducercontract.DomainRepoDependency,
 			Identity:      sourcecypher.AcceptanceIdentity{ScopeID: "scope-A", AcceptanceUnitID: "repo-shared", SourceRunID: "run-A"},
 			RetractAnchor: "repo-shared",
 			GenerationID:  "gen-A2",
@@ -201,7 +201,7 @@ func TestClassifyReconciliationDriftExactKeyDetectsScopeSpecificDrift(t *testing
 		{
 			// scope-B slice stale: graph holds gen-B4, authoritative is gen-B5.
 			EdgeKey:       "edge-B-stale",
-			Domain:        reducer.DomainRepoDependency,
+			Domain:        reducercontract.DomainRepoDependency,
 			Identity:      sourcecypher.AcceptanceIdentity{ScopeID: "scope-B", AcceptanceUnitID: "repo-shared", SourceRunID: "run-B"},
 			RetractAnchor: "repo-shared",
 			GenerationID:  "gen-B4",

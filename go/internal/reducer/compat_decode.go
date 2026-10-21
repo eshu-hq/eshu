@@ -28,11 +28,6 @@ package reducer
 //   - shared-projection domains + intent row (H5 root-remnant fold, issue
 //     #6061; folded from shared_projection.go)
 
-import (
-	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
-)
-
 // Stanza: decode_seam_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the per-fact-kind
 // decoders that moved to [schemadecode] (issue #6061). Every entry binds the
@@ -59,14 +54,7 @@ import (
 // once its last reducer-root caller has moved into a family subpackage.
 // The 12 fact-writer aliases and forwarders were retired once their last callers named [factwrite] directly (#6626).
 
-// Stanza: scoped_fact_loader_compat.go (merged; do not recreate this file).
-// This file is the transitional compatibility surface for the scoped fact
-// loader that moved to [factload] (issue #6061). Reducer-root call sites and the
-// external packages naming FactLoader keep their current spelling; each entry is
-// deleted once its last caller has moved into a family subpackage.
-
-// FactLoader loads fact envelopes for one scope generation.
-type FactLoader = factload.FactLoader
+// The FactLoader alias was retired once its last callers named [factload.FactLoader] directly (#6626).
 
 // Stanza: shared_payload_delta_compat.go (merged; do not recreate this file).
 // This file holds the payload/delta forwarders that used to live in the
@@ -136,26 +124,6 @@ type FactLoader = factload.FactLoader
 // [crossscope.ProducerNotReadyError], [crossscope.ProducerReadiness], and
 // [crossscope.ProducerReadinessByDomain] directly (#6626 tail bucket 2).
 
-// Stanza: shared-projection domains + intent row (H5 root-remnant fold,
-// issue #6061). HandlesRoute/RunsIn ride the ordering-safe shared-projection
-// path (#2721, #2722); InvokesCloudAction/CodeownersOwnershipEdges/
-// SubmodulePinEdges MERGE both endpoints inline, needing no readiness gate.
-const (
-	DomainRepoDependency           = reducercontract.DomainRepoDependency
-	DomainWorkloadDependency       = reducercontract.DomainWorkloadDependency
-	DomainCodeCalls                = reducercontract.DomainCodeCalls
-	DomainSQLRelationships         = reducercontract.DomainSQLRelationships
-	DomainShellExec                = reducercontract.DomainShellExec
-	DomainInheritanceEdges         = reducercontract.DomainInheritanceEdges
-	DomainDocumentationEdges       = reducercontract.DomainDocumentationEdges
-	DomainRationaleEdges           = reducercontract.DomainRationaleEdges
-	DomainDeployableUnitEdges      = reducercontract.DomainDeployableUnitEdges
-	DomainHandlesRoute             = reducercontract.DomainHandlesRoute
-	DomainRunsIn                   = reducercontract.DomainRunsIn
-	DomainInvokesCloudAction       = reducercontract.DomainInvokesCloudAction
-	DomainCodeownersOwnershipEdges = reducercontract.DomainCodeownersOwnershipEdges
-	DomainSubmodulePinEdges        = reducercontract.DomainSubmodulePinEdges
-)
-
-// allProjectionDomains forwards to [reducercontract.ProjectionDomains].
-var allProjectionDomains = reducercontract.ProjectionDomains()
+// The 14 shared-projection domain consts and the allProjectionDomains
+// forwarder were retired once their last callers named [reducercontract]
+// directly (#6626).

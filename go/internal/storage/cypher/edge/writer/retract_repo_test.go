@@ -14,7 +14,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -28,7 +28,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyDispatch(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -77,7 +77,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsStatementDurations(t *testing.T
 		{IntentID: "i2", RepositoryID: "repo-b", Payload: map[string]any{"repo_id": "repo-b"}},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -96,7 +96,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsStatementDurations(t *testing.T
 		if got, want := entry["msg"], "shared edge retract statement completed"; got != want {
 			t.Fatalf("entry %d msg = %v, want %v", i, got, want)
 		}
-		if got, want := entry["domain"], reducer.DomainRepoDependency; got != want {
+		if got, want := entry["domain"], reducercontract.DomainRepoDependency; got != want {
 			t.Fatalf("entry %d domain = %v, want %v", i, got, want)
 		}
 		if got, want := entry["evidence_source"], "finalization/workloads"; got != want {
@@ -145,7 +145,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyLogsSequentialStatementRoles(t *tes
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -209,7 +209,7 @@ func TestEdgeWriterRetractEdgesRepoDependencySingleRepoUsesBoundDeleteShape(t *t
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "projection/code-imports")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -258,7 +258,7 @@ func TestEdgeWriterWriteEdgesRejectsCodeImportRunsOn(t *testing.T) {
 		},
 	}}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "projection/code-imports")
 	if err == nil {
 		t.Fatal("WriteEdges() error = nil, want source-capability violation")
 	}
@@ -284,7 +284,7 @@ func TestEdgeWriterRetractEdgesCodeImportLogsRunsOnOmission(t *testing.T) {
 		Payload:      map[string]any{"repo_id": "repo-a"},
 	}}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "projection/code-imports")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -321,7 +321,7 @@ func TestEdgeWriterRetractEdgesRepoDependencyDiagnosticStatementTimingBypassesGr
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "finalization/workloads")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}

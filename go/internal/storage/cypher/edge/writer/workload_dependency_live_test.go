@@ -13,6 +13,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -122,7 +123,7 @@ CREATE (source)-[:DEPENDS_ON {evidence_source: $evidence_source}]->(target)`, Pa
 
 	executor := runsOnBoltExecutor{runner: runner}
 	writer := NewEdgeWriter(executor, 1)
-	if err := writer.RetractEdges(ctx, reducer.DomainWorkloadDependency, []sharedintent.Row{{
+	if err := writer.RetractEdges(ctx, reducercontract.DomainWorkloadDependency, []sharedintent.Row{{
 		IntentID:     "pr6634-workload-dependency-legacy-retract",
 		RepositoryID: repoID,
 	}}, reducer.EvidenceSourceWorkloads); err != nil {
@@ -222,7 +223,7 @@ func writeWorkloadDependency(
 ) error {
 	_, err := NewEdgeWriter(executor, 1).WriteEdges(
 		ctx,
-		reducer.DomainWorkloadDependency,
+		reducercontract.DomainWorkloadDependency,
 		[]sharedintent.Row{{
 			IntentID:     "pr6634-workload-dependency-" + intentSuffix,
 			RepositoryID: sourceID,

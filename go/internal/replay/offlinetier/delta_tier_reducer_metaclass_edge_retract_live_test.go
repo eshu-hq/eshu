@@ -13,7 +13,7 @@
 // (probed while fixing the rationale retract; see nornicdb-pitfalls.md).
 //
 // The test drives the REAL production write and retract paths
-// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for reducer.DomainCodeCalls
+// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for reducercontract.DomainCodeCalls
 // with the parser/python-metaclass evidence source). It writes a
 // Class->Class USES_METACLASS edge in one repo scope plus an out-of-scope
 // edge, retracts the in-scope repo, and asserts the in-scope edge is gone,
@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -86,7 +86,7 @@ func TestReducerMetaclassEdgeRetractGraphTruth(t *testing.T) {
 			"target_entity_id":  metaClsMetaOut,
 		}},
 	}
-	if _, err := writer.WriteEdges(ctx, reducer.DomainCodeCalls, writeRows, metaEdgeEvidenceSource); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainCodeCalls, writeRows, metaEdgeEvidenceSource); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 
@@ -104,7 +104,7 @@ func TestReducerMetaclassEdgeRetractGraphTruth(t *testing.T) {
 	retractRows := []sharedintent.Row{
 		{IntentID: "retract", RepositoryID: metaEdgeInScopeRepoID},
 	}
-	if err := writer.RetractEdges(ctx, reducer.DomainCodeCalls, retractRows, metaEdgeEvidenceSource); err != nil {
+	if err := writer.RetractEdges(ctx, reducercontract.DomainCodeCalls, retractRows, metaEdgeEvidenceSource); err != nil {
 		t.Fatalf("RetractEdges: %v", err)
 	}
 

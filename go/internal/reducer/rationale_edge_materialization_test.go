@@ -115,8 +115,8 @@ func TestRationaleHandlerEmitsIntentsWithDeltaRefresh(t *testing.T) {
 	if len(refresh) != 1 {
 		t.Fatalf("refresh intents = %d, want 1", len(refresh))
 	}
-	if refresh[0].ProjectionDomain != DomainRationaleEdges {
-		t.Fatalf("refresh domain = %q, want %q", refresh[0].ProjectionDomain, DomainRationaleEdges)
+	if refresh[0].ProjectionDomain != reducercontract.DomainRationaleEdges {
+		t.Fatalf("refresh domain = %q, want %q", refresh[0].ProjectionDomain, reducercontract.DomainRationaleEdges)
 	}
 	if refresh[0].PartitionKey != rationaleWholeScopePartitionKey("repo-123") {
 		t.Fatalf("refresh partition key = %q, want whole-scope key", refresh[0].PartitionKey)

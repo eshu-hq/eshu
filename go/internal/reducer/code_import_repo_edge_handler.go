@@ -223,7 +223,7 @@ func (h CodeImportRepoEdgeHandler) emitCounters(ctx context.Context, counts code
 			ctx,
 			int64(value),
 			metric.WithAttributes(
-				telemetry.AttrDomain(string(DomainRepoDependency)),
+				telemetry.AttrDomain(string(reducercontract.DomainRepoDependency)),
 				telemetry.AttrOutcome(outcome),
 			),
 		)
@@ -253,7 +253,7 @@ func (h CodeImportRepoEdgeHandler) emitRefreshCounter(ctx context.Context, count
 		ctx,
 		int64(count),
 		metric.WithAttributes(
-			telemetry.AttrDomain(string(DomainRepoDependency)),
+			telemetry.AttrDomain(string(reducercontract.DomainRepoDependency)),
 			telemetry.AttrOutcome("refreshed_no_owner"),
 		),
 	)

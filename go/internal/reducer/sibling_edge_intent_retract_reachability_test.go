@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
@@ -29,7 +31,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 	return []wholeScopeRetractReachabilityCase{
 		{
 			name:   "inheritance",
-			domain: DomainInheritanceEdges,
+			domain: reducercontract.DomainInheritanceEdges,
 			edgeRow: func(repoID string) map[string]any {
 				return map[string]any{
 					"repo_id": repoID, "child_path": "src/child.go",
@@ -43,7 +45,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 		},
 		{
 			name:   "sql_relationships",
-			domain: DomainSQLRelationships,
+			domain: reducercontract.DomainSQLRelationships,
 			edgeRow: func(repoID string) map[string]any {
 				return map[string]any{
 					"repo_id": repoID, "source_path": "db/schema.sql",
@@ -57,7 +59,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 		},
 		{
 			name:   "shell_exec",
-			domain: DomainShellExec,
+			domain: reducercontract.DomainShellExec,
 			edgeRow: func(repoID string) map[string]any {
 				return map[string]any{
 					"repo_id": repoID, "source_path": "scripts/run.sh",

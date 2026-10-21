@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -59,10 +59,10 @@ func BenchmarkEdgeWriterCodeCallRetractAndWrite(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if err := writer.RetractEdges(ctx, reducer.DomainCodeCalls, scenario.rows, "parser/code-calls"); err != nil {
+				if err := writer.RetractEdges(ctx, reducercontract.DomainCodeCalls, scenario.rows, "parser/code-calls"); err != nil {
 					b.Fatalf("RetractEdges: %v", err)
 				}
-				if _, err := writer.WriteEdges(ctx, reducer.DomainCodeCalls, scenario.rows, "parser/code-calls"); err != nil {
+				if _, err := writer.WriteEdges(ctx, reducercontract.DomainCodeCalls, scenario.rows, "parser/code-calls"); err != nil {
 					b.Fatalf("WriteEdges: %v", err)
 				}
 			}

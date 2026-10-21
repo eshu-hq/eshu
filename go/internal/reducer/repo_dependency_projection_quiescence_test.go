@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -87,7 +89,7 @@ func TestRepoDependencyProjectionRunnerRecordsQuiescenceBlockedCycle(t *testing.
 	}
 	// #7133: the shared lane-blocked counter names the lane and reason, so
 	// code_calls and repo_dependency stalls read from one metric.
-	if got := laneBlockedCount(resources, DomainRepoDependency, "canonical_code_quiescence"); got != 1 {
+	if got := laneBlockedCount(resources, reducercontract.DomainRepoDependency, "canonical_code_quiescence"); got != 1 {
 		t.Fatalf("lane_blocked_total{repo_dependency,canonical_code_quiescence} = %d, want 1", got)
 	}
 	// #7166: the gate probe's own latency is recorded on the same cycle.
@@ -147,7 +149,7 @@ func quiescenceGateDurationHasPoint(resources metricdata.ResourceMetrics) bool {
 				domain, domainOK := point.Attributes.Value(attribute.Key("domain"))
 				reason, reasonOK := point.Attributes.Value(attribute.Key("reason"))
 				if domainOK && reasonOK &&
-					domain.AsString() == DomainRepoDependency &&
+					domain.AsString() == reducercontract.DomainRepoDependency &&
 					reason.AsString() == "canonical_code_quiescence" &&
 					point.Count == 1 {
 					return true
@@ -188,7 +190,7 @@ func quiescenceBlockedDurationHasPoint(resources metricdata.ResourceMetrics) boo
 			}
 			for _, point := range histogram.DataPoints {
 				domain, domainOK := point.Attributes.Value(attribute.Key("domain"))
-				if domainOK && domain.AsString() == DomainRepoDependency && point.Count == 1 {
+				if domainOK && domain.AsString() == reducercontract.DomainRepoDependency && point.Count == 1 {
 					return true
 				}
 			}

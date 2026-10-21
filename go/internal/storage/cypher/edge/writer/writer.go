@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -70,7 +70,7 @@ func (w *EdgeWriter) batchSize() int {
 }
 
 func (w *EdgeWriter) batchSizeForDomain(domain string) int {
-	if domain == reducer.DomainCodeCalls && w.CodeCallBatchSize > 0 {
+	if domain == reducercontract.DomainCodeCalls && w.CodeCallBatchSize > 0 {
 		return w.CodeCallBatchSize
 	}
 	return w.batchSize()
@@ -85,19 +85,19 @@ func (w *EdgeWriter) codeCallGroupBatchSize() int {
 
 func (w *EdgeWriter) groupBatchSizeForDomain(domain string) int {
 	switch domain {
-	case reducer.DomainCodeCalls:
+	case reducercontract.DomainCodeCalls:
 		return w.codeCallGroupBatchSize()
-	case reducer.DomainInheritanceEdges:
+	case reducercontract.DomainInheritanceEdges:
 		if w.InheritanceGroupBatchSize <= 0 {
 			return 0
 		}
 		return w.InheritanceGroupBatchSize
-	case reducer.DomainSQLRelationships:
+	case reducercontract.DomainSQLRelationships:
 		if w.SQLRelationshipGroupBatchSize <= 0 {
 			return 0
 		}
 		return w.SQLRelationshipGroupBatchSize
-	case reducer.DomainShellExec:
+	case reducercontract.DomainShellExec:
 		if w.SQLRelationshipGroupBatchSize <= 0 {
 			return 0
 		}
@@ -156,7 +156,7 @@ func (w *EdgeWriter) WriteEdges(
 	if _, err := batchCypherForDomain(domain); err != nil {
 		return sharedintent.WriteReport{}, err
 	}
-	if domain == reducer.DomainRepoDependency {
+	if domain == reducercontract.DomainRepoDependency {
 		if err := validateRepoDependencySourceRows(rows, evidenceSource); err != nil {
 			return sharedintent.WriteReport{}, err
 		}
@@ -199,7 +199,7 @@ func (w *EdgeWriter) WriteEdges(
 			routeOrder = append(routeOrder, cypher)
 		}
 		routedRows[cypher] = append(routedRows[cypher], rowMap)
-		if domain == reducer.DomainRepoDependency {
+		if domain == reducercontract.DomainRepoDependency {
 			for _, artifactRow := range repoEvidenceArtifactRowsFromIntent(row, evidenceSource) {
 				artifactCypher := node.BatchCanonicalRepoEvidenceArtifactUpsertCypher
 				if sourcecypher.PayloadString(artifactRow, "environment") != "" {
@@ -255,7 +255,7 @@ func (w *EdgeWriter) WriteEdges(
 
 	// Prefer atomic grouped execution except where the backend requires the SQL
 	// relationship write path to use auto-commit for accurate graph truth.
-	sequentialSQL := domain == reducer.DomainSQLRelationships && w.SQLRelationshipSequentialWrites
+	sequentialSQL := domain == reducercontract.DomainSQLRelationships && w.SQLRelationshipSequentialWrites
 	if ge, ok := w.executor.(sourcecypher.GroupExecutor); ok && !sequentialSQL {
 		if groupSize := w.groupBatchSizeForDomain(domain); groupSize > 0 {
 			for i := 0; i < len(stmts); i += groupSize {
@@ -272,7 +272,7 @@ func (w *EdgeWriter) WriteEdges(
 				w.reportRepositoryStubs(ctx, domain, evidenceSource, stubs, stmts[i:end])
 				w.recordGroupedWrite(ctx, domain, "group", duration, stmts[i:end])
 				w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, groupSize, duration, stmts[i:end])
-				if domain == reducer.DomainCodeCalls {
+				if domain == reducercontract.DomainCodeCalls {
 					w.recordCodeCallBatch(ctx, duration)
 				}
 			}
@@ -300,7 +300,7 @@ func (w *EdgeWriter) WriteEdges(
 			duration := time.Since(start).Seconds()
 			w.reportRepositoryStubs(ctx, domain, evidenceSource, stubs, []sourcecypher.Statement{stmt})
 			w.logSharedEdgeWrite(domain, evidenceSource, "single", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, []sourcecypher.Statement{stmt})
-			if domain == reducer.DomainCodeCalls {
+			if domain == reducercontract.DomainCodeCalls {
 				w.recordCodeCallBatch(ctx, duration)
 			}
 		}
@@ -319,19 +319,19 @@ func (w *EdgeWriter) WriteEdges(
 // with no single-template batch (see the case comment).
 func batchCypherForDomain(domain string) (string, error) {
 	switch domain {
-	case reducer.DomainRepoDependency:
+	case reducercontract.DomainRepoDependency:
 		return sourcecypher.BatchCanonicalRepoDependencyUpsertCypher, nil
-	case reducer.DomainWorkloadDependency:
+	case reducercontract.DomainWorkloadDependency:
 		return sourcecypher.BatchCanonicalWorkloadDependencyUpsertCypher, nil
-	case reducer.DomainCodeCalls:
+	case reducercontract.DomainCodeCalls:
 		return node.BatchCanonicalCodeCallUpsertCypher, nil
-	case reducer.DomainInheritanceEdges:
+	case reducercontract.DomainInheritanceEdges:
 		return inheritance.BatchUpsertCypher, nil
-	case reducer.DomainDocumentationEdges:
+	case reducercontract.DomainDocumentationEdges:
 		return node.BatchCanonicalDocumentationEntityEdgeCypher, nil
-	case reducer.DomainRationaleEdges:
+	case reducercontract.DomainRationaleEdges:
 		return node.BatchCanonicalRationaleExplainsEdgeCypher, nil
-	case reducer.DomainSQLRelationships:
+	case reducercontract.DomainSQLRelationships:
 		// SQL relationship edges have no single-template batch: each row is
 		// dispatched per relationship type by buildSQLRelationshipRowMap — a
 		// label-scoped MERGE for SqlView/SqlFunction/SqlTable/SqlMigration/... endpoints
@@ -345,19 +345,19 @@ func batchCypherForDomain(domain string) (string, error) {
 		// loud failure — instead of silently MERGE-ing every SQL edge under one
 		// wrong relationship type.
 		return "", nil
-	case reducer.DomainShellExec:
+	case reducercontract.DomainShellExec:
 		return BatchCanonicalShellExecUpsertCypher, nil
-	case reducer.DomainDeployableUnitEdges:
+	case reducercontract.DomainDeployableUnitEdges:
 		return node.BatchCanonicalDeployableUnitCorrelationUpsertCypher, nil
-	case reducer.DomainHandlesRoute:
+	case reducercontract.DomainHandlesRoute:
 		return node.BatchCanonicalHandlesRouteEdgeUpsertCypher, nil
-	case reducer.DomainRunsIn:
+	case reducercontract.DomainRunsIn:
 		return node.BatchCanonicalRunsInEdgeUpsertCypher, nil
-	case reducer.DomainInvokesCloudAction:
+	case reducercontract.DomainInvokesCloudAction:
 		return node.BatchCanonicalInvokesCloudActionUpsertCypher, nil
-	case reducer.DomainCodeownersOwnershipEdges:
+	case reducercontract.DomainCodeownersOwnershipEdges:
 		return node.BatchCanonicalCodeownersOwnershipEdgeCypher, nil
-	case reducer.DomainSubmodulePinEdges:
+	case reducercontract.DomainSubmodulePinEdges:
 		return node.BatchCanonicalSubmodulePinEdgeCypher, nil
 	default:
 		return "", fmt.Errorf("unsupported domain for write: %q", domain)
@@ -387,7 +387,7 @@ func buildRowMap(
 	evidenceSource string,
 ) (string, map[string]any, bool) {
 	switch domain {
-	case reducer.DomainRepoDependency:
+	case reducercontract.DomainRepoDependency:
 		repoID := sourcecypher.PayloadString(row.Payload, "repo_id")
 		targetRepoID := sourcecypher.PayloadString(row.Payload, "target_repo_id")
 		relationshipType := sourcecypher.PayloadString(row.Payload, "relationship_type")
@@ -440,7 +440,7 @@ func buildRowMap(
 		}
 		return cypher, rowMap, true
 
-	case reducer.DomainWorkloadDependency:
+	case reducercontract.DomainWorkloadDependency:
 		workloadID := sourcecypher.PayloadString(row.Payload, "workload_id")
 		targetWorkloadID := sourcecypher.PayloadString(row.Payload, "target_workload_id")
 		if workloadID == "" || targetWorkloadID == "" {
@@ -452,40 +452,40 @@ func buildRowMap(
 			"evidence_source":    evidenceSource,
 		}, true
 
-	case reducer.DomainCodeCalls:
+	case reducercontract.DomainCodeCalls:
 		return buildCodeCallRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainInheritanceEdges:
+	case reducercontract.DomainInheritanceEdges:
 		return buildInheritanceRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainDocumentationEdges:
+	case reducercontract.DomainDocumentationEdges:
 		return buildDocumentationRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainRationaleEdges:
+	case reducercontract.DomainRationaleEdges:
 		return buildRationaleRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainSQLRelationships:
+	case reducercontract.DomainSQLRelationships:
 		return buildSQLRelationshipRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainShellExec:
+	case reducercontract.DomainShellExec:
 		return buildShellExecRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainDeployableUnitEdges:
+	case reducercontract.DomainDeployableUnitEdges:
 		return buildDeployableUnitCorrelationRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainHandlesRoute:
+	case reducercontract.DomainHandlesRoute:
 		return buildHandlesRouteRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainRunsIn:
+	case reducercontract.DomainRunsIn:
 		return sourcecypher.BuildRunsInRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainInvokesCloudAction:
+	case reducercontract.DomainInvokesCloudAction:
 		return sourcecypher.BuildInvokesCloudActionRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainCodeownersOwnershipEdges:
+	case reducercontract.DomainCodeownersOwnershipEdges:
 		return sourcecypher.BuildCodeownersOwnershipRowMap(row.Payload, evidenceSource)
 
-	case reducer.DomainSubmodulePinEdges:
+	case reducercontract.DomainSubmodulePinEdges:
 		return sourcecypher.BuildSubmodulePinRowMap(row.Payload, evidenceSource)
 
 	default:

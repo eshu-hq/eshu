@@ -180,7 +180,7 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 			repoID, entityKey := "repo:fence-"+suffix, "repo:fence-"+suffix
 			now := time.Now().UTC()
 			row := sharedintent.Row{
-				IntentID: "runs-on-" + suffix, ProjectionDomain: reducer.DomainRepoDependency,
+				IntentID: "runs-on-" + suffix, ProjectionDomain: reducercontract.DomainRepoDependency,
 				PartitionKey: "runs_on:" + repoID + "->platform:kubernetes:test", ScopeID: scopeID,
 				AcceptanceUnitID: repoID, RepositoryID: repoID, SourceRunID: "repo_dependency:" + scopeID,
 				GenerationID: generationID, CreatedAt: now,

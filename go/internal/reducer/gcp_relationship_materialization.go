@@ -73,7 +73,7 @@ func GCPRelationshipEvidenceSource() string { return gcpRelationshipEvidenceSour
 //
 // See docs/internal/gcp-cloud-relationship-edge-materialization-design.md.
 type GCPRelationshipMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	EdgeWriter CloudResourceEdgeWriter
 	// ReadinessLookup reports whether the canonical-nodes-committed phase has
 	// been published for the intent's scope generation. A nil lookup keeps the

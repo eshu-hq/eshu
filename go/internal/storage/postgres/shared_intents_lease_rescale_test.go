@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestSharedIntentStoreClaimPartitionLeaseBlocksActivePartitionCountRescale(t *testing.T) {
@@ -24,7 +25,7 @@ func TestSharedIntentStoreClaimPartitionLeaseBlocksActivePartitionCountRescale(t
 	store := NewSharedIntentStore(partitionRescaleGuardDB{})
 	claimed, err := store.ClaimPartitionLease(
 		context.Background(),
-		string(reducer.DomainCodeCalls),
+		string(reducercontract.DomainCodeCalls),
 		0,
 		8,
 		"new-worker",

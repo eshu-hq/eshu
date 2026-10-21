@@ -19,7 +19,7 @@
 //
 // The test drives the REAL production write and retract paths
 // (edgewriter.EdgeWriter.WriteEdges / RetractEdges for
-// reducer.DomainRationaleEdges). It writes EXPLAINS edges onto a Function and
+// reducercontract.DomainRationaleEdges). It writes EXPLAINS edges onto a Function and
 // a File target in one changed file, plus an EXPLAINS edge in an unchanged
 // file of the same repository, delta-retracts the changed file, and asserts
 // the changed file's edges are gone (0), the unchanged file's edge survives
@@ -37,7 +37,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -97,7 +97,7 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 			"repo_id": ratRepoID, "comment_kind": "HACK", "excerpt_hash": "h-cls",
 		}},
 	}
-	if _, err := writer.WriteEdges(ctx, reducer.DomainRationaleEdges, writeRows, ratEvidenceSource); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainRationaleEdges, writeRows, ratEvidenceSource); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 
@@ -123,7 +123,7 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 			"delta_file_paths": []string{ratChangedPath},
 		}},
 	}
-	if err := writer.RetractEdges(ctx, reducer.DomainRationaleEdges, deltaRows, ratEvidenceSource); err != nil {
+	if err := writer.RetractEdges(ctx, reducercontract.DomainRationaleEdges, deltaRows, ratEvidenceSource); err != nil {
 		t.Fatalf("RetractEdges(delta): %v", err)
 	}
 
@@ -152,7 +152,7 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 	repoRows := []sharedintent.Row{
 		{IntentID: "retract-repo", RepositoryID: ratRepoID, Payload: wholeScopeRefreshRetractPayload(ratRepoID)},
 	}
-	if err := writer.RetractEdges(ctx, reducer.DomainRationaleEdges, repoRows, ratEvidenceSource); err != nil {
+	if err := writer.RetractEdges(ctx, reducercontract.DomainRationaleEdges, repoRows, ratEvidenceSource); err != nil {
 		t.Fatalf("RetractEdges(repo): %v", err)
 	}
 	assertEdgeCount(ctx, t, exec, clsQ, survivor, 0, "repo retract: unchanged-file Class EXPLAINS gone")

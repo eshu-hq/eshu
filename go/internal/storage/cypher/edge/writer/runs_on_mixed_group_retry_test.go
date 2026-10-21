@@ -14,7 +14,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -102,7 +102,7 @@ func TestEdgeWriterMixedRepoDependencyRunsOnGroupReplaysWholeCommit(t *testing.T
 		},
 	}
 
-	report, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "resolver/cross-repo")
+	report, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency, rows, "resolver/cross-repo")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v, want whole-group retry", err)
 	}

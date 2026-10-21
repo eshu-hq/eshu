@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -35,7 +35,7 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 		{
 			Intent: sharedintent.Row{
 				IntentID:         "same-partition",
-				ProjectionDomain: reducer.DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     selectedKey,
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -50,7 +50,7 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 		{
 			Intent: sharedintent.Row{
 				IntentID:         "other-partition",
-				ProjectionDomain: reducer.DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     otherKey,
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "repo-b",
@@ -67,7 +67,7 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 
 	got, err := store.ListPendingDomainPartitionIntents(
 		ctx,
-		reducer.DomainCodeCalls,
+		reducercontract.DomainCodeCalls,
 		selectedPartition,
 		partitionCount,
 		10,
@@ -105,7 +105,7 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 		{
 			Intent: sharedintent.Row{
 				IntentID:         "legacy-unhashed",
-				ProjectionDomain: reducer.DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-a:src/legacy.go",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -118,7 +118,7 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 		{
 			Intent: sharedintent.Row{
 				IntentID:         "hashed",
-				ProjectionDomain: reducer.DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "code-calls:v1:files:repo-b:src/hashed.go",
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "repo-b",
@@ -133,7 +133,7 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 	}}
 	store := NewSharedIntentStore(database)
 
-	got, err := store.ListPendingDomainUnhashedIntents(ctx, reducer.DomainCodeCalls, 10)
+	got, err := store.ListPendingDomainUnhashedIntents(ctx, reducercontract.DomainCodeCalls, 10)
 	if err != nil {
 		t.Fatalf("ListPendingDomainUnhashedIntents: %v", err)
 	}
@@ -312,7 +312,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 	rows = append(rows, partitionCandidateListRow{
 		Intent: sharedintent.Row{
 			IntentID:         "refresh-row",
-			ProjectionDomain: reducer.DomainInheritanceEdges,
+			ProjectionDomain: reducercontract.DomainInheritanceEdges,
 			PartitionKey:     refreshKey,
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "au-a",
@@ -345,7 +345,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 		rows = append(rows, partitionCandidateListRow{
 			Intent: sharedintent.Row{
 				IntentID:         fmt.Sprintf("upsert-%d", i),
-				ProjectionDomain: reducer.DomainInheritanceEdges,
+				ProjectionDomain: reducercontract.DomainInheritanceEdges,
 				PartitionKey:     upsertKey,
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "au-a",
@@ -365,7 +365,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 
 	got, err := store.ListPendingDomainPartitionIntents(
 		ctx,
-		reducer.DomainInheritanceEdges,
+		reducercontract.DomainInheritanceEdges,
 		refreshPartition,
 		8,
 		batchLimit, // batch is exactly full — refresh must be first to appear
@@ -438,7 +438,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 		rows = append(rows, partitionCandidateListRow{
 			Intent: sharedintent.Row{
 				IntentID:         fmt.Sprintf("upsert-%d", i),
-				ProjectionDomain: reducer.DomainInheritanceEdges,
+				ProjectionDomain: reducercontract.DomainInheritanceEdges,
 				PartitionKey:     upsertKey,
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "au-b",
@@ -457,7 +457,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 	rows = append(rows, partitionCandidateListRow{
 		Intent: sharedintent.Row{
 			IntentID:         "refresh-later",
-			ProjectionDomain: reducer.DomainInheritanceEdges,
+			ProjectionDomain: reducercontract.DomainInheritanceEdges,
 			PartitionKey:     refreshKey,
 			ScopeID:          "scope-b",
 			AcceptanceUnitID: "au-b",
@@ -476,7 +476,7 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 
 	got, err := store.ListPendingDomainPartitionIntents(
 		ctx,
-		reducer.DomainInheritanceEdges,
+		reducercontract.DomainInheritanceEdges,
 		refreshPartition,
 		8,
 		batchLimit, // batch exactly full — refresh must appear despite later timestamp

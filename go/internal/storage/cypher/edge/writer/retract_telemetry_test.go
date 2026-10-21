@@ -10,7 +10,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -34,7 +34,7 @@ func TestEdgeWriterCodeImportRetractRecordsOnlyExactSourceOmissionTelemetry(t *t
 	}}
 	if err := writer.RetractEdges(
 		context.Background(),
-		reducer.DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		rows,
 		codeImportRepoDependencyEvidenceSource,
 	); err != nil {
@@ -43,7 +43,7 @@ func TestEdgeWriterCodeImportRetractRecordsOnlyExactSourceOmissionTelemetry(t *t
 	for _, evidenceSource := range []string{"resolver/cross-repo", "projection/code-imports-extra"} {
 		if err := writer.RetractEdges(
 			context.Background(),
-			reducer.DomainRepoDependency,
+			reducercontract.DomainRepoDependency,
 			rows,
 			evidenceSource,
 		); err != nil {
@@ -56,7 +56,7 @@ func TestEdgeWriterCodeImportRetractRecordsOnlyExactSourceOmissionTelemetry(t *t
 		t.Fatalf("Collect() error = %v", err)
 	}
 	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_runs_on_retract_omissions_total", map[string]string{
-		"domain": reducer.DomainRepoDependency,
+		"domain": reducercontract.DomainRepoDependency,
 		"reason": "source_capability",
 	}, 1)
 }

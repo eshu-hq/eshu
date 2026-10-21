@@ -102,7 +102,7 @@ func TestServiceSingleStaleAckDoesNotStopReducer(t *testing.T) {
 		IntentID:     "stale-single-ack",
 		ScopeID:      "scope-stale-single-ack",
 		GenerationID: "generation-stale-single-ack",
-		Domain:       reducer.DomainRepoDependency,
+		Domain:       reducercontract.DomainRepoDependency,
 		AvailableAt:  time.Now().UTC(),
 	}
 	source := &staleAckBatchSource{intent: &intent}
@@ -152,7 +152,7 @@ func TestServiceBatchStaleAckDoesNotStopReducer(t *testing.T) {
 		IntentID:     "stale-batch-ack",
 		ScopeID:      "scope-stale-batch-ack",
 		GenerationID: "generation-stale-batch-ack",
-		Domain:       reducer.DomainRepoDependency,
+		Domain:       reducercontract.DomainRepoDependency,
 		AvailableAt:  time.Now().UTC(),
 	}
 	source := &staleAckBatchSource{intent: &intent}

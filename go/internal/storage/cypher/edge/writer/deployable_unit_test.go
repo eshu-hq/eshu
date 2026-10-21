@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -39,7 +39,7 @@ func TestEdgeWriterWriteEdgesDeployableUnitDispatch(t *testing.T) {
 		},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainDeployableUnitEdges, rows, "reducer/deployable-unit-correlation")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainDeployableUnitEdges, rows, "reducer/deployable-unit-correlation")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -91,7 +91,7 @@ func TestEdgeWriterRetractEdgesDeployableUnitDispatch(t *testing.T) {
 		{RepositoryID: "repo-edge-api", Payload: map[string]any{"repo_id": "repo-edge-api"}},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainDeployableUnitEdges, rows, "reducer/deployable-unit-correlation")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainDeployableUnitEdges, rows, "reducer/deployable-unit-correlation")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}

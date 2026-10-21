@@ -3,6 +3,10 @@
 
 package reducer
 
+import (
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+)
+
 import "sort"
 
 // MaterializedEdgeFamilies returns the drift-proof enumeration of reducer
@@ -48,8 +52,8 @@ import "sort"
 // The direct-materialization families below carry waivers of their own,
 // tracked by #6228.
 func MaterializedEdgeFamilies() []string {
-	out := make([]string, 0, len(allProjectionDomains))
-	for _, domain := range allProjectionDomains {
+	out := make([]string, 0, len(reducercontract.ProjectionDomains()))
+	for _, domain := range reducercontract.ProjectionDomains() {
 		out = append(out, string(domain))
 	}
 	sort.Strings(out)

@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/inheritance"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -23,17 +23,17 @@ func TestBatchedWriteEdgesUsesUNWINDCypher(t *testing.T) {
 		contains string
 	}{
 		{
-			domain:   reducer.DomainRepoDependency,
+			domain:   reducercontract.DomainRepoDependency,
 			payload:  map[string]any{"repo_id": "r1", "target_repo_id": "r2"},
 			contains: "UNWIND $rows AS row",
 		},
 		{
-			domain:   reducer.DomainWorkloadDependency,
+			domain:   reducercontract.DomainWorkloadDependency,
 			payload:  map[string]any{"workload_id": "w1", "target_workload_id": "w2"},
 			contains: "UNWIND $rows AS row",
 		},
 		{
-			domain:   reducer.DomainCodeCalls,
+			domain:   reducercontract.DomainCodeCalls,
 			payload:  map[string]any{"caller_entity_id": "c1", "callee_entity_id": "c2"},
 			contains: "UNWIND $rows AS row",
 		},
@@ -85,7 +85,7 @@ func TestEdgeWriterWriteEdgesInheritanceDispatch(t *testing.T) {
 		},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainInheritanceEdges, rows, "reducer/inheritance")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -130,8 +130,8 @@ func TestEdgeWriterWriteEdgesInheritanceEmptyFieldsFailTheIntent(t *testing.T) {
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"child_entity_id": "c1", "parent_entity_id": ""}},
 	}
 
-	report, err := writer.WriteEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
-	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainInheritanceEdges, 2)
+	report, err := writer.WriteEdges(context.Background(), reducercontract.DomainInheritanceEdges, rows, "reducer/inheritance")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducercontract.DomainInheritanceEdges, 2)
 }
 
 func TestEdgeWriterWriteEdgesSQLRelationshipDispatch(t *testing.T) {
@@ -155,7 +155,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatch(t *testing.T) {
 		},
 	}
 
-	_, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	_, err := writer.WriteEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "reducer/sql-relationships")
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
@@ -213,7 +213,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipFallsBackForRowsWithoutEntityTypes(t
 		},
 	}
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 	if got, want := len(executor.calls), 1; got != want {
@@ -257,7 +257,7 @@ func TestEdgeWriterWriteEdgesSQLRelationshipDispatchesRelationshipTypes(t *testi
 				},
 			}
 
-			if _, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
+			if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "reducer/sql-relationships"); err != nil {
 				t.Fatalf("WriteEdges() error = %v", err)
 			}
 			if got, want := len(executor.calls), 1; got != want {
@@ -284,8 +284,8 @@ func TestEdgeWriterWriteEdgesSQLRelationshipEmptyFieldsFailTheIntent(t *testing.
 		{IntentID: "i2", RepositoryID: "r1", Payload: map[string]any{"source_entity_id": "s1", "target_entity_id": ""}},
 	}
 
-	report, err := writer.WriteEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
-	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducer.DomainSQLRelationships, 2)
+	report, err := writer.WriteEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	assertAllRowsUnroutable(t, report, err, len(executor.calls), reducercontract.DomainSQLRelationships, 2)
 }
 
 func TestEdgeWriterRetractEdgesInheritanceDispatch(t *testing.T) {
@@ -298,7 +298,7 @@ func TestEdgeWriterRetractEdgesInheritanceDispatch(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainInheritanceEdges, rows, "reducer/inheritance")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainInheritanceEdges, rows, "reducer/inheritance")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -335,7 +335,7 @@ func TestEdgeWriterRetractEdgesSQLRelationshipDispatch(t *testing.T) {
 		{IntentID: "i1", RepositoryID: "repo-a", Payload: wholeScopeRefreshPayload("repo-a")},
 	}
 
-	err := writer.RetractEdges(context.Background(), reducer.DomainSQLRelationships, rows, "reducer/sql-relationships")
+	err := writer.RetractEdges(context.Background(), reducercontract.DomainSQLRelationships, rows, "reducer/sql-relationships")
 	if err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
@@ -367,12 +367,12 @@ func TestBatchedWriteEdgesUsesUNWINDCypherIncludesNewDomains(t *testing.T) {
 		contains string
 	}{
 		{
-			domain:   reducer.DomainInheritanceEdges,
+			domain:   reducercontract.DomainInheritanceEdges,
 			payload:  map[string]any{"child_entity_id": "c1", "parent_entity_id": "p1"},
 			contains: "UNWIND $rows AS row",
 		},
 		{
-			domain:   reducer.DomainSQLRelationships,
+			domain:   reducercontract.DomainSQLRelationships,
 			payload:  map[string]any{"source_entity_id": "s1", "target_entity_id": "t1", "relationship_type": "HAS_COLUMN"},
 			contains: "UNWIND $rows AS row",
 		},

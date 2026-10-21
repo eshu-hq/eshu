@@ -10,6 +10,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -104,7 +105,7 @@ func TestBoltWriteEdgesHandlesRouteAbsentTargetFailsClosed(t *testing.T) {
 			"reason":             "live target-miss proof",
 		},
 	}
-	if _, err := writer.WriteEdges(ctx, reducer.DomainHandlesRoute, []sharedintent.Row{row}, "parser/framework-routes"); err == nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainHandlesRoute, []sharedintent.Row{row}, "parser/framework-routes"); err == nil {
 		t.Fatal("WriteEdges() with an absent endpoint target succeeded silently, want a retryable error")
 	} else if !reducer.IsRetryable(err) {
 		t.Fatalf("WriteEdges() error = %v, want retryable", err)
@@ -145,7 +146,7 @@ func TestBoltWriteEdgesHandlesRoutePresentTargetWrites(t *testing.T) {
 			"reason":             "live target-miss proof",
 		},
 	}
-	if _, err := writer.WriteEdges(ctx, reducer.DomainHandlesRoute, []sharedintent.Row{row}, "parser/framework-routes"); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainHandlesRoute, []sharedintent.Row{row}, "parser/framework-routes"); err != nil {
 		t.Fatalf("WriteEdges() with all targets present error = %v", err)
 	}
 	if got := countLiveHandlesRouteEdges(t, ctx, runner, uid, repo, path); got != 1 {
@@ -230,7 +231,7 @@ func TestBoltWriteEdgesDeployableUnitAbsentTargetFailsClosed(t *testing.T) {
 
 	writer := NewEdgeWriter(&boltProbeTestExecutor{runner: runner}, 0)
 	row := liveTargetMissRow(source, target, "du-target-miss-live-absent")
-	if _, err := writer.WriteEdges(ctx, reducer.DomainDeployableUnitEdges, []sharedintent.Row{row}, "reducer/deployable-unit-correlation"); err == nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainDeployableUnitEdges, []sharedintent.Row{row}, "reducer/deployable-unit-correlation"); err == nil {
 		t.Fatal("WriteEdges() with an absent deployment repository succeeded silently, want a retryable error")
 	} else if !reducer.IsRetryable(err) {
 		t.Fatalf("WriteEdges() error = %v, want retryable", err)
@@ -257,7 +258,7 @@ func TestBoltWriteEdgesDeployableUnitPresentTargetsWrite(t *testing.T) {
 
 	writer := NewEdgeWriter(&boltProbeTestExecutor{runner: runner}, 0)
 	row := liveTargetMissRow(source, target, "du-target-miss-live-present")
-	if _, err := writer.WriteEdges(ctx, reducer.DomainDeployableUnitEdges, []sharedintent.Row{row}, "reducer/deployable-unit-correlation"); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainDeployableUnitEdges, []sharedintent.Row{row}, "reducer/deployable-unit-correlation"); err != nil {
 		t.Fatalf("WriteEdges() with all targets present error = %v", err)
 	}
 	if got := countLiveDeployableUnitEdges(t, ctx, runner, source, target); got != 1 {
@@ -303,7 +304,7 @@ func TestBoltWriteEdgesHandlesRouteAbsentFunctionFailsClosed(t *testing.T) {
 			"reason":             "live mixed-presence proof",
 		},
 	}
-	if _, err := writer.WriteEdges(ctx, reducer.DomainHandlesRoute, []sharedintent.Row{row}, "parser/framework-routes"); err == nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainHandlesRoute, []sharedintent.Row{row}, "parser/framework-routes"); err == nil {
 		t.Fatal("WriteEdges() with an absent Function node succeeded silently, want a retryable error")
 	} else if !reducer.IsRetryable(err) {
 		t.Fatalf("WriteEdges() error = %v, want retryable", err)

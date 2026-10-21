@@ -16,7 +16,7 @@
 //
 // The test drives the REAL production write and retract paths
 // (edgewriter.EdgeWriter.WriteEdges / RetractEdges for
-// reducer.DomainRepoDependency). It writes every relationship type the domain
+// reducercontract.DomainRepoDependency). It writes every relationship type the domain
 // can produce — the six typed repository relationships (DEPENDS_ON,
 // DEPLOYS_FROM, DISCOVERS_CONFIG_IN, PROVISIONS_DEPENDENCY_FOR, USES_MODULE,
 // READS_CONFIG_FROM), RUNS_ON (WorkloadInstance->Platform), and the
@@ -37,7 +37,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -118,7 +118,7 @@ func TestReducerRepoDependencyEdgeRetractGraphTruth(t *testing.T) {
 			},
 		},
 	)
-	if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, writeRows, repoDepEvidence); err != nil {
+	if _, err := writer.WriteEdges(ctx, reducercontract.DomainRepoDependency, writeRows, repoDepEvidence); err != nil {
 		t.Fatalf("WriteEdges: %v", err)
 	}
 
@@ -146,7 +146,7 @@ func TestReducerRepoDependencyEdgeRetractGraphTruth(t *testing.T) {
 	retractRows := []sharedintent.Row{
 		{IntentID: "retract", RepositoryID: repoDepInSrc, Payload: map[string]any{"repo_id": repoDepInSrc}},
 	}
-	if err := writer.RetractEdges(ctx, reducer.DomainRepoDependency, retractRows, repoDepEvidence); err != nil {
+	if err := writer.RetractEdges(ctx, reducercontract.DomainRepoDependency, retractRows, repoDepEvidence); err != nil {
 		t.Fatalf("RetractEdges: %v", err)
 	}
 

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -54,7 +56,7 @@ func quarantineCounterHasPoint(resources metricdata.ResourceMetrics, reason stri
 			for _, point := range sum.DataPoints {
 				domain, domainOK := point.Attributes.Value(attribute.Key("domain"))
 				gotReason, reasonOK := point.Attributes.Value(attribute.Key("reason"))
-				if domainOK && reasonOK && domain.AsString() == DomainRepoDependency &&
+				if domainOK && reasonOK && domain.AsString() == reducercontract.DomainRepoDependency &&
 					gotReason.AsString() == reason && point.Value == want {
 					return true
 				}

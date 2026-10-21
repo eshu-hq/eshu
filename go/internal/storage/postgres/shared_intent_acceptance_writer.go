@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -98,7 +98,7 @@ func (w *SharedIntentAcceptanceWriter) UpsertIntents(
 func repoDependencyAcceptanceUnitIDs(rows []sharedintent.Row) []string {
 	repoIDs := make([]string, 0, len(rows))
 	for _, row := range rows {
-		if row.ProjectionDomain != reducer.DomainRepoDependency {
+		if row.ProjectionDomain != reducercontract.DomainRepoDependency {
 			continue
 		}
 		key, ok := sharedProjectionAcceptanceKey(row)

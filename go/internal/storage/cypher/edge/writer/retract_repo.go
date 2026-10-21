@@ -13,7 +13,7 @@ import (
 	phasegroup "github.com/eshu-hq/eshu/go/internal/storage/cypher/phase/group"
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -156,11 +156,11 @@ func (w *EdgeWriter) executeRepoDependencyRetractStatements(ctx context.Context,
 	if !repoDependencySourceSupportsRunsOn(evidenceSource) {
 		w.recordSharedEdgeRunsOnRetractOmission(
 			ctx,
-			reducer.DomainRepoDependency,
+			reducercontract.DomainRepoDependency,
 			"source_capability",
 		)
 		w.logSharedEdgeRetractRoleOmitted(
-			reducer.DomainRepoDependency,
+			reducercontract.DomainRepoDependency,
 			evidenceSource,
 			"runs_on_relationships",
 			len(repoIDs),
@@ -182,7 +182,7 @@ func (w *EdgeWriter) executeRepoDependencyRetractStatementsSequential(
 			return sourcecypher.WrapRetryableNeo4jError(fmt.Errorf("repo dependency retract %s: %w", item.role, err))
 		}
 		w.logSharedEdgeRetractStatement(
-			reducer.DomainRepoDependency,
+			reducercontract.DomainRepoDependency,
 			evidenceSource,
 			item.role,
 			len(repoIDs),

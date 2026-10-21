@@ -12,6 +12,7 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -86,7 +87,7 @@ func TestEdgeWriterWriteEdgesHandlesRouteAbsentTargetFailsClosed(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	_, err := writer.WriteEdges(
-		context.Background(), reducer.DomainHandlesRoute,
+		context.Background(), reducercontract.DomainHandlesRoute,
 		[]sharedintent.Row{validHandlesRouteRow()},
 		"parser/framework-routes",
 	)
@@ -115,7 +116,7 @@ func TestEdgeWriterWriteEdgesRunsInAbsentTargetFailsClosed(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	_, err := writer.WriteEdges(
-		context.Background(), reducer.DomainRunsIn,
+		context.Background(), reducercontract.DomainRunsIn,
 		[]sharedintent.Row{validRunsInRow()},
 		"reducer/runs-in",
 	)
@@ -142,7 +143,7 @@ func TestEdgeWriterWriteEdgesTargetPresentProceeds(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	if _, err := writer.WriteEdges(
-		context.Background(), reducer.DomainHandlesRoute,
+		context.Background(), reducercontract.DomainHandlesRoute,
 		[]sharedintent.Row{validHandlesRouteRow()},
 		"parser/framework-routes",
 	); err != nil {
@@ -167,7 +168,7 @@ func TestEdgeWriterWriteEdgesProbeErrorFailsClosed(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	_, err := writer.WriteEdges(
-		context.Background(), reducer.DomainHandlesRoute,
+		context.Background(), reducercontract.DomainHandlesRoute,
 		[]sharedintent.Row{validHandlesRouteRow()},
 		"parser/framework-routes",
 	)
@@ -195,7 +196,7 @@ func TestEdgeWriterWriteEdgesWithoutProbeCapabilityWrites(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	if _, err := writer.WriteEdges(
-		context.Background(), reducer.DomainHandlesRoute,
+		context.Background(), reducercontract.DomainHandlesRoute,
 		[]sharedintent.Row{validHandlesRouteRow()},
 		"parser/framework-routes",
 	); err != nil {
@@ -216,7 +217,7 @@ func TestEdgeWriterTargetMissProbeMentionsBatchScope(t *testing.T) {
 	writer := NewEdgeWriter(executor, 0)
 
 	if _, err := writer.WriteEdges(
-		context.Background(), reducer.DomainHandlesRoute,
+		context.Background(), reducercontract.DomainHandlesRoute,
 		[]sharedintent.Row{validHandlesRouteRow()},
 		"parser/framework-routes",
 	); err != nil {
@@ -261,7 +262,7 @@ func TestEdgeWriterHandlesRouteProbeAnchorsFunction(t *testing.T) {
 		"repo_id":            "repo-a",
 		"path":               "/widgets",
 	}}
-	probes, ok := buildTargetPresenceProbeStatements(reducer.DomainHandlesRoute, rows)
+	probes, ok := buildTargetPresenceProbeStatements(reducercontract.DomainHandlesRoute, rows)
 	if !ok {
 		t.Fatal("buildTargetPresenceProbeStatements(handles_route) = false, want probes anchoring Function and Endpoint")
 	}
@@ -309,7 +310,7 @@ func TestEdgeWriterHandlesRouteProbeDedupNamespacesEndpointAndFunction(t *testin
 		"repo_id":            "f",
 		"path":               "shared-uid",
 	}}
-	probes, ok := buildTargetPresenceProbeStatements(reducer.DomainHandlesRoute, rows)
+	probes, ok := buildTargetPresenceProbeStatements(reducercontract.DomainHandlesRoute, rows)
 	if !ok {
 		t.Fatal("buildTargetPresenceProbeStatements(handles_route) = false, want both anchors probed")
 	}

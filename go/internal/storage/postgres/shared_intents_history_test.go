@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -28,7 +29,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainInte
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
-	}, "partition-a", reducer.DomainCodeCalls)
+	}, "partition-a", reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents: %v", err)
 	}
@@ -40,7 +41,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainInte
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
-	}, "partition-b", reducer.DomainCodeCalls)
+	}, "partition-b", reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents other partition: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainInte
 		"repo-a",
 		"run-new",
 		"partition-b",
-		reducer.DomainCodeCalls,
+		reducercontract.DomainCodeCalls,
 	}; !equalPartitionHistoryArgs(got, want) {
 		t.Fatalf("query args = %#v, want %#v", got, want)
 	}
@@ -72,7 +73,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunRefreshDomainIntent
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
-	}, []string{"/repo/src/models.go"}, reducer.DomainCodeCalls)
+	}, []string{"/repo/src/models.go"}, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents: %v", err)
 	}
@@ -93,7 +94,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunRefreshDomainIntent
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-new",
-	}, nil, reducer.DomainCodeCalls)
+	}, nil, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents empty files: %v", err)
 	}
@@ -113,7 +114,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFence(t *testing.T) 
 		PartitionKey:     reducer.CodeCallProjectionFilePartitionKeyPrefix() + "abc123",
 		RepositoryID:     "repo-a",
 		CreatedAt:        time.Date(2026, time.June, 19, 9, 30, 0, 0, time.UTC),
-		ProjectionDomain: reducer.DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		Payload: map[string]any{
 			"delta_file_paths": []string{"/repo/src/caller.go"},
 		},
@@ -123,7 +124,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFence(t *testing.T) 
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
-	}, row, reducer.DomainCodeCalls)
+	}, row, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)
 	}
@@ -195,7 +196,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceDoesNotFenceFil
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
-	}, row, reducer.DomainCodeCalls)
+	}, row, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)
 	}
@@ -220,14 +221,14 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesWholeRowLoo
 		PartitionKey:     "v1:whole:repo-a",
 		RepositoryID:     "repo-a",
 		CreatedAt:        time.Date(2026, time.June, 19, 10, 0, 0, 0, time.UTC),
-		ProjectionDomain: reducer.DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 	}
 
 	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(context.Background(), sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
-	}, row, reducer.DomainCodeCalls)
+	}, row, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)
 	}
@@ -275,7 +276,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesPayloadRepo
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
-	}, row, reducer.DomainCodeCalls)
+	}, row, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)
 	}
@@ -301,7 +302,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceTreatsMissingSe
 		PartitionKey: reducer.CodeCallProjectionFilePartitionKeyPrefix() + "abc123",
 		RepositoryID: "repo-a",
 		CreatedAt:    time.Date(2026, time.June, 19, 9, 45, 0, 0, time.UTC),
-	}, reducer.DomainCodeCalls)
+	}, reducercontract.DomainCodeCalls)
 	if err != nil {
 		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)
 	}
@@ -399,7 +400,7 @@ func TestSharedIntentStoreCodeCallWholeFenceRanksRefreshFirst(t *testing.T) {
 		sharedintent.AcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
 		sharedintent.Row{
 			IntentID:         "whole-1",
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "code-calls:v1:whole:repo-a",
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
@@ -407,7 +408,7 @@ func TestSharedIntentStoreCodeCallWholeFenceRanksRefreshFirst(t *testing.T) {
 			SourceRunID:      "run-1",
 			Payload:          map[string]any{"action": "refresh", "repo_id": "repo-a"},
 		},
-		reducer.DomainCodeCalls,
+		reducercontract.DomainCodeCalls,
 	)
 	if err != nil {
 		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)
@@ -440,7 +441,7 @@ func TestSharedIntentStoreCodeCallFileFenceRanksRefreshFirst(t *testing.T) {
 		sharedintent.AcceptanceKey{ScopeID: "scope-a", AcceptanceUnitID: "repo-a", SourceRunID: "run-1"},
 		sharedintent.Row{
 			IntentID:         "file-refresh-1",
-			ProjectionDomain: reducer.DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			PartitionKey:     "code-calls:v1:files:repo-a:src/a.go",
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
@@ -451,7 +452,7 @@ func TestSharedIntentStoreCodeCallFileFenceRanksRefreshFirst(t *testing.T) {
 				"delta_projection": true, "delta_file_paths": []string{"src/a.go"},
 			},
 		},
-		reducer.DomainCodeCalls,
+		reducercontract.DomainCodeCalls,
 	)
 	if err != nil {
 		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)

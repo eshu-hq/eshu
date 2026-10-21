@@ -62,7 +62,7 @@ type WorkloadCloudRelationshipEdgeWriter interface {
 // anchors on aws_resource facts into canonical USES edges. Service-name-only
 // and ambiguous anchors remain candidate evidence for query surfaces.
 type WorkloadCloudRelationshipMaterializationHandler struct {
-	FactLoader           FactLoader
+	FactLoader           factload.FactLoader
 	EdgeWriter           WorkloadCloudRelationshipEdgeWriter
 	ReadinessLookup      gpphase.ReadinessLookup
 	PriorGenerationCheck PriorGenerationCheck

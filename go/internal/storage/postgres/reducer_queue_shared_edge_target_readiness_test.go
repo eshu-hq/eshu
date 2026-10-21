@@ -44,7 +44,7 @@ func sharedEdgeTargetMissCause(t *testing.T) error {
 	executor := &absentEdgeTargetExecutor{}
 	_, err := writer.NewEdgeWriter(executor, 0).WriteEdges(
 		context.Background(),
-		reducer.DomainDeployableUnitEdges,
+		reducercontract.DomainDeployableUnitEdges,
 		[]sharedintent.Row{{
 			IntentID:     "intent-du-edge-1",
 			RepositoryID: "repo-app",

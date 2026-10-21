@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -77,7 +78,7 @@ func (w *EdgeWriter) reportUnroutableRows(
 // the same thing would either hide real losses in deploy noise or page someone
 // about a rollout that is working as intended.
 func unroutableReasonForRow(domain string, row sharedintent.Row) string {
-	if domain != reducer.DomainRepoDependency {
+	if domain != reducercontract.DomainRepoDependency {
 		return sharedintent.UnroutableReasonMissingRequiredField
 	}
 	// repo_dependency is the only domain today whose rejection can mean "this

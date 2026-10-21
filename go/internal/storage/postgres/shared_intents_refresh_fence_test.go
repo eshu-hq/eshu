@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestSharedIntentStoreHasCompletedGenerationRefreshFenceHistory(t *testing.T) {
@@ -27,7 +27,7 @@ func TestSharedIntentStoreHasCompletedGenerationRefreshFenceHistory(t *testing.T
 		},
 		"gen-2",
 		"refresh-key",
-		reducer.DomainSQLRelationships,
+		reducercontract.DomainSQLRelationships,
 	)
 	if err != nil {
 		t.Fatalf("HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents: %v", err)
@@ -42,7 +42,7 @@ func TestSharedIntentStoreHasCompletedGenerationRefreshFenceHistory(t *testing.T
 		"run-reused",
 		"gen-2",
 		"refresh-key",
-		reducer.DomainSQLRelationships,
+		reducercontract.DomainSQLRelationships,
 	}
 	if !equalPartitionHistoryArgs(db.queryArgs, wantArgs) {
 		t.Fatalf("query args = %#v, want %#v", db.queryArgs, wantArgs)

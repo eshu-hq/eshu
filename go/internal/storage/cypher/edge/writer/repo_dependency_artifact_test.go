@@ -10,7 +10,7 @@ import (
 
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -60,7 +60,7 @@ func TestWriteEdgesRepoDependencyArtifactFollowsMainCommit(t *testing.T) {
 	executor := &orderRecordingExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
-	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency,
+	if _, err := writer.WriteEdges(context.Background(), reducercontract.DomainRepoDependency,
 		[]sharedintent.Row{artifactRowForOrderTest()}, "resolver/cross-repo"); err != nil {
 		t.Fatalf("WriteEdges errored: %v", err)
 	}

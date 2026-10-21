@@ -10,7 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -20,9 +20,9 @@ import (
 // gate proved the target committable. A miss for these rows is always worth
 // a retry, never a silent completion.
 var targetMissProbeDomains = map[string]bool{
-	reducer.DomainHandlesRoute:        true,
-	reducer.DomainRunsIn:              true,
-	reducer.DomainDeployableUnitEdges: true,
+	reducercontract.DomainHandlesRoute:        true,
+	reducercontract.DomainRunsIn:              true,
+	reducercontract.DomainDeployableUnitEdges: true,
 }
 
 // buildTargetPresenceProbeStatements returns one existence probe per distinct
@@ -74,7 +74,7 @@ func buildTargetPresenceProbeStatements(domain string, rows []map[string]any) ([
 		})
 	}
 	switch domain {
-	case reducer.DomainHandlesRoute:
+	case reducercontract.DomainHandlesRoute:
 		// The write MATCHes both (f:Function {uid}) and (e:Endpoint
 		// {repo_id, path}); the probe anchors both, or a batch whose
 		// Function node is absent (post-wipe ordering vs content
@@ -101,7 +101,7 @@ func buildTargetPresenceProbeStatements(domain string, rows []map[string]any) ([
 					"uid", uid)
 			}
 		}
-	case reducer.DomainRunsIn:
+	case reducercontract.DomainRunsIn:
 		for _, row := range rows {
 			repo, _ := row["repo_id"].(string)
 			if repo == "" {
@@ -111,7 +111,7 @@ func buildTargetPresenceProbeStatements(domain string, rows []map[string]any) ([
 				"(:Repository {id: $repo_id})-[:DEFINES]->(:Workload)",
 				"repo_id", repo)
 		}
-	case reducer.DomainDeployableUnitEdges:
+	case reducercontract.DomainDeployableUnitEdges:
 		// The deployable-unit template MATCHes both endpoint Repositories;
 		// the deployment node is committed by another scope's
 		// materialization with no happens-before against this batch (#6184).

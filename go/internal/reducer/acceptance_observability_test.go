@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
@@ -33,7 +35,7 @@ func TestSharedAcceptanceTelemetryRecordStaleIntents(t *testing.T) {
 	worker.AcceptanceTelemetry{
 		Instruments: instruments,
 		Logger:      logger,
-	}.RecordStaleIntents(context.Background(), "code_call_projection", DomainCodeCalls, 3)
+	}.RecordStaleIntents(context.Background(), "code_call_projection", reducercontract.DomainCodeCalls, 3)
 
 	var entry map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
@@ -43,7 +45,7 @@ func TestSharedAcceptanceTelemetryRecordStaleIntents(t *testing.T) {
 	if got, want := entry["acceptance.stale_count"], float64(3); got != want {
 		t.Fatalf("acceptance stale count = %v, want %v", got, want)
 	}
-	if got, want := entry[telemetry.LogKeyDomain], string(DomainCodeCalls); got != want {
+	if got, want := entry[telemetry.LogKeyDomain], string(reducercontract.DomainCodeCalls); got != want {
 		t.Fatalf("domain = %v, want %v", got, want)
 	}
 	if got, want := entry["runner"], "code_call_projection"; got != want {

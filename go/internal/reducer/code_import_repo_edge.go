@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
@@ -261,7 +263,7 @@ func buildCodeImportRepoEdgeIntent(
 	}
 
 	return sharedintent.Build(sharedintent.Input{
-		ProjectionDomain: DomainRepoDependency,
+		ProjectionDomain: reducercontract.DomainRepoDependency,
 		PartitionKey:     partitionKey,
 		ScopeID:          input.ScopeID,
 		AcceptanceUnitID: consumerRepoID,

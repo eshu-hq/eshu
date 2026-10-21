@@ -20,7 +20,7 @@ import (
 
 // workloadDependencyEdgesFamily is the materialized-edge family key this
 // guard asserts. It MUST equal "workload_dependency" -- the domain key
-// reducer.DomainWorkloadDependency and cypher's singleTypeMaterializedEdgeFamilies
+// reducercontract.DomainWorkloadDependency and cypher's singleTypeMaterializedEdgeFamilies
 // both key on (materialized_edge_families.go).
 const workloadDependencyEdgesFamily = "workload_dependency"
 

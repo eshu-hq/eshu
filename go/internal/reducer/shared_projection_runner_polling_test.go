@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -77,7 +79,7 @@ func TestSharedProjectionRunnerBacksOffWhileReadinessBlocked(t *testing.T) {
 		intents: []sharedintent.Row{
 			{
 				IntentID:         "blocked-sql-1",
-				ProjectionDomain: DomainSQLRelationships,
+				ProjectionDomain: reducercontract.DomainSQLRelationships,
 				PartitionKey:     "view->table",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -172,7 +174,7 @@ func TestSharedProjectionRunnerBackoffResetsOnWork(t *testing.T) {
 				reader.mu.Lock()
 				reader.intents = append(reader.intents, sharedintent.Row{
 					IntentID:         "intent-reset",
-					ProjectionDomain: DomainWorkloadDependency,
+					ProjectionDomain: reducercontract.DomainWorkloadDependency,
 					PartitionKey:     "platform:test",
 					ScopeID:          "scope-b",
 					AcceptanceUnitID: "repo-b",

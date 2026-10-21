@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -38,7 +40,7 @@ func TestSharedProjectionRunnerLogsPartitionProcessingError(t *testing.T) {
 		intents: []sharedintent.Row{
 			{
 				IntentID:         "intent-sql-1",
-				ProjectionDomain: DomainSQLRelationships,
+				ProjectionDomain: reducercontract.DomainSQLRelationships,
 				PartitionKey:     "view->table",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -84,7 +86,7 @@ func TestSharedProjectionRunnerLogsPartitionProcessingError(t *testing.T) {
 	if !strings.Contains(out, wantErr.Error()) {
 		t.Fatalf("expected a shared-projection partition-processing error log containing %q, got log output:\n%s", wantErr.Error(), out)
 	}
-	if !strings.Contains(out, DomainSQLRelationships) {
-		t.Fatalf("expected the error log to name domain %q, got log output:\n%s", DomainSQLRelationships, out)
+	if !strings.Contains(out, reducercontract.DomainSQLRelationships) {
+		t.Fatalf("expected the error log to name domain %q, got log output:\n%s", reducercontract.DomainSQLRelationships, out)
 	}
 }

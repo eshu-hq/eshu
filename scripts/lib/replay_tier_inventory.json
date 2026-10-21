@@ -47,14 +47,14 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_content_edge_retract_live_test.go": {
-      "sha256": "1dc1c633352586905ef5013cc67c35f544323f33f29ad6695e60225c3cd9f777",
+      "sha256": "ce2816b3b79ed0975064c4a2fd33b3441453efea986cecfa527dda34d3bbc9c6",
       "tests": [
         "TestReducerContentEdgeRetractGraphTruth",
         "TestCodeInterprocTaintEdgeRetractGraphTruth"
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_edge_retract_live_test.go": {
-      "sha256": "7aef6298d34cab25b90d022ec1c54200c71b2fe92da2b5277dd8914ee3522821",
+      "sha256": "aea661d6d29b061dea75721ecd74d655837e9744433ea817335434ee1a269b4b",
       "tests": [
         "TestReducerCodeCallEdgeRetractGraphTruth"
       ]
@@ -66,7 +66,7 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_inheritance_edge_retract_live_test.go": {
-      "sha256": "5e9dd888850c1f733c37137f9aef91575a741c47938d44af62565bbe8d46bc1f",
+      "sha256": "560b594ab27876b11aa426af93aca2cbb9304bac32a1acee89752b10d413ca26",
       "tests": [
         "TestReducerInheritanceEdgeRetractGraphTruth"
       ]
@@ -84,25 +84,25 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_metaclass_edge_retract_live_test.go": {
-      "sha256": "e642f025d7a91c359a9e0b50c0655a091ede7efac0ac4f807ca0f864b60c375f",
+      "sha256": "df71a9736b9f4e408747081a93bd5df9da2a914b9a9f911c4ddeb04b805ff920",
       "tests": [
         "TestReducerMetaclassEdgeRetractGraphTruth"
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_rationale_edge_retract_live_test.go": {
-      "sha256": "4a9dcd8ec4b0c205729ea095afa43936ccd84af48c203d9249197e5317b5eb87",
+      "sha256": "e1562cf79161bd7c4916855b324cb29b8588e01ee222b9e3d779f96cd21d3f59",
       "tests": [
         "TestReducerRationaleEdgeRetractGraphTruth"
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_repo_dependency_retract_live_test.go": {
-      "sha256": "c46dd3b07ce20fcab93725a4e4318300f46fde6a6453a8f3a4bea6ab157b1a09",
+      "sha256": "00bb7b113b0b805cc486d99f044ba0f8c9f3847cae0668aa8762d0a163cab9a7",
       "tests": [
         "TestReducerRepoDependencyEdgeRetractGraphTruth"
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_runtime_edge_retract_live_test.go": {
-      "sha256": "59a609b059e98b7f85f97dae065a873bd8f85171c8b891ec04d10df797729e96",
+      "sha256": "dd4b140edbd0fdcae68d75f12dcdc002540e85a2924d614d4b7b3880c7797909",
       "tests": [
         "TestReducerRuntimeEdgeRetractGraphTruth"
       ]
@@ -126,7 +126,7 @@
       ]
     },
     "go/internal/replay/offlinetier/delta_tier_reducer_sql_relationship_retract_live_test.go": {
-      "sha256": "b7f4d58d1d6da1b8d80ce2a33653ee8c5e3604815b539e8fc4dad23920eb2406",
+      "sha256": "eb6dda97ee9790b98d87e0296a428bfe5467c54460a13488e200d17f81ab4e42",
       "tests": [
         "TestReducerSQLRelationshipRetractGraphTruth"
       ]

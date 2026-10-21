@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
@@ -217,7 +217,7 @@ func TestReducerGraphWriteGateWiredChainSkipsRationaleDeleteOnEmptyProbe(t *test
 	writer, session := gateWiredEdgeWriterForProbeTest(t, false)
 	rows := []sharedintent.Row{wholeScopeRationaleRefreshRow("i1", "repo-a")}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got := len(session.probeCalls); got != 1 {
@@ -237,7 +237,7 @@ func TestReducerGraphWriteGateWiredChainRunsRationaleDeleteWhenProbeFindsRows(t 
 	writer, session := gateWiredEdgeWriterForProbeTest(t, true)
 	rows := []sharedintent.Row{wholeScopeRationaleRefreshRow("i1", "repo-a")}
 
-	if err := writer.RetractEdges(context.Background(), reducer.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
+	if err := writer.RetractEdges(context.Background(), reducercontract.DomainRationaleEdges, rows, "reducer/rationale"); err != nil {
 		t.Fatalf("RetractEdges() error = %v", err)
 	}
 	if got := len(session.probeCalls); got != 1 {

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -68,7 +70,7 @@ func (r *RepoDependencyProjectionRunner) releasePartitionLease(ctx context.Conte
 	defer cancel()
 	err := r.LeaseManager.ReleasePartitionLease(
 		releaseCtx,
-		DomainRepoDependency,
+		reducercontract.DomainRepoDependency,
 		r.Config.partitionID(),
 		r.Config.partitionCount(),
 		r.Config.leaseOwner(),

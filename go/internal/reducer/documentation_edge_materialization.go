@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/docs"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -27,7 +29,7 @@ const documentationEvidenceSource = "reducer/documentation"
 // to (issue #2231). It owns identity-only DocumentationSection nodes; section
 // bodies stay in the Postgres content/fact store (design 430).
 type DocumentationEdgeMaterializationHandler struct {
-	FactLoader           FactLoader
+	FactLoader           factload.FactLoader
 	EdgeWriter           sharedintent.EdgeWriter
 	PriorGenerationCheck PriorGenerationCheck
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total
@@ -89,7 +91,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 	if !skipRetract {
 		if err := h.EdgeWriter.RetractEdges(
 			ctx,
-			DomainDocumentationEdges,
+			reducercontract.DomainDocumentationEdges,
 			buildDocumentationRetractRows([]string{intent.ScopeID}, deltaScope),
 			documentationEvidenceSource,
 		); err != nil {
@@ -101,7 +103,7 @@ func (h DocumentationEdgeMaterializationHandler) Handle(ctx context.Context, int
 	if len(writeRows) > 0 {
 		if _, err := h.EdgeWriter.WriteEdges(
 			ctx,
-			DomainDocumentationEdges,
+			reducercontract.DomainDocumentationEdges,
 			writeRows,
 			documentationEvidenceSource,
 		); err != nil {
@@ -277,7 +279,7 @@ func buildDocumentationIntentRows(rows []map[string]any, scopeID string) []share
 	intents := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		intents = append(intents, sharedintent.Row{
-			ProjectionDomain: DomainDocumentationEdges,
+			ProjectionDomain: reducercontract.DomainDocumentationEdges,
 			PartitionKey:     anyToString(row["section_uid"]) + "->" + anyToString(row["target_entity_id"]),
 			RepositoryID:     scopeID,
 			Payload:          copyPayload(row),
