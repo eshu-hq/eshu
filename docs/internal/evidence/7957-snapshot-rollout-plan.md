@@ -35,7 +35,7 @@ AC1 pin record cited below, is:
 
 - Published image (org-internal visibility):
   `ghcr.io/eshu-hq/postgresql-eshu:18.6-eshu-7957-amd64` at digest
-  `sha256:26accacbc9276027930b7a117cf16127a9092021d6fed42a0aaf5a3bf93769`.
+  `sha256:26accacbc9276027930b7a117cf16127a9092021d6fed42a0e0aaf5a3bf93769`.
 - Running server on the QA reader: `server_version 18.6-eshu-7957`,
   `server_version_num 180006`, `pg_is_in_recovery()=true`, container image
   equal to the published digest (read from the live pod spec and image IDs).
