@@ -17,6 +17,11 @@ gate="$script_dir/verify-root-cause-evidence.sh"
 
 failures=0
 cases_run=0
+# #8673: keep fixture repos out of the host git-ai daemon's Trace2 tracking.
+# Every case below builds a throwaway git repo; the daemon keys on its
+# Trace2 socket env. GIT_TRACE2_EVENT=0 disables the event stream (same
+# convention as test-verify-moved-file-refs.sh); PERF likewise.
+export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
 
 report_pass() { printf '  ok  %s\n' "$1"; }
 report_fail() { printf '  FAIL %s\n    %s\n' "$1" "$2"; failures=$((failures + 1)); }

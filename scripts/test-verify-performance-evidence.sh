@@ -5,6 +5,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-performance-evidence.sh"
 
 tmp_root="$(mktemp -d)"
+# #8673: keep fixture git out of host daemon Trace2 tracking (cf. test-verify-moved-file-refs.sh).
+export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
 trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 
 init_repo() {

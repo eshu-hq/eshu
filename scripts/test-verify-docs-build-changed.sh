@@ -19,7 +19,7 @@ if [[ ! -x "${verifier}" ]]; then
   exit 1
 fi
 
-tmp_root="$(mktemp -d)"
+tmp_root="$(mktemp -d)"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: no Trace2 for fixture git
 trap 'rm -rf "${tmp_root}"' EXIT
 
 git_in() {

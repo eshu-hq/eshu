@@ -22,6 +22,13 @@ real_root="$(cd "${script_root}/.." && pwd)"
 pass_count=0
 fail_count=0
 scratch_dirs=()
+# #8673: keep fixture repos out of the host git-ai daemon's Trace2 tracking.
+# The daemon keys on its Trace2 socket env; any git process that emits to it
+# teaches the daemon the fixture path (fixtures and their gate runs inherit
+# this env). GIT_TRACE2_EVENT=0 disables the event stream (same convention as
+# test-verify-moved-file-refs.sh); PERF likewise. Teardown retries stay as
+# belt-and-braces.
+export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
 trap 'rm -rf "${scratch_dirs[@]:-}"' EXIT
 
 record_pass() { pass_count=$((pass_count + 1)); printf 'PASS: %s\n' "$1"; }

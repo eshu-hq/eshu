@@ -18,7 +18,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "${repo_root}"
+cd "${repo_root}"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: keep fixture git out of host daemon Trace2 tracking (cf. test-verify-moved-file-refs.sh).
 
 # B-11 (#3804) per-phase timing/baseline helper (defines emit_phase_timings_and_flags).
 # shellcheck source=scripts/lib/golden-corpus-phase-timings.sh

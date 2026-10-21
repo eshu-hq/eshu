@@ -15,7 +15,7 @@ failures=0
 # Every temp repo is recorded in a file instead, and the EXIT trap removes
 # them all; the array form leaked every repo and tripped set -u under
 # bash 3.2 at exit.
-tmp_list="$(mktemp)"
+tmp_list="$(mktemp)"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: no Trace2 for fixture git
 cleanup() {
   # Retry each rm (async host indexer ENOTEMPTY race): budget ~5s, longer holds fail loud.
   local d i; while IFS= read -r d; do [ -n "$d" ] || continue

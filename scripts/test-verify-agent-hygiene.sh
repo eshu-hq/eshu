@@ -7,7 +7,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$here/.." && pwd)"
-tmp="$(mktemp -d)"
+tmp="$(mktemp -d)"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: no Trace2 for fixture git
 # Retry teardown: an async host indexer may hold a fixture .git entry open in
 # the teardown window; a single rm then fails ENOTEMPTY and masks green
 # assertions. Retry briefly, then fail loud. Budget assumes release within

@@ -17,6 +17,10 @@ failures=0
 # is the working isolation; GIT_CONFIG_NOGLOBAL is not a real git knob.
 export GIT_CONFIG_GLOBAL=/dev/null
 export GIT_CONFIG_NOSYSTEM=1
+# #8673: keep fixture repos out of the host git-ai daemon's Trace2 tracking
+# (same isolation family as the config knobs above; cf.
+# test-verify-moved-file-refs.sh).
+export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
 
 cleanup_repo() {
   local dir="$1" i

@@ -14,6 +14,13 @@ gate="${script_dir}/verify-gitignore-rg-parity.sh"
 failures=0
 
 tmp_list="$(mktemp)"
+# #8673: keep fixture repos out of the host git-ai daemon's Trace2 tracking.
+# The daemon keys on its Trace2 socket env; any git process that emits to it
+# teaches the daemon the fixture path (fixtures and their gate runs inherit
+# this env). GIT_TRACE2_EVENT=0 disables the event stream (same convention as
+# test-verify-moved-file-refs.sh); PERF likewise. Teardown retries stay as
+# belt-and-braces.
+export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
 cleanup() {
 	local d
 	while IFS= read -r d; do

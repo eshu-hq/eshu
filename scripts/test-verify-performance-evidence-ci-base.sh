@@ -50,6 +50,13 @@ if ! workflow_binds_event_base "${repo_root}/.github/workflows/test.yml"; then
 fi
 
 tmp_root="$(mktemp -d)"
+# #8673: keep fixture repos out of the host git-ai daemon's Trace2 tracking.
+# The daemon keys on its Trace2 socket env; any git process that emits to it
+# teaches the daemon the fixture path (fixtures and their gate runs inherit
+# this env). GIT_TRACE2_EVENT=0 disables the event stream (same convention as
+# test-verify-moved-file-refs.sh); PERF likewise. Teardown retries stay as
+# belt-and-braces.
+export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0
 trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 # The event base must belong to this step, rather than to a neighboring step
 # or a stale comment. A seeded wrong base proves the guard still rejects it.
