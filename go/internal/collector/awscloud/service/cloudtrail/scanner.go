@@ -270,7 +270,7 @@ func trailRelationships(boundary awscloud.Boundary, trail Trail) []awscloud.Rela
 			SourceARN:        trailARN,
 			TargetResourceID: topic,
 			TargetARN:        topic,
-			TargetType:       awscloud.ResourceTypeSNSTopic,
+			TargetType:       catalog.ResourceTypeSNSTopic,
 			SourceRecordID:   trailARN + "->sns:" + topic,
 		})
 	}

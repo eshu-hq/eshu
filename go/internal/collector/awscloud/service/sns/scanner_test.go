@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -49,7 +50,7 @@ func TestScannerEmitsTopicFactsMetadataOnlyAndARNEndpointRelationships(t *testin
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	topic := resourceByType(t, envelopes, awscloud.ResourceTypeSNSTopic)
+	topic := resourceByType(t, envelopes, catalog.ResourceTypeSNSTopic)
 	attributes := attributesOf(t, topic)
 	if got, want := attributes["display_name"], "Orders"; got != want {
 		t.Fatalf("display_name = %#v, want %q", got, want)
@@ -69,7 +70,7 @@ func TestScannerEmitsTopicFactsMetadataOnlyAndARNEndpointRelationships(t *testin
 	if got, want := topic.Payload["arn"], topicARN; got != want {
 		t.Fatalf("resource ARN = %#v, want %q", got, want)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipSNSTopicDeliversToResource)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipSNSTopicDeliversToResource)
 	if got, want := relationship.Payload["target_arn"], queueARN; got != want {
 		t.Fatalf("target_arn = %#v, want %q", got, want)
 	}
@@ -77,14 +78,14 @@ func TestScannerEmitsTopicFactsMetadataOnlyAndARNEndpointRelationships(t *testin
 	if got, want := relAttributes["protocol"], "sqs"; got != want {
 		t.Fatalf("relationship protocol = %#v, want %q", got, want)
 	}
-	if got, want := countRelationships(envelopes, awscloud.RelationshipSNSTopicDeliversToResource), 1; got != want {
+	if got, want := countRelationships(envelopes, catalog.RelationshipSNSTopicDeliversToResource), 1; got != want {
 		t.Fatalf("SNS relationship count = %d, want %d; non-ARN endpoints must not persist", got, want)
 	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceSQS
+	boundary.ServiceKind = catalog.ServiceSQS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -96,7 +97,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSNS,
+		ServiceKind:         catalog.ServiceSNS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:sns:1",
 		CollectorInstanceID: "aws-prod",

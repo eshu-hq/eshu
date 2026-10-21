@@ -229,8 +229,8 @@ var configResourceTypeServices = map[string]string{
 	"AWS::ElasticLoadBalancingV2::Listener":     awscloud.ServiceELBv2,
 	"AWS::ElasticLoadBalancingV2::LoadBalancer": awscloud.ServiceELBv2,
 	"AWS::ElasticLoadBalancingV2::TargetGroup":  awscloud.ServiceELBv2,
-	"AWS::Events::EventBus":                     awscloud.ServiceEventBridge,
-	"AWS::Events::Rule":                         awscloud.ServiceEventBridge,
+	"AWS::Events::EventBus":                     catalog.ServiceEventBridge,
+	"AWS::Events::Rule":                         catalog.ServiceEventBridge,
 	"AWS::Glue::Connection":                     awscloud.ServiceGlue,
 	"AWS::Glue::Crawler":                        awscloud.ServiceGlue,
 	"AWS::Glue::Database":                       awscloud.ServiceGlue,
@@ -257,8 +257,8 @@ var configResourceTypeServices = map[string]string{
 	"AWS::S3::Bucket":                           catalog.ServiceS3,
 	"AWS::SecretsManager::Secret":               awscloud.ServiceSecretsManager,
 	"AWS::SecurityHub::Hub":                     awscloud.ServiceSecurityHub,
-	"AWS::SNS::Topic":                           awscloud.ServiceSNS,
-	"AWS::SQS::Queue":                           awscloud.ServiceSQS,
+	"AWS::SNS::Topic":                           catalog.ServiceSNS,
+	"AWS::SQS::Queue":                           catalog.ServiceSQS,
 	"AWS::SSM::Parameter":                       awscloud.ServiceSSM,
 }
 
@@ -272,7 +272,7 @@ var cloudTrailSourceServices = map[string]string{
 	"ecs.amazonaws.com":                  catalog.ServiceECS,
 	"eks.amazonaws.com":                  catalog.ServiceEKS,
 	"elasticloadbalancing.amazonaws.com": awscloud.ServiceELBv2,
-	"events.amazonaws.com":               awscloud.ServiceEventBridge,
+	"events.amazonaws.com":               catalog.ServiceEventBridge,
 	"glue.amazonaws.com":                 awscloud.ServiceGlue,
 	"iam.amazonaws.com":                  awscloud.ServiceIAM,
 	"lambda.amazonaws.com":               catalog.ServiceLambda,
@@ -284,8 +284,8 @@ var cloudTrailSourceServices = map[string]string{
 	"s3.amazonaws.com":                   catalog.ServiceS3,
 	"secretsmanager.amazonaws.com":       awscloud.ServiceSecretsManager,
 	"securityhub.amazonaws.com":          awscloud.ServiceSecurityHub,
-	"sns.amazonaws.com":                  awscloud.ServiceSNS,
-	"sqs.amazonaws.com":                  awscloud.ServiceSQS,
+	"sns.amazonaws.com":                  catalog.ServiceSNS,
+	"sqs.amazonaws.com":                  catalog.ServiceSQS,
 	"ssm.amazonaws.com":                  awscloud.ServiceSSM,
 }
 

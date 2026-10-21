@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("pinpoint scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServicePinpoint:
+	case "", catalog.ServicePinpoint:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServicePinpoint
+		boundary.ServiceKind = catalog.ServicePinpoint
 	default:
 		return nil, fmt.Errorf("pinpoint scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -139,7 +140,7 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypePinpointApplication,
+		ResourceType: catalog.ResourceTypePinpointApplication,
 		Name:         name,
 		Tags:         cloneStringMap(application.Tags),
 		Attributes: map[string]any{
@@ -159,7 +160,7 @@ func segmentObservation(boundary awscloud.Boundary, segment Segment) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypePinpointSegment,
+		ResourceType: catalog.ResourceTypePinpointSegment,
 		Name:         name,
 		Tags:         cloneStringMap(segment.Tags),
 		Attributes: map[string]any{
@@ -199,7 +200,7 @@ func channelObservation(boundary awscloud.Boundary, channel Channel) awscloud.Re
 	return awscloud.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypePinpointChannel,
+		ResourceType:       catalog.ResourceTypePinpointChannel,
 		Name:               kind,
 		State:              channelState(channel),
 		Attributes:         attributes,

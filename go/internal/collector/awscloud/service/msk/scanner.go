@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,10 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("msk scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMSK:
+	case "", catalog.ServiceMSK:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMSK
+		boundary.ServiceKind = catalog.ServiceMSK
 	default:
 		return nil, fmt.Errorf("msk scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -119,7 +120,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 		Boundary:           boundary,
 		ARN:                clusterARN,
 		ResourceID:         firstNonEmpty(clusterARN, cluster.Name),
-		ResourceType:       awscloud.ResourceTypeMSKCluster,
+		ResourceType:       catalog.ResourceTypeMSKCluster,
 		Name:               strings.TrimSpace(cluster.Name),
 		State:              strings.TrimSpace(cluster.State),
 		Tags:               cloneStringMap(cluster.Tags),
@@ -135,7 +136,7 @@ func configurationObservation(boundary awscloud.Boundary, configuration Configur
 		Boundary:     boundary,
 		ARN:          configurationARN,
 		ResourceID:   firstNonEmpty(configurationARN, configuration.Name),
-		ResourceType: awscloud.ResourceTypeMSKConfiguration,
+		ResourceType: catalog.ResourceTypeMSKConfiguration,
 		Name:         strings.TrimSpace(configuration.Name),
 		State:        strings.TrimSpace(configuration.State),
 		Attributes: map[string]any{
@@ -155,7 +156,7 @@ func replicatorObservation(boundary awscloud.Boundary, replicator Replicator) aw
 		Boundary:     boundary,
 		ARN:          replicatorARN,
 		ResourceID:   firstNonEmpty(replicatorARN, replicator.Name),
-		ResourceType: awscloud.ResourceTypeMSKReplicator,
+		ResourceType: catalog.ResourceTypeMSKReplicator,
 		Name:         strings.TrimSpace(replicator.Name),
 		State:        strings.TrimSpace(replicator.State),
 		Tags:         cloneStringMap(replicator.Tags),

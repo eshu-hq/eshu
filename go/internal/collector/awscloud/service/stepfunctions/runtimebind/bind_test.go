@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/stepfunctions/runtimebind"
 )
 
 // TestStepFunctionsRuntimeBindRegisters confirms importing the binding
 // installs the Step Functions scanner builder.
 func TestStepFunctionsRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceStepFunctions)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceStepFunctions)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceStepFunctions)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceStepFunctions)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceStepFunctions},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceStepFunctions},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

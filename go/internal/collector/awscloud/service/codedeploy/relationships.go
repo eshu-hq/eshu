@@ -191,7 +191,7 @@ func snsTriggerRelationships(
 			SourceARN:        groupARN,
 			TargetResourceID: topicARN,
 			TargetARN:        topicARN,
-			TargetType:       awscloud.ResourceTypeSNSTopic,
+			TargetType:       catalog.ResourceTypeSNSTopic,
 			Attributes: map[string]any{
 				"trigger_name":   strings.TrimSpace(trigger.Name),
 				"trigger_events": cloneStrings(trigger.Events),

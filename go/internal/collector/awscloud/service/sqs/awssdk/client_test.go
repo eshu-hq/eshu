@@ -14,6 +14,7 @@ import (
 	"github.com/aws/smithy-go"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListQueuesReadsOnlyMetadataAttributesAndTags(t *testing.T) {
@@ -35,7 +36,7 @@ func TestClientListQueuesReadsOnlyMetadataAttributesAndTags(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSQS},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSQS},
 	}
 
 	queues, err := adapter.ListQueues(context.Background())
@@ -94,7 +95,7 @@ func TestClientListQueuesReadsFIFOAttributesOnlyForFIFOQueues(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSQS},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSQS},
 	}
 
 	queues, err := adapter.ListQueues(context.Background())
@@ -133,7 +134,7 @@ func TestClientListQueuesDoesNotRequestFIFOOnlyAttributesForStandardQueues(t *te
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSQS},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSQS},
 	}
 
 	if _, err := adapter.ListQueues(context.Background()); err != nil {

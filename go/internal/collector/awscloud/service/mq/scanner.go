@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,10 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("mq scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMQ:
+	case "", catalog.ServiceMQ:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMQ
+		boundary.ServiceKind = catalog.ServiceMQ
 	default:
 		return nil, fmt.Errorf("mq scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -100,7 +101,7 @@ func brokerObservation(boundary awscloud.Boundary, broker Broker) awscloud.Resou
 		Boundary:           boundary,
 		ARN:                brokerARN,
 		ResourceID:         firstNonEmpty(brokerARN, broker.ID, broker.Name),
-		ResourceType:       awscloud.ResourceTypeMQBroker,
+		ResourceType:       catalog.ResourceTypeMQBroker,
 		Name:               strings.TrimSpace(broker.Name),
 		State:              strings.TrimSpace(broker.State),
 		Tags:               cloneStringMap(broker.Tags),
@@ -116,7 +117,7 @@ func configurationObservation(boundary awscloud.Boundary, configuration Configur
 		Boundary:     boundary,
 		ARN:          configurationARN,
 		ResourceID:   firstNonEmpty(configurationARN, configuration.ID, configuration.Name),
-		ResourceType: awscloud.ResourceTypeMQConfiguration,
+		ResourceType: catalog.ResourceTypeMQConfiguration,
 		Name:         strings.TrimSpace(configuration.Name),
 		Tags:         cloneStringMap(configuration.Tags),
 		Attributes: map[string]any{

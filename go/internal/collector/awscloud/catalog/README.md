@@ -39,9 +39,20 @@ avoid.
 - `RelationshipEC2*`, `RelationshipAutoScaling*`, `RelationshipLambda*`,
   `RelationshipECS*`, `RelationshipEKS*`, `RelationshipBatch*`,
   `RelationshipLightsail*` — compute-category reducer relationship types
+- `ServiceSNS`, `ServiceSQS`, `ServiceEventBridge`, `ServiceStepFunctions`,
+  `ServiceMQ`, `ServiceMSK`, `ServiceSES`, `ServicePinpoint`,
+  `ServiceFirehose` — messaging-category service-kind strings
+- `ResourceTypeSNS*`, `ResourceTypeSQS*`, `ResourceTypeEventBridge*`,
+  `ResourceTypeStepFunctions*`, `ResourceTypeMQ*`, `ResourceTypeMSK*`,
+  `ResourceTypeSES*`, `ResourceTypePinpoint*`, `ResourceTypeFirehose*` —
+  messaging-category fact-schema resource-type tokens
+- `RelationshipSNS*`, `RelationshipSQS*`, `RelationshipEventBridge*`,
+  `RelationshipStepFunctions*`, `RelationshipMQ*`, `RelationshipMSK*`,
+  `RelationshipSES*`, `RelationshipPinpoint*`, `RelationshipFirehose*` —
+  messaging-category reducer relationship types
 
 See `doc.go` for the full contract. Each follow-up category lands as one more
-`<category>.go` file with the same shape; the remaining ~123 `constants_*`
+`<category>.go` file with the same shape; the remaining ~114 `constants_*`
 files stay in the awscloud root until their category lands.
 
 ## Dependencies
@@ -61,10 +72,10 @@ that consume these constants keep their existing counters; see
 
 ## Gotchas / invariants
 
-- A consolidation move must never change a value. `storage_test.go` and
-  `compute_test.go` pin every constant byte-identical to its
-  pre-consolidation value; a red test there is a behavior change, not a
-  move.
+- A consolidation move must never change a value. `storage_test.go`,
+  `compute_test.go`, and `messaging_test.go` pin every constant
+  byte-identical to its pre-consolidation value; a red test there is a
+  behavior change, not a move.
 
 ## Consolidation proof
 
@@ -113,6 +124,31 @@ pure compile-time constant relocation with no query, graph write, queue,
 lease, worker, batching, or Compose/Helm change, so there are no row counts
 to regress. No-Observability-Change: the leaf declares no instrument and
 runs no stage; scanner emission stays covered by
+`eshu_dp_aws_resources_emitted_total` and `eshu_dp_aws_scan_duration_seconds`
+(AWS cloud row in `docs/public/observability/telemetry-coverage.md`). Safe
+because the Go compiler resolves every moved reference, the value-pinning
+test fails on any drift, and the relguard/redaction disk-walk derivations
+already cover the catalog directory.
+
+No-Regression Evidence: the messaging-category consolidation (Refs #6696)
+moves 64 string constants from nine `constants_<service>.go` root files
+(sns, sqs, eventbridge, stepfunctions, mq, msk, ses, pinpoint, firehose)
+into `catalog/messaging.go` verbatim (only the package clause changes); the 90
+referencing `.go` files change only the qualifier (`awscloud.` to
+`catalog.`, plus the leaf import). Baseline: the pre-move values read from
+the base tree
+(`git show origin/main:go/internal/collector/awscloud/constants_<service>.go`)
+are pinned in `messaging_test.go` (64/64 byte-identical,
+`go test ./internal/collector/awscloud/catalog/ -count=1` green) and the
+full affected suite (collector tree, `go/cmd/collector-aws-cloud`,
+`go/cmd/webhook-listener`) is green after the move; `go build ./...` and
+`go vet ./...` are clean. The redaction-derivation and relguard walks needed
+no change: the storage slice already generalized them to every catalog
+category file, and they pass with `messaging.go` present. Backend/version:
+none — a pure compile-time constant relocation with no query, graph write,
+queue, lease, worker, batching, or Compose/Helm change, so there are no row
+counts to regress. No-Observability-Change: the leaf declares no instrument
+and runs no stage; scanner emission stays covered by
 `eshu_dp_aws_resources_emitted_total` and `eshu_dp_aws_scan_duration_seconds`
 (AWS cloud row in `docs/public/observability/telemetry-coverage.md`). Safe
 because the Go compiler resolves every moved reference, the value-pinning

@@ -15,6 +15,7 @@ import (
 	awsfirehosetypes "github.com/aws/aws-sdk-go-v2/service/firehose/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientExcludesMutationAndRecordOperations is the metadata-only
@@ -236,7 +237,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceFirehose,
+		ServiceKind:         catalog.ServiceFirehose,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:firehose:1",
 		CollectorInstanceID: "aws-prod",

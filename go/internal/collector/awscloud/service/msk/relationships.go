@@ -19,7 +19,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 	for _, subnetID := range clusterSubnetIDs(cluster) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMSKClusterUsesSubnet,
+			RelationshipType: catalog.RelationshipMSKClusterUsesSubnet,
 			SourceResourceID: clusterID,
 			SourceARN:        strings.TrimSpace(cluster.ARN),
 			TargetResourceID: subnetID,
@@ -30,7 +30,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 	for _, groupID := range clusterSecurityGroupIDs(cluster) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMSKClusterUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipMSKClusterUsesSecurityGroup,
 			SourceResourceID: clusterID,
 			SourceARN:        strings.TrimSpace(cluster.ARN),
 			TargetResourceID: groupID,
@@ -42,7 +42,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 		if kmsARN := strings.TrimSpace(cluster.Provisioned.EncryptionAtRestKMSKey); isARN(kmsARN) {
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipMSKClusterUsesKMSKey,
+				RelationshipType: catalog.RelationshipMSKClusterUsesKMSKey,
 				SourceResourceID: clusterID,
 				SourceARN:        strings.TrimSpace(cluster.ARN),
 				TargetResourceID: kmsARN,
@@ -56,12 +56,12 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 			if isARN(configARN) {
 				observations = append(observations, awscloud.RelationshipObservation{
 					Boundary:         boundary,
-					RelationshipType: awscloud.RelationshipMSKClusterUsesConfiguration,
+					RelationshipType: catalog.RelationshipMSKClusterUsesConfiguration,
 					SourceResourceID: clusterID,
 					SourceARN:        strings.TrimSpace(cluster.ARN),
 					TargetResourceID: configARN,
 					TargetARN:        configARN,
-					TargetType:       awscloud.ResourceTypeMSKConfiguration,
+					TargetType:       catalog.ResourceTypeMSKConfiguration,
 					Attributes: map[string]any{
 						"revision": cluster.Provisioned.CurrentConfiguration.Revision,
 					},
@@ -137,7 +137,7 @@ func replicatorRelationships(boundary awscloud.Boundary, replicator Replicator) 
 	if isARN(roleARN) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMSKReplicatorUsesIAMRole,
+			RelationshipType: catalog.RelationshipMSKReplicatorUsesIAMRole,
 			SourceResourceID: replicatorID,
 			SourceARN:        strings.TrimSpace(replicator.ARN),
 			TargetResourceID: roleARN,

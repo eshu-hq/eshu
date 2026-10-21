@@ -90,7 +90,7 @@ func stagingS3Relationship(
 	seen[bucketARN] = struct{}{}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFirehoseStreamDeliversToS3Bucket,
+		RelationshipType: catalog.RelationshipFirehoseStreamDeliversToS3Bucket,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: bucketARN,
@@ -117,7 +117,7 @@ func sourceKinesisStreamRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFirehoseStreamSourcedFromKinesisStream,
+		RelationshipType: catalog.RelationshipFirehoseStreamSourcedFromKinesisStream,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: sourceARN,
@@ -143,7 +143,7 @@ func encryptionKMSKeyRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFirehoseStreamUsesKMSKey,
+		RelationshipType: catalog.RelationshipFirehoseStreamUsesKMSKey,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: keyARN,
@@ -174,7 +174,7 @@ func deliveryRoleRelationship(
 	seen[roleARN] = struct{}{}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFirehoseStreamUsesIAMRole,
+		RelationshipType: catalog.RelationshipFirehoseStreamUsesIAMRole,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: roleARN,
@@ -206,7 +206,7 @@ func logGroupRelationship(
 	seen[logGroupName] = struct{}{}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFirehoseStreamLogsToCloudWatchLogGroup,
+		RelationshipType: catalog.RelationshipFirehoseStreamLogsToCloudWatchLogGroup,
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: logGroupName,
@@ -242,7 +242,7 @@ func transformLambdaRelationships(
 		seen[lambdaARN] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFirehoseStreamUsesLambdaTransform,
+			RelationshipType: catalog.RelationshipFirehoseStreamUsesLambdaTransform,
 			SourceResourceID: streamID,
 			SourceARN:        streamARN,
 			TargetResourceID: lambdaARN,
@@ -279,7 +279,7 @@ func destinationTargetRelationship(
 		if !isARN(bucketARN) {
 			return awscloud.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseStreamDeliversToS3Bucket
+		base.RelationshipType = catalog.RelationshipFirehoseStreamDeliversToS3Bucket
 		base.TargetResourceID = bucketARN
 		base.TargetARN = bucketARN
 		base.TargetType = catalog.ResourceTypeS3Bucket
@@ -290,7 +290,7 @@ func destinationTargetRelationship(
 		if clusterID == "" {
 			return awscloud.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseStreamDeliversToRedshiftCluster
+		base.RelationshipType = catalog.RelationshipFirehoseStreamDeliversToRedshiftCluster
 		base.TargetResourceID = clusterID
 		base.TargetType = awscloud.ResourceTypeRedshiftCluster
 		base.SourceRecordID = streamID + "#redshift#" + clusterID
@@ -300,7 +300,7 @@ func destinationTargetRelationship(
 		if !isARN(domainARN) {
 			return awscloud.RelationshipObservation{}, false
 		}
-		base.RelationshipType = awscloud.RelationshipFirehoseStreamDeliversToOpenSearchDomain
+		base.RelationshipType = catalog.RelationshipFirehoseStreamDeliversToOpenSearchDomain
 		base.TargetResourceID = domainARN
 		base.TargetARN = domainARN
 		base.TargetType = awscloud.ResourceTypeOpenSearchDomain

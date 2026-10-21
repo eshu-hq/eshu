@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -120,8 +121,8 @@ func TestScannerEmitsSNSTopicTriggerEdge(t *testing.T) {
 		t.Fatalf("Scan returned error: %v", err)
 	}
 	edge := relationshipEnvelope(t, envelopes, awscloud.RelationshipCodeCommitRepositoryTriggersSNSTopic)
-	if got, _ := edge.Payload["target_type"].(string); got != awscloud.ResourceTypeSNSTopic {
-		t.Fatalf("sns edge target_type = %q, want %q", got, awscloud.ResourceTypeSNSTopic)
+	if got, _ := edge.Payload["target_type"].(string); got != catalog.ResourceTypeSNSTopic {
+		t.Fatalf("sns edge target_type = %q, want %q", got, catalog.ResourceTypeSNSTopic)
 	}
 	if got, _ := edge.Payload["target_resource_id"].(string); got != testSNSTopicARN {
 		t.Fatalf("sns edge target_resource_id = %q, want %q", got, testSNSTopicARN)

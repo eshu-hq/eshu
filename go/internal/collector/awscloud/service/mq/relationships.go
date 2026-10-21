@@ -25,35 +25,35 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 	for _, subnetID := range cloneStrings(broker.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMQBrokerUsesSubnet,
+			RelationshipType: catalog.RelationshipMQBrokerUsesSubnet,
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
-			SourceRecordID:   relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerUsesSubnet, subnetID),
+			SourceRecordID:   relationshipRecordID(brokerID, catalog.RelationshipMQBrokerUsesSubnet, subnetID),
 		})
 	}
 	for _, groupID := range cloneStrings(broker.SecurityGroupIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMQBrokerUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipMQBrokerUsesSecurityGroup,
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerUsesSecurityGroup, groupID),
+			SourceRecordID:   relationshipRecordID(brokerID, catalog.RelationshipMQBrokerUsesSecurityGroup, groupID),
 		})
 	}
 	if kmsARN := strings.TrimSpace(broker.Encryption.KMSKeyID); !broker.Encryption.UseAWSOwnedKey && isARN(kmsARN) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMQBrokerUsesKMSKey,
+			RelationshipType: catalog.RelationshipMQBrokerUsesKMSKey,
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
 			TargetResourceID: kmsARN,
 			TargetARN:        kmsARN,
 			TargetType:       awscloud.ResourceTypeKMSKey,
-			SourceRecordID:   relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerUsesKMSKey, kmsARN),
+			SourceRecordID:   relationshipRecordID(brokerID, catalog.RelationshipMQBrokerUsesKMSKey, kmsARN),
 		})
 	}
 	if broker.Configuration != nil {
@@ -72,16 +72,16 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 			}
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipMQBrokerUsesConfiguration,
+				RelationshipType: catalog.RelationshipMQBrokerUsesConfiguration,
 				SourceResourceID: brokerID,
 				SourceARN:        brokerARN,
 				TargetResourceID: configTarget,
 				TargetARN:        configTargetARN,
-				TargetType:       awscloud.ResourceTypeMQConfiguration,
+				TargetType:       catalog.ResourceTypeMQConfiguration,
 				Attributes: map[string]any{
 					"revision": broker.Configuration.Revision,
 				},
-				SourceRecordID: relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerUsesConfiguration, configID),
+				SourceRecordID: relationshipRecordID(brokerID, catalog.RelationshipMQBrokerUsesConfiguration, configID),
 			})
 		}
 	}
@@ -94,7 +94,7 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 		logGroupARN := cloudWatchLogGroupARN(partition, boundary, logGroup.name)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup,
+			RelationshipType: catalog.RelationshipMQBrokerLogsToCloudWatchLogGroup,
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
 			TargetResourceID: logGroupARN,
@@ -103,7 +103,7 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 			Attributes: map[string]any{
 				"log_kind": logGroup.kind,
 			},
-			SourceRecordID: relationshipRecordID(brokerID, awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup, logGroup.kind+":"+logGroup.name),
+			SourceRecordID: relationshipRecordID(brokerID, catalog.RelationshipMQBrokerLogsToCloudWatchLogGroup, logGroup.kind+":"+logGroup.name),
 		})
 	}
 	return observations

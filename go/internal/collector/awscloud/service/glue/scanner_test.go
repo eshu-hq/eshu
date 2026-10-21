@@ -443,7 +443,7 @@ func TestScannerDropsSecretShapedConnectionPropertyKeys(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceSNS
+	boundary.ServiceKind = catalog.ServiceSNS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

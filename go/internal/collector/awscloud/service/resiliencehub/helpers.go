@@ -82,7 +82,7 @@ func protectedResourceTargetType(resilienceHubType string) string {
 	case "AWS::Lambda::Function":
 		return catalog.ResourceTypeLambdaFunction
 	case "AWS::SNS::Topic":
-		return awscloud.ResourceTypeSNSTopic
+		return catalog.ResourceTypeSNSTopic
 	default:
 		return ""
 	}

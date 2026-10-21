@@ -60,7 +60,7 @@ func TestScannerEmitsFirehoseMetadataResourceAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	stream := resourceByType(t, envelopes, awscloud.ResourceTypeFirehoseDeliveryStream)
+	stream := resourceByType(t, envelopes, catalog.ResourceTypeFirehoseDeliveryStream)
 	if got, want := stream.Payload["name"], streamName; got != want {
 		t.Fatalf("stream name = %#v, want %q", got, want)
 	}
@@ -86,31 +86,31 @@ func TestScannerEmitsFirehoseMetadataResourceAndRelationships(t *testing.T) {
 		}
 	}
 
-	source := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamSourcedFromKinesisStream)
+	source := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamSourcedFromKinesisStream)
 	assertEdge(t, source, streamARN, sourceStreamARN, sourceStreamARN, awscloud.ResourceTypeKinesisDataStream)
 
-	kms := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamUsesKMSKey)
+	kms := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamUsesKMSKey)
 	assertEdge(t, kms, streamARN, kmsKeyARN, kmsKeyARN, awscloud.ResourceTypeKMSKey)
 
-	role := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamUsesIAMRole)
+	role := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamUsesIAMRole)
 	assertEdge(t, role, streamARN, roleARN, roleARN, awscloud.ResourceTypeIAMRole)
-	if got := countRelationships(envelopes, awscloud.RelationshipFirehoseStreamUsesIAMRole); got != 1 {
+	if got := countRelationships(envelopes, catalog.RelationshipFirehoseStreamUsesIAMRole); got != 1 {
 		t.Fatalf("role edge count = %d, want 1 (duplicate role across destinations must collapse)", got)
 	}
 
-	logGroup := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamLogsToCloudWatchLogGroup)
+	logGroup := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamLogsToCloudWatchLogGroup)
 	assertEdge(t, logGroup, streamARN, logGroupName, "", awscloud.ResourceTypeCloudWatchLogsLogGroup)
-	if got := countRelationships(envelopes, awscloud.RelationshipFirehoseStreamLogsToCloudWatchLogGroup); got != 1 {
+	if got := countRelationships(envelopes, catalog.RelationshipFirehoseStreamLogsToCloudWatchLogGroup); got != 1 {
 		t.Fatalf("log-group edge count = %d, want 1 (duplicate log group must collapse)", got)
 	}
 
-	lambda := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamUsesLambdaTransform)
+	lambda := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamUsesLambdaTransform)
 	assertEdge(t, lambda, streamARN, lambdaARN, lambdaARN, catalog.ResourceTypeLambdaFunction)
 
-	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamDeliversToS3Bucket)
+	s3 := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamDeliversToS3Bucket)
 	assertEdge(t, s3, streamARN, bucketARN, bucketARN, catalog.ResourceTypeS3Bucket)
 
-	opensearch := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamDeliversToOpenSearchDomain)
+	opensearch := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamDeliversToOpenSearchDomain)
 	assertEdge(t, opensearch, streamARN, domainARN, domainARN, awscloud.ResourceTypeOpenSearchDomain)
 }
 
@@ -130,7 +130,7 @@ func TestScannerEmitsRedshiftDestinationEdgeKeyedByClusterIdentifier(t *testing.
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	redshift := relationshipByType(t, envelopes, awscloud.RelationshipFirehoseStreamDeliversToRedshiftCluster)
+	redshift := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamDeliversToRedshiftCluster)
 	if got, want := redshift.Payload["target_resource_id"], "warehouse-prod"; got != want {
 		t.Fatalf("redshift target_resource_id = %#v, want %q (bare cluster id, the Redshift scanner Name)", got, want)
 	}
@@ -162,9 +162,9 @@ func TestScannerOmitsDestinationEdgesWhenTargetIdentityMissing(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipFirehoseStreamDeliversToS3Bucket,
-		awscloud.RelationshipFirehoseStreamDeliversToOpenSearchDomain,
-		awscloud.RelationshipFirehoseStreamDeliversToRedshiftCluster,
+		catalog.RelationshipFirehoseStreamDeliversToS3Bucket,
+		catalog.RelationshipFirehoseStreamDeliversToOpenSearchDomain,
+		catalog.RelationshipFirehoseStreamDeliversToRedshiftCluster,
 	} {
 		if got := countRelationships(envelopes, relationshipType); got != 0 {
 			t.Fatalf("relationship %q count = %d, want 0 when target identity is missing", relationshipType, got)
@@ -185,7 +185,7 @@ func TestScannerOmitsKMSEdgeForAWSOwnedKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipFirehoseStreamUsesKMSKey); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipFirehoseStreamUsesKMSKey); got != 0 {
 		t.Fatalf("kms edge count = %d, want 0 for an AWS-owned key (no customer key ARN)", got)
 	}
 }
@@ -202,7 +202,7 @@ func TestScannerOmitsSourceEdgeForDirectPutStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipFirehoseStreamSourcedFromKinesisStream); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipFirehoseStreamSourcedFromKinesisStream); got != 0 {
 		t.Fatalf("source edge count = %d, want 0 for a DirectPut stream", got)
 	}
 }
@@ -273,7 +273,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceFirehose,
+		ServiceKind:         catalog.ServiceFirehose,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:firehose:1",
 		CollectorInstanceID: "aws-prod",

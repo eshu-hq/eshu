@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/conformance/contract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -111,7 +112,7 @@ func TestContractRejectsMismatchedServiceKind(t *testing.T) {
 			return (Scanner{Client: fakeClient{}}).Scan(ctx, boundary)
 		},
 		testBoundary(),
-		awscloud.ServiceSNS,
+		catalog.ServiceSNS,
 	)
 }
 

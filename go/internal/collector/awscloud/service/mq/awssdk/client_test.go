@@ -14,6 +14,7 @@ import (
 	awsmqtypes "github.com/aws/aws-sdk-go-v2/service/mq/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientNeverIncludesForbiddenMethods asserts the narrow apiClient
@@ -106,7 +107,7 @@ func TestClientListBrokersDescribesEachForMetadataAndUsernames(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMQ},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMQ},
 	}
 
 	brokers, err := adapter.ListBrokers(context.Background())
@@ -173,7 +174,7 @@ func TestClientListConfigurationsCapturesIdentityNotBody(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMQ},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMQ},
 	}
 
 	configurations, err := adapter.ListConfigurations(context.Background())
@@ -219,7 +220,7 @@ func TestClientListBrokersPaginates(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMQ},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMQ},
 	}
 
 	brokers, err := adapter.ListBrokers(context.Background())

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -227,7 +228,7 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 		t.Fatalf("NewKey() error = %v", err)
 	}
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceEventBridge
+	boundary.ServiceKind = catalog.ServiceEventBridge
 	_, err = (Scanner{Client: fakeClient{}, RedactionKey: key}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")

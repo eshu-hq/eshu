@@ -12,6 +12,7 @@ import (
 	awssnstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListTopicsReadsSafeMetadataTagsAndARNSubscriptions(t *testing.T) {
@@ -57,7 +58,7 @@ func TestClientListTopicsReadsSafeMetadataTagsAndARNSubscriptions(t *testing.T) 
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSNS},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSNS},
 	}
 
 	topics, err := adapter.ListTopics(context.Background())

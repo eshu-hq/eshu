@@ -84,7 +84,7 @@ func infraConfigRelationships(boundary awscloud.Boundary, config InfrastructureC
 		observations = append(observations, arnEdge(
 			boundary, sourceID,
 			awscloud.RelationshipImageBuilderInfraConfigUsesSNSTopic,
-			topicARN, awscloud.ResourceTypeSNSTopic,
+			topicARN, catalog.ResourceTypeSNSTopic,
 		))
 	}
 	if edge := infraConfigS3LoggingEdge(boundary, partition, sourceID, config); edge != nil {

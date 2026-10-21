@@ -12,6 +12,7 @@ import (
 	awspinpointtypes "github.com/aws/aws-sdk-go-v2/service/pinpoint/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 type stubAPI struct {
@@ -100,7 +101,7 @@ func TestSnapshotMapsApplicationsSegmentsChannels(t *testing.T) {
 		},
 	}
 
-	client := &Client{client: stub, boundary: awscloud.Boundary{ServiceKind: awscloud.ServicePinpoint}}
+	client := &Client{client: stub, boundary: awscloud.Boundary{ServiceKind: catalog.ServicePinpoint}}
 	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v, want nil", err)
@@ -185,7 +186,7 @@ func TestSnapshotNeverCopiesEmailFromAddressOrImportSecrets(t *testing.T) {
 			}},
 		},
 	}
-	client := &Client{client: stub, boundary: awscloud.Boundary{ServiceKind: awscloud.ServicePinpoint}}
+	client := &Client{client: stub, boundary: awscloud.Boundary{ServiceKind: catalog.ServicePinpoint}}
 	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)
@@ -218,7 +219,7 @@ func TestListApplicationsPaginates(t *testing.T) {
 		},
 		channels: map[string]*awspinpoint.GetChannelsOutput{},
 	}
-	client := &Client{client: stub, boundary: awscloud.Boundary{ServiceKind: awscloud.ServicePinpoint}}
+	client := &Client{client: stub, boundary: awscloud.Boundary{ServiceKind: catalog.ServicePinpoint}}
 	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)
