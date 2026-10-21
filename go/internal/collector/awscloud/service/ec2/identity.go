@@ -35,7 +35,7 @@ import (
 // ami_identity.go), which the caller (Scanner.Scan) emits separately —
 // deduplicated across every instance in the scan — because it is a
 // per-distinct-AMI fact, not a per-instance one. See
-// go/internal/collector/awscloud/constants_ec2.go's ResourceTypeEC2AMI doc.
+// go/internal/collector/awscloud/catalog/compute.go's ResourceTypeEC2AMI doc.
 func instanceIdentityEnvelopes(boundary awscloud.Boundary, instance Instance) ([]facts.Envelope, error) {
 	resource, err := awscloud.NewResourceEnvelope(instanceIdentityObservation(boundary, instance))
 	if err != nil {
