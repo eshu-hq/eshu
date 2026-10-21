@@ -868,7 +868,7 @@ metric, label, queue domain, or runtime knob.
 
 Precursor to a future `documentation_edges` partition promotion. The documentation
 retract Cypher binds `WHERE section.scope_id IN $scope_ids`
-(`canonical_documentation_edges.go`), but `edge/writer/retract.go` threaded repo ids
+(`canonical/node/documentation_edges.go`), but `edge/writer/retract.go` threaded repo ids
 there (`collectRepoIDs`). It only worked because the handler stuffed the scope id
 into `RepositoryID` and left `ScopeID` empty; once the promotion emits intents with
 distinct `repo_id` and `scope_id` the retract would bind repo ids and clear nothing
