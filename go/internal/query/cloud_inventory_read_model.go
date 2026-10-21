@@ -78,7 +78,9 @@ func (cr *ContentReader) CloudInventoryIdentities(
 // buildCloudInventoryIdentitiesSQL assembles the bounded canonical-identity list
 // query and its parameters. It anchors on the reducer-owned fact kind, selects
 // only the active generation for each ingestion scope, excludes tombstoned
-// rows, applies optional payload-scoped equality filters as bound parameters,
+// rows and legacy AppSync API key identities (whose canonical UID contains a
+// bearer credential), applies optional payload-scoped equality filters as bound
+// parameters,
 // orders deterministically by cloud_resource_uid, and fetches limit+1 rows for
 // continuation. The projection returns the envelope metadata plus the
 // canonical payload; the handler view drops raw locators.
@@ -87,6 +89,7 @@ func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []an
 	clauses := []string{
 		"fact_records.fact_kind = '" + cloudInventoryFactKind + "'",
 		"fact_records.is_tombstone = FALSE",
+		"fact_records.payload->>'resource_type' IS DISTINCT FROM 'aws_appsync_api_key'",
 	}
 	addPayloadFilter := func(field string, value string) {
 		value = strings.TrimSpace(value)

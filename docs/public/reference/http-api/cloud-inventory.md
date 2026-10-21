@@ -136,7 +136,9 @@ by provider:
   the route also surfaces `api_key_count` and `api_key_lifecycles`, an ordered
   list containing only `expires` and `deletes` timestamps. The AWS SDK's
   `ApiKey.Id` is a bearer credential, so IDs and descriptions are discarded
-  before they enter scanner-owned facts and are never returned.
+  before they enter newly collected scanner facts. The route also suppresses
+  legacy `aws_appsync_api_key` identity rows that may remain in an active
+  generation; this read filter does not erase historical fact or graph data.
 - **Azure** uses the same closed-allowlist mechanism as AWS, but the
   allowlist is currently empty: the `azure_cloud_resource` fact this route
   reads carries no image or version key today (Azure's runtime image
