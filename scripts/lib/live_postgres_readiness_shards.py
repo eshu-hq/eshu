@@ -27,6 +27,7 @@ from live_postgres_readiness_records import package_records  # noqa: E402
 
 
 SHARDS = ("1/4", "2/4", "3/4", "4/4")
+ARTIFACT_RE = re.compile(r"^readiness-shard-\d+-(\d+)-[1-4]$")
 TEST_RE = re.compile(r"^Test[A-Za-z0-9_]+$")
 RUN_RE = re.compile(r"^\./[A-Za-z0-9_./-]+\|Test[A-Za-z0-9_]+$")
 HEAD_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -331,8 +332,77 @@ def _verify(head: str, plan_path: Path, report_paths: list[Path]) -> bool:
     return not errors
 
 
+def _candidate_order(path: Path) -> tuple[int, int, str]:
+    """Order rerun candidates newest first for one shard's report.
+
+    A failed-job rerun uploads under a newer attempt while earlier
+    attempts' reports stay downloadable, so recency comes from the
+    artifact directory name before filesystem timestamps. Unparseable
+    layouts sort oldest; the path breaks remaining ties deterministically.
+    """
+    attempt = 0
+    match = ARTIFACT_RE.fullmatch(path.parent.name)
+    if match:
+        attempt = int(match.group(1))
+    try:
+        stamp = path.stat().st_mtime_ns
+    except OSError:
+        stamp = 0
+    return (attempt, stamp, str(path))
+
+
+def _select(head: str, plan_path: Path, report_paths: list[Path],
+            output_dir: Path) -> bool:
+    """Copy the newest valid report per shard for a rerun-proof aggregate.
+
+    Every candidate still passes the same head and plan validation as
+    ``verify``; a rejected older attempt is only a diagnostic. A shard
+    whose candidates are all stale or failed keeps the aggregate red, and
+    a genuinely missing shard is still an error. Only the four winners
+    reach ``verify``, which keeps its exact-four rule.
+    """
+    _validate_head(head)
+    plan = _read_plan(plan_path)
+    contenders: dict[str, list[tuple[tuple[int, int, str], Path]]] = {}
+    attempted: set[str] = set()
+    for path in report_paths:
+        claimed: object = None
+        try:
+            value = _parse_json(path.read_text(encoding="utf-8"))
+            claimed = value.get("shard") if isinstance(value, dict) else None
+            _, shard = _validate_report(value, plan, head, set())
+        except (OSError, ValueError, TypeError, AttributeError) as error:
+            print(f"readiness select: rejected {path}: {error}", file=sys.stderr)
+            if isinstance(claimed, str) and claimed in SHARDS:
+                attempted.add(claimed)
+            continue
+        attempted.add(shard)
+        contenders.setdefault(shard, []).append((_candidate_order(path), path))
+    errors = []
+    if missing := sorted(set(SHARDS) - attempted):
+        errors.append(f"missing shards: {missing}")
+    errors.extend(f"no valid report for shard {shard}"
+                  for shard in sorted(attempted - set(contenders)))
+    for error in errors:
+        print(f"readiness select: {error}", file=sys.stderr)
+    if errors:
+        return False
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for shard in SHARDS:
+        _, winner = max(contenders[shard])
+        target = output_dir / f"readiness-shard-{shard[0]}-report.json"
+        try:
+            target.write_bytes(winner.read_bytes())
+        except OSError as error:
+            print(f"readiness select: {target}: {error}", file=sys.stderr)
+            return False
+        print(f"readiness select: {shard} <- {winner}")
+    print(f"readiness select: {len(SHARDS)}/4 shards selected, ok=True")
+    return True
+
+
 def main() -> int:
-    """Dispatch planner, shard reporter, or aggregate gate."""
+    """Dispatch planner, shard reporter, selector, or aggregate gate."""
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     plan = commands.add_parser("plan")
@@ -340,6 +410,11 @@ def main() -> int:
     report = commands.add_parser("report")
     for option in ("head", "shard", "plan", "manifest", "output"):
         report.add_argument(f"--{option}", required=True)
+    select = commands.add_parser("select")
+    select.add_argument("--head", required=True)
+    select.add_argument("--plan", required=True)
+    select.add_argument("--output-dir", required=True)
+    select.add_argument("reports", nargs="*")
     verify = commands.add_parser("verify")
     verify.add_argument("--head", required=True)
     verify.add_argument("--plan", required=True)
@@ -356,6 +431,10 @@ def main() -> int:
         if args.command == "report":
             return 0 if _report(args.head, args.shard, Path(args.plan),
                                 Path(args.manifest), Path(args.output)) else 1
+        if args.command == "select":
+            return 0 if _select(args.head, Path(args.plan),
+                                [Path(path) for path in args.reports],
+                                Path(args.output_dir)) else 1
         return 0 if _verify(args.head, Path(args.plan),
                             [Path(path) for path in args.reports]) else 1
     except (ValueError, OSError, TypeError, json.JSONDecodeError) as error:
