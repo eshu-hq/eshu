@@ -53,6 +53,34 @@ None. Extraction outcomes remain covered by the collector-local
   `../../AGENTS-extractors-2.md`. Then run
   `scripts/verify-package-docs.sh`.
 
+## Evidence
+
+No-Regression Evidence (wave-1 serverless slice, #6696): the move is
+behavior-preserving. Baseline on `origin/main` (`7d6d375081`):
+`go test ./internal/collector/gcpcloud/... ./cmd/collector-gcp-cloud/
+./internal/correlation/cloudinventory/ ./internal/relationships/ -count=1`
+all pass. After the move the same command all passes with every
+pre-existing extraction, normalization, and envelope assertion unchanged
+(99 serverless tests plus 776 root tests discovered and green). Input
+shape: the offline fixture corpus (`testdata/assets_list_*.json`, ten
+serverless fixtures) and unit cases over per-asset CAI `resource.data`
+blobs; no live Google Cloud calls. Every moved implementation file was
+diffed against its origin revision after stripping the mechanical
+`extractor.` qualification: all residuals are renames or deletions of
+symbols that moved to the leaf, with zero logic edits. Registration
+order cannot change behavior (map dispatch keyed by asset type), and a
+duplicate registration would panic loudly at startup; the suites
+passing proves neither happened. The only new behavior is the binary
+wiring, proven by `TestServerlessExtractorsRegistered`, which failed
+with all 11 asset types unregistered before the side-effect import and
+passes after.
+
+No-Observability-Change: no new metric instrument, label, span, log
+field, status field, or runtime knob. Extraction outcomes remain covered
+by the existing `eshu_dp_gcp_cloud_attribute_extractions_total` and
+`eshu_dp_gcp_cloud_facts_emitted_total` counters, recorded on the
+unchanged `gcpcloud` dispatch path.
+
 ## Related docs
 
 - `../README.md` — the shared extractor foundation
