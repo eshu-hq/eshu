@@ -105,7 +105,8 @@ or upgrade the reader; do not filter the log.
 - Build pin for the qualified image: RECORDED 2026-10-21.
   Digest `ghcr.io/eshu-hq/postgresql-eshu@sha256:26accacbc9276027930b7a117cf16127a9092021d6fed42a0e0aaf5a3bf93769`
   (`18.6-eshu-7957`, live-corroborated on the deployed reader). Pinned via
-  IaC (#289, merged 2026-10-19) and declared via #296 (merged 2026-10-20;
+  IaC PR 289 in the separate infrastructure repository (merged 2026-10-19)
+  and declared via infrastructure-repo PR 296 (merged 2026-10-20;
   API reports `qualified=true reason=declared_build`). Package revision:
   NOT RECORDED.
 - AC2/AC4/AC5 proof on the qualified image: PARTIAL. AC2/AC4 halves pass
