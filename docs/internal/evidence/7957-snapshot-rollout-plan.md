@@ -46,8 +46,16 @@ AC1 pin record cited below, is:
   `reason=declared_build`.
 - Pin and declaration path: IaC PR 289 (pin, merged 2026-10-19) and IaC
   PR 296 (declaration, merged 2026-10-21) in the separate infrastructure
-  repository. The package-revision record lives in the IaC values-file
-  comment quoted in the issue thread; it is not reproduced here.
+  repository. The IaC 289 pin commit `188246e` records in the header
+  comment of its `postgresql-values.yaml` pin file: image
+  `ghcr.io/eshu-hq/postgresql-eshu:18.6-eshu-7957-amd64`, the digest
+  above, and recipe `images/postgresql/Dockerfile @ 6fc7463 (REL_18_6 +
+  2x REL_18_STABLE fixes)`. This is a from-source build
+  (`--with-extra-version=-eshu-7957`); it has no distribution package
+  revision separate from that record. The package-revision field above
+  is therefore bound by recipe revision
+  `6fc74636e6d4d9e869efb624f1bee1e61f66d7d9`, which pins source tree
+  `a8643a2276b48a9ddc8948e03ea57a8ea6162194` and both backports below.
 - Source/backport record for both fixes: the IaC recipe pins the upstream
   commits (standby export `74c9832ca610`, import/VACUUM `3977cde272bc`)
   with patch-id agreement between the recipe tree and the built source
@@ -125,8 +133,9 @@ or upgrade the reader; do not filter the log.
 ## Open items
 
 - Build pin (digest, package revision) for the qualified image: RECORDED in
-  the entry-gate section above (digest verified live; revision record in the
-  IaC values-file comment quoted in the issue thread).
+  the entry-gate section above (digest verified live; package-revision field
+  bound by recipe revision `6fc74636e6d4d9e869efb624f1bee1e61f66d7d9` —
+  from-source build, no separate distribution package revision).
 - AC2/AC4 proof on the qualified image: disposable-pair runs green on
   2026-10-21 (issue thread; owning qualification lane). The bare-metal
   amd64 re-run (recipe fail/pass pair plus `-race` live suites) stays open;
