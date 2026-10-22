@@ -402,3 +402,15 @@ docs/internal/evidence/6228-kubernetes-correlation-determinism.md:go/internal/st
 CHANGELOG.md:go/internal/collector/awscloud/services/ec2/ami_identity.go
 testdata/golden/e2e-20repo-snapshot.json:go/internal/collector/awscloud/services/ec2/ami_identity.go
 docs/internal/evidence/5717-ami-node-class.md:go/internal/collector/awscloud/services/ec2/ami_identity.go
+
+# #8733 deleted the last reducer compat shims (compat_projection.go,
+# compat_decode.go, compat_correlation.go, compat_cloud.go) after their final
+# callers moved. The notes below are dated records of the tree as it stood when
+# each removal landed; repointing would falsify what each PR changed.
+go/internal/reducer/evidence-6626-secretsiam-followup.md:go/internal/reducer/compat_projection.go
+go/internal/reducer/evidence-6626-batch6-bucket2-decode-consts.md:go/internal/reducer/compat_decode.go
+go/internal/reducer/evidence-6626-batch6-bucket3-decode-testonly.md:go/internal/reducer/compat_decode.go
+go/internal/reducer/evidence-6626-batch6-bucket4-k8s-correlation.md:go/internal/reducer/compat_cloud.go
+go/internal/reducer/evidence-6626-batch6-bucket5-shared-projection-row.md:go/internal/reducer/compat_correlation.go
+docs/internal/evidence/4630-input-invalid-quarantine-read-surface.md:go/internal/reducer/compat_decode.go
+docs/internal/evidence/6216-sibling-delta-gate-and-mixed-batch-retract.md:go/internal/reducer/compat_decode.go

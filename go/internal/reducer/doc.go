@@ -32,28 +32,12 @@
 // takes: an enumeration here has been wrong in four separate revisions, and
 // the compiler, not this comment, is the authority on the second case. The
 // contract package is not covered by that rule at all: the root deliberately
-// re-exports its surface. Separately, this package's compat_*.go bucket files
-// (compat_cloud.go, compat_correlation.go, compat_decode.go,
-// compat_projection.go) may export a compatibility surface for callers outside
-// it; those files are the authoritative list, and as of this commit the whole
-// of it is factdecode's QuarantinedFactRecord and QuarantinedFactWriter
-// (retired from compat_decode.go once every caller named [factdecode]
-// directly),
-// which internal/storage/postgres constructs and implements,
-// factdecode.WithQuarantineWriter, which Service stashes on the execution context,
-// the factload stanza of compat_decode.go's FactLoader, which internal/storage/cypher's
-// edge/writer/unusable_delta_fail_closed_test.go names to type its
-// materialization-handler test harness, and the retired secrets stanza of
-// compat_projection.go (secretsiam.SecretsIAMGraphWriter and
-// secretsiam.PostgresSecretsIAMTrustChainWriter, which cmd/reducer wires,
-// secretsiam.SecretsIAMEndpointNotReadyFailureClass and
-// secretsiam.SecretsIAMTrustChainLoadStats, which internal/storage/postgres'
-// readiness claim gate and evidence loader name, and
-// secretsiam.SecretsIAMGraphProjectionHandler, which
-// internal/replay/costcounting's cost test constructs), and the retired
-// iam-escalation stanza of compat_projection.go
-// (iamescalation.IAMEscalationNodesNotReadyFailureClass, which
-// internal/storage/postgres' readiness claim gate also names).
+// re-exports its surface. Separately, this package historically kept a
+// compat_*.go alias surface (compat_cloud.go, compat_correlation.go,
+// compat_decode.go, compat_projection.go) for callers outside it while families
+// moved to leaf packages. That surface was fully retired in #8733 once the
+// last caller moved; the retired stanzas live on only in the dated evidence
+// notes under evidence-6626-*.md.
 // ParseDomain accepts the known reducer validation identifiers, including the
 // three reserved non-registrable identifiers. Shared-projection constants
 // remain runner names and are not admitted into the durable queue.
