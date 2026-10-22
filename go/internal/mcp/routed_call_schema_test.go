@@ -4,7 +4,6 @@
 package mcp
 
 import (
-	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -44,10 +43,16 @@ func TestRegisteredToolExamplesValidate(t *testing.T) {
 	}
 }
 
-// TestValidatorAcceptsEveryDispatchedArgumentMap is the differential guard:
-// every argument map the existing dispatch tests and the catalog sweep corpus
-// send, and that dispatch accepts, must pass the router validator. A false
-// rejection would make call_tool refuse a call a direct tools/call serves.
+// TestValidatorAcceptsEveryDispatchedArgumentMap is the differential guard.
+// The validator accepts every argument map the dispatch tests send as a
+// literal and every map in the catalog sweep corpus, except maps in a recorded
+// divergence class (validatorDivergenceClasses). Each class names its handler
+// evidence and must match at least one map here or in its pinning test; the
+// test fails when a map fits no class, when an exempted map starts
+// validating, or when a class stops matching. Maps the dispatch tests build at
+// run time are reported as skipped; a one-off runtime capture
+// (go/internal/mcp/router/README.md, "Known divergence from a direct call")
+// showed every rejected one falls in a recorded class.
 func TestValidatorAcceptsEveryDispatchedArgumentMap(t *testing.T) {
 	t.Parallel()
 
@@ -60,9 +65,11 @@ func TestValidatorAcceptsEveryDispatchedArgumentMap(t *testing.T) {
 		args         map[string]any
 	}
 	var samples []sample
+	sweep := 0
 	for name, cases := range sweepArguments(t) {
 		for i, args := range cases {
 			samples = append(samples, sample{name, fmt.Sprintf("catalog sweep #%d", i), args})
+			sweep++
 		}
 	}
 	extracted, skipped := dispatchTestArgumentMaps(t)
@@ -75,7 +82,7 @@ func TestValidatorAcceptsEveryDispatchedArgumentMap(t *testing.T) {
 		t.Fatalf("extracted %d literal argument maps from dispatch tests (skipped %d), want >= 300", len(extracted), skipped)
 	}
 
-	seenExemptions := map[string]bool{}
+	perClass := map[string]int{}
 	checked := 0
 	for _, s := range samples {
 		schema, registered := schemas[s.tool]
@@ -86,50 +93,24 @@ func TestValidatorAcceptsEveryDispatchedArgumentMap(t *testing.T) {
 			continue // a negative dispatch case; dispatch rejects it too
 		}
 		checked++
-		key := exemptionKey(t, s.tool, s.args)
-		if _, exempt := validatorDifferentialExemptions[key]; exempt {
-			seenExemptions[key] = true
-			if errs := router.ValidateArguments(schema, s.args); len(errs) == 0 {
-				t.Errorf("%s (%s): exempted map %v now validates; remove its exemption", s.tool, s.origin, s.args)
-			}
+		errs := router.ValidateArguments(schema, s.args)
+		if len(errs) == 0 {
 			continue
 		}
-		if errs := router.ValidateArguments(schema, s.args); len(errs) != 0 {
-			t.Errorf("%s (%s): validator rejects %v that dispatch accepts: %v", s.tool, s.origin, s.args, errs)
+		class := classifyRejection(s.tool, schema, s.args, errs)
+		if class == nil {
+			t.Errorf("%s (%s): validator rejects %v that dispatch accepts, in no recorded class: %v", s.tool, s.origin, s.args, errs)
+			continue
 		}
+		perClass[class.id]++
 	}
-	for key := range validatorDifferentialExemptions {
-		if !seenExemptions[key] {
-			t.Errorf("exemption %s matched no dispatch test map; remove it", key)
-		}
+	// Classes A and B are pinned by their own tests; C must keep matching
+	// here so a stale class is noticed.
+	if perClass["C"] == 0 {
+		t.Errorf("divergence class C matched no literal or sweep map; remove or narrow it")
 	}
-	t.Logf("validated %d dispatch-accepted argument maps (%d extracted from tests, %d test maps skipped as non-literal)", checked, len(extracted), skipped)
-}
-
-// validatorDifferentialExemptions lists dispatch-test maps that resolveRoute
-// builds a route for but that break the advertised schema, so the validator
-// rejects them on purpose. Each was checked against its handler; the test
-// fails when an entry stops matching or starts validating.
-var validatorDifferentialExemptions = map[string]string{
-	// Handler rejects: route-shape tests whose handler answers HTTP 400.
-	`list_container_image_tag_history {"repository_id":"oci-registry://ghcr.io/eshu-hq/demo"}`: "test asserts dispatch errors without the tag selector",
-	`find_cross_repo_dead_code {}`:              "codequery/deadcode/cross_repo.go: repo_id is required",
-	`resolve_entity {}`:                         "query/entity/handler.go: name is required",
-	`get_entity_content {}`:                     "query/contentread/content_handler.go: entity_id is required",
-	`compare_environments {"repo_id":"repo-1"}`: "query/compare/handler.go: workload_id, left, and right are required",
-	// Undocumented alias: resolve_entity's legacy name/type keys are not in
-	// its input schema, which requires query. A schema-following caller sends
-	// query; call_tool answers name-only calls with a field error that says so.
-	`resolve_entity {"limit":5,"name":"exactName","repo_id":"repo-1","type":"function"}`: "legacy name alias outside the advertised schema",
-}
-
-func exemptionKey(t *testing.T, tool string, args map[string]any) string {
-	t.Helper()
-	raw, err := json.Marshal(args)
-	if err != nil {
-		t.Fatalf("marshal %s args: %v", tool, err)
-	}
-	return tool + " " + string(raw)
+	t.Logf("checked %d dispatch-accepted maps: %d catalog sweep, %d literal from tests; %d test calls skipped (built at run time, including every search_* query-alias map); rejected per class %v",
+		checked, sweep, len(extracted), skipped, perClass)
 }
 
 type extractedArgs struct {

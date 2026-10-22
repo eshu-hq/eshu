@@ -19,7 +19,8 @@ func Intercepts(name string) bool {
 // The zero value is ready to use.
 type Host struct {
 	// Ranker orders find_tool candidates. Set it before the first request;
-	// while it is nil find_tool answers mcp_router_ranker_unavailable.
+	// while it is nil find_tool answers mcp_router_ranker_unavailable. The
+	// root wires the lexical ranker (#8755) in #8771.
 	Ranker Ranker
 
 	once   sync.Once

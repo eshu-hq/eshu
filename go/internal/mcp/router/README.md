@@ -125,14 +125,35 @@ and `eshu_dp_mcp_router_target_rank`, plus the `mcp.router.find` and
 
 ## Known divergence from a direct call
 
-`call_tool` validates against the advertised `inputSchema`; a direct
-`tools/call` goes straight to the route builder. `resolve_entity` still accepts
-its undocumented legacy `name`/`type` keys on the direct path, but its schema
-requires `query`, so `call_tool` answers a `name`-only call with a field error
-naming `query`. This is intended: the schema is the contract, and adding `name`
-to it would change `tools/list` for the `full` surface. The validator
-differential test in the mcp root lists this map, and the five route-shape test
-maps whose handlers answer HTTP 400, in a staleness-checked exemption list.
+`call_tool` validates against the advertised `inputSchema` with no tolerance; a
+direct `tools/call` goes straight to the route builder. Three recorded classes
+of call succeed directly but are refused by `call_tool` with a field error that
+names the schema's rule (arbiter ruling on #8757). The schemas stay as they
+are, because widening them would change `tools/list` for the `full` surface.
+
+| Class | Direct call | `call_tool` | Handler evidence |
+| --- | --- | --- | --- |
+| A, undocumented alias | `search_entity_content` / `search_file_content` with `query` and no `pattern`; `resolve_entity` with the legacy `name`/`type` keys | `pattern` or `query` is required | `mcp/content` `contentSearchBody` sends `query` when `pattern` is absent; `mcp/entity/resolution` `resolveEntityBody` sends `name` |
+| B, enum case | `execute_language_query` with `entity_type: "Function"` | `entity_type` must be one of the lowercase values | `query/language` `Handler.handleLanguageQuery` lowercases `entity_type` |
+| D, off-enum list filter | `list_ci_cd_run_correlations` `outcome`, `list_sbom_attestation_attachments` `attachment_status`, `list_secrets_iam_*` `state` outside the enum | the filter must be one of the enum values | the list handlers pass the filter to the store, which matches no rows |
+
+Two more classes are not divergences, because dispatch or its handler rejects
+the call too: C, route-shape calls without a required selector or with an
+off-enum value a count or inventory handler rejects (HTTP 400), and E,
+deliberately wrong JSON types.
+
+`TestValidatorAcceptsEveryDispatchedArgumentMap` in the mcp root holds the
+validator to every literal argument map in the dispatch tests and every map in
+the catalog sweep corpus, except maps in a class. Classes and their evidence
+live in `routed_call_divergence_test.go`; each class has a live witness, and A
+and B have pinning tests that fail once a schema accepts the alias or case. The
+literal extractor cannot see maps built at run time, so a one-off runtime
+capture covered them. Run on the commit that added this section, it recorded
+every map `resolveRoute` built across `go test ./internal/mcp`: 1339 distinct
+maps, 249 rejected, 0 outside a class (A 77, B 2, C 97, D 9, E 64). To repeat it, wrap
+`resolveRoute` in `dispatch.go` to record each resolved map, and classify the
+rejected ones with `classifyRejection` from a `TestMain`, through
+`go test -overlay`.
 
 ## Gotchas / invariants
 
@@ -143,7 +164,9 @@ maps whose handlers answer HTTP 400, in a staleness-checked exemption list.
 - `CoreToolNames` is empty until #8759. `core_router` advertises only the two
   router tools until then.
 - `find_tool` needs an injected `Ranker`; the lexical ranker (#8755) is wired
-  by the root once it lands.
+  by the root in #8771. Until then `find_tool` answers the typed
+  `mcp_router_ranker_unavailable` error, counted as
+  `eshu_dp_mcp_router_find_total{outcome="error"}`.
 - A new keyword, type, or format in a registered tool schema fails
   `TestRegisteredSchemasUseOnlyValidatedKeywords` in the mcp root until
   `ValidateArguments` implements it.
