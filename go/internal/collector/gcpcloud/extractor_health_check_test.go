@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const healthCheckFullName = "//compute.googleapis.com/projects/demo-project/global/healthChecks/http-hc"
@@ -14,15 +16,15 @@ const healthCheckFullName = "//compute.googleapis.com/projects/demo-project/glob
 func healthCheckContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: healthCheckFullName,
-		AssetType:        assetTypeComputeHealthCheck,
+		AssetType:        catalog.AssetTypeComputeHealthCheck,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestHealthCheckExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeHealthCheck); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeHealthCheck)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeHealthCheck); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeHealthCheck)
 	}
 }
 

@@ -7,34 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type constants for the compute Router typed-depth extractor and the
-// relationship endpoints it derives. assetTypeComputeNetwork,
-// assetTypeComputeSubnetwork, and assetTypeComputeVpnTunnel are declared by
-// the sibling Network/Subnetwork and Route extractors and reused here.
-// assetTypeComputeInterconnectAttachment is declared here since no sibling
-// extractor for that asset type exists yet.
-const (
-	assetTypeComputeRouter                 = "compute.googleapis.com/Router"
-	assetTypeComputeInterconnectAttachment = "compute.googleapis.com/InterconnectAttachment"
-)
-
-// Bounded provider relationship types for Router edges carried on
-// gcp_cloud_relationship facts. The reducer materializes an edge only when
-// both endpoints resolve exactly. BGP peers themselves never become edge
-// endpoints: a peer names an interface (`interfaceName`), and only the
-// interface's own linked resource (a VPN tunnel, an Interconnect attachment,
-// or a subnetwork) is a resolvable CAI asset.
-const (
-	relationshipTypeRouterInNetwork                             = "router_in_network"
-	relationshipTypeRouterInterfaceLinkedVpnTunnel              = "router_interface_linked_vpn_tunnel"
-	relationshipTypeRouterInterfaceLinkedInterconnectAttachment = "router_interface_linked_interconnect_attachment"
-	relationshipTypeRouterInterfaceSubnetwork                   = "router_interface_subnetwork"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_net.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeRouter, extractRouter)
+	RegisterAssetExtractor(catalog.AssetTypeComputeRouter, extractRouter)
 }
 
 // routerData is the bounded view of a CAI compute.googleapis.com/Router
@@ -131,21 +111,21 @@ func extractRouter(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 	if networkName := computeFullResourceNameFromSelfLink(data.Network, ctx.ProjectID); networkName != "" {
 		anchors = append(anchors, networkName)
-		rels = append(rels, routerEdge(ctx, relationshipTypeRouterInNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, routerEdge(ctx, catalog.RelationshipTypeRouterInNetwork, networkName, assetTypeComputeNetwork))
 	}
 
 	for _, iface := range data.Interfaces {
 		if tunnelName := computeResourceFullNameFromSelfLink(iface.LinkedVpnTunnel, "vpnTunnels", ctx.ProjectID); tunnelName != "" {
 			anchors = append(anchors, tunnelName)
-			rels = append(rels, routerEdge(ctx, relationshipTypeRouterInterfaceLinkedVpnTunnel, tunnelName, assetTypeComputeVpnTunnel))
+			rels = append(rels, routerEdge(ctx, catalog.RelationshipTypeRouterInterfaceLinkedVpnTunnel, tunnelName, catalog.AssetTypeComputeVpnTunnel))
 		}
 		if attachmentName := computeResourceFullNameFromSelfLink(iface.LinkedInterconnectAttachment, "interconnectAttachments", ctx.ProjectID); attachmentName != "" {
 			anchors = append(anchors, attachmentName)
-			rels = append(rels, routerEdge(ctx, relationshipTypeRouterInterfaceLinkedInterconnectAttachment, attachmentName, assetTypeComputeInterconnectAttachment))
+			rels = append(rels, routerEdge(ctx, catalog.RelationshipTypeRouterInterfaceLinkedInterconnectAttachment, attachmentName, catalog.AssetTypeComputeInterconnectAttachment))
 		}
 		if subnetName := computeResourceFullNameFromSelfLink(iface.Subnetwork, "subnetworks", ctx.ProjectID); subnetName != "" {
 			anchors = append(anchors, subnetName)
-			rels = append(rels, routerEdge(ctx, relationshipTypeRouterInterfaceSubnetwork, subnetName, assetTypeComputeSubnetwork))
+			rels = append(rels, routerEdge(ctx, catalog.RelationshipTypeRouterInterfaceSubnetwork, subnetName, assetTypeComputeSubnetwork))
 		}
 	}
 

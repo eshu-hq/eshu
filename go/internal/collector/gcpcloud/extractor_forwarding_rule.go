@@ -7,64 +7,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type constants for the compute ForwardingRule typed-depth extractor and
-// the relationship endpoints it derives. assetTypeComputeForwardingRule and
-// assetTypeComputeGlobalForwardingRule are declared in extractor_address.go
-// (assetTypeComputeForwardingRule is reused there by the Address extractor for
-// its used-by-forwarding-rule edge) and reused here.
-// assetTypeComputeNetwork and assetTypeComputeSubnetwork are declared by the
-// sibling Network/Subnetwork extractors and reused here.
-const (
-	assetTypeComputeBackendService    = "compute.googleapis.com/BackendService"
-	assetTypeComputeTargetPool        = "compute.googleapis.com/TargetPool"
-	assetTypeComputeTargetHTTPProxy   = "compute.googleapis.com/TargetHttpProxy"
-	assetTypeComputeTargetHTTPSProxy  = "compute.googleapis.com/TargetHttpsProxy"
-	assetTypeComputeTargetTCPProxy    = "compute.googleapis.com/TargetTcpProxy"
-	assetTypeComputeTargetSSLProxy    = "compute.googleapis.com/TargetSslProxy"
-	assetTypeComputeTargetGRPCProxy   = "compute.googleapis.com/TargetGrpcProxy"
-	assetTypeComputeTargetInstance    = "compute.googleapis.com/TargetInstance"
-	assetTypeComputeTargetVPNGateway  = "compute.googleapis.com/TargetVpnGateway"
-	assetTypeComputeServiceAttachment = "compute.googleapis.com/ServiceAttachment"
-)
-
-// Bounded provider relationship types for ForwardingRule edges. They are
-// stable, bounded strings carried on gcp_cloud_relationship facts; the
-// reducer materializes an edge only when both endpoints resolve exactly.
-// forwardingRuleTargetSegments maps the compute resource-path segment found in
-// a ForwardingRule's `target` reference to its CAI asset type and bounded
-// relationship type, so a new proxy kind is a single table entry rather than a
-// new branch.
-const (
-	relationshipTypeForwardingRuleTargetsBackendService    = "forwarding_rule_targets_backend_service"
-	relationshipTypeForwardingRuleTargetsTargetPool        = "forwarding_rule_targets_target_pool"
-	relationshipTypeForwardingRuleTargetsTargetProxy       = "forwarding_rule_targets_target_proxy"
-	relationshipTypeForwardingRuleTargetsTargetInstance    = "forwarding_rule_targets_target_instance"
-	relationshipTypeForwardingRuleTargetsTargetVPNGateway  = "forwarding_rule_targets_target_vpn_gateway"
-	relationshipTypeForwardingRuleTargetsServiceAttachment = "forwarding_rule_targets_service_attachment"
-	relationshipTypeForwardingRuleInNetwork                = "forwarding_rule_in_network"
-	relationshipTypeForwardingRuleInSubnetwork             = "forwarding_rule_in_subnetwork"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_lb.go (#6696 HK slice); uses below name catalog.X.
 
 // forwardingRuleTargetSegments maps a compute resource-path segment to its CAI
 // asset type and bounded relationship type for the ForwardingRule -> target
-// edge. All proxy kinds share relationshipTypeForwardingRuleTargetsTargetProxy
+// edge. All proxy kinds share catalog.RelationshipTypeForwardingRuleTargetsTargetProxy
 // so an operator/query filters by target_asset_type for the proxy protocol
 // rather than by a proliferating set of relationship-type strings.
 var forwardingRuleTargetSegments = map[string]struct {
 	assetType    string
 	relationship string
 }{
-	"targetPools":        {assetTypeComputeTargetPool, relationshipTypeForwardingRuleTargetsTargetPool},
-	"targetHttpProxies":  {assetTypeComputeTargetHTTPProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
-	"targetHttpsProxies": {assetTypeComputeTargetHTTPSProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
-	"targetTcpProxies":   {assetTypeComputeTargetTCPProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
-	"targetSslProxies":   {assetTypeComputeTargetSSLProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
-	"targetGrpcProxies":  {assetTypeComputeTargetGRPCProxy, relationshipTypeForwardingRuleTargetsTargetProxy},
-	"targetInstances":    {assetTypeComputeTargetInstance, relationshipTypeForwardingRuleTargetsTargetInstance},
-	"targetVpnGateways":  {assetTypeComputeTargetVPNGateway, relationshipTypeForwardingRuleTargetsTargetVPNGateway},
-	"serviceAttachments": {assetTypeComputeServiceAttachment, relationshipTypeForwardingRuleTargetsServiceAttachment},
+	"targetPools":        {catalog.AssetTypeComputeTargetPool, catalog.RelationshipTypeForwardingRuleTargetsTargetPool},
+	"targetHttpProxies":  {catalog.AssetTypeComputeTargetHTTPProxy, catalog.RelationshipTypeForwardingRuleTargetsTargetProxy},
+	"targetHttpsProxies": {catalog.AssetTypeComputeTargetHTTPSProxy, catalog.RelationshipTypeForwardingRuleTargetsTargetProxy},
+	"targetTcpProxies":   {catalog.AssetTypeComputeTargetTCPProxy, catalog.RelationshipTypeForwardingRuleTargetsTargetProxy},
+	"targetSslProxies":   {catalog.AssetTypeComputeTargetSSLProxy, catalog.RelationshipTypeForwardingRuleTargetsTargetProxy},
+	"targetGrpcProxies":  {catalog.AssetTypeComputeTargetGRPCProxy, catalog.RelationshipTypeForwardingRuleTargetsTargetProxy},
+	"targetInstances":    {catalog.AssetTypeComputeTargetInstance, catalog.RelationshipTypeForwardingRuleTargetsTargetInstance},
+	"targetVpnGateways":  {catalog.AssetTypeComputeTargetVPNGateway, catalog.RelationshipTypeForwardingRuleTargetsTargetVPNGateway},
+	"serviceAttachments": {catalog.AssetTypeComputeServiceAttachment, catalog.RelationshipTypeForwardingRuleTargetsServiceAttachment},
 }
 
 // init registers extractForwardingRule for both distinct CAI asset types that
@@ -75,8 +41,8 @@ var forwardingRuleTargetSegments = map[string]struct {
 // handles both; this mirrors the Address/GlobalAddress registration in
 // extractor_address.go.
 func init() {
-	RegisterAssetExtractor(assetTypeComputeForwardingRule, extractForwardingRule)
-	RegisterAssetExtractor(assetTypeComputeGlobalForwardingRule, extractForwardingRule)
+	RegisterAssetExtractor(catalog.AssetTypeComputeForwardingRule, extractForwardingRule)
+	RegisterAssetExtractor(catalog.AssetTypeComputeGlobalForwardingRule, extractForwardingRule)
 }
 
 // forwardingRuleData is the bounded view of a CAI
@@ -123,7 +89,7 @@ func extractForwardingRule(ctx ExtractContext) (AttributeExtraction, error) {
 
 	if backendName := computeResourceFullName(data.BackendService, "backendServices"); backendName != "" {
 		anchors = append(anchors, backendName)
-		rels = append(rels, forwardingRuleEdge(ctx, relationshipTypeForwardingRuleTargetsBackendService, backendName, assetTypeComputeBackendService))
+		rels = append(rels, forwardingRuleEdge(ctx, catalog.RelationshipTypeForwardingRuleTargetsBackendService, backendName, catalog.AssetTypeComputeBackendService))
 	}
 	if targetType, relType, targetName := forwardingRuleTargetEdge(data.Target, ctx.ProjectID); targetName != "" {
 		anchors = append(anchors, targetName)
@@ -131,11 +97,11 @@ func extractForwardingRule(ctx ExtractContext) (AttributeExtraction, error) {
 	}
 	if networkName := computeFullResourceNameFromSelfLink(data.Network, ctx.ProjectID); networkName != "" {
 		anchors = append(anchors, networkName)
-		rels = append(rels, forwardingRuleEdge(ctx, relationshipTypeForwardingRuleInNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, forwardingRuleEdge(ctx, catalog.RelationshipTypeForwardingRuleInNetwork, networkName, assetTypeComputeNetwork))
 	}
 	if subnetName := computeFullResourceNameFromSelfLink(data.Subnetwork, ctx.ProjectID); subnetName != "" {
 		anchors = append(anchors, subnetName)
-		rels = append(rels, forwardingRuleEdge(ctx, relationshipTypeForwardingRuleInSubnetwork, subnetName, assetTypeComputeSubnetwork))
+		rels = append(rels, forwardingRuleEdge(ctx, catalog.RelationshipTypeForwardingRuleInSubnetwork, subnetName, assetTypeComputeSubnetwork))
 	}
 
 	return AttributeExtraction{

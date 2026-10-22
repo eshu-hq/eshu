@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const securityPolicyFullName = "//compute.googleapis.com/projects/demo-project/global/securityPolicies/armor-policy"
@@ -14,15 +16,15 @@ const securityPolicyFullName = "//compute.googleapis.com/projects/demo-project/g
 func securityPolicyContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: securityPolicyFullName,
-		AssetType:        assetTypeComputeSecurityPolicy,
+		AssetType:        catalog.AssetTypeComputeSecurityPolicy,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestSecurityPolicyExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeSecurityPolicy); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeSecurityPolicy)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeSecurityPolicy); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeSecurityPolicy)
 	}
 }
 

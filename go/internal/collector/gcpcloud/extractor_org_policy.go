@@ -8,23 +8,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// orgPolicyAssetType is the Cloud Asset Inventory asset type for a GCP
-// Organization Policy (constraint binding). It is declared here so the
-// extractor registration stays self-contained in this file.
-const orgPolicyAssetType = "orgpolicy.googleapis.com/Policy"
-
-// assetTypeCloudResourceManagerOrganization and
-// assetTypeCloudResourceManagerFolder key the resource-hierarchy nodes an
-// Organization Policy can target. assetTypeCloudResourceManagerProject is
-// declared in extractor_firebase_project.go and reused here, never
-// redeclared.
-const (
-	assetTypeCloudResourceManagerOrganization = "cloudresourcemanager.googleapis.com/Organization"
-	assetTypeCloudResourceManagerFolder       = "cloudresourcemanager.googleapis.com/Folder"
-)
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 // cloudResourceManagerResourceNamePrefixes maps the three CAI parent-kind path
 // segments an Organization Policy full resource name can carry
@@ -37,29 +25,13 @@ var cloudResourceManagerResourceNamePrefixes = map[string]struct {
 	prefix    string
 	assetType string
 }{
-	"organizations": {prefix: "//cloudresourcemanager.googleapis.com/organizations/", assetType: assetTypeCloudResourceManagerOrganization},
-	"folders":       {prefix: "//cloudresourcemanager.googleapis.com/folders/", assetType: assetTypeCloudResourceManagerFolder},
+	"organizations": {prefix: "//cloudresourcemanager.googleapis.com/organizations/", assetType: catalog.AssetTypeCloudResourceManagerOrganization},
+	"folders":       {prefix: "//cloudresourcemanager.googleapis.com/folders/", assetType: catalog.AssetTypeCloudResourceManagerFolder},
 	"projects":      {prefix: cloudProjectResourceNamePrefix, assetType: assetTypeCloudResourceManagerProject},
 }
 
-// relationshipTypeOrgPolicyAppliesToResource is the bounded provider
-// relationship type for the edge from an Organization Policy to the
-// organization, folder, or project resource it is bound to.
-const relationshipTypeOrgPolicyAppliesToResource = "org_policy_applies_to_resource"
-
-// orgPolicyFullResourcePoliciesMarker separates an Organization Policy's
-// resource-hierarchy parent segment from its trailing `/policies/<constraint>`
-// suffix in a CAI full resource name.
-const orgPolicyFullResourcePoliciesMarker = "/policies/"
-
-// orgPolicyFullResourceNamePrefix is the exact CAI service prefix every
-// Organization Policy full resource name must carry. The target-derivation
-// fails closed unless the name starts with this prefix, so a relative or
-// wrong-service asset name never mints a fabricated resource-hierarchy edge.
-const orgPolicyFullResourceNamePrefix = "//orgpolicy.googleapis.com/"
-
 func init() {
-	RegisterAssetExtractor(orgPolicyAssetType, extractOrgPolicy)
+	RegisterAssetExtractor(catalog.OrgPolicyAssetType, extractOrgPolicy)
 }
 
 // orgPolicyData is the bounded view of a CAI orgpolicy.googleapis.com/Policy
@@ -140,7 +112,7 @@ func extractOrgPolicy(ctx ExtractContext) (AttributeExtraction, error) {
 		rels = append(rels, RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
-			RelationshipType:       relationshipTypeOrgPolicyAppliesToResource,
+			RelationshipType:       catalog.RelationshipTypeOrgPolicyAppliesToResource,
 			TargetFullResourceName: target,
 			TargetAssetType:        targetAssetType,
 			SupportState:           RelationshipSupportSupported,
@@ -263,20 +235,20 @@ func orgPolicyTargetFromFullResourceName(fullName string) (constraint, target, t
 	trimmed := strings.TrimSpace(fullName)
 	// Fail closed on a missing service prefix: TrimPrefix would silently no-op
 	// and accept a relative or wrong-service name.
-	if !strings.HasPrefix(trimmed, orgPolicyFullResourceNamePrefix) {
+	if !strings.HasPrefix(trimmed, catalog.OrgPolicyFullResourceNamePrefix) {
 		return "", "", "", false
 	}
 
-	index := strings.LastIndex(trimmed, orgPolicyFullResourcePoliciesMarker)
-	if index < 0 || index+len(orgPolicyFullResourcePoliciesMarker) >= len(trimmed) {
+	index := strings.LastIndex(trimmed, catalog.OrgPolicyFullResourcePoliciesMarker)
+	if index < 0 || index+len(catalog.OrgPolicyFullResourcePoliciesMarker) >= len(trimmed) {
 		return "", "", "", false
 	}
-	constraint = trimmed[index+len(orgPolicyFullResourcePoliciesMarker):]
+	constraint = trimmed[index+len(catalog.OrgPolicyFullResourcePoliciesMarker):]
 	if constraint == "" {
 		return "", "", "", false
 	}
 
-	parentPath := strings.TrimPrefix(trimmed[:index], orgPolicyFullResourceNamePrefix)
+	parentPath := strings.TrimPrefix(trimmed[:index], catalog.OrgPolicyFullResourceNamePrefix)
 	// The parent path must be exactly `<kind>/<id>` — no missing id and no
 	// trailing segments — so a malformed name never resolves to a real-looking
 	// hierarchy node.

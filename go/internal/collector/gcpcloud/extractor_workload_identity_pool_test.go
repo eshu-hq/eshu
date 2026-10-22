@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const workloadIdentityPoolFullName = "//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/demo-pool"
@@ -14,15 +16,15 @@ const workloadIdentityPoolFullName = "//iam.googleapis.com/projects/123456789/lo
 func workloadIdentityPoolContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: workloadIdentityPoolFullName,
-		AssetType:        workloadIdentityPoolAssetType,
+		AssetType:        catalog.WorkloadIdentityPoolAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestWorkloadIdentityPoolExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(workloadIdentityPoolAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", workloadIdentityPoolAssetType)
+	if _, ok := lookupAssetExtractor(catalog.WorkloadIdentityPoolAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.WorkloadIdentityPoolAssetType)
 	}
 }
 

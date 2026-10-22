@@ -7,50 +7,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type constants for the compute BackendService typed-depth extractor's
-// edge targets. assetTypeComputeBackendService itself is declared in
-// extractor_forwarding_rule.go (the ForwardingRule extractor resolves a
-// `backendService` reference into that same asset type as its target edge)
-// and reused here; this file is the other side of that edge — the
-// BackendService resource's own typed depth. Cloud Asset Inventory's
-// search/analysis APIs report both the regional and the global
-// backend-service scope under the single `compute.googleapis.com/BackendService`
-// asset type, but the list/export/monitor/query path this collector uses
-// emits regional backend services under the distinct
-// `compute.googleapis.com/RegionBackendService` asset type instead (see
-// https://docs.cloud.google.com/asset-inventory/docs/asset-types), so both
-// asset types must be registered to the same extractor function.
-const (
-	assetTypeComputeRegionBackendService = "compute.googleapis.com/RegionBackendService"
-	assetTypeComputeInstanceGroup        = "compute.googleapis.com/InstanceGroup"
-	assetTypeComputeNetworkEndpointGroup = "compute.googleapis.com/NetworkEndpointGroup"
-	assetTypeComputeHealthCheck          = "compute.googleapis.com/HealthCheck"
-	assetTypeComputeSecurityPolicy       = "compute.googleapis.com/SecurityPolicy"
-)
-
-// Bounded provider relationship types for BackendService edges. Each is a
-// stable string carried on a gcp_cloud_relationship fact; the reducer
-// materializes an edge only when both endpoints resolve exactly.
-// relationshipTypeBackendServiceHasBackend is shared by both backend-group
-// kinds (Instance Group and Network Endpoint Group) so a query/operator
-// filters by target_asset_type for the group kind rather than by a
-// proliferating set of relationship-type strings, mirroring the
-// ForwardingRule extractor's shared target-proxy relationship type.
-const (
-	relationshipTypeBackendServiceHasBackend             = "backend_service_has_backend"
-	relationshipTypeBackendServiceUsesHealthCheck        = "backend_service_uses_health_check"
-	relationshipTypeBackendServiceUsesSecurityPolicy     = "backend_service_uses_security_policy"
-	relationshipTypeBackendServiceUsesEdgeSecurityPolicy = "backend_service_uses_edge_security_policy"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_lb.go (#6696 HK slice); uses below name catalog.X.
 
 // backendServiceGroupSegments maps the compute resource-path segment found in
 // a backend entry's `group` self-link to its CAI asset type, so a new backend
 // group kind is a single table entry rather than a new branch.
 var backendServiceGroupSegments = map[string]string{
-	"instanceGroups":        assetTypeComputeInstanceGroup,
-	"networkEndpointGroups": assetTypeComputeNetworkEndpointGroup,
+	"instanceGroups":        catalog.AssetTypeComputeInstanceGroup,
+	"networkEndpointGroups": catalog.AssetTypeComputeNetworkEndpointGroup,
 }
 
 // init registers extractBackendService for both distinct CAI asset types that
@@ -62,8 +30,8 @@ var backendServiceGroupSegments = map[string]string{
 // the ForwardingRule/GlobalForwardingRule and Address/GlobalAddress
 // registrations.
 func init() {
-	RegisterAssetExtractor(assetTypeComputeBackendService, extractBackendService)
-	RegisterAssetExtractor(assetTypeComputeRegionBackendService, extractBackendService)
+	RegisterAssetExtractor(catalog.AssetTypeComputeBackendService, extractBackendService)
+	RegisterAssetExtractor(catalog.AssetTypeComputeRegionBackendService, extractBackendService)
 }
 
 // backendServiceData is the bounded view of a CAI
@@ -126,16 +94,16 @@ func extractBackendService(ctx ExtractContext) (AttributeExtraction, error) {
 
 	if policyName := computeResourceFullNameFromSelfLink(data.SecurityPolicy, "securityPolicies", ctx.ProjectID); policyName != "" {
 		anchors = append(anchors, policyName)
-		rels = append(rels, backendServiceEdge(ctx, relationshipTypeBackendServiceUsesSecurityPolicy, policyName, assetTypeComputeSecurityPolicy))
+		rels = append(rels, backendServiceEdge(ctx, catalog.RelationshipTypeBackendServiceUsesSecurityPolicy, policyName, catalog.AssetTypeComputeSecurityPolicy))
 	}
 	if edgePolicyName := computeResourceFullNameFromSelfLink(data.EdgeSecurityPolicy, "securityPolicies", ctx.ProjectID); edgePolicyName != "" {
 		anchors = append(anchors, edgePolicyName)
-		rels = append(rels, backendServiceEdge(ctx, relationshipTypeBackendServiceUsesEdgeSecurityPolicy, edgePolicyName, assetTypeComputeSecurityPolicy))
+		rels = append(rels, backendServiceEdge(ctx, catalog.RelationshipTypeBackendServiceUsesEdgeSecurityPolicy, edgePolicyName, catalog.AssetTypeComputeSecurityPolicy))
 	}
 	for _, hc := range data.HealthChecks {
 		if hcName := computeResourceFullNameFromSelfLink(hc, "healthChecks", ctx.ProjectID); hcName != "" {
 			anchors = append(anchors, hcName)
-			rels = append(rels, backendServiceEdge(ctx, relationshipTypeBackendServiceUsesHealthCheck, hcName, assetTypeComputeHealthCheck))
+			rels = append(rels, backendServiceEdge(ctx, catalog.RelationshipTypeBackendServiceUsesHealthCheck, hcName, catalog.AssetTypeComputeHealthCheck))
 		}
 	}
 	for _, backend := range data.Backends {
@@ -144,7 +112,7 @@ func extractBackendService(ctx ExtractContext) (AttributeExtraction, error) {
 			continue
 		}
 		anchors = append(anchors, groupName)
-		rels = append(rels, backendServiceEdge(ctx, relationshipTypeBackendServiceHasBackend, groupName, groupType))
+		rels = append(rels, backendServiceEdge(ctx, catalog.RelationshipTypeBackendServiceHasBackend, groupName, groupType))
 	}
 
 	return AttributeExtraction{

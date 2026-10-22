@@ -7,50 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type constants for the compute VpnTunnel typed-depth extractor and the
-// relationship endpoints it derives. assetTypeComputeVpnTunnel is declared by
-// the sibling Route extractor (extractor_route.go), which reuses it for its own
-// next-hop-VPN-tunnel edge, and is reused here as this extractor's own asset
-// type. assetTypeComputeTargetVPNGateway is declared by the sibling
-// ForwardingRule extractor (extractor_forwarding_rule.go) and reused here for
-// the Classic VPN target-gateway edge. assetTypeComputeRouter is declared by
-// the sibling Cloud Router extractor (extractor_router.go, #4301) and reused
-// here for the BGP-dynamic-routing router edge; this file previously declared
-// its own local copy pending that extractor's merge, per the dedup-pass note
-// this comment used to carry, and that duplicate has now been removed.
-//
-// assetTypeComputeVPNGateway is declared by the sibling Cloud VPN Gateway
-// extractor (extractor_vpn_gateway.go, #4302) and reused here for the HA
-// VPN peer-gateway edge; this file previously declared its own local copy
-// pending that extractor's merge, and that duplicate has now been removed.
-const assetTypeComputeExternalVPNGateway = "compute.googleapis.com/ExternalVpnGateway"
-
-// Bounded provider relationship types for VpnTunnel edges, carried on
-// gcp_cloud_relationship facts. The reducer materializes each edge only when
-// both endpoints resolve exactly.
-//
-//   - relationshipTypeVpnTunnelUsesVpnGateway: HA VPN tunnel -> its own HA VPN
-//     gateway (`vpnGateway`).
-//   - relationshipTypeVpnTunnelUsesTargetVpnGateway: Classic VPN tunnel -> its
-//     own Classic target VPN gateway (`targetVpnGateway`).
-//   - relationshipTypeVpnTunnelPeersWithVpnGateway: either tunnel kind -> the
-//     peer gateway, whether it is a GCP HA peer (`peerGcpGateway`) or an
-//     external peer gateway resource (`peerExternalGateway`). Both peer forms
-//     share one relationship type because the graph question ("what does this
-//     tunnel peer with") is the same regardless of which side owns the peer
-//     resource; the target's own asset type distinguishes an
-//     `ExternalVpnGateway` peer from an HA `VpnGateway` peer-to-peer topology.
-//   - relationshipTypeVpnTunnelUsesRouter: either tunnel kind -> the Cloud
-//     Router used for BGP dynamic routing, present only when the tunnel is
-//     configured for dynamic (not policy-based) routing.
-const (
-	relationshipTypeVpnTunnelUsesVpnGateway       = "vpn_tunnel_uses_vpn_gateway"
-	relationshipTypeVpnTunnelUsesTargetVpnGateway = "vpn_tunnel_uses_target_vpn_gateway"
-	relationshipTypeVpnTunnelPeersWithVpnGateway  = "vpn_tunnel_peers_with_vpn_gateway"
-	relationshipTypeVpnTunnelUsesRouter           = "vpn_tunnel_uses_router"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_net.go (#6696 HK slice); uses below name catalog.X.
 
 // vpnTunnelData is the bounded view of a CAI compute.googleapis.com/VpnTunnel
 // resource.data blob. PeerIP, SharedSecret, SharedSecretHash, and
@@ -78,7 +39,7 @@ type vpnTunnelData struct {
 }
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeVpnTunnel, extractVpnTunnel)
+	RegisterAssetExtractor(catalog.AssetTypeComputeVpnTunnel, extractVpnTunnel)
 }
 
 // extractVpnTunnel extracts bounded, redaction-safe typed depth for one compute
@@ -103,19 +64,19 @@ func extractVpnTunnel(ctx ExtractContext) (AttributeExtraction, error) {
 
 	if gatewayName := computeResourceFullNameFromSelfLink(data.VPNGateway, "vpnGateways", ctx.ProjectID); gatewayName != "" {
 		anchors = append(anchors, gatewayName)
-		rels = append(rels, vpnTunnelEdge(ctx, relationshipTypeVpnTunnelUsesVpnGateway, gatewayName, assetTypeComputeVPNGateway))
+		rels = append(rels, vpnTunnelEdge(ctx, catalog.RelationshipTypeVpnTunnelUsesVpnGateway, gatewayName, catalog.AssetTypeComputeVPNGateway))
 	}
 	if targetGatewayName := computeResourceFullNameFromSelfLink(data.TargetVPNGateway, "targetVpnGateways", ctx.ProjectID); targetGatewayName != "" {
 		anchors = append(anchors, targetGatewayName)
-		rels = append(rels, vpnTunnelEdge(ctx, relationshipTypeVpnTunnelUsesTargetVpnGateway, targetGatewayName, assetTypeComputeTargetVPNGateway))
+		rels = append(rels, vpnTunnelEdge(ctx, catalog.RelationshipTypeVpnTunnelUsesTargetVpnGateway, targetGatewayName, catalog.AssetTypeComputeTargetVPNGateway))
 	}
 	if peerName, peerType := vpnTunnelPeerGateway(data, ctx.ProjectID); peerName != "" {
 		anchors = append(anchors, peerName)
-		rels = append(rels, vpnTunnelEdge(ctx, relationshipTypeVpnTunnelPeersWithVpnGateway, peerName, peerType))
+		rels = append(rels, vpnTunnelEdge(ctx, catalog.RelationshipTypeVpnTunnelPeersWithVpnGateway, peerName, peerType))
 	}
 	if routerName := computeResourceFullNameFromSelfLink(data.Router, "routers", ctx.ProjectID); routerName != "" {
 		anchors = append(anchors, routerName)
-		rels = append(rels, vpnTunnelEdge(ctx, relationshipTypeVpnTunnelUsesRouter, routerName, assetTypeComputeRouter))
+		rels = append(rels, vpnTunnelEdge(ctx, catalog.RelationshipTypeVpnTunnelUsesRouter, routerName, catalog.AssetTypeComputeRouter))
 	}
 
 	return AttributeExtraction{
@@ -173,10 +134,10 @@ func vpnTunnelAttributes(data vpnTunnelData) map[string]any {
 // the caller emits no edge and no anchor for an ambiguous or mistyped peer.
 func vpnTunnelPeerGateway(data vpnTunnelData, sourceProjectID string) (fullName, assetType string) {
 	if name := computeResourceFullNameFromSelfLink(data.PeerGCPGateway, "vpnGateways", sourceProjectID); name != "" {
-		return name, assetTypeComputeVPNGateway
+		return name, catalog.AssetTypeComputeVPNGateway
 	}
 	if name := computeResourceFullNameFromSelfLink(data.PeerExternalGateway, "externalVpnGateways", sourceProjectID); name != "" {
-		return name, assetTypeComputeExternalVPNGateway
+		return name, catalog.AssetTypeComputeExternalVPNGateway
 	}
 	return "", ""
 }

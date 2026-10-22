@@ -7,16 +7,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeComputeHealthCheck is declared in extractor_backend_service.go
+// catalog.AssetTypeComputeHealthCheck lives in catalog/gcp_compute_lb.go (consolidated from extractor_backend_service.go)
 // (the BackendService extractor's backend_service_uses_health_check edge
 // resolves toward that same asset type as its target) and reused here; this
 // file is the other side of that edge — the HealthCheck resource's own typed
 // depth. RegisterAssetExtractor panics on a duplicate registration, so this
 // file must never redeclare the constant.
 func init() {
-	RegisterAssetExtractor(assetTypeComputeHealthCheck, extractHealthCheck)
+	RegisterAssetExtractor(catalog.AssetTypeComputeHealthCheck, extractHealthCheck)
 }
 
 // healthCheckProtocolData is the bounded view of one protocol-specific

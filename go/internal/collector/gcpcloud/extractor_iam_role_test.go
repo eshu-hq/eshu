@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const iamRoleFullName = "//iam.googleapis.com/projects/demo-project/roles/customDeployer"
@@ -14,15 +16,15 @@ const iamRoleFullName = "//iam.googleapis.com/projects/demo-project/roles/custom
 func iamRoleContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: iamRoleFullName,
-		AssetType:        iamRoleAssetType,
+		AssetType:        catalog.IamRoleAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestIAMRoleExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(iamRoleAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", iamRoleAssetType)
+	if _, ok := lookupAssetExtractor(catalog.IamRoleAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.IamRoleAssetType)
 	}
 }
 

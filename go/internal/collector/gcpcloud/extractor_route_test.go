@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const routeFullName = "//compute.googleapis.com/projects/demo-project/global/routes/to-instance"
@@ -14,15 +16,15 @@ const routeFullName = "//compute.googleapis.com/projects/demo-project/global/rou
 func routeContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: routeFullName,
-		AssetType:        assetTypeComputeRoute,
+		AssetType:        catalog.AssetTypeComputeRoute,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestRouteExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeRoute); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeRoute)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeRoute); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeRoute)
 	}
 }
 
@@ -63,10 +65,10 @@ func TestExtractRouteNextHopInstance(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 edges (network, instance), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeRouteInNetwork, network, assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeRouteNextHopInstance, instance, assetTypeComputeInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouteInNetwork, network, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouteNextHopInstance, instance, catalog.AssetTypeComputeInstance)
 	for _, rel := range got.Relationships {
-		if rel.SourceFullResourceName != routeFullName || rel.SourceAssetType != assetTypeComputeRoute {
+		if rel.SourceFullResourceName != routeFullName || rel.SourceAssetType != catalog.AssetTypeComputeRoute {
 			t.Errorf("relationship source = %q/%q, want route", rel.SourceFullResourceName, rel.SourceAssetType)
 		}
 		if rel.SupportState != RelationshipSupportSupported {
@@ -99,7 +101,7 @@ func TestExtractRouteDefaultInternetGateway(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected only the network edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeRouteInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouteInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
@@ -118,8 +120,8 @@ func TestExtractRouteVpnTunnelAndIlbEdges(t *testing.T) {
 		vpnTunnel = "//compute.googleapis.com/projects/demo-project/regions/us-central1/vpnTunnels/tunnel-1"
 		ilb       = "//compute.googleapis.com/projects/demo-project/regions/us-central1/forwardingRules/ilb-fr"
 	)
-	assertRelationship(t, got.Relationships, relationshipTypeRouteNextHopVpnTunnel, vpnTunnel, assetTypeComputeVpnTunnel)
-	assertRelationship(t, got.Relationships, relationshipTypeRouteNextHopIlb, ilb, assetTypeComputeForwardingRule)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouteNextHopVpnTunnel, vpnTunnel, catalog.AssetTypeComputeVpnTunnel)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouteNextHopIlb, ilb, catalog.AssetTypeComputeForwardingRule)
 	if got.Attributes["dest_prefix_length"] != int64(16) {
 		t.Errorf("dest_prefix_length = %v, want 16", got.Attributes["dest_prefix_length"])
 	}
@@ -138,10 +140,10 @@ func TestExtractRouteProjectlessNextHops(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeRouteNextHopInstance,
-		"//compute.googleapis.com/projects/demo-project/zones/us-central1-a/instances/nat-gw", assetTypeComputeInstance)
-	assertRelationship(t, got.Relationships, relationshipTypeRouteNextHopIlb,
-		"//compute.googleapis.com/projects/demo-project/regions/us-central1/forwardingRules/ilb-fr", assetTypeComputeForwardingRule)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouteNextHopInstance,
+		"//compute.googleapis.com/projects/demo-project/zones/us-central1-a/instances/nat-gw", catalog.AssetTypeComputeInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouteNextHopIlb,
+		"//compute.googleapis.com/projects/demo-project/regions/us-central1/forwardingRules/ilb-fr", catalog.AssetTypeComputeForwardingRule)
 }
 
 func TestExtractRouteIPv6DefaultRoute(t *testing.T) {
@@ -195,7 +197,7 @@ func TestExtractRouteDropsNonResolvableNextHops(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeRouteNextHopIlb || rel.RelationshipType == relationshipTypeRouteNextHopInstance {
+		if rel.RelationshipType == catalog.RelationshipTypeRouteNextHopIlb || rel.RelationshipType == catalog.RelationshipTypeRouteNextHopInstance {
 			t.Errorf("unexpected next-hop edge for unresolvable ref: %#v", rel)
 		}
 	}

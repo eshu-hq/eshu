@@ -8,35 +8,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type constants for the compute Persistent Disk typed-depth extractor and
-// the relationship endpoints it derives. Each target asset type names the CAI
-// asset type of an edge target so the reducer can resolve both endpoints exactly
-// before materializing the edge.
-//
-// assetTypeKMSCryptoKey and cloudKMSResourceNamePrefix are declared by the
-// BigQuery Table extractor in this package and reused here for the disk
-// encryption-key edge.
-const (
-	assetTypeComputeDisk     = "compute.googleapis.com/Disk"
-	assetTypeComputeInstance = "compute.googleapis.com/Instance"
-	assetTypeComputeImage    = "compute.googleapis.com/Image"
-	assetTypeComputeSnapshot = "compute.googleapis.com/Snapshot"
-)
-
-// Bounded provider relationship types for the Persistent Disk edges carried on
-// gcp_cloud_relationship facts. The reducer materializes each edge only when
-// both endpoints resolve exactly.
-const (
-	relationshipTypeDiskAttachedToInstance  = "disk_attached_to_instance"
-	relationshipTypeDiskCreatedFromImage    = "disk_created_from_image"
-	relationshipTypeDiskCreatedFromSnapshot = "disk_created_from_snapshot"
-	relationshipTypeDiskEncryptedByKey      = "disk_encrypted_by_key"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_core.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeDisk, extractDisk)
+	RegisterAssetExtractor(catalog.AssetTypeComputeDisk, extractDisk)
 }
 
 // diskData is the bounded view of a CAI compute.googleapis.com/Disk resource.data
@@ -83,21 +62,21 @@ func extractDisk(ctx ExtractContext) (AttributeExtraction, error) {
 	for _, user := range data.Users {
 		if instanceName := computeResourceFullName(user, "instances"); instanceName != "" {
 			anchors = append(anchors, instanceName)
-			rels = append(rels, diskEdge(ctx, relationshipTypeDiskAttachedToInstance, instanceName, assetTypeComputeInstance))
+			rels = append(rels, diskEdge(ctx, catalog.RelationshipTypeDiskAttachedToInstance, instanceName, catalog.AssetTypeComputeInstance))
 		}
 	}
 	if imageName := computeResourceFullName(data.SourceImage, "images"); imageName != "" {
 		anchors = append(anchors, imageName)
-		rels = append(rels, diskEdge(ctx, relationshipTypeDiskCreatedFromImage, imageName, assetTypeComputeImage))
+		rels = append(rels, diskEdge(ctx, catalog.RelationshipTypeDiskCreatedFromImage, imageName, catalog.AssetTypeComputeImage))
 	}
 	if snapshotName := computeResourceFullName(data.SourceSnapshot, "snapshots"); snapshotName != "" {
 		anchors = append(anchors, snapshotName)
-		rels = append(rels, diskEdge(ctx, relationshipTypeDiskCreatedFromSnapshot, snapshotName, assetTypeComputeSnapshot))
+		rels = append(rels, diskEdge(ctx, catalog.RelationshipTypeDiskCreatedFromSnapshot, snapshotName, catalog.AssetTypeComputeSnapshot))
 	}
 	if data.DiskEncryptionKey != nil {
 		if keyName := kmsCryptoKeyFullName(data.DiskEncryptionKey.KMSKeyName); keyName != "" {
 			anchors = append(anchors, keyName)
-			rels = append(rels, diskEdge(ctx, relationshipTypeDiskEncryptedByKey, keyName, assetTypeKMSCryptoKey))
+			rels = append(rels, diskEdge(ctx, catalog.RelationshipTypeDiskEncryptedByKey, keyName, assetTypeKMSCryptoKey))
 		}
 	}
 

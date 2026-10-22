@@ -7,16 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// workloadIdentityPoolAssetType is the Cloud Asset Inventory asset type for a GCP
-// IAM Workload Identity Pool. It is declared here so both the pool extractor and
-// the provider extractor (which builds the provider -> pool edge) share one
-// constant.
-const workloadIdentityPoolAssetType = "iam.googleapis.com/WorkloadIdentityPool"
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(workloadIdentityPoolAssetType, extractWorkloadIdentityPool)
+	RegisterAssetExtractor(catalog.WorkloadIdentityPoolAssetType, extractWorkloadIdentityPool)
 }
 
 // workloadIdentityPoolData is the bounded view of a CAI

@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const addressFullName = "//compute.googleapis.com/projects/demo-project/regions/us-central1/addresses/web-ip"
@@ -14,15 +16,15 @@ const addressFullName = "//compute.googleapis.com/projects/demo-project/regions/
 func addressContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: addressFullName,
-		AssetType:        assetTypeComputeAddress,
+		AssetType:        catalog.AssetTypeComputeAddress,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestAddressExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeAddress); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeAddress)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeAddress); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeAddress)
 	}
 }
 
@@ -77,16 +79,16 @@ func TestExtractAddressFullResource(t *testing.T) {
 	if len(got.Relationships) != 4 {
 		t.Fatalf("expected 4 edges (network, subnetwork, fr, instance), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAddressInNetwork, network, assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeAddressInSubnetwork, subnetwork, assetTypeComputeSubnetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeAddressUsedByForwardingRule, forwardingRule, assetTypeComputeForwardingRule)
-	assertRelationship(t, got.Relationships, relationshipTypeAddressUsedByInstance, instance, assetTypeComputeInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAddressInNetwork, network, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAddressInSubnetwork, subnetwork, assetTypeComputeSubnetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAddressUsedByForwardingRule, forwardingRule, catalog.AssetTypeComputeForwardingRule)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAddressUsedByInstance, instance, catalog.AssetTypeComputeInstance)
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != addressFullName {
 			t.Errorf("relationship source = %q, want address full name", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != assetTypeComputeAddress {
-			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, assetTypeComputeAddress)
+		if rel.SourceAssetType != catalog.AssetTypeComputeAddress {
+			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.AssetTypeComputeAddress)
 		}
 		if rel.SupportState != RelationshipSupportSupported {
 			t.Errorf("relationship support state = %q, want %q", rel.SupportState, RelationshipSupportSupported)
@@ -119,15 +121,15 @@ func TestExtractAddressInternalNoIPLeak(t *testing.T) {
 	if containsString(string(blob), "10.0.0.42") {
 		t.Fatalf("extraction leaked the reserved IP address: %s", blob)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAddressInSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAddressInSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/prod-subnet", assetTypeComputeSubnetwork)
 }
 
 func TestGlobalAddressExtractorIsRegistered(t *testing.T) {
 	// Global static IPs are the distinct GlobalAddress CAI asset type and must
 	// carry the same typed depth as regional addresses.
-	if _, ok := lookupAssetExtractor(assetTypeComputeGlobalAddress); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeGlobalAddress)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeGlobalAddress); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeGlobalAddress)
 	}
 }
 
@@ -144,7 +146,7 @@ func TestExtractGlobalAddressNoRegion(t *testing.T) {
 	}`
 	ctx := ExtractContext{
 		FullResourceName: "//compute.googleapis.com/projects/demo-project/global/addresses/psc-ip",
-		AssetType:        assetTypeComputeGlobalAddress,
+		AssetType:        catalog.AssetTypeComputeGlobalAddress,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
@@ -165,7 +167,7 @@ func TestExtractGlobalAddressNoRegion(t *testing.T) {
 	if containsString(string(blob), "203.0.113.99") {
 		t.Fatalf("extraction leaked the global address IP: %s", blob)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAddressInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAddressInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
@@ -191,9 +193,9 @@ func TestExtractAddressDeduplicatesRepeatedUsers(t *testing.T) {
 	inst := 0
 	for _, rel := range got.Relationships {
 		switch rel.RelationshipType {
-		case relationshipTypeAddressUsedByForwardingRule:
+		case catalog.RelationshipTypeAddressUsedByForwardingRule:
 			fr++
-		case relationshipTypeAddressUsedByInstance:
+		case catalog.RelationshipTypeAddressUsedByInstance:
 			inst++
 		}
 	}

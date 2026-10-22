@@ -7,17 +7,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeComputeSecurityPolicy (compute.googleapis.com/SecurityPolicy) is
-// declared in extractor_backend_service.go — the Backend Service extractor's
+// catalog.AssetTypeComputeSecurityPolicy (compute.googleapis.com/SecurityPolicy) lives in
+// catalog/gcp_compute_lb.go (consolidated from extractor_backend_service.go) — the Backend Service extractor's
 // backend_service_uses_security_policy and
 // backend_service_uses_edge_security_policy edges already resolve toward this
 // asset type as their target — and reused here; this file is the SecurityPolicy
 // resource's own typed depth, never redeclaring the constant.
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeSecurityPolicy, extractSecurityPolicy)
+	RegisterAssetExtractor(catalog.AssetTypeComputeSecurityPolicy, extractSecurityPolicy)
 }
 
 // securityPolicyRuleData is the bounded view of one CAI SecurityPolicy rule

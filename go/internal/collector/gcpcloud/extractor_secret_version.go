@@ -7,29 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type for a Secret Manager Secret Version and for the KMS CryptoKeyVersion
-// a CMEK-encrypted version references. The parent Secret endpoint reuses
-// secretManagerSecretAssetType; the KMS resource-name prefix reuses
-// cloudKMSResourceNamePrefix, both declared elsewhere in this package.
-const (
-	secretVersionAssetType       = "secretmanager.googleapis.com/SecretVersion"
-	assetTypeKMSCryptoKeyVersion = "cloudkms.googleapis.com/CryptoKeyVersion"
-)
-
-// Bounded provider relationship types for Secret Version edges.
-const (
-	relationshipTypeSecretVersionOfSecret                 = "secret_version_of_secret"
-	relationshipTypeSecretVersionEncryptedByKMSKeyVersion = "secret_version_encrypted_by_kms_key_version"
-)
-
-// secretVersionVersionsMarker separates a Secret full resource name from its
-// per-version suffix (`.../secrets/<secret>/versions/<id>`).
-const secretVersionVersionsMarker = "/versions/"
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(secretVersionAssetType, extractSecretVersion)
+	RegisterAssetExtractor(catalog.SecretVersionAssetType, extractSecretVersion)
 }
 
 // secretVersionData is the bounded view of a CAI
@@ -103,10 +88,10 @@ func extractSecretVersion(ctx ExtractContext) (AttributeExtraction, error) {
 
 	var rels []RelationshipObservation
 	if parent := parentSecretFullName(ctx.FullResourceName); parent != "" {
-		rels = append(rels, secretVersionEdge(ctx, relationshipTypeSecretVersionOfSecret, parent, secretManagerSecretAssetType))
+		rels = append(rels, secretVersionEdge(ctx, catalog.RelationshipTypeSecretVersionOfSecret, parent, secretManagerSecretAssetType))
 	}
 	for _, keyVersion := range keyVersions {
-		rels = append(rels, secretVersionEdge(ctx, relationshipTypeSecretVersionEncryptedByKMSKeyVersion, keyVersion, assetTypeKMSCryptoKeyVersion))
+		rels = append(rels, secretVersionEdge(ctx, catalog.RelationshipTypeSecretVersionEncryptedByKMSKeyVersion, keyVersion, catalog.AssetTypeKMSCryptoKeyVersion))
 	}
 
 	return AttributeExtraction{
@@ -171,9 +156,8 @@ func normalizeKMSCryptoKeyVersionPath(name string) string {
 	if strings.Contains(name, "/cryptoKeyVersions/") {
 		return name
 	}
-	const versionsMarker = "/versions/"
-	if i := strings.LastIndex(name, versionsMarker); i >= 0 && strings.Contains(name[:i], "/cryptoKeys/") {
-		return name[:i] + "/cryptoKeyVersions/" + name[i+len(versionsMarker):]
+	if i := strings.LastIndex(name, catalog.SecretVersionVersionsMarker); i >= 0 && strings.Contains(name[:i], "/cryptoKeys/") {
+		return name[:i] + "/cryptoKeyVersions/" + name[i+len(catalog.SecretVersionVersionsMarker):]
 	}
 	return name
 }
@@ -185,8 +169,8 @@ func normalizeKMSCryptoKeyVersionPath(name string) string {
 // a version.
 func parentSecretFullName(versionFullName string) string {
 	trimmed := strings.TrimSpace(versionFullName)
-	index := strings.LastIndex(trimmed, secretVersionVersionsMarker)
-	if index < 0 || index+len(secretVersionVersionsMarker) >= len(trimmed) {
+	index := strings.LastIndex(trimmed, catalog.SecretVersionVersionsMarker)
+	if index < 0 || index+len(catalog.SecretVersionVersionsMarker) >= len(trimmed) {
 		return ""
 	}
 	return trimmed[:index]

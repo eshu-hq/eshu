@@ -6,6 +6,8 @@ package gcpcloud
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const routerFullName = "//compute.googleapis.com/projects/demo-project/regions/us-central1/routers/edge-router"
@@ -13,15 +15,15 @@ const routerFullName = "//compute.googleapis.com/projects/demo-project/regions/u
 func routerContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: routerFullName,
-		AssetType:        assetTypeComputeRouter,
+		AssetType:        catalog.AssetTypeComputeRouter,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestRouterExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeRouter); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeRouter)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeRouter); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeRouter)
 	}
 }
 
@@ -57,7 +59,7 @@ func TestExtractRouterBasicAttributesAndNetworkEdge(t *testing.T) {
 	}
 
 	const network = "//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc"
-	assertRelationship(t, got.Relationships, relationshipTypeRouterInNetwork, network, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouterInNetwork, network, assetTypeComputeNetwork)
 	if !containsStringSlice(got.CorrelationAnchors, network) {
 		t.Errorf("expected network anchor %q in %#v", network, got.CorrelationAnchors)
 	}
@@ -192,9 +194,9 @@ func TestExtractRouterInterfaceEdgesToVpnTunnelAndInterconnectAttachment(t *test
 		attachment = "//compute.googleapis.com/projects/demo-project/regions/us-central1/interconnectAttachments/attach-1"
 		subnet     = "//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/sub-1"
 	)
-	assertRelationship(t, got.Relationships, relationshipTypeRouterInterfaceLinkedVpnTunnel, tunnel, assetTypeComputeVpnTunnel)
-	assertRelationship(t, got.Relationships, relationshipTypeRouterInterfaceLinkedInterconnectAttachment, attachment, assetTypeComputeInterconnectAttachment)
-	assertRelationship(t, got.Relationships, relationshipTypeRouterInterfaceSubnetwork, subnet, assetTypeComputeSubnetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouterInterfaceLinkedVpnTunnel, tunnel, catalog.AssetTypeComputeVpnTunnel)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouterInterfaceLinkedInterconnectAttachment, attachment, catalog.AssetTypeComputeInterconnectAttachment)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRouterInterfaceSubnetwork, subnet, assetTypeComputeSubnetwork)
 
 	if got.Attributes["interface_count"] != 3 {
 		t.Fatalf("interface_count = %v, want 3", got.Attributes["interface_count"])
@@ -233,8 +235,8 @@ func TestExtractRouterInterfaceRejectsWrongSegmentReference(t *testing.T) {
 	}
 
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeRouterInterfaceLinkedVpnTunnel {
-			t.Fatalf("expected no %s edge for a wrong-segment reference, got %#v", relationshipTypeRouterInterfaceLinkedVpnTunnel, rel)
+		if rel.RelationshipType == catalog.RelationshipTypeRouterInterfaceLinkedVpnTunnel {
+			t.Fatalf("expected no %s edge for a wrong-segment reference, got %#v", catalog.RelationshipTypeRouterInterfaceLinkedVpnTunnel, rel)
 		}
 	}
 

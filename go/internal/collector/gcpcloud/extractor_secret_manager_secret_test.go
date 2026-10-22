@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const secretManagerSecretFullName = "//secretmanager.googleapis.com/projects/demo-project/secrets/api-token"
@@ -77,11 +79,11 @@ func TestExtractSecretManagerSecretFullResource(t *testing.T) {
 	if len(got.Relationships) != 3 {
 		t.Fatalf("expected 2 KMS edges + 1 topic edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSecretEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSecretEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/secrets/cryptoKeys/primary", assetTypeKMSCryptoKey)
-	assertRelationship(t, got.Relationships, relationshipTypeSecretEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSecretEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-east1/keyRings/secrets/cryptoKeys/replica", assetTypeKMSCryptoKey)
-	assertRelationship(t, got.Relationships, relationshipTypeSecretNotifiesTopic,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSecretNotifiesTopic,
 		"//pubsub.googleapis.com/projects/demo-project/topics/secret-rotation", assetTypePubSubTopic)
 	rel := got.Relationships[0]
 	if rel.SourceFullResourceName != secretManagerSecretFullName {
@@ -151,7 +153,7 @@ func TestExtractSecretManagerSecretAutomaticCMEK(t *testing.T) {
 	if _, ok := got.Attributes["replication_location_count"]; ok {
 		t.Errorf("automatic replication must not report a location count: %#v", got.Attributes)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSecretEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSecretEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/global/keyRings/kr/cryptoKeys/k", assetTypeKMSCryptoKey)
 }
 
@@ -239,7 +241,7 @@ func TestExtractSecretManagerWrongDomainKMSKeyEmitsNoEdgeOrAnchor(t *testing.T) 
 		}
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeSecretEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeSecretEncryptedByKMSKey {
 			t.Errorf("wrong-domain kmsKeyName minted an encryption edge: %+v", rel)
 		}
 	}

@@ -10,13 +10,13 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// apiKeyAssetType is the Cloud Asset Inventory asset type for a GCP API Key.
-const apiKeyAssetType = "apikeys.googleapis.com/Key"
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(apiKeyAssetType, extractAPIKey)
+	RegisterAssetExtractor(catalog.ApiKeyAssetType, extractAPIKey)
 }
 
 // apiKeyData is the bounded view of a CAI apikeys.googleapis.com/Key

@@ -6,6 +6,8 @@ package gcpcloud
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const interconnectAttachmentFullName = "//compute.googleapis.com/projects/demo-project/regions/us-central1/interconnectAttachments/edge-attach"
@@ -13,15 +15,15 @@ const interconnectAttachmentFullName = "//compute.googleapis.com/projects/demo-p
 func interconnectAttachmentContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: interconnectAttachmentFullName,
-		AssetType:        assetTypeComputeInterconnectAttachment,
+		AssetType:        catalog.AssetTypeComputeInterconnectAttachment,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestInterconnectAttachmentExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeInterconnectAttachment); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeInterconnectAttachment)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeInterconnectAttachment); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeInterconnectAttachment)
 	}
 }
 
@@ -59,8 +61,8 @@ func TestExtractInterconnectAttachmentBasicAttributesAndEdges(t *testing.T) {
 
 	const router = "//compute.googleapis.com/projects/demo-project/regions/us-central1/routers/edge-router"
 	const interconnect = "//compute.googleapis.com/projects/demo-project/global/interconnects/edge-interconnect"
-	assertRelationship(t, got.Relationships, relationshipTypeInterconnectAttachmentUsesRouter, router, assetTypeComputeRouter)
-	assertRelationship(t, got.Relationships, relationshipTypeInterconnectAttachmentUsesInterconnect, interconnect, assetTypeComputeInterconnect)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeInterconnectAttachmentUsesRouter, router, catalog.AssetTypeComputeRouter)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeInterconnectAttachmentUsesInterconnect, interconnect, catalog.AssetTypeComputeInterconnect)
 
 	for _, anchor := range []string{router, interconnect} {
 		if !containsStringSlice(got.CorrelationAnchors, anchor) {
@@ -160,7 +162,7 @@ func TestExtractInterconnectAttachmentL2DedicatedNetworkEdge(t *testing.T) {
 	}
 
 	const network = "//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc"
-	assertRelationship(t, got.Relationships, relationshipTypeInterconnectAttachmentUsesNetwork, network, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeInterconnectAttachmentUsesNetwork, network, assetTypeComputeNetwork)
 	if !containsStringSlice(got.CorrelationAnchors, network) {
 		t.Errorf("expected network anchor %q in %#v", network, got.CorrelationAnchors)
 	}
@@ -186,7 +188,7 @@ func TestExtractInterconnectAttachmentNoL2ForwardingYieldsNoNetworkEdge(t *testi
 		t.Fatalf("unexpected error: %v", err)
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeInterconnectAttachmentUsesNetwork {
+		if rel.RelationshipType == catalog.RelationshipTypeInterconnectAttachmentUsesNetwork {
 			t.Fatalf("expected no network edge without l2Forwarding, got %#v", rel)
 		}
 	}

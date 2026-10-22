@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const subnetworkFullName = "//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/private-subnet"
@@ -74,7 +76,7 @@ func TestExtractSubnetworkFullResource(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly the parent-network edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSubnetworkInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSubnetworkInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/main-vpc", assetTypeComputeNetwork)
 	rel := got.Relationships[0]
 	if rel.SourceFullResourceName != subnetworkFullName {
@@ -138,7 +140,7 @@ func TestExtractSubnetworkPartialData(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected the parent-network edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSubnetworkInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSubnetworkInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/main-vpc", assetTypeComputeNetwork)
 }
 

@@ -7,24 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// workloadIdentityPoolProviderAssetType is the Cloud Asset Inventory asset type
-// for a GCP IAM Workload Identity Pool Provider — the child of a
-// WorkloadIdentityPool that configures the external AWS/OIDC/SAML trust.
-const workloadIdentityPoolProviderAssetType = "iam.googleapis.com/WorkloadIdentityPoolProvider"
-
-// relationshipTypeWIFProviderOfPool is the bounded provider relationship type for
-// the edge from a provider to its parent Workload Identity Pool. The reducer
-// materializes the edge only when both endpoints resolve exactly.
-const relationshipTypeWIFProviderOfPool = "workload_identity_provider_of_pool"
-
-// wifProvidersMarker separates a WorkloadIdentityPool full resource name from its
-// per-provider suffix (`.../workloadIdentityPools/<pool>/providers/<id>`).
-const wifProvidersMarker = "/providers/"
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(workloadIdentityPoolProviderAssetType, extractWorkloadIdentityPoolProvider)
+	RegisterAssetExtractor(catalog.WorkloadIdentityPoolProviderAssetType, extractWorkloadIdentityPoolProvider)
 }
 
 // workloadIdentityPoolProviderData is the bounded view of a CAI
@@ -58,13 +48,6 @@ type workloadIdentityPoolProviderData struct {
 	// be surfaced.
 	X509 *struct{} `json:"x509"`
 }
-
-// awsDefaultAttributeMappingKeyCount is the number of attribute-mapping keys IAM
-// applies by default to an AWS Workload Identity Pool Provider that declares no
-// explicit attributeMapping (`google.subject` and `attribute.aws_role`). Reporting
-// it keeps the effective trust-mapping posture accurate rather than emitting an
-// "unknown/empty" mapping for the common default-AWS case.
-const awsDefaultAttributeMappingKeyCount = 2
 
 // extractWorkloadIdentityPoolProvider extracts bounded, redaction-safe typed depth
 // for one CAI IAM Workload Identity Pool Provider asset. It surfaces the external
@@ -117,7 +100,7 @@ func extractWorkloadIdentityPoolProvider(ctx ExtractContext) (AttributeExtractio
 	// provider still has a real mapping posture rather than an empty one.
 	mappingCount := len(data.AttributeMapping)
 	if mappingCount == 0 && data.AWS != nil {
-		mappingCount = awsDefaultAttributeMappingKeyCount
+		mappingCount = catalog.AwsDefaultAttributeMappingKeyCount
 	}
 	if mappingCount > 0 {
 		attrs["attribute_mapping_key_count"] = mappingCount
@@ -131,9 +114,9 @@ func extractWorkloadIdentityPoolProvider(ctx ExtractContext) (AttributeExtractio
 		rels = append(rels, RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
-			RelationshipType:       relationshipTypeWIFProviderOfPool,
+			RelationshipType:       catalog.RelationshipTypeWIFProviderOfPool,
 			TargetFullResourceName: pool,
-			TargetAssetType:        workloadIdentityPoolAssetType,
+			TargetAssetType:        catalog.WorkloadIdentityPoolAssetType,
 			SupportState:           RelationshipSupportSupported,
 		})
 	}
@@ -152,8 +135,8 @@ func extractWorkloadIdentityPoolProvider(ctx ExtractContext) (AttributeExtractio
 // provider -> pool edge from a name that does not identify a provider.
 func parentWorkloadIdentityPoolFullName(providerFullName string) string {
 	trimmed := strings.TrimSpace(providerFullName)
-	index := strings.LastIndex(trimmed, wifProvidersMarker)
-	if index < 0 || index+len(wifProvidersMarker) >= len(trimmed) {
+	index := strings.LastIndex(trimmed, catalog.WifProvidersMarker)
+	if index < 0 || index+len(catalog.WifProvidersMarker) >= len(trimmed) {
 		return ""
 	}
 	return trimmed[:index]

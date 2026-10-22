@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const kmsCryptoKeyFullResourceName = "//cloudkms.googleapis.com/projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1"
@@ -72,8 +74,8 @@ func TestExtractKMSCryptoKeyFullResource(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 keyring edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeCryptoKeyInKeyRing,
-		"//cloudkms.googleapis.com/projects/demo-project/locations/us/keyRings/rk", assetTypeKMSKeyRing)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeCryptoKeyInKeyRing,
+		"//cloudkms.googleapis.com/projects/demo-project/locations/us/keyRings/rk", catalog.AssetTypeKMSKeyRing)
 	rel := got.Relationships[0]
 	if rel.SourceFullResourceName != kmsCryptoKeyFullResourceName {
 		t.Errorf("relationship source = %q, want crypto key full name", rel.SourceFullResourceName)
@@ -139,7 +141,7 @@ func TestExtractKMSCryptoKeyDerivesKeyRingFromOwnName(t *testing.T) {
 		t.Errorf("key_ring = %v, want %v", got.Attributes["key_ring"], wantBare)
 	}
 	wantFullName := "//cloudkms.googleapis.com/projects/p/locations/l/keyRings/ring-a"
-	assertRelationship(t, got.Relationships, relationshipTypeCryptoKeyInKeyRing, wantFullName, assetTypeKMSKeyRing)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeCryptoKeyInKeyRing, wantFullName, catalog.AssetTypeKMSKeyRing)
 }
 
 func TestExtractKMSCryptoKeyDerivesKeyRingFromFullResourceNameFallback(t *testing.T) {
@@ -164,7 +166,7 @@ func TestExtractKMSCryptoKeyDerivesKeyRingFromFullResourceNameFallback(t *testin
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {
 		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeCryptoKeyInKeyRing, wantFullName, assetTypeKMSKeyRing)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeCryptoKeyInKeyRing, wantFullName, catalog.AssetTypeKMSKeyRing)
 }
 
 func TestExtractKMSCryptoKeyPrefersDataNameOverFullResourceNameFallback(t *testing.T) {

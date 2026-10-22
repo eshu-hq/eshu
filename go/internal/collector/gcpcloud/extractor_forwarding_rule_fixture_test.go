@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -79,17 +80,17 @@ func TestForwardingRuleOfflineFixtureEndToEnd(t *testing.T) {
 		t.Errorf("internal-lb is_external = %v, want false", internalAttrs["is_external"])
 	}
 
-	if relTypeCounts[relationshipTypeForwardingRuleTargetsTargetPool] != 1 {
-		t.Errorf("target-pool edges = %d, want 1", relTypeCounts[relationshipTypeForwardingRuleTargetsTargetPool])
+	if relTypeCounts[catalog.RelationshipTypeForwardingRuleTargetsTargetPool] != 1 {
+		t.Errorf("target-pool edges = %d, want 1", relTypeCounts[catalog.RelationshipTypeForwardingRuleTargetsTargetPool])
 	}
-	if relTypeCounts[relationshipTypeForwardingRuleTargetsBackendService] != 1 {
-		t.Errorf("backend-service edges = %d, want 1", relTypeCounts[relationshipTypeForwardingRuleTargetsBackendService])
+	if relTypeCounts[catalog.RelationshipTypeForwardingRuleTargetsBackendService] != 1 {
+		t.Errorf("backend-service edges = %d, want 1", relTypeCounts[catalog.RelationshipTypeForwardingRuleTargetsBackendService])
 	}
-	if relTypeCounts[relationshipTypeForwardingRuleInNetwork] != 2 {
-		t.Errorf("network edges = %d, want 2", relTypeCounts[relationshipTypeForwardingRuleInNetwork])
+	if relTypeCounts[catalog.RelationshipTypeForwardingRuleInNetwork] != 2 {
+		t.Errorf("network edges = %d, want 2", relTypeCounts[catalog.RelationshipTypeForwardingRuleInNetwork])
 	}
-	if relTypeCounts[relationshipTypeForwardingRuleInSubnetwork] != 2 {
-		t.Errorf("subnetwork edges = %d, want 2", relTypeCounts[relationshipTypeForwardingRuleInSubnetwork])
+	if relTypeCounts[catalog.RelationshipTypeForwardingRuleInSubnetwork] != 2 {
+		t.Errorf("subnetwork edges = %d, want 2", relTypeCounts[catalog.RelationshipTypeForwardingRuleInSubnetwork])
 	}
 
 	// No IP address token from the fixture may reach any fact.

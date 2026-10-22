@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const instanceFullName = "//compute.googleapis.com/projects/demo-project/zones/us-central1-a/instances/web-1"
@@ -16,15 +17,15 @@ const instanceFullName = "//compute.googleapis.com/projects/demo-project/zones/u
 func instanceContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: instanceFullName,
-		AssetType:        assetTypeComputeInstance,
+		AssetType:        catalog.AssetTypeComputeInstance,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestInstanceExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeInstance); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeInstance)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeInstance); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeInstance)
 	}
 }
 
@@ -108,17 +109,17 @@ func TestExtractInstanceFullResource(t *testing.T) {
 	if len(got.Relationships) != 4 {
 		t.Fatalf("expected 4 edges (2 disks, network, subnetwork), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeInstanceUsesDisk, bootDisk, assetTypeComputeDisk)
-	assertRelationship(t, got.Relationships, relationshipTypeInstanceUsesDisk, dataDisk, assetTypeComputeDisk)
-	assertRelationship(t, got.Relationships, relationshipTypeInstanceInNetwork, network, assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeInstanceInSubnetwork, subnetwork, assetTypeComputeSubnetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeInstanceUsesDisk, bootDisk, catalog.AssetTypeComputeDisk)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeInstanceUsesDisk, dataDisk, catalog.AssetTypeComputeDisk)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeInstanceInNetwork, network, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeInstanceInSubnetwork, subnetwork, assetTypeComputeSubnetwork)
 
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != instanceFullName {
 			t.Errorf("relationship source = %q, want instance full name", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != assetTypeComputeInstance {
-			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, assetTypeComputeInstance)
+		if rel.SourceAssetType != catalog.AssetTypeComputeInstance {
+			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.AssetTypeComputeInstance)
 		}
 		if rel.SupportState != RelationshipSupportSupported {
 			t.Errorf("relationship support state = %q, want %q", rel.SupportState, RelationshipSupportSupported)
@@ -149,7 +150,7 @@ func TestExtractInstanceNoExternalIP(t *testing.T) {
 		t.Errorf("status = %v, want TERMINATED", got.Attributes["status"])
 	}
 	// Network edge still resolves from the partial reference.
-	assertRelationship(t, got.Relationships, relationshipTypeInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 

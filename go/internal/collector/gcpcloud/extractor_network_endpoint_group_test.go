@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -15,15 +16,15 @@ const networkEndpointGroupFullName = "//compute.googleapis.com/projects/demo-pro
 func networkEndpointGroupContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: networkEndpointGroupFullName,
-		AssetType:        assetTypeComputeNetworkEndpointGroup,
+		AssetType:        catalog.AssetTypeComputeNetworkEndpointGroup,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestNetworkEndpointGroupExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeNetworkEndpointGroup); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeNetworkEndpointGroup)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeNetworkEndpointGroup); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeNetworkEndpointGroup)
 	}
 }
 
@@ -67,8 +68,8 @@ func TestExtractNetworkEndpointGroupZonalGCEVMIPPort(t *testing.T) {
 
 	wantNetwork := "//compute.googleapis.com/projects/demo-project/global/networks/default"
 	wantSubnet := "//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/default"
-	assertRelationship(t, got.Relationships, relationshipTypeNetworkEndpointGroupInNetwork, wantNetwork, assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeNetworkEndpointGroupInSubnetwork, wantSubnet, assetTypeComputeSubnetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeNetworkEndpointGroupInNetwork, wantNetwork, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeNetworkEndpointGroupInSubnetwork, wantSubnet, assetTypeComputeSubnetwork)
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected exactly 2 relationships, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
@@ -135,7 +136,7 @@ func TestExtractNetworkEndpointGroupServerlessCloudRun(t *testing.T) {
 	// region, so it resolves to a run.googleapis.com/Service CAI name and emits
 	// a typed edge, mirroring the Eventarc Trigger extractor's Cloud Run edge.
 	wantService := "//run.googleapis.com/projects/demo-project/locations/us-central1/services/order-service"
-	assertRelationship(t, got.Relationships, relationshipTypeNetworkEndpointGroupTargetsServerlessService, wantService, assetTypeRunService)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeNetworkEndpointGroupTargetsServerlessService, wantService, assetTypeRunService)
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly 1 relationship (cloud run service), got %#v", got.Relationships)
 	}
@@ -288,7 +289,7 @@ func TestExtractNetworkEndpointGroupPrivateServiceConnect(t *testing.T) {
 		}
 	}
 	// network is still a valid edge target for a PSC NEG per the live schema.
-	assertRelationship(t, got.Relationships, relationshipTypeNetworkEndpointGroupInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeNetworkEndpointGroupInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/default", assetTypeComputeNetwork)
 	// A Google-API hostname pscTargetService names no CAI resource, so it is
 	// fingerprinted, not turned into an edge. Only the network edge is emitted.
@@ -319,7 +320,7 @@ func TestExtractNetworkEndpointGroupPSCTargetServiceAttachment(t *testing.T) {
 	}
 
 	wantSA := "//compute.googleapis.com/projects/producer-project/regions/us-central1/serviceAttachments/my-psc-sa"
-	assertRelationship(t, got.Relationships, relationshipTypeNetworkEndpointGroupTargetsServiceAttachment, wantSA, assetTypeComputeServiceAttachment)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeNetworkEndpointGroupTargetsServiceAttachment, wantSA, catalog.AssetTypeComputeServiceAttachment)
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly 1 relationship (service attachment), got %#v", got.Relationships)
 	}

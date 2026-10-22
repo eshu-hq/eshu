@@ -7,28 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type constants for the compute Static Address typed-depth extractor and
-// the relationship endpoints it derives. assetTypeComputeNetwork,
-// assetTypeComputeSubnetwork, and assetTypeComputeInstance are declared by the
-// sibling compute extractors in this package and reused here.
-const (
-	assetTypeComputeAddress              = "compute.googleapis.com/Address"
-	assetTypeComputeGlobalAddress        = "compute.googleapis.com/GlobalAddress"
-	assetTypeComputeForwardingRule       = "compute.googleapis.com/ForwardingRule"
-	assetTypeComputeGlobalForwardingRule = "compute.googleapis.com/GlobalForwardingRule"
-)
-
-// Bounded provider relationship types for the Static Address edges carried on
-// gcp_cloud_relationship facts. The reducer materializes each edge only when both
-// endpoints resolve exactly.
-const (
-	relationshipTypeAddressInNetwork            = "address_in_network"
-	relationshipTypeAddressInSubnetwork         = "address_in_subnetwork"
-	relationshipTypeAddressUsedByForwardingRule = "address_used_by_forwarding_rule"
-	relationshipTypeAddressUsedByInstance       = "address_used_by_instance"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_net.go (#6696 HK slice); uses below name catalog.X.
 
 // addressData is the bounded view of a CAI compute.googleapis.com/Address
 // resource.data blob. The raw `address` IP value is intentionally NOT a decoded
@@ -52,8 +35,8 @@ func init() {
 	// Global static IPs are reported by Cloud Asset Inventory as the distinct
 	// GlobalAddress asset type; they carry the same resource.data shape (minus
 	// region/subnetwork), so the same extractor handles both.
-	RegisterAssetExtractor(assetTypeComputeAddress, extractAddress)
-	RegisterAssetExtractor(assetTypeComputeGlobalAddress, extractAddress)
+	RegisterAssetExtractor(catalog.AssetTypeComputeAddress, extractAddress)
+	RegisterAssetExtractor(catalog.AssetTypeComputeGlobalAddress, extractAddress)
 }
 
 // extractAddress extracts bounded, redaction-safe typed depth for one compute
@@ -76,11 +59,11 @@ func extractAddress(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 	if networkName := computeFullResourceNameFromSelfLink(data.Network, ctx.ProjectID); networkName != "" {
 		anchors = append(anchors, networkName)
-		rels = append(rels, addressEdge(ctx, relationshipTypeAddressInNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, addressEdge(ctx, catalog.RelationshipTypeAddressInNetwork, networkName, assetTypeComputeNetwork))
 	}
 	if subnetName := computeFullResourceNameFromSelfLink(data.Subnetwork, ctx.ProjectID); subnetName != "" {
 		anchors = append(anchors, subnetName)
-		rels = append(rels, addressEdge(ctx, relationshipTypeAddressInSubnetwork, subnetName, assetTypeComputeSubnetwork))
+		rels = append(rels, addressEdge(ctx, catalog.RelationshipTypeAddressInSubnetwork, subnetName, assetTypeComputeSubnetwork))
 	}
 	// Deduplicate users by resolved resource name so a duplicated users[] entry
 	// does not over-count user_count relative to the distinct used-by edges.
@@ -92,7 +75,7 @@ func extractAddress(ctx ExtractContext) (AttributeExtraction, error) {
 			}
 			seenUsers[frName] = true
 			anchors = append(anchors, frName)
-			rels = append(rels, addressEdge(ctx, relationshipTypeAddressUsedByForwardingRule, frName, assetTypeComputeForwardingRule))
+			rels = append(rels, addressEdge(ctx, catalog.RelationshipTypeAddressUsedByForwardingRule, frName, catalog.AssetTypeComputeForwardingRule))
 			continue
 		}
 		if instanceName := computeResourceFullName(user, "instances"); instanceName != "" {
@@ -101,7 +84,7 @@ func extractAddress(ctx ExtractContext) (AttributeExtraction, error) {
 			}
 			seenUsers[instanceName] = true
 			anchors = append(anchors, instanceName)
-			rels = append(rels, addressEdge(ctx, relationshipTypeAddressUsedByInstance, instanceName, assetTypeComputeInstance))
+			rels = append(rels, addressEdge(ctx, catalog.RelationshipTypeAddressUsedByInstance, instanceName, catalog.AssetTypeComputeInstance))
 		}
 	}
 	if n := len(seenUsers); n > 0 {

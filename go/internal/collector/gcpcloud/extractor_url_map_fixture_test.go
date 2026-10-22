@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -79,14 +80,14 @@ func TestURLMapOfflineFixtureEndToEnd(t *testing.T) {
 		t.Fatalf("cdn-map gcp_cloud_resource fact not found")
 	}
 
-	if relTypeCounts[relationshipTypeURLMapDefaultService] != 2 {
-		t.Errorf("default-service edges = %d, want 2", relTypeCounts[relationshipTypeURLMapDefaultService])
+	if relTypeCounts[catalog.RelationshipTypeURLMapDefaultService] != 2 {
+		t.Errorf("default-service edges = %d, want 2", relTypeCounts[catalog.RelationshipTypeURLMapDefaultService])
 	}
-	if relTypeCounts[relationshipTypeURLMapPathMatcherService] != 1 {
-		t.Errorf("path-matcher edges = %d, want 1", relTypeCounts[relationshipTypeURLMapPathMatcherService])
+	if relTypeCounts[catalog.RelationshipTypeURLMapPathMatcherService] != 1 {
+		t.Errorf("path-matcher edges = %d, want 1", relTypeCounts[catalog.RelationshipTypeURLMapPathMatcherService])
 	}
-	if relTypeCounts[relationshipTypeURLMapPathRuleService] != 1 {
-		t.Errorf("path-rule edges = %d, want 1", relTypeCounts[relationshipTypeURLMapPathRuleService])
+	if relTypeCounts[catalog.RelationshipTypeURLMapPathRuleService] != 1 {
+		t.Errorf("path-rule edges = %d, want 1", relTypeCounts[catalog.RelationshipTypeURLMapPathRuleService])
 	}
 
 	// No raw host or path routing pattern from the fixture may reach any fact.

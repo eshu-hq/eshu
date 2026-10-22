@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const (
@@ -20,15 +21,15 @@ const (
 func serviceAccountKeyContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: serviceAccountKeyFullName,
-		AssetType:        serviceAccountKeyAssetType,
+		AssetType:        catalog.ServiceAccountKeyAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestServiceAccountKeyExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(serviceAccountKeyAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", serviceAccountKeyAssetType)
+	if _, ok := lookupAssetExtractor(catalog.ServiceAccountKeyAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.ServiceAccountKeyAssetType)
 	}
 }
 
@@ -65,7 +66,7 @@ func TestExtractServiceAccountKeyFullResource(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 parent SA edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeServiceAccountKeyOf,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeServiceAccountKeyOf,
 		serviceAccountKeyParent, serviceAccountAssetType)
 	rel := got.Relationships[0]
 	if rel.SourceFullResourceName != serviceAccountKeyFullName {

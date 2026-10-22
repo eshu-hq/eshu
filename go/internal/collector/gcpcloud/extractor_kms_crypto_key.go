@@ -7,27 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeKMSKeyRing is the Cloud Asset Inventory asset type for a Cloud KMS
-// KeyRing, the CryptoKey's typed parent. assetTypeKMSCryptoKey and
-// cloudKMSResourceNamePrefix are declared by the BigQuery Table extractor in
-// this package.
-const assetTypeKMSKeyRing = "cloudkms.googleapis.com/KeyRing"
-
-// relationshipTypeCryptoKeyInKeyRing is the bounded provider relationship type
-// for the edge from a CryptoKey to its containing KeyRing. Cloud KMS does not
-// report the KeyRing as a separate field on the CryptoKey's resource.data; it
-// is derived from the CryptoKey's own resource-name path.
-const relationshipTypeCryptoKeyInKeyRing = "kms_crypto_key_in_key_ring"
-
-// kmsCryptoKeyPurposeEncryptDecrypt is the Cloud KMS CryptoKey purpose value
-// for symmetric/asymmetric encrypt-decrypt keys, the only purpose that
-// supports an automatic rotation schedule. A signing or MAC key purpose (for
-// example ASYMMETRIC_SIGN or MAC) does not rotate, so rotationPeriod and
-// nextRotationTime are gated on this purpose to avoid fabricating a rotation
-// schedule for a purpose that does not have one.
-const kmsCryptoKeyPurposeEncryptDecrypt = "ENCRYPT_DECRYPT"
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
 	RegisterAssetExtractor(assetTypeKMSCryptoKey, extractKMSCryptoKey)
@@ -90,9 +74,9 @@ func extractKMSCryptoKey(ctx ExtractContext) (AttributeExtraction, error) {
 		rels = append(rels, RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
-			RelationshipType:       relationshipTypeCryptoKeyInKeyRing,
+			RelationshipType:       catalog.RelationshipTypeCryptoKeyInKeyRing,
 			TargetFullResourceName: keyRingFullName,
-			TargetAssetType:        assetTypeKMSKeyRing,
+			TargetAssetType:        catalog.AssetTypeKMSKeyRing,
 			SupportState:           RelationshipSupportSupported,
 		})
 	}
@@ -129,7 +113,7 @@ func kmsCryptoKeyAttributes(data kmsCryptoKeyData) map[string]any {
 	// signing/MAC key can never surface a fabricated rotation schedule even if
 	// CAI's response includes stray rotation fields for that purpose.
 	purpose := strings.TrimSpace(data.Purpose)
-	if purpose == "" || purpose == kmsCryptoKeyPurposeEncryptDecrypt {
+	if purpose == "" || purpose == catalog.KmsCryptoKeyPurposeEncryptDecrypt {
 		if v := strings.TrimSpace(data.RotationPeriod); v != "" {
 			attrs["rotation_period"] = v
 		}

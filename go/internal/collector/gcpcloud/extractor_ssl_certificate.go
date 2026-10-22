@@ -7,30 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeComputeSSLCertificate is the Cloud Asset Inventory asset type for a
-// GCP Compute SSL Certificate. It is declared here, in the certificate's own
-// typed-depth extractor file, and reused by the target-proxy extractors
-// (Target HTTPS Proxy, Target SSL Proxy) that resolve a `sslCertificates[]`
-// reference into this asset type as their edge target — mirroring how
-// extractor_forwarding_rule.go declares assetTypeComputeBackendService for
-// extractor_backend_service.go to reuse.
-const assetTypeComputeSSLCertificate = "compute.googleapis.com/SslCertificate"
-
-// sslCertificateTypeSelfManaged is the certificate type the Compute
-// sslCertificates REST schema defines as the default when the optional `type`
-// field is omitted. A self-managed certificate created without an explicit
-// type reports no `type` in resource.data, so an absent value is derived to
-// this constant rather than dropped: dropping it would degrade Terraform
-// import/drift and monitoring truth for a legitimate API shape. Deriving the
-// type reads no key material — the raw certificate/private key under
-// selfManaged is still never decoded. See
-// https://cloud.google.com/compute/docs/reference/rest/v1/sslCertificates.
-const sslCertificateTypeSelfManaged = "SELF_MANAGED"
+// Family constants for this extractor now live in catalog/gcp_compute_core.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeSSLCertificate, extractSslCertificate)
+	RegisterAssetExtractor(catalog.AssetTypeComputeSSLCertificate, extractSslCertificate)
 }
 
 // sslCertificateData is the bounded view of a CAI
@@ -64,7 +48,7 @@ type sslCertificateData struct {
 //
 // The certificate's graph edges are inbound: a Target HTTPS Proxy or Target
 // SSL Proxy references this certificate through its own `sslCertificates[]`
-// field and resolves the edge from that side (see assetTypeComputeSSLCertificate's
+// field and resolves the edge from that side (see catalog.AssetTypeComputeSSLCertificate's
 // doc comment), the same inbound-edge shape as extractor_iam_role.go's IAM
 // Role. This extractor therefore derives no outbound relationships or
 // anchors. The raw PEM certificate body, private key, and every domain-name
@@ -97,7 +81,7 @@ func sslCertificateAttributes(data sslCertificateData) map[string]any {
 	if v := strings.TrimSpace(data.Type); v != "" {
 		attrs["type"] = v
 	} else {
-		attrs["type"] = sslCertificateTypeSelfManaged
+		attrs["type"] = catalog.SslCertificateTypeSelfManaged
 	}
 	if data.Managed != nil {
 		if v := strings.TrimSpace(data.Managed.Status); v != "" {

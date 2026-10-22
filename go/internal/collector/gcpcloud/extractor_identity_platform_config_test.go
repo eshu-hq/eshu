@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const identityConfigFullName = "//identitytoolkit.googleapis.com/projects/123456789/config"
@@ -14,15 +16,15 @@ const identityConfigFullName = "//identitytoolkit.googleapis.com/projects/123456
 func identityConfigContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: identityConfigFullName,
-		AssetType:        identityConfigAssetType,
+		AssetType:        catalog.IdentityConfigAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestIdentityConfigExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(identityConfigAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", identityConfigAssetType)
+	if _, ok := lookupAssetExtractor(catalog.IdentityConfigAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.IdentityConfigAssetType)
 	}
 }
 

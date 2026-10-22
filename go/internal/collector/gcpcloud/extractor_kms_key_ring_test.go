@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const kmsKeyRingFullResourceName = "//cloudkms.googleapis.com/projects/demo-project/locations/us/keyRings/rk"
@@ -14,15 +16,15 @@ const kmsKeyRingFullResourceName = "//cloudkms.googleapis.com/projects/demo-proj
 func kmsKeyRingContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: kmsKeyRingFullResourceName,
-		AssetType:        assetTypeKMSKeyRing,
+		AssetType:        catalog.AssetTypeKMSKeyRing,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestKMSKeyRingExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeKMSKeyRing); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeKMSKeyRing)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeKMSKeyRing); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeKMSKeyRing)
 	}
 }
 
@@ -76,7 +78,7 @@ func TestExtractKMSKeyRingLocationFallsBackToFullResourceName(t *testing.T) {
 func TestExtractKMSKeyRingEmptyDataYieldsNothing(t *testing.T) {
 	got, err := extractKMSKeyRing(ExtractContext{
 		FullResourceName: "",
-		AssetType:        assetTypeKMSKeyRing,
+		AssetType:        catalog.AssetTypeKMSKeyRing,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(`{}`),
 	})
