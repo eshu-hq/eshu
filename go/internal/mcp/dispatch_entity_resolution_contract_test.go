@@ -5,6 +5,7 @@ package mcp
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
@@ -62,12 +63,20 @@ func TestResolveRouteUsesExactEntityResolutionChildRequest(t *testing.T) {
 	for tool := range entityResolutionRouteTools {
 		for _, tt := range argumentCases {
 			got, err := resolveRoute(tool, tt.args)
-			if err != nil {
-				t.Fatalf("resolveRoute(%s, %s) error = %v, want nil", tool, tt.name, err)
-			}
 			request, handled := entityresolutiontools.Route(tool, routecontract.Arguments(tt.args))
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
+			}
+			if strings.Contains(request.Path, "//") {
+				// An empty path id is refused before dispatch (#8772); the
+				// child selector alone still builds the "//" request.
+				if err == nil {
+					t.Fatalf("resolveRoute(%s, %s) error = nil, want a missing-argument error", tool, tt.name)
+				}
+				continue
+			}
+			if err != nil {
+				t.Fatalf("resolveRoute(%s, %s) error = %v, want nil", tool, tt.name, err)
 			}
 			want := &routecontract.Request{
 				Method: request.Method,
@@ -191,6 +200,11 @@ func TestResolveRouteStillOwnsItsArmsAfterEntityResolution(t *testing.T) {
 	neighbourArgs := map[string]map[string]any{
 		"get_service_context": {"workload_id": "workload:checkout"},
 		"get_service_story":   {"service_name": "checkout"},
+		// Empty path ids are refused before dispatch (#8772), so the
+		// id-in-path arms carry their required id too.
+		"get_workload_context": {"workload_id": "workload:checkout"},
+		"get_workload_story":   {"workload_id": "workload:checkout"},
+		"get_incident_context": {"provider_incident_id": "INC-1"},
 	}
 	for _, tool := range []string{
 		"search_entity_content",

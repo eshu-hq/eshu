@@ -107,11 +107,19 @@ func dispatchToolWithOptions(
 		return applyResponseBudget(&dispatchResult{
 			Value:    envelope,
 			Envelope: envelope,
-			IsError:  rec.Code >= 400,
+			IsError:  !dispatchStatusSucceeded(rec.Code),
 		}, toolName, options.responseByteBudget, logger), nil
 	}
 
-	if rec.Code >= 400 {
+	if !dispatchStatusSucceeded(rec.Code) {
+		if rec.Code >= 300 && rec.Code < 400 {
+			// No MCP-reachable route redirects on purpose, so a 3xx means
+			// the request never reached its handler (#8772). Warn so an
+			// operator can find the route builder that produced it.
+			logger.Warn("mcp tool dispatch got a redirect, not a handler answer",
+				"tool", toolName, "status", rec.Code, "path", route.Path,
+				"location", rec.Header().Get("Location"))
+		}
 		return nil, fmt.Errorf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
 
@@ -123,7 +131,24 @@ func dispatchToolWithOptions(
 }
 
 // resolveRoute maps a tool name and its arguments to an internal HTTP route.
+// A route whose path carries an empty segment (a required id argument left
+// empty) is refused here with an error naming the missing argument, before any
+// request is built: the mux would answer that "//" path with a 307 redirect,
+// and the handler would never run (#8772).
 func resolveRoute(toolName string, args map[string]any) (*routecontract.Request, error) {
+	route, err := selectRoute(toolName, args)
+	if err != nil {
+		return nil, err
+	}
+	if err := rejectEmptyPathSegment(toolName, args, route); err != nil {
+		return nil, err
+	}
+	return route, nil
+}
+
+// selectRoute picks the route for a tool by walking the family selectors and
+// the root switch; resolveRoute validates what it returns.
+func selectRoute(toolName string, args map[string]any) (*routecontract.Request, error) {
 	if route, ok := documentationRoute(toolName, args); ok {
 		return route, nil
 	}

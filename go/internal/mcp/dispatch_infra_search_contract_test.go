@@ -193,7 +193,12 @@ func TestResolveRouteStillOwnsItsSwitchArmsAfterInfraSearch(t *testing.T) {
 		if _, handled := infraResourceSearchRoute(tool, map[string]any{}); handled {
 			t.Errorf("infraResourceSearchRoute(%s) handled = true, want false", tool)
 		}
-		got, err := resolveRoute(tool, map[string]any{})
+		args := map[string]any{}
+		if tool == "get_incident_context" {
+			// An empty path id is refused before dispatch (#8772).
+			args["provider_incident_id"] = "INC-1"
+		}
+		got, err := resolveRoute(tool, args)
 		if err != nil {
 			t.Errorf("resolveRoute(%s) error = %v, want nil", tool, err)
 			continue

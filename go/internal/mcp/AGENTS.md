@@ -119,6 +119,13 @@
   paths like `/api/v0/services/workload:name/context` which no handler
   matches.
 
+- **Only a 2xx handler answer is success** — `dispatchStatusSucceeded`
+  (`dispatch_args.go`) treats 3xx like 4xx. `resolveRoute` refuses a route with
+  an empty path segment (`//`, a required id left empty) with a
+  `<field> is required` error before dispatch. A new tool with an id in its path
+  needs that id in its `InputSchema` `required` list so the error names it
+  (#8772).
+
 - **Over-budget paging is limited to two tools** — `budgetPagedTools` in
   `dispatch_budget.go` lists `find_code` and `search_entity_content`. Only
   tools whose `data.results` rows are ordered, independent, and re-readable by

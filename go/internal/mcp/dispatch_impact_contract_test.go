@@ -256,7 +256,12 @@ func TestResolveRouteStillOwnsItsArmsAfterImpactExtraction(t *testing.T) {
 		if _, handled := impactRoute(tool, map[string]any{}); handled {
 			t.Errorf("impactRoute(%s) handled = true, want false", tool)
 		}
-		got, err := resolveRoute(tool, map[string]any{})
+		args := map[string]any{}
+		if tool == "get_repository_coverage" {
+			// An empty path id is refused before dispatch (#8772).
+			args["repo_id"] = "repo-1"
+		}
+		got, err := resolveRoute(tool, args)
 		if err != nil {
 			t.Errorf("resolveRoute(%s) error = %v, want nil", tool, err)
 			continue
