@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -303,7 +302,7 @@ func validateAllowedServices(values []string) ([]string, error) {
 func validateServiceRegionCompatibility(services []string, regions []string) error {
 	for _, service := range services {
 		switch strings.TrimSpace(service) {
-		case awscloud.ServiceOrganizations:
+		case catalog.ServiceOrganizations:
 			if len(regions) != 1 || strings.TrimSpace(regions[0]) != "us-east-1" {
 				return fmt.Errorf(`organizations scans require allowed_regions ["us-east-1"]`)
 			}

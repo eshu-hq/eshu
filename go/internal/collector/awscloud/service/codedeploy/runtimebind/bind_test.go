@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/codedeploy/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -18,14 +19,14 @@ import (
 // the CodeDeploy scanner builder and that the builder requires a redaction key
 // because on-premises tag values are redacted.
 func TestCodeDeployRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCodeDeploy)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceCodeDeploy)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCodeDeploy)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceCodeDeploy)
 	}
 
 	if _, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCodeDeploy},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCodeDeploy},
 	}); err == nil {
 		t.Fatalf("build() error = nil, want redaction-key-required error")
 	}
@@ -36,7 +37,7 @@ func TestCodeDeployRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCodeDeploy},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCodeDeploy},
 		RedactionKey: key,
 	})
 	if err != nil {

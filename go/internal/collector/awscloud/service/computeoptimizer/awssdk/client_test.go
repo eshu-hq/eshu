@@ -12,6 +12,7 @@ import (
 	awscotypes "github.com/aws/aws-sdk-go-v2/service/computeoptimizer/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 type fakeAPI struct {
@@ -59,7 +60,7 @@ func testClient(api apiClient) *Client {
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceComputeOptimizer,
+			ServiceKind: catalog.ServiceComputeOptimizer,
 		},
 	}
 }

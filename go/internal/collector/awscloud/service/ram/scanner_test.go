@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/ram"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -28,7 +29,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceRAM,
+		ServiceKind:         catalog.ServiceRAM,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:ram:1",
 		CollectorInstanceID: "collector-aws-1",
@@ -140,7 +141,7 @@ func TestScanShareResourceTargetsSharedResourceArnAndType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rel := findRelationship(t, envelopes, awscloud.RelationshipRAMShareIncludesResource)
+	rel := findRelationship(t, envelopes, catalog.RelationshipRAMShareIncludesResource)
 	if rel.TargetResourceID != "ec2-arn:subnet/subnet-abc" {
 		t.Fatalf("TargetResourceID = %q, want shared resource ARN", rel.TargetResourceID)
 	}
@@ -159,12 +160,12 @@ func TestScanPrincipalAccountTargetsBareAccountID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rel := findRelationship(t, envelopes, awscloud.RelationshipRAMShareTargetsAccount)
+	rel := findRelationship(t, envelopes, catalog.RelationshipRAMShareTargetsAccount)
 	if rel.TargetResourceID != "210987654321" {
 		t.Fatalf("TargetResourceID = %q, want bare account id 210987654321", rel.TargetResourceID)
 	}
-	if rel.TargetType != awscloud.ResourceTypeOrganizationsAccount {
-		t.Fatalf("TargetType = %q, want %q", rel.TargetType, awscloud.ResourceTypeOrganizationsAccount)
+	if rel.TargetType != catalog.ResourceTypeOrganizationsAccount {
+		t.Fatalf("TargetType = %q, want %q", rel.TargetType, catalog.ResourceTypeOrganizationsAccount)
 	}
 	if rel.TargetARN != "" {
 		t.Fatalf("TargetARN = %q, want empty for bare account id", rel.TargetARN)
@@ -178,12 +179,12 @@ func TestScanPrincipalOrganizationalUnitTargetsOUArn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rel := findRelationship(t, envelopes, awscloud.RelationshipRAMShareTargetsOrganizationalUnit)
+	rel := findRelationship(t, envelopes, catalog.RelationshipRAMShareTargetsOrganizationalUnit)
 	if rel.TargetResourceID != "org-arn:ou/o-abc/ou-abc-1" {
 		t.Fatalf("TargetResourceID = %q, want OU ARN", rel.TargetResourceID)
 	}
-	if rel.TargetType != awscloud.ResourceTypeOrganizationsOrganizationalUnit {
-		t.Fatalf("TargetType = %q, want %q", rel.TargetType, awscloud.ResourceTypeOrganizationsOrganizationalUnit)
+	if rel.TargetType != catalog.ResourceTypeOrganizationsOrganizationalUnit {
+		t.Fatalf("TargetType = %q, want %q", rel.TargetType, catalog.ResourceTypeOrganizationsOrganizationalUnit)
 	}
 	if rel.TargetARN != "org-arn:ou/o-abc/ou-abc-1" {
 		t.Fatalf("TargetARN = %q, want OU ARN", rel.TargetARN)
@@ -197,12 +198,12 @@ func TestScanPrincipalOrganizationTargetsOrganizationArn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rel := findRelationship(t, envelopes, awscloud.RelationshipRAMShareTargetsOrganization)
+	rel := findRelationship(t, envelopes, catalog.RelationshipRAMShareTargetsOrganization)
 	if rel.TargetResourceID != "org-arn:organization/o-abc" {
 		t.Fatalf("TargetResourceID = %q, want organization ARN", rel.TargetResourceID)
 	}
-	if rel.TargetType != awscloud.ResourceTypeOrganizationsRoot {
-		t.Fatalf("TargetType = %q, want %q", rel.TargetType, awscloud.ResourceTypeOrganizationsRoot)
+	if rel.TargetType != catalog.ResourceTypeOrganizationsRoot {
+		t.Fatalf("TargetType = %q, want %q", rel.TargetType, catalog.ResourceTypeOrganizationsRoot)
 	}
 }
 
@@ -213,12 +214,12 @@ func TestScanSharePermissionTargetsPermissionArn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rel := findRelationship(t, envelopes, awscloud.RelationshipRAMShareUsesPermission)
+	rel := findRelationship(t, envelopes, catalog.RelationshipRAMShareUsesPermission)
 	if rel.TargetResourceID != "ram-arn:permission/subnet" {
 		t.Fatalf("TargetResourceID = %q, want permission ARN", rel.TargetResourceID)
 	}
-	if rel.TargetType != awscloud.ResourceTypeRAMPermission {
-		t.Fatalf("TargetType = %q, want %q", rel.TargetType, awscloud.ResourceTypeRAMPermission)
+	if rel.TargetType != catalog.ResourceTypeRAMPermission {
+		t.Fatalf("TargetType = %q, want %q", rel.TargetType, catalog.ResourceTypeRAMPermission)
 	}
 }
 
@@ -264,7 +265,7 @@ func TestScanDeduplicatesPermissionResourceAcrossShares(t *testing.T) {
 		if envelope.FactKind != cloud.AWSResourceFactKind {
 			continue
 		}
-		if resourceTypeFromEnvelope(t, envelope) == awscloud.ResourceTypeRAMPermission {
+		if resourceTypeFromEnvelope(t, envelope) == catalog.ResourceTypeRAMPermission {
 			permissionResources++
 		}
 	}
@@ -284,7 +285,7 @@ func TestScanShareResourceWithBlankTypeFallsBackToGenericTargetType(t *testing.T
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rel := findRelationship(t, envelopes, awscloud.RelationshipRAMShareIncludesResource)
+	rel := findRelationship(t, envelopes, catalog.RelationshipRAMShareIncludesResource)
 	if rel.TargetType != awscloud.ResourceTypeGeneric {
 		t.Fatalf("TargetType = %q, want generic %q for blank RAM type", rel.TargetType, awscloud.ResourceTypeGeneric)
 	}
@@ -296,7 +297,7 @@ func TestScanShareResourceWithBlankTypeFallsBackToGenericTargetType(t *testing.T
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if payloadString(envelope, "relationship_type") != awscloud.RelationshipRAMShareIncludesResource {
+		if payloadString(envelope, "relationship_type") != catalog.RelationshipRAMShareIncludesResource {
 			continue
 		}
 		if got := payloadAttribute(t, envelope, "resource_type"); got != "" {
@@ -323,10 +324,10 @@ func TestScanUnknownPrincipalDoesNotMasqueradeAsAccount(t *testing.T) {
 			continue
 		}
 		relType := payloadString(envelope, "relationship_type")
-		if relType == awscloud.RelationshipRAMShareTargetsAccount {
+		if relType == catalog.RelationshipRAMShareTargetsAccount {
 			t.Fatalf("unknown principal %q emitted account edge %q", "ram.amazonaws.com", relType)
 		}
-		if relType == awscloud.RelationshipRAMShareTargetsPrincipal {
+		if relType == catalog.RelationshipRAMShareTargetsPrincipal {
 			rel := relationshipFromEnvelope(t, envelope)
 			if rel.TargetType != awscloud.ResourceTypeGeneric {
 				t.Fatalf("TargetType = %q, want generic %q for unknown principal", rel.TargetType, awscloud.ResourceTypeGeneric)
@@ -340,7 +341,7 @@ func TestScanUnknownPrincipalDoesNotMasqueradeAsAccount(t *testing.T) {
 		}
 	}
 	// And the distinct generic principal edge must exist.
-	findRelationship(t, envelopes, awscloud.RelationshipRAMShareTargetsPrincipal)
+	findRelationship(t, envelopes, catalog.RelationshipRAMShareTargetsPrincipal)
 }
 
 func TestScanShareWithBlankArnFallsBackToName(t *testing.T) {

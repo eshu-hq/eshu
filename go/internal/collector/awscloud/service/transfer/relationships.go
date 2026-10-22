@@ -161,7 +161,7 @@ func serverLogGroupRelationships(boundary awscloud.Boundary, serverID string, se
 			SourceARN:        strings.TrimSpace(server.ARN),
 			TargetResourceID: logGroupARN,
 			TargetARN:        logGroupARN,
-			TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+			TargetType:       catalog.ResourceTypeCloudWatchLogsLogGroup,
 			SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerLogsToLogGroup + ":" + logGroupARN,
 		})
 	}

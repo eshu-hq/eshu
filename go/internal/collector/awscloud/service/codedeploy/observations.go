@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // applicationARN builds the canonical CodeDeploy application ARN. The
@@ -90,7 +91,7 @@ func applicationObservation(boundary awscloud.Boundary, app Application) awsclou
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, app.Name),
-		ResourceType: awscloud.ResourceTypeCodeDeployApplication,
+		ResourceType: catalog.ResourceTypeCodeDeployApplication,
 		Name:         strings.TrimSpace(app.Name),
 		Tags:         cloneStringMap(app.Tags),
 		Attributes: map[string]any{
@@ -111,7 +112,7 @@ func deploymentGroupObservation(boundary awscloud.Boundary, group DeploymentGrou
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, group.Name),
-		ResourceType: awscloud.ResourceTypeCodeDeployDeploymentGroup,
+		ResourceType: catalog.ResourceTypeCodeDeployDeploymentGroup,
 		Name:         strings.TrimSpace(group.Name),
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -141,7 +142,7 @@ func deploymentConfigObservation(boundary awscloud.Boundary, config DeploymentCo
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, config.Name),
-		ResourceType: awscloud.ResourceTypeCodeDeployDeploymentConfig,
+		ResourceType: catalog.ResourceTypeCodeDeployDeploymentConfig,
 		Name:         strings.TrimSpace(config.Name),
 		Attributes: map[string]any{
 			"deployment_config_id":       strings.TrimSpace(config.ID),
@@ -161,7 +162,7 @@ func deploymentObservation(boundary awscloud.Boundary, deployment Deployment) aw
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, deployment.ID),
-		ResourceType: awscloud.ResourceTypeCodeDeployDeployment,
+		ResourceType: catalog.ResourceTypeCodeDeployDeployment,
 		Name:         strings.TrimSpace(deployment.ID),
 		State:        strings.TrimSpace(deployment.Status),
 		Attributes: map[string]any{

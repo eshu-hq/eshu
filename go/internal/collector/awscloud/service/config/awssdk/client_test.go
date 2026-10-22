@@ -15,6 +15,7 @@ import (
 	cfgtypes "github.com/aws/aws-sdk-go-v2/service/configservice/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	configservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/config"
 )
 
@@ -149,7 +150,7 @@ func TestClientReadsConfigMetadata(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceConfig},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceConfig},
 	}
 
 	recorders, err := adapter.ConfigurationRecorders(context.Background())

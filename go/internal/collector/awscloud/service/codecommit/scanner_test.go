@@ -54,7 +54,7 @@ func TestScannerEmitsRepositoryResourceWithMetadataOnly(t *testing.T) {
 		t.Fatalf("Scan returned error: %v", err)
 	}
 
-	resource := resourceEnvelope(t, envelopes, awscloud.ResourceTypeCodeCommitRepository)
+	resource := resourceEnvelope(t, envelopes, catalog.ResourceTypeCodeCommitRepository)
 	if got, _ := resource.Payload["arn"].(string); got != testRepositoryARN {
 		t.Fatalf("repository arn = %q, want %q", got, testRepositoryARN)
 	}
@@ -84,7 +84,7 @@ func TestScannerPublishesCodeToCloudCorrelationAnchors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	resource := resourceEnvelope(t, envelopes, awscloud.ResourceTypeCodeCommitRepository)
+	resource := resourceEnvelope(t, envelopes, catalog.ResourceTypeCodeCommitRepository)
 	anchors := stringSlice(resource.Payload["correlation_anchors"])
 	// The repository name and full clone URLs are the join keys a CodeBuild
 	// project, CodePipeline source action, or Amplify app reports for its Git
@@ -102,7 +102,7 @@ func TestScannerEmitsKMSKeyEncryptionEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	edge := relationshipEnvelope(t, envelopes, awscloud.RelationshipCodeCommitRepositoryEncryptedWithKMSKey)
+	edge := relationshipEnvelope(t, envelopes, catalog.RelationshipCodeCommitRepositoryEncryptedWithKMSKey)
 	if got, _ := edge.Payload["target_type"].(string); got != catalog.ResourceTypeKMSKey {
 		t.Fatalf("kms edge target_type = %q, want %q", got, catalog.ResourceTypeKMSKey)
 	}
@@ -120,7 +120,7 @@ func TestScannerEmitsSNSTopicTriggerEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan returned error: %v", err)
 	}
-	edge := relationshipEnvelope(t, envelopes, awscloud.RelationshipCodeCommitRepositoryTriggersSNSTopic)
+	edge := relationshipEnvelope(t, envelopes, catalog.RelationshipCodeCommitRepositoryTriggersSNSTopic)
 	if got, _ := edge.Payload["target_type"].(string); got != catalog.ResourceTypeSNSTopic {
 		t.Fatalf("sns edge target_type = %q, want %q", got, catalog.ResourceTypeSNSTopic)
 	}
@@ -233,7 +233,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCodeCommit,
+		ServiceKind:         catalog.ServiceCodeCommit,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:codecommit:1",
 		CollectorInstanceID: "aws-prod",

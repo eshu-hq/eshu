@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // providerCodeCommit is the CodeGuru Reviewer ProviderType value for an AWS
@@ -39,16 +40,16 @@ func associationCodeCommitRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeGuruAssociationReviewsCodeCommitRepository,
+		RelationshipType: catalog.RelationshipCodeGuruAssociationReviewsCodeCommitRepository,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(association.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeCodeCommitRepository,
+		TargetType:       catalog.ResourceTypeCodeCommitRepository,
 		Attributes: map[string]any{
 			"repository_name": strings.TrimSpace(association.Name),
 		},
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipCodeGuruAssociationReviewsCodeCommitRepository + ":" + targetARN,
+			catalog.RelationshipCodeGuruAssociationReviewsCodeCommitRepository + ":" + targetARN,
 	}
 }

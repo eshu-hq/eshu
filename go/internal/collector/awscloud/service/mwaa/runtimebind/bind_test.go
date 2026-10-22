@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/mwaa/runtimebind"
 )
 
 // TestMWAARuntimeBindRegisters confirms importing the binding installs the MWAA
 // scanner builder.
 func TestMWAARuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceMWAA)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceMWAA)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceMWAA)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceMWAA)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceMWAA},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceMWAA},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

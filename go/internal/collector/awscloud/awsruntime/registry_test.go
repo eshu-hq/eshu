@@ -89,11 +89,11 @@ func TestDefaultScannerFactoryRequiresRedactionKeyForOrganizations(t *testing.T)
 	_, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceOrganizations,
+		ServiceKind: catalog.ServiceOrganizations,
 	}, awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceOrganizations,
+		ServiceKind: catalog.ServiceOrganizations,
 	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want missing Organizations redaction key")

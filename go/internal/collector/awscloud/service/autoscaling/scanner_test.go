@@ -168,7 +168,7 @@ func TestScannerEmitsGroupsLaunchConfigsPoliciesHooksAndScheduledActions(t *test
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	groups := resourcesByType(t, envelopes, awscloud.ResourceTypeAutoScalingGroup)
+	groups := resourcesByType(t, envelopes, catalog.ResourceTypeAutoScalingGroup)
 	if len(groups) != 2 {
 		t.Fatalf("Auto Scaling group resources = %d, want 2", len(groups))
 	}
@@ -319,8 +319,8 @@ func TestScannerEmitsChildToGroupRelationships(t *testing.T) {
 	if got := policy[0]["target_resource_id"]; got != "checkout-asg" {
 		t.Fatalf("policy->group target_resource_id = %v, want checkout-asg", got)
 	}
-	if got := policy[0]["target_type"]; got != awscloud.ResourceTypeAutoScalingGroup {
-		t.Fatalf("policy->group target_type = %v, want %s", got, awscloud.ResourceTypeAutoScalingGroup)
+	if got := policy[0]["target_type"]; got != catalog.ResourceTypeAutoScalingGroup {
+		t.Fatalf("policy->group target_type = %v, want %s", got, catalog.ResourceTypeAutoScalingGroup)
 	}
 
 	hook := relationshipsByType(t, envelopes, catalog.RelationshipAutoScalingLifecycleHookTargetsGroup)

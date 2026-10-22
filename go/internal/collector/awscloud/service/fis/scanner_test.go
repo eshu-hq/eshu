@@ -114,7 +114,7 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 
 	// template -> CloudWatch log group, keyed by the bare log group ARN (no :*).
 	logGroup := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateLogsToCloudWatchLogGroup)
-	assertEdgeTarget(t, logGroup, awscloud.ResourceTypeCloudWatchLogsLogGroup,
+	assertEdgeTarget(t, logGroup, catalog.ResourceTypeCloudWatchLogsLogGroup,
 		"arn:aws:logs:us-east-1:123456789012:log-group:/fis/experiments")
 
 	// template -> S3 bucket, keyed by the synthesized partition-aware ARN.
@@ -123,7 +123,7 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 
 	// template -> CloudWatch alarm stop condition, keyed by the alarm ARN.
 	alarm := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateStopsOnCloudWatchAlarm)
-	assertEdgeTarget(t, alarm, awscloud.ResourceTypeCloudWatchAlarm, testAlarmARN)
+	assertEdgeTarget(t, alarm, catalog.ResourceTypeCloudWatchAlarm, testAlarmARN)
 
 	// No action parameter values, target filter values, or run output leakage.
 	for _, envelope := range envelopes {

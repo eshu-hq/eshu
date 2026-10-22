@@ -28,12 +28,12 @@ func kmsKeyRelationship(boundary awscloud.Boundary, repository Repository) *awsc
 	}
 	relationship := awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeCommitRepositoryEncryptedWithKMSKey,
+		RelationshipType: catalog.RelationshipCodeCommitRepositoryEncryptedWithKMSKey,
 		SourceResourceID: repositoryID,
 		SourceARN:        strings.TrimSpace(repository.ARN),
 		TargetResourceID: keyID,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   repositoryID + "->" + awscloud.RelationshipCodeCommitRepositoryEncryptedWithKMSKey + ":" + keyID,
+		SourceRecordID:   repositoryID + "->" + catalog.RelationshipCodeCommitRepositoryEncryptedWithKMSKey + ":" + keyID,
 	}
 	if isARN(keyID) {
 		relationship.TargetARN = keyID
@@ -65,7 +65,7 @@ func triggerRelationships(boundary awscloud.Boundary, repository Repository) []a
 		seen[destination] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeCommitRepositoryTriggersSNSTopic,
+			RelationshipType: catalog.RelationshipCodeCommitRepositoryTriggersSNSTopic,
 			SourceResourceID: repositoryID,
 			SourceARN:        strings.TrimSpace(repository.ARN),
 			TargetResourceID: destination,
@@ -75,7 +75,7 @@ func triggerRelationships(boundary awscloud.Boundary, repository Repository) []a
 				"trigger_name": strings.TrimSpace(trigger.Name),
 				"events":       cloneStringSlice(trigger.Events),
 			},
-			SourceRecordID: repositoryID + "->" + awscloud.RelationshipCodeCommitRepositoryTriggersSNSTopic + ":" + destination,
+			SourceRecordID: repositoryID + "->" + catalog.RelationshipCodeCommitRepositoryTriggersSNSTopic + ":" + destination,
 		})
 	}
 	if len(observations) == 0 {

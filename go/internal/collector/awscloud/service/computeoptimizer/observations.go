@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // summaryObservation maps a Compute Optimizer recommendation summary into a
@@ -22,7 +23,7 @@ func summaryObservation(boundary awscloud.Boundary, summary RecommendationSummar
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeComputeOptimizerRecommendationSummary,
+		ResourceType: catalog.ResourceTypeComputeOptimizerRecommendationSummary,
 		Name:         name,
 		Attributes: map[string]any{
 			"account_id":                     accountID,
@@ -44,7 +45,7 @@ func instanceObservation(boundary awscloud.Boundary, rec InstanceRecommendation)
 		Boundary:     boundary,
 		ARN:          instanceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeComputeOptimizerRecommendation,
+		ResourceType: catalog.ResourceTypeComputeOptimizerRecommendation,
 		Name:         firstNonEmpty(rec.InstanceName, instanceIDFromARN(instanceARN), resourceID),
 		Tags:         cloneStringMap(rec.Tags),
 		Attributes: map[string]any{
@@ -75,7 +76,7 @@ func autoScalingGroupObservation(boundary awscloud.Boundary, rec AutoScalingGrou
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeComputeOptimizerRecommendation,
+		ResourceType: catalog.ResourceTypeComputeOptimizerRecommendation,
 		Name:         firstNonEmpty(groupName, resourceID),
 		Attributes: map[string]any{
 			"recommendation_resource_type":   "AutoScalingGroup",
@@ -105,7 +106,7 @@ func volumeObservation(boundary awscloud.Boundary, rec VolumeRecommendation) aws
 		Boundary:     boundary,
 		ARN:          volumeARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeComputeOptimizerRecommendation,
+		ResourceType: catalog.ResourceTypeComputeOptimizerRecommendation,
 		Name:         firstNonEmpty(volumeIDFromARN(volumeARN), resourceID),
 		Tags:         cloneStringMap(rec.Tags),
 		Attributes: map[string]any{
@@ -134,7 +135,7 @@ func lambdaFunctionObservation(boundary awscloud.Boundary, rec LambdaFunctionRec
 		Boundary:     boundary,
 		ARN:          functionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeComputeOptimizerRecommendation,
+		ResourceType: catalog.ResourceTypeComputeOptimizerRecommendation,
 		Name:         firstNonEmpty(functionNameFromARN(functionARN), resourceID),
 		Tags:         cloneStringMap(rec.Tags),
 		Attributes: map[string]any{

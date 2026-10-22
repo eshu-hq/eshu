@@ -52,7 +52,7 @@ func TestScannerEmitsConfigurationMetadataAndInstanceEdge(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	config := resourceByType(t, envelopes, awscloud.ResourceTypeLicenseManagerConfiguration)
+	config := resourceByType(t, envelopes, catalog.ResourceTypeLicenseManagerConfiguration)
 	if got, want := config.Payload["resource_id"], testConfigARN; got != want {
 		t.Fatalf("config resource_id = %#v, want %q", got, want)
 	}
@@ -69,7 +69,7 @@ func TestScannerEmitsConfigurationMetadataAndInstanceEdge(t *testing.T) {
 	assertAttribute(t, attrs, "associated_resource_types", []string{"EC2_AMI", "EC2_HOST", "EC2_INSTANCE"})
 
 	// Only one relationship: configuration -> EC2 instance, keyed by bare i- id.
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipLicenseManagerConfigurationAppliesToInstance)
+	edge := relationshipByType(t, envelopes, catalog.RelationshipLicenseManagerConfigurationAppliesToInstance)
 	assertEdgeTarget(t, edge, "aws_ec2_instance", testInstanceID)
 	if got, want := edge.Payload["source_resource_id"], testConfigARN; got != want {
 		t.Fatalf("edge source_resource_id = %#v, want %q", got, want)
@@ -102,7 +102,7 @@ func TestScannerOmitsLicenseCountWhenUnset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	config := resourceByType(t, envelopes, awscloud.ResourceTypeLicenseManagerConfiguration)
+	config := resourceByType(t, envelopes, catalog.ResourceTypeLicenseManagerConfiguration)
 	attrs := attributesOf(t, config)
 	if _, exists := attrs["license_count"]; exists {
 		t.Fatalf("license_count attribute present, want omitted when not configured")
@@ -169,7 +169,7 @@ func TestScannerResolvesGovCloudInstanceID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipLicenseManagerConfigurationAppliesToInstance)
+	edge := relationshipByType(t, envelopes, catalog.RelationshipLicenseManagerConfigurationAppliesToInstance)
 	if got, want := edge.Payload["target_resource_id"], "i-govabc123"; got != want {
 		t.Fatalf("GovCloud edge target_resource_id = %#v, want %q", got, want)
 	}
@@ -256,7 +256,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLicenseManager,
+		ServiceKind:         catalog.ServiceLicenseManager,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:licensemanager:1",
 		CollectorInstanceID: "aws-prod",

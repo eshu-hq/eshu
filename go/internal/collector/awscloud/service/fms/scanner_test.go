@@ -81,7 +81,7 @@ func TestScannerEmitsPolicyMemberAccountRelationships(t *testing.T) {
 	}
 
 	first := relationshipByTarget(t, envelopes, catalog.RelationshipFMSPolicyAppliesToAccount, "111111111111")
-	if got, want := first.Payload["target_type"], awscloud.ResourceTypeOrganizationsAccount; got != want {
+	if got, want := first.Payload["target_type"], catalog.ResourceTypeOrganizationsAccount; got != want {
 		t.Fatalf("target_type = %#v, want %q", got, want)
 	}
 	if got, want := first.Payload["source_resource_id"], policyARN; got != want {
@@ -159,7 +159,7 @@ func TestScannerEmitsPartitionAwareARNsFromAPI(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceOrganizations
+	boundary.ServiceKind = catalog.ServiceOrganizations
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

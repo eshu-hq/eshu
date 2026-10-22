@@ -331,7 +331,7 @@ func TestClaimedSourceMarksOrganizationsOrgAccessSkipAsPartial(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceOrganizations},
+				AllowedServices: []string{catalog.ServiceOrganizations},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -375,7 +375,7 @@ func TestClaimedSourceMarksOrganizationsOrgAccessSkipAsPartial(t *testing.T) {
 		t.Fatalf("Collect() error = %v", err)
 	}
 	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_org_access_skipped_total", map[string]string{
-		telemetry.MetricDimensionService: awscloud.ServiceOrganizations,
+		telemetry.MetricDimensionService: catalog.ServiceOrganizations,
 		telemetry.MetricDimensionAccount: "123456789012",
 		telemetry.MetricDimensionRegion:  "us-east-1",
 		telemetry.MetricDimensionReason:  "org_access_denied",

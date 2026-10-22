@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/catalog/app_registry/runtimebind"
 )
 
 // TestAppRegistryRuntimeBindRegisters confirms importing the binding installs
 // the AppRegistry scanner builder.
 func TestAppRegistryRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceServiceCatalogAppRegistry)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceServiceCatalogAppRegistry)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceServiceCatalogAppRegistry)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceServiceCatalogAppRegistry)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceServiceCatalogAppRegistry,
+			ServiceKind: catalog.ServiceServiceCatalogAppRegistry,
 		},
 	})
 	if err != nil {

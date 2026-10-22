@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func projectObservation(boundary awscloud.Boundary, project Project) awscloud.ResourceObservation {
@@ -18,7 +19,7 @@ func projectObservation(boundary awscloud.Boundary, project Project) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodeBuildProject,
+		ResourceType: catalog.ResourceTypeCodeBuildProject,
 		Name:         name,
 		Tags:         cloneStringMap(project.Tags),
 		Attributes: map[string]any{
@@ -50,7 +51,7 @@ func reportGroupObservation(boundary awscloud.Boundary, group ReportGroup) awscl
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodeBuildReportGroup,
+		ResourceType: catalog.ResourceTypeCodeBuildReportGroup,
 		Name:         name,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),
@@ -75,7 +76,7 @@ func buildObservation(boundary awscloud.Boundary, build Build) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodeBuildBuild,
+		ResourceType: catalog.ResourceTypeCodeBuildBuild,
 		Name:         id,
 		State:        strings.TrimSpace(build.Status),
 		Attributes: map[string]any{

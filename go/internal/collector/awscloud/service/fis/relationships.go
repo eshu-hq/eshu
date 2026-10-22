@@ -232,7 +232,7 @@ func templateLogGroupRelationship(
 		SourceARN:        strings.TrimSpace(template.ARN),
 		TargetResourceID: logGroupARN,
 		TargetARN:        logGroupARN,
-		TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+		TargetType:       catalog.ResourceTypeCloudWatchLogsLogGroup,
 		SourceRecordID:   sourceID + "->" + catalog.RelationshipFISTemplateLogsToCloudWatchLogGroup + ":" + logGroupARN,
 	}
 }
@@ -299,7 +299,7 @@ func templateStopConditionRelationships(
 			SourceARN:        strings.TrimSpace(template.ARN),
 			TargetResourceID: alarmARN,
 			TargetARN:        alarmARN,
-			TargetType:       awscloud.ResourceTypeCloudWatchAlarm,
+			TargetType:       catalog.ResourceTypeCloudWatchAlarm,
 			SourceRecordID:   recordID,
 		})
 	}

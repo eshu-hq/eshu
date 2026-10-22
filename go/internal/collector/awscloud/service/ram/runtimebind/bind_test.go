@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/ram/runtimebind"
 )
 
 // TestRAMRuntimeBindRegisters confirms importing the binding installs the RAM
 // scanner builder and that it resolves without a redaction key.
 func TestRAMRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceRAM)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceRAM)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceRAM)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceRAM)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceRAM},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceRAM},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

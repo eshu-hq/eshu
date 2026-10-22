@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // controlGovernsTargetRelationship records that an enabled control governs an
@@ -35,7 +36,7 @@ func controlGovernsTargetRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipControlTowerControlGovernsTarget,
+		RelationshipType: catalog.RelationshipControlTowerControlGovernsTarget,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		// The organizations scanner keys OU/account/root nodes by their bare id,
@@ -46,7 +47,7 @@ func controlGovernsTargetRelationship(
 		TargetType:       target.ResourceType,
 		Attributes:       attributes,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipControlTowerControlGovernsTarget + ":" + target.ResourceID,
+			catalog.RelationshipControlTowerControlGovernsTarget + ":" + target.ResourceID,
 	}
 }
 
@@ -75,7 +76,7 @@ func baselineGovernsTargetRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipControlTowerBaselineGovernsTarget,
+		RelationshipType: catalog.RelationshipControlTowerBaselineGovernsTarget,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		// The organizations scanner keys OU/account/root nodes by their bare id,
@@ -85,7 +86,7 @@ func baselineGovernsTargetRelationship(
 		TargetType:       target.ResourceType,
 		Attributes:       attributes,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipControlTowerBaselineGovernsTarget + ":" + target.ResourceID,
+			catalog.RelationshipControlTowerBaselineGovernsTarget + ":" + target.ResourceID,
 	}
 }
 
@@ -107,13 +108,13 @@ func baselineForLandingZoneRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipControlTowerBaselineForLandingZone,
+		RelationshipType: catalog.RelationshipControlTowerBaselineForLandingZone,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		TargetResourceID: landingZoneARN,
 		TargetARN:        landingZoneARN,
-		TargetType:       awscloud.ResourceTypeControlTowerLandingZone,
+		TargetType:       catalog.ResourceTypeControlTowerLandingZone,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipControlTowerBaselineForLandingZone + ":" + landingZoneARN,
+			catalog.RelationshipControlTowerBaselineForLandingZone + ":" + landingZoneARN,
 	}
 }

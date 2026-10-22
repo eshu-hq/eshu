@@ -248,7 +248,7 @@ func appendLogGroupEdges(
 			SourceARN:        sourceARN,
 			TargetResourceID: logGroupARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+			TargetType:       catalog.ResourceTypeCloudWatchLogsLogGroup,
 			SourceRecordID:   sourceID + "#log-group#" + logGroupARN,
 		})
 	}

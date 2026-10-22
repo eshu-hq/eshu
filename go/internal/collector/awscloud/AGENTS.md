@@ -20,7 +20,13 @@
    Keyspaces, DAX, and Lake Formation now live in `catalog/database.go` and
    `catalog/database_specialized.go`; API Gateway, API Gateway V2, AppSync,
    AppConfig, App Runner, Synthetics, Service Catalog, Proton, Resilience Hub,
-   and FIS now live in `catalog/api.go` and `catalog/api_management.go`).
+   and FIS now live in `catalog/api.go` and `catalog/api_management.go`;
+   CodeArtifact, CodeBuild, CodeCommit, CodeDeploy, CodeGuru, CodePipeline,
+   CloudFormation, CloudTrail, Config, Control Tower, Organizations, RAM,
+   Service Quotas, Resource Groups, License Manager, CloudWatch, CloudWatch
+   Logs, X-Ray, Application Auto Scaling, Compute Optimizer, MWAA, and
+   Service Catalog App Registry now live in `catalog/devtools.go`,
+   `catalog/management.go`, and `catalog/operations.go`).
    New service
    constants MUST land in their own
    `constants_<service>.go` sibling, not back in `types.go`, so the 500-line

@@ -46,7 +46,7 @@ func provisionedProductStackRelationship(
 		SourceARN:        strings.TrimSpace(provisioned.ARN),
 		TargetResourceID: stackARN,
 		TargetARN:        stackARN,
-		TargetType:       awscloud.ResourceTypeCloudFormationStack,
+		TargetType:       catalog.ResourceTypeCloudFormationStack,
 		SourceRecordID: sourceID + "->" +
 			catalog.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack +
 			":" + stackARN,

@@ -37,7 +37,7 @@ func TestScannerEmitsGroupResourceAndMembershipEdges(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	group := resourceByType(t, envelopes, awscloud.ResourceTypeResourceGroupsGroup)
+	group := resourceByType(t, envelopes, catalog.ResourceTypeResourceGroupsGroup)
 	if got, want := group.Payload["resource_id"], groupARN; got != want {
 		t.Fatalf("group resource_id = %#v, want %q", got, want)
 	}
@@ -54,7 +54,7 @@ func TestScannerEmitsGroupResourceAndMembershipEdges(t *testing.T) {
 
 	// S3 bucket is an ARN-keyed family: target_resource_id and target_arn are the
 	// member ARN.
-	s3Edge := relationshipTo(t, envelopes, awscloud.RelationshipResourceGroupsGroupContainsResource, bucketARN)
+	s3Edge := relationshipTo(t, envelopes, catalog.RelationshipResourceGroupsGroupContainsResource, bucketARN)
 	if got, want := s3Edge.TargetType, catalog.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("s3 member target_type = %q, want %q", got, want)
 	}
@@ -67,7 +67,7 @@ func TestScannerEmitsGroupResourceAndMembershipEdges(t *testing.T) {
 
 	// EC2 instance is a bare-id family: target_resource_id is i-..., target_arn
 	// is empty so the edge is not mis-keyed as ARN-keyed.
-	instanceEdge := relationshipTo(t, envelopes, awscloud.RelationshipResourceGroupsGroupContainsResource, "i-0abc1234")
+	instanceEdge := relationshipTo(t, envelopes, catalog.RelationshipResourceGroupsGroupContainsResource, "i-0abc1234")
 	if got, want := instanceEdge.TargetType, "aws_ec2_instance"; got != want {
 		t.Fatalf("ec2 member target_type = %q, want %q", got, want)
 	}
@@ -103,7 +103,7 @@ func TestClassifyMemberCoversFamilies(t *testing.T) {
 		{"eks cluster", "arn:aws:eks:us-east-1:123456789012:cluster/prod", catalog.ResourceTypeEKSCluster, "arn:aws:eks:us-east-1:123456789012:cluster/prod", true},
 		{"elbv2 load balancer", "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", catalog.ResourceTypeELBv2LoadBalancer, "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", true},
 		{"secret", "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", awscloud.ResourceTypeSecretsManagerSecret, "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", true},
-		{"cloudformation stack", "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", awscloud.ResourceTypeCloudFormationStack, "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", true},
+		{"cloudformation stack", "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", catalog.ResourceTypeCloudFormationStack, "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", true},
 
 		// Non-ARN-keyed families: published id must match the target scanner.
 		{"kms key", "arn:aws:kms:us-east-1:123456789012:key/abcd1234-12ab-34cd-56ef-1234567890ab", catalog.ResourceTypeKMSKey, "abcd1234-12ab-34cd-56ef-1234567890ab", false},
@@ -199,8 +199,8 @@ func TestScannerEmitsCloudFormationStackEdge(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	stackEdge := relationshipTo(t, envelopes, awscloud.RelationshipResourceGroupsGroupBackedByStack, stackARN)
-	if got, want := stackEdge.TargetType, awscloud.ResourceTypeCloudFormationStack; got != want {
+	stackEdge := relationshipTo(t, envelopes, catalog.RelationshipResourceGroupsGroupBackedByStack, stackARN)
+	if got, want := stackEdge.TargetType, catalog.ResourceTypeCloudFormationStack; got != want {
 		t.Fatalf("stack edge target_type = %q, want %q", got, want)
 	}
 	if got, want := stackEdge.TargetARN, stackARN; got != want {
@@ -223,7 +223,7 @@ func TestStackEdgeSkippedForTagFilterGroup(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, obs := range relationships(envelopes) {
-		if obs.RelationshipType == awscloud.RelationshipResourceGroupsGroupBackedByStack {
+		if obs.RelationshipType == catalog.RelationshipResourceGroupsGroupBackedByStack {
 			t.Fatalf("tag-filter group emitted a stack edge: %#v", obs)
 		}
 	}
@@ -247,7 +247,7 @@ func TestScannerIsPartitionAware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipTo(t, envelopes, awscloud.RelationshipResourceGroupsGroupContainsResource, govBucketARN)
+	edge := relationshipTo(t, envelopes, catalog.RelationshipResourceGroupsGroupContainsResource, govBucketARN)
 	if !strings.HasPrefix(edge.TargetARN, "arn:aws-us-gov:") {
 		t.Fatalf("gov member target_arn = %q, want aws-us-gov partition preserved", edge.TargetARN)
 	}
@@ -317,7 +317,7 @@ func TestScannerNeverPersistsQueryBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	attrs := attributesOf(t, resourceByType(t, envelopes, awscloud.ResourceTypeResourceGroupsGroup))
+	attrs := attributesOf(t, resourceByType(t, envelopes, catalog.ResourceTypeResourceGroupsGroup))
 	for _, forbidden := range []string{"query", "query_body", "resource_query", "tag_filters", "tags", "search_query"} {
 		if _, exists := attrs[forbidden]; exists {
 			t.Fatalf("group attribute %q persisted; scanner must record query type only", forbidden)

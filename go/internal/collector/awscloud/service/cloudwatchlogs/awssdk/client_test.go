@@ -15,6 +15,7 @@ import (
 	"github.com/aws/smithy-go"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListsCloudWatchLogsMetadataOnly(t *testing.T) {
@@ -141,7 +142,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCloudWatchLogs,
+		ServiceKind: catalog.ServiceCloudWatchLogs,
 	}
 }
 

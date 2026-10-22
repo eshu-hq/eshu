@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/xray/runtimebind"
 )
 
@@ -17,16 +18,16 @@ import (
 // X-Ray scanner builder and that it builds without a redaction key, since the
 // X-Ray configuration scanner carries no secret-shaped fields.
 func TestXRayRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceXRay)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceXRay)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceXRay)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceXRay)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceXRay,
+			ServiceKind: catalog.ServiceXRay,
 		},
 	})
 	if err != nil {

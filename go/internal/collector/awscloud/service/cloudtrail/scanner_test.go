@@ -144,7 +144,7 @@ func TestScannerEmitsTrailEventStoreChannelAndDashboardMetadata(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	trail := resourceByType(t, envelopes, awscloud.ResourceTypeCloudTrailTrail)
+	trail := resourceByType(t, envelopes, catalog.ResourceTypeCloudTrailTrail)
 	if got, want := trail.Payload["arn"], trailARN; got != want {
 		t.Fatalf("trail arn = %#v, want %q", got, want)
 	}
@@ -208,12 +208,12 @@ func TestScannerEmitsTrailEventStoreChannelAndDashboardMetadata(t *testing.T) {
 		}
 	}
 
-	assertRelationship(t, envelopes, awscloud.RelationshipCloudTrailTrailLogsToS3Bucket)
-	assertRelationship(t, envelopes, awscloud.RelationshipCloudTrailTrailLogsToCloudWatchLogs)
-	assertRelationship(t, envelopes, awscloud.RelationshipCloudTrailTrailNotifiesSNSTopic)
-	assertRelationship(t, envelopes, awscloud.RelationshipCloudTrailTrailUsesKMSKey)
+	assertRelationship(t, envelopes, catalog.RelationshipCloudTrailTrailLogsToS3Bucket)
+	assertRelationship(t, envelopes, catalog.RelationshipCloudTrailTrailLogsToCloudWatchLogs)
+	assertRelationship(t, envelopes, catalog.RelationshipCloudTrailTrailNotifiesSNSTopic)
+	assertRelationship(t, envelopes, catalog.RelationshipCloudTrailTrailUsesKMSKey)
 
-	store := resourceByType(t, envelopes, awscloud.ResourceTypeCloudTrailEventDataStore)
+	store := resourceByType(t, envelopes, catalog.ResourceTypeCloudTrailEventDataStore)
 	storeAttrs := attributesOf(t, store)
 	if got, want := storeAttrs["retention_period"], int32(2555); got != want {
 		t.Fatalf("retention_period = %#v, want %d", got, want)
@@ -235,9 +235,9 @@ func TestScannerEmitsTrailEventStoreChannelAndDashboardMetadata(t *testing.T) {
 			t.Fatalf("event data store attribute %q persisted; selector bodies and query results must never leak", forbidden)
 		}
 	}
-	assertRelationship(t, envelopes, awscloud.RelationshipCloudTrailEventDataStoreUsesKMSKey)
+	assertRelationship(t, envelopes, catalog.RelationshipCloudTrailEventDataStoreUsesKMSKey)
 
-	channel := resourceByType(t, envelopes, awscloud.ResourceTypeCloudTrailChannel)
+	channel := resourceByType(t, envelopes, catalog.ResourceTypeCloudTrailChannel)
 	channelAttrs := attributesOf(t, channel)
 	if got, want := channelAttrs["destination_type"], "EVENT_DATA_STORE"; got != want {
 		t.Fatalf("channel destination_type = %#v, want %q", got, want)
@@ -246,7 +246,7 @@ func TestScannerEmitsTrailEventStoreChannelAndDashboardMetadata(t *testing.T) {
 		t.Fatalf("channel destination_arn = %#v, want %q", got, want)
 	}
 
-	dashboard := resourceByType(t, envelopes, awscloud.ResourceTypeCloudTrailDashboardConfig)
+	dashboard := resourceByType(t, envelopes, catalog.ResourceTypeCloudTrailDashboardConfig)
 	if got, want := dashboard.Payload["state"], "CREATED"; got != want {
 		t.Fatalf("dashboard state = %#v, want %q", got, want)
 	}
@@ -285,7 +285,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCloudTrail,
+		ServiceKind:         catalog.ServiceCloudTrail,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:cloudtrail:1",
 		CollectorInstanceID: "aws-prod",

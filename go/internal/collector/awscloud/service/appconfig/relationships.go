@@ -85,7 +85,7 @@ func environmentMonitorsAlarmRelationship(
 		SourceARN:        environmentARN,
 		TargetResourceID: alarmARN,
 		TargetARN:        alarmARN,
-		TargetType:       awscloud.ResourceTypeCloudWatchAlarm,
+		TargetType:       catalog.ResourceTypeCloudWatchAlarm,
 		SourceRecordID:   environmentARN + "->" + catalog.RelationshipAppConfigEnvironmentMonitorsAlarm + ":" + alarmARN,
 	}
 }

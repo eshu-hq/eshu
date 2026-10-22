@@ -6,7 +6,7 @@ package controltower
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // organizationsTarget is the resolved Organizations join key for a Control Tower
@@ -72,11 +72,11 @@ func resolveOrganizationsTarget(targetARN string) (organizationsTarget, bool) {
 func organizationsResourceType(family string) (string, bool) {
 	switch strings.TrimSpace(family) {
 	case "ou":
-		return awscloud.ResourceTypeOrganizationsOrganizationalUnit, true
+		return catalog.ResourceTypeOrganizationsOrganizationalUnit, true
 	case "account":
-		return awscloud.ResourceTypeOrganizationsAccount, true
+		return catalog.ResourceTypeOrganizationsAccount, true
 	case "root":
-		return awscloud.ResourceTypeOrganizationsRoot, true
+		return catalog.ResourceTypeOrganizationsRoot, true
 	default:
 		return "", false
 	}

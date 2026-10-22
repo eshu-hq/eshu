@@ -85,8 +85,8 @@ func TestScannerEmitsDetectiveGraphAndMemberAccountEdge(t *testing.T) {
 	if got := rel.Payload["target_resource_id"]; got != testMemberAcct {
 		t.Fatalf("member edge target_resource_id = %#v, want bare account id %q", got, testMemberAcct)
 	}
-	if got := rel.Payload["target_type"]; got != awscloud.ResourceTypeOrganizationsAccount {
-		t.Fatalf("member edge target_type = %#v, want %q", got, awscloud.ResourceTypeOrganizationsAccount)
+	if got := rel.Payload["target_type"]; got != catalog.ResourceTypeOrganizationsAccount {
+		t.Fatalf("member edge target_type = %#v, want %q", got, catalog.ResourceTypeOrganizationsAccount)
 	}
 }
 

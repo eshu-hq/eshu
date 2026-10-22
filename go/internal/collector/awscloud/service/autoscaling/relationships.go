@@ -115,7 +115,7 @@ func scalingPolicyRelationship(
 		SourceResourceID: policyID,
 		SourceARN:        strings.TrimSpace(policy.ARN),
 		TargetResourceID: groupName,
-		TargetType:       awscloud.ResourceTypeAutoScalingGroup,
+		TargetType:       catalog.ResourceTypeAutoScalingGroup,
 		SourceRecordID:   policyID + "#group#" + groupName,
 	}, true
 }
@@ -137,7 +137,7 @@ func lifecycleHookRelationship(
 		RelationshipType: catalog.RelationshipAutoScalingLifecycleHookTargetsGroup,
 		SourceResourceID: hookID,
 		TargetResourceID: groupName,
-		TargetType:       awscloud.ResourceTypeAutoScalingGroup,
+		TargetType:       catalog.ResourceTypeAutoScalingGroup,
 		SourceRecordID:   hookID + "#group#" + groupName,
 	}, true
 }
@@ -160,7 +160,7 @@ func scheduledActionRelationship(
 		SourceResourceID: actionID,
 		SourceARN:        strings.TrimSpace(action.ARN),
 		TargetResourceID: groupName,
-		TargetType:       awscloud.ResourceTypeAutoScalingGroup,
+		TargetType:       catalog.ResourceTypeAutoScalingGroup,
 		SourceRecordID:   actionID + "#group#" + groupName,
 	}, true
 }

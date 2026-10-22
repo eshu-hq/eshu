@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("config scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceConfig:
+	case "", catalog.ServiceConfig:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceConfig
+		boundary.ServiceKind = catalog.ServiceConfig
 	default:
 		return nil, fmt.Errorf("config scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -151,7 +152,7 @@ func recorderObservation(boundary awscloud.Boundary, recorder ConfigurationRecor
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   recorderResourceID(name),
-		ResourceType: awscloud.ResourceTypeConfigConfigurationRecorder,
+		ResourceType: catalog.ResourceTypeConfigConfigurationRecorder,
 		Name:         name,
 		Attributes: map[string]any{
 			"all_supported":                 recorder.AllSupported,
@@ -170,7 +171,7 @@ func deliveryChannelObservation(boundary awscloud.Boundary, channel DeliveryChan
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   deliveryChannelResourceID(name),
-		ResourceType: awscloud.ResourceTypeConfigDeliveryChannel,
+		ResourceType: catalog.ResourceTypeConfigDeliveryChannel,
 		Name:         name,
 		Attributes: map[string]any{
 			"s3_bucket_name":             strings.TrimSpace(channel.S3BucketName),
@@ -191,7 +192,7 @@ func ruleObservation(boundary awscloud.Boundary, rule ConfigRule) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          ruleARN,
 		ResourceID:   ruleResourceID(name),
-		ResourceType: awscloud.ResourceTypeConfigRule,
+		ResourceType: catalog.ResourceTypeConfigRule,
 		Name:         name,
 		State:        strings.TrimSpace(rule.State),
 		Attributes: map[string]any{
@@ -213,7 +214,7 @@ func conformancePackObservation(boundary awscloud.Boundary, pack ConformancePack
 		Boundary:     boundary,
 		ARN:          packARN,
 		ResourceID:   firstNonEmpty(packARN, conformancePackResourceID(name)),
-		ResourceType: awscloud.ResourceTypeConfigConformancePack,
+		ResourceType: catalog.ResourceTypeConfigConformancePack,
 		Name:         name,
 		State:        strings.TrimSpace(pack.Status),
 		Attributes: map[string]any{
@@ -234,7 +235,7 @@ func aggregatorObservation(boundary awscloud.Boundary, aggregator ConfigurationA
 		Boundary:     boundary,
 		ARN:          aggregatorARN,
 		ResourceID:   firstNonEmpty(aggregatorARN, aggregatorResourceID(name)),
-		ResourceType: awscloud.ResourceTypeConfigConfigurationAggregator,
+		ResourceType: catalog.ResourceTypeConfigConfigurationAggregator,
 		Name:         name,
 		Attributes: map[string]any{
 			"created_by":                   strings.TrimSpace(aggregator.CreatedBy),
@@ -255,7 +256,7 @@ func retentionObservation(boundary awscloud.Boundary, retention RetentionConfigu
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   retentionResourceID(name),
-		ResourceType: awscloud.ResourceTypeConfigRetentionConfiguration,
+		ResourceType: catalog.ResourceTypeConfigRetentionConfiguration,
 		Name:         name,
 		Attributes: map[string]any{
 			"retention_period_in_days": retention.RetentionPeriodInDays,

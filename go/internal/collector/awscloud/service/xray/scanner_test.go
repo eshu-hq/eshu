@@ -56,9 +56,9 @@ func TestScannerEmitsGroupsRulesAndEncryptionConfig(t *testing.T) {
 	}
 
 	for _, kind := range []string{
-		awscloud.ResourceTypeXRayGroup,
-		awscloud.ResourceTypeXRaySamplingRule,
-		awscloud.ResourceTypeXRayEncryptionConfig,
+		catalog.ResourceTypeXRayGroup,
+		catalog.ResourceTypeXRaySamplingRule,
+		catalog.ResourceTypeXRayEncryptionConfig,
 	} {
 		if _, ok := firstResource(envelopes, kind); !ok {
 			t.Fatalf("missing resource_type %q in envelopes", kind)
@@ -66,7 +66,7 @@ func TestScannerEmitsGroupsRulesAndEncryptionConfig(t *testing.T) {
 	}
 
 	// Group carries the filter expression as configuration.
-	group, _ := firstResource(envelopes, awscloud.ResourceTypeXRayGroup)
+	group, _ := firstResource(envelopes, catalog.ResourceTypeXRayGroup)
 	groupAttrs := attributesOf(t, group)
 	if got, want := groupAttrs["filter_expression"], `service("orders-api")`; got != want {
 		t.Fatalf("group filter_expression = %#v, want %q", got, want)
@@ -79,7 +79,7 @@ func TestScannerEmitsGroupsRulesAndEncryptionConfig(t *testing.T) {
 	}
 
 	// Sampling rule carries the priority/reservoir/rate configuration.
-	rule, _ := firstResource(envelopes, awscloud.ResourceTypeXRaySamplingRule)
+	rule, _ := firstResource(envelopes, catalog.ResourceTypeXRaySamplingRule)
 	ruleAttrs := attributesOf(t, rule)
 	if got, want := ruleAttrs["priority"], int32(1000); got != want {
 		t.Fatalf("rule priority = %#v, want %v", got, want)
@@ -92,7 +92,7 @@ func TestScannerEmitsGroupsRulesAndEncryptionConfig(t *testing.T) {
 	}
 
 	// Encryption config resource id is account/region scoped.
-	config, _ := firstResource(envelopes, awscloud.ResourceTypeXRayEncryptionConfig)
+	config, _ := firstResource(envelopes, catalog.ResourceTypeXRayEncryptionConfig)
 	wantConfigID := "123456789012/us-east-1/xray-encryption-config"
 	if config.Payload["resource_id"] != wantConfigID {
 		t.Fatalf("encryption config resource_id = %#v, want %q", config.Payload["resource_id"], wantConfigID)
@@ -108,7 +108,7 @@ func TestEncryptionConfigKMSEdgeJoinsKMSKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	edges := relationshipsOfType(envelopes, awscloud.RelationshipXRayEncryptionConfigUsesKMSKey)
+	edges := relationshipsOfType(envelopes, catalog.RelationshipXRayEncryptionConfigUsesKMSKey)
 	if got, want := len(edges), 1; got != want {
 		t.Fatalf("kms edges = %d, want %d", got, want)
 	}
@@ -210,7 +210,7 @@ func TestNoKMSEdgeWhenEncryptionTypeIsNone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	if edges := relationshipsOfType(envelopes, awscloud.RelationshipXRayEncryptionConfigUsesKMSKey); len(edges) != 0 {
+	if edges := relationshipsOfType(envelopes, catalog.RelationshipXRayEncryptionConfigUsesKMSKey); len(edges) != 0 {
 		t.Fatalf("kms edges = %d, want 0 for NONE encryption", len(edges))
 	}
 }
@@ -229,12 +229,12 @@ func TestSamplingRuleServiceCorrelationEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	edges := relationshipsOfType(envelopes, awscloud.RelationshipXRaySamplingRuleMatchesService)
+	edges := relationshipsOfType(envelopes, catalog.RelationshipXRaySamplingRuleMatchesService)
 	if got, want := len(edges), 1; got != want {
 		t.Fatalf("service correlation edges = %d, want %d", got, want)
 	}
 	edge := edges[0]
-	if got, want := edge.Payload["target_type"], awscloud.ResourceTypeXRayServiceCorrelation; got != want {
+	if got, want := edge.Payload["target_type"], catalog.ResourceTypeXRayServiceCorrelation; got != want {
 		t.Fatalf("service edge target_type = %#v, want %q", got, want)
 	}
 	if got, want := edge.Payload["target_resource_id"], "orders-api/AWS::ECS::Container"; got != want {
@@ -259,11 +259,11 @@ func TestWildcardSamplingRuleEmitsNoServiceEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	if edges := relationshipsOfType(envelopes, awscloud.RelationshipXRaySamplingRuleMatchesService); len(edges) != 0 {
+	if edges := relationshipsOfType(envelopes, catalog.RelationshipXRaySamplingRuleMatchesService); len(edges) != 0 {
 		t.Fatalf("service edges = %d, want 0 for a wildcard-only rule", len(edges))
 	}
 	// The rule resource itself is still emitted.
-	if _, ok := firstResource(envelopes, awscloud.ResourceTypeXRaySamplingRule); !ok {
+	if _, ok := firstResource(envelopes, catalog.ResourceTypeXRaySamplingRule); !ok {
 		t.Fatal("wildcard rule resource missing")
 	}
 }
@@ -363,7 +363,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceXRay,
+		ServiceKind:         catalog.ServiceXRay,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:xray:1",
 		CollectorInstanceID: "aws-prod",

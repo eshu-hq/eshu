@@ -138,7 +138,7 @@ func TestScannerEmitsAppConfigMetadataAndRelationships(t *testing.T) {
 	// environment -> CloudWatch alarm edge, keyed by the alarm ARN the
 	// CloudWatch scanner publishes.
 	envAlarm := relationshipByType(t, envelopes, catalog.RelationshipAppConfigEnvironmentMonitorsAlarm)
-	assertEdgeTarget(t, envAlarm, awscloud.ResourceTypeCloudWatchAlarm, testAlarmARN)
+	assertEdgeTarget(t, envAlarm, catalog.ResourceTypeCloudWatchAlarm, testAlarmARN)
 	if got, want := envAlarm.Payload["target_arn"], testAlarmARN; got != want {
 		t.Fatalf("env->alarm target_arn = %#v, want %q", got, want)
 	}

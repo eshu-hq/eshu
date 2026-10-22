@@ -70,7 +70,7 @@ func serviceRoleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeBuildProjectUsesIAMRole,
+		RelationshipType: catalog.RelationshipCodeBuildProjectUsesIAMRole,
 		SourceResourceID: projectID,
 		SourceARN:        projectARN,
 		TargetResourceID: roleARN,
@@ -99,7 +99,7 @@ func kmsKeyRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeBuildProjectUsesKMSKey,
+		RelationshipType: catalog.RelationshipCodeBuildProjectUsesKMSKey,
 		SourceResourceID: projectID,
 		SourceARN:        projectARN,
 		TargetResourceID: keyID,
@@ -119,7 +119,7 @@ func vpcRelationships(
 	if vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeBuildProjectUsesVPC,
+			RelationshipType: catalog.RelationshipCodeBuildProjectUsesVPC,
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: vpcID,
@@ -134,7 +134,7 @@ func vpcRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeBuildProjectUsesSubnet,
+			RelationshipType: catalog.RelationshipCodeBuildProjectUsesSubnet,
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: subnetID,
@@ -150,7 +150,7 @@ func vpcRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeBuildProjectUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipCodeBuildProjectUsesSecurityGroup,
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: groupID,
@@ -195,7 +195,7 @@ func sourceRelationship(
 		bucketARN := s3BucketARNFromLocation(boundary, location)
 		return awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeBuildProjectSourcedFromS3,
+			RelationshipType: catalog.RelationshipCodeBuildProjectSourcedFromS3,
 			SourceResourceID: projectID,
 			SourceARN:        projectARN,
 			TargetResourceID: bucketARN,
@@ -215,7 +215,7 @@ func sourceRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeBuildProjectSourcedFromRepository,
+		RelationshipType: catalog.RelationshipCodeBuildProjectSourcedFromRepository,
 		SourceResourceID: projectID,
 		SourceARN:        projectARN,
 		TargetResourceID: location,
@@ -260,7 +260,7 @@ func artifactRelationship(
 	bucketARN := s3BucketARNFromLocation(boundary, location)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeBuildProjectArtifactsToS3,
+		RelationshipType: catalog.RelationshipCodeBuildProjectArtifactsToS3,
 		SourceResourceID: projectID,
 		SourceARN:        projectARN,
 		TargetResourceID: bucketARN,
@@ -295,7 +295,7 @@ func environmentReferenceRelationships(
 		case environmentVariableTypeSecretsManager:
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipCodeBuildProjectReferencesSecret,
+				RelationshipType: catalog.RelationshipCodeBuildProjectReferencesSecret,
 				SourceResourceID: projectID,
 				SourceARN:        projectARN,
 				TargetResourceID: reference,
@@ -307,7 +307,7 @@ func environmentReferenceRelationships(
 		case environmentVariableTypeParameterStore:
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipCodeBuildProjectReferencesSSMParameter,
+				RelationshipType: catalog.RelationshipCodeBuildProjectReferencesSSMParameter,
 				SourceResourceID: projectID,
 				SourceARN:        projectARN,
 				TargetResourceID: reference,

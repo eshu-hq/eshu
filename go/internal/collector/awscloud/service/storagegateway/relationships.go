@@ -139,7 +139,7 @@ func fileShareLogGroupRelationship(boundary awscloud.Boundary, share FileShare) 
 		SourceResourceID: shareID,
 		TargetResourceID: logGroupARN,
 		TargetARN:        logGroupARN,
-		TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+		TargetType:       catalog.ResourceTypeCloudWatchLogsLogGroup,
 		SourceRecordID:   shareID + "->" + catalog.RelationshipStorageGatewayFileShareLogsToCloudWatch + ":" + logGroupARN,
 	}
 }

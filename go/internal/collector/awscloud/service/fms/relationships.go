@@ -34,7 +34,7 @@ func policyMemberAccountRelationship(
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(policy.ARN),
 		TargetResourceID: accountID,
-		TargetType:       awscloud.ResourceTypeOrganizationsAccount,
+		TargetType:       catalog.ResourceTypeOrganizationsAccount,
 		Attributes: map[string]any{
 			"security_service_type": strings.TrimSpace(policy.SecurityServiceType),
 			"managed_resource_type": strings.TrimSpace(policy.ResourceType),

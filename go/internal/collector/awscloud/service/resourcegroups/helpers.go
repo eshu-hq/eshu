@@ -175,7 +175,7 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 		// arn:p:cloudformation:region:acct:stack/name/guid. The cloudformation
 		// scanner keys the stack by its StackId, which is this ARN.
 		if resourceType == "stack" {
-			return arnTarget(awscloud.ResourceTypeCloudFormationStack, arn), true
+			return arnTarget(catalog.ResourceTypeCloudFormationStack, arn), true
 		}
 	case "kms":
 		// arn:p:kms:region:acct:key/<key-id>. The kms scanner keys the key by its

@@ -99,7 +99,7 @@ func TestScannerEmitsFirehoseMetadataResourceAndRelationships(t *testing.T) {
 	}
 
 	logGroup := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamLogsToCloudWatchLogGroup)
-	assertEdge(t, logGroup, streamARN, logGroupName, "", awscloud.ResourceTypeCloudWatchLogsLogGroup)
+	assertEdge(t, logGroup, streamARN, logGroupName, "", catalog.ResourceTypeCloudWatchLogsLogGroup)
 	if got := countRelationships(envelopes, catalog.RelationshipFirehoseStreamLogsToCloudWatchLogGroup); got != 1 {
 		t.Fatalf("log-group edge count = %d, want 1 (duplicate log group must collapse)", got)
 	}

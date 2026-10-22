@@ -6,15 +6,15 @@ package runtimebind
 import (
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	svc "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/codedeploy"
 	sdkadapter "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/codedeploy/awssdk"
 )
 
 func init() {
 	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind:          awscloud.ServiceCodeDeploy,
+		ServiceKind:          catalog.ServiceCodeDeploy,
 		RequiresRedactionKey: true,
 		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
 			if d.RedactionKey.IsZero() {

@@ -97,19 +97,19 @@ func TestScannerEmitsOrganizationsMetadataOnlyFactsAndRelationships(t *testing.T
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsRoot)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsOrganizationalUnit)
-	account := assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsAccount)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsPolicy)
-	delegatedAdmin := assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsDelegatedAdministrator)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsAccountInOU)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsOUInOU)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsAccountInRoot)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsPolicyTargetsResource)
+	assertResourceType(t, envelopes, catalog.ResourceTypeOrganizationsRoot)
+	assertResourceType(t, envelopes, catalog.ResourceTypeOrganizationsOrganizationalUnit)
+	account := assertResourceType(t, envelopes, catalog.ResourceTypeOrganizationsAccount)
+	assertResourceType(t, envelopes, catalog.ResourceTypeOrganizationsPolicy)
+	delegatedAdmin := assertResourceType(t, envelopes, catalog.ResourceTypeOrganizationsDelegatedAdministrator)
+	assertRelationshipType(t, envelopes, catalog.RelationshipOrganizationsAccountInOU)
+	assertRelationshipType(t, envelopes, catalog.RelationshipOrganizationsOUInOU)
+	assertRelationshipType(t, envelopes, catalog.RelationshipOrganizationsAccountInRoot)
+	assertRelationshipType(t, envelopes, catalog.RelationshipOrganizationsPolicyTargetsResource)
 	delegatedAdminRelationship := assertRelationshipType(
 		t,
 		envelopes,
-		awscloud.RelationshipOrganizationsDelegatedAdminForAccount,
+		catalog.RelationshipOrganizationsDelegatedAdminForAccount,
 	)
 
 	accountAttrs := attributesOf(t, account)
@@ -195,7 +195,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceOrganizations,
+		ServiceKind:         catalog.ServiceOrganizations,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:organizations:1",
 		CollectorInstanceID: "aws-prod",

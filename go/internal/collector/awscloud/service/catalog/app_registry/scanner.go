@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("servicecatalogappregistry scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceServiceCatalogAppRegistry:
+	case "", catalog.ServiceServiceCatalogAppRegistry:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceServiceCatalogAppRegistry
+		boundary.ServiceKind = catalog.ServiceServiceCatalogAppRegistry
 	default:
 		return nil, fmt.Errorf(
 			"servicecatalogappregistry scanner received service_kind %q",
@@ -103,7 +104,7 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeServiceCatalogAppRegistryApplication,
+		ResourceType: catalog.ResourceTypeServiceCatalogAppRegistryApplication,
 		Name:         name,
 		Tags:         cloneStringMap(application.Tags),
 		Attributes: map[string]any{
@@ -127,7 +128,7 @@ func attributeGroupObservation(boundary awscloud.Boundary, group AttributeGroup)
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeServiceCatalogAppRegistryAttributeGroup,
+		ResourceType: catalog.ResourceTypeServiceCatalogAppRegistryAttributeGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{

@@ -171,7 +171,7 @@ func TestScannerEmitsStorageGatewayMetadataResourcesAndRelationships(t *testing.
 	if got, want := shareLog.Payload["target_resource_id"], logGroupARN; got != want {
 		t.Fatalf("share->log target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := shareLog.Payload["target_type"], awscloud.ResourceTypeCloudWatchLogsLogGroup; got != want {
+	if got, want := shareLog.Payload["target_type"], catalog.ResourceTypeCloudWatchLogsLogGroup; got != want {
 		t.Fatalf("share->log target_type = %#v, want %q", got, want)
 	}
 

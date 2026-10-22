@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("controltower scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceControlTower:
+	case "", catalog.ServiceControlTower:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceControlTower
+		boundary.ServiceKind = catalog.ServiceControlTower
 	default:
 		return nil, fmt.Errorf("controltower scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -142,7 +143,7 @@ func landingZoneObservation(boundary awscloud.Boundary, landingZone LandingZone)
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeControlTowerLandingZone,
+		ResourceType: catalog.ResourceTypeControlTowerLandingZone,
 		State:        strings.TrimSpace(landingZone.Status),
 		Tags:         cloneStringMap(landingZone.Tags),
 		Attributes: map[string]any{
@@ -161,7 +162,7 @@ func controlObservation(boundary awscloud.Boundary, control EnabledControl) awsc
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeControlTowerEnabledControl,
+		ResourceType: catalog.ResourceTypeControlTowerEnabledControl,
 		State:        strings.TrimSpace(control.Status),
 		Attributes: map[string]any{
 			"control_identifier": strings.TrimSpace(control.ControlIdentifier),
@@ -180,7 +181,7 @@ func baselineObservation(boundary awscloud.Boundary, baseline EnabledBaseline) a
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeControlTowerEnabledBaseline,
+		ResourceType: catalog.ResourceTypeControlTowerEnabledBaseline,
 		State:        strings.TrimSpace(baseline.Status),
 		Attributes: map[string]any{
 			"baseline_identifier": strings.TrimSpace(baseline.BaselineIdentifier),

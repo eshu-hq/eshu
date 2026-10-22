@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // applicationAttributeGroupRelationships records the attribute groups an
@@ -41,14 +42,14 @@ func applicationAttributeGroupRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipServiceCatalogAppRegistryApplicationHasAttributeGroup,
+			RelationshipType: catalog.RelationshipServiceCatalogAppRegistryApplicationHasAttributeGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(application.ARN),
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeServiceCatalogAppRegistryAttributeGroup,
+			TargetType:       catalog.ResourceTypeServiceCatalogAppRegistryAttributeGroup,
 			SourceRecordID: sourceID + "->" +
-				awscloud.RelationshipServiceCatalogAppRegistryApplicationHasAttributeGroup +
+				catalog.RelationshipServiceCatalogAppRegistryApplicationHasAttributeGroup +
 				":" + targetID,
 		})
 	}
@@ -92,14 +93,14 @@ func applicationStackRelationships(
 		seen[stackARN] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipServiceCatalogAppRegistryApplicationAssociatesCloudFormationStack,
+			RelationshipType: catalog.RelationshipServiceCatalogAppRegistryApplicationAssociatesCloudFormationStack,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(application.ARN),
 			TargetResourceID: stackARN,
 			TargetARN:        stackARN,
-			TargetType:       awscloud.ResourceTypeCloudFormationStack,
+			TargetType:       catalog.ResourceTypeCloudFormationStack,
 			SourceRecordID: sourceID + "->" +
-				awscloud.RelationshipServiceCatalogAppRegistryApplicationAssociatesCloudFormationStack +
+				catalog.RelationshipServiceCatalogAppRegistryApplicationAssociatesCloudFormationStack +
 				":" + stackARN,
 		})
 	}

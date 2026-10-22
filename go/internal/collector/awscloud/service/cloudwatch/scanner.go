@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -33,10 +34,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("cloudwatch scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCloudWatch:
+	case "", catalog.ServiceCloudWatch:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCloudWatch
+		boundary.ServiceKind = catalog.ServiceCloudWatch
 	default:
 		return nil, fmt.Errorf("cloudwatch scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -146,7 +147,7 @@ func metricAlarmObservation(boundary awscloud.Boundary, alarm MetricAlarm) awscl
 		Boundary:     boundary,
 		ARN:          alarmARN,
 		ResourceID:   firstNonEmpty(alarmARN, alarm.Name),
-		ResourceType: awscloud.ResourceTypeCloudWatchAlarm,
+		ResourceType: catalog.ResourceTypeCloudWatchAlarm,
 		Name:         strings.TrimSpace(alarm.Name),
 		State:        strings.TrimSpace(alarm.State),
 		Tags:         cloneStringMap(alarm.Tags),
@@ -216,7 +217,7 @@ func compositeAlarmObservation(boundary awscloud.Boundary, alarm CompositeAlarm)
 		Boundary:     boundary,
 		ARN:          alarmARN,
 		ResourceID:   firstNonEmpty(alarmARN, alarm.Name),
-		ResourceType: awscloud.ResourceTypeCloudWatchCompositeAlarm,
+		ResourceType: catalog.ResourceTypeCloudWatchCompositeAlarm,
 		Name:         strings.TrimSpace(alarm.Name),
 		State:        strings.TrimSpace(alarm.State),
 		Tags:         cloneStringMap(alarm.Tags),
@@ -243,7 +244,7 @@ func dashboardObservation(boundary awscloud.Boundary, dashboard Dashboard) awscl
 		Boundary:     boundary,
 		ARN:          dashboardARN,
 		ResourceID:   firstNonEmpty(dashboardARN, dashboard.Name),
-		ResourceType: awscloud.ResourceTypeCloudWatchDashboard,
+		ResourceType: catalog.ResourceTypeCloudWatchDashboard,
 		Name:         strings.TrimSpace(dashboard.Name),
 		Attributes: map[string]any{
 			// Body / widgets / definition are intentionally absent: the SDK
@@ -263,7 +264,7 @@ func insightRuleObservation(boundary awscloud.Boundary, rule InsightRule) awsclo
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeCloudWatchInsightRule,
+		ResourceType: catalog.ResourceTypeCloudWatchInsightRule,
 		Name:         name,
 		State:        strings.TrimSpace(rule.State),
 		Attributes: map[string]any{
@@ -302,7 +303,7 @@ func metricStreamObservation(boundary awscloud.Boundary, stream MetricStream) aw
 		Boundary:     boundary,
 		ARN:          streamARN,
 		ResourceID:   firstNonEmpty(streamARN, stream.Name),
-		ResourceType: awscloud.ResourceTypeCloudWatchMetricStream,
+		ResourceType: catalog.ResourceTypeCloudWatchMetricStream,
 		Name:         strings.TrimSpace(stream.Name),
 		State:        strings.TrimSpace(stream.State),
 		Tags:         cloneStringMap(stream.Tags),

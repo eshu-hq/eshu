@@ -56,15 +56,15 @@ func repositoryInDomainRelationship(boundary awscloud.Boundary, repository Repos
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeArtifactRepositoryInDomain,
+		RelationshipType: catalog.RelationshipCodeArtifactRepositoryInDomain,
 		SourceResourceID: repositoryID,
 		SourceARN:        strings.TrimSpace(repository.ARN),
 		TargetResourceID: domainName,
-		TargetType:       awscloud.ResourceTypeCodeArtifactDomain,
+		TargetType:       catalog.ResourceTypeCodeArtifactDomain,
 		Attributes: map[string]any{
 			"domain_owner": strings.TrimSpace(repository.DomainOwner),
 		},
-		SourceRecordID: repositoryID + "->" + awscloud.RelationshipCodeArtifactRepositoryInDomain + ":" + domainName,
+		SourceRecordID: repositoryID + "->" + catalog.RelationshipCodeArtifactRepositoryInDomain + ":" + domainName,
 	}
 }
 
@@ -84,13 +84,13 @@ func domainKMSKeyRelationship(boundary awscloud.Boundary, domain Domain) *awsclo
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeArtifactDomainUsesKMSKey,
+		RelationshipType: catalog.RelationshipCodeArtifactDomainUsesKMSKey,
 		SourceResourceID: domainID,
 		SourceARN:        strings.TrimSpace(domain.ARN),
 		TargetResourceID: keyARN,
 		TargetARN:        keyARN,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   domainID + "->" + awscloud.RelationshipCodeArtifactDomainUsesKMSKey + ":" + keyARN,
+		SourceRecordID:   domainID + "->" + catalog.RelationshipCodeArtifactDomainUsesKMSKey + ":" + keyARN,
 	}
 }
 
@@ -120,16 +120,16 @@ func upstreamRepositoryRelationships(boundary awscloud.Boundary, repository Repo
 		seen[targetID] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeArtifactRepositoryUpstreamRepository,
+			RelationshipType: catalog.RelationshipCodeArtifactRepositoryUpstreamRepository,
 			SourceResourceID: repositoryID,
 			SourceARN:        strings.TrimSpace(repository.ARN),
 			TargetResourceID: targetID,
-			TargetType:       awscloud.ResourceTypeCodeArtifactRepository,
+			TargetType:       catalog.ResourceTypeCodeArtifactRepository,
 			Attributes: map[string]any{
 				"upstream_repository_name": upstreamName,
 				"priority":                 priority,
 			},
-			SourceRecordID: repositoryID + "->" + awscloud.RelationshipCodeArtifactRepositoryUpstreamRepository + ":" + targetID,
+			SourceRecordID: repositoryID + "->" + catalog.RelationshipCodeArtifactRepositoryUpstreamRepository + ":" + targetID,
 		})
 	}
 	if len(observations) == 0 {
@@ -161,7 +161,7 @@ func externalConnectionRelationships(boundary awscloud.Boundary, repository Repo
 		seen[connectionName] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeArtifactRepositoryExternalConnection,
+			RelationshipType: catalog.RelationshipCodeArtifactRepositoryExternalConnection,
 			SourceResourceID: repositoryID,
 			SourceARN:        strings.TrimSpace(repository.ARN),
 			TargetResourceID: connectionName,
@@ -170,7 +170,7 @@ func externalConnectionRelationships(boundary awscloud.Boundary, repository Repo
 				"package_format": strings.TrimSpace(connection.PackageFormat),
 				"status":         strings.TrimSpace(connection.Status),
 			},
-			SourceRecordID: repositoryID + "->" + awscloud.RelationshipCodeArtifactRepositoryExternalConnection + ":" + connectionName,
+			SourceRecordID: repositoryID + "->" + catalog.RelationshipCodeArtifactRepositoryExternalConnection + ":" + connectionName,
 		})
 	}
 	if len(observations) == 0 {

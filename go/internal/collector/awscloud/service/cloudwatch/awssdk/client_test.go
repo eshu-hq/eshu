@@ -16,6 +16,7 @@ import (
 	awscwtypes "github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // forbiddenAPIs is the closed list of CloudWatch SDK methods the adapter MUST
@@ -164,7 +165,7 @@ func TestClientListsCallsOnlySafeAPIs(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudWatch},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCloudWatch},
 	}
 
 	metricAlarms, err := adapter.ListMetricAlarms(context.Background())

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("xray scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceXRay:
+	case "", catalog.ServiceXRay:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceXRay
+		boundary.ServiceKind = catalog.ServiceXRay
 	default:
 		return nil, fmt.Errorf("xray scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -124,7 +125,7 @@ func groupObservation(boundary awscloud.Boundary, group Group) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   firstNonEmpty(groupARN, groupName),
-		ResourceType: awscloud.ResourceTypeXRayGroup,
+		ResourceType: catalog.ResourceTypeXRayGroup,
 		Name:         groupName,
 		Attributes: map[string]any{
 			// The filter expression is group configuration (which traces the
@@ -146,7 +147,7 @@ func samplingRuleObservation(boundary awscloud.Boundary, rule SamplingRule) awsc
 		Boundary:     boundary,
 		ARN:          ruleARN,
 		ResourceID:   firstNonEmpty(ruleARN, ruleName),
-		ResourceType: awscloud.ResourceTypeXRaySamplingRule,
+		ResourceType: catalog.ResourceTypeXRaySamplingRule,
 		Name:         ruleName,
 		Attributes: map[string]any{
 			"priority":       int32OrNil(rule.Priority),
@@ -170,7 +171,7 @@ func encryptionConfigObservation(boundary awscloud.Boundary, config EncryptionCo
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeXRayEncryptionConfig,
+		ResourceType: catalog.ResourceTypeXRayEncryptionConfig,
 		Name:         resourceID,
 		State:        strings.TrimSpace(config.Status),
 		Attributes: map[string]any{

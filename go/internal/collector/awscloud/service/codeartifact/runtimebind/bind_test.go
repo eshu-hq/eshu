@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/codeartifact/runtimebind"
 )
 
 // TestCodeArtifactRuntimeBindRegisters confirms importing the binding installs
 // the CodeArtifact scanner builder.
 func TestCodeArtifactRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCodeArtifact)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceCodeArtifact)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCodeArtifact)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceCodeArtifact)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCodeArtifact},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCodeArtifact},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

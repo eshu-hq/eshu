@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // resourceTypeEC2Instance is the License-Manager-reported resource category for
@@ -61,13 +62,13 @@ func configurationInstanceRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLicenseManagerConfigurationAppliesToInstance,
+		RelationshipType: catalog.RelationshipLicenseManagerConfigurationAppliesToInstance,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: instanceID,
 		TargetType:       ec2InstanceTargetType,
 		Attributes:       attributes,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipLicenseManagerConfigurationAppliesToInstance + ":" + instanceID,
+			catalog.RelationshipLicenseManagerConfigurationAppliesToInstance + ":" + instanceID,
 	}
 }

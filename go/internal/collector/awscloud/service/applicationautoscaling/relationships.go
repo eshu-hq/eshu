@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // targetScalesResourceRelationship records that a scalable target governs the
@@ -61,13 +62,13 @@ func targetScalesResourceRelationship(
 func relationshipTypeForNamespace(namespace string) string {
 	switch namespace {
 	case "dynamodb":
-		return awscloud.RelationshipApplicationAutoScalingTargetScalesDynamoDBTable
+		return catalog.RelationshipApplicationAutoScalingTargetScalesDynamoDBTable
 	case "ecs":
-		return awscloud.RelationshipApplicationAutoScalingTargetScalesECSService
+		return catalog.RelationshipApplicationAutoScalingTargetScalesECSService
 	case "rds":
-		return awscloud.RelationshipApplicationAutoScalingTargetScalesRDSCluster
+		return catalog.RelationshipApplicationAutoScalingTargetScalesRDSCluster
 	case "lambda":
-		return awscloud.RelationshipApplicationAutoScalingTargetScalesLambdaFunction
+		return catalog.RelationshipApplicationAutoScalingTargetScalesLambdaFunction
 	default:
 		return ""
 	}
@@ -88,12 +89,12 @@ func policyForScalableTargetRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipApplicationAutoScalingPolicyForScalableTarget,
+		RelationshipType: catalog.RelationshipApplicationAutoScalingPolicyForScalableTarget,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(policy.ARN),
 		TargetResourceID: targetID,
-		TargetType:       awscloud.ResourceTypeApplicationAutoScalingScalableTarget,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipApplicationAutoScalingPolicyForScalableTarget + ":" + targetID,
+		TargetType:       catalog.ResourceTypeApplicationAutoScalingScalableTarget,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipApplicationAutoScalingPolicyForScalableTarget + ":" + targetID,
 	}
 }
 
@@ -112,12 +113,12 @@ func scheduledActionForScalableTargetRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipApplicationAutoScalingScheduledActionForScalableTarget,
+		RelationshipType: catalog.RelationshipApplicationAutoScalingScheduledActionForScalableTarget,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(action.ARN),
 		TargetResourceID: targetID,
-		TargetType:       awscloud.ResourceTypeApplicationAutoScalingScalableTarget,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipApplicationAutoScalingScheduledActionForScalableTarget + ":" + targetID,
+		TargetType:       catalog.ResourceTypeApplicationAutoScalingScalableTarget,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipApplicationAutoScalingScheduledActionForScalableTarget + ":" + targetID,
 	}
 }
 
@@ -141,13 +142,13 @@ func policyAlarmRelationships(
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipApplicationAutoScalingPolicyTriggersCloudWatchAlarm,
+			RelationshipType: catalog.RelationshipApplicationAutoScalingPolicyTriggersCloudWatchAlarm,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(policy.ARN),
 			TargetResourceID: trimmed,
 			TargetARN:        trimmed,
-			TargetType:       awscloud.ResourceTypeCloudWatchAlarm,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipApplicationAutoScalingPolicyTriggersCloudWatchAlarm + ":" + trimmed,
+			TargetType:       catalog.ResourceTypeCloudWatchAlarm,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipApplicationAutoScalingPolicyTriggersCloudWatchAlarm + ":" + trimmed,
 		})
 	}
 	return relationships

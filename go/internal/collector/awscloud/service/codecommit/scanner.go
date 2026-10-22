@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -33,10 +34,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("codecommit scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCodeCommit:
+	case "", catalog.ServiceCodeCommit:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCodeCommit
+		boundary.ServiceKind = catalog.ServiceCodeCommit
 	default:
 		return nil, fmt.Errorf("codecommit scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -96,7 +97,7 @@ func repositoryObservation(boundary awscloud.Boundary, repository Repository) aw
 		Boundary:     boundary,
 		ARN:          repositoryARN,
 		ResourceID:   firstNonEmpty(repositoryARN, repositoryName),
-		ResourceType: awscloud.ResourceTypeCodeCommitRepository,
+		ResourceType: catalog.ResourceTypeCodeCommitRepository,
 		Name:         repositoryName,
 		Tags:         cloneStringMap(repository.Tags),
 		Attributes: map[string]any{

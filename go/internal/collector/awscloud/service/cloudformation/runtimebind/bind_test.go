@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/cloudformation/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -18,9 +19,9 @@ import (
 // TestCloudFormationRuntimeBindRegisters confirms importing the binding installs
 // the CloudFormation scanner builder.
 func TestCloudFormationRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCloudFormation)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceCloudFormation)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCloudFormation)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceCloudFormation)
 	}
 	key, err := redact.NewKey([]byte("aws-redaction-key"))
 	if err != nil {
@@ -28,7 +29,7 @@ func TestCloudFormationRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudFormation},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCloudFormation},
 		RedactionKey: key,
 	})
 	if err != nil {
@@ -42,13 +43,13 @@ func TestCloudFormationRuntimeBindRegisters(t *testing.T) {
 // TestCloudFormationRuntimeBindRequiresRedactionKey covers the guard the binding
 // enforces because CloudFormation output redaction depends on a non-zero key.
 func TestCloudFormationRuntimeBindRequiresRedactionKey(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCloudFormation)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceCloudFormation)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCloudFormation)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceCloudFormation)
 	}
 	_, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudFormation},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCloudFormation},
 	})
 	if err == nil {
 		t.Fatalf("build() error = nil, want missing redaction key")

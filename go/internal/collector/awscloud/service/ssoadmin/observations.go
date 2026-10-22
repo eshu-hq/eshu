@@ -260,7 +260,7 @@ func assignmentTargetsAccountRelationship(
 		RelationshipType: catalog.RelationshipSSOAdminAssignmentTargetsAccount,
 		SourceResourceID: id,
 		TargetResourceID: accountID,
-		TargetType:       awscloud.ResourceTypeOrganizationsAccount,
+		TargetType:       catalog.ResourceTypeOrganizationsAccount,
 		SourceRecordID:   id + "#account#" + accountID,
 	}, true
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestTrailKMSRelationshipTargetFields proves the trail-to-KMS relationship
@@ -48,7 +49,7 @@ func TestTrailKMSRelationshipTargetFields(t *testing.T) {
 				Name:     "management",
 				KMSKeyID: tc.keyID,
 			})
-			rel := relationshipOfType(t, out, awscloud.RelationshipCloudTrailTrailUsesKMSKey)
+			rel := relationshipOfType(t, out, catalog.RelationshipCloudTrailTrailUsesKMSKey)
 			assertKMSRelationship(t, rel, tc.wantTrgID, tc.wantARN)
 		})
 	}
@@ -94,8 +95,8 @@ func TestEventDataStoreKMSRelationshipTargetFields(t *testing.T) {
 			if !ok {
 				t.Fatalf("eventDataStoreKMSRelationship() ok = false, want true")
 			}
-			if rel.RelationshipType != awscloud.RelationshipCloudTrailEventDataStoreUsesKMSKey {
-				t.Fatalf("relationship_type = %q, want %q", rel.RelationshipType, awscloud.RelationshipCloudTrailEventDataStoreUsesKMSKey)
+			if rel.RelationshipType != catalog.RelationshipCloudTrailEventDataStoreUsesKMSKey {
+				t.Fatalf("relationship_type = %q, want %q", rel.RelationshipType, catalog.RelationshipCloudTrailEventDataStoreUsesKMSKey)
 			}
 			assertKMSRelationship(t, rel, tc.wantTrgID, tc.wantARN)
 		})

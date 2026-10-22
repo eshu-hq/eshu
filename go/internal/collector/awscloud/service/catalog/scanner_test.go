@@ -250,8 +250,8 @@ func TestScanEmitsProvisionedProductResource(t *testing.T) {
 func TestScanEmitsProvisionedProductToStackEdge(t *testing.T) {
 	envelope := findRelationship(t, scanFixture(t, sampleClient()),
 		catalog.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack)
-	if got := envelope.Payload["target_type"]; got != awscloud.ResourceTypeCloudFormationStack {
-		t.Fatalf("target_type = %v, want %v", got, awscloud.ResourceTypeCloudFormationStack)
+	if got := envelope.Payload["target_type"]; got != catalog.ResourceTypeCloudFormationStack {
+		t.Fatalf("target_type = %v, want %v", got, catalog.ResourceTypeCloudFormationStack)
 	}
 	wantTarget := "arn:aws:cloudformation:us-east-1:123456789012:stack/SC-team-bucket/abcd-1234"
 	if got := envelope.Payload["target_resource_id"]; got != wantTarget {

@@ -185,7 +185,7 @@ func resourceRelationships(
 			SourceResourceID: sourceID,
 			SourceARN:        environmentARN,
 			TargetResourceID: name,
-			TargetType:       awscloud.ResourceTypeAutoScalingGroup,
+			TargetType:       catalog.ResourceTypeAutoScalingGroup,
 			SourceRecordID:   sourceID + "#asg#" + name,
 		})
 	}

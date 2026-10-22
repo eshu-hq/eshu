@@ -53,7 +53,7 @@ func TestScannerEmitsCodeGuruMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Repository association resource node.
-	association := resourceByType(t, envelopes, awscloud.ResourceTypeCodeGuruRepositoryAssociation)
+	association := resourceByType(t, envelopes, catalog.ResourceTypeCodeGuruRepositoryAssociation)
 	if got, want := association.Payload["resource_id"], testAssociationARN; got != want {
 		t.Fatalf("association resource_id = %#v, want %q", got, want)
 	}
@@ -66,7 +66,7 @@ func TestScannerEmitsCodeGuruMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, assocAttrs, "encryption_option", "CUSTOMER_MANAGED_CMK")
 
 	// Profiling group resource node.
-	group := resourceByType(t, envelopes, awscloud.ResourceTypeCodeGuruProfilingGroup)
+	group := resourceByType(t, envelopes, catalog.ResourceTypeCodeGuruProfilingGroup)
 	if got, want := group.Payload["resource_id"], testGroupARN; got != want {
 		t.Fatalf("profiling group resource_id = %#v, want %q", got, want)
 	}
@@ -76,8 +76,8 @@ func TestScannerEmitsCodeGuruMetadataAndRelationships(t *testing.T) {
 
 	// association -> CodeCommit repo edge, keyed by the synthesized partition-aware
 	// ARN the CodeCommit scanner publishes for its repository node.
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipCodeGuruAssociationReviewsCodeCommitRepository)
-	assertEdgeTarget(t, edge, awscloud.ResourceTypeCodeCommitRepository, wantCodeCommitARN)
+	edge := relationshipByType(t, envelopes, catalog.RelationshipCodeGuruAssociationReviewsCodeCommitRepository)
+	assertEdgeTarget(t, edge, catalog.ResourceTypeCodeCommitRepository, wantCodeCommitARN)
 	if got, want := edge.Payload["source_resource_id"], testAssociationARN; got != want {
 		t.Fatalf("edge source_resource_id = %#v, want %q", got, want)
 	}
@@ -117,7 +117,7 @@ func TestScannerSynthesizesGovCloudCodeCommitARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipCodeGuruAssociationReviewsCodeCommitRepository)
+	edge := relationshipByType(t, envelopes, catalog.RelationshipCodeGuruAssociationReviewsCodeCommitRepository)
 	wantARN := "arn:aws-us-gov:codecommit:us-gov-west-1:123456789012:gov-repo"
 	if got := edge.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud edge target_resource_id = %#v, want %q", got, wantARN)
@@ -141,7 +141,7 @@ func TestScannerSynthesizesChinaCodeCommitARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipCodeGuruAssociationReviewsCodeCommitRepository)
+	edge := relationshipByType(t, envelopes, catalog.RelationshipCodeGuruAssociationReviewsCodeCommitRepository)
 	wantARN := "arn:aws-cn:codecommit:cn-north-1:123456789012:cn-repo"
 	if got := edge.Payload["target_arn"]; got != wantARN {
 		t.Fatalf("China edge target_arn = %#v, want %q", got, wantARN)
@@ -167,7 +167,7 @@ func TestScannerSkipsEdgeForNonCodeCommitProvider(t *testing.T) {
 		}
 	}
 	// The GitHub connection reference is still recorded as a resource attribute.
-	association := resourceByType(t, envelopes, awscloud.ResourceTypeCodeGuruRepositoryAssociation)
+	association := resourceByType(t, envelopes, catalog.ResourceTypeCodeGuruRepositoryAssociation)
 	assertAttribute(t, attributesOf(t, association), "connection_arn", testConnectionARN)
 }
 
@@ -259,7 +259,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCodeGuru,
+		ServiceKind:         catalog.ServiceCodeGuru,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:codeguru:1",
 		CollectorInstanceID: "aws-prod",
