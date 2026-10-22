@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // trackerKMSRelationship records a Location Service tracker's reported KMS
@@ -35,7 +36,7 @@ func trackerKMSRelationship(boundary awscloud.Boundary, tracker Tracker) *awsclo
 		SourceARN:        strings.TrimSpace(tracker.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipLocationTrackerUsesKMSKey + ":" + targetID,
 	}
 }
@@ -68,7 +69,7 @@ func geofenceCollectionKMSRelationship(
 		SourceARN:        strings.TrimSpace(collection.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipLocationGeofenceCollectionUsesKMSKey + ":" + targetID,
 	}
 }

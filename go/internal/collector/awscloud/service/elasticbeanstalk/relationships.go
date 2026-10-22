@@ -129,7 +129,7 @@ func optionSettingRelationships(
 				SourceARN:        environmentARN,
 				TargetResourceID: value,
 				TargetARN:        arnOrEmpty(value),
-				TargetType:       awscloud.ResourceTypeIAMInstanceProfile,
+				TargetType:       catalog.ResourceTypeIAMInstanceProfile,
 				SourceRecordID:   sourceID + "#instance-profile#" + value,
 			})
 		case namespace == optionNamespaceEnvironment && option == optionNameServiceRole:
@@ -140,7 +140,7 @@ func optionSettingRelationships(
 				SourceARN:        environmentARN,
 				TargetResourceID: value,
 				TargetARN:        arnOrEmpty(value),
-				TargetType:       awscloud.ResourceTypeIAMRole,
+				TargetType:       catalog.ResourceTypeIAMRole,
 				SourceRecordID:   sourceID + "#service-role#" + value,
 			})
 		}

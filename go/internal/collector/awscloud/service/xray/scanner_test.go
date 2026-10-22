@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -114,7 +115,7 @@ func TestEncryptionConfigKMSEdgeJoinsKMSKey(t *testing.T) {
 	edge := edges[0]
 	// The target_type must be the family the KMS scanner publishes, or the edge
 	// dangles. Regression for the #804 graph-join defect class.
-	if got, want := edge.Payload["target_type"], awscloud.ResourceTypeKMSKey; got != want {
+	if got, want := edge.Payload["target_type"], catalog.ResourceTypeKMSKey; got != want {
 		t.Fatalf("kms edge target_type = %#v, want %q", got, want)
 	}
 	// The KMS scanner keys its key resource_id as the bare key id, falling back
@@ -163,7 +164,7 @@ func TestEncryptionConfigKMSEdgeTargetsAliasForAliasName(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a KMS edge for an alias-name reference")
 	}
-	if got, want := edge.TargetType, awscloud.ResourceTypeKMSAlias; got != want {
+	if got, want := edge.TargetType, catalog.ResourceTypeKMSAlias; got != want {
 		t.Fatalf("alias-name edge target_type = %q, want %q", got, want)
 	}
 	if got, want := edge.TargetResourceID, "alias/MyKey"; got != want {
@@ -188,7 +189,7 @@ func TestEncryptionConfigKMSEdgeTargetsAliasForAliasARN(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a KMS edge for an alias-ARN reference")
 	}
-	if got, want := edge.TargetType, awscloud.ResourceTypeKMSAlias; got != want {
+	if got, want := edge.TargetType, catalog.ResourceTypeKMSAlias; got != want {
 		t.Fatalf("alias-ARN edge target_type = %q, want %q", got, want)
 	}
 	if got, want := edge.TargetResourceID, "arn:aws:kms:us-east-1:123456789012:alias/MyKey"; got != want {
@@ -343,7 +344,7 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceKMS
+	boundary.ServiceKind = catalog.ServiceKMS
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatal("Scan() error = nil, want service kind mismatch")

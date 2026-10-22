@@ -161,7 +161,7 @@ func TestScannerEmitsWorkSpacesMetadataAndRelationships(t *testing.T) {
 
 	// workspace -> KMS key edge keyed by the reported key ARN.
 	wsKMS := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesWorkspaceUsesKMSKey)
-	assertEdgeTarget(t, wsKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, wsKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := wsKMS.Payload["target_arn"], testKMSARN; got != want {
 		t.Fatalf("workspace->kms target_arn = %#v, want %q", got, want)
 	}
@@ -184,7 +184,7 @@ func TestScannerEmitsWorkSpacesMetadataAndRelationships(t *testing.T) {
 
 	// directory -> IAM role edge keyed by the role ARN.
 	dirRole := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesDirectoryUsesIAMRole)
-	assertEdgeTarget(t, dirRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, dirRole, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got, want := dirRole.Payload["target_arn"], testRoleARN; got != want {
 		t.Fatalf("directory->iam target_arn = %#v, want %q", got, want)
 	}

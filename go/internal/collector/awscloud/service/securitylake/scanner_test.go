@@ -64,7 +64,7 @@ func TestScannerEmitsSecurityLakeMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Data lake resource node.
-	lake := resourceByType(t, envelopes, awscloud.ResourceTypeSecurityLakeDataLake)
+	lake := resourceByType(t, envelopes, catalog.ResourceTypeSecurityLakeDataLake)
 	if got, want := lake.Payload["resource_id"], testDataLakeARN; got != want {
 		t.Fatalf("data lake resource_id = %#v, want %q", got, want)
 	}
@@ -74,7 +74,7 @@ func TestScannerEmitsSecurityLakeMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, lakeAttrs, "expiration_days", int32(365))
 
 	// Subscriber resource node.
-	subscriber := resourceByType(t, envelopes, awscloud.ResourceTypeSecurityLakeSubscriber)
+	subscriber := resourceByType(t, envelopes, catalog.ResourceTypeSecurityLakeSubscriber)
 	if got, want := subscriber.Payload["resource_id"], testSubscriberARN; got != want {
 		t.Fatalf("subscriber resource_id = %#v, want %q", got, want)
 	}
@@ -83,34 +83,34 @@ func TestScannerEmitsSecurityLakeMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, subAttrs, "access_types", []string{"S3", "LAKEFORMATION"})
 
 	// data lake -> S3 bucket edge, keyed by the bucket ARN the S3 scanner publishes.
-	lakeS3 := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeDataLakeUsesS3Bucket)
+	lakeS3 := relationshipByType(t, envelopes, catalog.RelationshipSecurityLakeDataLakeUsesS3Bucket)
 	assertEdgeTarget(t, lakeS3, catalog.ResourceTypeS3Bucket, testS3BucketARN)
 
 	// data lake -> KMS key edge.
-	lakeKMS := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeDataLakeUsesKMSKey)
-	assertEdgeTarget(t, lakeKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	lakeKMS := relationshipByType(t, envelopes, catalog.RelationshipSecurityLakeDataLakeUsesKMSKey)
+	assertEdgeTarget(t, lakeKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 
 	// data lake -> Lake Formation registered resource edge, keyed by the bucket ARN.
-	lakeLF := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeDataLakeRegisteredInLakeFormation)
+	lakeLF := relationshipByType(t, envelopes, catalog.RelationshipSecurityLakeDataLakeRegisteredInLakeFormation)
 	assertEdgeTarget(t, lakeLF, awscloud.ResourceTypeLakeFormationResource, testS3BucketARN)
 
 	// log source -> data lake membership edge, keyed by the data lake ARN.
-	srcInLake := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeLogSourceInDataLake)
-	assertEdgeTarget(t, srcInLake, awscloud.ResourceTypeSecurityLakeDataLake, testDataLakeARN)
+	srcInLake := relationshipByType(t, envelopes, catalog.RelationshipSecurityLakeLogSourceInDataLake)
+	assertEdgeTarget(t, srcInLake, catalog.ResourceTypeSecurityLakeDataLake, testDataLakeARN)
 
 	// custom log source -> IAM role edge.
-	srcRole := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeLogSourceUsesIAMRole)
-	assertEdgeTarget(t, srcRole, awscloud.ResourceTypeIAMRole, testProviderRole)
+	srcRole := relationshipByType(t, envelopes, catalog.RelationshipSecurityLakeLogSourceUsesIAMRole)
+	assertEdgeTarget(t, srcRole, catalog.ResourceTypeIAMRole, testProviderRole)
 
 	// subscriber -> IAM role edge.
-	subRole := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeSubscriberUsesIAMRole)
-	assertEdgeTarget(t, subRole, awscloud.ResourceTypeIAMRole, testSubRoleARN)
+	subRole := relationshipByType(t, envelopes, catalog.RelationshipSecurityLakeSubscriberUsesIAMRole)
+	assertEdgeTarget(t, subRole, catalog.ResourceTypeIAMRole, testSubRoleARN)
 	if got, want := subRole.Payload["source_resource_id"], testSubscriberARN; got != want {
 		t.Fatalf("subscriber->role source_resource_id = %#v, want %q", got, want)
 	}
 
 	// subscriber -> S3 bucket edge.
-	subS3 := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeSubscriberUsesS3Bucket)
+	subS3 := relationshipByType(t, envelopes, catalog.RelationshipSecurityLakeSubscriberUsesS3Bucket)
 	assertEdgeTarget(t, subS3, catalog.ResourceTypeS3Bucket, testSubBucketARN)
 
 	// No subscriber credential / external id / endpoint leakage.
@@ -165,12 +165,12 @@ func TestScannerOmitsSubscriberRoleEdgeForNonARN(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipSecurityLakeSubscriberUsesIAMRole {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == catalog.RelationshipSecurityLakeSubscriberUsesIAMRole {
 			t.Fatalf("emitted IAM role edge for non-ARN role identifier; expected skip")
 		}
 	}
 	// The subscriber node still records the raw role value for visibility.
-	subscriber := resourceByType(t, envelopes, awscloud.ResourceTypeSecurityLakeSubscriber)
+	subscriber := resourceByType(t, envelopes, catalog.ResourceTypeSecurityLakeSubscriber)
 	assertAttribute(t, attributesOf(t, subscriber), "role_arn", "not-an-arn")
 }
 
@@ -218,7 +218,7 @@ func TestScannerSynthesizesPartitionAwareIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	lakeS3 := relationshipByType(t, envelopes, awscloud.RelationshipSecurityLakeDataLakeUsesS3Bucket)
+	lakeS3 := relationshipByType(t, envelopes, catalog.RelationshipSecurityLakeDataLakeUsesS3Bucket)
 	if got := lakeS3.Payload["target_resource_id"]; got != govBucketARN {
 		t.Fatalf("GovCloud data lake->s3 target_resource_id = %#v, want %q", got, govBucketARN)
 	}
@@ -267,7 +267,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSecurityLake,
+		ServiceKind:         catalog.ServiceSecurityLake,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:securitylake:1",
 		CollectorInstanceID: "aws-prod",

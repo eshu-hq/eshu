@@ -66,7 +66,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 			SourceARN:        clusterARN,
 			TargetResourceID: profile,
 			TargetARN:        arnOrEmpty(profile),
-			TargetType:       awscloud.ResourceTypeIAMInstanceProfile,
+			TargetType:       catalog.ResourceTypeIAMInstanceProfile,
 			SourceRecordID:   relationshipRecordID(clusterID, catalog.RelationshipEMRClusterUsesInstanceProfile, profile),
 		})
 	}
@@ -292,7 +292,7 @@ func iamRoleRelationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: role,
 		TargetARN:        arnOrEmpty(role),
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   relationshipRecordID(sourceID, relationshipType, role),
 	}
 }
@@ -311,7 +311,7 @@ func kmsKeyRelationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: kmsKey,
 		TargetARN:        arnOrEmpty(kmsKey),
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   relationshipRecordID(sourceID, relationshipType, kmsKey),
 	}
 }

@@ -80,7 +80,7 @@ func environmentIAMRoleRelationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesIAMRole + ":" + roleARN,
 	}, true
 }
@@ -110,7 +110,7 @@ func environmentKMSKeyRelationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: kmsKey,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesKMSKey + ":" + kmsKey,
 	}, true
 }

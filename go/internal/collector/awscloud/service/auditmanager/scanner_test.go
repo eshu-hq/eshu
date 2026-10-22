@@ -118,7 +118,7 @@ func TestScannerEmitsAuditManagerMetadataAndRelationships(t *testing.T) {
 
 	// assessment -> KMS key edge, keyed by the account settings key ARN.
 	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipAuditManagerAssessmentEncryptedWithKMSKey)
-	assertEdgeTarget(t, kmsEdge, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, kmsEdge, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := kmsEdge.Payload["target_arn"], testKMSARN; got != want {
 		t.Fatalf("assessment->kms target_arn = %#v, want %q", got, want)
 	}

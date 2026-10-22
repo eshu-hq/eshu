@@ -50,7 +50,7 @@ func TestScannerEmitsCertificateFactsMetadataOnlyAndInUseRelationships(t *testin
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	certificate := resourceByType(t, envelopes, awscloud.ResourceTypeACMCertificate)
+	certificate := resourceByType(t, envelopes, catalog.ResourceTypeACMCertificate)
 	attributes := attributesOf(t, certificate)
 	if got, want := attributes["domain_name"], "example.com"; got != want {
 		t.Fatalf("domain_name = %#v, want %q", got, want)
@@ -95,7 +95,7 @@ func TestScannerEmitsCertificateFactsMetadataOnlyAndInUseRelationships(t *testin
 		t.Fatalf("resource ARN = %#v, want %q", got, want)
 	}
 
-	relationships := relationshipsByType(envelopes, awscloud.RelationshipACMCertificateUsedByResource)
+	relationships := relationshipsByType(envelopes, catalog.RelationshipACMCertificateUsedByResource)
 	if got, want := len(relationships), 5; got != want {
 		t.Fatalf("relationship count = %d, want %d", got, want)
 	}
@@ -180,7 +180,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceACM,
+		ServiceKind:         catalog.ServiceACM,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:acm:1",
 		CollectorInstanceID: "aws-prod",

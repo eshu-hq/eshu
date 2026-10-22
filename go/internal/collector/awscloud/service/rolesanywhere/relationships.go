@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // profileRoleRelationships records a Roles Anywhere profile's reported
@@ -41,7 +42,7 @@ func profileRoleRelationships(boundary awscloud.Boundary, profile Profile) []aws
 			SourceARN:        strings.TrimSpace(profile.ARN),
 			TargetResourceID: roleARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   sourceID + "->" + awscloud.RelationshipRolesAnywhereProfileAssumesRole + ":" + roleARN,
 		})
 	}

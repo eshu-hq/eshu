@@ -103,7 +103,7 @@ func TestNewResourcePolicyPermissionEnvelopeDenyStatement(t *testing.T) {
 	envelope, err := NewResourcePolicyPermissionEnvelope(ResourcePolicyPermissionObservation{
 		Boundary:     boundary,
 		ResourceARN:  "arn:aws:kms:us-east-1:123456789012:key/abcd",
-		ResourceType: ResourceTypeKMSKey,
+		ResourceType: catalog.ResourceTypeKMSKey,
 		Effect:       "Deny",
 		Actions:      []string{"kms:Decrypt"},
 		Resources:    []string{"*"},
@@ -113,7 +113,7 @@ func TestNewResourcePolicyPermissionEnvelopeDenyStatement(t *testing.T) {
 		t.Fatalf("NewResourcePolicyPermissionEnvelope returned error: %v", err)
 	}
 	assertPayloadString(t, envelope.Payload, "effect", "Deny")
-	assertPayloadString(t, envelope.Payload, "resource_type", ResourceTypeKMSKey)
+	assertPayloadString(t, envelope.Payload, "resource_type", catalog.ResourceTypeKMSKey)
 	assertPayloadBool(t, envelope.Payload, "is_wildcard_resource", true)
 }
 

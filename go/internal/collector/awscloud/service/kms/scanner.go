@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -25,10 +26,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("kms scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceKMS:
+	case "", catalog.ServiceKMS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceKMS
+		boundary.ServiceKind = catalog.ServiceKMS
 	default:
 		return nil, fmt.Errorf("kms scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -127,7 +128,7 @@ func resourcePolicyPermissionObservations(
 		observations = append(observations, awscloud.ResourcePolicyPermissionObservation{
 			Boundary:            boundary,
 			ResourceARN:         resourceARN,
-			ResourceType:        awscloud.ResourceTypeKMSKey,
+			ResourceType:        catalog.ResourceTypeKMSKey,
 			StatementSID:        statement.StatementSID,
 			Effect:              statement.Effect,
 			Actions:             statement.Actions,
@@ -180,7 +181,7 @@ func keyObservation(boundary awscloud.Boundary, key Key) awscloud.ResourceObserv
 		Boundary:           boundary,
 		ARN:                keyARN,
 		ResourceID:         firstNonEmpty(keyID, keyARN),
-		ResourceType:       awscloud.ResourceTypeKMSKey,
+		ResourceType:       catalog.ResourceTypeKMSKey,
 		Name:               firstNonEmpty(keyID, keyARN),
 		State:              strings.TrimSpace(key.KeyState),
 		Tags:               cloneStringMap(key.Tags),
@@ -197,7 +198,7 @@ func aliasObservation(boundary awscloud.Boundary, alias Alias) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          aliasARN,
 		ResourceID:   firstNonEmpty(aliasARN, aliasName),
-		ResourceType: awscloud.ResourceTypeKMSAlias,
+		ResourceType: catalog.ResourceTypeKMSAlias,
 		Name:         aliasName,
 		Attributes: map[string]any{
 			"alias_name":    aliasName,
@@ -216,7 +217,7 @@ func grantObservation(boundary awscloud.Boundary, key Key, grant Grant) awscloud
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeKMSGrant,
+		ResourceType: catalog.ResourceTypeKMSGrant,
 		Name:         firstNonEmpty(strings.TrimSpace(grant.Name), grantID),
 		Attributes: map[string]any{
 			"grant_id":           grantID,
@@ -240,12 +241,12 @@ func aliasRelationship(boundary awscloud.Boundary, key Key, alias Alias) awsclou
 	keyID := strings.TrimSpace(key.ID)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipKMSAliasTargetsKey,
+		RelationshipType: catalog.RelationshipKMSAliasTargetsKey,
 		SourceResourceID: firstNonEmpty(aliasARN, aliasName),
 		SourceARN:        aliasARN,
 		TargetResourceID: firstNonEmpty(keyID, keyARN),
 		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		Attributes: map[string]any{
 			"alias_name": aliasName,
 		},
@@ -260,11 +261,11 @@ func grantOnKeyRelationship(boundary awscloud.Boundary, key Key, grant Grant) aw
 	resourceID := grantResourceID(keyID, grantID)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipKMSGrantOnKey,
+		RelationshipType: catalog.RelationshipKMSGrantOnKey,
 		SourceResourceID: resourceID,
 		TargetResourceID: firstNonEmpty(keyID, keyARN),
 		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		Attributes: map[string]any{
 			"grant_id": grantID,
 		},
@@ -289,10 +290,10 @@ func grantGranteeRelationship(boundary awscloud.Boundary, key Key, grant Grant) 
 	principalID := principalType + ":" + grantee
 	relationship := awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipKMSGrantForGrantee,
+		RelationshipType: catalog.RelationshipKMSGrantForGrantee,
 		SourceResourceID: resourceID,
 		TargetResourceID: principalID,
-		TargetType:       awscloud.ResourceTypeIAMPrincipal,
+		TargetType:       catalog.ResourceTypeIAMPrincipal,
 		Attributes: map[string]any{
 			"grant_id":           grantID,
 			"principal_type":     principalType,

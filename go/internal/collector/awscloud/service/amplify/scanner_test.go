@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -185,7 +186,7 @@ func TestScannerEmitsRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("app->IAM-role relationships = %d, want 2", len(roles))
 	}
 	for _, role := range roles {
-		if role["target_type"] != awscloud.ResourceTypeIAMRole {
+		if role["target_type"] != catalog.ResourceTypeIAMRole {
 			t.Fatalf("app->IAM-role target_type = %v", role["target_type"])
 		}
 		if !strings.HasPrefix(role["target_resource_id"].(string), "arn:aws:iam::") {
@@ -380,7 +381,7 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceIAM
+	boundary.ServiceKind = catalog.ServiceIAM
 	_, err := Scanner{Client: sampleClient()}.Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service-kind mismatch error")

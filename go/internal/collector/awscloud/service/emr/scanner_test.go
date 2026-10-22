@@ -77,20 +77,20 @@ func TestScannerEmitsClusterInstanceGroupAndAllClusterRelationships(t *testing.T
 		t.Fatalf("security group edge count = %d, want 2 (deduplicated)", got)
 	}
 	// IAM role join: ServiceRole name (no ARN) + AutoScalingRole ARN.
-	assertEdge(t, envelopes, catalog.RelationshipEMRClusterUsesIAMRole, "EMR_DefaultRole", awscloud.ResourceTypeIAMRole, "")
+	assertEdge(t, envelopes, catalog.RelationshipEMRClusterUsesIAMRole, "EMR_DefaultRole", catalog.ResourceTypeIAMRole, "")
 	assertEdge(t, envelopes, catalog.RelationshipEMRClusterUsesIAMRole,
-		"arn:aws:iam::123456789012:role/EMR_AutoScaling_DefaultRole", awscloud.ResourceTypeIAMRole,
+		"arn:aws:iam::123456789012:role/EMR_AutoScaling_DefaultRole", catalog.ResourceTypeIAMRole,
 		"arn:aws:iam::123456789012:role/EMR_AutoScaling_DefaultRole")
 	// Instance profile join: ARN target carries target_arn.
 	assertEdge(t, envelopes, catalog.RelationshipEMRClusterUsesInstanceProfile,
-		"arn:aws:iam::123456789012:instance-profile/EMR_EC2_DefaultRole", awscloud.ResourceTypeIAMInstanceProfile,
+		"arn:aws:iam::123456789012:instance-profile/EMR_EC2_DefaultRole", catalog.ResourceTypeIAMInstanceProfile,
 		"arn:aws:iam::123456789012:instance-profile/EMR_EC2_DefaultRole")
 	// Security configuration join: name only.
 	assertEdge(t, envelopes, catalog.RelationshipEMRClusterUsesSecurityConfiguration,
 		"prod-sec-config", catalog.ResourceTypeEMRSecurityConfiguration, "")
 	// KMS join: ARN key carries target_arn.
 	assertEdge(t, envelopes, catalog.RelationshipEMRClusterUsesKMSKey,
-		"arn:aws:kms:us-east-1:123456789012:key/abc-def", awscloud.ResourceTypeKMSKey,
+		"arn:aws:kms:us-east-1:123456789012:key/abc-def", catalog.ResourceTypeKMSKey,
 		"arn:aws:kms:us-east-1:123456789012:key/abc-def")
 	// Instance group membership join: scoped id.
 	assertEdge(t, envelopes, catalog.RelationshipEMRClusterHasInstanceGroup,
@@ -177,7 +177,7 @@ func TestScannerEmitsServerlessApplicationAndRelationships(t *testing.T) {
 	assertEdge(t, envelopes, catalog.RelationshipEMRServerlessApplicationUsesSecurityGroup,
 		"sg-app", catalog.ResourceTypeEC2SecurityGroup, "")
 	assertEdge(t, envelopes, catalog.RelationshipEMRServerlessApplicationUsesKMSKey,
-		"arn:aws:kms:us-east-1:123456789012:key/serverless-key", awscloud.ResourceTypeKMSKey,
+		"arn:aws:kms:us-east-1:123456789012:key/serverless-key", catalog.ResourceTypeKMSKey,
 		"arn:aws:kms:us-east-1:123456789012:key/serverless-key")
 }
 
@@ -227,7 +227,7 @@ func TestScannerEmitsStudioVPCSubnetRoleKMSAndSessionMapping(t *testing.T) {
 		t.Fatalf("studio IAM role edge count = %d, want 2", got)
 	}
 	assertEdge(t, envelopes, catalog.RelationshipEMRStudioUsesKMSKey,
-		"arn:aws:kms:us-east-1:123456789012:key/studio-key", awscloud.ResourceTypeKMSKey,
+		"arn:aws:kms:us-east-1:123456789012:key/studio-key", catalog.ResourceTypeKMSKey,
 		"arn:aws:kms:us-east-1:123456789012:key/studio-key")
 	assertEdge(t, envelopes, catalog.RelationshipEMRStudioHasSessionMapping,
 		mappingID, catalog.ResourceTypeEMRStudioSessionMapping, "")

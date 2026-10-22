@@ -85,7 +85,7 @@ func TestScannerEmitsClusterMetadataAndRelationships(t *testing.T) {
 
 	// cluster -> KMS key edge.
 	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipDocDBElasticClusterUsesKMSKey)
-	assertEdgeTarget(t, kmsEdge, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, kmsEdge, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := kmsEdge.Payload["target_arn"], testKMSARN; got != want {
 		t.Fatalf("kms edge target_arn = %#v, want %q", got, want)
 	}

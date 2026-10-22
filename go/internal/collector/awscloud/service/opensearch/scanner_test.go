@@ -190,9 +190,9 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertRelationshipTarget(t, envelopes, catalog.RelationshipOpenSearchDomainUsesSecurityGroup, "sg-123")
 	assertRelationshipTargetType(t, envelopes, catalog.RelationshipOpenSearchDomainUsesSecurityGroup, catalog.ResourceTypeEC2SecurityGroup)
 	assertRelationshipTarget(t, envelopes, catalog.RelationshipOpenSearchDomainUsesKMSKey, kmsKeyARN)
-	assertRelationshipTargetType(t, envelopes, catalog.RelationshipOpenSearchDomainUsesKMSKey, awscloud.ResourceTypeKMSKey)
+	assertRelationshipTargetType(t, envelopes, catalog.RelationshipOpenSearchDomainUsesKMSKey, catalog.ResourceTypeKMSKey)
 	assertRelationshipTarget(t, envelopes, catalog.RelationshipOpenSearchDomainUsesIAMRole, masterRoleARN)
-	assertRelationshipTargetType(t, envelopes, catalog.RelationshipOpenSearchDomainUsesIAMRole, awscloud.ResourceTypeIAMRole)
+	assertRelationshipTargetType(t, envelopes, catalog.RelationshipOpenSearchDomainUsesIAMRole, catalog.ResourceTypeIAMRole)
 
 	// Duplicate role ARNs collapse to one relationship.
 	if got := countRelationshipsOfType(envelopes, catalog.RelationshipOpenSearchDomainUsesIAMRole); got != 1 {
@@ -205,7 +205,7 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertRelationshipSourceRecordID(t, envelopes, catalog.RelationshipOpenSearchPackageAssociatedWithDomain, "F12345->opensearch_package_associated_with_domain:"+domainARN)
 
 	assertRelationshipTarget(t, envelopes, catalog.RelationshipOpenSearchCollectionUsesKMSKey, collectionKMSARN)
-	assertRelationshipTargetType(t, envelopes, catalog.RelationshipOpenSearchCollectionUsesKMSKey, awscloud.ResourceTypeKMSKey)
+	assertRelationshipTargetType(t, envelopes, catalog.RelationshipOpenSearchCollectionUsesKMSKey, catalog.ResourceTypeKMSKey)
 
 	// Serverless does not bind a collection to a managed VPC endpoint in the
 	// collection record, and the endpoint record reports no collection, so the

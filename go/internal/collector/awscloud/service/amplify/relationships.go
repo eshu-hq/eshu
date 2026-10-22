@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // repositorySourceTargetType labels an Amplify app's Git source-repository
@@ -100,7 +101,7 @@ func roleRelationships(
 			SourceARN:        appArnValue,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			Attributes:       map[string]any{"role_kind": role.kind},
 			SourceRecordID:   appID + "#role#" + role.kind + "#" + roleARN,
 		})

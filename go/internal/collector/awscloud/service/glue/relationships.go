@@ -112,7 +112,7 @@ func crawlerRoleRelationship(boundary awscloud.Boundary, crawler Crawler) *awscl
 		SourceResourceID: crawlerName,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   crawlerName + "->" + catalog.RelationshipGlueCrawlerUsesIAMRole + ":" + roleARN,
 	}
 }
@@ -132,7 +132,7 @@ func jobRoleRelationship(boundary awscloud.Boundary, job Job) *awscloud.Relation
 		SourceResourceID: jobName,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   jobName + "->" + catalog.RelationshipGlueJobUsesIAMRole + ":" + roleARN,
 	}
 }

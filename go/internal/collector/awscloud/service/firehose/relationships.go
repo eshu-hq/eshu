@@ -148,7 +148,7 @@ func encryptionKMSKeyRelationship(
 		SourceARN:        streamARN,
 		TargetResourceID: keyARN,
 		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   streamID + "#kms-key#" + keyARN,
 	}, true
 }
@@ -179,7 +179,7 @@ func deliveryRoleRelationship(
 		SourceARN:        streamARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   streamID + "#role#" + roleARN,
 	}, true
 }

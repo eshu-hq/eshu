@@ -212,7 +212,7 @@ func iamRoleRelationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   sourceID + "#role#" + roleARN,
 	}, true
 }

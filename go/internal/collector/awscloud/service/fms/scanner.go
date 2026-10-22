@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("fms scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceFMS:
+	case "", catalog.ServiceFMS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceFMS
+		boundary.ServiceKind = catalog.ServiceFMS
 	default:
 		return nil, fmt.Errorf("fms scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -104,7 +105,7 @@ func policyObservation(boundary awscloud.Boundary, policy Policy) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFMSPolicy,
+		ResourceType: catalog.ResourceTypeFMSPolicy,
 		Name:         strings.TrimSpace(policy.Name),
 		State:        strings.TrimSpace(policy.PolicyStatus),
 		Attributes: map[string]any{

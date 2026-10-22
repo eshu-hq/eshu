@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // provisionedProductCFNStackType is the AWS-reported provisioned-product type
@@ -133,7 +134,7 @@ func portfolioPrincipalRelationships(
 			SourceARN:        strings.TrimSpace(portfolio.ARN),
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID: sourceID + "->" +
 				awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal + ":" + roleARN,
 		}

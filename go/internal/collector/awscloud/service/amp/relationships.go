@@ -34,7 +34,7 @@ func workspaceKMSRelationship(boundary awscloud.Boundary, workspace Workspace) *
 		SourceARN:        strings.TrimSpace(workspace.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAMPWorkspaceUsesKMSKey + ":" + targetID,
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -26,10 +27,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("guardduty scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceGuardDuty:
+	case "", catalog.ServiceGuardDuty:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceGuardDuty
+		boundary.ServiceKind = catalog.ServiceGuardDuty
 	default:
 		return nil, fmt.Errorf("guardduty scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -126,7 +127,7 @@ func detectorObservation(boundary awscloud.Boundary, detector Detector) awscloud
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   detectorID,
-		ResourceType: awscloud.ResourceTypeGuardDutyDetector,
+		ResourceType: catalog.ResourceTypeGuardDutyDetector,
 		Name:         detectorID,
 		State:        strings.TrimSpace(detector.Status),
 		Tags:         cloneStringMap(detector.Tags),
@@ -153,7 +154,7 @@ func memberObservation(boundary awscloud.Boundary, detector Detector, member Mem
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGuardDutyMemberAccount,
+		ResourceType: catalog.ResourceTypeGuardDutyMemberAccount,
 		Name:         strings.TrimSpace(member.AccountID),
 		State:        strings.TrimSpace(member.RelationshipStatus),
 		Attributes: map[string]any{
@@ -175,7 +176,7 @@ func filterObservation(boundary awscloud.Boundary, detector Detector, filter Fil
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGuardDutyFilter,
+		ResourceType: catalog.ResourceTypeGuardDutyFilter,
 		Name:         strings.TrimSpace(filter.Name),
 		Attributes: map[string]any{
 			"detector_id": strings.TrimSpace(detector.ID),
@@ -194,7 +195,7 @@ func publishingDestinationObservation(
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(destination.DestinationARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGuardDutyPublishingDestination,
+		ResourceType: catalog.ResourceTypeGuardDutyPublishingDestination,
 		Name:         strings.TrimSpace(destination.ID),
 		State:        strings.TrimSpace(destination.Status),
 		Tags:         cloneStringMap(destination.Tags),
@@ -214,7 +215,7 @@ func threatIntelSetObservation(boundary awscloud.Boundary, detector Detector, se
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGuardDutyThreatIntelSet,
+		ResourceType: catalog.ResourceTypeGuardDutyThreatIntelSet,
 		Name:         strings.TrimSpace(set.Name),
 		State:        strings.TrimSpace(set.Status),
 		Tags:         cloneStringMap(set.Tags),
@@ -233,7 +234,7 @@ func ipSetObservation(boundary awscloud.Boundary, detector Detector, set IPSet) 
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGuardDutyIPSet,
+		ResourceType: catalog.ResourceTypeGuardDutyIPSet,
 		Name:         strings.TrimSpace(set.Name),
 		State:        strings.TrimSpace(set.Status),
 		Tags:         cloneStringMap(set.Tags),

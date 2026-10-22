@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("securitylake scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSecurityLake:
+	case "", catalog.ServiceSecurityLake:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSecurityLake
+		boundary.ServiceKind = catalog.ServiceSecurityLake
 	default:
 		return nil, fmt.Errorf("securitylake scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -162,7 +163,7 @@ func dataLakeObservation(boundary awscloud.Boundary, lake DataLake) awscloud.Res
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityLakeDataLake,
+		ResourceType: catalog.ResourceTypeSecurityLakeDataLake,
 		Name:         firstNonEmpty(region, resourceID),
 		State:        strings.TrimSpace(lake.CreateStatus),
 		Attributes: map[string]any{
@@ -186,7 +187,7 @@ func logSourceObservation(boundary awscloud.Boundary, source LogSource) awscloud
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityLakeLogSource,
+		ResourceType: catalog.ResourceTypeSecurityLakeLogSource,
 		Name:         name,
 		Attributes: map[string]any{
 			"source_name":    name,
@@ -208,7 +209,7 @@ func subscriberObservation(boundary awscloud.Boundary, subscriber Subscriber) aw
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecurityLakeSubscriber,
+		ResourceType: catalog.ResourceTypeSecurityLakeSubscriber,
 		Name:         name,
 		State:        strings.TrimSpace(subscriber.Status),
 		Attributes: map[string]any{

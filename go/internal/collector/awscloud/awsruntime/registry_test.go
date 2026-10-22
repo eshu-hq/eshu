@@ -26,11 +26,11 @@ func TestDefaultScannerFactoryBuildsIAMScanner(t *testing.T) {
 	scanner, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceIAM,
+		ServiceKind: catalog.ServiceIAM,
 	}, awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceIAM,
+		ServiceKind: catalog.ServiceIAM,
 	}, lease)
 	if err != nil {
 		t.Fatalf("Scanner() error = %v", err)
@@ -110,11 +110,11 @@ func TestDefaultScannerFactoryRequiresRedactionKeyForSecurityHub(t *testing.T) {
 	_, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSecurityHub,
+		ServiceKind: catalog.ServiceSecurityHub,
 	}, awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSecurityHub,
+		ServiceKind: catalog.ServiceSecurityHub,
 	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want missing Security Hub redaction key")
@@ -178,11 +178,11 @@ func TestDefaultScannerFactoryRequiresAWSConfigLease(t *testing.T) {
 	_, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceIAM,
+		ServiceKind: catalog.ServiceIAM,
 	}, awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceIAM,
+		ServiceKind: catalog.ServiceIAM,
 	}, releaseOnlyLease{})
 	if err == nil {
 		t.Fatalf("Scanner() error = nil, want unsupported lease error")

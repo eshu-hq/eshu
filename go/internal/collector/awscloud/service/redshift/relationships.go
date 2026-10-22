@@ -88,7 +88,7 @@ func clusterRelationships(
 			clusterARN,
 			roleARN,
 			roleARN,
-			awscloud.ResourceTypeIAMRole,
+			catalog.ResourceTypeIAMRole,
 			nil,
 		))
 	}
@@ -182,7 +182,7 @@ func scheduledActionRelationships(
 		sourceID,
 		"",
 		strings.TrimSpace(action.IAMRoleARN),
-		awscloud.ResourceTypeIAMRole,
+		catalog.ResourceTypeIAMRole,
 		nil,
 	)...)
 	return relationships
@@ -215,7 +215,7 @@ func serverlessNamespaceRelationships(
 			namespaceARN,
 			roleARN,
 			roleARN,
-			awscloud.ResourceTypeIAMRole,
+			catalog.ResourceTypeIAMRole,
 			nil,
 		))
 	}

@@ -244,7 +244,7 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 	if got, want := crawlerRole.Payload["target_arn"], crawlerRoleARN; got != want {
 		t.Fatalf("crawler->role target_arn = %#v, want %q", got, want)
 	}
-	if got, want := crawlerRole.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := crawlerRole.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 		t.Fatalf("crawler->role target_type = %#v, want %q", got, want)
 	}
 

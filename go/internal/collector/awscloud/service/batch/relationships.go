@@ -69,7 +69,7 @@ func computeEnvironmentRelationships(
 			SourceRecordID:   computeEnvironmentID + "#" + recordSuffix + "#" + roleARN,
 		})
 	}
-	addRole(computeEnvironment.ServiceRoleARN, awscloud.ResourceTypeIAMRole, "service-role")
+	addRole(computeEnvironment.ServiceRoleARN, catalog.ResourceTypeIAMRole, "service-role")
 	addRole(computeEnvironment.InstanceRoleARN, instanceRoleTargetType(computeEnvironment.InstanceRoleARN), "instance-role")
 
 	for _, subnetID := range dedupeStrings(computeEnvironment.ComputeResource.SubnetIDs) {
@@ -134,7 +134,7 @@ func jobDefinitionRelationships(
 			SourceARN:        jobDefinitionARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   jobDefinitionID + "#role#" + roleARN,
 		})
 	}
@@ -183,9 +183,9 @@ func launchTemplateTargetID(computeResource ComputeResource) string {
 // profile, otherwise as an IAM role.
 func instanceRoleTargetType(roleARN string) string {
 	if strings.Contains(strings.TrimSpace(roleARN), ":instance-profile/") {
-		return awscloud.ResourceTypeIAMInstanceProfile
+		return catalog.ResourceTypeIAMInstanceProfile
 	}
-	return awscloud.ResourceTypeIAMRole
+	return catalog.ResourceTypeIAMRole
 }
 
 // secretReferenceTargetType classifies a container secret reference ARN as an

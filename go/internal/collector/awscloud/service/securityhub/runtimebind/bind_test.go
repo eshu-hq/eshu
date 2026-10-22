@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/securityhub/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -18,9 +19,9 @@ import (
 // TestSecurityHubRuntimeBindRegisters confirms importing the binding
 // installs the Security Hub scanner builder.
 func TestSecurityHubRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceSecurityHub)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceSecurityHub)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceSecurityHub)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceSecurityHub)
 	}
 	key, err := redact.NewKey([]byte("aws-redaction-key"))
 	if err != nil {
@@ -28,7 +29,7 @@ func TestSecurityHubRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSecurityHub},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSecurityHub},
 		RedactionKey: key,
 	})
 	if err != nil {
@@ -42,13 +43,13 @@ func TestSecurityHubRuntimeBindRegisters(t *testing.T) {
 // TestSecurityHubRuntimeBindRequiresRedactionKey covers the guard the
 // binding inherits from the legacy switch.
 func TestSecurityHubRuntimeBindRequiresRedactionKey(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceSecurityHub)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceSecurityHub)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceSecurityHub)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceSecurityHub)
 	}
 	_, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSecurityHub},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSecurityHub},
 	})
 	if err == nil {
 		t.Fatalf("build() error = nil, want missing redaction key")

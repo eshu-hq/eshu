@@ -111,7 +111,7 @@ func TestScannerRelationshipTargetsResolveToTargetScanners(t *testing.T) {
 		{awscloud.RelationshipELBLoadBalancerInVPC, catalog.ResourceTypeEC2VPC, "vpc-123"},
 		{
 			awscloud.RelationshipELBLoadBalancerUsesACMCertificate,
-			awscloud.ResourceTypeACMCertificate,
+			catalog.ResourceTypeACMCertificate,
 			"arn:aws:acm:us-east-1:123456789012:certificate/abc",
 		},
 		{

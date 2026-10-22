@@ -110,7 +110,7 @@ func serverACMCertificateRelationship(boundary awscloud.Boundary, serverID strin
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: certificateARN,
 		TargetARN:        certificateARN,
-		TargetType:       awscloud.ResourceTypeACMCertificate,
+		TargetType:       catalog.ResourceTypeACMCertificate,
 		SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesACMCertificate + ":" + certificateARN,
 	}
 }
@@ -130,7 +130,7 @@ func serverLoggingRoleRelationship(boundary awscloud.Boundary, serverID string, 
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesLoggingRole + ":" + roleARN,
 	}
 }
@@ -205,7 +205,7 @@ func userRoleRelationship(boundary awscloud.Boundary, userID string, user User) 
 		SourceARN:        strings.TrimSpace(user.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   userID + "->" + awscloud.RelationshipTransferUserUsesIAMRole + ":" + roleARN,
 	}
 }

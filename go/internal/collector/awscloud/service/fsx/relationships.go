@@ -235,7 +235,7 @@ func kmsKeyRelationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: kmsKey,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   relationshipRecordID(sourceID, relationshipType, kmsKey),
 	}
 }

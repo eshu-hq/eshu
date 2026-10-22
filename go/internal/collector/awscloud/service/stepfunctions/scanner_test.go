@@ -137,7 +137,7 @@ func TestScannerEmitsStateMachineAndActivityMetadataAndRelationships(t *testing.
 	if got, want := role.Payload["target_arn"], roleARN; got != want {
 		t.Fatalf("role target_arn = %#v, want %q", got, want)
 	}
-	if got, want := role.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := role.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 		t.Fatalf("role target_type = %#v, want %q", got, want)
 	}
 

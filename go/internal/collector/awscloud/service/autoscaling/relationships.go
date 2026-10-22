@@ -89,7 +89,7 @@ func groupRelationships(boundary awscloud.Boundary, group Group) []awscloud.Rela
 			SourceARN:        groupARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   groupName + "#service-linked-role#" + roleARN,
 		})
 	}

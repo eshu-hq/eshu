@@ -96,7 +96,7 @@ func fileShareRoleRelationship(boundary awscloud.Boundary, share FileShare) *aws
 		SourceResourceID: shareID,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   shareID + "->" + catalog.RelationshipStorageGatewayFileShareUsesIAMRole + ":" + roleARN,
 	}
 }
@@ -118,7 +118,7 @@ func fileShareKMSKeyRelationship(boundary awscloud.Boundary, share FileShare) *a
 		SourceResourceID: shareID,
 		TargetResourceID: kmsKeyARN,
 		TargetARN:        kmsKeyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   shareID + "->" + catalog.RelationshipStorageGatewayFileShareUsesKMSKey + ":" + kmsKeyARN,
 	}
 }

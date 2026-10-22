@@ -16,6 +16,7 @@ import (
 	detectivetypes "github.com/aws/aws-sdk-go-v2/service/detective/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	detectiveservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/detective"
 )
 
@@ -101,7 +102,7 @@ func TestClientReadsGraphsMembersAndTagsAndDropsEmail(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceDetective},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceDetective},
 	}
 
 	graphs, err := adapter.ListGraphs(context.Background())
@@ -162,7 +163,7 @@ func TestClientListGraphsSkipsBlankARNAndStopsOnRepeatedToken(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-gov-west-1", ServiceKind: awscloud.ServiceDetective},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-gov-west-1", ServiceKind: catalog.ServiceDetective},
 	}
 
 	graphs, err := adapter.ListGraphs(context.Background())

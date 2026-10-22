@@ -75,7 +75,7 @@ func serviceRoleRelationship(
 		SourceARN:        projectARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   projectID + "#service-role#" + roleARN,
 	}, true
 }
@@ -104,7 +104,7 @@ func kmsKeyRelationship(
 		SourceARN:        projectARN,
 		TargetResourceID: keyID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   projectID + "#kms#" + keyID,
 	}, true
 }

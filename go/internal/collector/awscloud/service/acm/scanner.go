@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -27,10 +28,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("acm scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceACM:
+	case "", catalog.ServiceACM:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceACM
+		boundary.ServiceKind = catalog.ServiceACM
 	default:
 		return nil, fmt.Errorf("acm scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -65,7 +66,7 @@ func certificateObservation(boundary awscloud.Boundary, certificate Certificate)
 		Boundary:     boundary,
 		ARN:          certificateARN,
 		ResourceID:   firstNonEmpty(certificateARN, certificate.DomainName),
-		ResourceType: awscloud.ResourceTypeACMCertificate,
+		ResourceType: catalog.ResourceTypeACMCertificate,
 		Name:         strings.TrimSpace(certificate.DomainName),
 		State:        strings.TrimSpace(certificate.Status),
 		Tags:         cloneStringMap(certificate.Tags),
@@ -99,7 +100,7 @@ func inUseByRelationships(boundary awscloud.Boundary, certificate Certificate) [
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipACMCertificateUsedByResource,
+			RelationshipType: catalog.RelationshipACMCertificateUsedByResource,
 			SourceResourceID: certificateARN,
 			SourceARN:        certificateARN,
 			TargetResourceID: targetARN,

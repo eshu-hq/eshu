@@ -131,8 +131,8 @@ func TestNormalizeEventBridgeCloudTrailAPITargetsSecurityHub(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizeEventBridge() error = %v, want nil", err)
 	}
-	if trigger.ServiceKind != awscloud.ServiceSecurityHub {
-		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, awscloud.ServiceSecurityHub)
+	if trigger.ServiceKind != catalog.ServiceSecurityHub {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceSecurityHub)
 	}
 	if trigger.Region != "us-east-1" {
 		t.Fatalf("Region = %q, want us-east-1", trigger.Region)

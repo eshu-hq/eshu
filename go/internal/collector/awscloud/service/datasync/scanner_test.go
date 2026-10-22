@@ -158,7 +158,7 @@ func TestScannerEmitsDataSyncMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("location->role relationship count = %d, want 2", len(roleEdges))
 	}
 	for _, edge := range roleEdges {
-		if got, want := edge.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+		if got, want := edge.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 			t.Fatalf("location->role target_type = %#v, want %q", got, want)
 		}
 		arn, _ := edge.Payload["target_arn"].(string)

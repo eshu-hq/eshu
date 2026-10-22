@@ -67,7 +67,7 @@ func selectionRoleRelationship(
 		SourceResourceID: selID,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   selID + "#role#" + roleARN,
 	}, true
 }

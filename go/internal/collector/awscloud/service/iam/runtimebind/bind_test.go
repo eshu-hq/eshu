@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/iam/runtimebind"
 )
 
 // TestIAMRuntimeBindRegisters confirms importing the binding
 // installs the IAM scanner builder.
 func TestIAMRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceIAM)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceIAM)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceIAM)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceIAM)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceIAM},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceIAM},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

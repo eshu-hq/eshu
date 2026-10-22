@@ -55,7 +55,7 @@ func TestScannerEmitsSignerMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Signing-platform resource node, keyed by the bare platform id.
-	platform := resourceByType(t, envelopes, awscloud.ResourceTypeSignerSigningPlatform)
+	platform := resourceByType(t, envelopes, catalog.ResourceTypeSignerSigningPlatform)
 	if got, want := platform.Payload["resource_id"], testPlatformID; got != want {
 		t.Fatalf("platform resource_id = %#v, want %q", got, want)
 	}
@@ -66,7 +66,7 @@ func TestScannerEmitsSignerMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, platformAttrs, "revocation_supported", true)
 
 	// Signing-profile resource node.
-	profile := resourceByType(t, envelopes, awscloud.ResourceTypeSignerSigningProfile)
+	profile := resourceByType(t, envelopes, catalog.ResourceTypeSignerSigningProfile)
 	if got, want := profile.Payload["resource_id"], testProfileARN; got != want {
 		t.Fatalf("profile resource_id = %#v, want %q", got, want)
 	}
@@ -86,8 +86,8 @@ func TestScannerEmitsSignerMetadataAndRelationships(t *testing.T) {
 
 	// profile -> ACM certificate edge, keyed by the certificate ARN the ACM
 	// scanner publishes as its certificate resource_id.
-	profileACM := relationshipByType(t, envelopes, awscloud.RelationshipSignerProfileUsesACMCertificate)
-	assertEdgeTarget(t, profileACM, awscloud.ResourceTypeACMCertificate, testCertificateARN)
+	profileACM := relationshipByType(t, envelopes, catalog.RelationshipSignerProfileUsesACMCertificate)
+	assertEdgeTarget(t, profileACM, catalog.ResourceTypeACMCertificate, testCertificateARN)
 	if got, want := profileACM.Payload["source_resource_id"], testProfileARN; got != want {
 		t.Fatalf("profile->acm source_resource_id = %#v, want %q", got, want)
 	}
@@ -96,8 +96,8 @@ func TestScannerEmitsSignerMetadataAndRelationships(t *testing.T) {
 	}
 
 	// profile -> signing-platform internal edge, keyed by the bare platform id.
-	profilePlatform := relationshipByType(t, envelopes, awscloud.RelationshipSignerProfileUsesSigningPlatform)
-	assertEdgeTarget(t, profilePlatform, awscloud.ResourceTypeSignerSigningPlatform, testPlatformID)
+	profilePlatform := relationshipByType(t, envelopes, catalog.RelationshipSignerProfileUsesSigningPlatform)
+	assertEdgeTarget(t, profilePlatform, catalog.ResourceTypeSignerSigningPlatform, testPlatformID)
 	if got, want := profilePlatform.Payload["source_resource_id"], testProfileARN; got != want {
 		t.Fatalf("profile->platform source_resource_id = %#v, want %q", got, want)
 	}
@@ -156,11 +156,11 @@ func TestScannerOmitsACMEdgeForNonARNCertificateButKeepsValue(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipSignerProfileUsesACMCertificate {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == catalog.RelationshipSignerProfileUsesACMCertificate {
 			t.Fatalf("ACM edge emitted for a non-ARN certificate identifier")
 		}
 	}
-	profile := resourceByType(t, envelopes, awscloud.ResourceTypeSignerSigningProfile)
+	profile := resourceByType(t, envelopes, catalog.ResourceTypeSignerSigningProfile)
 	assertAttribute(t, attributesOf(t, profile), "certificate_arn", "not-an-arn")
 }
 
@@ -228,7 +228,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSigner,
+		ServiceKind:         catalog.ServiceSigner,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:signer:1",
 		CollectorInstanceID: "aws-prod",

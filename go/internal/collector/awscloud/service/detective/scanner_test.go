@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -49,7 +50,7 @@ func TestScannerEmitsDetectiveGraphAndMemberAccountEdge(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	graph := resourceByType(t, envelopes, awscloud.ResourceTypeDetectiveGraph)
+	graph := resourceByType(t, envelopes, catalog.ResourceTypeDetectiveGraph)
 	if got, want := graph.Payload["resource_id"], testGraphARN; got != want {
 		t.Fatalf("graph resource_id = %#v, want %q", got, want)
 	}
@@ -67,7 +68,7 @@ func TestScannerEmitsDetectiveGraphAndMemberAccountEdge(t *testing.T) {
 		t.Fatalf("graph sources_guardduty_data = %#v, want true (DETECTIVE_CORE present)", got)
 	}
 
-	member := resourceByType(t, envelopes, awscloud.ResourceTypeDetectiveMemberAccount)
+	member := resourceByType(t, envelopes, catalog.ResourceTypeDetectiveMemberAccount)
 	wantMemberID := testGraphARN + "/member/" + testMemberAcct
 	if got := member.Payload["resource_id"]; got != wantMemberID {
 		t.Fatalf("member resource_id = %#v, want %q", got, wantMemberID)
@@ -77,7 +78,7 @@ func TestScannerEmitsDetectiveGraphAndMemberAccountEdge(t *testing.T) {
 		t.Fatalf("member account_id = %#v, want %q", got, want)
 	}
 
-	rel := relationshipByType(t, envelopes, awscloud.RelationshipDetectiveGraphHasMemberAccount)
+	rel := relationshipByType(t, envelopes, catalog.RelationshipDetectiveGraphHasMemberAccount)
 	if got := rel.Payload["source_resource_id"]; got != testGraphARN {
 		t.Fatalf("member edge source_resource_id = %#v, want graph ARN %q", got, testGraphARN)
 	}
@@ -101,15 +102,15 @@ func TestScannerEmitsGuardDutyDetectorEdgeWhenResolvable(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	rel := relationshipByType(t, envelopes, awscloud.RelationshipDetectiveGraphSourcesGuardDutyDetector)
+	rel := relationshipByType(t, envelopes, catalog.RelationshipDetectiveGraphSourcesGuardDutyDetector)
 	if got := rel.Payload["source_resource_id"]; got != testGraphARN {
 		t.Fatalf("detector edge source_resource_id = %#v, want graph ARN %q", got, testGraphARN)
 	}
 	if got := rel.Payload["target_resource_id"]; got != testDetectorID {
 		t.Fatalf("detector edge target_resource_id = %#v, want bare detector id %q", got, testDetectorID)
 	}
-	if got := rel.Payload["target_type"]; got != awscloud.ResourceTypeGuardDutyDetector {
-		t.Fatalf("detector edge target_type = %#v, want %q", got, awscloud.ResourceTypeGuardDutyDetector)
+	if got := rel.Payload["target_type"]; got != catalog.ResourceTypeGuardDutyDetector {
+		t.Fatalf("detector edge target_type = %#v, want %q", got, catalog.ResourceTypeGuardDutyDetector)
 	}
 }
 
@@ -126,7 +127,7 @@ func TestScannerOmitsGuardDutyDetectorEdgeWhenUnresolvable(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if envelope.Payload["relationship_type"] == awscloud.RelationshipDetectiveGraphSourcesGuardDutyDetector {
+		if envelope.Payload["relationship_type"] == catalog.RelationshipDetectiveGraphSourcesGuardDutyDetector {
 			t.Fatalf("unexpected GuardDuty detector edge with no resolvable detector id: %s", mustJSON(t, envelope))
 		}
 	}
@@ -167,7 +168,7 @@ func TestScannerMemberResourceIDIsStableAcrossOrder(t *testing.T) {
 			if envelope.FactKind != cloud.AWSResourceFactKind {
 				continue
 			}
-			if envelope.Payload["resource_type"] != awscloud.ResourceTypeDetectiveMemberAccount {
+			if envelope.Payload["resource_type"] != catalog.ResourceTypeDetectiveMemberAccount {
 				continue
 			}
 			attrs := attributesOf(t, envelope)
@@ -190,7 +191,7 @@ func TestScannerNeverEmitsInvestigationOrEmailData(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	member := resourceByType(t, envelopes, awscloud.ResourceTypeDetectiveMemberAccount)
+	member := resourceByType(t, envelopes, catalog.ResourceTypeDetectiveMemberAccount)
 	memberAttrs := attributesOf(t, member)
 	for _, forbidden := range []string{
 		"email", "email_address", "emailaddress",
@@ -254,7 +255,7 @@ func TestScannerClientInterfaceExcludesInvestigationAndMutationAPIs(t *testing.T
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceGuardDuty
+	boundary.ServiceKind = catalog.ServiceGuardDuty
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -273,7 +274,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           testAdminAcct,
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDetective,
+		ServiceKind:         catalog.ServiceDetective,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:detective:1",
 		CollectorInstanceID: "aws-prod",

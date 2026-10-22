@@ -113,7 +113,7 @@ func TestScannerEmitsDatabrewMetadataAndRelationships(t *testing.T) {
 
 	// job -> IAM role edge, keyed by the role ARN the IAM scanner publishes.
 	jobRole := relationshipByType(t, envelopes, catalog.RelationshipDatabrewJobAssumesRole)
-	assertEdgeTarget(t, jobRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, jobRole, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got, want := jobRole.Payload["target_arn"], testRoleARN; got != want {
 		t.Fatalf("job->role target_arn = %#v, want %q", got, want)
 	}
@@ -134,7 +134,7 @@ func TestScannerEmitsDatabrewMetadataAndRelationships(t *testing.T) {
 
 	// project -> IAM role edge.
 	projectRole := relationshipByType(t, envelopes, catalog.RelationshipDatabrewProjectAssumesRole)
-	assertEdgeTarget(t, projectRole, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, projectRole, catalog.ResourceTypeIAMRole, testRoleARN)
 
 	// No recipe step expressions, SQL, or sample data leak anywhere.
 	for _, envelope := range envelopes {

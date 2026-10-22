@@ -88,7 +88,7 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 
 	// template -> IAM role, keyed by the role ARN the IAM scanner publishes.
 	role := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateUsesIAMRole)
-	assertEdgeTarget(t, role, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, role, catalog.ResourceTypeIAMRole, testRoleARN)
 
 	// template -> EC2 instance, keyed by the bare i- id; target_arn stays empty
 	// because the instance node is bare-id-keyed. The full ARN is an attribute.

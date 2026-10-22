@@ -142,7 +142,7 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 		t.Fatalf("NewKey() error = %v", err)
 	}
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceIAM
+	boundary.ServiceKind = catalog.ServiceIAM
 	_, err = Scanner{Client: fakeClient{}, RedactionKey: key}.Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service kind mismatch")

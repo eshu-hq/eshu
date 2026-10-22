@@ -12,6 +12,7 @@ import (
 	awssignertypes "github.com/aws/aws-sdk-go-v2/service/signer/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientSnapshotsSignerMetadataOnly(t *testing.T) {
@@ -155,6 +156,6 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSigner,
+		ServiceKind: catalog.ServiceSigner,
 	}
 }

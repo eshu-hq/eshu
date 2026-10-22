@@ -92,7 +92,7 @@ func workspaceUsesKMSKeyRelationship(
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: targetID,
 		TargetARN:        arnOrEmpty(targetID),
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesWorkspaceUsesKMSKey + ":" + targetID,
 	}
 }
@@ -220,7 +220,7 @@ func directoryUsesIAMRoleRelationship(
 		SourceARN:        sourceARN,
 		TargetResourceID: targetID,
 		TargetARN:        arnOrEmpty(targetID),
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesDirectoryUsesIAMRole + ":" + targetID,
 	}
 }

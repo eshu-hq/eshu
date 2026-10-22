@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
@@ -125,7 +126,7 @@ func TestCredentialFailureCarriesNoFreshnessHint(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{catalog.ServiceIAM},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeCentralAssumeRole,
 				},
@@ -170,7 +171,7 @@ func collectAWSTick(
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceIAM},
+				AllowedServices: []string{catalog.ServiceIAM},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},
@@ -204,14 +205,14 @@ func awsRoleAttributesObservation(
 		Boundary: awscloud.Boundary{
 			AccountID:           "123456789012",
 			Region:              "us-east-1",
-			ServiceKind:         awscloud.ServiceIAM,
+			ServiceKind:         catalog.ServiceIAM,
 			ScopeID:             "aws:123456789012:us-east-1:iam",
 			CollectorInstanceID: "collector-1",
 			FencingToken:        42,
 			ObservedAt:          time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC),
 		},
 		ARN:          "arn:aws:iam::123456789012:role/eshu-runtime",
-		ResourceType: awscloud.ResourceTypeIAMRole,
+		ResourceType: catalog.ResourceTypeIAMRole,
 		State:        state,
 		Tags:         tags,
 		Attributes:   attributes,

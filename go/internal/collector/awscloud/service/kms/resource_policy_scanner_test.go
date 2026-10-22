@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -49,7 +50,7 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 
 	cross := resourcePolicyPermissionBySID(t, envelopes, "999988887777")
 	assertKMSPayloadEquals(t, cross.Payload, "resource_arn", keyARN)
-	assertKMSPayloadEquals(t, cross.Payload, "resource_type", awscloud.ResourceTypeKMSKey)
+	assertKMSPayloadEquals(t, cross.Payload, "resource_type", catalog.ResourceTypeKMSKey)
 	assertKMSPayloadEquals(t, cross.Payload, "policy_source", awscloud.ResourcePolicySourceResource)
 	assertKMSPayloadEquals(t, cross.Payload, "is_cross_account", true)
 	// kms:* is a service-wildcard, not the bare "*" action wildcard, so the

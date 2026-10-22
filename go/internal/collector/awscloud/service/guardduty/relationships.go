@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func memberRelationship(
@@ -18,10 +19,10 @@ func memberRelationship(
 	memberID := detectorChildID(detectorID, "member", member.AccountID)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGuardDutyDetectorHasMemberAccount,
+		RelationshipType: catalog.RelationshipGuardDutyDetectorHasMemberAccount,
 		SourceResourceID: detectorID,
 		TargetResourceID: memberID,
-		TargetType:       awscloud.ResourceTypeGuardDutyMemberAccount,
+		TargetType:       catalog.ResourceTypeGuardDutyMemberAccount,
 		Attributes: map[string]any{
 			"account_id":          strings.TrimSpace(member.AccountID),
 			"relationship_status": strings.TrimSpace(member.RelationshipStatus),
@@ -39,11 +40,11 @@ func publishingDestinationRelationship(
 	destinationID := detectorChildID(detectorID, "publishing-destination", destination.ID)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGuardDutyDetectorPublishesToDestination,
+		RelationshipType: catalog.RelationshipGuardDutyDetectorPublishesToDestination,
 		SourceResourceID: detectorID,
 		TargetResourceID: destinationID,
 		TargetARN:        strings.TrimSpace(destination.DestinationARN),
-		TargetType:       awscloud.ResourceTypeGuardDutyPublishingDestination,
+		TargetType:       catalog.ResourceTypeGuardDutyPublishingDestination,
 		Attributes: map[string]any{
 			"destination_type": strings.TrimSpace(destination.DestinationType),
 			"status":           strings.TrimSpace(destination.Status),
@@ -61,10 +62,10 @@ func threatIntelSetRelationship(
 	setID := detectorChildID(detectorID, "threat-intel-set", set.ID)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGuardDutyDetectorUsesThreatIntelSet,
+		RelationshipType: catalog.RelationshipGuardDutyDetectorUsesThreatIntelSet,
 		SourceResourceID: detectorID,
 		TargetResourceID: setID,
-		TargetType:       awscloud.ResourceTypeGuardDutyThreatIntelSet,
+		TargetType:       catalog.ResourceTypeGuardDutyThreatIntelSet,
 		Attributes: map[string]any{
 			"format": strings.TrimSpace(set.Format),
 			"status": strings.TrimSpace(set.Status),
@@ -82,10 +83,10 @@ func ipSetRelationship(
 	setID := detectorChildID(detectorID, "ip-set", set.ID)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGuardDutyDetectorUsesIPSet,
+		RelationshipType: catalog.RelationshipGuardDutyDetectorUsesIPSet,
 		SourceResourceID: detectorID,
 		TargetResourceID: setID,
-		TargetType:       awscloud.ResourceTypeGuardDutyIPSet,
+		TargetType:       catalog.ResourceTypeGuardDutyIPSet,
 		Attributes: map[string]any{
 			"format": strings.TrimSpace(set.Format),
 			"status": strings.TrimSpace(set.Status),

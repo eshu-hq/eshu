@@ -59,7 +59,7 @@ func clusterRelationships(
 		sourceID,
 		sourceARN,
 		strings.TrimSpace(cluster.KMSKeyID),
-		awscloud.ResourceTypeKMSKey,
+		catalog.ResourceTypeKMSKey,
 	)...)
 
 	for _, roleARN := range cloneStrings(cluster.AssociatedRoleARNs) {
@@ -70,7 +70,7 @@ func clusterRelationships(
 			sourceARN,
 			roleARN,
 			roleARN,
-			awscloud.ResourceTypeIAMRole,
+			catalog.ResourceTypeIAMRole,
 			nil,
 		))
 	}
@@ -144,7 +144,7 @@ func graphRelationships(
 		sourceID,
 		sourceARN,
 		strings.TrimSpace(graph.KMSKeyID),
-		awscloud.ResourceTypeKMSKey,
+		catalog.ResourceTypeKMSKey,
 	)
 }
 

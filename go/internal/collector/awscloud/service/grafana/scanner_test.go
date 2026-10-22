@@ -71,7 +71,7 @@ func TestScannerEmitsGrafanaMetadataAndRelationships(t *testing.T) {
 
 	// workspace -> IAM role edge, keyed by the role ARN the IAM scanner publishes.
 	iamEdge := relationshipByType(t, envelopes, awscloud.RelationshipGrafanaWorkspaceUsesIAMRole)
-	assertEdgeTarget(t, iamEdge, awscloud.ResourceTypeIAMRole, testRoleARN)
+	assertEdgeTarget(t, iamEdge, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got, want := iamEdge.Payload["source_resource_id"], testWorkspaceARN; got != want {
 		t.Fatalf("workspace->iam source_resource_id = %#v, want %q", got, want)
 	}

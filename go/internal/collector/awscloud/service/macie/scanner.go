@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -34,10 +35,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("macie scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMacie:
+	case "", catalog.ServiceMacie:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMacie
+		boundary.ServiceKind = catalog.ServiceMacie
 	default:
 		return nil, fmt.Errorf("macie scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -180,7 +181,7 @@ func sessionObservationWithFindingCounts(
 	return awscloud.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         sessionResourceID(accountID),
-		ResourceType:       awscloud.ResourceTypeMacieSession,
+		ResourceType:       catalog.ResourceTypeMacieSession,
 		Name:               accountID,
 		State:              sessionState(session),
 		Attributes:         attributes,
@@ -194,7 +195,7 @@ func memberObservation(boundary awscloud.Boundary, member MemberAccount) awsclou
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   memberResourceID(memberID),
-		ResourceType: awscloud.ResourceTypeMacieMemberAccount,
+		ResourceType: catalog.ResourceTypeMacieMemberAccount,
 		Name:         memberID,
 		State:        strings.TrimSpace(member.RelationshipStatus),
 		Tags:         cloneStringMap(member.Tags),
@@ -215,7 +216,7 @@ func jobObservation(boundary awscloud.Boundary, job ClassificationJob) awscloud.
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   jobResourceID(jobID),
-		ResourceType: awscloud.ResourceTypeMacieClassificationJob,
+		ResourceType: catalog.ResourceTypeMacieClassificationJob,
 		Name:         strings.TrimSpace(job.Name),
 		State:        strings.TrimSpace(job.JobStatus),
 		Attributes: map[string]any{
@@ -240,7 +241,7 @@ func allowListObservation(boundary awscloud.Boundary, allowList AllowList) awscl
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   allowListResourceID(listID),
-		ResourceType: awscloud.ResourceTypeMacieAllowList,
+		ResourceType: catalog.ResourceTypeMacieAllowList,
 		Name:         strings.TrimSpace(allowList.Name),
 		Attributes: map[string]any{
 			"allow_list_id": listID,
@@ -255,7 +256,7 @@ func customDataIdentifierObservation(boundary awscloud.Boundary, identifier Cust
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   customDataIdentifierResourceID(identifierID),
-		ResourceType: awscloud.ResourceTypeMacieCustomDataIdentifier,
+		ResourceType: catalog.ResourceTypeMacieCustomDataIdentifier,
 		Name:         strings.TrimSpace(identifier.Name),
 		Attributes: map[string]any{
 			"custom_data_identifier_id": identifierID,
@@ -270,7 +271,7 @@ func findingsFilterObservation(boundary awscloud.Boundary, filter FindingsFilter
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   findingsFilterResourceID(filterID),
-		ResourceType: awscloud.ResourceTypeMacieFindingsFilter,
+		ResourceType: catalog.ResourceTypeMacieFindingsFilter,
 		Name:         strings.TrimSpace(filter.Name),
 		Attributes: map[string]any{
 			"findings_filter_id": filterID,

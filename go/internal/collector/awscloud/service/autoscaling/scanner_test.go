@@ -303,7 +303,7 @@ func TestScannerEmitsGroupRelationshipsWithGreppedJoinKeys(t *testing.T) {
 	}
 	assertEdge(t, role[0], "checkout-asg",
 		"arn:aws:iam::123456789012:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling",
-		awscloud.ResourceTypeIAMRole)
+		catalog.ResourceTypeIAMRole)
 }
 
 func TestScannerEmitsChildToGroupRelationships(t *testing.T) {

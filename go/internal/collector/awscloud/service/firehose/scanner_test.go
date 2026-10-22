@@ -90,10 +90,10 @@ func TestScannerEmitsFirehoseMetadataResourceAndRelationships(t *testing.T) {
 	assertEdge(t, source, streamARN, sourceStreamARN, sourceStreamARN, catalog.ResourceTypeKinesisDataStream)
 
 	kms := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamUsesKMSKey)
-	assertEdge(t, kms, streamARN, kmsKeyARN, kmsKeyARN, awscloud.ResourceTypeKMSKey)
+	assertEdge(t, kms, streamARN, kmsKeyARN, kmsKeyARN, catalog.ResourceTypeKMSKey)
 
 	role := relationshipByType(t, envelopes, catalog.RelationshipFirehoseStreamUsesIAMRole)
-	assertEdge(t, role, streamARN, roleARN, roleARN, awscloud.ResourceTypeIAMRole)
+	assertEdge(t, role, streamARN, roleARN, roleARN, catalog.ResourceTypeIAMRole)
 	if got := countRelationships(envelopes, catalog.RelationshipFirehoseStreamUsesIAMRole); got != 1 {
 		t.Fatalf("role edge count = %d, want 1 (duplicate role across destinations must collapse)", got)
 	}

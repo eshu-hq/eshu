@@ -115,7 +115,7 @@ func TestScannerEmitsLakeFormationMetadataResourcesAndRelationships(t *testing.T
 	if got, want := resourceRole.Payload["target_arn"], registerRoleARN; got != want {
 		t.Fatalf("resource->role target_arn = %#v, want %q", got, want)
 	}
-	if got, want := resourceRole.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := resourceRole.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 		t.Fatalf("resource->role target_type = %#v, want %q", got, want)
 	}
 
@@ -142,7 +142,7 @@ func TestScannerEmitsLakeFormationMetadataResourcesAndRelationships(t *testing.T
 	if got, want := permPrincipal.Payload["target_resource_id"], analystARN; got != want {
 		t.Fatalf("permission->principal target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := permPrincipal.Payload["target_type"], awscloud.ResourceTypeIAMRole; got != want {
+	if got, want := permPrincipal.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 		t.Fatalf("permission->principal target_type = %#v, want %q", got, want)
 	}
 

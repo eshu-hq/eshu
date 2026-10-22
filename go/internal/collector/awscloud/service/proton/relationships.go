@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // environmentRoleRelationship records a Proton environment's reported Proton
@@ -30,7 +31,7 @@ func environmentRoleRelationship(boundary awscloud.Boundary, environment Environ
 		SourceARN:        strings.TrimSpace(environment.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipProtonEnvironmentUsesRole + ":" + roleARN,
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -64,7 +65,7 @@ func TestScannerEmitsSessionMembersJobsAllowListsIdentifiersAndFilters(t *testin
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	session := resourceByType(t, envelopes, awscloud.ResourceTypeMacieSession)
+	session := resourceByType(t, envelopes, catalog.ResourceTypeMacieSession)
 	sessionAttrs := attributesOf(t, session)
 	if got, want := sessionAttrs["enabled"], true; got != want {
 		t.Fatalf("session enabled = %#v, want %v", got, want)
@@ -80,7 +81,7 @@ func TestScannerEmitsSessionMembersJobsAllowListsIdentifiersAndFilters(t *testin
 		t.Fatalf("finding counts = %#v, want Low=3 Medium=1", counts)
 	}
 
-	member := resourceByType(t, envelopes, awscloud.ResourceTypeMacieMemberAccount)
+	member := resourceByType(t, envelopes, catalog.ResourceTypeMacieMemberAccount)
 	memberAttrs := attributesOf(t, member)
 	if got, want := memberAttrs["account_id"], "111122223333"; got != want {
 		t.Fatalf("member account_id = %#v, want %q", got, want)
@@ -92,7 +93,7 @@ func TestScannerEmitsSessionMembersJobsAllowListsIdentifiersAndFilters(t *testin
 		}
 	}
 
-	job := resourceByType(t, envelopes, awscloud.ResourceTypeMacieClassificationJob)
+	job := resourceByType(t, envelopes, catalog.ResourceTypeMacieClassificationJob)
 	jobAttrs := attributesOf(t, job)
 	if got, want := jobAttrs["job_status"], "RUNNING"; got != want {
 		t.Fatalf("job status = %#v, want %q", got, want)
@@ -111,7 +112,7 @@ func TestScannerEmitsSessionMembersJobsAllowListsIdentifiersAndFilters(t *testin
 		}
 	}
 
-	allowList := resourceByType(t, envelopes, awscloud.ResourceTypeMacieAllowList)
+	allowList := resourceByType(t, envelopes, catalog.ResourceTypeMacieAllowList)
 	allowListAttrs := attributesOf(t, allowList)
 	if got, want := allowList.Payload["name"], "approved-test-data"; got != want {
 		t.Fatalf("allow list name = %#v, want %q", got, want)
@@ -122,7 +123,7 @@ func TestScannerEmitsSessionMembersJobsAllowListsIdentifiersAndFilters(t *testin
 		}
 	}
 
-	identifier := resourceByType(t, envelopes, awscloud.ResourceTypeMacieCustomDataIdentifier)
+	identifier := resourceByType(t, envelopes, catalog.ResourceTypeMacieCustomDataIdentifier)
 	identifierAttrs := attributesOf(t, identifier)
 	if got, want := identifier.Payload["name"], "internal-employee-id"; got != want {
 		t.Fatalf("identifier name = %#v, want %q", got, want)
@@ -133,7 +134,7 @@ func TestScannerEmitsSessionMembersJobsAllowListsIdentifiersAndFilters(t *testin
 		}
 	}
 
-	filter := resourceByType(t, envelopes, awscloud.ResourceTypeMacieFindingsFilter)
+	filter := resourceByType(t, envelopes, catalog.ResourceTypeMacieFindingsFilter)
 	filterAttrs := attributesOf(t, filter)
 	if got, want := filter.Payload["name"], "suppress-known-benign"; got != want {
 		t.Fatalf("filter name = %#v, want %q", got, want)
@@ -148,11 +149,11 @@ func TestScannerEmitsSessionMembersJobsAllowListsIdentifiersAndFilters(t *testin
 	}
 
 	// Member-to-administrator edge targets the administrator session resource.
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipMacieMemberManagedByAdministrator)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipMacieMemberManagedByAdministrator)
 	if got, want := relationship.Payload["target_resource_id"], sessionResourceID("123456789012"); got != want {
 		t.Fatalf("member relationship target = %#v, want %q", got, want)
 	}
-	if got, want := relationship.Payload["target_type"], awscloud.ResourceTypeMacieSession; got != want {
+	if got, want := relationship.Payload["target_type"], catalog.ResourceTypeMacieSession; got != want {
 		t.Fatalf("member relationship target_type = %#v, want %q", got, want)
 	}
 }
@@ -232,7 +233,7 @@ func TestScannerEmitsDisabledSessionAndStopsForDisabledAccount(t *testing.T) {
 	if len(envelopes) != 1 {
 		t.Fatalf("envelopes = %d, want 1 disabled session only", len(envelopes))
 	}
-	session := resourceByType(t, envelopes, awscloud.ResourceTypeMacieSession)
+	session := resourceByType(t, envelopes, catalog.ResourceTypeMacieSession)
 	if got := attributesOf(t, session)["enabled"]; got != false {
 		t.Fatalf("session enabled = %#v, want false", got)
 	}
@@ -252,7 +253,7 @@ func TestScannerEmitsNoMemberRelationshipsForStandaloneAccount(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipMacieMemberManagedByAdministrator {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == catalog.RelationshipMacieMemberManagedByAdministrator {
 			t.Fatalf("standalone account emitted a member relationship: %#v", envelope)
 		}
 	}
@@ -287,7 +288,7 @@ func TestScannerRelationshipTargetsJoinEmittedOrAdministratorSession(t *testing.
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceGuardDuty
+	boundary.ServiceKind = catalog.ServiceGuardDuty
 
 	_, err := (Scanner{Client: &fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -306,7 +307,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceMacie,
+		ServiceKind:         catalog.ServiceMacie,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:macie2:1",
 		CollectorInstanceID: "aws-prod",

@@ -92,7 +92,7 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 
 	// database -> KMS key edge.
 	dbKMS := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamDatabaseUsesKMSKey)
-	assertEdgeTarget(t, dbKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, dbKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := dbKMS.Payload["source_resource_id"], testDatabaseARN; got != want {
 		t.Fatalf("database->kms source_resource_id = %#v, want %q", got, want)
 	}

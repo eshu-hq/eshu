@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("shield scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceShield:
+	case "", catalog.ServiceShield:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceShield
+		boundary.ServiceKind = catalog.ServiceShield
 	default:
 		return nil, fmt.Errorf("shield scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -102,7 +103,7 @@ func protectionObservation(boundary awscloud.Boundary, protection Protection) aw
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeShieldProtection,
+		ResourceType: catalog.ResourceTypeShieldProtection,
 		Name:         strings.TrimSpace(protection.Name),
 		Attributes: map[string]any{
 			"id":                     strings.TrimSpace(protection.ID),
@@ -121,7 +122,7 @@ func subscriptionObservation(boundary awscloud.Boundary, subscription Subscripti
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeShieldSubscription,
+		ResourceType: catalog.ResourceTypeShieldSubscription,
 		State:        state,
 		Attributes: map[string]any{
 			"state":      state,

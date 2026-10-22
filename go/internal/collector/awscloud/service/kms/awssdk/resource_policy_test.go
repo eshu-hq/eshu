@@ -12,6 +12,7 @@ import (
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	kmsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/kms"
 )
 
@@ -39,7 +40,7 @@ func TestClientListKeysDerivesResourcePolicyStatements(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKMS},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceKMS},
 	}
 
 	keys, err := adapter.ListKeys(context.Background())

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // policyMemberAccountRelationship builds the applies-to-account edge from one
@@ -29,7 +30,7 @@ func policyMemberAccountRelationship(
 	sourceID := firstNonEmpty(strings.TrimSpace(policy.ARN), policyID)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFMSPolicyAppliesToAccount,
+		RelationshipType: catalog.RelationshipFMSPolicyAppliesToAccount,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(policy.ARN),
 		TargetResourceID: accountID,

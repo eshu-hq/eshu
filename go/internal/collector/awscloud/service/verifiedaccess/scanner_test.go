@@ -164,7 +164,7 @@ func TestScannerEmitsVerifiedAccessMetadataAndRelationships(t *testing.T) {
 
 	// endpoint -> ACM certificate edge, keyed by the certificate ARN.
 	endpointCert := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedAccessEndpointUsesACMCertificate)
-	assertEdgeTarget(t, endpointCert, awscloud.ResourceTypeACMCertificate, testCertARN)
+	assertEdgeTarget(t, endpointCert, catalog.ResourceTypeACMCertificate, testCertARN)
 	if got, want := endpointCert.Payload["target_arn"], testCertARN; got != want {
 		t.Fatalf("endpoint->cert target_arn = %#v, want %q", got, want)
 	}

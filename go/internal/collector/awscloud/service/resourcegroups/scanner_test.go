@@ -106,7 +106,7 @@ func TestClassifyMemberCoversFamilies(t *testing.T) {
 		{"cloudformation stack", "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", awscloud.ResourceTypeCloudFormationStack, "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", true},
 
 		// Non-ARN-keyed families: published id must match the target scanner.
-		{"kms key", "arn:aws:kms:us-east-1:123456789012:key/abcd1234-12ab-34cd-56ef-1234567890ab", awscloud.ResourceTypeKMSKey, "abcd1234-12ab-34cd-56ef-1234567890ab", false},
+		{"kms key", "arn:aws:kms:us-east-1:123456789012:key/abcd1234-12ab-34cd-56ef-1234567890ab", catalog.ResourceTypeKMSKey, "abcd1234-12ab-34cd-56ef-1234567890ab", false},
 		{"route53 hosted zone", "arn:aws:route53:::hostedzone/Z123456ABC", awscloud.ResourceTypeRoute53HostedZone, "/hostedzone/Z123456ABC", false},
 		{"ec2 instance", "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc1234", "aws_ec2_instance", "i-0abc1234", false},
 		{"ec2 vpc", "arn:aws:ec2:us-east-1:123456789012:vpc/vpc-0abc1234", catalog.ResourceTypeEC2VPC, "vpc-0abc1234", false},

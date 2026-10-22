@@ -52,7 +52,7 @@ func canaryRelationships(boundary awscloud.Boundary, canary Canary) []awscloud.R
 			SourceARN:        canaryARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   canaryID + "#role#" + roleARN,
 		})
 	}

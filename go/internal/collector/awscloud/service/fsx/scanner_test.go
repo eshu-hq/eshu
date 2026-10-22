@@ -264,7 +264,7 @@ func TestScannerEmitsAllFlavorsAndRelationships(t *testing.T) {
 	if got, want := kmsEdge.Payload["target_arn"], kmsARN; got != want {
 		t.Fatalf("file-system->kms target_arn = %#v, want %q", got, want)
 	}
-	if got, want := kmsEdge.Payload["target_type"], awscloud.ResourceTypeKMSKey; got != want {
+	if got, want := kmsEdge.Payload["target_type"], catalog.ResourceTypeKMSKey; got != want {
 		t.Fatalf("file-system->kms target_type = %#v, want %q", got, want)
 	}
 }

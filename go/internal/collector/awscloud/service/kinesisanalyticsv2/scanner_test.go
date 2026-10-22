@@ -103,7 +103,7 @@ func TestScannerEmitsApplicationMetadataAndRelationships(t *testing.T) {
 	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationUsesS3CodeBucket,
 		catalog.ResourceTypeS3Bucket, testCodeBucket, testAppARN)
 	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationUsesIAMRole,
-		awscloud.ResourceTypeIAMRole, testRoleARN, testAppARN)
+		catalog.ResourceTypeIAMRole, testRoleARN, testAppARN)
 	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
 		awscloud.ResourceTypeCloudWatchLogsLogGroup, testLogGroupARN, testAppARN)
 

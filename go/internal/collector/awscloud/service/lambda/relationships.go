@@ -27,7 +27,7 @@ func functionRelationships(
 			SourceARN:        functionARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   functionARN + "#execution-role#" + roleARN,
 		})
 	}

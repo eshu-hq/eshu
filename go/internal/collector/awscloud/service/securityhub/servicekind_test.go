@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -22,7 +22,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("NewKey() error = %v", err)
 	}
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceSecurityHub + "  "
+	boundary.ServiceKind = "  " + catalog.ServiceSecurityHub + "  "
 	client := fakeClient{snapshot: Snapshot{
 		Hub: Hub{
 			ARN: "arn:aws:securityhub:us-east-1:123456789012:hub/default",
@@ -37,7 +37,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceSecurityHub; got != want {
+		if got, want := envelope.Payload["service_kind"], catalog.ServiceSecurityHub; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

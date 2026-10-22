@@ -24,7 +24,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 			SourceARN:        strings.TrimSpace(cluster.ARN),
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   clusterID + "#role#" + roleARN,
 		})
 	}
@@ -128,7 +128,7 @@ func nodegroupRoleRelationship(
 		SourceARN:        strings.TrimSpace(nodegroup.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   nodegroupID + "#role#" + roleARN,
 	}, true
 }

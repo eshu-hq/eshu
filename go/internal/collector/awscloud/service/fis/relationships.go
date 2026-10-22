@@ -57,7 +57,7 @@ func templateIAMRoleRelationship(
 		SourceARN:        strings.TrimSpace(template.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipFISTemplateUsesIAMRole + ":" + roleARN,
 	}
 }

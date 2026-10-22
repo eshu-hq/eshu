@@ -71,7 +71,7 @@ func TestScannerEmitsPipelineResourceAndEdges(t *testing.T) {
 	assertEdgeTarget(t, distEdge, awscloud.ResourceTypeImageBuilderDistributionConfiguration, testDistConfig)
 
 	roleEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderPipelineUsesExecutionRole)
-	assertEdgeTarget(t, roleEdge, awscloud.ResourceTypeIAMRole, testExecRoleARN)
+	assertEdgeTarget(t, roleEdge, catalog.ResourceTypeIAMRole, testExecRoleARN)
 
 	// A pipeline with an image recipe must not emit a container recipe edge.
 	for _, envelope := range envelopes {
@@ -148,7 +148,7 @@ func TestScannerEmitsContainerRecipeECRAndKMSEdges(t *testing.T) {
 	}
 
 	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderContainerRecipeUsesKMSKey)
-	assertEdgeTarget(t, kmsEdge, awscloud.ResourceTypeKMSKey, testKMSKeyARN)
+	assertEdgeTarget(t, kmsEdge, catalog.ResourceTypeKMSKey, testKMSKeyARN)
 	if got, want := kmsEdge.Payload["target_arn"], testKMSKeyARN; got != want {
 		t.Fatalf("container-recipe->kms target_arn = %#v, want %q", got, want)
 	}
@@ -194,7 +194,7 @@ func TestScannerEmitsInfraConfigEdges(t *testing.T) {
 	}
 
 	profEdge := relationshipByType(t, envelopes, awscloud.RelationshipImageBuilderInfraConfigUsesInstanceProfile)
-	assertEdgeTarget(t, profEdge, awscloud.ResourceTypeIAMInstanceProfile, testWantProfARN)
+	assertEdgeTarget(t, profEdge, catalog.ResourceTypeIAMInstanceProfile, testWantProfARN)
 	if got, want := profEdge.Payload["target_arn"], testWantProfARN; got != want {
 		t.Fatalf("infra->instance-profile target_arn = %#v, want %q", got, want)
 	}

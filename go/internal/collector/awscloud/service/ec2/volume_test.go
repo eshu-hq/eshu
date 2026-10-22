@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -100,7 +99,7 @@ func TestScannerEmitsEBSVolumeMetadataAndKMSRelationship(t *testing.T) {
 	if got := edge.Payload["target_arn"]; got != kmsARN {
 		t.Fatalf("kms edge target_arn = %#v, want KMS ARN", got)
 	}
-	if got := edge.Payload["target_type"]; got != awscloud.ResourceTypeKMSKey {
+	if got := edge.Payload["target_type"]; got != catalog.ResourceTypeKMSKey {
 		t.Fatalf("kms edge target_type = %#v, want aws_kms_key", got)
 	}
 }

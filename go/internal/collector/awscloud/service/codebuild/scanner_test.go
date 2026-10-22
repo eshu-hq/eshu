@@ -199,7 +199,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 	if len(role) != 1 {
 		t.Fatalf("project->IAM-role relationships = %d, want 1", len(role))
 	}
-	if role[0]["target_type"] != awscloud.ResourceTypeIAMRole {
+	if role[0]["target_type"] != catalog.ResourceTypeIAMRole {
 		t.Fatalf("project->IAM-role target_type = %v", role[0]["target_type"])
 	}
 	if role[0]["target_resource_id"] != "arn:aws:iam::123456789012:role/CodeBuildServiceRole" {
@@ -210,7 +210,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 	if len(kms) != 1 {
 		t.Fatalf("project->KMS relationships = %d, want 1", len(kms))
 	}
-	if kms[0]["target_type"] != awscloud.ResourceTypeKMSKey {
+	if kms[0]["target_type"] != catalog.ResourceTypeKMSKey {
 		t.Fatalf("project->KMS target_type = %v", kms[0]["target_type"])
 	}
 	if kms[0]["target_resource_id"] != "arn:aws:kms:us-east-1:123456789012:key/abcd-1234" {
@@ -338,7 +338,7 @@ func TestScannerRequiresRedactionKey(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceIAM
+	boundary.ServiceKind = catalog.ServiceIAM
 	_, err := Scanner{Client: sampleClient(), RedactionKey: testKey(t)}.Scan(context.Background(), boundary)
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want service-kind mismatch error")

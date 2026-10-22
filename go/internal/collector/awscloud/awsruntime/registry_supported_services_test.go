@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/internal/guardset"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -72,7 +73,7 @@ func TestSupportedServiceKindsCoversEveryRuntimebind(t *testing.T) {
 	if got := len(awsruntime.SupportedServiceKinds()); got != len(dirs) {
 		t.Errorf("len(SupportedServiceKinds()) = %d, want %d (one per runtimebind dir %v)", got, len(dirs), dirs)
 	}
-	if !awsruntime.SupportsServiceKind(awscloud.ServiceIAM) {
+	if !awsruntime.SupportsServiceKind(catalog.ServiceIAM) {
 		t.Fatalf("SupportsServiceKind(iam) = false, want true")
 	}
 	if awsruntime.SupportsServiceKind("nonexistent") {

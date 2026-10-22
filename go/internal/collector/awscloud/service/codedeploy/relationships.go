@@ -79,7 +79,7 @@ func serviceRoleRelationship(
 		SourceARN:        groupARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
-		TargetType:       awscloud.ResourceTypeIAMRole,
+		TargetType:       catalog.ResourceTypeIAMRole,
 		SourceRecordID:   groupID + "#service-role#" + roleARN,
 	}, true
 }

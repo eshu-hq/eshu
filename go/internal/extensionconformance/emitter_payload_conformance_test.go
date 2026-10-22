@@ -249,10 +249,10 @@ func ec2InstancePostureObservation() awscloud.EC2InstancePostureObservation {
 
 func iamPermissionObservation() awscloud.IAMPermissionObservation {
 	return awscloud.IAMPermissionObservation{
-		Boundary:      awsBoundary(awscloud.ServiceIAM, time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)),
+		Boundary:      awsBoundary(catalog.ServiceIAM, time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)),
 		PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
-		PrincipalType: awscloud.ResourceTypeIAMRole,
-		PolicySource:  awscloud.IAMPolicySourceInline,
+		PrincipalType: catalog.ResourceTypeIAMRole,
+		PolicySource:  catalog.IAMPolicySourceInline,
 		PolicyName:    "inline-escalate",
 		StatementSID:  "AllowPassRole",
 		Effect:        "Allow",

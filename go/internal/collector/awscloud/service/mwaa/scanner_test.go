@@ -101,13 +101,13 @@ func TestScannerEmitsMWAAEnvironmentResourceAndRelationships(t *testing.T) {
 	}
 
 	iamEdge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentUsesIAMRole)
-	assertEdge(t, iamEdge, environmentARN, executionRoleARN, awscloud.ResourceTypeIAMRole)
+	assertEdge(t, iamEdge, environmentARN, executionRoleARN, catalog.ResourceTypeIAMRole)
 	if got, want := iamEdge.Payload["target_arn"], executionRoleARN; got != want {
 		t.Fatalf("env->iam target_arn = %#v, want %q", got, want)
 	}
 
 	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentUsesKMSKey)
-	assertEdge(t, kmsEdge, environmentARN, kmsKeyARN, awscloud.ResourceTypeKMSKey)
+	assertEdge(t, kmsEdge, environmentARN, kmsKeyARN, catalog.ResourceTypeKMSKey)
 
 	subnetEdges := relationshipsByType(envelopes, awscloud.RelationshipMWAAEnvironmentUsesSubnet)
 	if got := len(subnetEdges); got != 2 {

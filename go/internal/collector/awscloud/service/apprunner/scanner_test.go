@@ -113,19 +113,19 @@ func TestServiceRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) {
 		},
 		{
 			relationshipType: awscloud.RelationshipAppRunnerServiceUsesIAMRole,
-			targetType:       awscloud.ResourceTypeIAMRole,
+			targetType:       catalog.ResourceTypeIAMRole,
 			sourceResourceID: serviceARN,
 			targetResourceID: accessRoleARN,
 		},
 		{
 			relationshipType: awscloud.RelationshipAppRunnerServiceUsesIAMRole,
-			targetType:       awscloud.ResourceTypeIAMRole,
+			targetType:       catalog.ResourceTypeIAMRole,
 			sourceResourceID: serviceARN,
 			targetResourceID: instanceRoleARN,
 		},
 		{
 			relationshipType: awscloud.RelationshipAppRunnerServiceUsesKMSKey,
-			targetType:       awscloud.ResourceTypeKMSKey,
+			targetType:       catalog.ResourceTypeKMSKey,
 			sourceResourceID: serviceARN,
 			targetResourceID: kmsKeyARN,
 		},

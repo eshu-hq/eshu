@@ -80,7 +80,7 @@ func TestScannerEmitsGuardDutyMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	detector := resourceByType(t, envelopes, awscloud.ResourceTypeGuardDutyDetector)
+	detector := resourceByType(t, envelopes, catalog.ResourceTypeGuardDutyDetector)
 	if got, want := detector.Payload["resource_id"], detectorID; got != want {
 		t.Fatalf("detector resource_id = %#v, want %q", got, want)
 	}
@@ -105,7 +105,7 @@ func TestScannerEmitsGuardDutyMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	filter := resourceByType(t, envelopes, awscloud.ResourceTypeGuardDutyFilter)
+	filter := resourceByType(t, envelopes, catalog.ResourceTypeGuardDutyFilter)
 	filterAttributes := attributesOf(t, filter)
 	if got, want := filter.Payload["name"], "archive-known-benign"; got != want {
 		t.Fatalf("filter name = %#v, want %q", got, want)
@@ -116,12 +116,12 @@ func TestScannerEmitsGuardDutyMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	publishing := resourceByType(t, envelopes, awscloud.ResourceTypeGuardDutyPublishingDestination)
+	publishing := resourceByType(t, envelopes, catalog.ResourceTypeGuardDutyPublishingDestination)
 	publishingAttributes := attributesOf(t, publishing)
 	assertAttribute(t, publishingAttributes, "destination_type", "S3")
 	assertAttribute(t, publishingAttributes, "destination_arn", destinationARN)
 
-	threatSet := resourceByType(t, envelopes, awscloud.ResourceTypeGuardDutyThreatIntelSet)
+	threatSet := resourceByType(t, envelopes, catalog.ResourceTypeGuardDutyThreatIntelSet)
 	threatAttributes := attributesOf(t, threatSet)
 	assertAttribute(t, threatAttributes, "location_arn", threatListLocation)
 	for _, forbidden := range []string{"contents", "ip_addresses", "domains", "entries"} {
@@ -130,7 +130,7 @@ func TestScannerEmitsGuardDutyMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	ipSet := resourceByType(t, envelopes, awscloud.ResourceTypeGuardDutyIPSet)
+	ipSet := resourceByType(t, envelopes, catalog.ResourceTypeGuardDutyIPSet)
 	ipAttributes := attributesOf(t, ipSet)
 	assertAttribute(t, ipAttributes, "location_arn", ipSetLocation)
 	for _, forbidden := range []string{"contents", "ip_addresses", "entries"} {
@@ -139,10 +139,10 @@ func TestScannerEmitsGuardDutyMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	assertRelationshipType(t, envelopes, awscloud.RelationshipGuardDutyDetectorHasMemberAccount)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipGuardDutyDetectorPublishesToDestination)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipGuardDutyDetectorUsesThreatIntelSet)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipGuardDutyDetectorUsesIPSet)
+	assertRelationshipType(t, envelopes, catalog.RelationshipGuardDutyDetectorHasMemberAccount)
+	assertRelationshipType(t, envelopes, catalog.RelationshipGuardDutyDetectorPublishesToDestination)
+	assertRelationshipType(t, envelopes, catalog.RelationshipGuardDutyDetectorUsesThreatIntelSet)
+	assertRelationshipType(t, envelopes, catalog.RelationshipGuardDutyDetectorUsesIPSet)
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
@@ -159,7 +159,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceGuardDuty,
+		ServiceKind:         catalog.ServiceGuardDuty,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:guardduty:1",
 		CollectorInstanceID: "aws-prod",

@@ -52,7 +52,7 @@ func fleetRelationships(boundary awscloud.Boundary, fleet Fleet) []awscloud.Rela
 			SourceARN:        fleetARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   fleetID + "#role#" + roleARN,
 		})
 	}
@@ -112,7 +112,7 @@ func imageBuilderRelationships(boundary awscloud.Boundary, builder ImageBuilder)
 			SourceARN:        builderARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   builderID + "#role#" + roleARN,
 		})
 	}

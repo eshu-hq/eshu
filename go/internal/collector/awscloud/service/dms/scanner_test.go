@@ -139,7 +139,7 @@ func TestScannerEmitsDMSMetadataAndRelationships(t *testing.T) {
 
 	// instance -> KMS edge keyed by the reported key ARN.
 	instKMS := relationshipByType(t, envelopes, awscloud.RelationshipDMSReplicationInstanceUsesKMSKey)
-	assertEdgeTarget(t, instKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, instKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 
 	// subnet group -> VPC edge (bare vpc id).
 	groupVPC := relationshipByType(t, envelopes, awscloud.RelationshipDMSReplicationSubnetGroupInVPC)
@@ -156,7 +156,7 @@ func TestScannerEmitsDMSMetadataAndRelationships(t *testing.T) {
 
 	// endpoint -> KMS edge.
 	epKMS := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointUsesKMSKey)
-	assertEdgeTarget(t, epKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, epKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 
 	// endpoint -> secret edge keyed by the secret ARN.
 	epSecret := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointUsesSecret)

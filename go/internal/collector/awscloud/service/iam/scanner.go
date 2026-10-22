@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -36,10 +37,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("iam scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceIAM:
+	case "", catalog.ServiceIAM:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceIAM
+		boundary.ServiceKind = catalog.ServiceIAM
 	default:
 		return nil, fmt.Errorf("iam scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -117,7 +118,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			}
 			envelopes = append(envelopes, attachment)
 		}
-		permissions, err := permissionEnvelopes(boundary, role.ARN, awscloud.ResourceTypeIAMRole, role.PermissionStatements)
+		permissions, err := permissionEnvelopes(boundary, role.ARN, catalog.ResourceTypeIAMRole, role.PermissionStatements)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +164,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			}
 			envelopes = append(envelopes, attachment)
 		}
-		permissions, err := permissionEnvelopes(boundary, user.ARN, awscloud.ResourceTypeIAMUser, user.PermissionStatements)
+		permissions, err := permissionEnvelopes(boundary, user.ARN, catalog.ResourceTypeIAMUser, user.PermissionStatements)
 		if err != nil {
 			return nil, err
 		}
@@ -223,7 +224,7 @@ func roleObservation(boundary awscloud.Boundary, role Role) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          roleARN,
 		ResourceID:   roleARN,
-		ResourceType: awscloud.ResourceTypeIAMRole,
+		ResourceType: catalog.ResourceTypeIAMRole,
 		Name:         role.Name,
 		Attributes: map[string]any{
 			"attached_policy_arns":     role.AttachedPolicyARNs,
@@ -246,7 +247,7 @@ func policyObservation(boundary awscloud.Boundary, policy Policy) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          policyARN,
 		ResourceID:   policyARN,
-		ResourceType: awscloud.ResourceTypeIAMPolicy,
+		ResourceType: catalog.ResourceTypeIAMPolicy,
 		Name:         policy.Name,
 		Attributes: map[string]any{
 			"attachment_count":   policy.AttachmentCount,
@@ -264,7 +265,7 @@ func instanceProfileObservation(boundary awscloud.Boundary, profile InstanceProf
 		Boundary:     boundary,
 		ARN:          profileARN,
 		ResourceID:   profileARN,
-		ResourceType: awscloud.ResourceTypeIAMInstanceProfile,
+		ResourceType: catalog.ResourceTypeIAMInstanceProfile,
 		Name:         profile.Name,
 		Attributes: map[string]any{
 			"path":      strings.TrimSpace(profile.Path),
@@ -281,7 +282,7 @@ func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          userARN,
 		ResourceID:   userARN,
-		ResourceType: awscloud.ResourceTypeIAMUser,
+		ResourceType: catalog.ResourceTypeIAMUser,
 		Name:         user.Name,
 		Attributes: map[string]any{
 			"attached_policy_arns":     user.AttachedPolicyARNs,
@@ -334,11 +335,11 @@ func roleTrustRelationship(boundary awscloud.Boundary, role Role, principal Trus
 	principalID := strings.TrimSpace(principal.Type) + ":" + strings.TrimSpace(principal.Identifier)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipIAMRoleTrustsPrincipal,
+		RelationshipType: catalog.RelationshipIAMRoleTrustsPrincipal,
 		SourceResourceID: strings.TrimSpace(role.ARN),
 		SourceARN:        strings.TrimSpace(role.ARN),
 		TargetResourceID: principalID,
-		TargetType:       awscloud.ResourceTypeIAMPrincipal,
+		TargetType:       catalog.ResourceTypeIAMPrincipal,
 		Attributes: map[string]any{
 			"principal_type": strings.TrimSpace(principal.Type),
 		},
@@ -349,12 +350,12 @@ func roleTrustRelationship(boundary awscloud.Boundary, role Role, principal Trus
 func rolePolicyRelationship(boundary awscloud.Boundary, role Role, policyARN string) awscloud.RelationshipObservation {
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipIAMRoleAttachedPolicy,
+		RelationshipType: catalog.RelationshipIAMRoleAttachedPolicy,
 		SourceResourceID: strings.TrimSpace(role.ARN),
 		SourceARN:        strings.TrimSpace(role.ARN),
 		TargetResourceID: strings.TrimSpace(policyARN),
 		TargetARN:        strings.TrimSpace(policyARN),
-		TargetType:       awscloud.ResourceTypeIAMPolicy,
+		TargetType:       catalog.ResourceTypeIAMPolicy,
 		SourceRecordID:   strings.TrimSpace(role.ARN) + "#policy#" + strings.TrimSpace(policyARN),
 	}
 }
@@ -362,12 +363,12 @@ func rolePolicyRelationship(boundary awscloud.Boundary, role Role, policyARN str
 func profileRoleRelationship(boundary awscloud.Boundary, profile InstanceProfile, roleARN string) awscloud.RelationshipObservation {
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipIAMRoleInInstanceProfile,
+		RelationshipType: catalog.RelationshipIAMRoleInInstanceProfile,
 		SourceResourceID: strings.TrimSpace(roleARN),
 		SourceARN:        strings.TrimSpace(roleARN),
 		TargetResourceID: strings.TrimSpace(profile.ARN),
 		TargetARN:        strings.TrimSpace(profile.ARN),
-		TargetType:       awscloud.ResourceTypeIAMInstanceProfile,
+		TargetType:       catalog.ResourceTypeIAMInstanceProfile,
 		SourceRecordID:   strings.TrimSpace(roleARN) + "#instance-profile#" + strings.TrimSpace(profile.ARN),
 	}
 }

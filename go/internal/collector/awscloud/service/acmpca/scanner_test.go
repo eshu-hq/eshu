@@ -113,7 +113,7 @@ func TestScannerEmitsKMSKeyRelationshipWhenARNReported(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	relationships := relationshipsByType(envelopes, awscloud.RelationshipACMPCACertificateAuthorityUsesKMSKey)
+	relationships := relationshipsByType(envelopes, catalog.RelationshipACMPCACertificateAuthorityUsesKMSKey)
 	if got, want := len(relationships), 1; got != want {
 		t.Fatalf("KMS relationship count = %d, want %d", got, want)
 	}
@@ -127,7 +127,7 @@ func TestScannerEmitsKMSKeyRelationshipWhenARNReported(t *testing.T) {
 	if got, want := rel.Payload["target_arn"], kmsKeyARN; got != want {
 		t.Fatalf("target_arn = %#v, want %q", got, want)
 	}
-	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeKMSKey; got != want {
+	if got, want := rel.Payload["target_type"], catalog.ResourceTypeKMSKey; got != want {
 		t.Fatalf("target_type = %#v, want %q", got, want)
 	}
 }
@@ -144,7 +144,7 @@ func TestScannerSkipsKMSKeyRelationshipForNonARNValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if rels := relationshipsByType(envelopes, awscloud.RelationshipACMPCACertificateAuthorityUsesKMSKey); len(rels) != 0 {
+	if rels := relationshipsByType(envelopes, catalog.RelationshipACMPCACertificateAuthorityUsesKMSKey); len(rels) != 0 {
 		t.Fatalf("KMS relationship emitted for non-ARN key value: %#v", rels)
 	}
 }
@@ -164,7 +164,7 @@ func TestScannerEmitsSubordinateToParentRelationshipWhenParentReported(t *testin
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	relationships := relationshipsByType(envelopes, awscloud.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent)
+	relationships := relationshipsByType(envelopes, catalog.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent)
 	if got, want := len(relationships), 1; got != want {
 		t.Fatalf("parent relationship count = %d, want %d", got, want)
 	}
@@ -194,7 +194,7 @@ func TestScannerSkipsParentRelationshipForRootCA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if rels := relationshipsByType(envelopes, awscloud.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent); len(rels) != 0 {
+	if rels := relationshipsByType(envelopes, catalog.RelationshipACMPCASubordinateCertificateAuthorityIssuedByParent); len(rels) != 0 {
 		t.Fatalf("parent relationship emitted for ROOT CA: %#v", rels)
 	}
 }
@@ -214,7 +214,7 @@ func TestScannerEmitsCRLBucketRelationshipWhenConfigured(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	relationships := relationshipsByType(envelopes, awscloud.RelationshipACMPCACertificateAuthorityPublishesCRLToBucket)
+	relationships := relationshipsByType(envelopes, catalog.RelationshipACMPCACertificateAuthorityPublishesCRLToBucket)
 	if got, want := len(relationships), 1; got != want {
 		t.Fatalf("CRL relationship count = %d, want %d", got, want)
 	}
@@ -261,7 +261,7 @@ func TestScannerSkipsAuthorityWithBlankARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceACM
+	boundary.ServiceKind = catalog.ServiceACM
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {
@@ -287,7 +287,7 @@ func TestScannerDefaultsServiceKindWhenEmpty(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	ca := resourceByType(t, envelopes, awscloud.ResourceTypeACMPCACertificateAuthority)
-	if got, want := ca.Payload["service_kind"], awscloud.ServiceACMPCA; got != want {
+	if got, want := ca.Payload["service_kind"], catalog.ServiceACMPCA; got != want {
 		t.Fatalf("service_kind = %#v, want %q", got, want)
 	}
 }
@@ -296,7 +296,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceACMPCA,
+		ServiceKind:         catalog.ServiceACMPCA,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:acm-pca:1",
 		CollectorInstanceID: "aws-prod",

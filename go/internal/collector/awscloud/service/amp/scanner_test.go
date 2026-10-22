@@ -108,7 +108,7 @@ func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 
 	// workspace -> KMS key edge.
 	wsKMS := relationshipByType(t, envelopes, awscloud.RelationshipAMPWorkspaceUsesKMSKey)
-	assertEdgeTarget(t, wsKMS, awscloud.ResourceTypeKMSKey, testKMSARN)
+	assertEdgeTarget(t, wsKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := wsKMS.Payload["source_resource_id"], testWorkspaceARN; got != want {
 		t.Fatalf("workspace->kms source_resource_id = %#v, want %q", got, want)
 	}

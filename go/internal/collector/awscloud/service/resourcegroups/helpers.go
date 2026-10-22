@@ -181,7 +181,7 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 		// arn:p:kms:region:acct:key/<key-id>. The kms scanner keys the key by its
 		// bare key id, NOT the ARN, so this target is not ARN-keyed.
 		if resourceType == "key" && id != "" {
-			return bareTarget(awscloud.ResourceTypeKMSKey, id), true
+			return bareTarget(catalog.ResourceTypeKMSKey, id), true
 		}
 	case "route53":
 		// arn:p:route53:::hostedzone/<id>. The route53 scanner keys the hosted

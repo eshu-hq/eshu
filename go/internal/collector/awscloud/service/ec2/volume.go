@@ -86,7 +86,7 @@ func volumeKMSRelationship(boundary awscloud.Boundary, volume Volume) (awscloud.
 		SourceARN:        strings.TrimSpace(volume.ARN),
 		TargetResourceID: keyID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       catalog.ResourceTypeKMSKey,
 		SourceRecordID:   volumeID + "#kms#" + keyID,
 	}, true
 }

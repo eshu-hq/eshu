@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/ssoadmin/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -18,9 +19,9 @@ import (
 // TestSSOAdminRuntimeBindRegisters confirms importing the binding installs the
 // IAM Identity Center scanner builder.
 func TestSSOAdminRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceSSOAdmin)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceSSOAdmin)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceSSOAdmin)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceSSOAdmin)
 	}
 	key, err := redact.NewKey([]byte("aws-redaction-key"))
 	if err != nil {
@@ -28,7 +29,7 @@ func TestSSOAdminRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSSOAdmin},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSSOAdmin},
 		RedactionKey: key,
 	})
 	if err != nil {
@@ -42,13 +43,13 @@ func TestSSOAdminRuntimeBindRegisters(t *testing.T) {
 // TestSSOAdminRuntimeBindRequiresRedactionKey covers the guard the binding
 // applies because principal display names are redacted before persistence.
 func TestSSOAdminRuntimeBindRequiresRedactionKey(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceSSOAdmin)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceSSOAdmin)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceSSOAdmin)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceSSOAdmin)
 	}
 	_, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSSOAdmin},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSSOAdmin},
 	})
 	if err == nil {
 		t.Fatalf("build() error = nil, want missing redaction key")

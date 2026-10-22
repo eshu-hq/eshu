@@ -142,7 +142,7 @@ func replicatorRelationships(boundary awscloud.Boundary, replicator Replicator) 
 			SourceARN:        strings.TrimSpace(replicator.ARN),
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
-			TargetType:       awscloud.ResourceTypeIAMRole,
+			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID:   replicatorID + "#role#" + roleARN,
 		})
 	}

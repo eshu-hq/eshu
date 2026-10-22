@@ -103,8 +103,8 @@ func TestScannerEmitsKMSKeyEncryptionEdge(t *testing.T) {
 		t.Fatalf("Scan returned error: %v", err)
 	}
 	edge := relationshipEnvelope(t, envelopes, awscloud.RelationshipCodeCommitRepositoryEncryptedWithKMSKey)
-	if got, _ := edge.Payload["target_type"].(string); got != awscloud.ResourceTypeKMSKey {
-		t.Fatalf("kms edge target_type = %q, want %q", got, awscloud.ResourceTypeKMSKey)
+	if got, _ := edge.Payload["target_type"].(string); got != catalog.ResourceTypeKMSKey {
+		t.Fatalf("kms edge target_type = %q, want %q", got, catalog.ResourceTypeKMSKey)
 	}
 	if got, _ := edge.Payload["target_resource_id"].(string); got != testKMSKeyARN {
 		t.Fatalf("kms edge target_resource_id = %q, want %q", got, testKMSKeyARN)
@@ -217,7 +217,7 @@ func TestEmittedRelationshipsSatisfyGraphJoinContract(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceIAM
+	boundary.ServiceKind = catalog.ServiceIAM
 	if _, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary); err == nil {
 		t.Fatal("Scan() error = nil, want service kind mismatch")
 	}

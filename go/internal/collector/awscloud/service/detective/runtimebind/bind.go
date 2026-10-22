@@ -7,15 +7,15 @@
 package runtimebind
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	svc "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/detective"
 	sdkadapter "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/detective/awssdk"
 )
 
 func init() {
 	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind: awscloud.ServiceDetective,
+		ServiceKind: catalog.ServiceDetective,
 		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
 			return svc.Scanner{
 				Client: sdkadapter.NewClient(d.AWSConfig, d.Boundary, d.Tracer, d.Instruments),
