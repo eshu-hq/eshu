@@ -117,7 +117,7 @@ CREATE (api)-[:USES]->(healthy_target)`
 		{"entity context hidden anchor resource_type", http.MethodGet, "/api/v0/entities/" + url.PathEscape(keyID) + "/context", "", http.StatusNotFound},
 		{"entity context hidden anchor data_type", http.MethodGet, "/api/v0/entities/" + url.PathEscape(dataTypeOnlyID) + "/context", "", http.StatusNotFound},
 		{"entity context hidden anchor conflicting types", http.MethodGet, "/api/v0/entities/" + url.PathEscape(conflictingTypeID) + "/context", "", http.StatusNotFound},
-		{"infra relationships", http.MethodPost, "/api/v0/infra/relationships", `{"entity_id":"` + healthyID + `"}`, http.StatusOK},
+		{"infra relationships", http.MethodPost, "/api/v0/infra/relationships", `{"entity_id":"` + workloadID + `"}`, http.StatusOK},
 		{"resource investigation", http.MethodPost, "/api/v0/impact/resource-investigation", `{"resource_id":"` + keyID + `","resource_type":"cloud","limit":5}`, http.StatusOK},
 		{"change surface resolver", http.MethodPost, "/api/v0/impact/change-surface/investigate", `{"target":"` + keyID + `","target_type":"cloud_resource","limit":5}`, http.StatusOK},
 		{"entity map resolver", http.MethodPost, "/api/v0/impact/entity-map", `{"from":"` + keyID + `","from_type":"cloud_resource","limit":5}`, http.StatusOK},
@@ -142,6 +142,33 @@ CREATE (api)-[:USES]->(healthy_target)`
 				t.Fatalf("status = %d, want %d; body=%s", rec.Code, check.wantStatus, rec.Body.String())
 			}
 			response := rec.Body.String()
+			if check.name == "infra relationships" {
+				data := decodeLiveEnvelope(t, response)
+				if got := data["id"]; got != workloadID {
+					t.Fatalf("relationship anchor id = %#v, want %q", got, workloadID)
+				}
+				outgoing, ok := data["outgoing"].([]any)
+				if !ok {
+					t.Fatalf("outgoing relationships = %#v, want []any", data["outgoing"])
+				}
+				foundHealthyNeighbor := false
+				for _, raw := range outgoing {
+					relationship, ok := raw.(map[string]any)
+					if !ok {
+						t.Fatalf("outgoing relationship = %#v, want object", raw)
+					}
+					targetID := StringVal(relationship, "target_id")
+					if targetID == healthyID {
+						foundHealthyNeighbor = true
+					}
+					if targetID == keyID || targetID == dataTypeOnlyID || targetID == conflictingTypeID {
+						t.Fatalf("infra relationships exposed legacy key neighbor %q: %s", targetID, response)
+					}
+				}
+				if !foundHealthyNeighbor {
+					t.Fatalf("infra relationships dropped healthy AppSync API neighbor %q: %s", healthyID, response)
+				}
+			}
 			if strings.Contains(response, secretMarker) || strings.Contains(response, dataTypeSecretMarker) || strings.Contains(response, conflictingSecretMarker) {
 				t.Fatalf("response exposed a stored legacy AppSync key field: %s", response)
 			}
