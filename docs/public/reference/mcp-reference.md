@@ -52,6 +52,63 @@ For per-tool bounds, required fields, envelopes, and prompt-readiness notes, use
 [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md). This page is the public
 tool index, not a second copy of every schema.
 
+## Tool Surface
+
+`ESHU_MCP_TOOL_SURFACE` selects what `tools/list` advertises. It changes
+advertisement only: a direct `tools/call` to a tool the surface hides still
+dispatches, and tools the query profile hides stay hidden from `tools/list` in
+every mode. The two differ on `tools/call`: a tool the profile hides still fails
+closed there, while a tool only the surface hides still dispatches.
+
+| Value | `tools/list` returns |
+| --- | --- |
+| `full` (default) | Today's list, unchanged |
+| `router` | `find_tool` and `call_tool` only |
+| `core_router` | A small core set of high-traffic tools plus `find_tool` and `call_tool` |
+
+An unknown value makes the server refuse to start and log the allowed values.
+
+A client can override the setting with a `surface` query parameter:
+
+- A client that only POSTs sends `POST /mcp/message?surface=router`. The value
+  applies to that request alone, so send it on every request that needs it.
+- An SSE client sends `GET /sse?surface=router`. The `endpoint` event then
+  carries `surface=router`, so every POST the client follows to that URL uses
+  it. A POST that names its own `surface` overrides the session's value.
+
+The value is trimmed and case-folded, like the environment variable, and a
+whitespace-only value means no override. An unknown `surface` value gets a
+`400` that lists the allowed values, on both routes. An override never changes
+the process setting or another client's requests. In Helm, set
+`mcpServer.env.ESHU_MCP_TOOL_SURFACE`.
+
+`router` and `core_router` are not usable until the `find_tool` and `call_tool`
+handlers (#8757) and the core tool set (#8759) land; until then those surfaces
+advertise tools the server cannot yet route. The default `full` is unaffected.
+
+At startup the server logs `mcp tool surface` with the `surface`, the
+`tool_count`, and the `tools_list_bytes` size of the `tools/list` result.
+`find_tool` and `call_tool` are not part of the registry count above; the
+router surface owns them (epic #8752).
+
+No-Regression Evidence (#8758): baseline is `main` at `cb8a2d0845`, where
+`tools/list` returns `s.tools` directly. After, `full` still returns the same
+slice: a scratch benchmark on linux/arm64, Go 1.26.10, with the registry of 167
+tools and no graph or Postgres backend, measured 4.4 ns/op with 0 allocs for
+`full` (215,494 bytes), 2,491 ns/op and 33 allocs for `router` (1,508 bytes),
+and 3,233 ns/op and 34 allocs for `core_router` (1,508 bytes while the core set
+is empty). `TestToolsListDefaultSurfaceAdvertisesExactlyRegistry` and
+`TestToolsListFullWithSurfaceOptionIsByteIdenticalToDefault` pin `full` to
+`main` byte for byte. There is no queue, lease, Cypher, or SQL change, so no
+terminal row counts apply. `WithToolSurface` only records a value at
+construction; `tools/list` is a request-time read of an in-memory list.
+
+Observability Evidence (#8758): startup logs `mcp tool surface`
+(`event_name=mcp.tool_surface.configured`) with `surface`, `tool_count`, and
+`tools_list_bytes`. A bad `ESHU_MCP_TOOL_SURFACE` logs
+`runtime.startup.failed` with the allowed values, and a bad `surface` query
+parameter returns a `400` that names them.
+
 ## Call Rules
 
 - Prefer canonical IDs at the tool boundary when the tool supports them.

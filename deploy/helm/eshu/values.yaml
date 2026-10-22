@@ -203,6 +203,23 @@ mcpServer:
   enabled: true
   replicas: 1
   revisionHistoryLimit: 3
+  # MCP-only environment variables. To choose what tools/list advertises, set
+  # ESHU_MCP_TOOL_SURFACE here (issue #8758). Unset means full. A direct
+  # tools/call to a tool the surface hides still dispatches (the query profile's
+  # per-call gate is unchanged); an unknown value makes the pod refuse to
+  # start.
+  #
+  #   full         today's list, unchanged (default)
+  #   router       find_tool and call_tool only
+  #   core_router  a small core set plus find_tool and call_tool
+  #
+  # A client can override the value with ?surface=<value>: on POST /mcp/message
+  # it applies to that request, and on GET /sse it applies to the whole SSE
+  # session. router and core_router are not usable until the find_tool and
+  # call_tool handlers (#8757) and the core set (#8759) land; the default full
+  # is unaffected. Example:
+  #   env:
+  #     ESHU_MCP_TOOL_SURFACE: router
   env: {}
   # MCP-only Kubernetes EnvVar entries; use valueFrom.secretKeyRef for ESHU_POSTGRES_READ_DSN.
   extraEnv: []

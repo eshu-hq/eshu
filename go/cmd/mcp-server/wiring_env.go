@@ -13,6 +13,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
@@ -96,6 +97,15 @@ func loadQueryProfile(getenv func(string) string) (query.QueryProfile, error) {
 		return "", err
 	}
 	return profile, nil
+}
+
+// loadToolSurface parses ESHU_MCP_TOOL_SURFACE (#8758). An empty value selects
+// the full surface so an unset variable keeps today's tools/list. An unknown
+// value is an error naming the allowed values; the caller refuses to start
+// instead of falling back, so a misspelled setting cannot silently advertise
+// the wrong tools.
+func loadToolSurface(getenv func(string) string) (router.Surface, error) {
+	return router.ParseSurface(strings.TrimSpace(getenv("ESHU_MCP_TOOL_SURFACE")))
 }
 
 // loadGraphBackend parses ESHU_GRAPH_BACKEND. An empty value defaults to

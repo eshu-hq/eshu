@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
+	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -70,6 +71,19 @@ func main() {
 		transport = "http"
 	}
 
+	// Refuse a bad ESHU_MCP_TOOL_SURFACE before opening any store connection.
+	toolSurface, err := loadToolSurface(os.Getenv)
+	if err != nil {
+		logger.Error("mcp server refused to start: invalid ESHU_MCP_TOOL_SURFACE",
+			telemetry.EventAttr("runtime.startup.failed"),
+			"error", err,
+			"allowed", []string{
+				string(router.SurfaceFull), string(router.SurfaceRouter), string(router.SurfaceCoreRouter),
+			},
+		)
+		os.Exit(1)
+	}
+
 	queryMux, adminMux, cleanup, authWiring, err := wireAPI(ctx, os.Getenv, logger, providers.PrometheusHandler)
 	if err != nil {
 		logger.Error("wire api failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
@@ -115,6 +129,14 @@ func main() {
 	server := mcp.NewServer(queryMux, logger,
 		mcp.WithTransportAuth(authWiring.transportAuth),
 		mcp.WithQueryProfile(queryProfile),
+		mcp.WithToolSurface(toolSurface),
+	)
+	surface, advertised, listBytes := server.ToolSurfaceSummary()
+	logger.Info("mcp tool surface",
+		telemetry.EventAttr("mcp.tool_surface.configured"),
+		"surface", string(surface),
+		"tool_count", advertised,
+		"tools_list_bytes", listBytes,
 	)
 
 	switch transport {

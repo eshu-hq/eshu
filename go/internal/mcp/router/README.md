@@ -29,7 +29,7 @@ package ranks against. They are empty until the intent-curation lane fills them.
 - `Surface`, `SurfaceFull`, `SurfaceRouter`, `SurfaceCoreRouter`, `ParseSurface`
 - `FindToolName`, `CallToolName`, `Tools`, `DefaultLimit`, `MaxLimit`
 - `Anchors`, `Query`, `Candidate`, `Ranker`, `Dispatcher`
-- `CoreToolNames`
+- `CoreToolNames`, `Advertise`
 
 ## Request flow
 

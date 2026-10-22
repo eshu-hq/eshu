@@ -7,8 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 )
 
 // sseSession holds the response channel for one SSE client. principal
@@ -27,6 +30,10 @@ import (
 type sseSession struct {
 	ch        chan []byte
 	principal string
+	// surface is the tool surface the client chose with GET /sse?surface=. It
+	// is empty when the client chose none, so the process surface applies. A
+	// POST that names its own surface still overrides it (#8758).
+	surface router.Surface
 
 	mu     sync.Mutex
 	closed bool
@@ -74,11 +81,19 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A surface query parameter picks the tool surface for every message of
+	// this SSE session. Reject an unknown value before a session exists.
+	surface, err := parseSurfaceParam(r)
+	if err != nil {
+		writeSurfaceError(w, err)
+		return
+	}
+
 	// Create a session for this SSE connection, binding it to the credential
 	// that opened it (empty when transport auth is not configured -- see
 	// authPrincipalKey and handleHTTPMessage's session-principal check).
 	sessionID := fmt.Sprintf("sess_%d", time.Now().UnixNano())
-	sess := &sseSession{ch: make(chan []byte, 64), principal: authPrincipalKey(r.Context())}
+	sess := &sseSession{ch: make(chan []byte, 64), principal: authPrincipalKey(r.Context()), surface: surface}
 
 	s.sessMu.Lock()
 	s.sessions[sessionID] = sess
@@ -100,7 +115,13 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 	// Send the endpoint event per MCP SSE spec.
 	// The client uses this URL to POST JSON-RPC requests.
-	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: /mcp/message?sessionId=%s\n\n", sessionID)
+	// A chosen surface rides in the endpoint URL so every POST the client
+	// follows carries it; ParseSurface canonicalizes it, so it is URL-safe.
+	endpoint := "/mcp/message?sessionId=" + sessionID
+	if surface != "" {
+		endpoint += "&surface=" + string(surface)
+	}
+	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint) // #nosec G705 -- text/event-stream, not HTML; sessionID is server-generated and surface is a closed enum value from router.ParseSurface
 	flusher.Flush()
 
 	s.logger.Info("sse session started", "session_id", sessionID)
@@ -170,6 +191,22 @@ func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// A surface query parameter overrides the process tool surface for this
+	// request; without one, an SSE-linked request uses its session's surface.
+	// An unknown value is rejected before the body is read (#8758).
+	ctx := r.Context()
+	surface, err := parseSurfaceParam(r)
+	if err != nil {
+		writeSurfaceError(w, err)
+		return
+	}
+	if surface == "" && sess != nil {
+		surface = sess.surface
+	}
+	if surface != "" {
+		ctx = withSurfaceOverride(ctx, surface)
+	}
+
 	var req jsonrpcRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -181,7 +218,7 @@ func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := s.handleMessage(r.Context(), &req, r.Header.Get("Authorization"))
+	resp := s.handleMessage(ctx, &req, r.Header.Get("Authorization"))
 
 	if sess != nil {
 		if resp != nil {
@@ -202,4 +239,30 @@ func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// parseSurfaceParam reads the surface query parameter. It trims surrounding
+// whitespace first, as cmd/mcp-server does for ESHU_MCP_TOOL_SURFACE, so the
+// query and the environment agree on what they accept. It returns "" when the
+// parameter is absent, empty, or only whitespace, so the caller keeps the
+// process surface, and an error naming the allowed values when the value is
+// unknown. A valid value comes back canonical (lower case), which is what the
+// SSE endpoint event carries.
+func parseSurfaceParam(r *http.Request) (router.Surface, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("surface"))
+	if raw == "" {
+		return "", nil
+	}
+	return router.ParseSurface(raw)
+}
+
+// writeSurfaceError answers an unknown surface value with a 400 JSON-RPC
+// error whose message lists the allowed values.
+func writeSurfaceError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+	_ = json.NewEncoder(w).Encode(jsonrpcResponse{
+		JSONRPC: "2.0",
+		Error:   &jsonrpcError{Code: -32602, Message: err.Error()},
+	})
 }
