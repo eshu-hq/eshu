@@ -74,8 +74,8 @@ var goPackageSubcommands = map[string]struct{}{
 // `go test ./internal/storage/postgres/migrations/`, selected by that
 // package's whole directory as a trigger.
 // #8756 raised this from 28 to 29: mcp-router-eval runs `go test` on
-// ./internal/mcp/router/eval/, and carries go/internal/mcp/router/** (which
-// holds that package) as a trigger.
+// ./internal/mcp/router/eval/, and carries go/internal/mcp/** (which holds that
+// package) as a trigger.
 const goPackageGateCount = 29
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
