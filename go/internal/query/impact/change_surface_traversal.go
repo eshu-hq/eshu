@@ -36,23 +36,33 @@ LIMIT %d`
 // one WHERE. Repository nodes use their canonical id in the second branch.
 // CALL-subquery UNION is intentional: pinned NornicDB executes both subquery
 // arms, while a top-level UNION silently ignores its second arm.
+//
+// Legacy AppSync key suppression is deliberately absent from this statement:
+// the AND NOT ('CloudResource' IN labels(impacted) AND ...) conjunct shared
+// the repo-scope WHERE and emptied the whole traversal on NornicDB
+// (nornicdb=0 rows against neo4j=1 row, reproduced across both differential
+// quorum pairings) while a property-only form is silently ignored there, so
+// neither Cypher form suppresses on that backend. The statement projects
+// resource_type/data_type and changeSurfaceFilterTraversalRows suppresses in
+// Go, where both backends agree.
 const changeSurfaceScopedOutgoingCypher = `CALL {
   MATCH path = %s-[*%d..%d]->(impacted)
   WHERE impacted.id <> $target_id AND (impacted.repo_id IN $allowed_repository_ids OR impacted.repo_id IN $allowed_scope_ids)%s
-    AND NOT ('CloudResource' IN labels(impacted) AND (coalesce(impacted.resource_type, '') = 'aws_appsync_api_key' OR coalesce(impacted.data_type, '') = 'aws_appsync_api_key'))
   WITH path, impacted
   WHERE impacted:Workload OR impacted:WorkloadInstance OR impacted:CloudResource OR impacted:TerraformModule OR impacted:DataAsset
   RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels,
          impacted.environment as environment, impacted.repo_id as repo_id,
+         impacted.resource_type as resource_type, impacted.data_type as data_type,
          length(path) as depth, relationships(path) as rels
   UNION
   MATCH path = %s-[*%d..%d]->(impacted:Repository)
   WHERE impacted.id <> $target_id AND (impacted.id IN $allowed_repository_ids OR impacted.id IN $allowed_scope_ids)%s
   RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels,
          impacted.environment as environment, impacted.repo_id as repo_id,
+         impacted.resource_type as resource_type, impacted.data_type as data_type,
          length(path) as depth, relationships(path) as rels
 }
-RETURN id, name, labels, environment, repo_id, depth, rels
+RETURN id, name, labels, environment, repo_id, resource_type, data_type, depth, rels
 ORDER BY name, id
 LIMIT $limit`
 
@@ -268,6 +278,29 @@ func changeSurfaceRowLabelAdmitted(row map[string]any) bool {
 // the limit allows. That under-reporting is bounded and reported: the caller's
 // truncation flag is computed from the raw row count before this filter runs, so
 // a short page is flagged truncated rather than presented as complete.
+// changeSurfaceRowIsLegacyAppSyncKey reports whether a projected traversal
+// row describes a historical per-key AppSync CloudResource node. Labels plus
+// either type field must agree; a bare resource_type on another label is not
+// a key, and a row without the projected type keys (the legacy statement
+// shape) is not one either. The check lives in Go because neither Cypher
+// form suppresses on the pinned NornicDB executor: a labels() predicate in
+// WHERE empties the whole result, while a property-only predicate is
+// silently ignored there.
+func changeSurfaceRowIsLegacyAppSyncKey(row map[string]any) bool {
+	cloudResource := false
+	for _, label := range querycontract.StringSliceVal(row, "labels") {
+		if label == "CloudResource" {
+			cloudResource = true
+			break
+		}
+	}
+	if !cloudResource {
+		return false
+	}
+	return querycontract.StringVal(row, "resource_type") == legacyAppSyncKeyResourceType ||
+		querycontract.StringVal(row, "data_type") == legacyAppSyncKeyResourceType
+}
+
 func changeSurfaceFilterTraversalRows(
 	rows []map[string]any,
 	environment string,
@@ -287,6 +320,9 @@ func changeSurfaceFilterTraversalRows(
 			continue
 		}
 		if !changeSurfaceRowLabelAdmitted(row) {
+			continue
+		}
+		if changeSurfaceRowIsLegacyAppSyncKey(row) {
 			continue
 		}
 		edges := changeSurfaceRelEdges(row["rels"])

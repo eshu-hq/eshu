@@ -674,8 +674,8 @@ read_exemptions:
     anchor: "MATCH (instance:WorkloadInstance)-[rel:USES]->(resource:TerraformResource)"
     reason: bound resource node is created but no USES edge to it exists in B-7 captures
   - callsite: internal/query/impact/deployment/cloud_resource_candidates.go:LoadUncorrelatedCloudResourceCandidatesBounded
-    anchor: "WHERE (coalesce(n.name, '') CONTAINS $query OR coalesce(n.id, '') CONTAINS $query"
-    reason: probe names (api-svc, deployable-config) match no CloudResource node name in B-7 writes
+    anchor: "WHERE coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key' AND (coalesce(n.name, '') CONTAINS $query"
+    reason: probe names (api-svc, deployable-config) match no CloudResource node name in B-7 writes; anchor tracks the legacy-key suppression prefix added to the WHERE
   - callsite: internal/query/impact/entity_map_resolver.go:(*Handler).resolveEntityMapStart
     anchor: "MATCH (n:Repository {id: $from}) WHERE"
     reason: binds a slug (deployable-config) as a node id; no Repository has that literal id
@@ -688,9 +688,9 @@ read_exemptions:
   - callsite: internal/query/entity/service_workload_resolution.go:(*Handler).serviceWorkloadCandidatesFromQuery
     anchor: "MATCH (w:Workload) WHERE w.id = $service_id"
     reason: "#5385 ladder rung 1 binds workload: handles (recorded workload:api-svc), which structurally match no post-flip node id; the stripped-name rung resolves them (recorded non-empty with the bare name)"
-  - callsite: internal/query/infra_relationship_filter.go:(*InfraHandler).getRelationships
+  - callsite: internal/query/infra_relationship_filter.go:(*InfraHandler).probeInfraRelationshipAnchors
     anchor: "MATCH (n) WHERE n.id = $entity_id"
-    reason: bound entity id aws:s3 bucket never written in B-7 captures; probe-by-id over an absent entity
+    reason: bound entity id aws:s3 bucket never written in B-7 captures; probe-by-id over an absent entity; callsite follows the probe split out of getRelationships, whose fallback (n) arm keeps this shape
   - callsite: internal/query/impact/change_surface_investigation.go:(*Handler).resolveChangeSurfaceTarget
     anchor: "MATCH (n:Workload {id: $target})"
     reason: no Workload node carries the bound id (repository:r_3eddcea1) in B-7 captures bound id workload:repository:r_3eddcea1 never written anywhere in B-7 captures

@@ -91,3 +91,39 @@ persisted production values, graph state, or key rotation were inspected or
 changed. This PR does not purge records or rotate keys. The data owner must
 assess deployed exposure and rotation separately; any targeted production
 cleanup requires its own reviewed procedure.
+
+Traversal suppression moved to Go (differential fix): the `differential
+nornicdb vs neo4j` gate failed on `changeSurfaceScopedOutgoingCypher` arm 1 —
+the `AND NOT ('CloudResource' IN labels(impacted) AND ...)` conjunct shared
+the repo-scope WHERE and emptied the whole traversal on the pinned NornicDB
+executor (quorum reproduced `nornicdb=0 rows` against `neo4j=1 row` in both
+pairings; the depth 2–4 presence divergences were downstream of the depth-1
+empty page). The conjunct is removed from the statement; the arms now project
+`impacted.resource_type`/`impacted.data_type` and
+`changeSurfaceFilterTraversalRows` suppresses via
+`changeSurfaceRowIsLegacyAppSyncKey` (CloudResource label plus either type
+field, the same rule as the entity-map and infra-relationship paths). The
+legacy unscoped statement is untouched (gate-green there; shape pinned by
+`TestChangeSurfaceLegacyCypherGuardsWhitelistWithLabelTest`). The same gate
+run also flagged two stale read-exemption anchors (the probe split out of
+`getRelationships`; the suppression prefix added to the candidates WHERE);
+both anchors now track the emitted text and the `statements_executed` phase
+passes on the recorded CI captures.
+
+Live parity proof (throwaway probe, deleted after): one Repository with a
+Workload impact and an AppSync-key CloudResource impact at depth 1, new
+scoped statement run raw on both proof backends —
+`neo4j raw=[xgo8729:key xgo8729:ok] filtered=[xgo8729:ok]`,
+`nornicdb raw=[xgo8729:key xgo8729:ok] filtered=[xgo8729:ok]` — identical row
+sets and identical suppression. Committed unit tests pin the suppression
+matrix and the Cypher shape (`TestChangeSurfaceFilterTraversalRowsSuppressesLegacyAppSyncKey`,
+`TestChangeSurfaceScopedOutgoingCypherSuppressesKeysInGo`).
+
+No-Regression Evidence: pure correctness fix restoring the pre-PR agreed
+read shape — the new statement is the old minus the zeroing conjunct plus
+two scalar projections, with the same `(start:Repository {id})` anchor, the
+same bounded exact-depth expansion, and the same ORDER/LIMIT; no full bench
+was run by explicit decision, the live parity probe above is the
+same-input-shape check. No-Observability-Change: no spans, metrics, or log
+lines added or removed; the `platform_impact.change_surface.outgoing`
+graph-read name and existing counters are unchanged.
