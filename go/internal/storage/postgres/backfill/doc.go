@@ -32,6 +32,15 @@
 // success recorded (#8283); RecordDeployableUnitReopenFingerprintQuery is the
 // claim-fenced write that records it.
 //
+// DecideSuccessor and DecideDeltaFileUnion hold the verdict of the #7926
+// destructive-successor backstop (#8750). A full successor is compared with
+// the prior generation's collector rows, never rows a reducer wrote back into
+// it. A git delta successor is sized by the file-level union it will project
+// over its anchor generation: a zero-query lower bound stores ordinary
+// deltas, and only a delta that may remove most of the anchor's files is
+// probed and refused on its exact union. The functions do no I/O; the root
+// supplies the counts and records the decision.
+//
 // The package imports the db contracts and the leaf facts, relationships,
 // reducer contract, scope, and telemetry packages, never the parent postgres
 // package.

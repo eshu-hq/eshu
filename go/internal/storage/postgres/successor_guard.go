@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -217,9 +218,11 @@ func newSuccessorObserver(generation scope.ScopeGeneration) *successorObserver {
 	return &successorObserver{keepFiles: generation.IsDelta}
 }
 
-// observe records one streamed envelope.
+// observe records one streamed envelope. The repository check is a cheap
+// prefix filter; facts.ParseDeltaScope applies the overlay's own kind
+// normalization (it accepts the legacy "repositoryFact" kind).
 func (o *successorObserver) observe(envelope facts.Envelope) {
-	if !o.scope.IsDelta && envelope.FactKind == "repository" {
+	if !o.scope.IsDelta && strings.HasPrefix(envelope.FactKind, "repository") {
 		if parsed := facts.ParseDeltaScope([]facts.Envelope{envelope}); parsed.IsDelta {
 			o.scope = parsed
 		}

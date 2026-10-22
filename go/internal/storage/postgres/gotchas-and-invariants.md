@@ -284,3 +284,19 @@ operational lessons that future storage changes still need to respect.
   cost on non-suppression rows. The 2,000-row per-call cap remains defense in
   depth; it over-fetches one sentinel, returns at most 2,000 suppressions, and
   reports truncation only when another row actually exists.
+- The #7926 destructive-successor guard sizes like for like (#8750). A full
+  successor is compared with the prior generation's collector rows:
+  `successorGuardCountQuery` counts collector rows, all rows, and file rows in
+  one index-only pass, and reducer-prefixed rows (written back into the
+  generation after it activates, never streamed by a collector) stay out of
+  the comparison. A git delta successor is sized by the file-level union it
+  will project over its anchor, the newest projected full generation at its
+  `DeltaBaselineCommitSHA`. The anchor comes from `resolveDeltaBaseAtCommit`,
+  the same resolver the projector's overlay uses, so the guard and the
+  projection cannot disagree about the base. Path matching goes through
+  `facts.DeltaScope.FilePath`. The probe of the anchor's file paths
+  (`successorGuardAnchorFilePathsQuery`) runs only when the zero-query lower
+  bound fails. A delta with no anchor stores, so the projector's base-missing
+  refusal arms the reindex watermark; a generation whose stream disagrees on
+  being a delta is sized as a full and logs `successor_delta_scope_mismatch`.
+  See `docs/internal/evidence/8750-successor-guard-sizing.md`.

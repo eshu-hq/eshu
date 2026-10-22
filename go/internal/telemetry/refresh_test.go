@@ -76,3 +76,24 @@ func TestSkippedRefreshCountByReasonIsClosed(t *testing.T) {
 		t.Fatalf("LogKeys() missing %q", LogKeyRefreshSkipReason)
 	}
 }
+
+func TestSuccessorGuardRuleIsClosed(t *testing.T) {
+	rules := SuccessorGuardRules()
+	if got := rules[len(rules)-1]; got != SuccessorGuardRuleOther {
+		t.Fatalf("last rule = %q, want %q", got, SuccessorGuardRuleOther)
+	}
+	for _, rule := range rules {
+		if got := SuccessorGuardRule(rule); got != rule {
+			t.Fatalf("SuccessorGuardRule(%q) = %q, want it unchanged", rule, got)
+		}
+	}
+	for _, unknown := range []string{"", "collector-ratio", "file_union"} {
+		if got := SuccessorGuardRule(unknown); got != SuccessorGuardRuleOther {
+			t.Fatalf("SuccessorGuardRule(%q) = %q, want %q", unknown, got, SuccessorGuardRuleOther)
+		}
+	}
+	rules[0] = "mutated"
+	if SuccessorGuardRules()[0] == "mutated" {
+		t.Fatal("SuccessorGuardRules returned the backing array, want a copy")
+	}
+}

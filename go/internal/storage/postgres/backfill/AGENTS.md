@@ -32,6 +32,14 @@
   with local doubles (`fakes_test.go`); targeted engine proofs live in the `targeted` child package. External
   child tests may call root `IngestionStore` entry points.
 
+- **Successor guard sizing is like for like (#8750)** — `DecideSuccessor`
+  compares a full successor with the prior's collector rows only and sizes a
+  git delta by its file-level union against its anchor. Do not feed it a
+  count that includes `reducer_`-prefixed rows, and do not size a delta by
+  its own stream. The zero-query lower bound may only send a delta to the
+  probe, never refuse it. Add a rule by extending the closed
+  `telemetry.SuccessorGuardRule*` set (and the coverage doc) in the same
+  change.
 - **Block telemetry is a closed set** — the `Block*` constants in
   `block_telemetry.go` are the nine blocks of #8082. A failed block ends its
   span with the error, emits one `deferred_backfill_block_failed` line, and

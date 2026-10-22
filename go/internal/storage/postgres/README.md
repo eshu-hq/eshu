@@ -1091,7 +1091,7 @@ Evidence: `docs/internal/evidence/7420-drop-key-sidecar-fks.md`.
 
 Detailed query, queue, fact-readback, runtime, and fencing invariants live in
 [`gotchas-and-invariants.md`](gotchas-and-invariants.md). Keep that companion
-note current when changing storage behavior that touches those contracts.
+note current when changing storage behavior that touches those contracts. The ingestion commit's #7926 destructive-successor guard sizes like for like (#8750): collector rows only, and a git delta by its file union against the anchor the projector also overlays on; see the guard bullet there.
 
 Additional historical no-regression notes for incident freshness, incident
 routing, workflow terminal failure, readiness gating, owned dependency targets,

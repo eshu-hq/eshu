@@ -7,6 +7,17 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/service_catalog_runtime_producer_store_live_test.go": (
+            "TestReducerContentionGateRuntimeProducerStatesActiveGenerationOnly",
+            "TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt",
+            "TestReducerContentionGateRuntimeProducerStatesPlanUsesScopeGenerationIndex",
+        ),
+        "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
+            "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",
+        ),
+        "go/internal/storage/postgres/trigger_bootstrap_parity_live_test.go": (
+            "TestWebhookTriggerStoreRunsOnBootstrapSchemaLive",
+        ),
         "go/internal/storage/postgres/workflow_control_claim_class_columns_live_test.go": (
             "TestWorkflowClaimClassColumnsRoundTrip",
             "TestWorkflowClaimClassColumnsBackfill",
