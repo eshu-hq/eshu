@@ -16,7 +16,7 @@
 // covering every keyword the registered tools use; UnsupportedSchemaFeatures
 // reports any it does not.
 //
-// The parent mcp package builds the Engine, injects a Dispatcher and a
-// RouteResolver, and intercepts find_tool and call_tool in handleMessage before
+// The parent mcp package embeds a Host, injects a Dispatcher and a
+// RouteResolver, and sends every name Intercepts accepts to Host.Serve before
 // dispatchTool, so this package must never import the mcp root.
 package router

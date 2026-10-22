@@ -112,14 +112,8 @@ type Server struct {
 	// since Run() (stdio) never touches httpMux.
 	transportAuth func(http.Handler) http.Handler
 
-	// router serves find_tool and call_tool (#8757). The engine is built
-	// once on first use; ranker orders find_tool candidates, and while it is
-	// nil find_tool answers mcp_router_ranker_unavailable.
-	router struct {
-		once   sync.Once
-		engine *router.Engine
-		ranker router.Ranker
-	}
+	// router serves find_tool and call_tool (#8757).
+	router router.Host
 }
 
 // NewServer creates an MCP server backed by the given HTTP handler.
@@ -291,22 +285,7 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return s.errorResponse(req.ID, -32602, "invalid params")
 		}
-		if params.Name == router.FindToolName || params.Name == router.CallToolName {
-			return &jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: s.serveRouterTool(ctx, params, authHeader)}
-		}
-		result, err := dispatchTool(ctx, s.handler, params.Name, params.Arguments, authHeader, s.logger)
-		if err != nil {
-			return &jsonrpcResponse{
-				JSONRPC: "2.0",
-				ID:      req.ID,
-				Result:  mcpToolErrorResult(err),
-			}
-		}
-		return &jsonrpcResponse{
-			JSONRPC: "2.0",
-			ID:      req.ID,
-			Result:  renderToolResult(params.Name, result),
-		}
+		return &jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: s.callTool(ctx, params, authHeader)}
 
 	case "ping":
 		return &jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: map[string]any{}}
@@ -316,46 +295,26 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 	}
 }
 
-// serveRouterTool answers find_tool and call_tool, which stay out of
-// ReadOnlyTools. find_tool ranks s.tools, the query-profile-filtered list;
-// call_tool looks targets up in the full registry and runs them through
-// dispatchTool and the same renderers as a direct tools/call, so a routed
-// result is byte-identical to a direct one.
-func (s *Server) serveRouterTool(ctx context.Context, params mcpToolCallParams, authHeader string) any {
-	s.router.once.Do(func() {
-		s.router.engine = router.NewEngine(router.Config{
-			Registry: ReadOnlyTools(), Resolve: routerRoute, Ranker: s.router.ranker, Logger: s.logger,
-		})
-	})
-	req := router.Request{
-		Visible: s.tools,
-		Session: authPrincipalKey(ctx),
-		Dispatch: func(ctx context.Context, name string, args map[string]any) (any, error) {
-			return dispatchTool(ctx, s.handler, name, args, authHeader, s.logger)
-		},
+// callTool answers one tools/call. find_tool and call_tool go to the router
+// (#8757), which runs a call_tool target through the same run as a direct
+// call, so a routed result is byte-identical to a direct one.
+func (s *Server) callTool(ctx context.Context, params mcpToolCallParams, authHeader string) any {
+	run := func(ctx context.Context, name string, args map[string]any) (any, error) {
+		result, err := dispatchTool(ctx, s.handler, name, args, authHeader, s.logger)
+		if err != nil {
+			return mcpToolErrorResult(err), nil
+		}
+		return renderToolResult(name, result), nil
 	}
-	if params.Name == router.FindToolName {
-		return s.router.engine.Find(ctx, req, params.Arguments)
+	if !router.Intercepts(params.Name) {
+		result, _ := run(ctx, params.Name, params.Arguments)
+		return result
 	}
-	out := s.router.engine.Call(ctx, req, params.Arguments)
-	switch {
-	case !out.Dispatched:
-		return out.Result
-	case out.Err != nil:
-		return mcpToolErrorResult(out.Err)
-	default:
-		return renderToolResult(out.Target, out.Value.(*dispatchResult))
+	newConfig := func() router.Config {
+		return router.Config{Registry: ReadOnlyTools(), Resolve: resolveRoute, Logger: s.logger}
 	}
-}
-
-// routerRoute is the router's RouteResolver: the method and path
-// dispatchTool would send for a call.
-func routerRoute(name string, args map[string]any) (string, string, error) {
-	route, err := resolveRoute(name, args)
-	if err != nil {
-		return "", "", err
-	}
-	return route.Method, route.Path, nil
+	req := router.Request{Visible: s.tools, Session: authPrincipalKey(ctx), Dispatch: run}
+	return s.router.Serve(ctx, newConfig, req, params.Name, params.Arguments)
 }
 
 // renderToolResult keeps MCP response construction shared by the byte guard

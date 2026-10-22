@@ -94,8 +94,8 @@ func (e *Engine) call(ctx context.Context, req Request, args map[string]any) (Ca
 // Dispatcher then reports that error itself).
 func (e *Engine) callRouteClass(name string, arguments map[string]any) routeClass {
 	if e.resolve != nil {
-		if method, path, err := e.resolve(name, arguments); err == nil && path != "" {
-			return classifyRoute(method, path)
+		if route, err := e.resolve(name, arguments); err == nil && route != nil && route.Path != "" {
+			return classifyRoute(route.Method, route.Path)
 		}
 	}
 	return e.routes[name]

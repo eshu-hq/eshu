@@ -20,9 +20,11 @@ match, recursion refusal, and the router telemetry. It does not rank (the
 configuration.
 
 `internal/mcp` keeps `handleMessage`, `dispatchTool`, authorization, and
-transport. Its `tools/call` branch hands `find_tool` and `call_tool` to the
-`Engine` before `dispatchTool` and renders a dispatched `call_tool` with the
-same renderers as a direct call. The router tools are not in `ReadOnlyTools`.
+transport. Its `Server` embeds one `Host`. In the `tools/call` branch, a name
+`Intercepts` accepts goes to `Host.Serve` instead of `dispatchTool`, with a
+`Dispatcher` that returns exactly the rendered result a direct call gets, so a
+routed `call_tool` is byte-identical to the direct call. The `RouteResolver` is
+the root's own `resolveRoute`. The router tools are not in `ReadOnlyTools`.
 This package must not import `internal/mcp` (import cycle), and a test enforces
 that.
 
@@ -35,6 +37,7 @@ package ranks against. They are empty until the intent-curation lane fills them.
 - `FindToolName`, `CallToolName`, `Tools`, `DefaultLimit`, `MaxLimit`
 - `Anchors`, `Query`, `Candidate`, `Ranker`, `Dispatcher`
 - `CoreToolNames`, `Advertise`
+- `Host`, `Intercepts`
 - `Engine`, `NewEngine`, `Config`, `Request`, `CallOutcome`, `ToolResult`,
   `Content`, `RouteResolver`
 - `ValidateArguments`, `FieldError`, `UnsupportedSchemaFeatures`,
@@ -113,6 +116,17 @@ every lane codes against them.
 and `eshu_dp_mcp_router_target_rank`, plus the `mcp.router.find` and
 `mcp.router.call` spans. See
 [MCP Router Telemetry](../../../../docs/public/reference/telemetry/mcp-router.md).
+
+## Known divergence from a direct call
+
+`call_tool` validates against the advertised `inputSchema`; a direct
+`tools/call` goes straight to the route builder. `resolve_entity` still accepts
+its undocumented legacy `name`/`type` keys on the direct path, but its schema
+requires `query`, so `call_tool` answers a `name`-only call with a field error
+naming `query`. This is intended: the schema is the contract, and adding `name`
+to it would change `tools/list` for the `full` surface. The validator
+differential test in the mcp root lists this map, and the six route-shape test
+maps whose handlers answer HTTP 400, in a staleness-checked exemption list.
 
 ## Gotchas / invariants
 

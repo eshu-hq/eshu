@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/catalog"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -56,24 +57,24 @@ func fixtureVisible() []toolcontract.ToolDefinition {
 	return all[:len(all)-1]
 }
 
-func fixtureResolve(name string, _ map[string]any) (string, string, error) {
+func fixtureResolve(name string, _ map[string]any) (*routecontract.Request, error) {
 	switch name {
 	case "find_code":
-		return "POST", "/api/v0/code/search", nil
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/search"}, nil
 	case "execute_cypher_query":
-		return "POST", "/api/v0/code/cypher", nil
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/cypher"}, nil
 	case "get_repo_summary":
-		return "GET", "/api/v0/repositories/placeholder/stats", nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/placeholder/stats"}, nil
 	case "ask":
-		return "POST", "/api/v0/ask", nil
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/ask"}, nil
 	case "get_service_story":
-		return "GET", "/api/v0/services/placeholder/story", nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/services/placeholder/story"}, nil
 	case "build_evidence_citation_packet":
-		return "POST", "/api/v0/evidence/citations", nil
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/evidence/citations"}, nil
 	case "find_divergent_code":
-		return "POST", "/api/v0/code/divergence", nil
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/divergence"}, nil
 	default:
-		return "", "", fmt.Errorf("unknown tool %q", name)
+		return nil, fmt.Errorf("unknown tool %q", name)
 	}
 }
 

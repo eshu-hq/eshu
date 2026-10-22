@@ -9,13 +9,14 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
-// RouteResolver maps a tool call to the HTTP method and path dispatch would
-// send. The mcp root injects its resolveRoute; this package cannot import it.
-type RouteResolver func(name string, arguments map[string]any) (method, path string, err error)
+// RouteResolver maps a tool call to the HTTP route dispatch would send. The
+// mcp root injects its resolveRoute; this package cannot import it.
+type RouteResolver func(name string, arguments map[string]any) (*routecontract.Request, error)
 
 // routeClass is the auth-relevant classification of one dispatched route.
 type routeClass struct {
@@ -64,8 +65,8 @@ func classifyTool(resolve RouteResolver, tool toolcontract.ToolDefinition) route
 		return routeClass{}
 	}
 	for _, args := range RouteProbeArguments(tool.InputSchema) {
-		if method, path, err := resolve(tool.Name, args); err == nil && path != "" {
-			return classifyRoute(method, path)
+		if route, err := resolve(tool.Name, args); err == nil && route != nil && route.Path != "" {
+			return classifyRoute(route.Method, route.Path)
 		}
 	}
 	return routeClass{}

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
@@ -145,18 +146,18 @@ func TestRouterRouteClassMatchesDispatchArguments(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: minimal args do not resolve: %v", tool.Name, err)
 		}
-		var method, path string
+		var probe *routecontract.Request
 		for _, args := range router.RouteProbeArguments(tool.InputSchema) {
-			if method, path, err = routerRoute(tool.Name, args); err == nil {
+			if probe, err = resolveRoute(tool.Name, args); err == nil {
 				break
 			}
 		}
 		if err != nil {
 			t.Fatalf("%s: no route probe resolves: %v", tool.Name, err)
 		}
-		if got, wantClass := routeAuthClass(method, path), routeAuthClass(want.Method, want.Path); got != wantClass {
-			t.Fatalf("%s: example route %s %s class %v, minimal route %s %s class %v",
-				tool.Name, method, path, got, want.Method, want.Path, wantClass)
+		if got, wantClass := routeAuthClass(probe.Method, probe.Path), routeAuthClass(want.Method, want.Path); got != wantClass {
+			t.Fatalf("%s: probe route %s %s class %v, minimal route %s %s class %v",
+				tool.Name, probe.Method, probe.Path, got, want.Method, want.Path, wantClass)
 		}
 	}
 }

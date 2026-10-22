@@ -73,6 +73,6 @@ type Ranker interface {
 // never imports the root (which would be an import cycle). It must route
 // through the same dispatch as a direct tools/call, so auth, timeouts,
 // response budgets, and envelopes are unchanged. The value is opaque to this
-// package: the root returns its own dispatch result and type-asserts it back
-// when rendering, so the envelope and truth labels pass through untouched.
+// package: the root returns the tool result it renders for a direct
+// tools/call, so the envelope and truth labels pass through untouched.
 type Dispatcher func(ctx context.Context, name string, arguments map[string]any) (any, error)
