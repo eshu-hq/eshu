@@ -49,6 +49,14 @@ package ranks against. They are empty until the intent-curation lane fills them.
   `ESHU_MCP_ALLOW_UNAUTHENTICATED`) it does not filter and answers
   `access: {filtered: false, reason: "no_auth_context"}`. With no `Ranker`
   configured it answers `mcp_router_ranker_unavailable`.
+- `find_tool` rejects an intent over `MaxIntentBytes` (4096), an anchor value
+  over `MaxAnchorValueBytes` (256), and any anchor key other than `repo_id`,
+  `service_id`, `workload_id`, or `environment`. The transport has no body cap
+  and a ranker may echo anchors into every candidate's example, so these bounds
+  keep one request from inflating its response.
+- The ranker gets the caller's visible slice and the engine's entries map
+  unchanged on every call, so it can cache an index keyed on them; the
+  per-call credential filter travels in `allowed`.
 - The credential filter refuses only what the API auth middleware always
   refuses: shared-key-only routes for every non-shared caller, and routes off
   the scoped-token allowlist for scoped bearers. Decisions the middleware takes
@@ -92,7 +100,7 @@ every lane codes against them.
 | --- | --- | --- |
 | #8753 | Scaffold: this contract and the empty catalog fields | `router/` types and definitions, `Annotation`/`Entry` type fields |
 | #8754 | Intent phrases and canonical flags for every tool | new files in `internal/ask/catalog` |
-| #8755 | Deterministic lexical ranker | a `Ranker` implementation under `router/` |
+| #8755 | Deterministic lexical ranker | a `Ranker` implementation in `router/rank/` |
 | #8756 | Eval corpus and report-only gate | eval corpus and gate, written blind to the intents |
 | #8757 | `find_tool` and `call_tool` dispatch, validation, telemetry | `handleMessage` intercept, validator, router telemetry |
 | #8758 | `ESHU_MCP_TOOL_SURFACE` switch | env registry entry, `ServerOption`, `/mcp/message` `surface` override |

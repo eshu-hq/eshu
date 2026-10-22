@@ -112,12 +112,14 @@ type Server struct {
 	// since Run() (stdio) never touches httpMux.
 	transportAuth func(http.Handler) http.Handler
 
-	// routerEngine serves find_tool and call_tool (#8757), built once on
-	// first use. routerRanker orders find_tool candidates; while it is nil
-	// find_tool answers mcp_router_ranker_unavailable.
-	routerOnce   sync.Once
-	routerEngine *router.Engine
-	routerRanker router.Ranker
+	// router serves find_tool and call_tool (#8757). The engine is built
+	// once on first use; ranker orders find_tool candidates, and while it is
+	// nil find_tool answers mcp_router_ranker_unavailable.
+	router struct {
+		once   sync.Once
+		engine *router.Engine
+		ranker router.Ranker
+	}
 }
 
 // NewServer creates an MCP server backed by the given HTTP handler.
@@ -320,9 +322,9 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 // dispatchTool and the same renderers as a direct tools/call, so a routed
 // result is byte-identical to a direct one.
 func (s *Server) serveRouterTool(ctx context.Context, params mcpToolCallParams, authHeader string) any {
-	s.routerOnce.Do(func() {
-		s.routerEngine = router.NewEngine(router.Config{
-			Registry: ReadOnlyTools(), Resolve: routerRoute, Ranker: s.routerRanker, Logger: s.logger,
+	s.router.once.Do(func() {
+		s.router.engine = router.NewEngine(router.Config{
+			Registry: ReadOnlyTools(), Resolve: routerRoute, Ranker: s.router.ranker, Logger: s.logger,
 		})
 	})
 	req := router.Request{
@@ -333,9 +335,9 @@ func (s *Server) serveRouterTool(ctx context.Context, params mcpToolCallParams, 
 		},
 	}
 	if params.Name == router.FindToolName {
-		return s.routerEngine.Find(ctx, req, params.Arguments)
+		return s.router.engine.Find(ctx, req, params.Arguments)
 	}
-	out := s.routerEngine.Call(ctx, req, params.Arguments)
+	out := s.router.engine.Call(ctx, req, params.Arguments)
 	switch {
 	case !out.Dispatched:
 		return out.Result

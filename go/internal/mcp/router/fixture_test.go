@@ -107,6 +107,21 @@ func (s *spyRanker) Rank(_ context.Context, q Query, _ []toolcontract.ToolDefini
 	return nil, nil
 }
 
+// sliceSpyRanker records the tool slices it was handed.
+type sliceSpyRanker struct {
+	mu    sync.Mutex
+	lists [][]toolcontract.ToolDefinition
+}
+
+func (s *sliceSpyRanker) Rank(_ context.Context, _ Query, tools []toolcontract.ToolDefinition,
+	_ map[string]catalog.Entry, _ func(string) bool,
+) ([]Candidate, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lists = append(s.lists, tools)
+	return nil, nil
+}
+
 // leakyRanker ignores allowed and returns every tool, to prove the engine
 // re-checks access on the ranker's output.
 type leakyRanker struct{}

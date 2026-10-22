@@ -6,6 +6,7 @@ package router
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -173,5 +174,50 @@ func TestFindOmitsPlaybookForUnrelatedIntent(t *testing.T) {
 	body := structured(t, engine.Find(context.Background(), fixtureRequest(&recordingDispatcher{}), map[string]any{"intent": "zzz qqq"}))
 	if _, ok := body["playbook"]; ok {
 		t.Fatalf("find response = %v, want no playbook", body)
+	}
+}
+
+func TestFindRejectsOversizedOrUnknownAnchors(t *testing.T) {
+	t.Parallel()
+
+	engine := newFixtureEngine(t, orderRanker{})
+	long := strings.Repeat("r", MaxAnchorValueBytes+1)
+	for name, args := range map[string]map[string]any{
+		"long repo_id":     {"intent": "x", "anchors": map[string]any{"repo_id": long}},
+		"long environment": {"intent": "x", "anchors": map[string]any{"environment": long}},
+		"unknown anchor":   {"intent": "x", "anchors": map[string]any{"cluster_id": "c1"}},
+		"long intent":      {"intent": strings.Repeat("a ", MaxIntentBytes)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			spy := &spyRanker{}
+			engine := newFixtureEngine(t, spy)
+			result := engine.Find(context.Background(), fixtureRequest(&recordingDispatcher{}), args)
+			if !result.IsError || errorCode(t, result) != "mcp_router_invalid_arguments" {
+				t.Fatalf("Find(%s) = %+v, want mcp_router_invalid_arguments", name, structured(t, result))
+			}
+			if spy.got != (Query{}) {
+				t.Fatalf("ranker ran with %+v, want it never called", spy.got)
+			}
+		})
+	}
+	ok := strings.Repeat("r", MaxAnchorValueBytes)
+	if result := engine.Find(context.Background(), fixtureRequest(&recordingDispatcher{}),
+		map[string]any{"intent": "x", "anchors": map[string]any{"repo_id": ok}}); result.IsError {
+		t.Fatalf("anchor at the bound rejected: %+v", structured(t, result))
+	}
+}
+
+func TestFindPassesTheSameVisibleListToTheRankerEveryCall(t *testing.T) {
+	t.Parallel()
+
+	spy := &sliceSpyRanker{}
+	engine := newFixtureEngine(t, spy)
+	req := fixtureRequest(&recordingDispatcher{})
+	engine.Find(scopedContext(), req, map[string]any{"intent": "x"})
+	engine.Find(context.Background(), req, map[string]any{"intent": "x"})
+	if len(spy.lists) != 2 || len(spy.lists[0]) != len(req.Visible) || &spy.lists[0][0] != &req.Visible[0] || &spy.lists[1][0] != &req.Visible[0] {
+		t.Fatalf("ranker saw lists %d/%d long, want the caller's visible slice (len %d) on every call so the ranker index is reused",
+			len(spy.lists[0]), len(spy.lists[1]), len(req.Visible))
 	}
 }

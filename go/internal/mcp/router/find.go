@@ -5,6 +5,8 @@ package router
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 
 	"go.opentelemetry.io/otel"
@@ -16,6 +18,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/telemetry/contract"
 )
+
+// Request bounds for find_tool. The MCP transport has no body cap and a
+// ranker may echo anchors into every candidate's example, so the handler is
+// the boundary that keeps one request from inflating its response.
+const (
+	// MaxIntentBytes is the longest intent find_tool accepts, in bytes.
+	MaxIntentBytes = 4096
+	// MaxAnchorValueBytes is the longest anchor value find_tool accepts, in
+	// bytes. Real repository, service, and workload ids are far shorter.
+	MaxAnchorValueBytes = 256
+)
+
+// anchorKeys are the only anchor names find_tool accepts.
+var anchorKeys = map[string]bool{"repo_id": true, "service_id": true, "workload_id": true, "environment": true}
 
 // candidateView is the wire form of one find_tool candidate.
 type candidateView struct {
@@ -56,6 +72,9 @@ func (e *Engine) find(ctx context.Context, req Request, args map[string]any) (To
 	if errs := ValidateArguments(Tools()[0].InputSchema, args); len(errs) != 0 {
 		return invalidArgumentsResult(FindToolName, errs), findOutcomeError
 	}
+	if errs := boundFindRequest(args); len(errs) != 0 {
+		return invalidArgumentsResult(FindToolName, errs), findOutcomeError
+	}
 	q := parseQuery(args)
 	if q.Intent == "" {
 		return invalidArgumentsResult(FindToolName, []FieldError{{Path: "intent", Keyword: "minLength", Message: "must not be blank"}}), findOutcomeError
@@ -65,15 +84,11 @@ func (e *Engine) find(ctx context.Context, req Request, args map[string]any) (To
 	}
 
 	acc := accessFromContext(ctx)
-	visible := e.rankable(req.Visible)
-	allowed := e.allowedFunc(acc, visible)
-	tools := make([]toolcontract.ToolDefinition, 0, len(visible))
-	for _, tool := range req.Visible {
-		if allowed(tool.Name) {
-			tools = append(tools, tool)
-		}
-	}
-	ranked, err := e.ranker.Rank(ctx, q, tools, e.entries, allowed)
+	allowed := e.allowedFunc(acc, e.rankable(req.Visible))
+	// Hand the ranker the caller's visible slice and the engine's entries
+	// map unchanged on every call, so a ranker can key its index on them;
+	// allowed carries the per-call filter.
+	ranked, err := e.ranker.Rank(ctx, q, req.Visible, e.entries, allowed)
 	if err != nil {
 		e.logger.Warn("mcp router: ranker failed", "error", err)
 		return errorResult("mcp_router_rank_failed", "find_tool could not rank tools: "+err.Error(), nil), findOutcomeError
@@ -130,6 +145,31 @@ func (e *Engine) view(c Candidate) candidateView {
 		example = ExampleArguments(schema)
 	}
 	return candidateView{Name: c.Name, Why: c.Why, Cost: c.Cost, InputSchema: schema, Example: example, Score: c.Score}
+}
+
+// boundFindRequest enforces MaxIntentBytes, MaxAnchorValueBytes, and the
+// closed anchor key set on a request that already passed schema validation.
+func boundFindRequest(args map[string]any) []FieldError {
+	var errs []FieldError
+	if intent, _ := args["intent"].(string); len(intent) > MaxIntentBytes {
+		errs = append(errs, FieldError{Path: "intent", Keyword: "maxLength", Message: fmt.Sprintf("must be at most %d bytes", MaxIntentBytes)})
+	}
+	anchors, _ := asObject(args["anchors"])
+	keys := make([]string, 0, len(anchors))
+	for key := range anchors {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if !anchorKeys[key] {
+			errs = append(errs, FieldError{Path: "anchors." + key, Keyword: "additionalProperties", Message: "is not an anchor; use repo_id, service_id, workload_id, or environment"})
+			continue
+		}
+		if value, _ := anchors[key].(string); len(value) > MaxAnchorValueBytes {
+			errs = append(errs, FieldError{Path: "anchors." + key, Keyword: "maxLength", Message: fmt.Sprintf("must be at most %d bytes", MaxAnchorValueBytes)})
+		}
+	}
+	return errs
 }
 
 // parseQuery reads a find_tool request that already passed validation.

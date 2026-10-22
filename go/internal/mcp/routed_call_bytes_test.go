@@ -60,7 +60,7 @@ func echoEnvelopeHandler() http.Handler {
 func newRouterTestServer(t *testing.T, handler http.Handler) *Server {
 	t.Helper()
 	s := NewServer(handler, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	s.routerRanker = routerOrderRanker{}
+	s.router.ranker = routerOrderRanker{}
 	return s
 }
 
