@@ -342,3 +342,37 @@ func TestGuardPriorReusesTheActiveSideForTheAnchor(t *testing.T) {
 		})
 	}
 }
+
+// PR #8774 review: the successor_guard log must let an operator recompute the
+// lower bound from its own fields. touched_path_count is the decision's
+// touched-or-live set, not the manifest alone, so anchor - touched + live
+// equals union_file_lower_bound even when the stream adds an unlisted
+// tombstone and a live path the manifest did not name.
+func TestGuardLogLetsTheLowerBoundBeRecomputed(t *testing.T) {
+	scopeValue, generation := guardDeltaFixture(true)
+	database := newGuardRoutingDB(t, 400, 700, 200)
+	database.logs = &bytes.Buffer{}
+	manifest := numberedPaths("f", 3)
+	tombstones := append(append([]string{}, manifest...), "unlisted/gone.go")
+	live := []string{"extra/new.go"}
+	stream := guardStream(generation, true, manifest, manifest, live, tombstones, 0)
+
+	if _, err := commitGuardScenario(t, database, generation, scopeValue, stream); err != nil {
+		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
+	}
+	record := database.stageLog(t, "successor_guard")
+	field := func(key string) int {
+		value, ok := record[key].(float64)
+		if !ok {
+			t.Fatalf("successor_guard log has no numeric %q: %v", key, record)
+		}
+		return int(value)
+	}
+	anchor, touched, liveFiles := field("anchor_file_count"), field("touched_path_count"), field("successor_live_file_count")
+	if got, want := anchor-touched+liveFiles, field("union_file_lower_bound"); got != want {
+		t.Fatalf("anchor %d - touched %d + live %d = %d, want the logged lower bound %d", anchor, touched, liveFiles, got, want)
+	}
+	if got := field("manifest_path_count"); got != len(manifest) {
+		t.Fatalf("manifest_path_count = %d, want %d", got, len(manifest))
+	}
+}

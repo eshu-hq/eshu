@@ -227,9 +227,12 @@ of the values read (`DecideSuccessor`, `DecideDeltaFileUnion`).
   `prior_sizing_generation_id`, `prior_active_collector_fact_count`,
   `prior_candidate_collector_fact_count` (-1 for a side not sized),
   `successor_fact_count`. For deltas also `anchor_file_count`,
-  `touched_path_count`, `successor_live_file_count`, `union_file_lower_bound`,
-  and, when the exact probe ran, `union_file_count` and
-  `probe_duration_seconds`.
+  `touched_path_count` (the decision's touched-or-live set, so
+  `anchor_file_count - touched_path_count + successor_live_file_count`
+  equals `union_file_lower_bound`), `manifest_path_count` (the repository
+  fact's changed and deleted paths alone), `successor_live_file_count`,
+  `union_file_lower_bound`, and, when the exact probe ran,
+  `union_file_count` and `probe_duration_seconds`.
 - Log stage `refuse_destructive_successor` now carries `rule`,
   `prior_reducer_fact_count`, `prior_sizing`, and `prior_sizing_generation_id`.
   Log stage `successor_prior_orphan_fallback` keeps `candidate_generation_id`

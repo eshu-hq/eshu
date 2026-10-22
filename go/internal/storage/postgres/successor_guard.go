@@ -409,7 +409,8 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	if input.Delta {
 		guardAttrs = append(guardAttrs,
 			slog.Int("anchor_file_count", input.AnchorFiles),
-			slog.Int("touched_path_count", len(observer.scope.Touched())),
+			slog.Int("touched_path_count", input.TouchedOrLive),
+			slog.Int("manifest_path_count", len(observer.scope.Touched())),
 			slog.Int("successor_live_file_count", input.LiveFiles),
 			slog.Int("union_file_lower_bound", decision.UnionLowerBound),
 		)
