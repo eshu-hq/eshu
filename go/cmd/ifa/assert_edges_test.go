@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 // fakeEdgeReader is an in-memory graphdump.Reader for the hermetic
@@ -337,5 +338,113 @@ func TestAssertMaterializedEdgesWrongAssertedPropertyValueFails(t *testing.T) {
 	err := assertMaterializedEdges(context.Background(), reader, "iam_instance_profile_role", types, nil, nil, expected)
 	if err == nil {
 		t.Fatal("assertMaterializedEdges(edge with wrong evidence_source) = nil, want a mismatch failure")
+	}
+}
+
+// builtFromScopedEdge is one fake BUILT_FROM graph edge carrying the
+// writer's scope_id stamp, the field the -scopes filter keys on.
+func builtFromScopedEdge(fromUID, toID, scopeID string) graphdump.Edge {
+	return graphdump.Edge{
+		Type:      "BUILT_FROM",
+		FromProps: map[string]any{"uid": fromUID},
+		ToProps:   map[string]any{"id": toID},
+		Props:     map[string]any{"scope_id": scopeID, "evidence_source": "reducer/container-image-identity"},
+	}
+}
+
+// builtFromScopedExpected is the two-edge built_from fixture shape with
+// scope_id pinned in identity, mirroring
+// go/internal/ifa/testdata/builtfrom/ifa-built-from-family-expected-edges.json.
+func builtFromScopedExpected(scopeID string) []materializededges.ExpectedEdge {
+	return []materializededges.ExpectedEdge{
+		{
+			RelationshipType: "BUILT_FROM", SourceEntityID: "oci-descriptor://img-a", TargetEntityID: "repository:scope-a",
+			Identity: map[string]string{"scope_id": scopeID, "evidence_source": "reducer/container-image-identity"},
+		},
+		{
+			RelationshipType: "BUILT_FROM", SourceEntityID: "oci-descriptor://img-b", TargetEntityID: "repository:scope-a",
+			Identity: map[string]string{"scope_id": scopeID, "evidence_source": "reducer/container-image-identity"},
+		},
+	}
+}
+
+// TestAssertMaterializedEdgesScopedIgnoresOutOfScopeTypeEdges is the
+// built_from/derived_from RED/GREEN: the shared determinism cell graph
+// holds the derived scope's BUILT_FROM edges with the same (prefix, stamp,
+// endpoints) shape, so the unscoped type scan reports them as extras,
+// while the cassette-scoped scan ignores them. Same seam as the
+// predicate-scoped #8358 pair, generalized past the predicate-only gate.
+func TestAssertMaterializedEdgesScopedIgnoresOutOfScopeTypeEdges(t *testing.T) {
+	t.Parallel()
+
+	edgeTypes, err := materializededges.MaterializedEdgeDomainEdgeTypes("built_from")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(built_from): %v", err)
+	}
+	identity, err := materialized.MaterializedEdgeIdentityProperties("built_from")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeIdentityProperties(built_from): %v", err)
+	}
+	endpoints, _ := materialized.MaterializedEdgeEndpointLabels("built_from")
+
+	const inScope = "git-repository-scope:repository:eshu-fixture-orders-api"
+	const outScope = "git-repository-scope:repository:eshu-fixture-lineage-app"
+	expected := builtFromScopedExpected(inScope)
+	graph := []graphdump.Edge{
+		builtFromScopedEdge("oci-descriptor://img-a", "repository:scope-a", inScope),
+		builtFromScopedEdge("oci-descriptor://img-b", "repository:scope-a", inScope),
+		builtFromScopedEdge("oci-descriptor://img-c", "repository:scope-b", outScope),
+	}
+
+	// Unscoped preserves current behavior: the out-of-scope edge is an extra.
+	err = assertMaterializedEdgesScoped(context.Background(), fakeEdgeReader{edges: graph},
+		"built_from", edgeTypes, nil, endpoints, identity, expected, nil)
+	if err == nil || !strings.Contains(err.Error(), "img-c") {
+		t.Fatalf("unscoped assertMaterializedEdgesScoped(2 fixture + 1 ambient) = %v, want an extra-edge failure naming img-c", err)
+	}
+
+	// Scoped to the family's scope id: the ambient edge drops out.
+	scopes := map[string]struct{}{inScope: {}}
+	if err := assertMaterializedEdgesScoped(context.Background(), fakeEdgeReader{edges: graph},
+		"built_from", edgeTypes, nil, endpoints, identity, expected, scopes); err != nil {
+		t.Fatalf("scoped assertMaterializedEdgesScoped(2 fixture + 1 ambient) = %v, want nil", err)
+	}
+}
+
+// TestAssertMaterializedEdgesScopedStillCatchesInScopeTypeViolation is the
+// seeded-violation pair for the type path: scoping must not blind the gate
+// to a real in-scope spurious edge, and the clean tree still passes.
+func TestAssertMaterializedEdgesScopedStillCatchesInScopeTypeViolation(t *testing.T) {
+	t.Parallel()
+
+	edgeTypes, err := materializededges.MaterializedEdgeDomainEdgeTypes("built_from")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeDomainEdgeTypes(built_from): %v", err)
+	}
+	identity, err := materialized.MaterializedEdgeIdentityProperties("built_from")
+	if err != nil {
+		t.Fatalf("MaterializedEdgeIdentityProperties(built_from): %v", err)
+	}
+	endpoints, _ := materialized.MaterializedEdgeEndpointLabels("built_from")
+
+	const inScope = "git-repository-scope:repository:eshu-fixture-orders-api"
+	expected := builtFromScopedExpected(inScope)
+	scopes := map[string]struct{}{inScope: {}}
+
+	clean := []graphdump.Edge{
+		builtFromScopedEdge("oci-descriptor://img-a", "repository:scope-a", inScope),
+		builtFromScopedEdge("oci-descriptor://img-b", "repository:scope-a", inScope),
+	}
+	if err := assertMaterializedEdgesScoped(context.Background(), fakeEdgeReader{edges: clean},
+		"built_from", edgeTypes, nil, endpoints, identity, expected, scopes); err != nil {
+		t.Fatalf("scoped assertMaterializedEdgesScoped(clean 2-edge tree) = %v, want nil", err)
+	}
+
+	planted := append(append([]graphdump.Edge(nil), clean...),
+		builtFromScopedEdge("oci-descriptor://img-evil", "repository:scope-a", inScope))
+	err = assertMaterializedEdgesScoped(context.Background(), fakeEdgeReader{edges: planted},
+		"built_from", edgeTypes, nil, endpoints, identity, expected, scopes)
+	if err == nil || !strings.Contains(err.Error(), "img-evil") {
+		t.Fatalf("scoped assertMaterializedEdgesScoped(planted in-scope violation) = %v, want an extra-edge failure naming img-evil", err)
 	}
 }
