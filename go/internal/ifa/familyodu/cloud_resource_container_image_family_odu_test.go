@@ -17,12 +17,14 @@ import "testing"
 // seven distinct (verb, source) pairs cannot share one — but key narrowness
 // is invisible to every other check in this family (the offline guard runs
 // over the compiled facts, never through ingest dedup), so it is pinned
-// here rather than assumed from the derivation shape.
+// here rather than assumed from the derivation shape. The thirteenth fact
+// is the one OCI manifest for the shared digest, keyed oci-manifest:digest
+// exactly like the built_from sibling's manifests.
 func TestCloudResourceContainerImageFamilyOduStableKeysAreUnique(t *testing.T) {
 	t.Parallel()
 	odu := CloudResourceContainerImageFamilyOdu().Odu
-	if len(odu.Facts) != 12 {
-		t.Fatalf("cloud_resource_container_image Odù carries %d facts, want 12 (5 resources + 7 relationships)", len(odu.Facts))
+	if len(odu.Facts) != 13 {
+		t.Fatalf("cloud_resource_container_image Odù carries %d facts, want 13 (5 resources + 7 relationships + 1 OCI manifest)", len(odu.Facts))
 	}
 	seen := make(map[string]string, len(odu.Facts))
 	for _, env := range odu.Facts {

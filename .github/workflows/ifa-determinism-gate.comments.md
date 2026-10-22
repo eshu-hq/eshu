@@ -201,7 +201,7 @@ These are the original workflow comments in source order.
       # kubernetes_namespace_environment / iam_instance_profile_role (#6228)
       # + iam_can_perform + ec2_uses_profile + s3_logs_to + iam_escalation
       # + authenticates_vault_role + uses_vault_policy + built_from
-      # (#6228 fault halves and slices A/C),
+      # + cloud_resource_container_image (#6228 fault halves and slices A/C/D),
       # the first DIRECT-materialization families in these matrices. Mirrors
       # the paths specs/ci-gates.v1.yaml lists for BOTH the ifa-determinism
       # and ifa-fault-injection gates since #6309 landed the fault cells. The

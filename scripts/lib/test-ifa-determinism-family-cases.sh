@@ -309,8 +309,7 @@ require_direct_family_lib "ec2-uses-profile assert-edges domain" "-domain ec2_us
 require_direct_family_lib "ec2-uses-profile drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "s3-logs-to assert-edges domain" "-domain s3_logs_to"
 require_direct_family_lib "s3-logs-to drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
-require_direct_family_lib "built-from assert-edges domain" "-domain built_from"
-require_direct_family_lib "built-from drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+run_ifa_determinism_direct_leaf_cases
 # The vault families share one lib file (ifa_vault_family_live.sh); needles
 # still name each family's own domain, so one family's wiring cannot pass for another's.
 require_vault_family_lib() {
@@ -382,6 +381,7 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[ec2_uses_profile]="-domain ec2_uses_profile"
 	[s3_logs_to]="-domain s3_logs_to"
 	[built_from]="-domain built_from"
+	[cloud_resource_container_image]="-domain cloud_resource_container_image"
 	[authenticates_vault_role]="-domain authenticates_vault_role"
 	[uses_vault_policy]="-domain uses_vault_policy"
 	[kubernetes_correlation]="-domain kubernetes_correlation"
@@ -412,7 +412,7 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 	rg --fixed-strings --quiet -- "${domain_needle}" \
 		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
 		"${submodule_pin_lib}" "${inheritance_lib}" "${shell_exec_lib}" "${symbol_runtime_lib}" \
-		"${direct_family_lib}" "${direct_family_cloud_lib}" "${direct_family_built_from_lib}" "${vault_family_lib}" \
+		"${direct_family_lib}" "${direct_family_cloud_lib}" "${direct_family_built_from_lib}" "${direct_family_crc_image_lib}" "${vault_family_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh
@@ -458,15 +458,15 @@ done
 # re-assertion of any kind, so neither ifa_submodule_pin_drive nor
 # ifa_submodule_pin_assert has a legitimate bare-name call anywhere in the
 # gate; dispatch is entirely through the registry loop for this family.
-# The thirteen DIRECT families (#6228/#8358; #8359 for the last; plus the
-# two vault families from this stack) join the drive half of this list only.
+# The fifteen DIRECT families (#6228/#8358; #8359 last; the two vault
+# families and the slice C/D live leaves) join the drive half of this list only.
 # All thirteen are dispatched into every N cell through the registry loop, so
 # no drive function has a legitimate bare-name call in the gate -- but each
 # ASSERT function does have exactly one (the post-delta re-assertion pinned
 # below), so the asserts take a count pin instead of a place here.
 for leftover_fn in ifa_det_drive_sql_baseline ifa_code_call_drive ifa_documentation_drive ifa_rationale_drive \
 	ifa_codeowners_drive ifa_submodule_pin_drive ifa_submodule_pin_assert \
-	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive ifa_iam_can_perform_drive ifa_workload_cloud_relationship_drive ifa_iam_escalation_drive ifa_ec2_uses_profile_drive ifa_s3_logs_to_drive ifa_authenticates_vault_role_drive ifa_uses_vault_policy_drive ifa_built_from_drive ifa_kubernetes_correlation_drive ifa_cloud_resource_drive ifa_semantic_entity_containment_drive \
+	ifa_kubernetes_namespace_environment_drive ifa_iam_instance_profile_role_drive ifa_iam_can_assume_drive ifa_iam_can_perform_drive ifa_workload_cloud_relationship_drive ifa_iam_escalation_drive ifa_ec2_uses_profile_drive ifa_s3_logs_to_drive ifa_authenticates_vault_role_drive ifa_uses_vault_policy_drive ifa_built_from_drive ifa_cloud_resource_container_image_drive ifa_kubernetes_correlation_drive ifa_cloud_resource_drive ifa_semantic_entity_containment_drive \
 	ifa_det_assert_sql_baseline ifa_rationale_assert; do
 	if rg --fixed-strings --quiet -- "${leftover_fn} \"" "${script}"; then
 		fail "leftover literal per-family call survives outside the registry loop: ${leftover_fn} (would double-drive/assert that family and change what every N-loop digest covers)"

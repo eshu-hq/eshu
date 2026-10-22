@@ -121,6 +121,11 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// (scripts/lib/ifa_fault_injection_built_from_cells.sh), the fault
 	// cases file, and the Odù the triggers name.
 	"built_from": "built_from",
+	// cloud_resource_container_image joins them with the #6228 slice D
+	// live leaf: same stem shape, read off the fault cells file
+	// (scripts/lib/ifa_fault_injection_cloud_resource_container_image_cells.sh),
+	// the fault cases file, and the Odù the triggers name.
+	"cloud_resource_container_image": "cloud_resource_container_image",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

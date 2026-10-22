@@ -116,7 +116,7 @@
       # kubernetes_namespace_environment + iam_instance_profile_role (#6309)
       # + iam_can_perform + ec2_uses_profile + s3_logs_to + iam_escalation
       # + authenticates_vault_role + uses_vault_policy + built_from
-      # (#6228 fault halves and slices A/C):
+      # + cloud_resource_container_image (#6228 fault halves and slices A/C/D):
       # mirror of the determinism block's family entries. The Go production
       # paths need no mirror: go/internal/ifa/*.go, go/internal/reducer/**,
       # and go/cmd/ifa/** above already cover the Odù builders, handlers, and
@@ -176,7 +176,7 @@
       # kubernetes_namespace_environment + iam_instance_profile_role (#6309)
       # + iam_can_perform + ec2_uses_profile + s3_logs_to + iam_escalation
       # + authenticates_vault_role + uses_vault_policy + built_from
-      # (#6228 fault halves and slices A/C):
+      # + cloud_resource_container_image (#6228 fault halves and slices A/C/D):
       # the direct-materialization families with fault cells. Same
       # per-family literal treatment as the inheritance/shell_exec/
       # repo_dependency reach-ins above.

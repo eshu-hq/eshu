@@ -89,6 +89,10 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_cloud_resou
 # under the tooling line cap, paired with ifa_direct_family_live.sh above.
 # shellcheck source=scripts/lib/ifa_direct_family_live_built_from.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_built_from.sh"
+# Image direct family (#6228 slice D live leaf): split drive/assert lib under
+# the tooling line cap, paired with ifa_direct_family_live.sh above.
+# shellcheck source=scripts/lib/ifa_direct_family_live_cloud_resource_container_image.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_cloud_resource_container_image.sh"
 # Vault families (#6228 slice A): split drive/assert lib under the tooling line cap.
 # shellcheck source=scripts/lib/ifa_vault_family_live.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_vault_family_live.sh"
@@ -112,5 +116,7 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_ec2_uses_profi
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_s3_logs_to_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_built_from_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_built_from_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_cloud_resource_container_image_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_cloud_resource_container_image_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_cloud_resource_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_cloud_resource_cells.sh"

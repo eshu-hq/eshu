@@ -204,6 +204,20 @@ cloud_resource_expected_edges="${repo_root}/go/internal/ifa/testdata/cloudresour
 # repository scope owns its own ACTIVE generation, like every sibling above.
 built_from_cassette="${repo_root}/testdata/cassettes/builtfrom/ifa-built-from-family.json"
 built_from_expected_edges="${repo_root}/go/internal/ifa/testdata/builtfrom/ifa-built-from-family-expected-edges.json"
+# cloud_resource_container_image (#6228 slice D live leaf): a projection of
+# the compiled CloudResourceContainerImageFamilyOdu by construction
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- five
+# scanned aws_resource facts, seven aws_relationship facts, and one OCI
+# image manifest for the shared digest (the canonical projector
+# materializes the target ContainerImage node from it; without the node
+# the image writer drops both edge rows as target_not_materialized).
+# Two edge-producing lambda_function_uses_image facts on one shared digest
+# plus five deliberate non-producers (tag-only ECS, no-digest zip,
+# unparseable tag-only ref, unscanned ghost source, foreign verb). The
+# single aws region scope owns its own ACTIVE generation, like every
+# sibling above.
+cloud_resource_container_image_cassette="${repo_root}/testdata/cassettes/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family.json"
+cloud_resource_container_image_expected_edges="${repo_root}/go/internal/ifa/testdata/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -272,6 +286,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${cloud_resource_expected_edges}" ]] || { echo "${gate}: cloud-resource expected-edge set not found: ${cloud_resource_expected_edges}" >&2; exit 1; }
 	[[ -f "${built_from_cassette}" ]] || { echo "${gate}: built-from cassette not found: ${built_from_cassette}" >&2; exit 1; }
 	[[ -f "${built_from_expected_edges}" ]] || { echo "${gate}: built-from expected-edge set not found: ${built_from_expected_edges}" >&2; exit 1; }
+	[[ -f "${cloud_resource_container_image_cassette}" ]] || { echo "${gate}: cloud-resource-container-image cassette not found: ${cloud_resource_container_image_cassette}" >&2; exit 1; }
+	[[ -f "${cloud_resource_container_image_expected_edges}" ]] || { echo "${gate}: cloud-resource-container-image expected-edge set not found: ${cloud_resource_container_image_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
 	# stamps fact.source_system from the scope, and the
 	# container-image-identity loader the handler reads only accepts OCI

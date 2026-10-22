@@ -44,8 +44,9 @@ const (
 	// semanticEntityContainmentFamilyCassettePath,
 	// cloudResourceFamilyCassettePath, codeTaintEvidenceFamilyCassettePath,
 	// observabilityCoverageFamilyCassettePath,
-	// codeInterprocEvidenceFamilyCassettePath, and
-	// builtFromFamilyCassettePath are repo-root-relative so the
+	// codeInterprocEvidenceFamilyCassettePath,
+	// builtFromFamilyCassettePath, and
+	// cloudResourceContainerImageFamilyCassettePath are repo-root-relative so the
 	// constants stay machine-independent; callers join a repo root onto
 	// them through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
@@ -59,6 +60,7 @@ const (
 	authenticatesVaultRoleFamilyCassettePath         = "testdata/cassettes/authenticatesvaultrole/ifa-authenticates-vault-role-family.json"
 	usesVaultPolicyFamilyCassettePath                = "testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json"
 	builtFromFamilyCassettePath                      = "testdata/cassettes/builtfrom/ifa-built-from-family.json"
+	cloudResourceContainerImageFamilyCassettePath    = "testdata/cassettes/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family.json"
 	kubernetesCorrelationFamilyCassettePath          = "testdata/cassettes/kubernetescorrelation/ifa-kubernetes-correlation-family.json"
 	semanticEntityContainmentFamilyCassettePath      = "testdata/cassettes/semanticentitycontainment/ifa-semantic-entity-containment-family.json"
 	cloudResourceFamilyCassettePath                  = "testdata/cassettes/cloudresource/ifa-cloud-resource-family.json"
@@ -258,6 +260,19 @@ func BuiltFromFamilyCassetteFullPath(repoRoot string) string {
 // counterpart to LoadUsesVaultPolicyFamilyOdu.
 func LoadBuiltFromFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, BuiltFromFamilyOduName)
+}
+
+// CloudResourceContainerImageFamilyCassetteFullPath joins repoRoot onto the
+// committed cloud_resource_container_image family cassette path.
+func CloudResourceContainerImageFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, cloudResourceContainerImageFamilyCassettePath)
+}
+
+// LoadCloudResourceContainerImageFamilyOdu reads the committed cassette and
+// projects it onto the fact envelopes the reducer's extractor consumes, the
+// cloud_resource_container_image counterpart to LoadBuiltFromFamilyOdu.
+func LoadCloudResourceContainerImageFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, CloudResourceContainerImageFamilyOduName)
 }
 
 // KubernetesCorrelationFamilyCassetteFullPath joins repoRoot onto the committed

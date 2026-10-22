@@ -473,14 +473,6 @@ ifa_live_gate_common_seams=(
 	'testdata/cassettes/usesvaultpolicy/**|testdata/cassettes/usesvaultpolicy/ifa-uses-vault-policy-family.json'
 	'go/internal/ifa/testdata/usesvaultpolicy/**|go/internal/ifa/testdata/usesvaultpolicy/ifa-uses-vault-policy-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh|scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh'
-	# built_from (#6228 slice C live leaf): writer, cassette,
-	# expected-edge set, and cells are new common seams beside the siblings;
-	# the Odù stays in the determinism-only table (the fault cells drive the
-	# committed cassette JSON, never the Odù source).
-	'go/internal/storage/cypher/edge/writer/provenance.go|go/internal/storage/cypher/edge/writer/provenance.go'
-	'testdata/cassettes/builtfrom/**|testdata/cassettes/builtfrom/ifa-built-from-family.json'
-	'go/internal/ifa/testdata/builtfrom/**|go/internal/ifa/testdata/builtfrom/ifa-built-from-family-expected-edges.json'
-	'scripts/lib/ifa_fault_injection_built_from_cells.sh|scripts/lib/ifa_fault_injection_built_from_cells.sh'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder.go'
 	'go/internal/collector/repo/git/fact_builder*.go|go/internal/collector/repo/git/fact_builder_delta.go'
 	'go/internal/collector/repo/git/followup_facts.go|go/internal/collector/repo/git/followup_facts.go'
@@ -497,3 +489,11 @@ ifa_live_gate_common_seams=(
 	# actually drive/assert or which blocker a kill cell takes.
 	'scripts/lib/ifa_family_*.sh|scripts/lib/ifa_family_registry.sh'
 )
+ifa_live_gate_direct_leaf_common_cases_lib="${BASH_SOURCE[0]%/*}/ifa_live_gate_direct_leaf_common_cases.sh"
+rg --quiet --fixed-strings --line-regexp -- 'source "${ifa_live_gate_direct_leaf_common_cases_lib}"' "${BASH_SOURCE[0]}" ||
+{
+	printf 'ifa_live_gate_selector_cases: slice C/D live-leaf common seams must be sourced from scripts/lib/ifa_live_gate_direct_leaf_common_cases.sh\n' >&2
+	exit 1
+}
+# shellcheck source=scripts/lib/ifa_live_gate_direct_leaf_common_cases.sh
+source "${ifa_live_gate_direct_leaf_common_cases_lib}"
