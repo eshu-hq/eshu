@@ -66,6 +66,9 @@ flowchart LR
   `false`, `[]`, `{}`). A tool with no arguments gets `{}`. Values are cloned from
   the schema.
 
+`Rank` reads only the first 2048 bytes of the intent and scores the first 32
+distinct terms, so a hostile intent costs about what a normal one does.
+
 An empty or all-stopword intent, an intent with no match, and `Limit` below 1
 return no candidates and no error. `Limit` above `router.MaxLimit` is capped.
 A nil `allowed` returns `ErrNilAllowed` rather than showing every tool.

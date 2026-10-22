@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/catalog"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
@@ -413,5 +415,51 @@ func TestRankDownWeightsBoilerplateTemplateVariants(t *testing.T) {
 	// A real word shared with the boilerplate still matches where it is real.
 	if got := rankWith(t, tools, nil, router.Query{Intent: "repository", Limit: 10}); !equalStrings(names(got), []string{"list_repos"}) {
 		t.Fatalf("repository: got %v, want [list_repos]", names(got))
+	}
+}
+
+// TestRankBoundsHugeIntent: a caller-supplied intent must not make Rank do
+// unbounded work. Only the leading maxIntentBytes are read and only the first
+// maxQueryTerms distinct terms score, so a hostile intent costs about what a
+// normal one does and a match in the leading words still wins.
+func TestRankBoundsHugeIntent(t *testing.T) {
+	tools, entries := fixtureTools()
+	var b strings.Builder
+	b.WriteString("dead code ")
+	for i := 0; b.Len() < 4<<20; i++ {
+		fmt.Fprintf(&b, "w%d ", i)
+	}
+	r := New(tools, entries)
+	start := time.Now()
+	got, err := r.Rank(context.Background(), router.Query{Intent: b.String(), Limit: 3}, tools, entries, allowAll)
+	if err != nil {
+		t.Fatalf("Rank: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 250*time.Millisecond {
+		t.Fatalf("Rank on a 4 MiB intent took %v, want it bounded", elapsed)
+	}
+	if len(got) == 0 || got[0].Name != "get_dead_code" {
+		t.Fatalf("got %v, want get_dead_code first (leading words must still count)", names(got))
+	}
+	terms := queryTerms(b.String())
+	if len(terms) != 32 || maxQueryTerms > 64 || maxIntentBytes > 8192 {
+		t.Fatalf("queryTerms = %d terms (caps %d terms, %d bytes), want exactly 32 terms and sane caps",
+			len(terms), maxQueryTerms, maxIntentBytes)
+	}
+	if terms[0] != "dead" || terms[1] != "code" {
+		t.Fatalf("queryTerms = %v, want leading words first", terms[:3])
+	}
+}
+
+func TestClipIntentCutsOnRuneBoundary(t *testing.T) {
+	// "é" is two bytes; an odd limit offset would split one if the cut ignored
+	// rune starts.
+	in := "a" + strings.Repeat("é", maxIntentBytes)
+	got := clipIntent(in)
+	if len(got) > maxIntentBytes || !utf8.ValidString(got) {
+		t.Fatalf("clipIntent = %d bytes, valid=%v; want <= %d and valid UTF-8", len(got), utf8.ValidString(got), maxIntentBytes)
+	}
+	if short := "dead code"; clipIntent(short) != short {
+		t.Fatalf("clipIntent changed a short intent")
 	}
 }

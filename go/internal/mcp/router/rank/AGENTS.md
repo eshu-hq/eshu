@@ -23,6 +23,8 @@
   `TestRankBuildsIndexOnce` checks the build counter.
 - Never import `internal/mcp` (the root). `TestRankDoesNotImportMCPRoot` fails
   on an import.
+- Keep `maxIntentBytes` and `maxQueryTerms` in force: the intent is caller
+  text and must not make `Rank` do unbounded work.
 - Boilerplate stripping applies to descriptions only, never names or intents.
 - Never change `router.Query`, `router.Candidate`, or `router.Ranker` here.
   Comment on epic #8752 first.

@@ -10,6 +10,7 @@ import (
 	"math"
 	"slices"
 	"sync/atomic"
+	"unicode/utf8"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/catalog"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
@@ -31,6 +32,15 @@ const anchorBoost = 0.25
 // scoreQuantum rounds scores before comparing so float noise below 1e-9 cannot
 // split a tie that the Canonical, Cost, and name rules must decide.
 const scoreQuantum = 1e9
+
+// Query bounds. The intent is caller-supplied text, so Rank reads only its
+// first maxIntentBytes and scores only the first maxQueryTerms distinct terms.
+// A real intent is a sentence; the cap keeps a hostile one from costing more
+// than a normal query.
+const (
+	maxIntentBytes = 2048
+	maxQueryTerms  = 32
+)
 
 // ErrNilAllowed is returned when Rank receives a nil allowed func. Rank fails
 // closed: with no visibility rule it cannot know which tools the caller may see.
@@ -88,7 +98,7 @@ func (l *Lexical) Rank(ctx context.Context, q router.Query, tools []toolcontract
 	if allowed == nil {
 		return nil, ErrNilAllowed
 	}
-	terms := uniqueTerms(tokens(q.Intent))
+	terms := queryTerms(q.Intent)
 	limit := min(q.Limit, router.MaxLimit)
 	if len(terms) == 0 || limit < 1 {
 		return nil, nil
@@ -166,13 +176,37 @@ func compareScored(a, b scored) int {
 	return cmp.Compare(a.pos, b.pos)
 }
 
+// queryTerms tokenizes a caller intent into at most maxQueryTerms distinct
+// terms drawn from its first maxIntentBytes.
+func queryTerms(intent string) []string {
+	return uniqueTerms(tokens(clipIntent(intent)))
+}
+
+// clipIntent returns at most maxIntentBytes of s, cut on a rune boundary.
+func clipIntent(s string) string {
+	if len(s) <= maxIntentBytes {
+		return s
+	}
+	cut := maxIntentBytes
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
+}
+
 // uniqueTerms drops repeated query terms, keeping first-occurrence order, so a
-// word typed twice does not count twice.
+// word typed twice does not count twice, and stops at maxQueryTerms.
 func uniqueTerms(toks []string) []string {
-	out := toks[:0:0]
+	seen := make(map[string]struct{}, min(len(toks), maxQueryTerms))
+	out := make([]string, 0, min(len(toks), maxQueryTerms))
 	for _, t := range toks {
-		if !slices.Contains(out, t) {
-			out = append(out, t)
+		if _, dup := seen[t]; dup {
+			continue
+		}
+		seen[t] = struct{}{}
+		out = append(out, t)
+		if len(out) == maxQueryTerms {
+			break
 		}
 	}
 	return out
