@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/transfer/runtimebind"
 )
 
 // TestTransferRuntimeBindRegisters confirms importing the binding installs the
 // Transfer Family scanner builder.
 func TestTransferRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceTransfer)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceTransfer)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceTransfer)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceTransfer)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceTransfer},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceTransfer},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

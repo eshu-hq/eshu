@@ -115,7 +115,7 @@ func TestScannerEmitsVerifiedPermissionsMetadataAndRelationships(t *testing.T) {
 	// identity source -> Cognito user pool edge, keyed by the BARE user pool id
 	// the Cognito scanner publishes for a user pool node.
 	sourceCognito := relationshipByType(t, envelopes, catalog.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool)
-	assertEdgeTarget(t, sourceCognito, awscloud.ResourceTypeCognitoUserPool, testUserPoolID)
+	assertEdgeTarget(t, sourceCognito, catalog.ResourceTypeCognitoUserPool, testUserPoolID)
 	// The user pool node publishes the bare id as resource_id, so the edge leaves
 	// target_arn empty (relguard contract); the ARN survives as an attribute.
 	if got := sourceCognito.Payload["target_arn"]; got != "" {

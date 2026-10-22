@@ -77,7 +77,7 @@ func certificateAuthorityObservation(boundary awscloud.Boundary, authority Certi
 		Boundary:     boundary,
 		ARN:          caARN,
 		ResourceID:   caARN,
-		ResourceType: awscloud.ResourceTypeACMPCACertificateAuthority,
+		ResourceType: catalog.ResourceTypeACMPCACertificateAuthority,
 		Name:         firstNonEmpty(authority.SubjectCommonName, caARN),
 		State:        strings.TrimSpace(authority.Status),
 		Tags:         cloneStringMap(authority.Tags),
@@ -169,7 +169,7 @@ func parentRelationship(boundary awscloud.Boundary, caARN string, authority Cert
 		SourceARN:        caARN,
 		TargetResourceID: parentARN,
 		TargetARN:        parentARN,
-		TargetType:       awscloud.ResourceTypeACMPCACertificateAuthority,
+		TargetType:       catalog.ResourceTypeACMPCACertificateAuthority,
 		SourceRecordID:   caARN + "->" + parentARN,
 	}, true
 }

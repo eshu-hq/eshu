@@ -202,7 +202,7 @@ func TestScannerEmitsAPIGatewayV2Metadata(t *testing.T) {
 	if got := payloadString(t, poolEdge, "target_resource_id"); got != "us-east-1_abc123" {
 		t.Fatalf("api->user-pool target = %q, want bare pool id us-east-1_abc123", got)
 	}
-	if got := payloadString(t, poolEdge, "target_type"); got != awscloud.ResourceTypeCognitoUserPool {
+	if got := payloadString(t, poolEdge, "target_type"); got != catalog.ResourceTypeCognitoUserPool {
 		t.Fatalf("api->user-pool target_type = %q", got)
 	}
 

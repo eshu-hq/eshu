@@ -35,7 +35,7 @@ func apiAuthRelationships(boundary awscloud.Boundary, api GraphQLAPI) []awscloud
 			SourceResourceID: apiID,
 			SourceARN:        apiARN,
 			TargetResourceID: poolID,
-			TargetType:       awscloud.ResourceTypeCognitoUserPool,
+			TargetType:       catalog.ResourceTypeCognitoUserPool,
 			Attributes: map[string]any{
 				"user_pool_region": strings.TrimSpace(ref.AwsRegion),
 			},

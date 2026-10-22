@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -38,10 +39,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("cognito scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCognito:
+	case "", catalog.ServiceCognito:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCognito
+		boundary.ServiceKind = catalog.ServiceCognito
 	default:
 		return nil, fmt.Errorf("cognito scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -182,7 +183,7 @@ func userPoolObservation(boundary awscloud.Boundary, pool UserPool) awscloud.Res
 		Boundary:     boundary,
 		ARN:          poolARN,
 		ResourceID:   firstNonEmpty(poolID, poolARN),
-		ResourceType: awscloud.ResourceTypeCognitoUserPool,
+		ResourceType: catalog.ResourceTypeCognitoUserPool,
 		Name:         strings.TrimSpace(pool.Name),
 		// The Cognito API deprecated the user-pool Status field and no longer
 		// populates it, so the envelope state stays empty rather than carrying a
@@ -210,7 +211,7 @@ func userPoolClientObservation(boundary awscloud.Boundary, client UserPoolClient
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   clientID,
-		ResourceType: awscloud.ResourceTypeCognitoUserPoolClient,
+		ResourceType: catalog.ResourceTypeCognitoUserPoolClient,
 		Name:         strings.TrimSpace(client.Name),
 		Attributes: map[string]any{
 			"client_id":                            clientID,
@@ -237,7 +238,7 @@ func identityProviderObservation(boundary awscloud.Boundary, provider IdentityPr
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCognitoIdentityProvider,
+		ResourceType: catalog.ResourceTypeCognitoIdentityProvider,
 		Name:         providerName,
 		Attributes: map[string]any{
 			"user_pool_id":     poolID,
@@ -258,7 +259,7 @@ func resourceServerObservation(boundary awscloud.Boundary, resourceServer Resour
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCognitoResourceServer,
+		ResourceType: catalog.ResourceTypeCognitoResourceServer,
 		Name:         strings.TrimSpace(resourceServer.Name),
 		Attributes: map[string]any{
 			"user_pool_id": poolID,
@@ -294,7 +295,7 @@ func (s Scanner) groupObservation(boundary awscloud.Boundary, group Group) awscl
 	return awscloud.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeCognitoUserPoolGroup,
+		ResourceType:       catalog.ResourceTypeCognitoUserPoolGroup,
 		Name:               name,
 		Attributes:         attributes,
 		CorrelationAnchors: []string{resourceID, poolID, name, strings.TrimSpace(group.RoleARN)},
@@ -325,7 +326,7 @@ func (s Scanner) identityPoolObservation(boundary awscloud.Boundary, pool Identi
 		Boundary:           boundary,
 		ARN:                poolARN,
 		ResourceID:         firstNonEmpty(poolARN, poolID),
-		ResourceType:       awscloud.ResourceTypeCognitoIdentityPool,
+		ResourceType:       catalog.ResourceTypeCognitoIdentityPool,
 		Name:               strings.TrimSpace(pool.Name),
 		Tags:               pool.Tags,
 		Attributes:         attributes,

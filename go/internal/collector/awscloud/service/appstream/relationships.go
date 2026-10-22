@@ -25,7 +25,7 @@ func fleetRelationships(boundary awscloud.Boundary, fleet Fleet) []awscloud.Rela
 	for _, subnetID := range cloneStrings(fleet.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppStreamFleetUsesSubnet,
+			RelationshipType: catalog.RelationshipAppStreamFleetUsesSubnet,
 			SourceResourceID: fleetID,
 			SourceARN:        fleetARN,
 			TargetResourceID: subnetID,
@@ -36,7 +36,7 @@ func fleetRelationships(boundary awscloud.Boundary, fleet Fleet) []awscloud.Rela
 	for _, groupID := range cloneStrings(fleet.SecurityGroupIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppStreamFleetUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipAppStreamFleetUsesSecurityGroup,
 			SourceResourceID: fleetID,
 			SourceARN:        fleetARN,
 			TargetResourceID: groupID,
@@ -47,7 +47,7 @@ func fleetRelationships(boundary awscloud.Boundary, fleet Fleet) []awscloud.Rela
 	if roleARN := strings.TrimSpace(fleet.IAMRoleARN); roleARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppStreamFleetUsesIAMRole,
+			RelationshipType: catalog.RelationshipAppStreamFleetUsesIAMRole,
 			SourceResourceID: fleetID,
 			SourceARN:        fleetARN,
 			TargetResourceID: roleARN,
@@ -59,12 +59,12 @@ func fleetRelationships(boundary awscloud.Boundary, fleet Fleet) []awscloud.Rela
 	if imageARN := strings.TrimSpace(fleet.ImageARN); imageARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppStreamFleetUsesImage,
+			RelationshipType: catalog.RelationshipAppStreamFleetUsesImage,
 			SourceResourceID: fleetID,
 			SourceARN:        fleetARN,
 			TargetResourceID: imageARN,
 			TargetARN:        imageARN,
-			TargetType:       awscloud.ResourceTypeAppStreamImage,
+			TargetType:       catalog.ResourceTypeAppStreamImage,
 			SourceRecordID:   fleetID + "#image#" + imageARN,
 		})
 	}
@@ -85,7 +85,7 @@ func imageBuilderRelationships(boundary awscloud.Boundary, builder ImageBuilder)
 	for _, subnetID := range cloneStrings(builder.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppStreamImageBuilderUsesSubnet,
+			RelationshipType: catalog.RelationshipAppStreamImageBuilderUsesSubnet,
 			SourceResourceID: builderID,
 			SourceARN:        builderARN,
 			TargetResourceID: subnetID,
@@ -96,7 +96,7 @@ func imageBuilderRelationships(boundary awscloud.Boundary, builder ImageBuilder)
 	for _, groupID := range cloneStrings(builder.SecurityGroupIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppStreamImageBuilderUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipAppStreamImageBuilderUsesSecurityGroup,
 			SourceResourceID: builderID,
 			SourceARN:        builderARN,
 			TargetResourceID: groupID,
@@ -107,7 +107,7 @@ func imageBuilderRelationships(boundary awscloud.Boundary, builder ImageBuilder)
 	if roleARN := strings.TrimSpace(builder.IAMRoleARN); roleARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppStreamImageBuilderUsesIAMRole,
+			RelationshipType: catalog.RelationshipAppStreamImageBuilderUsesIAMRole,
 			SourceResourceID: builderID,
 			SourceARN:        builderARN,
 			TargetResourceID: roleARN,
@@ -119,12 +119,12 @@ func imageBuilderRelationships(boundary awscloud.Boundary, builder ImageBuilder)
 	if imageARN := strings.TrimSpace(builder.ImageARN); imageARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppStreamImageBuilderUsesImage,
+			RelationshipType: catalog.RelationshipAppStreamImageBuilderUsesImage,
 			SourceResourceID: builderID,
 			SourceARN:        builderARN,
 			TargetResourceID: imageARN,
 			TargetARN:        imageARN,
-			TargetType:       awscloud.ResourceTypeAppStreamImage,
+			TargetType:       catalog.ResourceTypeAppStreamImage,
 			SourceRecordID:   builderID + "#image#" + imageARN,
 		})
 	}
@@ -158,12 +158,12 @@ func fleetStackRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppStreamFleetAssociatedWithStack,
+		RelationshipType: catalog.RelationshipAppStreamFleetAssociatedWithStack,
 		SourceResourceID: fleetID,
 		SourceARN:        strings.TrimSpace(fleetARNByName[fleetName]),
 		TargetResourceID: stackID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeAppStreamStack,
+		TargetType:       catalog.ResourceTypeAppStreamStack,
 		Attributes: map[string]any{
 			"fleet_name": fleetName,
 			"stack_name": stackName,
@@ -209,7 +209,7 @@ func stackS3Relationships(boundary awscloud.Boundary, stack Stack) []awscloud.Re
 		emitted[bucketARN] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppStreamStackUsesS3Bucket,
+			RelationshipType: catalog.RelationshipAppStreamStackUsesS3Bucket,
 			SourceResourceID: stackID,
 			SourceARN:        stackARN,
 			TargetResourceID: bucketARN,

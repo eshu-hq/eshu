@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -35,10 +36,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("elasticbeanstalk scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceElasticBeanstalk:
+	case "", catalog.ServiceElasticBeanstalk:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceElasticBeanstalk
+		boundary.ServiceKind = catalog.ServiceElasticBeanstalk
 	default:
 		return nil, fmt.Errorf("elasticbeanstalk scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -140,7 +141,7 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 		Boundary:     boundary,
 		ARN:          applicationARN,
 		ResourceID:   firstNonEmpty(applicationARN, name),
-		ResourceType: awscloud.ResourceTypeElasticBeanstalkApplication,
+		ResourceType: catalog.ResourceTypeElasticBeanstalkApplication,
 		Name:         name,
 		Attributes: map[string]any{
 			"description":             strings.TrimSpace(application.Description),
@@ -163,7 +164,7 @@ func applicationVersionObservation(boundary awscloud.Boundary, version Applicati
 		Boundary:     boundary,
 		ARN:          versionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElasticBeanstalkApplicationVersion,
+		ResourceType: catalog.ResourceTypeElasticBeanstalkApplicationVersion,
 		Name:         label,
 		State:        strings.TrimSpace(version.Status),
 		Attributes: map[string]any{
@@ -196,7 +197,7 @@ func environmentObservation(
 		Boundary:     boundary,
 		ARN:          environmentARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElasticBeanstalkEnvironment,
+		ResourceType: catalog.ResourceTypeElasticBeanstalkEnvironment,
 		Name:         name,
 		State:        strings.TrimSpace(environment.Status),
 		Attributes: map[string]any{

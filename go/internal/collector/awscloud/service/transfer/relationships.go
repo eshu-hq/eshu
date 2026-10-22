@@ -51,12 +51,12 @@ func serverVPCEndpointRelationship(boundary awscloud.Boundary, serverID string, 
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferServerUsesVPCEndpoint,
+		RelationshipType: catalog.RelationshipTransferServerUsesVPCEndpoint,
 		SourceResourceID: serverID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: endpointID,
 		TargetType:       catalog.ResourceTypeVPCEndpoint,
-		SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesVPCEndpoint + ":" + endpointID,
+		SourceRecordID:   serverID + "->" + catalog.RelationshipTransferServerUsesVPCEndpoint + ":" + endpointID,
 	}
 }
 
@@ -81,12 +81,12 @@ func serverElasticIPRelationships(boundary awscloud.Boundary, serverID string, s
 		seen[allocationID] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransferServerUsesElasticIP,
+			RelationshipType: catalog.RelationshipTransferServerUsesElasticIP,
 			SourceResourceID: serverID,
 			SourceARN:        strings.TrimSpace(server.ARN),
 			TargetResourceID: allocationID,
 			TargetType:       catalog.ResourceTypeVPCElasticIP,
-			SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesElasticIP + ":" + allocationID,
+			SourceRecordID:   serverID + "->" + catalog.RelationshipTransferServerUsesElasticIP + ":" + allocationID,
 		})
 	}
 	if len(observations) == 0 {
@@ -105,13 +105,13 @@ func serverACMCertificateRelationship(boundary awscloud.Boundary, serverID strin
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferServerUsesACMCertificate,
+		RelationshipType: catalog.RelationshipTransferServerUsesACMCertificate,
 		SourceResourceID: serverID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: certificateARN,
 		TargetARN:        certificateARN,
 		TargetType:       catalog.ResourceTypeACMCertificate,
-		SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesACMCertificate + ":" + certificateARN,
+		SourceRecordID:   serverID + "->" + catalog.RelationshipTransferServerUsesACMCertificate + ":" + certificateARN,
 	}
 }
 
@@ -125,13 +125,13 @@ func serverLoggingRoleRelationship(boundary awscloud.Boundary, serverID string, 
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferServerUsesLoggingRole,
+		RelationshipType: catalog.RelationshipTransferServerUsesLoggingRole,
 		SourceResourceID: serverID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       catalog.ResourceTypeIAMRole,
-		SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerUsesLoggingRole + ":" + roleARN,
+		SourceRecordID:   serverID + "->" + catalog.RelationshipTransferServerUsesLoggingRole + ":" + roleARN,
 	}
 }
 
@@ -156,13 +156,13 @@ func serverLogGroupRelationships(boundary awscloud.Boundary, serverID string, se
 		seen[logGroupARN] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipTransferServerLogsToLogGroup,
+			RelationshipType: catalog.RelationshipTransferServerLogsToLogGroup,
 			SourceResourceID: serverID,
 			SourceARN:        strings.TrimSpace(server.ARN),
 			TargetResourceID: logGroupARN,
 			TargetARN:        logGroupARN,
 			TargetType:       catalog.ResourceTypeCloudWatchLogsLogGroup,
-			SourceRecordID:   serverID + "->" + awscloud.RelationshipTransferServerLogsToLogGroup + ":" + logGroupARN,
+			SourceRecordID:   serverID + "->" + catalog.RelationshipTransferServerLogsToLogGroup + ":" + logGroupARN,
 		})
 	}
 	if len(observations) == 0 {
@@ -200,13 +200,13 @@ func userRoleRelationship(boundary awscloud.Boundary, userID string, user User) 
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferUserUsesIAMRole,
+		RelationshipType: catalog.RelationshipTransferUserUsesIAMRole,
 		SourceResourceID: userID,
 		SourceARN:        strings.TrimSpace(user.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       catalog.ResourceTypeIAMRole,
-		SourceRecordID:   userID + "->" + awscloud.RelationshipTransferUserUsesIAMRole + ":" + roleARN,
+		SourceRecordID:   userID + "->" + catalog.RelationshipTransferUserUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -246,14 +246,14 @@ func userS3HomeDirectoryRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferUserHomeDirectoryInS3Bucket,
+		RelationshipType: catalog.RelationshipTransferUserHomeDirectoryInS3Bucket,
 		SourceResourceID: userID,
 		SourceARN:        strings.TrimSpace(user.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   userID + "->" + awscloud.RelationshipTransferUserHomeDirectoryInS3Bucket + ":" + bucketARN,
+		SourceRecordID:   userID + "->" + catalog.RelationshipTransferUserHomeDirectoryInS3Bucket + ":" + bucketARN,
 	}
 }
 
@@ -286,14 +286,14 @@ func userEFSHomeDirectoryRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTransferUserHomeDirectoryInEFSFileSystem,
+		RelationshipType: catalog.RelationshipTransferUserHomeDirectoryInEFSFileSystem,
 		SourceResourceID: userID,
 		SourceARN:        strings.TrimSpace(user.ARN),
 		TargetResourceID: fileSystemARN,
 		TargetARN:        fileSystemARN,
 		TargetType:       catalog.ResourceTypeEFSFileSystem,
 		Attributes:       attributes,
-		SourceRecordID:   userID + "->" + awscloud.RelationshipTransferUserHomeDirectoryInEFSFileSystem + ":" + fileSystemARN,
+		SourceRecordID:   userID + "->" + catalog.RelationshipTransferUserHomeDirectoryInEFSFileSystem + ":" + fileSystemARN,
 	}
 }
 

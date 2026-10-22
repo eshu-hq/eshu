@@ -71,7 +71,7 @@ func trustAnchorACMPCARelationship(boundary awscloud.Boundary, anchor TrustAncho
 		SourceARN:        strings.TrimSpace(anchor.ARN),
 		TargetResourceID: caARN,
 		TargetARN:        caARN,
-		TargetType:       awscloud.ResourceTypeACMPCACertificateAuthority,
+		TargetType:       catalog.ResourceTypeACMPCACertificateAuthority,
 		SourceRecordID:   sourceID + "->" + catalog.RelationshipRolesAnywhereTrustAnchorUsesACMPCA + ":" + caARN,
 	}
 }

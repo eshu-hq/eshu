@@ -99,7 +99,7 @@ func identitySourceCognitoRelationship(
 		RelationshipType: catalog.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool,
 		SourceResourceID: sourceID,
 		TargetResourceID: poolID,
-		TargetType:       awscloud.ResourceTypeCognitoUserPool,
+		TargetType:       catalog.ResourceTypeCognitoUserPool,
 		Attributes:       map[string]any{"user_pool_arn": poolARN},
 		SourceRecordID:   sourceID + "->" + catalog.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool + ":" + poolID,
 	}

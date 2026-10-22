@@ -27,13 +27,13 @@ func groupInInstanceRelationship(boundary awscloud.Boundary, group Group) *awscl
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedAccessGroupInInstance,
+		RelationshipType: catalog.RelationshipVerifiedAccessGroupInInstance,
 		SourceResourceID: sourceID,
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: targetID,
 		TargetARN:        arnOrEmpty(targetID),
-		TargetType:       awscloud.ResourceTypeVerifiedAccessInstance,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessGroupInInstance + ":" + targetID,
+		TargetType:       catalog.ResourceTypeVerifiedAccessInstance,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVerifiedAccessGroupInInstance + ":" + targetID,
 	}
 }
 
@@ -52,13 +52,13 @@ func endpointInGroupRelationship(boundary awscloud.Boundary, endpoint Endpoint) 
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedAccessEndpointInGroup,
+		RelationshipType: catalog.RelationshipVerifiedAccessEndpointInGroup,
 		SourceResourceID: sourceID,
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: targetID,
 		TargetARN:        arnOrEmpty(targetID),
-		TargetType:       awscloud.ResourceTypeVerifiedAccessGroup,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointInGroup + ":" + targetID,
+		TargetType:       catalog.ResourceTypeVerifiedAccessGroup,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVerifiedAccessEndpointInGroup + ":" + targetID,
 	}
 }
 
@@ -79,13 +79,13 @@ func instanceTrustProviderRelationships(boundary awscloud.Boundary, instance Ins
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVerifiedAccessInstanceUsesTrustProvider,
+			RelationshipType: catalog.RelationshipVerifiedAccessInstanceUsesTrustProvider,
 			SourceResourceID: sourceID,
 			SourceARN:        arnOrEmpty(sourceID),
 			TargetResourceID: targetID,
 			TargetARN:        arnOrEmpty(targetID),
-			TargetType:       awscloud.ResourceTypeVerifiedAccessTrustProvider,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessInstanceUsesTrustProvider + ":" + targetID,
+			TargetType:       catalog.ResourceTypeVerifiedAccessTrustProvider,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipVerifiedAccessInstanceUsesTrustProvider + ":" + targetID,
 		})
 	}
 	return relationships
@@ -108,12 +108,12 @@ func endpointSubnetRelationships(boundary awscloud.Boundary, endpoint Endpoint) 
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVerifiedAccessEndpointUsesSubnet,
+			RelationshipType: catalog.RelationshipVerifiedAccessEndpointUsesSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        arnOrEmpty(sourceID),
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointUsesSubnet + ":" + subnetID,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipVerifiedAccessEndpointUsesSubnet + ":" + subnetID,
 		})
 	}
 	return relationships
@@ -137,12 +137,12 @@ func endpointSecurityGroupRelationships(boundary awscloud.Boundary, endpoint End
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipVerifiedAccessEndpointUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipVerifiedAccessEndpointUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        arnOrEmpty(sourceID),
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointUsesSecurityGroup + ":" + groupID,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipVerifiedAccessEndpointUsesSecurityGroup + ":" + groupID,
 		})
 	}
 	return relationships
@@ -164,13 +164,13 @@ func endpointACMCertificateRelationship(boundary awscloud.Boundary, endpoint End
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedAccessEndpointUsesACMCertificate,
+		RelationshipType: catalog.RelationshipVerifiedAccessEndpointUsesACMCertificate,
 		SourceResourceID: sourceID,
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: certARN,
 		TargetARN:        certARN,
 		TargetType:       catalog.ResourceTypeACMCertificate,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedAccessEndpointUsesACMCertificate + ":" + certARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVerifiedAccessEndpointUsesACMCertificate + ":" + certARN,
 	}
 }
 

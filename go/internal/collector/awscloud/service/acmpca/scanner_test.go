@@ -41,7 +41,7 @@ func TestScannerEmitsCertificateAuthorityMetadataKeyedByARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	ca := resourceByType(t, envelopes, awscloud.ResourceTypeACMPCACertificateAuthority)
+	ca := resourceByType(t, envelopes, catalog.ResourceTypeACMPCACertificateAuthority)
 	// The resource_id contract: the CA ARN. App Mesh virtual-node client TLS
 	// trust edges target aws_acmpca_certificate_authority keyed by this ARN.
 	if got, want := ca.Payload["resource_id"], caARN; got != want {
@@ -175,7 +175,7 @@ func TestScannerEmitsSubordinateToParentRelationshipWhenParentReported(t *testin
 	if got, want := rel.Payload["target_resource_id"], parentARN; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q (must match parent CA resource_id = CA ARN)", got, want)
 	}
-	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeACMPCACertificateAuthority; got != want {
+	if got, want := rel.Payload["target_type"], catalog.ResourceTypeACMPCACertificateAuthority; got != want {
 		t.Fatalf("target_type = %#v, want %q", got, want)
 	}
 }
@@ -286,7 +286,7 @@ func TestScannerDefaultsServiceKindWhenEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	ca := resourceByType(t, envelopes, awscloud.ResourceTypeACMPCACertificateAuthority)
+	ca := resourceByType(t, envelopes, catalog.ResourceTypeACMPCACertificateAuthority)
 	if got, want := ca.Payload["service_kind"], catalog.ServiceACMPCA; got != want {
 		t.Fatalf("service_kind = %#v, want %q", got, want)
 	}

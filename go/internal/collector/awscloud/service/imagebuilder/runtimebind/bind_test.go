@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/imagebuilder/runtimebind"
 )
 
 // TestImageBuilderRuntimeBindRegisters confirms importing the binding installs
 // the Image Builder scanner builder.
 func TestImageBuilderRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceImageBuilder)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceImageBuilder)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceImageBuilder)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceImageBuilder)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceImageBuilder,
+			ServiceKind: catalog.ServiceImageBuilder,
 		},
 	})
 	if err != nil {

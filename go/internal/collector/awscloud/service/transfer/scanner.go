@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -29,10 +30,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("transfer scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceTransfer:
+	case "", catalog.ServiceTransfer:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceTransfer
+		boundary.ServiceKind = catalog.ServiceTransfer
 	default:
 		return nil, fmt.Errorf("transfer scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -105,7 +106,7 @@ func serverObservation(boundary awscloud.Boundary, server Server) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          serverARN,
 		ResourceID:   firstNonEmpty(serverARN, serverID),
-		ResourceType: awscloud.ResourceTypeTransferServer,
+		ResourceType: catalog.ResourceTypeTransferServer,
 		Name:         serverID,
 		State:        strings.TrimSpace(server.State),
 		Attributes: map[string]any{
@@ -140,7 +141,7 @@ func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          userARN,
 		ResourceID:   userID,
-		ResourceType: awscloud.ResourceTypeTransferUser,
+		ResourceType: catalog.ResourceTypeTransferUser,
 		Name:         userName,
 		Attributes: map[string]any{
 			"server_id":               serverID,

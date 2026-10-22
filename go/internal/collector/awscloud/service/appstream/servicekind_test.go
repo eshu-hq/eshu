@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestServiceKindCanonicalizedInEmittedFacts proves a whitespace-padded
@@ -31,7 +31,7 @@ func TestServiceKindCanonicalizedInEmittedFacts(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceAppStream; got != want {
+		if got, want := envelope.Payload["service_kind"], catalog.ServiceAppStream; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

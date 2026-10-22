@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/elasticbeanstalk/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -20,12 +21,12 @@ import (
 // redaction-key requirement so config validation can derive it from the
 // registry.
 func TestElasticBeanstalkRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceElasticBeanstalk)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceElasticBeanstalk)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceElasticBeanstalk)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceElasticBeanstalk)
 	}
-	if !awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceElasticBeanstalk) {
-		t.Fatalf("ServiceRequiresRedactionKey(%q) = false, want true", awscloud.ServiceElasticBeanstalk)
+	if !awsruntime.ServiceRequiresRedactionKey(catalog.ServiceElasticBeanstalk) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = false, want true", catalog.ServiceElasticBeanstalk)
 	}
 	key, err := redact.NewKey([]byte("aws-redaction-key"))
 	if err != nil {
@@ -33,7 +34,7 @@ func TestElasticBeanstalkRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceElasticBeanstalk},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceElasticBeanstalk},
 		RedactionKey: key,
 	})
 	if err != nil {
@@ -47,13 +48,13 @@ func TestElasticBeanstalkRuntimeBindRegisters(t *testing.T) {
 // TestElasticBeanstalkRuntimeBindRequiresRedactionKey covers the fail-closed
 // guard: the builder rejects a zero redaction key.
 func TestElasticBeanstalkRuntimeBindRequiresRedactionKey(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceElasticBeanstalk)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceElasticBeanstalk)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceElasticBeanstalk)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceElasticBeanstalk)
 	}
 	_, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceElasticBeanstalk},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceElasticBeanstalk},
 	})
 	if err == nil {
 		t.Fatalf("build() error = nil, want missing redaction key")

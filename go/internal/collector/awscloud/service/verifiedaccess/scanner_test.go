@@ -92,7 +92,7 @@ func TestScannerEmitsVerifiedAccessMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Instance node, keyed by the synthesized partition-aware ARN.
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedAccessInstance)
+	instance := resourceByType(t, envelopes, catalog.ResourceTypeVerifiedAccessInstance)
 	if got, want := instance.Payload["resource_id"], wantInstanceARN(); got != want {
 		t.Fatalf("instance resource_id = %#v, want %q", got, want)
 	}
@@ -106,7 +106,7 @@ func TestScannerEmitsVerifiedAccessMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, instAttrs, "trust_provider_ids", []string{testTrustProviderID})
 
 	// Trust provider node, keyed by the synthesized partition-aware ARN.
-	trustProvider := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedAccessTrustProvider)
+	trustProvider := resourceByType(t, envelopes, catalog.ResourceTypeVerifiedAccessTrustProvider)
 	if got, want := trustProvider.Payload["resource_id"], wantTrustProviderARN(); got != want {
 		t.Fatalf("trust provider resource_id = %#v, want %q", got, want)
 	}
@@ -115,13 +115,13 @@ func TestScannerEmitsVerifiedAccessMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, tpAttrs, "uses_iam_identity_center", true)
 
 	// Group node, keyed by the API-reported ARN.
-	group := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedAccessGroup)
+	group := resourceByType(t, envelopes, catalog.ResourceTypeVerifiedAccessGroup)
 	if got, want := group.Payload["resource_id"], testGroupARN; got != want {
 		t.Fatalf("group resource_id = %#v, want %q", got, want)
 	}
 
 	// Endpoint node.
-	endpoint := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedAccessEndpoint)
+	endpoint := resourceByType(t, envelopes, catalog.ResourceTypeVerifiedAccessEndpoint)
 	if got, want := endpoint.Payload["resource_id"], wantEndpointARN(); got != want {
 		t.Fatalf("endpoint resource_id = %#v, want %q", got, want)
 	}
@@ -134,36 +134,36 @@ func TestScannerEmitsVerifiedAccessMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, epAttrs, "security_group_ids", []string{testSecurityGroupID})
 
 	// group -> instance edge, keyed by the instance ARN the instance node publishes.
-	groupInInstance := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedAccessGroupInInstance)
-	assertEdgeTarget(t, groupInInstance, awscloud.ResourceTypeVerifiedAccessInstance, wantInstanceARN())
+	groupInInstance := relationshipByType(t, envelopes, catalog.RelationshipVerifiedAccessGroupInInstance)
+	assertEdgeTarget(t, groupInInstance, catalog.ResourceTypeVerifiedAccessInstance, wantInstanceARN())
 	if got, want := groupInInstance.Payload["source_resource_id"], testGroupARN; got != want {
 		t.Fatalf("group->instance source_resource_id = %#v, want %q", got, want)
 	}
 
 	// endpoint -> group edge, keyed by the group ARN the group node publishes.
-	endpointInGroup := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedAccessEndpointInGroup)
-	assertEdgeTarget(t, endpointInGroup, awscloud.ResourceTypeVerifiedAccessGroup, testGroupARN)
+	endpointInGroup := relationshipByType(t, envelopes, catalog.RelationshipVerifiedAccessEndpointInGroup)
+	assertEdgeTarget(t, endpointInGroup, catalog.ResourceTypeVerifiedAccessGroup, testGroupARN)
 
 	// instance -> trust provider edge.
-	instanceTrust := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedAccessInstanceUsesTrustProvider)
-	assertEdgeTarget(t, instanceTrust, awscloud.ResourceTypeVerifiedAccessTrustProvider, wantTrustProviderARN())
+	instanceTrust := relationshipByType(t, envelopes, catalog.RelationshipVerifiedAccessInstanceUsesTrustProvider)
+	assertEdgeTarget(t, instanceTrust, catalog.ResourceTypeVerifiedAccessTrustProvider, wantTrustProviderARN())
 	if got, want := instanceTrust.Payload["source_resource_id"], wantInstanceARN(); got != want {
 		t.Fatalf("instance->trust source_resource_id = %#v, want %q", got, want)
 	}
 
 	// endpoint -> subnet edge, keyed by the bare subnet id the EC2 scanner publishes.
-	endpointSubnet := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedAccessEndpointUsesSubnet)
+	endpointSubnet := relationshipByType(t, envelopes, catalog.RelationshipVerifiedAccessEndpointUsesSubnet)
 	assertEdgeTarget(t, endpointSubnet, catalog.ResourceTypeEC2Subnet, testSubnetID)
 	if got := endpointSubnet.Payload["target_arn"]; got != "" {
 		t.Fatalf("endpoint->subnet target_arn = %#v, want empty for bare id", got)
 	}
 
 	// endpoint -> security group edge, keyed by the bare sg id.
-	endpointSG := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedAccessEndpointUsesSecurityGroup)
+	endpointSG := relationshipByType(t, envelopes, catalog.RelationshipVerifiedAccessEndpointUsesSecurityGroup)
 	assertEdgeTarget(t, endpointSG, catalog.ResourceTypeEC2SecurityGroup, testSecurityGroupID)
 
 	// endpoint -> ACM certificate edge, keyed by the certificate ARN.
-	endpointCert := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedAccessEndpointUsesACMCertificate)
+	endpointCert := relationshipByType(t, envelopes, catalog.RelationshipVerifiedAccessEndpointUsesACMCertificate)
 	assertEdgeTarget(t, endpointCert, catalog.ResourceTypeACMCertificate, testCertARN)
 	if got, want := endpointCert.Payload["target_arn"], testCertARN; got != want {
 		t.Fatalf("endpoint->cert target_arn = %#v, want %q", got, want)
@@ -195,7 +195,7 @@ func TestScannerSynthesizesGovCloudInstanceARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedAccessInstance)
+	instance := resourceByType(t, envelopes, catalog.ResourceTypeVerifiedAccessInstance)
 	wantARN := "arn:aws-us-gov:ec2:us-gov-west-1:123456789012:verified-access-instance/" + testInstanceID
 	if got := instance.Payload["resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud instance resource_id = %#v, want %q", got, wantARN)
@@ -214,7 +214,7 @@ func TestScannerSynthesizesChinaEndpointARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	endpoint := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedAccessEndpoint)
+	endpoint := resourceByType(t, envelopes, catalog.ResourceTypeVerifiedAccessEndpoint)
 	wantARN := "arn:aws-cn:ec2:cn-north-1:123456789012:verified-access-endpoint/" + testEndpointID
 	if got := endpoint.Payload["arn"]; got != wantARN {
 		t.Fatalf("China endpoint arn = %#v, want %q", got, wantARN)
@@ -252,7 +252,7 @@ func TestScannerOmitsACMEdgeForNonARNCertificate(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if envelope.Payload["relationship_type"] == awscloud.RelationshipVerifiedAccessEndpointUsesACMCertificate {
+		if envelope.Payload["relationship_type"] == catalog.RelationshipVerifiedAccessEndpointUsesACMCertificate {
 			t.Fatalf("ACM edge emitted for non-ARN certificate value")
 		}
 	}
@@ -324,7 +324,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceVerifiedAccess,
+		ServiceKind:         catalog.ServiceVerifiedAccess,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:verifiedaccess:1",
 		CollectorInstanceID: "aws-prod",

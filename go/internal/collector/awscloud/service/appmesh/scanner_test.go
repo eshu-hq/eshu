@@ -106,13 +106,13 @@ func TestScannerEmitsAllResourceKinds(t *testing.T) {
 	envelopes := scanOK(t, fullInventory())
 
 	wantResources := map[string]string{
-		awscloud.ResourceTypeAppMeshMesh:           meshARN,
-		awscloud.ResourceTypeAppMeshVirtualService: virtualServiceARN,
-		awscloud.ResourceTypeAppMeshVirtualNode:    virtualNodeARN,
-		awscloud.ResourceTypeAppMeshVirtualRouter:  virtualRouterARN,
-		awscloud.ResourceTypeAppMeshRoute:          routeARN,
-		awscloud.ResourceTypeAppMeshVirtualGateway: virtualGatewayARN,
-		awscloud.ResourceTypeAppMeshGatewayRoute:   gatewayRouteARN,
+		catalog.ResourceTypeAppMeshMesh:           meshARN,
+		catalog.ResourceTypeAppMeshVirtualService: virtualServiceARN,
+		catalog.ResourceTypeAppMeshVirtualNode:    virtualNodeARN,
+		catalog.ResourceTypeAppMeshVirtualRouter:  virtualRouterARN,
+		catalog.ResourceTypeAppMeshRoute:          routeARN,
+		catalog.ResourceTypeAppMeshVirtualGateway: virtualGatewayARN,
+		catalog.ResourceTypeAppMeshGatewayRoute:   gatewayRouteARN,
 	}
 	for resourceType, wantID := range wantResources {
 		resource := resourceByType(t, envelopes, resourceType)
@@ -134,10 +134,10 @@ func TestScannerEmitsInternalRelationshipsWithMatchingJoinKeys(t *testing.T) {
 		target       string
 		targetType   string
 	}{
-		{awscloud.RelationshipAppMeshVirtualServiceInMesh, virtualServiceARN, meshARN, awscloud.ResourceTypeAppMeshMesh},
-		{awscloud.RelationshipAppMeshVirtualNodeBackendVirtualService, virtualNodeARN, backendServiceARN, awscloud.ResourceTypeAppMeshVirtualService},
-		{awscloud.RelationshipAppMeshRouteInVirtualRouter, routeARN, virtualRouterARN, awscloud.ResourceTypeAppMeshVirtualRouter},
-		{awscloud.RelationshipAppMeshVirtualGatewayInMesh, virtualGatewayARN, meshARN, awscloud.ResourceTypeAppMeshMesh},
+		{catalog.RelationshipAppMeshVirtualServiceInMesh, virtualServiceARN, meshARN, catalog.ResourceTypeAppMeshMesh},
+		{catalog.RelationshipAppMeshVirtualNodeBackendVirtualService, virtualNodeARN, backendServiceARN, catalog.ResourceTypeAppMeshVirtualService},
+		{catalog.RelationshipAppMeshRouteInVirtualRouter, routeARN, virtualRouterARN, catalog.ResourceTypeAppMeshVirtualRouter},
+		{catalog.RelationshipAppMeshVirtualGatewayInMesh, virtualGatewayARN, meshARN, catalog.ResourceTypeAppMeshMesh},
 	}
 	for _, tc := range cases {
 		rel := singleRelationship(t, envelopes, tc.relationship)
@@ -160,7 +160,7 @@ func TestScannerEmitsInternalRelationshipsWithMatchingJoinKeys(t *testing.T) {
 func TestScannerEmitsCertificateAuthorityRelationship(t *testing.T) {
 	envelopes := scanOK(t, fullInventory())
 
-	rel := singleRelationship(t, envelopes, awscloud.RelationshipAppMeshVirtualNodeTrustsCertificateAuthority)
+	rel := singleRelationship(t, envelopes, catalog.RelationshipAppMeshVirtualNodeTrustsCertificateAuthority)
 	if got := rel.Payload["source_resource_id"]; got != virtualNodeARN {
 		t.Fatalf("CA trust source = %#v, want %q", got, virtualNodeARN)
 	}
@@ -178,20 +178,20 @@ func TestScannerEmitsCertificateAuthorityRelationship(t *testing.T) {
 	if got := rel.Payload["target_arn"]; got != acmCAARN {
 		t.Fatalf("CA trust target_arn = %#v, want %q", got, acmCAARN)
 	}
-	if got, _ := rel.Payload["target_type"].(string); got != awscloud.ResourceTypeACMPCACertificateAuthority {
-		t.Fatalf("CA trust target_type = %q, want %q", got, awscloud.ResourceTypeACMPCACertificateAuthority)
+	if got, _ := rel.Payload["target_type"].(string); got != catalog.ResourceTypeACMPCACertificateAuthority {
+		t.Fatalf("CA trust target_type = %q, want %q", got, catalog.ResourceTypeACMPCACertificateAuthority)
 	}
 }
 
 func TestScannerEmitsCloudMapServiceDiscoveryRelationship(t *testing.T) {
 	envelopes := scanOK(t, fullInventory())
 
-	rel := singleRelationship(t, envelopes, awscloud.RelationshipAppMeshVirtualNodeUsesCloudMapService)
+	rel := singleRelationship(t, envelopes, catalog.RelationshipAppMeshVirtualNodeUsesCloudMapService)
 	if got := rel.Payload["source_resource_id"]; got != virtualNodeARN {
 		t.Fatalf("cloud map source = %#v, want %q", got, virtualNodeARN)
 	}
-	if got, _ := rel.Payload["target_type"].(string); got != awscloud.TargetTypeCloudMapService {
-		t.Fatalf("cloud map target_type = %q, want %q", got, awscloud.TargetTypeCloudMapService)
+	if got, _ := rel.Payload["target_type"].(string); got != catalog.TargetTypeCloudMapService {
+		t.Fatalf("cloud map target_type = %q, want %q", got, catalog.TargetTypeCloudMapService)
 	}
 	if got := rel.Payload["target_resource_id"]; got != "apps.local/checkout" {
 		t.Fatalf("cloud map target = %#v, want %q", got, "apps.local/checkout")
@@ -207,15 +207,15 @@ func TestScannerEmitsDNSServiceDiscoveryRelationship(t *testing.T) {
 
 	envelopes := scanOK(t, inventory)
 
-	rel := singleRelationship(t, envelopes, awscloud.RelationshipAppMeshVirtualNodeUsesDNSHostname)
-	if got, _ := rel.Payload["target_type"].(string); got != awscloud.TargetTypeDNSHostname {
-		t.Fatalf("dns target_type = %q, want %q", got, awscloud.TargetTypeDNSHostname)
+	rel := singleRelationship(t, envelopes, catalog.RelationshipAppMeshVirtualNodeUsesDNSHostname)
+	if got, _ := rel.Payload["target_type"].(string); got != catalog.TargetTypeDNSHostname {
+		t.Fatalf("dns target_type = %q, want %q", got, catalog.TargetTypeDNSHostname)
 	}
 	if got := rel.Payload["target_resource_id"]; got != "checkout.apps.local" {
 		t.Fatalf("dns target = %#v, want %q", got, "checkout.apps.local")
 	}
 	// A DNS node must not also emit a Cloud Map relationship.
-	if rels := relationshipsByType(envelopes, awscloud.RelationshipAppMeshVirtualNodeUsesCloudMapService); len(rels) != 0 {
+	if rels := relationshipsByType(envelopes, catalog.RelationshipAppMeshVirtualNodeUsesCloudMapService); len(rels) != 0 {
 		t.Fatalf("cloud map relationship emitted for DNS node: %d", len(rels))
 	}
 }
@@ -223,7 +223,7 @@ func TestScannerEmitsDNSServiceDiscoveryRelationship(t *testing.T) {
 func TestScannerRedactsSensitiveHeaderMatchValuesButKeepsRouteShape(t *testing.T) {
 	envelopes := scanOK(t, fullInventory())
 
-	route := resourceByType(t, envelopes, awscloud.ResourceTypeAppMeshRoute)
+	route := resourceByType(t, envelopes, catalog.ResourceTypeAppMeshRoute)
 	attributes := attributesOf(t, route)
 	if got := attributes["path_prefix"]; got != "/checkout" {
 		t.Fatalf("path_prefix = %#v, want %q", got, "/checkout")
@@ -279,7 +279,7 @@ func TestScannerRedactsSensitiveHeaderMatchValuesButKeepsRouteShape(t *testing.T
 func TestScannerNeverPersistsCertificateBodyOnVirtualNode(t *testing.T) {
 	envelopes := scanOK(t, fullInventory())
 
-	node := resourceByType(t, envelopes, awscloud.ResourceTypeAppMeshVirtualNode)
+	node := resourceByType(t, envelopes, catalog.ResourceTypeAppMeshVirtualNode)
 	attributes := attributesOf(t, node)
 	for _, forbidden := range []string{"certificate", "certificate_body", "certificate_chain", "private_key", "tls_certificate"} {
 		if _, exists := attributes[forbidden]; exists {
@@ -303,7 +303,7 @@ func TestScannerBackendRelationshipUsesPartitionFromParentARN(t *testing.T) {
 	inventory[0].VirtualNodes[0].ClientTLSCertificateAuthorityARNs = nil
 
 	envelopes := scanOK(t, inventory)
-	rel := singleRelationship(t, envelopes, awscloud.RelationshipAppMeshVirtualNodeBackendVirtualService)
+	rel := singleRelationship(t, envelopes, catalog.RelationshipAppMeshVirtualNodeBackendVirtualService)
 	if got := rel.Payload["target_resource_id"]; got != govBackend {
 		t.Fatalf("backend target = %#v, want %q (partition must come from the node ARN, not hardcoded aws)", got, govBackend)
 	}
@@ -372,7 +372,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAppMesh,
+		ServiceKind:         catalog.ServiceAppMesh,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:appmesh:1",
 		CollectorInstanceID: "aws-prod",

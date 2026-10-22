@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // meshObservation maps one mesh into an aws_resource observation keyed by the
@@ -18,7 +19,7 @@ func meshObservation(boundary awscloud.Boundary, mesh Mesh) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          meshARN,
 		ResourceID:   meshARN,
-		ResourceType: awscloud.ResourceTypeAppMeshMesh,
+		ResourceType: catalog.ResourceTypeAppMeshMesh,
 		Name:         strings.TrimSpace(mesh.Name),
 		State:        strings.TrimSpace(mesh.Status),
 		Tags:         cloneStringMap(mesh.Tags),
@@ -45,7 +46,7 @@ func virtualServiceObservation(boundary awscloud.Boundary, service VirtualServic
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeAppMeshVirtualService,
+		ResourceType: catalog.ResourceTypeAppMeshVirtualService,
 		Name:         strings.TrimSpace(service.Name),
 		State:        strings.TrimSpace(service.Status),
 		Tags:         cloneStringMap(service.Tags),
@@ -72,7 +73,7 @@ func virtualNodeObservation(boundary awscloud.Boundary, node VirtualNode) awsclo
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeAppMeshVirtualNode,
+		ResourceType: catalog.ResourceTypeAppMeshVirtualNode,
 		Name:         strings.TrimSpace(node.Name),
 		State:        strings.TrimSpace(node.Status),
 		Tags:         cloneStringMap(node.Tags),
@@ -102,7 +103,7 @@ func virtualRouterObservation(boundary awscloud.Boundary, router VirtualRouter) 
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeAppMeshVirtualRouter,
+		ResourceType: catalog.ResourceTypeAppMeshVirtualRouter,
 		Name:         strings.TrimSpace(router.Name),
 		State:        strings.TrimSpace(router.Status),
 		Tags:         cloneStringMap(router.Tags),
@@ -144,7 +145,7 @@ func (s Scanner) routeObservation(boundary awscloud.Boundary, route Route) awscl
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         arn,
-		ResourceType:       awscloud.ResourceTypeAppMeshRoute,
+		ResourceType:       catalog.ResourceTypeAppMeshRoute,
 		Name:               strings.TrimSpace(route.Name),
 		State:              strings.TrimSpace(route.Status),
 		Tags:               cloneStringMap(route.Tags),
@@ -162,7 +163,7 @@ func virtualGatewayObservation(boundary awscloud.Boundary, gateway VirtualGatewa
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeAppMeshVirtualGateway,
+		ResourceType: catalog.ResourceTypeAppMeshVirtualGateway,
 		Name:         strings.TrimSpace(gateway.Name),
 		State:        strings.TrimSpace(gateway.Status),
 		Tags:         cloneStringMap(gateway.Tags),
@@ -187,7 +188,7 @@ func gatewayRouteObservation(boundary awscloud.Boundary, route GatewayRoute) aws
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeAppMeshGatewayRoute,
+		ResourceType: catalog.ResourceTypeAppMeshGatewayRoute,
 		Name:         strings.TrimSpace(route.Name),
 		State:        strings.TrimSpace(route.Status),
 		Tags:         cloneStringMap(route.Tags),

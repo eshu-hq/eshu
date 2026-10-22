@@ -13,6 +13,7 @@ import (
 	awsappstreamtypes "github.com/aws/aws-sdk-go-v2/service/appstream/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientSnapshotsAppStreamMetadataOnly(t *testing.T) {
@@ -175,7 +176,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAppStream,
+		ServiceKind: catalog.ServiceAppStream,
 	}
 }
 

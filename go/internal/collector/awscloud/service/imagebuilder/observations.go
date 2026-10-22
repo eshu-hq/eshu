@@ -5,6 +5,7 @@ package imagebuilder
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // pipelineObservation maps an image pipeline into its resource node. The
@@ -16,7 +17,7 @@ func pipelineObservation(boundary awscloud.Boundary, pipeline ImagePipeline) aws
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeImageBuilderImagePipeline,
+		ResourceType: catalog.ResourceTypeImageBuilderImagePipeline,
 		Name:         name,
 		State:        trimSpace(pipeline.Status),
 		Tags:         cloneStringMap(pipeline.Tags),
@@ -48,7 +49,7 @@ func imageRecipeObservation(boundary awscloud.Boundary, recipe ImageRecipe) awsc
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeImageBuilderImageRecipe,
+		ResourceType: catalog.ResourceTypeImageBuilderImageRecipe,
 		Name:         name,
 		Tags:         cloneStringMap(recipe.Tags),
 		Attributes: map[string]any{
@@ -77,7 +78,7 @@ func containerRecipeObservation(boundary awscloud.Boundary, recipe ContainerReci
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeImageBuilderContainerRecipe,
+		ResourceType: catalog.ResourceTypeImageBuilderContainerRecipe,
 		Name:         name,
 		Tags:         cloneStringMap(recipe.Tags),
 		Attributes: map[string]any{
@@ -111,7 +112,7 @@ func infraConfigObservation(boundary awscloud.Boundary, config InfrastructureCon
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeImageBuilderInfrastructureConfiguration,
+		ResourceType: catalog.ResourceTypeImageBuilderInfrastructureConfiguration,
 		Name:         name,
 		Tags:         cloneStringMap(config.Tags),
 		Attributes: map[string]any{
@@ -144,7 +145,7 @@ func distributionConfigObservation(boundary awscloud.Boundary, config Distributi
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeImageBuilderDistributionConfiguration,
+		ResourceType: catalog.ResourceTypeImageBuilderDistributionConfiguration,
 		Name:         name,
 		Tags:         cloneStringMap(config.Tags),
 		Attributes: map[string]any{

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // virtualServiceRelationships emits the virtual-service-to-mesh edge. The mesh
@@ -19,12 +20,12 @@ func virtualServiceRelationships(boundary awscloud.Boundary, mesh Mesh, service 
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppMeshVirtualServiceInMesh,
+		RelationshipType: catalog.RelationshipAppMeshVirtualServiceInMesh,
 		SourceResourceID: serviceARN,
 		SourceARN:        serviceARN,
 		TargetResourceID: meshARN,
 		TargetARN:        meshARN,
-		TargetType:       awscloud.ResourceTypeAppMeshMesh,
+		TargetType:       catalog.ResourceTypeAppMeshMesh,
 		SourceRecordID:   serviceARN + "->" + meshARN,
 	}}
 }
@@ -50,12 +51,12 @@ func virtualNodeRelationships(boundary awscloud.Boundary, node VirtualNode) []aw
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppMeshVirtualNodeBackendVirtualService,
+			RelationshipType: catalog.RelationshipAppMeshVirtualNodeBackendVirtualService,
 			SourceResourceID: nodeARN,
 			SourceARN:        nodeARN,
 			TargetResourceID: backendARN,
 			TargetARN:        backendARN,
-			TargetType:       awscloud.ResourceTypeAppMeshVirtualService,
+			TargetType:       catalog.ResourceTypeAppMeshVirtualService,
 			Attributes:       map[string]any{"virtual_service_name": backendName},
 			SourceRecordID:   nodeARN + "->" + backendARN,
 		})
@@ -73,12 +74,12 @@ func virtualNodeRelationships(boundary awscloud.Boundary, node VirtualNode) []aw
 		// dangling against the public ACM scanner.
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppMeshVirtualNodeTrustsCertificateAuthority,
+			RelationshipType: catalog.RelationshipAppMeshVirtualNodeTrustsCertificateAuthority,
 			SourceResourceID: nodeARN,
 			SourceARN:        nodeARN,
 			TargetResourceID: caARN,
 			TargetARN:        caARN,
-			TargetType:       awscloud.ResourceTypeACMPCACertificateAuthority,
+			TargetType:       catalog.ResourceTypeACMPCACertificateAuthority,
 			SourceRecordID:   nodeARN + "->" + caARN,
 		})
 	}
@@ -104,11 +105,11 @@ func serviceDiscoveryRelationship(boundary awscloud.Boundary, node VirtualNode, 
 		target := namespace + "/" + serviceName
 		return awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppMeshVirtualNodeUsesCloudMapService,
+			RelationshipType: catalog.RelationshipAppMeshVirtualNodeUsesCloudMapService,
 			SourceResourceID: nodeARN,
 			SourceARN:        nodeARN,
 			TargetResourceID: target,
-			TargetType:       awscloud.TargetTypeCloudMapService,
+			TargetType:       catalog.TargetTypeCloudMapService,
 			Attributes: map[string]any{
 				"cloud_map_namespace_name": namespace,
 				"cloud_map_service_name":   serviceName,
@@ -122,11 +123,11 @@ func serviceDiscoveryRelationship(boundary awscloud.Boundary, node VirtualNode, 
 		}
 		return awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppMeshVirtualNodeUsesDNSHostname,
+			RelationshipType: catalog.RelationshipAppMeshVirtualNodeUsesDNSHostname,
 			SourceResourceID: nodeARN,
 			SourceARN:        nodeARN,
 			TargetResourceID: hostname,
-			TargetType:       awscloud.TargetTypeDNSHostname,
+			TargetType:       catalog.TargetTypeDNSHostname,
 			SourceRecordID:   nodeARN + "->dns:" + hostname,
 		}, true
 	default:
@@ -144,12 +145,12 @@ func routeRelationships(boundary awscloud.Boundary, route Route) []awscloud.Rela
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppMeshRouteInVirtualRouter,
+		RelationshipType: catalog.RelationshipAppMeshRouteInVirtualRouter,
 		SourceResourceID: routeARN,
 		SourceARN:        routeARN,
 		TargetResourceID: routerARN,
 		TargetARN:        routerARN,
-		TargetType:       awscloud.ResourceTypeAppMeshVirtualRouter,
+		TargetType:       catalog.ResourceTypeAppMeshVirtualRouter,
 		SourceRecordID:   routeARN + "->" + routerARN,
 	}}
 }
@@ -163,12 +164,12 @@ func virtualGatewayRelationships(boundary awscloud.Boundary, mesh Mesh, gateway 
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppMeshVirtualGatewayInMesh,
+		RelationshipType: catalog.RelationshipAppMeshVirtualGatewayInMesh,
 		SourceResourceID: gatewayARN,
 		SourceARN:        gatewayARN,
 		TargetResourceID: meshARN,
 		TargetARN:        meshARN,
-		TargetType:       awscloud.ResourceTypeAppMeshMesh,
+		TargetType:       catalog.ResourceTypeAppMeshMesh,
 		SourceRecordID:   gatewayARN + "->" + meshARN,
 	}}
 }

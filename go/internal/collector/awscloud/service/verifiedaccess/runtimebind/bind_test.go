@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/verifiedaccess/runtimebind"
 )
 
 // TestVerifiedAccessRuntimeBindRegisters confirms importing the binding installs
 // the Verified Access scanner builder.
 func TestVerifiedAccessRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceVerifiedAccess)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceVerifiedAccess)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceVerifiedAccess)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceVerifiedAccess)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceVerifiedAccess,
+			ServiceKind: catalog.ServiceVerifiedAccess,
 		},
 	})
 	if err != nil {

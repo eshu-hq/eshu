@@ -83,12 +83,12 @@ func applicationRelationship(
 	target := firstNonEmpty(appARN, appName)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentBelongsToApplication,
+		RelationshipType: catalog.RelationshipElasticBeanstalkEnvironmentBelongsToApplication,
 		SourceResourceID: sourceID,
 		SourceARN:        environmentARN,
 		TargetResourceID: target,
 		TargetARN:        appARN,
-		TargetType:       awscloud.ResourceTypeElasticBeanstalkApplication,
+		TargetType:       catalog.ResourceTypeElasticBeanstalkApplication,
 		SourceRecordID:   sourceID + "#application#" + appName,
 	}, true
 }
@@ -114,7 +114,7 @@ func optionSettingRelationships(
 		case namespace == optionNamespaceVPC && option == optionNameVPCID:
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesVPC,
+				RelationshipType: catalog.RelationshipElasticBeanstalkEnvironmentUsesVPC,
 				SourceResourceID: sourceID,
 				SourceARN:        environmentARN,
 				TargetResourceID: value,
@@ -124,7 +124,7 @@ func optionSettingRelationships(
 		case namespace == optionNamespaceLaunchConfig && option == optionNameInstanceProfile:
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile,
+				RelationshipType: catalog.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile,
 				SourceResourceID: sourceID,
 				SourceARN:        environmentARN,
 				TargetResourceID: value,
@@ -135,7 +135,7 @@ func optionSettingRelationships(
 		case namespace == optionNamespaceEnvironment && option == optionNameServiceRole:
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesServiceRole,
+				RelationshipType: catalog.RelationshipElasticBeanstalkEnvironmentUsesServiceRole,
 				SourceResourceID: sourceID,
 				SourceARN:        environmentARN,
 				TargetResourceID: value,
@@ -165,7 +165,7 @@ func resourceRelationships(
 		targetType, targetARN := loadBalancerTarget(identifier)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer,
+			RelationshipType: catalog.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer,
 			SourceResourceID: sourceID,
 			SourceARN:        environmentARN,
 			TargetResourceID: identifier,
@@ -181,7 +181,7 @@ func resourceRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup,
+			RelationshipType: catalog.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        environmentARN,
 			TargetResourceID: name,
@@ -196,7 +196,7 @@ func resourceRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate,
+			RelationshipType: catalog.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate,
 			SourceResourceID: sourceID,
 			SourceARN:        environmentARN,
 			TargetResourceID: id,
@@ -225,12 +225,12 @@ func versionRelationship(
 	target := firstNonEmpty(versionARN, versionKey(appName, label))
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentRunsVersion,
+		RelationshipType: catalog.RelationshipElasticBeanstalkEnvironmentRunsVersion,
 		SourceResourceID: sourceID,
 		SourceARN:        environmentARN,
 		TargetResourceID: target,
 		TargetARN:        versionARN,
-		TargetType:       awscloud.ResourceTypeElasticBeanstalkApplicationVersion,
+		TargetType:       catalog.ResourceTypeElasticBeanstalkApplicationVersion,
 		SourceRecordID:   sourceID + "#version#" + label,
 	}, true
 }
