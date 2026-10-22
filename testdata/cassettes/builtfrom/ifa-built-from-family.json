@@ -1,0 +1,115 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "git-repository-scope:repository:eshu-fixture-orders-api",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "git-repository-scope:repository:eshu-fixture-orders-api",
+      "metadata": {
+        "fixture": "ifa-built-from-family"
+      },
+      "generation_id": "gen-ifa-built-from-family-1",
+      "observed_at": "2026-10-21T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repository:eshu-fixture-orders-api",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repository:eshu-fixture-orders-api",
+            "graph_kind": "repository",
+            "name": "orders-api",
+            "remote_url": "https://github.com/acme/orders-api",
+            "repo_id": "repository:eshu-fixture-orders-api",
+            "source_run_id": "run-ifa-built-from-family-1"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:k8s-ref-thirdparty-tool",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_metadata": {
+              "container_images": [
+                "registry.example.com/thirdparty/tool@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              ]
+            },
+            "entity_type": "K8sResource",
+            "repo_id": "repository:eshu-fixture-orders-api"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "config_labels": {
+              "org.opencontainers.image.source": "https://github.com/acme/orders-api"
+            },
+            "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "repository_id": "oci-registry://registry.example.com/acme/orders-api"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "config_labels": {
+              "org.opencontainers.image.source": "https://github.com/acme/orders-api"
+            },
+            "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "repository_id": "oci-registry://registry.example.com/acme/orders-api"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "repository_id": "oci-registry://registry.example.com/thirdparty/tool"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "config_labels": {
+              "org.opencontainers.image.source": "https://github.com/acme/ghost-svc"
+            },
+            "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "repository_id": "oci-registry://registry.example.com/acme/ghost-svc"
+          }
+        }
+      ]
+    }
+  ]
+}

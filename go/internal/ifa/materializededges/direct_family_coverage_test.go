@@ -187,9 +187,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes: []string{"AWS_lambda_function_uses_image"},
 	},
 	{
-		Family:    builtFromFamily,
-		OduName:   ifa.BuiltFromFamilyOduName,
-		EdgeTypes: []string{"BUILT_FROM"},
+		Family:     builtFromFamily,
+		OduName:    ifa.BuiltFromFamilyOduName,
+		EdgeTypes:  []string{"BUILT_FROM"},
+		LiveProven: true,
 	},
 	{
 		Family:    derivedFromFamily,

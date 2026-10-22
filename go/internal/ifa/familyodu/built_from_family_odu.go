@@ -46,6 +46,13 @@ const (
 	// repository fact's remote_url by canonical key.
 	builtFromFamilyRemoteURL = "https://github.com/acme/orders-api"
 
+	// builtFromFamilySourceRunID is the collector run stamped onto the
+	// repository fact. The projector's canonical phase drops a decoded
+	// repository fact with an empty source run id (no code_entities_uid
+	// phase row), so the committed cassette must carry the same value or
+	// the guard test reds on the drift either way.
+	builtFromFamilySourceRunID = "run-ifa-built-from-family-1"
+
 	// builtFromFamilySchemaVersion, builtFromFamilyOCICollectorKind and
 	// builtFromFamilyManifestMediaType mirror what the collectors stamp
 	// on repository, content_entity and OCI manifest facts.
@@ -125,11 +132,12 @@ func BuiltFromFamilyOdu() CatalogOdu {
 		CollectorKind:    builtFromFamilyGitCollectorKind,
 		SourceConfidence: facts.SourceConfidenceObserved,
 		Payload: map[string]any{
-			"graph_id":   builtFromFamilyRepositoryID,
-			"graph_kind": "repository",
-			"repo_id":    builtFromFamilyRepositoryID,
-			"name":       "orders-api",
-			"remote_url": builtFromFamilyRemoteURL,
+			"graph_id":      builtFromFamilyRepositoryID,
+			"graph_kind":    "repository",
+			"repo_id":       builtFromFamilyRepositoryID,
+			"name":          "orders-api",
+			"remote_url":    builtFromFamilyRemoteURL,
+			"source_run_id": builtFromFamilySourceRunID,
 		},
 	})
 	// A Kubernetes manifest in the fixture repository merely REFERENCES

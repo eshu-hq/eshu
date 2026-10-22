@@ -107,6 +107,12 @@ authenticates_vault_role_edge_operation_match="MERGE (s)-[rel:SECRETS_IAM_AUTHEN
 # the static token into the template (no %s), so the anchor carries the
 # literal. None of the port-suffix labels appears in code.
 uses_vault_policy_edge_operation_match="MERGE (v)-[rel:SECRETS_IAM_USES_VAULT_POLICY]->(p)"
+# The BUILT_FROM MERGE anchor cell_failgraphwrite_built_from (#6228 slice C
+# live leaf) targets: go/internal/storage/cypher/edge/writer/provenance.go:172
+# emits MERGE (img)-[rel:BUILT_FROM { with the scope_id/evidence_source
+# identity map, so the anchor carries the PREFIX form. A full `]->(repo)`
+# spelling would match no executed statement and the fault would never fire.
+built_from_edge_operation_match="MERGE (img)-[rel:BUILT_FROM"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical/node/documentation_edges.go's
