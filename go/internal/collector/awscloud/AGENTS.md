@@ -15,7 +15,10 @@
    Lattice, Route 53, Route 53 Resolver, Route 53 Recovery Control Config,
    Direct Connect, Transit Gateway, Network Manager, Network Firewall, ELB,
    ELBv2, Global Accelerator, Service Discovery, and CloudFront now live in
-   `catalog/network.go` and `catalog/network_edge.go`). New service
+   `catalog/network.go` and `catalog/network_edge.go`; RDS, DynamoDB,
+   ElastiCache, Redshift, MemoryDB, DocDB, DocDB Elastic, Neptune, Timestream,
+   Keyspaces, DAX, and Lake Formation now live in `catalog/database.go` and
+   `catalog/database_specialized.go`). New service
    constants MUST land in their own
    `constants_<service>.go` sibling, not back in `types.go`, so the 500-line
    cap stays satisfied.

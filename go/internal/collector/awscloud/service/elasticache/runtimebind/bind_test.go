@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/elasticache/runtimebind"
 )
 
 // TestElastiCacheRuntimeBindRegisters confirms importing the binding
 // installs the ElastiCache scanner builder.
 func TestElastiCacheRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceElastiCache)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceElastiCache)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceElastiCache)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceElastiCache)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceElastiCache},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceElastiCache},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

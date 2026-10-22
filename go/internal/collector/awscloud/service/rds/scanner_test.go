@@ -101,7 +101,7 @@ func TestScannerEmitsRDSMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeRDSDBInstance)
+	instance := resourceByType(t, envelopes, catalog.ResourceTypeRDSDBInstance)
 	if got, want := instance.Payload["arn"], instanceARN; got != want {
 		t.Fatalf("instance arn = %#v, want %q", got, want)
 	}
@@ -134,7 +134,7 @@ func TestScannerEmitsRDSMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeRDSDBCluster)
+	cluster := resourceByType(t, envelopes, catalog.ResourceTypeRDSDBCluster)
 	clusterAttributes := attributesOf(t, cluster)
 	assertAttribute(t, clusterAttributes, "endpoint_address", "orders.cluster.example.us-east-1.rds.amazonaws.com")
 	assertAttribute(t, clusterAttributes, "reader_endpoint_address", "orders.cluster-ro.example.us-east-1.rds.amazonaws.com")
@@ -143,27 +143,27 @@ func TestScannerEmitsRDSMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("master_username attribute persisted; RDS cluster scanner must stay metadata-only")
 	}
 
-	subnetGroup := resourceByType(t, envelopes, awscloud.ResourceTypeRDSDBSubnetGroup)
+	subnetGroup := resourceByType(t, envelopes, catalog.ResourceTypeRDSDBSubnetGroup)
 	subnetAttributes := attributesOf(t, subnetGroup)
 	assertAttribute(t, subnetAttributes, "subnet_ids", []string{"subnet-a", "subnet-b"})
 	assertAttribute(t, subnetAttributes, "vpc_id", "vpc-123")
 
-	memberRelationship := relationshipByType(t, envelopes, awscloud.RelationshipRDSDBInstanceMemberOfCluster)
+	memberRelationship := relationshipByType(t, envelopes, catalog.RelationshipRDSDBInstanceMemberOfCluster)
 	if got, want := memberRelationship.Payload["target_arn"], clusterARN; got != want {
 		t.Fatalf("cluster membership target_arn = %#v, want %q", got, want)
 	}
 	assertAttribute(t, attributesOf(t, memberRelationship), "is_writer", true)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceInSubnetGroup, subnetGroupARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBClusterInSubnetGroup, subnetGroupARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-123")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBClusterUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-123")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesKMSKey, kmsARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBClusterUsesKMSKey, kmsARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesMonitoringRole, monitoringRoleARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBClusterUsesIAMRole, "arn:aws:iam::123456789012:role/rds-s3-import")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesParameterGroup, "orders-postgres16")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBClusterUsesParameterGroup, "orders-cluster-params")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesOptionGroup, "orders-options")
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBInstanceInSubnetGroup, subnetGroupARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBClusterInSubnetGroup, subnetGroupARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBInstanceUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-123")
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBClusterUsesSecurityGroup, "arn:aws:ec2:us-east-1:123456789012:security-group/sg-123")
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBInstanceUsesKMSKey, kmsARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBClusterUsesKMSKey, kmsARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBInstanceUsesMonitoringRole, monitoringRoleARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBClusterUsesIAMRole, "arn:aws:iam::123456789012:role/rds-s3-import")
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBInstanceUsesParameterGroup, "orders-postgres16")
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBClusterUsesParameterGroup, "orders-cluster-params")
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipRDSDBInstanceUsesOptionGroup, "orders-options")
 }
 
 func TestScannerSkipsRelationshipsWithoutTargets(t *testing.T) {
@@ -193,7 +193,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipRDSDBInstanceUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipRDSDBInstanceUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/orders"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -225,9 +225,9 @@ func TestScannerDoesNotTreatFallbackTargetIDsAsARNs(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipRDSDBInstanceMemberOfCluster,
-		awscloud.RelationshipRDSDBInstanceInSubnetGroup,
-		awscloud.RelationshipRDSDBClusterInSubnetGroup,
+		catalog.RelationshipRDSDBInstanceMemberOfCluster,
+		catalog.RelationshipRDSDBInstanceInSubnetGroup,
+		catalog.RelationshipRDSDBClusterInSubnetGroup,
 	} {
 		relationship := relationshipByType(t, envelopes, relationshipType)
 		if got := relationship.Payload["target_arn"]; got != "" {
@@ -250,7 +250,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceRDS,
+		ServiceKind:         catalog.ServiceRDS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:rds:1",
 		CollectorInstanceID: "aws-prod",

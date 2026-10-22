@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestScannerEmitsMemoryDBMetadataOnlyFactsAndRelationships(t *testing.T) {
@@ -99,7 +99,7 @@ func TestScannerEmitsMemoryDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeMemoryDBCluster)
+	cluster := resourceByType(t, envelopes, catalog.ResourceTypeMemoryDBCluster)
 	if got, want := cluster.Payload["arn"], clusterARN; got != want {
 		t.Fatalf("cluster arn = %#v, want %q", got, want)
 	}
@@ -133,12 +133,12 @@ func TestScannerEmitsMemoryDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	subnetGroup := resourceByType(t, envelopes, awscloud.ResourceTypeMemoryDBSubnetGroup)
+	subnetGroup := resourceByType(t, envelopes, catalog.ResourceTypeMemoryDBSubnetGroup)
 	subnetGroupAttributes := attributesOf(t, subnetGroup)
 	assertAttribute(t, subnetGroupAttributes, "vpc_id", "vpc-123")
 	assertAttribute(t, subnetGroupAttributes, "subnet_ids", []string{"subnet-a", "subnet-b"})
 
-	parameterGroup := resourceByType(t, envelopes, awscloud.ResourceTypeMemoryDBParameterGroup)
+	parameterGroup := resourceByType(t, envelopes, catalog.ResourceTypeMemoryDBParameterGroup)
 	parameterGroupAttributes := attributesOf(t, parameterGroup)
 	assertAttribute(t, parameterGroupAttributes, "family", "memorydb_redis7")
 	assertAttribute(t, parameterGroupAttributes, "description", "orders redis 7 params")
@@ -149,7 +149,7 @@ func TestScannerEmitsMemoryDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("parameter group tags = %#v, want %#v", got, want)
 	}
 
-	user := resourceByType(t, envelopes, awscloud.ResourceTypeMemoryDBUser)
+	user := resourceByType(t, envelopes, catalog.ResourceTypeMemoryDBUser)
 	userAttributes := attributesOf(t, user)
 	assertAttribute(t, userAttributes, "authentication_type", "password")
 	assertAttribute(t, userAttributes, "password_count", int32(2))
@@ -166,7 +166,7 @@ func TestScannerEmitsMemoryDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	acl := resourceByType(t, envelopes, awscloud.ResourceTypeMemoryDBACL)
+	acl := resourceByType(t, envelopes, catalog.ResourceTypeMemoryDBACL)
 	aclAttributes := attributesOf(t, acl)
 	assertAttribute(t, aclAttributes, "user_names", []string{"orders-app"})
 	assertAttribute(t, aclAttributes, "minimum_engine_version", "6.0")
@@ -176,7 +176,7 @@ func TestScannerEmitsMemoryDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	snapshotResource := resourceByType(t, envelopes, awscloud.ResourceTypeMemoryDBSnapshot)
+	snapshotResource := resourceByType(t, envelopes, catalog.ResourceTypeMemoryDBSnapshot)
 	if got, want := snapshotResource.Payload["name"], "orders-2026-05-27"; got != want {
 		t.Fatalf("snapshot name = %#v, want %q", got, want)
 	}
@@ -203,18 +203,18 @@ func TestScannerEmitsMemoryDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipMemoryDBClusterInSubnetGroup, subnetGroupARN)
-	assertRelationshipTargetAttribute(t, envelopes, awscloud.RelationshipMemoryDBClusterInSubnetGroup, "subnet_group_name", "orders-cache")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipMemoryDBClusterUsesKMSKey, kmsKeyARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipMemoryDBClusterNotifiesSNSTopic, snsTopicARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipMemoryDBACLHasUser, userARN)
-	assertRelationshipTargetAttribute(t, envelopes, awscloud.RelationshipMemoryDBACLHasUser, "user_name", "orders-app")
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipMemoryDBClusterInSubnetGroup, subnetGroupARN)
+	assertRelationshipTargetAttribute(t, envelopes, catalog.RelationshipMemoryDBClusterInSubnetGroup, "subnet_group_name", "orders-cache")
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipMemoryDBClusterUsesKMSKey, kmsKeyARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipMemoryDBClusterNotifiesSNSTopic, snsTopicARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipMemoryDBACLHasUser, userARN)
+	assertRelationshipTargetAttribute(t, envelopes, catalog.RelationshipMemoryDBACLHasUser, "user_name", "orders-app")
 	// SourceRecordIDs incorporate the relationship type so a source with
 	// multiple edges to the same target stays distinct in the envelope source
 	// ref (matches the ElastiCache scanner pattern).
-	assertRelationshipSourceRecordID(t, envelopes, awscloud.RelationshipMemoryDBClusterInSubnetGroup, clusterARN+"->memorydb_cluster_in_subnet_group:"+subnetGroupARN)
-	assertRelationshipSourceRecordID(t, envelopes, awscloud.RelationshipMemoryDBClusterNotifiesSNSTopic, clusterARN+"->memorydb_cluster_notifies_sns_topic:"+snsTopicARN)
-	assertRelationshipSourceRecordID(t, envelopes, awscloud.RelationshipMemoryDBACLHasUser, aclARN+"->memorydb_acl_has_user:"+userARN)
+	assertRelationshipSourceRecordID(t, envelopes, catalog.RelationshipMemoryDBClusterInSubnetGroup, clusterARN+"->memorydb_cluster_in_subnet_group:"+subnetGroupARN)
+	assertRelationshipSourceRecordID(t, envelopes, catalog.RelationshipMemoryDBClusterNotifiesSNSTopic, clusterARN+"->memorydb_cluster_notifies_sns_topic:"+snsTopicARN)
+	assertRelationshipSourceRecordID(t, envelopes, catalog.RelationshipMemoryDBACLHasUser, aclARN+"->memorydb_acl_has_user:"+userARN)
 }
 
 func TestScannerSkipsRelationshipsWithoutTargets(t *testing.T) {
@@ -244,7 +244,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipMemoryDBClusterUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipMemoryDBClusterUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/orders"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -271,7 +271,7 @@ func TestScannerUpgradesSubnetGroupTargetToARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipMemoryDBClusterInSubnetGroup)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipMemoryDBClusterInSubnetGroup)
 	if got, want := relationship.Payload["target_arn"], subnetGroupARN; got != want {
 		t.Fatalf("target_arn = %#v, want %q (subnet group ARN resolved by name)", got, want)
 	}
@@ -279,7 +279,7 @@ func TestScannerUpgradesSubnetGroupTargetToARN(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceRDS
+	boundary.ServiceKind = catalog.ServiceRDS
 
 	_, err := (Scanner{Client: fakeClient{}}).Scan(context.Background(), boundary)
 	if err == nil {

@@ -29,12 +29,12 @@ func instanceRelationships(
 	if targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBInstanceMemberOfCluster,
+			catalog.RelationshipRDSDBInstanceMemberOfCluster,
 			sourceID,
 			strings.TrimSpace(instance.ARN),
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRDSDBCluster,
+			catalog.ResourceTypeRDSDBCluster,
 			map[string]any{
 				"cluster_identifier": clusterIdentifier,
 				"is_writer":          membership.isWriter,
@@ -44,12 +44,12 @@ func instanceRelationships(
 	if targetID := subnetGroupIDs[strings.TrimSpace(instance.DBSubnetGroupName)]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBInstanceInSubnetGroup,
+			catalog.RelationshipRDSDBInstanceInSubnetGroup,
 			sourceID,
 			strings.TrimSpace(instance.ARN),
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRDSDBSubnetGroup,
+			catalog.ResourceTypeRDSDBSubnetGroup,
 			map[string]any{"db_subnet_group_name": strings.TrimSpace(instance.DBSubnetGroupName)},
 		))
 	}
@@ -57,7 +57,7 @@ func instanceRelationships(
 		targetARN := securityGroupARN(boundary, groupID)
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBInstanceUsesSecurityGroup,
+			catalog.RelationshipRDSDBInstanceUsesSecurityGroup,
 			sourceID,
 			strings.TrimSpace(instance.ARN),
 			targetARN,
@@ -68,7 +68,7 @@ func instanceRelationships(
 	}
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRDSDBInstanceUsesKMSKey,
+		catalog.RelationshipRDSDBInstanceUsesKMSKey,
 		sourceID,
 		strings.TrimSpace(instance.ARN),
 		strings.TrimSpace(instance.KMSKeyID),
@@ -76,7 +76,7 @@ func instanceRelationships(
 	)...)
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRDSDBInstanceUsesMonitoringRole,
+		catalog.RelationshipRDSDBInstanceUsesMonitoringRole,
 		sourceID,
 		strings.TrimSpace(instance.ARN),
 		strings.TrimSpace(instance.MonitoringRoleARN),
@@ -86,7 +86,7 @@ func instanceRelationships(
 		if name := strings.TrimSpace(group.Name); name != "" {
 			relationships = append(relationships, namedRelationship(
 				boundary,
-				awscloud.RelationshipRDSDBInstanceUsesParameterGroup,
+				catalog.RelationshipRDSDBInstanceUsesParameterGroup,
 				sourceID,
 				strings.TrimSpace(instance.ARN),
 				name,
@@ -99,7 +99,7 @@ func instanceRelationships(
 		if name := strings.TrimSpace(group.Name); name != "" {
 			relationships = append(relationships, namedRelationship(
 				boundary,
-				awscloud.RelationshipRDSDBInstanceUsesOptionGroup,
+				catalog.RelationshipRDSDBInstanceUsesOptionGroup,
 				sourceID,
 				strings.TrimSpace(instance.ARN),
 				name,
@@ -121,12 +121,12 @@ func clusterRelationships(
 	if targetID := subnetGroupIDs[strings.TrimSpace(cluster.DBSubnetGroupName)]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBClusterInSubnetGroup,
+			catalog.RelationshipRDSDBClusterInSubnetGroup,
 			sourceID,
 			strings.TrimSpace(cluster.ARN),
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRDSDBSubnetGroup,
+			catalog.ResourceTypeRDSDBSubnetGroup,
 			map[string]any{"db_subnet_group_name": strings.TrimSpace(cluster.DBSubnetGroupName)},
 		))
 	}
@@ -134,7 +134,7 @@ func clusterRelationships(
 		targetARN := securityGroupARN(boundary, groupID)
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBClusterUsesSecurityGroup,
+			catalog.RelationshipRDSDBClusterUsesSecurityGroup,
 			sourceID,
 			strings.TrimSpace(cluster.ARN),
 			targetARN,
@@ -145,7 +145,7 @@ func clusterRelationships(
 	}
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRDSDBClusterUsesKMSKey,
+		catalog.RelationshipRDSDBClusterUsesKMSKey,
 		sourceID,
 		strings.TrimSpace(cluster.ARN),
 		strings.TrimSpace(cluster.KMSKeyID),
@@ -154,7 +154,7 @@ func clusterRelationships(
 	for _, roleARN := range cloneStrings(cluster.AssociatedRoleARNs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRDSDBClusterUsesIAMRole,
+			catalog.RelationshipRDSDBClusterUsesIAMRole,
 			sourceID,
 			strings.TrimSpace(cluster.ARN),
 			roleARN,
@@ -166,7 +166,7 @@ func clusterRelationships(
 	if name := strings.TrimSpace(cluster.ParameterGroup); name != "" {
 		relationships = append(relationships, namedRelationship(
 			boundary,
-			awscloud.RelationshipRDSDBClusterUsesParameterGroup,
+			catalog.RelationshipRDSDBClusterUsesParameterGroup,
 			sourceID,
 			strings.TrimSpace(cluster.ARN),
 			name,

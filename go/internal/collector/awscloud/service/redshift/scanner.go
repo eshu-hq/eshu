@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -29,10 +30,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("redshift scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRedshift:
+	case "", catalog.ServiceRedshift:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRedshift
+		boundary.ServiceKind = catalog.ServiceRedshift
 	default:
 		return nil, fmt.Errorf("redshift scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -251,7 +252,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftCluster,
+		ResourceType: catalog.ResourceTypeRedshiftCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(cluster.ClusterStatus),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -311,7 +312,7 @@ func parameterGroupObservation(
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftClusterParameterGroup,
+		ResourceType: catalog.ResourceTypeRedshiftClusterParameterGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -334,7 +335,7 @@ func subnetGroupObservation(
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftClusterSubnetGroup,
+		ResourceType: catalog.ResourceTypeRedshiftClusterSubnetGroup,
 		Name:         name,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),
@@ -359,7 +360,7 @@ func snapshotObservation(
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftClusterSnapshot,
+		ResourceType: catalog.ResourceTypeRedshiftClusterSnapshot,
 		Name:         identifier,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),
@@ -394,7 +395,7 @@ func scheduledActionObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeRedshiftScheduledAction,
+		ResourceType: catalog.ResourceTypeRedshiftScheduledAction,
 		Name:         name,
 		State:        strings.TrimSpace(action.State),
 		Attributes: map[string]any{
@@ -423,7 +424,7 @@ func serverlessNamespaceObservation(
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftServerlessNamespace,
+		ResourceType: catalog.ResourceTypeRedshiftServerlessNamespace,
 		Name:         name,
 		State:        strings.TrimSpace(namespace.Status),
 		Tags:         cloneStringMap(namespace.Tags),
@@ -452,7 +453,7 @@ func serverlessWorkgroupObservation(
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRedshiftServerlessWorkgroup,
+		ResourceType: catalog.ResourceTypeRedshiftServerlessWorkgroup,
 		Name:         name,
 		State:        strings.TrimSpace(workgroup.Status),
 		Tags:         cloneStringMap(workgroup.Tags),

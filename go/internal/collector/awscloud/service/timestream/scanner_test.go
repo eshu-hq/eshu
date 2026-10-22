@@ -53,7 +53,7 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Database resource node.
-	database := resourceByType(t, envelopes, awscloud.ResourceTypeTimestreamDatabase)
+	database := resourceByType(t, envelopes, catalog.ResourceTypeTimestreamDatabase)
 	if got, want := database.Payload["resource_id"], testDatabaseARN; got != want {
 		t.Fatalf("database resource_id = %#v, want %q", got, want)
 	}
@@ -66,7 +66,7 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, dbAttrs, "database_name", "metrics")
 
 	// Table resource node.
-	table := resourceByType(t, envelopes, awscloud.ResourceTypeTimestreamTable)
+	table := resourceByType(t, envelopes, catalog.ResourceTypeTimestreamTable)
 	if got, want := table.Payload["resource_id"], testTableARN; got != want {
 		t.Fatalf("table resource_id = %#v, want %q", got, want)
 	}
@@ -81,8 +81,8 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, tableAttrs, "partition_key_names", []string{"host"})
 
 	// table -> database edge, keyed by the database ARN the database node publishes.
-	tableInDB := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamTableInDatabase)
-	assertEdgeTarget(t, tableInDB, awscloud.ResourceTypeTimestreamDatabase, testDatabaseARN)
+	tableInDB := relationshipByType(t, envelopes, catalog.RelationshipTimestreamTableInDatabase)
+	assertEdgeTarget(t, tableInDB, catalog.ResourceTypeTimestreamDatabase, testDatabaseARN)
 	if got, want := tableInDB.Payload["source_resource_id"], testTableARN; got != want {
 		t.Fatalf("table->database source_resource_id = %#v, want %q", got, want)
 	}
@@ -91,7 +91,7 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 	}
 
 	// database -> KMS key edge.
-	dbKMS := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamDatabaseUsesKMSKey)
+	dbKMS := relationshipByType(t, envelopes, catalog.RelationshipTimestreamDatabaseUsesKMSKey)
 	assertEdgeTarget(t, dbKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := dbKMS.Payload["source_resource_id"], testDatabaseARN; got != want {
 		t.Fatalf("database->kms source_resource_id = %#v, want %q", got, want)
@@ -102,7 +102,7 @@ func TestScannerEmitsTimestreamMetadataAndRelationships(t *testing.T) {
 
 	// table -> S3 bucket edge, keyed by the synthesized partition-aware ARN the
 	// S3 scanner publishes for a bucket node.
-	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamTableRejectsToS3)
+	tableS3 := relationshipByType(t, envelopes, catalog.RelationshipTimestreamTableRejectsToS3)
 	wantBucketARN := "arn:aws:s3:::rejected-data-bucket"
 	assertEdgeTarget(t, tableS3, catalog.ResourceTypeS3Bucket, wantBucketARN)
 	if got, want := tableS3.Payload["source_resource_id"], testTableARN; got != want {
@@ -148,7 +148,7 @@ func TestScannerSynthesizesGovCloudBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamTableRejectsToS3)
+	tableS3 := relationshipByType(t, envelopes, catalog.RelationshipTimestreamTableRejectsToS3)
 	wantARN := "arn:aws-us-gov:s3:::gov-rejected-bucket"
 	if got := tableS3.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud table->s3 target_resource_id = %#v, want %q", got, wantARN)
@@ -176,7 +176,7 @@ func TestScannerSynthesizesChinaBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamTableRejectsToS3)
+	tableS3 := relationshipByType(t, envelopes, catalog.RelationshipTimestreamTableRejectsToS3)
 	wantARN := "arn:aws-cn:s3:::cn-rejected-bucket"
 	if got := tableS3.Payload["target_arn"]; got != wantARN {
 		t.Fatalf("China table->s3 target_arn = %#v, want %q", got, wantARN)
@@ -212,7 +212,7 @@ func TestScannerOmitsKMSEdgeForNonARNKeyButKeepsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	dbKMS := relationshipByType(t, envelopes, awscloud.RelationshipTimestreamDatabaseUsesKMSKey)
+	dbKMS := relationshipByType(t, envelopes, catalog.RelationshipTimestreamDatabaseUsesKMSKey)
 	if got, want := dbKMS.Payload["target_resource_id"], "alias/timestream-metrics"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -281,7 +281,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceTimestream,
+		ServiceKind:         catalog.ServiceTimestream,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:timestream:1",
 		CollectorInstanceID: "aws-prod",

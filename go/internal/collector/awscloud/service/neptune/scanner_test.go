@@ -7,7 +7,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
@@ -138,7 +137,7 @@ func TestScannerEmitsNeptuneMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeNeptuneCluster)
+	cluster := resourceByType(t, envelopes, catalog.ResourceTypeNeptuneCluster)
 	if got, want := cluster.Payload["arn"], clusterARN; got != want {
 		t.Fatalf("cluster arn = %#v, want %q", got, want)
 	}
@@ -151,14 +150,14 @@ func TestScannerEmitsNeptuneMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertAttribute(t, clusterAttributes, "associated_role_arns", []string{roleARN})
 	assertForbiddenAbsent(t, clusterAttributes, "cluster")
 
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeNeptuneClusterInstance)
+	instance := resourceByType(t, envelopes, catalog.ResourceTypeNeptuneClusterInstance)
 	instanceAttributes := attributesOf(t, instance)
 	assertAttribute(t, instanceAttributes, "endpoint_address", "orders-neptune-1.neptune.amazonaws.com")
 	assertAttribute(t, instanceAttributes, "endpoint_port", int32(8182))
 	assertAttribute(t, instanceAttributes, "cluster_identifier", "orders-neptune")
 	assertForbiddenAbsent(t, instanceAttributes, "instance")
 
-	paramGroup := resourceByType(t, envelopes, awscloud.ResourceTypeNeptuneClusterParameterGroup)
+	paramGroup := resourceByType(t, envelopes, catalog.ResourceTypeNeptuneClusterParameterGroup)
 	paramAttributes := attributesOf(t, paramGroup)
 	assertAttribute(t, paramAttributes, "family", "neptune1.3")
 	for _, forbidden := range []string{"parameters", "parameter_values", "values", "parameter_count"} {
@@ -167,23 +166,23 @@ func TestScannerEmitsNeptuneMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	snapshot := resourceByType(t, envelopes, awscloud.ResourceTypeNeptuneClusterSnapshot)
+	snapshot := resourceByType(t, envelopes, catalog.ResourceTypeNeptuneClusterSnapshot)
 	snapshotAttributes := attributesOf(t, snapshot)
 	assertAttribute(t, snapshotAttributes, "snapshot_type", "manual")
 	assertAttribute(t, snapshotAttributes, "cluster_identifier", "orders-neptune")
 	assertForbiddenAbsent(t, snapshotAttributes, "snapshot")
 
-	subnetGroup := resourceByType(t, envelopes, awscloud.ResourceTypeNeptuneSubnetGroup)
+	subnetGroup := resourceByType(t, envelopes, catalog.ResourceTypeNeptuneSubnetGroup)
 	subnetAttributes := attributesOf(t, subnetGroup)
 	assertAttribute(t, subnetAttributes, "subnet_ids", []string{"subnet-a", "subnet-b"})
 	assertAttribute(t, subnetAttributes, "vpc_id", "vpc-123")
 
-	globalCluster := resourceByType(t, envelopes, awscloud.ResourceTypeNeptuneGlobalCluster)
+	globalCluster := resourceByType(t, envelopes, catalog.ResourceTypeNeptuneGlobalCluster)
 	globalAttributes := attributesOf(t, globalCluster)
 	assertAttribute(t, globalAttributes, "engine", "neptune")
 	assertAttribute(t, globalAttributes, "member_cluster_arns", []string{clusterARN})
 
-	graph := resourceByType(t, envelopes, awscloud.ResourceTypeNeptuneGraph)
+	graph := resourceByType(t, envelopes, catalog.ResourceTypeNeptuneGraph)
 	if got, want := graph.Payload["name"], "orders-graph"; got != want {
 		t.Fatalf("graph name = %#v, want %q", got, want)
 	}
@@ -196,35 +195,35 @@ func TestScannerEmitsNeptuneMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertAttribute(t, graphAttributes, "replica_count", int32(2))
 	assertForbiddenAbsent(t, graphAttributes, "graph")
 
-	graphSnapshot := resourceByType(t, envelopes, awscloud.ResourceTypeNeptuneGraphSnapshot)
+	graphSnapshot := resourceByType(t, envelopes, catalog.ResourceTypeNeptuneGraphSnapshot)
 	graphSnapshotAttributes := attributesOf(t, graphSnapshot)
 	assertAttribute(t, graphSnapshotAttributes, "source_graph_id", "g-orders")
 	assertForbiddenAbsent(t, graphSnapshotAttributes, "graph_snapshot")
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipNeptuneClusterInSubnetGroup, subnetGroupARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipNeptuneClusterInVPC, "vpc-123")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipNeptuneClusterUsesKMSKey, kmsARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipNeptuneClusterUsesIAMRole, roleARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipNeptuneGraphUsesKMSKey, kmsARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipNeptuneClusterInSubnetGroup, subnetGroupARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipNeptuneClusterInVPC, "vpc-123")
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipNeptuneClusterUsesKMSKey, kmsARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipNeptuneClusterUsesIAMRole, roleARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipNeptuneGraphUsesKMSKey, kmsARN)
 
-	roleRel := relationshipByType(t, envelopes, awscloud.RelationshipNeptuneClusterUsesIAMRole)
+	roleRel := relationshipByType(t, envelopes, catalog.RelationshipNeptuneClusterUsesIAMRole)
 	if got, want := roleRel.Payload["target_type"], catalog.ResourceTypeIAMRole; got != want {
 		t.Fatalf("cluster-uses-iam-role target_type = %#v, want %q", got, want)
 	}
 
-	memberRel := relationshipByType(t, envelopes, awscloud.RelationshipNeptuneInstanceMemberOfCluster)
+	memberRel := relationshipByType(t, envelopes, catalog.RelationshipNeptuneInstanceMemberOfCluster)
 	if got, want := memberRel.Payload["target_arn"], clusterARN; got != want {
 		t.Fatalf("instance membership target_arn = %#v, want %q", got, want)
 	}
 	assertAttribute(t, attributesOf(t, memberRel), "is_writer", true)
 
-	globalRel := relationshipByType(t, envelopes, awscloud.RelationshipNeptuneGlobalClusterHasCluster)
+	globalRel := relationshipByType(t, envelopes, catalog.RelationshipNeptuneGlobalClusterHasCluster)
 	if got, want := globalRel.Payload["target_arn"], clusterARN; got != want {
 		t.Fatalf("global cluster membership target_arn = %#v, want %q", got, want)
 	}
 	assertAttribute(t, attributesOf(t, globalRel), "is_writer", true)
 
-	graphKMSRel := relationshipByType(t, envelopes, awscloud.RelationshipNeptuneGraphUsesKMSKey)
+	graphKMSRel := relationshipByType(t, envelopes, catalog.RelationshipNeptuneGraphUsesKMSKey)
 	if got, want := graphKMSRel.Payload["target_type"], catalog.ResourceTypeKMSKey; got != want {
 		t.Fatalf("graph-uses-kms target_type = %#v, want %q", got, want)
 	}
@@ -251,7 +250,7 @@ func TestScannerClusterInVPCEdgeTargetsEC2VPCType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rel := relationshipByType(t, envelopes, awscloud.RelationshipNeptuneClusterInVPC)
+	rel := relationshipByType(t, envelopes, catalog.RelationshipNeptuneClusterInVPC)
 	if got, want := rel.Payload["target_resource_id"], "vpc-123"; got != want {
 		t.Fatalf("cluster-in-vpc target_resource_id = %#v, want %q", got, want)
 	}
@@ -299,7 +298,7 @@ func TestScannerInstanceMembershipReflectsClusterWriterRole(t *testing.T) {
 
 	writers := map[string]bool{}
 	for _, envelope := range envelopes {
-		if got, _ := envelope.Payload["relationship_type"].(string); got != awscloud.RelationshipNeptuneInstanceMemberOfCluster {
+		if got, _ := envelope.Payload["relationship_type"].(string); got != catalog.RelationshipNeptuneInstanceMemberOfCluster {
 			continue
 		}
 		sourceID, _ := envelope.Payload["source_resource_id"].(string)
@@ -330,7 +329,7 @@ func TestScannerNeverPersistsMasterUserPasswordAnchors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	cluster := resourceByType(t, envelopes, awscloud.ResourceTypeNeptuneCluster)
+	cluster := resourceByType(t, envelopes, catalog.ResourceTypeNeptuneCluster)
 	assertForbiddenAbsent(t, attributesOf(t, cluster), "cluster")
 	anchors, _ := cluster.Payload["correlation_anchors"].([]string)
 	for _, anchor := range anchors {
@@ -357,7 +356,7 @@ func TestScannerGraphWithoutKMSEmitsNoKMSEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	resourceByType(t, envelopes, awscloud.ResourceTypeNeptuneGraph)
+	resourceByType(t, envelopes, catalog.ResourceTypeNeptuneGraph)
 	if got := countRelationships(envelopes); got != 0 {
 		t.Fatalf("relationship count = %d, want 0 for graph without KMS key", got)
 	}
@@ -390,7 +389,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipNeptuneClusterUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipNeptuneClusterUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/orders-neptune"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("docdbelastic scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDocDBElastic:
+	case "", catalog.ServiceDocDBElastic:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDocDBElastic
+		boundary.ServiceKind = catalog.ServiceDocDBElastic
 	default:
 		return nil, fmt.Errorf("docdbelastic scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -109,7 +110,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 		Boundary:           boundary,
 		ARN:                clusterARN,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeDocDBElasticCluster,
+		ResourceType:       catalog.ResourceTypeDocDBElasticCluster,
 		Name:               name,
 		State:              strings.TrimSpace(cluster.Status),
 		Tags:               cloneStringMap(cluster.Tags),

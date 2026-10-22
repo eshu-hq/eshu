@@ -31,16 +31,16 @@ func clusterRelationships(
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMemoryDBClusterInSubnetGroup,
+			RelationshipType: catalog.RelationshipMemoryDBClusterInSubnetGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeMemoryDBSubnetGroup,
+			TargetType:       catalog.ResourceTypeMemoryDBSubnetGroup,
 			Attributes: map[string]any{
 				"subnet_group_name": subnetGroupName,
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipMemoryDBClusterInSubnetGroup, targetID),
+			SourceRecordID: relationshipRecordID(sourceID, catalog.RelationshipMemoryDBClusterInSubnetGroup, targetID),
 		})
 	}
 	if kmsKey := strings.TrimSpace(cluster.KMSKeyID); kmsKey != "" {
@@ -50,25 +50,25 @@ func clusterRelationships(
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMemoryDBClusterUsesKMSKey,
+			RelationshipType: catalog.RelationshipMemoryDBClusterUsesKMSKey,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: kmsKey,
 			TargetARN:        targetARN,
 			TargetType:       "aws_kms_key",
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipMemoryDBClusterUsesKMSKey, kmsKey),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipMemoryDBClusterUsesKMSKey, kmsKey),
 		})
 	}
 	if topicARN := strings.TrimSpace(cluster.SNSTopicARN); topicARN != "" {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMemoryDBClusterNotifiesSNSTopic,
+			RelationshipType: catalog.RelationshipMemoryDBClusterNotifiesSNSTopic,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: topicARN,
 			TargetARN:        topicARN,
 			TargetType:       catalog.ResourceTypeSNSTopic,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipMemoryDBClusterNotifiesSNSTopic, topicARN),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipMemoryDBClusterNotifiesSNSTopic, topicARN),
 		})
 	}
 	return relationships
@@ -95,16 +95,16 @@ func aclRelationships(
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMemoryDBACLHasUser,
+			RelationshipType: catalog.RelationshipMemoryDBACLHasUser,
 			SourceResourceID: sourceID,
 			SourceARN:        aclARN,
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeMemoryDBUser,
+			TargetType:       catalog.ResourceTypeMemoryDBUser,
 			Attributes: map[string]any{
 				"user_name": userName,
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipMemoryDBACLHasUser, targetID),
+			SourceRecordID: relationshipRecordID(sourceID, catalog.RelationshipMemoryDBACLHasUser, targetID),
 		})
 	}
 	return relationships

@@ -108,9 +108,9 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 
 	// template -> RDS DB instance and cluster, keyed by ARN.
 	dbInstance := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsRDSDBInstance)
-	assertEdgeTarget(t, dbInstance, awscloud.ResourceTypeRDSDBInstance, testDBARN)
+	assertEdgeTarget(t, dbInstance, catalog.ResourceTypeRDSDBInstance, testDBARN)
 	dbCluster := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsRDSDBCluster)
-	assertEdgeTarget(t, dbCluster, awscloud.ResourceTypeRDSDBCluster, testRDSClusARN)
+	assertEdgeTarget(t, dbCluster, catalog.ResourceTypeRDSDBCluster, testRDSClusARN)
 
 	// template -> CloudWatch log group, keyed by the bare log group ARN (no :*).
 	logGroup := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateLogsToCloudWatchLogGroup)

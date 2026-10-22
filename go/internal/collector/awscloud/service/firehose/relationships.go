@@ -292,7 +292,7 @@ func destinationTargetRelationship(
 		}
 		base.RelationshipType = catalog.RelationshipFirehoseStreamDeliversToRedshiftCluster
 		base.TargetResourceID = clusterID
-		base.TargetType = awscloud.ResourceTypeRedshiftCluster
+		base.TargetType = catalog.ResourceTypeRedshiftCluster
 		base.SourceRecordID = streamID + "#redshift#" + clusterID
 		return base, true
 	case destinationKindOpenSearch:

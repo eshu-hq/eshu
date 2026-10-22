@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/dynamodb/runtimebind"
 )
 
 // TestDynamoDBRuntimeBindRegisters confirms importing the binding
 // installs the DynamoDB scanner builder.
 func TestDynamoDBRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceDynamoDB)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceDynamoDB)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceDynamoDB)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceDynamoDB)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceDynamoDB},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceDynamoDB},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

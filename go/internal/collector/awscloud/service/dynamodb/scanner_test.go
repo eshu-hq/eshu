@@ -94,7 +94,7 @@ func TestScannerEmitsDynamoDBMetadataOnlyFactsAndKMSRelationship(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeDynamoDBTable)
+	resource := resourceByType(t, envelopes, catalog.ResourceTypeDynamoDBTable)
 	if got, want := resource.Payload["arn"], tableARN; got != want {
 		t.Fatalf("table arn = %#v, want %q", got, want)
 	}
@@ -150,7 +150,7 @@ func TestScannerEmitsDynamoDBMetadataOnlyFactsAndKMSRelationship(t *testing.T) {
 		}
 	}
 
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipDynamoDBTableUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipDynamoDBTableUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], kmsARN; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -174,7 +174,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipDynamoDBTableUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipDynamoDBTableUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/orders"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -221,7 +221,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeDynamoDBTable)
+	resource := resourceByType(t, envelopes, catalog.ResourceTypeDynamoDBTable)
 	if got := resource.Payload["state"]; got != "ACTIVE" {
 		t.Fatalf("table state = %#v, want ACTIVE", got)
 	}
@@ -231,7 +231,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDynamoDB,
+		ServiceKind:         catalog.ServiceDynamoDB,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:dynamodb:1",
 		CollectorInstanceID: "aws-prod",

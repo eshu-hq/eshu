@@ -13,6 +13,7 @@ import (
 	awselasticachetypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	elasticacheservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/elasticache"
 )
 
@@ -307,7 +308,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceElastiCache,
+		ServiceKind: catalog.ServiceElastiCache,
 	}
 }
 

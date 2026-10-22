@@ -175,11 +175,11 @@ func dataSourceTarget(api GraphQLAPI, ds DataSource) *dataSourceTargetRef {
 		if tableARN != "" {
 			resourceID = tableARN
 		}
-		return &dataSourceTargetRef{resourceID: resourceID, arn: tableARN, targetType: awscloud.ResourceTypeDynamoDBTable}
+		return &dataSourceTargetRef{resourceID: resourceID, arn: tableARN, targetType: catalog.ResourceTypeDynamoDBTable}
 	}
 	if arn := strings.TrimSpace(ds.RDSClusterARN); arn != "" {
 		// The RDS scanner publishes the cluster ARN as its resource_id.
-		return &dataSourceTargetRef{resourceID: arn, arn: arn, targetType: awscloud.ResourceTypeRDSDBCluster}
+		return &dataSourceTargetRef{resourceID: arn, arn: arn, targetType: catalog.ResourceTypeRDSDBCluster}
 	}
 	if endpoint := strings.TrimSpace(ds.OpenSearchEndpoint); endpoint != "" {
 		return &dataSourceTargetRef{resourceID: endpoint, targetType: awscloud.AppSyncDataSourceTargetTypeOpenSearch}

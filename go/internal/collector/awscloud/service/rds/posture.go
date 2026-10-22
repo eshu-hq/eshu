@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // instancePostureObservation derives the metadata-only posture observation for
@@ -23,7 +24,7 @@ func instancePostureObservation(
 		Boundary:                         boundary,
 		ARN:                              instanceARN,
 		ResourceID:                       resourceID,
-		ResourceType:                     awscloud.ResourceTypeRDSDBInstance,
+		ResourceType:                     catalog.ResourceTypeRDSDBInstance,
 		Identifier:                       identifier,
 		Engine:                           strings.TrimSpace(instance.Engine),
 		PubliclyAccessible:               instance.PubliclyAccessible,
@@ -62,7 +63,7 @@ func clusterPostureObservation(
 		Boundary:                         boundary,
 		ARN:                              clusterARN,
 		ResourceID:                       resourceID,
-		ResourceType:                     awscloud.ResourceTypeRDSDBCluster,
+		ResourceType:                     catalog.ResourceTypeRDSDBCluster,
 		Identifier:                       identifier,
 		Engine:                           strings.TrimSpace(cluster.Engine),
 		PubliclyAccessible:               cluster.PubliclyAccessible,

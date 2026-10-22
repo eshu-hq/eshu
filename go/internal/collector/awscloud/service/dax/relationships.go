@@ -27,40 +27,40 @@ func clusterRelationships(boundary awscloud.Boundary, cluster Cluster) []awsclou
 	if subnetGroupName := strings.TrimSpace(cluster.SubnetGroupName); subnetGroupName != "" {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDAXClusterInSubnetGroup,
+			RelationshipType: catalog.RelationshipDAXClusterInSubnetGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetGroupName,
-			TargetType:       awscloud.ResourceTypeDAXSubnetGroup,
+			TargetType:       catalog.ResourceTypeDAXSubnetGroup,
 			Attributes: map[string]any{
 				"subnet_group_name": subnetGroupName,
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipDAXClusterInSubnetGroup, subnetGroupName),
+			SourceRecordID: relationshipRecordID(sourceID, catalog.RelationshipDAXClusterInSubnetGroup, subnetGroupName),
 		})
 	}
 
 	for _, securityGroupID := range cloneStrings(cluster.SecurityGroupIDs) {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDAXClusterUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipDAXClusterUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: securityGroupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXClusterUsesSecurityGroup, securityGroupID),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipDAXClusterUsesSecurityGroup, securityGroupID),
 		})
 	}
 
 	if roleARN := strings.TrimSpace(cluster.IAMRoleARN); roleARN != "" {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDAXClusterAssumesIAMRole,
+			RelationshipType: catalog.RelationshipDAXClusterAssumesIAMRole,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
 			TargetType:       catalog.ResourceTypeIAMRole,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXClusterAssumesIAMRole, roleARN),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipDAXClusterAssumesIAMRole, roleARN),
 		})
 	}
 
@@ -82,22 +82,22 @@ func subnetGroupRelationships(boundary awscloud.Boundary, group SubnetGroup) []a
 	if vpcID := strings.TrimSpace(group.VPCID); vpcID != "" {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDAXSubnetGroupInVPC,
+			RelationshipType: catalog.RelationshipDAXSubnetGroupInVPC,
 			SourceResourceID: sourceID,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXSubnetGroupInVPC, vpcID),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipDAXSubnetGroupInVPC, vpcID),
 		})
 	}
 
 	for _, subnetID := range cloneStrings(group.SubnetIDs) {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDAXSubnetGroupHasSubnet,
+			RelationshipType: catalog.RelationshipDAXSubnetGroupHasSubnet,
 			SourceResourceID: sourceID,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDAXSubnetGroupHasSubnet, subnetID),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipDAXSubnetGroupHasSubnet, subnetID),
 		})
 	}
 

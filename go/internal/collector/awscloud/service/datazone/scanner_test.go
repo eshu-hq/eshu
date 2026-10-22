@@ -152,7 +152,7 @@ func TestScannerEmitsDatazoneMetadataAndRelationships(t *testing.T) {
 	// data source -> Redshift cluster edge keyed by synthesized partition-aware ARN.
 	rsEdge := relationshipByType(t, envelopes, catalog.RelationshipDatazoneDataSourceBacksRedshiftCluster)
 	wantClusterARN := "arn:aws:redshift:us-east-1:123456789012:cluster:analytics-cluster"
-	assertEdgeTarget(t, rsEdge, awscloud.ResourceTypeRedshiftCluster, wantClusterARN)
+	assertEdgeTarget(t, rsEdge, catalog.ResourceTypeRedshiftCluster, wantClusterARN)
 	if got, want := rsEdge.Payload["target_arn"], wantClusterARN; got != want {
 		t.Fatalf("data_source->redshift target_arn = %#v, want %q", got, want)
 	}

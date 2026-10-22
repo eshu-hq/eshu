@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func clusterObservation(boundary awscloud.Boundary, cluster DBCluster) awscloud.ResourceObservation {
@@ -17,7 +18,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster DBCluster) awscloud.
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneCluster,
+		ResourceType: catalog.ResourceTypeNeptuneCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -61,7 +62,7 @@ func instanceObservation(boundary awscloud.Boundary, instance ClusterInstance) a
 		Boundary:     boundary,
 		ARN:          instanceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneClusterInstance,
+		ResourceType: catalog.ResourceTypeNeptuneClusterInstance,
 		Name:         identifier,
 		State:        strings.TrimSpace(instance.Status),
 		Tags:         cloneStringMap(instance.Tags),
@@ -97,7 +98,7 @@ func parameterGroupObservation(boundary awscloud.Boundary, group ClusterParamete
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneClusterParameterGroup,
+		ResourceType: catalog.ResourceTypeNeptuneClusterParameterGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -117,7 +118,7 @@ func snapshotObservation(boundary awscloud.Boundary, snapshot ClusterSnapshot) a
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneClusterSnapshot,
+		ResourceType: catalog.ResourceTypeNeptuneClusterSnapshot,
 		Name:         identifier,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),
@@ -143,7 +144,7 @@ func subnetGroupObservation(boundary awscloud.Boundary, subnetGroup SubnetGroup)
 		Boundary:     boundary,
 		ARN:          subnetGroupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneSubnetGroup,
+		ResourceType: catalog.ResourceTypeNeptuneSubnetGroup,
 		Name:         name,
 		State:        strings.TrimSpace(subnetGroup.Status),
 		Tags:         cloneStringMap(subnetGroup.Tags),
@@ -165,7 +166,7 @@ func globalClusterObservation(boundary awscloud.Boundary, globalCluster GlobalCl
 		Boundary:     boundary,
 		ARN:          globalARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneGlobalCluster,
+		ResourceType: catalog.ResourceTypeNeptuneGlobalCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(globalCluster.Status),
 		Tags:         cloneStringMap(globalCluster.Tags),
@@ -204,7 +205,7 @@ func graphObservation(boundary awscloud.Boundary, graph Graph) awscloud.Resource
 		Boundary:           boundary,
 		ARN:                graphARN,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeNeptuneGraph,
+		ResourceType:       catalog.ResourceTypeNeptuneGraph,
 		Name:               name,
 		State:              strings.TrimSpace(graph.Status),
 		Tags:               cloneStringMap(graph.Tags),
@@ -223,7 +224,7 @@ func graphSnapshotObservation(boundary awscloud.Boundary, snapshot GraphSnapshot
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNeptuneGraphSnapshot,
+		ResourceType: catalog.ResourceTypeNeptuneGraphSnapshot,
 		Name:         name,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),

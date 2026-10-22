@@ -20,7 +20,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []aw
 	if vpcID := strings.TrimSpace(cluster.VPCID); vpcID != "" {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElastiCacheClusterInVPC,
+			RelationshipType: catalog.RelationshipElastiCacheClusterInVPC,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: vpcID,
@@ -29,13 +29,13 @@ func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []aw
 				"vpc_id":                  vpcID,
 				"cache_subnet_group_name": strings.TrimSpace(cluster.SubnetGroupName),
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheClusterInVPC, vpcID),
+			SourceRecordID: relationshipRecordID(sourceID, catalog.RelationshipElastiCacheClusterInVPC, vpcID),
 		})
 	}
 	for _, subnetID := range cloneStrings(cluster.SubnetIDs) {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElastiCacheClusterInSubnet,
+			RelationshipType: catalog.RelationshipElastiCacheClusterInSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: subnetID,
@@ -44,7 +44,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []aw
 				"subnet_id":               subnetID,
 				"cache_subnet_group_name": strings.TrimSpace(cluster.SubnetGroupName),
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheClusterInSubnet, subnetID),
+			SourceRecordID: relationshipRecordID(sourceID, catalog.RelationshipElastiCacheClusterInSubnet, subnetID),
 		})
 	}
 	if kmsKey := strings.TrimSpace(cluster.KMSKeyID); kmsKey != "" {
@@ -54,13 +54,13 @@ func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []aw
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElastiCacheClusterUsesKMSKey,
+			RelationshipType: catalog.RelationshipElastiCacheClusterUsesKMSKey,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
 			TargetResourceID: kmsKey,
 			TargetARN:        targetARN,
 			TargetType:       "aws_kms_key",
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheClusterUsesKMSKey, kmsKey),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipElastiCacheClusterUsesKMSKey, kmsKey),
 		})
 	}
 	return relationships
@@ -87,16 +87,16 @@ func replicationGroupRelationships(
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElastiCacheReplicationGroupHasCluster,
+			RelationshipType: catalog.RelationshipElastiCacheReplicationGroupHasCluster,
 			SourceResourceID: sourceID,
 			SourceARN:        groupARN,
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeElastiCacheCacheCluster,
+			TargetType:       catalog.ResourceTypeElastiCacheCacheCluster,
 			Attributes: map[string]any{
 				"cache_cluster_id": memberID,
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheReplicationGroupHasCluster, targetID),
+			SourceRecordID: relationshipRecordID(sourceID, catalog.RelationshipElastiCacheReplicationGroupHasCluster, targetID),
 		})
 	}
 	return relationships
@@ -123,16 +123,16 @@ func userGroupRelationships(
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipElastiCacheUserGroupHasUser,
+			RelationshipType: catalog.RelationshipElastiCacheUserGroupHasUser,
 			SourceResourceID: sourceID,
 			SourceARN:        groupARN,
 			TargetResourceID: targetID,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeElastiCacheUser,
+			TargetType:       catalog.ResourceTypeElastiCacheUser,
 			Attributes: map[string]any{
 				"user_id": userID,
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheUserGroupHasUser, targetID),
+			SourceRecordID: relationshipRecordID(sourceID, catalog.RelationshipElastiCacheUserGroupHasUser, targetID),
 		})
 	}
 	return relationships

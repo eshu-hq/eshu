@@ -136,13 +136,13 @@ func targetResourceRelationship(
 			return newTargetRelationship(
 				boundary, template, sourceID,
 				awscloud.RelationshipFISTemplateTargetsRDSDBInstance,
-				resourceARN, resourceARN, awscloud.ResourceTypeRDSDBInstance, attributes,
+				resourceARN, resourceARN, catalog.ResourceTypeRDSDBInstance, attributes,
 			)
 		case strings.HasPrefix(segment, "cluster:"):
 			return newTargetRelationship(
 				boundary, template, sourceID,
 				awscloud.RelationshipFISTemplateTargetsRDSDBCluster,
-				resourceARN, resourceARN, awscloud.ResourceTypeRDSDBCluster, attributes,
+				resourceARN, resourceARN, catalog.ResourceTypeRDSDBCluster, attributes,
 			)
 		default:
 			return nil

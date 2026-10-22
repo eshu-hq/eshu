@@ -30,13 +30,13 @@ func tableInDatabaseRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTimestreamTableInDatabase,
+		RelationshipType: catalog.RelationshipTimestreamTableInDatabase,
 		SourceResourceID: tableID,
 		SourceARN:        strings.TrimSpace(table.ARN),
 		TargetResourceID: databaseID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeTimestreamDatabase,
-		SourceRecordID:   tableID + "->" + awscloud.RelationshipTimestreamTableInDatabase + ":" + databaseID,
+		TargetType:       catalog.ResourceTypeTimestreamDatabase,
+		SourceRecordID:   tableID + "->" + catalog.RelationshipTimestreamTableInDatabase + ":" + databaseID,
 	}
 }
 
@@ -59,13 +59,13 @@ func databaseKMSRelationship(boundary awscloud.Boundary, database Database) *aws
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTimestreamDatabaseUsesKMSKey,
+		RelationshipType: catalog.RelationshipTimestreamDatabaseUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(database.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipTimestreamDatabaseUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipTimestreamDatabaseUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -98,13 +98,13 @@ func tableRejectedDataS3Relationship(boundary awscloud.Boundary, table Table) *a
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipTimestreamTableRejectsToS3,
+		RelationshipType: catalog.RelationshipTimestreamTableRejectsToS3,
 		SourceResourceID: tableID,
 		SourceARN:        strings.TrimSpace(table.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   tableID + "->" + awscloud.RelationshipTimestreamTableRejectsToS3 + ":" + bucketARN,
+		SourceRecordID:   tableID + "->" + catalog.RelationshipTimestreamTableRejectsToS3 + ":" + bucketARN,
 	}
 }

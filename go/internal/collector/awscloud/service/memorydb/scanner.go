@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -27,10 +28,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("memorydb scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMemoryDB:
+	case "", catalog.ServiceMemoryDB:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMemoryDB
+		boundary.ServiceKind = catalog.ServiceMemoryDB
 	default:
 		return nil, fmt.Errorf("memorydb scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -131,7 +132,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBCluster,
+		ResourceType: catalog.ResourceTypeMemoryDBCluster,
 		Name:         name,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -178,7 +179,7 @@ func subnetGroupObservation(boundary awscloud.Boundary, group SubnetGroup) awscl
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBSubnetGroup,
+		ResourceType: catalog.ResourceTypeMemoryDBSubnetGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -199,7 +200,7 @@ func parameterGroupObservation(boundary awscloud.Boundary, group ParameterGroup)
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBParameterGroup,
+		ResourceType: catalog.ResourceTypeMemoryDBParameterGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -219,7 +220,7 @@ func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          userARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBUser,
+		ResourceType: catalog.ResourceTypeMemoryDBUser,
 		Name:         name,
 		State:        strings.TrimSpace(user.Status),
 		Tags:         cloneStringMap(user.Tags),
@@ -243,7 +244,7 @@ func aclObservation(boundary awscloud.Boundary, acl ACL) awscloud.ResourceObserv
 		Boundary:     boundary,
 		ARN:          aclARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBACL,
+		ResourceType: catalog.ResourceTypeMemoryDBACL,
 		Name:         name,
 		State:        strings.TrimSpace(acl.Status),
 		Tags:         cloneStringMap(acl.Tags),
@@ -265,7 +266,7 @@ func snapshotObservation(boundary awscloud.Boundary, snapshot SnapshotMetadata) 
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMemoryDBSnapshot,
+		ResourceType: catalog.ResourceTypeMemoryDBSnapshot,
 		Name:         name,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),

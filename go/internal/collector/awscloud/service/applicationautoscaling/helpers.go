@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
@@ -61,7 +60,7 @@ func targetResourceARN(
 			return "", ""
 		}
 		return arnPrefix(partition, "dynamodb", reg, account) + ":table/" + name,
-			awscloud.ResourceTypeDynamoDBTable
+			catalog.ResourceTypeDynamoDBTable
 	case "ecs":
 		// service/<cluster>/<service> -> the long-format ECS service ARN.
 		path, ok := strings.CutPrefix(resource, "service/")
@@ -77,7 +76,7 @@ func targetResourceARN(
 			return "", ""
 		}
 		return arnPrefix(partition, "rds", reg, account) + ":cluster:" + name,
-			awscloud.ResourceTypeRDSDBCluster
+			catalog.ResourceTypeRDSDBCluster
 	case "lambda":
 		// function:<name>[:<qualifier>] -> the base function ARN the Lambda node
 		// publishes (the version/alias qualifier is dropped).

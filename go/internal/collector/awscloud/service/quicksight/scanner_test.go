@@ -103,7 +103,7 @@ func TestScannerEmitsQuickSightMetadataAndRelationships(t *testing.T) {
 	// data source -> Redshift cluster, keyed by the bare cluster id the Redshift
 	// scanner publishes as a fallback resource_id.
 	redshiftEdge := relationshipByType(t, envelopes, catalog.RelationshipQuickSightDataSourceUsesRedshiftCluster)
-	assertEdgeTarget(t, redshiftEdge, awscloud.ResourceTypeRedshiftCluster, "analytics-cluster")
+	assertEdgeTarget(t, redshiftEdge, catalog.ResourceTypeRedshiftCluster, "analytics-cluster")
 	if got, want := redshiftEdge.Payload["source_resource_id"], testRedshiftDataSourceARN; got != want {
 		t.Fatalf("redshift edge source_resource_id = %#v, want %q", got, want)
 	}
@@ -198,7 +198,7 @@ func TestScannerEmitsRDSAndAthenaBackingEdges(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	rdsEdge := relationshipByType(t, envelopes, catalog.RelationshipQuickSightDataSourceUsesRDSInstance)
-	assertEdgeTarget(t, rdsEdge, awscloud.ResourceTypeRDSDBInstance, "prod-db")
+	assertEdgeTarget(t, rdsEdge, catalog.ResourceTypeRDSDBInstance, "prod-db")
 	athenaEdge := relationshipByType(t, envelopes, catalog.RelationshipQuickSightDataSourceUsesAthenaWorkGroup)
 	assertEdgeTarget(t, athenaEdge, catalog.ResourceTypeAthenaWorkGroup, "analytics-wg")
 }

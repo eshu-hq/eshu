@@ -148,8 +148,8 @@ func TestScannerDataSourceTargetJoinKeys(t *testing.T) {
 		wantID     string
 	}{
 		{catalog.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:orders"},
-		{awscloud.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/Orders"},
-		{awscloud.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:orders"},
+		{catalog.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/Orders"},
+		{catalog.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:orders"},
 		{awscloud.AppSyncDataSourceTargetTypeOpenSearch, "https://search-orders.us-east-1.es.amazonaws.com"},
 		{awscloud.AppSyncDataSourceTargetTypeHTTPEndpoint, "https://api.partner.example.com"},
 	}
@@ -192,7 +192,7 @@ func TestDynamoDBTargetDerivesPartitionFromSourceARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 	targets := dataSourceTargetEdges(t, envelopes)
-	got := targets[awscloud.ResourceTypeDynamoDBTable]
+	got := targets[catalog.ResourceTypeDynamoDBTable]
 	want := "arn:aws-us-gov:dynamodb:us-gov-west-1:123456789012:table/Orders"
 	if got != want {
 		t.Fatalf("dynamodb target = %q, want %q (partition must derive from source ARN)", got, want)
@@ -214,7 +214,7 @@ func TestDynamoDBTargetFallsBackToTableNameWithoutSourceARN(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 	targets := dataSourceTargetEdges(t, envelopes)
-	if got := targets[awscloud.ResourceTypeDynamoDBTable]; got != "Orders" {
+	if got := targets[catalog.ResourceTypeDynamoDBTable]; got != "Orders" {
 		t.Fatalf("dynamodb fallback target = %q, want bare table name Orders", got)
 	}
 }
