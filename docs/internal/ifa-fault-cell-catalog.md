@@ -174,7 +174,7 @@ than there are entries here.
 65. kill-worker-after-claim-crossplane-satisfied-by (#6228 crossplane live leaf) -- lease reclaim proof.
 66. fail-graph-write-once-then-succeed-crossplane-satisfied-by (#6228 crossplane live leaf) -- SATISFIED_BY retry proof.
 67. baseline-derived-from (#6228 derived_from live leaf) -- family-scoped fault-free baseline; thirteenth direct-materialization family in this gate.
-68. kill-worker-after-claim-derived-from (#6228 derived_from live leaf) -- lease reclaim proof.
+68. kill-statement-hold-derived-from (#6228 derived_from live leaf) -- DERIVED_FROM hold/reclaim proof (statement_hold: the hold decorator engages the family's own MERGE; shares the container_image_identity handler with built_from, which owns the handler-stage wait).
 69. fail-graph-write-once-then-succeed-derived-from (#6228 derived_from live leaf) -- DERIVED_FROM retry proof.
 70. baseline-code-interproc-evidence (#6228 code_interproc_evidence live leaf) -- family-scoped fault-free baseline; fourteenth direct-materialization family in this gate.
 71. kill-worker-after-claim-code-interproc-evidence (#6228 code_interproc_evidence live leaf) -- lease reclaim proof.

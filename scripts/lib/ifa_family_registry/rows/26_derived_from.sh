@@ -20,29 +20,35 @@
 # The writing handler here is ContainerImageIdentityHandler, not a
 # *_materialization handler: derived_from edges are projected by the
 # container-image-identity pass itself (ProvenanceEdgeWriter on the same
-# intent), so WAIT_KEY names the identity domain the projector fans out,
-# not a second-stage materialization domain. Same handler as rows/23
-# built_from, which is why the blocker derivation below reads identically.
+# intent). The handler -- and therefore the handler-stage wait on the
+# identity domain -- belongs to rows/23 built_from by first-landed
+# tie-break: the handler-wait-key exclusivity test rejects two
+# handler-stage families sharing one wait_key, since one kill of that
+# handler would be counted as a per-family proof for both while the second
+# family's own seam stayed unexercised. So WAIT_KEY names the identity
+# domain only as the claim-plus-hold rendezvous (the same keyspace the
+# handler stage polls), while the blocker engages a write only
+# derived_from performs -- the vault-pair precedent in rows/22, judged on
+# the family-own anchor rather than the shared key.
 
-# Hand-derived, and non-vacuous now a fault cell exists:
-# ContainerImageIdentityHandler embeds `FactLoader factload.FactLoader`
-# (go/internal/reducer/containerimage/container_image_identity.go:73)
-# and Handle refuses to run without it (:105-107) before passing it to
-# factload.LoadFactsForKinds (:127). The handler reads fact_records AFTER
-# claiming its work item, so an ACCESS EXCLUSIVE lock on that table holds
-# it genuinely in flight -- the blocker_kind this row's fault cell takes.
-# Same table and same reasoning as rows/13; see that row for why
-# fact_work_items is the wrong target.
-IFA_FAMILY_BLOCKER_KIND[derived_from]="table_lock:fact_records"
-IFA_FAMILY_WAIT_STAGE[derived_from]="handler"
+# Hand-derived, and non-vacuous now a fault cell exists: the hold decorator
+# engages the DERIVED_FROM MERGE itself (IFA_FAMILY_ANCHOR below) while the
+# handler is genuinely mid-write -- the blocker_kind this row's fault cell
+# takes. The anchor is matched against EXECUTED statement text, so it
+# carries the filled form (see the anchor comment); pinning a `%s` form
+# would hold nothing and the kill would land on a worker parked nowhere.
+IFA_FAMILY_BLOCKER_KIND[derived_from]="statement_hold"
+IFA_FAMILY_WAIT_STAGE[derived_from]="statement"
 # The fact_work_items.domain the projector fans this family out under, taken
 # from BuildContainerImageIdentityReducerIntent
 # (go/internal/projector/container/image/identity/intents.go:66), and
 # corroborated by the domain definition (DomainContainerImageIdentity in
-# go/internal/reducer/contract/domain.go:55). The live cell asserts the
-# domain through the registry loop's own non-vacuity checks; the exact
-# `container_image_identity | succeeded` row the determinism drive leaves
-# is CI-observed, not assumed here.
+# go/internal/reducer/contract/domain.go:55). Rendezvous only: the live
+# cell asserts the domain through the registry loop's own non-vacuity
+# checks, first waiting the claimed projection work item on this domain,
+# then the hold marker the decorator writes when the DERIVED_FROM MERGE
+# engages. The exact `container_image_identity | succeeded` row the
+# determinism drive leaves is CI-observed, not assumed here.
 IFA_FAMILY_WAIT_KEY[derived_from]="container_image_identity"
 # A plain reducer family needing no maintenance pass, so it is driven uniformly
 # in the determinism gate's shared N={1,2,4} cell.

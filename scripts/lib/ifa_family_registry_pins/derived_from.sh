@@ -7,17 +7,19 @@
 # HAND-TYPED, derived from the citations inline, never read back out of the
 # registry row.
 
-# go/internal/reducer/containerimage/container_image_identity.go
-# declares `FactLoader factload.FactLoader` as a struct field at :73, Handle
-# rejects a nil one at :105-107, and passes it to factload.LoadFactsForKinds at
-# :127. An ACCESS EXCLUSIVE lock on fact_records therefore blocks a read
-# this handler really performs -- the blocker_kind this family's fault
-# cell takes.
+# This family shares its handler with built_from (rows/23 owns the
+# handler-stage wait on container_image_identity by first-landed tie-break),
+# so the kill engages the family's own DERIVED_FROM MERGE through the hold
+# decorator instead of a shared-queue lock -- the blocker_kind this
+# family's fault cell takes. Exclusivity with the shared handler stage is
+# judged on the family-own anchor below, not the rendezvous key.
 #
 # A DIRECT-materialization family, so there is no shared_projection_intents row
-# for shared_intent_lock to take.
-IFA_FAMILY_PIN_BLOCKER_KIND="table_lock:fact_records"
-IFA_FAMILY_PIN_WAIT_STAGE="handler"
+# for shared_intent_lock to take; and a table lock on fact_records would
+# hold a handler both families claim, failing the handler-wait-key
+# exclusivity test.
+IFA_FAMILY_PIN_BLOCKER_KIND="statement_hold"
+IFA_FAMILY_PIN_WAIT_STAGE="statement"
 # The fact_work_items.domain the projector fans this family out under, taken
 # from BuildContainerImageIdentityReducerIntent
 # (go/internal/projector/container/image/identity/intents.go:66), and
