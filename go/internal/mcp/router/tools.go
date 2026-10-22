@@ -12,6 +12,13 @@ const (
 	CallToolName = "call_tool"
 )
 
+const (
+	// DefaultLimit is the find_tool candidate count used when limit is omitted.
+	DefaultLimit = 5
+	// MaxLimit is the largest find_tool candidate count a caller may request.
+	MaxLimit = 10
+)
+
 // Tools returns fresh MCP definitions for find_tool then call_tool. They are
 // not part of mcp.ReadOnlyTools: the mcp root intercepts them before
 // dispatchTool.
@@ -40,9 +47,9 @@ func Tools() []toolcontract.ToolDefinition {
 					"limit": map[string]any{
 						"type":        "integer",
 						"description": "Maximum number of candidates to return (1-10).",
-						"default":     5,
+						"default":     DefaultLimit,
 						"minimum":     1,
-						"maximum":     10,
+						"maximum":     MaxLimit,
 					},
 				},
 				"required": []string{"intent"},

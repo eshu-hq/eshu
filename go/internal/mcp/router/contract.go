@@ -30,7 +30,10 @@ type Query struct {
 	Intent string
 	// Anchors holds optional entity identifiers the caller already has.
 	Anchors Anchors
-	// Limit is the maximum number of candidates to return, 1-10.
+	// Limit is the maximum number of candidates to return, 1 to MaxLimit.
+	// The dispatch lane applies DefaultLimit when the caller omits it and
+	// rejects values outside the range, so a Ranker receives a valid Limit. A
+	// Ranker handed Limit below 1 returns no candidates.
 	Limit int
 }
 
@@ -43,10 +46,11 @@ type Candidate struct {
 	// Cost is the catalog cost class of the tool.
 	Cost catalog.CostClass
 	// InputSchema is the target tool's input schema, so the caller can build
-	// arguments without a second lookup.
+	// arguments without a second lookup. It aliases the registry definition:
+	// treat it as read-only or clone before changing it.
 	InputSchema map[string]any
 	// Example is a sample arguments object for the tool, or nil when none is
-	// curated.
+	// curated. Treat it as read-only.
 	Example map[string]any
 	// Score is the ranker's relative score; higher is a better match. It is
 	// comparable only within one result.
@@ -68,5 +72,7 @@ type Ranker interface {
 // injects it, closed over the per-request auth and logger, so this package
 // never imports the root (which would be an import cycle). It must route
 // through the same dispatch as a direct tools/call, so auth, timeouts,
-// response budgets, and envelopes are unchanged.
+// response budgets, and envelopes are unchanged. The value is opaque to this
+// package: the root returns its own dispatch result and type-asserts it back
+// when rendering, so the envelope and truth labels pass through untouched.
 type Dispatcher func(ctx context.Context, name string, arguments map[string]any) (any, error)

@@ -72,7 +72,7 @@ func TestFindToolSchema(t *testing.T) {
 		t.Fatalf("intent type = %v, want string", typ)
 	}
 	limit := props["limit"].(map[string]any)
-	if limit["type"] != "integer" || limit["minimum"] != 1 || limit["maximum"] != 10 || limit["default"] != 5 {
+	if limit["type"] != "integer" || limit["minimum"] != 1 || limit["maximum"] != MaxLimit || limit["default"] != DefaultLimit {
 		t.Fatalf("limit = %v, want integer min 1 max 10 default 5", limit)
 	}
 	anchors := props["anchors"].(map[string]any)
@@ -109,6 +109,13 @@ func TestCallToolSchema(t *testing.T) {
 	}
 	if props["arguments"].(map[string]any)["type"] != "object" {
 		t.Fatalf("arguments type = %v, want object", props["arguments"].(map[string]any)["type"])
+	}
+}
+
+func TestLimitConstants(t *testing.T) {
+	t.Parallel()
+	if DefaultLimit != 5 || MaxLimit != 10 {
+		t.Fatalf("DefaultLimit, MaxLimit = %d, %d, want 5, 10", DefaultLimit, MaxLimit)
 	}
 }
 

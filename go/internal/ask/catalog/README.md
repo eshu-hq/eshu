@@ -45,12 +45,12 @@ never queries Postgres, the graph backend, or any live runtime state.
 ```
 Catalog
   entries []Entry
-    Kind     SurfaceKind  ("api_route" | "mcp_tool")
-    Name     string       surface identifier
-    Backend  Backend      ("nornicdb" | "postgres" | "both" | "embedded" | "unknown")
-    Cost     CostClass    ("low" | "moderate" | "high")
-    Intents  []string     curated router phrases (empty until curated)
-    Canonical bool        preferred tool in its family (false until curated)
+    Kind      SurfaceKind  ("api_route" | "mcp_tool")
+    Name      string       surface identifier
+    Backend   Backend      ("nornicdb" | "postgres" | "both" | "embedded" | "unknown")
+    Cost      CostClass    ("low" | "moderate" | "high")
+    Intents   []string     curated router phrases (empty until curated)
+    Canonical bool         preferred tool in its family (false until curated)
 ```
 
 `Backend` and `Cost` are **not** carried by the surface inventory; they are a
