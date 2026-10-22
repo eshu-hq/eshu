@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 	"github.com/eshu-hq/eshu/go/internal/mcp/router/rank"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // rankerBuild records the one startup build of the find_tool ranker for the
@@ -67,4 +68,23 @@ func newMCPServer(
 		return nil, build, fmt.Errorf("tool surface %q serves find_tool, but no find_tool ranker was built", surface)
 	}
 	return server, build, nil
+}
+
+// logToolSurface writes the startup "mcp tool surface" line
+// (event_name=mcp.tool_surface.configured): the process surface, how many
+// tools its tools/list advertises and their byte size, and the find_tool
+// ranker build. router_ranker_build_ms times the ranker build alone; the
+// catalog-entry load that precedes it is not included.
+func logToolSurface(logger *slog.Logger, server *mcp.Server, build rankerBuild) {
+	surface, advertised, listBytes := server.ToolSurfaceSummary()
+	logger.Info("mcp tool surface",
+		telemetry.EventAttr("mcp.tool_surface.configured"),
+		"surface", string(surface),
+		"tool_count", advertised,
+		"tools_list_bytes", listBytes,
+		"router_ranker", build.built,
+		"router_ranker_tool_count", build.tools,
+		"router_ranker_entry_count", build.entries,
+		"router_ranker_build_ms", float64(build.duration.Microseconds())/1000,
+	)
 }

@@ -31,6 +31,8 @@ still dispatches.
 ## The find_tool ranker
 
 `router` and `core_router` lead with `find_tool`, which needs a ranker.
+Until the core tool set (#8759) lands, `core_router` advertises only
+`find_tool` and `call_tool`.
 `cmd/mcp-server` passes `WithRouterRanker` with the lexical ranker
 (`router/rank`) on every surface (#8771): `find_tool` stays callable on `full`,
 and a `?surface=router` override can select it per request.
@@ -63,19 +65,23 @@ line also carries `tool_surface`.
 
 Performance Evidence (#8771): measured on linux/arm64, 16 cores, Go 1.26.10,
 with the real registry (163 tools after the production profile filter, 167
-catalog entries) and no graph or Postgres backend. The one-time ranker build
-(`rank.New`) costs about 9.3 to 12.0 ms and 6.2 MB. All of `newMCPServer` on
-the `router` surface costs about 16.5 ms and 8.6 MB, against about 0.5 ms
-without a ranker, so the ranker and catalog load add about 16 ms once at
-startup. Per call, `Rank` on the real registry with the startup index costs
-about 38 to 40 us, 54 allocs, and 13.5 KB. A full `find_tool` over
+catalog entries) and no graph or Postgres backend. Two scratch runs (this
+lane's and the review's) on the shared dev host, load average 14 to 17; the
+ranges cover both. The one-time ranker build (`rank.New`) costs 7.7 to 12.0 ms
+and 6.0 to 6.2 MB allocated. All of `newMCPServer` on the `router` surface
+costs 9.7 to 16.5 ms and 8.6 MB allocated, against 0.28 to 0.59 ms without a
+ranker, so the ranker and catalog load add about 9 to 16 ms once at startup.
+The server retains about 1.1 MB more heap with the ranker (1.58 MB against
+0.49 MB after GC). The default `full` surface pays both, since it builds the
+ranker too. Per call, `Rank` on the real registry with the startup index costs
+22 to 40 us, 51 to 54 allocs, and 11.7 to 13.5 KB. A full `find_tool` over
 `POST /mcp/message` (JSON-RPC decode, validation, ranking, playbook match,
-encode) costs about 0.35 to 0.39 ms. Before this change `find_tool` answered
+encode) costs 0.22 to 0.39 ms. Before this change `find_tool` answered
 `mcp_router_ranker_unavailable`; had the Engine loaded its own entries map,
-every call would have rebuilt the index (about 9 ms).
+every call would have rebuilt the index (about 8 to 12 ms).
 `TestMCPServerBuildsTheRankerOnceAndRanksTheSameInputs` pins one build and
 identical inputs across concurrent calls. Scratch benchmarks, not committed.
 
 Observability Evidence (#8771): the startup line above carries the ranker
-fields, and `eshu_dp_mcp_router_find_total{outcome}` with the `mcp.router.find`
+fields (`TestLogToolSurfaceRecordsTheRankerFields` pins them), and `eshu_dp_mcp_router_find_total{outcome}` with the `mcp.router.find`
 span covers each request.

@@ -86,6 +86,8 @@ the process setting or another client's requests. In Helm, set
 (#8757) and a `find_tool` ranker. The server builds the lexical ranker once at
 startup on every surface (#8771), and refuses to start on `router` or
 `core_router` when no ranker was built. The default `full` is unaffected.
+Until the core tool set (#8759) lands, `core_router` advertises only
+`find_tool` and `call_tool`.
 
 At startup the server logs `mcp tool surface` with the `surface`, the
 `tool_count`, and the `tools_list_bytes` size of the `tools/list` result, plus

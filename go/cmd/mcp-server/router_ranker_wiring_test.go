@@ -246,3 +246,40 @@ func TestLexicalRankerOverAnEmptyToolListAnswersNoCandidates(t *testing.T) {
 		t.Fatalf("find_tool over an empty list = %s, want an empty candidates array", raw)
 	}
 }
+
+// TestLogToolSurfaceRecordsTheRankerFields pins the startup line operators
+// read to confirm the find_tool ranker: event mcp.tool_surface.configured with
+// the surface fields and the four router_ranker fields (#8771).
+func TestLogToolSurfaceRecordsTheRankerFields(t *testing.T) {
+	t.Parallel()
+
+	server, build, err := newMCPServer(http.NewServeMux(), discardLogger(), nil,
+		query.ProfileProduction, router.SurfaceRouter, newLexicalRanker)
+	if err != nil {
+		t.Fatalf("newMCPServer error = %v", err)
+	}
+	var buf strings.Builder
+	logToolSurface(slog.New(slog.NewJSONHandler(&buf, nil)), server, build)
+
+	var line map[string]any
+	if err := json.Unmarshal([]byte(buf.String()), &line); err != nil {
+		t.Fatalf("decode log line %q: %v", buf.String(), err)
+	}
+	if line["msg"] != "mcp tool surface" || line["event_name"] != "mcp.tool_surface.configured" {
+		t.Fatalf("log line = %v, want msg %q with event_name mcp.tool_surface.configured", line, "mcp tool surface")
+	}
+	if line["surface"] != string(router.SurfaceRouter) || line["router_ranker"] != true {
+		t.Fatalf("log line = %v, want surface router and router_ranker true", line)
+	}
+	if got, _ := line["router_ranker_tool_count"].(float64); int(got) != build.tools || got == 0 {
+		t.Fatalf("router_ranker_tool_count = %v, want %d", line["router_ranker_tool_count"], build.tools)
+	}
+	if got, _ := line["router_ranker_entry_count"].(float64); int(got) != build.entries || got == 0 {
+		t.Fatalf("router_ranker_entry_count = %v, want %d", line["router_ranker_entry_count"], build.entries)
+	}
+	for _, key := range []string{"tool_count", "tools_list_bytes", "router_ranker_build_ms"} {
+		if v, ok := line[key].(float64); !ok || v <= 0 {
+			t.Fatalf("%s = %v, want a positive number", key, line[key])
+		}
+	}
+}

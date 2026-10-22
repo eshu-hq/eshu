@@ -134,17 +134,7 @@ func main() {
 			telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)
 	}
-	surface, advertised, listBytes := server.ToolSurfaceSummary()
-	logger.Info("mcp tool surface",
-		telemetry.EventAttr("mcp.tool_surface.configured"),
-		"surface", string(surface),
-		"tool_count", advertised,
-		"tools_list_bytes", listBytes,
-		"router_ranker", rankerBuild.built,
-		"router_ranker_tool_count", rankerBuild.tools,
-		"router_ranker_entry_count", rankerBuild.entries,
-		"router_ranker_build_ms", float64(rankerBuild.duration.Microseconds())/1000,
-	)
+	logToolSurface(logger, server, rankerBuild)
 
 	switch transport {
 	case "stdio":
