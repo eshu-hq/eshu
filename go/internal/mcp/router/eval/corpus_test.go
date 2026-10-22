@@ -83,6 +83,8 @@ func TestValidateRejectsSeededViolations(t *testing.T) {
 		{"unregistered alternate", func(q *Question) { q.Alternates = []string{"ghost_tool"} }, "ghost_tool"},
 		{"alternate repeats expected", func(q *Question) { q.Alternates = []string{q.Expected} }, "repeats the expected"},
 		{"duplicate alternate", func(q *Question) { q.Alternates = []string{"find_code", "find_code"} }, "duplicate alternate"},
+		{"duplicate unregistered alternate", func(q *Question) { q.Alternates = []string{"ghost_tool", "ghost_tool"} }, "duplicate alternate"},
+		{"empty alternate", func(q *Question) { q.Alternates = []string{""} }, "empty alternate"},
 		{"empty id", func(q *Question) { q.ID = "" }, "empty id"},
 		{"blank question", func(q *Question) { q.Question = "   " }, "empty question"},
 		{"unknown family", func(q *Question) { q.Family = "misc" }, `unknown family "misc"`},

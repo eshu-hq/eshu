@@ -119,6 +119,8 @@ func validateTools(label string, q Question, known map[string]bool, fail func(st
 	seen := map[string]bool{}
 	for _, alt := range q.Alternates {
 		switch {
+		case alt == "":
+			fail("%s: empty alternate", label)
 		case alt == q.Expected:
 			fail("%s: alternate %q repeats the expected tool", label, alt)
 		case seen[alt]:

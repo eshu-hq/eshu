@@ -57,9 +57,9 @@ var knownSources = map[string]bool{
 // routerOnlyTools are surfaces that exist but are never offered as a target,
 // so no question may expect them.
 var routerOnlyTools = map[string]bool{
-	"find_tool": true,
-	"call_tool": true,
-	"ask":       true,
+	router.FindToolName: true,
+	router.CallToolName: true,
+	"ask":               true,
 }
 
 // Routable reports whether name is a tool a caller could be offered and invoke.

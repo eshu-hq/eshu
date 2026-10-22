@@ -13,9 +13,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 )
 
-// TopK is the candidate depth the harness asks for and scores. It equals
-// router.DefaultLimit, the count find_tool returns when a caller omits limit.
-const TopK = 5
+// TopK is the candidate depth the harness asks for and scores. It is
+// router.DefaultLimit, the count find_tool returns when a caller omits limit, so
+// a change to that default changes the depth scored here.
+const TopK = router.DefaultLimit
 
 // Env is the registry view a ranker is evaluated against.
 type Env struct {

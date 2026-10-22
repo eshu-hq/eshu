@@ -144,6 +144,22 @@ func TestRoutableDeniesRouterSurfaces(t *testing.T) {
 	}
 }
 
+func TestTopKTracksFindToolDefaultLimit(t *testing.T) {
+	t.Parallel()
+	if TopK != router.DefaultLimit {
+		t.Fatalf("TopK = %d, want router.DefaultLimit (%d)", TopK, router.DefaultLimit)
+	}
+}
+
+func TestRoutableUsesRouterToolNames(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{router.FindToolName, router.CallToolName} {
+		if Routable(name) {
+			t.Errorf("Routable(%q) = true, want false", name)
+		}
+	}
+}
+
 func TestRunRejectsNilCorpus(t *testing.T) {
 	t.Parallel()
 	if _, err := Run(context.Background(), testRanker(), nil, Env{Allowed: Routable}); err == nil {

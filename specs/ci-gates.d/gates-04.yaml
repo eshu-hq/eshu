@@ -116,7 +116,6 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
-      - "go/internal/mcp/router/**"
       - "go/internal/ask/catalog/**"
       - "go/internal/mcp/**"
       - "go/internal/capabilitycatalog/data/surface-inventory.generated.json"
