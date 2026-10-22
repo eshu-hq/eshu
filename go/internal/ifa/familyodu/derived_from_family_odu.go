@@ -141,11 +141,12 @@ func DerivedFromFamilyOdu() CatalogOdu {
 		CollectorKind:    derivedFromFamilyCollectorKind,
 		SourceConfidence: facts.SourceConfidenceObserved,
 		Payload: map[string]any{
-			"graph_id":   derivedFromFamilyRepositoryID,
-			"graph_kind": "repository",
-			"repo_id":    derivedFromFamilyRepositoryID,
-			"name":       "lineage-app",
-			"remote_url": derivedFromFamilyRemoteURL,
+			"graph_id":      derivedFromFamilyRepositoryID,
+			"graph_kind":    "repository",
+			"repo_id":       derivedFromFamilyRepositoryID,
+			"name":          "lineage-app",
+			"remote_url":    derivedFromFamilyRemoteURL,
+			"source_run_id": "run-ifa-derived-from-family-1",
 		},
 	})
 	// The owning Dockerfile declares exactly one distinct exact-digest
