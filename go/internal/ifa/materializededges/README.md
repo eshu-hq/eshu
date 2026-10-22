@@ -403,3 +403,34 @@ asserting wrong, and the fail-closed paths red instead of asserting less.
 No-Observability-Change: no spans, metrics, logs, or status fields added.
 Guard failures still report through the existing `resolveBuiltFrom...`
 problem strings, so current gate signals are unchanged.
+
+## No-Regression Evidence (#6228): derived_from edge-endpoint descriptor uids
+
+No-Regression Evidence: the resolver change (`derivedFromRowsToExpectedEdges`
+deriving the canonical `oci-descriptor://registry/repository@digest` ids for
+both endpoints) lives in guard code only; the production DERIVED_FROM writer
+template and the OCI canonical node writer are untouched, so live graph truth
+is unchanged and only the guard's expectation moves to match it. The
+derivation mirrors `ociDescriptorUID`'s prefix guard and construction form
+for source and target alike, and the fail-closed paths red instead of
+asserting less.
+
+- Baseline: this lane before 3cec20d936 (bare-digest endpoint pins,
+  red against the live contract, which carries node ids).
+- After: `go -C go test ./internal/ifa/...` all ok, including the guard's
+  descriptor-uid expectation green; `bash
+  scripts/test-verify-ifa-fault-injection.sh` and
+  `scripts/test-verify-ifa-determinism.sh` pass exit 0; live shard 4/4
+  exits 0 (fail-graph-write digest
+  00cfaf8b366fd861be733fa53cb9be6df4e774982df6c976a79b28a2709ec7aa);
+  `go vet` and `git diff --check` clean.
+- Backend/version: hermetic guard plus live matrices on the gate-owned
+  disposable Compose stack (Postgres + Neo4j).
+- Input shape: derived_from Odu (7 facts: repository, file,
+  content-entity, 4 OCI manifests), 85-cell fault corpus.
+- Terminal counts: guard green on the 2-edge set; mirror 85-cell exact
+  cover.
+
+No-Observability-Change: no spans, metrics, logs, or status fields added.
+Guard failures still report through the existing `resolveDerivedFrom...`
+problem strings, so current gate signals are unchanged.
