@@ -32,10 +32,13 @@ Observed on one hosted deployment before the fix (no names, public-safe):
 
 ## Fix
 
-Commits `6b196221ea` (like-for-like prior) and `bc4ef7c905` (delta union).
-`dd3511fc62` pins the tests and docs, `0f902be6ef` fixes review F2 and F3,
-`443c71982f` commits the review F1 regression red, and the F1 fix commit
-sizes the prior against the active generation (see "Pending window" below).
+The branch's commits, by subject (SHAs change on rebase, so they are not
+cited here): "size the successor guard on collector rows only"
+(like-for-like prior), "size a delta successor by its projected file union",
+"pin successor guard sizing and document it" (tests and docs), "probe on the
+commit transaction and count unlisted tombstones" (review F2 and F3), "RED
+for review F1", and "size the guard prior against the active generation too"
+(the F1 fix, see "Pending window" below).
 
 - `successorGuardCountQuery` reads three counts in one index-only pass over
   `fact_records_scope_generation_idx`: collector rows
@@ -85,14 +88,14 @@ commit.
 The tests were written before each fix and run red first, on a disposable
 local PostgreSQL 18 schema (`ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN`):
 
-- On `0c966372f4` (before `6b196221ea`), the forced-full test failed with
+- On `0c966372f4`, before the like-for-like commit, the forced-full test failed with
   `destructive_successor skips = 1, want 0: 40 of 54 collector rows is not a
   sharp shrink`; the sharp-shrink test passed.
-- On `6b196221ea` (before `bc4ef7c905`), three delta tests failed with
+- With only the like-for-like commit applied, three delta tests failed with
   `destructive_successor skips = 1, want 0`: the 41-file delta, the
   never-indexed deletes, and the missing anchor. The mass-delete, rename, and
   missing-repository-fact tests already held and stay as guard rails.
-- On `443c71982f` (before the F1 fix), L1 failed with `gen-d stored = true,
+- At the F1 RED commit, before the F1 fix, L1 failed with `gen-d stored = true,
   want false` and L4 with `gen-c stored = true, want false`. L2 and L3 held:
   they guard against over-refusal and against dropping the pending side.
 
