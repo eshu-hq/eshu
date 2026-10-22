@@ -17,7 +17,7 @@ H=100 across 19 compute files, K=47 across 15 security files including the
 ungrouped API Gateway file) into this leaf as `gcp_compute_core.go`,
 `gcp_compute_lb.go`, `gcp_compute_net.go`, and `gcp_security.go` (#6696),
 verbatim apart from the export. The three-way compute split is a size measure
-only: one file would pass the 500-line Go cap, so the lane ships as three
+only: one file would exceed the 500-line Go cap, so the lane ships as three
 files (all under the cap).
 
 No-Regression Evidence (gcp-hk slice): the consolidation moves declarations
@@ -41,6 +41,16 @@ runs no stage; extractor emission stays covered by
 compiler resolves every moved reference, the value-pinning test fails on any
 drift, and the per-extractor `TestExtract*` suites keep asserting the same
 emitted strings.
+
+No-Regression Evidence (gcp-hk comment corrections, #6696): prose-only
+follow-up to #8747; five doc comments reworded to state verified
+declaration locations, zero identifiers changed. Baseline: merged #8747
+tree; after: this head with `go build ./...` and the catalog pin suite
+green. Backend/version: none; input shape: four files, five comments;
+no row counts to regress. No-Observability-Change: no instrument, stage,
+telemetry row, or emission path touched. Safe because the compiler
+resolves every reference identically before and after — comments carry
+no runtime meaning.
 
 ## Ownership boundary
 
