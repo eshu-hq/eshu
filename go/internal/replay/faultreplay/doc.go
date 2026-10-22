@@ -7,9 +7,10 @@
 //
 // The package has two halves. S1 (script.go) owns the fault-script schema:
 // versioned, fail-closed DATA describing what to break and when to break it.
-// A Script names one of five fault kinds (kill-worker-after-claim,
+// A Script names one of six fault kinds (kill-worker-after-claim,
 // expire-lease-mid-handler, fail-graph-write-once-then-succeed,
-// restart-backend-between-phase-groups, fail-terminal) and, for each, a
+// restart-backend-between-phase-groups, fail-terminal,
+// hold-statement-before-delegation) and, for each, a
 // Trigger that is always an ordinal over observed events (a claim count, an
 // intent's position, a phase-group count) or a stable string ID — never a
 // duration, wall-clock timestamp, or random draw. That constraint is what
@@ -44,5 +45,8 @@
 // and so cannot run hermetically; it is handled by the in-binary cypher
 // FaultingExecutor (behind the ifafaultinjection build tag) plus the operator
 // harness, not here. This package rejects that fault kind at construction
-// rather than silently ignoring it.
+// rather than silently ignoring it. hold-statement-before-delegation likewise
+// needs a per-statement Cypher boundary this tier does not have; the in-binary
+// decorator implements the hold, and this package rejects the kind at
+// construction for the same reason.
 package faultreplay

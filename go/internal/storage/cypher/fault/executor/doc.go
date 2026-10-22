@@ -3,8 +3,9 @@
 
 // Package executor owns the test-only fault-injection decorator for the
 // Cypher Executor seam: FaultingExecutor, which applies scripted
-// fail-graph-write-once-then-succeed and restart-backend-between-phase-groups
-// faults from the Layer 4 fault-script vocabulary
+// fail-graph-write-once-then-succeed, restart-backend-between-phase-groups,
+// and hold-statement-before-delegation faults from the Layer 4 fault-script
+// vocabulary
 // (go/internal/replay/faultreplay) under the ifafaultinjection build tag,
 // and a no-op NewFaultingExecutor stub under every other tag so normal
 // builds link no fault machinery at all.

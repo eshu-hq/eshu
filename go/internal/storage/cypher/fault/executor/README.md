@@ -5,18 +5,25 @@ Test-only fault-injection decorator for the Cypher `Executor` seam.
 ## What lives here
 
 - `fault.go` (build tag `ifafaultinjection`) — `FaultingExecutor`, which
-  wraps a parent-package `cypher.Executor` and applies two scripted faults
+  wraps a parent-package `cypher.Executor` and applies three scripted faults
   from the `faultreplay` vocabulary: fail-graph-write-once-then-succeed
-  (queue-retry and executor-retry lanes) and
-  restart-backend-between-phase-groups. Unscripted capabilities delegate to
+  (queue-retry and executor-retry lanes),
+  restart-backend-between-phase-groups, and hold-statement-before-delegation
+  (see `hold.go`). Unscripted capabilities delegate to
   the inner executor; an inner that lacks a grouped, phase-grouped, or
   probe surface fails closed instead of silently skipping.
+- `hold.go` (same tag) — the hold-statement-before-delegation seam (#8539):
+  one-shot engage on an operation substring, synchronous marker write naming
+  the matched statement, then block on sentinel-removal/`ctx.Done()` without
+  ever delegating while held. Split from `fault.go` to hold the repo's
+  500-line file cap.
 - `marker.go` (same tag) — the once-fired marker and restart trigger
-  record: how an out-of-process gate learns the fault fired and on which
-  statement. Split from `fault.go` to hold the repo's 500-line file cap.
+  record: how an out-of-process gate learns the once-fault fired and on
+  which statement. Same cap split as `hold.go`.
 - `off.go` (build tag `!ifafaultinjection`) — `NewFaultingExecutor` as a
   no-op returning the inner executor unchanged, so default builds link no
-  fault machinery.
+  fault machinery (including no hold: a hold blocking outside the tag would
+  hang production writes).
 
 ## Where this fits
 
@@ -36,8 +43,13 @@ live proof; unit proof is the tagged tests in this directory.
 ## Invariants
 
 - No Cypher text lives here: the decorator matches on statement ordinals
-  and substrings but never authors statements, so a move cannot change
-  projected graph truth.
+  and substrings (the hold's `operation_match` included) but never authors
+  statements, so a move cannot change projected graph truth.
+- The hold's marker (`<sentinel>.statement-held`) and the once marker
+  (`<sentinel>.once-fired`) both derive from the wiring's sentinel path, so
+  the gate derives each from the fault-script path the same way; the
+  Go/shell write-failure prefix mirror is pinned by
+  `scripts/test-verify-ifa-fault-injection.sh`.
 - No production, CI, or default-tag build links `FaultingExecutor` — only
   the `off.go` stub. The `test-verify-ifa-fault-injection.sh` gate asserts
   both files exist and carry their build tags.

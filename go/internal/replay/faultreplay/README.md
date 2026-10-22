@@ -19,6 +19,13 @@ This package has two halves:
 so it cannot run hermetically; both `NewFaultingWorkSource` and
 `NewFaultingExecutor` reject it at construction (a later S4 slice owns it),
 rather than silently accepting a scripted fault that can never fire.
+`hold-statement-before-delegation` likewise cannot run here: this tier has no
+per-statement Cypher boundary (`StatementOrdinal` counts `Execute` calls and
+`OperationMatch` matches intent IDs), so a hold would engage the wrong thing
+while reporting a pass. `NewFaultingExecutor` rejects it at construction for
+the same reason; only the in-binary decorator
+(`go/internal/storage/cypher/fault/executor`, `ifafaultinjection` tag)
+implements the hold.
 
 ## What it is
 
@@ -42,7 +49,7 @@ run is scripted and replayable exactly like an ordering run.
 }
 ```
 
-## The five fault kinds
+## The six fault kinds
 
 | Kind | Trigger | Target | Mechanism it exercises |
 |---|---|---|---|
@@ -51,6 +58,7 @@ run is scripted and replayable exactly like an ordering run.
 | `fail-graph-write-once-then-succeed` | `statement_ordinal` **xor** `operation_match` | `lane` (required) | retry-with-backoff + idempotent replay (`MERGE` / `ON CONFLICT`) |
 | `restart-backend-between-phase-groups` | `after_phase_groups` (>= 1) | — | recovery across a backend outage |
 | `fail-terminal` | `intent_id` | — | names the intent expected to become a durable dead-letter |
+| `hold-statement-before-delegation` | `operation_match` (required, non-blank) | — (a `lane` is rejected) | per-statement hold at the graph-executor seam: engage one write, block on sentinel-removal/`ctx.Done()`, never delegate while held (#8539) |
 
 `fail-graph-write-once-then-succeed`'s `target.lane` is load-bearing, not
 decorative: it must be `executor-retry` (a transient error retried in place by
@@ -81,6 +89,8 @@ assertion the wider Layer 4 gate makes. `Script.Validate` enforces this:
   `after_phase_groups`) must be `>= 1`.
 - `fail-graph-write-once-then-succeed` requires `target.lane` to be
   `executor-retry` or `queue-retry`.
+- `hold-statement-before-delegation` requires `trigger.operation_match`
+  (non-blank) and rejects any `target.lane`: a hold has no retry lane.
 - Any populated `after_duration`, `at_timestamp`, or `random_seed` trigger
   field is rejected outright — these fields exist in the schema only so
   `Validate` has something concrete to reject; no real fault kind ever sets

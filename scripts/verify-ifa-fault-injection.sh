@@ -110,6 +110,10 @@ source "${repo_root}/scripts/lib/ifa_fault_injection_common.sh"
 # ifa_fault_injection_common.sh sits at 498 of the 500-line cap.
 # shellcheck source=scripts/lib/ifa_fault_reclaim_assert.sh
 source "${repo_root}/scripts/lib/ifa_fault_reclaim_assert.sh"
+# Per-statement hold script + marker helpers (#8539 seam). Separate file for
+# the same cap reason: the hold helpers would push common.sh over 500.
+# shellcheck source=scripts/lib/ifa_fault_injection_hold.sh
+source "${repo_root}/scripts/lib/ifa_fault_injection_hold.sh"
 # shellcheck source=scripts/lib/ifa_fault_lease_expiry_barrier.sh
 source "${repo_root}/scripts/lib/ifa_fault_lease_expiry_barrier.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_sources.sh
@@ -398,10 +402,13 @@ ifa_fault_shard_run cell_failgraphwrite_iam_escalation
 ifa_fault_shard_run cell_baseline_authenticates_vault_role
 ifa_fault_shard_run cell_killworker_authenticates_vault_role
 ifa_fault_shard_run cell_failgraphwrite_authenticates_vault_role
-# uses_vault_policy (#6228 slice A): ninth direct family, baseline
-# first, kill-less pair per arbiter verdict Option B on #6228 (no
-# kill-worker cell; mid-handler kill/reclaim is gap #8539).
+# uses_vault_policy (#6228 slice A + #8539 seam): ninth direct family,
+# baseline first, full trio -- the kill cell holds the family's own
+# USES_VAULT_POLICY MERGE at the graph-executor seam
+# (hold-statement-before-delegation), so no handler-stage wait is borrowed
+# from authenticates_vault_role.
 ifa_fault_shard_run cell_baseline_uses_vault_policy
+ifa_fault_shard_run cell_kill_uses_vault_policy
 ifa_fault_shard_run cell_failgraphwrite_uses_vault_policy
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;

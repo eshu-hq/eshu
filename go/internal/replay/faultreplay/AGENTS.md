@@ -54,7 +54,10 @@
   phase-groups` needs a real backend to restart; `NewFaultingWorkSource` and
   `NewFaultingExecutor` MUST keep rejecting it at construction (a later S4
   slice owns it) rather than silently accepting a scripted fault that can
-  never fire.
+  never fire. `hold-statement-before-delegation` likewise needs a
+  per-statement Cypher boundary this tier does not have; `NewFaultingExecutor`
+  MUST keep rejecting it at construction for the same reason (only the
+  in-binary decorator implements the hold).
 - No wall-clock coordination anywhere in the runner (mirrors the schema
   invariant above at the mechanism level): the mid-handler rendezvous, the
   redelivery queue, and every fire-once gate MUST be driven by channels,

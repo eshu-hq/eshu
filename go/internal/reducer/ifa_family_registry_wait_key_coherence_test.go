@@ -78,6 +78,14 @@ func TestIfaFamilyRegistryWaitKeyIsKnownDomain(t *testing.T) {
 //     That is what the runner-stage predicate polls; the two keyspaces are
 //     disjoint, and a projection domain in a handler row (or the reverse) is
 //     the same never-appears failure wearing the other queue's name.
+//   - wait_stage=statement => wait_key must validate as a fact_work_items
+//     claim reducercontract.Domain, the same keyspace as the handler stage. The per-statement
+//     hold kill cell rendezvouses on the claimed projection work item (then
+//     on the hold marker); a key no claim queue can contain would wait on a
+//     row that never appears. Statement-stage exclusivity is NOT judged here
+//     on the wait_key -- the handler is shared, so several statement holds
+//     may rendezvous on one domain -- but on the family-own anchor (see
+//     ifa_family_registry_statement_hold_coherence_test.go).
 //   - blocker_kind=shared_intent_lock => wait_stage MUST be handler. The
 //     mandatory retry-above-baseline proof dereferences
 //     fact_work_items.attempt_count scoped to wait_key, and
@@ -126,8 +134,12 @@ func TestIfaFamilyRegistryWaitStageAndKeyCohere(t *testing.T) {
 				if _, ok := projectionDomains[reducercontract.Domain(raw)]; !ok {
 					t.Fatalf("family %q: wait_stage=runner but wait_key %q is not in allProjectionDomains -- the runner predicate polls shared_projection_intents.projection_domain, a disjoint keyspace from fact_work_items.domain", family, raw)
 				}
+			case "statement":
+				if err := reducercontract.Domain(raw).Validate(); err != nil {
+					t.Fatalf("family %q: wait_stage=statement but wait_key %q is not a real reducer Domain (%v) -- the kill cell rendezvouses on the claimed projection work item in fact_work_items, the same queue the handler stage polls", family, raw, err)
+				}
 			default:
-				t.Fatalf("family %q declares IFA_FAMILY_WAIT_STAGE=%q, which is neither handler nor runner", family, stage)
+				t.Fatalf("family %q declares IFA_FAMILY_WAIT_STAGE=%q, which is neither handler, runner, nor statement", family, stage)
 			}
 			if blockerKinds[family] == "shared_intent_lock" && stage != "handler" {
 				t.Fatalf("family %q declares blocker_kind=shared_intent_lock with wait_stage=%q -- that blocker's mandatory retry-above-baseline proof reads fact_work_items.attempt_count scoped to wait_key, and shared_projection_intents has no attempt_count, so the proof could never pass and the cell would fail blaming the reducer", family, stage)

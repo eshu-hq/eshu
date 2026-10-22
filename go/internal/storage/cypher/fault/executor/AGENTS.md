@@ -14,15 +14,16 @@
 
 ## Invariants this package enforces
 
-- **Build-tag split is load-bearing.** `fault.go` and `marker.go` carry
-  `//go:build ifafaultinjection`; `off.go` carries
+- **Build-tag split is load-bearing.** `fault.go`, `hold.go`, and
+  `marker.go` carry `//go:build ifafaultinjection`; `off.go` carries
   `//go:build !ifafaultinjection`. Both constructors are named
   `NewFaultingExecutor` with identical signatures on purpose. Never merge
   them into one file — the default binary must not link `FaultingExecutor`.
 - **Fail closed on missing capabilities.** `ExecuteGroup`,
   `ExecutePhaseGroup`, and `ExecuteProbe` return dedicated errors when the
   inner executor lacks the surface; `NewFaultingExecutor` rejects ambiguous
-  scripts and a restart fault without a sentinel path.
+  scripts, a restart fault without a sentinel path, and a hold fault that
+  is not one-per-run, lacks `operation_match`, or lacks a sentinel path.
 - **Every wrapper that forwards `GroupExecutor` must forward `ProbeExecutor`
   identically** (parent-package contract in `cypher/doc.go`). This decorator
   forwards both and injects faults only on the mutating seams.

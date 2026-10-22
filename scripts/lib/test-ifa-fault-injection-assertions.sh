@@ -74,6 +74,16 @@ require_lib() {
 	[[ "$(_ifa_count_code_matches "${needle}" "${fault_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (lib): ${needle}, or it survives only inside a comment"
 }
+# require_hold_lib pins a needle that lives in the hold lib the gate
+# sources, not in common.sh: the per-statement hold helpers moved out of
+# ifa_fault_injection_common.sh when that file hit its 500-line cap (#8539).
+# Kept separate from require_lib so moving anything ELSE out of common.sh
+# still fails -- the same narrow-exception shape as require_anchors_lib.
+require_hold_lib() {
+	local label="$1" needle="$2"
+	[[ "$(_ifa_count_code_matches "${needle}" "${hold_lib}")" -ge 1 ]] \
+		|| fail "missing ${label} (hold lib): ${needle}, or it survives only inside a comment"
+}
 # require_anchors_lib pins a needle that lives in the edge-anchors lib the
 # gate sources, not in the gate script: the per-family MERGE anchors moved out
 # of verify-ifa-fault-injection.sh when that script hit its 500-line cap.
