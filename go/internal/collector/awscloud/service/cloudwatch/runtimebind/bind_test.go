@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/cloudwatch/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -18,9 +19,9 @@ import (
 // TestCloudWatchRuntimeBindRegisters confirms importing the binding installs
 // the CloudWatch scanner builder.
 func TestCloudWatchRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCloudWatch)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceCloudWatch)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCloudWatch)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceCloudWatch)
 	}
 	key, err := redact.NewKey([]byte("aws-redaction-key"))
 	if err != nil {
@@ -28,7 +29,7 @@ func TestCloudWatchRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudWatch},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCloudWatch},
 		RedactionKey: key,
 	})
 	if err != nil {
@@ -43,13 +44,13 @@ func TestCloudWatchRuntimeBindRegisters(t *testing.T) {
 // a missing redaction key surfaces at process start rather than at first
 // alarm dimension.
 func TestCloudWatchRuntimeBindRequiresRedactionKey(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCloudWatch)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceCloudWatch)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCloudWatch)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceCloudWatch)
 	}
 	_, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudWatch},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCloudWatch},
 	})
 	if err == nil {
 		t.Fatalf("build() error = nil, want missing redaction key")

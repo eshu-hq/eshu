@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("codeguru scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCodeGuru:
+	case "", catalog.ServiceCodeGuru:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCodeGuru
+		boundary.ServiceKind = catalog.ServiceCodeGuru
 	default:
 		return nil, fmt.Errorf("codeguru scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -105,7 +106,7 @@ func associationObservation(
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodeGuruRepositoryAssociation,
+		ResourceType: catalog.ResourceTypeCodeGuruRepositoryAssociation,
 		Name:         name,
 		State:        strings.TrimSpace(association.State),
 		Tags:         cloneStringMap(association.Tags),
@@ -136,7 +137,7 @@ func profilingGroupObservation(
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodeGuruProfilingGroup,
+		ResourceType: catalog.ResourceTypeCodeGuruProfilingGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{

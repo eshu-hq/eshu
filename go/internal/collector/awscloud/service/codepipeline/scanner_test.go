@@ -19,7 +19,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCodePipeline,
+		ServiceKind:         catalog.ServiceCodePipeline,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-aws-1",
@@ -201,7 +201,7 @@ func TestScannerEmitsPipelineExecutionWebhookActionTypeResources(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	pipelines := resourcesByType(t, envelopes, awscloud.ResourceTypeCodePipelinePipeline)
+	pipelines := resourcesByType(t, envelopes, catalog.ResourceTypeCodePipelinePipeline)
 	if len(pipelines) != 1 {
 		t.Fatalf("pipeline resources = %d, want 1", len(pipelines))
 	}
@@ -217,7 +217,7 @@ func TestScannerEmitsPipelineExecutionWebhookActionTypeResources(t *testing.T) {
 		t.Fatalf("artifact_store.s3_bucket = %v", store["s3_bucket"])
 	}
 
-	executions := resourcesByType(t, envelopes, awscloud.ResourceTypeCodePipelineExecution)
+	executions := resourcesByType(t, envelopes, catalog.ResourceTypeCodePipelineExecution)
 	if len(executions) != 1 {
 		t.Fatalf("execution resources = %d, want 1", len(executions))
 	}
@@ -225,7 +225,7 @@ func TestScannerEmitsPipelineExecutionWebhookActionTypeResources(t *testing.T) {
 		t.Fatalf("execution state = %v, want Succeeded", executions[0]["state"])
 	}
 
-	webhooks := resourcesByType(t, envelopes, awscloud.ResourceTypeCodePipelineWebhook)
+	webhooks := resourcesByType(t, envelopes, catalog.ResourceTypeCodePipelineWebhook)
 	if len(webhooks) != 1 {
 		t.Fatalf("webhook resources = %d, want 1", len(webhooks))
 	}
@@ -234,7 +234,7 @@ func TestScannerEmitsPipelineExecutionWebhookActionTypeResources(t *testing.T) {
 		t.Fatalf("webhook authentication_type = %v", webhookAttrs["authentication_type"])
 	}
 
-	actionTypes := resourcesByType(t, envelopes, awscloud.ResourceTypeCodePipelineActionType)
+	actionTypes := resourcesByType(t, envelopes, catalog.ResourceTypeCodePipelineActionType)
 	if len(actionTypes) != 1 {
 		t.Fatalf("action-type resources = %d, want 1", len(actionTypes))
 	}
@@ -247,7 +247,7 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	role := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelinePipelineUsesIAMRole)
+	role := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelinePipelineUsesIAMRole)
 	if len(role) != 1 || role[0]["target_type"] != catalog.ResourceTypeIAMRole {
 		t.Fatalf("pipeline->IAM-role = %#v", role)
 	}
@@ -255,7 +255,7 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("pipeline->IAM-role target_arn = %v", role[0]["target_arn"])
 	}
 
-	bucket := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelinePipelineStoresArtifactsInS3Bucket)
+	bucket := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelinePipelineStoresArtifactsInS3Bucket)
 	if len(bucket) != 1 || bucket[0]["target_type"] != catalog.ResourceTypeS3Bucket {
 		t.Fatalf("pipeline->S3 = %#v", bucket)
 	}
@@ -263,12 +263,12 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("pipeline->S3 target_resource_id = %v, want bucket ARN", bucket[0]["target_resource_id"])
 	}
 
-	key := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelinePipelineEncryptsArtifactsWithKMSKey)
+	key := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelinePipelineEncryptsArtifactsWithKMSKey)
 	if len(key) != 1 || key[0]["target_type"] != catalog.ResourceTypeKMSKey {
 		t.Fatalf("pipeline->KMS = %#v", key)
 	}
 
-	stageActions := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelineStageContainsAction)
+	stageActions := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelineStageContainsAction)
 	if len(stageActions) != 5 {
 		t.Fatalf("stage->action relationships = %d, want 5", len(stageActions))
 	}
@@ -278,7 +278,7 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 		}
 	}
 
-	source := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelineActionUsesSourceProvider)
+	source := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelineActionUsesSourceProvider)
 	if len(source) != 1 || source[0]["target_resource_id"] != "CodeCommit" {
 		t.Fatalf("action->source-provider = %#v", source)
 	}
@@ -286,8 +286,8 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("action->source-provider target_type = %v", source[0]["target_type"])
 	}
 
-	build := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelineActionTargetsCodeBuildProject)
-	if len(build) != 1 || build[0]["target_type"] != awscloud.ResourceTypeCodeBuildProject {
+	build := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelineActionTargetsCodeBuildProject)
+	if len(build) != 1 || build[0]["target_type"] != catalog.ResourceTypeCodeBuildProject {
 		t.Fatalf("action->CodeBuild = %#v", build)
 	}
 	if build[0]["target_arn"] != "arn:aws:codebuild:us-east-1:123456789012:project/checkout-build" {
@@ -295,7 +295,7 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 	}
 
 	const wantECSARN = "arn:aws:ecs:us-east-1:123456789012:service/checkout-cluster/checkout-svc"
-	ecs := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelineActionTargetsECSService)
+	ecs := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelineActionTargetsECSService)
 	if len(ecs) != 1 || ecs[0]["target_type"] != catalog.ResourceTypeECSService {
 		t.Fatalf("action->ECS = %#v", ecs)
 	}
@@ -303,15 +303,15 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("action->ECS target = %v / %v, want %v", ecs[0]["target_resource_id"], ecs[0]["target_arn"], wantECSARN)
 	}
 
-	cfn := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelineActionTargetsCloudFormationStack)
-	if len(cfn) != 1 || cfn[0]["target_type"] != awscloud.ResourceTypeCloudFormationStack {
+	cfn := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelineActionTargetsCloudFormationStack)
+	if len(cfn) != 1 || cfn[0]["target_type"] != catalog.ResourceTypeCloudFormationStack {
 		t.Fatalf("action->CloudFormation = %#v", cfn)
 	}
 	if cfn[0]["target_resource_id"] != "checkout-stack" {
 		t.Fatalf("action->CloudFormation target_resource_id = %v, want stack name", cfn[0]["target_resource_id"])
 	}
 
-	lambda := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelineActionTargetsLambdaFunction)
+	lambda := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelineActionTargetsLambdaFunction)
 	if len(lambda) != 1 || lambda[0]["target_type"] != catalog.ResourceTypeLambdaFunction {
 		t.Fatalf("action->Lambda = %#v", lambda)
 	}
@@ -319,8 +319,8 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("action->Lambda target_arn = %v", lambda[0]["target_arn"])
 	}
 
-	webhook := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelineWebhookTriggersPipeline)
-	if len(webhook) != 1 || webhook[0]["target_type"] != awscloud.ResourceTypeCodePipelinePipeline {
+	webhook := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelineWebhookTriggersPipeline)
+	if len(webhook) != 1 || webhook[0]["target_type"] != catalog.ResourceTypeCodePipelinePipeline {
 		t.Fatalf("webhook->pipeline = %#v", webhook)
 	}
 	if webhook[0]["attributes"].(map[string]any)["target_action"] != "Source" {
@@ -396,7 +396,7 @@ func TestScannerUsesBoundaryPartitionForSynthesizedARNs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	build := relationshipsByType(t, envelopes, awscloud.RelationshipCodePipelineActionTargetsCodeBuildProject)
+	build := relationshipsByType(t, envelopes, catalog.RelationshipCodePipelineActionTargetsCodeBuildProject)
 	if len(build) != 1 {
 		t.Fatalf("action->CodeBuild = %d, want 1", len(build))
 	}
@@ -439,7 +439,7 @@ func TestScannerDefaultsServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, env := range envelopes {
-		if env.Payload["service_kind"] != awscloud.ServiceCodePipeline {
+		if env.Payload["service_kind"] != catalog.ServiceCodePipeline {
 			t.Fatalf("service_kind = %v, want codepipeline", env.Payload["service_kind"])
 		}
 	}

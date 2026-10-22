@@ -65,7 +65,7 @@ func TestScannerEmitsScalableTargetAndResourceEdges(t *testing.T) {
 	}
 
 	target := resourceByID(t, envelopes, "dynamodb/dynamodb:table:ReadCapacityUnits/table/orders")
-	if got, want := target.Payload["resource_type"], awscloud.ResourceTypeApplicationAutoScalingScalableTarget; got != want {
+	if got, want := target.Payload["resource_type"], catalog.ResourceTypeApplicationAutoScalingScalableTarget; got != want {
 		t.Fatalf("target resource_type = %#v, want %q", got, want)
 	}
 	attrs := attributesOf(t, target)
@@ -75,19 +75,19 @@ func TestScannerEmitsScalableTargetAndResourceEdges(t *testing.T) {
 	assertAttribute(t, attrs, "max_capacity", int32(50))
 
 	// dynamodb edge -> partition-aware table ARN.
-	ddb := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesDynamoDBTable)
+	ddb := relationshipByType(t, envelopes, catalog.RelationshipApplicationAutoScalingTargetScalesDynamoDBTable)
 	assertEdgeTarget(t, ddb, catalog.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/orders")
 
 	// ecs edge -> long-format service ARN.
-	ecs := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesECSService)
+	ecs := relationshipByType(t, envelopes, catalog.RelationshipApplicationAutoScalingTargetScalesECSService)
 	assertEdgeTarget(t, ecs, catalog.ResourceTypeECSService, "arn:aws:ecs:us-east-1:123456789012:service/prod/api")
 
 	// rds edge -> aurora cluster ARN.
-	rds := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesRDSCluster)
+	rds := relationshipByType(t, envelopes, catalog.RelationshipApplicationAutoScalingTargetScalesRDSCluster)
 	assertEdgeTarget(t, rds, catalog.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:orders")
 
 	// lambda edge -> base function ARN (qualifier dropped).
-	lambda := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesLambdaFunction)
+	lambda := relationshipByType(t, envelopes, catalog.RelationshipApplicationAutoScalingTargetScalesLambdaFunction)
 	assertEdgeTarget(t, lambda, catalog.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:enricher")
 
 	// sagemaker namespace emits a node but no scale edge.
@@ -122,21 +122,21 @@ func TestScannerEmitsPolicyAlarmAndScalableTargetEdges(t *testing.T) {
 	}
 
 	policy := resourceByID(t, envelopes, testPolicy)
-	if got, want := policy.Payload["resource_type"], awscloud.ResourceTypeApplicationAutoScalingScalingPolicy; got != want {
+	if got, want := policy.Payload["resource_type"], catalog.ResourceTypeApplicationAutoScalingScalingPolicy; got != want {
 		t.Fatalf("policy resource_type = %#v, want %q", got, want)
 	}
 
 	// policy -> scalable target edge.
-	pst := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingPolicyForScalableTarget)
-	assertEdgeTarget(t, pst, awscloud.ResourceTypeApplicationAutoScalingScalableTarget,
+	pst := relationshipByType(t, envelopes, catalog.RelationshipApplicationAutoScalingPolicyForScalableTarget)
+	assertEdgeTarget(t, pst, catalog.ResourceTypeApplicationAutoScalingScalableTarget,
 		"dynamodb/dynamodb:table:ReadCapacityUnits/table/orders")
 	if got, want := pst.Payload["source_resource_id"], testPolicy; got != want {
 		t.Fatalf("policy->target source_resource_id = %#v, want %q", got, want)
 	}
 
 	// policy -> cloudwatch alarm edge keyed by alarm ARN.
-	alarm := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingPolicyTriggersCloudWatchAlarm)
-	assertEdgeTarget(t, alarm, awscloud.ResourceTypeCloudWatchAlarm, testAlarmARN)
+	alarm := relationshipByType(t, envelopes, catalog.RelationshipApplicationAutoScalingPolicyTriggersCloudWatchAlarm)
+	assertEdgeTarget(t, alarm, catalog.ResourceTypeCloudWatchAlarm, testAlarmARN)
 	if got, want := alarm.Payload["target_arn"], testAlarmARN; got != want {
 		t.Fatalf("policy->alarm target_arn = %#v, want %q", got, want)
 	}
@@ -161,8 +161,8 @@ func TestScannerEmitsScheduledActionEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	action := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingScheduledActionForScalableTarget)
-	assertEdgeTarget(t, action, awscloud.ResourceTypeApplicationAutoScalingScalableTarget,
+	action := relationshipByType(t, envelopes, catalog.RelationshipApplicationAutoScalingScheduledActionForScalableTarget)
+	assertEdgeTarget(t, action, catalog.ResourceTypeApplicationAutoScalingScalableTarget,
 		"ecs/ecs:service:DesiredCount/service/prod/api")
 }
 
@@ -179,7 +179,7 @@ func TestScannerSynthesizesGovCloudTargetARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	ddb := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesDynamoDBTable)
+	ddb := relationshipByType(t, envelopes, catalog.RelationshipApplicationAutoScalingTargetScalesDynamoDBTable)
 	wantARN := "arn:aws-us-gov:dynamodb:us-gov-west-1:123456789012:table/gov-orders"
 	if got := ddb.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud dynamodb target_resource_id = %#v, want %q", got, wantARN)
@@ -279,7 +279,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceApplicationAutoScaling,
+		ServiceKind:         catalog.ServiceApplicationAutoScaling,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:applicationautoscaling:1",
 		CollectorInstanceID: "aws-prod",

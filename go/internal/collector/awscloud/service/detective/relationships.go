@@ -30,7 +30,7 @@ func memberAccountRelationship(
 		SourceResourceID: graphARN,
 		SourceARN:        graphARN,
 		TargetResourceID: accountID,
-		TargetType:       awscloud.ResourceTypeOrganizationsAccount,
+		TargetType:       catalog.ResourceTypeOrganizationsAccount,
 		Attributes: map[string]any{
 			"account_id":        accountID,
 			"membership_status": strings.TrimSpace(member.Status),

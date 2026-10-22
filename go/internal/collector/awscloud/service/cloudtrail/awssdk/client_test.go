@@ -15,6 +15,7 @@ import (
 	cttypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientInterfaceExcludesEventPayloadAndMutationAPIs is the adapter
@@ -162,7 +163,7 @@ func TestClientListTrailsReadsMetadataAndNeverFetchesEventPayloads(t *testing.T)
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudTrail},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCloudTrail},
 	}
 
 	trails, err := adapter.ListTrails(context.Background())
@@ -271,7 +272,7 @@ func TestClientListEventDataStoresReadsMetadataOnly(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudTrail},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCloudTrail},
 	}
 
 	stores, err := adapter.ListEventDataStores(context.Background())
@@ -356,7 +357,7 @@ func TestClientListChannelsAndDashboardsReadsMetadataOnly(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCloudTrail},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCloudTrail},
 	}
 
 	channels, err := adapter.ListChannels(context.Background())

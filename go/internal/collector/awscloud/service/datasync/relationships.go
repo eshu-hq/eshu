@@ -69,7 +69,7 @@ func taskLogGroupRelationship(boundary awscloud.Boundary, task Task) *awscloud.R
 		SourceARN:        taskARN,
 		TargetResourceID: logGroupARN,
 		TargetARN:        logGroupARN,
-		TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+		TargetType:       catalog.ResourceTypeCloudWatchLogsLogGroup,
 		SourceRecordID:   taskARN + "->" + catalog.RelationshipDataSyncTaskLogsToCloudWatch + ":" + logGroupARN,
 	}
 }

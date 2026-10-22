@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("organizations scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceOrganizations:
+	case "", catalog.ServiceOrganizations:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceOrganizations
+		boundary.ServiceKind = catalog.ServiceOrganizations
 	default:
 		return nil, fmt.Errorf("organizations scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -154,7 +155,7 @@ func rootObservation(
 		Boundary:           boundary,
 		ARN:                strings.TrimSpace(root.ARN),
 		ResourceID:         firstNonEmpty(rootID, root.ARN),
-		ResourceType:       awscloud.ResourceTypeOrganizationsRoot,
+		ResourceType:       catalog.ResourceTypeOrganizationsRoot,
 		Name:               strings.TrimSpace(root.Name),
 		Tags:               cloneStringMap(root.Tags),
 		Attributes:         attrs,
@@ -169,7 +170,7 @@ func ouObservation(boundary awscloud.Boundary, ou OrganizationalUnit) awscloud.R
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(ou.ARN),
 		ResourceID:   firstNonEmpty(ouID, ou.ARN),
-		ResourceType: awscloud.ResourceTypeOrganizationsOrganizationalUnit,
+		ResourceType: catalog.ResourceTypeOrganizationsOrganizationalUnit,
 		Name:         strings.TrimSpace(ou.Name),
 		Tags:         cloneStringMap(ou.Tags),
 		Attributes: map[string]any{
@@ -186,7 +187,7 @@ func (s Scanner) accountObservation(boundary awscloud.Boundary, account Account)
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(account.ARN),
 		ResourceID:   firstNonEmpty(accountID, account.ARN),
-		ResourceType: awscloud.ResourceTypeOrganizationsAccount,
+		ResourceType: catalog.ResourceTypeOrganizationsAccount,
 		State:        firstNonEmpty(account.State, account.Status),
 		Tags:         cloneStringMap(account.Tags),
 		Attributes: map[string]any{
@@ -208,7 +209,7 @@ func policyObservation(boundary awscloud.Boundary, policy Policy) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(policy.ARN),
 		ResourceID:   firstNonEmpty(policyID, policy.ARN),
-		ResourceType: awscloud.ResourceTypeOrganizationsPolicy,
+		ResourceType: catalog.ResourceTypeOrganizationsPolicy,
 		Name:         strings.TrimSpace(policy.Name),
 		Tags:         cloneStringMap(policy.Tags),
 		Attributes: map[string]any{
@@ -231,7 +232,7 @@ func (s Scanner) delegatedAdminObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   adminID,
-		ResourceType: awscloud.ResourceTypeOrganizationsDelegatedAdministrator,
+		ResourceType: catalog.ResourceTypeOrganizationsDelegatedAdministrator,
 		Name:         strings.TrimSpace(admin.ServicePrincipal),
 		Attributes: map[string]any{
 			"account_arn":           strings.TrimSpace(admin.AccountARN),
@@ -259,11 +260,11 @@ func accountParentRelationship(
 	if accountID == "" || parentID == "" {
 		return awscloud.RelationshipObservation{}, false
 	}
-	relationshipType := awscloud.RelationshipOrganizationsAccountInOU
-	targetType := awscloud.ResourceTypeOrganizationsOrganizationalUnit
+	relationshipType := catalog.RelationshipOrganizationsAccountInOU
+	targetType := catalog.ResourceTypeOrganizationsOrganizationalUnit
 	if strings.HasPrefix(parentID, "r-") {
-		relationshipType = awscloud.RelationshipOrganizationsAccountInRoot
-		targetType = awscloud.ResourceTypeOrganizationsRoot
+		relationshipType = catalog.RelationshipOrganizationsAccountInRoot
+		targetType = catalog.ResourceTypeOrganizationsRoot
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
@@ -290,11 +291,11 @@ func ouParentRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOrganizationsOUInOU,
+		RelationshipType: catalog.RelationshipOrganizationsOUInOU,
 		SourceResourceID: ouID,
 		SourceARN:        strings.TrimSpace(ou.ARN),
 		TargetResourceID: parentID,
-		TargetType:       awscloud.ResourceTypeOrganizationsOrganizationalUnit,
+		TargetType:       catalog.ResourceTypeOrganizationsOrganizationalUnit,
 		Attributes: map[string]any{
 			"parent_id": parentID,
 		},
@@ -314,7 +315,7 @@ func policyTargetRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOrganizationsPolicyTargetsResource,
+		RelationshipType: catalog.RelationshipOrganizationsPolicyTargetsResource,
 		SourceResourceID: policyID,
 		SourceARN:        strings.TrimSpace(policy.ARN),
 		TargetResourceID: targetID,
@@ -339,11 +340,11 @@ func delegatedAdminRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOrganizationsDelegatedAdminForAccount,
+		RelationshipType: catalog.RelationshipOrganizationsDelegatedAdminForAccount,
 		SourceResourceID: adminID,
 		TargetResourceID: accountID,
 		TargetARN:        strings.TrimSpace(admin.AccountARN),
-		TargetType:       awscloud.ResourceTypeOrganizationsAccount,
+		TargetType:       catalog.ResourceTypeOrganizationsAccount,
 		Attributes: map[string]any{
 			"service_principal": strings.TrimSpace(admin.ServicePrincipal),
 		},
@@ -366,11 +367,11 @@ func delegatedAdminID(admin DelegatedAdministrator) string {
 func targetResourceType(targetType string) string {
 	switch strings.TrimSpace(targetType) {
 	case "ACCOUNT":
-		return awscloud.ResourceTypeOrganizationsAccount
+		return catalog.ResourceTypeOrganizationsAccount
 	case "ORGANIZATIONAL_UNIT":
-		return awscloud.ResourceTypeOrganizationsOrganizationalUnit
+		return catalog.ResourceTypeOrganizationsOrganizationalUnit
 	case "ROOT":
-		return awscloud.ResourceTypeOrganizationsRoot
+		return catalog.ResourceTypeOrganizationsRoot
 	default:
 		return "aws_resource"
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // shareJoinID resolves the join key used for a resource share across its
@@ -49,7 +50,7 @@ func shareResourceRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRAMShareIncludesResource,
+		RelationshipType: catalog.RelationshipRAMShareIncludesResource,
 		SourceResourceID: shareID,
 		SourceARN:        strings.TrimSpace(share.ARN),
 		TargetResourceID: resourceARN,
@@ -125,12 +126,12 @@ func sharePermissionRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRAMShareUsesPermission,
+		RelationshipType: catalog.RelationshipRAMShareUsesPermission,
 		SourceResourceID: shareID,
 		SourceARN:        strings.TrimSpace(share.ARN),
 		TargetResourceID: permissionARN,
 		TargetARN:        permissionARN,
-		TargetType:       awscloud.ResourceTypeRAMPermission,
+		TargetType:       catalog.ResourceTypeRAMPermission,
 		Attributes: map[string]any{
 			"permission_name":    strings.TrimSpace(permission.Name),
 			"permission_version": strings.TrimSpace(permission.Version),
@@ -149,16 +150,16 @@ func sharePermissionRelationship(
 func classifyPrincipal(principalID string) (relationshipType, targetType, targetARN string) {
 	switch {
 	case isAccountID(principalID):
-		return awscloud.RelationshipRAMShareTargetsAccount,
-			awscloud.ResourceTypeOrganizationsAccount,
+		return catalog.RelationshipRAMShareTargetsAccount,
+			catalog.ResourceTypeOrganizationsAccount,
 			""
 	case strings.Contains(principalID, ":ou/"):
-		return awscloud.RelationshipRAMShareTargetsOrganizationalUnit,
-			awscloud.ResourceTypeOrganizationsOrganizationalUnit,
+		return catalog.RelationshipRAMShareTargetsOrganizationalUnit,
+			catalog.ResourceTypeOrganizationsOrganizationalUnit,
 			principalID
 	case strings.Contains(principalID, ":organization/"), strings.Contains(principalID, ":root/"):
-		return awscloud.RelationshipRAMShareTargetsOrganization,
-			awscloud.ResourceTypeOrganizationsRoot,
+		return catalog.RelationshipRAMShareTargetsOrganization,
+			catalog.ResourceTypeOrganizationsRoot,
 			principalID
 	default:
 		// An unrecognized principal id (for example a service principal or a
@@ -167,7 +168,7 @@ func classifyPrincipal(principalID string) (relationshipType, targetType, target
 		// Organizations account. This keeps evidence without inventing a wrong
 		// account join key; the raw principal id remains the join key and no
 		// derived target ARN is claimed.
-		return awscloud.RelationshipRAMShareTargetsPrincipal,
+		return catalog.RelationshipRAMShareTargetsPrincipal,
 			awscloud.ResourceTypeGeneric,
 			""
 	}

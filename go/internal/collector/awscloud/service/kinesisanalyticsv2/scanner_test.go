@@ -105,7 +105,7 @@ func TestScannerEmitsApplicationMetadataAndRelationships(t *testing.T) {
 	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationUsesIAMRole,
 		catalog.ResourceTypeIAMRole, testRoleARN, testAppARN)
 	assertEdge(t, envelopes, catalog.RelationshipManagedFlinkApplicationLogsToCloudWatchLogGroup,
-		awscloud.ResourceTypeCloudWatchLogsLogGroup, testLogGroupARN, testAppARN)
+		catalog.ResourceTypeCloudWatchLogsLogGroup, testLogGroupARN, testAppARN)
 
 	// Two distinct subnet edges, both bare ids.
 	subnetTargets := relationshipTargets(envelopes, catalog.RelationshipManagedFlinkApplicationUsesSubnet)

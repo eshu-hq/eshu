@@ -15,6 +15,7 @@ import (
 	reviewertypes "github.com/aws/aws-sdk-go-v2/service/codegurureviewer/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientSnapshotsCodeGuruMetadataOnly(t *testing.T) {
@@ -185,6 +186,6 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCodeGuru,
+		ServiceKind: catalog.ServiceCodeGuru,
 	}
 }

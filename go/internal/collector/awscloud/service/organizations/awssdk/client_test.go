@@ -14,6 +14,7 @@ import (
 	"github.com/aws/smithy-go"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientSnapshotReadsOrganizationsMetadataOnly(t *testing.T) {
@@ -86,7 +87,7 @@ func TestClientSnapshotReadsOrganizationsMetadataOnly(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceOrganizations},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceOrganizations},
 	}
 
 	snapshot, err := adapter.Snapshot(context.Background())
@@ -151,7 +152,7 @@ func TestClientSnapshotSkipsUnavailablePolicyFamilies(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceOrganizations},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceOrganizations},
 	}
 
 	snapshot, err := adapter.Snapshot(context.Background())
@@ -175,7 +176,7 @@ func TestClientSnapshotSkipsWhenCredentialsAreNotOrgAware(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   client,
-		boundary: awscloud.Boundary{AccountID: "222233334444", Region: "us-west-2", ServiceKind: awscloud.ServiceOrganizations},
+		boundary: awscloud.Boundary{AccountID: "222233334444", Region: "us-west-2", ServiceKind: catalog.ServiceOrganizations},
 	}
 
 	snapshot, err := adapter.Snapshot(context.Background())
@@ -195,7 +196,7 @@ func TestClientSnapshotSkipsWhenCredentialsAreNotOrgAware(t *testing.T) {
 
 func TestNewClientForcesOrganizationsEndpointRegion(t *testing.T) {
 	config := aws.Config{Region: "us-west-2"}
-	client := NewClient(config, awscloud.Boundary{ServiceKind: awscloud.ServiceOrganizations}, nil, nil)
+	client := NewClient(config, awscloud.Boundary{ServiceKind: catalog.ServiceOrganizations}, nil, nil)
 	if got, want := client.region, OrganizationsEndpointRegion; got != want {
 		t.Fatalf("client region = %q, want %q", got, want)
 	}

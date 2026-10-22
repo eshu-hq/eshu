@@ -27,12 +27,12 @@ func instanceTargetRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipComputeOptimizerRecommendationTargetsInstance,
+		RelationshipType: catalog.RelationshipComputeOptimizerRecommendationTargetsInstance,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(rec.InstanceARN),
 		TargetResourceID: instanceID,
 		TargetType:       "aws_ec2_instance",
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipComputeOptimizerRecommendationTargetsInstance + ":" + instanceID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipComputeOptimizerRecommendationTargetsInstance + ":" + instanceID,
 	}
 }
 
@@ -57,13 +57,13 @@ func autoScalingGroupTargetRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup,
+		RelationshipType: catalog.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(rec.AutoScalingGroupARN),
 		TargetResourceID: groupName,
-		TargetType:       awscloud.ResourceTypeAutoScalingGroup,
+		TargetType:       catalog.ResourceTypeAutoScalingGroup,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup + ":" + groupName,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup + ":" + groupName,
 	}
 }
 
@@ -87,12 +87,12 @@ func lambdaFunctionTargetRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipComputeOptimizerRecommendationTargetsFunction,
+		RelationshipType: catalog.RelationshipComputeOptimizerRecommendationTargetsFunction,
 		SourceResourceID: sourceID,
 		SourceARN:        functionARN,
 		TargetResourceID: functionARN,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeLambdaFunction,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipComputeOptimizerRecommendationTargetsFunction + ":" + functionARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipComputeOptimizerRecommendationTargetsFunction + ":" + functionARN,
 	}
 }

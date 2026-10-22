@@ -19,7 +19,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCodeDeploy,
+		ServiceKind:         catalog.ServiceCodeDeploy,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-aws-1",
@@ -169,7 +169,7 @@ func TestScannerEmitsApplicationsGroupsConfigsAndDeployments(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	apps := resourcesByType(t, envelopes, awscloud.ResourceTypeCodeDeployApplication)
+	apps := resourcesByType(t, envelopes, catalog.ResourceTypeCodeDeployApplication)
 	if len(apps) != 1 {
 		t.Fatalf("application resources = %d, want 1", len(apps))
 	}
@@ -181,7 +181,7 @@ func TestScannerEmitsApplicationsGroupsConfigsAndDeployments(t *testing.T) {
 		t.Fatalf("application compute_platform = %v, want Server", got)
 	}
 
-	groups := resourcesByType(t, envelopes, awscloud.ResourceTypeCodeDeployDeploymentGroup)
+	groups := resourcesByType(t, envelopes, catalog.ResourceTypeCodeDeployDeploymentGroup)
 	if len(groups) != 1 {
 		t.Fatalf("deployment-group resources = %d, want 1", len(groups))
 	}
@@ -195,7 +195,7 @@ func TestScannerEmitsApplicationsGroupsConfigsAndDeployments(t *testing.T) {
 		t.Fatalf("auto_rollback.enabled = %v, want true", rollback["enabled"])
 	}
 
-	configs := resourcesByType(t, envelopes, awscloud.ResourceTypeCodeDeployDeploymentConfig)
+	configs := resourcesByType(t, envelopes, catalog.ResourceTypeCodeDeployDeploymentConfig)
 	if len(configs) != 1 {
 		t.Fatalf("deployment-config resources = %d, want 1", len(configs))
 	}
@@ -204,7 +204,7 @@ func TestScannerEmitsApplicationsGroupsConfigsAndDeployments(t *testing.T) {
 		t.Fatalf("minimum_healthy_host_value = %v, want 3", got)
 	}
 
-	deployments := resourcesByType(t, envelopes, awscloud.ResourceTypeCodeDeployDeployment)
+	deployments := resourcesByType(t, envelopes, catalog.ResourceTypeCodeDeployDeployment)
 	if len(deployments) != 1 {
 		t.Fatalf("deployment resources = %d, want 1", len(deployments))
 	}
@@ -225,15 +225,15 @@ func TestScannerEmitsDeploymentGroupRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	app := relationshipsByType(t, envelopes, awscloud.RelationshipCodeDeployDeploymentGroupBelongsToApplication)
+	app := relationshipsByType(t, envelopes, catalog.RelationshipCodeDeployDeploymentGroupBelongsToApplication)
 	if len(app) != 1 {
 		t.Fatalf("group->application relationships = %d, want 1", len(app))
 	}
-	if app[0]["target_type"] != awscloud.ResourceTypeCodeDeployApplication {
+	if app[0]["target_type"] != catalog.ResourceTypeCodeDeployApplication {
 		t.Fatalf("group->application target_type = %v", app[0]["target_type"])
 	}
 
-	role := relationshipsByType(t, envelopes, awscloud.RelationshipCodeDeployDeploymentGroupUsesIAMRole)
+	role := relationshipsByType(t, envelopes, catalog.RelationshipCodeDeployDeploymentGroupUsesIAMRole)
 	if len(role) != 1 {
 		t.Fatalf("group->IAM-role relationships = %d, want 1", len(role))
 	}
@@ -241,7 +241,7 @@ func TestScannerEmitsDeploymentGroupRelationships(t *testing.T) {
 		t.Fatalf("group->IAM-role target_arn = %v", role[0]["target_arn"])
 	}
 
-	asg := relationshipsByType(t, envelopes, awscloud.RelationshipCodeDeployDeploymentGroupTargetsAutoScalingGroup)
+	asg := relationshipsByType(t, envelopes, catalog.RelationshipCodeDeployDeploymentGroupTargetsAutoScalingGroup)
 	if len(asg) != 1 {
 		t.Fatalf("group->ASG relationships = %d, want 1", len(asg))
 	}
@@ -249,7 +249,7 @@ func TestScannerEmitsDeploymentGroupRelationships(t *testing.T) {
 		t.Fatalf("group->ASG target_resource_id = %v", asg[0]["target_resource_id"])
 	}
 
-	ecs := relationshipsByType(t, envelopes, awscloud.RelationshipCodeDeployDeploymentGroupTargetsECSService)
+	ecs := relationshipsByType(t, envelopes, catalog.RelationshipCodeDeployDeploymentGroupTargetsECSService)
 	if len(ecs) != 1 {
 		t.Fatalf("group->ECS relationships = %d, want 1", len(ecs))
 	}
@@ -267,7 +267,7 @@ func TestScannerEmitsDeploymentGroupRelationships(t *testing.T) {
 		t.Fatalf("group->ECS attributes = %#v, want cluster/service names preserved", ecsAttrs)
 	}
 
-	lambda := relationshipsByType(t, envelopes, awscloud.RelationshipCodeDeployDeploymentGroupTargetsLambdaFunction)
+	lambda := relationshipsByType(t, envelopes, catalog.RelationshipCodeDeployDeploymentGroupTargetsLambdaFunction)
 	if len(lambda) != 1 {
 		t.Fatalf("group->Lambda relationships = %d, want 1", len(lambda))
 	}
@@ -281,7 +281,7 @@ func TestScannerEmitsDeploymentGroupRelationships(t *testing.T) {
 		t.Fatalf("group->Lambda target_arn = %v, want %v", lambda[0]["target_arn"], wantLambdaARN)
 	}
 
-	sns := relationshipsByType(t, envelopes, awscloud.RelationshipCodeDeployDeploymentGroupNotifiesSNSTopic)
+	sns := relationshipsByType(t, envelopes, catalog.RelationshipCodeDeployDeploymentGroupNotifiesSNSTopic)
 	if len(sns) != 1 {
 		t.Fatalf("group->SNS relationships = %d, want 1", len(sns))
 	}
@@ -307,7 +307,7 @@ func TestScannerRedactsOnPremisesTagFilterValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	groups := resourcesByType(t, envelopes, awscloud.ResourceTypeCodeDeployDeploymentGroup)
+	groups := resourcesByType(t, envelopes, catalog.ResourceTypeCodeDeployDeploymentGroup)
 	if len(groups) != 1 {
 		t.Fatalf("deployment-group resources = %d, want 1", len(groups))
 	}
@@ -366,7 +366,7 @@ func TestScannerDefaultsServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, env := range envelopes {
-		if env.Payload["service_kind"] != awscloud.ServiceCodeDeploy {
+		if env.Payload["service_kind"] != catalog.ServiceCodeDeploy {
 			t.Fatalf("service_kind = %v, want codedeploy", env.Payload["service_kind"])
 		}
 	}

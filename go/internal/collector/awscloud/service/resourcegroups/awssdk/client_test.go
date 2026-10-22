@@ -14,6 +14,7 @@ import (
 	awsrgtypes "github.com/aws/aws-sdk-go-v2/service/resourcegroups/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	rgservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/resourcegroups"
 )
 
@@ -82,7 +83,7 @@ func TestClientListGroupsProjectsQueryTypeAndMembers(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceResourceGroups},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceResourceGroups},
 	}
 	groups, err := adapter.ListGroups(context.Background())
 	if err != nil {
@@ -135,7 +136,7 @@ func TestClientExtractsStackIdentifierForCloudFormationGroup(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceResourceGroups},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceResourceGroups},
 	}
 	groups, err := adapter.ListGroups(context.Background())
 	if err != nil {
@@ -182,7 +183,7 @@ func TestClientSkipsMembersWithoutARN(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceResourceGroups},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceResourceGroups},
 	}
 	groups, err := adapter.ListGroups(context.Background())
 	if err != nil {
@@ -196,7 +197,7 @@ func TestClientSkipsMembersWithoutARN(t *testing.T) {
 func TestClientMetadataReadsSucceedAgainstEmptyFake(t *testing.T) {
 	adapter := &Client{
 		client:   &fakeRGAPI{},
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceResourceGroups},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceResourceGroups},
 	}
 	groups, err := adapter.ListGroups(context.Background())
 	if err != nil {

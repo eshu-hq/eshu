@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("license manager scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceLicenseManager:
+	case "", catalog.ServiceLicenseManager:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceLicenseManager
+		boundary.ServiceKind = catalog.ServiceLicenseManager
 	default:
 		return nil, fmt.Errorf("license manager scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -116,7 +117,7 @@ func configurationObservation(
 		Boundary:           boundary,
 		ARN:                configurationARN,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeLicenseManagerConfiguration,
+		ResourceType:       catalog.ResourceTypeLicenseManagerConfiguration,
 		Name:               name,
 		State:              strings.TrimSpace(configuration.Status),
 		Tags:               cloneStringMap(configuration.Tags),

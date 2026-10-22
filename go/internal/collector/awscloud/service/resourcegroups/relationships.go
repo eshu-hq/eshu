@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // groupContainsMemberRelationship builds the membership edge from a Resource
@@ -35,7 +36,7 @@ func groupContainsMemberRelationship(
 	}
 	rel := awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResourceGroupsGroupContainsResource,
+		RelationshipType: catalog.RelationshipResourceGroupsGroupContainsResource,
 		SourceResourceID: groupARN,
 		SourceARN:        groupARN,
 		TargetResourceID: target.ResourceID,
@@ -78,12 +79,12 @@ func groupBackedByStackRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResourceGroupsGroupBackedByStack,
+		RelationshipType: catalog.RelationshipResourceGroupsGroupBackedByStack,
 		SourceResourceID: groupARN,
 		SourceARN:        groupARN,
 		TargetResourceID: stackID,
 		TargetARN:        stackID,
-		TargetType:       awscloud.ResourceTypeCloudFormationStack,
+		TargetType:       catalog.ResourceTypeCloudFormationStack,
 		SourceRecordID:   groupARN + "#stack#" + stackID,
 	}, true
 }

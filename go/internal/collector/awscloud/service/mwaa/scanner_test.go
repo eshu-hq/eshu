@@ -57,7 +57,7 @@ func TestScannerEmitsMWAAEnvironmentResourceAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	environment := resourceByType(t, envelopes, awscloud.ResourceTypeMWAAEnvironment)
+	environment := resourceByType(t, envelopes, catalog.ResourceTypeMWAAEnvironment)
 	if got, want := environment.Payload["resource_id"], environmentARN; got != want {
 		t.Fatalf("environment resource_id = %#v, want %q", got, want)
 	}
@@ -94,35 +94,35 @@ func TestScannerEmitsMWAAEnvironmentResourceAndRelationships(t *testing.T) {
 		}
 	}
 
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentUsesS3Bucket)
+	s3Edge := relationshipByType(t, envelopes, catalog.RelationshipMWAAEnvironmentUsesS3Bucket)
 	assertEdge(t, s3Edge, environmentARN, bucketARN, catalog.ResourceTypeS3Bucket)
 	if got, want := s3Edge.Payload["target_arn"], bucketARN; got != want {
 		t.Fatalf("env->s3 target_arn = %#v, want %q", got, want)
 	}
 
-	iamEdge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentUsesIAMRole)
+	iamEdge := relationshipByType(t, envelopes, catalog.RelationshipMWAAEnvironmentUsesIAMRole)
 	assertEdge(t, iamEdge, environmentARN, executionRoleARN, catalog.ResourceTypeIAMRole)
 	if got, want := iamEdge.Payload["target_arn"], executionRoleARN; got != want {
 		t.Fatalf("env->iam target_arn = %#v, want %q", got, want)
 	}
 
-	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentUsesKMSKey)
+	kmsEdge := relationshipByType(t, envelopes, catalog.RelationshipMWAAEnvironmentUsesKMSKey)
 	assertEdge(t, kmsEdge, environmentARN, kmsKeyARN, catalog.ResourceTypeKMSKey)
 
-	subnetEdges := relationshipsByType(envelopes, awscloud.RelationshipMWAAEnvironmentUsesSubnet)
+	subnetEdges := relationshipsByType(envelopes, catalog.RelationshipMWAAEnvironmentUsesSubnet)
 	if got := len(subnetEdges); got != 2 {
 		t.Fatalf("env->subnet edge count = %d, want 2", got)
 	}
 	assertEdge(t, subnetEdges[0], environmentARN, "subnet-aaa", catalog.ResourceTypeEC2Subnet)
 	assertEdge(t, subnetEdges[1], environmentARN, "subnet-bbb", catalog.ResourceTypeEC2Subnet)
 
-	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentUsesSecurityGroup)
+	sgEdge := relationshipByType(t, envelopes, catalog.RelationshipMWAAEnvironmentUsesSecurityGroup)
 	assertEdge(t, sgEdge, environmentARN, "sg-111", catalog.ResourceTypeEC2SecurityGroup)
 
-	logEdge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup)
+	logEdge := relationshipByType(t, envelopes, catalog.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup)
 	// The trailing ":*" wildcard suffix MWAA returns must be trimmed so the edge
 	// joins the cloudwatchlogs scanner's published non-wildcard ARN resource_id.
-	assertEdge(t, logEdge, environmentARN, logGroupBase, awscloud.ResourceTypeCloudWatchLogsLogGroup)
+	assertEdge(t, logEdge, environmentARN, logGroupBase, catalog.ResourceTypeCloudWatchLogsLogGroup)
 	if got, want := logEdge.Payload["target_arn"], logGroupBase; got != want {
 		t.Fatalf("env->log-group target_arn = %#v, want %q (wildcard must be trimmed)", got, want)
 	}
@@ -158,7 +158,7 @@ func TestScannerSynthesizesS3BucketARNFromBareNameAcrossPartitions(t *testing.T)
 			if err != nil {
 				t.Fatalf("Scan() error = %v, want nil", err)
 			}
-			edge := relationshipByType(t, envelopes, awscloud.RelationshipMWAAEnvironmentUsesS3Bucket)
+			edge := relationshipByType(t, envelopes, catalog.RelationshipMWAAEnvironmentUsesS3Bucket)
 			if got := edge.Payload["target_resource_id"]; got != tc.wantARN {
 				t.Fatalf("env->s3 target_resource_id = %#v, want %q", got, tc.wantARN)
 			}
@@ -203,14 +203,14 @@ func TestScannerSourcesEdgesOnEnvironmentResourceID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeMWAAEnvironment)
+	resource := resourceByType(t, envelopes, catalog.ResourceTypeMWAAEnvironment)
 	if got, want := resource.Payload["resource_id"], "no-arn-env"; got != want {
 		t.Fatalf("environment resource_id = %#v, want %q", got, want)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipMWAAEnvironmentUsesS3Bucket,
-		awscloud.RelationshipMWAAEnvironmentUsesIAMRole,
-		awscloud.RelationshipMWAAEnvironmentUsesSubnet,
+		catalog.RelationshipMWAAEnvironmentUsesS3Bucket,
+		catalog.RelationshipMWAAEnvironmentUsesIAMRole,
+		catalog.RelationshipMWAAEnvironmentUsesSubnet,
 	} {
 		edge := relationshipByType(t, envelopes, relationshipType)
 		if got, want := edge.Payload["source_resource_id"], "no-arn-env"; got != want {
@@ -231,12 +231,12 @@ func TestScannerOmitsRelationshipsWhenTargetsMissing(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	for _, relationshipType := range []string{
-		awscloud.RelationshipMWAAEnvironmentUsesS3Bucket,
-		awscloud.RelationshipMWAAEnvironmentUsesIAMRole,
-		awscloud.RelationshipMWAAEnvironmentUsesKMSKey,
-		awscloud.RelationshipMWAAEnvironmentUsesSubnet,
-		awscloud.RelationshipMWAAEnvironmentUsesSecurityGroup,
-		awscloud.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup,
+		catalog.RelationshipMWAAEnvironmentUsesS3Bucket,
+		catalog.RelationshipMWAAEnvironmentUsesIAMRole,
+		catalog.RelationshipMWAAEnvironmentUsesKMSKey,
+		catalog.RelationshipMWAAEnvironmentUsesSubnet,
+		catalog.RelationshipMWAAEnvironmentUsesSecurityGroup,
+		catalog.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup,
 	} {
 		if got := len(relationshipsByType(envelopes, relationshipType)); got != 0 {
 			t.Fatalf("%s edge count = %d, want 0 when target is missing or non-ARN", relationshipType, got)
@@ -259,7 +259,7 @@ func TestScannerTrimsLogGroupWildcardAndDeduplicates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edges := relationshipsByType(envelopes, awscloud.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup)
+	edges := relationshipsByType(envelopes, catalog.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup)
 	if got := len(edges); got != 1 {
 		t.Fatalf("env->log-group edge count = %d, want 1 after wildcard-trim dedupe", got)
 	}
@@ -274,7 +274,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	// the boundary; otherwise the padded string leaks into every emitted fact's
 	// service_kind and breaks joins/filters that expect the canonical "mwaa".
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceMWAA + "  "
+	boundary.ServiceKind = "  " + catalog.ServiceMWAA + "  "
 	client := fakeClient{environments: []Environment{{
 		Name:            "padded-env",
 		ARN:             "arn:aws:airflow:us-east-1:123456789012:environment/padded-env",
@@ -289,7 +289,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceMWAA; got != want {
+		if got, want := envelope.Payload["service_kind"], catalog.ServiceMWAA; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}
@@ -314,7 +314,7 @@ func TestScannerSkipsDisabledLogModuleRelationships(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edges := relationshipsByType(envelopes, awscloud.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup)
+	edges := relationshipsByType(envelopes, catalog.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup)
 	if got := len(edges); got != 1 {
 		t.Fatalf("env->log-group edge count = %d, want 1 (disabled module must not emit an edge)", got)
 	}
@@ -348,7 +348,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceMWAA,
+		ServiceKind:         catalog.ServiceMWAA,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:mwaa:1",
 		CollectorInstanceID: "aws-prod",

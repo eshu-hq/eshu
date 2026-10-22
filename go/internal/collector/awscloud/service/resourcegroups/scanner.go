@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -36,10 +37,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("resourcegroups scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceResourceGroups:
+	case "", catalog.ServiceResourceGroups:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceResourceGroups
+		boundary.ServiceKind = catalog.ServiceResourceGroups
 	default:
 		return nil, fmt.Errorf("resourcegroups scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -102,7 +103,7 @@ func groupObservation(boundary awscloud.Boundary, group Group) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   firstNonEmpty(groupARN, name),
-		ResourceType: awscloud.ResourceTypeResourceGroupsGroup,
+		ResourceType: catalog.ResourceTypeResourceGroupsGroup,
 		Name:         name,
 		Attributes: map[string]any{
 			"description":      strings.TrimSpace(group.Description),

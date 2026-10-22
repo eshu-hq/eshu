@@ -14,6 +14,7 @@ import (
 	cptypes "github.com/aws/aws-sdk-go-v2/service/codepipeline/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	cpservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/codepipeline"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -84,7 +85,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCodePipeline,
+		ServiceKind: catalog.ServiceCodePipeline,
 	}
 }
 

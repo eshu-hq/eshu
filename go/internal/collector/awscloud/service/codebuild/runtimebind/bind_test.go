@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/codebuild/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -18,14 +19,14 @@ import (
 // CodeBuild scanner builder and that the builder requires a redaction key
 // because PLAINTEXT environment-variable values are redacted.
 func TestCodeBuildRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCodeBuild)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceCodeBuild)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCodeBuild)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceCodeBuild)
 	}
 
 	if _, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCodeBuild},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCodeBuild},
 	}); err == nil {
 		t.Fatalf("build() error = nil, want redaction-key-required error")
 	}
@@ -36,7 +37,7 @@ func TestCodeBuildRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCodeBuild},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCodeBuild},
 		RedactionKey: key,
 	})
 	if err != nil {

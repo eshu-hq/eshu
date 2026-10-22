@@ -97,8 +97,8 @@ func TestProvisionedProductStackEdgePreservesARNPartition(t *testing.T) {
 			if obs.TargetARN != tc.stackARN {
 				t.Fatalf("target_arn = %q, want %q", obs.TargetARN, tc.stackARN)
 			}
-			if obs.TargetType != awscloud.ResourceTypeCloudFormationStack {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeCloudFormationStack)
+			if obs.TargetType != catalog.ResourceTypeCloudFormationStack {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, catalog.ResourceTypeCloudFormationStack)
 			}
 		})
 	}

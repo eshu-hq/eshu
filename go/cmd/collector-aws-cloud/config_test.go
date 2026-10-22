@@ -375,7 +375,7 @@ func TestLoadRuntimeConfigMapsOrganizationsWithRedactionKey(t *testing.T) {
 		t.Fatalf("loadRuntimeConfig() error = %v", err)
 	}
 	target := config.AWS.Targets[0]
-	if got, want := target.AllowedServices[0], awscloud.ServiceOrganizations; got != want {
+	if got, want := target.AllowedServices[0], catalog.ServiceOrganizations; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if got, want := target.AllowedRegions[0], "us-east-1"; got != want {
@@ -580,7 +580,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForCloudWatchLogs(t *testing
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceCloudWatchLogs; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], catalog.ServiceCloudWatchLogs; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {

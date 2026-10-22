@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/resourcegroups/runtimebind"
 )
 
 // TestResourceGroupsRuntimeBindRegisters confirms importing the binding installs
 // the Resource Groups scanner builder.
 func TestResourceGroupsRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceResourceGroups)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceResourceGroups)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceResourceGroups)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceResourceGroups)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceResourceGroups},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceResourceGroups},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

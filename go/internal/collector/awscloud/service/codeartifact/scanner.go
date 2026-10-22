@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -35,10 +36,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("codeartifact scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCodeArtifact:
+	case "", catalog.ServiceCodeArtifact:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceCodeArtifact
+		boundary.ServiceKind = catalog.ServiceCodeArtifact
 	default:
 		return nil, fmt.Errorf("codeartifact scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -136,7 +137,7 @@ func domainObservation(boundary awscloud.Boundary, domain Domain) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          domainARN,
 		ResourceID:   firstNonEmpty(name, domainARN),
-		ResourceType: awscloud.ResourceTypeCodeArtifactDomain,
+		ResourceType: catalog.ResourceTypeCodeArtifactDomain,
 		Name:         name,
 		State:        strings.TrimSpace(domain.Status),
 		Attributes: map[string]any{
@@ -166,7 +167,7 @@ func repositoryObservation(boundary awscloud.Boundary, repository Repository) aw
 		Boundary:     boundary,
 		ARN:          repositoryARN,
 		ResourceID:   repositoryResourceID(repository),
-		ResourceType: awscloud.ResourceTypeCodeArtifactRepository,
+		ResourceType: catalog.ResourceTypeCodeArtifactRepository,
 		Name:         name,
 		Attributes: map[string]any{
 			"domain_name":           strings.TrimSpace(repository.DomainName),

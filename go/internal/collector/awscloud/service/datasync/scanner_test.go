@@ -126,7 +126,7 @@ func TestScannerEmitsDataSyncMetadataResourcesAndRelationships(t *testing.T) {
 	if got, want := logEdge.Payload["target_resource_id"], logGroupARN; got != want {
 		t.Fatalf("task->log target_resource_id = %#v, want %q (must match trimmed log-group ARN)", got, want)
 	}
-	if got, want := logEdge.Payload["target_type"], awscloud.ResourceTypeCloudWatchLogsLogGroup; got != want {
+	if got, want := logEdge.Payload["target_type"], catalog.ResourceTypeCloudWatchLogsLogGroup; got != want {
 		t.Fatalf("task->log target_type = %#v, want %q", got, want)
 	}
 

@@ -85,7 +85,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Summary resource.
-	summaries := resourcesByType(t, envelopes, awscloud.ResourceTypeComputeOptimizerRecommendationSummary)
+	summaries := resourcesByType(t, envelopes, catalog.ResourceTypeComputeOptimizerRecommendationSummary)
 	if len(summaries) != 1 {
 		t.Fatalf("summary count = %d, want 1", len(summaries))
 	}
@@ -94,7 +94,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, summaryAttrs, "savings_opportunity_percentage", 12.5)
 
 	// Four recommendation resources (instance, asg, volume, lambda).
-	recs := resourcesByType(t, envelopes, awscloud.ResourceTypeComputeOptimizerRecommendation)
+	recs := resourcesByType(t, envelopes, catalog.ResourceTypeComputeOptimizerRecommendation)
 	if len(recs) != 4 {
 		t.Fatalf("recommendation count = %d, want 4", len(recs))
 	}
@@ -106,7 +106,7 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, instAttrs, "instance_id", "i-0abc123def4567890")
 
 	// instance recommendation -> EC2 instance edge keyed by bare instance id.
-	instEdge := relationshipByType(t, envelopes, awscloud.RelationshipComputeOptimizerRecommendationTargetsInstance)
+	instEdge := relationshipByType(t, envelopes, catalog.RelationshipComputeOptimizerRecommendationTargetsInstance)
 	assertEdgeTarget(t, instEdge, "aws_ec2_instance", "i-0abc123def4567890")
 	if got, want := instEdge.Payload["source_resource_id"], testInstanceARN; got != want {
 		t.Fatalf("instance edge source_resource_id = %#v, want %q", got, want)
@@ -117,14 +117,14 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 
 	// asg recommendation -> ASG edge keyed by group name (no target_arn, since the
 	// autoscaling scanner publishes its group resource_id as the bare name).
-	asgEdge := relationshipByType(t, envelopes, awscloud.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup)
-	assertEdgeTarget(t, asgEdge, awscloud.ResourceTypeAutoScalingGroup, "web-asg")
+	asgEdge := relationshipByType(t, envelopes, catalog.RelationshipComputeOptimizerRecommendationTargetsAutoScalingGroup)
+	assertEdgeTarget(t, asgEdge, catalog.ResourceTypeAutoScalingGroup, "web-asg")
 	if got := asgEdge.Payload["target_arn"]; got != "" {
 		t.Fatalf("asg edge target_arn = %#v, want empty (name-keyed target)", got)
 	}
 
 	// lambda recommendation -> function edge keyed by ARN.
-	lambdaEdge := relationshipByType(t, envelopes, awscloud.RelationshipComputeOptimizerRecommendationTargetsFunction)
+	lambdaEdge := relationshipByType(t, envelopes, catalog.RelationshipComputeOptimizerRecommendationTargetsFunction)
 	assertEdgeTarget(t, lambdaEdge, catalog.ResourceTypeLambdaFunction, testFunctionARN)
 	if got, want := lambdaEdge.Payload["target_arn"], testFunctionARN; got != want {
 		t.Fatalf("lambda edge target_arn = %#v, want %q", got, want)
@@ -231,7 +231,7 @@ func TestScannerSupportsGovCloudInstanceEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipComputeOptimizerRecommendationTargetsInstance)
+	edge := relationshipByType(t, envelopes, catalog.RelationshipComputeOptimizerRecommendationTargetsInstance)
 	if got, want := edge.Payload["target_resource_id"], "i-0gov11112222"; got != want {
 		t.Fatalf("GovCloud instance edge target_resource_id = %#v, want %q", got, want)
 	}
@@ -277,7 +277,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceComputeOptimizer,
+		ServiceKind:         catalog.ServiceComputeOptimizer,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:computeoptimizer:1",
 		CollectorInstanceID: "aws-prod",

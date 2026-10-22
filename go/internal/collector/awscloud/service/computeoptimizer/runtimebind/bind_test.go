@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/computeoptimizer/runtimebind"
 )
 
 // TestComputeOptimizerRuntimeBindRegisters confirms importing the binding
 // installs the Compute Optimizer scanner builder.
 func TestComputeOptimizerRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceComputeOptimizer)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceComputeOptimizer)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceComputeOptimizer)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceComputeOptimizer)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceComputeOptimizer,
+			ServiceKind: catalog.ServiceComputeOptimizer,
 		},
 	})
 	if err != nil {

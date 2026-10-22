@@ -13,6 +13,7 @@ import (
 	awsmwaatypes "github.com/aws/aws-sdk-go-v2/service/mwaa/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	mwaaservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/mwaa"
 )
 
@@ -55,7 +56,7 @@ func TestClientListEnvironmentsMapsSafeMetadataAndDropsAirflowConfig(t *testing.
 		},
 	}
 
-	client := &Client{client: fake, boundary: awscloud.Boundary{ServiceKind: awscloud.ServiceMWAA}}
+	client := &Client{client: fake, boundary: awscloud.Boundary{ServiceKind: catalog.ServiceMWAA}}
 	environments, err := client.ListEnvironments(context.Background())
 	if err != nil {
 		t.Fatalf("ListEnvironments() error = %v, want nil", err)
@@ -89,7 +90,7 @@ func TestClientListEnvironmentsMapsSafeMetadataAndDropsAirflowConfig(t *testing.
 
 func TestClientGetEnvironmentNilEnvironmentFallsBackToName(t *testing.T) {
 	fake := &fakeMWAAAPI{environments: []string{"empty-env"}, details: map[string]awsmwaatypes.Environment{}}
-	client := &Client{client: fake, boundary: awscloud.Boundary{ServiceKind: awscloud.ServiceMWAA}}
+	client := &Client{client: fake, boundary: awscloud.Boundary{ServiceKind: catalog.ServiceMWAA}}
 	environments, err := client.ListEnvironments(context.Background())
 	if err != nil {
 		t.Fatalf("ListEnvironments() error = %v, want nil", err)

@@ -179,7 +179,7 @@ func groupObservation(boundary awscloud.Boundary, group Group) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   groupName,
-		ResourceType: awscloud.ResourceTypeAutoScalingGroup,
+		ResourceType: catalog.ResourceTypeAutoScalingGroup,
 		Name:         groupName,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         group.Tags,

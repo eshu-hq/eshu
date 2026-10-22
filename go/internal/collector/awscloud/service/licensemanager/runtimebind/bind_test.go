@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/licensemanager/runtimebind"
 )
 
 // TestLicenseManagerRuntimeBindRegisters confirms importing the binding installs
 // the License Manager scanner builder.
 func TestLicenseManagerRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceLicenseManager)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceLicenseManager)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceLicenseManager)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceLicenseManager)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceLicenseManager,
+			ServiceKind: catalog.ServiceLicenseManager,
 		},
 	})
 	if err != nil {

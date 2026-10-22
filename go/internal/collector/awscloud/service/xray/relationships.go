@@ -43,7 +43,7 @@ func encryptionConfigKMSRelationship(
 	source := encryptionConfigResourceID(boundary)
 	relationship := awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipXRayEncryptionConfigUsesKMSKey,
+		RelationshipType: catalog.RelationshipXRayEncryptionConfigUsesKMSKey,
 		SourceResourceID: source,
 		TargetResourceID: keyRef,
 		TargetType:       targetType,
@@ -85,11 +85,11 @@ func samplingRuleServiceRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipXRaySamplingRuleMatchesService,
+		RelationshipType: catalog.RelationshipXRaySamplingRuleMatchesService,
 		SourceResourceID: source,
 		SourceARN:        strings.TrimSpace(rule.ARN),
 		TargetResourceID: anchor,
-		TargetType:       awscloud.ResourceTypeXRayServiceCorrelation,
+		TargetType:       catalog.ResourceTypeXRayServiceCorrelation,
 		Attributes: map[string]any{
 			"service_name": serviceName,
 			"service_type": serviceType,

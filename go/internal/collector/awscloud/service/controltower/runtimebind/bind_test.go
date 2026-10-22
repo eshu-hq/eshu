@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/controltower/runtimebind"
 )
 
 // TestControlTowerRuntimeBindRegisters confirms importing the binding installs
 // the Control Tower scanner builder.
 func TestControlTowerRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceControlTower)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceControlTower)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceControlTower)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceControlTower)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceControlTower,
+			ServiceKind: catalog.ServiceControlTower,
 		},
 	})
 	if err != nil {

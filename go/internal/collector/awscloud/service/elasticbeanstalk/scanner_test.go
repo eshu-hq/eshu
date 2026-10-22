@@ -145,7 +145,7 @@ func TestScannerEmitsEnvironmentRelationshipsWithJoinKeys(t *testing.T) {
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile, testInstanceProf, catalog.ResourceTypeIAMInstanceProfile},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesServiceRole, testServiceRole, catalog.ResourceTypeIAMRole},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer, testLoadBalancerARN, catalog.ResourceTypeELBv2LoadBalancer},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup, "awseb-e-abc123-stack-AWSEBAutoScalingGroup", awscloud.ResourceTypeAutoScalingGroup},
+		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup, "awseb-e-abc123-stack-AWSEBAutoScalingGroup", catalog.ResourceTypeAutoScalingGroup},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate, "lt-0123456789abcdef0", catalog.ResourceTypeEC2LaunchTemplate},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentRunsVersion, testAppVersionARN, awscloud.ResourceTypeElasticBeanstalkApplicationVersion},
 	}

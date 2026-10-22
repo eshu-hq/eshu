@@ -54,7 +54,7 @@ func alarmSNSRelationships(
 	for topicARN, categories := range seen {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudWatchAlarmNotifiesSNSTopic,
+			RelationshipType: catalog.RelationshipCloudWatchAlarmNotifiesSNSTopic,
 			SourceResourceID: source,
 			SourceARN:        strings.TrimSpace(alarmARN),
 			TargetResourceID: topicARN,
@@ -95,11 +95,11 @@ func compositeChildRelationships(
 		seen[trimmed] = struct{}{}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudWatchCompositeAlarmHasChildAlarm,
+			RelationshipType: catalog.RelationshipCloudWatchCompositeAlarmHasChildAlarm,
 			SourceResourceID: source,
 			SourceARN:        strings.TrimSpace(alarm.ARN),
 			TargetResourceID: trimmed,
-			TargetType:       awscloud.ResourceTypeCloudWatchAlarm,
+			TargetType:       catalog.ResourceTypeCloudWatchAlarm,
 			Attributes: map[string]any{
 				"alarm_rule": strings.TrimSpace(alarm.AlarmRule),
 				"child_name": trimmed,
@@ -125,7 +125,7 @@ func metricStreamFirehoseRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudWatchMetricStreamDeliversToFirehose,
+		RelationshipType: catalog.RelationshipCloudWatchMetricStreamDeliversToFirehose,
 		SourceResourceID: source,
 		SourceARN:        strings.TrimSpace(stream.ARN),
 		TargetResourceID: firehoseARN,
@@ -161,7 +161,7 @@ func alarmMetricRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudWatchAlarmObservesMetric,
+		RelationshipType: catalog.RelationshipCloudWatchAlarmObservesMetric,
 		SourceResourceID: source,
 		SourceARN:        strings.TrimSpace(alarm.ARN),
 		TargetResourceID: metricID,

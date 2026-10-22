@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/codepipeline/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -18,14 +19,14 @@ import (
 // the CodePipeline scanner builder and that the builder requires a redaction
 // key because source-revision summaries are redacted.
 func TestCodePipelineRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCodePipeline)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceCodePipeline)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCodePipeline)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceCodePipeline)
 	}
 
 	if _, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCodePipeline},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCodePipeline},
 	}); err == nil {
 		t.Fatalf("build() error = nil, want redaction-key-required error")
 	}
@@ -36,7 +37,7 @@ func TestCodePipelineRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceCodePipeline},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceCodePipeline},
 		RedactionKey: key,
 	})
 	if err != nil {

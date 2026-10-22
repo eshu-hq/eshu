@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
 
@@ -21,7 +22,7 @@ import (
 // value too; otherwise warning fact IDs diverge from resource/relationship facts.
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceApplicationAutoScaling + "  "
+	boundary.ServiceKind = "  " + catalog.ServiceApplicationAutoScaling + "  "
 	warningBoundary := boundary
 	client := fakeClient{snapshot: Snapshot{
 		ScalableTargets: []ScalableTarget{{
@@ -52,7 +53,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		if envelope.FactKind == cloud.AWSWarningFactKind {
 			sawWarning = true
 		}
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceApplicationAutoScaling; got != want {
+		if got, want := envelope.Payload["service_kind"], catalog.ServiceApplicationAutoScaling; got != want {
 			t.Fatalf("envelope (%s) service_kind = %#v, want %q (padded service_kind must be canonicalized)",
 				envelope.FactKind, got, want)
 		}

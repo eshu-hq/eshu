@@ -58,7 +58,7 @@ func pipelineRoleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodePipelinePipelineUsesIAMRole,
+		RelationshipType: catalog.RelationshipCodePipelinePipelineUsesIAMRole,
 		SourceResourceID: pipelineID,
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: roleARN,
@@ -80,7 +80,7 @@ func artifactBucketRelationship(
 	bucketARN := s3BucketARN(boundary, bucket)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodePipelinePipelineStoresArtifactsInS3Bucket,
+		RelationshipType: catalog.RelationshipCodePipelinePipelineStoresArtifactsInS3Bucket,
 		SourceResourceID: pipelineID,
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: bucketARN,
@@ -119,7 +119,7 @@ func artifactKeyRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodePipelinePipelineEncryptsArtifactsWithKMSKey,
+		RelationshipType: catalog.RelationshipCodePipelinePipelineEncryptsArtifactsWithKMSKey,
 		SourceResourceID: pipelineID,
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: target,
@@ -150,11 +150,11 @@ func actionRelationships(
 
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipCodePipelineStageContainsAction,
+				RelationshipType: catalog.RelationshipCodePipelineStageContainsAction,
 				SourceResourceID: pipelineID,
 				SourceARN:        pipelineArnValue,
 				TargetResourceID: actionID,
-				TargetType:       awscloud.ResourceTypeCodePipelinePipeline,
+				TargetType:       catalog.ResourceTypeCodePipelinePipeline,
 				Attributes: map[string]any{
 					"stage_name":  stageName,
 					"action_name": actionName,
@@ -186,7 +186,7 @@ func sourceProviderRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodePipelineActionUsesSourceProvider,
+		RelationshipType: catalog.RelationshipCodePipelineActionUsesSourceProvider,
 		SourceResourceID: pipelineID,
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: provider,
@@ -217,15 +217,15 @@ func actionTargetRelationship(
 	switch strings.TrimSpace(action.TargetProvider) {
 	case "CodeBuild":
 		arn := codeBuildProjectARN(boundary, name)
-		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsCodeBuildProject,
-			awscloud.ResourceTypeCodeBuildProject, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
+		return targetRelationship(boundary, catalog.RelationshipCodePipelineActionTargetsCodeBuildProject,
+			catalog.ResourceTypeCodeBuildProject, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
 	case "CodeDeploy":
 		arn := codeDeployApplicationARN(boundary, name)
-		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsCodeDeployApplication,
-			awscloud.ResourceTypeCodeDeployApplication, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
+		return targetRelationship(boundary, catalog.RelationshipCodePipelineActionTargetsCodeDeployApplication,
+			catalog.ResourceTypeCodeDeployApplication, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
 	case "Lambda":
 		arn := lambdaFunctionARN(boundary, name)
-		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsLambdaFunction,
+		return targetRelationship(boundary, catalog.RelationshipCodePipelineActionTargetsLambdaFunction,
 			catalog.ResourceTypeLambdaFunction, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, nil), true
 	case "CloudFormation":
 		// The CloudFormation scanner's stack node carries the stack name in its
@@ -233,8 +233,8 @@ func actionTargetRelationship(
 		// real stack id ARN has an account-generated UUID suffix this scanner
 		// cannot know), so target the stack name to join the stack node by its
 		// name anchor; leave target_arn empty rather than emit a wrong ARN.
-		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsCloudFormationStack,
-			awscloud.ResourceTypeCloudFormationStack, pipelineArnValue, pipelineID, actionID, name, "", action, nil), true
+		return targetRelationship(boundary, catalog.RelationshipCodePipelineActionTargetsCloudFormationStack,
+			catalog.ResourceTypeCloudFormationStack, pipelineArnValue, pipelineID, actionID, name, "", action, nil), true
 	case "ECS":
 		cluster, service, ok := splitClusterService(name)
 		if !ok {
@@ -242,7 +242,7 @@ func actionTargetRelationship(
 		}
 		arn := ecsServiceARN(boundary, cluster, service)
 		attrs := map[string]any{"cluster_name": cluster, "service_name": service}
-		return targetRelationship(boundary, awscloud.RelationshipCodePipelineActionTargetsECSService,
+		return targetRelationship(boundary, catalog.RelationshipCodePipelineActionTargetsECSService,
 			catalog.ResourceTypeECSService, pipelineArnValue, pipelineID, actionID, firstNonEmpty(arn, name), arn, action, attrs), true
 	default:
 		return awscloud.RelationshipObservation{}, false
@@ -284,12 +284,12 @@ func webhookRelationship(
 	pipelineArnValue := pipelineARN(boundary, pipelineName)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodePipelineWebhookTriggersPipeline,
+		RelationshipType: catalog.RelationshipCodePipelineWebhookTriggersPipeline,
 		SourceResourceID: webhookID,
 		SourceARN:        strings.TrimSpace(webhook.ARN),
 		TargetResourceID: firstNonEmpty(pipelineArnValue, pipelineName),
 		TargetARN:        pipelineArnValue,
-		TargetType:       awscloud.ResourceTypeCodePipelinePipeline,
+		TargetType:       catalog.ResourceTypeCodePipelinePipeline,
 		Attributes: map[string]any{
 			"target_action": strings.TrimSpace(webhook.TargetAction),
 		},

@@ -21,7 +21,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCodeBuild,
+		ServiceKind:         catalog.ServiceCodeBuild,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-aws-1",
@@ -150,7 +150,7 @@ func TestScannerEmitsProjectsReportGroupsAndBuilds(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	projects := resourcesByType(t, envelopes, awscloud.ResourceTypeCodeBuildProject)
+	projects := resourcesByType(t, envelopes, catalog.ResourceTypeCodeBuildProject)
 	if len(projects) != 1 {
 		t.Fatalf("project resources = %d, want 1", len(projects))
 	}
@@ -166,7 +166,7 @@ func TestScannerEmitsProjectsReportGroupsAndBuilds(t *testing.T) {
 		t.Fatalf("compute_type = %v, want BUILD_GENERAL1_SMALL", environment["compute_type"])
 	}
 
-	groups := resourcesByType(t, envelopes, awscloud.ResourceTypeCodeBuildReportGroup)
+	groups := resourcesByType(t, envelopes, catalog.ResourceTypeCodeBuildReportGroup)
 	if len(groups) != 1 {
 		t.Fatalf("report-group resources = %d, want 1", len(groups))
 	}
@@ -175,7 +175,7 @@ func TestScannerEmitsProjectsReportGroupsAndBuilds(t *testing.T) {
 		t.Fatalf("report-group type = %v, want TEST", groupAttrs["type"])
 	}
 
-	builds := resourcesByType(t, envelopes, awscloud.ResourceTypeCodeBuildBuild)
+	builds := resourcesByType(t, envelopes, catalog.ResourceTypeCodeBuildBuild)
 	if len(builds) != 1 {
 		t.Fatalf("build resources = %d, want 1", len(builds))
 	}
@@ -195,7 +195,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	role := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectUsesIAMRole)
+	role := relationshipsByType(t, envelopes, catalog.RelationshipCodeBuildProjectUsesIAMRole)
 	if len(role) != 1 {
 		t.Fatalf("project->IAM-role relationships = %d, want 1", len(role))
 	}
@@ -206,7 +206,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("project->IAM-role target_resource_id = %v", role[0]["target_resource_id"])
 	}
 
-	kms := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectUsesKMSKey)
+	kms := relationshipsByType(t, envelopes, catalog.RelationshipCodeBuildProjectUsesKMSKey)
 	if len(kms) != 1 {
 		t.Fatalf("project->KMS relationships = %d, want 1", len(kms))
 	}
@@ -217,7 +217,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("project->KMS target_resource_id = %v", kms[0]["target_resource_id"])
 	}
 
-	vpc := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectUsesVPC)
+	vpc := relationshipsByType(t, envelopes, catalog.RelationshipCodeBuildProjectUsesVPC)
 	if len(vpc) != 1 {
 		t.Fatalf("project->VPC relationships = %d, want 1", len(vpc))
 	}
@@ -228,17 +228,17 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("project->VPC target_resource_id = %v", vpc[0]["target_resource_id"])
 	}
 
-	subnet := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectUsesSubnet)
+	subnet := relationshipsByType(t, envelopes, catalog.RelationshipCodeBuildProjectUsesSubnet)
 	if len(subnet) != 1 || subnet[0]["target_type"] != catalog.ResourceTypeEC2Subnet {
 		t.Fatalf("project->subnet relationships = %#v", subnet)
 	}
 
-	sg := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectUsesSecurityGroup)
+	sg := relationshipsByType(t, envelopes, catalog.RelationshipCodeBuildProjectUsesSecurityGroup)
 	if len(sg) != 1 || sg[0]["target_type"] != catalog.ResourceTypeEC2SecurityGroup {
 		t.Fatalf("project->security-group relationships = %#v", sg)
 	}
 
-	repo := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectSourcedFromRepository)
+	repo := relationshipsByType(t, envelopes, catalog.RelationshipCodeBuildProjectSourcedFromRepository)
 	if len(repo) != 1 {
 		t.Fatalf("project->repository relationships = %d, want 1", len(repo))
 	}
@@ -249,7 +249,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("project->repository target_type = %v, want %v", repo[0]["target_type"], repositorySourceTargetType)
 	}
 
-	s3Source := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectSourcedFromS3)
+	s3Source := relationshipsByType(t, envelopes, catalog.RelationshipCodeBuildProjectSourcedFromS3)
 	if len(s3Source) != 1 {
 		t.Fatalf("project->S3-source relationships = %d, want 1", len(s3Source))
 	}
@@ -261,7 +261,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("project->S3-source target_type = %v", s3Source[0]["target_type"])
 	}
 
-	s3Artifact := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectArtifactsToS3)
+	s3Artifact := relationshipsByType(t, envelopes, catalog.RelationshipCodeBuildProjectArtifactsToS3)
 	if len(s3Artifact) != 1 {
 		t.Fatalf("project->S3-artifact relationships = %d, want 1", len(s3Artifact))
 	}
@@ -269,7 +269,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("project->S3-artifact target_resource_id = %v", s3Artifact[0]["target_resource_id"])
 	}
 
-	secret := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectReferencesSecret)
+	secret := relationshipsByType(t, envelopes, catalog.RelationshipCodeBuildProjectReferencesSecret)
 	if len(secret) != 1 {
 		t.Fatalf("project->Secrets-Manager relationships = %d, want 1", len(secret))
 	}
@@ -280,7 +280,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 		t.Fatalf("project->Secrets-Manager target_resource_id = %v", secret[0]["target_resource_id"])
 	}
 
-	ssm := relationshipsByType(t, envelopes, awscloud.RelationshipCodeBuildProjectReferencesSSMParameter)
+	ssm := relationshipsByType(t, envelopes, catalog.RelationshipCodeBuildProjectReferencesSSMParameter)
 	if len(ssm) != 1 {
 		t.Fatalf("project->SSM relationships = %d, want 1", len(ssm))
 	}
@@ -302,7 +302,7 @@ func TestScannerKeepsEnvVarNamesAndRedactsPlaintextValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	projects := resourcesByType(t, envelopes, awscloud.ResourceTypeCodeBuildProject)
+	projects := resourcesByType(t, envelopes, catalog.ResourceTypeCodeBuildProject)
 	if len(projects) != 1 {
 		t.Fatalf("project resources = %d, want 1", len(projects))
 	}
@@ -356,7 +356,7 @@ func TestScannerDefaultsServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, env := range envelopes {
-		if env.Payload["service_kind"] != awscloud.ServiceCodeBuild {
+		if env.Payload["service_kind"] != catalog.ServiceCodeBuild {
 			t.Fatalf("service_kind = %v, want codebuild", env.Payload["service_kind"])
 		}
 	}

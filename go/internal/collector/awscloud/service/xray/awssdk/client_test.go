@@ -13,6 +13,7 @@ import (
 	awsxraytypes "github.com/aws/aws-sdk-go-v2/service/xray/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientSurfaceIsConfigOnly reflects over the adapter's private
@@ -162,7 +163,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceXRay,
+		ServiceKind: catalog.ServiceXRay,
 	}
 }
 

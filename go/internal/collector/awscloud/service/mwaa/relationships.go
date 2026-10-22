@@ -53,13 +53,13 @@ func environmentS3Relationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMWAAEnvironmentUsesS3Bucket,
+		RelationshipType: catalog.RelationshipMWAAEnvironmentUsesS3Bucket,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesS3Bucket + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipMWAAEnvironmentUsesS3Bucket + ":" + bucketARN,
 	}, true
 }
 
@@ -75,13 +75,13 @@ func environmentIAMRoleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMWAAEnvironmentUsesIAMRole,
+		RelationshipType: catalog.RelationshipMWAAEnvironmentUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       catalog.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesIAMRole + ":" + roleARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipMWAAEnvironmentUsesIAMRole + ":" + roleARN,
 	}, true
 }
 
@@ -105,13 +105,13 @@ func environmentKMSKeyRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMWAAEnvironmentUsesKMSKey,
+		RelationshipType: catalog.RelationshipMWAAEnvironmentUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: kmsKey,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesKMSKey + ":" + kmsKey,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipMWAAEnvironmentUsesKMSKey + ":" + kmsKey,
 	}, true
 }
 
@@ -134,12 +134,12 @@ func environmentSubnetRelationships(
 		seen[subnetID] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMWAAEnvironmentUsesSubnet,
+			RelationshipType: catalog.RelationshipMWAAEnvironmentUsesSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesSubnet + ":" + subnetID,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipMWAAEnvironmentUsesSubnet + ":" + subnetID,
 		})
 	}
 	return observations
@@ -164,12 +164,12 @@ func environmentSecurityGroupRelationships(
 		seen[groupID] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMWAAEnvironmentUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipMWAAEnvironmentUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentUsesSecurityGroup + ":" + groupID,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipMWAAEnvironmentUsesSecurityGroup + ":" + groupID,
 		})
 	}
 	return observations
@@ -207,14 +207,14 @@ func environmentLogGroupRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup,
+			RelationshipType: catalog.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: logGroupARN,
 			TargetARN:        logGroupARN,
-			TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+			TargetType:       catalog.ResourceTypeCloudWatchLogsLogGroup,
 			Attributes:       attributes,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup + ":" + logGroupARN,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup + ":" + logGroupARN,
 		})
 	}
 	return observations

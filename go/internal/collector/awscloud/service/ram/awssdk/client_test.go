@@ -12,6 +12,7 @@ import (
 	awsramtypes "github.com/aws/aws-sdk-go-v2/service/ram/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 type fakeRAMAPI struct {
@@ -111,7 +112,7 @@ func TestClientListResourceSharesReadsOwnerSelfMetadata(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceRAM},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceRAM},
 	}
 
 	shares, err := adapter.ListResourceShares(context.Background())
@@ -176,7 +177,7 @@ func TestClientListResourceSharesPaginatesShares(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceRAM},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceRAM},
 	}
 
 	shares, err := adapter.ListResourceShares(context.Background())

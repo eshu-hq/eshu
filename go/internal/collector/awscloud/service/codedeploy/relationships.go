@@ -53,12 +53,12 @@ func applicationRelationship(
 	appARN := applicationARN(boundary, appName)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupBelongsToApplication,
+		RelationshipType: catalog.RelationshipCodeDeployDeploymentGroupBelongsToApplication,
 		SourceResourceID: groupID,
 		SourceARN:        groupARN,
 		TargetResourceID: firstNonEmpty(appARN, appName),
 		TargetARN:        appARN,
-		TargetType:       awscloud.ResourceTypeCodeDeployApplication,
+		TargetType:       catalog.ResourceTypeCodeDeployApplication,
 		SourceRecordID:   groupID + "#application#" + appName,
 	}, true
 }
@@ -74,7 +74,7 @@ func serviceRoleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupUsesIAMRole,
+		RelationshipType: catalog.RelationshipCodeDeployDeploymentGroupUsesIAMRole,
 		SourceResourceID: groupID,
 		SourceARN:        groupARN,
 		TargetResourceID: roleARN,
@@ -97,11 +97,11 @@ func autoScalingGroupRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupTargetsAutoScalingGroup,
+			RelationshipType: catalog.RelationshipCodeDeployDeploymentGroupTargetsAutoScalingGroup,
 			SourceResourceID: groupID,
 			SourceARN:        groupARN,
 			TargetResourceID: name,
-			TargetType:       awscloud.ResourceTypeAutoScalingGroup,
+			TargetType:       catalog.ResourceTypeAutoScalingGroup,
 			SourceRecordID:   groupID + "#asg#" + name,
 		})
 	}
@@ -127,7 +127,7 @@ func ecsServiceRelationships(
 		target := firstNonEmpty(serviceARN, cluster+"/"+name)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupTargetsECSService,
+			RelationshipType: catalog.RelationshipCodeDeployDeploymentGroupTargetsECSService,
 			SourceResourceID: groupID,
 			SourceARN:        groupARN,
 			TargetResourceID: target,
@@ -161,7 +161,7 @@ func lambdaFunctionRelationships(
 		target := firstNonEmpty(functionARN, name)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupTargetsLambdaFunction,
+			RelationshipType: catalog.RelationshipCodeDeployDeploymentGroupTargetsLambdaFunction,
 			SourceResourceID: groupID,
 			SourceARN:        groupARN,
 			TargetResourceID: target,
@@ -186,7 +186,7 @@ func snsTriggerRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupNotifiesSNSTopic,
+			RelationshipType: catalog.RelationshipCodeDeployDeploymentGroupNotifiesSNSTopic,
 			SourceResourceID: groupID,
 			SourceARN:        groupARN,
 			TargetResourceID: topicARN,

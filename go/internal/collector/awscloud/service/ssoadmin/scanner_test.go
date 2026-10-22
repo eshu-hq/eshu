@@ -186,7 +186,7 @@ func TestScannerRequiresClient(t *testing.T) {
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = awscloud.ServiceOrganizations
+	boundary.ServiceKind = catalog.ServiceOrganizations
 
 	_, err := newTestScanner(t, fakeClient{}).Scan(context.Background(), boundary)
 	if err == nil {

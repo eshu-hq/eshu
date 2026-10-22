@@ -210,7 +210,7 @@ func logGroupRelationship(
 		SourceResourceID: streamID,
 		SourceARN:        streamARN,
 		TargetResourceID: logGroupName,
-		TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+		TargetType:       catalog.ResourceTypeCloudWatchLogsLogGroup,
 		SourceRecordID:   streamID + "#log-group#" + logGroupName,
 	}, true
 }

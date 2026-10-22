@@ -28,11 +28,11 @@ func conformancePackRuleRelationship(
 	ruleID := ruleResourceID(name)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipConfigConformancePackContainsRule,
+		RelationshipType: catalog.RelationshipConfigConformancePackContainsRule,
 		SourceResourceID: packID,
 		SourceARN:        strings.TrimSpace(pack.ARN),
 		TargetResourceID: ruleID,
-		TargetType:       awscloud.ResourceTypeConfigRule,
+		TargetType:       catalog.ResourceTypeConfigRule,
 		Attributes: map[string]any{
 			"conformance_pack_name": strings.TrimSpace(pack.Name),
 			"config_rule_name":      name,
@@ -58,7 +58,7 @@ func ruleLambdaRelationship(
 	ruleID := ruleResourceID(name)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipConfigRuleEvaluatedByLambda,
+		RelationshipType: catalog.RelationshipConfigRuleEvaluatedByLambda,
 		SourceResourceID: ruleID,
 		SourceARN:        strings.TrimSpace(rule.ARN),
 		TargetResourceID: lambdaARN,
@@ -95,7 +95,7 @@ func aggregatorAccountRelationship(
 	accountARN := "arn:" + partition + ":iam::" + accountID + ":root"
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipConfigAggregatorSourcesAccount,
+		RelationshipType: catalog.RelationshipConfigAggregatorSourcesAccount,
 		SourceResourceID: aggregatorID,
 		SourceARN:        strings.TrimSpace(aggregator.ARN),
 		TargetResourceID: accountARN,

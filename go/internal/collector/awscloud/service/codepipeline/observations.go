@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // pipelineARN builds the canonical CodePipeline pipeline ARN. ListPipelines
@@ -30,7 +31,7 @@ func pipelineObservation(boundary awscloud.Boundary, pipeline Pipeline) awscloud
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, pipeline.Name),
-		ResourceType: awscloud.ResourceTypeCodePipelinePipeline,
+		ResourceType: catalog.ResourceTypeCodePipelinePipeline,
 		Name:         strings.TrimSpace(pipeline.Name),
 		Tags:         cloneStringMap(pipeline.Tags),
 		Attributes: map[string]any{
@@ -60,7 +61,7 @@ func executionObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodePipelineExecution,
+		ResourceType: catalog.ResourceTypeCodePipelineExecution,
 		Name:         strings.TrimSpace(execution.ID),
 		State:        strings.TrimSpace(execution.Status),
 		Attributes: map[string]any{
@@ -86,7 +87,7 @@ func webhookObservation(boundary awscloud.Boundary, webhook Webhook) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   firstNonEmpty(arn, webhook.Name),
-		ResourceType: awscloud.ResourceTypeCodePipelineWebhook,
+		ResourceType: catalog.ResourceTypeCodePipelineWebhook,
 		Name:         strings.TrimSpace(webhook.Name),
 		Tags:         cloneStringMap(webhook.Tags),
 		Attributes: map[string]any{
@@ -105,7 +106,7 @@ func actionTypeObservation(boundary awscloud.Boundary, actionType ActionType) aw
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCodePipelineActionType,
+		ResourceType: catalog.ResourceTypeCodePipelineActionType,
 		Name:         resourceID,
 		Attributes: map[string]any{
 			"category":                    strings.TrimSpace(actionType.Category),

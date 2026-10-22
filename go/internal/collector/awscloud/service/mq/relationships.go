@@ -99,7 +99,7 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 			SourceARN:        brokerARN,
 			TargetResourceID: logGroupARN,
 			TargetARN:        logGroupARN,
-			TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
+			TargetType:       catalog.ResourceTypeCloudWatchLogsLogGroup,
 			Attributes: map[string]any{
 				"log_kind": logGroup.kind,
 			},

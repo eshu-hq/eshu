@@ -6,7 +6,7 @@ package controltower
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestResolveOrganizationsTarget(t *testing.T) {
@@ -22,28 +22,28 @@ func TestResolveOrganizationsTarget(t *testing.T) {
 			targetARN: "arn:aws:organizations::123456789012:ou/o-exampleorgid/ou-root-platform",
 			wantOK:    true,
 			wantID:    "ou-root-platform",
-			wantType:  awscloud.ResourceTypeOrganizationsOrganizationalUnit,
+			wantType:  catalog.ResourceTypeOrganizationsOrganizationalUnit,
 		},
 		{
 			name:      "account",
 			targetARN: "arn:aws:organizations::123456789012:account/o-exampleorgid/111122223333",
 			wantOK:    true,
 			wantID:    "111122223333",
-			wantType:  awscloud.ResourceTypeOrganizationsAccount,
+			wantType:  catalog.ResourceTypeOrganizationsAccount,
 		},
 		{
 			name:      "root",
 			targetARN: "arn:aws:organizations::123456789012:root/o-exampleorgid/r-root",
 			wantOK:    true,
 			wantID:    "r-root",
-			wantType:  awscloud.ResourceTypeOrganizationsRoot,
+			wantType:  catalog.ResourceTypeOrganizationsRoot,
 		},
 		{
 			name:      "govcloud partition preserved in arn",
 			targetARN: "arn:aws-us-gov:organizations::123456789012:ou/o-gov/ou-gov-team",
 			wantOK:    true,
 			wantID:    "ou-gov-team",
-			wantType:  awscloud.ResourceTypeOrganizationsOrganizationalUnit,
+			wantType:  catalog.ResourceTypeOrganizationsOrganizationalUnit,
 		},
 		{name: "empty", targetARN: "", wantOK: false},
 		{name: "not an arn", targetARN: "ou-root-platform", wantOK: false},
