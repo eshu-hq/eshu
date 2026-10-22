@@ -82,6 +82,7 @@ func TestCallToolBoundsManyHugeInvalidKeys(t *testing.T) {
 	raw := toolCall(t, s, context.Background(), router.CallToolName, map[string]any{
 		"name": "resolve_query_playbook", "arguments": map[string]any{"playbook_id": "p", "inputs": inputs},
 	})
+	t.Logf("response %d bytes", len(raw))
 	if len(raw) > routerResponseCeiling {
 		t.Fatalf("response = %d bytes, want <= %d", len(raw), routerResponseCeiling)
 	}

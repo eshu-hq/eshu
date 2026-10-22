@@ -129,6 +129,73 @@ and `eshu_dp_mcp_router_target_rank`, plus the `mcp.router.find` and
 `mcp.router.call` spans. See
 [MCP Router Telemetry](../../../../docs/public/reference/telemetry/mcp-router.md).
 
+## Performance and concurrency evidence
+
+No-Regression Evidence (#8757): measured on a 16-core arm64 host (Linux
+7.0.0-1006-aws, Go 1.26.10) against the in-process echo handler, so the numbers
+isolate MCP overhead from any graph or Postgres backend. The baseline is `main`
+at `de1e830767` (before this change), and the after measurement is this branch
+with the same harness. The benchmark file was applied through
+`go test -overlay` and is not committed. It builds a `Server` over a handler
+that answers every route with a canonical envelope, then loops `handleMessage`
+on a fixed `tools/call`.
+
+- Direct `tools/call` (the path every non-router call takes, now through
+  `callTool` and its shared `run` closure).
+  `go test -run '^$' -bench BenchmarkDirectToolsCall -benchtime=20000x -count=6 ./internal/mcp/`,
+  median of 6:
+
+  | Call | Before | After |
+  | --- | --- | --- |
+  | `list_indexed_repositories` `{limit: 50, offset: 0}` | 17.0 us/op, 10,866 B, 150 allocs | 15.9 us/op, 10,901 B, 151 allocs |
+  | `find_code` `{query, limit: 10}` | 16.6 us/op, 10,842 B, 164 allocs | 16.7 us/op, 10,881 B, 165 allocs |
+
+  The change is one closure allocation (about 37 B); latency is within
+  run-to-run noise. A `find_tool` or `call_tool` adds the router work on top,
+  and only those two names reach it.
+- `Engine` construction runs once per `Host`, on the first router request, and
+  classifies every registered route and precomputes every example:
+  1.15 ms and 845 KB with entries supplied, 2.83 ms and 2.9 MB when it also
+  loads the embedded surface-inventory catalog (`-benchtime=200x -count=5`,
+  median).
+- Recent-find store (`recent.go`): one mutex guards the per-session map and its
+  FIFO order. The lock is held only to copy at most `MaxLimit` (10) names in
+  `remember` (182.6 ns/op, 208 B, 1 alloc, including eviction past capacity)
+  or to scan them in `rank` (39.5 ns/op, 0 allocs). It holds at most 1,024
+  sessions. Each costs about 250 B (ten 16-byte string headers that share the
+  registry's name bytes, plus the map and order entries) plus the bytes of its
+  principal key (auth mode, tenant, workspace, and subject hash), so well under
+  1 MB at the bound. No I/O or callback runs under the lock.
+- Concurrency: `TestHostServeIsSafeUnderConcurrentCalls` runs 64 goroutines x
+  200 `Serve` calls over 2,560 sessions, so eviction runs under contention.
+  `go test -race -count=1 -run TestHostServeIsSafeUnderConcurrentCalls ./internal/mcp/router/`
+  passes (0.41 s), and the store stays at 1,024 entries or fewer with its map
+  and order in step. Removing the lock in `remember` makes the same command
+  report 7 data races. The engine's other maps are written once in
+  `NewEngine`, and `Host` builds it under `sync.Once`.
+- Why the input side is safe: the transport has no body cap, so the router is
+  the bound (`routed_call_bounds_test.go`, `go test -run TestCallToolBounds -v ./internal/mcp/`).
+  The terminal counts: a 1 MiB `call_tool` name returns a 757 B error in 8 to
+  10 ms with no edit-distance work; 200,000 ints in
+  `build_evidence_citation_packet.handles` return 4,009 B in 31 to 48 ms;
+  2,000 caller keys of 4 to 6 KB under `resolve_query_playbook.inputs` (about
+  10 MB) return 15,029 B. Every error result is capped at 20 field errors and
+  256 echoed bytes per path.
+
+Observability Evidence (#8757): an operator answers "does routing work" from
+`eshu_dp_mcp_router_find_total{outcome}` (`candidates`, `empty`, `error`),
+`eshu_dp_mcp_router_call_total{tool,outcome}` (`dispatched`,
+`invalid_arguments`, `unknown_tool`, `refused`), and
+`eshu_dp_mcp_router_target_rank` (0 = the agent called a tool `find_tool`
+did not offer). The `mcp.router.find` and `mcp.router.call` spans carry
+`outcome` and `mcp.router.target`, and a dispatched call's own spans nest
+inside `mcp.router.call`. Error results carry typed codes:
+`mcp_router_invalid_arguments` (with `field_errors` and
+`field_errors_truncated`), `mcp_router_unknown_tool`, `mcp_router_refused`,
+`mcp_router_ranker_unavailable`, `mcp_router_rank_failed`, and
+`mcp_router_dispatch_failed`. A ranker failure logs `mcp router: ranker
+failed` at WARN. See [MCP Router Telemetry](../../../../docs/public/reference/telemetry/mcp-router.md).
+
 ## Known divergence from a direct call
 
 `call_tool` validates against the advertised `inputSchema` with no tolerance; a

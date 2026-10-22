@@ -6,8 +6,12 @@ package router
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/ask/catalog"
 )
 
 func TestInterceptsOnlyRouterTools(t *testing.T) {
@@ -60,5 +64,38 @@ func TestHostReportsADispatcherError(t *testing.T) {
 	}, fixtureRequest(d), CallToolName, map[string]any{"name": "get_repo_summary", "arguments": map[string]any{}}).(ToolResult)
 	if !got.IsError || errorCode(t, got) != "mcp_router_dispatch_failed" {
 		t.Fatalf("Serve() with a dispatcher error = %+v, want mcp_router_dispatch_failed", got)
+	}
+}
+
+// TestHostServeIsSafeUnderConcurrentCalls drives find_tool and call_tool from
+// 64 goroutines, 200 calls each, over 2,560 sessions (well past the 1,024
+// recent-find capacity, so eviction runs under contention). Run with -race;
+// the recent-find store is the only shared mutable state.
+func TestHostServeIsSafeUnderConcurrentCalls(t *testing.T) {
+	t.Parallel()
+
+	host := &Host{Ranker: orderRanker{}}
+	newConfig := func() Config {
+		return Config{Registry: fixtureRegistry(), Resolve: fixtureResolve, Entries: map[string]catalog.Entry{}}
+	}
+	var wg sync.WaitGroup
+	for g := range 64 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range 200 {
+				req := fixtureRequest(&recordingDispatcher{value: ToolResult{}})
+				req.Session = fmt.Sprintf("s-%d-%d", g, i%40)
+				if i%2 == 0 {
+					host.Serve(context.Background(), newConfig, req, FindToolName, map[string]any{"intent": "x", "limit": 3})
+					continue
+				}
+				host.Serve(context.Background(), newConfig, req, CallToolName, map[string]any{"name": "get_repo_summary", "arguments": map[string]any{}})
+			}
+		}()
+	}
+	wg.Wait()
+	if n := len(host.engine.recent.names); n > recentFindsCapacity || len(host.engine.recent.order) != n {
+		t.Fatalf("recent store holds %d sessions (order %d), want <= %d and consistent", n, len(host.engine.recent.order), recentFindsCapacity)
 	}
 }
