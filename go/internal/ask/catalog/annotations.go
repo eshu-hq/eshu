@@ -33,5 +33,6 @@ func annotations() map[string]Annotation {
 	for name, a := range askToolAnnotations() {
 		merged[name] = a
 	}
+	applyToolIntents(merged)
 	return merged
 }

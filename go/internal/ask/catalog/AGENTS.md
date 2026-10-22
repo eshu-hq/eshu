@@ -11,11 +11,15 @@
    implemented retrieval-capable HTTP API routes; read owning handlers in
    `internal/query/` before adding or changing entries.
 4. `go/internal/ask/catalog/annotations_tools.go` — curated annotations for the
-   147 implemented MCP tools; read owning handlers in `internal/mcp/` before
+   167 implemented MCP tools; read owning handlers in `internal/mcp/` before
    adding or changing entries.
-5. `go/internal/ask/catalog/planner_exclusions.go` — admin/auth/session control
+5. `go/internal/ask/catalog/annotations_intents_families.go` — the one list of
+   overlapping-tool families (`toolFamilies()`); the per-group
+   `annotations_intents_*.go` files hold each tool's router intents and canonical
+   flag, and the README "Router families" table mirrors the family list.
+6. `go/internal/ask/catalog/planner_exclusions.go` — admin/auth/session control
    surfaces that must never enter the Ask Eshu planner catalog.
-6. `go/internal/capabilitycatalog/data/surface-inventory.generated.json` —
+7. `go/internal/capabilitycatalog/data/surface-inventory.generated.json` —
    the canonical surface inventory; never hand-edit it; it is produced by
    `cmd/capability-inventory`.
 
@@ -27,6 +31,12 @@
   exclusion in `planner_exclusions.go`. `TestOverlayCoversInventory` enforces
   retrieval-overlay coverage, and
   `TestEveryImplementedSurfaceIsReadOrPlannerExcluded` prevents silent drops.
+
+- **Router intents** — every implemented MCP tool carries 3 to 8 lower-case
+  intent phrases, every family in `toolFamilies()` has exactly one canonical tool,
+  no phrase repeats inside a family, and the README family table matches the
+  family list. Enforced by `router_intents_test.go`. Choose a canonical tool by
+  reading the handler and description, not the name.
 
 - **Retrieval-only planner** — side-effecting admin/recovery routes and
   auth/session control routes must not appear in parsed catalog entries. Add
