@@ -64,3 +64,28 @@ cd go
 go test ./internal/storage/cypher/fault/executor/... -count=1
 go test -tags ifafaultinjection ./internal/storage/cypher/fault/executor/... -count=1
 ```
+
+## No-Regression Evidence (#8539): per-statement hold is tag-gated test machinery
+
+No-Regression Evidence: the hold seam (hold.go, fault.go paths, the
+faultreplay hold-statement-before-delegation kind) ships only behind the
+ifafaultinjection build tag; default builds link the off.go stub, proven by
+off_test. No Cypher is authored here (ordinal and substring match only), and
+no node-write, retract, or trust-chain files change in this diff, so default
+builds project identical graph truth.
+
+- Baseline: origin/main before this change (no hold kind; off stub only).
+- After: go test -race ./internal/replay/faultreplay/ ok; go test
+  ./internal/storage/cypher/fault/executor/ ok (default and -race -tags
+  ifafaultinjection); go test -race ./internal/reducer/ ok; bash
+  scripts/test-verify-ifa-fault-injection.sh passes 73/73 cells across 4
+  shards with exact cover; go vet, gofmt, and git diff --check clean.
+- Backend/version: hermetic (no live backend in this proof); the live kill
+  cell on pinned Neo4j runs in the CI fault-injection matrix.
+- Input shape: fault scripts with operation_match anchors; 73-cell corpus.
+- Terminal counts: 73/73 cells, 0 unexplained; derived-pins 27 families
+  totality ok.
+
+No-Observability-Change: no spans, metrics, logs, or status fields added.
+Hold and fail surfaces report through the existing failgraphwrite path and
+cell assertions, so current gate signals are unchanged.
