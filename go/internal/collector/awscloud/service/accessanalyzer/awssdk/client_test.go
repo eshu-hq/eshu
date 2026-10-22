@@ -15,6 +15,7 @@ import (
 	awsaccessanalyzertypes "github.com/aws/aws-sdk-go-v2/service/accessanalyzer/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	accessanalyzerservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/accessanalyzer"
 )
 
@@ -104,7 +105,7 @@ func TestClientListAnalyzersRedactsFindingBodiesArchiveFiltersAndUnusedActions(t
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAccessAnalyzer},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAccessAnalyzer},
 	}
 
 	analyzers, err := adapter.ListAnalyzers(context.Background())
@@ -155,7 +156,7 @@ func TestClientCapsUnusedFindingDetailReads(t *testing.T) {
 	}
 	adapter := &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAccessAnalyzer},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAccessAnalyzer},
 	}
 
 	analyzers, err := adapter.ListAnalyzers(context.Background())

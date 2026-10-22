@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/grafana/runtimebind"
 )
 
 // TestGrafanaRuntimeBindRegisters confirms importing the binding installs the
 // Managed Grafana scanner builder.
 func TestGrafanaRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceGrafana)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceGrafana)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceGrafana)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceGrafana)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceGrafana,
+			ServiceKind: catalog.ServiceGrafana,
 		},
 	})
 	if err != nil {

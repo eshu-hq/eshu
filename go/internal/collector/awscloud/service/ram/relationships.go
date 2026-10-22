@@ -46,7 +46,7 @@ func shareResourceRelationship(
 	resourceType := strings.TrimSpace(resource.Type)
 	targetType := resourceType
 	if targetType == "" {
-		targetType = awscloud.ResourceTypeGeneric
+		targetType = catalog.ResourceTypeGeneric
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
@@ -169,7 +169,7 @@ func classifyPrincipal(principalID string) (relationshipType, targetType, target
 		// account join key; the raw principal id remains the join key and no
 		// derived target ARN is claimed.
 		return catalog.RelationshipRAMShareTargetsPrincipal,
-			awscloud.ResourceTypeGeneric,
+			catalog.ResourceTypeGeneric,
 			""
 	}
 }

@@ -300,7 +300,7 @@ func environmentReferenceRelationships(
 				SourceARN:        projectARN,
 				TargetResourceID: reference,
 				TargetARN:        secretARNOrEmpty(reference),
-				TargetType:       awscloud.ResourceTypeSecretsManagerSecret,
+				TargetType:       catalog.ResourceTypeSecretsManagerSecret,
 				Attributes:       map[string]any{"environment_variable": strings.TrimSpace(variable.Name)},
 				SourceRecordID:   projectID + "#secret#" + reference,
 			})
@@ -312,7 +312,7 @@ func environmentReferenceRelationships(
 				SourceARN:        projectARN,
 				TargetResourceID: reference,
 				TargetARN:        ssmParameterARNOrEmpty(reference),
-				TargetType:       awscloud.ResourceTypeSSMParameter,
+				TargetType:       catalog.ResourceTypeSSMParameter,
 				Attributes:       map[string]any{"environment_variable": strings.TrimSpace(variable.Name)},
 				SourceRecordID:   projectID + "#ssm#" + reference,
 			})

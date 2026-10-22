@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -64,7 +65,7 @@ func NewResourcePolicyPermissionEnvelope(observation ResourcePolicyPermissionObs
 		"effect":                effect,
 		"not_actions":           strings.Join(notActions, ","),
 		"not_resources":         strings.Join(notResources, ","),
-		"policy_source":         ResourcePolicySourceResource,
+		"policy_source":         catalog.ResourcePolicySourceResource,
 		"principal_account_ids": strings.Join(principalAccountIDs, ","),
 		"principal_arns":        strings.Join(principalARNs, ","),
 		"region":                observation.Boundary.Region,
@@ -83,7 +84,7 @@ func NewResourcePolicyPermissionEnvelope(observation ResourcePolicyPermissionObs
 		CollectorInstanceID:    boundaryValue(observation.Boundary.CollectorInstanceID),
 		ResourceARN:            resourceARN,
 		ResourceType:           resourceType,
-		PolicySource:           stringValuePtr(ResourcePolicySourceResource),
+		PolicySource:           stringValuePtr(catalog.ResourcePolicySourceResource),
 		Effect:                 effect,
 		Actions:                actions,
 		NotActions:             notActions,

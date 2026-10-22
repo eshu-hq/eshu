@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	s3service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/s3"
 )
 
@@ -41,7 +41,7 @@ func TestDeriveBucketPolicyResourcePermissionStatements(t *testing.T) {
 	if !equalStrings(allow.PrincipalARNs, []string{"arn:aws:iam::999988887777:role/partner"}) {
 		t.Fatalf("AllowPartner principal_arns = %#v", allow.PrincipalARNs)
 	}
-	if !equalStrings(allow.PrincipalTypes, []string{awscloud.ResourcePolicyPrincipalTypeAWS}) {
+	if !equalStrings(allow.PrincipalTypes, []string{catalog.ResourcePolicyPrincipalTypeAWS}) {
 		t.Fatalf("AllowPartner principal_types = %#v, want [aws]", allow.PrincipalTypes)
 	}
 	// Condition KEY only, never the value "vpc-123".
@@ -136,7 +136,7 @@ func TestDerivePrincipalFactsCanonicalAndFederatedTypes(t *testing.T) {
 	}
 
 	canon := statementBySID(t, statements, "Canon")
-	if !equalStrings(canon.PrincipalTypes, []string{awscloud.ResourcePolicyPrincipalTypeCanonical}) {
+	if !equalStrings(canon.PrincipalTypes, []string{catalog.ResourcePolicyPrincipalTypeCanonical}) {
 		t.Fatalf("Canon PrincipalTypes = %#v, want [canonical]", canon.PrincipalTypes)
 	}
 	if len(canon.PrincipalARNs) != 0 || len(canon.PrincipalAccountIDs) != 0 {
@@ -147,7 +147,7 @@ func TestDerivePrincipalFactsCanonicalAndFederatedTypes(t *testing.T) {
 	}
 
 	fed := statementBySID(t, statements, "Fed")
-	if !equalStrings(fed.PrincipalTypes, []string{awscloud.ResourcePolicyPrincipalTypeFederated}) {
+	if !equalStrings(fed.PrincipalTypes, []string{catalog.ResourcePolicyPrincipalTypeFederated}) {
 		t.Fatalf("Fed PrincipalTypes = %#v, want [federated]", fed.PrincipalTypes)
 	}
 	if len(fed.PrincipalARNs) != 0 || len(fed.PrincipalAccountIDs) != 0 {

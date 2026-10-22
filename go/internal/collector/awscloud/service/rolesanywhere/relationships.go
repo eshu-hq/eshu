@@ -37,13 +37,13 @@ func profileRoleRelationships(boundary awscloud.Boundary, profile Profile) []aws
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipRolesAnywhereProfileAssumesRole,
+			RelationshipType: catalog.RelationshipRolesAnywhereProfileAssumesRole,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(profile.ARN),
 			TargetResourceID: roleARN,
 			TargetARN:        targetARN,
 			TargetType:       catalog.ResourceTypeIAMRole,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipRolesAnywhereProfileAssumesRole + ":" + roleARN,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipRolesAnywhereProfileAssumesRole + ":" + roleARN,
 		})
 	}
 	return observations
@@ -66,13 +66,13 @@ func trustAnchorACMPCARelationship(boundary awscloud.Boundary, anchor TrustAncho
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRolesAnywhereTrustAnchorUsesACMPCA,
+		RelationshipType: catalog.RelationshipRolesAnywhereTrustAnchorUsesACMPCA,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(anchor.ARN),
 		TargetResourceID: caARN,
 		TargetARN:        caARN,
 		TargetType:       awscloud.ResourceTypeACMPCACertificateAuthority,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipRolesAnywhereTrustAnchorUsesACMPCA + ":" + caARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipRolesAnywhereTrustAnchorUsesACMPCA + ":" + caARN,
 	}
 }
 
@@ -96,12 +96,12 @@ func crlTrustAnchorRelationship(boundary awscloud.Boundary, crl CRL) *awscloud.R
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRolesAnywhereCRLValidatesTrustAnchor,
+		RelationshipType: catalog.RelationshipRolesAnywhereCRLValidatesTrustAnchor,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(crl.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeRolesAnywhereTrustAnchor,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipRolesAnywhereCRLValidatesTrustAnchor + ":" + targetID,
+		TargetType:       catalog.ResourceTypeRolesAnywhereTrustAnchor,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipRolesAnywhereCRLValidatesTrustAnchor + ":" + targetID,
 	}
 }

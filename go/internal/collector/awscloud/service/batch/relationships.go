@@ -193,9 +193,9 @@ func instanceRoleTargetType(roleARN string) string {
 // Manager secret.
 func secretReferenceTargetType(valueFrom string) string {
 	if strings.HasPrefix(strings.TrimSpace(valueFrom), "arn:") && strings.Contains(valueFrom, ":ssm:") {
-		return awscloud.ResourceTypeSSMParameter
+		return catalog.ResourceTypeSSMParameter
 	}
-	return awscloud.ResourceTypeSecretsManagerSecret
+	return catalog.ResourceTypeSecretsManagerSecret
 }
 
 // arnOrEmpty returns the candidate when it is an ARN, so relationship target

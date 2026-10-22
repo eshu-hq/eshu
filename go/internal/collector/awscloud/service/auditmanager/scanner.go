@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("auditmanager scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAuditManager:
+	case "", catalog.ServiceAuditManager:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAuditManager
+		boundary.ServiceKind = catalog.ServiceAuditManager
 	default:
 		return nil, fmt.Errorf("auditmanager scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -123,7 +124,7 @@ func assessmentObservation(boundary awscloud.Boundary, assessment Assessment) aw
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAuditManagerAssessment,
+		ResourceType: catalog.ResourceTypeAuditManagerAssessment,
 		Name:         name,
 		State:        strings.TrimSpace(assessment.Status),
 		Tags:         cloneStringMap(assessment.Tags),
@@ -151,7 +152,7 @@ func frameworkObservation(boundary awscloud.Boundary, framework Framework) awscl
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAuditManagerFramework,
+		ResourceType: catalog.ResourceTypeAuditManagerFramework,
 		Name:         name,
 		Tags:         nil,
 		Attributes: map[string]any{
@@ -176,7 +177,7 @@ func controlObservation(boundary awscloud.Boundary, control Control) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAuditManagerControl,
+		ResourceType: catalog.ResourceTypeAuditManagerControl,
 		Name:         name,
 		Attributes: map[string]any{
 			"control_id":        strings.TrimSpace(control.ID),

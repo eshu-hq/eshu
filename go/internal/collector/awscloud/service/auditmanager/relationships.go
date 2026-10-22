@@ -29,13 +29,13 @@ func assessmentFrameworkRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAuditManagerAssessmentUsesFramework,
+		RelationshipType: catalog.RelationshipAuditManagerAssessmentUsesFramework,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeAuditManagerFramework,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAuditManagerAssessmentUsesFramework + ":" + targetID,
+		TargetType:       catalog.ResourceTypeAuditManagerFramework,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipAuditManagerAssessmentUsesFramework + ":" + targetID,
 	}
 }
 
@@ -62,14 +62,14 @@ func assessmentReportsS3Relationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAuditManagerAssessmentReportsToS3,
+		RelationshipType: catalog.RelationshipAuditManagerAssessmentReportsToS3,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       map[string]any{"bucket": bucket},
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAuditManagerAssessmentReportsToS3 + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipAuditManagerAssessmentReportsToS3 + ":" + bucketARN,
 	}
 }
 
@@ -97,13 +97,13 @@ func assessmentKMSRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAuditManagerAssessmentEncryptedWithKMSKey,
+		RelationshipType: catalog.RelationshipAuditManagerAssessmentEncryptedWithKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAuditManagerAssessmentEncryptedWithKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipAuditManagerAssessmentEncryptedWithKMSKey + ":" + targetID,
 	}
 }
 
@@ -128,13 +128,13 @@ func assessmentAccountRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAuditManagerAssessmentInAccount,
+		RelationshipType: catalog.RelationshipAuditManagerAssessmentInAccount,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: accountARN,
 		TargetARN:        accountARN,
-		TargetType:       awscloud.ResourceTypeAWSAccount,
+		TargetType:       catalog.ResourceTypeAWSAccount,
 		Attributes:       map[string]any{"account_id": accountID},
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAuditManagerAssessmentInAccount + ":" + accountID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipAuditManagerAssessmentInAccount + ":" + accountID,
 	}
 }

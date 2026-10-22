@@ -207,6 +207,32 @@ avoid.
   `RelationshipCloudWatchLogs*`, `RelationshipXRay*`,
   `RelationshipApplicationAutoScaling*`, `RelationshipComputeOptimizer*`,
   `RelationshipMWAA*` — operations-category reducer relationship types
+- `ServiceWAFv2`, `ServiceMGN`, `ServiceLocation`, `ServiceDirectoryService`,
+  `ServiceAuditManager`, `ServiceAppFlow`, `ServiceAmplify`,
+  `ServiceVerifiedPermissions`, `ServiceRolesAnywhere` — g2-services-category
+  service-kind strings (in `g2_services.go`)
+- `ResourceTypeWAFv2*`, `ResourceTypeMGN*`, `ResourceTypeLocation*`,
+  `ResourceTypeDS*`, `ResourceTypeAuditManager*`, `ResourceTypeAppFlow*`,
+  `ResourceTypeAmplify*`, `ResourceTypeVerifiedPermissions*`,
+  `ResourceTypeRolesAnywhere*` — g2-services-category resource-type tokens
+- `RelationshipWAFv2*`, `RelationshipMGN*`, `RelationshipLocation*`,
+  `RelationshipDS*`, `RelationshipAuditManager*`, `RelationshipAppFlow*`,
+  `RelationshipAmplify*`, `RelationshipVerifiedPermissions*`,
+  `RelationshipRolesAnywhere*` — g2-services-category relationship types
+- `ServiceCloudHSMV2`, `ServiceAccessAnalyzer`, `ServiceOutposts`,
+  `ServiceDRS`, `ServiceGrafana`, `ServiceSecretsManager`, `ServiceSSM` —
+  g2-governance-category service-kind strings (in `g2_governance.go`;
+  `ResourcePolicy*` carries no service kind)
+- `ResourceTypeCloudHSMV2*`, `ResourceTypeAccessAnalyzer*`,
+  `ResourceTypeOutposts*`, `ResourceTypeDRS*`, `ResourceTypeGrafana*`,
+  `ResourceTypeSecretsManager*`, `ResourceTypeSSM*`, `ResourcePolicy*` —
+  g2-governance-category tokens
+- `RelationshipCloudHSMV2*`, `RelationshipAccessAnalyzer*`,
+  `RelationshipOutposts*`, `RelationshipDRS*`, `RelationshipGrafana*`,
+  `RelationshipSecretsManager*`, `RelationshipSSM*` — g2-governance-category
+  relationship types
+- `ResourceTypeAWSAccount`, `ResourceTypeGeneric` — g2-common-category shared
+  relationship targets (in `g2_common.go`)
 
 See `doc.go` for the full contract. Each follow-up category lands as one more
 `<category>.go` file with the same shape. The analytics category ships as

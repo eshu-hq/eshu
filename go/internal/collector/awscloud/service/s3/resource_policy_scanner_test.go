@@ -7,7 +7,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -24,7 +23,7 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 				Resources:           []string{"arn:aws:s3:::orders-artifacts/*"},
 				PrincipalAccountIDs: []string{"999988887777"},
 				PrincipalARNs:       []string{"arn:aws:iam::999988887777:role/partner"},
-				PrincipalTypes:      []string{awscloud.ResourcePolicyPrincipalTypeAWS},
+				PrincipalTypes:      []string{catalog.ResourcePolicyPrincipalTypeAWS},
 				IsCrossAccount:      true,
 			},
 			{
@@ -33,7 +32,7 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 				Actions:        []string{"s3:*"},
 				Resources:      []string{"arn:aws:s3:::orders-artifacts/*"},
 				ConditionKeys:  []string{"aws:SecureTransport"},
-				PrincipalTypes: []string{awscloud.ResourcePolicyPrincipalTypeAWS},
+				PrincipalTypes: []string{catalog.ResourcePolicyPrincipalTypeAWS},
 				IsPublic:       true,
 			},
 		},
@@ -52,7 +51,7 @@ func TestScannerEmitsResourcePolicyPermissionFacts(t *testing.T) {
 	allow := resourcePolicyPermissionByEffect(t, envelopes, "Allow")
 	assertPayloadEquals(t, allow.Payload, "resource_arn", "arn:aws:s3:::orders-artifacts")
 	assertPayloadEquals(t, allow.Payload, "resource_type", catalog.ResourceTypeS3Bucket)
-	assertPayloadEquals(t, allow.Payload, "policy_source", awscloud.ResourcePolicySourceResource)
+	assertPayloadEquals(t, allow.Payload, "policy_source", catalog.ResourcePolicySourceResource)
 	assertPayloadEquals(t, allow.Payload, "is_cross_account", true)
 	if got, _ := allow.Payload["principal_account_ids"].([]string); len(got) != 1 || got[0] != "999988887777" {
 		t.Fatalf("allow principal_account_ids = %#v, want [999988887777]", allow.Payload["principal_account_ids"])

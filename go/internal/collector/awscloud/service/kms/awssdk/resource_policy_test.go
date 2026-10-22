@@ -110,7 +110,7 @@ func TestDeriveKeyPolicyResourcePermissionStatements(t *testing.T) {
 	}
 
 	service := statementBySID(t, statements, "AllowService")
-	if !equalStrings(service.PrincipalTypes, []string{awscloud.ResourcePolicyPrincipalTypeService}) {
+	if !equalStrings(service.PrincipalTypes, []string{catalog.ResourcePolicyPrincipalTypeService}) {
 		t.Fatalf("AllowService principal_types = %#v, want [service]", service.PrincipalTypes)
 	}
 	if len(service.PrincipalAccountIDs) != 0 {

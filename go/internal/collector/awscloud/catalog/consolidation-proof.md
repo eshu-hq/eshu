@@ -269,3 +269,31 @@ catalog directory.
   through the parsed table and fails loudly on an unknown constant.
 - Keep each category file under the 500-line Go cap; split an oversized
   category before it approaches the limit.
+
+No-Regression Evidence: the g2-category consolidation (Refs #6696)
+moves 119 string constants from eighteen `constants_<service>.go` root files
+(wafv2, mgn, location, ds, auditmanager, appflow, amplify,
+verifiedpermissions, rolesanywhere, cloudhsmv2, accessanalyzer, outposts,
+drs, resource_policy, grafana, secretsmanager, ssm, and the shared
+constants_common.go) into `catalog/g2_services.go`,
+`catalog/g2_governance.go`, and `catalog/g2_common.go` verbatim (only the
+package clause changes); the 146 referencing `.go` files change only the
+qualifier (`awscloud.` to `catalog.`, plus the leaf import, dropping it where
+it goes unused). Baseline: the pre-move values read from the base tree
+(`git show origin/main:go/internal/collector/awscloud/constants_<service>.go`)
+are pinned in `g2_services_test.go` (119/119 byte-identical,
+`go test ./internal/collector/awscloud/catalog/ -count=1` green) and the full
+affected suite (collector tree) is green after the move; `go build ./...` and
+`go vet ./...` are clean. The split is a size measure only: one file would
+pass the 500-line Go cap, so services ship in `g2_services.go` (453 lines),
+governance in `g2_governance.go` (265), and the shared account/generic
+targets in `g2_common.go` (21). Backend/version: none — a pure compile-time
+constant relocation with no query, graph write, queue, lease, worker,
+batching, or Compose/Helm change, so there are no row counts to regress.
+No-Observability-Change (g2 slice): the leaves declare no instrument and run
+no stage; scanner emission stays covered by
+`eshu_dp_aws_resources_emitted_total` and `eshu_dp_aws_scan_duration_seconds`
+(AWS cloud row in `docs/public/observability/telemetry-coverage.md`). Safe
+because the Go compiler resolves every moved reference, the value-pinning
+test fails on any drift, and the relguard/redaction disk-walk derivations
+already cover the catalog directory.

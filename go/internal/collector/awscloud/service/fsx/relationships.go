@@ -62,7 +62,7 @@ func fileSystemRelationships(boundary awscloud.Boundary, fs FileSystem) []awsclo
 			SourceResourceID: sourceID,
 			SourceARN:        fsARN,
 			TargetResourceID: directoryID,
-			TargetType:       awscloud.ResourceTypeDSDirectory,
+			TargetType:       catalog.ResourceTypeDSDirectory,
 			Attributes:       map[string]any{"directory_id": directoryID},
 			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipFSxFileSystemUsesADDirectory, directoryID),
 		})
@@ -107,7 +107,7 @@ func svmRelationships(
 			SourceResourceID: sourceID,
 			SourceARN:        svmARN,
 			TargetResourceID: directoryID,
-			TargetType:       awscloud.ResourceTypeDSDirectory,
+			TargetType:       catalog.ResourceTypeDSDirectory,
 			Attributes:       map[string]any{"directory_id": directoryID},
 			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipFSxSVMUsesADDirectory, directoryID),
 		})

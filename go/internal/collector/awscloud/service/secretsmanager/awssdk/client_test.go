@@ -14,6 +14,7 @@ import (
 	awssecretsmanagertypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListsSecretsManagerMetadataOnly(t *testing.T) {
@@ -185,7 +186,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSecretsManager,
+		ServiceKind: catalog.ServiceSecretsManager,
 	}
 }
 

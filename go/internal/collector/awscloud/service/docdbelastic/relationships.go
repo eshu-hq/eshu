@@ -138,7 +138,7 @@ func clusterAdminSecretRelationship(boundary awscloud.Boundary, cluster Cluster)
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: secretARN,
 		TargetARN:        secretARN,
-		TargetType:       awscloud.ResourceTypeSecretsManagerSecret,
+		TargetType:       catalog.ResourceTypeSecretsManagerSecret,
 		SourceRecordID:   sourceID + "->" + catalog.RelationshipDocDBElasticClusterUsesAdminSecret + ":" + secretARN,
 	}
 }

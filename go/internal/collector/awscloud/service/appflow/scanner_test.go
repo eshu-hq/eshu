@@ -56,7 +56,7 @@ func TestScannerEmitsAppFlowMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	flow := resourceByType(t, envelopes, awscloud.ResourceTypeAppFlowFlow)
+	flow := resourceByType(t, envelopes, catalog.ResourceTypeAppFlowFlow)
 	if got, want := flow.Payload["resource_id"], flowARN; got != want {
 		t.Fatalf("flow resource_id = %#v, want %q", got, want)
 	}
@@ -81,7 +81,7 @@ func TestScannerEmitsAppFlowMetadataResourcesAndRelationships(t *testing.T) {
 		}
 	}
 
-	profile := resourceByType(t, envelopes, awscloud.ResourceTypeAppFlowConnectorProfile)
+	profile := resourceByType(t, envelopes, catalog.ResourceTypeAppFlowConnectorProfile)
 	if got, want := profile.Payload["resource_id"], profileName; got != want {
 		t.Fatalf("profile resource_id = %#v, want %q", got, want)
 	}
@@ -103,7 +103,7 @@ func TestScannerEmitsAppFlowMetadataResourcesAndRelationships(t *testing.T) {
 		}
 	}
 
-	flowS3 := relationshipByType(t, envelopes, awscloud.RelationshipAppFlowFlowReadsFromS3Bucket)
+	flowS3 := relationshipByType(t, envelopes, catalog.RelationshipAppFlowFlowReadsFromS3Bucket)
 	if got, want := flowS3.Payload["source_resource_id"], flowARN; got != want {
 		t.Fatalf("flow->s3 source_resource_id = %#v, want %q (must match flow node resource_id)", got, want)
 	}
@@ -117,18 +117,18 @@ func TestScannerEmitsAppFlowMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("flow->s3 target_type = %#v, want %q", got, want)
 	}
 
-	flowProfile := relationshipByType(t, envelopes, awscloud.RelationshipAppFlowFlowUsesConnectorProfile)
+	flowProfile := relationshipByType(t, envelopes, catalog.RelationshipAppFlowFlowUsesConnectorProfile)
 	if got, want := flowProfile.Payload["source_resource_id"], flowARN; got != want {
 		t.Fatalf("flow->profile source_resource_id = %#v, want %q", got, want)
 	}
 	if got, want := flowProfile.Payload["target_resource_id"], profileName; got != want {
 		t.Fatalf("flow->profile target_resource_id = %#v, want %q (must match profile node resource_id)", got, want)
 	}
-	if got, want := flowProfile.Payload["target_type"], awscloud.ResourceTypeAppFlowConnectorProfile; got != want {
+	if got, want := flowProfile.Payload["target_type"], catalog.ResourceTypeAppFlowConnectorProfile; got != want {
 		t.Fatalf("flow->profile target_type = %#v, want %q", got, want)
 	}
 
-	flowKMS := relationshipByType(t, envelopes, awscloud.RelationshipAppFlowFlowUsesKMSKey)
+	flowKMS := relationshipByType(t, envelopes, catalog.RelationshipAppFlowFlowUsesKMSKey)
 	if got, want := flowKMS.Payload["target_resource_id"], kmsARN; got != want {
 		t.Fatalf("flow->kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -139,7 +139,7 @@ func TestScannerEmitsAppFlowMetadataResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("flow->kms target_type = %#v, want %q", got, want)
 	}
 
-	profileSecret := relationshipByType(t, envelopes, awscloud.RelationshipAppFlowConnectorProfileUsesSecret)
+	profileSecret := relationshipByType(t, envelopes, catalog.RelationshipAppFlowConnectorProfileUsesSecret)
 	if got, want := profileSecret.Payload["source_resource_id"], profileName; got != want {
 		t.Fatalf("profile->secret source_resource_id = %#v, want %q", got, want)
 	}
@@ -149,7 +149,7 @@ func TestScannerEmitsAppFlowMetadataResourcesAndRelationships(t *testing.T) {
 	if got, want := profileSecret.Payload["target_arn"], secretARN; got != want {
 		t.Fatalf("profile->secret target_arn = %#v, want %q", got, want)
 	}
-	if got, want := profileSecret.Payload["target_type"], awscloud.ResourceTypeSecretsManagerSecret; got != want {
+	if got, want := profileSecret.Payload["target_type"], catalog.ResourceTypeSecretsManagerSecret; got != want {
 		t.Fatalf("profile->secret target_type = %#v, want %q", got, want)
 	}
 
@@ -172,11 +172,11 @@ func TestScannerEmitsDestinationS3Relationship(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	rel := relationshipByType(t, envelopes, awscloud.RelationshipAppFlowFlowWritesToS3Bucket)
+	rel := relationshipByType(t, envelopes, catalog.RelationshipAppFlowFlowWritesToS3Bucket)
 	if got, want := rel.Payload["target_resource_id"], "arn:aws:s3:::exports-bucket"; got != want {
 		t.Fatalf("flow->s3 destination target_resource_id = %#v, want %q", got, want)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipAppFlowFlowReadsFromS3Bucket); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipAppFlowFlowReadsFromS3Bucket); got != 0 {
 		t.Fatalf("flow->s3 read relationship count = %d, want 0 for non-S3 source", got)
 	}
 }
@@ -204,7 +204,7 @@ func TestScannerEmitsEdgePerDestination(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	if got := countRelationships(envelopes, awscloud.RelationshipAppFlowFlowWritesToS3Bucket); got != 2 {
+	if got := countRelationships(envelopes, catalog.RelationshipAppFlowFlowWritesToS3Bucket); got != 2 {
 		t.Fatalf("flow->s3 write relationship count = %d, want 2 (one per S3 destination)", got)
 	}
 	wantBuckets := map[string]bool{
@@ -215,7 +215,7 @@ func TestScannerEmitsEdgePerDestination(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got != awscloud.RelationshipAppFlowFlowWritesToS3Bucket {
+		if got, _ := envelope.Payload["relationship_type"].(string); got != catalog.RelationshipAppFlowFlowWritesToS3Bucket {
 			continue
 		}
 		if got, _ := envelope.Payload["source_resource_id"].(string); got != flowARN {
@@ -233,10 +233,10 @@ func TestScannerEmitsEdgePerDestination(t *testing.T) {
 		}
 	}
 
-	if got := countRelationships(envelopes, awscloud.RelationshipAppFlowFlowUsesConnectorProfile); got != 1 {
+	if got := countRelationships(envelopes, catalog.RelationshipAppFlowFlowUsesConnectorProfile); got != 1 {
 		t.Fatalf("flow->profile relationship count = %d, want 1 (destination profile)", got)
 	}
-	profile := relationshipByType(t, envelopes, awscloud.RelationshipAppFlowFlowUsesConnectorProfile)
+	profile := relationshipByType(t, envelopes, catalog.RelationshipAppFlowFlowUsesConnectorProfile)
 	if got, want := profile.Payload["target_resource_id"], "salesforce-prod"; got != want {
 		t.Fatalf("flow->profile target_resource_id = %#v, want %q", got, want)
 	}
@@ -255,7 +255,7 @@ func TestScannerOmitsKMSRelationshipForManagedKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipAppFlowFlowUsesKMSKey); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipAppFlowFlowUsesKMSKey); got != 0 {
 		t.Fatalf("flow->kms relationship count = %d, want 0 for AppFlow-managed key", got)
 	}
 }
@@ -273,7 +273,7 @@ func TestScannerOmitsSecretRelationshipForNonSecretsManagerARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipAppFlowConnectorProfileUsesSecret); got != 0 {
+	if got := countRelationships(envelopes, catalog.RelationshipAppFlowConnectorProfileUsesSecret); got != 0 {
 		t.Fatalf("profile->secret relationship count = %d, want 0 for non-secretsmanager ARN", got)
 	}
 }
@@ -293,7 +293,7 @@ func TestScannerCollapsesSameProfileSourceAndDestination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := countRelationships(envelopes, awscloud.RelationshipAppFlowFlowUsesConnectorProfile); got != 1 {
+	if got := countRelationships(envelopes, catalog.RelationshipAppFlowFlowUsesConnectorProfile); got != 1 {
 		t.Fatalf("flow->profile relationship count = %d, want 1 (source==destination collapses)", got)
 	}
 }
@@ -367,7 +367,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAppFlow,
+		ServiceKind:         catalog.ServiceAppFlow,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:appflow:1",
 		CollectorInstanceID: "aws-prod",

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("mgn scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceMGN:
+	case "", catalog.ServiceMGN:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceMGN
+		boundary.ServiceKind = catalog.ServiceMGN
 	default:
 		return nil, fmt.Errorf("mgn scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -146,7 +147,7 @@ func applicationObservation(boundary awscloud.Boundary, application Application)
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMGNApplication,
+		ResourceType: catalog.ResourceTypeMGNApplication,
 		Name:         name,
 		Tags:         cloneStringMap(application.Tags),
 		Attributes: map[string]any{
@@ -172,7 +173,7 @@ func sourceServerObservation(boundary awscloud.Boundary, server SourceServer) aw
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMGNSourceServer,
+		ResourceType: catalog.ResourceTypeMGNSourceServer,
 		Name:         strings.TrimSpace(server.Hostname),
 		State:        strings.TrimSpace(server.LifeCycleState),
 		Tags:         cloneStringMap(server.Tags),
@@ -201,7 +202,7 @@ func launchConfigurationObservation(boundary awscloud.Boundary, server SourceSer
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMGNLaunchConfiguration,
+		ResourceType: catalog.ResourceTypeMGNLaunchConfiguration,
 		Name:         strings.TrimSpace(config.Name),
 		Tags:         nil,
 		Attributes: map[string]any{
@@ -225,7 +226,7 @@ func jobObservation(boundary awscloud.Boundary, job Job) awscloud.ResourceObserv
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeMGNJob,
+		ResourceType: catalog.ResourceTypeMGNJob,
 		State:        strings.TrimSpace(job.Status),
 		Tags:         cloneStringMap(job.Tags),
 		Attributes: map[string]any{

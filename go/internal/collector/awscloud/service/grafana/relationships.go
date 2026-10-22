@@ -50,13 +50,13 @@ func workspaceIAMRoleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipGrafanaWorkspaceUsesIAMRole,
+		RelationshipType: catalog.RelationshipGrafanaWorkspaceUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       catalog.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipGrafanaWorkspaceUsesIAMRole + ":" + roleARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipGrafanaWorkspaceUsesIAMRole + ":" + roleARN,
 	}, true
 }
 
@@ -76,12 +76,12 @@ func workspaceSubnetRelationships(
 	for _, subnetID := range subnetIDs {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipGrafanaWorkspaceInSubnet,
+			RelationshipType: catalog.RelationshipGrafanaWorkspaceInSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipGrafanaWorkspaceInSubnet + ":" + subnetID,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipGrafanaWorkspaceInSubnet + ":" + subnetID,
 		})
 	}
 	return observations
@@ -103,12 +103,12 @@ func workspaceSecurityGroupRelationships(
 	for _, groupID := range groupIDs {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipGrafanaWorkspaceUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipGrafanaWorkspaceUsesSecurityGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipGrafanaWorkspaceUsesSecurityGroup + ":" + groupID,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipGrafanaWorkspaceUsesSecurityGroup + ":" + groupID,
 		})
 	}
 	return observations

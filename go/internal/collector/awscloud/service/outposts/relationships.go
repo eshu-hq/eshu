@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // outpostInSiteRelationship records an Outpost's membership in its parent site.
@@ -25,13 +26,13 @@ func outpostInSiteRelationship(boundary awscloud.Boundary, outpost Outpost) *aws
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOutpostsOutpostInSite,
+		RelationshipType: catalog.RelationshipOutpostsOutpostInSite,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(outpost.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeOutpostsSite,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipOutpostsOutpostInSite + ":" + targetID,
+		TargetType:       catalog.ResourceTypeOutpostsSite,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipOutpostsOutpostInSite + ":" + targetID,
 	}
 }
 
@@ -56,11 +57,11 @@ func assetInOutpostRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipOutpostsAssetInOutpost,
+		RelationshipType: catalog.RelationshipOutpostsAssetInOutpost,
 		SourceResourceID: assetID,
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeOutpostsOutpost,
-		SourceRecordID:   assetID + "->" + awscloud.RelationshipOutpostsAssetInOutpost + ":" + targetID,
+		TargetType:       catalog.ResourceTypeOutpostsOutpost,
+		SourceRecordID:   assetID + "->" + catalog.RelationshipOutpostsAssetInOutpost + ":" + targetID,
 	}
 }

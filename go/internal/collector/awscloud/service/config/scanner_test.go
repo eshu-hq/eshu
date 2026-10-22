@@ -153,7 +153,7 @@ func TestScannerEmitsConfigMetadataAndRelationships(t *testing.T) {
 	}
 	assertRelationshipCount(t, envelopes, catalog.RelationshipConfigAggregatorSourcesAccount, 2)
 	acctRel := relationshipByTypeAndTarget(t, envelopes, catalog.RelationshipConfigAggregatorSourcesAccount, "arn:aws-us-gov:iam::111122223333:root")
-	if got, want := acctRel.Payload["target_type"], awscloud.ResourceTypeAWSAccount; got != want {
+	if got, want := acctRel.Payload["target_type"], catalog.ResourceTypeAWSAccount; got != want {
 		t.Fatalf("aggregator account target_type = %#v, want %q", got, want)
 	}
 

@@ -273,7 +273,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 	if len(secret) != 1 {
 		t.Fatalf("project->Secrets-Manager relationships = %d, want 1", len(secret))
 	}
-	if secret[0]["target_type"] != awscloud.ResourceTypeSecretsManagerSecret {
+	if secret[0]["target_type"] != catalog.ResourceTypeSecretsManagerSecret {
 		t.Fatalf("project->Secrets-Manager target_type = %v", secret[0]["target_type"])
 	}
 	if secret[0]["target_resource_id"] != "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-creds-AbCdEf" {
@@ -284,7 +284,7 @@ func TestScannerEmitsProjectRelationshipsWithJoinKeys(t *testing.T) {
 	if len(ssm) != 1 {
 		t.Fatalf("project->SSM relationships = %d, want 1", len(ssm))
 	}
-	if ssm[0]["target_type"] != awscloud.ResourceTypeSSMParameter {
+	if ssm[0]["target_type"] != catalog.ResourceTypeSSMParameter {
 		t.Fatalf("project->SSM target_type = %v", ssm[0]["target_type"])
 	}
 	if ssm[0]["target_resource_id"] != "/checkout/api-host" {

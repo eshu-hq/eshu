@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -33,10 +34,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("ds scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDirectoryService:
+	case "", catalog.ServiceDirectoryService:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDirectoryService
+		boundary.ServiceKind = catalog.ServiceDirectoryService
 	default:
 		return nil, fmt.Errorf("ds scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -152,7 +153,7 @@ func directoryObservation(boundary awscloud.Boundary, directory Directory) awscl
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDSDirectory,
+		ResourceType: catalog.ResourceTypeDSDirectory,
 		Name:         strings.TrimSpace(directory.Name),
 		State:        strings.TrimSpace(directory.Stage),
 		Tags:         cloneStringMap(directory.Tags),
@@ -184,7 +185,7 @@ func trustObservation(boundary awscloud.Boundary, trust Trust) awscloud.Resource
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDSTrust,
+		ResourceType: catalog.ResourceTypeDSTrust,
 		Name:         strings.TrimSpace(trust.RemoteDomainName),
 		State:        strings.TrimSpace(trust.State),
 		Attributes: map[string]any{
@@ -205,7 +206,7 @@ func sharedDirectoryObservation(boundary awscloud.Boundary, share SharedDirector
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDSSharedDirectory,
+		ResourceType: catalog.ResourceTypeDSSharedDirectory,
 		State:        strings.TrimSpace(share.ShareStatus),
 		Attributes: map[string]any{
 			"owner_account_id":    strings.TrimSpace(share.OwnerAccountID),

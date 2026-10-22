@@ -170,7 +170,7 @@ func TestScannerEmitsWorkSpacesMetadataAndRelationships(t *testing.T) {
 	// scanner publishes (this is the critical cross-service join, distinct from
 	// the internal workspace->directory edge above).
 	dirDS := relationshipByType(t, envelopes, awscloud.RelationshipWorkSpacesDirectoryUsesDSDirectory)
-	assertEdgeTarget(t, dirDS, awscloud.ResourceTypeDSDirectory, testDirectoryID)
+	assertEdgeTarget(t, dirDS, catalog.ResourceTypeDSDirectory, testDirectoryID)
 	if got, want := dirDS.Payload["source_resource_id"], wantDirectoryARN(); got != want {
 		t.Fatalf("directory->ds source_resource_id = %#v, want %q", got, want)
 	}

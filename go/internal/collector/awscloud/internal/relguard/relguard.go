@@ -39,7 +39,7 @@ var KnownTargetTypeAllowlist = map[string]string{
 	// ResourceTypeGeneric. The honest fallback when a reported identifier does
 	// not match a known resource family; scanners still record the original
 	// service-reported type in relationship attributes.
-	"aws_resource": "generic fallback (awscloud.ResourceTypeGeneric) for identifiers with no known resource family",
+	"aws_resource": "generic fallback (catalog.ResourceTypeGeneric) for identifiers with no known resource family",
 	// CloudWatch metrics are an identity, not a scanned resource. The alarm
 	// observes-metric edge anchors to a namespace/name identity that no scanner
 	// publishes as a CloudResource.

@@ -22,13 +22,13 @@ func kmsRelationship(boundary awscloud.Boundary, secret Secret) *awscloud.Relati
 	}
 	relationship := awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecretsManagerSecretUsesKMSKey,
+		RelationshipType: catalog.RelationshipSecretsManagerSecretUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(secret.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       "aws_kms_key",
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecretsManagerSecretUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSecretsManagerSecretUsesKMSKey + ":" + targetID,
 	}
 	return &relationship
 }
@@ -41,13 +41,13 @@ func rotationLambdaRelationship(boundary awscloud.Boundary, secret Secret) *awsc
 	sourceID := secretResourceID(secret)
 	relationship := awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSecretsManagerSecretUsesRotationLambda,
+		RelationshipType: catalog.RelationshipSecretsManagerSecretUsesRotationLambda,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(secret.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeLambdaFunction,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSecretsManagerSecretUsesRotationLambda + ":" + targetARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSecretsManagerSecretUsesRotationLambda + ":" + targetARN,
 	}
 	return &relationship
 }

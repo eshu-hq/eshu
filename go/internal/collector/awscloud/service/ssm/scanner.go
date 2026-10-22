@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -26,10 +27,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("ssm scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSSM:
+	case "", catalog.ServiceSSM:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSSM
+		boundary.ServiceKind = catalog.ServiceSSM
 	default:
 		return nil, fmt.Errorf("ssm scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -73,7 +74,7 @@ func parameterObservation(boundary awscloud.Boundary, parameter Parameter) awscl
 		Boundary:     boundary,
 		ARN:          parameterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSSMParameter,
+		ResourceType: catalog.ResourceTypeSSMParameter,
 		Name:         name,
 		Tags:         cloneStringMap(parameter.Tags),
 		Attributes: map[string]any{

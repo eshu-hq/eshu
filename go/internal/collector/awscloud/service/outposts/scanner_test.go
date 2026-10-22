@@ -63,7 +63,7 @@ func TestScannerEmitsOutpostsMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Outpost resource node.
-	outpost := resourceByType(t, envelopes, awscloud.ResourceTypeOutpostsOutpost)
+	outpost := resourceByType(t, envelopes, catalog.ResourceTypeOutpostsOutpost)
 	if got, want := outpost.Payload["resource_id"], testOutpostARN; got != want {
 		t.Fatalf("outpost resource_id = %#v, want %q", got, want)
 	}
@@ -82,7 +82,7 @@ func TestScannerEmitsOutpostsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, outpostAttrs, "supported_hardware_type", "RACK")
 
 	// Site resource node.
-	site := resourceByType(t, envelopes, awscloud.ResourceTypeOutpostsSite)
+	site := resourceByType(t, envelopes, catalog.ResourceTypeOutpostsSite)
 	if got, want := site.Payload["resource_id"], testSiteARN; got != want {
 		t.Fatalf("site resource_id = %#v, want %q", got, want)
 	}
@@ -91,7 +91,7 @@ func TestScannerEmitsOutpostsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, siteAttrs, "account_id", "123456789012")
 
 	// Asset resource node.
-	asset := resourceByType(t, envelopes, awscloud.ResourceTypeOutpostsAsset)
+	asset := resourceByType(t, envelopes, catalog.ResourceTypeOutpostsAsset)
 	wantAssetID := testOutpostARN + "/asset/asset-1234"
 	if got, want := asset.Payload["resource_id"], wantAssetID; got != want {
 		t.Fatalf("asset resource_id = %#v, want %q", got, want)
@@ -106,8 +106,8 @@ func TestScannerEmitsOutpostsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, assetAttrs, "rack_elevation", 14.0)
 
 	// Outpost -> site edge, keyed by the site ARN the site node publishes.
-	outpostInSite := relationshipByType(t, envelopes, awscloud.RelationshipOutpostsOutpostInSite)
-	assertEdgeTarget(t, outpostInSite, awscloud.ResourceTypeOutpostsSite, testSiteARN)
+	outpostInSite := relationshipByType(t, envelopes, catalog.RelationshipOutpostsOutpostInSite)
+	assertEdgeTarget(t, outpostInSite, catalog.ResourceTypeOutpostsSite, testSiteARN)
 	if got, want := outpostInSite.Payload["source_resource_id"], testOutpostARN; got != want {
 		t.Fatalf("outpost->site source_resource_id = %#v, want %q", got, want)
 	}
@@ -116,8 +116,8 @@ func TestScannerEmitsOutpostsMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Asset -> outpost edge, keyed by the outpost ARN the outpost node publishes.
-	assetInOutpost := relationshipByType(t, envelopes, awscloud.RelationshipOutpostsAssetInOutpost)
-	assertEdgeTarget(t, assetInOutpost, awscloud.ResourceTypeOutpostsOutpost, testOutpostARN)
+	assetInOutpost := relationshipByType(t, envelopes, catalog.RelationshipOutpostsAssetInOutpost)
+	assertEdgeTarget(t, assetInOutpost, catalog.ResourceTypeOutpostsOutpost, testOutpostARN)
 	if got, want := assetInOutpost.Payload["source_resource_id"], wantAssetID; got != want {
 		t.Fatalf("asset->outpost source_resource_id = %#v, want %q", got, want)
 	}
@@ -184,13 +184,13 @@ func TestScannerSynthesizesGovCloudAssetID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	asset := resourceByType(t, envelopes, awscloud.ResourceTypeOutpostsAsset)
+	asset := resourceByType(t, envelopes, catalog.ResourceTypeOutpostsAsset)
 	wantAssetID := govOutpostARN + "/asset/asset-gov"
 	if got := asset.Payload["resource_id"]; got != wantAssetID {
 		t.Fatalf("GovCloud asset resource_id = %#v, want %q", got, wantAssetID)
 	}
-	assetInOutpost := relationshipByType(t, envelopes, awscloud.RelationshipOutpostsAssetInOutpost)
-	assertEdgeTarget(t, assetInOutpost, awscloud.ResourceTypeOutpostsOutpost, govOutpostARN)
+	assetInOutpost := relationshipByType(t, envelopes, catalog.RelationshipOutpostsAssetInOutpost)
+	assertEdgeTarget(t, assetInOutpost, catalog.ResourceTypeOutpostsOutpost, govOutpostARN)
 }
 
 func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
@@ -259,7 +259,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceOutposts,
+		ServiceKind:         catalog.ServiceOutposts,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:outposts:1",
 		CollectorInstanceID: "aws-prod",

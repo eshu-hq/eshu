@@ -191,7 +191,7 @@ func endpointRelationships(
 			sourceARN,
 			secretID,
 			arnIfARN(secretID),
-			awscloud.ResourceTypeSecretsManagerSecret,
+			catalog.ResourceTypeSecretsManagerSecret,
 			nil,
 		))
 	}

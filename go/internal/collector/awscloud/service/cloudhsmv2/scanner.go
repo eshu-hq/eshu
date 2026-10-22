@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,8 +33,8 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("cloudhsmv2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceCloudHSMV2:
-		boundary.ServiceKind = awscloud.ServiceCloudHSMV2
+	case "", catalog.ServiceCloudHSMV2:
+		boundary.ServiceKind = catalog.ServiceCloudHSMV2
 	default:
 		return nil, fmt.Errorf("cloudhsmv2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -124,7 +125,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 	return awscloud.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeCloudHSMV2Cluster,
+		ResourceType:       catalog.ResourceTypeCloudHSMV2Cluster,
 		Name:               resourceID,
 		State:              strings.TrimSpace(cluster.State),
 		Tags:               cloneStringMap(cluster.Tags),
@@ -221,7 +222,7 @@ func backupObservation(boundary awscloud.Boundary, backup Backup) awscloud.Resou
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeCloudHSMV2Backup,
+		ResourceType:       catalog.ResourceTypeCloudHSMV2Backup,
 		Name:               resourceID,
 		State:              strings.TrimSpace(backup.State),
 		Tags:               cloneStringMap(backup.Tags),

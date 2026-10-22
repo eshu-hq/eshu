@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 )
@@ -102,7 +101,7 @@ func TestClassifyMemberCoversFamilies(t *testing.T) {
 		{"ecs service", "arn:aws:ecs:us-east-1:123456789012:service/main/web", catalog.ResourceTypeECSService, "arn:aws:ecs:us-east-1:123456789012:service/main/web", true},
 		{"eks cluster", "arn:aws:eks:us-east-1:123456789012:cluster/prod", catalog.ResourceTypeEKSCluster, "arn:aws:eks:us-east-1:123456789012:cluster/prod", true},
 		{"elbv2 load balancer", "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", catalog.ResourceTypeELBv2LoadBalancer, "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", true},
-		{"secret", "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", awscloud.ResourceTypeSecretsManagerSecret, "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", true},
+		{"secret", "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", catalog.ResourceTypeSecretsManagerSecret, "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", true},
 		{"cloudformation stack", "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", catalog.ResourceTypeCloudFormationStack, "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", true},
 
 		// Non-ARN-keyed families: published id must match the target scanner.

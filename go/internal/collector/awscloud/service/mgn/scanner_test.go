@@ -81,7 +81,7 @@ func TestScannerEmitsMGNMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Application resource node.
-	application := resourceByType(t, envelopes, awscloud.ResourceTypeMGNApplication)
+	application := resourceByType(t, envelopes, catalog.ResourceTypeMGNApplication)
 	if got, want := application.Payload["resource_id"], testApplicationID; got != want {
 		t.Fatalf("application resource_id = %#v, want %q", got, want)
 	}
@@ -93,7 +93,7 @@ func TestScannerEmitsMGNMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, appAttrs, "total_source_servers", int64(1))
 
 	// Source server resource node.
-	server := resourceByType(t, envelopes, awscloud.ResourceTypeMGNSourceServer)
+	server := resourceByType(t, envelopes, catalog.ResourceTypeMGNSourceServer)
 	if got, want := server.Payload["resource_id"], testSourceServerID; got != want {
 		t.Fatalf("source server resource_id = %#v, want %q", got, want)
 	}
@@ -106,7 +106,7 @@ func TestScannerEmitsMGNMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, serverAttrs, "launched_ec2_instance_id", testInstanceID)
 
 	// Launch configuration resource node.
-	launchConfig := resourceByType(t, envelopes, awscloud.ResourceTypeMGNLaunchConfiguration)
+	launchConfig := resourceByType(t, envelopes, catalog.ResourceTypeMGNLaunchConfiguration)
 	if got, want := launchConfig.Payload["resource_id"], testSourceServerID+"/launch-configuration"; got != want {
 		t.Fatalf("launch config resource_id = %#v, want %q", got, want)
 	}
@@ -115,7 +115,7 @@ func TestScannerEmitsMGNMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, lcAttrs, "copy_tags", true)
 
 	// Job resource node.
-	job := resourceByType(t, envelopes, awscloud.ResourceTypeMGNJob)
+	job := resourceByType(t, envelopes, catalog.ResourceTypeMGNJob)
 	if got, want := job.Payload["resource_id"], testJobID; got != want {
 		t.Fatalf("job resource_id = %#v, want %q", got, want)
 	}
@@ -124,8 +124,8 @@ func TestScannerEmitsMGNMetadataAndRelationships(t *testing.T) {
 	}
 
 	// application -> source server edge, keyed by the source server id the node publishes.
-	appContains := relationshipByType(t, envelopes, awscloud.RelationshipMGNApplicationContainsSourceServer)
-	assertEdgeTarget(t, appContains, awscloud.ResourceTypeMGNSourceServer, testSourceServerID)
+	appContains := relationshipByType(t, envelopes, catalog.RelationshipMGNApplicationContainsSourceServer)
+	assertEdgeTarget(t, appContains, catalog.ResourceTypeMGNSourceServer, testSourceServerID)
 	if got, want := appContains.Payload["source_resource_id"], testApplicationID; got != want {
 		t.Fatalf("app->server source_resource_id = %#v, want %q", got, want)
 	}
@@ -134,7 +134,7 @@ func TestScannerEmitsMGNMetadataAndRelationships(t *testing.T) {
 	}
 
 	// source server -> launched EC2 instance edge, keyed by the bare instance id.
-	launched := relationshipByType(t, envelopes, awscloud.RelationshipMGNSourceServerLaunchedEC2Instance)
+	launched := relationshipByType(t, envelopes, catalog.RelationshipMGNSourceServerLaunchedEC2Instance)
 	assertEdgeTarget(t, launched, ec2InstanceTargetType, testInstanceID)
 	if got, want := launched.Payload["source_resource_id"], testSourceServerID; got != want {
 		t.Fatalf("server->instance source_resource_id = %#v, want %q", got, want)
@@ -144,7 +144,7 @@ func TestScannerEmitsMGNMetadataAndRelationships(t *testing.T) {
 	}
 
 	// launch config -> launch template edge, keyed by the bare launch template id.
-	usesTemplate := relationshipByType(t, envelopes, awscloud.RelationshipMGNLaunchConfigurationUsesLaunchTemplate)
+	usesTemplate := relationshipByType(t, envelopes, catalog.RelationshipMGNLaunchConfigurationUsesLaunchTemplate)
 	assertEdgeTarget(t, usesTemplate, catalog.ResourceTypeEC2LaunchTemplate, testLaunchTemplate)
 	if got, want := usesTemplate.Payload["source_resource_id"], testSourceServerID+"/launch-configuration"; got != want {
 		t.Fatalf("config->template source_resource_id = %#v, want %q", got, want)
@@ -154,12 +154,12 @@ func TestScannerEmitsMGNMetadataAndRelationships(t *testing.T) {
 	}
 
 	// job -> source server edge, deduplicated, keyed by the source server id the node publishes.
-	jobTargets := relationshipByType(t, envelopes, awscloud.RelationshipMGNJobTargetsSourceServer)
-	assertEdgeTarget(t, jobTargets, awscloud.ResourceTypeMGNSourceServer, testSourceServerID)
+	jobTargets := relationshipByType(t, envelopes, catalog.RelationshipMGNJobTargetsSourceServer)
+	assertEdgeTarget(t, jobTargets, catalog.ResourceTypeMGNSourceServer, testSourceServerID)
 	if got, want := jobTargets.Payload["source_resource_id"], testJobID; got != want {
 		t.Fatalf("job->server source_resource_id = %#v, want %q", got, want)
 	}
-	if count := countRelationships(envelopes, awscloud.RelationshipMGNJobTargetsSourceServer); count != 1 {
+	if count := countRelationships(envelopes, catalog.RelationshipMGNJobTargetsSourceServer); count != 1 {
 		t.Fatalf("job->server edge count = %d, want 1 (duplicate participating ids must dedupe)", count)
 	}
 
@@ -215,7 +215,7 @@ func TestScannerSkipsLaunchedEdgeForNonInstanceID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if count := countRelationships(envelopes, awscloud.RelationshipMGNSourceServerLaunchedEC2Instance); count != 0 {
+	if count := countRelationships(envelopes, catalog.RelationshipMGNSourceServerLaunchedEC2Instance); count != 0 {
 		t.Fatalf("launched edge count = %d, want 0 for a non-instance id", count)
 	}
 }
@@ -292,7 +292,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceMGN,
+		ServiceKind:         catalog.ServiceMGN,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:mgn:1",
 		CollectorInstanceID: "aws-prod",

@@ -92,7 +92,7 @@ func TestScannerEmitsClusterMetadataAndRelationships(t *testing.T) {
 
 	// cluster -> admin secret edge.
 	secretEdge := relationshipByType(t, envelopes, catalog.RelationshipDocDBElasticClusterUsesAdminSecret)
-	assertEdgeTarget(t, secretEdge, awscloud.ResourceTypeSecretsManagerSecret, testSecretARN)
+	assertEdgeTarget(t, secretEdge, catalog.ResourceTypeSecretsManagerSecret, testSecretARN)
 	if got, want := secretEdge.Payload["target_arn"], testSecretARN; got != want {
 		t.Fatalf("secret edge target_arn = %#v, want %q", got, want)
 	}

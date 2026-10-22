@@ -26,7 +26,12 @@
    Service Quotas, Resource Groups, License Manager, CloudWatch, CloudWatch
    Logs, X-Ray, Application Auto Scaling, Compute Optimizer, MWAA, and
    Service Catalog App Registry now live in `catalog/devtools.go`,
-   `catalog/management.go`, and `catalog/operations.go`).
+   `catalog/management.go`, and `catalog/operations.go`; WAFv2, MGN,
+   Location, Directory Service, Audit Manager, AppFlow, Amplify, Verified
+   Permissions, and RolesAnywhere now live in `catalog/g2_services.go`;
+   CloudHSMv2, Access Analyzer, Outposts, DRS, Grafana, Secrets Manager,
+   SSM, and Resource Policy now live in `catalog/g2_governance.go`, with
+   the shared account/generic targets in `catalog/g2_common.go`).
    New service
    constants MUST land in their own
    `constants_<service>.go` sibling, not back in `types.go`, so the 500-line

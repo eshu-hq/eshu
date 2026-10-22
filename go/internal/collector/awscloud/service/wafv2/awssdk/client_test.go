@@ -12,6 +12,7 @@ import (
 	awswafv2types "github.com/aws/aws-sdk-go-v2/service/wafv2/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientListWebACLsExtractsRefsAndManagedRulesNotStatementBodies(t *testing.T) {
@@ -79,7 +80,7 @@ func TestClientListWebACLsExtractsRefsAndManagedRulesNotStatementBodies(t *testi
 		},
 		webACLTags: map[string]string{"Environment": "prod"},
 	}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceWAFv2})
 
 	webACLs, err := adapter.ListWebACLs(context.Background())
 	if err != nil {
@@ -130,7 +131,7 @@ func TestClientListIPSetsReturnsCountNotAddresses(t *testing.T) {
 			Addresses:        []string{"10.0.0.0/8", "192.168.1.1/32", "172.16.0.0/12"},
 		},
 	}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceWAFv2})
 
 	ipSets, err := adapter.ListIPSets(context.Background())
 	if err != nil {
@@ -165,7 +166,7 @@ func TestClientListRegexPatternSetsReturnsCountNotBodies(t *testing.T) {
 			},
 		},
 	}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceWAFv2})
 
 	regexSets, err := adapter.ListRegexPatternSets(context.Background())
 	if err != nil {
@@ -199,7 +200,7 @@ func TestClientListRuleGroupsReturnsCustomerMetadata(t *testing.T) {
 			},
 		},
 	}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceWAFv2})
 
 	ruleGroups, err := adapter.ListRuleGroups(context.Background())
 	if err != nil {
@@ -218,7 +219,7 @@ func TestClientListRuleGroupsReturnsCustomerMetadata(t *testing.T) {
 
 func TestClientUsesCloudFrontScopeForGlobalBoundary(t *testing.T) {
 	fake := &fakeWAFv2API{}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "aws-global", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "aws-global", ServiceKind: catalog.ServiceWAFv2})
 
 	if _, err := adapter.ListWebACLs(context.Background()); err != nil {
 		t.Fatalf("ListWebACLs() error = %v, want nil", err)
@@ -230,7 +231,7 @@ func TestClientUsesCloudFrontScopeForGlobalBoundary(t *testing.T) {
 
 func TestClientUsesRegionalScopeForRegionalBoundary(t *testing.T) {
 	fake := &fakeWAFv2API{}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-west-2", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-west-2", ServiceKind: catalog.ServiceWAFv2})
 
 	if _, err := adapter.ListIPSets(context.Background()); err != nil {
 		t.Fatalf("ListIPSets() error = %v, want nil", err)
@@ -290,7 +291,7 @@ func TestClientListIPSetsFollowsNextMarker(t *testing.T) {
 		}},
 		ipSet: &awswafv2types.IPSet{IPAddressVersion: awswafv2types.IPAddressVersionIpv4},
 	}
-	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceWAFv2})
 
 	ipSets, err := adapter.ListIPSets(context.Background())
 	if err != nil {

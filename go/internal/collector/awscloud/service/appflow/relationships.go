@@ -28,7 +28,7 @@ func flowResourceID(flow Flow) string {
 func flowS3SourceRelationship(boundary awscloud.Boundary, flow Flow) *awscloud.RelationshipObservation {
 	return flowS3Relationship(
 		boundary, flow, flow.SourceS3Bucket,
-		awscloud.RelationshipAppFlowFlowReadsFromS3Bucket, "source",
+		catalog.RelationshipAppFlowFlowReadsFromS3Bucket, "source",
 	)
 }
 
@@ -53,7 +53,7 @@ func flowS3DestinationRelationships(boundary awscloud.Boundary, flow Flow) []aws
 		seen[bucket] = struct{}{}
 		observation := flowS3Relationship(
 			boundary, flow, bucket,
-			awscloud.RelationshipAppFlowFlowWritesToS3Bucket, "destination",
+			catalog.RelationshipAppFlowFlowWritesToS3Bucket, "destination",
 		)
 		if observation != nil {
 			observations = append(observations, *observation)
@@ -131,13 +131,13 @@ func flowConnectorProfileRelationships(boundary awscloud.Boundary, flow Flow) []
 		seen[name] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppFlowFlowUsesConnectorProfile,
+			RelationshipType: catalog.RelationshipAppFlowFlowUsesConnectorProfile,
 			SourceResourceID: flowID,
 			SourceARN:        strings.TrimSpace(flow.ARN),
 			TargetResourceID: name,
-			TargetType:       awscloud.ResourceTypeAppFlowConnectorProfile,
+			TargetType:       catalog.ResourceTypeAppFlowConnectorProfile,
 			Attributes:       map[string]any{"direction": candidate.direction},
-			SourceRecordID:   flowID + "->" + awscloud.RelationshipAppFlowFlowUsesConnectorProfile + ":" + name,
+			SourceRecordID:   flowID + "->" + catalog.RelationshipAppFlowFlowUsesConnectorProfile + ":" + name,
 		})
 	}
 	return observations
@@ -155,13 +155,13 @@ func flowKMSKeyRelationship(boundary awscloud.Boundary, flow Flow) *awscloud.Rel
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppFlowFlowUsesKMSKey,
+		RelationshipType: catalog.RelationshipAppFlowFlowUsesKMSKey,
 		SourceResourceID: flowID,
 		SourceARN:        strings.TrimSpace(flow.ARN),
 		TargetResourceID: keyARN,
 		TargetARN:        keyARN,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   flowID + "->" + awscloud.RelationshipAppFlowFlowUsesKMSKey + ":" + keyARN,
+		SourceRecordID:   flowID + "->" + catalog.RelationshipAppFlowFlowUsesKMSKey + ":" + keyARN,
 	}
 }
 
@@ -181,12 +181,12 @@ func connectorProfileSecretRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppFlowConnectorProfileUsesSecret,
+		RelationshipType: catalog.RelationshipAppFlowConnectorProfileUsesSecret,
 		SourceResourceID: name,
 		SourceARN:        strings.TrimSpace(profile.ARN),
 		TargetResourceID: secretARN,
 		TargetARN:        secretARN,
-		TargetType:       awscloud.ResourceTypeSecretsManagerSecret,
-		SourceRecordID:   name + "->" + awscloud.RelationshipAppFlowConnectorProfileUsesSecret + ":" + secretARN,
+		TargetType:       catalog.ResourceTypeSecretsManagerSecret,
+		SourceRecordID:   name + "->" + catalog.RelationshipAppFlowConnectorProfileUsesSecret + ":" + secretARN,
 	}
 }

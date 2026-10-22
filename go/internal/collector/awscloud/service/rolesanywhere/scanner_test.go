@@ -65,7 +65,7 @@ func TestScannerEmitsRolesAnywhereMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Trust anchor resource node.
-	anchor := resourceByType(t, envelopes, awscloud.ResourceTypeRolesAnywhereTrustAnchor)
+	anchor := resourceByType(t, envelopes, catalog.ResourceTypeRolesAnywhereTrustAnchor)
 	if got, want := anchor.Payload["resource_id"], testTrustAnchorARN; got != want {
 		t.Fatalf("trust anchor resource_id = %#v, want %q", got, want)
 	}
@@ -74,7 +74,7 @@ func TestScannerEmitsRolesAnywhereMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, anchorAttrs, "enabled", true)
 
 	// Profile resource node.
-	profile := resourceByType(t, envelopes, awscloud.ResourceTypeRolesAnywhereProfile)
+	profile := resourceByType(t, envelopes, catalog.ResourceTypeRolesAnywhereProfile)
 	if got, want := profile.Payload["resource_id"], testProfileARN; got != want {
 		t.Fatalf("profile resource_id = %#v, want %q", got, want)
 	}
@@ -85,13 +85,13 @@ func TestScannerEmitsRolesAnywhereMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, profileAttrs, "role_arns", []string{testRoleARN})
 
 	// CRL resource node.
-	crl := resourceByType(t, envelopes, awscloud.ResourceTypeRolesAnywhereCRL)
+	crl := resourceByType(t, envelopes, catalog.ResourceTypeRolesAnywhereCRL)
 	if got, want := crl.Payload["resource_id"], testCRLARN; got != want {
 		t.Fatalf("crl resource_id = %#v, want %q", got, want)
 	}
 
 	// profile -> IAM role edge, keyed by the role ARN the IAM scanner publishes.
-	profileRole := relationshipByType(t, envelopes, awscloud.RelationshipRolesAnywhereProfileAssumesRole)
+	profileRole := relationshipByType(t, envelopes, catalog.RelationshipRolesAnywhereProfileAssumesRole)
 	assertEdgeTarget(t, profileRole, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got, want := profileRole.Payload["source_resource_id"], testProfileARN; got != want {
 		t.Fatalf("profile->role source_resource_id = %#v, want %q", got, want)
@@ -101,15 +101,15 @@ func TestScannerEmitsRolesAnywhereMetadataAndRelationships(t *testing.T) {
 	}
 
 	// trust anchor -> ACM PCA CA edge, keyed by the CA ARN the acmpca scanner publishes.
-	anchorCA := relationshipByType(t, envelopes, awscloud.RelationshipRolesAnywhereTrustAnchorUsesACMPCA)
+	anchorCA := relationshipByType(t, envelopes, catalog.RelationshipRolesAnywhereTrustAnchorUsesACMPCA)
 	assertEdgeTarget(t, anchorCA, awscloud.ResourceTypeACMPCACertificateAuthority, testCAARN)
 	if got, want := anchorCA.Payload["source_resource_id"], testTrustAnchorARN; got != want {
 		t.Fatalf("anchor->ca source_resource_id = %#v, want %q", got, want)
 	}
 
 	// CRL -> trust anchor edge, keyed by the trust-anchor ARN the trust-anchor node publishes.
-	crlAnchor := relationshipByType(t, envelopes, awscloud.RelationshipRolesAnywhereCRLValidatesTrustAnchor)
-	assertEdgeTarget(t, crlAnchor, awscloud.ResourceTypeRolesAnywhereTrustAnchor, testTrustAnchorARN)
+	crlAnchor := relationshipByType(t, envelopes, catalog.RelationshipRolesAnywhereCRLValidatesTrustAnchor)
+	assertEdgeTarget(t, crlAnchor, catalog.ResourceTypeRolesAnywhereTrustAnchor, testTrustAnchorARN)
 	if got, want := crlAnchor.Payload["source_resource_id"], testCRLARN; got != want {
 		t.Fatalf("crl->anchor source_resource_id = %#v, want %q", got, want)
 	}
@@ -148,7 +148,7 @@ func TestScannerSynthesizesNoLiteralPartition(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	profileRole := relationshipByType(t, envelopes, awscloud.RelationshipRolesAnywhereProfileAssumesRole)
+	profileRole := relationshipByType(t, envelopes, catalog.RelationshipRolesAnywhereProfileAssumesRole)
 	// The scanner forwards the reported role ARN verbatim; it must remain the
 	// GovCloud partition ARN, never rewritten to a literal arn:aws:.
 	if got, want := profileRole.Payload["target_resource_id"], "arn:aws-us-gov:iam::123456789012:role/gov-runner"; got != want {
@@ -205,7 +205,7 @@ func TestScannerOmitsACMPCAEdgeForCertificateBundleAnchor(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipRolesAnywhereTrustAnchorUsesACMPCA {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == catalog.RelationshipRolesAnywhereTrustAnchorUsesACMPCA {
 			t.Fatalf("unexpected ACM PCA edge for certificate-bundle trust anchor")
 		}
 	}
@@ -229,7 +229,7 @@ func TestScannerDeduplicatesProfileRoleEdges(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipRolesAnywhereProfileAssumesRole {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == catalog.RelationshipRolesAnywhereProfileAssumesRole {
 			count++
 		}
 	}
@@ -304,7 +304,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceRolesAnywhere,
+		ServiceKind:         catalog.ServiceRolesAnywhere,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:rolesanywhere:1",
 		CollectorInstanceID: "aws-prod",

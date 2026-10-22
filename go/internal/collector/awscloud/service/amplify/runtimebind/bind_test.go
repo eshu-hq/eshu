@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/amplify/runtimebind"
 )
 
@@ -17,14 +18,14 @@ import (
 // Amplify scanner builder and that the builder resolves without a redaction key
 // because the SDK adapter drops every secret-bearing field at the boundary.
 func TestAmplifyRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceAmplify)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceAmplify)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceAmplify)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceAmplify)
 	}
 
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAmplify},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAmplify},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

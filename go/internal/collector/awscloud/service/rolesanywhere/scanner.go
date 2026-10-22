@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("rolesanywhere scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRolesAnywhere:
+	case "", catalog.ServiceRolesAnywhere:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRolesAnywhere
+		boundary.ServiceKind = catalog.ServiceRolesAnywhere
 	default:
 		return nil, fmt.Errorf("rolesanywhere scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -141,7 +142,7 @@ func trustAnchorObservation(boundary awscloud.Boundary, anchor TrustAnchor) awsc
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRolesAnywhereTrustAnchor,
+		ResourceType: catalog.ResourceTypeRolesAnywhereTrustAnchor,
 		Name:         name,
 		Tags:         cloneStringMap(anchor.Tags),
 		Attributes: map[string]any{
@@ -165,7 +166,7 @@ func profileObservation(boundary awscloud.Boundary, profile Profile) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRolesAnywhereProfile,
+		ResourceType: catalog.ResourceTypeRolesAnywhereProfile,
 		Name:         name,
 		Tags:         cloneStringMap(profile.Tags),
 		Attributes: map[string]any{
@@ -194,7 +195,7 @@ func crlObservation(boundary awscloud.Boundary, crl CRL) awscloud.ResourceObserv
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRolesAnywhereCRL,
+		ResourceType: catalog.ResourceTypeRolesAnywhereCRL,
 		Name:         name,
 		Tags:         cloneStringMap(crl.Tags),
 		Attributes: map[string]any{

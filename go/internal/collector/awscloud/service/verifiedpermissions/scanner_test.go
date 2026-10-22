@@ -62,7 +62,7 @@ func TestScannerEmitsVerifiedPermissionsMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Policy store resource node.
-	store := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedPermissionsPolicyStore)
+	store := resourceByType(t, envelopes, catalog.ResourceTypeVerifiedPermissionsPolicyStore)
 	if got, want := store.Payload["resource_id"], testStoreARN; got != want {
 		t.Fatalf("store resource_id = %#v, want %q", got, want)
 	}
@@ -77,7 +77,7 @@ func TestScannerEmitsVerifiedPermissionsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, storeAttrs, "policy_store_id", testStoreID)
 
 	// Policy resource node.
-	policy := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedPermissionsPolicy)
+	policy := resourceByType(t, envelopes, catalog.ResourceTypeVerifiedPermissionsPolicy)
 	wantPolicyID := testStoreID + "/" + testPolicyID
 	if got, want := policy.Payload["resource_id"], wantPolicyID; got != want {
 		t.Fatalf("policy resource_id = %#v, want %q", got, want)
@@ -88,7 +88,7 @@ func TestScannerEmitsVerifiedPermissionsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, policyAttrs, "policy_id", testPolicyID)
 
 	// Identity source resource node.
-	source := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedPermissionsIdentitySource)
+	source := resourceByType(t, envelopes, catalog.ResourceTypeVerifiedPermissionsIdentitySource)
 	wantSourceID := testStoreID + "/" + testSourceID
 	if got, want := source.Payload["resource_id"], wantSourceID; got != want {
 		t.Fatalf("identity source resource_id = %#v, want %q", got, want)
@@ -99,22 +99,22 @@ func TestScannerEmitsVerifiedPermissionsMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, sourceAttrs, "client_id_count", 2)
 
 	// policy -> store edge, keyed by the store ARN the store node publishes.
-	policyInStore := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedPermissionsPolicyInStore)
-	assertEdgeTarget(t, policyInStore, awscloud.ResourceTypeVerifiedPermissionsPolicyStore, testStoreARN)
+	policyInStore := relationshipByType(t, envelopes, catalog.RelationshipVerifiedPermissionsPolicyInStore)
+	assertEdgeTarget(t, policyInStore, catalog.ResourceTypeVerifiedPermissionsPolicyStore, testStoreARN)
 	if got, want := policyInStore.Payload["source_resource_id"], wantPolicyID; got != want {
 		t.Fatalf("policy->store source_resource_id = %#v, want %q", got, want)
 	}
 
 	// identity source -> store edge.
-	sourceInStore := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedPermissionsIdentitySourceInStore)
-	assertEdgeTarget(t, sourceInStore, awscloud.ResourceTypeVerifiedPermissionsPolicyStore, testStoreARN)
+	sourceInStore := relationshipByType(t, envelopes, catalog.RelationshipVerifiedPermissionsIdentitySourceInStore)
+	assertEdgeTarget(t, sourceInStore, catalog.ResourceTypeVerifiedPermissionsPolicyStore, testStoreARN)
 	if got, want := sourceInStore.Payload["source_resource_id"], wantSourceID; got != want {
 		t.Fatalf("source->store source_resource_id = %#v, want %q", got, want)
 	}
 
 	// identity source -> Cognito user pool edge, keyed by the BARE user pool id
 	// the Cognito scanner publishes for a user pool node.
-	sourceCognito := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool)
+	sourceCognito := relationshipByType(t, envelopes, catalog.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool)
 	assertEdgeTarget(t, sourceCognito, awscloud.ResourceTypeCognitoUserPool, testUserPoolID)
 	// The user pool node publishes the bare id as resource_id, so the edge leaves
 	// target_arn empty (relguard contract); the ARN survives as an attribute.
@@ -160,13 +160,13 @@ func TestScannerEmitsOIDCIdentitySourceWithoutCognitoEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	source := resourceByType(t, envelopes, awscloud.ResourceTypeVerifiedPermissionsIdentitySource)
+	source := resourceByType(t, envelopes, catalog.ResourceTypeVerifiedPermissionsIdentitySource)
 	assertAttribute(t, attributesOf(t, source), "openid_issuer", testOIDCIssuerURL)
 	for _, envelope := range envelopes {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == catalog.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool {
 			t.Fatalf("OIDC identity source must not emit a Cognito user pool edge")
 		}
 	}
@@ -189,7 +189,7 @@ func TestScannerExtractsUserPoolIDFromGovCloudARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool)
+	edge := relationshipByType(t, envelopes, catalog.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool)
 	if got, want := edge.Payload["target_resource_id"], "us-gov-west-1_govpool99"; got != want {
 		t.Fatalf("GovCloud user pool target_resource_id = %#v, want %q", got, want)
 	}
@@ -219,7 +219,7 @@ func TestScannerOmitsCognitoEdgeForMalformedARN(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == catalog.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool {
 			t.Fatalf("malformed user pool ARN must skip the Cognito edge, not dangle it")
 		}
 	}
@@ -308,7 +308,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceVerifiedPermissions,
+		ServiceKind:         catalog.ServiceVerifiedPermissions,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:verifiedpermissions:1",
 		CollectorInstanceID: "aws-prod",

@@ -100,7 +100,7 @@ func aggregatorAccountRelationship(
 		SourceARN:        strings.TrimSpace(aggregator.ARN),
 		TargetResourceID: accountARN,
 		TargetARN:        accountARN,
-		TargetType:       awscloud.ResourceTypeAWSAccount,
+		TargetType:       catalog.ResourceTypeAWSAccount,
 		Attributes: map[string]any{
 			"source_account_id":             accountID,
 			"configuration_aggregator_name": strings.TrimSpace(aggregator.Name),

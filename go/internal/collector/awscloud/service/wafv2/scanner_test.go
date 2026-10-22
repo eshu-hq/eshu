@@ -52,7 +52,7 @@ func TestScannerEmitsWebACLMetadataAndAllRelationshipKinds(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	webACL := resourceByType(t, envelopes, awscloud.ResourceTypeWAFv2WebACL)
+	webACL := resourceByType(t, envelopes, catalog.ResourceTypeWAFv2WebACL)
 	attributes := attributesOf(t, webACL)
 	if got, want := attributes["scope"], "REGIONAL"; got != want {
 		t.Fatalf("scope = %#v, want %q", got, want)
@@ -75,10 +75,10 @@ func TestScannerEmitsWebACLMetadataAndAllRelationshipKinds(t *testing.T) {
 	}
 	assertNoForbiddenWebACLPayload(t, attributes)
 
-	assertRelationship(t, envelopes, awscloud.RelationshipWAFv2WebACLProtectsResource, albARN)
-	assertRelationship(t, envelopes, awscloud.RelationshipWAFv2WebACLUsesRuleGroup, ruleGroupARN)
-	assertRelationship(t, envelopes, awscloud.RelationshipWAFv2WebACLUsesIPSet, ipSetARN)
-	assertRelationship(t, envelopes, awscloud.RelationshipWAFv2WebACLUsesRegexPatternSet, regexSetARN)
+	assertRelationship(t, envelopes, catalog.RelationshipWAFv2WebACLProtectsResource, albARN)
+	assertRelationship(t, envelopes, catalog.RelationshipWAFv2WebACLUsesRuleGroup, ruleGroupARN)
+	assertRelationship(t, envelopes, catalog.RelationshipWAFv2WebACLUsesIPSet, ipSetARN)
+	assertRelationship(t, envelopes, catalog.RelationshipWAFv2WebACLUsesRegexPatternSet, regexSetARN)
 }
 
 func TestScannerSetsProtectedResourceTargetType(t *testing.T) {
@@ -164,7 +164,7 @@ func TestScannerSetsProtectedResourceTargetType(t *testing.T) {
 				t.Fatalf("Scan() error = %v, want nil", err)
 			}
 
-			relationship := relationshipByTarget(t, envelopes, awscloud.RelationshipWAFv2WebACLProtectsResource, tc.targetARN)
+			relationship := relationshipByTarget(t, envelopes, catalog.RelationshipWAFv2WebACLProtectsResource, tc.targetARN)
 			if got, _ := relationship.Payload["target_type"].(string); got != tc.wantType {
 				t.Fatalf("target_type = %q, want %q", got, tc.wantType)
 			}
@@ -190,7 +190,7 @@ func TestScannerEmitsIPSetCountOnlyNeverAddresses(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	ipSet := resourceByType(t, envelopes, awscloud.ResourceTypeWAFv2IPSet)
+	ipSet := resourceByType(t, envelopes, catalog.ResourceTypeWAFv2IPSet)
 	attributes := attributesOf(t, ipSet)
 	if got, want := attributes["address_count"], 42; got != want {
 		t.Fatalf("address_count = %#v, want %d", got, want)
@@ -221,7 +221,7 @@ func TestScannerEmitsRegexSetCountOnlyNeverBodies(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	regexSet := resourceByType(t, envelopes, awscloud.ResourceTypeWAFv2RegexPatternSet)
+	regexSet := resourceByType(t, envelopes, catalog.ResourceTypeWAFv2RegexPatternSet)
 	attributes := attributesOf(t, regexSet)
 	if got, want := attributes["pattern_count"], 7; got != want {
 		t.Fatalf("pattern_count = %#v, want %d", got, want)
@@ -250,7 +250,7 @@ func TestScannerEmitsCustomerRuleGroupMetadata(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	ruleGroup := resourceByType(t, envelopes, awscloud.ResourceTypeWAFv2RuleGroup)
+	ruleGroup := resourceByType(t, envelopes, catalog.ResourceTypeWAFv2RuleGroup)
 	attributes := attributesOf(t, ruleGroup)
 	if got, want := attributes["rule_count"], 4; got != want {
 		t.Fatalf("rule_count = %#v, want %d", got, want)
@@ -299,7 +299,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceWAFv2,
+		ServiceKind:         catalog.ServiceWAFv2,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:wafv2:1",
 		CollectorInstanceID: "aws-prod",

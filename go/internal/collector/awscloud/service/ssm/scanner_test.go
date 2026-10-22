@@ -39,7 +39,7 @@ func TestScannerEmitsSSMParameterMetadataOnlyFactsAndKMSRelationship(t *testing.
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	resource := resourceByType(t, envelopes, awscloud.ResourceTypeSSMParameter)
+	resource := resourceByType(t, envelopes, catalog.ResourceTypeSSMParameter)
 	if got, want := resource.Payload["arn"], parameterARN; got != want {
 		t.Fatalf("parameter arn = %#v, want %q", got, want)
 	}
@@ -70,7 +70,7 @@ func TestScannerEmitsSSMParameterMetadataOnlyFactsAndKMSRelationship(t *testing.
 		}
 	}
 
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipSSMParameterUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipSSMParameterUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], kmsARN; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -91,7 +91,7 @@ func TestScannerDoesNotTreatNonARNKMSIdentifierAsARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	relationship := relationshipByType(t, envelopes, awscloud.RelationshipSSMParameterUsesKMSKey)
+	relationship := relationshipByType(t, envelopes, catalog.RelationshipSSMParameterUsesKMSKey)
 	if got, want := relationship.Payload["target_resource_id"], "alias/ssm"; got != want {
 		t.Fatalf("target_resource_id = %#v, want %q", got, want)
 	}
@@ -114,7 +114,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSSM,
+		ServiceKind:         catalog.ServiceSSM,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:ssm:1",
 		CollectorInstanceID: "aws-prod",
