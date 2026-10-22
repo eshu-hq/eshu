@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/sdk"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/github/app"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -35,6 +36,14 @@ const (
 	// Dependabot alerts endpoint and fans the result out into per-repository
 	// facts so reducer reconciliation is identical to the per-repository path.
 	TargetScopeOrganization = "org"
+
+	// AuthModeTokenEnv authenticates with a static Bearer token resolved
+	// once at process startup. It is the default when auth_mode is unset.
+	AuthModeTokenEnv = "token_env"
+	// AuthModeGitHubApp mints a GitHub App installation token per claim.
+	// The minted token is never persisted on the target, in logs, in spans,
+	// or in facts.
+	AuthModeGitHubApp = "github_app"
 
 	// FailureAuthDenied marks credential failures as terminal.
 	FailureAuthDenied = string(sdk.FailureAuthDenied)
@@ -93,18 +102,27 @@ type SourceConfig struct {
 // target (Scope=="repository", the default) polls a single allowlisted
 // repository. An organization target (Scope=="org") polls one organization and
 // fans the result out into per-repository facts.
+//
+// AuthMode selects the credential shape: AuthModeTokenEnv (the default) uses
+// the static Token resolved once at startup, while AuthModeGitHubApp mints an
+// installation token per claim from the GitHub App values. The two shapes
+// never mix on one target, and the minted token is never stored here.
 type TargetConfig struct {
-	Provider             string
-	Scope                string
-	ScopeID              string
-	Repository           string
-	Organization         string
-	Token                string
-	AllowedRepositories  []string
-	APIBaseURL           string
-	RepositoryAlertLimit int
-	MaxPages             int
-	SourceURI            string
+	Provider                string
+	Scope                   string
+	ScopeID                 string
+	Repository              string
+	Organization            string
+	Token                   string
+	AuthMode                string
+	GitHubAppID             string
+	GitHubAppInstallationID string
+	GitHubAppPrivateKey     string
+	AllowedRepositories     []string
+	APIBaseURL              string
+	RepositoryAlertLimit    int
+	MaxPages                int
+	SourceURI               string
 }
 
 // IsOrganizationScope reports whether the target polls the organization-wide
@@ -310,6 +328,28 @@ func fetchAlerts(
 }
 
 func defaultClientFactory(target TargetConfig) (RepositoryAlertClient, error) {
+	if target.AuthMode == AuthModeGitHubApp {
+		// Capture the validated App values by value: the provider closes
+		// over immutable strings, holds no token cache, and mints once per
+		// listing call from the target's api_base_url. It is safe under
+		// concurrent claims.
+		appID, installationID, privateKey, baseURL := target.GitHubAppID,
+			target.GitHubAppInstallationID, target.GitHubAppPrivateKey, target.APIBaseURL
+		return securityalerts.NewGitHubDependabotClient(securityalerts.GitHubDependabotClientConfig{
+			BaseURL:              baseURL,
+			AllowedRepositories:  target.AllowedRepositories,
+			RepositoryAlertLimit: target.RepositoryAlertLimit,
+			AppAuth:              true,
+			TokenProvider: func(ctx context.Context) (string, error) {
+				return app.MintInstallationToken(ctx, app.Config{
+					BaseURL:        baseURL,
+					AppID:          appID,
+					InstallationID: installationID,
+					PrivateKey:     privateKey,
+				})
+			},
+		}), nil
+	}
 	return securityalerts.NewGitHubDependabotClient(securityalerts.GitHubDependabotClientConfig{
 		BaseURL:              target.APIBaseURL,
 		Token:                target.Token,

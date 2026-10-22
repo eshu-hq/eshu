@@ -250,25 +250,22 @@ attachment status.
 
 ## Security Alert Collector
 
-The security-alert collector is claim-only. It selects an enabled
-`security_alert` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. Provider
-targets support GitHub Dependabot alerts in one of two scopes, selected by the
-optional `scope` field (default `repository`):
+The security-alert collector is claim-only: it selects an enabled `security_alert` instance from
+`ESHU_COLLECTOR_INSTANCES_JSON` and emits only `security_alert.repository_alert` facts. Each target polls
+GitHub Dependabot alerts in one scope (`scope`, default `repository`) with one credential shape (`auth_mode`, default `token_env`):
 
-- `scope: "repository"` polls one repository via
-  `GET /repos/{owner}/{repo}/dependabot/alerts` and must include `token_env`,
-  `repository`, and `allowed_repositories`.
-- `scope: "org"` polls one organization via
-  `GET /orgs/{org}/dependabot/alerts` and must include `token_env` and
-  `organization`. It must not set `repository` or `allowed_repositories`. A
-  single org target fans the response out into per-repository
-  `security_alert.repository_alert` facts (one fact per repository that owns an
-  alert), so reducer reconciliation is identical to the per-repository path.
+- `scope: "repository"` polls `GET /repos/{owner}/{repo}/dependabot/alerts` and must include
+  `repository` and `allowed_repositories`.
+- `scope: "org"` polls `GET /orgs/{org}/dependabot/alerts` and must include `organization` and
+  `allowed_repositories`, never `repository`. One org target fans out per-repository facts, so reducer
+  reconciliation matches the per-repository path.
+- `auth_mode: "token_env"` sends a static bearer token resolved once at process startup from `token_env`.
+- `auth_mode: "github_app"` mints an installation token per claim (never persisted, logged, or emitted)
+  from `github_app_id_env`, `github_app_installation_id_env`, and `github_app_private_key_env`
+  (the existing `GITHUB_APP_*` secret envs). The modes never mix on one target. See the
+  `collector-security-alerts` binary README for the mint behavior.
 
-The runtime resolves the credential from the named environment variable and
-emits only `security_alert.repository_alert` facts. Optional `api_base_url`
-overrides must use HTTPS because the runtime sends the bearer token to that
-endpoint.
+Optional `api_base_url` overrides must use HTTPS because the runtime sends the bearer token to that endpoint.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
@@ -278,16 +275,12 @@ endpoint.
 | `ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL` | `20s` | collector-security-alerts | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
 | `ESHU_SECURITY_ALERT_COLLECTOR_OWNER_ID` | host/process-derived | collector-security-alerts | Owner label written into workflow claim rows. |
 
-Provider tokens must come from private environment variables referenced by
-`token_env`; do not commit token values, private repository names, alert URLs,
-or copied provider payloads to public values files or docs.
-
-`eshu-collector-security-alerts --preflight-provider-access` can be run as a
-one-shot access check before starting workflow fanout. It uses the same
-collector instance JSON, token env resolution, repository allowlist, and
-provider client as the hosted runtime, makes one bounded request per target
-(the per-repository endpoint for repository targets and the org-wide endpoint
-for org targets), and reports only sanitized failure classes.
+Credentials must come from private env vars named by `token_env` or the `github_app_*_env`
+references; never commit token values, App private keys, repository names, alert URLs, or payloads.
+`eshu-collector-security-alerts --preflight-provider-access` is a one-shot access check before fanout
+using the same instance JSON, credential resolution, allowlist, and client: one bounded request per target
+(minting first for `github_app`), sanitized failures only. Run it against a real installation before relying
+on a new App credential.
 
 ## CI/CD Run Collector
 

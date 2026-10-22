@@ -50,6 +50,14 @@ func observerFrom(ctx context.Context) observer {
 	return o
 }
 
+// RecordAttempt counts one attempt of a GitHub API call. It is the exported
+// observer entry for mint implementations that live outside this package but
+// must keep counting the same operation signals. class is classNone on
+// success.
+func RecordAttempt(ctx context.Context, operation, class, outcome string) {
+	recordAttempt(ctx, operation, class, outcome)
+}
+
 // recordAttempt counts one attempt of a GitHub API call. class is classNone on
 // success.
 func recordAttempt(ctx context.Context, operation, class, outcome string) {
@@ -62,6 +70,13 @@ func recordAttempt(ctx context.Context, operation, class, outcome string) {
 		attribute.String(telemetry.MetricDimensionFailureClass, class),
 		attribute.String(telemetry.MetricDimensionOutcome, outcome),
 	))
+}
+
+// RecordRetry counts one retry that is about to start. It is the exported
+// observer entry for mint implementations that live outside this package but
+// must keep counting the same operation signals.
+func RecordRetry(ctx context.Context, operation, class string, attempt, status int, wait time.Duration) {
+	recordRetry(ctx, operation, class, attempt, status, wait)
 }
 
 // recordRetry counts one retry that is about to start, marks the active span,

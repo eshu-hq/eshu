@@ -46,12 +46,18 @@ const (
 
 // GitHubDependabotClientConfig configures the bounded GitHub Dependabot alert
 // source. Token and repository allowlists are required before any HTTP request.
+//
+// For GitHub App auth, set AppAuth and TokenProvider instead of Token: the
+// provider mints one installation token per listing call, so sequential
+// claims always send a fresh credential and no token is cached on the client.
 type GitHubDependabotClientConfig struct {
 	BaseURL              string
 	Token                string
 	AllowedRepositories  []string
 	RepositoryAlertLimit int
 	HTTPClient           *http.Client
+	AppAuth              bool
+	TokenProvider        func(ctx context.Context) (string, error)
 }
 
 // GitHubDependabotClient reads repository-scoped GitHub Dependabot alerts.
@@ -61,6 +67,8 @@ type GitHubDependabotClient struct {
 	allowedRepositories map[string]struct{}
 	repositoryLimit     int
 	httpClient          *http.Client
+	appAuth             bool
+	tokenProvider       func(ctx context.Context) (string, error)
 }
 
 // GitHubRateLimitInfo captures bounded GitHub rate-limit retry metadata.
@@ -91,7 +99,13 @@ type GitHubDependabotError struct {
 	Message    string
 	RateLimit  GitHubRateLimitInfo
 	Operation  string
-	Cause      error
+	// FailureClassOverride, when set to a GitHubDependabotFailure* constant,
+	// replaces the status-derived class. It carries mode-specific mappings
+	// that a status cannot express: an alert-read 401 under GitHub App auth
+	// is an expired installation token (retryable), and a mint failure has
+	// no alert status at all.
+	FailureClassOverride string
+	Cause                error
 }
 
 // FailureOperation returns the bounded endpoint token for the failed call,
@@ -120,6 +134,9 @@ func (e GitHubDependabotError) Unwrap() error {
 // FailureClass returns the bounded workflow retry class for this provider
 // failure.
 func (e GitHubDependabotError) FailureClass() string {
+	if e.FailureClassOverride != "" {
+		return e.FailureClassOverride
+	}
 	switch {
 	case e.StatusCode == http.StatusUnauthorized || e.StatusCode == http.StatusForbidden:
 		if e.RateLimit.RetryAfter != 0 ||
@@ -179,6 +196,8 @@ func NewGitHubDependabotClient(config GitHubDependabotClientConfig) GitHubDepend
 		allowedRepositories: allowed,
 		repositoryLimit:     limit,
 		httpClient:          httpClient,
+		appAuth:             config.AppAuth,
+		tokenProvider:       config.TokenProvider,
 	}
 }
 
@@ -202,7 +221,7 @@ func (c GitHubDependabotClient) ListRepositoryAlertsPages(
 	repository string,
 	maxPages int,
 ) (GitHubDependabotAlertResult, error) {
-	if c.token == "" {
+	if c.tokenProvider == nil && c.token == "" {
 		return GitHubDependabotAlertResult{}, GitHubDependabotError{
 			Message: "github dependabot token is required",
 		}
@@ -235,7 +254,7 @@ func (c GitHubDependabotClient) ListOrganizationAlertsPages(
 	organization string,
 	maxPages int,
 ) (GitHubDependabotAlertResult, error) {
-	if c.token == "" {
+	if c.tokenProvider == nil && c.token == "" {
 		return GitHubDependabotAlertResult{}, GitHubDependabotError{
 			Message: "github dependabot token is required",
 		}
@@ -274,10 +293,14 @@ func (c GitHubDependabotClient) paginateAlerts(
 	if maxPages <= 0 {
 		maxPages = defaultRepositoryAlertMaxPages
 	}
+	token, err := c.resolveToken(ctx, operation)
+	if err != nil {
+		return GitHubDependabotAlertResult{}, err
+	}
 	var out GitHubDependabotAlertResult
 	nextURL := firstURL
 	for page := 1; page <= maxPages; page++ {
-		alerts, rateLimit, next, err := c.listAlertsPage(ctx, nextURL, operation)
+		alerts, rateLimit, next, err := c.listAlertsPage(ctx, nextURL, operation, token)
 		out.RateLimit = rateLimit
 		if err != nil {
 			return GitHubDependabotAlertResult{}, err
@@ -304,6 +327,7 @@ func (c GitHubDependabotClient) listAlertsPage(
 	ctx context.Context,
 	endpoint string,
 	operation string,
+	token string,
 ) ([]GitHubDependabotAlert, GitHubRateLimitInfo, string, error) {
 	endpoint = strings.TrimSpace(endpoint)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -315,7 +339,7 @@ func (c GitHubDependabotClient) listAlertsPage(
 		}
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-GitHub-Api-Version", defaultGitHubDependabotVersion)
 
 	resp, err := c.httpClient.Do(req)
@@ -340,13 +364,22 @@ func (c GitHubDependabotClient) listAlertsPage(
 			Message:    http.StatusText(resp.StatusCode),
 			RetryAfter: rateLimit.RetryAfter,
 		}
-		return nil, rateLimit, "", GitHubDependabotError{
+		failure := GitHubDependabotError{
 			StatusCode: resp.StatusCode,
 			Message:    "fetch github dependabot alerts",
 			RateLimit:  rateLimit,
 			Operation:  operation,
 			Cause:      httpErr,
 		}
+		// An alert-read 401 under GitHub App auth is an expired hourly
+		// installation token, not a revoked credential: it stays retryable
+		// so the next claim mints fresh, deliberately unlike the static
+		// 401 which denies terminally until the operator rotates the PAT.
+		if resp.StatusCode == http.StatusUnauthorized && c.appAuth &&
+			failure.FailureClass() == GitHubDependabotFailureAuthDenied {
+			failure.FailureClassOverride = GitHubDependabotFailureRetryable
+		}
+		return nil, rateLimit, "", failure
 	}
 	var alerts []GitHubDependabotAlert
 	if err := json.NewDecoder(resp.Body).Decode(&alerts); err != nil {

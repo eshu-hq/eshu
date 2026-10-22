@@ -16,6 +16,9 @@ const (
 
 	securityAlertScopeRepository = "repository"
 	securityAlertScopeOrg        = "org"
+
+	securityAlertAuthModeTokenEnv  = "token_env"
+	securityAlertAuthModeGitHubApp = "github_app"
 )
 
 type securityAlertCollectorConfiguration struct {
@@ -23,17 +26,21 @@ type securityAlertCollectorConfiguration struct {
 }
 
 type securityAlertTargetConfiguration struct {
-	Provider             string   `json:"provider"`
-	Scope                string   `json:"scope"`
-	ScopeID              string   `json:"scope_id"`
-	Repository           string   `json:"repository"`
-	Organization         string   `json:"organization"`
-	TokenEnv             string   `json:"token_env"`
-	AllowedRepositories  []string `json:"allowed_repositories"`
-	APIBaseURL           string   `json:"api_base_url"`
-	RepositoryAlertLimit int      `json:"repository_alert_limit"`
-	MaxPages             int      `json:"max_pages"`
-	SourceURI            string   `json:"source_uri"`
+	Provider                   string   `json:"provider"`
+	Scope                      string   `json:"scope"`
+	ScopeID                    string   `json:"scope_id"`
+	Repository                 string   `json:"repository"`
+	Organization               string   `json:"organization"`
+	TokenEnv                   string   `json:"token_env"`
+	AuthMode                   string   `json:"auth_mode"`
+	GitHubAppIDEnv             string   `json:"github_app_id_env"`
+	GitHubAppInstallationIDEnv string   `json:"github_app_installation_id_env"`
+	GitHubAppPrivateKeyEnv     string   `json:"github_app_private_key_env"`
+	AllowedRepositories        []string `json:"allowed_repositories"`
+	APIBaseURL                 string   `json:"api_base_url"`
+	RepositoryAlertLimit       int      `json:"repository_alert_limit"`
+	MaxPages                   int      `json:"max_pages"`
+	SourceURI                  string   `json:"source_uri"`
 }
 
 // ValidateSecurityAlertCollectorConfiguration checks bounded provider security
@@ -71,8 +78,35 @@ func validateSecurityAlertTargetConfiguration(target securityAlertTargetConfigur
 	default:
 		return fmt.Errorf("unsupported security alert provider %q", strings.TrimSpace(target.Provider))
 	}
-	if strings.TrimSpace(target.TokenEnv) == "" {
-		return fmt.Errorf("token_env is required")
+	authMode := strings.ToLower(strings.TrimSpace(target.AuthMode))
+	if authMode == "" {
+		authMode = securityAlertAuthModeTokenEnv
+	}
+	switch authMode {
+	case securityAlertAuthModeTokenEnv:
+		if strings.TrimSpace(target.TokenEnv) == "" {
+			return fmt.Errorf("token_env is required")
+		}
+		if strings.TrimSpace(target.GitHubAppIDEnv) != "" ||
+			strings.TrimSpace(target.GitHubAppInstallationIDEnv) != "" ||
+			strings.TrimSpace(target.GitHubAppPrivateKeyEnv) != "" {
+			return fmt.Errorf("github_app env references must be empty when auth_mode is %q", securityAlertAuthModeTokenEnv)
+		}
+	case securityAlertAuthModeGitHubApp:
+		if strings.TrimSpace(target.TokenEnv) != "" {
+			return fmt.Errorf("token_env must be empty when auth_mode is %q", securityAlertAuthModeGitHubApp)
+		}
+		if strings.TrimSpace(target.GitHubAppIDEnv) == "" {
+			return fmt.Errorf("github_app_id_env is required when auth_mode is %q", securityAlertAuthModeGitHubApp)
+		}
+		if strings.TrimSpace(target.GitHubAppInstallationIDEnv) == "" {
+			return fmt.Errorf("github_app_installation_id_env is required when auth_mode is %q", securityAlertAuthModeGitHubApp)
+		}
+		if strings.TrimSpace(target.GitHubAppPrivateKeyEnv) == "" {
+			return fmt.Errorf("github_app_private_key_env is required when auth_mode is %q", securityAlertAuthModeGitHubApp)
+		}
+	default:
+		return fmt.Errorf("unsupported security alert auth_mode %q", strings.TrimSpace(target.AuthMode))
 	}
 	scope := strings.TrimSpace(target.Scope)
 	if scope == "" {

@@ -15,9 +15,20 @@ flowchart LR
 
 Each target is repository-scoped or org-scoped (`scope: "org"`). Repository
 targets require a `repository` and `allowed_repositories` allowlist; org targets
-require an `organization` and fan the org-wide endpoint out into per-repository
-facts. Every target needs a token env reference. The token value is read only
-inside this process and is never copied into workflow run metadata.
+require an `organization` and `allowed_repositories` and fan the org-wide
+endpoint out into per-repository facts. Every target authenticates in one
+`auth_mode` (`token_env` default, or `github_app`). Static mode reads the
+named `token_env` variable once at startup. App mode resolves
+`github_app_id_env`, `github_app_installation_id_env`, and
+`github_app_private_key_env` (the existing `GITHUB_APP_*` secret envs) and
+mints one installation token per claim — never per page — from the target
+`api_base_url`, signing a fresh JWT per claim with 60 seconds of clock-skew
+tolerance. The two modes never mix on one target, and a minted token is never
+persisted, logged, or emitted in facts. Credential values are read only
+inside this process and are never copied into workflow run metadata. Run
+`--preflight-provider-access` against a real installation before relying on a
+new App credential: only a live pass proves the installation can reach the
+Dependabot endpoints.
 
 `--preflight-provider-access` runs a one-shot provider access check using the
 same collector instance JSON, token env resolution, allowlist validation, and

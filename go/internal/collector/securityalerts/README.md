@@ -61,8 +61,10 @@ the provider alert.
   source URL remain provider-reported fields.
 - Token-bearing query parameters are stripped before source URLs or source refs
   are emitted.
-- The GitHub client requires a token and explicit repository allowlist before
-  it sends an HTTP request.
+- The GitHub client requires a credential and explicit repository allowlist
+  before it sends an HTTP request: either a static token, or (`AppAuth` with
+  a `TokenProvider`) a freshly minted installation token resolved once per
+  listing call and never cached on the client.
 - The GitHub client reuses the shared collector SDK for bounded default HTTP
   clients, base URL validation, safe `HTTPError` wrapping, shared failure class
   constants, and `Retry-After` parsing. GitHub-specific cursor traversal and
@@ -113,5 +115,6 @@ Collector Deployment Evidence: the `collector-security-alerts` binary,
 remote-E2E Compose service, pprof overlay, Helm Deployment, metrics Service,
 ServiceMonitor, NetworkPolicy, and PDB are rendered from the hosted runtime
 configuration. Credentials are resolved from pod environment variables named
-by `token_env`; token values are not stored in collector-instance JSON, facts,
-metric labels, or status errors.
+by `token_env` (static mode) or the `github_app_*_env` references (App mode,
+minted per claim); credential values are not stored in collector-instance
+JSON, facts, metric labels, or status errors.
