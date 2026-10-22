@@ -82,6 +82,26 @@ func TestAppAuth401IsRetryableWhileStatic401IsDenied(t *testing.T) {
 	}
 }
 
+// TestProviderWithoutAppAuthFlagStaysRetryable pins the constructor
+// invariant: the provider is the source of truth for App mode, so a config
+// that sets a provider but forgets AppAuth still classifies an expiry-style
+// 401 as retryable instead of terminal.
+func TestProviderWithoutAppAuthFlagStaysRetryable(t *testing.T) {
+	t.Parallel()
+
+	server, _ := appAuthTestServer(t, http.StatusUnauthorized)
+	client := NewGitHubDependabotClient(GitHubDependabotClientConfig{
+		BaseURL:             server.URL,
+		AllowedRepositories: []string{"example-org/example-repo"},
+		TokenProvider:       func(context.Context) (string, error) { return "minted-token", nil },
+	})
+	err := mustAlertPagesError(t, client, "example-org/example-repo")
+	if err.FailureClass() != GitHubDependabotFailureRetryable || err.TerminalFailure() {
+		t.Fatalf("provider-without-flag 401: class=%q terminal=%v, want retryable non-terminal",
+			err.FailureClass(), err.TerminalFailure())
+	}
+}
+
 // TestAppAuth403StaysDenied pins that only the 401 diverges: a 403 is a
 // sanitized terminal denial in both modes.
 func TestAppAuth403StaysDenied(t *testing.T) {

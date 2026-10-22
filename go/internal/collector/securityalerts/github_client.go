@@ -190,13 +190,17 @@ func NewGitHubDependabotClient(config GitHubDependabotClientConfig) GitHubDepend
 			allowed[normalized] = struct{}{}
 		}
 	}
+	// The provider is the source of truth for App mode: a set provider
+	// always marks expiry-style 401s retryable, even when a caller forgets
+	// AppAuth, so a half-wired config cannot silently flip to terminal.
+	appAuth := config.AppAuth || config.TokenProvider != nil
 	return GitHubDependabotClient{
 		baseURL:             baseURL,
 		token:               strings.TrimSpace(config.Token),
 		allowedRepositories: allowed,
 		repositoryLimit:     limit,
 		httpClient:          httpClient,
-		appAuth:             config.AppAuth,
+		appAuth:             appAuth,
 		tokenProvider:       config.TokenProvider,
 	}
 }
