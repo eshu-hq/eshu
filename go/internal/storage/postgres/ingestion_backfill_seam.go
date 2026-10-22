@@ -19,7 +19,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -74,16 +73,6 @@ func (s IngestionStore) BackfillAllRelationshipEvidence(
 ) error {
 	_, err := s.backfillStore().RunAllRelationshipEvidence(ctx, tracer, instruments)
 	return err
-}
-
-// successorPrior carries the candidate past the duplicate check so the
-// guard compares without re-reading. orphanFallback (#8362): factCount
-// holds only the candidate's own rows; an empty successor still refuses.
-type successorPrior struct {
-	candidate      backfill.UnchangedGenerationCandidate
-	found          bool
-	factCount      int
-	orphanFallback bool
 }
 
 // skipUnchangedGeneration decides, before any write, whether a snapshot
@@ -153,42 +142,6 @@ func (s IngestionStore) skipUnchangedGeneration(
 	}
 	s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, candidate.GenerationID, reason)
 	return true, successorPrior{}, nil
-}
-
-// successorPriorForGuard reads the guard count on the base connection
-// before the commit transaction opens. Missing-base (#8362) falls back to
-// the candidate's own rows; other failures fail closed.
-func (s IngestionStore) successorPriorForGuard(
-	ctx context.Context,
-	scopeValue scope.IngestionScope,
-	candidate backfill.UnchangedGenerationCandidate,
-	found bool,
-	generation scope.ScopeGeneration,
-) (successorPrior, error) {
-	prior := successorPrior{candidate: candidate, found: found}
-	if !found || generation.TrustedDeletion {
-		return prior, nil
-	}
-	count, err := NewFactStore(s.database).CountFacts(ctx, scopeValue.ScopeID, candidate.GenerationID)
-	if err != nil {
-		var baseMissing *projector.DeltaBaseMissingError
-		if errors.As(err, &baseMissing) {
-			// The prior is a delta with no base full generation: the union
-			// size is unknowable, so size the guard on the candidate's own
-			// fact_records rows instead. A fallback failure fails closed.
-			fallback, fallbackErr := NewFactStore(s.database).countFactsGeneration(ctx, scopeValue.ScopeID, candidate.GenerationID)
-			if fallbackErr != nil {
-				return successorPrior{}, fmt.Errorf("count prior generation facts fallback for scope %s: %w", scopeValue.ScopeID, fallbackErr)
-			}
-			s.logCommitStage(ctx, scopeValue, generation, "successor_prior_orphan_fallback", time.Now(),
-				slog.String("candidate_generation_id", candidate.GenerationID),
-				slog.Int("prior_fact_count_fallback", fallback))
-			return successorPrior{candidate: candidate, found: found, factCount: fallback, orphanFallback: true}, nil
-		}
-		return successorPrior{}, fmt.Errorf("count prior generation facts for scope %s: %w", scopeValue.ScopeID, err)
-	}
-	prior.factCount = count
-	return prior, nil
 }
 
 // runPostCommitRelationshipBackfill runs the per-commit new-repository

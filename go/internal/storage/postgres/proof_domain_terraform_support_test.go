@@ -6,6 +6,7 @@ package postgres
 import (
 	"encoding/json"
 	"sort"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
@@ -39,6 +40,21 @@ func proofFactCount(input map[string]facts.Envelope, scopeID, generationID strin
 		count++
 	}
 	return count
+}
+
+// proofGuardFactCounts mirrors successorGuardCountQuery over harness state:
+// collector rows exclude reducer-derived (reducer_-prefixed) kinds.
+func proofGuardFactCounts(input map[string]facts.Envelope, scopeID, generationID string) (collector, total int) {
+	for _, envelope := range input {
+		if envelope.ScopeID != scopeID || envelope.GenerationID != generationID {
+			continue
+		}
+		total++
+		if !strings.HasPrefix(envelope.FactKind, "reducer_") {
+			collector++
+		}
+	}
+	return collector, total
 }
 
 func proofFactRows(input map[string]facts.Envelope, scopeID, generationID string) [][]any {

@@ -45,7 +45,8 @@ func orphanFallbackPriorDB(tx *fakeTx, fallbackFacts int) *fakeTransactionalDB {
 		{rows: [][]any{{"generation-active", "hint-prior", "commit-old", "active", false, false}}},
 		{rows: [][]any{{true, "commit-old-baseline"}}},
 		{},
-		{rows: [][]any{{fallbackFacts}}},
+		// Guard counts: collector rows, then all rows (#8750).
+		{rows: [][]any{{fallbackFacts, fallbackFacts}}},
 	}}
 }
 

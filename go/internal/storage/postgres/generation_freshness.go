@@ -393,7 +393,11 @@ WHERE generation_id = $1`
 // projection behavior is unchanged.
 //
 // It acquires no locks and issues no queries: the prior generation and its
-// fact count arrive in prior, loaded before the transaction opened — or
+// guard counts arrive in prior, loaded before the transaction opened. The
+// predicate compares the successor with the prior's collector rows only
+// (#8750): reducer-derived rows are written into the prior after it
+// activates and no collector stream carries them. The prior may also be
+// flagged orphanFallback when only the candidate's own rows size it
 // flagged orphanFallback when only the candidate's own rows size it
 // (#8362). The caller marks its transaction closed and returns success
 // on a refusal.
@@ -406,7 +410,7 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	successorFacts int,
 ) (bool, error) {
 	refuse, reason := backfill.RefuseDestructiveSuccessor(
-		prior.found, prior.factCount, successorFacts, generation.TrustedDeletion,
+		prior.found, prior.counts.Collector, successorFacts, generation.TrustedDeletion,
 	)
 	if prior.orphanFallback && !generation.TrustedDeletion && successorFacts <= 0 {
 		// #8362: the prior is a delta with no base full generation. The
@@ -426,7 +430,9 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, prior.candidate.GenerationID, reason)
 	s.logCommitStage(ctx, scopeValue, generation, "refuse_destructive_successor", guardStart,
 		slog.String("candidate_generation_id", prior.candidate.GenerationID),
-		slog.Int("prior_fact_count", prior.factCount),
+		slog.Int("prior_fact_count", prior.counts.Collector),
+		slog.Int("prior_reducer_fact_count", prior.counts.Total-prior.counts.Collector),
+		slog.String("prior_sizing", prior.sizing()),
 		slog.Bool("prior_orphan_fallback", prior.orphanFallback),
 		slog.Int("successor_fact_count", successorFacts),
 	)
