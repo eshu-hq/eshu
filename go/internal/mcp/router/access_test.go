@@ -46,6 +46,7 @@ func TestAccessAdmitsMirrorsMiddlewareRefusals(t *testing.T) {
 		{"scoped refuses shared-only", scoped, sharedOnly, false},
 		{"scoped refuses off-allowlist", scoped, offAllowlist, false},
 		{"scoped refuses pending", scoped, pending, false},
+		{"scoped refuses pending even if allowlisted", scoped, routeClass{resolved: true, allowlisted: true, pendingRowFiltering: true}, false},
 		{"scoped refuses unresolved", scoped, unresolved, false},
 		{"blank mode acts scoped", blankMode, offAllowlist, false},
 		{"console admin refuses shared-only", consoleAdmin, sharedOnly, false},

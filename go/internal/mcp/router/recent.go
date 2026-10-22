@@ -6,8 +6,9 @@ package router
 import "sync"
 
 // recentFindsCapacity bounds how many sessions' last find_tool results the
-// engine keeps. Beyond it the oldest session is forgotten, so a later
-// call_tool from that session records rank 0 (not offered).
+// engine keeps. Eviction is first-in, first-out by a session's first
+// find_tool (a repeat find_tool does not refresh its place), so an evicted
+// session's later call_tool records rank 0 (not offered).
 const recentFindsCapacity = 1024
 
 // recentFinds remembers each session's last find_tool candidate names, so a

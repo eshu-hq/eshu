@@ -99,6 +99,11 @@ func (a access) admits(c routeClass) bool {
 	if !c.resolved || c.sharedKeyOnly {
 		return false
 	}
+	if c.pendingRowFiltering && a.auth.Mode != query.AuthModeBrowserSession {
+		// A #5167 Group B route refuses every scoped bearer; only the
+		// console-session policy below can admit it.
+		return false
+	}
 	if c.allowlisted {
 		return true
 	}

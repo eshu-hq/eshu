@@ -5,6 +5,7 @@ package router
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"go.opentelemetry.io/otel"
@@ -17,6 +18,11 @@ import (
 
 // maxSuggestions caps the closest registered names an unknown target gets.
 const maxSuggestions = 3
+
+// MaxToolNameBytes is the longest call_tool name the router reads. A longer
+// name is rejected with a fixed error that does not echo it, before any
+// lookup or edit-distance work. Registered names are far shorter.
+const MaxToolNameBytes = 128
 
 // Call serves call_tool. It refuses find_tool, call_tool, and ask; answers an
 // unknown name with the closest registered names; validates arguments
@@ -49,6 +55,11 @@ func (e *Engine) call(ctx context.Context, req Request, args map[string]any) (Ca
 		return CallOutcome{Result: invalidArgumentsResult(CallToolName, errs)}, unregisteredToolLabel, callOutcomeInvalidArgument
 	}
 	name, _ := args["name"].(string)
+	if len(name) > MaxToolNameBytes {
+		return CallOutcome{Result: invalidArgumentsResult(CallToolName, []FieldError{{
+			Path: "name", Keyword: "maxLength", Message: fmt.Sprintf("must be at most %d bytes", MaxToolNameBytes),
+		}})}, unregisteredToolLabel, callOutcomeInvalidArgument
+	}
 	arguments, _ := asObject(args["arguments"])
 	out := CallOutcome{Target: name}
 
@@ -66,10 +77,11 @@ func (e *Engine) call(ctx context.Context, req Request, args map[string]any) (Ca
 	if errs := ValidateArguments(tool.InputSchema, arguments); len(errs) != 0 {
 		out.Result = errorResult("mcp_router_invalid_arguments", "arguments for "+name+" do not match its input schema",
 			map[string]any{
-				"tool":         name,
-				"field_errors": errs,
-				"input_schema": tool.InputSchema,
-				"example":      map[string]any{"name": name, "arguments": ExampleArguments(tool.InputSchema)},
+				"tool":                   name,
+				"field_errors":           errs,
+				"field_errors_truncated": len(errs) >= MaxFieldErrors,
+				"input_schema":           tool.InputSchema,
+				"example":                map[string]any{"name": name, "arguments": ExampleArguments(tool.InputSchema)},
 			})
 		return out, name, callOutcomeInvalidArgument
 	}
@@ -101,8 +113,11 @@ func (e *Engine) callRouteClass(name string, arguments map[string]any) routeClas
 	return e.routes[name]
 }
 
-// closestNames returns up to maxSuggestions registered, callable names
-// nearest to name by edit distance, ties broken by name.
+// closestNames returns up to maxSuggestions registered names nearest to name
+// by edit distance, ties broken by name. It skips the refused targets but does
+// not apply the credential or profile filter: a suggestion is a spelling hint,
+// and call_tool still checks access when it is called. The caller bounds name
+// by MaxToolNameBytes, so the work is at most that times the registry size.
 func (e *Engine) closestNames(name string) []string {
 	type scored struct {
 		name     string

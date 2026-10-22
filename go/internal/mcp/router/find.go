@@ -150,9 +150,9 @@ func (e *Engine) view(c Candidate) candidateView {
 // boundFindRequest enforces MaxIntentBytes, MaxAnchorValueBytes, and the
 // closed anchor key set on a request that already passed schema validation.
 func boundFindRequest(args map[string]any) []FieldError {
-	var errs []FieldError
+	errs := &errorSink{}
 	if intent, _ := args["intent"].(string); len(intent) > MaxIntentBytes {
-		errs = append(errs, FieldError{Path: "intent", Keyword: "maxLength", Message: fmt.Sprintf("must be at most %d bytes", MaxIntentBytes)})
+		errs.add(FieldError{Path: "intent", Keyword: "maxLength", Message: fmt.Sprintf("must be at most %d bytes", MaxIntentBytes)})
 	}
 	anchors, _ := asObject(args["anchors"])
 	keys := make([]string, 0, len(anchors))
@@ -161,15 +161,18 @@ func boundFindRequest(args map[string]any) []FieldError {
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
+		if errs.full() {
+			break
+		}
 		if !anchorKeys[key] {
-			errs = append(errs, FieldError{Path: "anchors." + key, Keyword: "additionalProperties", Message: "is not an anchor; use repo_id, service_id, workload_id, or environment"})
+			errs.add(FieldError{Path: "anchors." + key, Keyword: "additionalProperties", Message: "is not an anchor; use repo_id, service_id, workload_id, or environment"})
 			continue
 		}
 		if value, _ := anchors[key].(string); len(value) > MaxAnchorValueBytes {
-			errs = append(errs, FieldError{Path: "anchors." + key, Keyword: "maxLength", Message: fmt.Sprintf("must be at most %d bytes", MaxAnchorValueBytes)})
+			errs.add(FieldError{Path: "anchors." + key, Keyword: "maxLength", Message: fmt.Sprintf("must be at most %d bytes", MaxAnchorValueBytes)})
 		}
 	}
-	return errs
+	return errs.errs
 }
 
 // parseQuery reads a find_tool request that already passed validation.
@@ -193,5 +196,5 @@ func parseQuery(args map[string]any) Query {
 // arguments or a call_tool target's arguments.
 func invalidArgumentsResult(tool string, errs []FieldError) ToolResult {
 	return errorResult("mcp_router_invalid_arguments", "arguments for "+tool+" do not match its input schema",
-		map[string]any{"tool": tool, "field_errors": errs})
+		map[string]any{"tool": tool, "field_errors": errs, "field_errors_truncated": len(errs) >= MaxFieldErrors})
 }

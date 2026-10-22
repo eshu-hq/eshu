@@ -14,15 +14,24 @@ how often do their arguments fail the target's schema.
 | `eshu_dp_mcp_router_call_total` | counter | `tool`, `outcome` | `call_tool` requests. `dispatched`: the target ran through the same dispatch as a direct `tools/call` (its own errors are in the result, not here). `invalid_arguments`: the arguments failed the target's input schema, or the `call_tool` request itself was malformed. `unknown_tool`: no registered tool has that name. `refused`: the target was `find_tool`, `call_tool`, or `ask`, or the credential can never call it. |
 | `eshu_dp_mcp_router_target_rank` | histogram | none | Where the `call_tool` target sat in the same session's last `find_tool` result, 1-based. `0` means it was not offered, or the session had no `find_tool` result. Buckets 0 through 10 give every position its own bucket. |
 
-`tool` is a registered tool name. A name that is not registered is recorded as
-`unregistered`. A malformed `call_tool` request (no string `name`, or no
-`arguments` object) is recorded the same way, so a caller cannot grow the label
-set. `outcome` is a closed set.
+`tool` is a registered tool name, or one of the three refused target names
+(`find_tool`, `call_tool`, `ask`), or `unregistered`. An unregistered name, a
+name over 128 bytes, and a malformed `call_tool` request (no string `name`, or
+no `arguments` object) all record `unregistered`, so a caller cannot grow the
+label set. `outcome` is a closed set.
 
 A session is the caller's credential principal, the same key that binds an SSE
 session. Stdio and unauthenticated transports share one session. The engine
-remembers the last result of at most 1024 sessions; an older session's next
-`call_tool` records rank `0`.
+remembers the last result of at most 1024 sessions. Eviction is first-in,
+first-out by a session's first `find_tool`; a repeat `find_tool` replaces the
+result but does not move the session. An evicted session's next `call_tool`
+records rank `0`.
+
+Router error results are bounded whatever the input: a `call_tool` name over
+128 bytes is rejected without being echoed or compared with registered names;
+at most 20 field errors are returned (`field_errors_truncated` says when the
+validator stopped); a caller-supplied key in a field path is cut at 256 bytes;
+and an array that fails `maxItems` gets no per-item errors.
 
 ## Spans
 

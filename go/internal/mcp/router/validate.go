@@ -29,9 +29,48 @@ type FieldError struct {
 	Message string `json:"message"`
 }
 
+// Output bounds for validation errors. Arguments are caller-controlled and the
+// transport has no body cap, so the error list and every caller-supplied text
+// it echoes are capped.
+const (
+	// MaxFieldErrors is the most field errors ValidateArguments returns. It
+	// stops walking the arguments once it has that many.
+	MaxFieldErrors = 20
+	// MaxEchoBytes bounds caller-controlled text echoed in an error, such as
+	// an object key inside a field-error path; longer text is cut and ends
+	// with "...".
+	MaxEchoBytes = 256
+)
+
+// errorSink collects field errors up to MaxFieldErrors.
+type errorSink struct{ errs []FieldError }
+
+func (c *errorSink) add(e FieldError) {
+	if c.full() {
+		return
+	}
+	e.Path = boundEcho(e.Path)
+	c.errs = append(c.errs, e)
+}
+
+func (c *errorSink) full() bool { return len(c.errs) >= MaxFieldErrors }
+
+// boundEcho cuts caller-controlled text to MaxEchoBytes on a rune boundary.
+func boundEcho(text string) string {
+	if len(text) <= MaxEchoBytes {
+		return text
+	}
+	cut := MaxEchoBytes
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut] + "..."
+}
+
 // ValidateArguments checks args against a registered tool's input schema and
-// returns every violation, ordered by path then keyword. A nil or empty result
-// means the arguments are valid.
+// returns its violations, ordered by path then keyword: all of them, or the
+// first MaxFieldErrors in traversal order (object keys sorted, array items in
+// order). A nil or empty result means the arguments are valid.
 //
 // It implements the keywords registered tools use (see
 // UnsupportedSchemaFeatures) and mirrors the dispatch path's tolerance where
@@ -41,11 +80,12 @@ type FieldError struct {
 // trim it to "not set". default and description are annotations and are never
 // applied, so a validated call reaches dispatch byte-for-byte unchanged.
 func ValidateArguments(schema any, args map[string]any) []FieldError {
-	var errs []FieldError
+	sink := &errorSink{}
 	if args == nil {
 		args = map[string]any{}
 	}
-	validateValue(schema, args, "", &errs)
+	validateValue(schema, args, "", sink)
+	errs := sink.errs
 	sort.SliceStable(errs, func(i, j int) bool {
 		if errs[i].Path != errs[j].Path {
 			return errs[i].Path < errs[j].Path
@@ -55,17 +95,17 @@ func ValidateArguments(schema any, args map[string]any) []FieldError {
 	return errs
 }
 
-func validateValue(rawSchema any, value any, path string, errs *[]FieldError) {
+func validateValue(rawSchema any, value any, path string, errs *errorSink) {
 	schema, ok := rawSchema.(map[string]any)
-	if !ok {
+	if !ok || errs.full() {
 		return
 	}
 	if typeName, ok := schema["type"].(string); ok && !matchesType(typeName, value) {
-		*errs = append(*errs, FieldError{Path: path, Keyword: "type", Message: fmt.Sprintf("must be %s, got %s", article(typeName), describe(value))})
+		errs.add(FieldError{Path: path, Keyword: "type", Message: fmt.Sprintf("must be %s, got %s", article(typeName), describe(value))})
 		return
 	}
 	if enum, ok := schema["enum"]; ok && !enumContains(enum, value) {
-		*errs = append(*errs, FieldError{Path: path, Keyword: "enum", Message: fmt.Sprintf("must be one of %s", enumText(enum))})
+		errs.add(FieldError{Path: path, Keyword: "enum", Message: fmt.Sprintf("must be one of %s", enumText(enum))})
 	}
 	if number, ok := asNumber(value); ok {
 		validateNumber(schema, number, path, errs)
@@ -81,51 +121,57 @@ func validateValue(rawSchema any, value any, path string, errs *[]FieldError) {
 	}
 }
 
-func validateNumber(schema map[string]any, number float64, path string, errs *[]FieldError) {
+func validateNumber(schema map[string]any, number float64, path string, errs *errorSink) {
 	if limit, ok := asNumber(schema["minimum"]); ok && number < limit {
-		*errs = append(*errs, FieldError{Path: path, Keyword: "minimum", Message: fmt.Sprintf("must be at least %s", formatNumber(limit))})
+		errs.add(FieldError{Path: path, Keyword: "minimum", Message: fmt.Sprintf("must be at least %s", formatNumber(limit))})
 	}
 	if limit, ok := asNumber(schema["maximum"]); ok && number > limit {
-		*errs = append(*errs, FieldError{Path: path, Keyword: "maximum", Message: fmt.Sprintf("must be at most %s", formatNumber(limit))})
+		errs.add(FieldError{Path: path, Keyword: "maximum", Message: fmt.Sprintf("must be at most %s", formatNumber(limit))})
 	}
 }
 
-func validateString(schema map[string]any, text string, path string, errs *[]FieldError) {
+func validateString(schema map[string]any, text string, path string, errs *errorSink) {
 	if limit, ok := asNumber(schema["minLength"]); ok && float64(utf8.RuneCountInString(text)) < limit {
-		*errs = append(*errs, FieldError{Path: path, Keyword: "minLength", Message: fmt.Sprintf("must have at least %s characters", formatNumber(limit))})
+		errs.add(FieldError{Path: path, Keyword: "minLength", Message: fmt.Sprintf("must have at least %s characters", formatNumber(limit))})
 	}
 	if pattern, ok := schema["pattern"].(string); ok {
 		if re, err := compilePattern(pattern); err == nil && !re.MatchString(text) {
-			*errs = append(*errs, FieldError{Path: path, Keyword: "pattern", Message: fmt.Sprintf("must match the pattern %q", pattern)})
+			errs.add(FieldError{Path: path, Keyword: "pattern", Message: fmt.Sprintf("must match the pattern %q", pattern)})
 		}
 	}
 	if format, ok := schema["format"].(string); ok && format == "date-time" {
 		trimmed := strings.TrimSpace(text)
 		if trimmed != "" {
 			if _, err := time.Parse(time.RFC3339, trimmed); err != nil {
-				*errs = append(*errs, FieldError{Path: path, Keyword: "format", Message: "must be an RFC 3339 date-time such as 2026-01-02T15:04:05Z"})
+				errs.add(FieldError{Path: path, Keyword: "format", Message: "must be an RFC 3339 date-time such as 2026-01-02T15:04:05Z"})
 			}
 		}
 	}
 }
 
-func validateArray(schema map[string]any, items []any, path string, errs *[]FieldError) {
+func validateArray(schema map[string]any, items []any, path string, errs *errorSink) {
 	if limit, ok := asNumber(schema["maxItems"]); ok && float64(len(items)) > limit {
-		*errs = append(*errs, FieldError{Path: path, Keyword: "maxItems", Message: fmt.Sprintf("must have at most %s items", formatNumber(limit))})
+		// Stop here: per-item errors on an oversized array only inflate the
+		// response.
+		errs.add(FieldError{Path: path, Keyword: "maxItems", Message: fmt.Sprintf("must have at most %s items", formatNumber(limit))})
+		return
 	}
 	itemSchema, ok := schema["items"]
 	if !ok {
 		return
 	}
 	for i, item := range items {
+		if errs.full() {
+			return
+		}
 		validateValue(itemSchema, item, fmt.Sprintf("%s[%d]", path, i), errs)
 	}
 }
 
-func validateObject(schema map[string]any, object map[string]any, path string, errs *[]FieldError) {
+func validateObject(schema map[string]any, object map[string]any, path string, errs *errorSink) {
 	for _, name := range requiredNames(schema["required"]) {
 		if object[name] == nil {
-			*errs = append(*errs, FieldError{Path: joinPath(path, name), Keyword: "required", Message: "is required"})
+			errs.add(FieldError{Path: joinPath(path, name), Keyword: "required", Message: "is required"})
 		}
 	}
 	properties, _ := schema["properties"].(map[string]any)
@@ -136,6 +182,9 @@ func validateObject(schema map[string]any, object map[string]any, path string, e
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
+		if errs.full() {
+			return
+		}
 		value := object[key]
 		if value == nil {
 			// A JSON null reads as "not set" on the dispatch path; required

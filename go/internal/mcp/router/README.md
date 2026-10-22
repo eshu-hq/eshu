@@ -57,6 +57,12 @@ package ranks against. They are empty until the intent-curation lane fills them.
   `service_id`, `workload_id`, or `environment`. The transport has no body cap
   and a ranker may echo anchors into every candidate's example, so these bounds
   keep one request from inflating its response.
+- `call_tool` rejects a name over `MaxToolNameBytes` (128) with a fixed error
+  that does not echo it and runs no edit distance. `ValidateArguments` returns
+  at most `MaxFieldErrors` (20) errors and stops walking once it has them, cuts
+  caller-supplied keys in a path at `MaxEchoBytes` (256), and reports no
+  per-item errors for an array that fails `maxItems`. Error details carry
+  `field_errors_truncated`.
 - The ranker gets the caller's visible slice and the engine's entries map
   unchanged on every call, so it can cache an index keyed on them; the
   per-call credential filter travels in `allowed`.
@@ -125,7 +131,7 @@ its undocumented legacy `name`/`type` keys on the direct path, but its schema
 requires `query`, so `call_tool` answers a `name`-only call with a field error
 naming `query`. This is intended: the schema is the contract, and adding `name`
 to it would change `tools/list` for the `full` surface. The validator
-differential test in the mcp root lists this map, and the six route-shape test
+differential test in the mcp root lists this map, and the five route-shape test
 maps whose handlers answer HTTP 400, in a staleness-checked exemption list.
 
 ## Gotchas / invariants
