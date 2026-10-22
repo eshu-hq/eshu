@@ -37,7 +37,8 @@ var (
 // FaultingExecutor decorates a cypher Executor with the graph-executor-seam
 // faults from the Layer 4 fault-script vocabulary
 // (go/internal/replay/faultreplay): fail-graph-write-once-then-succeed (both
-// lanes) and restart-backend-between-phase-groups. It exists ONLY under the
+// lanes), restart-backend-between-phase-groups, and
+// hold-statement-before-delegation (see hold.go). It exists ONLY under the
 // ifafaultinjection build tag (see off.go); no production,
 // CI, or default-tag build ever links this decorator or the fault-script
 // reader that constructs it (go/cmd/reducer's ifa_fault_wiring.go, same
@@ -124,6 +125,11 @@ type FaultingExecutor struct {
 	restartFired       atomic.Bool
 	sentinelPath       string
 
+	// hold-statement-before-delegation state (see hold.go).
+	holdMatch     string // "" => no such fault scripted.
+	holdFired     atomic.Bool
+	holdFiredPath string
+
 	callOrdinal  atomic.Int64 // shared across Execute/ExecuteGroup/ExecutePhaseGroup.
 	groupOrdinal atomic.Int64 // advances once per completed ExecuteGroup/ExecutePhaseGroup.
 
@@ -159,8 +165,9 @@ func (fe *FaultingExecutor) SetExecutorRetryArmer(arm ExecutorRetryArmer) {
 	fe.executorRetryArm = arm
 }
 
-// NewFaultingExecutor wraps inner with the fail-graph-write-once-then-succeed
-// and restart-backend-between-phase-groups faults found in script. script
+// NewFaultingExecutor wraps inner with the fail-graph-write-once-then-succeed,
+// restart-backend-between-phase-groups, and hold-statement-before-delegation
+// faults found in script. script
 // MUST already be Script.Validate'd (faultreplay.Load does this). The other
 // three fault kinds (kill-worker-after-claim, expire-lease-mid-handler,
 // fail-terminal) target the WorkSource/intent seam, not this graph-executor
@@ -214,6 +221,8 @@ func (fe *FaultingExecutor) applyFault(f faultreplay.FaultOp, sentinelPath strin
 		fe.restartAfterGroups = *f.Trigger.AfterPhaseGroups
 		fe.sentinelPath = sentinelPath
 		return nil
+	case faultreplay.KindHoldStatementBeforeDelegation:
+		return fe.applyHoldFault(f, sentinelPath)
 	case faultreplay.KindKillWorkerAfterClaim, faultreplay.KindExpireLeaseMidHandler, faultreplay.KindFailTerminal:
 		// WorkSource/intent-seam faults; a different decorator owns them,
 		// not this graph-executor seam. Deliberately inert here.
@@ -237,11 +246,16 @@ func (fe *FaultingExecutor) RestartFired() bool {
 	return fe.restartAfterGroups != 0 && fe.restartFired.Load()
 }
 
-// Execute applies the scripted fail-graph-write-once-then-succeed fault (by
-// shared call ordinal or operation-match against stmt.Cypher) before
-// delegating to inner. See the type doc for which lane this actually reaches.
+// Execute applies the scripted hold-statement-before-delegation fault (by
+// operation-match against stmt.Cypher) before the scripted
+// fail-graph-write-once-then-succeed fault (by shared call ordinal or
+// operation-match), then delegates to inner. See the type doc for which lane
+// the once-fault actually reaches.
 func (fe *FaultingExecutor) Execute(ctx context.Context, stmt cypher.Statement) error {
 	ordinal := int(fe.callOrdinal.Add(1))
+	if err := fe.maybeHoldBeforeDelegation(ctx, ordinal, []cypher.Statement{stmt}); err != nil {
+		return err
+	}
 	armedCtx, err := fe.maybeFailOnce(ctx, ordinal, []cypher.Statement{stmt}, true)
 	if err != nil {
 		return err
@@ -260,6 +274,9 @@ func (fe *FaultingExecutor) ExecuteGroup(ctx context.Context, stmts []cypher.Sta
 		return errFaultingExecutorInnerNoGroup
 	}
 	ordinal := int(fe.callOrdinal.Add(1))
+	if err := fe.maybeHoldBeforeDelegation(ctx, ordinal, stmts); err != nil {
+		return err
+	}
 	armedCtx, err := fe.maybeFailOnce(ctx, ordinal, stmts, true)
 	if err != nil {
 		return err
@@ -284,6 +301,9 @@ func (fe *FaultingExecutor) ExecutePhaseGroup(ctx context.Context, stmts []cyphe
 		return errFaultingExecutorInnerNoPhaseGroup
 	}
 	ordinal := int(fe.callOrdinal.Add(1))
+	if err := fe.maybeHoldBeforeDelegation(ctx, ordinal, stmts); err != nil {
+		return err
+	}
 	armedCtx, err := fe.maybeFailOnce(ctx, ordinal, stmts, false)
 	if err != nil {
 		return err

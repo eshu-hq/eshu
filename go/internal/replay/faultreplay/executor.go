@@ -143,6 +143,8 @@ func NewFaultingExecutor(inner reducer.Executor, script Script, items []schedule
 			// WorkSource-seam fault; NewFaultingWorkSource owns it.
 		case KindRestartBackendBetweenPhaseGroups:
 			return nil, fmt.Errorf("faulting executor: %s requires a real backend and is not supported by this hermetic runner", KindRestartBackendBetweenPhaseGroups)
+		case KindHoldStatementBeforeDelegation:
+			return nil, fmt.Errorf("faulting executor: %s engages a per-statement Cypher boundary this hermetic tier does not have and is not supported by this hermetic runner", KindHoldStatementBeforeDelegation)
 		default:
 			return nil, fmt.Errorf("faulting executor: unknown fault kind %q", f.Kind)
 		}

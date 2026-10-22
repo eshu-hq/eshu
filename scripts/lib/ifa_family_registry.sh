@@ -57,19 +57,30 @@
 #
 #   family       e.g. rationale_edges. The materialized_edges:<domain> name.
 #   blocker_kind one of: shared_intent_lock, runner_lease_hold,
-#                table_lock:<tablename>, ack_barrier, none. What a
-#                fault-injection kill/fail cell
+#                table_lock:<tablename>, ack_barrier, statement_hold, none.
+#                What a fault-injection kill/fail cell
 #                must engage to hold the handler in flight long enough to
 #                observe a genuinely blocked in-progress write.
-#   wait_stage   handler | runner. Which queue the non-vacuity precondition
-#                polls before the kill/fail fires: "handler" waits on
-#                fact_work_items (the first-stage claim), "runner" waits on
-#                shared_projection_intents (the second-stage shared-projection
-#                claim) -- see ifa_family_wait_key below for which value goes
-#                with which stage.
+#                statement_hold (no :<name> suffix) holds one graph-write
+#                statement at the graph-executor seam
+#                (hold-statement-before-delegation, #8539): the hold identifies
+#                its write through the row's anchor, so the blocker carries
+#                no suffix.
+#   wait_stage   handler | runner | statement. Which queue the non-vacuity
+#                precondition polls before the kill/fail fires: "handler"
+#                waits on fact_work_items (the first-stage claim), "runner"
+#                waits on shared_projection_intents (the second-stage
+#                shared-projection claim), "statement" waits on
+#                fact_work_items like "handler" (the claimed projection work
+#                item, rendezvous only -- the hold itself is scoped by the
+#                anchor, not the key) -- see ifa_family_wait_key below for
+#                which value goes with which stage.
 #   wait_key     for wait_stage=handler, the fact_work_items.domain value the
 #                wait predicate scopes to. For wait_stage=runner, the
 #                shared_projection_intents.projection_domain value instead.
+#                For wait_stage=statement, the fact_work_items.domain value
+#                like handler (rendezvous on the claimed work item; per-family
+#                exclusivity is judged on the anchor, not the key).
 #                Scoping matters: an unscoped wait latches whichever domain
 #                the driven cassettes happen to schedule first, not this
 #                family's own work (issue #5555's confirmed-false SQL

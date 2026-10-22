@@ -100,7 +100,9 @@ iam_escalation_edge_operation_match="MERGE (p)-[rel:CAN_ESCALATE_TO]->(t)"
 # literal. None of the port-suffix labels appears in code.
 authenticates_vault_role_edge_operation_match="MERGE (s)-[rel:SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE]->(v)"
 # The SECRETS_IAM_USES_VAULT_POLICY MERGE anchor
-# cell_failgraphwrite_uses_vault_policy (#6228 slice A, kill-less pair) targets:
+# cell_failgraphwrite_uses_vault_policy and cell_kill_uses_vault_policy
+# (#6228 slice A + #8539 seam) target -- both cells match on this same
+# substring, the once-fault failing it and the hold engaging on it:
 # go/internal/storage/cypher/cloud/aws/iam/secrets_graph_writer.go:111 bakes
 # the static token into the template (no %s), so the anchor carries the
 # literal. None of the port-suffix labels appears in code.

@@ -54,11 +54,23 @@ const (
 	// A family absent from the registry entirely (no row at all) is treated
 	// the same as an explicit "none" row.
 	blockerNone blockerKind = "none"
+	// blockerStatementHold holds one graph-write statement
+	// claimed-but-incomplete at the graph-executor seam
+	// (hold-statement-before-delegation, #8539): the in-binary
+	// FaultingExecutor engages the family's own edge-type MERGE (the row's
+	// IFA_FAMILY_ANCHOR), writes a marker naming the matched statement, then
+	// blocks on sentinel-removal/ctx.Done() and never delegates while held.
+	// It takes no :<name> suffix -- the hold identifies its write through
+	// the anchor, not through a suffix on the blocker. Unlike
+	// blockerSharedIntentLock it makes no claim about the handler's write
+	// shape (IntentWriter vs EdgeWriter): the seam it engages is the graph
+	// executor, which every direct-materialization handler reaches.
+	blockerStatementHold blockerKind = "statement_hold"
 )
 
 // classifyBlockerKind maps a registry row's raw declared string to the
 // blockerKind vocabulary above. Returns false for anything that is not one
-// of the five documented shapes, so a registry typo or a new blocker
+// of the six documented shapes, so a registry typo or a new blocker
 // vocabulary this test does not know about fails loudly instead of silently
 // comparing unequal to blockerSharedIntentLock and passing vacuously.
 func classifyBlockerKind(raw string) (blockerKind, bool) {
@@ -71,6 +83,8 @@ func classifyBlockerKind(raw string) (blockerKind, bool) {
 		return blockerAckBarrier, true
 	case raw == string(blockerNone):
 		return blockerNone, true
+	case raw == string(blockerStatementHold):
+		return blockerStatementHold, true
 	case strings.HasPrefix(raw, string(blockerTableLock)+":"):
 		return blockerTableLock, true
 	default:
@@ -287,9 +301,11 @@ func handlerHoldsIntentWriter(handler Handler) bool {
 // when declared lies about handler's real write shape: blockerSharedIntentLock
 // for a handler that has no IntentWriter field, and therefore never writes
 // shared_projection_intents, so locking that table never intercepts it. Any
-// other declared kind (ack_barrier, table_lock, none) is accepted regardless
-// of handler shape -- this test's only proven claim is the one direction
-// that is always wrong.
+// other declared kind (ack_barrier, table_lock, statement_hold, none) is
+// accepted regardless of handler shape -- this test's only proven claim is
+// the one direction that is always wrong. statement_hold in particular makes
+// no handler-shape claim: its seam is the graph executor, which every
+// direct-materialization handler reaches.
 func checkFamilyBlockerLockstep(family string, routedDomain reducercontract.Domain, declared blockerKind, handler Handler) error {
 	if handler == nil {
 		return fmt.Errorf("family %q: routed domain %q has no registered handler in implementedDefaultDomainDefinitions(<fully-populated DefaultHandlers>) -- the routed-domain linkage in materializedEdgeFamilyBlockerExpectations is stale", family, routedDomain)
@@ -337,7 +353,7 @@ func TestMaterializedEdgeFamilyBlockerLockstep(t *testing.T) {
 
 			declared, known := classifyBlockerKind(raw)
 			if !known {
-				t.Fatalf("family %q: scripts/lib/ifa_family_registry.sh declares blocker kind %q, which is not one of shared_intent_lock, runner_lease_hold, ack_barrier, none, or table_lock:<name> -- the registry's vocabulary drifted from what this test's classifier understands", family, raw)
+				t.Fatalf("family %q: scripts/lib/ifa_family_registry.sh declares blocker kind %q, which is not one of shared_intent_lock, runner_lease_hold, ack_barrier, statement_hold, none, or table_lock:<name> -- the registry's vocabulary drifted from what this test's classifier understands", family, raw)
 			}
 
 			if err := checkFamilyBlockerLockstep(family, want.routedDomain, declared, handlerByDomain[want.routedDomain]); err != nil {

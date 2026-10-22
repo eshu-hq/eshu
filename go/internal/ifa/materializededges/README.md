@@ -354,23 +354,26 @@ architecturally unique.
 
 ## Vault pair — shared projection handler, one kill claim
 
-`authenticates_vault_role` and `uses_vault_policy` (#6228 slice A) share one
-graph writer (`SecretsIAMGraphProjectionHandler`,
+`authenticates_vault_role` and `uses_vault_policy` (#6228 slice A, plus the
+#8539 seam) share one graph writer (`SecretsIAMGraphProjectionHandler`,
 `go/internal/reducer/secretsiam/secrets_iam_graph_projection.go`) behind the
 `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` live-cell flag, with one
 cassette/Odù and expected-edge-set fixture each (2 and 3 edges) driven through
 the shared helpers in `scripts/lib/ifa_vault_family_live.sh`. Both live gates
 drive each family's own cassette and exact-assert its edge set; the fault gate
 additionally recovers each family through its own MERGE-anchored
-graph-write-failure cell (`cell_failgraphwrite_*`, `blocker_kind=none`),
-marker-asserted and drained with zero dead letters before the exact-set edges
-are re-asserted against the family baseline digest. Mid-handler kill/reclaim
-is a NAMED, tracked gap for `uses_vault_policy` (#8539), not claimed by this
-coverage — any handler-stage kill-worker cell for it would reuse
+graph-write-failure cell (`cell_failgraphwrite_*`, `blocker_kind=none` for
+`authenticates_vault_role`), marker-asserted and drained with zero dead
+letters before the exact-set edges are re-asserted against the family baseline
+digest. Mid-handler kill/reclaim for `uses_vault_policy` is claimed through
+the per-statement hold seam (#8539, `blocker_kind=statement_hold`,
+`wait_stage=statement`): a handler-stage kill-worker cell for it would reuse
 `authenticates_vault_role`'s own wait_key (`secrets_iam_graph_projection`,
 owned first-landed by `authenticates_vault_role`;
-`TestIfaFamilyRegistryHandlerWaitKeysAreExclusive`) and prove nothing new.
-The registry schema has no fault-proven-but-kill-less direct-family shape, so
-`uses_vault_policy` carries `blocker_kind=none` with no wait declarations at
-all rather than a borrowed key; see
-`scripts/lib/ifa_family_registry/rows/22_uses_vault_policy.sh`.
+`TestIfaFamilyRegistryHandlerWaitKeysAreExclusive`) and prove nothing new, so
+the hold parks the worker inside the family's own `USES_VAULT_POLICY` MERGE
+(post-retract, post-prior-edge-write) and the kill cell rendezvouses on the
+claimed work item plus the hold marker before kill -9; see
+`scripts/lib/ifa_family_registry/rows/22_uses_vault_policy.sh` and
+`scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh`
+(`cell_kill_uses_vault_policy`).

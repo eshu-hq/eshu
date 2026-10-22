@@ -118,8 +118,10 @@ func NewFaultingWorkSource(inner claimSource, script Script) (*FaultingWorkSourc
 			sawMidHandler = true
 		case KindRestartBackendBetweenPhaseGroups:
 			return nil, fmt.Errorf("faulting work source: %s requires a real backend and is not supported by this hermetic runner", KindRestartBackendBetweenPhaseGroups)
-		case KindFailGraphWriteOnceThenSucceed, KindFailTerminal:
-			// Executor-seam faults; NewFaultingExecutor owns them.
+		case KindFailGraphWriteOnceThenSucceed, KindFailTerminal, KindHoldStatementBeforeDelegation:
+			// Executor-seam faults; NewFaultingExecutor owns them (and
+			// rejects the hold kind there: this tier has no per-statement
+			// Cypher boundary for it to engage).
 		default:
 			return nil, fmt.Errorf("faulting work source: unknown fault kind %q", f.Kind)
 		}

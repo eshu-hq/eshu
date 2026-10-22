@@ -126,7 +126,8 @@ run_ifa_fault_cell_catalog_cases() {
 	# dispatched cell_* identifier to its catalog label and require the
 	# catalog's numbered titles to match in order. The translation is
 	# prefix-mechanical except the three symbol kill cells, whose labels
-	# name the runner-lease-wait variant explicitly.
+	# name the runner-lease-wait variant explicitly, and the statement-hold
+	# kill cell, whose label names the hold seam rather than a lease wait.
 	local cell rest label actual_title pos=0
 	while IFS= read -r cell; do
 		pos=$((pos + 1))
@@ -136,6 +137,7 @@ run_ifa_fault_cell_catalog_cases() {
 		case "${cell}" in
 			baseline_*) rest="${cell#baseline_}"; label="baseline-${rest//_/-}" ;;
 			baseline) label="baseline" ;;
+			kill_uses_vault_policy) label="kill-statement-hold-uses-vault-policy" ;;
 			killworker_handles_route|killworker_runs_in|killworker_invokes_cloud_action)
 				rest="${cell#killworker_}"; label="kill-worker-after-runner-lease-wait-${rest//_/-}" ;;
 			killworker_*) rest="${cell#killworker_}"; label="kill-worker-after-claim-${rest//_/-}" ;;

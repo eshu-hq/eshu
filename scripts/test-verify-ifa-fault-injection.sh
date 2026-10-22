@@ -8,7 +8,7 @@
 # reducer), so this mirror validates the contract that cannot silently
 # drift: strict mode and the bash>=4.4 guard, an isolated Compose project and
 # port triple distinct from every sibling verify-ifa-*.sh script, the
-# 72-cell shape (baseline + 71 live cells; fail-terminal
+# 73-cell shape (baseline + 72 live cells; fail-terminal
 # deliberately absent with its rationale documented), each cell's own
 # recovery mechanism, the digest/dead_letter/non-vacuity assertions, the
 # tagged-reducer + fault-script wiring this gate is the first thing to
@@ -30,6 +30,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/verify-ifa-fault-injection.sh"
 det_lib="${repo_root}/scripts/lib/ifa_determinism_common.sh"
 fault_lib="${repo_root}/scripts/lib/ifa_fault_injection_common.sh"
+hold_lib="${repo_root}/scripts/lib/ifa_fault_injection_hold.sh"
 driver_lib="${repo_root}/scripts/lib/ifa_fault_injection_driver.sh"
 sources_lib="${repo_root}/scripts/lib/ifa_fault_injection_sources.sh"
 anchors_lib="${repo_root}/scripts/lib/ifa_fault_injection_edge_anchors.sh"
@@ -96,7 +97,7 @@ private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"
 dead_command_lib="${repo_root}/scripts/lib/ifa_dead_command_line.sh"
 lease_expiry_barrier_lib="${repo_root}/scripts/lib/ifa_fault_lease_expiry_barrier.sh"
 fail() { printf 'test-verify-ifa-fault-injection: %s\n' "$*" >&2; exit 1; }
-for f in "${script}" "${fault_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${anchors_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${pin_probe_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${repo_dependency_lease_cases_lib}" "${repo_dependency_cases_lib}" "${workload_dependency_cases_lib}" "${codeowners_cases_lib}" "${kubernetes_namespace_environment_cells_lib}" "${iam_instance_profile_role_cells_lib}" "${kubernetes_namespace_environment_cases_lib}" "${iam_instance_profile_role_cases_lib}" "${iam_can_assume_cells_lib}" "${iam_can_assume_cases_lib}" "${iam_can_perform_cells_lib}" "${iam_can_perform_cases_lib}" "${ec2_uses_profile_cells_lib}" "${ec2_uses_profile_cases_lib}" "${s3_logs_to_cells_lib}" "${s3_logs_to_cases_lib}" "${iam_escalation_cells_lib}" "${iam_escalation_cases_lib}" "${authenticates_vault_role_cells_lib}" "${authenticates_vault_role_cases_lib}" "${uses_vault_policy_cells_lib}" "${uses_vault_policy_cases_lib}" "${submodule_pin_cases_lib}" "${marker_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${runner_lease_hold_cases_lib}" "${runner_lease_audit_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}" "${diagnostics_hardening_cases_lib}" "${private_data_pattern_lib}" "${lease_expiry_barrier_lib}"; do
+for f in "${script}" "${fault_lib}" "${hold_lib}" "${det_lib}" "${driver_lib}" "${sources_lib}" "${anchors_lib}" "${delta_lib}" "${cells_lib}" "${sql_cells_lib}" "${delivery_cells_lib}" "${collateral_nodes_lib}" "${code_call_lib}" "${code_call_cells_lib}" "${code_call_cases_lib}" "${documentation_lib}" "${documentation_cells_lib}" "${documentation_barrier_lib}" "${documentation_barrier_setup_lib}" "${documentation_cases_lib}" "${documentation_barrier_cases_lib}" "${documentation_barrier_cleanup_cases_lib}" "${rationale_lib}" "${rationale_cells_lib}" "${rationale_cases_lib}" "${review_cases_lib}" "${entrypoint_cases_lib}" "${deployable_unit_cases_lib}" "${assertions_lib}" "${pin_probe_lib}" "${deployable_unit_live_lib}" "${deployable_unit_diagnostics_lib}" "${deployable_unit_converge_lib}" "${deployable_unit_lock_lib}" "${deployable_unit_cells_lib}" "${shard_lib}" "${shard_cases_lib}" "${repo_dependency_lease_cases_lib}" "${repo_dependency_cases_lib}" "${workload_dependency_cases_lib}" "${codeowners_cases_lib}" "${kubernetes_namespace_environment_cells_lib}" "${iam_instance_profile_role_cells_lib}" "${kubernetes_namespace_environment_cases_lib}" "${iam_instance_profile_role_cases_lib}" "${iam_can_assume_cells_lib}" "${iam_can_assume_cases_lib}" "${iam_can_perform_cells_lib}" "${iam_can_perform_cases_lib}" "${ec2_uses_profile_cells_lib}" "${ec2_uses_profile_cases_lib}" "${s3_logs_to_cells_lib}" "${s3_logs_to_cases_lib}" "${iam_escalation_cells_lib}" "${iam_escalation_cases_lib}" "${authenticates_vault_role_cells_lib}" "${authenticates_vault_role_cases_lib}" "${uses_vault_policy_cells_lib}" "${uses_vault_policy_cases_lib}" "${submodule_pin_cases_lib}" "${marker_cases_lib}" "${deployable_unit_ordering_cases_lib}" "${generic_cells_lib}" "${table_lock_lib}" "${table_lock_cases_lib}" "${shared_intent_lock_cases_lib}" "${family_drive_cases_lib}" "${runner_lease_hold_cases_lib}" "${runner_lease_audit_cases_lib}" "${generic_modules_lib}" "${generic_shared_intent_lock_lib}" "${generic_runner_wait_lib}" "${diagnostics_hardening_cases_lib}" "${private_data_pattern_lib}" "${lease_expiry_barrier_lib}"; do
 	[[ -f "${f}" ]] || fail "missing ${f}"
 done
 [[ -x "${script}" ]] || fail "verify-ifa-fault-injection.sh must be executable"
@@ -245,6 +246,21 @@ shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX=
 [[ -n "${go_marker_prefix}" ]] || fail "could not read OnceFiredMarkerWriteFailedPrefix from fault/executor/marker.go"
 [[ "${go_marker_prefix}" == "${shell_marker_prefix}" ]] \
 	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
+
+# The hold marker's shell/Go prefix mirror (#8539 seam): the kill cell greps
+# the reducer log for IFA_HOLD_MARKER_WRITE_FAILED_PREFIX, so drift between
+# hold.go's HoldMarkerWriteFailedPrefix and common.sh reads exactly like "the
+# marker write never failed".
+require_hold_lib "hold marker-write prefix declared once in shell" 'IFA_HOLD_MARKER_WRITE_FAILED_PREFIX="ifa fault: hold marker write failed"'
+require_hold_lib "hold-script function signature" 'ifa_fault_write_hold_script() {'
+require_hold_lib "hold-marker assert function signature" 'ifa_fault_assert_hold_marker() {'
+go_hold_marker_prefix="$(rg --no-filename -o 'HoldMarkerWriteFailedPrefix = "([^"]+)"' -r '$1' \
+	"${repo_root}/go/internal/storage/cypher/fault/executor/hold.go" | head -1)"
+shell_hold_marker_prefix="$(rg --no-filename -o 'IFA_HOLD_MARKER_WRITE_FAILED_PREFIX="([^"]+)"' -r '$1' \
+	"${hold_lib}" | head -1)"
+[[ -n "${go_hold_marker_prefix}" ]] || fail "could not read HoldMarkerWriteFailedPrefix from fault/executor/hold.go"
+[[ "${go_hold_marker_prefix}" == "${shell_hold_marker_prefix}" ]] \
+	|| fail "hold marker-write prefix drift: Go has ${go_hold_marker_prefix@Q}, shell has ${shell_hold_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
 # The SQL permanent-member invocation pin also moved to the shard-cases
 # module (see the note above the full-cell-shape comment).

@@ -18,7 +18,7 @@ import (
 // decode of an older or newer fault-script shape.
 const CurrentVersion = 1
 
-// Fault kind identifiers. These are the only five fault kinds a script may
+// Fault kind identifiers. These are the only six fault kinds a script may
 // name; Script.Validate rejects any other kind. See design doc
 // docs/internal/design/4389-ifa-conformance-platform.md, Layer 4, for the
 // mechanism each kind targets.
@@ -42,6 +42,17 @@ const (
 	// so a fault run can assert "dead letters appear only where the script
 	// injected a terminal failure" is a non-vacuous check.
 	KindFailTerminal = "fail-terminal"
+	// KindHoldStatementBeforeDelegation holds one graph-write statement
+	// claimed-but-incomplete at the graph-executor seam: on the first call
+	// carrying a statement whose Cypher text contains the required
+	// operation_match, the in-binary FaultingExecutor (ifafaultinjection
+	// tag only) writes a marker naming the matched statement, then blocks
+	// on sentinel-removal/ctx.Done() (the restart-fault pattern) and never
+	// delegates while held. The name encodes hold-BEFORE-delegation: the
+	// statement is not yet sent when the worker dies mid-handler, landing a
+	// genuinely uncovered fault point (post-retract, post-prior-edge-write)
+	// for per-statement kill/reclaim cells (#8539).
+	KindHoldStatementBeforeDelegation = "hold-statement-before-delegation"
 )
 
 // Lane identifiers for FaultOp.Target.Lane on
@@ -221,6 +232,7 @@ var allowedTriggerFields = map[string]map[string]bool{
 	KindFailGraphWriteOnceThenSucceed:    {"statement_ordinal": true, "operation_match": true},
 	KindRestartBackendBetweenPhaseGroups: {"after_phase_groups": true},
 	KindFailTerminal:                     {"intent_id": true},
+	KindHoldStatementBeforeDelegation:    {"operation_match": true},
 }
 
 // validate checks one fault op's kind, trigger, and target.
@@ -246,6 +258,8 @@ func (f FaultOp) validate() error {
 		return f.validateRestartBackendBetweenPhaseGroups()
 	case KindFailTerminal:
 		return f.validateFailTerminal()
+	case KindHoldStatementBeforeDelegation:
+		return f.validateHoldStatementBeforeDelegation()
 	default:
 		return fmt.Errorf("unknown fault kind %q", f.Kind)
 	}
@@ -380,6 +394,21 @@ func (f FaultOp) validateRestartBackendBetweenPhaseGroups() error {
 func (f FaultOp) validateFailTerminal() error {
 	if f.Trigger.IntentID == nil || strings.TrimSpace(*f.Trigger.IntentID) == "" {
 		return errors.New("fail-terminal requires trigger.intent_id")
+	}
+	return nil
+}
+
+// validateHoldStatementBeforeDelegation requires the one trigger this kind
+// accepts -- operation_match, the Cypher substring the hold engages -- and
+// rejects any lane target. A hold has no retry lane: it never returns a
+// shaped error, it blocks before delegation, so a lane would be a meaningless
+// field that a typo'd script could carry while asserting nothing.
+func (f FaultOp) validateHoldStatementBeforeDelegation() error {
+	if f.Trigger.OperationMatch == nil || strings.TrimSpace(*f.Trigger.OperationMatch) == "" {
+		return errors.New("hold-statement-before-delegation requires trigger.operation_match")
+	}
+	if f.Target.Lane != "" {
+		return fmt.Errorf("hold-statement-before-delegation takes no target.lane, got %q", f.Target.Lane)
 	}
 	return nil
 }

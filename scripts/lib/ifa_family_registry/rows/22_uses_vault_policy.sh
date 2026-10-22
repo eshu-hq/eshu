@@ -7,32 +7,32 @@
 # first -- it explains what a DIRECT-materialization family is and which
 # blocker kinds are unavailable to one.
 #
-# FAULT CELLS LANDED (#6228 slice A full build, kill-less per arbiter
-# verdict Option B on #6228). scripts/verify-ifa-fault-injection.sh drives
-# and asserts this row through
+# FAULT CELLS LANDED (#6228 slice A full build, plus the per-statement hold
+# kill cell from the #8539 seam lane). scripts/verify-ifa-fault-injection.sh
+# drives and asserts this row through
 # scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh
-# (baseline/failgraphwrite pair, dispatched in shard order with a
+# (baseline/failgraphwrite/kill trio, dispatched in shard order with a
 # co-location atomic group). cell_kind=custom below records the hand-written
 # dispatch; specs/ci-gates.v1.yaml gives this family ifa-fault-injection
 # triggers so an edit to its cassette or its writer re-runs the matrix that
 # observes it.
 #
-# NO KILL CELL. The family's edges are written by the
+# PER-STATEMENT HOLD KILL CELL (seam (2) of the #8539 arbiter ruling
+# 2026-10-21; the per-family projection-domain split alternative was
+# rejected). The family's edges are written by the
 # DomainSecretsIAMGraphProjection handler -- the SAME handler that writes
 # authenticates_vault_role's edges -- and a handler-stage kill of it is
 # already claimed by rows/21: authenticates_vault_role landed first
 # (committed 88e1b18520) and owns the secrets_iam_graph_projection handler
-# wait by first-landed tie-break, so this row declares no wait_stage and no
-# wait_key. A second family reusing that key would double-count one
-# mechanism run as two per-family proofs
-# (TestIfaFamilyRegistryHandlerWaitKeysAreExclusive), and any other key
-# would name a wait no remaining cell polls -- a fake. Mid-handler
-# kill/reclaim for this family is a NAMED, tracked schema gap (#8539), not
-# claimed by this coverage: the registry schema has no fault-proven-but-
-# kill-less direct-family shape, so this row carries blocker_kind=none plus
-# NO wait declarations rather than a borrowed key. See #8539 for the seam
-# (per-family projection domain split, or per-statement hold vocabulary)
-# that would let a kill cell land honestly.
+# wait by first-landed tie-break. So this row does NOT reuse that
+# handler-stage wait: it declares wait_stage=statement with the same
+# secrets_iam_graph_projection wait_key as rendezvous only (the claimed
+# projection work item), while per-family exclusivity is judged on this
+# row's own IFA_FAMILY_ANCHOR -- "a blocker that engages a write only it
+# performs". The hold (hold-statement-before-delegation, matched on that
+# anchor) lands post-retract, post-prior-edge-write, worker dead mid-handler:
+# a fault point the authenticates table_lock:fact_records kill (pre-retract,
+# at the fact load) never reaches.
 #
 # TWO-STAGE CHAIN, one reducer with the flag on for that cell only. The
 # family's edges are written by the DomainSecretsIAMGraphProjection handler
@@ -66,20 +66,21 @@
 # specs/ifa-materialized-edge-coverage-direct.v1.yaml prescribes exactly this
 # shape (flag on for that cell only, collector-only cassette).
 #
-# blocker_kind=none, recorded faithfully: no remaining cell takes a lock.
-# The fail-graph-write proof engages the family's own MERGE through the
-# fault decorator (see IFA_FAMILY_ANCHOR below), not a hold -- the same
-# "recorded faithfully as none, not silently upgraded" precedent as
-# rows/01_sql_relationships.sh. There is deliberately NO
-# IFA_FAMILY_WAIT_STAGE / IFA_FAMILY_WAIT_KEY declaration in this file: with
-# no kill cell no remaining cell polls a claim wait, so any value here would
-# be a fake wait or a borrowed key. The Go registry parsers
-# (go/internal/reducer/ifa_family_registry_parse_test.go) and the derived
-# pins checker
-# (scripts/lib/test-ifa-family-registry-derived-pins-cases.sh) both model
-# this absence explicitly as the kill-less shape (#8539) rather than a
-# stale format.
-IFA_FAMILY_BLOCKER_KIND[uses_vault_policy]="none"
+# blocker_kind=statement_hold: the kill cell holds the family's own MERGE
+# through the hold decorator (see IFA_FAMILY_ANCHOR below), not a lock.
+# wait_stage=statement names the same secrets_iam_graph_projection domain the
+# handler-stage wait uses, but ONLY as the marker-plus-claim rendezvous --
+# handler-stage exclusivity still belongs to rows/21 by first-landed
+# tie-break, and statement-stage exclusivity is judged on the anchor
+# (go/internal/reducer/ifa_family_registry_statement_hold_coherence_test.go).
+IFA_FAMILY_BLOCKER_KIND[uses_vault_policy]="statement_hold"
+IFA_FAMILY_WAIT_STAGE[uses_vault_policy]="statement"
+# The fact_work_items.domain the projection handler fans this family out
+# under: the projection domain itself
+# (reducercontract.DomainSecretsIAMGraphProjection in
+# go/internal/reducer/contract/domain.go). Same value as rows/21's handler
+# wait, deliberately: for a statement-stage row the key is rendezvous only.
+IFA_FAMILY_WAIT_KEY[uses_vault_policy]="secrets_iam_graph_projection"
 # A plain reducer family needing no maintenance pass, so it is driven uniformly
 # in the determinism gate's shared N={1,2,4} cell.
 IFA_FAMILY_SHARED_CELL[uses_vault_policy]=1
