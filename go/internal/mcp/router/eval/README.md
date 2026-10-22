@@ -42,7 +42,9 @@ top-1 would measure nothing.
 Most questions paraphrase a tool description, and the lexical ranker indexes those
 same descriptions. Part of its top-1 is therefore lexical self-match, and the
 small families (`dead_code`, `security_posture`) are noisy. Read family numbers
-as a trend, not a score. Per-source tallies in the report are a later step. Keep it that way: when you add a question, do not open the
+as a trend, not a score. Per-source tallies in the report are a later step.
+
+Keep the corpus blind. When you add a question, do not open the
 `annotations_intents_*.go` files first.
 
 Names in the corpus are generic (`orders-api`, `checkout-service`). No employer,
