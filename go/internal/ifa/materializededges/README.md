@@ -377,3 +377,28 @@ claimed work item plus the hold marker before kill -9; see
 `scripts/lib/ifa_family_registry/rows/22_uses_vault_policy.sh` and
 `scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh`
 (`cell_kill_uses_vault_policy`).
+
+## No-Regression Evidence (#6228): built_from edge-source descriptor uid
+
+No-Regression Evidence: the resolver change (`builtFromRowsToExpectedEdges`
+deriving the canonical `oci-descriptor://registry/repository@digest` source
+id) lives in guard code only; the production BUILT_FROM writer template and
+the OCI canonical node writer are untouched, so live graph truth is unchanged
+and only the guard's expectation moves to match it. The derivation mirrors
+`ociDescriptorUID` exactly (same prefix guard, same trim, same form), and the
+fail-closed paths red instead of asserting less.
+
+- Baseline: origin/main 9917c92869 (resolver used the row's bare digest).
+- After: `go -C go test ./internal/ifa/...` all ok, including the guard's
+  RED/GREEN cycle (bare-digest expectation red against the live contract,
+  descriptor-uid expectation green); `bash
+  scripts/test-verify-ifa-fault-injection.sh` passes exit 0; `go vet` and
+  `git diff --check` clean.
+- Backend/version: hermetic (no live backend in this proof); the live
+  determinism and fault-injection matrices prove the same set in CI.
+- Input shape: built_from Odù (6 facts), 76-cell fault corpus.
+- Terminal counts: guard green on the 2-edge set; mirror 76/76 exact cover.
+
+No-Observability-Change: no spans, metrics, logs, or status fields added.
+Guard failures still report through the existing `resolveBuiltFrom...`
+problem strings, so current gate signals are unchanged.
