@@ -261,7 +261,7 @@ category file, and they pass with `security.go` and `security_threat.go`
 present. Backend/version for both: none — pure compile-time constant
 relocations with no query, graph write, queue, lease, worker, batching, or
 Compose/Helm change, so there are no row counts to regress.
-No-Observability-Change: the leaf declares no instrument and runs no stage;
+No-Observability-Change (security slice): the leaf declares no instrument and runs no stage;
 scanner emission stays covered by `eshu_dp_aws_resources_emitted_total` and
 `eshu_dp_aws_scan_duration_seconds` (AWS cloud row in
 `docs/public/observability/telemetry-coverage.md`). Safe because the Go
