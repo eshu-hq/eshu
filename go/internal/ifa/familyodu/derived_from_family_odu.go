@@ -45,6 +45,16 @@ const (
 	// children's OCI config source labels name this URL.
 	derivedFromFamilyRemoteURL = "https://github.com/acme/lineage-app"
 
+	// derivedFromFamilyLocalPath is the owning repository's checkout
+	// path. The codegraph extractor falls back to local_path for the
+	// Repository.path it MERGEs, and Repository.path carries a global
+	// UNIQUE constraint: without this, the family's node takes path=""
+	// and collides with every other path-less repository in the same
+	// cell (the maintenance pass then retries the commit until the 30s
+	// write deadline reports a timeout). Unique per repository by
+	// fixture construction, mirroring crossplane's /repo-crossplane-platform.
+	derivedFromFamilyLocalPath = "/repo-lineage-app"
+
 	// derivedFromFamilySchemaVersion and derivedFromFamilyCollectorKind
 	// mirror what the collectors stamp on repository, file,
 	// content_entity and OCI manifest facts.
@@ -146,6 +156,7 @@ func DerivedFromFamilyOdu() CatalogOdu {
 			"repo_id":       derivedFromFamilyRepositoryID,
 			"name":          "lineage-app",
 			"remote_url":    derivedFromFamilyRemoteURL,
+			"local_path":    derivedFromFamilyLocalPath,
 			"source_run_id": "run-ifa-derived-from-family-1",
 		},
 	})

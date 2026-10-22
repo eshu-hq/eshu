@@ -28,6 +28,7 @@
             "repo_id": "repository:eshu-fixture-lineage-app",
             "name": "lineage-app",
             "remote_url": "https://github.com/acme/lineage-app",
+            "local_path": "/repo-lineage-app",
             "source_run_id": "run-ifa-derived-from-family-1"
           }
         },
