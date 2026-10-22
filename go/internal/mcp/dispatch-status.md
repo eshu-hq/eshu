@@ -13,14 +13,40 @@ names the empty required arguments from the tool's `InputSchema`
 (`workload_id is required`). The status check in `dispatchToolWithOptions` is
 the backstop for any redirect that still gets through.
 
-No-Regression Evidence: a call with its id set takes the same path as before;
-the added work is one `strings.Contains` on the route path, and the schema
-lookup runs only when that path has an empty segment. Response budget, timeout,
-and envelope handling are unchanged, and `TestDirectCallWithPathIDStillSucceeds`
-pins that a call with its id set still succeeds.
+No-Regression Evidence: baseline is `origin/main` `de1e830767`; after is the
+head that carries this note. Measured on Go 1.26.10, linux/arm64, 16 CPUs, a
+shared host with a load average near 20 (not quiet, so single runs swing by up
+to 30%). Three alternating base/head rounds, each
+`go test ./internal/mcp -run '^$' -bench 'BenchmarkDispatch(PathIDSupplied|NoPathID|EmptyPathID)$' -benchmem -count=5`,
+with the same `dispatch_redirect_bench_test.go` copied into a detached
+`origin/main` worktree. The input is one direct `dispatchTool` call through a
+real `ServeMux` that returns a 12-byte JSON body. Each cell is the median of the
+three per-round medians of five runs:
 
-Observability Evidence: the backstop logs `mcp tool dispatch got a redirect, not
-a handler answer` at warn level with `tool`, `status`, `path`, and `location`,
-so an operator can find the route builder that produced it. The pre-dispatch
-refusal is a caller error like the other `<field> is required` route errors and
-adds no signal. No new metric or span.
+| Benchmark | Base ns/op | Head ns/op | Base B/op, allocs/op | Head B/op, allocs/op |
+|---|---|---|---|---|
+| `PathIDSupplied` (`get_workload_story`, id set) | 6065 | 6321 | 5854, 81 | 5853, 81 |
+| `NoPathID` (`list_indexed_repositories`) | 6186 | 6699 | 5757, 75 | 5758, 75 |
+| `EmptyPathID` (`get_workload_story`, no id) | 6426 | 1717 | 6005, 90 | 1744, 31 |
+
+A successful call allocates exactly what it did before (same allocs/op, B/op
+within 1). Its ns/op difference is inside the host noise: the per-round medians
+span 5944-7837 on base and 5988-6813 on head for `PathIDSupplied`, and head was
+the faster side in the quietest round. The added work is one `strings.Contains`
+on the route path. The empty-id call used to run a request to a 307 and report
+success; it is now refused before any request is built, which is about 3.7
+times faster with a third of the allocations. The schema lookup behind that
+refusal is a map built once with `sync.OnceValue`; the first version rebuilt the
+whole tool catalog per refused call (about 300 us and 533 KB), which the
+benchmark caught. Response budget, timeout, and envelope handling are
+unchanged. `TestDirectCallWithPathIDStillSucceeds` pins that a call with its id
+set still succeeds.
+
+Observability Evidence: a handler status of 3xx logs `mcp tool dispatch got a
+redirect, not a handler answer` at warn level with the fields `tool`, `status`,
+`path`, and `location`; grep for that message to find the route builder that
+produced it. The caller sees `isError: true` with the text `HTTP 307: ...`. A
+call that leaves a required path id empty is refused before dispatch: the caller
+sees `isError: true` with text such as `workload_id is required`, and no log
+line or metric is emitted for it, the same as the other `<field> is required`
+route errors. No new metric or span.

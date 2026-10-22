@@ -6,6 +6,7 @@ package mcp
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	routecontract "github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
@@ -74,35 +75,38 @@ func rejectEmptyPathSegment(toolName string, args map[string]any, route *routeco
 	return fmt.Errorf("%s is required", strings.Join(missing, ", "))
 }
 
-// emptyRequiredArguments returns the schema-required string arguments of a
-// tool that are absent or empty in args, in schema order.
-func emptyRequiredArguments(toolName string, args map[string]any) []string {
+// requiredArgumentsByTool maps each registered tool to its schema-required
+// argument names. ReadOnlyTools rebuilds the whole catalog on every call
+// (about 530 KB), so the map is built once, on first use.
+var requiredArgumentsByTool = sync.OnceValue(func() map[string][]string {
+	byTool := make(map[string][]string)
 	for _, tool := range ReadOnlyTools() {
-		if tool.Name != toolName {
-			continue
-		}
 		schema, ok := tool.InputSchema.(map[string]any)
 		if !ok {
-			return nil
+			continue
 		}
-		var required []string
 		switch values := schema["required"].(type) {
 		case []string:
-			required = values
+			byTool[tool.Name] = values
 		case []any:
 			for _, value := range values {
 				if name, ok := value.(string); ok {
-					required = append(required, name)
+					byTool[tool.Name] = append(byTool[tool.Name], name)
 				}
 			}
 		}
-		var missing []string
-		for _, name := range required {
-			if str(args, name) == "" {
-				missing = append(missing, name)
-			}
-		}
-		return missing
 	}
-	return nil
+	return byTool
+})
+
+// emptyRequiredArguments returns the schema-required string arguments of a
+// tool that are absent or empty in args, in schema order.
+func emptyRequiredArguments(toolName string, args map[string]any) []string {
+	var missing []string
+	for _, name := range requiredArgumentsByTool()[toolName] {
+		if str(args, name) == "" {
+			missing = append(missing, name)
+		}
+	}
+	return missing
 }
