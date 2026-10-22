@@ -4,6 +4,10 @@
 package mcp
 
 import (
+	"context"
+	"io"
+	"log/slog"
+	"net/http"
 	"slices"
 	"sort"
 	"strings"
@@ -21,8 +25,8 @@ type divergenceClass struct {
 	name     string
 	evidence string
 	// divergence is true when a direct tools/call can succeed where call_tool
-	// refuses (classes A, B, D, E, F). Class C is refused by the handler too,
-	// or reaches no handler.
+	// refuses (classes A, B, D, E, F, G). Class C is refused by the handler
+	// too, or 404s.
 	divergence bool
 	match      func(tool string, schema any, args map[string]any, errs []router.FieldError) bool
 }
@@ -79,8 +83,16 @@ var validatorDivergenceClasses = []divergenceClass{
 		},
 	},
 	{
+		id: "G", name: "empty path segment completes directly", divergence: true,
+		evidence: "emptyPathRedirect rows: the mux answers 307 and dispatch reports it as a completed call with no data; " +
+			"issue #8772 removes this class",
+		match: func(tool string, _ any, _ map[string]any, errs []router.FieldError) bool {
+			return allKeyword(errs, "required") && requiredRowMatches(emptyPathRedirect, tool, errs)
+		},
+	},
+	{
 		id: "C", name: "handler rejects too",
-		evidence: "handlerRejectedRequired and handlerRejectedEnums rows: the handler answers 400, or an empty path segment reaches no handler",
+		evidence: "handlerRejectedRequired and handlerRejectedEnums rows: the handler answers 400, or the route 404s",
 		match: func(tool string, _ any, _ map[string]any, errs []router.FieldError) bool {
 			if allKeyword(errs, "required") {
 				return requiredRowMatches(handlerRejectedRequired, tool, errs)
@@ -256,6 +268,11 @@ func TestDivergenceClassWitnesses(t *testing.T) {
 		{"F", "analyze_code_relationships", map[string]any{"target": "handler"}},
 		{"F", "build_evidence_citation_packet", map[string]any{}},
 		{"F", "list_package_registry_packages", map[string]any{"ecosystem": "npm"}},
+		{"G", "get_entity_context", map[string]any{}},
+		{"G", "get_incident_context", map[string]any{}},
+		{"G", "get_repository_coverage", map[string]any{}},
+		{"G", "get_workload_context", map[string]any{}},
+		{"G", "get_workload_story", map[string]any{}},
 		{"D", "list_secrets_iam_posture_gaps", map[string]any{"scope_id": "scope-1", "state": "active", "limit": 25}},
 		{"E", "list_indexed_repositories", map[string]any{"limit": "25"}},
 	}
@@ -311,6 +328,32 @@ func TestDifferentialRefusesUnlistedRejections(t *testing.T) {
 		}
 		if c := classifyRejection(seed.tool, schema, seed.args, errs); c != nil {
 			t.Fatalf("%s: unlisted seed %v classified as %s; the tables must enumerate rows, not match a keyword", seed.tool, seed.args, c.id)
+		}
+	}
+}
+
+// TestDivergenceClassGDirectCallCompletes is class G's live evidence: each
+// row's direct dispatch with the path field missing hits the mux's 307, runs
+// no handler, and comes back as a completed, non-error result. When #8772
+// makes dispatch treat 3xx as an error, this test fails and class G should be
+// folded into class C.
+func TestDivergenceClassGDirectCallCompletes(t *testing.T) {
+	t.Parallel()
+
+	for _, row := range emptyPathRedirect {
+		ran := false
+		mux := http.NewServeMux()
+		mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+			ran = true
+			w.WriteHeader(http.StatusOK)
+		})
+		result, err := dispatchTool(context.Background(), mux, row.tool, map[string]any{}, "", slog.New(slog.NewTextHandler(io.Discard, nil)))
+		if err != nil || result == nil || result.IsError {
+			t.Errorf("%s: direct dispatch = (%+v, %v), want a completed non-error result while #8772 is open", row.tool, result, err)
+			continue
+		}
+		if ran {
+			t.Errorf("%s: a handler ran; the empty path segment should be redirected before routing", row.tool)
 		}
 	}
 }

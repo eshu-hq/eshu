@@ -132,7 +132,7 @@ and `eshu_dp_mcp_router_target_rank`, plus the `mcp.router.find` and
 ## Known divergence from a direct call
 
 `call_tool` validates against the advertised `inputSchema` with no tolerance; a
-direct `tools/call` goes straight to the route builder. Five recorded classes
+direct `tools/call` goes straight to the route builder. Six recorded classes
 of call can succeed directly but are refused by `call_tool` with a field error
 that names the schema's rule (arbiter ruling on #8757). The schemas stay as
 they are, because widening them would change `tools/list` for the `full`
@@ -145,10 +145,12 @@ surface.
 | D, off-enum list filter | `list_ci_cd_run_correlations` `outcome`, `list_sbom_attestation_attachments` `attachment_status`, `list_secrets_iam_*` `state` outside the enum | the filter must be one of the enum values | the list handlers pass the filter to the store, which matches no rows |
 | E, wrong type defaulted | a wrong JSON type on one of the fields listed per tool, such as `list_indexed_repositories` `limit: "25"` | the field must have the schema type | dispatch's argument helpers (`routecontract` `Arguments.String`, `IntOr`, `BoolOr`, `StringSlice`; root `str`, `intOr`, `boolOr`) drop the value or use the default |
 | F, handler-optional required field | `analyze_code_relationships` and `analyze_infra_relationships` without `query_type`, `build_evidence_citation_packet` without `handles`, `list_package_registry_packages` without `limit` | the field is required | the route sends an empty or default value and the handler serves it; each row cites its handler |
+| G, empty path segment | `get_entity_context`, `get_incident_context`, `get_repository_coverage`, `get_workload_context`, `get_workload_story` without their path id | the id is required | the route carries `//`; `ServeMux` answers 307, no handler runs, and dispatch reports "Eshu query completed." with no data, because it treats only status 400 and above as an error. Issue #8772 fixes dispatch; class G goes away when it lands |
 
 Class C is not a divergence: the handler answers 400 for the same call (each
-row records the handler's message), or an empty path segment reaches no
-handler at all.
+row records the handler's message), or the route answers 404
+(`investigate_service` without `service_name`), which direct dispatch reports
+as an error too.
 
 `TestValidatorAcceptsEveryDispatchedArgumentMap` in the mcp root holds the
 validator to every literal argument map in the dispatch tests and every map in
@@ -156,8 +158,15 @@ the catalog sweep corpus, except maps in a class. The classes are enumerated
 tables, not keyword matches: `routed_call_divergence_tables_test.go` lists each
 tool and field set with its evidence, and a rejection no row lists fails the
 test (`TestDifferentialRefusesUnlistedRejections` seeds one of each kind). Each
-class has a live witness, and A and B have pinning tests that fail once a
-schema accepts the alias or case.
+class has a live witness, A and B have pinning tests that fail once a schema
+accepts the alias or case, and `TestDivergenceClassGDirectCallCompletes` fails
+once #8772 makes the direct call an error.
+
+Staleness is checked per class, not per row. A row is re-proven only when a
+literal dispatch-test map, a sweep map, or a witness hits it; a row seen only
+in the runtime capture (most C and E rows) is not re-checked by any test and
+can go stale silently. Re-run the capture below after changing a schema or a
+route builder, and prune rows it no longer reports.
 
 The rows came from a one-off probe. A runtime capture recorded every map
 `resolveRoute` built across `go test ./internal/mcp`, and a throwaway test
@@ -165,9 +174,10 @@ replayed each rejected map's route against the real API router with nil
 backends. A required-field row was replayed with the tool's catalog-sweep
 arguments minus only those fields, so a 400 is attributed to the right field;
 a call that got past validation (a 2xx, or a 5xx from the nil store) became a
-class F or E row. Run on the commit that added the tables, the capture recorded
-1346 distinct maps and 253 rejected: A 77, B 2, C 91, D 9, E 64, F 8, and the
-2 seeded unlisted maps outside any class, by design. To repeat it, wrap
+class F or E row. The capture is a one-off: no CI job runs it. Run on the
+commit that added class G, it recorded 1346 distinct maps and 253 rejected:
+A 77, B 2, C 84, D 9, E 64, F 8, G 7, and the 2 seeded unlisted maps outside
+any class, by design. To repeat it, wrap
 `resolveRoute` in `dispatch.go` to record each resolved map, and classify the
 rejected ones with `classifyRejection` from a `TestMain`, through
 `go test -overlay`.

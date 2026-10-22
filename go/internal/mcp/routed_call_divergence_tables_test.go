@@ -17,8 +17,9 @@ type requiredFieldRow struct {
 	evidence string
 }
 
-// handlerRejectedRequired (class C): the handler refuses the call too, or no
-// handler runs.
+// handlerRejectedRequired (class C): the handler refuses the call too, or the
+// route 404s (investigate_service's trailing empty segment), which direct
+// dispatch reports as an error as well.
 var handlerRejectedRequired = []requiredFieldRow{
 	{"analyze_infra_relationships", []string{"query_type", "target"}, "POST /api/v0/infra/relationships: 400 entity_id is required"},
 	{"ask", []string{"question"}, "POST /api/v0/ask: query/ask Handler answers 400 question is required"},
@@ -42,14 +43,9 @@ var handlerRejectedRequired = []requiredFieldRow{
 	{"find_cross_repo_dead_code", []string{"repo_id"}, "POST /api/v0/code/dead-code/cross-repo: 400 repo_id is required"},
 	{"find_symbol", []string{"symbol"}, "POST /api/v0/code/symbols/search: 400 symbol is required"},
 	{"get_entity_content", []string{"entity_id"}, "POST /api/v0/content/entities/read: 400 entity_id is required"},
-	{"get_entity_context", []string{"entity_id"}, "GET /api/v0/entities//context: empty path segment, the mux answers 307 and no handler runs"},
 	{"get_file_content", []string{"relative_path", "repo_id"}, "POST /api/v0/content/files/read: 400 repo_id is required"},
 	{"get_file_lines", []string{"end_line", "relative_path", "repo_id", "start_line"}, "POST /api/v0/content/files/lines: 400 repo_id is required"},
-	{"get_incident_context", []string{"provider_incident_id"}, "GET /api/v0/incidents//context: empty path segment, the mux answers 307 and no handler runs"},
-	{"get_repository_coverage", []string{"repo_id"}, "GET /api/v0/repositories//coverage: empty path segment, the mux answers 307 and no handler runs"},
 	{"get_service_changed_since", []string{"service_id", "since_generation_id"}, "GET /api/v0/freshness/services/changed-since: 400 service_id is required"},
-	{"get_workload_context", []string{"workload_id"}, "GET /api/v0/workloads//context: empty path segment, the mux answers 307 and no handler runs"},
-	{"get_workload_story", []string{"workload_id"}, "GET /api/v0/workloads//story: empty path segment, the mux answers 307 and no handler runs"},
 	{"inspect_call_graph_metrics", []string{"repo_id"}, "POST /api/v0/code/call-graph/metrics: 400 repo_id is required"},
 	{"investigate_code_divergence", []string{"fingerprint", "kind"}, "POST /api/v0/code/divergence/investigate: 400 kind must be one of: "},
 	{"investigate_code_divergence", []string{"fingerprint", "kind", "repo_id"}, "POST /api/v0/code/divergence/investigate: 400 repo_id is required"},
@@ -74,6 +70,20 @@ var handlerRejectedRequired = []requiredFieldRow{
 	{"trace_resource_to_code", []string{"start"}, "POST /api/v0/impact/trace-resource-to-code: 400 start is required"},
 	{"trace_route_callers", []string{"path"}, "POST /api/v0/code/routes/callers: 400 path is required"},
 	{"visualize_graph_query", []string{"cypher_query"}, "POST /api/v0/code/visualize: 400 cypher_query is required"},
+}
+
+// emptyPathRedirect (class G, a divergence): the missing field is a path
+// segment, so the route carries "//". net/http's ServeMux answers 307 to clean
+// the path, no handler runs, and dispatchToolWithOptions treats only status
+// >= 400 as an error, so a direct tools/call reports "Eshu query completed."
+// with no data while call_tool refuses. Issue #8772 tracks dispatch counting
+// 3xx as success; this class goes away when it lands.
+var emptyPathRedirect = []requiredFieldRow{
+	{"get_entity_context", []string{"entity_id"}, "GET /api/v0/entities//context: empty path segment; the mux answers 307, which direct dispatch reports as a completed call with no data (#8772)"},
+	{"get_incident_context", []string{"provider_incident_id"}, "GET /api/v0/incidents//context: empty path segment; the mux answers 307, which direct dispatch reports as a completed call with no data (#8772)"},
+	{"get_repository_coverage", []string{"repo_id"}, "GET /api/v0/repositories//coverage: empty path segment; the mux answers 307, which direct dispatch reports as a completed call with no data (#8772)"},
+	{"get_workload_context", []string{"workload_id"}, "GET /api/v0/workloads//context: empty path segment; the mux answers 307, which direct dispatch reports as a completed call with no data (#8772)"},
+	{"get_workload_story", []string{"workload_id"}, "GET /api/v0/workloads//story: empty path segment; the mux answers 307, which direct dispatch reports as a completed call with no data (#8772)"},
 }
 
 // handlerOptionalRequired (class F, a divergence): the schema marks the field
