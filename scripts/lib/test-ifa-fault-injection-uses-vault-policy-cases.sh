@@ -114,8 +114,8 @@ test_ifa_uses_vault_policy_wait_for_endpoint_domains_cases() (
 	compose_file="docker-compose.yaml"
 	FAULT_COMPOSE_PROJECT="test"
 	log_dir="$(mktemp -d -t ifa-uses-vault-policy-endpoints.XXXXXX)"
-	trap 'rm -rf "${log_dir}"' EXIT
 	poll_index_file="$(mktemp -t ifa-uses-vault-policy-pollidx.XXXXXX)"
+	trap 'rm -rf "${log_dir}" "${poll_index_file}"' EXIT
 
 	# Endpoints committed: one poll, success, no waiting.
 	endpoint_poll_outputs=("succeeded|3")
