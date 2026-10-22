@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 )
 
 // sseSession holds the response channel for one SSE client. principal
@@ -170,6 +172,24 @@ func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// A surface query parameter overrides the process tool surface for this
+	// request only, so one deployment can be compared across surfaces. An
+	// unknown value is rejected before the body is read (#8758).
+	ctx := r.Context()
+	if raw := r.URL.Query().Get("surface"); raw != "" {
+		surface, err := router.ParseSurface(raw)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(jsonrpcResponse{
+				JSONRPC: "2.0",
+				Error:   &jsonrpcError{Code: -32602, Message: err.Error()},
+			})
+			return
+		}
+		ctx = withSurfaceOverride(ctx, surface)
+	}
+
 	var req jsonrpcRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -181,7 +201,7 @@ func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := s.handleMessage(r.Context(), &req, r.Header.Get("Authorization"))
+	resp := s.handleMessage(ctx, &req, r.Header.Get("Authorization"))
 
 	if sess != nil {
 		if resp != nil {

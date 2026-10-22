@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	codedivergencetools "github.com/eshu-hq/eshu/go/internal/mcp/code/divergence"
+	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -95,6 +96,9 @@ type mcpResource struct {
 type Server struct {
 	handler http.Handler
 	tools   []ToolDefinition
+	// surface selects what tools/list advertises from tools; the zero value
+	// is router.SurfaceFull (see WithToolSurface).
+	surface router.Surface
 	logger  *slog.Logger
 	mu      sync.Mutex
 
@@ -270,7 +274,7 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 		return &jsonrpcResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,
-			Result:  mcpToolsListResult{Tools: s.tools},
+			Result:  mcpToolsListResult{Tools: s.advertisedTools(ctx)},
 		}
 
 	case "tools/call":
@@ -416,4 +420,57 @@ func productionHiddenToolNames() map[string]bool {
 	}
 	hidden["compare_code_paths"] = true
 	return hidden
+}
+
+// WithToolSurface sets the tool surface tools/list advertises (#8758). It
+// changes advertisement only: a direct tools/call to any registered tool
+// works under every surface, the same rule WithQueryProfile follows. The
+// surface is applied to s.tools when tools/list is served, so the result
+// always derives from the profile-filtered list and hidden tools stay hidden
+// whatever order the options are given in. router.SurfaceFull, the default,
+// serves s.tools unchanged. The option itself runs once at construction and
+// only records the value.
+func WithToolSurface(surface router.Surface) ServerOption {
+	return func(s *Server) {
+		s.surface = surface
+	}
+}
+
+// surfaceContextKey carries a per-connection surface override from the HTTP
+// transport (the surface query parameter on POST /mcp/message) to
+// handleMessage without changing its signature.
+type surfaceContextKey struct{}
+
+// withSurfaceOverride returns ctx carrying surface as the override for the
+// request being served.
+func withSurfaceOverride(ctx context.Context, surface router.Surface) context.Context {
+	return context.WithValue(ctx, surfaceContextKey{}, surface)
+}
+
+// advertisedTools returns the tools/list payload for this request: the
+// per-connection override when ctx carries one, otherwise the process
+// surface. The registry s.tools is never mutated.
+func (s *Server) advertisedTools(ctx context.Context) []ToolDefinition {
+	surface := s.surface
+	if override, ok := ctx.Value(surfaceContextKey{}).(router.Surface); ok {
+		surface = override
+	}
+	return router.Advertise(s.tools, surface)
+}
+
+// ToolSurfaceSummary reports the process surface, how many tools its
+// tools/list advertises, and the size in bytes of the marshaled tools/list
+// result. cmd/mcp-server logs it once at startup so an operator can confirm
+// which surface a deployment serves and what it costs a client.
+func (s *Server) ToolSurfaceSummary() (surface router.Surface, count int, bytes int) {
+	surface = s.surface
+	if surface == "" {
+		surface = router.SurfaceFull
+	}
+	tools := router.Advertise(s.tools, surface)
+	raw, err := json.Marshal(mcpToolsListResult{Tools: tools})
+	if err != nil {
+		return surface, len(tools), 0
+	}
+	return surface, len(tools), len(raw)
 }
