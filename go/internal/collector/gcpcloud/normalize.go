@@ -3,16 +3,11 @@
 
 package gcpcloud
 
-import "strings"
+import (
+	"strings"
 
-// unknownLabel is the bounded fallback used when a normalized telemetry-safe
-// value cannot be derived. It keeps metric labels low cardinality and avoids
-// leaking raw provider input.
-const unknownLabel = "unknown"
-
-// globalLocation is the normalized location bucket for resources with no
-// provider-reported region or zone.
-const globalLocation = "global"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
+)
 
 // Ancestry is the normalized Cloud Asset Inventory ancestor chain for one
 // resource. ProjectNumber, FolderNumbers, and OrganizationNumber are extracted
@@ -37,15 +32,15 @@ type Ancestry struct {
 func AssetTypeFamily(assetType string) string {
 	trimmed := strings.TrimSpace(assetType)
 	if trimmed == "" {
-		return unknownLabel
+		return catalog.UnknownLabel
 	}
 	host, _, ok := strings.Cut(trimmed, "/")
 	if !ok || host == "" {
-		return unknownLabel
+		return catalog.UnknownLabel
 	}
 	service, _, found := strings.Cut(host, ".")
 	if !found || service == "" {
-		return unknownLabel
+		return catalog.UnknownLabel
 	}
 	return strings.ToLower(service)
 }
@@ -55,7 +50,7 @@ func AssetTypeFamily(assetType string) string {
 func LocationBucket(location string) string {
 	trimmed := strings.TrimSpace(location)
 	if trimmed == "" {
-		return globalLocation
+		return catalog.GlobalLocation
 	}
 	return strings.ToLower(trimmed)
 }

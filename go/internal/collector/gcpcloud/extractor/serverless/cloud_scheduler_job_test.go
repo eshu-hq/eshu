@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -61,7 +62,7 @@ func TestExtractCloudSchedulerJobPubsubTarget(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly the topic edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSchedulerJobTargetsTopic, topic, extractor.AssetTypePubSubTopic)
+	assertRelationship(t, got.Relationships, relationshipTypeSchedulerJobTargetsTopic, topic, catalog.AssetTypePubSubTopic)
 	blob, _ := json.Marshal(got)
 	if containsString(string(blob), "c2VjcmV0LXNob3VsZC1ub3QtbGVhaw==") {
 		t.Fatalf("pubsub payload leaked: %s", blob)

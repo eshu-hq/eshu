@@ -8,13 +8,9 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
-
-// serviceAccountAssetType is the Cloud Asset Inventory asset type for a GCP IAM
-// service account. Trust bindings on this resource become
-// gcp_iam_trust_policy facts.
-const serviceAccountAssetType = "iam.googleapis.com/ServiceAccount"
 
 // gcpBroadRoles is the bounded set of primitive roles whose grant to a service
 // account is broad-privilege posture evidence. Predefined fine-grained roles are
@@ -199,14 +195,14 @@ func (g *Generation) gcpTrustPolicyEnvelopes(
 }
 
 func gcpTrustModeForBinding(obs ResourceObservation, role string) string {
-	if strings.TrimSpace(obs.AssetType) != serviceAccountAssetType {
+	if strings.TrimSpace(obs.AssetType) != catalog.ServiceAccountAssetType {
 		return ""
 	}
 	return gcpServiceAccountImpersonationRoles[strings.TrimSpace(role)]
 }
 
 func gcpServiceAccountEmailForResource(obs ResourceObservation) string {
-	if strings.TrimSpace(obs.AssetType) != serviceAccountAssetType {
+	if strings.TrimSpace(obs.AssetType) != catalog.ServiceAccountAssetType {
 		return ""
 	}
 	if email := strings.ToLower(strings.TrimSpace(obs.ServiceAccountEmail)); email != "" {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func TestTriggerValidateAcceptsBoundedTarget(t *testing.T) {
@@ -16,8 +17,8 @@ func TestTriggerValidateAcceptsBoundedTarget(t *testing.T) {
 
 	trigger := Trigger{
 		EventID:         "evt-123",
-		Kind:            EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "demo-project",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1-a",
@@ -45,8 +46,8 @@ func TestTriggerValidateRejectsWildcardAndUnknownScope(t *testing.T) {
 			name: "wildcard parent scope id",
 			trigger: Trigger{
 				EventID:         "evt-1",
-				Kind:            EventKindAssetChange,
-				ParentScopeKind: gcpcloud.ParentScopeProject,
+				Kind:            catalog.EventKindAssetChange,
+				ParentScopeKind: catalog.ParentScopeProject,
 				ParentScopeID:   "*",
 				AssetType:       "compute.googleapis.com/Instance",
 				ObservedAt:      observedAt,
@@ -57,7 +58,7 @@ func TestTriggerValidateRejectsWildcardAndUnknownScope(t *testing.T) {
 			name: "unknown parent scope kind",
 			trigger: Trigger{
 				EventID:         "evt-2",
-				Kind:            EventKindAssetChange,
+				Kind:            catalog.EventKindAssetChange,
 				ParentScopeKind: gcpcloud.ParentScopeKind("unknown"),
 				ParentScopeID:   "demo-project",
 				AssetType:       "compute.googleapis.com/Instance",
@@ -68,8 +69,8 @@ func TestTriggerValidateRejectsWildcardAndUnknownScope(t *testing.T) {
 		{
 			name: "missing event id",
 			trigger: Trigger{
-				Kind:            EventKindAssetChange,
-				ParentScopeKind: gcpcloud.ParentScopeProject,
+				Kind:            catalog.EventKindAssetChange,
+				ParentScopeKind: catalog.ParentScopeProject,
 				ParentScopeID:   "demo-project",
 				AssetType:       "compute.googleapis.com/Instance",
 				ObservedAt:      observedAt,
@@ -80,8 +81,8 @@ func TestTriggerValidateRejectsWildcardAndUnknownScope(t *testing.T) {
 			name: "missing asset type",
 			trigger: Trigger{
 				EventID:         "evt-3",
-				Kind:            EventKindAssetChange,
-				ParentScopeKind: gcpcloud.ParentScopeProject,
+				Kind:            catalog.EventKindAssetChange,
+				ParentScopeKind: catalog.ParentScopeProject,
 				ParentScopeID:   "demo-project",
 				ObservedAt:      observedAt,
 			},
@@ -91,8 +92,8 @@ func TestTriggerValidateRejectsWildcardAndUnknownScope(t *testing.T) {
 			name: "zero observed at",
 			trigger: Trigger{
 				EventID:         "evt-4",
-				Kind:            EventKindAssetChange,
-				ParentScopeKind: gcpcloud.ParentScopeProject,
+				Kind:            catalog.EventKindAssetChange,
+				ParentScopeKind: catalog.ParentScopeProject,
 				ParentScopeID:   "demo-project",
 				AssetType:       "compute.googleapis.com/Instance",
 			},
@@ -121,8 +122,8 @@ func TestStoredTriggerKeysCoalesceByTarget(t *testing.T) {
 	observedAt := time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC)
 	first := Trigger{
 		EventID:         "evt-1",
-		Kind:            EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "demo-project",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1-a",

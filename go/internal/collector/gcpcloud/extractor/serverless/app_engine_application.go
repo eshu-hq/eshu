@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -19,7 +20,7 @@ const assetTypeAppEngineApplication = "appengine.googleapis.com/Application"
 // relationshipTypeAppEngineApplicationUsesDefaultBucket is the bounded typed
 // relationship from an App Engine Application to its default GCS staging bucket.
 // The bucket target is built with the canonical CAI Bucket prefix
-// extractor.StorageBucketResourceNamePrefixFmt (shared with the other collector extractors
+// catalog.StorageBucketResourceNamePrefixFmt (shared with the other collector extractors
 // and fixtures) so the endpoint resolves exactly during materialization.
 const relationshipTypeAppEngineApplicationUsesDefaultBucket = "application_uses_default_bucket"
 
@@ -85,15 +86,15 @@ func extractAppEngineApplication(ctx extractor.ExtractContext) (extractor.Attrib
 	var anchors []string
 	var rels []extractor.RelationshipObservation
 	if bucketName != "" {
-		bucketFullName := extractor.StorageBucketResourceNamePrefixFmt + bucketName
+		bucketFullName := catalog.StorageBucketResourceNamePrefixFmt + bucketName
 		anchors = append(anchors, bucketFullName)
 		rels = append(rels, extractor.RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
 			RelationshipType:       relationshipTypeAppEngineApplicationUsesDefaultBucket,
 			TargetFullResourceName: bucketFullName,
-			TargetAssetType:        extractor.AssetTypeStorageBucket,
-			SupportState:           extractor.RelationshipSupportSupported,
+			TargetAssetType:        catalog.AssetTypeStorageBucket,
+			SupportState:           catalog.RelationshipSupportSupported,
 		})
 	}
 

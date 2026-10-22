@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -76,9 +77,9 @@ func extractCloudFunctionV1(ctx extractor.ExtractContext) (extractor.AttributeEx
 		anchors = append(anchors, saDigest)
 	}
 	if bucket := cloudFunctionArchiveBucket(data.SourceArchiveURL); bucket != "" {
-		full := extractor.StorageBucketResourceNamePrefixFmt + bucket
+		full := catalog.StorageBucketResourceNamePrefixFmt + bucket
 		anchors = append(anchors, full)
-		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionSourceBucket, full, extractor.AssetTypeStorageBucket))
+		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionSourceBucket, full, catalog.AssetTypeStorageBucket))
 	}
 	if connector := cloudFunctionConnectorFullName(ctx.FullResourceName, data.VPCConnector); connector != "" {
 		anchors = append(anchors, connector)
@@ -86,12 +87,12 @@ func extractCloudFunctionV1(ctx extractor.ExtractContext) (extractor.AttributeEx
 	}
 	for _, secret := range cloudFunctionV1SecretFullNames(ctx.ProjectID, data) {
 		anchors = append(anchors, secret)
-		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionMountsSecret, secret, extractor.SecretManagerSecretAssetType))
+		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionMountsSecret, secret, catalog.SecretManagerSecretAssetType))
 	}
 	if data.EventTrigger != nil {
 		if topic := extractor.SecretManagerTopicFullName(data.EventTrigger.Resource); topic != "" {
 			anchors = append(anchors, topic)
-			rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionTriggeredByTopic, topic, extractor.AssetTypePubSubTopic))
+			rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionTriggeredByTopic, topic, catalog.AssetTypePubSubTopic))
 		}
 	}
 

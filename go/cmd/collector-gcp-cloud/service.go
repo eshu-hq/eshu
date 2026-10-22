@@ -22,6 +22,7 @@ import (
 	// Blank import: the serverless extractor group self-registers its asset
 	// types from init functions. Without this import the binary silently
 	// drops serverless typed depth (see TestServerlessExtractorsRegistered).
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor/serverless"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/gcpruntime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -169,7 +170,7 @@ func pollInterval(cfg gcpruntime.Config) time.Duration {
 	if cfg.PollInterval > 0 {
 		return cfg.PollInterval
 	}
-	return gcpruntime.DefaultPollInterval
+	return catalog.DefaultPollInterval
 }
 
 // buildCassetteService constructs the GCP cloud collector service from a

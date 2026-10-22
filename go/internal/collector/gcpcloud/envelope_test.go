@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -19,7 +20,7 @@ import (
 func testBoundary() Boundary {
 	return Boundary{
 		CollectorInstanceID: "gcp-instance-1",
-		ParentScopeKind:     ParentScopeProject,
+		ParentScopeKind:     catalog.ParentScopeProject,
 		ParentScopeID:       "my-project",
 		AssetTypeFamily:     "compute",
 		ContentFamily:       "resource",
@@ -57,8 +58,8 @@ func TestNewCloudResourceEnvelope(t *testing.T) {
 	if env.SchemaVersion != cloud.GCPCloudResourceSchemaVersion {
 		t.Fatalf("SchemaVersion = %q", env.SchemaVersion)
 	}
-	if env.CollectorKind != CollectorKind {
-		t.Fatalf("CollectorKind = %q, want %q", env.CollectorKind, CollectorKind)
+	if env.CollectorKind != catalog.CollectorKind {
+		t.Fatalf("CollectorKind = %q, want %q", env.CollectorKind, catalog.CollectorKind)
 	}
 	if env.SourceConfidence != facts.SourceConfidenceReported {
 		t.Fatalf("SourceConfidence = %q, want reported", env.SourceConfidence)
@@ -82,7 +83,7 @@ func TestNewCloudResourceEnvelope(t *testing.T) {
 	if payload["organization_number"] != "9988" {
 		t.Fatalf("organization_number = %v", payload["organization_number"])
 	}
-	if payload["redaction_policy_version"] != RedactionPolicyVersion {
+	if payload["redaction_policy_version"] != catalog.RedactionPolicyVersion {
 		t.Fatalf("redaction_policy_version = %v", payload["redaction_policy_version"])
 	}
 	ext, ok := payload["extension"].(map[string]any)
@@ -190,8 +191,8 @@ func TestGCPEnvelopePayloadsMatchFactschemaDirectMapJSON(t *testing.T) {
 
 	warningObs := WarningObservation{
 		Boundary:    boundary,
-		WarningKind: WarningKindPartialPermission,
-		Outcome:     OutcomePartial,
+		WarningKind: catalog.WarningKindPartialPermission,
+		Outcome:     catalog.OutcomePartial,
 		Reason:      "missing roles/cloudasset.viewer on folder",
 		Retryable:   false,
 		HiddenCount: 3,
@@ -249,7 +250,7 @@ func expectedResourcePayload(boundary Boundary, obs ResourceObservation, key red
 			"read_time":                timeOrNil(boundary.ReadTime),
 			"update_time":              timeOrNil(updateTime),
 			"update_time_present":      !updateTime.IsZero(),
-			"redaction_policy_version": RedactionPolicyVersion,
+			"redaction_policy_version": catalog.RedactionPolicyVersion,
 			"extension":                extensionObject(obs),
 			"attributes":               cloneAnyMap(obs.Attributes),
 			"correlation_anchors":      cloneStrings(obs.CorrelationAnchors),
@@ -294,8 +295,8 @@ func assertSameJSON(t *testing.T, got, want map[string]any) {
 func TestNewCollectionWarningEnvelope(t *testing.T) {
 	obs := WarningObservation{
 		Boundary:    testBoundary(),
-		WarningKind: WarningKindPartialPermission,
-		Outcome:     OutcomePartial,
+		WarningKind: catalog.WarningKindPartialPermission,
+		Outcome:     catalog.OutcomePartial,
 		Reason:      "missing roles/cloudasset.viewer on folder",
 		Retryable:   false,
 		HiddenCount: 3,
@@ -307,10 +308,10 @@ func TestNewCollectionWarningEnvelope(t *testing.T) {
 	if env.FactKind != cloud.GCPCollectionWarningFactKind {
 		t.Fatalf("FactKind = %q", env.FactKind)
 	}
-	if env.Payload["warning_kind"] != WarningKindPartialPermission {
+	if env.Payload["warning_kind"] != catalog.WarningKindPartialPermission {
 		t.Fatalf("warning_kind = %v", env.Payload["warning_kind"])
 	}
-	if env.Payload["outcome"] != OutcomePartial {
+	if env.Payload["outcome"] != catalog.OutcomePartial {
 		t.Fatalf("outcome = %v", env.Payload["outcome"])
 	}
 	if env.Payload["hidden_count"] != 3 {
@@ -320,13 +321,13 @@ func TestNewCollectionWarningEnvelope(t *testing.T) {
 
 func TestCollectionWarningValidation(t *testing.T) {
 	t.Run("invalid warning kind", func(t *testing.T) {
-		obs := WarningObservation{Boundary: testBoundary(), WarningKind: "nope", Outcome: OutcomePartial}
+		obs := WarningObservation{Boundary: testBoundary(), WarningKind: "nope", Outcome: catalog.OutcomePartial}
 		if _, err := NewCollectionWarningEnvelope(obs); err == nil {
 			t.Fatal("want error for invalid warning kind")
 		}
 	})
 	t.Run("invalid outcome", func(t *testing.T) {
-		obs := WarningObservation{Boundary: testBoundary(), WarningKind: WarningKindQuota, Outcome: "nope"}
+		obs := WarningObservation{Boundary: testBoundary(), WarningKind: catalog.WarningKindQuota, Outcome: "nope"}
 		if _, err := NewCollectionWarningEnvelope(obs); err == nil {
 			t.Fatal("want error for invalid outcome")
 		}

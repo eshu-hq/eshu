@@ -10,13 +10,14 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
 // assetTypeRunRevision is the CAI asset type for a Cloud Run Revision. The VPC
 // connector and Secret Manager endpoints reuse the asset-type constants and
 // full-resource-name builders declared by the Cloud Run Service extractor in
-// this package; the parent Service endpoint reuses extractor.AssetTypeRunService.
+// this package; the parent Service endpoint reuses catalog.AssetTypeRunService.
 const assetTypeRunRevision = "run.googleapis.com/Revision"
 
 const revisionsPathSegment = "/revisions/"
@@ -102,7 +103,7 @@ func extractRunRevision(ctx extractor.ExtractContext) (extractor.AttributeExtrac
 	var rels []extractor.RelationshipObservation
 	if parent := runRevisionParentServiceFullName(ctx.FullResourceName); parent != "" {
 		anchors = append(anchors, parent)
-		rels = append(rels, runRevisionEdge(ctx, relationshipTypeRevisionOfService, parent, extractor.AssetTypeRunService))
+		rels = append(rels, runRevisionEdge(ctx, relationshipTypeRevisionOfService, parent, catalog.AssetTypeRunService))
 	}
 	if saDigest != "" {
 		anchors = append(anchors, saDigest)
@@ -118,7 +119,7 @@ func extractRunRevision(ctx extractor.ExtractContext) (extractor.AttributeExtrac
 	}
 	for _, secret := range runRevisionSecretFullNames(ctx.ProjectID, data) {
 		anchors = append(anchors, secret)
-		rels = append(rels, runRevisionEdge(ctx, relationshipTypeRevisionMountsSecret, secret, extractor.SecretManagerSecretAssetType))
+		rels = append(rels, runRevisionEdge(ctx, relationshipTypeRevisionMountsSecret, secret, catalog.SecretManagerSecretAssetType))
 	}
 
 	return extractor.AttributeExtraction{
@@ -329,6 +330,6 @@ func runRevisionEdge(ctx extractor.ExtractContext, relationshipType, targetName,
 		RelationshipType:       relationshipType,
 		TargetFullResourceName: targetName,
 		TargetAssetType:        targetType,
-		SupportState:           extractor.RelationshipSupportSupported,
+		SupportState:           catalog.RelationshipSupportSupported,
 	}
 }

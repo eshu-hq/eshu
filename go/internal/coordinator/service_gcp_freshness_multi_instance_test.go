@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -67,8 +67,8 @@ func TestServiceRunActiveModeFansOutGCPFreshnessTriggerAcrossMultipleInstances(t
 	now := time.Date(2026, time.July, 3, 6, 0, 0, 0, time.UTC)
 	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
 		EventID:         "event-1",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "project-alpha",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1",
@@ -185,8 +185,8 @@ func TestServiceRunActiveModeCoalescesGCPFreshnessTriggersForSameInstance(t *tes
 	now := time.Date(2026, time.July, 3, 6, 30, 0, 0, time.UTC)
 	triggerAlpha, err := freshness.NewStoredTrigger(freshness.Trigger{
 		EventID:         "event-alpha",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "project-alpha",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1",
@@ -197,8 +197,8 @@ func TestServiceRunActiveModeCoalescesGCPFreshnessTriggersForSameInstance(t *tes
 	}
 	triggerBeta, err := freshness.NewStoredTrigger(freshness.Trigger{
 		EventID:         "event-beta",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "project-beta",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1",

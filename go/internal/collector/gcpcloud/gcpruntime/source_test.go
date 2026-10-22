@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -55,7 +56,7 @@ func readFixturePage(t *testing.T, name string) gcpcloud.AssetsListPage {
 
 func testScope() ScopeConfig {
 	return ScopeConfig{
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "my-project",
 		AssetTypeFamily: "mixed",
 		ContentFamily:   "resource",
@@ -277,8 +278,8 @@ func TestSourceStaleGenerationEmitsWarning(t *testing.T) {
 	if got := countKind(envs, cloud.GCPCollectionWarningFactKind); got != 1 {
 		t.Fatalf("stale warning fact count = %d, want 1", got)
 	}
-	if envs[0].Payload["warning_kind"] != gcpcloud.WarningKindStale {
-		t.Fatalf("warning_kind = %v, want %q", envs[0].Payload["warning_kind"], gcpcloud.WarningKindStale)
+	if envs[0].Payload["warning_kind"] != catalog.WarningKindStale {
+		t.Fatalf("warning_kind = %v, want %q", envs[0].Payload["warning_kind"], catalog.WarningKindStale)
 	}
 }
 
@@ -318,8 +319,8 @@ func TestSourcePageTokenExpiredWarning(t *testing.T) {
 func TestSourceProviderWarningEmitsCollectionWarning(t *testing.T) {
 	src := newSource(t, testConfig(testScope()), warningProvider{
 		warning: ProviderWarning{
-			WarningKind: gcpcloud.WarningKindQuota,
-			Outcome:     gcpcloud.OutcomeUnavailable,
+			WarningKind: catalog.WarningKindQuota,
+			Outcome:     catalog.OutcomeUnavailable,
 			Reason:      "cloud asset inventory throttle exhausted",
 			Retryable:   true,
 		},
@@ -334,10 +335,10 @@ func TestSourceProviderWarningEmitsCollectionWarning(t *testing.T) {
 		t.Fatalf("resource facts = %d, want 0", got)
 	}
 	warning := firstEnvelopeKind(t, envs, cloud.GCPCollectionWarningFactKind)
-	if warning.Payload["warning_kind"] != gcpcloud.WarningKindQuota {
+	if warning.Payload["warning_kind"] != catalog.WarningKindQuota {
 		t.Fatalf("warning_kind = %v, want quota", warning.Payload["warning_kind"])
 	}
-	if warning.Payload["outcome"] != gcpcloud.OutcomeUnavailable {
+	if warning.Payload["outcome"] != catalog.OutcomeUnavailable {
 		t.Fatalf("outcome = %v, want unavailable", warning.Payload["outcome"])
 	}
 	if warning.Payload["retryable"] != true {
@@ -390,12 +391,12 @@ func TestSourceRejectsInvalidConfig(t *testing.T) {
 		"no instance": {Scopes: []ScopeConfig{testScope()}},
 		"no scopes":   {CollectorInstanceID: "gcp-instance-1"},
 		"no credential": testConfig(ScopeConfig{
-			ParentScopeKind: gcpcloud.ParentScopeProject,
+			ParentScopeKind: catalog.ParentScopeProject,
 			ParentScopeID:   "p",
 			FencingToken:    1,
 		}),
 		"bad fencing token": testConfig(ScopeConfig{
-			ParentScopeKind: gcpcloud.ParentScopeProject,
+			ParentScopeKind: catalog.ParentScopeProject,
 			ParentScopeID:   "p",
 			CredentialRef:   "ref",
 		}),

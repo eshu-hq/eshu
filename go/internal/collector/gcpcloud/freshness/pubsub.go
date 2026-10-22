@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 // ErrWelcomeMessage is returned when a Pub/Sub push delivery carries the
@@ -91,10 +91,10 @@ func NormalizePubSubPush(payload []byte) (Trigger, error) {
 		return Trigger{}, fmt.Errorf("decode Cloud Asset Inventory TemporalAsset payload: %w", err)
 	}
 
-	kind := EventKindAssetChange
+	kind := catalog.EventKindAssetChange
 	asset := feed.Asset
 	if feed.Deleted {
-		kind = EventKindAssetDeleted
+		kind = catalog.EventKindAssetDeleted
 		if asset == nil {
 			asset = feed.PriorAsset
 		}
@@ -133,7 +133,7 @@ func NormalizePubSubPush(payload []byte) (Trigger, error) {
 // ancestors list, for example
 // ["projects/123456789012", "folders/999", "organizations/1"]. The most
 // specific ancestor (index 0) wins.
-func parentScopeFromAncestors(ancestors []string) (gcpcloud.ParentScopeKind, string, error) {
+func parentScopeFromAncestors(ancestors []string) (catalog.ParentScopeKind, string, error) {
 	for _, ancestor := range ancestors {
 		ancestor = strings.TrimSpace(ancestor)
 		kind, id, ok := strings.Cut(ancestor, "/")
@@ -142,11 +142,11 @@ func parentScopeFromAncestors(ancestors []string) (gcpcloud.ParentScopeKind, str
 		}
 		switch kind {
 		case "projects":
-			return gcpcloud.ParentScopeProject, id, nil
+			return catalog.ParentScopeProject, id, nil
 		case "folders":
-			return gcpcloud.ParentScopeFolder, id, nil
+			return catalog.ParentScopeFolder, id, nil
 		case "organizations":
-			return gcpcloud.ParentScopeOrganization, id, nil
+			return catalog.ParentScopeOrganization, id, nil
 		}
 	}
 	return "", "", fmt.Errorf("gcp freshness: ancestors carry no parseable parent scope")

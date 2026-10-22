@@ -4,22 +4,26 @@
 package gcpcloud
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
-// Compat aliases for the extractor shared foundation (issue #6696, wave 1).
+// Compat aliases for the extractor shared foundation (issue #6696, wave 1,
+// slice L).
 //
 // The registry, claim boundary, relationship observation, and shared extractor
 // helpers moved to the extractor leaf package so extractor group subpackages
 // (starting with extractor/serverless) can depend on them without importing
-// this root package. These aliases keep every unmoved caller in this package
-// compiling unchanged; each entry names the leaf owner. Delete an entry once
-// its last caller moves out of the root (see extractor/AGENTS.md).
+// this root package. The shared constants those helpers and every extractor
+// file need moved on to the catalog leaf in slice L, so the aliases below
+// now name the catalog owner. These aliases keep every unmoved caller in this
+// package compiling unchanged; each entry names the leaf owner. Delete an
+// entry once its last caller moves out of the root (see extractor/AGENTS.md).
 //
 // Type aliases preserve identity, so exported signatures and facts payloads
 // are unchanged; const and func aliases preserve values and behavior.
 
-// Claim boundary and scope (see extractor/bounds.go).
+// Claim boundary and scope (see extractor/bounds.go and the catalog leaf).
 type (
 	// Boundary is the durable scope-generation and claim identity shared by
 	// all facts emitted for one GCP collector claim.
@@ -27,15 +31,6 @@ type (
 	// ParentScopeKind enumerates the CAI parent scope kinds a GCP collector
 	// claim can shard by.
 	ParentScopeKind = extractor.ParentScopeKind
-)
-
-const (
-	// ParentScopeOrganization is an organization-level CAI parent scope.
-	ParentScopeOrganization = extractor.ParentScopeOrganization
-	// ParentScopeFolder is a folder-level CAI parent scope.
-	ParentScopeFolder = extractor.ParentScopeFolder
-	// ParentScopeProject is a project-level CAI parent scope.
-	ParentScopeProject = extractor.ParentScopeProject
 )
 
 // Extractor registry and dispatch (see extractor/registry.go).
@@ -77,13 +72,13 @@ type (
 const (
 	// RelationshipSupportSupported means the provider returned a complete
 	// relationship between two resources.
-	RelationshipSupportSupported = extractor.RelationshipSupportSupported
+	RelationshipSupportSupported = catalog.RelationshipSupportSupported
 	// RelationshipSupportPartial means the relationship was observed but the
 	// target is opaque or outside the readable boundary.
-	RelationshipSupportPartial = extractor.RelationshipSupportPartial
+	RelationshipSupportPartial = catalog.RelationshipSupportPartial
 	// RelationshipSupportUnsupported means the relationship type or tier is
 	// not fully supported.
-	RelationshipSupportUnsupported = extractor.RelationshipSupportUnsupported
+	RelationshipSupportUnsupported = catalog.RelationshipSupportUnsupported
 )
 
 // Shared extractor helpers (see extractor/shared.go).
@@ -109,44 +104,42 @@ var (
 // extractor/names.go).
 const (
 	// assetTypeKMSCryptoKey is the CAI asset type for a Cloud KMS CryptoKey.
-	assetTypeKMSCryptoKey = extractor.AssetTypeKMSCryptoKey
+	assetTypeKMSCryptoKey = catalog.AssetTypeKMSCryptoKey
 	// assetTypeStorageBucket is the CAI asset type for a Cloud Storage bucket.
-	assetTypeStorageBucket = extractor.AssetTypeStorageBucket
+	assetTypeStorageBucket = catalog.AssetTypeStorageBucket
 	// assetTypeRunService is the CAI asset type for a Cloud Run service.
-	assetTypeRunService = extractor.AssetTypeRunService
-	// assetTypeRunJob is the CAI asset type for a Cloud Run job.
-	assetTypeRunJob = extractor.AssetTypeRunJob
+	assetTypeRunService = catalog.AssetTypeRunService
 	// assetTypeGKECluster is the CAI asset type for a GKE cluster.
-	assetTypeGKECluster = extractor.AssetTypeGKECluster
+	assetTypeGKECluster = catalog.AssetTypeGKECluster
 	// assetTypeComputeNetwork is the CAI asset type for a Compute Engine VPC
 	// network.
-	assetTypeComputeNetwork = extractor.AssetTypeComputeNetwork
+	assetTypeComputeNetwork = catalog.AssetTypeComputeNetwork
 	// assetTypeComputeSubnetwork is the CAI asset type for a Compute Engine
 	// subnetwork.
-	assetTypeComputeSubnetwork = extractor.AssetTypeComputeSubnetwork
+	assetTypeComputeSubnetwork = catalog.AssetTypeComputeSubnetwork
 	// assetTypePubSubTopic is the CAI asset type for a Pub/Sub topic.
-	assetTypePubSubTopic = extractor.AssetTypePubSubTopic
+	assetTypePubSubTopic = catalog.AssetTypePubSubTopic
 	// secretManagerSecretAssetType is the CAI asset type for a Secret Manager
 	// secret.
-	secretManagerSecretAssetType = extractor.SecretManagerSecretAssetType
+	secretManagerSecretAssetType = catalog.SecretManagerSecretAssetType
 	// cloudKMSResourceNamePrefix is the CAI full-resource-name prefix for
 	// Cloud KMS keys.
-	cloudKMSResourceNamePrefix = extractor.CloudKMSResourceNamePrefix
+	cloudKMSResourceNamePrefix = catalog.CloudKMSResourceNamePrefix
 	// storageBucketResourceNamePrefixFmt builds a bucket full resource name
 	// by concatenation.
-	storageBucketResourceNamePrefixFmt = extractor.StorageBucketResourceNamePrefixFmt
+	storageBucketResourceNamePrefixFmt = catalog.StorageBucketResourceNamePrefixFmt
 	// computeResourceNamePrefix is the CAI full-resource-name prefix for
 	// Compute Engine resources.
-	computeResourceNamePrefix = extractor.ComputeResourceNamePrefix
+	computeResourceNamePrefix = catalog.ComputeResourceNamePrefix
 	// pubSubResourceNamePrefix is the CAI full-resource-name prefix for
 	// Pub/Sub resources.
-	pubSubResourceNamePrefix = extractor.PubSubResourceNamePrefix
+	pubSubResourceNamePrefix = catalog.PubSubResourceNamePrefix
 	// runServiceResourceNamePrefix is the CAI full-resource-name prefix for
 	// Cloud Run services.
-	runServiceResourceNamePrefix = extractor.RunServiceResourceNamePrefix
+	runServiceResourceNamePrefix = catalog.RunServiceResourceNamePrefix
 	// defaultServiceAccountSentinel is the GKE API's sentinel value for "use
 	// the default service account".
-	defaultServiceAccountSentinel = extractor.DefaultServiceAccountSentinel
+	defaultServiceAccountSentinel = catalog.DefaultServiceAccountSentinel
 )
 
 // Cross-group resource-name builders (see extractor/names.go).

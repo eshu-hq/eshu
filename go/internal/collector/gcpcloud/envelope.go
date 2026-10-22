@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -15,12 +16,8 @@ import (
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
-// ExtensionSchemaVersionDefault is the default provider-specific extension
-// schema version stamped on a gcp_cloud_resource fact when the observation does
-// not supply its own version. The extension object is versioned independently
-// from the fact schema so safe control-plane metadata can evolve without a fact
-// schema bump.
-const ExtensionSchemaVersionDefault = "1.0.0"
+// The constructor below stamps the default provider-specific extension schema
+// version from the catalog leaf (#6696 slice L).
 
 // NewCloudResourceEnvelope builds the durable gcp_cloud_resource fact for one
 // Cloud Asset Inventory resource observation.
@@ -84,7 +81,7 @@ func NewCloudResourceEnvelope(boundary Boundary, obs ResourceObservation, key re
 		"read_time":                timeOrNil(boundary.ReadTime),
 		"update_time":              timeOrNil(updateTime),
 		"update_time_present":      !updateTime.IsZero(),
-		"redaction_policy_version": RedactionPolicyVersion,
+		"redaction_policy_version": catalog.RedactionPolicyVersion,
 		"extension":                extensionObject(obs),
 		"attributes":               cloneAnyMap(obs.Attributes),
 		"correlation_anchors":      cloneStrings(obs.CorrelationAnchors),
@@ -184,13 +181,13 @@ func newEnvelope(
 		FactKind:         factKind,
 		StableFactKey:    stableKey,
 		SchemaVersion:    schemaVersion,
-		CollectorKind:    CollectorKind,
+		CollectorKind:    catalog.CollectorKind,
 		FencingToken:     boundary.FencingToken,
 		SourceConfidence: facts.SourceConfidenceReported,
 		ObservedAt:       observedAt,
 		Payload:          payload,
 		SourceRef: facts.Ref{
-			SourceSystem:   CollectorKind,
+			SourceSystem:   catalog.CollectorKind,
 			ScopeID:        boundary.ScopeID,
 			GenerationID:   boundary.GenerationID,
 			FactKey:        stableKey,
@@ -231,7 +228,7 @@ func validateBoundary(boundary Boundary) error {
 func extensionObject(obs ResourceObservation) map[string]any {
 	version := strings.TrimSpace(obs.ExtensionVersion)
 	if version == "" {
-		version = ExtensionSchemaVersionDefault
+		version = catalog.ExtensionSchemaVersionDefault
 	}
 	ext := map[string]any{"schema_version": version}
 	for k, v := range obs.Extension {

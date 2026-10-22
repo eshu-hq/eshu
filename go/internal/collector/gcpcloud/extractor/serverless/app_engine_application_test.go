@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -60,7 +61,7 @@ func TestExtractAppEngineApplicationFullResource(t *testing.T) {
 		t.Fatalf("expected 1 bucket edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
 	assertRelationship(t, got.Relationships, relationshipTypeAppEngineApplicationUsesDefaultBucket,
-		"//storage.googleapis.com/projects/_/buckets/staging.demo-project.appspot.com", extractor.AssetTypeStorageBucket)
+		"//storage.googleapis.com/projects/_/buckets/staging.demo-project.appspot.com", catalog.AssetTypeStorageBucket)
 
 	wantAnchors := []string{"//storage.googleapis.com/projects/_/buckets/staging.demo-project.appspot.com"}
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {

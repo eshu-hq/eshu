@@ -9,11 +9,12 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
 // assetTypeWorkflowsWorkflow is the Cloud Asset Inventory asset type for a
-// Workflows Workflow. extractor.AssetTypeKMSCryptoKey and extractor.CloudKMSResourceNamePrefix are
+// Workflows Workflow. catalog.AssetTypeKMSCryptoKey and catalog.CloudKMSResourceNamePrefix are
 // shared constants declared by the BigQuery Table extractor and reused here for
 // the CMEK edge.
 const assetTypeWorkflowsWorkflow = "workflows.googleapis.com/Workflow"
@@ -91,9 +92,9 @@ func extractWorkflowsWorkflow(ctx extractor.ExtractContext) (extractor.Attribute
 	}
 
 	if kmsName := workflowsWorkflowKMSKeyFullName(data.CryptoKeyName, ctx.ProjectID); kmsName != "" {
-		attrs["crypto_key_name"] = strings.TrimPrefix(kmsName, extractor.CloudKMSResourceNamePrefix)
+		attrs["crypto_key_name"] = strings.TrimPrefix(kmsName, catalog.CloudKMSResourceNamePrefix)
 		anchors = append(anchors, kmsName)
-		rels = append(rels, workflowsWorkflowEdge(ctx, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, kmsName, extractor.AssetTypeKMSCryptoKey))
+		rels = append(rels, workflowsWorkflowEdge(ctx, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, kmsName, catalog.AssetTypeKMSCryptoKey))
 	}
 
 	return extractor.AttributeExtraction{
@@ -181,7 +182,7 @@ func workflowsWorkflowKMSKeyFullName(cryptoKeyName, sourceProjectID string) stri
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {
-		if strings.HasPrefix(trimmed, extractor.CloudKMSResourceNamePrefix) {
+		if strings.HasPrefix(trimmed, catalog.CloudKMSResourceNamePrefix) {
 			return trimmed
 		}
 		return ""
@@ -204,7 +205,7 @@ func workflowsWorkflowKMSKeyFullName(cryptoKeyName, sourceProjectID string) stri
 
 	if strings.HasPrefix(trimmed, "projects/") && strings.Contains(trimmed, "/locations/") &&
 		strings.Contains(trimmed, "/keyRings/") && strings.Contains(trimmed, "/cryptoKeys/") {
-		return extractor.CloudKMSResourceNamePrefix + trimmed
+		return catalog.CloudKMSResourceNamePrefix + trimmed
 	}
 	return ""
 }
@@ -218,6 +219,6 @@ func workflowsWorkflowEdge(ctx extractor.ExtractContext, relationshipType, targe
 		RelationshipType:       relationshipType,
 		TargetFullResourceName: targetName,
 		TargetAssetType:        targetType,
-		SupportState:           extractor.RelationshipSupportSupported,
+		SupportState:           catalog.RelationshipSupportSupported,
 	}
 }

@@ -9,11 +9,12 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
 // assetTypeCloudSchedulerJob is the CAI asset type for a Cloud Scheduler job. Its
-// Pub/Sub target edge reuses extractor.AssetTypePubSubTopic and the shared topic builder.
+// Pub/Sub target edge reuses catalog.AssetTypePubSubTopic and the shared topic builder.
 const assetTypeCloudSchedulerJob = "cloudscheduler.googleapis.com/Job"
 
 // relationshipTypeSchedulerJobTargetsTopic is the bounded provider relationship
@@ -85,7 +86,7 @@ func extractCloudSchedulerJob(ctx extractor.ExtractContext) (extractor.Attribute
 	if data.PubsubTarget != nil {
 		if topic := extractor.PubSubTopicRefFullName(data.PubsubTarget.TopicName); topic != "" {
 			anchors = append(anchors, topic)
-			rels = append(rels, cloudSchedulerJobEdge(ctx, relationshipTypeSchedulerJobTargetsTopic, topic, extractor.AssetTypePubSubTopic))
+			rels = append(rels, cloudSchedulerJobEdge(ctx, relationshipTypeSchedulerJobTargetsTopic, topic, catalog.AssetTypePubSubTopic))
 		}
 	}
 
@@ -195,6 +196,6 @@ func cloudSchedulerJobEdge(ctx extractor.ExtractContext, relationshipType, targe
 		RelationshipType:       relationshipType,
 		TargetFullResourceName: targetName,
 		TargetAssetType:        targetType,
-		SupportState:           extractor.RelationshipSupportSupported,
+		SupportState:           catalog.RelationshipSupportSupported,
 	}
 }

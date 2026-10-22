@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func TestLiveClientFetchPageUsesBoundedAssetsListRequest(t *testing.T) {
@@ -48,7 +48,7 @@ func TestLiveClientFetchPageUsesBoundedAssetsListRequest(t *testing.T) {
 		TokenSource: staticTokenSource("live-token"),
 		HTTPClient:  server.Client(),
 		Endpoint:    server.URL,
-		PageSize:    MaxLivePageSize + 50,
+		PageSize:    catalog.MaxLivePageSize + 50,
 	}
 
 	page, err := client.FetchPage(context.Background(), PageRequest{Scope: scopeCfg, PageToken: "PAGE"})
@@ -146,13 +146,13 @@ func TestLiveClientFetchTagPageUsesBoundedResourceManagerRequest(t *testing.T) {
 		TokenSource:             staticTokenSource("live-token"),
 		HTTPClient:              server.Client(),
 		ResourceManagerEndpoint: server.URL,
-		TagPageSize:             MaxLiveTagPageSize + 1,
+		TagPageSize:             catalog.MaxLiveTagPageSize + 1,
 	}
 	page, err := client.FetchTagPage(context.Background(), TagRequest{
 		Scope:            testScope().withDefaults(),
 		FullResourceName: "//compute.googleapis.com/projects/sanitized-project/zones/us-central1-a/instances/api-1",
 		AssetType:        "compute.googleapis.com/Instance",
-		SourceKind:       TagSourceKindDirect,
+		SourceKind:       catalog.TagSourceKindDirect,
 		PageToken:        "PAGE",
 	})
 	if err != nil {
@@ -198,7 +198,7 @@ func TestLiveClientFetchEffectiveTagPageKeepsInheritanceState(t *testing.T) {
 		Scope:            testScope().withDefaults(),
 		FullResourceName: "//compute.googleapis.com/projects/sanitized-project/zones/us-central1-a/instances/api-1",
 		AssetType:        "compute.googleapis.com/Instance",
-		SourceKind:       TagSourceKindEffective,
+		SourceKind:       catalog.TagSourceKindEffective,
 	})
 	if err != nil {
 		t.Fatalf("FetchTagPage: %v", err)
@@ -230,7 +230,7 @@ func TestLiveClientTagThrottleRetriesThenWarns(t *testing.T) {
 		Scope:            testScope().withDefaults(),
 		FullResourceName: "//compute.googleapis.com/projects/sanitized-project/zones/us-central1-a/instances/api-1",
 		AssetType:        "compute.googleapis.com/Instance",
-		SourceKind:       TagSourceKindDirect,
+		SourceKind:       catalog.TagSourceKindDirect,
 	})
 	if err == nil {
 		t.Fatal("FetchTagPage returned nil error, want quota warning")
@@ -239,7 +239,7 @@ func TestLiveClientTagThrottleRetriesThenWarns(t *testing.T) {
 	if !errors.As(err, &warning) {
 		t.Fatalf("err = %T, want ProviderWarning", err)
 	}
-	if warning.WarningKind != gcpcloud.WarningKindQuota {
+	if warning.WarningKind != catalog.WarningKindQuota {
 		t.Fatalf("warning kind = %q, want quota", warning.WarningKind)
 	}
 	if attempts != 2 {
@@ -251,8 +251,8 @@ func TestLiveClientTagThrottleRetriesThenWarns(t *testing.T) {
 }
 
 func TestNewADCLiveClientUsesAssetsListOAuthScope(t *testing.T) {
-	if CloudAssetInventoryOAuthScope != "https://www.googleapis.com/auth/cloud-platform" {
-		t.Fatalf("CloudAssetInventoryOAuthScope = %q, want assets.list OAuth scope", CloudAssetInventoryOAuthScope)
+	if catalog.CloudAssetInventoryOAuthScope != "https://www.googleapis.com/auth/cloud-platform" {
+		t.Fatalf("catalog.CloudAssetInventoryOAuthScope = %q, want assets.list OAuth scope", catalog.CloudAssetInventoryOAuthScope)
 	}
 }
 
@@ -305,7 +305,7 @@ func TestLiveClientRejectsUnsupportedAssetFamilyBeforeRequest(t *testing.T) {
 	if !errors.As(err, &warning) {
 		t.Fatalf("err = %T, want ProviderWarning", err)
 	}
-	if warning.WarningKind != gcpcloud.WarningKindUnsupported {
+	if warning.WarningKind != catalog.WarningKindUnsupported {
 		t.Fatalf("warning kind = %q, want unsupported", warning.WarningKind)
 	}
 	if requests != 0 {
@@ -376,7 +376,7 @@ func TestLiveClientClassifiesPermissionWithoutResponseBody(t *testing.T) {
 	if !errors.As(err, &warning) {
 		t.Fatalf("err = %T, want ProviderWarning", err)
 	}
-	if warning.WarningKind != gcpcloud.WarningKindPartialPermission {
+	if warning.WarningKind != catalog.WarningKindPartialPermission {
 		t.Fatalf("warning kind = %q, want partial permission", warning.WarningKind)
 	}
 	if strings.Contains(err.Error(), "response-body-canary") {
@@ -419,7 +419,7 @@ func TestLiveClientClassifiesUnavailableSeparatelyFromQuota(t *testing.T) {
 	if !errors.As(err, &warning) {
 		t.Fatalf("err = %T, want ProviderWarning", err)
 	}
-	if warning.WarningKind != gcpcloud.WarningKindUnavailable {
+	if warning.WarningKind != catalog.WarningKindUnavailable {
 		t.Fatalf("warning kind = %q, want unavailable", warning.WarningKind)
 	}
 	if strings.Contains(err.Error(), "transient provider body") {

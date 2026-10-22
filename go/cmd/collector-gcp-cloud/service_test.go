@@ -14,6 +14,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/gcpruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -85,7 +86,7 @@ func TestStatusCommitterWritesFactsAndRecordsClaim(t *testing.T) {
 
 	scopeValue := scope.IngestionScope{
 		ScopeID:       "gcp:project:my-project:mixed:resource:global",
-		SourceSystem:  gcpcloud.CollectorKind,
+		SourceSystem:  catalog.CollectorKind,
 		ScopeKind:     scope.KindAccount,
 		CollectorKind: scope.CollectorGCP,
 		PartitionKey:  "gcp:project:my-project:mixed:resource:global",

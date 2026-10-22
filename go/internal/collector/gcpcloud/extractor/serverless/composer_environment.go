@@ -9,16 +9,17 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
 // assetTypeComposerEnvironment is the Cloud Asset Inventory asset type for a
 // Cloud Composer environment. Its edge targets reuse asset-type constants and
-// helpers already declared elsewhere in this package: extractor.AssetTypeGKECluster (GKE
-// Cluster extractor), extractor.AssetTypeComputeNetwork / extractor.AssetTypeComputeSubnetwork and
-// extractor.ComputeFullResourceNameFromSelfLink (Compute extractors), extractor.AssetTypeStorageBucket,
-// extractor.StorageBucketResourceNamePrefixFmt, and extractor.GCSBucketFromURI (BigQuery Table
-// extractor), and extractor.AssetTypeKMSCryptoKey and the strict-domain
+// helpers already declared elsewhere in this package: catalog.AssetTypeGKECluster (GKE
+// Cluster extractor), catalog.AssetTypeComputeNetwork / catalog.AssetTypeComputeSubnetwork and
+// extractor.ComputeFullResourceNameFromSelfLink (Compute extractors), catalog.AssetTypeStorageBucket,
+// catalog.StorageBucketResourceNamePrefixFmt, and extractor.GCSBucketFromURI (BigQuery Table
+// extractor), and catalog.AssetTypeKMSCryptoKey and the strict-domain
 // extractor.CMEKKeyFullResourceName (shared.go).
 const assetTypeComposerEnvironment = "composer.googleapis.com/Environment"
 
@@ -120,16 +121,16 @@ func extractComposerEnvironment(ctx extractor.ExtractContext) (extractor.Attribu
 	if cfg != nil {
 		if cluster := composerGKEClusterFullName(cfg.GKECluster); cluster != "" {
 			anchors = append(anchors, cluster)
-			rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentUsesGKECluster, cluster, extractor.AssetTypeGKECluster))
+			rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentUsesGKECluster, cluster, catalog.AssetTypeGKECluster))
 		}
 		if nc := cfg.NodeConfig; nc != nil {
 			if net := composerNetworkFullName(nc.Network, ctx.ProjectID); net != "" {
 				anchors = append(anchors, net)
-				rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentUsesNetwork, net, extractor.AssetTypeComputeNetwork))
+				rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentUsesNetwork, net, catalog.AssetTypeComputeNetwork))
 			}
 			if subnet := composerSubnetworkFullName(nc.Subnetwork, ctx.ProjectID); subnet != "" {
 				anchors = append(anchors, subnet)
-				rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentUsesSubnetwork, subnet, extractor.AssetTypeComputeSubnetwork))
+				rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentUsesSubnetwork, subnet, catalog.AssetTypeComputeSubnetwork))
 			}
 			if fp := composerServiceAccountFingerprint(nc.ServiceAccount); fp != "" {
 				anchors = append(anchors, fp)
@@ -138,14 +139,14 @@ func extractComposerEnvironment(ctx extractor.ExtractContext) (extractor.Attribu
 		if enc := cfg.EncryptionConfig; enc != nil {
 			if kms := extractor.CMEKKeyFullResourceName(enc.KMSKeyName); kms != "" {
 				anchors = append(anchors, kms)
-				rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentEncryptedByKMSKey, kms, extractor.AssetTypeKMSCryptoKey))
+				rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentEncryptedByKMSKey, kms, catalog.AssetTypeKMSCryptoKey))
 			}
 		}
 	}
 	if bucket := composerDAGBucketName(data); bucket != "" {
-		name := extractor.StorageBucketResourceNamePrefixFmt + bucket
+		name := catalog.StorageBucketResourceNamePrefixFmt + bucket
 		anchors = append(anchors, name)
-		rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentUsesDAGBucket, name, extractor.AssetTypeStorageBucket))
+		rels = append(rels, composerEnvironmentEdge(ctx, relationshipTypeComposerEnvironmentUsesDAGBucket, name, catalog.AssetTypeStorageBucket))
 	}
 
 	return extractor.AttributeExtraction{
@@ -215,14 +216,14 @@ func composerEnvironmentAttributes(data composerEnvironmentData) map[string]any 
 // anchored, since it does not identify a specific service account.
 func composerServiceAccountFingerprint(email string) string {
 	trimmed := strings.TrimSpace(email)
-	if trimmed == "" || strings.EqualFold(trimmed, extractor.DefaultServiceAccountSentinel) {
+	if trimmed == "" || strings.EqualFold(trimmed, catalog.DefaultServiceAccountSentinel) {
 		return ""
 	}
 	return posture.GCPServiceAccountEmailDigest(trimmed)
 }
 
 // gkeClusterResourceNamePrefix is the CAI full-resource-name prefix for the
-// GKE Cluster asset type's own hostname (extractor.AssetTypeGKECluster is
+// GKE Cluster asset type's own hostname (catalog.AssetTypeGKECluster is
 // "container.googleapis.com/Cluster" — the asset *type*, not the CAI resource
 // hostname prefix used to build a full resource name).
 const gkeClusterResourceNamePrefix = "//container.googleapis.com/"
@@ -307,6 +308,6 @@ func composerEnvironmentEdge(ctx extractor.ExtractContext, relationshipType, tar
 		RelationshipType:       relationshipType,
 		TargetFullResourceName: targetName,
 		TargetAssetType:        targetType,
-		SupportState:           extractor.RelationshipSupportSupported,
+		SupportState:           catalog.RelationshipSupportSupported,
 	}
 }

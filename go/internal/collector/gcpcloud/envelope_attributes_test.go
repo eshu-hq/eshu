@@ -15,7 +15,7 @@ import (
 func attributesTestBoundary() Boundary {
 	return Boundary{
 		CollectorInstanceID: "collector-1",
-		ParentScopeKind:     ParentScopeProject,
+		ParentScopeKind:     catalog.ParentScopeProject,
 		ParentScopeID:       "demo-project",
 		AssetTypeFamily:     "bigquery",
 		ContentFamily:       "resource",

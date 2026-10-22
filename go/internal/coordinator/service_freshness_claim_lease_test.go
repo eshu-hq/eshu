@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
-	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	gcpcatalog "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
@@ -166,8 +166,8 @@ func TestScheduleGCPFreshnessWorkContinuesPastOneAssignmentFailure(t *testing.T)
 	now := time.Date(2026, time.July, 4, 9, 30, 0, 0, time.UTC)
 	failingTrigger, err := gcpfreshness.NewStoredTrigger(gcpfreshness.Trigger{
 		EventID:         "event-fail",
-		Kind:            gcpfreshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            gcpcatalog.EventKindAssetChange,
+		ParentScopeKind: gcpcatalog.ParentScopeProject,
 		ParentScopeID:   "project-fail",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1",
@@ -178,8 +178,8 @@ func TestScheduleGCPFreshnessWorkContinuesPastOneAssignmentFailure(t *testing.T)
 	}
 	okTrigger, err := gcpfreshness.NewStoredTrigger(gcpfreshness.Trigger{
 		EventID:         "event-ok",
-		Kind:            gcpfreshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            gcpcatalog.EventKindAssetChange,
+		ParentScopeKind: gcpcatalog.ParentScopeProject,
 		ParentScopeID:   "project-ok",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1",
@@ -365,8 +365,8 @@ func TestRunReapExpiredGCPFreshnessClaimsRecordsMetricsAndReclaims(t *testing.T)
 	now := time.Date(2026, time.July, 4, 11, 0, 0, 0, time.UTC)
 	reclaimed, err := gcpfreshness.NewStoredTrigger(gcpfreshness.Trigger{
 		EventID:         "event-reclaimed",
-		Kind:            gcpfreshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            gcpcatalog.EventKindAssetChange,
+		ParentScopeKind: gcpcatalog.ParentScopeProject,
 		ParentScopeID:   "project-alpha",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1-a",

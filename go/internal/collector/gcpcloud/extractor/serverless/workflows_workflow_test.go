@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -80,7 +81,7 @@ func TestExtractWorkflowsWorkflowActiveWithServiceAccountAndCMEK(t *testing.T) {
 	}
 
 	wantKMSName := "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/workflow-key"
-	assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, extractor.AssetTypeKMSCryptoKey)
+	assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, catalog.AssetTypeKMSCryptoKey)
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly 1 relationship (kms), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
@@ -149,7 +150,7 @@ func TestExtractWorkflowsWorkflowKMSKeyAlreadyPrefixedIsNotDoublePrefixed(t *tes
 		t.Fatalf("unexpected error: %v", err)
 	}
 	wantKMSName := "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/workflow-key"
-	assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, extractor.AssetTypeKMSCryptoKey)
+	assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, catalog.AssetTypeKMSCryptoKey)
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly 1 relationship, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
@@ -176,7 +177,7 @@ func TestExtractWorkflowsWorkflowKMSKeyProjectInferredForms(t *testing.T) {
 		if got.Attributes["crypto_key_name"] != "projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/workflow-key" {
 			t.Errorf("crypto_key_name = %v, want the project-qualified relative name", got.Attributes["crypto_key_name"])
 		}
-		assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, extractor.AssetTypeKMSCryptoKey)
+		assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, catalog.AssetTypeKMSCryptoKey)
 		if len(got.Relationships) != 1 {
 			t.Fatalf("expected exactly 1 relationship, got %d: %#v", len(got.Relationships), got.Relationships)
 		}
@@ -191,7 +192,7 @@ func TestExtractWorkflowsWorkflowKMSKeyProjectInferredForms(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, extractor.AssetTypeKMSCryptoKey)
+		assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, catalog.AssetTypeKMSCryptoKey)
 		if len(got.Relationships) != 1 {
 			t.Fatalf("expected exactly 1 relationship, got %d: %#v", len(got.Relationships), got.Relationships)
 		}
@@ -206,7 +207,7 @@ func TestExtractWorkflowsWorkflowKMSKeyProjectInferredForms(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, extractor.AssetTypeKMSCryptoKey)
+		assertRelationship(t, got.Relationships, relationshipTypeWorkflowsWorkflowEncryptedByKMSKey, wantKMSName, catalog.AssetTypeKMSCryptoKey)
 		if len(got.Relationships) != 1 {
 			t.Fatalf("expected exactly 1 relationship, got %d: %#v", len(got.Relationships), got.Relationships)
 		}

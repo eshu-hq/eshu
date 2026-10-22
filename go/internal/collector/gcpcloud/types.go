@@ -5,9 +5,6 @@ package gcpcloud
 
 import "time"
 
-// CollectorKind is the durable collector_kind value for GCP cloud facts.
-const CollectorKind = "gcp"
-
 // ResourceObservation describes one Cloud Asset Inventory resource asset before
 // normalization and redaction.
 //

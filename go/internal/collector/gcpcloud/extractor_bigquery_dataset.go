@@ -273,7 +273,7 @@ func datasetAccessMemberClass(entry bigQueryDatasetAccessEntry) string {
 	case entry.View != nil || entry.Dataset != nil || entry.Routine != nil:
 		return "view"
 	default:
-		return unknownLabel
+		return catalog.UnknownLabel
 	}
 }
 

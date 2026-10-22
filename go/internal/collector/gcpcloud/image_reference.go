@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -15,15 +16,7 @@ import (
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
-// Image reference confidence classifies how strongly an image reference is
-// anchored. Digest-anchored evidence is required before the reducer admits image
-// evidence into deployment or vulnerability paths.
-const (
-	// ImageConfidenceDigest means the reference is anchored to a content digest.
-	ImageConfidenceDigest = "digest"
-	// ImageConfidenceTag means the reference is tag-only (lower confidence).
-	ImageConfidenceTag = "tag"
-)
+// Image reference confidence lives in the catalog leaf (#6696, slice L).
 
 // ImageReferenceObservation is one runtime image reference observed on a GCP
 // compute resource (GKE, Cloud Run, Compute Engine, ...). The collector keeps the
@@ -75,9 +68,9 @@ func NewImageReferenceEnvelope(obs ImageReferenceObservation, key redact.Key) (f
 		return facts.Envelope{}, fmt.Errorf("gcp image reference observation requires an image reference or digest")
 	}
 
-	confidence := ImageConfidenceTag
+	confidence := catalog.ImageConfidenceTag
 	if imageDigest != "" || strings.Contains(imageReference, "@sha256:") {
-		confidence = ImageConfidenceDigest
+		confidence = catalog.ImageConfidenceDigest
 	}
 
 	stableKey := facts.StableID(cloud.GCPImageReferenceFactKind, map[string]any{
@@ -94,7 +87,7 @@ func NewImageReferenceEnvelope(obs ImageReferenceObservation, key redact.Key) (f
 		OwningProjectID:        &projectID,
 		ImageReference:         &imageReference,
 		ImageDigest:            &imageDigest,
-		RedactionPolicyVersion: stringPtr(RedactionPolicyVersion),
+		RedactionPolicyVersion: stringPtr(catalog.RedactionPolicyVersion),
 	})
 	if err != nil {
 		return facts.Envelope{}, fmt.Errorf("encode gcp_image_reference payload: %w", err)

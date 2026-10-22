@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	factsidentity "github.com/eshu-hq/eshu/go/internal/facts/identity"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -38,7 +39,7 @@ func testSecretIAMResourceObservation() ResourceObservation {
 func testServiceAccountTrustObservation() ResourceObservation {
 	return ResourceObservation{
 		Name:                "//iam.googleapis.com/projects/demo-proj/serviceAccounts/app@demo-proj.iam.gserviceaccount.com",
-		AssetType:           serviceAccountAssetType,
+		AssetType:           catalog.ServiceAccountAssetType,
 		Location:            "global",
 		ServiceAccountEmail: "app@demo-proj.iam.gserviceaccount.com",
 		Ancestors:           []string{"projects/123456789"},

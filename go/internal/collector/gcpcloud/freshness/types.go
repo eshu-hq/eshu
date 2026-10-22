@@ -9,33 +9,19 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // EventKind identifies the normalized GCP Cloud Asset Inventory (CAI) signal
-// family.
-type EventKind string
+// family. It lives in the catalog leaf (#6696, slice L); the alias keeps
+// every existing freshness type reference compiling unchanged.
+type EventKind = catalog.EventKind
 
-const (
-	// EventKindAssetChange represents a CAI asset create or update signal.
-	EventKindAssetChange EventKind = "asset_change"
-	// EventKindAssetDeleted represents a CAI asset deletion signal.
-	EventKindAssetDeleted EventKind = "asset_deleted"
-)
-
-// TriggerStatus describes durable GCP freshness trigger handoff state.
-type TriggerStatus string
-
-const (
-	// TriggerStatusQueued means the trigger is waiting for workflow handoff.
-	TriggerStatusQueued TriggerStatus = "queued"
-	// TriggerStatusClaimed means a handoff actor owns the trigger row.
-	TriggerStatusClaimed TriggerStatus = "claimed"
-	// TriggerStatusHandedOff means workflow work items were created.
-	TriggerStatusHandedOff TriggerStatus = "handed_off"
-	// TriggerStatusFailed means handoff failed and needs operator attention.
-	TriggerStatusFailed TriggerStatus = "failed"
-)
+// TriggerStatus describes durable GCP freshness trigger handoff state. It
+// lives in the catalog leaf (#6696, slice L); the alias keeps every existing
+// freshness type reference compiling unchanged.
+type TriggerStatus = catalog.TriggerStatus
 
 // Trigger is one normalized GCP freshness event targeted at a scan tuple.
 type Trigger struct {
@@ -84,7 +70,7 @@ func (t Trigger) Validate() error {
 		return fmt.Errorf("gcp freshness trigger requires event_id")
 	}
 	switch t.Kind {
-	case EventKindAssetChange, EventKindAssetDeleted:
+	case catalog.EventKindAssetChange, catalog.EventKindAssetDeleted:
 	default:
 		return fmt.Errorf("unsupported gcp freshness event kind %q", t.Kind)
 	}
@@ -139,7 +125,7 @@ func NewStoredTrigger(trigger Trigger, receivedAt time.Time) (StoredTrigger, err
 		TriggerID:    facts.StableID("GCPFreshnessTrigger", map[string]any{"freshness_key": freshnessKey}),
 		DeliveryKey:  deliveryKey,
 		FreshnessKey: freshnessKey,
-		Status:       TriggerStatusQueued,
+		Status:       catalog.TriggerStatusQueued,
 		ReceivedAt:   receivedAt.UTC(),
 		UpdatedAt:    receivedAt.UTC(),
 	}, nil

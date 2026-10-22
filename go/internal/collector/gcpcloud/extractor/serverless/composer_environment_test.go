@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -95,15 +96,15 @@ func TestExtractComposerEnvironmentFullConfig(t *testing.T) {
 	}
 
 	assertRelationship(t, got.Relationships, relationshipTypeComposerEnvironmentUsesGKECluster,
-		"//container.googleapis.com/projects/demo-project/locations/us-central1/clusters/us-central1-prod-abcd1234-gke", extractor.AssetTypeGKECluster)
+		"//container.googleapis.com/projects/demo-project/locations/us-central1/clusters/us-central1-prod-abcd1234-gke", catalog.AssetTypeGKECluster)
 	assertRelationship(t, got.Relationships, relationshipTypeComposerEnvironmentUsesDAGBucket,
-		"//storage.googleapis.com/projects/_/buckets/us-central1-prod-abcd1234-bucket", extractor.AssetTypeStorageBucket)
+		"//storage.googleapis.com/projects/_/buckets/us-central1-prod-abcd1234-bucket", catalog.AssetTypeStorageBucket)
 	assertRelationship(t, got.Relationships, relationshipTypeComposerEnvironmentUsesNetwork,
-		"//compute.googleapis.com/projects/demo-project/global/networks/vpc-main", extractor.AssetTypeComputeNetwork)
+		"//compute.googleapis.com/projects/demo-project/global/networks/vpc-main", catalog.AssetTypeComputeNetwork)
 	assertRelationship(t, got.Relationships, relationshipTypeComposerEnvironmentUsesSubnetwork,
-		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/sub-main", extractor.AssetTypeComputeSubnetwork)
+		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/sub-main", catalog.AssetTypeComputeSubnetwork)
 	assertRelationship(t, got.Relationships, relationshipTypeComposerEnvironmentEncryptedByKMSKey,
-		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/composer-ring/cryptoKeys/composer-key", extractor.AssetTypeKMSCryptoKey)
+		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/composer-ring/cryptoKeys/composer-key", catalog.AssetTypeKMSCryptoKey)
 	if len(got.Relationships) != 5 {
 		t.Fatalf("expected 5 relationships, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
@@ -132,7 +133,7 @@ func TestExtractComposerEnvironmentBareGKEClusterAndDagPrefixFallbackToStorageCo
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertRelationship(t, got.Relationships, relationshipTypeComposerEnvironmentUsesDAGBucket,
-		"//storage.googleapis.com/projects/_/buckets/composer3-bucket", extractor.AssetTypeStorageBucket)
+		"//storage.googleapis.com/projects/_/buckets/composer3-bucket", catalog.AssetTypeStorageBucket)
 }
 
 func TestExtractComposerEnvironmentDagGcsPrefixTakesPrecedenceOverStorageConfig(t *testing.T) {
@@ -145,7 +146,7 @@ func TestExtractComposerEnvironmentDagGcsPrefixTakesPrecedenceOverStorageConfig(
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertRelationship(t, got.Relationships, relationshipTypeComposerEnvironmentUsesDAGBucket,
-		"//storage.googleapis.com/projects/_/buckets/dag-bucket", extractor.AssetTypeStorageBucket)
+		"//storage.googleapis.com/projects/_/buckets/dag-bucket", catalog.AssetTypeStorageBucket)
 	for _, rel := range got.Relationships {
 		if rel.RelationshipType == relationshipTypeComposerEnvironmentUsesDAGBucket && rel.TargetFullResourceName == "//storage.googleapis.com/projects/_/buckets/other-bucket" {
 			t.Fatalf("expected dagGcsPrefix to take precedence over storageConfig.bucket")
@@ -213,7 +214,7 @@ func TestExtractComposerEnvironmentNonGsSchemeDagPrefixFallsBackToStorageConfig(
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertRelationship(t, got.Relationships, relationshipTypeComposerEnvironmentUsesDAGBucket,
-		"//storage.googleapis.com/projects/_/buckets/fallback-bucket", extractor.AssetTypeStorageBucket)
+		"//storage.googleapis.com/projects/_/buckets/fallback-bucket", catalog.AssetTypeStorageBucket)
 	for _, rel := range got.Relationships {
 		if rel.RelationshipType == relationshipTypeComposerEnvironmentUsesDAGBucket &&
 			rel.TargetFullResourceName != "//storage.googleapis.com/projects/_/buckets/fallback-bucket" {

@@ -67,7 +67,7 @@ func TestExtractServiceAccountKeyFullResource(t *testing.T) {
 		t.Fatalf("expected 1 parent SA edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
 	assertRelationship(t, got.Relationships, catalog.RelationshipTypeServiceAccountKeyOf,
-		serviceAccountKeyParent, serviceAccountAssetType)
+		serviceAccountKeyParent, catalog.ServiceAccountAssetType)
 	rel := got.Relationships[0]
 	if rel.SourceFullResourceName != serviceAccountKeyFullName {
 		t.Errorf("relationship source = %q, want key full name", rel.SourceFullResourceName)

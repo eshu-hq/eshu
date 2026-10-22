@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -123,7 +124,7 @@ func extractCloudFunction(ctx extractor.ExtractContext) (extractor.AttributeExtr
 	}
 	if bucket := cloudFunctionSourceBucketFullName(data); bucket != "" {
 		anchors = append(anchors, bucket)
-		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionSourceBucket, bucket, extractor.AssetTypeStorageBucket))
+		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionSourceBucket, bucket, catalog.AssetTypeStorageBucket))
 	}
 	if connector := cloudFunctionConnectorFullName(ctx.FullResourceName, cloudFunctionVPCConnector(data)); connector != "" {
 		anchors = append(anchors, connector)
@@ -131,11 +132,11 @@ func extractCloudFunction(ctx extractor.ExtractContext) (extractor.AttributeExtr
 	}
 	for _, secret := range cloudFunctionSecretFullNames(ctx.ProjectID, data) {
 		anchors = append(anchors, secret)
-		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionMountsSecret, secret, extractor.SecretManagerSecretAssetType))
+		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionMountsSecret, secret, catalog.SecretManagerSecretAssetType))
 	}
 	if topic := cloudFunctionTriggerTopicFullName(data); topic != "" {
 		anchors = append(anchors, topic)
-		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionTriggeredByTopic, topic, extractor.AssetTypePubSubTopic))
+		rels = append(rels, cloudFunctionEdge(ctx, relationshipTypeFunctionTriggeredByTopic, topic, catalog.AssetTypePubSubTopic))
 	}
 
 	return extractor.AttributeExtraction{
@@ -317,7 +318,7 @@ func cloudFunctionSourceBucketFullName(data cloudFunctionData) string {
 	if bucket == "" {
 		return ""
 	}
-	return extractor.StorageBucketResourceNamePrefixFmt + bucket
+	return catalog.StorageBucketResourceNamePrefixFmt + bucket
 }
 
 // cloudFunctionArchiveBucket extracts the bucket name from a gs://bucket/object
@@ -357,6 +358,6 @@ func cloudFunctionEdge(ctx extractor.ExtractContext, relationshipType, targetNam
 		RelationshipType:       relationshipType,
 		TargetFullResourceName: targetName,
 		TargetAssetType:        targetType,
-		SupportState:           extractor.RelationshipSupportSupported,
+		SupportState:           catalog.RelationshipSupportSupported,
 	}
 }

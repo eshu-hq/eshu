@@ -53,13 +53,49 @@ telemetry row, or emission path touched. Safe because the compiler
 resolves every reference identically before and after — comments carry
 no runtime meaning.
 
+L opener: this note records the lane L move of the shared/root/runtime
+constant families (83 string, numeric, and duration constants across 17
+families in 23 files: the gcpcloud root shared files, the extractor shared
+leaf, `gcpruntime/*`, and `freshness/types.go`) into this leaf as
+`gcp_shared.go` and `gcp_runtime.go` (#6696), verbatim apart from the export
+(unexported names are capitalized at the new home). The `ParentScopeKind`,
+`EventKind`, and `TriggerStatus` types move with their constants; the
+extractor and freshness leaves keep type aliases.
+
+No-Regression Evidence (gcp-l slice): the consolidation moves declarations
+only — every value is pinned byte-identical by
+`TestLConstantsMatchGCPCloudValues` (83/83) in `catalog/gcp_l_test.go`, and
+`go test` across the gcpcloud tree plus `go build ./...` are green after the
+repoint (referencing files change only the qualifier to `catalog.`, plus the
+leaf import). Baseline: the pre-move values read from the base tree for each
+of the 23 files. Backend/version: none — a pure compile-time constant
+relocation with no query, graph write, queue, lease, worker, batching, or
+Compose/Helm change, so there are no row counts to regress; the input shape
+is the fixed 83-symbol set. Safe because the Go compiler resolves every
+moved reference, the value-pinning test fails on any drift, and the retired
+compat aliases are compiler-verified at zero references.
+
+No-Observability-Change (gcp-l slice): the leaf declares no instrument and
+runs no stage; collector emission stays covered by
+`eshu_dp_gcp_cloud_attribute_extractions_total`,
+`eshu_dp_gcp_cloud_facts_emitted_total`, and the freshness
+`eshu_dp_gcp_freshness_events_total` rows
+(`docs/public/observability/telemetry-coverage.md`).
+
 ## Ownership boundary
 
 Owns the compute- and security-family CAI asset-type, relationship-type,
 full-resource-name-prefix, and path-marker string constants only. It does not
 own extractors, the extractor registry, claim boundaries, redaction,
 envelopes, or graph truth — those stay in `gcpcloud`, `gcpcloud/extractor`,
-and the reducer. It must never import `gcpcloud`, `gcpcloud/extractor`, any
+and the reducer. It also owns the shared/root/runtime string, numeric, and
+duration constants (claim boundary and scope, relationship support, warnings,
+claim/extraction outcomes, collector kind, redaction, observation bounds,
+live-client and tag-provider runtime bounds, freshness event kinds and
+trigger states) — types, envelopes, redaction, live fetching, freshness
+storage, and graph truth stay in `gcpcloud`, `gcpcloud/extractor` (and its
+group subpackages), `gcpcloud/gcpruntime`, `gcpcloud/freshness`, and the
+reducer. It must never import `gcpcloud`, `gcpcloud/extractor`, any
 extractor group package, or a cloud SDK: any of those reintroduces the cycle
 this package exists to avoid.
 
@@ -95,12 +131,37 @@ this package exists to avoid.
 - `AwsDefaultAttributeMappingKeyCount` — Workload Identity Pool provider
   default attribute-mapping key count (the only int constant)
 
+- `ParentScopeKind`, `ParentScopeOrganization`, `ParentScopeFolder`,
+  `ParentScopeProject` — claim parent scope kinds (in `gcp_shared.go`)
+- `RelationshipSupportSupported`, `RelationshipSupportPartial`,
+  `RelationshipSupportUnsupported` — provider relationship support states
+- `WarningKind*`, `Outcome*` — bounded warning kinds and source outcomes
+- `ClaimStatus*`, `ExtractionOutcome*` — claim lifecycle and extraction
+  outcome enums
+- `CollectorKind`, `ExtensionSchemaVersionDefault`, `RedactionPolicyVersion`,
+  `RedactionReason*`, `UnknownLabel`, `GlobalLocation`, `MaxDNSRecordTargets`,
+  `MaxIAMPolicyMembers`, `ImageConfidence*`, `TagSourceKindLabel` —
+  fact identity, redaction, and observation bounds
+- `CloudAssetInventoryEndpoint`, `CloudAssetInventoryOAuthScope`,
+  `CloudResourceManagerEndpoint`, `DefaultLivePageSize`, `MaxLivePageSize`,
+  `DefaultLiveResponseBytes`, `DefaultLiveRequestTimeout`,
+  `DefaultLiveMaxAttempts`, `DefaultLiveTagPageSize`, `MaxLiveTagPageSize`,
+  `TagBindingsSourceURI`, `EffectiveTagsSourceURI`, `TagSourceKind*`,
+  `TagInheritance*`, `DefaultPollInterval` — live API and runtime bounds (in
+  `gcp_runtime.go`)
+- `EventKind`, `EventKindAssetChange`, `EventKindAssetDeleted`,
+  `TriggerStatus`, `TriggerStatusQueued`, `TriggerStatusClaimed`,
+  `TriggerStatusHandedOff`, `TriggerStatusFailed` — freshness signal family
+  and handoff states
+
 See `doc.go` for the full godoc contract.
 
 ## Dependencies
 
-None. This package imports only the Go standard library — by construction it
-has no dependency to list, which is what keeps the leaf acyclic.
+None beyond the Go standard library — by construction it has no other
+dependency to list, which is what keeps the leaf acyclic (`gcp_runtime.go`
+imports `time` for the live-request and poll bounds; every other value is a
+string, int, or duration literal).
 
 ## Telemetry
 
@@ -161,3 +222,5 @@ any drift, and the catalog leaf holds only string constants.
 - `../AGENTS.md` — the gcpcloud source-fact contract and invariants this
   leaf serves
 - `../extractor/AGENTS.md` — the sibling extractor-leaf precedent (wave 1)
+- `docs/public/observability/telemetry-coverage.md`
+- Issue #6696 (consolidation checklist) and epic #6692 (target tree)

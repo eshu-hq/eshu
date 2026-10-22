@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func readFixture(t *testing.T, name string) []byte {
@@ -107,7 +109,7 @@ func TestParseAssetsListPageServiceAccountEmail(t *testing.T) {
 
 	var serviceAccount ResourceObservation
 	for _, resource := range page.Resources {
-		if resource.AssetType == serviceAccountAssetType {
+		if resource.AssetType == catalog.ServiceAccountAssetType {
 			serviceAccount = resource
 			break
 		}

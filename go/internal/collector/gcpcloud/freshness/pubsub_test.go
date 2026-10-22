@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func temporalAssetPushEnvelope(t *testing.T, data string) []byte {
@@ -56,11 +56,11 @@ func TestNormalizePubSubPushAcceptsAssetChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizePubSubPush() error = %v, want nil", err)
 	}
-	if trigger.Kind != EventKindAssetChange {
-		t.Fatalf("Kind = %q, want %q", trigger.Kind, EventKindAssetChange)
+	if trigger.Kind != catalog.EventKindAssetChange {
+		t.Fatalf("Kind = %q, want %q", trigger.Kind, catalog.EventKindAssetChange)
 	}
-	if trigger.ParentScopeKind != gcpcloud.ParentScopeProject {
-		t.Fatalf("ParentScopeKind = %q, want %q", trigger.ParentScopeKind, gcpcloud.ParentScopeProject)
+	if trigger.ParentScopeKind != catalog.ParentScopeProject {
+		t.Fatalf("ParentScopeKind = %q, want %q", trigger.ParentScopeKind, catalog.ParentScopeProject)
 	}
 	if trigger.ParentScopeID != "123456789012" {
 		t.Fatalf("ParentScopeID = %q, want %q", trigger.ParentScopeID, "123456789012")
@@ -100,8 +100,8 @@ func TestNormalizePubSubPushAcceptsAssetDeleted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizePubSubPush() error = %v, want nil", err)
 	}
-	if trigger.Kind != EventKindAssetDeleted {
-		t.Fatalf("Kind = %q, want %q", trigger.Kind, EventKindAssetDeleted)
+	if trigger.Kind != catalog.EventKindAssetDeleted {
+		t.Fatalf("Kind = %q, want %q", trigger.Kind, catalog.EventKindAssetDeleted)
 	}
 	if trigger.ParentScopeID != "123456789012" {
 		t.Fatalf("ParentScopeID = %q, want %q", trigger.ParentScopeID, "123456789012")
@@ -127,8 +127,8 @@ func TestNormalizePubSubPushDerivesFolderScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizePubSubPush() error = %v, want nil", err)
 	}
-	if trigger.ParentScopeKind != gcpcloud.ParentScopeFolder {
-		t.Fatalf("ParentScopeKind = %q, want %q", trigger.ParentScopeKind, gcpcloud.ParentScopeFolder)
+	if trigger.ParentScopeKind != catalog.ParentScopeFolder {
+		t.Fatalf("ParentScopeKind = %q, want %q", trigger.ParentScopeKind, catalog.ParentScopeFolder)
 	}
 	if trigger.ParentScopeID != "999" {
 		t.Fatalf("ParentScopeID = %q, want %q", trigger.ParentScopeID, "999")
@@ -157,8 +157,8 @@ func TestNormalizePubSubPushDerivesOrganizationScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizePubSubPush() error = %v, want nil", err)
 	}
-	if trigger.ParentScopeKind != gcpcloud.ParentScopeOrganization {
-		t.Fatalf("ParentScopeKind = %q, want %q", trigger.ParentScopeKind, gcpcloud.ParentScopeOrganization)
+	if trigger.ParentScopeKind != catalog.ParentScopeOrganization {
+		t.Fatalf("ParentScopeKind = %q, want %q", trigger.ParentScopeKind, catalog.ParentScopeOrganization)
 	}
 	if trigger.ParentScopeID != "1" {
 		t.Fatalf("ParentScopeID = %q, want %q", trigger.ParentScopeID, "1")

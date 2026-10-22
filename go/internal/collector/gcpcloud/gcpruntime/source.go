@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -108,25 +109,25 @@ func (s *Source) collectScope(ctx context.Context, scopeCfg ScopeConfig) (collec
 
 	resources, err := s.drainPages(ctx, scopeCfg, generation)
 	if err != nil {
-		s.recordClaim(ctx, gcpcloud.ClaimStatusFailed)
+		s.recordClaim(ctx, catalog.ClaimStatusFailed)
 		return collector.CollectedGeneration{}, err
 	}
 	if err := s.drainTagPages(ctx, scopeCfg, generation, resources); err != nil {
-		s.recordClaim(ctx, gcpcloud.ClaimStatusFailed)
+		s.recordClaim(ctx, catalog.ClaimStatusFailed)
 		return collector.CollectedGeneration{}, err
 	}
 
 	envelopes, err := generation.Build()
 	if err != nil {
-		s.recordClaim(ctx, gcpcloud.ClaimStatusFailed)
+		s.recordClaim(ctx, catalog.ClaimStatusFailed)
 		return collector.CollectedGeneration{}, fmt.Errorf("build gcp generation for parent scope kind %q: %w", scopeCfg.ParentScopeKind, err)
 	}
 
 	s.recordEmission(ctx, scopeCfg, envelopes, generation.Boundary(), observedAt)
 	if generation.WarningCount() > 0 {
-		s.recordClaim(ctx, gcpcloud.ClaimStatusPartial)
+		s.recordClaim(ctx, catalog.ClaimStatusPartial)
 	} else {
-		s.recordClaim(ctx, gcpcloud.ClaimStatusSucceeded)
+		s.recordClaim(ctx, catalog.ClaimStatusSucceeded)
 	}
 	s.logScope(ctx, scopeCfg, generation)
 
@@ -156,7 +157,7 @@ func (s *Source) drainPages(
 		if err != nil {
 			if errors.Is(err, errPageTokenNotFound) {
 				generation.AddWarning(s.expiredTokenWarning(scopeCfg, generation))
-				s.recordWarning(ctx, gcpcloud.WarningKindPageTokenExpired, gcpcloud.OutcomePartial)
+				s.recordWarning(ctx, catalog.WarningKindPageTokenExpired, catalog.OutcomePartial)
 				return resourceList(resources), nil
 			}
 			var warning ProviderWarning
@@ -197,17 +198,17 @@ func (s *Source) staleGeneration(
 	boundary := s.boundary(scopeCfg, generationID, observedAt)
 	warning := gcpcloud.WarningObservation{
 		Boundary:    boundary,
-		WarningKind: gcpcloud.WarningKindStale,
-		Outcome:     gcpcloud.OutcomeStale,
+		WarningKind: catalog.WarningKindStale,
+		Outcome:     catalog.OutcomeStale,
 		Reason:      "generation rejected by newer fencing token",
 	}
 	envelope, err := gcpcloud.NewCollectionWarningEnvelope(warning)
 	if err != nil {
 		return collector.CollectedGeneration{}, fmt.Errorf("build gcp stale warning for parent scope kind %q: %w", scopeCfg.ParentScopeKind, err)
 	}
-	s.recordWarning(ctx, gcpcloud.WarningKindStale, gcpcloud.OutcomeStale)
+	s.recordWarning(ctx, catalog.WarningKindStale, catalog.OutcomeStale)
 	s.recordFactsEmitted(ctx, cloud.GCPCollectionWarningFactKind, scopeCfg.ParentScopeKind, 1)
-	s.recordClaim(ctx, gcpcloud.ClaimStatusPartial)
+	s.recordClaim(ctx, catalog.ClaimStatusPartial)
 
 	scopeValue, generationValue := s.scopeAndGeneration(scopeCfg, generationID, observedAt)
 	return collector.FactsFromSlice(scopeValue, generationValue, []facts.Envelope{envelope}), nil
@@ -216,8 +217,8 @@ func (s *Source) staleGeneration(
 func (s *Source) expiredTokenWarning(scopeCfg ScopeConfig, generation *gcpcloud.Generation) gcpcloud.WarningObservation {
 	return gcpcloud.WarningObservation{
 		Boundary:    generation.Boundary(),
-		WarningKind: gcpcloud.WarningKindPageTokenExpired,
-		Outcome:     gcpcloud.OutcomePartial,
+		WarningKind: catalog.WarningKindPageTokenExpired,
+		Outcome:     catalog.OutcomePartial,
 		Reason:      "continuation token could not be resumed",
 		Retryable:   true,
 		SourceURI:   "cai://assets.list",
@@ -266,7 +267,7 @@ func (s *Source) scopeAndGeneration(
 ) (scope.IngestionScope, scope.ScopeGeneration) {
 	scopeValue := scope.IngestionScope{
 		ScopeID:       scopeCfg.ScopeID,
-		SourceSystem:  gcpcloud.CollectorKind,
+		SourceSystem:  catalog.CollectorKind,
 		ScopeKind:     scope.KindAccount,
 		CollectorKind: scope.CollectorGCP,
 		PartitionKey:  scopeCfg.ScopeID,

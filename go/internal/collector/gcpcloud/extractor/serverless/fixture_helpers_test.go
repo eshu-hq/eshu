@@ -4,6 +4,7 @@
 package serverless_test
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -14,7 +15,7 @@ import (
 func serverlessTestBoundary() extractor.Boundary {
 	return extractor.Boundary{
 		CollectorInstanceID: "collector-1",
-		ParentScopeKind:     extractor.ParentScopeProject,
+		ParentScopeKind:     catalog.ParentScopeProject,
 		ParentScopeID:       "demo-project",
 		AssetTypeFamily:     "bigquery",
 		ContentFamily:       "resource",

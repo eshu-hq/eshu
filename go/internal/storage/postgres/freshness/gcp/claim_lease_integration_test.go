@@ -14,7 +14,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -80,8 +80,8 @@ func TestGCPFreshnessStoreReapExpiredTriggerClaimsIntegration(t *testing.T) {
 
 	expiredTrigger := freshness.Trigger{
 		EventID:         "evt-expired",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "demo-project-expired",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1-a",
@@ -93,8 +93,8 @@ func TestGCPFreshnessStoreReapExpiredTriggerClaimsIntegration(t *testing.T) {
 	// triggers into a single claimable row.
 	liveTrigger := freshness.Trigger{
 		EventID:         "evt-live",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "demo-project-live",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1-a",
@@ -125,8 +125,8 @@ func TestGCPFreshnessStoreReapExpiredTriggerClaimsIntegration(t *testing.T) {
 	if reclaimed[0].ParentScopeID != "demo-project-expired" {
 		t.Fatalf("reclaimed trigger = %+v, want the expired-lease trigger", reclaimed[0])
 	}
-	if reclaimed[0].Status != freshness.TriggerStatusQueued {
-		t.Fatalf("reclaimed Status = %q, want %q", reclaimed[0].Status, freshness.TriggerStatusQueued)
+	if reclaimed[0].Status != catalog.TriggerStatusQueued {
+		t.Fatalf("reclaimed Status = %q, want %q", reclaimed[0].Status, catalog.TriggerStatusQueued)
 	}
 
 	secondPass, err := store.ReapExpiredTriggerClaims(ctx, now, 50)
@@ -160,8 +160,8 @@ func TestGCPFreshnessStoreReapExpiredTriggerClaimsConcurrentSafety(t *testing.T)
 	for i := 0; i < triggerCount; i++ {
 		trigger := freshness.Trigger{
 			EventID:         fmt.Sprintf("evt-concurrent-%d", i),
-			Kind:            freshness.EventKindAssetChange,
-			ParentScopeKind: gcpcloud.ParentScopeProject,
+			Kind:            catalog.EventKindAssetChange,
+			ParentScopeKind: catalog.ParentScopeProject,
 			ParentScopeID:   fmt.Sprintf("demo-project-concurrent-%02d", i),
 			AssetType:       "compute.googleapis.com/Instance",
 			Location:        "us-central1-a",
@@ -230,8 +230,8 @@ func TestGCPFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration(t *tes
 
 	trigger := freshness.Trigger{
 		EventID:         "evt-stale-holder",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "demo-project-stale-holder",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1-a",
@@ -273,17 +273,17 @@ func TestGCPFreshnessStoreStaleHolderCannotCompleteReapedClaimIntegration(t *tes
 	if err := store.MarkTriggersHandedOff(ctx, []freshness.StoredTrigger{staleClaim}, now); err != nil {
 		t.Fatalf("MarkTriggersHandedOff(stale) error = %v", err)
 	}
-	assertGCPFreshnessTriggerStatus(t, db, staleClaim.TriggerID, string(freshness.TriggerStatusClaimed))
+	assertGCPFreshnessTriggerStatus(t, db, staleClaim.TriggerID, string(catalog.TriggerStatusClaimed))
 
 	if err := store.MarkTriggersFailed(ctx, []freshness.StoredTrigger{staleClaim}, now, "stale-failure", "stale holder must not be able to fail this claim"); err != nil {
 		t.Fatalf("MarkTriggersFailed(stale) error = %v", err)
 	}
-	assertGCPFreshnessTriggerStatus(t, db, staleClaim.TriggerID, string(freshness.TriggerStatusClaimed))
+	assertGCPFreshnessTriggerStatus(t, db, staleClaim.TriggerID, string(catalog.TriggerStatusClaimed))
 
 	if err := store.MarkTriggersHandedOff(ctx, []freshness.StoredTrigger{newClaim}, now); err != nil {
 		t.Fatalf("MarkTriggersHandedOff(new) error = %v", err)
 	}
-	assertGCPFreshnessTriggerStatus(t, db, newClaim.TriggerID, string(freshness.TriggerStatusHandedOff))
+	assertGCPFreshnessTriggerStatus(t, db, newClaim.TriggerID, string(catalog.TriggerStatusHandedOff))
 }
 
 // assertGCPFreshnessTriggerStatus mirrors assertAWSFreshnessTriggerStatus for
