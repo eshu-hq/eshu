@@ -137,86 +137,82 @@ ifa_uses_vault_policy_wait_for_read_models() {
 
 # ifa_uses_vault_policy_wait_for_endpoint_domains banks the graph
 # endpoints the projection readiness gate
-# (go/internal/reducer/secretsiam/secrets_iam_graph_projection_readiness.go,
-# issue #1380) needs before the hold is armed. The uses-vault-policy rows
-# reference kubernetes workload UIDs, and those endpoint nodes are committed
-# by the kubernetes_workload_materialization domain -- whose rows sit
-# unclaimed while every other reducer in the kill cell is scoped elsewhere.
-# Without this wait the projection handler defers on
-# secrets_iam_endpoint_not_ready forever, the hold never engages, and the
-# marker wait dies at budget. Only the workload keyspace is waited on: the
-# family cassette carries no iam_role_cloud_resource_uid, so the gate's
-# cloud set is empty and skipped; a cassette that gains cloud endpoints
-# would pass this wait and die downstream at the hold-marker wait, which is
-# what the marker-timeout message (not this wait) would then report.
-# Polls fact_work_items by status and classifies in shell so the
-# queue-lifecycle mapping is pinned by the stub cases below instead of
-# hiding in SQL: succeeded counts as done; pending/claimed/running/
-# retrying count as open (retrying is transient -- the reclaim path
-# re-drives stale rows through it, see the claim SQL pinned by
-# go/internal/storage/postgres/claim_reclaim_test.go); superseded is
-# ignored (benign-terminal -- the drain contract defines residual as
-# status NOT IN ('succeeded', 'superseded')); failed/dead_letter -- plus
-# any unknown future status -- fail fast in the safe direction. Zero
-# committal rows is never a pass.
+# (secrets_iam_graph_projection_readiness.go, issue #1380) needs before the
+# hold is armed. The uses-vault-policy rows reference TWO endpoint
+# keyspaces: kubernetes workload UIDs (kubernetes_workload_materialization)
+# and cloud_resource_uid values (aws_resource_materialization). The cloud
+# set is NOT empty though the cassette carries no iam_role_cloud_resource_uid
+# field: the trust chain derives those UIDs from aws_iam_principal facts
+# and the AWS handler commits the same UIDs from aws_resource facts -- so
+# both domains must drain before the hold is armed. Shard 4/4 on #8737
+# proved the single-domain shape fatal: the workload wait passed while the
+# gate still deferred on 2 cloud endpoints. Classifies in shell so the
+# queue-lifecycle mapping is pinned by the stub cases, not hidden in SQL:
+# succeeded is done; pending/claimed/running/retrying is open (retrying is
+# transient -- the reclaim path re-drives stale rows through it, see the
+# claim SQL pinned by claim_reclaim_test.go); superseded is ignored
+# (benign-terminal: residual is status NOT IN ('succeeded','superseded'));
+# failed/dead_letter, any unknown status, or any row for a domain outside
+# the waited set fails fast. Every listed domain needs ok>=1 with none
+# open; a domain with zero rows never passes, so a forgotten domain fails
+# loudly instead of arming a hold on a half-committed graph.
 ifa_uses_vault_policy_wait_for_endpoint_domains() {
 	local cell="$1" budget="$2"
-	if [[ ! "${budget}" =~ ^[1-9][0-9]*$ ]]; then
-		printf '%s: endpoint wait: budget must be a positive integer, got %s\n' "${cell}" "${budget}" >&2
-		return 1
-	fi
-	local i rows row status count ok open bad
+	shift 2
+	[[ "${budget}" =~ ^[1-9][0-9]*$ ]] \
+		|| { printf '%s: endpoint wait: budget must be a positive integer, got %s\n' "${cell}" "${budget}" >&2; return 1; }
+	[[ "$#" -gt 0 ]] \
+		|| { printf '%s: endpoint wait: no endpoint domains listed -- refusing to arm the hold on an unspecified graph\n' "${cell}" >&2; return 1; }
+	local domain in_list=""
+	for domain in "$@"; do
+		[[ "${domain}" =~ ^[a-z_]+$ ]] \
+			|| { printf '%s: endpoint wait: invalid endpoint domain %q\n' "${cell}" "${domain}" >&2; return 1; }
+		in_list="${in_list}'${domain}',"
+	done
+	in_list="${in_list%,}"
+	local i rows row rest d status count all_ready ready_report
+	local -A rok ropen rbad
 	for i in $(seq 1 "${budget}"); do
-		if ! rows="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-			"SELECT status, count(*) FROM fact_work_items WHERE stage = 'reducer' AND domain = 'kubernetes_workload_materialization' GROUP BY status;" \
-			"${compose_file}")"; then
-			printf '%s: endpoint wait: endpoint-domain poll query failed\n' "${cell}" >&2
-			return 1
-		fi
-		ok=0
-		open=0
-		bad=0
-		# Statuses carry no spaces, so unquoted word-splitting walks
-		# one status|count row at a time; an empty result walks zero
-		# times and can never pass below.
+		rows="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"SELECT domain, status, count(*) FROM fact_work_items WHERE stage = 'reducer' AND domain IN (${in_list}) GROUP BY domain, status;" \
+			"${compose_file}")" \
+			|| { printf '%s: endpoint wait: endpoint-domain poll query failed\n' "${cell}" >&2; return 1; }
+		rok=()
+		ropen=()
+		rbad=()
+		# Domains and statuses carry no spaces, so unquoted word-splitting
+		# walks one domain|status|count row at a time; an empty result walks
+		# zero times and no domain below can pass.
 		for row in ${rows}; do
-			status="${row%%|*}"
-			count="${row##*|}"
-			if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
-				printf '%s: endpoint wait: endpoint-domain poll returned non-numeric output %q\n' "${cell}" "${rows}" >&2
-				return 1
-			fi
+			d="${row%%|*}"
+			rest="${row#*|}"
+			status="${rest%%|*}"
+			count="${rest##*|}"
+			case " $* " in
+			*" ${d} "*) ;;
+			*) printf '%s: endpoint wait: endpoint-domain poll returned a row for unexpected domain %q -- refusing to arm the hold on an unclassified queue state\n' "${cell}" "${d}" >&2; return 1 ;;
+			esac
+			[[ "${count}" =~ ^[0-9]+$ ]] \
+				|| { printf '%s: endpoint wait: endpoint-domain poll returned non-numeric output %q\n' "${cell}" "${rows}" >&2; return 1; }
 			case "${status}" in
-			succeeded)
-				ok=$((ok + count))
-				;;
-			pending | claimed | running | retrying)
-				open=$((open + count))
-				;;
-			superseded)
-				# Benign-terminal: replaced by a newer row, which
-				# reports its own status separately.
-				;;
-			failed | dead_letter)
-				bad=$((bad + count))
-				;;
-			*)
-				printf '%s: endpoint wait: endpoint-domain poll returned unknown status %q -- refusing to arm the hold on an unclassified queue state\n' "${cell}" "${status}" >&2
-				return 1
-				;;
+			succeeded) rok["${d}"]=$((${rok["${d}"]:-0} + count)) ;;
+			pending | claimed | running | retrying) ropen["${d}"]=$((${ropen["${d}"]:-0} + count)) ;;
+			superseded) ;; # Benign-terminal: replaced by a newer row.
+			failed | dead_letter) rbad["${d}"]=$((${rbad["${d}"]:-0} + count)) ;;
+			*) printf '%s: endpoint wait: endpoint-domain poll returned unknown status %q -- refusing to arm the hold on an unclassified queue state\n' "${cell}" "${status}" >&2; return 1 ;;
 			esac
 		done
-		if [[ "${bad}" -gt 0 ]]; then
-			printf '%s: endpoint wait: %s kubernetes_workload_materialization row(s) terminally bad -- refusing to arm the hold on a half-committed graph\n' "${cell}" "${bad}" >&2
-			return 1
-		fi
-		if [[ "${open}" -eq 0 && "${ok}" -ge 1 ]]; then
-			printf '%s: endpoint wait: kubernetes workload endpoints committed (%s succeeded row(s), none open)\n' "${cell}" "${ok}"
-			return 0
-		fi
+		all_ready=1
+		ready_report=""
+		for domain in "$@"; do
+			[[ "${rbad["${domain}"]:-0}" -eq 0 ]] \
+				|| { printf '%s: endpoint wait: %s %s row(s) terminally bad -- refusing to arm the hold on a half-committed graph\n' "${cell}" "${rbad["${domain}"]}" "${domain}" >&2; return 1; }
+			if [[ "${ropen["${domain}"]:-0}" -gt 0 || "${rok["${domain}"]:-0}" -eq 0 ]]; then all_ready=0; else ready_report="${ready_report}${domain}=${rok["${domain}"]} "; fi
+		done
+		[[ "${all_ready}" -eq 0 ]] || { printf '%s: endpoint wait: endpoint domains committed (%snone open)\n' "${cell}" "${ready_report}"; return 0; }
 		sleep 1
 	done
-	printf '%s: endpoint wait: kubernetes workload endpoints never committed within %ss -- the hold would never engage\n' "${cell}" "${budget}" >&2
+	printf '%s: endpoint wait: endpoint domains %s never all committed within %ss -- the hold would never engage\n' "${cell}" "$*" "${budget}" >&2
 	return 1
 }
 
@@ -411,20 +407,25 @@ cell_kill_uses_vault_policy() {
 		|| die "kill-statement-hold-uses-vault-policy: secrets_iam_graph_projection was never enqueued by the trust-chain stage"
 	# Endpoint readiness BEFORE the hold -- the shape the authenticates
 	# kill cell never needed: its rows reference no workload endpoints, so
-	# its gate is trivially ready. The uses-vault-policy rows reference
-	# kubernetes workload UIDs, and those endpoint nodes are committed by
-	# the kubernetes_workload_materialization domain, whose rows sit
-	# unclaimed while every other reducer in this cell is scoped elsewhere.
-	# A prereq-scoped reducer (k8s workload only, so the projection row can
-	# never be claimed early) runs until the endpoint domain drains. Only
-	# then is the hold armed: without this stage the handler defers on
-	# secrets_iam_endpoint_not_ready forever and the marker wait dies at
-	# budget with the hold never engaged.
+	# its gate is trivially ready. The uses-vault-policy rows reference TWO
+	# endpoint keyspaces: kubernetes workload UIDs (committed by the
+	# kubernetes_workload_materialization domain) and cloud_resource_uid
+	# values (committed by the aws_resource_materialization domain -- the
+	# trust chain derives them from aws_iam_principal facts and the AWS
+	# resource handler commits the same UIDs from aws_resource facts).
+	# Both domains' rows sit unclaimed while every other reducer in this
+	# cell is scoped elsewhere. A prereq-scoped reducer (endpoint domains
+	# only, so the projection row can never be claimed early) runs until
+	# BOTH endpoint domains drain. Only then is the hold armed: without
+	# this stage the handler defers on secrets_iam_endpoint_not_ready
+	# forever and the marker wait dies at budget with the hold never
+	# engaged (CI shard 4/4 on #8737: workload-only drain passed while the
+	# gate still deferred on 2 cloud endpoints).
 	local endpoint_reducer_pid
 	ifa_det_start_bg "${log_dir}" "reducer-killusesvaultpolicy-endpoints" endpoint_reducer_pid \
-		env "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED=true" "ESHU_REDUCER_CLAIM_DOMAIN=kubernetes_workload_materialization" "${bin_dir}/eshu-reducer"
-	ifa_uses_vault_policy_wait_for_endpoint_domains "killusesvaultpolicy" 300 \
-		|| die "kill-statement-hold-uses-vault-policy: kubernetes workload endpoints never committed"
+		env "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED=true" "ESHU_REDUCER_CLAIM_DOMAINS=kubernetes_workload_materialization,aws_resource_materialization" "${bin_dir}/eshu-reducer"
+	ifa_uses_vault_policy_wait_for_endpoint_domains "killusesvaultpolicy" 300 kubernetes_workload_materialization aws_resource_materialization \
+		|| die "kill-statement-hold-uses-vault-policy: endpoint domains never committed"
 	kill "${endpoint_reducer_pid}" >/dev/null 2>&1 || true
 	wait "${endpoint_reducer_pid}" 2>/dev/null || true
 	ifa_det_untrack_bg_pid "${endpoint_reducer_pid}"
