@@ -11,10 +11,11 @@ import (
 
 // TestRouterDoesNotImportMCPRoot guards the import direction: the mcp root
 // injects a Dispatcher into this package, so importing the root back would be
-// a cycle.
+// a cycle. The -test flag also covers _test.go imports, so a later integration
+// test cannot reach the root unnoticed.
 func TestRouterDoesNotImportMCPRoot(t *testing.T) {
 	t.Parallel()
-	out, err := exec.Command("go", "list", "-deps", ".").CombinedOutput()
+	out, err := exec.Command("go", "list", "-test", "-deps", ".").CombinedOutput()
 	if err != nil {
 		t.Fatalf("go list -deps: %v\n%s", err, out)
 	}

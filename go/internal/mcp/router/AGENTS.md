@@ -25,6 +25,8 @@
 
 - Fill `coreToolNames` in `core.go` only from hosted call counts (#8759).
 - A tool-schema change needs `tools_test.go` updated in the same change.
+- An approved `tools/list` change must update the sha in
+  `../tools_list_bytes_test.go` in the same change.
 
 ## Failure modes
 
