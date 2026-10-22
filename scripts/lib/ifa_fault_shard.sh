@@ -223,6 +223,11 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_cloud_resource_container_image
 	cell_killworker_cloud_resource_container_image
 	cell_failgraphwrite_cloud_resource_container_image
+	# crossplane_satisfied_by (#6228 crossplane live leaf): twelfth
+	# direct-materialization family, same trio shape (atomic group below).
+	cell_baseline_crossplane_satisfied_by
+	cell_killworker_crossplane_satisfied_by
+	cell_failgraphwrite_crossplane_satisfied_by
 	cell_baseline_inheritance
 	cell_killworker_inheritance
 	cell_failgraphwrite_inheritance
@@ -286,6 +291,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_uses_vault_policy cell_kill_uses_vault_policy cell_failgraphwrite_uses_vault_policy"
 	"cell_baseline_built_from cell_killworker_built_from cell_failgraphwrite_built_from"
 	"cell_baseline_cloud_resource_container_image cell_killworker_cloud_resource_container_image cell_failgraphwrite_cloud_resource_container_image"
+	"cell_baseline_crossplane_satisfied_by cell_killworker_crossplane_satisfied_by cell_failgraphwrite_crossplane_satisfied_by"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
 	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"

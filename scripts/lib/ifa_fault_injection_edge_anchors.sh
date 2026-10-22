@@ -122,6 +122,14 @@ built_from_edge_operation_match="MERGE (img)-[rel:BUILT_FROM"
 # interpolated AWS_lambda_function_uses_image form. A literal `%s` spelling
 # would match no executed statement and the fault would never fire.
 cloud_resource_container_image_edge_operation_match="MERGE (source)-[rel:AWS_lambda_function_uses_image]->(target)"
+# The SATISFIED_BY MERGE anchor cell_failgraphwrite_crossplane_satisfied_by
+# (#6228 crossplane live leaf) targets:
+# go/internal/storage/cypher/canonical/crossplane/edges.go:33-42 emits
+# MERGE (claim)-[rel:SATISFIED_BY]->(xrd) with no %s vocabulary
+# substitution, so the anchor carries the template's own fixed spelling. A
+# parameterized form would match no executed statement and the fault would
+# never fire.
+crossplane_satisfied_by_edge_operation_match="MERGE (claim)-[rel:SATISFIED_BY]->(xrd)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical/node/documentation_edges.go's

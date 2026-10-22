@@ -34,3 +34,13 @@ ifa_live_gate_common_seams+=(
 	'go/internal/ifa/testdata/cloudresourcecontainerimage/**|go/internal/ifa/testdata/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_cloud_resource_container_image_cells.sh|scripts/lib/ifa_fault_injection_cloud_resource_container_image_cells.sh'
 )
+# crossplane_satisfied_by (#6228 crossplane live leaf): writer,
+# cassette, expected-edge set, and cells are new common seams beside the
+# siblings; the Odù stays in the determinism-only table (the fault cells
+# drive the committed cassette JSON, never the Odù source).
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/canonical/crossplane/edges.go|go/internal/storage/cypher/canonical/crossplane/edges.go'
+	'testdata/cassettes/crossplanesatisfiedby/**|testdata/cassettes/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family.json'
+	'go/internal/ifa/testdata/crossplanesatisfiedby/**|go/internal/ifa/testdata/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_crossplane_satisfied_by_cells.sh|scripts/lib/ifa_fault_injection_crossplane_satisfied_by_cells.sh'
+)

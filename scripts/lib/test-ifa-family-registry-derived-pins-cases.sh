@@ -97,6 +97,7 @@ IFA_FAMILY_PINS_NAMES=(
 	semantic_entity_containment
 	built_from
 	cloud_resource_container_image
+	crossplane_satisfied_by
 )
 
 ifa_family_registry_pins_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ifa_family_registry_pins"

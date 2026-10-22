@@ -74,7 +74,7 @@ bash scripts/test-verify-ifa-fault-injection.sh
 ```
 
 The hermetic mirror. The live gate
-(`bash scripts/verify-ifa-fault-injection.sh`) drives 79 cells — a
+(`bash scripts/verify-ifa-fault-injection.sh`) drives 82 cells — a
 fault-free baseline, a killed worker, a forced lease expiry, one failed graph
 write, a mid-drain backend restart, a duplicate delivery, a generation-2 delta
 retract, and per-family killed-worker and failed-graph-write cells for
@@ -83,17 +83,17 @@ scoped baseline and two recovery cells each for deployable_unit_edges,
 codeowners_ownership_edges, repository-dependency edges, submodule_pin_edges,
 inheritance_edges, shell_exec, workload_dependency,
 kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume,
-iam_can_perform, ec2_uses_profile, s3_logs_to, cloud_resource, iam_escalation, authenticates_vault_role, uses_vault_policy (whose kill cell holds the USES_VAULT_POLICY MERGE at the graph-executor seam instead of borrowing the shared handler wait, #8539), built_from, cloud_resource_container_image, and a shared baseline
+iam_can_perform, ec2_uses_profile, s3_logs_to, cloud_resource, iam_escalation, authenticates_vault_role, uses_vault_policy (whose kill cell holds the USES_VAULT_POLICY MERGE at the graph-executor seam instead of borrowing the shared handler wait, #8539), built_from, cloud_resource_container_image, crossplane_satisfied_by, and a shared baseline
 plus three failed-graph-write and three runner-lease killed-worker recovery
 cells for the handles_route/runs_in/invokes_cloud_action trio — with zero
 durable dead letters throughout.
 
-In CI the 78 cells other than the shared fault-free baseline are
+In CI the 81 cells other than the shared fault-free baseline are
 split across 4 shards that run in
 parallel, and the fault-free baseline is repeated in every shard rather than
 partitioned into one — every recovery cell compares its graph against a
-baseline captured on the same runner, so CI executes 82 cell runs
-for a 79-cell matrix. Locally the command above runs all of them in one
+baseline captured on the same runner, so CI executes 85 cell runs
+for a 82-cell matrix. Locally the command above runs all of them in one
 pass. `--shard k/4` runs one shard, and `--list-cells` prints the partition
 without starting anything.
 
