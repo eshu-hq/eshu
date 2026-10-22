@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -77,10 +78,10 @@ func TestComputeNetworkOfflineFixtureEndToEnd(t *testing.T) {
 	}
 
 	// prod-vpc: 2 subnet edges + 1 peering edge. default (auto-mode): none.
-	if relTypes[relationshipTypeNetworkContainsSubnetwork] != 2 {
-		t.Errorf("subnetwork edges = %d, want 2", relTypes[relationshipTypeNetworkContainsSubnetwork])
+	if relTypes[catalog.RelationshipTypeNetworkContainsSubnetwork] != 2 {
+		t.Errorf("subnetwork edges = %d, want 2", relTypes[catalog.RelationshipTypeNetworkContainsSubnetwork])
 	}
-	if relTypes[relationshipTypeNetworkPeersWithNetwork] != 1 {
-		t.Errorf("peering edges = %d, want 1", relTypes[relationshipTypeNetworkPeersWithNetwork])
+	if relTypes[catalog.RelationshipTypeNetworkPeersWithNetwork] != 1 {
+		t.Errorf("peering edges = %d, want 1", relTypes[catalog.RelationshipTypeNetworkPeersWithNetwork])
 	}
 }

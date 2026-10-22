@@ -7,25 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeComputeVPNGateway is the CAI asset type for a Cloud HA-VPN gateway
-// (the `vpnGateways` REST collection). It is a regional-only asset type — GCP
-// exposes no global VpnGateway variant, unlike ForwardingRule/Address — so
-// this extractor registers exactly one asset type. It is distinct from
-// assetTypeComputeTargetVPNGateway (declared in extractor_forwarding_rule.go),
-// which is the older Classic VPN target-gateway resource that a
-// ForwardingRule.target can reference.
-const assetTypeComputeVPNGateway = "compute.googleapis.com/VpnGateway"
-
-// relationshipTypeVPNGatewayInNetwork is the bounded provider relationship
-// type for the VpnGateway -> VPC Network edge. It is a stable string carried
-// on gcp_cloud_relationship facts; the reducer materializes an edge only when
-// both endpoints resolve exactly.
-const relationshipTypeVPNGatewayInNetwork = "vpn_gateway_in_network"
+// Family constants for this extractor now live in catalog/gcp_compute_net.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeVPNGateway, extractVPNGateway)
+	RegisterAssetExtractor(catalog.AssetTypeComputeVPNGateway, extractVPNGateway)
 }
 
 // vpnGatewayData is the bounded view of a CAI compute.googleapis.com/VpnGateway
@@ -70,7 +59,7 @@ func extractVPNGateway(ctx ExtractContext) (AttributeExtraction, error) {
 
 	if networkName := computeFullResourceNameFromSelfLink(data.Network, ctx.ProjectID); networkName != "" {
 		anchors = append(anchors, networkName)
-		rels = append(rels, vpnGatewayEdge(ctx, relationshipTypeVPNGatewayInNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, vpnGatewayEdge(ctx, catalog.RelationshipTypeVPNGatewayInNetwork, networkName, assetTypeComputeNetwork))
 	}
 
 	return AttributeExtraction{

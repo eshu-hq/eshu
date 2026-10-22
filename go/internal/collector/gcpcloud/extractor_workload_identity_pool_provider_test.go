@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const (
@@ -17,15 +19,15 @@ const (
 func wifProviderContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: wifProviderFullName,
-		AssetType:        workloadIdentityPoolProviderAssetType,
+		AssetType:        catalog.WorkloadIdentityPoolProviderAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestWorkloadIdentityPoolProviderExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(workloadIdentityPoolProviderAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", workloadIdentityPoolProviderAssetType)
+	if _, ok := lookupAssetExtractor(catalog.WorkloadIdentityPoolProviderAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.WorkloadIdentityPoolProviderAssetType)
 	}
 }
 
@@ -56,7 +58,7 @@ func TestExtractWIFProviderAWS(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 provider->pool edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeWIFProviderOfPool, wifProviderPool, workloadIdentityPoolAssetType)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeWIFProviderOfPool, wifProviderPool, catalog.WorkloadIdentityPoolAssetType)
 	wantAnchors := []string{"123456789012"}
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {
 		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
@@ -157,8 +159,8 @@ func TestExtractWIFProviderAWSDefaultAttributeMapping(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.Attributes["attribute_mapping_key_count"] != awsDefaultAttributeMappingKeyCount {
-		t.Errorf("attribute_mapping_key_count = %v, want %d (AWS default)", got.Attributes["attribute_mapping_key_count"], awsDefaultAttributeMappingKeyCount)
+	if got.Attributes["attribute_mapping_key_count"] != catalog.AwsDefaultAttributeMappingKeyCount {
+		t.Errorf("attribute_mapping_key_count = %v, want %d (AWS default)", got.Attributes["attribute_mapping_key_count"], catalog.AwsDefaultAttributeMappingKeyCount)
 	}
 }
 

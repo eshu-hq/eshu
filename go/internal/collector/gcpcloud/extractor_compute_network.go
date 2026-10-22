@@ -7,26 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Bounded relationship types for VPC Network edges. They are stable provider
-// relationship strings carried on gcp_cloud_relationship facts; the reducer
-// materializes an edge only when both endpoints resolve exactly. Only edges
-// derivable from the Network resource.data itself are emitted here: contained
-// subnetworks and VPC peerings. Firewall, route, and instance attachments
-// reference the network from their own resource.data and are emitted by those
-// asset types' own extractors, not this one. The asset type constants
-// (assetTypeComputeNetwork, assetTypeComputeSubnetwork) and
-// computeResourceNamePrefix live in the extractor leaf package (aliased here
-// via compat_extractor.go) so every extractor group can share them.
-const (
-	relationshipTypeNetworkContainsSubnetwork = "vpc_network_contains_subnetwork"
-	relationshipTypeNetworkPeersWithNetwork   = "vpc_network_peers_with_network"
-
-	// peeringStateActive is the Compute Network peering state that exchanges
-	// routes/connectivity. Only ACTIVE peerings become materializing edges.
-	peeringStateActive = "ACTIVE"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_net.go (#6696 HK slice); uses below name catalog.X.
 
 // computeNetworkData is the bounded view of a CAI compute.googleapis.com/Network
 // resource.data blob. Only safe control-plane metadata and resource identifiers
@@ -76,7 +61,7 @@ func extractComputeNetwork(ctx ExtractContext) (AttributeExtraction, error) {
 			continue
 		}
 		anchors = append(anchors, name)
-		rels = append(rels, computeNetworkEdge(ctx, relationshipTypeNetworkContainsSubnetwork, name, assetTypeComputeSubnetwork))
+		rels = append(rels, computeNetworkEdge(ctx, catalog.RelationshipTypeNetworkContainsSubnetwork, name, assetTypeComputeSubnetwork))
 	}
 
 	for _, peering := range data.Peerings {
@@ -84,7 +69,7 @@ func extractComputeNetwork(ctx ExtractContext) (AttributeExtraction, error) {
 		// peering may produce a materializing edge and correlation anchor; an
 		// INACTIVE or pending peering would otherwise become a false graph edge
 		// once both endpoints resolve. It is still counted in peering_count.
-		if !strings.EqualFold(strings.TrimSpace(peering.State), peeringStateActive) {
+		if !strings.EqualFold(strings.TrimSpace(peering.State), catalog.PeeringStateActive) {
 			continue
 		}
 		name := computeFullResourceNameFromSelfLink(peering.Network, ctx.ProjectID)
@@ -92,7 +77,7 @@ func extractComputeNetwork(ctx ExtractContext) (AttributeExtraction, error) {
 			continue
 		}
 		anchors = append(anchors, name)
-		rels = append(rels, computeNetworkEdge(ctx, relationshipTypeNetworkPeersWithNetwork, name, assetTypeComputeNetwork))
+		rels = append(rels, computeNetworkEdge(ctx, catalog.RelationshipTypeNetworkPeersWithNetwork, name, assetTypeComputeNetwork))
 	}
 
 	return AttributeExtraction{

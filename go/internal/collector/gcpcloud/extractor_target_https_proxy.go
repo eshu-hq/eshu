@@ -7,45 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type constants for the compute TargetHttpsProxy typed-depth
-// extractor's edge targets. assetTypeComputeTargetHTTPSProxy itself is
-// declared in extractor_forwarding_rule.go (the ForwardingRule extractor
-// resolves a `target` reference naming a targetHttpsProxies segment into that
-// same asset type) and reused here; this file is the other side of that edge
-// — the TargetHttpsProxy resource's own typed depth. assetTypeComputeUrlMap
-// is declared in extractor_url_map.go and assetTypeComputeSSLCertificate in
-// extractor_ssl_certificate.go (the SslCertificate resource's own typed
-// depth); both are reused here as the resolved edge targets rather than
-// redeclared.
-const (
-	assetTypeComputeSSLPolicy = "compute.googleapis.com/SslPolicy"
-
-	// Certificate Manager asset types. A TargetHttpsProxy can serve TLS from
-	// Certificate Manager instead of classic Compute SslCertificate resources,
-	// either through the `certificateMap` reference or by listing a Certificate
-	// Manager certificate self-link inside `sslCertificates`.
-	assetTypeCertificateManagerCertificateMap = "certificatemanager.googleapis.com/CertificateMap"
-	assetTypeCertificateManagerCertificate    = "certificatemanager.googleapis.com/Certificate"
-)
-
-// certificateManagerFullNamePrefix is the CAI full-resource-name prefix for
-// Certificate Manager assets. A `certificateMap` or a Certificate Manager
-// entry in `sslCertificates` already arrives in this absolute form, or as a
-// project/location-qualified relative path this prefix is prepended to.
-const certificateManagerFullNamePrefix = "//certificatemanager.googleapis.com/"
-
-// Bounded provider relationship types for TargetHttpsProxy edges. Each is a
-// stable string carried on a gcp_cloud_relationship fact; the reducer
-// materializes an edge only when both endpoints resolve exactly.
-const (
-	relationshipTypeTargetHTTPSProxyUsesURLMap                 = "target_https_proxy_uses_url_map"
-	relationshipTypeTargetHTTPSProxyUsesSSLCertificate         = "target_https_proxy_uses_ssl_certificate"
-	relationshipTypeTargetHTTPSProxyUsesSSLPolicy              = "target_https_proxy_uses_ssl_policy"
-	relationshipTypeTargetHTTPSProxyUsesCertificateMap         = "target_https_proxy_uses_certificate_map"
-	relationshipTypeTargetHTTPSProxyUsesCertManagerCertificate = "target_https_proxy_uses_certificate_manager_certificate"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_core.go (#6696 HK slice); uses below name catalog.X.
 
 // init registers extractTargetHTTPSProxy for the compute
 // TargetHttpsProxy CAI asset type. Unlike BackendService or ForwardingRule,
@@ -53,7 +19,7 @@ const (
 // Proxy (no separate regional/global split), so a single registration is
 // sufficient.
 func init() {
-	RegisterAssetExtractor(assetTypeComputeTargetHTTPSProxy, extractTargetHTTPSProxy)
+	RegisterAssetExtractor(catalog.AssetTypeComputeTargetHTTPSProxy, extractTargetHTTPSProxy)
 }
 
 // targetHTTPSProxyData is the bounded view of a CAI
@@ -92,8 +58,8 @@ type targetHTTPSProxyData struct {
 // Certificate Manager self-link resolves to a certificatemanager Certificate.
 //
 // The reverse edge from a ForwardingRule to this proxy is already emitted by
-// extractForwardingRule (relationshipTypeForwardingRuleTargetsTargetProxy,
-// see extractor_forwarding_rule.go): CAI's TargetHttpsProxy resource.data
+// extractForwardingRule (catalog.RelationshipTypeForwardingRuleTargetsTargetProxy,
+// see catalog/gcp_compute_lb.go): CAI's TargetHttpsProxy resource.data
 // carries no back-reference to the forwarding rule that targets it — the
 // reference is one-directional (ForwardingRule.target names the proxy, never
 // the reverse) — so this extractor emits no forwarding-rule edge of its own;
@@ -113,13 +79,13 @@ func extractTargetHTTPSProxy(ctx ExtractContext) (AttributeExtraction, error) {
 
 	if urlMapName := computeResourceFullNameFromSelfLink(data.URLMap, "urlMaps", ctx.ProjectID); urlMapName != "" {
 		anchors = append(anchors, urlMapName)
-		rels = append(rels, targetHTTPSProxyEdge(ctx, relationshipTypeTargetHTTPSProxyUsesURLMap, urlMapName, assetTypeComputeUrlMap))
+		rels = append(rels, targetHTTPSProxyEdge(ctx, catalog.RelationshipTypeTargetHTTPSProxyUsesURLMap, urlMapName, catalog.AssetTypeComputeUrlMap))
 	}
 
 	// Serving-certificate precedence: certificateMap wins over sslCertificates.
 	if mapName := certificateManagerFullName(data.CertificateMap, "certificateMaps"); mapName != "" {
 		anchors = append(anchors, mapName)
-		rels = append(rels, targetHTTPSProxyEdge(ctx, relationshipTypeTargetHTTPSProxyUsesCertificateMap, mapName, assetTypeCertificateManagerCertificateMap))
+		rels = append(rels, targetHTTPSProxyEdge(ctx, catalog.RelationshipTypeTargetHTTPSProxyUsesCertificateMap, mapName, catalog.AssetTypeCertificateManagerCertificateMap))
 	} else {
 		for _, cert := range data.SSLCertificates {
 			certName, certType := resolveTargetHTTPSProxyCertificate(cert, ctx.ProjectID)
@@ -133,7 +99,7 @@ func extractTargetHTTPSProxy(ctx ExtractContext) (AttributeExtraction, error) {
 
 	if policyName := computeResourceFullNameFromSelfLink(data.SSLPolicy, "sslPolicies", ctx.ProjectID); policyName != "" {
 		anchors = append(anchors, policyName)
-		rels = append(rels, targetHTTPSProxyEdge(ctx, relationshipTypeTargetHTTPSProxyUsesSSLPolicy, policyName, assetTypeComputeSSLPolicy))
+		rels = append(rels, targetHTTPSProxyEdge(ctx, catalog.RelationshipTypeTargetHTTPSProxyUsesSSLPolicy, policyName, catalog.AssetTypeComputeSSLPolicy))
 	}
 
 	return AttributeExtraction{
@@ -168,10 +134,10 @@ func targetHTTPSProxyAttributes(data targetHTTPSProxyData) map[string]any {
 // caller drops it.
 func resolveTargetHTTPSProxyCertificate(ref, sourceProjectID string) (fullName, assetType string) {
 	if cmName := certificateManagerFullName(ref, "certificates"); cmName != "" {
-		return cmName, assetTypeCertificateManagerCertificate
+		return cmName, catalog.AssetTypeCertificateManagerCertificate
 	}
 	if computeName := computeResourceFullNameFromSelfLink(ref, "sslCertificates", sourceProjectID); computeName != "" {
-		return computeName, assetTypeComputeSSLCertificate
+		return computeName, catalog.AssetTypeComputeSSLCertificate
 	}
 	return "", ""
 }
@@ -179,10 +145,10 @@ func resolveTargetHTTPSProxyCertificate(ref, sourceProjectID string) (fullName, 
 // targetHTTPSProxyCertificateRelationship maps a resolved certificate asset
 // type to its edge relationship type.
 func targetHTTPSProxyCertificateRelationship(certType string) string {
-	if certType == assetTypeCertificateManagerCertificate {
-		return relationshipTypeTargetHTTPSProxyUsesCertManagerCertificate
+	if certType == catalog.AssetTypeCertificateManagerCertificate {
+		return catalog.RelationshipTypeTargetHTTPSProxyUsesCertManagerCertificate
 	}
-	return relationshipTypeTargetHTTPSProxyUsesSSLCertificate
+	return catalog.RelationshipTypeTargetHTTPSProxyUsesSSLCertificate
 }
 
 // certificateManagerFullName resolves a Certificate Manager reference into its
@@ -200,13 +166,13 @@ func certificateManagerFullName(ref, segment string) string {
 	}
 	var full string
 	switch {
-	case strings.HasPrefix(trimmed, certificateManagerFullNamePrefix):
+	case strings.HasPrefix(trimmed, catalog.CertificateManagerFullNamePrefix):
 		full = trimmed
 	case strings.HasPrefix(trimmed, "//"):
 		// Absolute reference to a different service — not Certificate Manager.
 		return ""
 	case strings.HasPrefix(strings.TrimPrefix(trimmed, "/"), "projects/"):
-		full = certificateManagerFullNamePrefix + strings.TrimPrefix(trimmed, "/")
+		full = catalog.CertificateManagerFullNamePrefix + strings.TrimPrefix(trimmed, "/")
 	default:
 		return ""
 	}

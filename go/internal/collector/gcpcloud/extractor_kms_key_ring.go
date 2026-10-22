@@ -7,10 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
+
 func init() {
-	RegisterAssetExtractor(assetTypeKMSKeyRing, extractKMSKeyRing)
+	RegisterAssetExtractor(catalog.AssetTypeKMSKeyRing, extractKMSKeyRing)
 }
 
 // kmsKeyRingData is the bounded view of a CAI cloudkms.googleapis.com/KeyRing
@@ -73,15 +77,13 @@ func kmsKeyRingLocationFromName(name string) string {
 	relative := strings.TrimPrefix(trimmed, cloudKMSResourceNamePrefix)
 	relative = strings.TrimPrefix(relative, "/")
 
-	const locationsSegment = "/locations/"
-	locIdx := strings.Index(relative, locationsSegment)
+	locIdx := strings.Index(relative, catalog.KmsKeyRingLocationsSegment)
 	if locIdx < 0 {
 		return ""
 	}
-	rest := relative[locIdx+len(locationsSegment):]
+	rest := relative[locIdx+len(catalog.KmsKeyRingLocationsSegment):]
 
-	const keyRingsSegment = "/keyRings/"
-	keyRingIdx := strings.Index(rest, keyRingsSegment)
+	keyRingIdx := strings.Index(rest, catalog.KmsKeyRingKeyRingsSegment)
 	if keyRingIdx < 0 {
 		return ""
 	}

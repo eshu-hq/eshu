@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const apiGatewayFullName = "//apigateway.googleapis.com/projects/demo-project/locations/us-central1/gateways/prod-gw"
@@ -14,15 +16,15 @@ const apiGatewayFullName = "//apigateway.googleapis.com/projects/demo-project/lo
 func apiGatewayContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: apiGatewayFullName,
-		AssetType:        assetTypeAPIGatewayGateway,
+		AssetType:        catalog.AssetTypeAPIGatewayGateway,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestAPIGatewayExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeAPIGatewayGateway); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeAPIGatewayGateway)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeAPIGatewayGateway); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeAPIGatewayGateway)
 	}
 }
 
@@ -66,8 +68,8 @@ func TestExtractAPIGatewayRealCAIShape(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (api config), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAPIGatewayUsesAPIConfig,
-		"//apigateway.googleapis.com/projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg", assetTypeAPIGatewayAPIConfig)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAPIGatewayUsesAPIConfig,
+		"//apigateway.googleapis.com/projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg", catalog.AssetTypeAPIGatewayAPIConfig)
 
 	wantAnchors := []string{
 		"//apigateway.googleapis.com/projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg",
@@ -90,8 +92,8 @@ func TestExtractAPIGatewayAlreadyCAIPrefixedAPIConfigNotDoublePrefixed(t *testin
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAPIGatewayUsesAPIConfig,
-		"//apigateway.googleapis.com/projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg", assetTypeAPIGatewayAPIConfig)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAPIGatewayUsesAPIConfig,
+		"//apigateway.googleapis.com/projects/demo-project/locations/global/apis/prod-api/configs/prod-cfg", catalog.AssetTypeAPIGatewayAPIConfig)
 }
 
 // TestExtractAPIGatewayNoAPIConfigNoEdge proves a Gateway resource with a

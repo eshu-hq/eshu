@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const targetHTTPSProxyFullName = "//compute.googleapis.com/projects/demo-project/global/targetHttpsProxies/web-proxy"
@@ -14,15 +16,15 @@ const targetHTTPSProxyFullName = "//compute.googleapis.com/projects/demo-project
 func targetHTTPSProxyContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: targetHTTPSProxyFullName,
-		AssetType:        assetTypeComputeTargetHTTPSProxy,
+		AssetType:        catalog.AssetTypeComputeTargetHTTPSProxy,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestTargetHTTPSProxyExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeTargetHTTPSProxy); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeTargetHTTPSProxy)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeTargetHTTPSProxy); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeTargetHTTPSProxy)
 	}
 }
 
@@ -65,10 +67,10 @@ func TestExtractTargetHTTPSProxyFullAttributes(t *testing.T) {
 	if len(got.Relationships) != 4 {
 		t.Fatalf("expected 4 edges (url map, 2 ssl certificates, ssl policy), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeTargetHTTPSProxyUsesURLMap, wantURLMap, assetTypeComputeUrlMap)
-	assertRelationship(t, got.Relationships, relationshipTypeTargetHTTPSProxyUsesSSLCertificate, wantCert1, assetTypeComputeSSLCertificate)
-	assertRelationship(t, got.Relationships, relationshipTypeTargetHTTPSProxyUsesSSLCertificate, wantCert2, assetTypeComputeSSLCertificate)
-	assertRelationship(t, got.Relationships, relationshipTypeTargetHTTPSProxyUsesSSLPolicy, wantPolicy, assetTypeComputeSSLPolicy)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTargetHTTPSProxyUsesURLMap, wantURLMap, catalog.AssetTypeComputeUrlMap)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTargetHTTPSProxyUsesSSLCertificate, wantCert1, catalog.AssetTypeComputeSSLCertificate)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTargetHTTPSProxyUsesSSLCertificate, wantCert2, catalog.AssetTypeComputeSSLCertificate)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTargetHTTPSProxyUsesSSLPolicy, wantPolicy, catalog.AssetTypeComputeSSLPolicy)
 
 	wantAnchors := []string{wantURLMap, wantCert1, wantCert2, wantPolicy}
 	if len(got.CorrelationAnchors) != len(wantAnchors) {
@@ -100,7 +102,7 @@ func TestExtractTargetHTTPSProxyMinimalNoSSLPolicy(t *testing.T) {
 	}
 
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeTargetHTTPSProxyUsesSSLPolicy {
+		if rel.RelationshipType == catalog.RelationshipTypeTargetHTTPSProxyUsesSSLPolicy {
 			t.Fatalf("expected no ssl policy edge when sslPolicy is absent, got %#v", rel)
 		}
 	}
@@ -174,13 +176,13 @@ func TestExtractTargetHTTPSProxyCertificateMapSuppressesSSLCertificates(t *testi
 	}
 
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeTargetHTTPSProxyUsesSSLCertificate {
+		if rel.RelationshipType == catalog.RelationshipTypeTargetHTTPSProxyUsesSSLCertificate {
 			t.Fatalf("expected sslCertificates edges suppressed when certificateMap is set, got %#v", rel)
 		}
 	}
 
 	wantMap := "//certificatemanager.googleapis.com/projects/demo-project/locations/global/certificateMaps/web-map-certs"
-	assertRelationship(t, got.Relationships, relationshipTypeTargetHTTPSProxyUsesCertificateMap, wantMap, assetTypeCertificateManagerCertificateMap)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTargetHTTPSProxyUsesCertificateMap, wantMap, catalog.AssetTypeCertificateManagerCertificateMap)
 
 	// url map + certificate map only (no ssl certificate edge).
 	if len(got.Relationships) != 2 {
@@ -224,8 +226,8 @@ func TestExtractTargetHTTPSProxyCertificateManagerCertInSSLCertificates(t *testi
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 edges (cert-manager cert, classic ssl cert), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeTargetHTTPSProxyUsesCertManagerCertificate, wantCMCert, assetTypeCertificateManagerCertificate)
-	assertRelationship(t, got.Relationships, relationshipTypeTargetHTTPSProxyUsesSSLCertificate, wantClassic, assetTypeComputeSSLCertificate)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTargetHTTPSProxyUsesCertManagerCertificate, wantCMCert, catalog.AssetTypeCertificateManagerCertificate)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTargetHTTPSProxyUsesSSLCertificate, wantClassic, catalog.AssetTypeComputeSSLCertificate)
 }
 
 func TestExtractTargetHTTPSProxyCertificateMapRelativePath(t *testing.T) {
@@ -243,7 +245,7 @@ func TestExtractTargetHTTPSProxyCertificateMapRelativePath(t *testing.T) {
 	}
 
 	wantMap := "//certificatemanager.googleapis.com/projects/demo-project/locations/global/certificateMaps/web-map-certs"
-	assertRelationship(t, got.Relationships, relationshipTypeTargetHTTPSProxyUsesCertificateMap, wantMap, assetTypeCertificateManagerCertificateMap)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTargetHTTPSProxyUsesCertificateMap, wantMap, catalog.AssetTypeCertificateManagerCertificateMap)
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (certificate map), got %d: %#v", len(got.Relationships), got.Relationships)
 	}

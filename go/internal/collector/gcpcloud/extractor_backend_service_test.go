@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const backendServiceFullName = "//compute.googleapis.com/projects/demo-project/regions/us-central1/backendServices/internal-backend"
@@ -14,15 +16,15 @@ const backendServiceFullName = "//compute.googleapis.com/projects/demo-project/r
 func backendServiceContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: backendServiceFullName,
-		AssetType:        assetTypeComputeBackendService,
+		AssetType:        catalog.AssetTypeComputeBackendService,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestBackendServiceExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeBackendService); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeBackendService)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeBackendService); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeBackendService)
 	}
 }
 
@@ -32,16 +34,16 @@ func TestBackendServiceExtractorIsRegisteredForRegionAssetType(t *testing.T) {
 	// type; it must dispatch to the same extractor as the global/search-API
 	// BackendService asset type, mirroring the
 	// ForwardingRule/GlobalForwardingRule registration.
-	got, ok := lookupAssetExtractor(assetTypeComputeRegionBackendService)
+	got, ok := lookupAssetExtractor(catalog.AssetTypeComputeRegionBackendService)
 	if !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeRegionBackendService)
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeRegionBackendService)
 	}
-	want, ok := lookupAssetExtractor(assetTypeComputeBackendService)
+	want, ok := lookupAssetExtractor(catalog.AssetTypeComputeBackendService)
 	if !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeBackendService)
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeBackendService)
 	}
 	if reflect.ValueOf(got).Pointer() != reflect.ValueOf(want).Pointer() {
-		t.Fatalf("expected %q and %q to dispatch to the same extractor function", assetTypeComputeRegionBackendService, assetTypeComputeBackendService)
+		t.Fatalf("expected %q and %q to dispatch to the same extractor function", catalog.AssetTypeComputeRegionBackendService, catalog.AssetTypeComputeBackendService)
 	}
 }
 
@@ -94,10 +96,10 @@ func TestExtractBackendServiceFullAttributes(t *testing.T) {
 	if len(got.Relationships) != 4 {
 		t.Fatalf("expected 4 edges (security policy, health check, 2 backends), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceUsesSecurityPolicy, wantPolicy, assetTypeComputeSecurityPolicy)
-	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceUsesHealthCheck, wantHealthCheck, assetTypeComputeHealthCheck)
-	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceHasBackend, wantInstanceGroup, assetTypeComputeInstanceGroup)
-	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceHasBackend, wantNEG, assetTypeComputeNetworkEndpointGroup)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBackendServiceUsesSecurityPolicy, wantPolicy, catalog.AssetTypeComputeSecurityPolicy)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBackendServiceUsesHealthCheck, wantHealthCheck, catalog.AssetTypeComputeHealthCheck)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBackendServiceHasBackend, wantInstanceGroup, catalog.AssetTypeComputeInstanceGroup)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBackendServiceHasBackend, wantNEG, catalog.AssetTypeComputeNetworkEndpointGroup)
 
 	wantAnchors := []string{wantPolicy, wantHealthCheck, wantInstanceGroup, wantNEG}
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {
@@ -142,7 +144,7 @@ func TestExtractBackendServiceEdgeSecurityPolicyOnlyEmitsEdge(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (edge security policy), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceUsesEdgeSecurityPolicy, wantEdgePolicy, assetTypeComputeSecurityPolicy)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBackendServiceUsesEdgeSecurityPolicy, wantEdgePolicy, catalog.AssetTypeComputeSecurityPolicy)
 
 	wantAnchors := []string{wantEdgePolicy}
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {
@@ -169,8 +171,8 @@ func TestExtractBackendServiceBothSecurityPoliciesEmitBothEdges(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 edges (security policy + edge security policy), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceUsesSecurityPolicy, wantPolicy, assetTypeComputeSecurityPolicy)
-	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceUsesEdgeSecurityPolicy, wantEdgePolicy, assetTypeComputeSecurityPolicy)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBackendServiceUsesSecurityPolicy, wantPolicy, catalog.AssetTypeComputeSecurityPolicy)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBackendServiceUsesEdgeSecurityPolicy, wantEdgePolicy, catalog.AssetTypeComputeSecurityPolicy)
 }
 
 func TestExtractBackendServiceMultipleHealthChecks(t *testing.T) {
@@ -192,8 +194,8 @@ func TestExtractBackendServiceMultipleHealthChecks(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 health-check edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceUsesHealthCheck, wantHC1, assetTypeComputeHealthCheck)
-	assertRelationship(t, got.Relationships, relationshipTypeBackendServiceUsesHealthCheck, wantHC2, assetTypeComputeHealthCheck)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBackendServiceUsesHealthCheck, wantHC1, catalog.AssetTypeComputeHealthCheck)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBackendServiceUsesHealthCheck, wantHC2, catalog.AssetTypeComputeHealthCheck)
 }
 
 func TestExtractBackendServiceUnresolvableBackendGroupOmitted(t *testing.T) {

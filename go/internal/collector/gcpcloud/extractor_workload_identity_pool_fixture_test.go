@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -55,7 +56,7 @@ func TestWorkloadIdentityPoolOfflineFixtureEndToEnd(t *testing.T) {
 				awsProviderAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
 		case cloud.GCPCloudRelationshipFactKind:
-			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeWIFProviderOfPool {
+			if stringOrEmpty(env.Payload["relationship_type"]) == catalog.RelationshipTypeWIFProviderOfPool {
 				poolEdges++
 			}
 		}

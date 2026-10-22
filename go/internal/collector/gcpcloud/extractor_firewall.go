@@ -9,21 +9,10 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeComputeFirewall is the CAI asset type for a VPC firewall rule. The
-// target network asset type (assetTypeComputeNetwork) and the compute
-// name-derivation helpers are shared with the sibling compute extractors.
-const assetTypeComputeFirewall = "compute.googleapis.com/Firewall"
-
-// relationshipTypeFirewallAppliesToNetwork is the bounded provider relationship
-// type for the firewall -> enclosing VPC network edge carried on a
-// gcp_cloud_relationship fact. The reducer materializes it only when both
-// endpoints resolve exactly. The firewall's target service accounts are surfaced
-// as fingerprinted correlation anchors rather than edges: a service-account
-// email is not an exactly resolvable CAI endpoint, and the "applies to instances
-// running as SA" join is owned by the secrets/IAM layer keying on the digest.
-const relationshipTypeFirewallAppliesToNetwork = "firewall_applies_to_network"
+// Family constants for this extractor now live in catalog/gcp_compute_net.go (#6696 HK slice); uses below name catalog.X.
 
 // firewallData is the bounded view of a CAI compute.googleapis.com/Firewall
 // resource.data blob. Address-bearing fields (sourceRanges, destinationRanges)
@@ -56,7 +45,7 @@ type firewallRule struct {
 }
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeFirewall, extractFirewall)
+	RegisterAssetExtractor(catalog.AssetTypeComputeFirewall, extractFirewall)
 }
 
 // extractFirewall extracts bounded, redaction-safe typed depth for one VPC
@@ -79,7 +68,7 @@ func extractFirewall(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 	if networkName := computeFullResourceNameFromSelfLink(data.Network, ctx.ProjectID); networkName != "" {
 		anchors = append(anchors, networkName)
-		rels = append(rels, firewallEdge(ctx, relationshipTypeFirewallAppliesToNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, firewallEdge(ctx, catalog.RelationshipTypeFirewallAppliesToNetwork, networkName, assetTypeComputeNetwork))
 	}
 	for _, email := range data.TargetServiceAccounts {
 		if digest := posture.GCPServiceAccountEmailDigest(email); digest != "" {

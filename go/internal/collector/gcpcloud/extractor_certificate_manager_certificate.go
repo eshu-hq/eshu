@@ -7,58 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeCertificateManagerDNSAuthorization and
-// assetTypeCertificateManagerCertificateIssuanceConfig are the CAI asset types
-// for the two Certificate Manager resources this Certificate extractor
-// resolves outbound edges toward. Neither resource has its own typed-depth
-// extractor yet, so these constants are declared here — the first extractor
-// to reference them — for a future DNSAuthorization or
-// CertificateIssuanceConfig extractor to reuse, mirroring how
-// extractor_forwarding_rule.go declares its proxy-kind asset type constants
-// for reuse by their own eventual typed-depth extractors.
-// assetTypeCertificateManagerCertificate and certificateManagerFullName are
-// declared in extractor_target_https_proxy.go (that extractor resolves a
-// TargetHttpsProxy's serving-certificate reference into this same asset type)
-// and reused here for the Certificate resource's own typed depth.
-const (
-	assetTypeCertificateManagerDNSAuthorization          = "certificatemanager.googleapis.com/DnsAuthorization"
-	assetTypeCertificateManagerCertificateIssuanceConfig = "certificatemanager.googleapis.com/CertificateIssuanceConfig"
-)
-
-// assetTypeCertificateManagerCertificateMapEntry is the CAI asset type for a
-// Certificate Manager CertificateMapEntry, one of the two resource kinds a
-// Certificate's own `usedBy[]` field can name (see certManagerCertificateData
-// and resolveCertManagerCertificateUsedBy). Like
-// assetTypeCertificateManagerDNSAuthorization above, no typed-depth extractor
-// for this asset type exists yet, so this constant is declared here for a
-// future CertificateMapEntry extractor to reuse.
-const assetTypeCertificateManagerCertificateMapEntry = "certificatemanager.googleapis.com/CertificateMapEntry"
-
-// Certificate Manager Certificate `type` classification values. Certificate
-// Manager's Certificate resource reports exactly one of `managed`,
-// `selfManaged`, or `managedIdentity` populated (never a `type` field the way
-// Compute's classic SslCertificate does), so the extractor derives this
-// classification from which block is present rather than reading a field.
-const (
-	certManagerCertificateTypeManaged         = "MANAGED"
-	certManagerCertificateTypeSelfManaged     = "SELF_MANAGED"
-	certManagerCertificateTypeManagedIdentity = "MANAGED_IDENTITY"
-)
-
-// Bounded provider relationship types for Certificate Manager Certificate
-// edges. Each is a stable string carried on a gcp_cloud_relationship fact;
-// the reducer materializes an edge only when both endpoints resolve exactly.
-const (
-	relationshipTypeCertManagerCertificateUsesDNSAuthorization      = "certificate_manager_certificate_uses_dns_authorization"
-	relationshipTypeCertManagerCertificateUsesIssuanceConfig        = "certificate_manager_certificate_uses_issuance_config"
-	relationshipTypeCertManagerCertificateUsedByCertificateMapEntry = "certificate_manager_certificate_used_by_certificate_map_entry"
-	relationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy    = "certificate_manager_certificate_used_by_target_https_proxy"
-)
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(assetTypeCertificateManagerCertificate, extractCertificateManagerCertificate)
+	RegisterAssetExtractor(catalog.AssetTypeCertificateManagerCertificate, extractCertificateManagerCertificate)
 }
 
 // certManagerCertificateData is the bounded view of a CAI
@@ -144,11 +100,11 @@ func extractCertificateManagerCertificate(ctx ExtractContext) (AttributeExtracti
 				continue
 			}
 			anchors = append(anchors, name)
-			rels = append(rels, certManagerCertificateEdge(ctx, relationshipTypeCertManagerCertificateUsesDNSAuthorization, name, assetTypeCertificateManagerDNSAuthorization))
+			rels = append(rels, certManagerCertificateEdge(ctx, catalog.RelationshipTypeCertManagerCertificateUsesDNSAuthorization, name, catalog.AssetTypeCertificateManagerDNSAuthorization))
 		}
 		if name := certificateManagerFullName(data.Managed.IssuanceConfig, "certificateIssuanceConfigs"); name != "" {
 			anchors = append(anchors, name)
-			rels = append(rels, certManagerCertificateEdge(ctx, relationshipTypeCertManagerCertificateUsesIssuanceConfig, name, assetTypeCertificateManagerCertificateIssuanceConfig))
+			rels = append(rels, certManagerCertificateEdge(ctx, catalog.RelationshipTypeCertManagerCertificateUsesIssuanceConfig, name, catalog.AssetTypeCertificateManagerCertificateIssuanceConfig))
 		}
 	}
 
@@ -181,10 +137,10 @@ func extractCertificateManagerCertificate(ctx ExtractContext) (AttributeExtracti
 // anchor for an untrusted or unrecognized value.
 func resolveCertManagerCertificateUsedBy(ref, sourceProjectID string) (relationshipType, targetType, fullName string) {
 	if name := certificateManagerFullName(ref, "certificateMapEntries"); name != "" {
-		return relationshipTypeCertManagerCertificateUsedByCertificateMapEntry, assetTypeCertificateManagerCertificateMapEntry, name
+		return catalog.RelationshipTypeCertManagerCertificateUsedByCertificateMapEntry, catalog.AssetTypeCertificateManagerCertificateMapEntry, name
 	}
 	if name := computeResourceFullNameFromSelfLink(ref, "targetHttpsProxies", sourceProjectID); name != "" {
-		return relationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy, assetTypeComputeTargetHTTPSProxy, name
+		return catalog.RelationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy, catalog.AssetTypeComputeTargetHTTPSProxy, name
 	}
 	return "", "", ""
 }
@@ -206,11 +162,11 @@ func certManagerCertificateAttributes(data certManagerCertificateData) map[strin
 
 	switch {
 	case data.Managed != nil:
-		attrs["type"] = certManagerCertificateTypeManaged
+		attrs["type"] = catalog.CertManagerCertificateTypeManaged
 	case data.ManagedIdentity != nil:
-		attrs["type"] = certManagerCertificateTypeManagedIdentity
+		attrs["type"] = catalog.CertManagerCertificateTypeManagedIdentity
 	default:
-		attrs["type"] = certManagerCertificateTypeSelfManaged
+		attrs["type"] = catalog.CertManagerCertificateTypeSelfManaged
 	}
 
 	if v := strings.TrimSpace(data.Scope); v != "" {

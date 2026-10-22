@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const diskFullName = "//compute.googleapis.com/projects/demo-project/zones/us-central1-a/disks/data-disk"
@@ -14,15 +16,15 @@ const diskFullName = "//compute.googleapis.com/projects/demo-project/zones/us-ce
 func diskContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: diskFullName,
-		AssetType:        assetTypeComputeDisk,
+		AssetType:        catalog.AssetTypeComputeDisk,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestDiskExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeDisk); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeDisk)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeDisk); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeDisk)
 	}
 }
 
@@ -79,18 +81,18 @@ func TestExtractDiskFullResource(t *testing.T) {
 	if len(got.Relationships) != 5 {
 		t.Fatalf("expected 5 edges (2 instances, image, snapshot, kms), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeDiskAttachedToInstance, instance1, assetTypeComputeInstance)
-	assertRelationship(t, got.Relationships, relationshipTypeDiskAttachedToInstance, instance2, assetTypeComputeInstance)
-	assertRelationship(t, got.Relationships, relationshipTypeDiskCreatedFromImage, image, assetTypeComputeImage)
-	assertRelationship(t, got.Relationships, relationshipTypeDiskCreatedFromSnapshot, snapshot, assetTypeComputeSnapshot)
-	assertRelationship(t, got.Relationships, relationshipTypeDiskEncryptedByKey, cryptoKey, assetTypeKMSCryptoKey)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDiskAttachedToInstance, instance1, catalog.AssetTypeComputeInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDiskAttachedToInstance, instance2, catalog.AssetTypeComputeInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDiskCreatedFromImage, image, catalog.AssetTypeComputeImage)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDiskCreatedFromSnapshot, snapshot, catalog.AssetTypeComputeSnapshot)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDiskEncryptedByKey, cryptoKey, assetTypeKMSCryptoKey)
 
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != diskFullName {
 			t.Errorf("relationship source = %q, want disk full name", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != assetTypeComputeDisk {
-			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, assetTypeComputeDisk)
+		if rel.SourceAssetType != catalog.AssetTypeComputeDisk {
+			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.AssetTypeComputeDisk)
 		}
 	}
 }
@@ -144,8 +146,8 @@ func TestExtractDiskPartialData(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected the source-image edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeDiskCreatedFromImage,
-		"//compute.googleapis.com/projects/debian-cloud/global/images/debian-12", assetTypeComputeImage)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDiskCreatedFromImage,
+		"//compute.googleapis.com/projects/debian-cloud/global/images/debian-12", catalog.AssetTypeComputeImage)
 }
 
 func TestExtractDiskEmptyDataYieldsNothing(t *testing.T) {

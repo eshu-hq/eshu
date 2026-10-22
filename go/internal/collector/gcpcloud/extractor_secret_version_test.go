@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const (
@@ -17,15 +19,15 @@ const (
 func secretVersionContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: secretVersionFullName,
-		AssetType:        secretVersionAssetType,
+		AssetType:        catalog.SecretVersionAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestSecretVersionExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(secretVersionAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", secretVersionAssetType)
+	if _, ok := lookupAssetExtractor(catalog.SecretVersionAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.SecretVersionAssetType)
 	}
 }
 
@@ -58,9 +60,9 @@ func TestExtractSecretVersionFullResource(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected parent-secret + kms-key-version edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSecretVersionOfSecret, secretVersionParent, secretManagerSecretAssetType)
-	assertRelationship(t, got.Relationships, relationshipTypeSecretVersionEncryptedByKMSKeyVersion,
-		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/secrets/cryptoKeys/primary/cryptoKeyVersions/5", assetTypeKMSCryptoKeyVersion)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSecretVersionOfSecret, secretVersionParent, secretManagerSecretAssetType)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSecretVersionEncryptedByKMSKeyVersion,
+		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/secrets/cryptoKeys/primary/cryptoKeyVersions/5", catalog.AssetTypeKMSCryptoKeyVersion)
 	wantAnchors := []string{"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/secrets/cryptoKeys/primary/cryptoKeyVersions/5"}
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {
 		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
@@ -95,7 +97,7 @@ func TestExtractSecretVersionDestroyed(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected only the parent-secret edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSecretVersionOfSecret, secretVersionParent, secretManagerSecretAssetType)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSecretVersionOfSecret, secretVersionParent, secretManagerSecretAssetType)
 }
 
 func TestExtractSecretVersionRegionalTopLevelCMEK(t *testing.T) {
@@ -112,8 +114,8 @@ func TestExtractSecretVersionRegionalTopLevelCMEK(t *testing.T) {
 	if got.Attributes["customer_managed_encryption"] != true {
 		t.Errorf("regional CMEK must set customer_managed_encryption: %#v", got.Attributes)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSecretVersionEncryptedByKMSKeyVersion,
-		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/secrets/cryptoKeys/primary/cryptoKeyVersions/7", assetTypeKMSCryptoKeyVersion)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSecretVersionEncryptedByKMSKeyVersion,
+		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/secrets/cryptoKeys/primary/cryptoKeyVersions/7", catalog.AssetTypeKMSCryptoKeyVersion)
 }
 
 func TestNormalizeKMSCryptoKeyVersionPath(t *testing.T) {

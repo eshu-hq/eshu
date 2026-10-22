@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const vpnTunnelFullName = "//compute.googleapis.com/projects/demo-project/regions/us-central1/vpnTunnels/tunnel-1"
@@ -14,15 +16,15 @@ const vpnTunnelFullName = "//compute.googleapis.com/projects/demo-project/region
 func vpnTunnelContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: vpnTunnelFullName,
-		AssetType:        assetTypeComputeVpnTunnel,
+		AssetType:        catalog.AssetTypeComputeVpnTunnel,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestVpnTunnelExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeVpnTunnel); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeVpnTunnel)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeVpnTunnel); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeVpnTunnel)
 	}
 }
 
@@ -73,11 +75,11 @@ func TestExtractVpnTunnelHAGatewayAndPeerGcpGateway(t *testing.T) {
 	if len(got.Relationships) != 3 {
 		t.Fatalf("expected 3 edges (vpn gateway, peer gcp gateway, router), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeVpnTunnelUsesVpnGateway, gateway, assetTypeComputeVPNGateway)
-	assertRelationship(t, got.Relationships, relationshipTypeVpnTunnelPeersWithVpnGateway, peer, assetTypeComputeVPNGateway)
-	assertRelationship(t, got.Relationships, relationshipTypeVpnTunnelUsesRouter, router, assetTypeComputeRouter)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeVpnTunnelUsesVpnGateway, gateway, catalog.AssetTypeComputeVPNGateway)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeVpnTunnelPeersWithVpnGateway, peer, catalog.AssetTypeComputeVPNGateway)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeVpnTunnelUsesRouter, router, catalog.AssetTypeComputeRouter)
 	for _, rel := range got.Relationships {
-		if rel.SourceFullResourceName != vpnTunnelFullName || rel.SourceAssetType != assetTypeComputeVpnTunnel {
+		if rel.SourceFullResourceName != vpnTunnelFullName || rel.SourceAssetType != catalog.AssetTypeComputeVpnTunnel {
 			t.Errorf("relationship source = %q/%q, want vpn tunnel", rel.SourceFullResourceName, rel.SourceAssetType)
 		}
 		if rel.SupportState != RelationshipSupportSupported {
@@ -105,8 +107,8 @@ func TestExtractVpnTunnelClassicTargetGatewayAndPeerExternalGateway(t *testing.T
 		targetGW = "//compute.googleapis.com/projects/demo-project/regions/us-central1/targetVpnGateways/classic-gw-1"
 		peerGW   = "//compute.googleapis.com/projects/demo-project/regions/us-central1/externalVpnGateways/peer-gw-2"
 	)
-	assertRelationship(t, got.Relationships, relationshipTypeVpnTunnelUsesTargetVpnGateway, targetGW, assetTypeComputeTargetVPNGateway)
-	assertRelationship(t, got.Relationships, relationshipTypeVpnTunnelPeersWithVpnGateway, peerGW, assetTypeComputeExternalVPNGateway)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeVpnTunnelUsesTargetVpnGateway, targetGW, catalog.AssetTypeComputeTargetVPNGateway)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeVpnTunnelPeersWithVpnGateway, peerGW, catalog.AssetTypeComputeExternalVPNGateway)
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected exactly 2 edges (classic target gateway + peer external gateway), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
@@ -121,7 +123,7 @@ func TestExtractVpnTunnelClassicTargetGatewayAndPeerExternalGateway(t *testing.T
 	}
 	// No router configured -> no dynamic-routing edge or anchor.
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeVpnTunnelUsesRouter {
+		if rel.RelationshipType == catalog.RelationshipTypeVpnTunnelUsesRouter {
 			t.Errorf("unexpected router edge with no router configured: %#v", rel)
 		}
 	}
@@ -213,10 +215,10 @@ func TestExtractVpnTunnelBareGatewayReferenceResolvesAgainstProject(t *testing.T
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeVpnTunnelUsesVpnGateway,
-		"//compute.googleapis.com/projects/demo-project/regions/us-central1/vpnGateways/ha-gw-1", assetTypeComputeVPNGateway)
-	assertRelationship(t, got.Relationships, relationshipTypeVpnTunnelUsesRouter,
-		"//compute.googleapis.com/projects/demo-project/regions/us-central1/routers/router-1", assetTypeComputeRouter)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeVpnTunnelUsesVpnGateway,
+		"//compute.googleapis.com/projects/demo-project/regions/us-central1/vpnGateways/ha-gw-1", catalog.AssetTypeComputeVPNGateway)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeVpnTunnelUsesRouter,
+		"//compute.googleapis.com/projects/demo-project/regions/us-central1/routers/router-1", catalog.AssetTypeComputeRouter)
 }
 
 func TestExtractVpnTunnelDropsUnresolvableGatewayReferences(t *testing.T) {
@@ -268,27 +270,27 @@ func TestExtractVpnTunnelWrongSegmentReferencesProduceNoEdge(t *testing.T) {
 		{
 			name:             "vpnGateway field with a router selfLink",
 			data:             `{"vpnGateway": "` + routerSelfLink + `"}`,
-			wantRelationship: relationshipTypeVpnTunnelUsesVpnGateway,
+			wantRelationship: catalog.RelationshipTypeVpnTunnelUsesVpnGateway,
 		},
 		{
 			name:             "targetVpnGateway field with an HA vpnGateway selfLink",
 			data:             `{"targetVpnGateway": "` + vpnGatewaySelfLink + `"}`,
-			wantRelationship: relationshipTypeVpnTunnelUsesTargetVpnGateway,
+			wantRelationship: catalog.RelationshipTypeVpnTunnelUsesTargetVpnGateway,
 		},
 		{
 			name:             "peerGcpGateway field with an externalVpnGateway selfLink",
 			data:             `{"peerGcpGateway": "` + externalVpnGatewaySelfLink + `"}`,
-			wantRelationship: relationshipTypeVpnTunnelPeersWithVpnGateway,
+			wantRelationship: catalog.RelationshipTypeVpnTunnelPeersWithVpnGateway,
 		},
 		{
 			name:             "peerExternalGateway field with a Classic targetVpnGateway selfLink",
 			data:             `{"peerExternalGateway": "` + targetVpnGatewaySelfLink + `"}`,
-			wantRelationship: relationshipTypeVpnTunnelPeersWithVpnGateway,
+			wantRelationship: catalog.RelationshipTypeVpnTunnelPeersWithVpnGateway,
 		},
 		{
 			name:             "router field with an HA vpnGateway selfLink",
 			data:             `{"router": "` + vpnGatewaySelfLink + `"}`,
-			wantRelationship: relationshipTypeVpnTunnelUsesRouter,
+			wantRelationship: catalog.RelationshipTypeVpnTunnelUsesRouter,
 		},
 	}
 

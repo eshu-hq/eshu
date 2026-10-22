@@ -6,6 +6,8 @@ package gcpcloud
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const urlMapFullName = "//compute.googleapis.com/projects/demo-project/global/urlMaps/web-map"
@@ -13,15 +15,15 @@ const urlMapFullName = "//compute.googleapis.com/projects/demo-project/global/ur
 func urlMapContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: urlMapFullName,
-		AssetType:        assetTypeComputeUrlMap,
+		AssetType:        catalog.AssetTypeComputeUrlMap,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestURLMapExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeUrlMap); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeUrlMap)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeUrlMap); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeUrlMap)
 	}
 }
 
@@ -45,7 +47,7 @@ func TestExtractURLMapDefaultServiceOnly(t *testing.T) {
 	}
 
 	wantBackend := "//compute.googleapis.com/projects/demo-project/global/backendServices/default-backend"
-	assertRelationship(t, got.Relationships, relationshipTypeURLMapDefaultService, wantBackend, assetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeURLMapDefaultService, wantBackend, catalog.AssetTypeComputeBackendService)
 	if !containsStringSlice(got.CorrelationAnchors, wantBackend) {
 		t.Errorf("expected correlation anchor for default service, got %#v", got.CorrelationAnchors)
 	}
@@ -66,7 +68,7 @@ func TestExtractURLMapDefaultServiceBackendBucket(t *testing.T) {
 	}
 
 	wantBucket := "//compute.googleapis.com/projects/demo-project/global/backendBuckets/static-assets"
-	assertRelationship(t, got.Relationships, relationshipTypeURLMapDefaultService, wantBucket, assetTypeComputeBackendBucket)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeURLMapDefaultService, wantBucket, catalog.AssetTypeComputeBackendBucket)
 }
 
 func TestExtractURLMapHostRulesAndPathMatchers(t *testing.T) {
@@ -120,11 +122,11 @@ func TestExtractURLMapHostRulesAndPathMatchers(t *testing.T) {
 	wantImages := "//compute.googleapis.com/projects/demo-project/global/backendServices/images-backend"
 	wantVideos := "//compute.googleapis.com/projects/demo-project/global/backendServices/videos-backend"
 
-	assertRelationship(t, got.Relationships, relationshipTypeURLMapDefaultService, wantDefault, assetTypeComputeBackendService)
-	assertRelationship(t, got.Relationships, relationshipTypeURLMapPathMatcherService, wantWeb, assetTypeComputeBackendService)
-	assertRelationship(t, got.Relationships, relationshipTypeURLMapPathMatcherService, wantAPI, assetTypeComputeBackendService)
-	assertRelationship(t, got.Relationships, relationshipTypeURLMapPathRuleService, wantImages, assetTypeComputeBackendService)
-	assertRelationship(t, got.Relationships, relationshipTypeURLMapPathRuleService, wantVideos, assetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeURLMapDefaultService, wantDefault, catalog.AssetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeURLMapPathMatcherService, wantWeb, catalog.AssetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeURLMapPathMatcherService, wantAPI, catalog.AssetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeURLMapPathRuleService, wantImages, catalog.AssetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeURLMapPathRuleService, wantVideos, catalog.AssetTypeComputeBackendService)
 
 	// Raw host and path patterns must never leave the parser.
 	blob, err := json.Marshal(got)
@@ -249,9 +251,9 @@ func TestExtractURLMapRouteRulesDirectAndWeightedServices(t *testing.T) {
 	wantCanary := "//compute.googleapis.com/projects/demo-project/global/backendServices/canary-backend"
 	wantStable := "//compute.googleapis.com/projects/demo-project/global/backendServices/stable-backend"
 
-	assertRelationship(t, got.Relationships, relationshipTypeURLMapRouteRuleService, wantDirect, assetTypeComputeBackendService)
-	assertRelationship(t, got.Relationships, relationshipTypeURLMapRouteRuleWeightedService, wantCanary, assetTypeComputeBackendService)
-	assertRelationship(t, got.Relationships, relationshipTypeURLMapRouteRuleWeightedService, wantStable, assetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeURLMapRouteRuleService, wantDirect, catalog.AssetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeURLMapRouteRuleWeightedService, wantCanary, catalog.AssetTypeComputeBackendService)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeURLMapRouteRuleWeightedService, wantStable, catalog.AssetTypeComputeBackendService)
 
 	for _, want := range []string{wantDirect, wantCanary, wantStable} {
 		if !containsStringSlice(got.CorrelationAnchors, want) {
@@ -342,10 +344,10 @@ func TestURLMapBackendEdgeDispatch(t *testing.T) {
 		wantName      string
 		wantAssetType string
 	}{
-		{"backend service full selflink", "https://www.googleapis.com/compute/v1/projects/p/global/backendServices/bs", "//compute.googleapis.com/projects/p/global/backendServices/bs", assetTypeComputeBackendService},
-		{"backend bucket full selflink", "https://www.googleapis.com/compute/v1/projects/p/global/backendBuckets/bb", "//compute.googleapis.com/projects/p/global/backendBuckets/bb", assetTypeComputeBackendBucket},
-		{"project-qualified partial", "projects/p/global/backendServices/bs", "//compute.googleapis.com/projects/p/global/backendServices/bs", assetTypeComputeBackendService},
-		{"project-less partial resolved against source project", "global/backendServices/bs", "//compute.googleapis.com/projects/p/global/backendServices/bs", assetTypeComputeBackendService},
+		{"backend service full selflink", "https://www.googleapis.com/compute/v1/projects/p/global/backendServices/bs", "//compute.googleapis.com/projects/p/global/backendServices/bs", catalog.AssetTypeComputeBackendService},
+		{"backend bucket full selflink", "https://www.googleapis.com/compute/v1/projects/p/global/backendBuckets/bb", "//compute.googleapis.com/projects/p/global/backendBuckets/bb", catalog.AssetTypeComputeBackendBucket},
+		{"project-qualified partial", "projects/p/global/backendServices/bs", "//compute.googleapis.com/projects/p/global/backendServices/bs", catalog.AssetTypeComputeBackendService},
+		{"project-less partial resolved against source project", "global/backendServices/bs", "//compute.googleapis.com/projects/p/global/backendServices/bs", catalog.AssetTypeComputeBackendService},
 		{"unrecognized segment", "projects/p/global/somethingElse/x", "", ""},
 		{"blank", "", "", ""},
 	}

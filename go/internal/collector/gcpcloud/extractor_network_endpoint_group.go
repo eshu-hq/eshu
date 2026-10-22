@@ -8,58 +8,22 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// assetTypeComputeNetworkEndpointGroup is declared in
-// extractor_backend_service.go (the BackendService extractor already
+// Family constants for this extractor now live in catalog/gcp_compute_lb.go (#6696 HK slice); uses below name catalog.X.
+
+// catalog.AssetTypeComputeNetworkEndpointGroup lives in catalog/gcp_compute_lb.go
+// (consolidated from extractor_backend_service.go) (the BackendService extractor already
 // resolves a backend entry's `group` reference toward this asset type as its
 // shared backend_service_has_backend edge target) and reused here; this file
 // is the other side of that edge — the Network Endpoint Group resource's own
 // typed depth. assetTypeComputeNetwork and assetTypeComputeSubnetwork are
 // declared by the Subnetwork extractor and reused here.
 
-// Bounded provider relationship types for the Network Endpoint Group edges
-// carried on gcp_cloud_relationship facts. The reducer materializes each edge
-// only when both endpoints resolve exactly. There is no reverse edge to the
-// enclosing BackendService here: that relationship is already emitted, in the
-// opposite direction, by extractor_backend_service.go
-// (relationshipTypeBackendServiceHasBackend), so emitting it again from this
-// side would duplicate the same fact under a different relationship type.
-//
-// relationshipTypeNetworkEndpointGroupTargetsServerlessService is emitted only
-// for a Cloud Run serverless backend with a fixed service name: the service
-// resolves exactly to a run.googleapis.com/Service in the NEG's own project and
-// region (mirroring the Eventarc Trigger extractor's Cloud Run edge). App
-// Engine and Cloud Function serverless refs stay attribute-only, not edges,
-// because neither resolves to an exact CAI endpoint from the NEG alone (the App
-// Engine app id need not equal the project id; a Cloud Function ref carries no
-// gen1/gen2 or region qualifier).
-//
-// relationshipTypeNetworkEndpointGroupTargetsServiceAttachment is emitted only
-// when a PRIVATE_SERVICE_CONNECT NEG's pscTargetService is a Producer Service
-// Attachment self-link (resolving to compute.googleapis.com/ServiceAttachment,
-// the same asset type the ForwardingRule extractor resolves). A bare Google API
-// hostname target names no CAI resource and is host-fingerprinted instead.
-const (
-	relationshipTypeNetworkEndpointGroupInNetwork                = "network_endpoint_group_in_network"
-	relationshipTypeNetworkEndpointGroupInSubnetwork             = "network_endpoint_group_in_subnetwork"
-	relationshipTypeNetworkEndpointGroupTargetsServerlessService = "network_endpoint_group_targets_serverless_service"
-	relationshipTypeNetworkEndpointGroupTargetsServiceAttachment = "network_endpoint_group_targets_service_attachment"
-)
-
-// networkEndpointGroupServerlessCloudRun, ...AppEngine, and ...CloudFunction
-// are the bounded serverless_type discriminator values surfaced for a
-// SERVERLESS network endpoint group, one per mutually-exclusive serverless
-// backend the Compute API supports.
-const (
-	networkEndpointGroupServerlessCloudRun      = "cloud_run"
-	networkEndpointGroupServerlessAppEngine     = "app_engine"
-	networkEndpointGroupServerlessCloudFunction = "cloud_function"
-)
-
 func init() {
-	RegisterAssetExtractor(assetTypeComputeNetworkEndpointGroup, extractNetworkEndpointGroup)
+	RegisterAssetExtractor(catalog.AssetTypeComputeNetworkEndpointGroup, extractNetworkEndpointGroup)
 }
 
 // networkEndpointGroupData is the bounded view of a CAI
@@ -164,11 +128,11 @@ func extractNetworkEndpointGroup(ctx ExtractContext) (AttributeExtraction, error
 
 	if networkName := computeFullResourceNameFromSelfLink(data.Network, ctx.ProjectID); networkName != "" {
 		anchors = append(anchors, networkName)
-		rels = append(rels, networkEndpointGroupEdge(ctx, relationshipTypeNetworkEndpointGroupInNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, networkEndpointGroupEdge(ctx, catalog.RelationshipTypeNetworkEndpointGroupInNetwork, networkName, assetTypeComputeNetwork))
 	}
 	if subnetName := computeFullResourceNameFromSelfLink(data.Subnetwork, ctx.ProjectID); subnetName != "" {
 		anchors = append(anchors, subnetName)
-		rels = append(rels, networkEndpointGroupEdge(ctx, relationshipTypeNetworkEndpointGroupInSubnetwork, subnetName, assetTypeComputeSubnetwork))
+		rels = append(rels, networkEndpointGroupEdge(ctx, catalog.RelationshipTypeNetworkEndpointGroupInSubnetwork, subnetName, assetTypeComputeSubnetwork))
 	}
 
 	serverlessRels, serverlessAnchors := networkEndpointGroupServerlessAttributes(ctx, data, attrs)
@@ -233,7 +197,7 @@ func networkEndpointGroupCoreAttributes(data networkEndpointGroupData, attrs map
 func networkEndpointGroupServerlessAttributes(ctx ExtractContext, data networkEndpointGroupData, attrs map[string]any) ([]RelationshipObservation, []string) {
 	switch {
 	case data.CloudRun != nil:
-		attrs["serverless_type"] = networkEndpointGroupServerlessCloudRun
+		attrs["serverless_type"] = catalog.NetworkEndpointGroupServerlessCloudRun
 		service := strings.TrimSpace(data.CloudRun.Service)
 		if service == "" {
 			return nil, nil
@@ -244,15 +208,15 @@ func networkEndpointGroupServerlessAttributes(ctx ExtractContext, data networkEn
 			return nil, nil
 		}
 		return []RelationshipObservation{
-			networkEndpointGroupEdge(ctx, relationshipTypeNetworkEndpointGroupTargetsServerlessService, serviceName, assetTypeRunService),
+			networkEndpointGroupEdge(ctx, catalog.RelationshipTypeNetworkEndpointGroupTargetsServerlessService, serviceName, assetTypeRunService),
 		}, []string{serviceName}
 	case data.AppEngine != nil:
-		attrs["serverless_type"] = networkEndpointGroupServerlessAppEngine
+		attrs["serverless_type"] = catalog.NetworkEndpointGroupServerlessAppEngine
 		if service := strings.TrimSpace(data.AppEngine.Service); service != "" {
 			attrs["serverless_service"] = service
 		}
 	case data.CloudFunction != nil:
-		attrs["serverless_type"] = networkEndpointGroupServerlessCloudFunction
+		attrs["serverless_type"] = catalog.NetworkEndpointGroupServerlessCloudFunction
 		if fn := strings.TrimSpace(data.CloudFunction.Function); fn != "" {
 			attrs["serverless_service"] = fn
 		}
@@ -277,7 +241,7 @@ func networkEndpointGroupPSCAttributes(ctx ExtractContext, data networkEndpointG
 	if saName := computeResourceFullNameFromSelfLink(data.PSCTargetService, "serviceAttachments", ctx.ProjectID); saName != "" {
 		attrs["psc_target_service_attachment"] = saName
 		anchors = append(anchors, saName)
-		rels = append(rels, networkEndpointGroupEdge(ctx, relationshipTypeNetworkEndpointGroupTargetsServiceAttachment, saName, assetTypeComputeServiceAttachment))
+		rels = append(rels, networkEndpointGroupEdge(ctx, catalog.RelationshipTypeNetworkEndpointGroupTargetsServiceAttachment, saName, catalog.AssetTypeComputeServiceAttachment))
 	} else if fp := networkEndpointGroupPSCTargetServiceFingerprint(data.PSCTargetService); fp != "" {
 		attrs["psc_target_service_fingerprint"] = fp
 	}

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -60,13 +61,13 @@ func TestAddressOfflineFixtureEndToEnd(t *testing.T) {
 			}
 		case cloud.GCPCloudRelationshipFactKind:
 			switch stringOrEmpty(env.Payload["relationship_type"]) {
-			case relationshipTypeAddressUsedByForwardingRule:
+			case catalog.RelationshipTypeAddressUsedByForwardingRule:
 				forwardingRuleEdges++
-			case relationshipTypeAddressUsedByInstance:
+			case catalog.RelationshipTypeAddressUsedByInstance:
 				instanceEdges++
-			case relationshipTypeAddressInNetwork:
+			case catalog.RelationshipTypeAddressInNetwork:
 				networkEdges++
-			case relationshipTypeAddressInSubnetwork:
+			case catalog.RelationshipTypeAddressInSubnetwork:
 				subnetworkEdges++
 			}
 		}

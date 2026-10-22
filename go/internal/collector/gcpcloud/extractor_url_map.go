@@ -7,37 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type constant for the compute BackendBucket relationship endpoint the
-// URL Map extractor derives. assetTypeComputeBackendService is declared in
-// extractor_forwarding_rule.go and reused here; assetTypeComputeUrlMap is
-// declared here since URL Map is this extractor's own asset type.
-const (
-	assetTypeComputeUrlMap        = "compute.googleapis.com/UrlMap"
-	assetTypeComputeBackendBucket = "compute.googleapis.com/BackendBucket"
-)
-
-// Bounded relationship types for URL Map edges. They are stable, bounded
-// provider relationship strings carried on gcp_cloud_relationship facts; the
-// reducer materializes an edge only when both endpoints resolve exactly.
-const (
-	relationshipTypeURLMapDefaultService     = "url_map_default_service"
-	relationshipTypeURLMapPathMatcherService = "url_map_path_matcher_default_service"
-	relationshipTypeURLMapPathRuleService    = "url_map_path_rule_service"
-	// relationshipTypeURLMapRouteRuleService covers routeRules[].service, the
-	// advanced-routing analogue of pathRules[].service: exactly one direct
-	// backend reference per route rule.
-	relationshipTypeURLMapRouteRuleService = "url_map_route_rule_service"
-	// relationshipTypeURLMapRouteRuleWeightedService covers each entry of
-	// routeRules[].routeAction.weightedBackendServices[].backendService, a
-	// distinct shape from a direct service reference because one route rule
-	// can weight traffic across multiple backends (e.g. canary rollouts).
-	relationshipTypeURLMapRouteRuleWeightedService = "url_map_route_rule_weighted_service"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_core.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeUrlMap, extractURLMap)
+	RegisterAssetExtractor(catalog.AssetTypeComputeUrlMap, extractURLMap)
 }
 
 // urlMapPathRuleData is the bounded view of one pathMatchers[].pathRules[]
@@ -134,29 +111,29 @@ func extractURLMap(ctx ExtractContext) (AttributeExtraction, error) {
 
 	if name, assetType := urlMapBackendEdge(data.DefaultService, ctx.ProjectID); name != "" {
 		anchors = append(anchors, name)
-		rels = append(rels, urlMapEdge(ctx, relationshipTypeURLMapDefaultService, name, assetType))
+		rels = append(rels, urlMapEdge(ctx, catalog.RelationshipTypeURLMapDefaultService, name, assetType))
 	}
 
 	for _, pm := range data.PathMatchers {
 		if name, assetType := urlMapBackendEdge(pm.DefaultService, ctx.ProjectID); name != "" {
 			anchors = append(anchors, name)
-			rels = append(rels, urlMapEdge(ctx, relationshipTypeURLMapPathMatcherService, name, assetType))
+			rels = append(rels, urlMapEdge(ctx, catalog.RelationshipTypeURLMapPathMatcherService, name, assetType))
 		}
 		for _, pr := range pm.PathRules {
 			if name, assetType := urlMapBackendEdge(pr.Service, ctx.ProjectID); name != "" {
 				anchors = append(anchors, name)
-				rels = append(rels, urlMapEdge(ctx, relationshipTypeURLMapPathRuleService, name, assetType))
+				rels = append(rels, urlMapEdge(ctx, catalog.RelationshipTypeURLMapPathRuleService, name, assetType))
 			}
 		}
 		for _, rr := range pm.RouteRules {
 			if name, assetType := urlMapBackendEdge(rr.Service, ctx.ProjectID); name != "" {
 				anchors = append(anchors, name)
-				rels = append(rels, urlMapEdge(ctx, relationshipTypeURLMapRouteRuleService, name, assetType))
+				rels = append(rels, urlMapEdge(ctx, catalog.RelationshipTypeURLMapRouteRuleService, name, assetType))
 			}
 			for _, wbs := range rr.RouteAction.WeightedBackendServices {
 				if name, assetType := urlMapBackendEdge(wbs.BackendService, ctx.ProjectID); name != "" {
 					anchors = append(anchors, name)
-					rels = append(rels, urlMapEdge(ctx, relationshipTypeURLMapRouteRuleWeightedService, name, assetType))
+					rels = append(rels, urlMapEdge(ctx, catalog.RelationshipTypeURLMapRouteRuleWeightedService, name, assetType))
 				}
 			}
 		}
@@ -260,9 +237,9 @@ func urlMapBackendEdge(ref, sourceProjectID string) (fullName, assetType string)
 	}
 	switch {
 	case strings.Contains(name, "/backendServices/"):
-		return name, assetTypeComputeBackendService
+		return name, catalog.AssetTypeComputeBackendService
 	case strings.Contains(name, "/backendBuckets/"):
-		return name, assetTypeComputeBackendBucket
+		return name, catalog.AssetTypeComputeBackendBucket
 	default:
 		return "", ""
 	}

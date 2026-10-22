@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const computeNetworkTestFullName = "//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc"
@@ -69,11 +71,11 @@ func TestExtractComputeNetworkCustomMode(t *testing.T) {
 		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeNetworkContainsSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeNetworkContainsSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/prod-us-central1", assetTypeComputeSubnetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeNetworkContainsSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeNetworkContainsSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-east1/subnetworks/prod-us-east1", assetTypeComputeSubnetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeNetworkPeersWithNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeNetworkPeersWithNetwork,
 		"//compute.googleapis.com/projects/shared-project/global/networks/shared-vpc", assetTypeComputeNetwork)
 	if len(got.Relationships) != 3 {
 		t.Fatalf("expected 3 relationships (2 subnets, 1 peering), got %d: %#v", len(got.Relationships), got.Relationships)
@@ -191,7 +193,7 @@ func TestExtractComputeNetworkSkipsInactivePeering(t *testing.T) {
 	}
 	peeringEdges := 0
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeNetworkPeersWithNetwork {
+		if rel.RelationshipType == catalog.RelationshipTypeNetworkPeersWithNetwork {
 			peeringEdges++
 		}
 		if rel.TargetFullResourceName == "//compute.googleapis.com/projects/p-inactive/global/networks/n-inactive" {
@@ -224,9 +226,9 @@ func TestExtractComputeNetworkNormalizesPartialURLs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeNetworkContainsSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeNetworkContainsSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/local-subnet", assetTypeComputeSubnetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeNetworkPeersWithNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeNetworkPeersWithNetwork,
 		"//compute.googleapis.com/projects/other-project/global/networks/other-net", assetTypeComputeNetwork)
 }
 

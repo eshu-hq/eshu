@@ -8,14 +8,14 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// identityConfigAssetType is the Cloud Asset Inventory asset type for a GCP
-// Identity Platform (Identity Toolkit) project Config.
-const identityConfigAssetType = "identitytoolkit.googleapis.com/Config"
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(identityConfigAssetType, extractIdentityPlatformConfig)
+	RegisterAssetExtractor(catalog.IdentityConfigAssetType, extractIdentityPlatformConfig)
 }
 
 // identityConfigData is the bounded view of a CAI

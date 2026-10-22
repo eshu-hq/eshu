@@ -7,29 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type constants for the compute Route typed-depth extractor and the
-// relationship endpoints it derives. assetTypeComputeNetwork,
-// assetTypeComputeInstance, and assetTypeComputeForwardingRule (the next-hop
-// internal-load-balancer edge target) are declared by the sibling compute
-// extractors and reused here.
-const (
-	assetTypeComputeRoute     = "compute.googleapis.com/Route"
-	assetTypeComputeVpnTunnel = "compute.googleapis.com/VpnTunnel"
-)
-
-// Bounded provider relationship types for the Route edges carried on
-// gcp_cloud_relationship facts. The reducer materializes each edge only when both
-// endpoints resolve exactly. The next-hop gateway (an internet gateway, not a CAI
-// asset) and next-hop IP (a data-plane address) are kept as bounded attributes,
-// not edges.
-const (
-	relationshipTypeRouteInNetwork        = "route_in_network"
-	relationshipTypeRouteNextHopInstance  = "route_next_hop_instance"
-	relationshipTypeRouteNextHopVpnTunnel = "route_next_hop_vpn_tunnel"
-	relationshipTypeRouteNextHopIlb       = "route_next_hop_ilb"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_net.go (#6696 HK slice); uses below name catalog.X.
 
 // routeData is the bounded view of a CAI compute.googleapis.com/Route
 // resource.data blob. The destination range is decoded only to derive a
@@ -50,7 +32,7 @@ type routeData struct {
 }
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeRoute, extractRoute)
+	RegisterAssetExtractor(catalog.AssetTypeComputeRoute, extractRoute)
 }
 
 // extractRoute extracts bounded, redaction-safe typed depth for one compute
@@ -72,19 +54,19 @@ func extractRoute(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 	if networkName := computeFullResourceNameFromSelfLink(data.Network, ctx.ProjectID); networkName != "" {
 		anchors = append(anchors, networkName)
-		rels = append(rels, routeEdge(ctx, relationshipTypeRouteInNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, routeEdge(ctx, catalog.RelationshipTypeRouteInNetwork, networkName, assetTypeComputeNetwork))
 	}
 	if instanceName := routeNextHopName(data.NextHopInstance, ctx.ProjectID, "instances"); instanceName != "" {
 		anchors = append(anchors, instanceName)
-		rels = append(rels, routeEdge(ctx, relationshipTypeRouteNextHopInstance, instanceName, assetTypeComputeInstance))
+		rels = append(rels, routeEdge(ctx, catalog.RelationshipTypeRouteNextHopInstance, instanceName, catalog.AssetTypeComputeInstance))
 	}
 	if tunnelName := routeNextHopName(data.NextHopVpnTunnel, ctx.ProjectID, "vpnTunnels"); tunnelName != "" {
 		anchors = append(anchors, tunnelName)
-		rels = append(rels, routeEdge(ctx, relationshipTypeRouteNextHopVpnTunnel, tunnelName, assetTypeComputeVpnTunnel))
+		rels = append(rels, routeEdge(ctx, catalog.RelationshipTypeRouteNextHopVpnTunnel, tunnelName, catalog.AssetTypeComputeVpnTunnel))
 	}
 	if ilbName := routeNextHopName(data.NextHopIlb, ctx.ProjectID, "forwardingRules"); ilbName != "" {
 		anchors = append(anchors, ilbName)
-		rels = append(rels, routeEdge(ctx, relationshipTypeRouteNextHopIlb, ilbName, assetTypeComputeForwardingRule))
+		rels = append(rels, routeEdge(ctx, catalog.RelationshipTypeRouteNextHopIlb, ilbName, catalog.AssetTypeComputeForwardingRule))
 	}
 
 	return AttributeExtraction{

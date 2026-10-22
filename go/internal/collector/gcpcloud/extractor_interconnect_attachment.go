@@ -7,25 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeComputeInterconnect is the CAI asset type for the underlying
-// Dedicated/Cross-Cloud Interconnect a Compute InterconnectAttachment
-// traverses. assetTypeComputeInterconnectAttachment and assetTypeComputeRouter
-// are declared by the sibling Cloud Router extractor
-// (extractor_router.go, #4301) and reused here, never redeclared, exactly as
-// the VPN Tunnel extractor reuses assetTypeComputeVPNGateway and
-// assetTypeComputeRouter from their own owning extractors.
-const assetTypeComputeInterconnect = "compute.googleapis.com/Interconnect"
-
-// Bounded provider relationship types for InterconnectAttachment edges,
-// carried on gcp_cloud_relationship facts. The reducer materializes each edge
-// only when both endpoints resolve exactly.
-const (
-	relationshipTypeInterconnectAttachmentUsesRouter       = "interconnect_attachment_uses_router"
-	relationshipTypeInterconnectAttachmentUsesInterconnect = "interconnect_attachment_uses_interconnect"
-	relationshipTypeInterconnectAttachmentUsesNetwork      = "interconnect_attachment_uses_network"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_net.go (#6696 HK slice); uses below name catalog.X.
 
 // interconnectAttachmentData is the bounded view of a CAI
 // compute.googleapis.com/InterconnectAttachment resource.data blob. Every
@@ -70,7 +56,7 @@ type interconnectAttachmentL2Config struct {
 }
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeInterconnectAttachment, extractInterconnectAttachment)
+	RegisterAssetExtractor(catalog.AssetTypeComputeInterconnectAttachment, extractInterconnectAttachment)
 }
 
 // extractInterconnectAttachment extracts bounded, redaction-safe typed depth
@@ -94,16 +80,16 @@ func extractInterconnectAttachment(ctx ExtractContext) (AttributeExtraction, err
 	var rels []RelationshipObservation
 	if routerName := computeResourceFullNameFromSelfLink(data.Router, "routers", ctx.ProjectID); routerName != "" {
 		anchors = append(anchors, routerName)
-		rels = append(rels, interconnectAttachmentEdge(ctx, relationshipTypeInterconnectAttachmentUsesRouter, routerName, assetTypeComputeRouter))
+		rels = append(rels, interconnectAttachmentEdge(ctx, catalog.RelationshipTypeInterconnectAttachmentUsesRouter, routerName, catalog.AssetTypeComputeRouter))
 	}
 	if interconnectName := computeResourceFullNameFromSelfLink(data.Interconnect, "interconnects", ctx.ProjectID); interconnectName != "" {
 		anchors = append(anchors, interconnectName)
-		rels = append(rels, interconnectAttachmentEdge(ctx, relationshipTypeInterconnectAttachmentUsesInterconnect, interconnectName, assetTypeComputeInterconnect))
+		rels = append(rels, interconnectAttachmentEdge(ctx, catalog.RelationshipTypeInterconnectAttachmentUsesInterconnect, interconnectName, catalog.AssetTypeComputeInterconnect))
 	}
 	if data.L2Forwarding != nil {
 		if networkName := computeFullResourceNameFromSelfLink(data.L2Forwarding.Network, ctx.ProjectID); networkName != "" {
 			anchors = append(anchors, networkName)
-			rels = append(rels, interconnectAttachmentEdge(ctx, relationshipTypeInterconnectAttachmentUsesNetwork, networkName, assetTypeComputeNetwork))
+			rels = append(rels, interconnectAttachmentEdge(ctx, catalog.RelationshipTypeInterconnectAttachmentUsesNetwork, networkName, assetTypeComputeNetwork))
 		}
 	}
 

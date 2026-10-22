@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const sslCertificateFullName = "//compute.googleapis.com/projects/demo-project/global/sslCertificates/api-cert"
@@ -14,15 +16,15 @@ const sslCertificateFullName = "//compute.googleapis.com/projects/demo-project/g
 func sslCertificateContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: sslCertificateFullName,
-		AssetType:        assetTypeComputeSSLCertificate,
+		AssetType:        catalog.AssetTypeComputeSSLCertificate,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestSslCertificateExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeSSLCertificate); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeSSLCertificate)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeSSLCertificate); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeSSLCertificate)
 	}
 }
 

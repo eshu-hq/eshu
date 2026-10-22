@@ -7,15 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Bounded provider relationship types for Secret Manager Secret edges. Each is a
-// stable, bounded string carried on a gcp_cloud_relationship fact; the reducer
-// materializes an edge only when both endpoints resolve exactly.
-const (
-	relationshipTypeSecretEncryptedByKMSKey = "secret_encrypted_by_kms_key"
-	relationshipTypeSecretNotifiesTopic     = "secret_notifies_topic"
-)
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
 	RegisterAssetExtractor(secretManagerSecretAssetType, extractSecretManagerSecret)
@@ -78,11 +74,11 @@ func extractSecretManagerSecret(ctx ExtractContext) (AttributeExtraction, error)
 	var rels []RelationshipObservation
 	for _, kmsName := range secretManagerKMSKeyFullNames(data) {
 		anchors = append(anchors, kmsName)
-		rels = append(rels, secretManagerSecretEdge(ctx, relationshipTypeSecretEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
+		rels = append(rels, secretManagerSecretEdge(ctx, catalog.RelationshipTypeSecretEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
 	}
 	for _, topicName := range secretManagerTopicFullNames(data) {
 		anchors = append(anchors, topicName)
-		rels = append(rels, secretManagerSecretEdge(ctx, relationshipTypeSecretNotifiesTopic, topicName, assetTypePubSubTopic))
+		rels = append(rels, secretManagerSecretEdge(ctx, catalog.RelationshipTypeSecretNotifiesTopic, topicName, assetTypePubSubTopic))
 	}
 
 	return AttributeExtraction{

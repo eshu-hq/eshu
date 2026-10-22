@@ -8,13 +8,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// iamRoleAssetType is the Cloud Asset Inventory asset type for a GCP custom IAM
-// Role. It is declared here so the extractor registration stays self-contained
-// in this file.
-const iamRoleAssetType = "iam.googleapis.com/Role"
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 // sensitiveIAMPermissions is the bounded set of exact IAM permission strings that
 // grant privilege escalation directly (service-account impersonation, key
@@ -34,7 +32,7 @@ var sensitiveIAMPermissions = map[string]struct{}{
 }
 
 func init() {
-	RegisterAssetExtractor(iamRoleAssetType, extractIAMRole)
+	RegisterAssetExtractor(catalog.IamRoleAssetType, extractIAMRole)
 }
 
 // iamRoleData is the bounded view of a CAI iam.googleapis.com/Role resource.data

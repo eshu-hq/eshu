@@ -9,26 +9,13 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// serviceAccountKeyAssetType is the Cloud Asset Inventory asset type for a GCP
-// IAM ServiceAccount key. It is declared here so the extractor registration
-// stays self-contained in this file. The parent ServiceAccount endpoint reuses
-// serviceAccountAssetType already declared for the ServiceAccount extractor.
-const serviceAccountKeyAssetType = "iam.googleapis.com/ServiceAccountKey"
-
-// relationshipTypeServiceAccountKeyOf is the bounded provider relationship type
-// for the edge from a key to its parent ServiceAccount. The reducer materializes
-// the edge only when both endpoints resolve exactly.
-const relationshipTypeServiceAccountKeyOf = "service_account_key_of"
-
-// serviceAccountKeyKeysMarker separates a ServiceAccount full resource name from
-// its per-key suffix in a ServiceAccountKey full resource name
-// (`.../serviceAccounts/<email>/keys/<id>`).
-const serviceAccountKeyKeysMarker = "/keys/"
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(serviceAccountKeyAssetType, extractServiceAccountKey)
+	RegisterAssetExtractor(catalog.ServiceAccountKeyAssetType, extractServiceAccountKey)
 }
 
 // serviceAccountKeyData is the bounded view of a CAI
@@ -90,7 +77,7 @@ func extractServiceAccountKey(ctx ExtractContext) (AttributeExtraction, error) {
 		rels = append(rels, RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
-			RelationshipType:       relationshipTypeServiceAccountKeyOf,
+			RelationshipType:       catalog.RelationshipTypeServiceAccountKeyOf,
 			TargetFullResourceName: parent,
 			TargetAssetType:        serviceAccountAssetType,
 			SupportState:           RelationshipSupportSupported,
@@ -112,8 +99,8 @@ func extractServiceAccountKey(ctx ExtractContext) (AttributeExtraction, error) {
 // key.
 func parentServiceAccountFullName(keyFullName string) string {
 	trimmed := strings.TrimSpace(keyFullName)
-	index := strings.LastIndex(trimmed, serviceAccountKeyKeysMarker)
-	if index < 0 || index+len(serviceAccountKeyKeysMarker) >= len(trimmed) {
+	index := strings.LastIndex(trimmed, catalog.ServiceAccountKeyKeysMarker)
+	if index < 0 || index+len(catalog.ServiceAccountKeyKeysMarker) >= len(trimmed) {
 		return ""
 	}
 	return trimmed[:index]

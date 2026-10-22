@@ -7,14 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// recaptchaKeyAssetType is the Cloud Asset Inventory asset type for a GCP
-// reCAPTCHA Enterprise Key.
-const recaptchaKeyAssetType = "recaptchaenterprise.googleapis.com/Key"
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(recaptchaKeyAssetType, extractRecaptchaKey)
+	RegisterAssetExtractor(catalog.RecaptchaKeyAssetType, extractRecaptchaKey)
 }
 
 // recaptchaKeyData is the bounded view of a CAI

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const apiKeyFullName = "//apikeys.googleapis.com/projects/123456789/locations/global/keys/demo-key"
@@ -16,15 +17,15 @@ const apiKeyFullName = "//apikeys.googleapis.com/projects/123456789/locations/gl
 func apiKeyContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: apiKeyFullName,
-		AssetType:        apiKeyAssetType,
+		AssetType:        catalog.ApiKeyAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestAPIKeyExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(apiKeyAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", apiKeyAssetType)
+	if _, ok := lookupAssetExtractor(catalog.ApiKeyAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.ApiKeyAssetType)
 	}
 }
 

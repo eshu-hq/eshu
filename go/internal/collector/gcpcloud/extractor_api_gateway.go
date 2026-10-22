@@ -7,44 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeAPIGatewayGateway is the Cloud Asset Inventory asset type for a GCP
-// API Gateway Gateway.
-const assetTypeAPIGatewayGateway = "apigateway.googleapis.com/Gateway"
-
-// assetTypeAPIGatewayAPIConfig is the Cloud Asset Inventory asset type for a
-// GCP API Gateway ApiConfig. ApiConfig is itself a separately CAI-inventoried
-// asset type (verified against the live Cloud Asset Inventory supported-asset-
-// types reference), so a Gateway's apiConfig reference resolves to a real edge
-// endpoint rather than staying an attribute-only value.
-const assetTypeAPIGatewayAPIConfig = "apigateway.googleapis.com/ApiConfig"
-
-// relationshipTypeAPIGatewayUsesAPIConfig is the bounded provider relationship
-// type for a Gateway's required apiConfig reference, carried on a
-// gcp_cloud_relationship fact. The reducer materializes the edge only when both
-// endpoints resolve exactly.
-const relationshipTypeAPIGatewayUsesAPIConfig = "api_gateway_uses_api_config"
-
-// apiGatewayAPIConfigFullResourceNamePrefix is the exact CAI full-resource-name
-// service prefix for an apigateway.googleapis.com/ApiConfig, verified against
-// the live Cloud Asset Inventory resource-name-format reference:
-// "//apigateway.googleapis.com/projects/{project}/locations/{location}/apis/{api}/configs/{apiConfig}".
-// An already-absolute apiConfig value must carry this exact prefix to be
-// trusted as-is; any other absolute value names a different, untrusted
-// service and must not mint an edge or anchor.
-const apiGatewayAPIConfigFullResourceNamePrefix = "//apigateway.googleapis.com/"
-
-// apiGatewayAPIConfigRelativeMarker is the fixed "/apis/" path segment in the
-// documented relative ApiConfig resource-name shape
-// ("projects/{project}/locations/global/apis/{api}/configs/{apiConfig}", per
-// the API Gateway v1 projects.locations.apis.configs REST reference). A
-// relative apiConfig value must contain this marker with a non-empty prefix
-// and suffix to be recognized as that documented shape.
-const apiGatewayAPIConfigRelativeMarker = "/apis/"
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(assetTypeAPIGatewayGateway, extractAPIGateway)
+	RegisterAssetExtractor(catalog.AssetTypeAPIGatewayGateway, extractAPIGateway)
 }
 
 // apiGatewayData is the bounded view of a CAI apigateway.googleapis.com/Gateway
@@ -109,9 +79,9 @@ func extractAPIGateway(ctx ExtractContext) (AttributeExtraction, error) {
 		rels = append(rels, RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
-			RelationshipType:       relationshipTypeAPIGatewayUsesAPIConfig,
+			RelationshipType:       catalog.RelationshipTypeAPIGatewayUsesAPIConfig,
 			TargetFullResourceName: target,
-			TargetAssetType:        assetTypeAPIGatewayAPIConfig,
+			TargetAssetType:        catalog.AssetTypeAPIGatewayAPIConfig,
 			SupportState:           RelationshipSupportSupported,
 		})
 	}
@@ -134,12 +104,12 @@ func apiGatewayRegionFromFullName(fullName string) string {
 	if trimmed == "" {
 		return ""
 	}
-	const marker = "/locations/"
-	idx := strings.Index(trimmed, marker)
+
+	idx := strings.Index(trimmed, catalog.ApiGatewayLocationsMarker)
 	if idx < 0 {
 		return ""
 	}
-	rest := trimmed[idx+len(marker):]
+	rest := trimmed[idx+len(catalog.ApiGatewayLocationsMarker):]
 	region, _, ok := strings.Cut(rest, "/")
 	if !ok || region == "" {
 		return ""
@@ -174,15 +144,15 @@ func apiGatewayAPIConfigFullName(apiConfig string) string {
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {
-		if strings.HasPrefix(trimmed, apiGatewayAPIConfigFullResourceNamePrefix) {
+		if strings.HasPrefix(trimmed, catalog.ApiGatewayAPIConfigFullResourceNamePrefix) {
 			return trimmed
 		}
 		return ""
 	}
 	relative := strings.TrimPrefix(trimmed, "/")
-	prefix, suffix, ok := strings.Cut(relative, apiGatewayAPIConfigRelativeMarker)
+	prefix, suffix, ok := strings.Cut(relative, catalog.ApiGatewayAPIConfigRelativeMarker)
 	if !ok || prefix == "" || suffix == "" {
 		return ""
 	}
-	return apiGatewayAPIConfigFullResourceNamePrefix + relative
+	return catalog.ApiGatewayAPIConfigFullResourceNamePrefix + relative
 }

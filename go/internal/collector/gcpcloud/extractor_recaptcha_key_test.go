@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const recaptchaKeyFullName = "//recaptchaenterprise.googleapis.com/projects/123456789/keys/demo-key"
@@ -14,15 +16,15 @@ const recaptchaKeyFullName = "//recaptchaenterprise.googleapis.com/projects/1234
 func recaptchaKeyContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: recaptchaKeyFullName,
-		AssetType:        recaptchaKeyAssetType,
+		AssetType:        catalog.RecaptchaKeyAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestRecaptchaKeyExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(recaptchaKeyAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", recaptchaKeyAssetType)
+	if _, ok := lookupAssetExtractor(catalog.RecaptchaKeyAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.RecaptchaKeyAssetType)
 	}
 }
 

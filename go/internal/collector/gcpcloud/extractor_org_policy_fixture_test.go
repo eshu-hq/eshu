@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -57,7 +58,7 @@ func TestOrgPolicyOfflineFixtureEndToEnd(t *testing.T) {
 				orgAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
 		case cloud.GCPCloudRelationshipFactKind:
-			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeOrgPolicyAppliesToResource {
+			if stringOrEmpty(env.Payload["relationship_type"]) == catalog.RelationshipTypeOrgPolicyAppliesToResource {
 				appliesToEdges++
 				edgeTargets[stringOrEmpty(env.Payload["source_full_resource_name"])] = stringOrEmpty(env.Payload["target_full_resource_name"])
 			}

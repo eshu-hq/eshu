@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const certManagerCertificateFullName = "//certificatemanager.googleapis.com/projects/demo-project/locations/us-central1/certificates/api-cert"
@@ -14,15 +16,15 @@ const certManagerCertificateFullName = "//certificatemanager.googleapis.com/proj
 func certManagerCertificateContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: certManagerCertificateFullName,
-		AssetType:        assetTypeCertificateManagerCertificate,
+		AssetType:        catalog.AssetTypeCertificateManagerCertificate,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestCertificateManagerCertificateExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeCertificateManagerCertificate); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeCertificateManagerCertificate)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeCertificateManagerCertificate); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeCertificateManagerCertificate)
 	}
 }
 
@@ -77,28 +79,28 @@ func TestExtractCertificateManagerCertificateManagedFullAttributes(t *testing.T)
 		t.Fatalf("expected 2 relationships, got %#v", got.Relationships)
 	}
 	dnsAuthRel := got.Relationships[0]
-	if dnsAuthRel.RelationshipType != relationshipTypeCertManagerCertificateUsesDNSAuthorization {
-		t.Errorf("dns auth relationship type = %q, want %q", dnsAuthRel.RelationshipType, relationshipTypeCertManagerCertificateUsesDNSAuthorization)
+	if dnsAuthRel.RelationshipType != catalog.RelationshipTypeCertManagerCertificateUsesDNSAuthorization {
+		t.Errorf("dns auth relationship type = %q, want %q", dnsAuthRel.RelationshipType, catalog.RelationshipTypeCertManagerCertificateUsesDNSAuthorization)
 	}
 	if dnsAuthRel.TargetFullResourceName != wantAuthName {
 		t.Errorf("dns auth target = %q, want %q", dnsAuthRel.TargetFullResourceName, wantAuthName)
 	}
-	if dnsAuthRel.TargetAssetType != assetTypeCertificateManagerDNSAuthorization {
-		t.Errorf("dns auth target type = %q, want %q", dnsAuthRel.TargetAssetType, assetTypeCertificateManagerDNSAuthorization)
+	if dnsAuthRel.TargetAssetType != catalog.AssetTypeCertificateManagerDNSAuthorization {
+		t.Errorf("dns auth target type = %q, want %q", dnsAuthRel.TargetAssetType, catalog.AssetTypeCertificateManagerDNSAuthorization)
 	}
 	if dnsAuthRel.SourceFullResourceName != certManagerCertificateFullName {
 		t.Errorf("dns auth source = %q, want %q", dnsAuthRel.SourceFullResourceName, certManagerCertificateFullName)
 	}
 
 	issuanceRel := got.Relationships[1]
-	if issuanceRel.RelationshipType != relationshipTypeCertManagerCertificateUsesIssuanceConfig {
-		t.Errorf("issuance relationship type = %q, want %q", issuanceRel.RelationshipType, relationshipTypeCertManagerCertificateUsesIssuanceConfig)
+	if issuanceRel.RelationshipType != catalog.RelationshipTypeCertManagerCertificateUsesIssuanceConfig {
+		t.Errorf("issuance relationship type = %q, want %q", issuanceRel.RelationshipType, catalog.RelationshipTypeCertManagerCertificateUsesIssuanceConfig)
 	}
 	if issuanceRel.TargetFullResourceName != wantIssuanceName {
 		t.Errorf("issuance target = %q, want %q", issuanceRel.TargetFullResourceName, wantIssuanceName)
 	}
-	if issuanceRel.TargetAssetType != assetTypeCertificateManagerCertificateIssuanceConfig {
-		t.Errorf("issuance target type = %q, want %q", issuanceRel.TargetAssetType, assetTypeCertificateManagerCertificateIssuanceConfig)
+	if issuanceRel.TargetAssetType != catalog.AssetTypeCertificateManagerCertificateIssuanceConfig {
+		t.Errorf("issuance target type = %q, want %q", issuanceRel.TargetAssetType, catalog.AssetTypeCertificateManagerCertificateIssuanceConfig)
 	}
 }
 
@@ -121,14 +123,14 @@ func TestExtractCertificateManagerCertificateUsedByCertificateMapEntry(t *testin
 		t.Fatalf("expected 1 relationship, got %#v", got.Relationships)
 	}
 	rel := got.Relationships[0]
-	if rel.RelationshipType != relationshipTypeCertManagerCertificateUsedByCertificateMapEntry {
-		t.Errorf("relationship type = %q, want %q", rel.RelationshipType, relationshipTypeCertManagerCertificateUsedByCertificateMapEntry)
+	if rel.RelationshipType != catalog.RelationshipTypeCertManagerCertificateUsedByCertificateMapEntry {
+		t.Errorf("relationship type = %q, want %q", rel.RelationshipType, catalog.RelationshipTypeCertManagerCertificateUsedByCertificateMapEntry)
 	}
 	if rel.TargetFullResourceName != wantEntryName {
 		t.Errorf("target = %q, want %q", rel.TargetFullResourceName, wantEntryName)
 	}
-	if rel.TargetAssetType != assetTypeCertificateManagerCertificateMapEntry {
-		t.Errorf("target type = %q, want %q", rel.TargetAssetType, assetTypeCertificateManagerCertificateMapEntry)
+	if rel.TargetAssetType != catalog.AssetTypeCertificateManagerCertificateMapEntry {
+		t.Errorf("target type = %q, want %q", rel.TargetAssetType, catalog.AssetTypeCertificateManagerCertificateMapEntry)
 	}
 	if rel.SourceFullResourceName != certManagerCertificateFullName {
 		t.Errorf("source = %q, want %q", rel.SourceFullResourceName, certManagerCertificateFullName)
@@ -157,14 +159,14 @@ func TestExtractCertificateManagerCertificateUsedByTargetHTTPSProxy(t *testing.T
 		t.Fatalf("expected 1 relationship, got %#v", got.Relationships)
 	}
 	rel := got.Relationships[0]
-	if rel.RelationshipType != relationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy {
-		t.Errorf("relationship type = %q, want %q", rel.RelationshipType, relationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy)
+	if rel.RelationshipType != catalog.RelationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy {
+		t.Errorf("relationship type = %q, want %q", rel.RelationshipType, catalog.RelationshipTypeCertManagerCertificateUsedByTargetHTTPSProxy)
 	}
 	if rel.TargetFullResourceName != wantProxyName {
 		t.Errorf("target = %q, want %q", rel.TargetFullResourceName, wantProxyName)
 	}
-	if rel.TargetAssetType != assetTypeComputeTargetHTTPSProxy {
-		t.Errorf("target type = %q, want %q", rel.TargetAssetType, assetTypeComputeTargetHTTPSProxy)
+	if rel.TargetAssetType != catalog.AssetTypeComputeTargetHTTPSProxy {
+		t.Errorf("target type = %q, want %q", rel.TargetAssetType, catalog.AssetTypeComputeTargetHTTPSProxy)
 	}
 }
 

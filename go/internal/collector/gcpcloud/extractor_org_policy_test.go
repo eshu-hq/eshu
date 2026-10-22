@@ -6,6 +6,8 @@ package gcpcloud
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const orgPolicyOrgFullName = "//orgpolicy.googleapis.com/organizations/123456789/policies/compute.requireOsLogin"
@@ -13,15 +15,15 @@ const orgPolicyOrgFullName = "//orgpolicy.googleapis.com/organizations/123456789
 func orgPolicyContext(fullName, data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: fullName,
-		AssetType:        orgPolicyAssetType,
+		AssetType:        catalog.OrgPolicyAssetType,
 		ProjectID:        "",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestOrgPolicyExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(orgPolicyAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", orgPolicyAssetType)
+	if _, ok := lookupAssetExtractor(catalog.OrgPolicyAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.OrgPolicyAssetType)
 	}
 }
 
@@ -74,11 +76,11 @@ func TestExtractOrgPolicyOrganizationTarget(t *testing.T) {
 	if rel.TargetFullResourceName != wantTarget {
 		t.Errorf("target = %q, want %q", rel.TargetFullResourceName, wantTarget)
 	}
-	if rel.TargetAssetType != assetTypeCloudResourceManagerOrganization {
-		t.Errorf("target asset type = %q, want %q", rel.TargetAssetType, assetTypeCloudResourceManagerOrganization)
+	if rel.TargetAssetType != catalog.AssetTypeCloudResourceManagerOrganization {
+		t.Errorf("target asset type = %q, want %q", rel.TargetAssetType, catalog.AssetTypeCloudResourceManagerOrganization)
 	}
-	if rel.RelationshipType != relationshipTypeOrgPolicyAppliesToResource {
-		t.Errorf("relationship type = %q, want %q", rel.RelationshipType, relationshipTypeOrgPolicyAppliesToResource)
+	if rel.RelationshipType != catalog.RelationshipTypeOrgPolicyAppliesToResource {
+		t.Errorf("relationship type = %q, want %q", rel.RelationshipType, catalog.RelationshipTypeOrgPolicyAppliesToResource)
 	}
 	if rel.SupportState != RelationshipSupportSupported {
 		t.Errorf("support state = %q, want supported", rel.SupportState)
@@ -108,8 +110,8 @@ func TestExtractOrgPolicyFolderTarget(t *testing.T) {
 	if rel.TargetFullResourceName != wantTarget {
 		t.Errorf("target = %q, want %q", rel.TargetFullResourceName, wantTarget)
 	}
-	if rel.TargetAssetType != assetTypeCloudResourceManagerFolder {
-		t.Errorf("target asset type = %q, want %q", rel.TargetAssetType, assetTypeCloudResourceManagerFolder)
+	if rel.TargetAssetType != catalog.AssetTypeCloudResourceManagerFolder {
+		t.Errorf("target asset type = %q, want %q", rel.TargetAssetType, catalog.AssetTypeCloudResourceManagerFolder)
 	}
 }
 
@@ -305,7 +307,7 @@ func TestOrgPolicyTargetFromFullResourceName(t *testing.T) {
 			fullName:       "//orgpolicy.googleapis.com/organizations/123/policies/compute.foo",
 			wantConstraint: "compute.foo",
 			wantTarget:     "//cloudresourcemanager.googleapis.com/organizations/123",
-			wantAssetType:  assetTypeCloudResourceManagerOrganization,
+			wantAssetType:  catalog.AssetTypeCloudResourceManagerOrganization,
 			wantOK:         true,
 		},
 		{
@@ -313,7 +315,7 @@ func TestOrgPolicyTargetFromFullResourceName(t *testing.T) {
 			fullName:       "//orgpolicy.googleapis.com/folders/456/policies/iam.bar",
 			wantConstraint: "iam.bar",
 			wantTarget:     "//cloudresourcemanager.googleapis.com/folders/456",
-			wantAssetType:  assetTypeCloudResourceManagerFolder,
+			wantAssetType:  catalog.AssetTypeCloudResourceManagerFolder,
 			wantOK:         true,
 		},
 		{

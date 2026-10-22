@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const vpnGatewayFullName = "//compute.googleapis.com/projects/demo-project/regions/us-central1/vpnGateways/ha-vpn-gw"
@@ -14,15 +16,15 @@ const vpnGatewayFullName = "//compute.googleapis.com/projects/demo-project/regio
 func vpnGatewayContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: vpnGatewayFullName,
-		AssetType:        assetTypeComputeVPNGateway,
+		AssetType:        catalog.AssetTypeComputeVPNGateway,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestVPNGatewayExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeVPNGateway); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeVPNGateway)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeVPNGateway); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeVPNGateway)
 	}
 }
 
@@ -65,7 +67,7 @@ func TestExtractVPNGatewayFullData(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 network edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeVPNGatewayInNetwork, wantNetwork, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeVPNGatewayInNetwork, wantNetwork, assetTypeComputeNetwork)
 }
 
 func TestExtractVPNGatewayPartialProjectLessNetwork(t *testing.T) {
@@ -83,7 +85,7 @@ func TestExtractVPNGatewayPartialProjectLessNetwork(t *testing.T) {
 	}
 
 	wantNetwork := "//compute.googleapis.com/projects/demo-project/global/networks/main-vpc"
-	assertRelationship(t, got.Relationships, relationshipTypeVPNGatewayInNetwork, wantNetwork, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeVPNGatewayInNetwork, wantNetwork, assetTypeComputeNetwork)
 }
 
 func TestExtractVPNGatewayNoInterfaces(t *testing.T) {

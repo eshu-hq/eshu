@@ -9,27 +9,13 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Bounded provider relationship types for the compute Engine Instance edges
-// carried on gcp_cloud_relationship facts. The reducer materializes each edge
-// only when both endpoints resolve exactly. Only edges whose target is an exactly
-// resolvable CAI resource are emitted: attached disks, and the interface network
-// and subnetwork. The instance's service account is surfaced as a fingerprinted
-// correlation anchor rather than an edge, because a service account email is not
-// an exactly resolvable CAI resource endpoint; the secrets/IAM trust and
-// image-identity layers own the "runs as" join through the same email digest.
-// The asset type constants (assetTypeComputeInstance, assetTypeComputeDisk) and
-// the compute name-derivation helpers are shared with the sibling compute
-// extractors in this package.
-const (
-	relationshipTypeInstanceUsesDisk     = "instance_uses_disk"
-	relationshipTypeInstanceInNetwork    = "instance_in_network"
-	relationshipTypeInstanceInSubnetwork = "instance_in_subnetwork"
-)
+// Family constants for this extractor now live in catalog/gcp_compute_core.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
-	RegisterAssetExtractor(assetTypeComputeInstance, extractInstance)
+	RegisterAssetExtractor(catalog.AssetTypeComputeInstance, extractInstance)
 }
 
 // instanceData is the bounded view of a CAI compute.googleapis.com/Instance
@@ -115,17 +101,17 @@ func extractInstance(ctx ExtractContext) (AttributeExtraction, error) {
 	for _, disk := range data.Disks {
 		if diskName := computeFullResourceNameFromSelfLink(disk.Source, ctx.ProjectID); diskName != "" {
 			anchors = append(anchors, diskName)
-			rels = append(rels, instanceEdge(ctx, relationshipTypeInstanceUsesDisk, diskName, assetTypeComputeDisk))
+			rels = append(rels, instanceEdge(ctx, catalog.RelationshipTypeInstanceUsesDisk, diskName, catalog.AssetTypeComputeDisk))
 		}
 	}
 	for _, ni := range data.NetworkInterfaces {
 		if networkName := computeFullResourceNameFromSelfLink(ni.Network, ctx.ProjectID); networkName != "" {
 			anchors = append(anchors, networkName)
-			rels = append(rels, instanceEdge(ctx, relationshipTypeInstanceInNetwork, networkName, assetTypeComputeNetwork))
+			rels = append(rels, instanceEdge(ctx, catalog.RelationshipTypeInstanceInNetwork, networkName, assetTypeComputeNetwork))
 		}
 		if subnetName := computeFullResourceNameFromSelfLink(ni.Subnetwork, ctx.ProjectID); subnetName != "" {
 			anchors = append(anchors, subnetName)
-			rels = append(rels, instanceEdge(ctx, relationshipTypeInstanceInSubnetwork, subnetName, assetTypeComputeSubnetwork))
+			rels = append(rels, instanceEdge(ctx, catalog.RelationshipTypeInstanceInSubnetwork, subnetName, assetTypeComputeSubnetwork))
 		}
 	}
 	for _, sa := range data.ServiceAccounts {

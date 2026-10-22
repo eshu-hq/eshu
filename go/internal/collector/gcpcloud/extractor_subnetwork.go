@@ -8,17 +8,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Asset type constants for the compute Subnetwork typed-depth extractor and the
-// relationship endpoint it derives. The target asset type names the CAI asset
-// type of the parent-network edge so the reducer can resolve both endpoints
-// exactly before materializing.
-// relationshipTypeSubnetworkInNetwork is the bounded provider relationship type
-// for the subnet -> parent VPC network edge carried on a gcp_cloud_relationship
-// fact. The reducer materializes the edge only when both endpoints resolve
-// exactly.
-const relationshipTypeSubnetworkInNetwork = "subnetwork_in_network"
+// Family constants for this extractor now live in catalog/gcp_compute_net.go (#6696 HK slice); uses below name catalog.X.
 
 func init() {
 	RegisterAssetExtractor(assetTypeComputeSubnetwork, extractSubnetwork)
@@ -67,7 +61,7 @@ func extractSubnetwork(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 	if networkName := computeNetworkFullName(data.Network); networkName != "" {
 		anchors = append(anchors, networkName)
-		rels = append(rels, subnetworkEdge(ctx, relationshipTypeSubnetworkInNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, subnetworkEdge(ctx, catalog.RelationshipTypeSubnetworkInNetwork, networkName, assetTypeComputeNetwork))
 	}
 
 	return AttributeExtraction{

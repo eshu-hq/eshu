@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const firewallFullName = "//compute.googleapis.com/projects/demo-project/global/firewalls/allow-web"
@@ -16,15 +17,15 @@ const firewallFullName = "//compute.googleapis.com/projects/demo-project/global/
 func firewallContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: firewallFullName,
-		AssetType:        assetTypeComputeFirewall,
+		AssetType:        catalog.AssetTypeComputeFirewall,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestFirewallExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeComputeFirewall); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeComputeFirewall)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeComputeFirewall); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeComputeFirewall)
 	}
 }
 
@@ -77,13 +78,13 @@ func TestExtractFirewallFullResource(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (network), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeFirewallAppliesToNetwork, network, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeFirewallAppliesToNetwork, network, assetTypeComputeNetwork)
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != firewallFullName {
 			t.Errorf("relationship source = %q, want firewall full name", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != assetTypeComputeFirewall {
-			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, assetTypeComputeFirewall)
+		if rel.SourceAssetType != catalog.AssetTypeComputeFirewall {
+			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.AssetTypeComputeFirewall)
 		}
 		if rel.SupportState != RelationshipSupportSupported {
 			t.Errorf("relationship support state = %q, want %q", rel.SupportState, RelationshipSupportSupported)
