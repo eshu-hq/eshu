@@ -236,6 +236,22 @@ cloud_resource_container_image_expected_edges="${repo_root}/go/internal/ifa/test
 # candidates.
 crossplane_satisfied_by_cassette="${repo_root}/testdata/cassettes/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family.json"
 crossplane_satisfied_by_expected_edges="${repo_root}/go/internal/ifa/testdata/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family-expected-edges.json"
+# code_interproc_evidence (#6228 code_interproc_evidence live leaf): a
+# projection of the compiled CodeInterprocEvidenceFamilyOdu by construction
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- one
+# repository fact, two typed file facts (one per referenced path) and four
+# content_entity facts (the Function endpoints of the two live findings).
+# The repo/file facts are load-bearing, not padding: the entities phase
+# writes nodes with containment (MATCH File first, and File hangs off
+# Repository), and the edge writer MATCHes both endpoint Function nodes, so
+# without them every statement completes having written nothing. Two
+# edge-producing findings join their CanonicalEntityID-resolved endpoints
+# (credential to payment_capture, http_request to search_exec with the
+# two-step why-trail); the tombstoned legacy finding resolves to nothing.
+# The single git scope owns its generation and carries repo_id in scope
+# metadata (the projector keys content materialization off it).
+code_interproc_evidence_cassette="${repo_root}/testdata/cassettes/codeinterproc/ifa-code-interproc-evidence-family.json"
+code_interproc_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/codeinterproc/ifa-code-interproc-evidence-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -308,6 +324,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${cloud_resource_container_image_expected_edges}" ]] || { echo "${gate}: cloud-resource-container-image expected-edge set not found: ${cloud_resource_container_image_expected_edges}" >&2; exit 1; }
 	[[ -f "${crossplane_satisfied_by_cassette}" ]] || { echo "${gate}: crossplane-satisfied-by cassette not found: ${crossplane_satisfied_by_cassette}" >&2; exit 1; }
 	[[ -f "${crossplane_satisfied_by_expected_edges}" ]] || { echo "${gate}: crossplane-satisfied-by expected-edge set not found: ${crossplane_satisfied_by_expected_edges}" >&2; exit 1; }
+	[[ -f "${code_interproc_evidence_cassette}" ]] || { echo "${gate}: code-interproc-evidence cassette not found: ${code_interproc_evidence_cassette}" >&2; exit 1; }
+	[[ -f "${code_interproc_evidence_expected_edges}" ]] || { echo "${gate}: code-interproc-evidence expected-edge set not found: ${code_interproc_evidence_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
 	# stamps fact.source_system from the scope, and the
 	# container-image-identity loader the handler reads only accepts OCI

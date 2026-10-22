@@ -1,100 +1,235 @@
 {
-  "collector": "git",
-  "schema_version": "1",
-  "scopes": [
+ "collector": "git",
+ "schema_version": "1",
+ "scopes": [
+  {
+   "collector_kind": "git",
+   "facts": [
     {
-      "scope_id": "repo:eshu-fixture-code-interproc-evidence",
-      "source_system": "git",
-      "scope_kind": "repo",
-      "collector_kind": "git",
-      "partition_key": "repo:eshu-fixture-code-interproc-evidence",
-      "metadata": {
-        "fixture": "ifa-code-interproc-evidence-family"
-      },
-      "generation_id": "gen-ifa-code-interproc-evidence-family-1",
-      "observed_at": "2026-09-28T00:00:00Z",
-      "trigger_kind": "snapshot",
-      "facts": [
-        {
-          "collector_kind": "git",
-          "fact_kind": "code_interproc_evidence",
-          "fencing_token": 1,
-          "is_tombstone": false,
-          "payload": {
-            "confidence": 0.9,
-            "language": "go",
-            "relative_path": "src/auth/session.go",
-            "sink_function_name": "chargeCard",
-            "sink_function_uid": "func:billing:chargeCard",
-            "sink_kind": "payment_capture",
-            "source_function_name": "authenticate",
-            "source_function_uid": "func:auth:authenticate",
-            "source_kind": "credential"
-          },
-          "schema_version": "1.0.0",
-          "source_confidence": "observed",
-          "stable_fact_key": "git:code_interproc_evidence:func:auth:authenticate:func:billing:chargeCard:payment_capture:credential"
-        },
-        {
-          "collector_kind": "git",
-          "fact_kind": "code_interproc_evidence",
-          "fencing_token": 1,
-          "is_tombstone": false,
-          "payload": {
-            "cloud": true,
-            "confidence": 0.83,
-            "language": "go",
-            "relative_path": "src/search/query.go",
-            "sink_function_name": "runQuery",
-            "sink_function_uid": "func:search:runQuery",
-            "sink_kind": "search_exec",
-            "source_function_name": "parseQuery",
-            "source_function_uid": "func:search:parseQuery",
-            "source_kind": "http_request",
-            "why_trail": [
-              {
-                "function_name": "parseQuery",
-                "function_uid": "func:search:parseQuery",
-                "role": "source",
-                "slot_index": 0,
-                "slot_kind": "parameter",
-                "slot_name": "rawQuery"
-              },
-              {
-                "function_name": "runQuery",
-                "function_uid": "func:search:runQuery",
-                "role": "sink",
-                "slot_index": 1,
-                "slot_kind": "argument",
-                "slot_name": "query"
-              }
-            ]
-          },
-          "schema_version": "1.0.0",
-          "source_confidence": "observed",
-          "stable_fact_key": "git:code_interproc_evidence:func:search:parseQuery:func:search:runQuery:search_exec:http_request"
-        },
-        {
-          "collector_kind": "git",
-          "fact_kind": "code_interproc_evidence",
-          "fencing_token": 1,
-          "is_tombstone": true,
-          "payload": {
-            "confidence": 0.66,
-            "language": "go",
-            "relative_path": "src/legacy/auth.go",
-            "sink_function_name": "oldCharge",
-            "sink_function_uid": "func:legacy:oldCharge",
-            "sink_kind": "session_issue",
-            "source_function_name": "oldLogin",
-            "source_function_uid": "func:legacy:oldLogin",
-            "source_kind": "credential"
-          },
-          "schema_version": "1.0.0",
-          "source_confidence": "observed",
-          "stable_fact_key": "git:code_interproc_evidence:func:legacy:oldLogin:func:legacy:oldCharge:session_issue:credential"
-        }
+     "collector_kind": "git",
+     "fact_kind": "repository",
+     "fencing_token": 1,
+     "is_tombstone": false,
+     "payload": {
+      "local_path": "/repo-code-interproc-evidence",
+      "repo_id": "repo-eshu-fixture-code-interproc-evidence",
+      "source_run_id": "run-ifa-code-interproc-evidence-family-1"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "repository:repo-eshu-fixture-code-interproc-evidence"
+    },
+    {
+     "collector_kind": "git",
+     "fact_kind": "file",
+     "fencing_token": 1,
+     "is_tombstone": false,
+     "payload": {
+      "graph_id": "repo-eshu-fixture-code-interproc-evidence:src/auth/session.go",
+      "graph_kind": "file",
+      "is_dependency": false,
+      "language": "go",
+      "parsed_file_data": {},
+      "relative_path": "src/auth/session.go",
+      "repo_id": "repo-eshu-fixture-code-interproc-evidence"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "file:repo-eshu-fixture-code-interproc-evidence:src/auth/session.go"
+    },
+    {
+     "collector_kind": "git",
+     "fact_kind": "file",
+     "fencing_token": 1,
+     "is_tombstone": false,
+     "payload": {
+      "graph_id": "repo-eshu-fixture-code-interproc-evidence:src/search/query.go",
+      "graph_kind": "file",
+      "is_dependency": false,
+      "language": "go",
+      "parsed_file_data": {},
+      "relative_path": "src/search/query.go",
+      "repo_id": "repo-eshu-fixture-code-interproc-evidence"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "file:repo-eshu-fixture-code-interproc-evidence:src/search/query.go"
+    },
+    {
+     "collector_kind": "git",
+     "fact_kind": "content_entity",
+     "fencing_token": 1,
+     "is_tombstone": false,
+     "payload": {
+      "end_line": 20,
+      "entity_id": "content-entity:e_9e4139b57333",
+      "entity_name": "authenticate",
+      "entity_type": "Function",
+      "graph_id": "content-entity:e_9e4139b57333",
+      "graph_kind": "content_entity",
+      "language": "go",
+      "relative_path": "src/auth/session.go",
+      "repo_id": "repo-eshu-fixture-code-interproc-evidence",
+      "start_line": 12
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "content_entity:content-entity:e_9e4139b57333"
+    },
+    {
+     "collector_kind": "git",
+     "fact_kind": "content_entity",
+     "fencing_token": 1,
+     "is_tombstone": false,
+     "payload": {
+      "end_line": 58,
+      "entity_id": "content-entity:e_fd9a4e67319d",
+      "entity_name": "chargeCard",
+      "entity_type": "Function",
+      "graph_id": "content-entity:e_fd9a4e67319d",
+      "graph_kind": "content_entity",
+      "language": "go",
+      "relative_path": "src/auth/session.go",
+      "repo_id": "repo-eshu-fixture-code-interproc-evidence",
+      "start_line": 40
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "content_entity:content-entity:e_fd9a4e67319d"
+    },
+    {
+     "collector_kind": "git",
+     "fact_kind": "content_entity",
+     "fencing_token": 1,
+     "is_tombstone": false,
+     "payload": {
+      "end_line": 18,
+      "entity_id": "content-entity:e_fa590c053a9c",
+      "entity_name": "parseQuery",
+      "entity_type": "Function",
+      "graph_id": "content-entity:e_fa590c053a9c",
+      "graph_kind": "content_entity",
+      "language": "go",
+      "relative_path": "src/search/query.go",
+      "repo_id": "repo-eshu-fixture-code-interproc-evidence",
+      "start_line": 8
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "content_entity:content-entity:e_fa590c053a9c"
+    },
+    {
+     "collector_kind": "git",
+     "fact_kind": "content_entity",
+     "fencing_token": 1,
+     "is_tombstone": false,
+     "payload": {
+      "end_line": 44,
+      "entity_id": "content-entity:e_2906b534e4ed",
+      "entity_name": "runQuery",
+      "entity_type": "Function",
+      "graph_id": "content-entity:e_2906b534e4ed",
+      "graph_kind": "content_entity",
+      "language": "go",
+      "relative_path": "src/search/query.go",
+      "repo_id": "repo-eshu-fixture-code-interproc-evidence",
+      "start_line": 30
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "content_entity:content-entity:e_2906b534e4ed"
+    },
+    {
+     "collector_kind": "git",
+     "fact_kind": "code_interproc_evidence",
+     "fencing_token": 1,
+     "is_tombstone": false,
+     "payload": {
+      "confidence": 0.9,
+      "language": "go",
+      "relative_path": "src/auth/session.go",
+      "sink_function_name": "chargeCard",
+      "sink_function_uid": "content-entity:e_fd9a4e67319d",
+      "sink_kind": "payment_capture",
+      "source_function_name": "authenticate",
+      "source_function_uid": "content-entity:e_9e4139b57333",
+      "source_kind": "credential"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "git:code_interproc_evidence:content-entity:e_9e4139b57333:content-entity:e_fd9a4e67319d:payment_capture:credential"
+    },
+    {
+     "collector_kind": "git",
+     "fact_kind": "code_interproc_evidence",
+     "fencing_token": 1,
+     "is_tombstone": false,
+     "payload": {
+      "cloud": true,
+      "confidence": 0.83,
+      "language": "go",
+      "relative_path": "src/search/query.go",
+      "sink_function_name": "runQuery",
+      "sink_function_uid": "content-entity:e_2906b534e4ed",
+      "sink_kind": "search_exec",
+      "source_function_name": "parseQuery",
+      "source_function_uid": "content-entity:e_fa590c053a9c",
+      "source_kind": "http_request",
+      "why_trail": [
+       {
+        "function_name": "parseQuery",
+        "function_uid": "content-entity:e_fa590c053a9c",
+        "role": "source",
+        "slot_index": 0,
+        "slot_kind": "parameter",
+        "slot_name": "rawQuery"
+       },
+       {
+        "function_name": "runQuery",
+        "function_uid": "content-entity:e_2906b534e4ed",
+        "role": "sink",
+        "slot_index": 1,
+        "slot_kind": "argument",
+        "slot_name": "query"
+       }
       ]
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "git:code_interproc_evidence:content-entity:e_fa590c053a9c:content-entity:e_2906b534e4ed:search_exec:http_request"
+    },
+    {
+     "collector_kind": "git",
+     "fact_kind": "code_interproc_evidence",
+     "fencing_token": 1,
+     "is_tombstone": true,
+     "payload": {
+      "confidence": 0.66,
+      "language": "go",
+      "relative_path": "src/legacy/auth.go",
+      "sink_function_name": "oldCharge",
+      "sink_function_uid": "func:legacy:oldCharge",
+      "sink_kind": "session_issue",
+      "source_function_name": "oldLogin",
+      "source_function_uid": "func:legacy:oldLogin",
+      "source_kind": "credential"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "git:code_interproc_evidence:func:legacy:oldLogin:func:legacy:oldCharge:session_issue:credential"
     }
-  ]
+   ],
+   "generation_id": "gen-ifa-code-interproc-evidence-family-1",
+   "metadata": {
+    "fixture": "ifa-code-interproc-evidence-family",
+    "repo_id": "repo-eshu-fixture-code-interproc-evidence"
+   },
+   "observed_at": "2026-09-28T00:00:00Z",
+   "partition_key": "repo:eshu-fixture-code-interproc-evidence",
+   "scope_id": "repo:eshu-fixture-code-interproc-evidence",
+   "scope_kind": "repo",
+   "source_system": "git",
+   "trigger_kind": "snapshot"
+  }
+ ]
 }

@@ -130,9 +130,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		},
 	},
 	{
-		Family:    codeInterprocEvidenceFamily,
-		OduName:   ifa.CodeInterprocEvidenceFamilyOduName,
-		EdgeTypes: []string{"TAINT_FLOWS_TO"},
+		Family:     codeInterprocEvidenceFamily,
+		OduName:    ifa.CodeInterprocEvidenceFamilyOduName,
+		EdgeTypes:  []string{"TAINT_FLOWS_TO"},
+		LiveProven: true,
 	},
 	{
 		Family:    semanticEntityContainmentFamily,

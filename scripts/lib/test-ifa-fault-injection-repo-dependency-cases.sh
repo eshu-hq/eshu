@@ -209,7 +209,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	local drive_line repo_drive_line omitted_drive_body misordered_drive_body
 	root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 	script="${root}/scripts/verify-ifa-fault-injection.sh"
-	shard="${root}/scripts/lib/ifa_fault_shard.sh"
+	shard="${root}/scripts/lib/ifa_fault_shard_cells.sh"
 	cells="${IFA_REPO_DEPENDENCY_CELLS_UNDER_TEST:-${root}/scripts/lib/ifa_fault_injection_repo_dependency_cells.sh}"
 	live="${IFA_REPO_DEPENDENCY_LIVE_UNDER_TEST:-${root}/scripts/lib/ifa_repo_dependency_live.sh}"
 	lease_lib="${IFA_REPO_DEPENDENCY_LEASE_UNDER_TEST:-${cells}}"
@@ -369,7 +369,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	run_ifa_repo_dependency_fault_script_json_controls || return 1
 	run_ifa_repo_dependency_graph_terminal_owner_controls || return 1
 	run_ifa_repo_dependency_quarantine_telemetry_controls || return 1
-	# 82 = 1 shared cell_baseline + 81 IFA_FAULT_ALL_CELLS entries
+	# 85 = 1 shared cell_baseline + 84 IFA_FAULT_ALL_CELLS entries
 	# (scripts/lib/ifa_fault_shard.sh). #5995/#6000/#5997 added the shared
 	# symbol-runtime baseline and three graph-write cells; #6208 adds the
 	# trio's three runner-lease kill/reclaim cells; #6309 adds the two
@@ -381,6 +381,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	# per-statement hold kill cell); #8358 adds the
 	# cloud_resource trio; #6228 slice C live leaf adds the built_from trio;
 	# #6228 slice D live leaf adds the cloud_resource_container_image trio;
-	# #6228 crossplane live leaf adds the crossplane_satisfied_by trio.
-	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 82 ]] || return 1
+	# #6228 crossplane live leaf adds the crossplane_satisfied_by trio;
+	# #6228 code_interproc_evidence live leaf adds the code_interproc_evidence trio.
+	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 85 ]] || return 1
 }

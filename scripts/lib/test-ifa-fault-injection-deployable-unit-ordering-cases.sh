@@ -36,7 +36,7 @@ run_ifa_fault_injection_deployable_unit_ordering_cases() {
 	# (scripts/lib/ifa_fault_injection_deployable_unit_cells.sh's
 	# assert_matches_baseline calls), which the two fault cells below read.
 	# This is also the co-location property the shard PARTITIONER depends on
-	# for its one atomic group (scripts/lib/ifa_fault_shard.sh's
+	# for its one atomic group (scripts/lib/ifa_fault_shard_cells.sh's
 	# IFA_FAULT_ATOMIC_GROUPS): the trio must land in the same shard, in this
 	# order, or a fault cell reads an unset digests key. A line-number
 	# extraction that returns empty (rather than a real line) would otherwise
