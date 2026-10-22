@@ -104,6 +104,10 @@
   but the client is pointing at an HTTP URL, or vice versa; check
   `ESHU_MCP_TRANSPORT`.
 
+- Symptom: pod exits at startup with `invalid ESHU_MCP_TOOL_SURFACE` → the
+  value is not `full`, `router`, or `core_router`; the log lists the allowed
+  values. The setting changes `tools/list` only, never what `tools/call` accepts.
+
 - Symptom: `/healthz` returns 404 in stdio mode → by design; admin routes are
   only mounted in HTTP mode via `Server.RunHTTP`.
 

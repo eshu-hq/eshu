@@ -52,6 +52,30 @@ For per-tool bounds, required fields, envelopes, and prompt-readiness notes, use
 [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md). This page is the public
 tool index, not a second copy of every schema.
 
+## Tool Surface
+
+`ESHU_MCP_TOOL_SURFACE` selects what `tools/list` advertises. It changes
+advertisement only: a direct `tools/call` to any registered tool works in every
+mode, and tools the query profile hides stay hidden.
+
+| Value | `tools/list` returns |
+| --- | --- |
+| `full` (default) | Today's list, unchanged |
+| `router` | `find_tool` and `call_tool` only |
+| `core_router` | A small core set of high-traffic tools plus `find_tool` and `call_tool` |
+
+An unknown value makes the server refuse to start and log the allowed values.
+A client can override the setting for its own connection with a `surface`
+query parameter, for example `POST /mcp/message?surface=router`. An unknown
+`surface` value gets a `400` that lists the allowed values. The override does
+not change the process setting or any other connection. In Helm, set
+`mcpServer.env.ESHU_MCP_TOOL_SURFACE`.
+
+At startup the server logs `mcp tool surface` with the `surface`, the
+`tool_count`, and the `tools_list_bytes` size of the `tools/list` result.
+`find_tool` and `call_tool` are not part of the registry count above; the
+router surface owns them (epic #8752).
+
 ## Call Rules
 
 - Prefer canonical IDs at the tool boundary when the tool supports them.
