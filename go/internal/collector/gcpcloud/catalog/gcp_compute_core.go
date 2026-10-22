@@ -49,12 +49,12 @@ const (
 // Compute SSL Certificate constants consolidated from extractor_ssl_certificate.go (#6696).
 const (
 	// AssetTypeComputeSSLCertificate is the Cloud Asset Inventory asset type for a
-	// GCP Compute SSL Certificate. It is declared in this leaf, in the certificate's own
-	// typed-depth extractor file, and reused by the target-proxy extractors
+	// GCP Compute SSL Certificate. It is declared here in the compute-core family
+	// of this leaf, and reused by the target-proxy extractors
 	// (Target HTTPS Proxy, Target SSL Proxy) that resolve a `sslCertificates[]`
 	// reference into this asset type as their edge target — mirroring how
-	// extractor_forwarding_rule.go declares AssetTypeComputeBackendService for
-	// extractor_backend_service.go to reuse.
+	// this leaf declares AssetTypeComputeBackendService once for both proxy
+	// families to reuse.
 	AssetTypeComputeSSLCertificate = "compute.googleapis.com/SslCertificate"
 	// SslCertificateTypeSelfManaged is the certificate type the Compute
 	// sslCertificates REST schema defines as the default when the optional `type`
@@ -75,9 +75,8 @@ const (
 // same asset type) and reused here; this file is the other side of that edge
 // — the TargetHttpsProxy resource's own typed depth. AssetTypeComputeUrlMap
 // lives in this leaf (consolidated from extractor_url_map.go) and AssetTypeComputeSSLCertificate in
-// extractor_ssl_certificate.go (the SslCertificate resource's own typed
-// depth); both are reused here as the resolved edge targets rather than
-// redeclared.
+// this leaf's compute-core family; both are reused here as the resolved
+// edge targets rather than redeclared.
 const (
 	AssetTypeComputeSSLPolicy = "compute.googleapis.com/SslPolicy"
 	// Certificate Manager asset types. A TargetHttpsProxy can serve TLS from

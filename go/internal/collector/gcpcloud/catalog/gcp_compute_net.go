@@ -6,8 +6,10 @@ package catalog
 // Compute networking constants (lane H): address, VPC network, subnetwork, firewall, route, router, interconnect attachment, and VPN families (#6696).
 // Compute Static Address constants consolidated from extractor_address.go (#6696).
 // Asset type constants for the compute Static Address typed-depth extractor and
-// the relationship endpoints it derives. assetTypeComputeNetwork,
-// assetTypeComputeSubnetwork, and AssetTypeComputeInstance are declared in this leaf (compute family) and reused here.
+// the relationship endpoints it derives. AssetTypeComputeInstance is declared
+// in this leaf (compute family) and reused here; assetTypeComputeNetwork and
+// assetTypeComputeSubnetwork are shared cross-group constants (see
+// extractor/names.go, aliased in gcpcloud/compat_extractor.go) and reused here.
 const (
 	AssetTypeComputeAddress              = "compute.googleapis.com/Address"
 	AssetTypeComputeGlobalAddress        = "compute.googleapis.com/GlobalAddress"
