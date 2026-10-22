@@ -17,7 +17,8 @@ H=100 across 19 compute files, K=47 across 15 security files including the
 ungrouped API Gateway file) into this leaf as `gcp_compute_core.go`,
 `gcp_compute_lb.go`, `gcp_compute_net.go`, and `gcp_security.go` (#6696),
 verbatim apart from the export. The three-way compute split is a size measure
-only: one file would approach the 500-line Go cap (451 lines merged),
+only: one file would approach the 500-line Go cap (451 lines summed across
+the three files, ~441 merged),
 so the lane ships as three files (all under the cap).
 
 No-Regression Evidence (gcp-hk slice): the consolidation moves declarations
