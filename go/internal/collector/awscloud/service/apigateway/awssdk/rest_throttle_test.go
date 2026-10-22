@@ -14,6 +14,7 @@ import (
 	"github.com/aws/smithy-go"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientSnapshotRecordsWarningWhenRESTResourcesThrottle(t *testing.T) {
@@ -139,7 +140,7 @@ func newThrottleTestClient(rest *fakeRESTAPI) *Client {
 		boundary: awscloud.Boundary{
 			AccountID:           "123456789012",
 			Region:              "us-east-1",
-			ServiceKind:         awscloud.ServiceAPIGateway,
+			ServiceKind:         catalog.ServiceAPIGateway,
 			ScopeID:             "aws:123456789012:us-east-1:apigateway",
 			GenerationID:        "generation-1",
 			CollectorInstanceID: "collector-1",

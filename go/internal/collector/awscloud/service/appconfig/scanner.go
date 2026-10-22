@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("appconfig scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppConfig:
+	case "", catalog.ServiceAppConfig:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppConfig
+		boundary.ServiceKind = catalog.ServiceAppConfig
 	default:
 		return nil, fmt.Errorf("appconfig scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -173,7 +174,7 @@ func applicationObservation(
 		Boundary:     boundary,
 		ARN:          appARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppConfigApplication,
+		ResourceType: catalog.ResourceTypeAppConfigApplication,
 		Name:         name,
 		Tags:         cloneStringMap(application.Tags),
 		Attributes: map[string]any{
@@ -197,7 +198,7 @@ func environmentObservation(
 		Boundary:     boundary,
 		ARN:          envARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppConfigEnvironment,
+		ResourceType: catalog.ResourceTypeAppConfigEnvironment,
 		Name:         name,
 		State:        strings.TrimSpace(environment.State),
 		Tags:         cloneStringMap(environment.Tags),
@@ -224,7 +225,7 @@ func profileObservation(
 		Boundary:     boundary,
 		ARN:          profARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppConfigConfigurationProfile,
+		ResourceType: catalog.ResourceTypeAppConfigConfigurationProfile,
 		Name:         name,
 		Tags:         cloneStringMap(profile.Tags),
 		Attributes: map[string]any{
@@ -251,7 +252,7 @@ func deploymentStrategyObservation(
 		Boundary:     boundary,
 		ARN:          strategyARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppConfigDeploymentStrategy,
+		ResourceType: catalog.ResourceTypeAppConfigDeploymentStrategy,
 		Name:         name,
 		Tags:         cloneStringMap(strategy.Tags),
 		Attributes: map[string]any{

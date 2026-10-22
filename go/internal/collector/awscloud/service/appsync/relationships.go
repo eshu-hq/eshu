@@ -31,7 +31,7 @@ func apiAuthRelationships(boundary awscloud.Boundary, api GraphQLAPI) []awscloud
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppSyncAPIUsesUserPool,
+			RelationshipType: catalog.RelationshipAppSyncAPIUsesUserPool,
 			SourceResourceID: apiID,
 			SourceARN:        apiARN,
 			TargetResourceID: poolID,
@@ -49,11 +49,11 @@ func apiAuthRelationships(boundary awscloud.Boundary, api GraphQLAPI) []awscloud
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppSyncAPIUsesOIDCIssuer,
+			RelationshipType: catalog.RelationshipAppSyncAPIUsesOIDCIssuer,
 			SourceResourceID: apiID,
 			SourceARN:        apiARN,
 			TargetResourceID: issuer,
-			TargetType:       awscloud.AppSyncOIDCIssuerTargetType,
+			TargetType:       catalog.AppSyncOIDCIssuerTargetType,
 			SourceRecordID:   apiID + "#oidc-issuer#" + issuer,
 		})
 	}
@@ -70,12 +70,12 @@ func dataSourceRelationships(boundary awscloud.Boundary, api GraphQLAPI, ds Data
 	}
 	relationships := []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppSyncAPIHasDataSource,
+		RelationshipType: catalog.RelationshipAppSyncAPIHasDataSource,
 		SourceResourceID: apiID,
 		SourceARN:        strings.TrimSpace(api.ARN),
 		TargetResourceID: dsID,
 		TargetARN:        strings.TrimSpace(ds.ARN),
-		TargetType:       awscloud.ResourceTypeAppSyncDataSource,
+		TargetType:       catalog.ResourceTypeAppSyncDataSource,
 		Attributes: map[string]any{
 			"data_source_name": strings.TrimSpace(ds.Name),
 			"type":             strings.TrimSpace(ds.Type),
@@ -85,7 +85,7 @@ func dataSourceRelationships(boundary awscloud.Boundary, api GraphQLAPI, ds Data
 	if target := dataSourceTarget(api, ds); target != nil {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppSyncDataSourceTargetsResource,
+			RelationshipType: catalog.RelationshipAppSyncDataSourceTargetsResource,
 			SourceResourceID: dsID,
 			SourceARN:        strings.TrimSpace(ds.ARN),
 			TargetResourceID: target.resourceID,
@@ -111,11 +111,11 @@ func resolverDataSourceRelationship(boundary awscloud.Boundary, api GraphQLAPI, 
 	dsID := dataSourceResourceID(api.ID, dsName)
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppSyncResolverUsesDataSource,
+		RelationshipType: catalog.RelationshipAppSyncResolverUsesDataSource,
 		SourceResourceID: resolverID,
 		SourceARN:        strings.TrimSpace(resolver.ARN),
 		TargetResourceID: dsID,
-		TargetType:       awscloud.ResourceTypeAppSyncDataSource,
+		TargetType:       catalog.ResourceTypeAppSyncDataSource,
 		Attributes: map[string]any{
 			"data_source_name": dsName,
 		},
@@ -135,11 +135,11 @@ func functionDataSourceRelationship(boundary awscloud.Boundary, api GraphQLAPI, 
 	dsID := dataSourceResourceID(api.ID, dsName)
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppSyncFunctionUsesDataSource,
+		RelationshipType: catalog.RelationshipAppSyncFunctionUsesDataSource,
 		SourceResourceID: functionID,
 		SourceARN:        strings.TrimSpace(function.ARN),
 		TargetResourceID: dsID,
-		TargetType:       awscloud.ResourceTypeAppSyncDataSource,
+		TargetType:       catalog.ResourceTypeAppSyncDataSource,
 		Attributes: map[string]any{
 			"data_source_name": dsName,
 		},
@@ -182,10 +182,10 @@ func dataSourceTarget(api GraphQLAPI, ds DataSource) *dataSourceTargetRef {
 		return &dataSourceTargetRef{resourceID: arn, arn: arn, targetType: catalog.ResourceTypeRDSDBCluster}
 	}
 	if endpoint := strings.TrimSpace(ds.OpenSearchEndpoint); endpoint != "" {
-		return &dataSourceTargetRef{resourceID: endpoint, targetType: awscloud.AppSyncDataSourceTargetTypeOpenSearch}
+		return &dataSourceTargetRef{resourceID: endpoint, targetType: catalog.AppSyncDataSourceTargetTypeOpenSearch}
 	}
 	if endpoint := strings.TrimSpace(ds.HTTPEndpoint); endpoint != "" {
-		return &dataSourceTargetRef{resourceID: endpoint, targetType: awscloud.AppSyncDataSourceTargetTypeHTTPEndpoint}
+		return &dataSourceTargetRef{resourceID: endpoint, targetType: catalog.AppSyncDataSourceTargetTypeHTTPEndpoint}
 	}
 	return nil
 }

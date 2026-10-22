@@ -108,7 +108,7 @@ func sampleClient() *fakeClient {
 
 func scanFixture(t *testing.T, client Client) []facts.Envelope {
 	t.Helper()
-	envelopes, err := Scanner{Client: client}.Scan(context.Background(), boundaryFor(awscloud.ServiceServiceCatalog))
+	envelopes, err := Scanner{Client: client}.Scan(context.Background(), boundaryFor(catalog.ServiceServiceCatalog))
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
@@ -201,14 +201,14 @@ func TestScanRejectsForeignServiceKind(t *testing.T) {
 }
 
 func TestScanRequiresClient(t *testing.T) {
-	_, err := Scanner{}.Scan(context.Background(), boundaryFor(awscloud.ServiceServiceCatalog))
+	_, err := Scanner{}.Scan(context.Background(), boundaryFor(catalog.ServiceServiceCatalog))
 	if err == nil {
 		t.Fatal("Scan() error = nil, want client-required rejection")
 	}
 }
 
 func TestScanEmitsPortfolioResource(t *testing.T) {
-	envelope := findResource(t, scanFixture(t, sampleClient()), awscloud.ResourceTypeServiceCatalogPortfolio)
+	envelope := findResource(t, scanFixture(t, sampleClient()), catalog.ResourceTypeServiceCatalogPortfolio)
 	wantID := "arn:aws:catalog:us-east-1:123456789012:portfolio/port-abc123"
 	if got := envelope.Payload["resource_id"]; got != wantID {
 		t.Fatalf("portfolio resource_id = %v, want %v", got, wantID)
@@ -219,7 +219,7 @@ func TestScanEmitsPortfolioResource(t *testing.T) {
 }
 
 func TestScanEmitsProductResource(t *testing.T) {
-	envelope := findResource(t, scanFixture(t, sampleClient()), awscloud.ResourceTypeServiceCatalogProduct)
+	envelope := findResource(t, scanFixture(t, sampleClient()), catalog.ResourceTypeServiceCatalogProduct)
 	wantID := "arn:aws:catalog:us-east-1:123456789012:product/prod-xyz789"
 	if got := envelope.Payload["resource_id"]; got != wantID {
 		t.Fatalf("product resource_id = %v, want %v", got, wantID)
@@ -237,7 +237,7 @@ func TestScanEmitsProductResource(t *testing.T) {
 }
 
 func TestScanEmitsProvisionedProductResource(t *testing.T) {
-	envelope := findResource(t, scanFixture(t, sampleClient()), awscloud.ResourceTypeServiceCatalogProvisionedProduct)
+	envelope := findResource(t, scanFixture(t, sampleClient()), catalog.ResourceTypeServiceCatalogProvisionedProduct)
 	wantID := "arn:aws:servicecatalog:us-east-1:123456789012:stack/team/pp-stack001"
 	if got := envelope.Payload["resource_id"]; got != wantID {
 		t.Fatalf("provisioned product resource_id = %v, want %v", got, wantID)
@@ -249,7 +249,7 @@ func TestScanEmitsProvisionedProductResource(t *testing.T) {
 
 func TestScanEmitsProvisionedProductToStackEdge(t *testing.T) {
 	envelope := findRelationship(t, scanFixture(t, sampleClient()),
-		awscloud.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack)
+		catalog.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack)
 	if got := envelope.Payload["target_type"]; got != awscloud.ResourceTypeCloudFormationStack {
 		t.Fatalf("target_type = %v, want %v", got, awscloud.ResourceTypeCloudFormationStack)
 	}
@@ -268,9 +268,9 @@ func TestScanEmitsProvisionedProductToStackEdge(t *testing.T) {
 
 func TestScanEmitsProductToPortfolioEdge(t *testing.T) {
 	envelope := findRelationship(t, scanFixture(t, sampleClient()),
-		awscloud.RelationshipServiceCatalogProductInPortfolio)
-	if got := envelope.Payload["target_type"]; got != awscloud.ResourceTypeServiceCatalogPortfolio {
-		t.Fatalf("target_type = %v, want %v", got, awscloud.ResourceTypeServiceCatalogPortfolio)
+		catalog.RelationshipServiceCatalogProductInPortfolio)
+	if got := envelope.Payload["target_type"]; got != catalog.ResourceTypeServiceCatalogPortfolio {
+		t.Fatalf("target_type = %v, want %v", got, catalog.ResourceTypeServiceCatalogPortfolio)
 	}
 	wantTarget := "arn:aws:catalog:us-east-1:123456789012:portfolio/port-abc123"
 	if got := envelope.Payload["target_resource_id"]; got != wantTarget {
@@ -284,7 +284,7 @@ func TestScanEmitsProductToPortfolioEdge(t *testing.T) {
 
 func TestScanEmitsPortfolioToIAMRoleEdge(t *testing.T) {
 	envelope := findRelationship(t, scanFixture(t, sampleClient()),
-		awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal)
+		catalog.RelationshipServiceCatalogPortfolioGrantsPrincipal)
 	if got := envelope.Payload["target_type"]; got != catalog.ResourceTypeIAMRole {
 		t.Fatalf("target_type = %v, want %v", got, catalog.ResourceTypeIAMRole)
 	}
@@ -314,7 +314,7 @@ func TestScanOmitsNonCFNStackProvisionedProductEdge(t *testing.T) {
 	for _, envelope := range scanFixture(t, client) {
 		if envelope.FactKind == cloud.AWSRelationshipFactKind &&
 			envelope.Payload["relationship_type"] ==
-				awscloud.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack {
+				catalog.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack {
 			t.Fatal("emitted a stack edge for a non-CFN_STACK provisioned product")
 		}
 	}
@@ -334,7 +334,7 @@ func TestScanOmitsNonRolePrincipalEdge(t *testing.T) {
 	for _, envelope := range scanFixture(t, client) {
 		if envelope.FactKind == cloud.AWSRelationshipFactKind &&
 			envelope.Payload["relationship_type"] ==
-				awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal {
+				catalog.RelationshipServiceCatalogPortfolioGrantsPrincipal {
 			t.Fatalf("emitted a role edge for a non-role / wildcard principal: %v",
 				envelope.Payload["target_resource_id"])
 		}
@@ -347,13 +347,13 @@ func TestScanOmitsNonRolePrincipalEdge(t *testing.T) {
 // contain only the metadata identity keys.
 func TestScanEmitsNoSecretShapedPayload(t *testing.T) {
 	allowed := map[string]map[string]struct{}{
-		awscloud.ResourceTypeServiceCatalogPortfolio: keySet(
+		catalog.ResourceTypeServiceCatalogPortfolio: keySet(
 			"portfolio_id", "display_name", "provider_name", "description", "created_time",
 		),
-		awscloud.ResourceTypeServiceCatalogProduct: keySet(
+		catalog.ResourceTypeServiceCatalogProduct: keySet(
 			"product_id", "product_type", "owner", "distributor", "status", "created_time",
 		),
-		awscloud.ResourceTypeServiceCatalogProvisionedProduct: keySet(
+		catalog.ResourceTypeServiceCatalogProvisionedProduct: keySet(
 			"provisioned_product_id", "status", "provisioned_product_type", "product_id",
 			"provisioning_artifact_id", "provisioning_artifact_name", "physical_id", "created_time",
 		),
@@ -385,13 +385,13 @@ func TestScanEmitsNoSecretShapedPayload(t *testing.T) {
 // (no key outside the allowlist), the two tests pin the emitted set exactly.
 func TestScanEmitsEveryDocumentedAttribute(t *testing.T) {
 	documented := map[string][]string{
-		awscloud.ResourceTypeServiceCatalogPortfolio: {
+		catalog.ResourceTypeServiceCatalogPortfolio: {
 			"portfolio_id", "display_name", "provider_name", "description", "created_time",
 		},
-		awscloud.ResourceTypeServiceCatalogProduct: {
+		catalog.ResourceTypeServiceCatalogProduct: {
 			"product_id", "product_type", "owner", "distributor", "status", "created_time",
 		},
-		awscloud.ResourceTypeServiceCatalogProvisionedProduct: {
+		catalog.ResourceTypeServiceCatalogProvisionedProduct: {
 			"provisioned_product_id", "status", "provisioned_product_type", "product_id",
 			"provisioning_artifact_id", "provisioning_artifact_name", "physical_id", "created_time",
 		},

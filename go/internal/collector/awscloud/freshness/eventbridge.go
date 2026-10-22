@@ -211,10 +211,10 @@ func firstNonEmpty(values ...string) string {
 }
 
 var configResourceTypeServices = map[string]string{
-	"AWS::ApiGateway::RestApi":                  awscloud.ServiceAPIGateway,
-	"AWS::ApiGateway::Stage":                    awscloud.ServiceAPIGateway,
-	"AWS::ApiGatewayV2::Api":                    awscloud.ServiceAPIGatewayV2,
-	"AWS::ApiGatewayV2::Stage":                  awscloud.ServiceAPIGatewayV2,
+	"AWS::ApiGateway::RestApi":                  catalog.ServiceAPIGateway,
+	"AWS::ApiGateway::Stage":                    catalog.ServiceAPIGateway,
+	"AWS::ApiGatewayV2::Api":                    catalog.ServiceAPIGatewayV2,
+	"AWS::ApiGatewayV2::Stage":                  catalog.ServiceAPIGatewayV2,
 	"AWS::CloudFront::Distribution":             catalog.ServiceCloudFront,
 	"AWS::DynamoDB::Table":                      catalog.ServiceDynamoDB,
 	"AWS::EC2::NetworkInterface":                catalog.ServiceEC2,
@@ -263,8 +263,8 @@ var configResourceTypeServices = map[string]string{
 }
 
 var cloudTrailSourceServices = map[string]string{
-	"apigateway.amazonaws.com":           awscloud.ServiceAPIGateway,
-	"apigatewayv2.amazonaws.com":         awscloud.ServiceAPIGatewayV2,
+	"apigateway.amazonaws.com":           catalog.ServiceAPIGateway,
+	"apigatewayv2.amazonaws.com":         catalog.ServiceAPIGatewayV2,
 	"cloudfront.amazonaws.com":           catalog.ServiceCloudFront,
 	"dynamodb.amazonaws.com":             catalog.ServiceDynamoDB,
 	"ec2.amazonaws.com":                  catalog.ServiceEC2,

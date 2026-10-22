@@ -117,7 +117,7 @@ func TestClaimedSourceKeepsTransportFailureRetryable(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 6, 6, 10, 30, 0, 0, time.UTC)
-	item := awsWorkItemForService(now, awscloud.ServiceAPIGateway)
+	item := awsWorkItemForService(now, catalog.ServiceAPIGateway)
 	statusStore := &stubScanStatusStore{}
 	source := ClaimedSource{
 		Config: Config{
@@ -125,7 +125,7 @@ func TestClaimedSourceKeepsTransportFailureRetryable(t *testing.T) {
 			Targets: []TargetScope{{
 				AccountID:       "123456789012",
 				AllowedRegions:  []string{"us-east-1"},
-				AllowedServices: []string{awscloud.ServiceAPIGateway},
+				AllowedServices: []string{catalog.ServiceAPIGateway},
 				Credentials: CredentialConfig{
 					Mode: CredentialModeLocalWorkloadIdentity,
 				},

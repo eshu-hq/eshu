@@ -26,13 +26,13 @@ func environmentRoleRelationship(boundary awscloud.Boundary, environment Environ
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipProtonEnvironmentUsesRole,
+		RelationshipType: catalog.RelationshipProtonEnvironmentUsesRole,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(environment.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       catalog.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipProtonEnvironmentUsesRole + ":" + roleARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipProtonEnvironmentUsesRole + ":" + roleARN,
 	}
 }
 
@@ -59,12 +59,12 @@ func serviceInEnvironmentRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipProtonServiceInEnvironment,
+		RelationshipType: catalog.RelationshipProtonServiceInEnvironment,
 		SourceResourceID: serviceID,
 		SourceARN:        strings.TrimSpace(serviceARN),
 		TargetResourceID: environmentID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeProtonEnvironment,
-		SourceRecordID:   serviceID + "->" + awscloud.RelationshipProtonServiceInEnvironment + ":" + environmentID,
+		TargetType:       catalog.ResourceTypeProtonEnvironment,
+		SourceRecordID:   serviceID + "->" + catalog.RelationshipProtonServiceInEnvironment + ":" + environmentID,
 	}
 }

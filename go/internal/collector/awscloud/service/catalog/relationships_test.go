@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/internal/relguard"
 )
 
@@ -15,7 +16,7 @@ import (
 // asserting each edge carries a declared target_type and a join-mode-consistent
 // ARN-keyed target.
 func TestEmittedRelationshipsSatisfyGraphJoinContract(t *testing.T) {
-	boundary := boundaryFor(awscloud.ServiceServiceCatalog)
+	boundary := boundaryFor(catalog.ServiceServiceCatalog)
 
 	stack := provisionedProductStackRelationship(boundary, ProvisionedProduct{
 		ID:         "pp-stack001",
@@ -108,7 +109,7 @@ func TestProvisionedProductStackEdgePreservesARNPartition(t *testing.T) {
 // exactly so an identifier that merely contains a service-looking substring
 // cannot be misclassified.
 func TestPortfolioPrincipalEdgeRejectsNonRoleARNs(t *testing.T) {
-	boundary := boundaryFor(awscloud.ServiceServiceCatalog)
+	boundary := boundaryFor(catalog.ServiceServiceCatalog)
 	portfolio := Portfolio{ID: "port-abc123", ARN: "arn:aws:catalog:us-east-1:123456789012:portfolio/port-abc123"}
 	rejected := []Principal{
 		{ARN: "arn:aws:iam::123456789012:user/alice", Type: "IAM"},

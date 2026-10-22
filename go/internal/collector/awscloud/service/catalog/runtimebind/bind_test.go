@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/catalog/runtimebind"
 )
 
 // TestServiceCatalogRuntimeBindRegisters confirms importing the binding
 // installs the Service Catalog scanner builder.
 func TestServiceCatalogRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceServiceCatalog)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceServiceCatalog)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceServiceCatalog)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceServiceCatalog)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceServiceCatalog,
+			ServiceKind: catalog.ServiceServiceCatalog,
 		},
 	})
 	if err != nil {

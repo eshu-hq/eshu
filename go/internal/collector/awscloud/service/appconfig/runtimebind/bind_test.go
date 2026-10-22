@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/appconfig/runtimebind"
 )
 
 // TestAppConfigRuntimeBindRegisters confirms importing the binding installs the
 // AppConfig scanner builder.
 func TestAppConfigRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceAppConfig)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceAppConfig)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceAppConfig)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceAppConfig)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceAppConfig,
+			ServiceKind: catalog.ServiceAppConfig,
 		},
 	})
 	if err != nil {

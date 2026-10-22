@@ -32,7 +32,7 @@ func canaryRelationships(boundary awscloud.Boundary, canary Canary) []awscloud.R
 			}
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipSyntheticsCanaryUsesS3Bucket,
+				RelationshipType: catalog.RelationshipSyntheticsCanaryUsesS3Bucket,
 				SourceResourceID: canaryID,
 				SourceARN:        canaryARN,
 				TargetResourceID: bucketARN,
@@ -47,7 +47,7 @@ func canaryRelationships(boundary awscloud.Boundary, canary Canary) []awscloud.R
 	if roleARN := strings.TrimSpace(canary.ExecutionRoleARN); roleARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipSyntheticsCanaryUsesIAMRole,
+			RelationshipType: catalog.RelationshipSyntheticsCanaryUsesIAMRole,
 			SourceResourceID: canaryID,
 			SourceARN:        canaryARN,
 			TargetResourceID: roleARN,
@@ -60,7 +60,7 @@ func canaryRelationships(boundary awscloud.Boundary, canary Canary) []awscloud.R
 	for _, subnetID := range cloneStrings(canary.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipSyntheticsCanaryUsesSubnet,
+			RelationshipType: catalog.RelationshipSyntheticsCanaryUsesSubnet,
 			SourceResourceID: canaryID,
 			SourceARN:        canaryARN,
 			TargetResourceID: subnetID,
@@ -72,7 +72,7 @@ func canaryRelationships(boundary awscloud.Boundary, canary Canary) []awscloud.R
 	for _, groupID := range cloneStrings(canary.SecurityGroupIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipSyntheticsCanaryUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipSyntheticsCanaryUsesSecurityGroup,
 			SourceResourceID: canaryID,
 			SourceARN:        canaryARN,
 			TargetResourceID: groupID,

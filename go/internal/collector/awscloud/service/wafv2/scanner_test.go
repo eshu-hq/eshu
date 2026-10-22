@@ -99,7 +99,7 @@ func TestScannerSetsProtectedResourceTargetType(t *testing.T) {
 			name:         "api_gateway",
 			resourceType: "API_GATEWAY",
 			targetARN:    "arn:aws:apigateway:us-east-1::/restapis/abc123/stages/prod",
-			wantType:     awscloud.ResourceTypeAPIGatewayStage,
+			wantType:     catalog.ResourceTypeAPIGatewayStage,
 		},
 		{
 			name:         "appsync",

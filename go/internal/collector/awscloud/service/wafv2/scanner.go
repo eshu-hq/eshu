@@ -280,7 +280,7 @@ func protectedResourceTargetType(awsResourceType, targetARN string) string {
 	case "APPLICATION_LOAD_BALANCER":
 		return catalog.ResourceTypeELBv2LoadBalancer
 	case "API_GATEWAY":
-		return awscloud.ResourceTypeAPIGatewayStage
+		return catalog.ResourceTypeAPIGatewayStage
 	}
 	return targetTypeForProtectedARN(targetARN)
 }
@@ -297,7 +297,7 @@ func targetTypeForProtectedARN(arn string) string {
 	case strings.Contains(arn, ":cloudfront:"):
 		return catalog.ResourceTypeCloudFrontDistribution
 	case strings.Contains(arn, ":apigateway:"):
-		return awscloud.ResourceTypeAPIGatewayStage
+		return catalog.ResourceTypeAPIGatewayStage
 	default:
 		return "aws_resource"
 	}

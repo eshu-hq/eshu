@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // environmentObservation maps a Proton environment into a reported-confidence
@@ -22,7 +23,7 @@ func environmentObservation(boundary awscloud.Boundary, environment Environment)
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeProtonEnvironment,
+		ResourceType: catalog.ResourceTypeProtonEnvironment,
 		Name:         name,
 		State:        strings.TrimSpace(environment.DeploymentStatus),
 		Tags:         cloneStringMap(environment.Tags),
@@ -56,7 +57,7 @@ func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeProtonService,
+		ResourceType: catalog.ResourceTypeProtonService,
 		Name:         name,
 		State:        strings.TrimSpace(service.Status),
 		Tags:         cloneStringMap(service.Tags),

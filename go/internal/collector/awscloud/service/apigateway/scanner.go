@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -26,10 +27,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("apigateway scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAPIGateway:
+	case "", catalog.ServiceAPIGateway:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAPIGateway
+		boundary.ServiceKind = catalog.ServiceAPIGateway
 	default:
 		return nil, fmt.Errorf("apigateway scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -111,7 +112,7 @@ func restAPIObservation(boundary awscloud.Boundary, api RESTAPI) awscloud.Resour
 		Boundary:     boundary,
 		ARN:          restAPIARN(boundary.Region, apiID),
 		ResourceID:   apiID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayRESTAPI,
+		ResourceType: catalog.ResourceTypeAPIGatewayRESTAPI,
 		Name:         firstNonEmpty(api.Name, apiID),
 		State:        strings.TrimSpace(api.APIStatus),
 		Tags:         cloneStringMap(api.Tags),
@@ -138,7 +139,7 @@ func v2APIObservation(boundary awscloud.Boundary, api V2API) awscloud.ResourceOb
 		Boundary:     boundary,
 		ARN:          v2APIARN(boundary.Region, apiID),
 		ResourceID:   apiID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2API,
+		ResourceType: catalog.ResourceTypeAPIGatewayV2API,
 		Name:         firstNonEmpty(api.Name, apiID),
 		State:        strings.TrimSpace(api.ProtocolType),
 		Tags:         cloneStringMap(api.Tags),
@@ -164,7 +165,7 @@ func domainObservation(boundary awscloud.Boundary, domain DomainName) awscloud.R
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(domain.ARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayDomainName,
+		ResourceType: catalog.ResourceTypeAPIGatewayDomainName,
 		Name:         firstNonEmpty(domain.Name, resourceID),
 		State:        strings.TrimSpace(domain.Status),
 		Tags:         cloneStringMap(domain.Tags),
@@ -223,7 +224,7 @@ func stageObservation(boundary awscloud.Boundary, stage Stage) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          stageARN(boundary.Region, stage.APIKind, stage.APIID, stage.Name),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayStage,
+		ResourceType: catalog.ResourceTypeAPIGatewayStage,
 		Name:         strings.TrimSpace(stage.Name),
 		Tags:         cloneStringMap(stage.Tags),
 		Attributes: map[string]any{

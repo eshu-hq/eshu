@@ -13,6 +13,7 @@ import (
 	awsresiliencehubtypes "github.com/aws/aws-sdk-go-v2/service/resiliencehub/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	resiliencehubservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/resiliencehub"
 )
 
@@ -226,7 +227,7 @@ func (c *Client) listVersionedMetadata(
 func (c *Client) versionMissingWarning(appARN string) *awscloud.WarningObservation {
 	return &awscloud.WarningObservation{
 		Boundary:    c.boundary,
-		WarningKind: awscloud.WarningResilienceHubAppVersionMissing,
+		WarningKind: catalog.WarningResilienceHubAppVersionMissing,
 		ErrorClass:  "resource_not_found",
 		Message: fmt.Sprintf(
 			"Resilience Hub application %q has no %q version; input sources, components, and protected resources omitted for this scan",

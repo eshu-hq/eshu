@@ -44,7 +44,7 @@ func serviceRelationships(boundary awscloud.Boundary, service Service) []awsclou
 	if image := strings.TrimSpace(service.ImageIdentifier); image != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppRunnerServiceUsesImage,
+			RelationshipType: catalog.RelationshipAppRunnerServiceUsesImage,
 			SourceResourceID: serviceARN,
 			SourceARN:        serviceARN,
 			TargetResourceID: image,
@@ -53,13 +53,13 @@ func serviceRelationships(boundary awscloud.Boundary, service Service) []awsclou
 		})
 	}
 
-	add(awscloud.RelationshipAppRunnerServiceUsesConnection, service.ConnectionARN, awscloud.ResourceTypeAppRunnerConnection, "connection")
-	add(awscloud.RelationshipAppRunnerServiceUsesIAMRole, service.AccessRoleARN, catalog.ResourceTypeIAMRole, "access-role")
-	add(awscloud.RelationshipAppRunnerServiceUsesIAMRole, service.InstanceRoleARN, catalog.ResourceTypeIAMRole, "instance-role")
-	add(awscloud.RelationshipAppRunnerServiceUsesKMSKey, service.KMSKey, catalog.ResourceTypeKMSKey, "kms-key")
-	add(awscloud.RelationshipAppRunnerServiceUsesVpcConnector, service.VpcConnectorARN, awscloud.ResourceTypeAppRunnerVpcConnector, "vpc-connector")
-	add(awscloud.RelationshipAppRunnerServiceUsesAutoScalingConfiguration, service.AutoScalingConfigurationARN, awscloud.ResourceTypeAppRunnerAutoScalingConfiguration, "autoscaling")
-	add(awscloud.RelationshipAppRunnerServiceUsesObservabilityConfiguration, service.ObservabilityConfigurationARN, awscloud.ResourceTypeAppRunnerObservabilityConfiguration, "observability")
+	add(catalog.RelationshipAppRunnerServiceUsesConnection, service.ConnectionARN, catalog.ResourceTypeAppRunnerConnection, "connection")
+	add(catalog.RelationshipAppRunnerServiceUsesIAMRole, service.AccessRoleARN, catalog.ResourceTypeIAMRole, "access-role")
+	add(catalog.RelationshipAppRunnerServiceUsesIAMRole, service.InstanceRoleARN, catalog.ResourceTypeIAMRole, "instance-role")
+	add(catalog.RelationshipAppRunnerServiceUsesKMSKey, service.KMSKey, catalog.ResourceTypeKMSKey, "kms-key")
+	add(catalog.RelationshipAppRunnerServiceUsesVpcConnector, service.VpcConnectorARN, catalog.ResourceTypeAppRunnerVpcConnector, "vpc-connector")
+	add(catalog.RelationshipAppRunnerServiceUsesAutoScalingConfiguration, service.AutoScalingConfigurationARN, catalog.ResourceTypeAppRunnerAutoScalingConfiguration, "autoscaling")
+	add(catalog.RelationshipAppRunnerServiceUsesObservabilityConfiguration, service.ObservabilityConfigurationARN, catalog.ResourceTypeAppRunnerObservabilityConfiguration, "observability")
 
 	for _, secret := range service.SecretReferences {
 		valueFrom := strings.TrimSpace(secret.ValueFrom)
@@ -68,7 +68,7 @@ func serviceRelationships(boundary awscloud.Boundary, service Service) []awsclou
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppRunnerServiceReferencesSecret,
+			RelationshipType: catalog.RelationshipAppRunnerServiceReferencesSecret,
 			SourceResourceID: serviceARN,
 			SourceARN:        serviceARN,
 			TargetResourceID: valueFrom,
@@ -94,7 +94,7 @@ func vpcConnectorRelationships(boundary awscloud.Boundary, connector VpcConnecto
 	for _, subnetID := range dedupeStrings(connector.Subnets) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppRunnerVpcConnectorUsesSubnet,
+			RelationshipType: catalog.RelationshipAppRunnerVpcConnectorUsesSubnet,
 			SourceResourceID: connectorARN,
 			SourceARN:        connectorARN,
 			TargetResourceID: subnetID,
@@ -105,7 +105,7 @@ func vpcConnectorRelationships(boundary awscloud.Boundary, connector VpcConnecto
 	for _, securityGroupID := range dedupeStrings(connector.SecurityGroups) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppRunnerVpcConnectorUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipAppRunnerVpcConnectorUsesSecurityGroup,
 			SourceResourceID: connectorARN,
 			SourceARN:        connectorARN,
 			TargetResourceID: securityGroupID,
@@ -129,12 +129,12 @@ func vpcIngressConnectionRelationships(
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppRunnerVpcIngressConnectionTargetsService,
+		RelationshipType: catalog.RelationshipAppRunnerVpcIngressConnectionTargetsService,
 		SourceResourceID: ingressARN,
 		SourceARN:        ingressARN,
 		TargetResourceID: serviceARN,
 		TargetARN:        serviceARN,
-		TargetType:       awscloud.ResourceTypeAppRunnerService,
+		TargetType:       catalog.ResourceTypeAppRunnerService,
 		SourceRecordID:   ingressARN + "#service#" + serviceARN,
 	}}
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("apprunner scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppRunner:
+	case "", catalog.ServiceAppRunner:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppRunner
+		boundary.ServiceKind = catalog.ServiceAppRunner
 	default:
 		return nil, fmt.Errorf("apprunner scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -170,7 +171,7 @@ func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.Re
 		Boundary:     boundary,
 		ARN:          serviceARN,
 		ResourceID:   serviceARN,
-		ResourceType: awscloud.ResourceTypeAppRunnerService,
+		ResourceType: catalog.ResourceTypeAppRunnerService,
 		Name:         strings.TrimSpace(service.Name),
 		State:        strings.TrimSpace(service.Status),
 		Tags:         cloneStringMap(service.Tags),
@@ -210,7 +211,7 @@ func connectionObservation(boundary awscloud.Boundary, connection Connection) aw
 		Boundary:     boundary,
 		ARN:          connectionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppRunnerConnection,
+		ResourceType: catalog.ResourceTypeAppRunnerConnection,
 		Name:         strings.TrimSpace(connection.Name),
 		State:        strings.TrimSpace(connection.Status),
 		Attributes: map[string]any{
@@ -233,7 +234,7 @@ func autoScalingConfigurationObservation(
 		Boundary:     boundary,
 		ARN:          configurationARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppRunnerAutoScalingConfiguration,
+		ResourceType: catalog.ResourceTypeAppRunnerAutoScalingConfiguration,
 		Name:         strings.TrimSpace(configuration.Name),
 		State:        strings.TrimSpace(configuration.Status),
 		Attributes: map[string]any{
@@ -261,7 +262,7 @@ func observabilityConfigurationObservation(
 		Boundary:     boundary,
 		ARN:          configurationARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppRunnerObservabilityConfiguration,
+		ResourceType: catalog.ResourceTypeAppRunnerObservabilityConfiguration,
 		Name:         strings.TrimSpace(configuration.Name),
 		State:        strings.TrimSpace(configuration.Status),
 		Attributes: map[string]any{
@@ -283,7 +284,7 @@ func vpcConnectorObservation(boundary awscloud.Boundary, connector VpcConnector)
 		Boundary:     boundary,
 		ARN:          connectorARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppRunnerVpcConnector,
+		ResourceType: catalog.ResourceTypeAppRunnerVpcConnector,
 		Name:         strings.TrimSpace(connector.Name),
 		State:        strings.TrimSpace(connector.Status),
 		Attributes: map[string]any{
@@ -308,7 +309,7 @@ func vpcIngressConnectionObservation(
 		Boundary:     boundary,
 		ARN:          ingressARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppRunnerVpcIngressConnection,
+		ResourceType: catalog.ResourceTypeAppRunnerVpcIngressConnection,
 		Name:         strings.TrimSpace(ingress.Name),
 		State:        strings.TrimSpace(ingress.Status),
 		Attributes: map[string]any{

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func cloneStringMap(input map[string]string) map[string]string {
@@ -91,7 +91,7 @@ func domainResourceID(domain DomainName) string {
 
 func apiResourceType(apiKind string) string {
 	if apiKind == APIKindV2 {
-		return awscloud.ResourceTypeAPIGatewayV2API
+		return catalog.ResourceTypeAPIGatewayV2API
 	}
-	return awscloud.ResourceTypeAPIGatewayRESTAPI
+	return catalog.ResourceTypeAPIGatewayRESTAPI
 }

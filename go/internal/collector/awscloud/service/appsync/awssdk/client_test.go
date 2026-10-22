@@ -14,6 +14,7 @@ import (
 	awsappsynctypes "github.com/aws/aws-sdk-go-v2/service/appsync/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAppSyncAPIExcludesForbiddenMethods proves the adapter's accepted SDK
@@ -210,7 +211,7 @@ func assertNoForbiddenStringValue(t *testing.T, value any, needles ...string) {
 }
 
 func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAppSync}
+	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAppSync}
 }
 
 // fakeAPI is a minimal in-memory appsyncAPI. It returns a single page per list

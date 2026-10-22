@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/apprunner/runtimebind"
 )
 
 // TestAppRunnerRuntimeBindRegisters confirms importing the binding installs the
 // App Runner scanner builder and that the builder needs no redaction key.
 func TestAppRunnerRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceAppRunner)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceAppRunner)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceAppRunner)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceAppRunner)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAppRunner},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAppRunner},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)
@@ -30,7 +31,7 @@ func TestAppRunnerRuntimeBindRegisters(t *testing.T) {
 	if scanner == nil {
 		t.Fatalf("build() returned nil scanner")
 	}
-	if awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceAppRunner) {
+	if awsruntime.ServiceRequiresRedactionKey(catalog.ServiceAppRunner) {
 		t.Fatalf("App Runner must not require a redaction key; environment values are dropped, not redacted")
 	}
 }

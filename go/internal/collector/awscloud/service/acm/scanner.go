@@ -131,7 +131,7 @@ func targetTypeForARN(arn string) string {
 	case strings.Contains(arn, ":cloudfront:"):
 		return catalog.ResourceTypeCloudFrontDistribution
 	case strings.Contains(arn, ":apigateway:"):
-		return awscloud.ResourceTypeAPIGatewayDomainName
+		return catalog.ResourceTypeAPIGatewayDomainName
 	case strings.Contains(arn, ":appsync:"):
 		return "aws_appsync_api"
 	case strings.Contains(arn, ":apprunner:"):
