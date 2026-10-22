@@ -21,7 +21,11 @@
 # secrets_iam_graph_projection handler wait stays owned first-landed by
 # authenticates_vault_role (rows/21, arbiter verdict Option B on #6228),
 # so the kill rendezvouses on wait_stage=statement (same key, rendezvous
-# only) plus the hold marker. The cells rely on the driver's
+# only) plus the hold marker. Unlike the authenticates kill cell, the
+# kill cell runs an endpoint prereq stage (kubernetes_workload_materialization
+# only): the uses-vault-policy rows reference workload endpoints, so the
+# #1380 readiness gate defers until those nodes commit, and no other
+# reducer in the cell may claim that domain. The cells rely on the driver's
 # strict mode and globals
 # (bin_dir, tagged_bin_dir, log_dir, work_dir, use_compose, compose_file,
 # FAULT_COMPOSE_PROJECT, ESHU_POSTGRES_DSN, CLAIMED_ROW_WAIT_TIMEOUT,
@@ -128,6 +132,59 @@ ifa_uses_vault_policy_wait_for_read_models() {
 		sleep 1
 	done
 	printf '%s: read-model wait: no reducer secrets/IAM read-model facts in scope %s within %ss\n' "${cell}" "${scope}" "${budget}" >&2
+	return 1
+}
+
+# ifa_uses_vault_policy_wait_for_endpoint_domains banks the graph
+# endpoints the projection readiness gate
+# (go/internal/reducer/secretsiam/secrets_iam_graph_projection_readiness.go,
+# issue #1380) needs before the hold is armed. The uses-vault-policy rows
+# reference kubernetes workload UIDs, and those endpoint nodes are committed
+# by the kubernetes_workload_materialization domain -- whose rows sit
+# unclaimed while every other reducer in the kill cell is scoped elsewhere.
+# Without this wait the projection handler defers on
+# secrets_iam_endpoint_not_ready forever, the hold never engages, and the
+# marker wait dies at budget. Only the workload keyspace is waited on: the
+# family cassette carries no iam_role_cloud_resource_uid, so the gate's
+# cloud set is empty and skipped. A cassette that gains cloud endpoints
+# fails loudly here naming the keyspace, and the fix is one domain string.
+# Polls fact_work_items until that domain has no open rows and at least one
+# succeeded row. Fail-closed throughout: a terminally-bad row fails fast, a
+# failed query or non-numeric output fails, budget exhaustion fails, and
+# zero rows is never a pass.
+ifa_uses_vault_policy_wait_for_endpoint_domains() {
+	local cell="$1" budget="$2"
+	if [[ ! "${budget}" =~ ^[1-9][0-9]*$ ]]; then
+		printf '%s: endpoint wait: budget must be a positive integer, got %s\n' "${cell}" "${budget}" >&2
+		return 1
+	fi
+	local i counts ok open bad
+	for i in $(seq 1 "${budget}"); do
+		if ! counts="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"SELECT count(*) FILTER (WHERE status = 'succeeded'), count(*) FILTER (WHERE status IN ('pending', 'claimed', 'running')), count(*) FILTER (WHERE status NOT IN ('succeeded', 'pending', 'claimed', 'running')) FROM fact_work_items WHERE stage = 'reducer' AND domain = 'kubernetes_workload_materialization';" \
+			"${compose_file}")"; then
+			printf '%s: endpoint wait: endpoint-domain poll query failed\n' "${cell}" >&2
+			return 1
+		fi
+		counts="$(printf '%s' "${counts}" | tr -d '[:space:]')"
+		ok="${counts%%|*}"
+		open="$(printf '%s' "${counts#*|}" | cut -d'|' -f1)"
+		bad="${counts##*|}"
+		if [[ ! "${ok}" =~ ^[0-9]+$ || ! "${open}" =~ ^[0-9]+$ || ! "${bad}" =~ ^[0-9]+$ ]]; then
+			printf '%s: endpoint wait: endpoint-domain poll returned non-numeric output %q\n' "${cell}" "${counts}" >&2
+			return 1
+		fi
+		if [[ "${bad}" -gt 0 ]]; then
+			printf '%s: endpoint wait: %s kubernetes_workload_materialization row(s) terminally bad -- refusing to arm the hold on a half-committed graph\n' "${cell}" "${bad}" >&2
+			return 1
+		fi
+		if [[ "${open}" -eq 0 && "${ok}" -ge 1 ]]; then
+			printf '%s: endpoint wait: kubernetes workload endpoints committed (%s succeeded row(s), none open)\n' "${cell}" "${ok}"
+			return 0
+		fi
+		sleep 1
+	done
+	printf '%s: endpoint wait: kubernetes workload endpoints never committed within %ss -- the hold would never engage\n' "${cell}" "${budget}" >&2
 	return 1
 }
 
@@ -320,6 +377,25 @@ cell_kill_uses_vault_policy() {
 	ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${CLAIMED_ROW_WAIT_TIMEOUT}" "secrets_iam_graph_projection" 1 >/dev/null \
 		|| die "kill-statement-hold-uses-vault-policy: secrets_iam_graph_projection was never enqueued by the trust-chain stage"
+	# Endpoint readiness BEFORE the hold -- the shape the authenticates
+	# kill cell never needed: its rows reference no workload endpoints, so
+	# its gate is trivially ready. The uses-vault-policy rows reference
+	# kubernetes workload UIDs, and those endpoint nodes are committed by
+	# the kubernetes_workload_materialization domain, whose rows sit
+	# unclaimed while every other reducer in this cell is scoped elsewhere.
+	# A prereq-scoped reducer (k8s workload only, so the projection row can
+	# never be claimed early) runs until the endpoint domain drains. Only
+	# then is the hold armed: without this stage the handler defers on
+	# secrets_iam_endpoint_not_ready forever and the marker wait dies at
+	# budget with the hold never engaged.
+	local endpoint_reducer_pid
+	ifa_det_start_bg "${log_dir}" "reducer-killusesvaultpolicy-endpoints" endpoint_reducer_pid \
+		env "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED=true" "ESHU_REDUCER_CLAIM_DOMAIN=kubernetes_workload_materialization" "${bin_dir}/eshu-reducer"
+	ifa_uses_vault_policy_wait_for_endpoint_domains "killusesvaultpolicy" 300 \
+		|| die "kill-statement-hold-uses-vault-policy: kubernetes workload endpoints never committed"
+	kill "${endpoint_reducer_pid}" >/dev/null 2>&1 || true
+	wait "${endpoint_reducer_pid}" 2>/dev/null || true
+	ifa_det_untrack_bg_pid "${endpoint_reducer_pid}"
 	# The hold script plus the sentinel it blocks on. Order matters: the
 	# sentinel must exist before the tagged reducer starts, or the first
 	# matching write would engage-and-immediately-release before any

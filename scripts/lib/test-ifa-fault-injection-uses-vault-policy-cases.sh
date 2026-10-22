@@ -76,8 +76,72 @@ test_ifa_uses_vault_policy_wait_for_read_models_cases() (
 		|| fail "ifa_uses_vault_policy_wait_for_read_models returned success with no trust-chain row to resolve"
 )
 
+# ifa_uses_vault_policy_wait_for_endpoint_domains banks the graph
+# endpoints the projection readiness gate (#1380) needs before the hold
+# is armed: the kubernetes workload UID nodes are committed by the
+# kubernetes_workload_materialization domain, whose rows sit unclaimed
+# while the kill cell's reducers are scoped elsewhere. Without this
+# wait the projection handler defers on secrets_iam_endpoint_not_ready
+# forever, the hold never engages, and the marker wait dies at budget
+# (CI fault-injection shard 4/4 on #8737: 120s timeout with exactly
+# the workload UIDs missing). Polls fact_work_items until that domain
+# has no open rows and at least one succeeded row. Fail-closed
+# throughout: terminally-bad rows fail fast, a failed query or
+# non-numeric output fails, budget exhaustion fails, and zero rows is
+# never a pass.
+test_ifa_uses_vault_policy_wait_for_endpoint_domains_cases() (
+	source "${det_lib}"
+	source "${uses_vault_policy_cells_lib}"
+
+	local rc
+	psql() { :; }
+	sleep() { :; }
+	ifa_det_pg() {
+		printf '%s\n' "${endpoint_counts_output}"
+	}
+
+	use_compose=0
+	ESHU_POSTGRES_DSN="postgresql://unused"
+	compose_file="docker-compose.yaml"
+	FAULT_COMPOSE_PROJECT="test"
+	log_dir="$(mktemp -d -t ifa-uses-vault-policy-endpoints.XXXXXX)"
+	trap 'rm -rf "${log_dir}"' EXIT
+
+	# Endpoints committed: open rows drained and work actually ran.
+	endpoint_counts_output="3|0|0"
+	rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains readycell 5 || rc=$?
+	[[ "${rc}" -eq 0 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains failed while the endpoint domain drained with succeeded rows"
+
+	# Endpoint rows still open: exhausts the budget and fails instead of
+	# arming a hold the projection can never reach.
+	endpoint_counts_output="0|2|0"
+	rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains unready 2 || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains returned success with endpoint rows still open; the hold would never engage"
+
+	# No endpoint rows at all: fails instead of passing vacuously with
+	# nothing committed.
+	endpoint_counts_output="0|0|0"
+	rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains norows 2 || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains returned success with zero endpoint rows; the gate would defer on missing endpoints"
+
+	# A terminally-bad endpoint row: fails fast instead of arming the
+	# hold on a half-committed graph.
+	endpoint_counts_output="1|0|1"
+	rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains badrow 5 || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains returned success with a bad endpoint row present"
+)
+
 run_ifa_fault_injection_uses_vault_policy_cases() {
 	test_ifa_uses_vault_policy_wait_for_read_models_cases
+	test_ifa_uses_vault_policy_wait_for_endpoint_domains_cases
 	test_ifa_uses_vault_policy_wait_for_hold_marker_cases
 	test_ifa_uses_vault_policy_kill_cell_is_defined
 }
