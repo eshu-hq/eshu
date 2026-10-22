@@ -125,6 +125,17 @@ func TestCoreSetProblemsFlagsSeededViolations(t *testing.T) {
 		})
 	}
 
+	t.Run("duplicated unregistered name reports both problems", func(t *testing.T) {
+		t.Parallel()
+		problems, _ := coreSetProblems([]string{"no_such_tool", "no_such_tool"}, registry)
+		joined := strings.Join(problems, "\n")
+		for _, want := range []string{`"no_such_tool" is not in ReadOnlyTools()`, `"no_such_tool" is listed twice`} {
+			if !strings.Contains(joined, want) {
+				t.Errorf("coreSetProblems problems = %q, want one containing %q", problems, want)
+			}
+		}
+	})
+
 	t.Run("clean list passes", func(t *testing.T) {
 		t.Parallel()
 		problems, size := coreSetProblems([]string{registry[0].Name, registry[1].Name}, registry)
