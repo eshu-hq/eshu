@@ -235,8 +235,8 @@ func assertClaimDepthMinGrantsPerOwner(t *testing.T, result claimDepthResult, cl
 	for c := 0; c < claimers; c++ {
 		owner := fmt.Sprintf("claim-depth-owner-%d", c)
 		if perOwner[owner] < min {
-			t.Fatalf("owner %q granted %d items, want >= %d (all %d claimers share the drain)",
-				owner, perOwner[owner], min, claimers)
+			t.Fatalf("owner %q granted %d items, want >= %d (all %d claimers share the drain; empty_attempts=%d grants=%v)",
+				owner, perOwner[owner], min, claimers, result.EmptyAttempts, perOwner)
 		}
 	}
 }
