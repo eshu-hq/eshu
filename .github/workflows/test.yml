@@ -369,6 +369,9 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') && (github.event_name != 'pull_request' || needs.tree-reuse.outputs.reuse != 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    # Persist the Go build cache across fresh runners (#8735). Module
+    # downloads stay on setup-go's cache; only the compiler cache moves here.
+    env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -378,6 +381,14 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
+      - name: Restore Go build cache
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
+        uses: actions/cache@v4
+        with:
+          path: /tmp/eshu-ci/go-build
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         uses: actions/setup-go@v6
@@ -471,6 +482,9 @@ jobs:
         shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    # Same persisted build cache as go-core (#8735); matrix legs share the
+    # key because they compile the same tree.
+    env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -480,6 +494,14 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 2
+      - name: Restore Go build cache
+        if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
+        uses: actions/cache@v4
+        with:
+          path: /tmp/eshu-ci/go-build
+          key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         uses: actions/setup-go@v6
