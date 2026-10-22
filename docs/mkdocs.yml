@@ -357,6 +357,7 @@ nav:
       - Streaming And Memory: reference/telemetry/streaming-memory.md
       - Code Divergence Signals: reference/telemetry/code-divergence.md
       - MCP Response Budget: reference/telemetry/mcp-response-budget.md
+      - MCP Router: reference/telemetry/mcp-router.md
       - Relevance Walk Signals: reference/telemetry/rank-cursor.md
       - Service Catalog Runtime Re-trigger: reference/telemetry/service-catalog-runtime-retrigger.md
     - Observability:
