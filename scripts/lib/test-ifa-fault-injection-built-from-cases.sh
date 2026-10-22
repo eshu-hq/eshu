@@ -108,7 +108,7 @@ test_ifa_built_from_released_lock_holder_is_not_torn_down_twice() (
 		|| fail "teardown stopped tracking the still-owned background PID"
 )
 
-# Postgres stores at most 64 bytes of application_name: a longer lock name is
+# Postgres stores at most 63 bytes of application_name: a longer lock name is
 # silently truncated, the grant poll on the full name misses forever, and
 # the release's terminate-by-name misses too -- proven live by the sibling
 # kubernetes family's 83-char name dying while holding its own granted

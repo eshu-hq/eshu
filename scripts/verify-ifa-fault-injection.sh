@@ -60,9 +60,9 @@
 # defect -- root-cause it, never lower workers, retry, or otherwise normalize
 # it away (Serialization-Is-Not-A-Fix). A fault that never fires is an inert
 # script, not a pass, so every cell checks that its own fault actually fired:
-#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/58/61/64/67
-#   - an exact runner-waiter proof for cells 73/74/75
-#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/56/59/62/65/68/70/71/72
+#   - a claimed-row proof for cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56/59/62/65/68
+#   - an exact runner-waiter proof for cells 74/75/76
+#   - a once-fired marker for cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/60/63/66/69/71/72/73
 #   - a sentinel-fired proof for cell 5
 #
 # Usage:
@@ -133,8 +133,8 @@ export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-7688}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 # Headroom over this gate's two slowest natural recovery mechanics: the fixed
-# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/58/61/64/67) and the default 30s (+jitter)
-# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/56/59/62/65/68/70/71/72's queue-retry lane) -- see go/cmd/reducer/
+# 1-minute reducer lease (cells 2/3/6/7/8/9/17/20/23/26/29/32/35/38/41/44/47/50/53/56/59/62/65/68) and the default 30s (+jitter)
+# reducer retry delay (cells 4/12/13/14/15/18/21/24/27/30/33/36/39/42/45/48/51/54/57/60/63/66/69/71/72/73's queue-retry lane) -- see go/cmd/reducer/
 # main_helpers.go and go/internal/runtime/retry_policy.go.
 : "${GATE_DRAIN_TIMEOUT:=4m}"
 # 120s general CI margin; lock-vs-projector ordering fixed the CI codeowners failure, not this budget.
@@ -426,8 +426,8 @@ ifa_fault_shard_run cell_baseline_shell_exec
 ifa_fault_shard_run cell_killworker_shell_exec
 ifa_fault_shard_run cell_failgraphwrite_shell_exec
 
-# workload_dependency (#6003, cells 66-68) and the handles_route/runs_in/
-# invokes_cloud_action trio (#5995/#6000/#5997, cells 69-72,
+# workload_dependency (#6003, cells 67-69) and the handles_route/runs_in/
+# invokes_cloud_action group (#5995/#6000/#5997, cells 70-76,
 # scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh): each baseline
 # must run before its recovery cells in the same atomic shard group. The
 # trio's runner-lease kill cells follow the three graph-write cells.
