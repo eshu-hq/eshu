@@ -23,6 +23,8 @@
 - Never put an employer, customer, or private repository name in the corpus.
 - Never import `internal/mcp` (the root) from non-test code in this package.
   The registry-backed tests belong in `eval_test`.
+- Score with `Env.Allowed: eval.Routable`, so a surface `call_tool` refuses (`ask`,
+  `find_tool`, `call_tool`) never counts as a candidate.
 - Keep `Run` and `Format` deterministic. No map iteration order may reach output.
 
 ## Common changes

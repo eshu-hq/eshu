@@ -31,13 +31,18 @@ test lives in the external `eval_test` package, which may import the mcp root.
 | `expected` | The registered tool that best answers it. |
 | `alternates` | Other registered tools that also answer it acceptably. |
 | `anchors` | Optional `repo_id`, `service_id`, `workload_id`, `environment`. |
-| `source` | Where the wording came from: `description`, `playbook`, `sweep`, `starter_prompt`, or `hand_written`. |
+| `source` | Where the wording came from: `description`, `sweep`, `starter_prompt`, or `hand_written`. |
 
-The wording comes from tool descriptions, the query-playbook catalog, the public
-starter prompts, and the catalog sweep arguments. It is written without reading
-the curated intent phrases in `internal/ask/catalog`. A corpus built from those
-phrases would score the intents against themselves, so top-1 would measure
-nothing. Keep it that way: when you add a question, do not open the
+The wording comes from tool descriptions (most questions), the public starter
+prompts, the catalog sweep arguments, and hand-written questions for gaps. It is
+written without reading the curated intent phrases in `internal/ask/catalog`. A
+corpus built from those phrases would score the intents against themselves, so
+top-1 would measure nothing.
+
+Most questions paraphrase a tool description, and the lexical ranker indexes those
+same descriptions. Part of its top-1 is therefore lexical self-match, and the
+small families (`dead_code`, `security_posture`) are noisy. Read family numbers
+as a trend, not a score. Per-source tallies in the report are a later step. Keep it that way: when you add a question, do not open the
 `annotations_intents_*.go` files first.
 
 Names in the corpus are generic (`orders-api`, `checkout-service`). No employer,

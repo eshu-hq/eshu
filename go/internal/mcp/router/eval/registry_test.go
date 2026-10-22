@@ -84,7 +84,7 @@ func TestRoutingAccuracyReport(t *testing.T) {
 	tools := mcp.ReadOnlyTools()
 	entries := catalogEntries(t)
 	rep, err := eval.Run(context.Background(), rank.New(tools, entries), c, eval.Env{
-		Tools: tools, Entries: entries, Allowed: func(string) bool { return true },
+		Tools: tools, Entries: entries, Allowed: eval.Routable,
 	})
 	if err != nil {
 		t.Fatalf("eval.Run: %v", err)

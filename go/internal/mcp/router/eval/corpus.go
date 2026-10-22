@@ -49,7 +49,6 @@ var knownFamilies = map[string]bool{
 // not derived from the router's own intent phrases.
 var knownSources = map[string]bool{
 	"description":    true, // paraphrased from a tool description
-	"playbook":       true, // drawn from a query playbook or investigation workflow
 	"sweep":          true, // drawn from the catalog sweep arguments
 	"starter_prompt": true, // drawn from the public starter prompts
 	"hand_written":   true, // written for a gap the other sources leave
@@ -62,6 +61,12 @@ var routerOnlyTools = map[string]bool{
 	"call_tool": true,
 	"ask":       true,
 }
+
+// Routable reports whether name is a tool a caller could be offered and invoke.
+// It is false for find_tool, call_tool, and ask, which call_tool refuses as
+// targets. Pass it as Env.Allowed so the harness scores the surface the router
+// would offer.
+func Routable(name string) bool { return !routerOnlyTools[name] }
 
 //go:embed testdata/corpus.json
 var embeddedCorpus []byte

@@ -118,8 +118,8 @@ gates:
     triggers:
       - "go/internal/mcp/router/**"
       - "go/internal/ask/catalog/**"
-      - "go/internal/mcp/tools_*.go"
-      - "go/internal/mcp/contract/tool/**"
+      - "go/internal/mcp/**"
+      - "go/internal/capabilitycatalog/data/surface-inventory.generated.json"
       - "scripts/go-test-run-guard.sh"
       - "scripts/lib/go-test-run-guard.sh"
       - "scripts/ci/go-mod-download-retry.sh"

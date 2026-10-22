@@ -71,6 +71,9 @@ func Run(ctx context.Context, ranker router.Ranker, c *Corpus, env Env) (*Report
 	if ranker == nil {
 		return nil, errors.New("eval: ranker is nil")
 	}
+	if c == nil {
+		return nil, errors.New("eval: corpus is nil")
+	}
 	if env.Allowed == nil {
 		return nil, errors.New("eval: Env.Allowed is nil")
 	}

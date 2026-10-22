@@ -10,8 +10,9 @@
 // router.Ranker over the corpus and reports top-1 and top-5 accuracy per
 // family, plus every question whose expected tool did not rank first.
 //
-// The corpus is written from tool descriptions, query playbooks, starter
-// prompts, and catalog sweep arguments, never from the curated intent phrases
+// The corpus is written from tool descriptions, the public starter prompts,
+// and catalog sweep arguments, plus hand-written questions for gaps. It is
+// never written from the curated intent phrases
 // in internal/ask/catalog. A corpus built from the intents would only score the
 // intents against themselves.
 //

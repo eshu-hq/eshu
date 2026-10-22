@@ -132,6 +132,25 @@ func TestRunPropagatesRankerError(t *testing.T) {
 	}
 }
 
+func TestRoutableDeniesRouterSurfaces(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"ask", "find_tool", "call_tool"} {
+		if Routable(name) {
+			t.Errorf("Routable(%q) = true, want false", name)
+		}
+	}
+	if !Routable("find_symbol") {
+		t.Error("Routable(find_symbol) = false, want true")
+	}
+}
+
+func TestRunRejectsNilCorpus(t *testing.T) {
+	t.Parallel()
+	if _, err := Run(context.Background(), testRanker(), nil, Env{Allowed: Routable}); err == nil {
+		t.Fatal("nil corpus: want an error")
+	}
+}
+
 func TestRunRejectsNilRankerAndNilAllowed(t *testing.T) {
 	t.Parallel()
 	if _, err := Run(context.Background(), nil, testCorpus(), Env{Allowed: func(string) bool { return true }}); err == nil {
