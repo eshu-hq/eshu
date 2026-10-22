@@ -269,6 +269,7 @@ gates:
       - "testdata/cassettes/s3logsto/**"
       - "testdata/cassettes/builtfrom/**"
       - "testdata/cassettes/cloudresourcecontainerimage/**"
+      - "testdata/cassettes/crossplanesatisfiedby/**"
       - "testdata/cassettes/shellexec/**"
       - "testdata/cassettes/submodulepin/**"
       - "testdata/cassettes/workloaddependency/**"
