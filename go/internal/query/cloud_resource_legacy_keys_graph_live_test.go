@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//go:build integration
+//go:build live_nornicdb_answer_truth
 
 package query
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,56 +25,13 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-func TestCloudResourceListSuppressesHistoricalAppSyncKeysLive(t *testing.T) {
-	dsn := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_TEST_DSN"))
-	if dsn == "" {
-		t.Skip("set ESHU_POSTGRES_TEST_DSN to run the live historical-key suppression proof")
-	}
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		t.Fatalf("open Postgres: %v", err)
-	}
-	db.SetMaxOpenConns(1)
-	t.Cleanup(func() { _ = db.Close() })
-
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-	defer cancel()
-	seedCloudResourceListLiveCorpus(t, ctx, db)
-	if _, err := db.ExecContext(ctx, `UPDATE graph_node_owner SET winning_row = jsonb_set(winning_row, '{data_type}', to_jsonb('aws_appsync_api_key'::text)) WHERE uid = 'uid-000001'`); err != nil {
-		t.Fatalf("seed historical key owner row: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `UPDATE fact_records SET payload = jsonb_set(payload, '{data_type}', to_jsonb('aws_appsync_api_key'::text)) WHERE fact_id = 'fact-000001'`); err != nil {
-		t.Fatalf("seed historical key fact: %v", err)
-	}
-
-	if _, err := db.ExecContext(ctx, `UPDATE graph_node_owner SET winning_row = jsonb_set(winning_row, '{data_type}', to_jsonb('aws_appsync_api_key'::text)) WHERE uid = 'uid-000002'`); err != nil {
-		t.Fatalf("seed conflicting historical key owner row: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `UPDATE fact_records SET payload = jsonb_set(payload, '{data_type}', to_jsonb('aws_appsync_api_key'::text)) WHERE fact_id = 'fact-000002'`); err != nil {
-		t.Fatalf("seed conflicting historical key fact: %v", err)
-	}
-
-	rows, err := NewPostgresCloudResourceListStore(db).ListCloudResourceIdentities(ctx, CloudResourceListPageFilter{Limit: 2, AllScopes: true})
-	if err != nil {
-		t.Fatalf("list cloud-resource identities: %v", err)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("list returned %d rows, want a full page of 2 healthy resources", len(rows))
-	}
-	for _, row := range rows {
-		if row.UID == "uid-000001" || row.UID == "uid-000002" || row.ResourceType == "aws_appsync_api_key" {
-			t.Fatalf("historical key leaked into cloud-resource page: %#v", row)
-		}
-	}
-}
-
 func TestHistoricalAppSyncKeyReadRoutesSuppressLegacyGraphNodeLive(t *testing.T) {
-	if os.Getenv("ESHU_LEGACY_APPSYNC_SUPPRESSION_LIVE") != "1" || os.Getenv("ESHU_LEGACY_APPSYNC_SUPPRESSION_ISOLATED") != "1" {
-		t.Skip("set ESHU_LEGACY_APPSYNC_SUPPRESSION_LIVE=1 and ESHU_LEGACY_APPSYNC_SUPPRESSION_ISOLATED=1 for an isolated graph proof")
+	if backend := strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_BACKEND")); backend != "neo4j" {
+		t.Fatalf("ESHU_LIVE_GRAPH_BACKEND = %q, want neo4j from the isolated live-backend runner", backend)
 	}
 	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
 	if uri == "" {
-		t.Fatal("ESHU_NEO4J_URI is required")
+		t.Fatal("ESHU_NEO4J_URI is required from the live-backend runner")
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer cancel()
@@ -84,8 +40,8 @@ func TestHistoricalAppSyncKeyReadRoutesSuppressLegacyGraphNodeLive(t *testing.T)
 		t.Fatalf("open isolated Neo4j: %v", err)
 	}
 	database := strings.TrimSpace(os.Getenv("ESHU_NEO4J_DATABASE"))
-	if database == "" {
-		database = "neo4j"
+	if database != "neo4j" {
+		t.Fatalf("ESHU_NEO4J_DATABASE = %q, want neo4j from the live-backend runner", database)
 	}
 	if err := driver.VerifyConnectivity(ctx); err != nil {
 		t.Fatalf("verify isolated Neo4j: %v", err)
@@ -144,9 +100,6 @@ CREATE (api)-[:USES]->(healthy_target)`
 
 	reader := NewNeo4jReader(driver, database)
 	graphBackend := querycontract.GraphBackendNeo4j
-	if database == "nornic" {
-		graphBackend = querycontract.GraphBackendNornicDB
-	}
 	mux := http.NewServeMux()
 	(&InfraHandler{Neo4j: reader}).Mount(mux)
 	(&GraphEntityInventoryHandler{Neo4j: reader, Profile: querycontract.ProfileProduction}).Mount(mux)

@@ -294,6 +294,11 @@ tests:
     tag: integration
     class: scheduled
     reason: full-stack cost unmeasured on this tree; promote to blocking after a measured green run
+  - file: go/internal/query/cloud_resource_legacy_keys_graph_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#751 isolated Neo4j proof that every graph-backed legacy AppSync key read path suppresses key identity and stored markers while healthy paths remain visible; one fresh Neo4j 2026-community run completed in 6.562s"
+    backends: neo4j
   - file: go/internal/query/cloud_resource_owner_backfill_nornicdb_live_test.go
     tag: ~
     class: scheduled

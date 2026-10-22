@@ -30,6 +30,18 @@ path whose only route crosses the hidden key is returned as no path. The
   explicit selector requests return no match.
 - Query source digests, emitted query hashes, and the 64-variant SQL family
   registry match the final production builders.
+- The live regressions are enrolled in their matching runners: the untagged
+  PostgreSQL proof is selected by generated live-readiness markers and the
+  Neo4j proof is a `live_nornicdb_answer_truth` CI target pinned to Neo4j. The
+  shared temporary PostgreSQL corpus helper is in
+  `cloud_resource_legacy_keys_fixtures_test.go` so the untagged proof compiles.
+  The PostgreSQL test passed on disposable PostgreSQL 18 in 1.083 s; the graph
+  test passed on a fresh pinned Neo4j fixture in 6.562 s. Both test names are
+  bound to their runner inventories and exact selectors.
+- Enrollment checks passed: `python3 scripts/generate-live-postgres-readiness.py
+  --check`, `bash scripts/test-generate-live-postgres-readiness.sh`,
+  `bash scripts/verify-live-tests-ledger.sh`, and
+  `python3 scripts/test-live-tests-registry.py`.
 
 The historical-key filters change reads only. The scanner also stops emitting
 per-key facts, so future graph projections no longer receive those key records.
