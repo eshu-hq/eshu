@@ -8,8 +8,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
+	ociregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/ociregistry/v1"
 )
 
 const (
@@ -19,12 +21,15 @@ const (
 	CloudResourceContainerImageFamilyOduName = "odu:ifa-cloud-resource-container-image-family"
 
 	// cloudResourceContainerImageFamilyScopeID is the single AWS account
-	// scope every fact in this Odù belongs to. The reducer handler loads
-	// one scope generation's aws_resource and aws_relationship facts, so a
-	// fixture spanning scopes would not mirror any real intent. It is a
-	// dedicated account, not shared with any sibling cassette: scopes
-	// carry one ACTIVE generation, so driving a second generation into an
-	// occupied scope supersedes the first family's generation.
+	// scope every fact in this Odù belongs to, including the one OCI
+	// manifest below (which rides this scope the way the built_from
+	// sibling's OCI manifests ride its git scope). The reducer handler
+	// loads one scope generation's aws_resource and aws_relationship
+	// facts, so a fixture spanning scopes would not mirror any real
+	// intent. It is a dedicated account, not shared with any sibling
+	// cassette: scopes carry one ACTIVE generation, so driving a second
+	// generation into an occupied scope supersedes the first family's
+	// generation.
 	cloudResourceContainerImageFamilyScopeID = "aws:eshu-fixture-cloud-resource-container-image-account"
 
 	// cloudResourceContainerImageFamilyAccountID and
@@ -45,6 +50,22 @@ const (
 	// awscloud collector stamps on aws_resource and aws_relationship facts.
 	cloudResourceContainerImageFamilyCollectorKind = "aws"
 	cloudResourceContainerImageFamilySchemaVersion = "1.0.0"
+
+	// cloudResourceContainerImageFamilyOCICollectorKind is the collector
+	// kind the OCI manifest below carries, mirroring the built_from
+	// sibling: OCI facts ride the same single scope as the aws facts,
+	// and the canonical projector materializes the target ContainerImage
+	// node from them. Without it the image edge writer's
+	// filterRowsToExistingContainerImageIdentity drops both edge rows as
+	// target_not_materialized and the live gate sees zero edges (CI
+	// determinism-matrix red on the twelve-fact cassette).
+	cloudResourceContainerImageFamilyOCICollectorKind = "oci_registry"
+
+	// cloudResourceContainerImageFamilyManifestRepositoryID is the OCI
+	// registry repository id of the shared digest, in the oci-registry://
+	// form the canonical projector's ociDescriptorUID needs to derive the
+	// oci-descriptor:// target uid the edge writer MATCHes.
+	cloudResourceContainerImageFamilyManifestRepositoryID = "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/demo"
 
 	// cloudResourceContainerImageFamilyImageRegistry is the ECR registry
 	// hosting the fixture image. Lambda container images are exclusively
@@ -179,7 +200,7 @@ func stringPtr(value string) *string { return &value }
 // claim built on it is already void.
 func CloudResourceContainerImageFamilyOdu() CatalogOdu {
 	factsForOdu := make([]facts.Envelope, 0,
-		len(cloudResourceContainerImageFamilyResources)+len(cloudResourceContainerImageFamilyRelationships))
+		len(cloudResourceContainerImageFamilyResources)+len(cloudResourceContainerImageFamilyRelationships)+1)
 	for _, resource := range cloudResourceContainerImageFamilyResources {
 		arn := resource.ResourceID
 		payload, err := factschema.EncodeAWSResource(awsv1.Resource{
@@ -243,8 +264,37 @@ func CloudResourceContainerImageFamilyOdu() CatalogOdu {
 		})
 	}
 
+	// One OCI manifest for the shared digest. The canonical projector
+	// materializes the target ContainerImage node from it; without the
+	// node the image edge writer drops both edge rows as
+	// target_not_materialized and the live gate sees zero edges. The
+	// non-producer digests deliberately get no manifest: badref is
+	// unparseable, ghost is unscanned, and the zip has no digest, so
+	// their targets must stay absent.
+	manifestPayload, err := factschema.EncodeOCIImageManifest(ociregistryv1.ImageManifest{
+		RepositoryID: cloudResourceContainerImageFamilyManifestRepositoryID,
+		Digest:       cloudResourceContainerImageFamilyDigest,
+		MediaType:    stringPtr("application/vnd.oci.image.manifest.v1+json"),
+	})
+	if err != nil {
+		panic(fmt.Sprintf(
+			"familyodu: catalog_seed %s: encode oci manifest payload for %q: %v",
+			CloudResourceContainerImageFamilyOduName, cloudResourceContainerImageFamilyDigest, err,
+		))
+	}
+	factsForOdu = append(factsForOdu, facts.Envelope{
+		ScopeID:          cloudResourceContainerImageFamilyScopeID,
+		GenerationID:     cloudResourceContainerImageFamilyGenerationID,
+		FactKind:         chain.OCIImageManifestFactKind,
+		StableFactKey:    "oci-manifest:" + cloudResourceContainerImageFamilyDigest,
+		SchemaVersion:    cloudResourceContainerImageFamilySchemaVersion,
+		CollectorKind:    cloudResourceContainerImageFamilyOCICollectorKind,
+		SourceConfidence: facts.SourceConfidenceObserved,
+		Payload:          manifestPayload,
+	})
+
 	return CatalogOdu{
 		Odu:    Odu{Name: CloudResourceContainerImageFamilyOduName, Facts: factsForOdu},
-		Detail: "twelve aws facts for the direct-materialization cloud_resource_container_image family: five scanned resources and seven relationships — two edge-producing lambda_function_uses_image facts on one shared digest plus five deliberate non-producers covering the tag-only policy, no-digest, unparseable-ref, source-unresolved and foreign-verb branches, so the AWS_lambda_function_uses_image expected set proves both promotion and restraint",
+		Detail: "thirteen facts for the direct-materialization cloud_resource_container_image family: five scanned resources, seven relationships, and one OCI manifest for the shared digest — two edge-producing lambda_function_uses_image facts on one shared digest plus five deliberate non-producers covering the tag-only policy, no-digest, unparseable-ref, source-unresolved and foreign-verb branches, so the AWS_lambda_function_uses_image expected set proves both promotion and restraint",
 	}
 }

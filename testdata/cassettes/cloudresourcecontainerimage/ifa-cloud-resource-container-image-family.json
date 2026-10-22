@@ -222,6 +222,19 @@
      "schema_version": "1.0.0",
      "source_confidence": "observed",
      "stable_fact_key": "aws-rel:us-east-1:uses_kms_key:arn:aws:lambda:us-east-1:123456789012:function:demo"
+    },
+    {
+     "collector_kind": "oci_registry",
+     "fact_kind": "oci_registry.image_manifest",
+     "fencing_token": 1,
+     "payload": {
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "media_type": "application/vnd.oci.image.manifest.v1+json",
+      "repository_id": "oci-registry://123456789012.dkr.ecr.us-east-1.amazonaws.com/demo"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "oci-manifest:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }
    ],
    "generation_id": "gen-ifa-cloud-resource-container-image-family-1",

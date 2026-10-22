@@ -207,11 +207,15 @@ built_from_expected_edges="${repo_root}/go/internal/ifa/testdata/builtfrom/ifa-b
 # cloud_resource_container_image (#6228 slice D live leaf): a projection of
 # the compiled CloudResourceContainerImageFamilyOdu by construction
 # (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- five
-# scanned aws_resource facts and seven aws_relationship facts, two
-# edge-producing lambda_function_uses_image facts on one shared digest plus
-# five deliberate non-producers (tag-only ECS, no-digest zip, unparseable
-# tag-only ref, unscanned ghost source, foreign verb). The single aws region
-# scope owns its own ACTIVE generation, like every sibling above.
+# scanned aws_resource facts, seven aws_relationship facts, and one OCI
+# image manifest for the shared digest (the canonical projector
+# materializes the target ContainerImage node from it; without the node
+# the image writer drops both edge rows as target_not_materialized).
+# Two edge-producing lambda_function_uses_image facts on one shared digest
+# plus five deliberate non-producers (tag-only ECS, no-digest zip,
+# unparseable tag-only ref, unscanned ghost source, foreign verb). The
+# single aws region scope owns its own ACTIVE generation, like every
+# sibling above.
 cloud_resource_container_image_cassette="${repo_root}/testdata/cassettes/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family.json"
 cloud_resource_container_image_expected_edges="${repo_root}/go/internal/ifa/testdata/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family-expected-edges.json"
 
