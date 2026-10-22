@@ -27,7 +27,7 @@ package ranks against. They are empty until the intent-curation lane fills them.
 ## Exported surface
 
 - `Surface`, `SurfaceFull`, `SurfaceRouter`, `SurfaceCoreRouter`, `ParseSurface`
-- `FindToolName`, `CallToolName`, `Tools`
+- `FindToolName`, `CallToolName`, `Tools`, `DefaultLimit`, `MaxLimit`
 - `Anchors`, `Query`, `Candidate`, `Ranker`, `Dispatcher`
 - `CoreToolNames`
 
@@ -39,7 +39,7 @@ sequenceDiagram
   participant M as Eshu MCP
   participant D as dispatchTool
   A->>M: tools/list
-  M-->>A: find_tool, call_tool (plus core tools)
+  M-->>A: find_tool, call_tool (plus core tools on core_router)
   A->>M: find_tool(intent, anchors, limit)
   M-->>A: ranked candidates: name, why, cost, inputSchema, example
   A->>M: call_tool(name, arguments)
