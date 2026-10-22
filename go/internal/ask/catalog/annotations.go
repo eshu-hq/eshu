@@ -9,6 +9,15 @@ package catalog
 type Annotation struct {
 	Backend Backend
 	Cost    CostClass
+	// Intents are curated natural-language phrases an agent might use when it
+	// needs this surface. The MCP router ranks tools against them. Empty until
+	// the intent-curation lane fills them; an empty slice means "not curated",
+	// not "matches nothing".
+	Intents []string
+	// Canonical marks the preferred tool in a family of overlapping tools. The
+	// router uses it to break ranking ties. False for every surface until the
+	// intent-curation lane sets it.
+	Canonical bool
 }
 
 // annotations is the curated overlay keyed by surface name. It merges the

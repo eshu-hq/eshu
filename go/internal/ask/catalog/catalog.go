@@ -6,6 +6,7 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 )
 
@@ -63,6 +64,12 @@ type Entry struct {
 	Backend Backend
 	// Cost is the annotated cost class, or CostHigh when unannotated (conservative).
 	Cost CostClass
+	// Intents are the curated phrases copied from the Annotation overlay by
+	// Annotate. Nil until the intent-curation lane fills the overlay. Treat the
+	// slice as read-only: Entries returns shallow copies that share it.
+	Intents []string
+	// Canonical is the overlay's preferred-in-family flag, copied by Annotate.
+	Canonical bool
 }
 
 // Catalog holds the parsed, annotated set of callable surfaces.
@@ -145,6 +152,8 @@ func (c *Catalog) Annotate() {
 		if a, ok := overlay[c.entries[i].Name]; ok {
 			c.entries[i].Backend = a.Backend
 			c.entries[i].Cost = a.Cost
+			c.entries[i].Intents = slices.Clone(a.Intents)
+			c.entries[i].Canonical = a.Canonical
 		}
 	}
 }

@@ -29,7 +29,7 @@ never queries Postgres, the graph backend, or any live runtime state.
 |------|------|
 | `catalog.go` | Core types (`Backend`, `CostClass`, `SurfaceKind`, `Entry`, `Catalog`), `Parse`, `Annotate`, `Unannotated`, `Lookup`, `ByBackend`, `CheapestFirst` |
 | `doc.go` | Package godoc contract |
-| `annotations.go` | `Annotation` type + `annotations()` merger |
+| `annotations.go` | `Annotation` type (backend, cost, router `Intents`/`Canonical`) + `annotations()` merger |
 | `annotations_routes.go` | `askRouteAnnotations()` — implemented retrieval-capable HTTP API routes |
 | `annotations_tools.go` | `askToolAnnotations()` — 148 implemented MCP tools |
 | `planner_exclusions.go` | Curated non-retrieval admin/auth/session control routes excluded from planner entries |
@@ -45,10 +45,12 @@ never queries Postgres, the graph backend, or any live runtime state.
 ```
 Catalog
   entries []Entry
-    Kind     SurfaceKind  ("api_route" | "mcp_tool")
-    Name     string       surface identifier
-    Backend  Backend      ("nornicdb" | "postgres" | "both" | "embedded" | "unknown")
-    Cost     CostClass    ("low" | "moderate" | "high")
+    Kind      SurfaceKind  ("api_route" | "mcp_tool")
+    Name      string       surface identifier
+    Backend   Backend      ("nornicdb" | "postgres" | "both" | "embedded" | "unknown")
+    Cost      CostClass    ("low" | "moderate" | "high")
+    Intents   []string     curated router phrases (empty until curated)
+    Canonical bool         preferred tool in its family (false until curated)
 ```
 
 `Backend` and `Cost` are **not** carried by the surface inventory; they are a
