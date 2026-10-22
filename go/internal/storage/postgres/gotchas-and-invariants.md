@@ -299,4 +299,13 @@ operational lessons that future storage changes still need to respect.
   bound fails. A delta with no anchor stores, so the projector's base-missing
   refusal arms the reindex watermark; a generation whose stream disagrees on
   being a delta is sized as a full and logs `successor_delta_scope_mismatch`.
+  The prior is the larger of the duplicate-check candidate and the scope's
+  active generation (review F1): the claim sweep lets a newer full supersede
+  a pending generation unprojected, so a pending candidate alone does not
+  bound what a successor retracts. `successorGuardActiveGenerationQuery`
+  uses `activeGenerationPredicate`, never `backfill.ActiveScopeGenerationQuery`,
+  whose COALESCE returns a pending row when none is active. It runs only for
+  a pending candidate, before the commit transaction opens; a pending
+  candidate whose projector work is not live is not sized next to an active
+  generation, and every read failure fails the commit closed.
   See `docs/internal/evidence/8750-successor-guard-sizing.md`.

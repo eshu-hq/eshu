@@ -243,6 +243,10 @@ TABLE = {
             "TestGuardStoresDeltaDeletingNeverIndexedPathsLive",
             "TestGuardStoresDeltaWithMissingBaseLive",
             "TestGuardSizesDeltaWithoutRepositoryFactAsFullLive",
+            "TestGuardRefusesSharpShrinkFullWhileChainedDeltaPendingLive",
+            "TestGuardStoresHalfSizeFullWhileChainedDeltaPendingLive",
+            "TestGuardSizesAgainstLargerPendingFullLive",
+            "TestGuardRefusesStepwiseShrinkThroughPendingFullLive",
         ),
         "go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go": (
             "TestReducerContentionGateManifestLessDirtyRuleReturnsTheSameDefinitions",
@@ -481,9 +485,6 @@ TABLE = {
             "TestCompletionWakeRunningItemReplayBitLive",
             "TestCompletionWakeClaimedMissingFingerprintNotFlaggedLive",
             "TestCompletionWakeRetryConvergesAfterLostWakeLive",
-        ),
-        "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
-            "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
         ),
     },
 }

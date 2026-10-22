@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8750 disposable PostgreSQL 18 proof that the destructive-successor guard sizes the prior on collector rows only (reducer_ rows excluded) and sizes a git delta on its file-level union against the base full generation; reuses the #7978 bootstrapped proof schema; wall time is logged, not gated
+//eshu:readiness:reason #8750 disposable PostgreSQL 18 proof that the destructive-successor guard sizes the prior on collector rows only (reducer_ rows excluded) and sizes a git delta on its file-level union against the base full generation, and sizes the prior as the larger of the active generation and a live pending candidate (review F1); reuses the #7978 bootstrapped proof schema; wall time is logged, not gated
 //eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -364,17 +364,18 @@ func TestGuardSizesDeltaWithoutRepositoryFactAsFullLive(t *testing.T) {
 	}
 }
 
-// TestGuardRefusesSharpShrinkFullWhileChainedDeltaPendingLive is review F1:
-// a second delta in a chain has no anchor (its baseline is the active
-// delta's commit), so it stores and stays pending until the projector
-// refuses it. A full that arrives in that window must still be sized against
-// the scope's projected truth, not the pending delta's few rows.
-func TestGuardRefusesSharpShrinkFullWhileChainedDeltaPendingLive(t *testing.T) {
+// openChainedDeltaPendingWindow opens the review F1 window: gen-a (200
+// files, 200 entities, 300 reducer rows) is projected, the delta gen-b over
+// it is projected (active union 400 + 11 = 411 collector rows), and the
+// chained delta gen-c (11 rows) is stored and pending. A second delta in a
+// chain has no anchor (its baseline is the active delta's commit), so it
+// stays pending until the projector refuses it.
+func openChainedDeltaPendingWindow(t *testing.T) *reprojectProof {
+	t.Helper()
 	telemetry.ResetSkippedRefreshCountForTesting()
 	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
 	p := openReprojectProof(t)
 	p.seedLargeFullPrior(200, 300)
-
 	first := guardSizingPaths("f", 0, 5)
 	p.commitGuardSizing(p.deltaGeneration("gen-b", "hint-b", "sha-b", "sha-a"), guardSizingLive(first), 5, first, nil)
 	if got := p.project(); len(got) != 1 || got[0] != "gen-b" {
@@ -385,14 +386,71 @@ func TestGuardRefusesSharpShrinkFullWhileChainedDeltaPendingLive(t *testing.T) {
 	if !p.generationStored("gen-c") {
 		t.Fatal("chained delta gen-c was not stored; the window under test never opened")
 	}
+	return p
+}
 
+// requireGuardOutcome asserts whether generationID was stored and the
+// running destructive-successor skip count.
+func (p *reprojectProof) requireGuardOutcome(generationID string, stored bool, skips uint64) {
+	p.t.Helper()
+	if got := p.generationStored(generationID); got != stored {
+		p.t.Fatalf("%s stored = %v, want %v", generationID, got, stored)
+	}
+	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonDestructiveSuccessor); got != skips {
+		p.t.Fatalf("destructive_successor skips = %d, want %d", got, skips)
+	}
+}
+
+// TestGuardRefusesSharpShrinkFullWhileChainedDeltaPendingLive is review F1
+// (L1): a full that arrives while a chained delta is pending must still be
+// sized against the scope's projected truth, not the pending delta's few rows.
+func TestGuardRefusesSharpShrinkFullWhileChainedDeltaPendingLive(t *testing.T) {
+	p := openChainedDeltaPendingWindow(t)
 	// 20 files and 20 entities: a tenth of the projected repository.
 	p.commitGuardSizing(p.generation("gen-d", "hint-d", "sha-d", "interval_elapsed"), guardSizingFiles("f", 20), 20, nil, nil)
+	p.requireGuardOutcome("gen-d", false, 1)
+}
 
-	if p.generationStored("gen-d") {
-		t.Fatal("gen-d was stored; a 20-of-200-file full must be refused while a chained delta is pending")
-	}
-	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonDestructiveSuccessor); got != 1 {
-		t.Fatalf("destructive_successor skips = %d, want 1", got)
-	}
+// TestGuardStoresHalfSizeFullWhileChainedDeltaPendingLive (L2) proves the
+// prior is the larger side, not the sum: 208 rows hold half the active union
+// (416 >= 411) but not half of active plus pending (416 < 422).
+func TestGuardStoresHalfSizeFullWhileChainedDeltaPendingLive(t *testing.T) {
+	p := openChainedDeltaPendingWindow(t)
+	p.commitGuardSizing(p.generation("gen-d", "hint-d", "sha-d", "interval_elapsed"), guardSizingFiles("f", 104), 104, nil, nil)
+	p.requireGuardOutcome("gen-d", true, 0)
+}
+
+// TestGuardSizesAgainstLargerPendingFullLive (L3): a pending full larger than
+// the active counts, because the claim sweep lets a newer full supersede it
+// unprojected. Active 200 rows, pending 800: 300 rows passes the active alone
+// but is refused; 500 rows holds half the pending and stores.
+func TestGuardSizesAgainstLargerPendingFullLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	p.seedLargeFullPrior(100, 0)
+	p.commitGuardSizing(p.generation("gen-b", "hint-b", "sha-b", "interval_elapsed"), guardSizingFiles("f", 400), 400, nil, nil)
+	p.requireGuardOutcome("gen-b", true, 0)
+
+	p.commitGuardSizing(p.generation("gen-c", "hint-c", "sha-c", "interval_elapsed"), guardSizingFiles("f", 20), 20, nil, nil)
+	p.requireGuardOutcome("gen-c", false, 1)
+	p.commitGuardSizing(p.generation("gen-d", "hint-d", "sha-d", "interval_elapsed"), guardSizingFiles("f", 150), 150, nil, nil)
+	p.requireGuardOutcome("gen-d", false, 2)
+	p.commitGuardSizing(p.generation("gen-e", "hint-e", "sha-e", "interval_elapsed"), guardSizingFiles("f", 250), 250, nil, nil)
+	p.requireGuardOutcome("gen-e", true, 2)
+}
+
+// TestGuardRefusesStepwiseShrinkThroughPendingFullLive (L4): active 400 rows,
+// a pending full of 200 stores (exactly half), then a 120-row full passes the
+// pending alone (240 >= 200) but would shrink the graph to 120 of 400: refused.
+func TestGuardRefusesStepwiseShrinkThroughPendingFullLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	p.seedLargeFullPrior(200, 0)
+	p.commitGuardSizing(p.generation("gen-b", "hint-b", "sha-b", "interval_elapsed"), guardSizingFiles("f", 100), 100, nil, nil)
+	p.requireGuardOutcome("gen-b", true, 0)
+
+	p.commitGuardSizing(p.generation("gen-c", "hint-c", "sha-c", "interval_elapsed"), guardSizingFiles("f", 60), 60, nil, nil)
+	p.requireGuardOutcome("gen-c", false, 1)
 }

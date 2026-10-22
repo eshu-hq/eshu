@@ -37,7 +37,10 @@
   git delta by its file-level union against its anchor. Do not feed it a
   count that includes `reducer_`-prefixed rows, and do not size a delta by
   its own stream. The zero-query lower bound may only send a delta to the
-  probe, never refuse it. Add a rule by extending the closed
+  probe, never refuse it. The prior is the larger of the duplicate-check
+  candidate and the scope's active generation (#8750 F1), chosen in the
+  root's `successorPriorForGuard`; keep `DecideSuccessor` pure and never
+  size the prior on a pending generation alone. Add a rule by extending the closed
   `telemetry.SuccessorGuardRule*` set (and the coverage doc) in the same
   change.
 - **Block telemetry is a closed set** — the `Block*` constants in

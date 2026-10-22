@@ -32,7 +32,10 @@ Observed on one hosted deployment before the fix (no names, public-safe):
 
 ## Fix
 
-Commits `e2443e8336` and `7d14116d97`.
+Commits `6b196221ea` (like-for-like prior) and `bc4ef7c905` (delta union).
+`dd3511fc62` pins the tests and docs, `0f902be6ef` fixes review F2 and F3,
+`443c71982f` commits the review F1 regression red, and the F1 fix commit
+sizes the prior against the active generation (see "Pending window" below).
 
 - `successorGuardCountQuery` reads three counts in one index-only pass over
   `fact_records_scope_generation_idx`: collector rows
@@ -60,8 +63,9 @@ Commits `e2443e8336` and `7d14116d97`.
 ## Proof
 
 `go/internal/storage/postgres/ingestion_successor_guard_sizing_live_test.go`
-runs eight live PostgreSQL tests through the production `IngestionStore`
-commit path and the real projector claim. All eight pass at `7d14116d97`.
+runs twelve live PostgreSQL tests through the production `IngestionStore`
+commit path and the real projector claim. All twelve pass at the F1 fix
+commit.
 
 | Test | Pins |
 | --- | --- |
@@ -73,17 +77,81 @@ commit path and the real projector claim. All eight pass at `7d14116d97`.
 | `TestGuardStoresDeltaDeletingNeverIndexedPathsLive` | 150 deleted paths that were never indexed remove no anchor file. |
 | `TestGuardStoresDeltaWithMissingBaseLive` | A delta with no anchor stores and is left to the projector. |
 | `TestGuardSizesDeltaWithoutRepositoryFactAsFullLive` | A generation claiming `IsDelta` with no `delta_generation` fact is sized as a full and refused. |
+| `TestGuardRefusesSharpShrinkFullWhileChainedDeltaPendingLive` | L1, review F1: a 40-row full is refused while a chained delta (11 rows) is pending over a 411-row active union. |
+| `TestGuardStoresHalfSizeFullWhileChainedDeltaPendingLive` | L2: in the same window a 208-row full stores (416 >= 411). Against the sum of both sides (422) it would be refused, so this pins max, not sum. |
+| `TestGuardSizesAgainstLargerPendingFullLive` | L3: active 200 rows, pending full 800. Fulls of 40 and 300 rows are refused (300 passes the active alone); a 500-row full stores. |
+| `TestGuardRefusesStepwiseShrinkThroughPendingFullLive` | L4: active 400, a pending full of 200 stores, then a 120-row full is refused (it passes the pending alone). |
 
 The tests were written before each fix and run red first, on a disposable
 local PostgreSQL 18 schema (`ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN`):
 
-- On `0c966372f4` (before `e2443e8336`), the forced-full test failed with
+- On `0c966372f4` (before `6b196221ea`), the forced-full test failed with
   `destructive_successor skips = 1, want 0: 40 of 54 collector rows is not a
   sharp shrink`; the sharp-shrink test passed.
-- On `e2443e8336` (before `7d14116d97`), three delta tests failed with
+- On `6b196221ea` (before `bc4ef7c905`), three delta tests failed with
   `destructive_successor skips = 1, want 0`: the 41-file delta, the
   never-indexed deletes, and the missing anchor. The mass-delete, rename, and
   missing-repository-fact tests already held and stay as guard rails.
+- On `443c71982f` (before the F1 fix), L1 failed with `gen-d stored = true,
+  want false` and L4 with `gen-c stored = true, want false`. L2 and L3 held:
+  they guard against over-refusal and against dropping the pending side.
+
+## Pending window (review F1)
+
+The duplicate check's candidate is the scope's newest pending or active
+generation (`unchangedGenerationCandidateQuery`). The guard used it as its
+prior. A second delta in a chain has no anchor (its baseline is the active
+delta's commit), so it stores and stays pending until the projector refuses
+it. A full that arrived in that window was sized against the pending delta's
+own few rows and a sharp shrink stored.
+
+A pending generation still matters to the guard, through the claim sweep.
+`supersedable_projector_generations` (`projector_queue_claim_sql.go`)
+retires an older pending generation once newer same-scope projector work
+exists; a pending full is spared only by a newer delta (#7473). So a small
+full stored in the window supersedes a larger pending snapshot unprojected
+and then retracts the active generation. Neither side alone bounds what the
+successor retracts.
+
+The fix (arbiter ruling, option (e)): the prior is the larger of the active
+generation and the candidate, by collector rows.
+
+- The active read is `successorGuardActiveGenerationQuery`, built on
+  `activeGenerationPredicate`. It is not `backfill.ActiveScopeGenerationQuery`,
+  whose COALESCE over the newest row returns a pending generation when none is
+  active.
+- It runs only when the candidate is not active, in `successorPriorForGuard`
+  on the base connection before the commit transaction opens. When it returns
+  the candidate id (activated between the two reads), no second count runs.
+- Both sides are sized by one helper, `sizeGuardGeneration`: the union for a
+  delta with a base, own rows for a base-missing delta (#8362).
+- A pending candidate counts only while its projector work is live
+  (`WorkLive`, ruling a9-126). A wedged one cannot activate, so next to an
+  active generation it is not sized; with no active generation it is the only
+  prior.
+- `PriorOrphan` and the rule label follow the side that supplied the max. When
+  both sides are empty the prior is orphan if either side is, keeping the
+  #8362 empty-successor refusal.
+- A failed active read or count fails the commit closed.
+  `backfill.DecideSuccessor` is unchanged and pure; the delta anchor is
+  unchanged.
+
+Mutation check (each applied to the fix, run, and restored):
+
+| Mutation | Tests that fail |
+| --- | --- |
+| Drop the active side | L1, L4, H1 `TestGuardPriorTakesTheActiveGenerationWhenItIsLarger`, plus H3, H4, H5, H6 (wedged case), H7 |
+| Drop the candidate side | L3, H6 (live-pending case) |
+| Max becomes sum | L2 |
+| Invert the `WorkLive` gate | H6 (both active cases), L3, H1 |
+
+The hermetic H tests are in `successor_guard_prior_test.go`.
+
+Residual R1 (recorded, not blocking): a pending full P0 is stored, then a
+pending delta P1 (which spares P0 under #7473), then a small full S, all before
+any claim. S is sized against the larger of the active generation and P1's
+union and can miss P0. It needs three generations in one unclaimed window, and
+the guard is a coarse backstop by contract (`RefuseDestructiveSuccessor`).
 
 ## Performance Evidence:
 
@@ -96,6 +164,9 @@ bounded cost, not a speedup.
 - Anchor probe: runs only when the zero-query lower bound fails, a delta that
   may remove most of its anchor's files. It reads the anchor's file rows once.
   Ordinary deltas and fulls never run it.
+- Active lookup (review F1): only when the candidate is pending, one
+  single-row read plus one count of the active generation (the count above).
+  An active candidate, the common case, adds no read.
 
 Measured on a hosted QA read replica (PostgreSQL in recovery, read-only
 session), warm cache, median of five `EXPLAIN (ANALYZE, BUFFERS)` runs after a
@@ -118,10 +189,17 @@ it is detoasting `payload` to read `relative_path`: the same rows without
 measured. This cost is paid only by a delta that may remove more than half of
 its anchor's files; the zero-query bound keeps it off every other commit.
 
-Concurrency: the guard takes no new lock. The prior and anchor counts run on
-the base connection before the commit transaction opens. The anchor probe
-runs on the base connection too, after the fact stream lands and before any
-projector work is enqueued. It takes none of the commit transaction's locks and
+The active lookup on local PostgreSQL 18.6, a schema seeded with 23,021
+generations (one scope with 3,040, one active and one pending), warm cache,
+`EXPLAIN (ANALYZE, BUFFERS)`: `Index Scan using
+scope_generations_active_scope_idx`, `Index Cond: (scope_id = 'scope-0')`,
+`Filter: (activated_at IS NOT NULL)`, one row, 3 shared hits, 0.007 to 0.021
+ms execution; a scope with no active row reads 2 shared hits in 0.009 ms.
+
+Concurrency: the guard takes no new lock. The prior counts, the active
+lookup, and the anchor count run on the base connection before the commit
+transaction opens. The anchor probe runs on the commit transaction (review
+F2), after the fact stream lands and before any projector work is enqueued. It takes none of the commit transaction's locks and
 touches no claim, lease, or queue path, but the commit transaction stays open
 while it runs, so a probed commit holds its shared deferred-maintenance barrier
 and its inserted rows that much longer (up to the measured 0.49 s). The verdict is a pure function
@@ -137,12 +215,17 @@ of the values read (`DecideSuccessor`, `DecideDeltaFileUnion`).
   `refused`. No scope, repository, or generation labels.
 - Log stage `successor_guard` on every guarded commit: `successor_kind`,
   `rule`, `refused`, `prior_collector_fact_count`, `prior_reducer_fact_count`,
-  `prior_sizing`, `successor_fact_count`. For deltas also `anchor_file_count`,
+  `prior_sizing` (`candidate`, `active`, or `own_rows_base_missing`),
+  `prior_sizing_generation_id`, `prior_active_collector_fact_count`,
+  `prior_candidate_collector_fact_count` (-1 for a side not sized),
+  `successor_fact_count`. For deltas also `anchor_file_count`,
   `touched_path_count`, `successor_live_file_count`, `union_file_lower_bound`,
   and, when the exact probe ran, `union_file_count` and
   `probe_duration_seconds`.
 - Log stage `refuse_destructive_successor` now carries `rule`,
-  `prior_reducer_fact_count`, and `prior_sizing`. Log stage
+  `prior_reducer_fact_count`, `prior_sizing`, and `prior_sizing_generation_id`.
+  Log stage `successor_prior_orphan_fallback` keeps `candidate_generation_id`
+  and names the base-missing delta it sized in `prior_sizing_generation_id`. Log stage
   `successor_delta_scope_mismatch` marks a stream that disagrees on being a
   delta.
 - The existing `eshu_runtime_refresh_skipped_by_reason_total{reason="destructive_successor_refused"}`

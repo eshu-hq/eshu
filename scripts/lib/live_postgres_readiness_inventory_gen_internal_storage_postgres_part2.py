@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
+            "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
+        ),
         "go/internal/storage/postgres/service_catalog_runtime_producer_store_live_test.go": (
             "TestReducerContentionGateRuntimeProducerStatesActiveGenerationOnly",
             "TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt",

@@ -677,7 +677,7 @@ tests:
   - file: go/internal/storage/postgres/ingestion_successor_guard_sizing_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8750 disposable PostgreSQL 18 proof that the destructive-successor guard sizes the prior on collector rows only (reducer_ rows excluded) and sizes a git delta on its file-level union against the base full generation; reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
+    reason: "#8750 disposable PostgreSQL 18 proof that the destructive-successor guard sizes the prior on collector rows only (reducer_ rows excluded) and sizes a git delta on its file-level union against the base full generation, and sizes the prior as the larger of the active generation and a live pending candidate (review F1); reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/maintenance/repository_reindex_live_test.go
     tag: ~

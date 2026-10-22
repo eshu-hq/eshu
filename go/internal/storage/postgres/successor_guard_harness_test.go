@@ -4,10 +4,12 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +38,13 @@ type guardRoutingDB struct {
 	counts      map[string][]any // generation id -> {collector, total, files}
 	anchorPaths []string
 	probeErr    error
+
+	// activeID is the scope's active generation id that
+	// successorGuardActiveGenerationQuery returns; empty means no active row.
+	activeID  string
+	activeErr error
+	countErrs map[string]error // generation id -> count query error
+	logs      *bytes.Buffer    // when set, the store logs JSON here
 
 	queries []fakeQueryCall
 }
@@ -86,7 +95,18 @@ func (g *guardRoutingDB) QueryContext(_ context.Context, query string, args ...a
 		return g.rowsFor(g.targets, args[1], false), nil
 	case deltaUnionBaseQuery:
 		return g.rowsFor(g.bases, args[1], true), nil
+	case successorGuardActiveGenerationQuery:
+		if g.activeErr != nil {
+			return nil, g.activeErr
+		}
+		if g.activeID == "" {
+			return &queueFakeRows{}, nil
+		}
+		return &queueFakeRows{rows: [][]any{{g.activeID}}}, nil
 	case successorGuardCountQuery:
+		if err := g.countErrs[fmt.Sprint(args[1])]; err != nil {
+			return nil, err
+		}
 		return g.rowsFor(g.counts, args[1], false), nil
 	case successorGuardAnchorFilePathsQuery:
 		g.t.Fatal("anchor probe ran on the base connection; it must run on the commit transaction")
@@ -264,6 +284,9 @@ func commitGuardScenario(
 	instruments, reader := newDeltaUnionTestInstruments(t)
 	store := NewIngestionStore(database)
 	store.Instruments = instruments
+	if database.logs != nil {
+		store.Logger = slog.New(slog.NewJSONHandler(database.logs, nil))
+	}
 	err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, stream)
 	return guardDecisions(t, reader), err
 }

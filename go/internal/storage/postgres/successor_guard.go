@@ -19,27 +19,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
-
-// successorGuardCountQuery sizes one generation for the #7926
-// successor-emptiness backstop in a single index-only pass over
-// fact_records_scope_generation_idx (#8750): the rows a collector stream can
-// replace, every row, and the file rows. Reducer domains write
-// reducer_-prefixed facts into the source generation after it activates; no
-// collector stream carries them, so counting them inflated the prior and
-// refused ordinary successors. File rows include tombstones so the count
-// matches successorGuardAnchorFilePathsQuery row for row; a full generation,
-// the only kind sized by files, carries no file tombstones.
-const successorGuardCountQuery = `
-SELECT COUNT(*) FILTER (WHERE ` + linksfreshnessstore.ExcludeReducerDerivedKinds + `),
-       COUNT(*),
-       COUNT(*) FILTER (WHERE fact_kind = 'file')
-FROM fact_records
-WHERE scope_id = $1
-  AND generation_id = $2
-`
 
 // successorGuardAnchorFilePathsQuery reads a delta's base full generation's
 // file paths for the exact union probe (#8750). It runs only when the
@@ -54,77 +35,46 @@ WHERE scope_id = $1
   AND fact_kind = 'file'
 `
 
-// guardFactCounts is one generation's size as the backstop sees it.
-type guardFactCounts struct {
-	// Collector counts the rows a collector stream emits: every row except
-	// reducer-derived ones.
-	Collector int
-	// Total counts every row, reducer-derived ones included.
-	Total int
-	// Files counts the file rows.
-	Files int
+// guardPriorSide is one generation sized for the guard's prior: the
+// duplicate-check candidate or the scope's active generation (#8750 F1).
+type guardPriorSide struct {
+	id    string
+	sized bool
+	// counts are the generation's guard counts: the base+own union for a
+	// delta with a base, own rows otherwise.
+	counts guardFactCounts
+	// orphan (#8362): a delta whose base is missing, sized on its own rows.
+	orphan bool
+	// unioned reports that counts are not the generation's own file rows,
+	// so they cannot stand in for an anchor's file count.
+	unioned bool
 }
 
-func (c guardFactCounts) add(other guardFactCounts) guardFactCounts {
-	return guardFactCounts{
-		Collector: c.Collector + other.Collector,
-		Total:     c.Total + other.Total,
-		Files:     c.Files + other.Files,
+// collector is the side's collector row count for the guard log, -1 when
+// the side was not sized.
+func (side guardPriorSide) collector() int {
+	if !side.sized {
+		return -1
 	}
-}
-
-// countGuardFacts sizes one generation for the backstop. A delta generation
-// with a projected base reports base plus own rows, the same upper bound
-// CountFacts reports, and unioned true; a delta whose base is missing returns
-// projector.DeltaBaseMissingError so the caller can size it on its own rows
-// (#8362).
-func (s FactStore) countGuardFacts(ctx context.Context, scopeID, generationID string) (guardFactCounts, bool, error) {
-	if s.database == nil {
-		return guardFactCounts{}, false, fmt.Errorf("fact store database is required")
-	}
-	baseGenerationID, _, wantUnion, err := s.resolveDeltaUnionBase(ctx, scopeID, generationID)
-	if err != nil {
-		return guardFactCounts{}, false, err
-	}
-	own, err := s.countGuardFactsGeneration(ctx, scopeID, generationID)
-	if err != nil || !wantUnion {
-		return own, false, err
-	}
-	base, err := s.countGuardFactsGeneration(ctx, scopeID, baseGenerationID)
-	if err != nil {
-		return guardFactCounts{}, false, err
-	}
-	return base.add(own), true, nil
-}
-
-// countGuardFactsGeneration runs successorGuardCountQuery for one
-// (scope, generation), with no delta-union resolution.
-func (s FactStore) countGuardFactsGeneration(ctx context.Context, scopeID, generationID string) (guardFactCounts, error) {
-	rows, err := s.database.QueryContext(ctx, successorGuardCountQuery, scopeID, generationID)
-	if err != nil {
-		return guardFactCounts{}, fmt.Errorf("count guard facts: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	var counts guardFactCounts
-	if rows.Next() {
-		if err := rows.Scan(&counts.Collector, &counts.Total, &counts.Files); err != nil {
-			return guardFactCounts{}, fmt.Errorf("count guard facts scan: %w", err)
-		}
-	}
-	return counts, rows.Err()
+	return side.counts.Collector
 }
 
 // successorPrior carries the candidate past the duplicate check so the
-// guard compares without re-reading. counts are the candidate's guard
-// counts; a full successor is compared with counts.Collector. orphanFallback
-// (#8362): counts holds only the candidate's own rows; an empty successor
-// still refuses. For a delta successor the anchor fields name the base full
-// generation the projector will overlay it on (#8750).
+// guard compares without re-reading. counts are the larger of the candidate
+// and the active generation (pickGuardPrior); a full successor is compared
+// with counts.Collector. orphanFallback (#8362): the deciding side holds
+// only a base-missing delta's own rows; an empty successor still refuses.
+// For a delta successor the anchor fields name the base full generation the
+// projector will overlay it on (#8750).
 type successorPrior struct {
 	candidate      backfill.UnchangedGenerationCandidate
 	found          bool
 	counts         guardFactCounts
 	orphanFallback bool
+	fromActive     bool
+	sizingID       string
+	candidateSide  guardPriorSide
+	activeSide     guardPriorSide
 	anchorID       string
 	anchorMissing  bool
 	anchorFiles    int
@@ -132,18 +82,45 @@ type successorPrior struct {
 
 // sizing names how counts was derived, for the guard log.
 func (p successorPrior) sizing() string {
-	if p.orphanFallback {
+	switch {
+	case p.orphanFallback:
 		return "own_rows_base_missing"
+	case p.fromActive:
+		return "active"
+	default:
+		return "candidate"
 	}
-	return "candidate"
+}
+
+// pickGuardPrior chooses the guard's prior from the sized sides (#8750 F1
+// ruling): the side with more collector rows decides, the candidate on a
+// tie. An unsized side never decides. When both sides are empty the prior
+// is orphan if either side is (#8362: an empty successor still refuses).
+func pickGuardPrior(candidate, active guardPriorSide) (chosen guardPriorSide, fromActive bool) {
+	if !active.sized {
+		return candidate, false
+	}
+	if !candidate.sized || active.counts.Collector > candidate.counts.Collector {
+		return active, true
+	}
+	if candidate.counts.Collector <= 0 && active.orphan {
+		candidate.orphan = true
+	}
+	return candidate, false
 }
 
 // successorPriorForGuard reads the guard counts on the base connection
-// before the commit transaction opens. Missing-base (#8362) falls back to
-// the candidate's own rows; other failures fail closed. For a delta
-// successor it also resolves the anchor — the newest projected full
-// generation at the delta's baseline commit, through the projector's own
-// resolver — and the anchor's file count.
+// before the commit transaction opens. The prior is the larger of the
+// duplicate-check candidate and the scope's active generation (#8750 F1): a
+// pending candidate is not yet in the graph, and the claim sweep lets a
+// newer full supersede it unprojected, so neither side alone bounds what a
+// successor retracts. A pending candidate counts only while its projector
+// work is live; a wedged one cannot activate, so next to an active
+// generation it is not sized. An active candidate is the active generation:
+// no extra read. Every read failure fails closed. For a delta successor it
+// also resolves the anchor — the newest projected full generation at the
+// delta's baseline commit, through the projector's own resolver — and the
+// anchor's file count.
 func (s IngestionStore) successorPriorForGuard(
 	ctx context.Context,
 	scopeValue scope.IngestionScope,
@@ -156,25 +133,25 @@ func (s IngestionStore) successorPriorForGuard(
 		return prior, nil
 	}
 	store := NewFactStore(s.database)
-	counts, unioned, err := store.countGuardFacts(ctx, scopeValue.ScopeID, candidate.GenerationID)
-	switch {
-	case err == nil:
-		prior.counts = counts
-	case isDeltaBaseMissing(err):
-		// The prior is a delta with no base full generation: the union
-		// size is unknowable, so size the guard on the candidate's own
-		// fact_records rows instead. A fallback failure fails closed.
-		fallback, fallbackErr := store.countGuardFactsGeneration(ctx, scopeValue.ScopeID, candidate.GenerationID)
-		if fallbackErr != nil {
-			return successorPrior{}, fmt.Errorf("count prior generation facts fallback for scope %s: %w", scopeValue.ScopeID, fallbackErr)
+	if candidate.Status != scope.GenerationStatusActive {
+		activeID, hasActive, err := s.activeGenerationForGuard(ctx, scopeValue.ScopeID)
+		if err != nil {
+			return successorPrior{}, fmt.Errorf("read active generation for successor guard on scope %s: %w", scopeValue.ScopeID, err)
 		}
-		s.logCommitStage(ctx, scopeValue, generation, "successor_prior_orphan_fallback", time.Now(),
-			slog.String("candidate_generation_id", candidate.GenerationID),
-			slog.Int("prior_fact_count_fallback", fallback.Collector))
-		prior.counts, prior.orphanFallback, unioned = fallback, true, true
-	default:
-		return successorPrior{}, fmt.Errorf("count prior generation facts for scope %s: %w", scopeValue.ScopeID, err)
+		if hasActive && activeID != candidate.GenerationID {
+			if prior.activeSide, err = s.sizeGuardGeneration(ctx, store, scopeValue, generation, candidate.GenerationID, activeID); err != nil {
+				return successorPrior{}, err
+			}
+		}
 	}
+	if candidate.WorkLive || !prior.activeSide.sized {
+		var err error
+		if prior.candidateSide, err = s.sizeGuardGeneration(ctx, store, scopeValue, generation, candidate.GenerationID, candidate.GenerationID); err != nil {
+			return successorPrior{}, err
+		}
+	}
+	chosen, fromActive := pickGuardPrior(prior.candidateSide, prior.activeSide)
+	prior.counts, prior.orphanFallback, prior.fromActive, prior.sizingID = chosen.counts, chosen.orphan, fromActive, chosen.id
 	if !generation.IsDelta {
 		return prior, nil
 	}
@@ -188,8 +165,8 @@ func (s IngestionStore) successorPriorForGuard(
 		return successorPrior{}, fmt.Errorf("resolve delta successor anchor for scope %s: %w", scopeValue.ScopeID, err)
 	}
 	prior.anchorID = anchorID
-	if anchorID == candidate.GenerationID && !unioned {
-		prior.anchorFiles = prior.counts.Files
+	if side := prior.candidateSide; side.sized && side.id == anchorID && !side.unioned {
+		prior.anchorFiles = side.counts.Files
 		return prior, nil
 	}
 	anchorCounts, err := store.countGuardFactsGeneration(ctx, scopeValue.ScopeID, anchorID)
@@ -198,6 +175,41 @@ func (s IngestionStore) successorPriorForGuard(
 	}
 	prior.anchorFiles = anchorCounts.Files
 	return prior, nil
+}
+
+// sizeGuardGeneration sizes one prior generation, candidate or active, so
+// the two sides cannot drift: a delta with a base reports its union, a delta
+// whose base is missing (#8362) falls back to its own rows and logs the
+// successor_prior_orphan_fallback stage (candidate_generation_id stays the
+// duplicate-check candidate; prior_sizing_generation_id names the generation
+// sized), and any other failure (the
+// fallback's included) fails closed.
+func (s IngestionStore) sizeGuardGeneration(
+	ctx context.Context,
+	store *FactStore,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	candidateID string,
+	generationID string,
+) (guardPriorSide, error) {
+	counts, unioned, err := store.countGuardFacts(ctx, scopeValue.ScopeID, generationID)
+	if err == nil {
+		return guardPriorSide{id: generationID, sized: true, counts: counts, unioned: unioned}, nil
+	}
+	if !isDeltaBaseMissing(err) {
+		return guardPriorSide{}, fmt.Errorf("count prior generation facts for scope %s generation %s: %w", scopeValue.ScopeID, generationID, err)
+	}
+	// The prior is a delta with no base full generation: the union size is
+	// unknowable, so size it on its own fact_records rows instead.
+	fallback, err := store.countGuardFactsGeneration(ctx, scopeValue.ScopeID, generationID)
+	if err != nil {
+		return guardPriorSide{}, fmt.Errorf("count prior generation facts fallback for scope %s generation %s: %w", scopeValue.ScopeID, generationID, err)
+	}
+	s.logCommitStage(ctx, scopeValue, generation, "successor_prior_orphan_fallback", time.Now(),
+		slog.String("candidate_generation_id", candidateID),
+		slog.String("prior_sizing_generation_id", generationID),
+		slog.Int("prior_fact_count_fallback", fallback.Collector))
+	return guardPriorSide{id: generationID, sized: true, counts: fallback, orphan: true, unioned: true}, nil
 }
 
 func isDeltaBaseMissing(err error) bool {
@@ -383,6 +395,9 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 		slog.Int("prior_collector_fact_count", prior.counts.Collector),
 		slog.Int("prior_reducer_fact_count", prior.counts.Total-prior.counts.Collector),
 		slog.String("prior_sizing", prior.sizing()),
+		slog.String("prior_sizing_generation_id", prior.sizingID),
+		slog.Int("prior_active_collector_fact_count", prior.activeSide.collector()),
+		slog.Int("prior_candidate_collector_fact_count", prior.candidateSide.collector()),
 		slog.Int("successor_fact_count", successorFacts),
 	}
 	if input.Delta {
@@ -414,6 +429,7 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 		slog.Int("prior_fact_count", prior.counts.Collector),
 		slog.Int("prior_reducer_fact_count", prior.counts.Total-prior.counts.Collector),
 		slog.String("prior_sizing", prior.sizing()),
+		slog.String("prior_sizing_generation_id", prior.sizingID),
 		slog.Bool("prior_orphan_fallback", prior.orphanFallback),
 		slog.Int("successor_fact_count", successorFacts),
 	)

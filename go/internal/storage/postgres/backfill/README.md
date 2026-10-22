@@ -77,7 +77,10 @@ reconciliation, plus the anchors scanner.
   `DecideDeltaFileUnion` refuses only when the exact union holds under half
   the anchor's files. A delta with no anchor stores, so the projector's
   base-missing refusal arms the reindex watermark. The `Rule` it returns is
-  one of the closed `telemetry.SuccessorGuardRule*` values.
+  one of the closed `telemetry.SuccessorGuardRule*` values. Its
+  `PriorCollector` and `PriorOrphan` come from the larger of the
+  duplicate-check candidate and the scope's active generation (#8750 F1),
+  which the root picks before calling it.
   Covered collectors (each with an explicit operator attestation surface,
   #8267, #8329): `jira` (`allow_empty_successor` target key),
   `pagerduty` (`allow_empty_successor` target key), `confluence`
