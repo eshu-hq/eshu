@@ -51,7 +51,7 @@ func objectSlice(args map[string]any, key string) []any {
 // dispatchStatusSucceeded reports whether an internal handler status counts as
 // an answered tool call: only 2xx does. A 3xx is never success. No MCP-reachable
 // route redirects on purpose (the only http.Redirect calls in internal/query
-// are the OIDC and SAML browser login handlers, which no tool routes to), so a
+// are the OIDC, SAML, and GitHub browser login handlers, which no tool routes to), so a
 // redirect means the request did not reach its handler (#8772).
 func dispatchStatusSucceeded(status int) bool {
 	return status >= 200 && status < 300

@@ -105,8 +105,8 @@ func TestDirectCallWithPathIDStillSucceeds(t *testing.T) {
 
 // TestDispatchRedirectStatusIsNotSuccess pins that a real 3xx from a handler
 // is never reported as success. No MCP-reachable route redirects on purpose:
-// the only http.Redirect calls in go/internal/query are the OIDC and SAML
-// browser login handlers, which no tool routes to (#8772).
+// the only http.Redirect calls in go/internal/query are the OIDC, SAML, and
+// GitHub browser login handlers, which no tool routes to (#8772).
 func TestDispatchRedirectStatusIsNotSuccess(t *testing.T) {
 	t.Parallel()
 	for _, status := range []int{

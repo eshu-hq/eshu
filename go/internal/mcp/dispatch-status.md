@@ -3,7 +3,7 @@
 Only a 2xx answer from the internal handler is a tool success. A 4xx or 5xx
 answer, and any 3xx, comes back as `isError: true`. No MCP-reachable route
 redirects on purpose: the only `http.Redirect` calls in `internal/query` are the
-OIDC and SAML browser login handlers, which no tool routes to. A 3xx therefore
+OIDC, SAML, and GitHub browser login handlers, which no tool routes to. A 3xx therefore
 means the request never reached its handler (#8772).
 
 The usual cause is a required id argument left empty in a path template, such as
