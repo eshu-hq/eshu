@@ -314,3 +314,76 @@ func TestChangeSurfaceRepositoryTargetNamesOnlyTheOutgoingTraversal(t *testing.T
 		t.Errorf("consumer graph_query_name = %q, want the unnamed default %q", consumerName, querycontract.DefaultGraphQueryName)
 	}
 }
+
+// TestChangeSurfaceFilterTraversalRowsSuppressesLegacyAppSyncKeys pins the
+// AppSync disclosure fix on the traversal path: suppression lives in Go,
+// not in the traversal Cypher, because a labels() predicate sharing the
+// repo-scope WHERE empties the whole result on the pinned NornicDB executor
+// (differential nornicdb_vs_neo4j_quorum reproduced nornicdb=0 rows against
+// neo4j=1 row on changeSurfaceScopedOutgoingCypher). Labels plus either type
+// field must agree; a bare type value on another label is not a key, and a
+// row without the projected type keys (the legacy shape) stays admitted.
+func TestChangeSurfaceFilterTraversalRowsSuppressesLegacyAppSyncKeys(t *testing.T) {
+	t.Parallel()
+
+	access := querycontract.RepositoryAccessFilter{AllScopes: true}
+	outgoing := []any{map[string]any{"type": "CALLS"}}
+	row := func(id string, extra map[string]any) map[string]any {
+		r := map[string]any{"id": id, "labels": []string{"CloudResource"}, "rels": outgoing}
+		for key, value := range extra {
+			r[key] = value
+		}
+		return r
+	}
+	rows := []map[string]any{
+		row("key-by-resource-type", map[string]any{"resource_type": "aws_appsync_api_key"}),
+		row("key-by-data-type", map[string]any{"data_type": "aws_appsync_api_key"}),
+		row("plain-resource", map[string]any{"resource_type": "aws_s3_bucket"}),
+		{
+			"id": "key-value-wrong-label", "labels": []string{"Workload"},
+			"resource_type": "aws_appsync_api_key", "rels": outgoing,
+		},
+		{
+			"id": "legacy-shape-no-type-keys", "labels": []string{"Workload"},
+			"rels": outgoing,
+		},
+	}
+
+	got := changeSurfaceFilterTraversalRows(rows, "", access, false)
+
+	kept := map[string]bool{}
+	for _, r := range got {
+		kept[querycontract.StringVal(r, "id")] = true
+	}
+	for _, id := range []string{"plain-resource", "key-value-wrong-label", "legacy-shape-no-type-keys"} {
+		if !kept[id] {
+			t.Errorf("row %q was dropped, want it kept", id)
+		}
+	}
+	for _, id := range []string{"key-by-resource-type", "key-by-data-type"} {
+		if kept[id] {
+			t.Errorf("row %q was kept, want the legacy AppSync key suppressed", id)
+		}
+	}
+}
+
+// TestChangeSurfaceScopedOutgoingCypherSuppressesKeysInGo pins the other
+// half of the disclosure fix: the scoped traversal carries no key-exclusion
+// predicate (it zeroed NornicDB) and projects the type fields the Go filter
+// above needs.
+func TestChangeSurfaceScopedOutgoingCypherSuppressesKeysInGo(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(changeSurfaceScopedOutgoingCypher, "aws_appsync_api_key") {
+		t.Error("scoped outgoing cypher carries a legacy-key exclusion predicate: " +
+			"suppression lives in changeSurfaceFilterTraversalRows, where both backends agree")
+	}
+	for _, col := range []string{
+		"impacted.resource_type as resource_type",
+		"impacted.data_type as data_type",
+	} {
+		if !strings.Contains(changeSurfaceScopedOutgoingCypher, col) {
+			t.Errorf("scoped outgoing cypher does not project %q, which the Go key filter reads", col)
+		}
+	}
+}

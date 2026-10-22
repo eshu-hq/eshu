@@ -52,7 +52,6 @@ func TestAPIConstantsMatchAWSCloudValues(t *testing.T) {
 		{name: "ResourceTypeAppSyncResolver", got: ResourceTypeAppSyncResolver, want: "aws_appsync_resolver"},
 		{name: "ResourceTypeAppSyncFunction", got: ResourceTypeAppSyncFunction, want: "aws_appsync_function"},
 		{name: "ResourceTypeAppSyncSchema", got: ResourceTypeAppSyncSchema, want: "aws_appsync_schema"},
-		{name: "ResourceTypeAppSyncAPIKey", got: ResourceTypeAppSyncAPIKey, want: "aws_appsync_api_key"},
 		{name: "RelationshipAppSyncAPIHasDataSource", got: RelationshipAppSyncAPIHasDataSource, want: "appsync_api_has_data_source"},
 		{name: "RelationshipAppSyncResolverUsesDataSource", got: RelationshipAppSyncResolverUsesDataSource, want: "appsync_resolver_uses_data_source"},
 		{name: "RelationshipAppSyncFunctionUsesDataSource", got: RelationshipAppSyncFunctionUsesDataSource, want: "appsync_function_uses_data_source"},

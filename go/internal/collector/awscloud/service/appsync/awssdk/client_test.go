@@ -5,9 +5,12 @@ package awssdk
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsappsync "github.com/aws/aws-sdk-go-v2/service/appsync"
@@ -15,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
+	appsyncservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/appsync"
 )
 
 // TestAppSyncAPIExcludesForbiddenMethods proves the adapter's accepted SDK
@@ -112,11 +116,10 @@ func TestSnapshotMapsMetadataAndExcludesPayloads(t *testing.T) {
 			ResponseMappingTemplate: aws.String("$util.toJson($ctx.result)"),
 			Runtime:                 &awsappsynctypes.AppSyncRuntime{Name: awsappsynctypes.RuntimeNameAppsyncJs, RuntimeVersion: aws.String("1.0.0")},
 		}},
-		apiKeys: []awsappsynctypes.ApiKey{{
-			Id:          aws.String("da2-secretvalue"),
-			Description: aws.String("default"),
-			Expires:     1893456000,
-		}},
+		apiKeyPages: [][]awsappsynctypes.ApiKey{
+			{{Id: aws.String("da2-secretvalue"), Description: aws.String("private-description"), Expires: 1893456000}},
+			{{Id: aws.String("da2-secondsecret"), Description: aws.String("second-private-description"), Expires: 1924992000, Deletes: 1927584000}},
+		},
 		schemaStatus: awsappsynctypes.SchemaStatusSuccess,
 	}
 
@@ -147,8 +150,41 @@ func TestSnapshotMapsMetadataAndExcludesPayloads(t *testing.T) {
 	if api.Schema == nil || api.Schema.TypeCount != 2 || api.Schema.Status != "SUCCESS" {
 		t.Fatalf("schema = %#v, want type_count 2 status SUCCESS", api.Schema)
 	}
-	if len(api.APIKeys) != 1 || api.APIKeys[0].ID != "da2-secretvalue" {
+	if len(api.APIKeys) != 2 || api.APIKeys[0].Expires.IsZero() || api.APIKeys[1].Deletes.IsZero() {
 		t.Fatalf("api keys = %#v", api.APIKeys)
+	}
+	serialized, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatalf("marshal snapshot: %v", err)
+	}
+	for _, forbidden := range []string{"da2-secretvalue", "da2-secondsecret", "private-description", "second-private-description"} {
+		if strings.Contains(string(serialized), forbidden) {
+			t.Fatalf("SDK snapshot contains forbidden AppSync API key material %q", forbidden)
+		}
+	}
+	fake.apiKeyPageIndex = 0
+	boundary := awscloud.Boundary{
+		AccountID:           "123456789012",
+		Region:              "us-east-1",
+		ServiceKind:         catalog.ServiceAppSync,
+		ScopeID:             "aws:123456789012:us-east-1:appsync",
+		GenerationID:        "aws:123456789012:us-east-1:appsync:1",
+		CollectorInstanceID: "aws-test",
+		FencingToken:        1,
+		ObservedAt:          time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC),
+	}
+	envelopes, err := (appsyncservice.Scanner{Client: client}).Scan(context.Background(), boundary)
+	if err != nil {
+		t.Fatalf("Scanner.Scan() error = %v", err)
+	}
+	serialized, err = json.Marshal(envelopes)
+	if err != nil {
+		t.Fatalf("marshal scanner envelopes: %v", err)
+	}
+	for _, forbidden := range []string{"da2-secretvalue", "da2-secondsecret", "private-description", "second-private-description"} {
+		if strings.Contains(string(serialized), forbidden) {
+			t.Fatalf("scanner envelopes contain forbidden AppSync API key material %q", forbidden)
+		}
 	}
 
 	// The mapped resolver, function, and API key must carry no template, code,
@@ -157,6 +193,20 @@ func TestSnapshotMapsMetadataAndExcludesPayloads(t *testing.T) {
 	assertNoForbiddenStringValue(t, api.Resolvers[0], "#set", "$util", "export function")
 	assertNoForbiddenStringValue(t, api.Functions[0], "#set", "$util", "export function")
 	assertNoForbiddenStringValue(t, *api.Schema, "type Query", "type Order")
+}
+
+func TestSnapshotReturnsAPIKeyListingFailure(t *testing.T) {
+	failure := errors.New("API key listing unavailable")
+	fake := &fakeAPI{
+		apis:         []awsappsynctypes.GraphqlApi{{ApiId: aws.String("api-1"), Name: aws.String("orders")}},
+		apiKeysErr:   failure,
+		schemaStatus: awsappsynctypes.SchemaStatusNotApplicable,
+	}
+	client := &Client{api: fake, boundary: testBoundary()}
+	_, err := client.Snapshot(context.Background())
+	if !errors.Is(err, failure) {
+		t.Fatalf("Snapshot() error = %v, want wrapped %v", err, failure)
+	}
 }
 
 // TestSnapshotStopsPaginationOnNilPage proves a nil page terminates a paginated
@@ -226,6 +276,9 @@ type fakeAPI struct {
 	resolversByType  map[string][]awsappsynctypes.Resolver
 	functions        []awsappsynctypes.FunctionConfiguration
 	apiKeys          []awsappsynctypes.ApiKey
+	apiKeyPages      [][]awsappsynctypes.ApiKey
+	apiKeyPageIndex  int
+	apiKeysErr       error
 	schemaStatus     awsappsynctypes.SchemaStatus
 }
 
@@ -262,6 +315,18 @@ func (f *fakeAPI) ListFunctions(_ context.Context, _ *awsappsync.ListFunctionsIn
 }
 
 func (f *fakeAPI) ListApiKeys(_ context.Context, _ *awsappsync.ListApiKeysInput, _ ...func(*awsappsync.Options)) (*awsappsync.ListApiKeysOutput, error) {
+	if f.apiKeysErr != nil {
+		return nil, f.apiKeysErr
+	}
+	if len(f.apiKeyPages) > 0 {
+		page := f.apiKeyPages[f.apiKeyPageIndex]
+		out := &awsappsync.ListApiKeysOutput{ApiKeys: page}
+		if f.apiKeyPageIndex < len(f.apiKeyPages)-1 {
+			out.NextToken = aws.String("next")
+			f.apiKeyPageIndex++
+		}
+		return out, nil
+	}
 	return &awsappsync.ListApiKeysOutput{ApiKeys: f.apiKeys}, nil
 }
 

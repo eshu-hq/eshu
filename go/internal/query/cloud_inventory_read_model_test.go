@@ -306,6 +306,63 @@ func TestCloudInventoryResourceViewDropsContainersElementsWithNoAllowedKeys(t *t
 	}
 }
 
+func TestCloudInventoryResourceViewSurfacesAppSyncKeyLifecycleSummary(t *testing.T) {
+	t.Parallel()
+
+	envelope := map[string]any{
+		"payload": map[string]any{
+			"cloud_resource_uid": "cloud_resource:appsync-api-1",
+			"provider":           "aws",
+			"resource_type":      "aws_appsync_graphql_api",
+			"management_origin":  "observed",
+			"attributes": map[string]any{
+				"api_key_count": "2",
+				"api_key_lifecycles": []any{
+					map[string]any{
+						"expires":     "2027-01-31T00:00:00Z",
+						"deletes":     "2027-02-28T00:00:00Z",
+						"key_id":      "da2-secret",
+						"description": "private text",
+					},
+					map[string]any{
+						"expires":     "2026-12-31T00:00:00Z",
+						"deletes":     nil,
+						"key_id":      "da2-second-secret",
+						"description": "other private text",
+					},
+					map[string]any{"expires": "not-a-timestamp", "key_id": "must-drop"},
+				},
+			},
+		},
+	}
+
+	view := cloudInventoryResourceView(envelope)
+	attributes, ok := view["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes type = %T, want map[string]any", view["attributes"])
+	}
+	if got, want := attributes["api_key_count"], "2"; got != want {
+		t.Fatalf("api_key_count = %#v, want %q", got, want)
+	}
+	lifecycles, ok := attributes[cloudInventoryAppSyncKeyLifecyclesAttributeKey].([]map[string]string)
+	if !ok || len(lifecycles) != 2 {
+		t.Fatalf("api_key_lifecycles = %#v, want two filtered records", attributes[cloudInventoryAppSyncKeyLifecyclesAttributeKey])
+	}
+	if got, want := lifecycles[0]["expires"], "2026-12-31T00:00:00Z"; got != want {
+		t.Fatalf("first lifecycle expiry = %q, want %q", got, want)
+	}
+	for _, lifecycle := range lifecycles {
+		if len(lifecycle) == 0 || len(lifecycle) > 2 {
+			t.Fatalf("lifecycle fields = %#v, want expiry/deletion fields only", lifecycle)
+		}
+		for _, forbidden := range []string{"key_id", "description"} {
+			if _, present := lifecycle[forbidden]; present {
+				t.Fatalf("forbidden field %q surfaced: %#v", forbidden, lifecycle)
+			}
+		}
+	}
+}
+
 // TestCloudInventoryContainerAttributeKeysIsImageAndDigestOnly pins
 // cloudInventoryContainerAttributeKeys to exactly {image, image_digest} (P2
 // finding #5, issue #5449). The loader-side allowlist

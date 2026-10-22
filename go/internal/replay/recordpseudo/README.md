@@ -14,6 +14,8 @@ output, this package rewrites the facts before the recorder sees them, in a
 way the reducers cannot tell apart from a synthetic corpus: the same reducer
 extractors produce the same node, edge and decision counts on the
 pseudonymized cassette as on the raw one (`TestAWSCorpusShapePreserved`).
+That test freezes the original seven-scope, 22-fact #6965 baseline and checks
+later fixture scopes as explicit additive extensions.
 
 ## Ownership boundary
 

@@ -104,16 +104,6 @@ func schemaResourceID(apiID string) string {
 	return apiID + "/schema"
 }
 
-// apiKeyResourceID builds a stable resource_id for AppSync API key metadata.
-func apiKeyResourceID(apiID, keyID string) string {
-	apiID = strings.TrimSpace(apiID)
-	keyID = strings.TrimSpace(keyID)
-	if apiID == "" || keyID == "" {
-		return ""
-	}
-	return apiID + "/apikeys/" + keyID
-}
-
 // resolverName builds a human-readable name for a resolver from its type and
 // field.
 func resolverName(resolver Resolver) string {

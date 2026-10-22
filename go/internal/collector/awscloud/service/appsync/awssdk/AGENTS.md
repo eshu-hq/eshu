@@ -19,8 +19,9 @@ evidence note. The forbidden-method reflection test must keep passing.
 
 Never read `Type.Definition` (SDL body). Never map `RequestMappingTemplate`,
 `ResponseMappingTemplate`, `Code`, the HTTP `AuthorizationConfig`, the RDS
-`AwsSecretStoreArn`, or any API key value. The scanner-owned types have no field
-for them; keep it that way.
+`AwsSecretStoreArn`, API key `Id` (the bearer credential), or the free-text API
+key description. Only expiry/deletion timestamps may cross the adapter
+boundary; the scanner-owned types have no field for identifiers or descriptions.
 
 New AWS calls must stay paginated with a correct `NextToken` loop and nil-page
 guard, wrapped in `recordAPICall`, and covered by fake-client tests that prove

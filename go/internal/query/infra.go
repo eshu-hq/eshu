@@ -161,6 +161,13 @@ var infraSearchReturnColumnExprs = map[string]string{
 	"running_image_digest": "coalesce(n.running_image_digest, '')",
 }
 
+func infraSearchLegacyCloudKeyClause(label string) string {
+	if label != "CloudResource" {
+		return ""
+	}
+	return " AND coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'"
+}
+
 // infraSearchReturnExprs renders infraSearchReturnColumns as "expr as alias"
 // pairs for the per-label CALL branch's inner RETURN clause, in the same
 // column order the outer RETURN references by alias.
@@ -350,9 +357,10 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	infraSearchReturnClause := "\n\t\tRETURN " + strings.Join(infraSearchReturnExprs(), ",\n\t\t       ") + "\n\t"
 	branches := make([]string, 0, len(labels))
 	for _, label := range labels {
+		legacyCloudKeyClause := infraSearchLegacyCloudKeyClause(label)
 		branches = append(branches, `
 		MATCH (n:`+label+`)
-		WHERE true`+whereExtra+infraSearchReturnClause)
+		WHERE true`+legacyCloudKeyClause+whereExtra+infraSearchReturnClause)
 	}
 	cypher := "CALL {" + strings.Join(branches, "\nUNION") + `
 	}

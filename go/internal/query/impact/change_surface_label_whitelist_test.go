@@ -306,8 +306,8 @@ func TestChangeSurfaceLegacyCypherGuardsWhitelistWithLabelTest(t *testing.T) {
 
 	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, 4, "")
 	conjuncts := changeSurfaceWhereConjuncts(t, rendered)
-	if len(conjuncts) != 3 {
-		t.Fatalf("unscoped outgoing WHERE has %d conjuncts, want 3 (id guard, label test, IN labels() guard): %q", len(conjuncts), conjuncts)
+	if len(conjuncts) != 4 {
+		t.Fatalf("unscoped outgoing WHERE has %d conjuncts, want 4 (id guard, label test, IN labels() guard, legacy-key exclusion): %q", len(conjuncts), conjuncts)
 	}
 	if conjuncts[0] != "impacted.id <> $target_id" {
 		t.Errorf("first conjunct = %q, want the target id guard", conjuncts[0])
@@ -333,6 +333,9 @@ func TestChangeSurfaceLegacyCypherGuardsWhitelistWithLabelTest(t *testing.T) {
 	if strings.Contains(conjuncts[2], "impacted:") || !reflect.DeepEqual(guard, changeSurfaceImpactedLabels) {
 		t.Errorf("third conjunct = %q, want the IN labels() NornicDB guard over exactly the whitelist", conjuncts[2])
 	}
+	if !strings.Contains(conjuncts[3], "aws_appsync_api_key") {
+		t.Errorf("fourth conjunct = %q, want legacy AppSync key exclusion", conjuncts[3])
+	}
 }
 
 // TestChangeSurfaceNonLegacyCypherIsPinned holds the statements this change
@@ -342,7 +345,7 @@ func TestChangeSurfaceNonLegacyCypherIsPinned(t *testing.T) {
 	t.Parallel()
 
 	for name, tc := range map[string]struct{ cypher, sha string }{
-		"scoped outgoing":      {changeSurfaceScopedOutgoingCypher, "25e324684de473e374a13c10490b8e1c48b920e790fecf0e5f01113ec7dd3f27"},
+		"scoped outgoing":      {changeSurfaceScopedOutgoingCypher, "ca76cbf4f6576ac69a83ca684aba9532f080c4cf0634dd6dabe388f57da2eb8f"},
 		"repository consumers": {changeSurfaceRepositoryConsumersCypher, "52761ea308175d03bc3e889388774d2ec90081ed8505979ef9b5b2db7bc8c940"},
 	} {
 		sum := sha256.Sum256([]byte(tc.cypher))
@@ -363,8 +366,8 @@ func TestChangeSurfaceEnvironmentScopedCypherKeepsLabelTestFirst(t *testing.T) {
 
 	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, 4, changeSurfaceEnvironmentClause("prod"))
 	conjuncts := changeSurfaceWhereConjuncts(t, rendered)
-	if len(conjuncts) != 4 {
-		t.Fatalf("environment-scoped WHERE has %d conjuncts, want 4 (id guard, label test, IN labels() guard, environment): %q", len(conjuncts), conjuncts)
+	if len(conjuncts) != 5 {
+		t.Fatalf("environment-scoped WHERE has %d conjuncts, want 5 (id guard, label test, IN labels() guard, environment, legacy-key exclusion): %q", len(conjuncts), conjuncts)
 	}
 	if conjuncts[0] != "impacted.id <> $target_id" {
 		t.Errorf("first conjunct = %q, want the target id guard", conjuncts[0])
@@ -376,6 +379,9 @@ func TestChangeSurfaceEnvironmentScopedCypherKeepsLabelTestFirst(t *testing.T) {
 		t.Errorf("third conjunct = %q, want the IN labels() guard", conjuncts[2])
 	}
 	if !strings.Contains(conjuncts[3], "impacted.environment = $environment") {
-		t.Errorf("fourth conjunct = %q, want the environment predicate last", conjuncts[3])
+		t.Errorf("fourth conjunct = %q, want the environment predicate", conjuncts[3])
+	}
+	if !strings.Contains(conjuncts[4], "aws_appsync_api_key") {
+		t.Errorf("fifth conjunct = %q, want legacy AppSync key exclusion", conjuncts[4])
 	}
 }

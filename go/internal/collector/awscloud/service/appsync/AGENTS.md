@@ -11,10 +11,13 @@ Read these files before editing this package:
 7. `awssdk/README.md`
 
 Keep the scanner metadata-only. The schema SDL body, resolver request/response
-mapping templates (VTL or JS), pipeline function code bodies, and API key values
-are forbidden payloads. Do not add a field for any of them to the scanner-owned
-types, and do not add an attribute key that could carry one. A struct-reflection
-test and an attribute-key test enforce this; do not weaken them.
+mapping templates (VTL or JS), pipeline function code bodies, API key values,
+key IDs, and key descriptions are forbidden payloads. AppSync's SDK `Id` is the
+bearer key itself. The adapter may carry only an API-level observed key count
+and deterministically ordered expiry/deletion timestamps. Do not add a field for
+identifiers or free text to the scanner-owned types, and do not emit per-key
+resources. A struct-reflection test, serialized-envelope test, and attribute
+key test enforce this; do not weaken them.
 
 The scanner boundary must remain `awscloud.ServiceAppSync`.
 

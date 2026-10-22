@@ -9,16 +9,58 @@ import (
 
 // extractRelationships converts the Neo4j relationships collection to typed structs.
 func extractRelationships(row map[string]any) []map[string]any {
+	type relationshipIdentity struct {
+		typeName   string
+		targetName string
+		targetID   string
+	}
+	seen := make(map[relationshipIdentity]struct{})
 	return extractCollection(row, "relationships", func(m map[string]any) (map[string]any, bool) {
-		if relType := querycontract.StringVal(m, "type"); relType != "" {
-			return map[string]any{
-				"type":        relType,
-				"target_name": querycontract.StringVal(m, "target_name"),
-				"target_id":   querycontract.StringVal(m, "target_id"),
-			}, true
+		target := map[string]any{
+			"labels":        m["target_labels"],
+			"resource_type": m["target_resource_type"],
+			"data_type":     m["target_data_type"],
 		}
-		return nil, false
+		if isLegacyAppSyncKeyNode(target) {
+			return nil, false
+		}
+		relType := querycontract.StringVal(m, "type")
+		if relType == "" {
+			return nil, false
+		}
+		public := map[string]any{
+			"type":        relType,
+			"target_name": querycontract.StringVal(m, "target_name"),
+			"target_id":   querycontract.StringVal(m, "target_id"),
+		}
+		identity := relationshipIdentity{typeName: relType, targetName: querycontract.StringVal(m, "target_name"), targetID: querycontract.StringVal(m, "target_id")}
+		if _, duplicate := seen[identity]; duplicate {
+			return nil, false
+		}
+		seen[identity] = struct{}{}
+		return public, true
 	})
+}
+
+// isLegacyAppSyncKeyNode recognizes historical per-key CloudResource rows so
+// graph results can be filtered in Go without relying on backend label
+// predicates that NornicDB may ignore.
+func isLegacyAppSyncKeyNode(node map[string]any) bool {
+	if node == nil {
+		return false
+	}
+	cloudResource := false
+	for _, label := range querycontract.StringSliceVal(node, "labels") {
+		if label == "CloudResource" {
+			cloudResource = true
+			break
+		}
+	}
+	if !cloudResource {
+		return false
+	}
+	return querycontract.StringVal(node, "resource_type") == "aws_appsync_api_key" ||
+		querycontract.StringVal(node, "data_type") == "aws_appsync_api_key"
 }
 
 // extractInstances converts the Neo4j instances collection to typed structs.

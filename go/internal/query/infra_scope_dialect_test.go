@@ -41,12 +41,12 @@ const (
 // `(CASE WHEN 'Repository' IN labels(<alias>) THEN <alias>.id END)`. Substituting
 // the old bare `<alias>.id` terms back reproduces the pre-#7220 digests exactly.
 var nornicDBStatementDigests = map[string]string{
-	"search/g1":         "84da26fabb4038d54993bce90a86330822646d0bde3554b1edea1c7620ed938f",
-	"relationships/g1":  "44cd68e97a96006360aae5c204fd4d11edabe942d53b0744f003857edc3b25ea",
-	"search/g5":         "97868a13465242955e2c273bcceb9ce7a62f850fed1881ccbb7333cef7b42323",
-	"relationships/g5":  "9ecefc1babfc26dcafb227574cd2e8c69fa168fcd18eaa248241655adf8ebe7a",
-	"search/cap":        "073f07932ef094b1683b67225a2f5612271d23932de3810fd1e6a19ed411d60b",
-	"relationships/cap": "9b114cfa0198049732399d07619a8268431e1bf715756535337bb2abef3564e8",
+	"search/g1":         "79de602a974f92d2ad37d9013f9606195a8350e5c0571d16db8e727a5ee8ab4f",
+	"relationships/g1":  "828dff5eb40fa5314cc0c3bf4893ebb16ca554ba0417f5a24056072051cc29fa",
+	"search/g5":         "50e571c09e0e81a2e9866df0e57a688fb2d228049019b9ee9b017b52026fc598",
+	"relationships/g5":  "5d8ee3fbcb445239423ee23dfad776502f2ee6013abad01b18d8c0d85bc4ec23",
+	"search/cap":        "69276d1e9e88219441a5cfcaf006f5e084498a108b4704ebe2c5ff9eec194f33",
+	"relationships/cap": "54119eaed58acc3b1f2b0ed8393bcc4a1a5802e3d4c952f31cf3f6e8d8f7c3c3",
 }
 
 func TestInfraScopeNornicDBStatementsByteIdentical(t *testing.T) {

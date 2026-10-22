@@ -57,6 +57,7 @@ func (h *Handler) fetchCloudResourceResult(
 	rows, err := h.Neo4j.Run(ctx, fmt.Sprintf(`
 		MATCH (repo:Repository)-[:DEFINES]->(w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)
 		WHERE repo.id = $repo_id%s
+		  AND coalesce(c.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(c.data_type, '') <> 'aws_appsync_api_key'
 		WITH c, i, rel,
 		     c.name AS sort_name, c.id AS sort_id,
 		     rel.confidence AS sort_confidence,

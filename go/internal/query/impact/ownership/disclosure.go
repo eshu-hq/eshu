@@ -3,6 +3,10 @@
 
 package ownership
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
+)
+
 // Route patterns the impact ownership metrics are labelled with.
 const (
 	RouteTraceResourceToCode   = "POST /api/v0/impact/trace-resource-to-code"
@@ -35,4 +39,27 @@ const WithheldSinkReason = "scoped caller: sinks of class SecretsIAMSecretMetada
 func Disclose(resp map[string]any, sections ...string) {
 	resp["scoped"] = true
 	resp["withheld_sections"] = append([]string(nil), sections...)
+}
+
+// ContainsLegacyAppSyncKeyNode reports whether a decoded path traverses a
+// CloudResource carrying the historical AppSync API-key resource type.
+func ContainsLegacyAppSyncKeyNode(nodes []deployment.ImpactNodeIdentity) bool {
+	for _, node := range nodes {
+		if !containsLabel(node.Labels, "CloudResource") {
+			continue
+		}
+		if node.ResourceType == "aws_appsync_api_key" || node.DataType == "aws_appsync_api_key" {
+			return true
+		}
+	}
+	return false
+}
+
+func containsLabel(labels []string, want string) bool {
+	for _, label := range labels {
+		if label == want {
+			return true
+		}
+	}
+	return false
 }

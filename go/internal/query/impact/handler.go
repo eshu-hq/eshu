@@ -172,7 +172,7 @@ type PathProbeBackend interface {
 	// PathHasNodes reports whether a raw nodes(path) value holds any node.
 	PathHasNodes(nodesRaw any) bool
 	// PathNodes decodes a raw nodes(path) value into ordered node identities
-	// (id, uid, name, repo_id, labels) for the #5167 scoped ownership check.
+	// (id, uid, name, repo_id, labels, and resource type fields) for path checks.
 	// An element it cannot decode yields a zero identity in its place, which
 	// the check denies.
 	PathNodes(nodesRaw any) []deployment.ImpactNodeIdentity
@@ -407,10 +407,8 @@ func (h *Handler) explainDependencyPath(w http.ResponseWriter, r *http.Request) 
 	source := map[string]any{"id": sourceNode.ID, "name": sourceNode.Name, "labels": sourceNode.Labels}
 	target := map[string]any{"id": targetNode.ID, "name": targetNode.Name, "labels": targetNode.Labels}
 
-	// Single anchoring clause: shortestPath with single-label inline-property
-	// anchors on both ends, projecting the raw nodes(path)/relationships(path)
-	// lists (zipped into hops in Go). The pinned build corrupts the old
-	// two-disjunction-MATCH + WITH + map-valued rel comprehension shape.
+	// Single shortestPath clause anchors resolved endpoints and returns raw
+	// node and relationship lists for hop construction in Go.
 	cypher := fmt.Sprintf(`MATCH path = shortestPath(%s-[*1..8]-%s)
 RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
 		sourceNode.Pattern("source", "source_id"), targetNode.Pattern("target", "target_id"))
@@ -428,16 +426,13 @@ RETURN length(path) AS depth, nodes(path) AS ns, relationships(path) AS rels`,
 	var overallConfidence float64
 	var overallReason string
 
-	// A path exists only when nodes(path) is non-empty. Guarding on the node list
-	// rather than `row != nil` keeps the "no path" case correct on a backend where
-	// shortestPath returns a single null-valued record (nodes(path) IS NULL)
-	// instead of zero rows — otherwise the handler would report a bogus
-	// `path: {depth: 0, hops: []}`.
-	pathVisible := h.pathProbe().PathHasNodes(row["ns"])
+	// Check decoded nodes so null shortestPath records remain no-path results.
+	pathNodes := h.pathProbe().PathNodes(row["ns"])
+	pathVisible := h.pathProbe().PathHasNodes(row["ns"]) && !ownership.ContainsLegacyAppSyncKeyNode(pathNodes)
 	if pathVisible && access.Scoped() {
 		// Every node on the path, interior included, must be owned; otherwise
 		// the answer is indistinguishable from no path.
-		filter, ferr := checker.FilterPaths(r.Context(), access, [][]ownership.Node{ownership.FromIdentities(h.pathProbe().PathNodes(row["ns"]))})
+		filter, ferr := checker.FilterPaths(r.Context(), access, [][]ownership.Node{ownership.FromIdentities(pathNodes)})
 		if ferr != nil {
 			if querycontract.WriteGraphReadError(w, r, ferr, "platform_impact.dependency_path") {
 				return

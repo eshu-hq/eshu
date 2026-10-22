@@ -93,11 +93,16 @@ func infraRelationshipAnchorClause(access querycontract.RepositoryAccessFilter) 
 // way. Returns the empty string for shared / admin / local callers so the
 // unscoped Cypher is unchanged.
 func infraRelationshipNeighborClause(access querycontract.RepositoryAccessFilter, alias string) string {
+	// Unscoped neighbor matches stay bare: a WHERE after the trailing
+	// OPTIONAL MATCH binds the second match to null on the pinned NornicDB
+	// executor (answer-truth A7), and a labels() predicate empties the whole
+	// result. Legacy AppSync keys are suppressed in Go from the projected
+	// neighbor labels and types instead, uniformly across backends.
 	if !access.Scoped() {
 		return ""
 	}
 	scalars, _ := access.ScopeGrantInlineScalars()
-	return " WHERE " + infraResourceScopePredicate(alias, scalars)
+	return " WHERE NOT ('CloudResource' IN labels(" + alias + ") AND (coalesce(" + alias + ".resource_type, '') = 'aws_appsync_api_key' OR coalesce(" + alias + ".data_type, '') = 'aws_appsync_api_key')) AND " + infraResourceScopePredicate(alias, scalars)
 }
 
 // writeEmptyInfraSearch returns the bounded empty search page for an empty-grant
@@ -237,9 +242,10 @@ func bindInfraNeo4jScopeParams(params map[string]any, access querycontract.Repos
 func infraSearchNeo4jScopedCypher(labels []string, whereExtra string) string {
 	branches := make([]string, 0, len(labels))
 	for _, label := range labels {
+		legacyCloudKeyClause := infraSearchLegacyCloudKeyClause(label)
 		branches = append(branches, `
 		MATCH (n:`+label+`)
-		WHERE true`+whereExtra+`
+		WHERE true`+legacyCloudKeyClause+whereExtra+`
 		RETURN n
 	`)
 	}

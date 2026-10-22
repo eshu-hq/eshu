@@ -58,6 +58,15 @@ func (p *pilotCursor) expression(minPrecedence int) error {
 		p.pos++
 		if operator == "IS" {
 			p.take("NOT")
+			if p.take("DISTINCT") {
+				if err := p.need("FROM"); err != nil {
+					return err
+				}
+				if err := p.expression(precedence + 1); err != nil {
+					return err
+				}
+				continue
+			}
 			if err := p.need("NULL"); err != nil {
 				return err
 			}

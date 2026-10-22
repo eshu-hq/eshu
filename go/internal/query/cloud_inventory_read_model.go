@@ -78,7 +78,9 @@ func (cr *ContentReader) CloudInventoryIdentities(
 // buildCloudInventoryIdentitiesSQL assembles the bounded canonical-identity list
 // query and its parameters. It anchors on the reducer-owned fact kind, selects
 // only the active generation for each ingestion scope, excludes tombstoned
-// rows, applies optional payload-scoped equality filters as bound parameters,
+// rows and legacy AppSync API key identities (whose canonical UID contains a
+// bearer credential), applies optional payload-scoped equality filters as bound
+// parameters,
 // orders deterministically by cloud_resource_uid, and fetches limit+1 rows for
 // continuation. The projection returns the envelope metadata plus the
 // canonical payload; the handler view drops raw locators.
@@ -87,6 +89,7 @@ func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []an
 	clauses := []string{
 		"fact_records.fact_kind = '" + cloudInventoryFactKind + "'",
 		"fact_records.is_tombstone = FALSE",
+		"fact_records.payload->>'resource_type' IS DISTINCT FROM 'aws_appsync_api_key' AND fact_records.payload->>'data_type' IS DISTINCT FROM 'aws_appsync_api_key'",
 	}
 	addPayloadFilter := func(field string, value string) {
 		value = strings.TrimSpace(value)
@@ -245,10 +248,10 @@ var cloudInventoryContainerAttributeKeys = map[string]struct{}{
 // cloudInventoryAttributes projects the bounded provider-specific attributes map
 // from the canonical identity payload. It keeps only non-blank string keys (cap
 // 64) whose values are string, bool, float64, or []string/[]any-of-strings, plus
-// the allowlisted "containers" nested array-of-objects reduced to {image,
-// image_digest} per element. Nested maps under any other key, and any other
-// value type, are dropped so no malformed payload content can leak unexpected
-// structured data through the readback wire.
+// the allowlisted "containers" nested array reduced to {image, image_digest}
+// and AppSync lifecycle entries reduced to expiry/deletion timestamps. Nested
+// maps under any other key, and any other value type, are dropped so malformed
+// payload content cannot leak unexpected structured data through readback.
 func cloudInventoryAttributes(payload map[string]any) map[string]any {
 	const maxKeys = 64
 	object, ok := payload["attributes"].(map[string]any)
@@ -266,6 +269,12 @@ func cloudInventoryAttributes(payload map[string]any) map[string]any {
 		if key == cloudInventoryContainersAttributeKey {
 			if containers := cloudInventoryContainerAttributes(value); len(containers) > 0 {
 				out[key] = containers
+			}
+			continue
+		}
+		if key == cloudInventoryAppSyncKeyLifecyclesAttributeKey {
+			if lifecycles := cloudInventoryAppSyncKeyLifecycleAttributes(value); len(lifecycles) > 0 {
+				out[key] = lifecycles
 			}
 			continue
 		}

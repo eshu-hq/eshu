@@ -74,6 +74,9 @@ func TestCompareEnvironmentsReturnsPresentSnapshotsFromMaterializedInstances(t *
 				if !strings.Contains(cypher, "MATCH (i:WorkloadInstance)-[r:USES]->(c:CloudResource)") {
 					return nil, nil
 				}
+				if !strings.Contains(cypher, "coalesce(c.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(c.data_type, '') <> 'aws_appsync_api_key'") {
+					t.Fatalf("environment snapshot must suppress legacy AppSync keys before LIMIT: %s", cypher)
+				}
 				switch params["instance_id"] {
 				case "instance:qa":
 					return []map[string]any{

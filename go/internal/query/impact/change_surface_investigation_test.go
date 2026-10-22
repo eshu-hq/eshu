@@ -17,6 +17,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 )
 
+func TestChangeSurfaceCloudResourceResolverExcludesLegacyAppSyncKeys(t *testing.T) {
+	t.Parallel()
+
+	query := changeSurfaceCloudResourceResolverQuery("id", "aws-key", 0, 10, querycontract.RepositoryAccessFilter{AllScopes: true})
+	if !strings.Contains(query.cypher, "coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'") {
+		t.Fatalf("resolver query must suppress historical AppSync keys: %s", query.cypher)
+	}
+}
+
 type recordingChangeSurfaceGraph struct {
 	runCalls []changeSurfaceRunCall
 	runRows  [][]map[string]any

@@ -24,16 +24,17 @@ type Client interface {
 }
 
 // Snapshot is the scanner-owned metadata view of AppSync GraphQL APIs, data
-// sources, resolvers, functions, schema metadata, and API key metadata.
+// sources, resolvers, functions, schema metadata, and API key lifecycle
+// summaries.
 type Snapshot struct {
 	Warnings []awscloud.WarningObservation
 	APIs     []GraphQLAPI
 }
 
 // GraphQLAPI is the metadata-only scanner view of an AppSync GraphQL API. It
-// carries control-plane configuration only; the schema SDL, resolver mapping
-// templates, function code, and API key values are never present on any nested
-// type.
+// carries control-plane configuration only; schema SDL, resolver mapping
+// templates, function code, API key values, key IDs, and key descriptions are
+// never present on any nested type.
 type GraphQLAPI struct {
 	ID                 string
 	ARN                string
@@ -51,7 +52,9 @@ type GraphQLAPI struct {
 	Resolvers          []Resolver
 	Functions          []Function
 	Schema             *SchemaMetadata
-	APIKeys            []APIKey
+	// APIKeys contains lifecycle timestamps only. The SDK key Id and description
+	// are discarded before values enter this type.
+	APIKeys []APIKey
 }
 
 // LogConfig summarizes the CloudWatch Logs configuration of a GraphQL API. It
@@ -125,12 +128,10 @@ type SchemaMetadata struct {
 	TypeCount int
 }
 
-// APIKey is the metadata-only scanner view of an AppSync API key. It records the
-// key ID, description, and expiration. The API key value is never present on
-// this type because it is a bearer credential.
+// APIKey is the metadata-only lifecycle view of an AppSync API key. It records
+// only expiry and deletion timestamps; identifiers and descriptions are omitted
+// because AppSync's Id field contains the bearer API key itself.
 type APIKey struct {
-	ID          string
-	Description string
-	Expires     time.Time
-	Deletes     time.Time
+	Expires time.Time
+	Deletes time.Time
 }

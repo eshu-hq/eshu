@@ -122,7 +122,7 @@ export function NodesPage({
 
       <div className="grid g-4">
         <StatTile
-          label="Browsable entities"
+          label="Stored entities"
           value={provenance === "unavailable" ? "—" : fmt(browsableCount)}
           color="var(--teal)"
           sub={`${kinds.length} node kinds`}
@@ -147,7 +147,7 @@ export function NodesPage({
           label="Total in facets"
           value={provenance === "unavailable" ? "—" : fmt(total)}
           color="var(--ember)"
-          sub="across all kinds"
+          sub="stored graph-node totals"
         />
       </div>
 

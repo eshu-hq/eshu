@@ -134,6 +134,24 @@ func TestPilotCapturedProductionGrammar(t *testing.T) {
 	}
 }
 
+func TestPilotSQLAcceptsNullSafeDistinctPredicates(t *testing.T) {
+	contract := PilotContract{RequireOrder: true, RequireLimit: true}
+	for _, predicate := range []string{
+		"owner.data_type IS DISTINCT FROM 'aws_appsync_api_key'",
+		"owner.data_type IS NOT DISTINCT FROM 'aws_appsync_api_key'",
+	} {
+		query := "SELECT owner.uid FROM graph_node_owner AS owner WHERE " + predicate +
+			" ORDER BY owner.uid LIMIT $1"
+		if err := ValidatePilotQuery(queryKindSQLReadModel, query, contract, nil); err != nil {
+			t.Errorf("valid null-safe predicate %q: %v", predicate, err)
+		}
+	}
+	invalid := "SELECT owner.uid FROM graph_node_owner AS owner WHERE owner.data_type IS DISTINCT 'aws_appsync_api_key' ORDER BY owner.uid LIMIT $1"
+	if err := ValidatePilotQuery(queryKindSQLReadModel, invalid, contract, nil); err == nil {
+		t.Fatal("accepted IS DISTINCT without FROM")
+	}
+}
+
 func TestPilotSQLRejectsChangedGrantLiteralAndCorrelationBypass(t *testing.T) {
 	contract := PilotContract{
 		ScopePredicates: []PilotScopePredicate{

@@ -140,15 +140,14 @@ func mapFunction(function awsappsynctypes.FunctionConfiguration) appsyncservice.
 	return out
 }
 
-// mapAPIKey maps an AppSync API key to scanner-owned metadata. The key value is
-// never returned by ListApiKeys and the scanner-owned type has no field for it.
-// Expires and Deletes are epoch seconds in the SDK.
+// mapAPIKey maps only AppSync API key lifecycle timestamps to scanner-owned
+// metadata. The SDK's Id field contains the bearer API key and Description is
+// free text, so neither value crosses the adapter boundary. Expires and Deletes
+// are epoch seconds in the SDK.
 func mapAPIKey(key awsappsynctypes.ApiKey) appsyncservice.APIKey {
 	return appsyncservice.APIKey{
-		ID:          aws.ToString(key.Id),
-		Description: aws.ToString(key.Description),
-		Expires:     epochSeconds(key.Expires),
-		Deletes:     epochSeconds(key.Deletes),
+		Expires: epochSeconds(key.Expires),
+		Deletes: epochSeconds(key.Deletes),
 	}
 }
 

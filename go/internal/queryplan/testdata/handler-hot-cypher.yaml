@@ -202,9 +202,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/entity_map_resolver.go, symbol: EntityMapNodeResolverQuery, source_sha256: 71244cb39299d7b7c8679c96295fa8c2248586d1c488f3c08f5511bc47ee17ab}
+    source: {file: go/internal/query/impact/entity_map_resolver.go, symbol: EntityMapNodeResolverQuery, source_sha256: b77c2315db9fe5556b1df7ec1a696bcae51328af3a4562ca1bd85aec476690f5}
     query_fragment: 'MATCH (n:%s {%s: $from})'
-    cypher_sha256: 785acf58218cccb6d99b9b783edacdd596930f3a3b627e36645069feed7dee9c
+    cypher_sha256: 6e2ba9b81c2aff0d15a4dd2a561272eba61bc1c5fbfe53eef9dcbd5fd4795c00
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [51]
@@ -217,7 +217,7 @@ entries:
     query_kind: cypher
     source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapDirectTraversalCypher, source_sha256: 8e0ccbbf9c6bc963c5e93fb452658b741ac75132f705cfb8f7708173d717e638}
     query_fragment: '(start:%s {%s: $from_id})-[rel:%s]->(entity)'
-    cypher_sha256: 1c133fed5c939ca0e9f310431ac7d5c6602a476eaa7c125c48d828aa930af2d7
+    cypher_sha256: c377ed9fa34ba41667edfdb033b52b9d815581a2ae7501b2ac94e1032afd2467
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$limit]
@@ -230,7 +230,7 @@ entries:
     query_kind: cypher
     source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapVariableTraversalCypher, source_sha256: 60c8fccf0780af4b1f509a019883da43e6000402c8a8a293c2d790c43ccf6d30}
     query_fragment: '(start:%s {%s: $from_id})-[%s]->(entity)'
-    cypher_sha256: 797d2c60e7de3f2a9539d6ebd078b1731e7193696ef5de84edc9b6f33cf2a573
+    cypher_sha256: f934db3b000d59880b3bec4cec59e5db3603410e01050320fa7c85f91e8ee125
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$limit]
@@ -253,7 +253,7 @@ entries:
     domain: infra
     backend: postgresql
     query_kind: sql_read_model
-    source: {file: go/internal/query/cloud_resource_list_store.go, symbol: buildCloudResourceIdentityListQuery, source_sha256: fbced2dfb725aa9d3a0f1aca42b538ee22e8965c2ada84c2258b2c9afe78e57a}
+    source: {file: go/internal/query/cloud_resource_list_store.go, symbol: buildCloudResourceIdentityListQuery, source_sha256: 05459434d97adcf7b1313dfffa7572e240d5ad0a1bc4498ce08bebbbdc470e31}
     caveats:
       - The hash-frozen 64-variant SQL family is validated by TestHandlerQueryplanCloudResourceListVariantsStayCovered; live EXPLAIN evidence is captured separately because this manifest does not connect to Postgres.
 
@@ -333,7 +333,7 @@ entries:
     domain: graph
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindListCypher, source_sha256: d5ebe60e75c9078e0f7d4915c73edfe6ff686a81c205b374625bc953c57c921e}
+    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindListCypher, source_sha256: d2176500cfdb07984b83e5551fc5ee9805fabed3a76342277bef0258908efc2d}
     query_fragment: 'MATCH (n:'
     cypher_sha256: ed4a6cde0b451ba5ea6b1f030c64faaa2d8378e882853f604d5fcbb6f79ef891
     required_anchors: [{label: Workload, property: name}]
@@ -375,9 +375,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/resource_investigation_selector.go, symbol: ResourceInvestigationSelectorLabelCypher, source_sha256: 93d8669d297699c79651f681c6a298f46e39f9e9d17d317d0cf20db47950fee4}
+    source: {file: go/internal/query/impact/resource_investigation_selector.go, symbol: ResourceInvestigationSelectorLabelCypher, source_sha256: a2609463e1b9b166ef1b9a5daa22379ddfa3085627b5f9dfca0ed3d8f8631738}
     query_fragment: 'MATCH (n:%s)'
-    cypher_sha256: 37986e9c5d95e6ed09806952f0f52cf683d660df41a276fea1668d246c517612
+    cypher_sha256: e1571599b061dd20f0da95321eab1807b19b07a7e29ffe62ee3c271ab460f5d5
     required_anchors: [{label: CloudResource, property: resource_id}]
     required_schema: [cloud_resource_resource_id]
     required_limits: [$limit]

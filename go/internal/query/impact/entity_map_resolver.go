@@ -182,13 +182,20 @@ func EntityMapNodeResolverQuery(
 	rank int,
 	limit int,
 ) entityMapResolverQuery {
+	legacyCloudKeyClause := ""
+	if label == "CloudResource" {
+		legacyCloudKeyClause = "\n  AND coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'"
+	}
 	return entityMapResolverQuery{
 		Cypher: fmt.Sprintf(`MATCH (n:%s {%s: $from})
-WHERE ($environment = '' OR coalesce(n.environment, '') = '' OR n.environment = $environment)
+WHERE true%s
+  AND ($environment = '' OR coalesce(n.environment, '') = '' OR n.environment = $environment)
   AND ($repo_id = '' OR coalesce(n.repo_id, n.id, '') = $repo_id)
 RETURN coalesce(n.id, n.uid, n.resource_id, n.path, n.name) AS id,
        coalesce(n.name, n.address, n.qualified_name, n.path, n.id, n.uid) AS name,
        labels(n) AS labels,
+       coalesce(n.resource_type, '') AS resource_type,
+       coalesce(n.data_type, '') AS data_type,
        coalesce(n.repo_id, n.id, '') AS repo_id,
        coalesce(n.environment, '') AS environment,
        %q AS anchor_label,
@@ -196,7 +203,7 @@ RETURN coalesce(n.id, n.uid, n.resource_id, n.path, n.name) AS id,
        coalesce(n.%s, n.id, n.uid, n.path, n.name) AS anchor_value,
        %d AS rank
 ORDER BY rank, name, id
-LIMIT %d`, label, matchProperty, label, anchorProperty, anchorProperty, rank, limit),
+LIMIT %d`, label, matchProperty, legacyCloudKeyClause, label, anchorProperty, anchorProperty, rank, limit),
 		Params: map[string]any{"from": from},
 	}
 }
@@ -238,12 +245,38 @@ func appendEntityMapCandidates(existing []EntityMapCandidate, incoming []EntityM
 	return existing
 }
 
+// isLegacyAppSyncKeyCandidate reports whether a resolver row describes a
+// historical per-key AppSync CloudResource node. It mirrors
+// isLegacyAppSyncKeyRow over the resolver's labels/resource_type/data_type
+// projection.
+func isLegacyAppSyncKeyCandidate(row map[string]any) bool {
+	cloudResource := false
+	for _, label := range querycontract.StringSliceVal(row, "labels") {
+		if label == "CloudResource" {
+			cloudResource = true
+			break
+		}
+	}
+	if !cloudResource {
+		return false
+	}
+	return querycontract.StringVal(row, "resource_type") == legacyAppSyncKeyResourceType ||
+		querycontract.StringVal(row, "data_type") == legacyAppSyncKeyResourceType
+}
+
 func entityMapCandidates(rows []map[string]any) []EntityMapCandidate {
 	candidates := make([]EntityMapCandidate, 0, len(rows))
 	seen := map[string]struct{}{}
 	for _, row := range rows {
 		id := querycontract.StringVal(row, "id")
 		if id == "" {
+			continue
+		}
+		// The CloudResource resolver Cypher excludes legacy keys with a
+		// property-only predicate, which the pinned NornicDB executor
+		// silently ignores; drop those candidates here so both backends
+		// resolve identically.
+		if isLegacyAppSyncKeyCandidate(row) {
 			continue
 		}
 		if _, ok := seen[id]; ok {

@@ -149,16 +149,19 @@ speedup claim. A query rewrite needs independently built base and candidate
 executables before this runner can supply comparative evidence for that change.
 Until that paired-executable support lands, a rewrite PR follows the
 author-side recalibration procedure instead: it declares the pinned reader
-files it intentionally changes in `methodologyCommittedRewriteDeclaration`
-(`go/internal/query/methodology_identity_test.go`, issue + reason + exact
-paths), and the pin requires the base-vs-candidate diff to equal the declared
-set exactly — an undeclared differing file, a declared-but-identical file, and
-a declared path outside the pinned set all fail closed. The run logs the
-declared files with their base/candidate blob SHAs, and the artifact records
-the differing base/candidate commits, so the paired sides are never mistaken
-for a same-code comparison. The uncalibrated proof (request shapes, fixture
-oracle, statement registry, query-count budgets) still runs in full and still
-binds the rewrite.
+files it intentionally changes in a backend-specific declaration (issue +
+reason + exact paths), and the pin requires the base-vs-candidate diff to equal
+the declared set exactly — an undeclared differing file, a declared-but-
+identical file, and a declared path outside the pinned set all fail closed.
+Graph reader rewrites use `methodologyCommittedRewriteDeclaration` in
+`go/internal/query/methodology_identity_test.go`. PostgreSQL reader rewrites
+use `methodologyCommittedPostgresReaderRewriteDeclaration` in
+`go/internal/query/methodology_postgres_rewrite_declaration_test.go`; its
+migration pin remains strict. The run logs the declared files with their
+base/candidate blob SHAs, and the artifact records the differing
+base/candidate commits, so the paired sides are never mistaken for a same-code
+comparison. The uncalibrated proof (request shapes, fixture oracle, statement
+registry, query-count budgets) still runs in full and still binds the rewrite.
 A PR that changes existing graph schema files on purpose follows the same
 procedure with `methodologyCommittedSchemaDeclaration`
 (`go/internal/query/methodology_schema_declaration_test.go`, issue + reason +

@@ -262,6 +262,27 @@ func TestGraphEntityInventoryListsEntitiesForSelectedKind(t *testing.T) {
 	}
 }
 
+func TestGraphEntityCloudResourceListsExcludeLegacyAppSyncKeys(t *testing.T) {
+	t.Parallel()
+
+	cypher := graphEntityKindListCypher(graphEntityKindByCloudResource(), false)
+	predicate := "coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'"
+	if !strings.Contains(cypher, predicate) {
+		t.Fatalf("cloud-resource list cypher = %q, want legacy key exclusion", cypher)
+	}
+	if strings.Index(cypher, predicate) > strings.Index(cypher, "ORDER BY") {
+		t.Fatalf("legacy key exclusion must precede pagination: %q", cypher)
+	}
+}
+
+func graphEntityKindByCloudResource() graphEntityKind {
+	kind, ok := graphEntityKindByKey("cloud_resources")
+	if !ok {
+		panic("cloud_resources kind missing")
+	}
+	return kind
+}
+
 func TestGraphEntityInventoryIdentityIAMProjectsPopulatedProperties(t *testing.T) {
 	t.Parallel()
 

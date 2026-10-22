@@ -2163,6 +2163,17 @@
         "allowed_node_property_values": {
           "ami_id": ["ami-000000000000000a"]
         }
+      },
+      {
+        "id": "rn-appsync-api-resource",
+        "description": "The AWS AppSync cassette's synthetic GraphQL API materializes as a CloudResource node. Pins graph identity while its API key lifecycle metadata stays available through the cloud inventory readback rather than becoming per-key graph identities.",
+        "label": "CloudResource",
+        "minimum_count": 1,
+        "maximum_count": 1,
+        "required_node_properties": ["resource_type"],
+        "allowed_node_property_values": {
+          "resource_type": ["aws_appsync_graphql_api"]
+        }
       }
     ],
     "required_self_loops": [
@@ -8018,7 +8029,7 @@
         }
       },
       "GET /api/v0/cloud/inventory?provider=aws": {
-        "description": "AWS-scoped cloud inventory readback (#5449). Scoping to provider=aws bounds the response to the awscloud supply-chain-demo resources (ecr.repository, ecs.service, ecs.task, lambda.function), so the ECS/Lambda image-attribute assertions are deterministic within the default page limit rather than depending on GCP-dominated uid ordering. required_json_values pins two independently-gated AWS allowlist paths, each provably zero without its fixture: (1) resources[].attributes.containers[].image -- the ecs.task aws_resource fact carries attributes.containers[].image (the nested-array allowlist path) alongside a raw cluster_arn/network_interfaces/container name/runtime_id the route drops; (2) resources[].attributes.image_uri -- the lambda.function aws_resource fact is the ONLY fixture carrying attributes.image_uri, locking the top-level scalar allowlist path (image_uri/resolved_image_uri/code_sha256/version) separately from the nested containers[] path. AWS attributes are NOT a raw passthrough like GCP: cloudInventoryRecordAttributes reduces them through awsCloudInventoryAttributeAllowlist (go/internal/storage/postgres/cloud_inventory_evidence.go), a bounded CLOSED allowlist scoped to task_definition_arn/image_uri/resolved_image_uri/code_sha256/version plus containers[] reduced to {image, image_digest}; cloudInventoryAttributes (go/internal/query/cloud_inventory_read_model.go) applies the same {image, image_digest} sub-key gate a second time on the read side. (3) resources[].code_sha256_correlation.unsupported_reason=zip_code_sha256_no_ci_counterpart (issue #5454): the awscloud cassette carries a SECOND lambda.function (supply-chain-demo-zip) with package_type=Zip + a synthetic code_sha256 and NO image_uri. cloudInventoryCodeCorrelationLabel (go/internal/query/cloud_inventory_code_correlation.go) attaches the bounded deployment-code correlation limitation to that zip Lambda -- its code_sha256 is base64(SHA256(the deployment .zip)) and no collected CI/package/OCI hash covers those bytes, so the readback states the gap programmatically rather than leaving it silent. Provably 0 without the label wiring AND without package_type in awsCloudInventoryAttributeAllowlist (the label keys on package_type=Zip). The negative control is the FIRST (image) lambda.function: package_type=Image, so it never carries this field (its deployment code is the container image #5450 correlates).",
+        "description": "AWS-scoped cloud inventory readback (#5449). Scoping to provider=aws bounds the response to the awscloud supply-chain-demo resources (ecr.repository, ecs.service, ecs.task, lambda.function, plus the AppSync GraphQL API), so the ECS/Lambda image-attribute and AppSync lifecycle assertions are deterministic within the default page limit rather than depending on GCP-dominated uid ordering. required_json_values pins two independently-gated AWS allowlist paths, each provably zero without its fixture: (1) resources[].attributes.containers[].image -- the ecs.task aws_resource fact carries attributes.containers[].image (the nested-array allowlist path) alongside a raw cluster_arn/network_interfaces/container name/runtime_id the route drops; (2) resources[].attributes.image_uri -- the lambda.function aws_resource fact is the ONLY fixture carrying attributes.image_uri, locking the top-level scalar allowlist path (image_uri/resolved_image_uri/code_sha256/version) separately from the nested containers[] path. AWS attributes are NOT a raw passthrough like GCP: cloudInventoryRecordAttributes reduces them through awsCloudInventoryAttributeAllowlist (go/internal/storage/postgres/cloud_inventory_evidence.go), a bounded CLOSED image/version allowlist plus a separate aws_appsync_graphql_api allowlist for api_key_count and api_key_lifecycles[{expires,deletes}]; cloudInventoryAttributes (go/internal/query/cloud_inventory_read_model.go) applies the same {image, image_digest} sub-key gate a second time on the read side. (3) resources[].code_sha256_correlation.unsupported_reason=zip_code_sha256_no_ci_counterpart (issue #5454): the awscloud cassette carries a SECOND lambda.function (supply-chain-demo-zip) with package_type=Zip + a synthetic code_sha256 and NO image_uri. cloudInventoryCodeCorrelationLabel (go/internal/query/cloud_inventory_code_correlation.go) attaches the bounded deployment-code correlation limitation to that zip Lambda -- its code_sha256 is base64(SHA256(the deployment .zip)) and no collected CI/package/OCI hash covers those bytes, so the readback states the gap programmatically rather than leaving it silent. Provably 0 without the label wiring AND without package_type in awsCloudInventoryAttributeAllowlist (the label keys on package_type=Zip). The negative control is the FIRST (image) lambda.function: package_type=Image, so it never carries this field (its deployment code is the container image #5450 correlates).",
         "required_response_fields": [
           "resources",
           "count"
@@ -8028,6 +8039,8 @@
         "required_json_values": {
           "resources[].attributes.containers[].image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
           "resources[].attributes.image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+          "resources[].attributes.api_key_count": "2",
+          "resources[].attributes.api_key_lifecycles[].expires": "2026-12-31T00:00:00Z",
           "resources[].code_sha256_correlation.unsupported_reason": "zip_code_sha256_no_ci_counterpart"
         }
       },
@@ -8042,6 +8055,8 @@
         "required_json_values": {
           "resources[].attributes.containers[].image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
           "resources[].attributes.image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo:latest",
+          "resources[].attributes.api_key_count": "2",
+          "resources[].attributes.api_key_lifecycles[].expires": "2026-12-31T00:00:00Z",
           "resources[].code_sha256_correlation.unsupported_reason": "zip_code_sha256_no_ci_counterpart"
         }
       },

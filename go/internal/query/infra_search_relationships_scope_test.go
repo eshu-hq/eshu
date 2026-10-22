@@ -233,7 +233,16 @@ func TestInfraRelationshipsScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 	}
 	unscopedNeighbor := infraRelationshipNeighborClause(querycontract.RepositoryAccessFilter{AllScopes: true}, "target")
 	if unscopedNeighbor != "" {
-		t.Fatalf("unscoped neighbor clause must be empty, got %q", unscopedNeighbor)
+		t.Fatalf("unscoped neighbor clause must stay bare (a WHERE after the trailing OPTIONAL MATCH binds it to null on NornicDB), got %q", unscopedNeighbor)
+	}
+	filtered := filterLegacyAppSyncKeyRelationships([]map[string]any{
+		{"type": "CALLS", "target_id": "fn-healthy", "target_labels": []any{"Function"}},
+		{"type": "USES", "target_id": "key-1", "target_labels": []any{"CloudResource"}, "target_resource_type": "aws_appsync_api_key"},
+		{"type": "USES", "target_id": "key-2", "target_labels": []any{"CloudResource"}, "target_data_type": "aws_appsync_api_key"},
+		{"type": "USES", "target_id": "fn-typed", "target_labels": []any{"Function"}, "target_resource_type": "aws_appsync_api_key"},
+	}, "target")
+	if len(filtered) != 2 || filtered[0]["target_id"] != "fn-healthy" || filtered[1]["target_id"] != "fn-typed" {
+		t.Fatalf("unscoped neighbor Go filter must drop only CloudResource key rows, got %v", filtered)
 	}
 
 	scoped := querycontract.RepositoryAccessFilter{
@@ -250,6 +259,52 @@ func TestInfraRelationshipsScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 		!strings.Contains(neighbor, "target.repo_id IN $allowed_repository_ids") ||
 		!strings.Contains(neighbor, "(target)<-[:USES]-(:WorkloadInstance {repo_id:$scope_grant_0})") {
 		t.Fatalf("scoped neighbor clause missing predicate:\n%s", neighbor)
+	}
+}
+
+func TestSplitInfraRelationshipsStripsFilterInputsAndFlagsKeyAnchor(t *testing.T) {
+	outgoing, incoming, keyAnchor := splitInfraRelationships(map[string]any{
+		"labels":               []any{"Function"},
+		"anchor_resource_type": nil,
+		"anchor_data_type":     nil,
+		"outgoing": []any{
+			map[string]any{"type": "CALLS", "target_id": "fn-healthy", "target_labels": []any{"Function"}},
+			map[string]any{"type": "USES", "target_id": "key-1", "target_labels": []any{"CloudResource"}, "target_resource_type": "aws_appsync_api_key"},
+		},
+		"incoming": []any{
+			map[string]any{"type": "CALLS", "source_id": "fn-caller", "source_labels": []any{"Function"}, "source_resource_type": "other", "source_data_type": "other"},
+		},
+	})
+	if keyAnchor {
+		t.Fatal("healthy anchor must not report keyAnchor")
+	}
+	if len(outgoing) != 1 || outgoing[0]["target_id"] != "fn-healthy" {
+		t.Fatalf("outgoing must keep only the healthy neighbor, got %v", outgoing)
+	}
+	for _, entry := range outgoing {
+		if _, ok := entry["target_resource_type"]; ok {
+			t.Fatalf("wire entry must not carry the filter input, got %v", entry)
+		}
+		if _, ok := entry["target_data_type"]; ok {
+			t.Fatalf("wire entry must not carry the filter input, got %v", entry)
+		}
+	}
+	if len(incoming) != 1 || incoming[0]["source_id"] != "fn-caller" {
+		t.Fatalf("incoming must keep the healthy neighbor, got %v", incoming)
+	}
+	if _, ok := incoming[0]["source_resource_type"]; ok {
+		t.Fatalf("wire entry must not carry the filter input, got %v", incoming[0])
+	}
+
+	_, _, keyAnchor = splitInfraRelationships(map[string]any{
+		"labels":               []any{"CloudResource"},
+		"anchor_resource_type": "aws_appsync_api_key",
+		"anchor_data_type":     nil,
+		"outgoing":             []any{},
+		"incoming":             []any{},
+	})
+	if !keyAnchor {
+		t.Fatal("legacy key anchor must report keyAnchor")
 	}
 }
 

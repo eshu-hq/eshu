@@ -18,6 +18,9 @@ func NormalizeEntityMapRows(
 ) []map[string]any {
 	rows := make([]map[string]any, 0, len(rawRows))
 	for _, raw := range rawRows {
+		if isLegacyAppSyncKeyRow(raw) {
+			continue
+		}
 		entityID := entityMapResolveEntityID(raw, spec, selected)
 		row := map[string]any{
 			"entity_id":           entityID,
@@ -72,6 +75,32 @@ func entityMapResolveRepoID(raw map[string]any, entityID string) string {
 
 func entityMapResolveEnvironment(raw map[string]any) string {
 	return querycontract.StringVal(raw, "environment")
+}
+
+// legacyAppSyncKeyResourceType is matched by literal: per-key emission was
+// retired, and historical graph rows keep this value in resource_type or
+// data_type. The filter lives in Go (not Cypher) because a labels()
+// predicate in WHERE empties the whole result on the pinned NornicDB
+// executor, while a property-only predicate is silently ignored there;
+// Neo4j callers get identical output either way.
+const legacyAppSyncKeyResourceType = "aws_appsync_api_key"
+
+// isLegacyAppSyncKeyRow reports whether a projected traversal row describes
+// a historical per-key AppSync CloudResource node. Labels plus either type
+// field must agree; a bare resource_type on another label is not a key.
+func isLegacyAppSyncKeyRow(raw map[string]any) bool {
+	cloudResource := false
+	for _, label := range querycontract.StringSliceVal(raw, "entity_labels") {
+		if label == "CloudResource" {
+			cloudResource = true
+			break
+		}
+	}
+	if !cloudResource {
+		return false
+	}
+	return querycontract.StringVal(raw, "resource_type") == legacyAppSyncKeyResourceType ||
+		querycontract.StringVal(raw, "data_type") == legacyAppSyncKeyResourceType
 }
 
 func EntityMapResolveDepth(raw map[string]any, spec EntityMapTraversalSpec) int {

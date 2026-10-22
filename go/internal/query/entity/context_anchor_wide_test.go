@@ -21,11 +21,11 @@ import (
 	testgraph "github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
-// neo4jWideAnchorStatementSHA256 is the SHA-256 of the unscoped Neo4j anchor
+// neo4jEntityContextStatementSHA256 is the SHA-256 of the unscoped Neo4j anchor
 // statement the #7212 T1 shim measured on QA (124 NodeUniqueIndexSeek
 // operators, 124 db hits on a miss) and in the local cost bench. Production
 // must send exactly that text, or the measurement proves nothing about it.
-const neo4jWideAnchorStatementSHA256 = "e3a6d9edd0fc7ca56892c3fda781d397094b0c12b972b99a89e2f0917c72ed25"
+const neo4jEntityContextStatementSHA256 = "42cae3d157d5e2638fd575ba68f4ac41d37ad78e9d53f4ad63c79f7b2da0624b"
 
 var (
 	wideUIDBranch  = regexp.MustCompile(`MATCH \(e:([\w|]+) \{uid: \$entity_id\}\) WHERE e\.id = \$entity_id`)
@@ -58,11 +58,9 @@ func TestNeo4jEntityContextAnchorIsTheMeasuredStatement(t *testing.T) {
 		t.Fatalf("Neo4j statements = %d, want 1 (the schema-closed anchor, #7212)", len(statements))
 	}
 	sum := sha256.Sum256([]byte(statements[0]))
-	if got := hex.EncodeToString(sum[:]); got != neo4jWideAnchorStatementSHA256 {
-		t.Errorf("anchor statement sha256 = %s, want %s (the measured candidate); "+
-			"a uid/id constraint change widens the anchor: re-render testdata/neo4j_wide_anchor.cypher and this hash "+
-			"and state the new width (query/entity AGENTS.md; docs/internal/evidence/7212-wide-entity-anchor.md)",
-			got, neo4jWideAnchorStatementSHA256)
+	if got := hex.EncodeToString(sum[:]); got != neo4jEntityContextStatementSHA256 {
+		t.Errorf("entity-context statement sha256 = %s, want %s (the measured candidate); rerun the entity-context performance shim and refresh this hash and docs/internal/evidence/appsync-api-key-disclosure.md",
+			got, neo4jEntityContextStatementSHA256)
 	}
 	if got, want := neo4jEntityContextAnchor(), goldenWideAnchorClause(t); got != want {
 		t.Errorf("anchor clause differs from testdata/neo4j_wide_anchor.cypher:\n%s\n----\n%s", got, want)

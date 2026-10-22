@@ -30,6 +30,9 @@ func TestLoadMaterializedServiceCloudResourceDependenciesOrderByIsTotalKey(t *te
 	if err != nil {
 		t.Fatalf("LoadMaterializedServiceCloudResourceDependencies() error = %v", err)
 	}
+	if !strings.Contains(captured, "coalesce(c.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(c.data_type, '') <> 'aws_appsync_api_key'") {
+		t.Fatalf("materialized dependencies must exclude legacy API key nodes before LIMIT: %s", captured)
+	}
 
 	aliases := returnAliases(t, captured)
 	keys := orderKeys(t, captured)
@@ -68,6 +71,9 @@ func TestLoadConfigDerivedCloudResourceDependenciesOrderByIsTotalKey(t *testing.
 	_, _, err := LoadConfigDerivedCloudResourceDependenciesBounded(t.Context(), reader, evidence, 10)
 	if err != nil {
 		t.Fatalf("LoadConfigDerivedCloudResourceDependenciesBounded() error = %v", err)
+	}
+	if !strings.Contains(captured, "coalesce(c.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(c.data_type, '') <> 'aws_appsync_api_key'") {
+		t.Fatalf("config-derived dependencies must exclude legacy API key nodes before LIMIT: %s", captured)
 	}
 
 	aliases := returnAliases(t, captured)

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/auth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -105,6 +106,21 @@ func TestResourceInvestigationSelectorPrefersExactMatchBeforeFuzzy(t *testing.T)
 		t.Fatalf("resolution.status = %#v, want %#v", got, want)
 	}
 	assertResourceSelectorFanout(t, graph, len(resourceInvestigationDefaultLabels), 0)
+}
+
+func TestResourceInvestigationCloudSelectorExcludesLegacyAppSyncKeys(t *testing.T) {
+	t.Parallel()
+
+	cypher := ResourceInvestigationSelectorLabelCypher(
+		ResourceInvestigationRequest{},
+		querycontract.RepositoryAccessFilter{},
+		"CloudResource",
+		ResourceInvestigationExactSelectorPredicates,
+	)
+	predicate := "coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'"
+	if !strings.Contains(cypher, predicate) || strings.Index(cypher, predicate) > strings.Index(cypher, "ORDER BY") {
+		t.Fatalf("cloud-resource selector must exclude legacy keys before LIMIT: %s", cypher)
+	}
 }
 
 func TestResourceInvestigationSelectorFallsBackToFuzzyAfterExactMiss(t *testing.T) {

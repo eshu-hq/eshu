@@ -75,7 +75,7 @@ describe("NodesPage", () => {
     });
     // Chip count and stat-tile facet count.
     expect(screen.getByRole("button", { name: /Services 15/ })).toBeInTheDocument();
-    expect(screen.getByText("Browsable entities")).toBeInTheDocument();
+    expect(screen.getByText("Stored entities")).toBeInTheDocument();
   });
 
   it("lists a kind's entities only after the chip is selected", async () => {

@@ -25,11 +25,12 @@ func writeMethodologyPostgresArtifact(t *testing.T, ctx context.Context, handle 
 	}
 	identity := methodologyComparisonIdentity(t)
 	base, candidate := identity.Base, identity.Candidate
-	productionPaths := []string{"go/internal/query/cloud_resource_list_store.go"}
+	productionPaths := make([]string, 0, len(methodologyPostgresMigrationPaths))
 	for _, path := range methodologyPostgresMigrationPaths {
 		productionPaths = append(productionPaths, "go/internal/storage/postgres/migrations/"+path)
 	}
-	methodologyVerifySameProduction(t, base, candidate, productionPaths)
+	methodologyVerifyPostgresProduction(t, base, candidate, productionPaths)
+	t.Logf("Postgres reader recalibration identities: base=%s candidate=%s base_blob=%s candidate_blob=%s", base, candidate, methodologyPostgresReaderBlobSHA(t, base), methodologyPostgresReaderBlobSHA(t, candidate))
 	methodologyVerifySameProductionTree(t, base, candidate, "go/internal/storage/postgres/migrations", "*.sql")
 	migrations := methodologyPostgresMigrations(t)
 	schema, indexes := methodologyPostgresDefinitions(t, ctx, handle)
@@ -57,7 +58,7 @@ func writeMethodologyPostgresArtifact(t *testing.T, ctx context.Context, handle 
 	workload := methodologyJSON(t, map[string]any{
 		"variants": proof.Variants, "cases": proof.Cases,
 		"normal_runs_per_side": 4, "profile_runs_per_side": 1, "pair_order": "AB,BA,AB,BA",
-		"base_candidate": "production source identical; no query rewrite or speedup claim",
+		"base_candidate": "recalibrated candidate-only: both sample groups execute candidate reader source; no before/after speed comparison or speedup claim",
 		"migrations":     "production index migrations executed unchanged as separate autocommit statements on temporary tables; PostgreSQL builds temporary indexes non-concurrently",
 	})
 	image := os.Getenv("ESHU_QUERY_METHODOLOGY_POSTGRES_IMAGE")
@@ -77,7 +78,7 @@ func writeMethodologyPostgresArtifact(t *testing.T, ctx context.Context, handle 
 			Dataset: dataset, DatasetSHA256: queryplan.PilotJSONSHA256(dataset),
 			FixtureDefinition: fixture.String(), FixtureSHA256: queryplan.ProductionCypherSHA256(fixture.String()),
 			Workload: workload, WorkloadSHA256: queryplan.PilotJSONSHA256(workload),
-			HarnessSHA256: methodologySourceHash(t, []string{"methodology_postgres_live_test.go", "methodology_postgres_capture_test.go", "methodology_postgres_artifact_test.go", "methodology_identity_test.go"}),
+			HarnessSHA256: methodologySourceHash(t, []string{"methodology_postgres_live_test.go", "methodology_postgres_capture_test.go", "methodology_postgres_artifact_test.go", "methodology_identity_test.go", "methodology_postgres_rewrite_declaration_test.go"}),
 			BinarySHA256:  methodologyBinaryHash(t), ColdReset: "cold_plan_warm_buffers",
 		},
 		Base:      methodologyBuild(t, base, schema, migrations, indexes),

@@ -6,6 +6,7 @@ package appsync
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
@@ -100,11 +101,6 @@ func appendAPI(envelopes *[]facts.Envelope, boundary awscloud.Boundary, api Grap
 			return err
 		}
 	}
-	for _, key := range api.APIKeys {
-		if err := appendResource(envelopes, apiKeyObservation(boundary, api, key)); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -149,6 +145,8 @@ func apiObservation(boundary awscloud.Boundary, api GraphQLAPI) awscloud.Resourc
 		"waf_web_acl_arn":     strings.TrimSpace(api.WAFWebACLARN),
 		"oidc_issuers":        cloneStrings(api.OIDCIssuers),
 		"user_pool_ids":       userPoolIDs(api.UserPools),
+		"api_key_count":       len(api.APIKeys),
+		"api_key_lifecycles":  apiKeyLifecycles(api.APIKeys),
 	}
 	if api.LogConfig != nil {
 		attributes["log_config"] = map[string]any{
@@ -251,23 +249,22 @@ func schemaObservation(boundary awscloud.Boundary, api GraphQLAPI, schema Schema
 	}
 }
 
-func apiKeyObservation(boundary awscloud.Boundary, api GraphQLAPI, key APIKey) awscloud.ResourceObservation {
-	resourceID := apiKeyResourceID(api.ID, key.ID)
-	return awscloud.ResourceObservation{
-		Boundary:     boundary,
-		ResourceID:   resourceID,
-		ResourceType: catalog.ResourceTypeAppSyncAPIKey,
-		Name:         strings.TrimSpace(key.ID),
-		Attributes: map[string]any{
-			"api_id":      strings.TrimSpace(api.ID),
-			"key_id":      strings.TrimSpace(key.ID),
-			"description": strings.TrimSpace(key.Description),
-			"expires":     timeOrNil(key.Expires),
-			"deletes":     timeOrNil(key.Deletes),
-		},
-		CorrelationAnchors: []string{resourceID, strings.TrimSpace(key.ID)},
-		SourceRecordID:     resourceID,
+func apiKeyLifecycles(keys []APIKey) []map[string]any {
+	ordered := append([]APIKey(nil), keys...)
+	sort.Slice(ordered, func(i, j int) bool {
+		if !ordered[i].Expires.Equal(ordered[j].Expires) {
+			return ordered[i].Expires.Before(ordered[j].Expires)
+		}
+		return ordered[i].Deletes.Before(ordered[j].Deletes)
+	})
+	lifecycles := make([]map[string]any, 0, len(ordered))
+	for _, key := range ordered {
+		lifecycles = append(lifecycles, map[string]any{
+			"expires": timeOrNil(key.Expires),
+			"deletes": timeOrNil(key.Deletes),
+		})
 	}
+	return lifecycles
 }
 
 func userPoolIDs(refs []UserPoolRef) []string {

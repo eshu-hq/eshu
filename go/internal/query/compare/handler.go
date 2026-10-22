@@ -207,6 +207,7 @@ func (h *Handler) environmentSnapshot(
 	resourcesCypher := `
 		MATCH (i:WorkloadInstance)-[r:USES]->(c:CloudResource)
 		WHERE i.id = $instance_id
+		  AND coalesce(c.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(c.data_type, '') <> 'aws_appsync_api_key'
 		RETURN c.id as id, c.name as name, coalesce(r.environment, c.environment, '') as environment,
 		       c.kind as kind, c.provider as provider,
 		       r.confidence as confidence, r.reason as reason,

@@ -94,10 +94,10 @@ labels.
 ## Graph Entity Inventory
 
 `GET /api/v0/graph/entities` backs the console Nodes page. Every response
-includes exact counts for services, repositories, libraries, container images,
-environments, cloud resources, identity/IAM, and networking. Set `kind` to one
-of those facet keys to add a bounded entity page; `q`, `limit`, and `offset`
-apply only to that selected label.
+includes exact stored-node counts for services, repositories, libraries,
+container images, environments, cloud resources, identity/IAM, and networking.
+Fixed totals may include historical records; `kind` adds a bounded visible page.
+`q`, `limit`, and `offset` apply only to that page and do not change counts.
 
 The count phase makes one graph request containing eight scalar `CALL`
 subqueries. Each subquery is anchored on one concrete label and returns one

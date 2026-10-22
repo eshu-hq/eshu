@@ -44,6 +44,11 @@ tests:
     class: postgres_ci
     reason: "#8261 admin repository skip (SkipRepositoryWorkItems) lock order against the recovery replay, the admin replay and the reducer claim sweep over failed rows of a superseded generation: the held-middle-row race completes in both start orders (main: 6 of 6 40P01), 150 rounds of all four with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 (main: 98 x 40P01), and the EvalPlanQual case drops a row claimed or replayed before the skip's lock step; isolated schemas; about 100-180 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/query/cloud_resource_legacy_keys_postgres_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#751 disposable PostgreSQL proof that historical AppSync API-key rows are suppressed while healthy rows fill the requested page; one local PostgreSQL 18 run completed in 1.083s."
+    runner: live-postgres-readiness
   - file: go/internal/query/code_topic_entity_name_first_live_test.go
     tag: ~
     class: postgres_ci

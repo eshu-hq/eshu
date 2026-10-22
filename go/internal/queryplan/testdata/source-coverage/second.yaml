@@ -51,7 +51,7 @@ source_coverage:
       - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot: {class: keyed_support, source_sha256: b63226afd9a3ef88cc3f666c6ef56a4a5d840b8d2e4795e872ab430ba90e9d4c, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 1, max_results: 250}}
   - file: impact/trace_deployment_resources.go
     calls:
-      - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 8a8ae375580c5df13960ae8c5767a0981b6ef37638bf643db72c5b4cdbf8fa7e, key_bound: single_key, max_results: 2501}}
+      - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: e67c2a523028f936b6b718c194f850c7052899a1a3b15a716260eec499801c57, key_bound: single_key, max_results: 2501}}
   - file: impact/deployment/workload_selection.go
     calls:
       - {symbol: "ResolveWorkloadSelector", count: 2, non_hot: {class: keyed_support, source_sha256: 9f8e2cf82d5a6e8c93d76f0227be983968004d6b9208d7b8750432d3dd173d49, key_bound: single_key, max_results: 51}}
@@ -102,11 +102,11 @@ source_coverage:
       - {symbol: "(*InfraHandler).graphSummaryRepoLanguages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: infra_relationship_filter.go
     calls:
-      - symbol: "(*InfraHandler).getRelationships"
+      - symbol: "(*InfraHandler).probeInfraRelationshipAnchors"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: ff3621c5ac9ba72a55a56bb8dfa785f5b7672256e1fe0d8442ad8fa42a153fec
+          source_sha256: 72a4b0d8ba166c713aacd5e8608ec9e52ef385075cb8471ff4243c8631cca769
           key_bound: single_key
           max_results: 1
   - file: infra_scope.go

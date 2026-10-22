@@ -5,6 +5,7 @@ package appsync
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -78,8 +79,12 @@ func sampleAPI() GraphQLAPI {
 			DataSourceName: "orders-table",
 			RuntimeName:    "APPSYNC_JS",
 		}},
-		Schema:  &SchemaMetadata{Status: "SUCCESS", TypeCount: 7},
-		APIKeys: []APIKey{{ID: "da2-abc", Description: "default", Expires: time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)}},
+		Schema: &SchemaMetadata{Status: "SUCCESS", TypeCount: 7},
+		APIKeys: []APIKey{
+			{Expires: time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC), Deletes: time.Date(2027, 1, 31, 0, 0, 0, 0, time.UTC)},
+			{Expires: time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)},
+			{Expires: time.Date(2026, 11, 30, 0, 0, 0, 0, time.UTC)},
+		},
 	}
 }
 
@@ -113,7 +118,40 @@ func TestScannerEmitsGraphQLAPIMetadataAndRelationships(t *testing.T) {
 	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncResolver)
 	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncFunction)
 	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncSchema)
-	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncAPIKey)
+	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncResolver)
+	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncFunction)
+	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncSchema)
+	for _, envelope := range envelopes {
+		if envelope.FactKind == cloud.AWSResourceFactKind && envelope.Payload["resource_type"] == "aws_appsync_api_key" {
+			t.Fatal("scanner emitted an API-key resource; API keys must not become graph identities")
+		}
+	}
+	if got, want := apiAttrs["api_key_count"], 3; got != want {
+		t.Fatalf("api_key_count = %#v, want %d", got, want)
+	}
+	lifecycles, ok := apiAttrs["api_key_lifecycles"].([]map[string]any)
+	if !ok {
+		t.Fatalf("api_key_lifecycles = %#v, want []map[string]any", apiAttrs["api_key_lifecycles"])
+	}
+	if len(lifecycles) != 3 {
+		t.Fatalf("api_key_lifecycles has %d entries, want 3", len(lifecycles))
+	}
+	if got, want := lifecycles[0]["expires"], "2026-11-30T00:00:00Z"; got != want {
+		t.Fatalf("first api key lifecycle expiry = %#v, want %q", got, want)
+	}
+	if got := lifecycles[1]["deletes"]; got != nil {
+		t.Fatalf("second api key lifecycle deletes = %#v, want nil", got)
+	}
+	if got, want := lifecycles[2]["deletes"], "2027-01-31T00:00:00Z"; got != want {
+		t.Fatalf("third api key lifecycle deletes = %#v, want %q", got, want)
+	}
+	serialized, err := json.Marshal(envelopes)
+	if err != nil {
+		t.Fatalf("marshal envelopes: %v", err)
+	}
+	if strings.Contains(string(serialized), "key_id") || strings.Contains(string(serialized), "description") {
+		t.Fatalf("serialized envelopes contain per-key identity or description fields: %s", serialized)
+	}
 
 	// API -> user pool must target the bare pool ID, matching the Cognito
 	// scanner's published user pool resource_id.
@@ -133,6 +171,24 @@ func TestScannerEmitsGraphQLAPIMetadataAndRelationships(t *testing.T) {
 	assertRelationship(t, envelopes, catalog.RelationshipAppSyncAPIHasDataSource)
 	assertRelationship(t, envelopes, catalog.RelationshipAppSyncResolverUsesDataSource)
 	assertRelationship(t, envelopes, catalog.RelationshipAppSyncFunctionUsesDataSource)
+}
+
+func TestScannerEmitsEmptyKeyLifecycleSummary(t *testing.T) {
+	api := GraphQLAPI{ID: "api-empty-keys", Name: "empty-keys"}
+	envelopes, err := Scanner{Client: fakeClient{snapshot: Snapshot{APIs: []GraphQLAPI{api}}}}.
+		Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	resource := resourceByType(t, envelopes, catalog.ResourceTypeAppSyncGraphQLAPI)
+	attributes := attributesOf(t, resource)
+	if got := attributes["api_key_count"]; got != 0 {
+		t.Fatalf("api_key_count = %#v, want 0", got)
+	}
+	lifecycles, ok := attributes["api_key_lifecycles"].([]map[string]any)
+	if !ok || len(lifecycles) != 0 {
+		t.Fatalf("api_key_lifecycles = %#v, want empty list", attributes["api_key_lifecycles"])
+	}
 }
 
 func TestScannerDataSourceTargetJoinKeys(t *testing.T) {
@@ -350,7 +406,7 @@ func TestScannerNeverEmitsForbiddenAttributeKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}
-	forbidden := []string{"definition", "sdl", "request_mapping_template", "response_mapping_template", "mapping_template", "code", "api_key", "key_value", "secret"}
+	forbidden := []string{"definition", "sdl", "request_mapping_template", "response_mapping_template", "mapping_template", "code", "key_id", "key_value", "secret"}
 	for _, envelope := range envelopes {
 		attrs, ok := envelope.Payload["attributes"].(map[string]any)
 		if !ok {

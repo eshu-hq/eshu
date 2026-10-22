@@ -15,11 +15,11 @@ source_coverage:
       - {symbol: "(*Handler).catalogWorkloadEnrichments", count: 4, source_sha256: 50f2c427ab6e827db20f247da3e5d0f993185f031e3e0db185787401e31244cd, entry_ids: [QP-DEPLOY-CATALOG-ENV, QP-DEPLOY-CATALOG-WORKLOAD-REPO, QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE, QP-DEPLOY-CATALOG-WORKLOAD-SIBLINGS]}
   - file: impact/deployment/cloud_resource_candidates.go
     calls:
-      - {symbol: "LoadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot: {class: keyed_support, source_sha256: 4e68e222f8f3a30f8a9eecdde969a0d9c7548928f6427b43085356917659d0ed, key_bound: single_key, max_results: 51}}
+      - {symbol: "LoadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot: {class: keyed_support, source_sha256: a6e5a8d98cc0796c87a802874dda38d3e0bf7fd0daa546541bd308c8ac6ac270, key_bound: single_key, max_results: 51}}
   - file: impact/deployment/cloud_resource_dependencies.go
     calls:
-      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: cb25567150f575246fd0cbdfe9d876db5ed4b5b1ba72b33d03fe1ae012d730d9, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
-      - {symbol: "LoadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: c12098c98fcc3e9bbdd585558eb57eaf01e5badd257e6f24068d61e04c86cb47, entry_ids: [QP-SVC-CLOUD-DEPS]}
+      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: 4d9875407a4fd553569593d05705e01621d2d24c11f55d6d13168640999a7ec9, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
+      - {symbol: "LoadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: 1c540da4d0717011561f3a2251c7c4646e15c8358db5dc250bb286e3d17dc85c, entry_ids: [QP-SVC-CLOUD-DEPS]}
   - file: impact/deployment/enrichment.go
     calls:
       - {symbol: "QueryProvisioningRepositoryCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 04fe31e5ded3fa10bf241df57165eb744896a77da3d5c8a6215c099560c0b76c, key_bound: single_key, max_results: 101}}
@@ -185,7 +185,7 @@ source_coverage:
       - {symbol: "resolveEffectiveRepositoryOwner", count: 1, source_sha256: 5bc6fe8010838b8efff50d18d515b196ef2fb2f0031eed460b2fe7f5e1f459b1, entry_ids: [QP-CODEOWNERS-LAST-MATCH-OWNER]}
   - file: compare/handler.go
     calls:
-      - {symbol: "(*Handler).environmentSnapshot", count: 2, non_hot: {class: keyed_support, source_sha256: d983121814415d21227781fee5719bf3ce1132575b1ba1627bb1a0bc1183c6f4, key_bound: single_key, max_results: 201}}
+      - {symbol: "(*Handler).environmentSnapshot", count: 2, non_hot: {class: keyed_support, source_sha256: db28105b60e257aa820f3fa03d6f587ffd9c927846a56eb5cc5ba54783b0fda3, key_bound: single_key, max_results: 201}}
   - file: compare/workload_lookup.go
     calls:
       - {symbol: "(*Handler).fetchWorkload", count: 1, non_hot: {class: keyed_support, source_sha256: d0865faccfb0fc086c8ca3c8e55b6bf8a3419fc93d34dc4430866a56831a7626, key_bound: single_key, max_results: 1}}
@@ -202,7 +202,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 8cc23ad5d7871f83483ff40ab75769a0ec653e99c1bbecbe185abb41a5619ff1
+          source_sha256: 9d570a6704af3a42db9d1cb3a77db742001c4d41d52ec34eb338077ef09d7884
           key_bound: single_key
           max_results: 1
   - file: entity/handler.go
@@ -224,7 +224,7 @@ source_coverage:
       - {symbol: "(*Handler).resolveEntityMapStart", count: 1, source_sha256: 22bdd85f44cc8a34fcb2fcd615b18af975affbe65bf8322e16a3bf822e748b72, entry_ids: [QP-ENTITY-MAP-RESOLVE-REPOSITORY]}
   - file: impact/entity_map_traversal.go
     calls:
-      - {symbol: "(*Handler).entityMapNeighborhoodRows", count: 1, source_sha256: e907e6ce59da37c4ef04963f1908e2d59a827f4f1307c62b84db246bbc32aca2, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
+      - {symbol: "(*Handler).entityMapNeighborhoodRows", count: 1, source_sha256: b27f562e0e5b05bae8b52d618e61fbebbfff6026e94db8d3f48ef598bff726aa, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
   - file: selector/entity_repo_identity.go
     calls:
       - symbol: "HydrateResolvedEntityRepoIdentity"
@@ -337,7 +337,7 @@ source_coverage:
           max_results: 1200
   - file: impact/handler.go
     calls:
-      - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: 623aa6ee262ecb5605377d234403863d6a96e794d87e1b610fdf44c2b96d3dcb, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}
+      - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: ba1936df9537085516726c7c5678b43113927c925633de759ebd8394916aab3d, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}
       - {symbol: "(*Handler).traceResourceToCode", count: 1, non_hot: {class: keyed_support, source_sha256: df67f1fc7b2995e57a0fb370d70e4040a07649d71b5c1e1aa8cde3540c813b1b, key_bound: single_key, max_results: 201}}
   - file: impact/ownership/checker.go
     calls:

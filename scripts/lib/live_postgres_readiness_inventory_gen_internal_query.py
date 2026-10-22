@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query": {
+        "go/internal/query/cloud_resource_legacy_keys_postgres_live_test.go": (
+            "TestCloudResourceListSuppressesHistoricalAppSyncKeysLive",
+        ),
         "go/internal/query/code_topic_entity_name_first_live_test.go": (
             "TestInvestigateCodeTopicEntityNameFirstPostgresLive",
         ),

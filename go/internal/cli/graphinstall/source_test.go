@@ -317,3 +317,66 @@ func TestInstallNornicDBRejectsArchiveWithoutNornicDBBinary(t *testing.T) {
 		t.Fatalf("Install() error = %q, want missing binary guidance", err.Error())
 	}
 }
+
+func TestExtractBinaryFromArchiveKeepsTraversalEntryInsideTempDir(t *testing.T) {
+	tempRoot := t.TempDir()
+	t.Setenv("TMPDIR", tempRoot)
+
+	outsideDir := filepath.Join(tempRoot, "outside")
+	if err := os.Mkdir(outsideDir, 0o755); err != nil {
+		t.Fatalf("os.Mkdir(%q) error = %v, want nil", outsideDir, err)
+	}
+	outsideBinary := filepath.Join(outsideDir, "nornicdb-headless")
+	const sentinel = "do not overwrite"
+	if err := os.WriteFile(outsideBinary, []byte(sentinel), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v, want nil", outsideBinary, err)
+	}
+
+	archivePath := filepath.Join(tempRoot, "hostile.tar.gz")
+	var archive bytes.Buffer
+	gzipWriter := gzip.NewWriter(&archive)
+	tarWriter := tar.NewWriter(gzipWriter)
+	content := []byte("candidate binary")
+	if err := tarWriter.WriteHeader(&tar.Header{
+		Name: "../outside/nornicdb-headless",
+		Mode: 0o755,
+		Size: int64(len(content)),
+	}); err != nil {
+		t.Fatalf("tarWriter.WriteHeader() error = %v, want nil", err)
+	}
+	if _, err := tarWriter.Write(content); err != nil {
+		t.Fatalf("tarWriter.Write() error = %v, want nil", err)
+	}
+	if err := tarWriter.Close(); err != nil {
+		t.Fatalf("tarWriter.Close() error = %v, want nil", err)
+	}
+	if err := gzipWriter.Close(); err != nil {
+		t.Fatalf("gzipWriter.Close() error = %v, want nil", err)
+	}
+	if err := os.WriteFile(archivePath, archive.Bytes(), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v, want nil", archivePath, err)
+	}
+
+	extractedPath, extractedName, cleanup, err := extractBinaryFromArchive(archivePath)
+	if err != nil {
+		t.Fatalf("extractBinaryFromArchive() error = %v, want nil", err)
+	}
+	t.Cleanup(func() {
+		if err := cleanup(); err != nil {
+			t.Errorf("cleanup() error = %v, want nil", err)
+		}
+	})
+	if extractedName != managedBinaryName {
+		t.Fatalf("extractedName = %q, want %q", extractedName, managedBinaryName)
+	}
+	if filepath.Dir(extractedPath) == outsideDir {
+		t.Fatalf("extracted path %q escaped the fresh extraction directory", extractedPath)
+	}
+	got, err := os.ReadFile(outsideBinary)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v, want nil", outsideBinary, err)
+	}
+	if string(got) != sentinel {
+		t.Fatalf("outside binary content = %q, want unchanged sentinel %q", got, sentinel)
+	}
+}

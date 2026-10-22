@@ -124,7 +124,7 @@ by provider:
   `clustering_fields` for BigQuery tables; `routing_mode`,
   `auto_create_subnetworks`, `mtu`, `subnetwork_count` for VPC networks).
   Values are redaction-safe scalars and string-arrays.
-- **AWS** surfaces a CLOSED image/version allowlist only, scoped to the
+- **AWS** surfaces a CLOSED allowlist, scoped to the
   strongest deployed-code signals the collector already observes:
   `task_definition_arn`, `image_uri`, `resolved_image_uri`, `code_sha256`,
   `package_type`, `version`, and a `containers` array (from ECS running tasks)
@@ -132,7 +132,13 @@ by provider:
   Lambda packaging discriminator (`Zip`/`Image`). Every other AWS attribute key
   (for example `cluster_arn`, `role_arn`, `kms_key_arn`, `network_interfaces`,
   `environment`, `vpc_config`, or a container's `name`/`runtime_id`) is
-  dropped before the route ever sees it.
+  dropped before the route ever sees it. For `aws_appsync_graphql_api` only,
+  the route also surfaces `api_key_count` and `api_key_lifecycles`, an ordered
+  list containing only `expires` and `deletes` timestamps. The AWS SDK's
+  `ApiKey.Id` is a bearer credential, so IDs and descriptions are discarded
+  before they enter newly collected scanner facts. The route also suppresses
+  legacy `aws_appsync_api_key` identity rows that may remain in an active
+  generation; this read filter does not erase historical fact or graph data.
 - **Azure** uses the same closed-allowlist mechanism as AWS, but the
   allowlist is currently empty: the `azure_cloud_resource` fact this route
   reads carries no image or version key today (Azure's runtime image

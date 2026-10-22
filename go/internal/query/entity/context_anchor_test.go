@@ -5,6 +5,7 @@ package entity
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,8 +13,135 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/taxonomy"
+	"github.com/eshu-hq/eshu/go/internal/query/testutil/content"
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
+
+func TestEntityContextProjectsLegacyKeyTypesWithoutLabelPredicates(t *testing.T) {
+	t.Parallel()
+
+	cypher := entityContextStatement("MATCH (e:Workload {id: $entity_id})", querycontract.RepositoryAccessFilter{AllScopes: true})
+	for _, want := range []string{
+		"labels(e) as labels",
+		"e.resource_type as resource_type",
+		"e.data_type as data_type",
+		"target_labels: labels(target)",
+		"target_resource_type: target.resource_type",
+		"target_data_type: target.data_type",
+	} {
+		if !strings.Contains(cypher, want) {
+			t.Fatalf("entity-context query does not project %q for Go-side disclosure filtering: %s", want, cypher)
+		}
+	}
+	if strings.Contains(cypher, "IN labels(") || strings.Contains(cypher, "all(n IN nodes(") {
+		t.Fatalf("entity-context query uses a label predicate that pinned NornicDB may ignore: %s", cypher)
+	}
+}
+
+func TestIsLegacyAppSyncKeyNodeClassifiesEitherTypeOnlyForCloudResources(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		node map[string]any
+		want bool
+	}{
+		{name: "resource type only", node: map[string]any{"labels": []any{"CloudResource"}, "resource_type": "aws_appsync_api_key"}, want: true},
+		{name: "data type only", node: map[string]any{"labels": []any{"CloudResource"}, "data_type": "aws_appsync_api_key"}, want: true},
+		{name: "conflicting type values", node: map[string]any{"labels": []any{"CloudResource"}, "resource_type": "aws_lambda", "data_type": "aws_appsync_api_key"}, want: true},
+		{name: "null type values", node: map[string]any{"labels": []any{"CloudResource"}, "resource_type": nil, "data_type": nil}},
+		{name: "healthy resource", node: map[string]any{"labels": []any{"CloudResource"}, "resource_type": "aws_appsync_graphql_api"}},
+		{name: "same type without cloud label", node: map[string]any{"labels": []any{"Workload"}, "resource_type": "aws_appsync_api_key"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isLegacyAppSyncKeyNode(tt.node); got != tt.want {
+				t.Fatalf("isLegacyAppSyncKeyNode(%#v) = %v, want %v", tt.node, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEntityContextFiltersLegacyAppSyncKeyRelationshipTargets(t *testing.T) {
+	t.Parallel()
+
+	row := map[string]any{"relationships": []any{
+		map[string]any{
+			"type": "USES", "target_name": "secret-key", "target_id": "secret-key-id",
+			"target_labels":        []any{"CloudResource"},
+			"target_resource_type": "aws_appsync_api_key",
+		},
+		map[string]any{
+			"type": "OWNS", "target_name": "healthy-resource", "target_id": "resource-1",
+			"target_labels":        []any{"CloudResource"},
+			"target_resource_type": "aws_lambda_function",
+		},
+		map[string]any{
+			"type": "OWNS", "target_name": "healthy-resource", "target_id": "resource-1",
+			"target_labels": []any{"CloudResource", "LegacyLabel"}, "target_data_type": "aws_lambda_function",
+		},
+	}}
+
+	got := extractRelationships(row)
+	if len(got) != 1 || got[0]["target_id"] != "resource-1" {
+		t.Fatalf("relationships = %#v, want one publicly distinct healthy target", got)
+	}
+}
+
+func TestGetEntityContextSuppressesLegacyAppSyncKeyAnchor(t *testing.T) {
+	t.Parallel()
+
+	const secretID = "synthetic-secret-key-id"
+	reader := graph.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+		if !strings.Contains(cypher, "MATCH (e) WHERE e.id = $entity_id") {
+			return nil, nil
+		}
+		return map[string]any{
+			"id": secretID, "labels": []any{"CloudResource"},
+			"resource_type": "aws_appsync_api_key", "relationships": []any{},
+		}, nil
+	}}
+	contentSpy := &legacyKeyFallbackContentSpy{}
+	relationshipSpy := &legacyKeyFallbackRelationshipSpy{}
+	handler := &Handler{
+		Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative,
+		Content: contentSpy, ContentRelationships: relationshipSpy,
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/"+secretID+"/context", nil)
+	req.SetPathValue("entity_id", secretID)
+	rec := httptest.NewRecorder()
+
+	handler.GetEntityContext(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), secretID) {
+		t.Fatalf("entity-context response exposed legacy key identity: %s", rec.Body.String())
+	}
+	if contentSpy.getCalls != 0 || relationshipSpy.calls != 0 {
+		t.Fatalf("legacy key anchor reached content fallback: GetEntityContent=%d BuildContentRelationships=%d", contentSpy.getCalls, relationshipSpy.calls)
+	}
+}
+
+type legacyKeyFallbackContentSpy struct {
+	content.FakePortContentStore
+	getCalls int
+}
+
+func (s *legacyKeyFallbackContentSpy) GetEntityContent(context.Context, string) (*querycontract.EntityContent, error) {
+	s.getCalls++
+	return nil, nil
+}
+
+type legacyKeyFallbackRelationshipSpy struct {
+	calls int
+}
+
+func (s *legacyKeyFallbackRelationshipSpy) BuildContentRelationships(context.Context, querycontract.ContentStore, querycontract.EntityContent, *slog.Logger) (querycontract.ContentRelationshipSet, error) {
+	s.calls++
+	return querycontract.ContentRelationshipSet{}, nil
+}
 
 // TestGetEntityContextAnchorsOneLabelPerMatch pins the #7006 fix's final
 // shape: the bare `MATCH (e) WHERE e.id = $entity_id` anchor scanned every

@@ -328,10 +328,12 @@ func impactNodeIdentityList(raw any) []deployment.ImpactNodeIdentity {
 // impactNodeIdentityFromProps reads id/name from a node property map.
 func impactNodeIdentityFromProps(props map[string]any) deployment.ImpactNodeIdentity {
 	return deployment.ImpactNodeIdentity{
-		ID:     StringVal(props, "id"),
-		Name:   StringVal(props, "name"),
-		UID:    StringVal(props, "uid"),
-		RepoID: StringVal(props, "repo_id"),
+		ID:           StringVal(props, "id"),
+		Name:         StringVal(props, "name"),
+		UID:          StringVal(props, "uid"),
+		RepoID:       StringVal(props, "repo_id"),
+		ResourceType: StringVal(props, "resource_type"),
+		DataType:     StringVal(props, "data_type"),
 	}
 }
 
