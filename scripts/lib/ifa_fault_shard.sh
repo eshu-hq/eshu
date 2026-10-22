@@ -215,6 +215,14 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_built_from
 	cell_killworker_built_from
 	cell_failgraphwrite_built_from
+	# cloud_resource_container_image (#6228 slice D live leaf): eleventh
+	# direct-materialization family in this gate, same
+	# family-scoped-baseline-plus-two shape. Its baseline writes
+	# digests[baseline_cloud_resource_container_image], so the trio must
+	# stay co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_cloud_resource_container_image
+	cell_killworker_cloud_resource_container_image
+	cell_failgraphwrite_cloud_resource_container_image
 	cell_baseline_inheritance
 	cell_killworker_inheritance
 	cell_failgraphwrite_inheritance
@@ -277,6 +285,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_authenticates_vault_role cell_killworker_authenticates_vault_role cell_failgraphwrite_authenticates_vault_role"
 	"cell_baseline_uses_vault_policy cell_kill_uses_vault_policy cell_failgraphwrite_uses_vault_policy"
 	"cell_baseline_built_from cell_killworker_built_from cell_failgraphwrite_built_from"
+	"cell_baseline_cloud_resource_container_image cell_killworker_cloud_resource_container_image cell_failgraphwrite_cloud_resource_container_image"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
 	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"

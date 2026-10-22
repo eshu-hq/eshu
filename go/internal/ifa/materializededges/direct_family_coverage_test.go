@@ -182,9 +182,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes: []string{"SATISFIED_BY"},
 	},
 	{
-		Family:    cloudResourceContainerImageFamily,
-		OduName:   ifa.CloudResourceContainerImageFamilyOduName,
-		EdgeTypes: []string{"AWS_lambda_function_uses_image"},
+		Family:     cloudResourceContainerImageFamily,
+		OduName:    ifa.CloudResourceContainerImageFamilyOduName,
+		EdgeTypes:  []string{"AWS_lambda_function_uses_image"},
+		LiveProven: true,
 	},
 	{
 		Family:     builtFromFamily,

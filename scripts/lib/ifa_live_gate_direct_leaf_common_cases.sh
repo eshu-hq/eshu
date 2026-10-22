@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash disable=SC2034
+# Slice C/D live-leaf common seams (#6228), split out of
+# scripts/lib/ifa_live_gate_selector_cases.sh when that file reached 507 of
+# the blocking 500-line cap. Fourth split, same mechanism as the
+# negative/determinism-only/fault-only splits above it: variable-path source
+# plus an rg pin in the parent, because internal/cigates/scripttrigger.go's
+# sourced-to-triggered drift walk cannot resolve the path, so nothing else
+# would notice the source line being deleted. Unlike those three splits this
+# module APPENDS to the parent's ifa_live_gate_common_seams array instead of
+# declaring its own: the entries are common (both live gates) by the same
+# per-path-type division that put them in the common table, and a second
+# array would need a second consumer loop for no additional precision. A
+# deleted source leaves the registry lockstep loop iterating without these
+# eight seams, which is exactly what the parent's rg pin fails closed on.
+
+# built_from (#6228 slice C live leaf): writer, cassette, expected-edge set,
+# and cells are new common seams beside the siblings; the Odù stays in the
+# determinism-only table (the fault cells drive the committed cassette JSON,
+# never the Odù source).
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/edge/writer/provenance.go|go/internal/storage/cypher/edge/writer/provenance.go'
+	'testdata/cassettes/builtfrom/**|testdata/cassettes/builtfrom/ifa-built-from-family.json'
+	'go/internal/ifa/testdata/builtfrom/**|go/internal/ifa/testdata/builtfrom/ifa-built-from-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_built_from_cells.sh|scripts/lib/ifa_fault_injection_built_from_cells.sh'
+)
+# cloud_resource_container_image (#6228 slice D live leaf): writer,
+# cassette, expected-edge set, and cells are new common seams beside the
+# siblings; the Odù stays in the determinism-only table (the fault cells
+# drive the committed cassette JSON, never the Odù source).
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/cloud/aws/image/container_edge_writer.go|go/internal/storage/cypher/cloud/aws/image/container_edge_writer.go'
+	'testdata/cassettes/cloudresourcecontainerimage/**|testdata/cassettes/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family.json'
+	'go/internal/ifa/testdata/cloudresourcecontainerimage/**|go/internal/ifa/testdata/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_cloud_resource_container_image_cells.sh|scripts/lib/ifa_fault_injection_cloud_resource_container_image_cells.sh'
+)

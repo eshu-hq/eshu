@@ -1,0 +1,240 @@
+{
+ "collector": "aws",
+ "schema_version": "1",
+ "scopes": [
+  {
+   "collector_kind": "aws",
+   "facts": [
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_resource",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "arn": "arn:aws:lambda:us-east-1:123456789012:function:demo",
+      "region": "us-east-1",
+      "resource_id": "arn:aws:lambda:us-east-1:123456789012:function:demo",
+      "resource_type": "aws_lambda_function"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws:us-east-1:aws_lambda_function:arn:aws:lambda:us-east-1:123456789012:function:demo"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_resource",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "arn": "arn:aws:lambda:us-east-1:123456789012:function:worker",
+      "region": "us-east-1",
+      "resource_id": "arn:aws:lambda:us-east-1:123456789012:function:worker",
+      "resource_type": "aws_lambda_function"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws:us-east-1:aws_lambda_function:arn:aws:lambda:us-east-1:123456789012:function:worker"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_resource",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "arn": "arn:aws:lambda:us-east-1:123456789012:function:zipped",
+      "region": "us-east-1",
+      "resource_id": "arn:aws:lambda:us-east-1:123456789012:function:zipped",
+      "resource_type": "aws_lambda_function"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws:us-east-1:aws_lambda_function:arn:aws:lambda:us-east-1:123456789012:function:zipped"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_resource",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "arn": "arn:aws:lambda:us-east-1:123456789012:function:badref",
+      "region": "us-east-1",
+      "resource_id": "arn:aws:lambda:us-east-1:123456789012:function:badref",
+      "resource_type": "aws_lambda_function"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws:us-east-1:aws_lambda_function:arn:aws:lambda:us-east-1:123456789012:function:badref"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_resource",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "arn": "arn:aws:ecs:us-east-1:123456789012:task-definition/demo:1",
+      "region": "us-east-1",
+      "resource_id": "arn:aws:ecs:us-east-1:123456789012:task-definition/demo:1",
+      "resource_type": "aws_ecs_task_definition"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws:us-east-1:aws_ecs_task_definition:arn:aws:ecs:us-east-1:123456789012:task-definition/demo:1"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_relationship",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "attributes": {
+       "package_type": "Image",
+       "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "region": "us-east-1",
+      "relationship_type": "lambda_function_uses_image",
+      "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:demo",
+      "source_resource_id": "arn:aws:lambda:us-east-1:123456789012:function:demo",
+      "target_resource_id": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
+      "target_type": "container_image"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws-rel:us-east-1:lambda_function_uses_image:arn:aws:lambda:us-east-1:123456789012:function:demo"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_relationship",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "attributes": {
+       "package_type": "Image",
+       "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "region": "us-east-1",
+      "relationship_type": "lambda_function_uses_image",
+      "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:worker",
+      "source_resource_id": "arn:aws:lambda:us-east-1:123456789012:function:worker",
+      "target_resource_id": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
+      "target_type": "container_image"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws-rel:us-east-1:lambda_function_uses_image:arn:aws:lambda:us-east-1:123456789012:function:worker"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_relationship",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "region": "us-east-1",
+      "relationship_type": "ecs_task_definition_uses_image",
+      "source_arn": "arn:aws:ecs:us-east-1:123456789012:task-definition/demo:1",
+      "source_resource_id": "arn:aws:ecs:us-east-1:123456789012:task-definition/demo:1",
+      "target_resource_id": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
+      "target_type": "container_image"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws-rel:us-east-1:ecs_task_definition_uses_image:arn:aws:ecs:us-east-1:123456789012:task-definition/demo:1"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_relationship",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "attributes": {
+       "package_type": "Image",
+       "resolved_image_uri": ""
+      },
+      "region": "us-east-1",
+      "relationship_type": "lambda_function_uses_image",
+      "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:zipped",
+      "source_resource_id": "arn:aws:lambda:us-east-1:123456789012:function:zipped",
+      "target_resource_id": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
+      "target_type": "container_image"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws-rel:us-east-1:lambda_function_uses_image:arn:aws:lambda:us-east-1:123456789012:function:zipped"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_relationship",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "attributes": {
+       "package_type": "Image",
+       "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest"
+      },
+      "region": "us-east-1",
+      "relationship_type": "lambda_function_uses_image",
+      "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:badref",
+      "source_resource_id": "arn:aws:lambda:us-east-1:123456789012:function:badref",
+      "target_resource_id": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
+      "target_type": "container_image"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws-rel:us-east-1:lambda_function_uses_image:arn:aws:lambda:us-east-1:123456789012:function:badref"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_relationship",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "attributes": {
+       "package_type": "Image",
+       "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "region": "us-east-1",
+      "relationship_type": "lambda_function_uses_image",
+      "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:ghost",
+      "source_resource_id": "arn:aws:lambda:us-east-1:123456789012:function:ghost",
+      "target_resource_id": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
+      "target_type": "container_image"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws-rel:us-east-1:lambda_function_uses_image:arn:aws:lambda:us-east-1:123456789012:function:ghost"
+    },
+    {
+     "collector_kind": "aws",
+     "fact_kind": "aws_relationship",
+     "fencing_token": 1,
+     "payload": {
+      "account_id": "123456789012",
+      "attributes": {
+       "package_type": "Image",
+       "resolved_image_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "region": "us-east-1",
+      "relationship_type": "uses_kms_key",
+      "source_arn": "arn:aws:lambda:us-east-1:123456789012:function:demo",
+      "source_resource_id": "arn:aws:lambda:us-east-1:123456789012:function:demo",
+      "target_resource_id": "123456789012.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
+      "target_type": "container_image"
+     },
+     "schema_version": "1.0.0",
+     "source_confidence": "observed",
+     "stable_fact_key": "aws-rel:us-east-1:uses_kms_key:arn:aws:lambda:us-east-1:123456789012:function:demo"
+    }
+   ],
+   "generation_id": "gen-ifa-cloud-resource-container-image-family-1",
+   "metadata": {
+    "account_id": "123456789012",
+    "region": "us-east-1"
+   },
+   "observed_at": "2026-10-22T00:00:00Z",
+   "partition_key": "aws:eshu-fixture-cloud-resource-container-image-account",
+   "scope_id": "aws:eshu-fixture-cloud-resource-container-image-account",
+   "scope_kind": "region",
+   "source_system": "aws",
+   "trigger_kind": "snapshot"
+  }
+ ]
+}

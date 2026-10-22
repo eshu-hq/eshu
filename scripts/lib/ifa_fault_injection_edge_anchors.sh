@@ -113,6 +113,15 @@ uses_vault_policy_edge_operation_match="MERGE (v)-[rel:SECRETS_IAM_USES_VAULT_PO
 # identity map, so the anchor carries the PREFIX form. A full `]->(repo)`
 # spelling would match no executed statement and the fault would never fire.
 built_from_edge_operation_match="MERGE (img)-[rel:BUILT_FROM"
+# The AWS_lambda_function_uses_image MERGE anchor
+# cell_failgraphwrite_cloud_resource_container_image (#6228 slice D live
+# leaf) targets:
+# go/internal/storage/cypher/cloud/aws/image/container_edge_writer.go:72-75
+# emits MERGE (source)-[rel:%s]->(target) with the %s filled per row from the
+# writer's closed single-member vocabulary, so the anchor carries the
+# interpolated AWS_lambda_function_uses_image form. A literal `%s` spelling
+# would match no executed statement and the fault would never fire.
+cloud_resource_container_image_edge_operation_match="MERGE (source)-[rel:AWS_lambda_function_uses_image]->(target)"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical/node/documentation_edges.go's

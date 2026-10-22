@@ -193,6 +193,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.BuiltFromFamilyCassetteFullPath,
 			load:         ifa.LoadBuiltFromFamilyOdu,
 		},
+		{
+			name:         ifa.CloudResourceContainerImageFamilyOduName,
+			compiled:     ifa.CloudResourceContainerImageFamilyOdu,
+			cassettePath: ifa.CloudResourceContainerImageFamilyCassetteFullPath,
+			load:         ifa.LoadCloudResourceContainerImageFamilyOdu,
+		},
 	}
 }
 
