@@ -1,8 +1,10 @@
 # AppSync API key disclosure remediation
 
-Code-scanning alert #20 identified AppSync API key bearer values in
-`ApiKey.Id`. The earlier adapter copied those values into per-key resource IDs,
-names, attributes, correlation anchors, source record IDs, and durable facts.
+[CodeQL alert 20](https://github.com/eshu-hq/eshu/security/code-scanning/20)
+reports `go/weak-sensitive-data-hashing` at the stable-ID hashing sink. Its
+recorded dataflow originates in the AppSync API-key observation. Investigation
+of that path found that the adapter and scanner copied `ApiKey.Id` into
+resource identities and durable facts.
 
 The scanner now drops IDs and descriptions at the SDK boundary, keeps only
 API-level key count and lifecycle timestamps, and emits no per-key graph
