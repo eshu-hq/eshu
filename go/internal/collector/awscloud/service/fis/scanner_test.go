@@ -73,7 +73,7 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	template := resourceByType(t, envelopes, awscloud.ResourceTypeFISExperimentTemplate)
+	template := resourceByType(t, envelopes, catalog.ResourceTypeFISExperimentTemplate)
 	if got, want := template.Payload["resource_id"], testTemplateARN; got != want {
 		t.Fatalf("template resource_id = %#v, want %q", got, want)
 	}
@@ -87,12 +87,12 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, attrs, "s3_logging", true)
 
 	// template -> IAM role, keyed by the role ARN the IAM scanner publishes.
-	role := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateUsesIAMRole)
+	role := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateUsesIAMRole)
 	assertEdgeTarget(t, role, catalog.ResourceTypeIAMRole, testRoleARN)
 
 	// template -> EC2 instance, keyed by the bare i- id; target_arn stays empty
 	// because the instance node is bare-id-keyed. The full ARN is an attribute.
-	ec2 := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsEC2Instance)
+	ec2 := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateTargetsEC2Instance)
 	assertEdgeTarget(t, ec2, "aws_ec2_instance", "i-1234567890abcdef0")
 	if got := ec2.Payload["target_arn"]; got != "" {
 		t.Fatalf("ec2 target_arn = %#v, want empty (bare-id-keyed instance node)", got)
@@ -103,26 +103,26 @@ func TestScannerEmitsTemplateMetadataAndRelationships(t *testing.T) {
 	}
 
 	// template -> ECS cluster, keyed by the cluster ARN.
-	ecs := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsECSCluster)
+	ecs := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateTargetsECSCluster)
 	assertEdgeTarget(t, ecs, catalog.ResourceTypeECSCluster, testClusterARN)
 
 	// template -> RDS DB instance and cluster, keyed by ARN.
-	dbInstance := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsRDSDBInstance)
+	dbInstance := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateTargetsRDSDBInstance)
 	assertEdgeTarget(t, dbInstance, catalog.ResourceTypeRDSDBInstance, testDBARN)
-	dbCluster := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateTargetsRDSDBCluster)
+	dbCluster := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateTargetsRDSDBCluster)
 	assertEdgeTarget(t, dbCluster, catalog.ResourceTypeRDSDBCluster, testRDSClusARN)
 
 	// template -> CloudWatch log group, keyed by the bare log group ARN (no :*).
-	logGroup := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateLogsToCloudWatchLogGroup)
+	logGroup := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateLogsToCloudWatchLogGroup)
 	assertEdgeTarget(t, logGroup, awscloud.ResourceTypeCloudWatchLogsLogGroup,
 		"arn:aws:logs:us-east-1:123456789012:log-group:/fis/experiments")
 
 	// template -> S3 bucket, keyed by the synthesized partition-aware ARN.
-	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateLogsToS3)
+	s3 := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateLogsToS3)
 	assertEdgeTarget(t, s3, catalog.ResourceTypeS3Bucket, "arn:aws:s3:::fis-logs")
 
 	// template -> CloudWatch alarm stop condition, keyed by the alarm ARN.
-	alarm := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateStopsOnCloudWatchAlarm)
+	alarm := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateStopsOnCloudWatchAlarm)
 	assertEdgeTarget(t, alarm, awscloud.ResourceTypeCloudWatchAlarm, testAlarmARN)
 
 	// No action parameter values, target filter values, or run output leakage.
@@ -156,7 +156,7 @@ func TestScannerSynthesizesGovCloudBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateLogsToS3)
+	s3 := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateLogsToS3)
 	wantARN := "arn:aws-us-gov:s3:::gov-fis-logs"
 	if got := s3.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud template->s3 target_resource_id = %#v, want %q", got, wantARN)
@@ -177,7 +177,7 @@ func TestScannerSynthesizesChinaBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	s3 := relationshipByType(t, envelopes, awscloud.RelationshipFISTemplateLogsToS3)
+	s3 := relationshipByType(t, envelopes, catalog.RelationshipFISTemplateLogsToS3)
 	if got, want := s3.Payload["target_arn"], "arn:aws-cn:s3:::cn-fis-logs"; got != want {
 		t.Fatalf("China template->s3 target_arn = %#v, want %q", got, want)
 	}
@@ -322,7 +322,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceFIS,
+		ServiceKind:         catalog.ServiceFIS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:fis:1",
 		CollectorInstanceID: "aws-prod",

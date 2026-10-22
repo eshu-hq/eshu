@@ -41,14 +41,14 @@ func provisionedProductStackRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack,
+		RelationshipType: catalog.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(provisioned.ARN),
 		TargetResourceID: stackARN,
 		TargetARN:        stackARN,
 		TargetType:       awscloud.ResourceTypeCloudFormationStack,
 		SourceRecordID: sourceID + "->" +
-			awscloud.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack +
+			catalog.RelationshipServiceCatalogProvisionedProductDeploysCloudFormationStack +
 			":" + stackARN,
 	}
 }
@@ -81,13 +81,13 @@ func productInPortfolioRelationships(
 		seen[targetID] = struct{}{}
 		observation := awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipServiceCatalogProductInPortfolio,
+			RelationshipType: catalog.RelationshipServiceCatalogProductInPortfolio,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(product.ARN),
 			TargetResourceID: targetID,
-			TargetType:       awscloud.ResourceTypeServiceCatalogPortfolio,
+			TargetType:       catalog.ResourceTypeServiceCatalogPortfolio,
 			SourceRecordID: sourceID + "->" +
-				awscloud.RelationshipServiceCatalogProductInPortfolio + ":" + targetID,
+				catalog.RelationshipServiceCatalogProductInPortfolio + ":" + targetID,
 		}
 		if portfolioARN := strings.TrimSpace(portfolio.ARN); portfolioARN != "" {
 			observation.TargetARN = portfolioARN
@@ -129,14 +129,14 @@ func portfolioPrincipalRelationships(
 		seen[roleARN] = struct{}{}
 		observation := awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal,
+			RelationshipType: catalog.RelationshipServiceCatalogPortfolioGrantsPrincipal,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(portfolio.ARN),
 			TargetResourceID: roleARN,
 			TargetARN:        roleARN,
 			TargetType:       catalog.ResourceTypeIAMRole,
 			SourceRecordID: sourceID + "->" +
-				awscloud.RelationshipServiceCatalogPortfolioGrantsPrincipal + ":" + roleARN,
+				catalog.RelationshipServiceCatalogPortfolioGrantsPrincipal + ":" + roleARN,
 		}
 		if principalType := strings.TrimSpace(principal.Type); principalType != "" {
 			observation.Attributes = map[string]any{"principal_type": principalType}

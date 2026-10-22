@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // appObservation builds the aws_resource observation for one Resilience Hub
@@ -40,7 +41,7 @@ func appObservation(boundary awscloud.Boundary, app App) awscloud.ResourceObserv
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeResilienceHubApp,
+		ResourceType:       catalog.ResourceTypeResilienceHubApp,
 		Name:               name,
 		State:              strings.TrimSpace(app.Status),
 		Tags:               cloneStringMap(app.Tags),
@@ -73,7 +74,7 @@ func policyObservation(boundary awscloud.Boundary, policy ResiliencyPolicy) awsc
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeResilienceHubResiliencyPolicy,
+		ResourceType:       catalog.ResourceTypeResilienceHubResiliencyPolicy,
 		Name:               name,
 		Tags:               cloneStringMap(policy.Tags),
 		Attributes:         attributes,
@@ -96,7 +97,7 @@ func componentObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeResilienceHubAppComponent,
+		ResourceType: catalog.ResourceTypeResilienceHubAppComponent,
 		Name:         name,
 		Attributes: map[string]any{
 			"component_type": strings.TrimSpace(component.Type),
@@ -123,7 +124,7 @@ func inputSourceObservation(
 		Boundary:     boundary,
 		ARN:          sourceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeResilienceHubAppInputSource,
+		ResourceType: catalog.ResourceTypeResilienceHubAppInputSource,
 		Name:         name,
 		Attributes: map[string]any{
 			"import_type":    strings.TrimSpace(source.ImportType),
@@ -145,7 +146,7 @@ func assessmentObservation(boundary awscloud.Boundary, assessment Assessment) aw
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   arn,
-		ResourceType: awscloud.ResourceTypeResilienceHubAppAssessment,
+		ResourceType: catalog.ResourceTypeResilienceHubAppAssessment,
 		Name:         name,
 		State:        strings.TrimSpace(assessment.Status),
 		Attributes: map[string]any{

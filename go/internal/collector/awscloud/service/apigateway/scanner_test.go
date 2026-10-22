@@ -139,15 +139,15 @@ func TestScannerEmitsAPIGatewayMetadataOnlyFactsAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	rest := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayRESTAPI, restAPIID)
+	rest := resourceByTypeAndID(t, envelopes, catalog.ResourceTypeAPIGatewayRESTAPI, restAPIID)
 	assertAttribute(t, attributesOf(t, rest), "endpoint_types", []string{"REGIONAL"})
 	assertAttribute(t, attributesOf(t, rest), "disable_execute_api_endpoint", true)
-	v2 := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayV2API, v2APIID)
+	v2 := resourceByTypeAndID(t, envelopes, catalog.ResourceTypeAPIGatewayV2API, v2APIID)
 	assertAttribute(t, attributesOf(t, v2), "protocol_type", "HTTP")
 	assertAttribute(t, attributesOf(t, v2), "api_gateway_managed", true)
-	stage := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayStage, restAPIID+"/stages/prod")
+	stage := resourceByTypeAndID(t, envelopes, catalog.ResourceTypeAPIGatewayStage, restAPIID+"/stages/prod")
 	assertAttribute(t, attributesOf(t, stage), "access_log_destination_arn", logGroupARN)
-	domain := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayDomainName, "api.example.com")
+	domain := resourceByTypeAndID(t, envelopes, catalog.ResourceTypeAPIGatewayDomainName, "api.example.com")
 	assertAttribute(t, attributesOf(t, domain), "mappings", []map[string]any{{
 		"api_kind": "rest",
 		"api_id":   restAPIID,
@@ -177,11 +177,11 @@ func TestScannerEmitsAPIGatewayMetadataOnlyFactsAndRelationships(t *testing.T) {
 		}
 	}
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayAPIHasStage, restAPIID+"/stages/prod")
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayDomainMapsToAPI, restAPIID)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayDomainUsesACMCertificate, certificateARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayStageLogsToResource, logGroupARN)
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipAPIGatewayAPIIntegratesWithResource, lambdaARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipAPIGatewayAPIHasStage, restAPIID+"/stages/prod")
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipAPIGatewayDomainMapsToAPI, restAPIID)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipAPIGatewayDomainUsesACMCertificate, certificateARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipAPIGatewayStageLogsToResource, logGroupARN)
+	assertRelationshipTarget(t, envelopes, catalog.RelationshipAPIGatewayAPIIntegratesWithResource, lambdaARN)
 }
 
 func TestScannerAggregatesRelationshipAttributesForStableKeys(t *testing.T) {
@@ -236,7 +236,7 @@ func TestScannerAggregatesRelationshipAttributesForStableKeys(t *testing.T) {
 	mapping := singleRelationshipByTypeAndTarget(
 		t,
 		envelopes,
-		awscloud.RelationshipAPIGatewayDomainMapsToAPI,
+		catalog.RelationshipAPIGatewayDomainMapsToAPI,
 		apiID,
 	)
 	assertAttribute(t, relationshipAttributesOf(t, mapping), "mappings", []map[string]any{{
@@ -254,7 +254,7 @@ func TestScannerAggregatesRelationshipAttributesForStableKeys(t *testing.T) {
 	integration := singleRelationshipByTypeAndTarget(
 		t,
 		envelopes,
-		awscloud.RelationshipAPIGatewayAPIIntegratesWithResource,
+		catalog.RelationshipAPIGatewayAPIIntegratesWithResource,
 		lambdaARN,
 	)
 	assertAttribute(t, relationshipAttributesOf(t, integration), "integrations", []map[string]any{{
@@ -305,7 +305,7 @@ func TestScannerEmitsThrottleWarningFacts(t *testing.T) {
 	if warning.Payload["error_class"] != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", warning.Payload["error_class"])
 	}
-	resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAPIGatewayRESTAPI, "rest-1")
+	resourceByTypeAndID(t, envelopes, catalog.ResourceTypeAPIGatewayRESTAPI, "rest-1")
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
@@ -326,7 +326,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAPIGateway,
+		ServiceKind:         catalog.ServiceAPIGateway,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:apigateway:1",
 		CollectorInstanceID: "aws-prod",

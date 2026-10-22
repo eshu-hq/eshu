@@ -21,7 +21,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAppSync,
+		ServiceKind:         catalog.ServiceAppSync,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:appsync:1",
 		CollectorInstanceID: "aws-prod",
@@ -90,7 +90,7 @@ func TestScannerEmitsGraphQLAPIMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	api := resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncGraphQLAPI)
+	api := resourceByType(t, envelopes, catalog.ResourceTypeAppSyncGraphQLAPI)
 	if got := payloadString(t, api, "resource_id"); got != "api-123" {
 		t.Fatalf("api resource_id = %q, want api-123", got)
 	}
@@ -105,19 +105,19 @@ func TestScannerEmitsGraphQLAPIMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("log_config = %#v, want map", apiAttrs["log_config"])
 	}
 
-	ds := resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncDataSource)
+	ds := resourceByType(t, envelopes, catalog.ResourceTypeAppSyncDataSource)
 	if got := payloadString(t, ds, "resource_id"); !strings.HasPrefix(got, "api-123/datasources/") {
 		t.Fatalf("data source resource_id = %q, want api-123/datasources/ prefix", got)
 	}
 
-	resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncResolver)
-	resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncFunction)
-	resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncSchema)
-	resourceByType(t, envelopes, awscloud.ResourceTypeAppSyncAPIKey)
+	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncResolver)
+	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncFunction)
+	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncSchema)
+	resourceByType(t, envelopes, catalog.ResourceTypeAppSyncAPIKey)
 
 	// API -> user pool must target the bare pool ID, matching the Cognito
 	// scanner's published user pool resource_id.
-	userPoolEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppSyncAPIUsesUserPool)
+	userPoolEdge := relationshipByType(t, envelopes, catalog.RelationshipAppSyncAPIUsesUserPool)
 	if got := payloadString(t, userPoolEdge, "target_resource_id"); got != "us-east-1_abc123" {
 		t.Fatalf("user pool target_resource_id = %q, want bare pool id us-east-1_abc123", got)
 	}
@@ -125,14 +125,14 @@ func TestScannerEmitsGraphQLAPIMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("user pool target_type = %q, want %q", got, awscloud.ResourceTypeCognitoUserPool)
 	}
 
-	oidcEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppSyncAPIUsesOIDCIssuer)
+	oidcEdge := relationshipByType(t, envelopes, catalog.RelationshipAppSyncAPIUsesOIDCIssuer)
 	if got := payloadString(t, oidcEdge, "target_resource_id"); got != "https://issuer.example.com" {
 		t.Fatalf("oidc target_resource_id = %q", got)
 	}
 
-	assertRelationship(t, envelopes, awscloud.RelationshipAppSyncAPIHasDataSource)
-	assertRelationship(t, envelopes, awscloud.RelationshipAppSyncResolverUsesDataSource)
-	assertRelationship(t, envelopes, awscloud.RelationshipAppSyncFunctionUsesDataSource)
+	assertRelationship(t, envelopes, catalog.RelationshipAppSyncAPIHasDataSource)
+	assertRelationship(t, envelopes, catalog.RelationshipAppSyncResolverUsesDataSource)
+	assertRelationship(t, envelopes, catalog.RelationshipAppSyncFunctionUsesDataSource)
 }
 
 func TestScannerDataSourceTargetJoinKeys(t *testing.T) {
@@ -150,8 +150,8 @@ func TestScannerDataSourceTargetJoinKeys(t *testing.T) {
 		{catalog.ResourceTypeLambdaFunction, "arn:aws:lambda:us-east-1:123456789012:function:orders"},
 		{catalog.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/Orders"},
 		{catalog.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:orders"},
-		{awscloud.AppSyncDataSourceTargetTypeOpenSearch, "https://search-orders.us-east-1.es.amazonaws.com"},
-		{awscloud.AppSyncDataSourceTargetTypeHTTPEndpoint, "https://api.partner.example.com"},
+		{catalog.AppSyncDataSourceTargetTypeOpenSearch, "https://search-orders.us-east-1.es.amazonaws.com"},
+		{catalog.AppSyncDataSourceTargetTypeHTTPEndpoint, "https://api.partner.example.com"},
 	}
 	for _, tc := range cases {
 		got, ok := targets[tc.targetType]
@@ -168,7 +168,7 @@ func TestScannerDataSourceTargetJoinKeys(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if rt, _ := envelope.Payload["relationship_type"].(string); rt != awscloud.RelationshipAppSyncDataSourceTargetsResource {
+		if rt, _ := envelope.Payload["relationship_type"].(string); rt != catalog.RelationshipAppSyncDataSourceTargetsResource {
 			continue
 		}
 		if tt, _ := envelope.Payload["target_type"].(string); strings.TrimSpace(tt) == "" {
@@ -373,7 +373,7 @@ func dataSourceTargetEdges(t *testing.T, envelopes []facts.Envelope) map[string]
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if rt, _ := envelope.Payload["relationship_type"].(string); rt != awscloud.RelationshipAppSyncDataSourceTargetsResource {
+		if rt, _ := envelope.Payload["relationship_type"].(string); rt != catalog.RelationshipAppSyncDataSourceTargetsResource {
 			continue
 		}
 		targetType, _ := envelope.Payload["target_type"].(string)

@@ -11,6 +11,7 @@ import (
 	awsresiliencehubtypes "github.com/aws/aws-sdk-go-v2/service/resiliencehub/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	resiliencehubservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/resiliencehub"
 )
 
@@ -124,8 +125,8 @@ func TestClientSnapshotWarnsWhenPublishedVersionMissing(t *testing.T) {
 	if len(snapshot.Warnings) != 1 {
 		t.Fatalf("warnings = %d, want 1", len(snapshot.Warnings))
 	}
-	if snapshot.Warnings[0].WarningKind != awscloud.WarningResilienceHubAppVersionMissing {
-		t.Fatalf("warning kind = %q, want %q", snapshot.Warnings[0].WarningKind, awscloud.WarningResilienceHubAppVersionMissing)
+	if snapshot.Warnings[0].WarningKind != catalog.WarningResilienceHubAppVersionMissing {
+		t.Fatalf("warning kind = %q, want %q", snapshot.Warnings[0].WarningKind, catalog.WarningResilienceHubAppVersionMissing)
 	}
 }
 
@@ -135,7 +136,7 @@ func newTestClient(stub apiClient) *Client {
 		boundary: awscloud.Boundary{
 			AccountID:           "123456789012",
 			Region:              "us-east-1",
-			ServiceKind:         awscloud.ServiceResilienceHub,
+			ServiceKind:         catalog.ServiceResilienceHub,
 			ScopeID:             "aws:123456789012:us-east-1",
 			GenerationID:        "gen-1",
 			CollectorInstanceID: "aws-prod",

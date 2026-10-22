@@ -20,12 +20,12 @@ func apiHasStageRelationship(boundary awscloud.Boundary, api API, stage Stage) (
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAPIGatewayV2APIHasStage,
+		RelationshipType: catalog.RelationshipAPIGatewayV2APIHasStage,
 		SourceResourceID: apiID,
 		SourceARN:        apiARN(boundary.Region, apiID),
 		TargetResourceID: stageID,
 		TargetARN:        stageARN(boundary.Region, stage.APIID, stage.Name),
-		TargetType:       awscloud.ResourceTypeAPIGatewayStage,
+		TargetType:       catalog.ResourceTypeAPIGatewayStage,
 		Attributes: map[string]any{
 			"stage_name": strings.TrimSpace(stage.Name),
 		},
@@ -60,7 +60,7 @@ func apiAuthRelationships(boundary awscloud.Boundary, api API) []awscloud.Relati
 			seenPools[poolID] = struct{}{}
 			relationships = append(relationships, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipAPIGatewayV2APIUsesUserPool,
+				RelationshipType: catalog.RelationshipAPIGatewayV2APIUsesUserPool,
 				SourceResourceID: apiID,
 				SourceARN:        apiARNValue,
 				TargetResourceID: poolID,
@@ -79,11 +79,11 @@ func apiAuthRelationships(boundary awscloud.Boundary, api API) []awscloud.Relati
 		seenIssuers[issuer] = struct{}{}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2APIUsesJWTIssuer,
+			RelationshipType: catalog.RelationshipAPIGatewayV2APIUsesJWTIssuer,
 			SourceResourceID: apiID,
 			SourceARN:        apiARNValue,
 			TargetResourceID: issuer,
-			TargetType:       awscloud.APIGatewayV2JWTIssuerTargetType,
+			TargetType:       catalog.APIGatewayV2JWTIssuerTargetType,
 			Attributes: map[string]any{
 				"authorizer_id": strings.TrimSpace(authorizer.AuthorizerID),
 			},
@@ -103,11 +103,11 @@ func routeRelationships(boundary awscloud.Boundary, api API, route Route) []awsc
 	}
 	relationships := []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAPIGatewayV2APIHasRoute,
+		RelationshipType: catalog.RelationshipAPIGatewayV2APIHasRoute,
 		SourceResourceID: apiID,
 		SourceARN:        apiARN(boundary.Region, apiID),
 		TargetResourceID: routeID,
-		TargetType:       awscloud.ResourceTypeAPIGatewayV2Route,
+		TargetType:       catalog.ResourceTypeAPIGatewayV2Route,
 		Attributes: map[string]any{
 			"route_key": strings.TrimSpace(route.RouteKey),
 		},
@@ -117,10 +117,10 @@ func routeRelationships(boundary awscloud.Boundary, api API, route Route) []awsc
 		integrationRes := integrationResourceID(route.APIID, integrationID)
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2RouteUsesIntegration,
+			RelationshipType: catalog.RelationshipAPIGatewayV2RouteUsesIntegration,
 			SourceResourceID: routeID,
 			TargetResourceID: integrationRes,
-			TargetType:       awscloud.ResourceTypeAPIGatewayV2Integration,
+			TargetType:       catalog.ResourceTypeAPIGatewayV2Integration,
 			Attributes: map[string]any{
 				"route_key":      strings.TrimSpace(route.RouteKey),
 				"integration_id": integrationID,
@@ -144,7 +144,7 @@ func integrationRelationships(boundary awscloud.Boundary, api API, integration I
 	if lambdaARN := lambdaARNFromIntegrationURI(integration.URI); lambdaARN != "" {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2IntegrationTargetsLambda,
+			RelationshipType: catalog.RelationshipAPIGatewayV2IntegrationTargetsLambda,
 			SourceResourceID: integrationRes,
 			TargetResourceID: lambdaARN,
 			TargetARN:        lambdaARN,
@@ -157,10 +157,10 @@ func integrationRelationships(boundary awscloud.Boundary, api API, integration I
 	} else if endpoint := httpEndpointFromIntegrationURI(integration.URI); endpoint != "" {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2IntegrationTargetsHTTP,
+			RelationshipType: catalog.RelationshipAPIGatewayV2IntegrationTargetsHTTP,
 			SourceResourceID: integrationRes,
 			TargetResourceID: endpoint,
-			TargetType:       awscloud.APIGatewayV2HTTPEndpointTargetType,
+			TargetType:       catalog.APIGatewayV2HTTPEndpointTargetType,
 			Attributes: map[string]any{
 				"integration_type": strings.TrimSpace(integration.Type),
 			},
@@ -171,10 +171,10 @@ func integrationRelationships(boundary awscloud.Boundary, api API, integration I
 		strings.EqualFold(strings.TrimSpace(integration.ConnectionType), "VPC_LINK") {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2IntegrationUsesVPCLink,
+			RelationshipType: catalog.RelationshipAPIGatewayV2IntegrationUsesVPCLink,
 			SourceResourceID: integrationRes,
 			TargetResourceID: linkID,
-			TargetType:       awscloud.ResourceTypeAPIGatewayV2VPCLink,
+			TargetType:       catalog.ResourceTypeAPIGatewayV2VPCLink,
 			Attributes: map[string]any{
 				"integration_type": strings.TrimSpace(integration.Type),
 			},
@@ -195,7 +195,7 @@ func vpcLinkRelationships(boundary awscloud.Boundary, link VPCLink) []awscloud.R
 	for _, subnetID := range cloneStrings(link.SubnetIDs) {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2VPCLinkUsesSubnet,
+			RelationshipType: catalog.RelationshipAPIGatewayV2VPCLinkUsesSubnet,
 			SourceResourceID: linkID,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
@@ -205,7 +205,7 @@ func vpcLinkRelationships(boundary awscloud.Boundary, link VPCLink) []awscloud.R
 	for _, groupID := range cloneStrings(link.SecurityGroupIDs) {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2VPCLinkUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipAPIGatewayV2VPCLinkUsesSecurityGroup,
 			SourceResourceID: linkID,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
@@ -229,7 +229,7 @@ func domainRelationships(boundary awscloud.Boundary, domain DomainName) []awsclo
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2DomainUsesACMCertificate,
+			RelationshipType: catalog.RelationshipAPIGatewayV2DomainUsesACMCertificate,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(domain.ARN),
 			TargetResourceID: certificateARN,
@@ -247,12 +247,12 @@ func domainRelationships(boundary awscloud.Boundary, domain DomainName) []awsclo
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayV2DomainMapsToAPI,
+			RelationshipType: catalog.RelationshipAPIGatewayV2DomainMapsToAPI,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(domain.ARN),
 			TargetResourceID: group.apiID,
 			TargetARN:        apiARN(boundary.Region, group.apiID),
-			TargetType:       awscloud.ResourceTypeAPIGatewayV2API,
+			TargetType:       catalog.ResourceTypeAPIGatewayV2API,
 			Attributes: map[string]any{
 				"mappings": group.attributes,
 			},

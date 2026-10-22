@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("synthetics scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSynthetics:
+	case "", catalog.ServiceSynthetics:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSynthetics
+		boundary.ServiceKind = catalog.ServiceSynthetics
 	default:
 		return nil, fmt.Errorf("synthetics scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -119,7 +120,7 @@ func canaryObservation(boundary awscloud.Boundary, canary Canary) awscloud.Resou
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeSyntheticsCanary,
+		ResourceType:       catalog.ResourceTypeSyntheticsCanary,
 		Name:               name,
 		State:              strings.TrimSpace(canary.State),
 		Tags:               cloneStringMap(canary.Tags),

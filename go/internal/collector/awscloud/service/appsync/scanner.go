@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,10 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("appsync scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppSync:
+	case "", catalog.ServiceAppSync:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppSync
+		boundary.ServiceKind = catalog.ServiceAppSync
 	default:
 		return nil, fmt.Errorf("appsync scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -160,7 +161,7 @@ func apiObservation(boundary awscloud.Boundary, api GraphQLAPI) awscloud.Resourc
 		Boundary:           boundary,
 		ARN:                apiARN,
 		ResourceID:         apiID,
-		ResourceType:       awscloud.ResourceTypeAppSyncGraphQLAPI,
+		ResourceType:       catalog.ResourceTypeAppSyncGraphQLAPI,
 		Name:               firstNonEmpty(strings.TrimSpace(api.Name), apiID),
 		Tags:               cloneStringMap(api.Tags),
 		Attributes:         attributes,
@@ -175,7 +176,7 @@ func dataSourceObservation(boundary awscloud.Boundary, api GraphQLAPI, ds DataSo
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(ds.ARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppSyncDataSource,
+		ResourceType: catalog.ResourceTypeAppSyncDataSource,
 		Name:         strings.TrimSpace(ds.Name),
 		Attributes: map[string]any{
 			"api_id":           strings.TrimSpace(api.ID),
@@ -194,7 +195,7 @@ func resolverObservation(boundary awscloud.Boundary, api GraphQLAPI, resolver Re
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(resolver.ARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppSyncResolver,
+		ResourceType: catalog.ResourceTypeAppSyncResolver,
 		Name:         resolverName(resolver),
 		Attributes: map[string]any{
 			"api_id":                strings.TrimSpace(api.ID),
@@ -217,7 +218,7 @@ func functionObservation(boundary awscloud.Boundary, api GraphQLAPI, function Fu
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(function.ARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppSyncFunction,
+		ResourceType: catalog.ResourceTypeAppSyncFunction,
 		Name:         firstNonEmpty(strings.TrimSpace(function.Name), strings.TrimSpace(function.ID)),
 		Attributes: map[string]any{
 			"api_id":           strings.TrimSpace(api.ID),
@@ -237,7 +238,7 @@ func schemaObservation(boundary awscloud.Boundary, api GraphQLAPI, schema Schema
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppSyncSchema,
+		ResourceType: catalog.ResourceTypeAppSyncSchema,
 		Name:         resourceID,
 		State:        strings.TrimSpace(schema.Status),
 		Attributes: map[string]any{
@@ -255,7 +256,7 @@ func apiKeyObservation(boundary awscloud.Boundary, api GraphQLAPI, key APIKey) a
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppSyncAPIKey,
+		ResourceType: catalog.ResourceTypeAppSyncAPIKey,
 		Name:         strings.TrimSpace(key.ID),
 		Attributes: map[string]any{
 			"api_id":      strings.TrimSpace(api.ID),

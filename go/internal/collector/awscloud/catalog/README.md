@@ -149,6 +149,24 @@ avoid.
 - `RelationshipTimestream*`, `RelationshipKeyspaces*`, `RelationshipDAX*`,
   `RelationshipLakeFormation*` — database-specialized-category reducer
   relationship types
+- `ServiceAPIGateway`, `ServiceAPIGatewayV2`, `ServiceAppSync`,
+  `ServiceAppConfig`, `ServiceAppRunner` — api-category service-kind strings
+  (API gateways and application delivery, in `api.go`)
+- `ResourceTypeAPIGateway*`, `ResourceTypeAPIGatewayV2*`,
+  `ResourceTypeAppSync*`, `ResourceTypeAppConfig*`,
+  `ResourceTypeAppRunner*` — api-category fact-schema resource-type tokens
+- `RelationshipAPIGateway*`, `RelationshipAPIGatewayV2*`,
+  `RelationshipAppSync*`, `RelationshipAppConfig*`,
+  `RelationshipAppRunner*` — api-category reducer relationship types
+- `ServiceSynthetics`, `ServiceServiceCatalog`, `ServiceProton`,
+  `ServiceResilienceHub`, `ServiceFIS` — api-management-category service-kind
+  strings (provisioning, testing, and resilience, in `api_management.go`)
+- `ResourceTypeSynthetics*`, `ResourceTypeServiceCatalog*`,
+  `ResourceTypeProton*`, `ResourceTypeResilienceHub*`, `ResourceTypeFIS*` —
+  api-management-category fact-schema resource-type tokens
+- `RelationshipSynthetics*`, `RelationshipServiceCatalog*`,
+  `RelationshipProton*`, `RelationshipResilienceHub*`,
+  `RelationshipFIS*` — api-management-category reducer relationship types
 
 See `doc.go` for the full contract. Each follow-up category lands as one more
 `<category>.go` file with the same shape. The analytics category ships as
@@ -165,8 +183,12 @@ file would pass the 500-line Go cap; both stay under it. The database
 category ships as two files (`database.go` for relational, document, graph,
 and caching; `database_specialized.go` for time-series, wide-column,
 accelerator, and lake governance) because one file would pass the 500-line
-Go cap at ~632 lines; both stay under it. The remaining `constants_*` files
-stay in the awscloud root until their category lands.
+Go cap at ~632 lines; both stay under it. The API category ships as two
+files (`api.go` for API gateways and application delivery;
+`api_management.go` for provisioning, testing, and resilience) because one
+file would pass the 500-line Go cap at ~623 lines; both stay under it. The
+remaining `constants_*` files stay in the awscloud root until their category
+lands.
 
 ## Dependencies
 
@@ -187,9 +209,9 @@ that consume these constants keep their existing counters; see
 
 - A consolidation move must never change a value. `storage_test.go`,
   `compute_test.go`, `messaging_test.go`, `analytics_test.go`,
-  `security_test.go`, `network_test.go`, and `database_test.go` pin every
-  constant byte-identical to its pre-consolidation value; a red test there is
-  a behavior change, not a move.
+  `security_test.go`, `network_test.go`, `database_test.go`, and
+  `api_test.go` pin every constant byte-identical to its pre-consolidation
+  value; a red test there is a behavior change, not a move.
 
 ## Consolidation proof
 
@@ -380,6 +402,35 @@ present. Backend/version for both: none — pure compile-time constant
 relocations with no query, graph write, queue, lease, worker, batching, or
 Compose/Helm change, so there are no row counts to regress.
 No-Observability-Change (database slice): the leaf declares no instrument and runs no stage;
+scanner emission stays covered by `eshu_dp_aws_resources_emitted_total` and
+`eshu_dp_aws_scan_duration_seconds` (AWS cloud row in
+`docs/public/observability/telemetry-coverage.md`). Safe because the Go
+compiler resolves every moved reference, the value-pinning test fails on any
+drift, and the relguard/redaction disk-walk derivations already cover the
+catalog directory.
+
+No-Regression Evidence: the API-category consolidation (Refs #6696)
+moves 114 string constants from ten `constants_<service>.go` root files
+(apigateway, apigatewayv2, appsync, appconfig, apprunner, synthetics,
+servicecatalog, proton, resiliencehub, fis) into `catalog/api.go` (API
+gateways and application delivery) and `catalog/api_management.go`
+(provisioning, testing, and resilience) verbatim (only the package clause
+changes) — the split is a size measure only: one file would pass the
+500-line Go cap at ~623 lines, so the category ships as two files, both
+under the cap. The 88 referencing `.go` files change only the qualifier
+(`awscloud.` to `catalog.`, plus the leaf import, dropping it where it goes
+unused). Baseline: the pre-move values read from the base tree
+(`git show origin/main:go/internal/collector/awscloud/constants_<service>.go`)
+are pinned in `api_test.go` (114/114 byte-identical,
+`go test ./internal/collector/awscloud/catalog/ -count=1` green) and the full
+affected suite (collector tree) is green after the move; `go build ./...` and
+`go vet ./...` are clean. The redaction-derivation and relguard walks needed
+no change: the storage slice already generalized them to every catalog
+category file, and they pass with `api.go` and `api_management.go` present.
+Backend/version for both: none — pure compile-time constant relocations with
+no query, graph write, queue, lease, worker, batching, or Compose/Helm change,
+so there are no row counts to regress.
+No-Observability-Change (api slice): the leaf declares no instrument and runs no stage;
 scanner emission stays covered by `eshu_dp_aws_resources_emitted_total` and
 `eshu_dp_aws_scan_duration_seconds` (AWS cloud row in
 `docs/public/observability/telemetry-coverage.md`). Safe because the Go

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
@@ -179,8 +178,8 @@ func TestNormalizeEventBridgeConfigChangeTargetsAPIGatewayV2(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NormalizeEventBridge() error = %v, want nil", err)
 			}
-			if trigger.ServiceKind != awscloud.ServiceAPIGatewayV2 {
-				t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, awscloud.ServiceAPIGatewayV2)
+			if trigger.ServiceKind != catalog.ServiceAPIGatewayV2 {
+				t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceAPIGatewayV2)
 			}
 			if trigger.ResourceType != tc.resourceType {
 				t.Fatalf("ResourceType = %q, want %q", trigger.ResourceType, tc.resourceType)
@@ -213,8 +212,8 @@ func TestNormalizeEventBridgeCloudTrailAPITargetsAPIGatewayV2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NormalizeEventBridge() error = %v, want nil", err)
 	}
-	if trigger.ServiceKind != awscloud.ServiceAPIGatewayV2 {
-		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, awscloud.ServiceAPIGatewayV2)
+	if trigger.ServiceKind != catalog.ServiceAPIGatewayV2 {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, catalog.ServiceAPIGatewayV2)
 	}
 }
 

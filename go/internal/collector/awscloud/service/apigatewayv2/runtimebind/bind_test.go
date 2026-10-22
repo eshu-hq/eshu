@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/apigatewayv2/runtimebind"
 )
 
 // TestAPIGatewayV2RuntimeBindRegisters confirms importing the binding installs
 // the API Gateway v2 scanner builder.
 func TestAPIGatewayV2RuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceAPIGatewayV2)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceAPIGatewayV2)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceAPIGatewayV2)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceAPIGatewayV2)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAPIGatewayV2},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAPIGatewayV2},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)
@@ -36,7 +37,7 @@ func TestAPIGatewayV2RuntimeBindRegisters(t *testing.T) {
 // drops secrets and templates by not mapping them, so it carries no redaction
 // requirement.
 func TestAPIGatewayV2RuntimeBindDoesNotRequireRedactionKey(t *testing.T) {
-	if awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceAPIGatewayV2) {
-		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", awscloud.ServiceAPIGatewayV2)
+	if awsruntime.ServiceRequiresRedactionKey(catalog.ServiceAPIGatewayV2) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", catalog.ServiceAPIGatewayV2)
 	}
 }

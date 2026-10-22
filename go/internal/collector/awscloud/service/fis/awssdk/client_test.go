@@ -13,6 +13,7 @@ import (
 	awsfistypes "github.com/aws/aws-sdk-go-v2/service/fis/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientSnapshotsTemplateMetadataOnly(t *testing.T) {
@@ -153,6 +154,6 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceFIS,
+		ServiceKind: catalog.ServiceFIS,
 	}
 }

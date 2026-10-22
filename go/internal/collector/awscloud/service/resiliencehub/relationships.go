@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // appUsesPolicyRelationship records that an application is governed by a
@@ -23,13 +24,13 @@ func appUsesPolicyRelationship(boundary awscloud.Boundary, app App) *awscloud.Re
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResilienceHubAppUsesPolicy,
+		RelationshipType: catalog.RelationshipResilienceHubAppUsesPolicy,
 		SourceResourceID: appID,
 		SourceARN:        strings.TrimSpace(app.ARN),
 		TargetResourceID: policyARN,
 		TargetARN:        policyARN,
-		TargetType:       awscloud.ResourceTypeResilienceHubResiliencyPolicy,
-		SourceRecordID:   appID + "->" + awscloud.RelationshipResilienceHubAppUsesPolicy + ":" + policyARN,
+		TargetType:       catalog.ResourceTypeResilienceHubResiliencyPolicy,
+		SourceRecordID:   appID + "->" + catalog.RelationshipResilienceHubAppUsesPolicy + ":" + policyARN,
 	}
 }
 
@@ -60,14 +61,14 @@ func appProtectsResourceRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResilienceHubAppProtectsResource,
+		RelationshipType: catalog.RelationshipResilienceHubAppProtectsResource,
 		SourceResourceID: appID,
 		SourceARN:        strings.TrimSpace(app.ARN),
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
 		TargetType:       targetType,
 		Attributes:       attributes,
-		SourceRecordID:   appID + "->" + awscloud.RelationshipResilienceHubAppProtectsResource + ":" + targetARN,
+		SourceRecordID:   appID + "->" + catalog.RelationshipResilienceHubAppProtectsResource + ":" + targetARN,
 	}
 }
 
@@ -90,12 +91,12 @@ func componentInAppRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResilienceHubComponentInApp,
+		RelationshipType: catalog.RelationshipResilienceHubComponentInApp,
 		SourceResourceID: componentID,
 		TargetResourceID: appID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeResilienceHubApp,
-		SourceRecordID:   componentID + "->" + awscloud.RelationshipResilienceHubComponentInApp + ":" + appID,
+		TargetType:       catalog.ResourceTypeResilienceHubApp,
+		SourceRecordID:   componentID + "->" + catalog.RelationshipResilienceHubComponentInApp + ":" + appID,
 	}
 }
 
@@ -122,13 +123,13 @@ func inputSourceInAppRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResilienceHubInputSourceInApp,
+		RelationshipType: catalog.RelationshipResilienceHubInputSourceInApp,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: appID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeResilienceHubApp,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipResilienceHubInputSourceInApp + ":" + appID,
+		TargetType:       catalog.ResourceTypeResilienceHubApp,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipResilienceHubInputSourceInApp + ":" + appID,
 	}
 }
 
@@ -147,12 +148,12 @@ func assessmentForAppRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipResilienceHubAssessmentForApp,
+		RelationshipType: catalog.RelationshipResilienceHubAssessmentForApp,
 		SourceResourceID: assessmentID,
 		SourceARN:        strings.TrimSpace(assessment.ARN),
 		TargetResourceID: appARN,
 		TargetARN:        appARN,
-		TargetType:       awscloud.ResourceTypeResilienceHubApp,
-		SourceRecordID:   assessmentID + "->" + awscloud.RelationshipResilienceHubAssessmentForApp + ":" + appARN,
+		TargetType:       catalog.ResourceTypeResilienceHubApp,
+		SourceRecordID:   assessmentID + "->" + catalog.RelationshipResilienceHubAssessmentForApp + ":" + appARN,
 	}
 }

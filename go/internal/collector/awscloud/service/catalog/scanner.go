@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("servicecatalog scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceServiceCatalog:
+	case "", catalog.ServiceServiceCatalog:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceServiceCatalog
+		boundary.ServiceKind = catalog.ServiceServiceCatalog
 	default:
 		return nil, fmt.Errorf("servicecatalog scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -166,7 +167,7 @@ func portfolioObservation(boundary awscloud.Boundary, portfolio Portfolio) awscl
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeServiceCatalogPortfolio,
+		ResourceType: catalog.ResourceTypeServiceCatalogPortfolio,
 		Name:         strings.TrimSpace(portfolio.DisplayName),
 		Attributes: map[string]any{
 			"portfolio_id":  strings.TrimSpace(portfolio.ID),
@@ -187,7 +188,7 @@ func productObservation(boundary awscloud.Boundary, product Product) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeServiceCatalogProduct,
+		ResourceType: catalog.ResourceTypeServiceCatalogProduct,
 		Name:         strings.TrimSpace(product.Name),
 		State:        strings.TrimSpace(product.Status),
 		Attributes: map[string]any{
@@ -213,7 +214,7 @@ func provisionedProductObservation(
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeServiceCatalogProvisionedProduct,
+		ResourceType: catalog.ResourceTypeServiceCatalogProvisionedProduct,
 		Name:         strings.TrimSpace(provisioned.Name),
 		State:        strings.TrimSpace(provisioned.Status),
 		Attributes: map[string]any{

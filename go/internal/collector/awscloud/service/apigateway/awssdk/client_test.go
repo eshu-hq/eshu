@@ -16,6 +16,7 @@ import (
 	awsapigatewayv2types "github.com/aws/aws-sdk-go-v2/service/apigatewayv2/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientSnapshotReadsRESTAndV2MetadataOnly(t *testing.T) {
@@ -160,7 +161,7 @@ func TestClientSnapshotReadsRESTAndV2MetadataOnly(t *testing.T) {
 	adapter := &Client{
 		rest:     restFake,
 		v2:       v2Fake,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAPIGateway},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAPIGateway},
 	}
 
 	snapshot, err := adapter.Snapshot(context.Background())

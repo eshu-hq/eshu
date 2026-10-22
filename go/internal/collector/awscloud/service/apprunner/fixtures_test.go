@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/apprunner"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
@@ -33,7 +34,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAppRunner,
+		ServiceKind:         catalog.ServiceAppRunner,
 		ScopeID:             "scope-1",
 		GenerationID:        "gen-1",
 		CollectorInstanceID: "collector-aws-1",

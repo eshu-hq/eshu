@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("apigatewayv2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAPIGatewayV2:
+	case "", catalog.ServiceAPIGatewayV2:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAPIGatewayV2
+		boundary.ServiceKind = catalog.ServiceAPIGatewayV2
 	default:
 		return nil, fmt.Errorf("apigatewayv2 scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -196,7 +197,7 @@ func apiObservation(boundary awscloud.Boundary, api API) awscloud.ResourceObserv
 		Boundary:     boundary,
 		ARN:          apiARN(boundary.Region, apiID),
 		ResourceID:   apiID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2API,
+		ResourceType: catalog.ResourceTypeAPIGatewayV2API,
 		Name:         firstNonEmpty(api.Name, apiID),
 		State:        strings.TrimSpace(api.ProtocolType),
 		Tags:         cloneStringMap(api.Tags),
@@ -222,7 +223,7 @@ func stageObservation(boundary awscloud.Boundary, stage Stage) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          stageARN(boundary.Region, stage.APIID, stage.Name),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayStage,
+		ResourceType: catalog.ResourceTypeAPIGatewayStage,
 		Name:         strings.TrimSpace(stage.Name),
 		Tags:         cloneStringMap(stage.Tags),
 		Attributes: map[string]any{
@@ -248,7 +249,7 @@ func routeObservation(boundary awscloud.Boundary, route Route) awscloud.Resource
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2Route,
+		ResourceType: catalog.ResourceTypeAPIGatewayV2Route,
 		Name:         firstNonEmpty(route.RouteKey, route.RouteID),
 		Attributes: map[string]any{
 			"api_id":              strings.TrimSpace(route.APIID),
@@ -271,7 +272,7 @@ func integrationObservation(boundary awscloud.Boundary, integration Integration)
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2Integration,
+		ResourceType: catalog.ResourceTypeAPIGatewayV2Integration,
 		Name:         firstNonEmpty(integration.IntegrationID, resourceID),
 		State:        strings.TrimSpace(integration.Type),
 		Attributes: map[string]any{
@@ -298,7 +299,7 @@ func authorizerObservation(boundary awscloud.Boundary, authorizer Authorizer) aw
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2Authorizer,
+		ResourceType: catalog.ResourceTypeAPIGatewayV2Authorizer,
 		Name:         firstNonEmpty(authorizer.Name, authorizer.AuthorizerID),
 		State:        strings.TrimSpace(authorizer.Type),
 		Attributes: map[string]any{
@@ -319,7 +320,7 @@ func vpcLinkObservation(boundary awscloud.Boundary, link VPCLink) awscloud.Resou
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   linkID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayV2VPCLink,
+		ResourceType: catalog.ResourceTypeAPIGatewayV2VPCLink,
 		Name:         firstNonEmpty(link.Name, linkID),
 		State:        strings.TrimSpace(link.Status),
 		Tags:         cloneStringMap(link.Tags),
@@ -343,7 +344,7 @@ func domainObservation(boundary awscloud.Boundary, domain DomainName) awscloud.R
 		Boundary:     boundary,
 		ARN:          strings.TrimSpace(domain.ARN),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAPIGatewayDomainName,
+		ResourceType: catalog.ResourceTypeAPIGatewayDomainName,
 		Name:         firstNonEmpty(domain.Name, resourceID),
 		State:        strings.TrimSpace(domain.Status),
 		Tags:         cloneStringMap(domain.Tags),

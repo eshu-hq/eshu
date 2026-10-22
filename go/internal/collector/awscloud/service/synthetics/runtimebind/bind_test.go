@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/synthetics/runtimebind"
 )
 
 // TestSyntheticsRuntimeBindRegisters confirms importing the binding installs the
 // Synthetics scanner builder.
 func TestSyntheticsRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceSynthetics)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceSynthetics)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceSynthetics)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceSynthetics)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceSynthetics,
+			ServiceKind: catalog.ServiceSynthetics,
 		},
 	})
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 	awsapigatewayv2types "github.com/aws/aws-sdk-go-v2/service/apigatewayv2/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIGatewayV2APIExcludesForbiddenMethods proves the adapter's accepted SDK
@@ -216,7 +217,7 @@ func assertNoForbiddenStringValue(t *testing.T, value any, needles ...string) {
 }
 
 func testBoundary() awscloud.Boundary {
-	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAPIGatewayV2}
+	return awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAPIGatewayV2}
 }
 
 // fakeAPI is a minimal in-memory apiClient. It returns a single page per list

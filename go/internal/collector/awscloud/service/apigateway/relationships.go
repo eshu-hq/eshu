@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -26,7 +27,7 @@ func domainRelationships(
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayDomainMapsToAPI,
+			RelationshipType: catalog.RelationshipAPIGatewayDomainMapsToAPI,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(domain.ARN),
 			TargetResourceID: group.apiID,
@@ -42,7 +43,7 @@ func domainRelationships(
 	for _, certificateARN := range cloneStrings(domain.CertificateARNs) {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayDomainUsesACMCertificate,
+			RelationshipType: catalog.RelationshipAPIGatewayDomainUsesACMCertificate,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(domain.ARN),
 			TargetResourceID: certificateARN,
@@ -73,12 +74,12 @@ func stageRelationships(
 	}
 	relationships := []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAPIGatewayAPIHasStage,
+		RelationshipType: catalog.RelationshipAPIGatewayAPIHasStage,
 		SourceResourceID: apiID,
 		SourceARN:        apiARN,
 		TargetResourceID: stageID,
 		TargetARN:        stageARN(boundary.Region, stage.APIKind, stage.APIID, stage.Name),
-		TargetType:       awscloud.ResourceTypeAPIGatewayStage,
+		TargetType:       catalog.ResourceTypeAPIGatewayStage,
 		Attributes: map[string]any{
 			"api_kind":   strings.TrimSpace(stage.APIKind),
 			"stage_name": strings.TrimSpace(stage.Name),
@@ -88,7 +89,7 @@ func stageRelationships(
 	if targetARN := strings.TrimSpace(stage.AccessLogDestination); targetARN != "" && isARN(targetARN) {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayStageLogsToResource,
+			RelationshipType: catalog.RelationshipAPIGatewayStageLogsToResource,
 			SourceResourceID: stageID,
 			SourceARN:        stageARN(boundary.Region, stage.APIKind, stage.APIID, stage.Name),
 			TargetResourceID: targetARN,
@@ -119,7 +120,7 @@ func appendIntegrationRelationships(
 		}
 		err := appendRelationship(envelopes, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAPIGatewayAPIIntegratesWithResource,
+			RelationshipType: catalog.RelationshipAPIGatewayAPIIntegratesWithResource,
 			SourceResourceID: group.apiID,
 			SourceARN:        groupSourceARN,
 			TargetResourceID: group.targetARN,

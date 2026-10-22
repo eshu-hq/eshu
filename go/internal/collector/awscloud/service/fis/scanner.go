@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("fis scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceFIS:
+	case "", catalog.ServiceFIS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceFIS
+		boundary.ServiceKind = catalog.ServiceFIS
 	default:
 		return nil, fmt.Errorf("fis scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -93,7 +94,7 @@ func templateObservation(boundary awscloud.Boundary, template ExperimentTemplate
 		Boundary:     boundary,
 		ARN:          templateARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeFISExperimentTemplate,
+		ResourceType: catalog.ResourceTypeFISExperimentTemplate,
 		Name:         name,
 		Tags:         cloneStringMap(template.Tags),
 		Attributes: map[string]any{

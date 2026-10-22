@@ -79,7 +79,7 @@ func TestScannerEmitsProtonMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	environment := resourceByType(t, envelopes, awscloud.ResourceTypeProtonEnvironment)
+	environment := resourceByType(t, envelopes, catalog.ResourceTypeProtonEnvironment)
 	if got, want := environment.Payload["resource_id"], testEnvironmentARN; got != want {
 		t.Fatalf("environment resource_id = %#v, want %q", got, want)
 	}
@@ -87,7 +87,7 @@ func TestScannerEmitsProtonMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, envAttrs, "template_name", "fargate-env")
 	assertAttribute(t, envAttrs, "provisioning", "CUSTOMER_MANAGED")
 
-	service := resourceByType(t, envelopes, awscloud.ResourceTypeProtonService)
+	service := resourceByType(t, envelopes, catalog.ResourceTypeProtonService)
 	if got, want := service.Payload["resource_id"], testServiceARN; got != want {
 		t.Fatalf("service resource_id = %#v, want %q", got, want)
 	}
@@ -95,17 +95,17 @@ func TestScannerEmitsProtonMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, svcAttrs, "template_name", "lb-web")
 	assertAttribute(t, svcAttrs, "repository_id", "acme/orders")
 
-	envTemplate := resourceByType(t, envelopes, awscloud.ResourceTypeProtonEnvironmentTemplate)
+	envTemplate := resourceByType(t, envelopes, catalog.ResourceTypeProtonEnvironmentTemplate)
 	if got, want := envTemplate.Payload["resource_id"], testEnvTemplateARN; got != want {
 		t.Fatalf("environment template resource_id = %#v, want %q", got, want)
 	}
-	svcTemplate := resourceByType(t, envelopes, awscloud.ResourceTypeProtonServiceTemplate)
+	svcTemplate := resourceByType(t, envelopes, catalog.ResourceTypeProtonServiceTemplate)
 	if got, want := svcTemplate.Payload["resource_id"], testServiceTemplateARN; got != want {
 		t.Fatalf("service template resource_id = %#v, want %q", got, want)
 	}
 
 	// environment -> IAM role edge, keyed by the role ARN the IAM scanner publishes.
-	envRole := relationshipByType(t, envelopes, awscloud.RelationshipProtonEnvironmentUsesRole)
+	envRole := relationshipByType(t, envelopes, catalog.RelationshipProtonEnvironmentUsesRole)
 	assertEdgeTarget(t, envRole, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got, want := envRole.Payload["source_resource_id"], testEnvironmentARN; got != want {
 		t.Fatalf("environment->role source_resource_id = %#v, want %q", got, want)
@@ -116,11 +116,11 @@ func TestScannerEmitsProtonMetadataAndRelationships(t *testing.T) {
 
 	// service -> environment edge, keyed by the environment ARN the environment
 	// node publishes, and deduped to exactly one.
-	placements := relationshipsByType(envelopes, awscloud.RelationshipProtonServiceInEnvironment)
+	placements := relationshipsByType(envelopes, catalog.RelationshipProtonServiceInEnvironment)
 	if len(placements) != 1 {
 		t.Fatalf("service-in-environment edges = %d, want 1 (duplicate instances must collapse)", len(placements))
 	}
-	assertEdgeTarget(t, placements[0], awscloud.ResourceTypeProtonEnvironment, testEnvironmentARN)
+	assertEdgeTarget(t, placements[0], catalog.ResourceTypeProtonEnvironment, testEnvironmentARN)
 	if got, want := placements[0].Payload["source_resource_id"], testServiceARN; got != want {
 		t.Fatalf("service->environment source_resource_id = %#v, want %q", got, want)
 	}
@@ -154,7 +154,7 @@ func TestScannerOmitsServiceEnvironmentEdgeForUnknownEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := relationshipsByType(envelopes, awscloud.RelationshipProtonServiceInEnvironment); len(got) != 0 {
+	if got := relationshipsByType(envelopes, catalog.RelationshipProtonServiceInEnvironment); len(got) != 0 {
 		t.Fatalf("service-in-environment edges = %d, want 0 (unresolved environment must skip, not dangle)", len(got))
 	}
 }
@@ -166,7 +166,7 @@ func TestScannerOmitsRoleEdgeForNonARNRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	if got := relationshipsByType(envelopes, awscloud.RelationshipProtonEnvironmentUsesRole); len(got) != 0 {
+	if got := relationshipsByType(envelopes, catalog.RelationshipProtonEnvironmentUsesRole); len(got) != 0 {
 		t.Fatalf("environment-uses-role edges = %d, want 0 for non-ARN role identifier", len(got))
 	}
 }
@@ -212,7 +212,7 @@ func TestScannerSynthesizesGovCloudRoleEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	envRole := relationshipByType(t, envelopes, awscloud.RelationshipProtonEnvironmentUsesRole)
+	envRole := relationshipByType(t, envelopes, catalog.RelationshipProtonEnvironmentUsesRole)
 	if got := envRole.Payload["target_arn"]; got != govRole {
 		t.Fatalf("GovCloud environment->role target_arn = %#v, want %q", got, govRole)
 	}
@@ -276,7 +276,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceProton,
+		ServiceKind:         catalog.ServiceProton,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:proton:1",
 		CollectorInstanceID: "aws-prod",

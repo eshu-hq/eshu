@@ -18,7 +18,10 @@
    `catalog/network.go` and `catalog/network_edge.go`; RDS, DynamoDB,
    ElastiCache, Redshift, MemoryDB, DocDB, DocDB Elastic, Neptune, Timestream,
    Keyspaces, DAX, and Lake Formation now live in `catalog/database.go` and
-   `catalog/database_specialized.go`). New service
+   `catalog/database_specialized.go`; API Gateway, API Gateway V2, AppSync,
+   AppConfig, App Runner, Synthetics, Service Catalog, Proton, Resilience Hub,
+   and FIS now live in `catalog/api.go` and `catalog/api_management.go`).
+   New service
    constants MUST land in their own
    `constants_<service>.go` sibling, not back in `types.go`, so the 500-line
    cap stays satisfied.

@@ -102,7 +102,7 @@ func TestScannerEmitsCertificateFactsMetadataOnlyAndInUseRelationships(t *testin
 	wantTargets := map[string]string{
 		loadBalancerARN: catalog.ResourceTypeELBv2LoadBalancer,
 		cloudFrontARN:   catalog.ResourceTypeCloudFrontDistribution,
-		apiGatewayARN:   awscloud.ResourceTypeAPIGatewayDomainName,
+		apiGatewayARN:   catalog.ResourceTypeAPIGatewayDomainName,
 		appSyncARN:      "aws_appsync_api",
 		appRunnerARN:    "aws_apprunner_service",
 	}

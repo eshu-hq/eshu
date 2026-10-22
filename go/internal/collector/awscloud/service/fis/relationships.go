@@ -52,13 +52,13 @@ func templateIAMRoleRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFISTemplateUsesIAMRole,
+		RelationshipType: catalog.RelationshipFISTemplateUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(template.ARN),
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       catalog.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipFISTemplateUsesIAMRole + ":" + roleARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipFISTemplateUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -117,7 +117,7 @@ func targetResourceRelationship(
 		ec2Attributes := withInstanceARN(attributes, resourceARN)
 		return newTargetRelationship(
 			boundary, template, sourceID,
-			awscloud.RelationshipFISTemplateTargetsEC2Instance,
+			catalog.RelationshipFISTemplateTargetsEC2Instance,
 			instanceID, "", ec2InstanceTargetType, ec2Attributes,
 		)
 	case "ecs":
@@ -126,7 +126,7 @@ func targetResourceRelationship(
 		}
 		return newTargetRelationship(
 			boundary, template, sourceID,
-			awscloud.RelationshipFISTemplateTargetsECSCluster,
+			catalog.RelationshipFISTemplateTargetsECSCluster,
 			resourceARN, resourceARN, catalog.ResourceTypeECSCluster, attributes,
 		)
 	case "rds":
@@ -135,13 +135,13 @@ func targetResourceRelationship(
 		case strings.HasPrefix(segment, "db:"):
 			return newTargetRelationship(
 				boundary, template, sourceID,
-				awscloud.RelationshipFISTemplateTargetsRDSDBInstance,
+				catalog.RelationshipFISTemplateTargetsRDSDBInstance,
 				resourceARN, resourceARN, catalog.ResourceTypeRDSDBInstance, attributes,
 			)
 		case strings.HasPrefix(segment, "cluster:"):
 			return newTargetRelationship(
 				boundary, template, sourceID,
-				awscloud.RelationshipFISTemplateTargetsRDSDBCluster,
+				catalog.RelationshipFISTemplateTargetsRDSDBCluster,
 				resourceARN, resourceARN, catalog.ResourceTypeRDSDBCluster, attributes,
 			)
 		default:
@@ -227,13 +227,13 @@ func templateLogGroupRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFISTemplateLogsToCloudWatchLogGroup,
+		RelationshipType: catalog.RelationshipFISTemplateLogsToCloudWatchLogGroup,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(template.ARN),
 		TargetResourceID: logGroupARN,
 		TargetARN:        logGroupARN,
 		TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipFISTemplateLogsToCloudWatchLogGroup + ":" + logGroupARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipFISTemplateLogsToCloudWatchLogGroup + ":" + logGroupARN,
 	}
 }
 
@@ -260,14 +260,14 @@ func templateS3Relationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipFISTemplateLogsToS3,
+		RelationshipType: catalog.RelationshipFISTemplateLogsToS3,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(template.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipFISTemplateLogsToS3 + ":" + bucketARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipFISTemplateLogsToS3 + ":" + bucketARN,
 	}
 }
 
@@ -287,14 +287,14 @@ func templateStopConditionRelationships(
 		if !isARN(alarmARN) {
 			continue
 		}
-		recordID := sourceID + "->" + awscloud.RelationshipFISTemplateStopsOnCloudWatchAlarm + ":" + alarmARN
+		recordID := sourceID + "->" + catalog.RelationshipFISTemplateStopsOnCloudWatchAlarm + ":" + alarmARN
 		if _, exists := seen[recordID]; exists {
 			continue
 		}
 		seen[recordID] = struct{}{}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipFISTemplateStopsOnCloudWatchAlarm,
+			RelationshipType: catalog.RelationshipFISTemplateStopsOnCloudWatchAlarm,
 			SourceResourceID: sourceID,
 			SourceARN:        strings.TrimSpace(template.ARN),
 			TargetResourceID: alarmARN,

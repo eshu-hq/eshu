@@ -27,13 +27,13 @@ func environmentInApplicationRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppConfigEnvironmentInApplication,
+		RelationshipType: catalog.RelationshipAppConfigEnvironmentInApplication,
 		SourceResourceID: environmentID,
 		SourceARN:        environmentID,
 		TargetResourceID: applicationARN,
 		TargetARN:        applicationARN,
-		TargetType:       awscloud.ResourceTypeAppConfigApplication,
-		SourceRecordID:   environmentID + "->" + awscloud.RelationshipAppConfigEnvironmentInApplication + ":" + applicationARN,
+		TargetType:       catalog.ResourceTypeAppConfigApplication,
+		SourceRecordID:   environmentID + "->" + catalog.RelationshipAppConfigEnvironmentInApplication + ":" + applicationARN,
 	}
 }
 
@@ -53,13 +53,13 @@ func profileInApplicationRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppConfigProfileInApplication,
+		RelationshipType: catalog.RelationshipAppConfigProfileInApplication,
 		SourceResourceID: profileID,
 		SourceARN:        profileID,
 		TargetResourceID: applicationARN,
 		TargetARN:        applicationARN,
-		TargetType:       awscloud.ResourceTypeAppConfigApplication,
-		SourceRecordID:   profileID + "->" + awscloud.RelationshipAppConfigProfileInApplication + ":" + applicationARN,
+		TargetType:       catalog.ResourceTypeAppConfigApplication,
+		SourceRecordID:   profileID + "->" + catalog.RelationshipAppConfigProfileInApplication + ":" + applicationARN,
 	}
 }
 
@@ -80,13 +80,13 @@ func environmentMonitorsAlarmRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppConfigEnvironmentMonitorsAlarm,
+		RelationshipType: catalog.RelationshipAppConfigEnvironmentMonitorsAlarm,
 		SourceResourceID: environmentARN,
 		SourceARN:        environmentARN,
 		TargetResourceID: alarmARN,
 		TargetARN:        alarmARN,
 		TargetType:       awscloud.ResourceTypeCloudWatchAlarm,
-		SourceRecordID:   environmentARN + "->" + awscloud.RelationshipAppConfigEnvironmentMonitorsAlarm + ":" + alarmARN,
+		SourceRecordID:   environmentARN + "->" + catalog.RelationshipAppConfigEnvironmentMonitorsAlarm + ":" + alarmARN,
 	}
 }
 
@@ -106,12 +106,12 @@ func environmentMonitorRoleRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAppConfigEnvironmentUsesMonitorRole,
+		RelationshipType: catalog.RelationshipAppConfigEnvironmentUsesMonitorRole,
 		SourceResourceID: environmentARN,
 		SourceARN:        environmentARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       catalog.ResourceTypeIAMRole,
-		SourceRecordID:   environmentARN + "->" + awscloud.RelationshipAppConfigEnvironmentUsesMonitorRole + ":" + roleARN,
+		SourceRecordID:   environmentARN + "->" + catalog.RelationshipAppConfigEnvironmentUsesMonitorRole + ":" + roleARN,
 	}
 }

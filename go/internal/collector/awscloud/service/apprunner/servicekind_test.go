@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/apprunner"
 )
 
@@ -18,7 +18,7 @@ import (
 // joins/filters that key on the canonical "apprunner".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceAppRunner + "  "
+	boundary.ServiceKind = "  " + catalog.ServiceAppRunner + "  "
 	scanner := apprunner.Scanner{Client: sampleClient()}
 
 	envelopes, err := scanner.Scan(context.Background(), boundary)
@@ -29,7 +29,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceAppRunner; got != want {
+		if got, want := envelope.Payload["service_kind"], catalog.ServiceAppRunner; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

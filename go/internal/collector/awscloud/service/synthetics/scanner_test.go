@@ -51,7 +51,7 @@ func TestScannerEmitsCanaryMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	canary := resourceByType(t, envelopes, awscloud.ResourceTypeSyntheticsCanary)
+	canary := resourceByType(t, envelopes, catalog.ResourceTypeSyntheticsCanary)
 	if got, want := canary.Payload["resource_id"], testCanaryARN; got != want {
 		t.Fatalf("canary resource_id = %#v, want %q", got, want)
 	}
@@ -72,7 +72,7 @@ func TestScannerEmitsCanaryMetadataAndRelationships(t *testing.T) {
 
 	// canary -> S3 artifact bucket, keyed by the partition-aware bucket ARN the
 	// S3 scanner publishes (extracted from the artifact location path).
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipSyntheticsCanaryUsesS3Bucket)
+	s3Edge := relationshipByType(t, envelopes, catalog.RelationshipSyntheticsCanaryUsesS3Bucket)
 	wantBucketARN := "arn:aws:s3:::checkout-artifacts"
 	assertEdgeTarget(t, s3Edge, catalog.ResourceTypeS3Bucket, wantBucketARN)
 	if got, want := s3Edge.Payload["source_resource_id"], testCanaryARN; got != want {
@@ -80,14 +80,14 @@ func TestScannerEmitsCanaryMetadataAndRelationships(t *testing.T) {
 	}
 
 	// canary -> IAM execution role, keyed by the role ARN the IAM scanner publishes.
-	roleEdge := relationshipByType(t, envelopes, awscloud.RelationshipSyntheticsCanaryUsesIAMRole)
+	roleEdge := relationshipByType(t, envelopes, catalog.RelationshipSyntheticsCanaryUsesIAMRole)
 	assertEdgeTarget(t, roleEdge, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got, want := roleEdge.Payload["target_arn"], testRoleARN; got != want {
 		t.Fatalf("canary->role target_arn = %#v, want %q", got, want)
 	}
 
 	// canary -> subnet edges, keyed by bare subnet ids.
-	subnetEdges := relationshipsByType(envelopes, awscloud.RelationshipSyntheticsCanaryUsesSubnet)
+	subnetEdges := relationshipsByType(envelopes, catalog.RelationshipSyntheticsCanaryUsesSubnet)
 	if len(subnetEdges) != 2 {
 		t.Fatalf("subnet edges = %d, want 2", len(subnetEdges))
 	}
@@ -105,7 +105,7 @@ func TestScannerEmitsCanaryMetadataAndRelationships(t *testing.T) {
 	}
 
 	// canary -> security group edge, keyed by bare sg id.
-	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipSyntheticsCanaryUsesSecurityGroup)
+	sgEdge := relationshipByType(t, envelopes, catalog.RelationshipSyntheticsCanaryUsesSecurityGroup)
 	assertEdgeTarget(t, sgEdge, catalog.ResourceTypeEC2SecurityGroup, "sg-9999")
 	if got := sgEdge.Payload["target_arn"]; got != "" {
 		t.Fatalf("sg edge target_arn = %#v, want empty for bare sg id", got)
@@ -142,7 +142,7 @@ func TestScannerSynthesizesGovCloudBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipSyntheticsCanaryUsesS3Bucket)
+	s3Edge := relationshipByType(t, envelopes, catalog.RelationshipSyntheticsCanaryUsesS3Bucket)
 	wantARN := "arn:aws-us-gov:s3:::gov-artifacts"
 	if got := s3Edge.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud canary->s3 target_resource_id = %#v, want %q", got, wantARN)
@@ -168,7 +168,7 @@ func TestScannerOmitsEdgesWhenDependenciesAbsent(t *testing.T) {
 			t.Fatalf("unexpected relationship emitted: %#v", envelope.Payload)
 		}
 	}
-	canary := resourceByType(t, envelopes, awscloud.ResourceTypeSyntheticsCanary)
+	canary := resourceByType(t, envelopes, catalog.ResourceTypeSyntheticsCanary)
 	if got := attributesOf(t, canary)["vpc_configured"]; got != false {
 		t.Fatalf("vpc_configured = %#v, want false", got)
 	}
@@ -234,7 +234,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceSynthetics,
+		ServiceKind:         catalog.ServiceSynthetics,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:synthetics:1",
 		CollectorInstanceID: "aws-prod",
