@@ -423,11 +423,12 @@ func productionHiddenToolNames() map[string]bool {
 }
 
 // WithToolSurface sets the tool surface tools/list advertises (#8758). It
-// changes advertisement only: a direct tools/call to any registered tool
-// works under every surface, the same rule WithQueryProfile follows. The
-// surface is applied to s.tools when tools/list is served, so the result
-// always derives from the profile-filtered list and hidden tools stay hidden
-// whatever order the options are given in. router.SurfaceFull, the default,
+// changes advertisement only: tools/call dispatches every registered tool
+// whatever the surface. Unlike WithQueryProfile, whose hidden tools stay
+// call-gated, a surface never gates a call. The surface is applied to s.tools
+// when tools/list is served, so the result always derives from the
+// profile-filtered list and hidden tools stay hidden whatever order the
+// options are given in. router.SurfaceFull, the default,
 // serves s.tools unchanged. The option itself runs once at construction and
 // only records the value.
 func WithToolSurface(surface router.Surface) ServerOption {

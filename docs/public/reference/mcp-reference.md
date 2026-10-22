@@ -78,8 +78,9 @@ A client can override the setting with a `surface` query parameter:
 
 The value is trimmed and case-folded, like the environment variable, and a
 whitespace-only value means no override. An unknown `surface` value gets a
-`400` that lists the allowed values, on both routes. An override never changes the process setting or another client's
-requests. In Helm, set `mcpServer.env.ESHU_MCP_TOOL_SURFACE`.
+`400` that lists the allowed values, on both routes. An override never changes
+the process setting or another client's requests. In Helm, set
+`mcpServer.env.ESHU_MCP_TOOL_SURFACE`.
 
 `router` and `core_router` are not usable until the `find_tool` and `call_tool`
 handlers (#8757) and the core tool set (#8759) land; until then those surfaces

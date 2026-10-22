@@ -1,10 +1,10 @@
 # MCP tool surface
 
 `WithToolSurface` (#8758, epic #8752) chooses what `tools/list` advertises. It
-changes advertisement only: `tools/call` dispatches any registered tool in
-every mode, and `s.tools` is never rewritten. This differs from the query
-profile: a tool the profile hides still fails closed on `tools/call`, while a
-tool only the surface hides still dispatches.
+changes advertisement only: the surface never gates `tools/call`, and `s.tools`
+is never rewritten. This differs from the query profile: a tool the profile
+hides still fails closed on `tools/call`, while a tool only the surface hides
+still dispatches.
 
 ## How the surface is chosen
 
