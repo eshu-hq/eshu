@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -240,11 +241,15 @@ func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-// parseSurfaceParam reads the surface query parameter. It returns "" when the
-// parameter is absent or empty, so the caller keeps the process surface, and
-// an error naming the allowed values when the value is unknown.
+// parseSurfaceParam reads the surface query parameter. It trims surrounding
+// whitespace first, as cmd/mcp-server does for ESHU_MCP_TOOL_SURFACE, so the
+// query and the environment agree on what they accept. It returns "" when the
+// parameter is absent, empty, or only whitespace, so the caller keeps the
+// process surface, and an error naming the allowed values when the value is
+// unknown. A valid value comes back canonical (lower case), which is what the
+// SSE endpoint event carries.
 func parseSurfaceParam(r *http.Request) (router.Surface, error) {
-	raw := r.URL.Query().Get("surface")
+	raw := strings.TrimSpace(r.URL.Query().Get("surface"))
 	if raw == "" {
 		return "", nil
 	}

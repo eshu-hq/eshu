@@ -205,8 +205,9 @@ mcpServer:
   revisionHistoryLimit: 3
   # MCP-only environment variables. To choose what tools/list advertises, set
   # ESHU_MCP_TOOL_SURFACE here (issue #8758). Unset means full. A direct
-  # tools/call to any registered tool works in every mode; an unknown value
-  # makes the pod refuse to start.
+  # tools/call to a tool the surface hides still dispatches (the query profile's
+  # per-call gate is unchanged); an unknown value makes the pod refuse to
+  # start.
   #
   #   full         today's list, unchanged (default)
   #   router       find_tool and call_tool only

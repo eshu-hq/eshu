@@ -2,7 +2,9 @@
 
 `WithToolSurface` (#8758, epic #8752) chooses what `tools/list` advertises. It
 changes advertisement only: `tools/call` dispatches any registered tool in
-every mode, and `s.tools` is never rewritten.
+every mode, and `s.tools` is never rewritten. This differs from the query
+profile: a tool the profile hides still fails closed on `tools/call`, while a
+tool only the surface hides still dispatches.
 
 ## How the surface is chosen
 
@@ -20,6 +22,8 @@ every mode, and `s.tools` is never rewritten.
      POST the client follows carries it.
    - An SSE-linked POST with no `surface` uses its session's. A POST that
      names its own wins over the session's.
+   - The value is trimmed and case-folded, as the env setting is; a
+     whitespace-only value means "absent", so the process surface applies.
    - An unknown value gets a 400 whose message lists the allowed values.
 4. The override travels in the request context (`withSurfaceOverride`), so the
    `handleMessage` signature does not change.

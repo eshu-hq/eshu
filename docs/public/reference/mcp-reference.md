@@ -55,8 +55,10 @@ tool index, not a second copy of every schema.
 ## Tool Surface
 
 `ESHU_MCP_TOOL_SURFACE` selects what `tools/list` advertises. It changes
-advertisement only: a direct `tools/call` to any registered tool works in every
-mode, and tools the query profile hides stay hidden.
+advertisement only: a direct `tools/call` to a tool the surface hides still
+dispatches, and tools the query profile hides stay hidden from `tools/list` in
+every mode. The two differ on `tools/call`: a tool the profile hides still fails
+closed there, while a tool only the surface hides still dispatches.
 
 | Value | `tools/list` returns |
 | --- | --- |
@@ -74,8 +76,9 @@ A client can override the setting with a `surface` query parameter:
   carries `surface=router`, so every POST the client follows to that URL uses
   it. A POST that names its own `surface` overrides the session's value.
 
-An unknown `surface` value gets a `400` that lists the allowed values, on both
-routes. An override never changes the process setting or another client's
+The value is trimmed and case-folded, like the environment variable, and a
+whitespace-only value means no override. An unknown `surface` value gets a
+`400` that lists the allowed values, on both routes. An override never changes the process setting or another client's
 requests. In Helm, set `mcpServer.env.ESHU_MCP_TOOL_SURFACE`.
 
 `router` and `core_router` are not usable until the `find_tool` and `call_tool`

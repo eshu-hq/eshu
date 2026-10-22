@@ -206,3 +206,40 @@ func TestToolSurfaceSummary(t *testing.T) {
 		t.Fatalf("summary = (%q, %d, %d), want (router, 2, %d)", surface, count, size, len(raw))
 	}
 }
+
+// TestSurfaceQueryParamTrimsWhitespaceLikeTheEnvSetting proves the query
+// parameter agrees with ESHU_MCP_TOOL_SURFACE, which cmd/mcp-server trims:
+// a padded or mixed-case value is accepted and canonicalized, a value that is
+// only whitespace means "absent" so the process surface applies, and an
+// unknown value is still a 400.
+func TestSurfaceQueryParamTrimsWhitespaceLikeTheEnvSetting(t *testing.T) {
+	registry := ReadOnlyTools()
+	tests := []struct {
+		name     string
+		query    string
+		process  router.Surface
+		wantCode int
+		want     []string
+	}{
+		{name: "padded router", query: "?surface=%20router%20", process: router.SurfaceFull, wantCode: http.StatusOK, want: wantSurface(registry, router.SurfaceRouter)},
+		{name: "padded mixed case", query: "?surface=%20Core_Router", process: router.SurfaceFull, wantCode: http.StatusOK, want: wantSurface(registry, router.SurfaceCoreRouter)},
+		{name: "whitespace only keeps full process surface", query: "?surface=%20%20", process: router.SurfaceFull, wantCode: http.StatusOK, want: toolNames(registry)},
+		{name: "whitespace only keeps router process surface", query: "?surface=%20%20", process: router.SurfaceRouter, wantCode: http.StatusOK, want: wantSurface(registry, router.SurfaceRouter)},
+		{name: "padded unknown value", query: "?surface=%20bogus%20", process: router.SurfaceFull, wantCode: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewServer(testServer().handler, nil, WithToolSurface(tt.process))
+			code, body := postToolsList(t, s, tt.query)
+			if code != tt.wantCode {
+				t.Fatalf("status = %d, want %d; body %s", code, tt.wantCode, body)
+			}
+			if tt.wantCode != http.StatusOK {
+				return
+			}
+			if got := listedNames(t, body); !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("listed %d tools, want %d", len(got), len(tt.want))
+			}
+		})
+	}
+}

@@ -159,3 +159,31 @@ func TestSSELinkedPostUsesSessionSurface(t *testing.T) {
 		t.Fatalf("POST surface=full over session router listed %d tools, want %d", len(got), len(want))
 	}
 }
+
+// TestSSESurfaceParamTrimsAndCanonicalizes proves GET /sse trims the value
+// like the env setting and puts the canonical surface, not the raw one, in the
+// endpoint event; a whitespace-only value means "absent".
+func TestSSESurfaceParamTrimsAndCanonicalizes(t *testing.T) {
+	ts := sseTestServer(t, testServer())
+
+	_, next := openSSE(t, ts, "?surface=%20Core_Router%20")
+	_, data := next()
+	if !strings.HasSuffix(data, "&surface=core_router") || strings.Contains(data, "%20") || strings.Contains(data, "Core") {
+		t.Fatalf("endpoint data = %q, want canonical &surface=core_router", data)
+	}
+
+	_, next = openSSE(t, ts, "?surface=%20%20")
+	_, data = next()
+	if strings.Contains(data, "surface") {
+		t.Fatalf("whitespace-only surface produced endpoint %q, want none", data)
+	}
+
+	resp, err := http.Get(ts.URL + "/sse?surface=%20bogus%20")
+	if err != nil {
+		t.Fatalf("GET /sse: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("padded unknown status = %d, want 400", resp.StatusCode)
+	}
+}

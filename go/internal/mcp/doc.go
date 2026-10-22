@@ -124,7 +124,12 @@
 // order. A surface query parameter overrides it: on POST /mcp/message for that
 // request, and on GET /sse for the whole SSE session (the endpoint event
 // carries it). A POST that names its own surface wins over the session's, and
-// an unknown value gets a 400.
+// an unknown value gets a 400. The value is trimmed and case-folded, as the
+// ESHU_MCP_TOOL_SURFACE setting is, and a whitespace-only value means "absent".
+//
+// The two filters fail differently. A tool the query profile hides still fails
+// closed on tools/call. A tool only the surface hides still dispatches,
+// because the surface changes advertisement and never what tools/call accepts.
 //
 // In HTTP mode the transport is wrapped with the caller-supplied credential
 // middleware when the server is constructed with WithTransportAuth (issue
