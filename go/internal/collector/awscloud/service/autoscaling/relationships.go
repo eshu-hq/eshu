@@ -75,7 +75,7 @@ func groupRelationships(boundary awscloud.Boundary, group Group) []awscloud.Rela
 			SourceARN:        groupARN,
 			TargetResourceID: targetGroupARN,
 			TargetARN:        targetGroupARN,
-			TargetType:       awscloud.ResourceTypeELBv2TargetGroup,
+			TargetType:       catalog.ResourceTypeELBv2TargetGroup,
 			SourceRecordID:   groupName + "#target-group#" + targetGroupARN,
 		})
 	}

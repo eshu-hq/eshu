@@ -13,6 +13,7 @@ import (
 	sdtypes "github.com/aws/aws-sdk-go-v2/service/servicediscovery/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestAPIClientInterfaceExcludesMutationAndInstanceReaders is the security gate
@@ -80,7 +81,7 @@ func (f *fakeAPI) ListTagsForResource(_ context.Context, input *awssd.ListTagsFo
 func newClientWithFake(api apiClient) *Client {
 	return &Client{
 		client:   api,
-		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceServiceDiscovery},
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceServiceDiscovery},
 	}
 }
 

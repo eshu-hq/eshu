@@ -83,7 +83,7 @@ func TestScannerEmitsVPCLatticeMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Service network resource node.
-	network := resourceByType(t, envelopes, awscloud.ResourceTypeVPCLatticeServiceNetwork)
+	network := resourceByType(t, envelopes, catalog.ResourceTypeVPCLatticeServiceNetwork)
 	if got, want := network.Payload["resource_id"], testNetworkARN; got != want {
 		t.Fatalf("service network resource_id = %#v, want %q", got, want)
 	}
@@ -92,21 +92,21 @@ func TestScannerEmitsVPCLatticeMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, networkAttrs, "service_network_id", "sn-0123")
 
 	// service network -> VPC edge, keyed by the bare vpc id the EC2 scanner publishes.
-	netVPC := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeServiceNetworkAssociatesVPC)
+	netVPC := relationshipByType(t, envelopes, catalog.RelationshipVPCLatticeServiceNetworkAssociatesVPC)
 	assertEdgeTarget(t, netVPC, catalog.ResourceTypeEC2VPC, "vpc-0a1b2c3d")
 	if got := netVPC.Payload["target_arn"]; got != "" {
 		t.Fatalf("service network -> vpc target_arn = %#v, want empty for bare vpc id", got)
 	}
 
 	// service network -> service edge, keyed by the service ARN the service node publishes.
-	netSvc := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeServiceNetworkAssociatesService)
-	assertEdgeTarget(t, netSvc, awscloud.ResourceTypeVPCLatticeService, testServiceARN)
+	netSvc := relationshipByType(t, envelopes, catalog.RelationshipVPCLatticeServiceNetworkAssociatesService)
+	assertEdgeTarget(t, netSvc, catalog.ResourceTypeVPCLatticeService, testServiceARN)
 	if got, want := netSvc.Payload["target_arn"], testServiceARN; got != want {
 		t.Fatalf("service network -> service target_arn = %#v, want %q", got, want)
 	}
 
 	// Service resource node.
-	service := resourceByType(t, envelopes, awscloud.ResourceTypeVPCLatticeService)
+	service := resourceByType(t, envelopes, catalog.ResourceTypeVPCLatticeService)
 	if got, want := service.Payload["resource_id"], testServiceARN; got != want {
 		t.Fatalf("service resource_id = %#v, want %q", got, want)
 	}
@@ -118,25 +118,25 @@ func TestScannerEmitsVPCLatticeMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, serviceAttrs, "auth_type", "AWS_IAM")
 
 	// service -> ACM certificate edge.
-	svcCert := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeServiceUsesCertificate)
+	svcCert := relationshipByType(t, envelopes, catalog.RelationshipVPCLatticeServiceUsesCertificate)
 	assertEdgeTarget(t, svcCert, catalog.ResourceTypeACMCertificate, testCertARN)
 	if got, want := svcCert.Payload["target_arn"], testCertARN; got != want {
 		t.Fatalf("service -> cert target_arn = %#v, want %q", got, want)
 	}
 
 	// Listener resource node + listener -> service edge.
-	listener := resourceByType(t, envelopes, awscloud.ResourceTypeVPCLatticeListener)
+	listener := resourceByType(t, envelopes, catalog.ResourceTypeVPCLatticeListener)
 	if got, want := listener.Payload["resource_id"], testListenerARN; got != want {
 		t.Fatalf("listener resource_id = %#v, want %q", got, want)
 	}
-	listenerInSvc := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeListenerInService)
-	assertEdgeTarget(t, listenerInSvc, awscloud.ResourceTypeVPCLatticeService, testServiceARN)
+	listenerInSvc := relationshipByType(t, envelopes, catalog.RelationshipVPCLatticeListenerInService)
+	assertEdgeTarget(t, listenerInSvc, catalog.ResourceTypeVPCLatticeService, testServiceARN)
 	if got, want := listenerInSvc.Payload["source_resource_id"], testListenerARN; got != want {
 		t.Fatalf("listener -> service source_resource_id = %#v, want %q", got, want)
 	}
 
 	// Target group resource node.
-	group := resourceByType(t, envelopes, awscloud.ResourceTypeVPCLatticeTargetGroup)
+	group := resourceByType(t, envelopes, catalog.ResourceTypeVPCLatticeTargetGroup)
 	if got, want := group.Payload["resource_id"], testTGARN; got != want {
 		t.Fatalf("target group resource_id = %#v, want %q", got, want)
 	}
@@ -145,11 +145,11 @@ func TestScannerEmitsVPCLatticeMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, groupAttrs, "target_count", int64(1))
 
 	// target group -> service edge.
-	tgSvc := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeTargetGroupServesService)
-	assertEdgeTarget(t, tgSvc, awscloud.ResourceTypeVPCLatticeService, testServiceARN)
+	tgSvc := relationshipByType(t, envelopes, catalog.RelationshipVPCLatticeTargetGroupServesService)
+	assertEdgeTarget(t, tgSvc, catalog.ResourceTypeVPCLatticeService, testServiceARN)
 
 	// target group -> Lambda function edge.
-	tgLambda := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeTargetGroupTargetsLambda)
+	tgLambda := relationshipByType(t, envelopes, catalog.RelationshipVPCLatticeTargetGroupTargetsLambda)
 	assertEdgeTarget(t, tgLambda, catalog.ResourceTypeLambdaFunction, testLambdaARN)
 	if got, want := tgLambda.Payload["target_arn"], testLambdaARN; got != want {
 		t.Fatalf("target group -> lambda target_arn = %#v, want %q", got, want)
@@ -200,19 +200,19 @@ func TestScannerEmitsInstanceAndALBTargetEdges(t *testing.T) {
 	}
 
 	// target group -> VPC edge (bare vpc id).
-	tgVPC := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeTargetGroupInVPC)
+	tgVPC := relationshipByType(t, envelopes, catalog.RelationshipVPCLatticeTargetGroupInVPC)
 	assertEdgeTarget(t, tgVPC, catalog.ResourceTypeEC2VPC, "vpc-0a1b2c3d")
 
 	// instance edge keyed by bare i-id, no synthesized ARN.
-	tgInstance := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeTargetGroupTargetsInstance)
+	tgInstance := relationshipByType(t, envelopes, catalog.RelationshipVPCLatticeTargetGroupTargetsInstance)
 	assertEdgeTarget(t, tgInstance, ec2InstanceTargetType, "i-0123456789abcdef0")
 	if got := tgInstance.Payload["target_arn"]; got != "" {
 		t.Fatalf("instance edge target_arn = %#v, want empty for bare instance id", got)
 	}
 
 	// ALB edge keyed by the ALB ARN the ELBv2 scanner publishes.
-	tgALB := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeTargetGroupTargetsLoadBalancer)
-	assertEdgeTarget(t, tgALB, awscloud.ResourceTypeELBv2LoadBalancer, testALBARN)
+	tgALB := relationshipByType(t, envelopes, catalog.RelationshipVPCLatticeTargetGroupTargetsLoadBalancer)
+	assertEdgeTarget(t, tgALB, catalog.ResourceTypeELBv2LoadBalancer, testALBARN)
 	if got, want := tgALB.Payload["target_arn"], testALBARN; got != want {
 		t.Fatalf("ALB edge target_arn = %#v, want %q", got, want)
 	}
@@ -248,9 +248,9 @@ func TestScannerSkipsUnresolvableTargets(t *testing.T) {
 			continue
 		}
 		switch envelope.Payload["relationship_type"] {
-		case awscloud.RelationshipVPCLatticeTargetGroupTargetsLambda,
-			awscloud.RelationshipVPCLatticeTargetGroupTargetsInstance,
-			awscloud.RelationshipVPCLatticeTargetGroupTargetsLoadBalancer:
+		case catalog.RelationshipVPCLatticeTargetGroupTargetsLambda,
+			catalog.RelationshipVPCLatticeTargetGroupTargetsInstance,
+			catalog.RelationshipVPCLatticeTargetGroupTargetsLoadBalancer:
 			t.Fatalf("unexpected unresolvable target edge: %#v", envelope.Payload)
 		}
 	}
@@ -273,7 +273,7 @@ func TestScannerSynthesizesNoARNForBareVPCInGovCloud(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	netVPC := relationshipByType(t, envelopes, awscloud.RelationshipVPCLatticeServiceNetworkAssociatesVPC)
+	netVPC := relationshipByType(t, envelopes, catalog.RelationshipVPCLatticeServiceNetworkAssociatesVPC)
 	if got, want := netVPC.Payload["target_resource_id"], "vpc-gov0123"; got != want {
 		t.Fatalf("GovCloud service network -> vpc target_resource_id = %#v, want %q", got, want)
 	}

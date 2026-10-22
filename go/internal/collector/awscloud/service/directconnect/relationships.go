@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // connectionRelationships links a connection to its parent LAG when AWS reports
@@ -19,10 +20,10 @@ func connectionRelationships(boundary awscloud.Boundary, connection Connection) 
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDirectConnectConnectionInLAG,
+		RelationshipType: catalog.RelationshipDirectConnectConnectionInLAG,
 		SourceResourceID: id,
 		TargetResourceID: lagID,
-		TargetType:       awscloud.ResourceTypeDirectConnectLAG,
+		TargetType:       catalog.ResourceTypeDirectConnectLAG,
 		SourceRecordID:   id + "#lag#" + lagID,
 	}}
 }
@@ -40,20 +41,20 @@ func virtualInterfaceRelationships(boundary awscloud.Boundary, vif VirtualInterf
 	if gatewayID := strings.TrimSpace(vif.GatewayID); gatewayID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDirectConnectVirtualInterfaceToGateway,
+			RelationshipType: catalog.RelationshipDirectConnectVirtualInterfaceToGateway,
 			SourceResourceID: id,
 			TargetResourceID: gatewayID,
-			TargetType:       awscloud.ResourceTypeDirectConnectGateway,
+			TargetType:       catalog.ResourceTypeDirectConnectGateway,
 			SourceRecordID:   id + "#direct-connect-gateway#" + gatewayID,
 		})
 	}
 	if connectionID := strings.TrimSpace(vif.ConnectionID); connectionID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDirectConnectVirtualInterfaceToConnection,
+			RelationshipType: catalog.RelationshipDirectConnectVirtualInterfaceToConnection,
 			SourceResourceID: id,
 			TargetResourceID: connectionID,
-			TargetType:       awscloud.ResourceTypeDirectConnectConnection,
+			TargetType:       catalog.ResourceTypeDirectConnectConnection,
 			SourceRecordID:   id + "#connection#" + connectionID,
 		})
 	}
@@ -86,20 +87,20 @@ func gatewayAssociationRelationship(
 	case "transitgateway":
 		return awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDirectConnectGatewayToTransitGateway,
+			RelationshipType: catalog.RelationshipDirectConnectGatewayToTransitGateway,
 			SourceResourceID: gatewayID,
 			TargetResourceID: targetID,
-			TargetType:       awscloud.ResourceTypeTransitGateway,
+			TargetType:       catalog.ResourceTypeTransitGateway,
 			Attributes:       attributes,
 			SourceRecordID:   gatewayID + "#transit-gateway#" + targetID,
 		}, true
 	case "virtualprivategateway":
 		return awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDirectConnectGatewayToVPNGateway,
+			RelationshipType: catalog.RelationshipDirectConnectGatewayToVPNGateway,
 			SourceResourceID: gatewayID,
 			TargetResourceID: targetID,
-			TargetType:       awscloud.ResourceTypeVPCVPNGateway,
+			TargetType:       catalog.ResourceTypeVPCVPNGateway,
 			Attributes:       attributes,
 			SourceRecordID:   gatewayID + "#vpn-gateway#" + targetID,
 		}, true
@@ -110,10 +111,10 @@ func gatewayAssociationRelationship(
 			strings.TrimSpace(association.VirtualGatewayID) != "" {
 			return awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipDirectConnectGatewayToVPNGateway,
+				RelationshipType: catalog.RelationshipDirectConnectGatewayToVPNGateway,
 				SourceResourceID: gatewayID,
 				TargetResourceID: strings.TrimSpace(association.VirtualGatewayID),
-				TargetType:       awscloud.ResourceTypeVPCVPNGateway,
+				TargetType:       catalog.ResourceTypeVPCVPNGateway,
 				Attributes:       attributes,
 				SourceRecordID:   gatewayID + "#vpn-gateway#" + strings.TrimSpace(association.VirtualGatewayID),
 			}, true

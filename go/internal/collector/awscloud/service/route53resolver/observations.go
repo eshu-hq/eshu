@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // uniqueSubnetCount counts the distinct, non-empty subnet IDs placed under an
@@ -32,7 +33,7 @@ func endpointObservation(boundary awscloud.Boundary, endpoint ResolverEndpoint) 
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(endpoint.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverEndpoint,
+		ResourceType: catalog.ResourceTypeRoute53ResolverEndpoint,
 		Name:         endpoint.Name,
 		State:        endpoint.Status,
 		Tags:         endpoint.Tags,
@@ -53,7 +54,7 @@ func ruleObservation(boundary awscloud.Boundary, rule ResolverRule) awscloud.Res
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(rule.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverRule,
+		ResourceType: catalog.ResourceTypeRoute53ResolverRule,
 		Name:         rule.Name,
 		State:        rule.Status,
 		Tags:         rule.Tags,
@@ -76,7 +77,7 @@ func ruleAssociationObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeRoute53ResolverRuleAssociation,
+		ResourceType: catalog.ResourceTypeRoute53ResolverRuleAssociation,
 		Name:         association.Name,
 		State:        association.Status,
 		Attributes: map[string]any{
@@ -97,7 +98,7 @@ func firewallRuleGroupObservation(
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(group.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverFirewallRuleGroup,
+		ResourceType: catalog.ResourceTypeRoute53ResolverFirewallRuleGroup,
 		Name:         group.Name,
 		State:        group.Status,
 		Tags:         group.Tags,
@@ -120,7 +121,7 @@ func firewallDomainListObservation(
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(list.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverFirewallDomainList,
+		ResourceType: catalog.ResourceTypeRoute53ResolverFirewallDomainList,
 		Name:         list.Name,
 		State:        list.Status,
 		Tags:         list.Tags,
@@ -142,7 +143,7 @@ func firewallRuleGroupAssociationObservation(
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(association.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverFirewallRuleGroupAssociation,
+		ResourceType: catalog.ResourceTypeRoute53ResolverFirewallRuleGroupAssociation,
 		Name:         association.Name,
 		State:        association.Status,
 		Attributes: map[string]any{
@@ -165,7 +166,7 @@ func queryLogConfigObservation(
 		Boundary:     boundary,
 		ResourceID:   id,
 		ARN:          strings.TrimSpace(config.ARN),
-		ResourceType: awscloud.ResourceTypeRoute53ResolverQueryLogConfig,
+		ResourceType: catalog.ResourceTypeRoute53ResolverQueryLogConfig,
 		Name:         config.Name,
 		State:        config.Status,
 		Tags:         config.Tags,

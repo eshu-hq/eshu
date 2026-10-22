@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("route53recoverycontrolconfig scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRoute53RecoveryControlConfig:
+	case "", catalog.ServiceRoute53RecoveryControlConfig:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRoute53RecoveryControlConfig
+		boundary.ServiceKind = catalog.ServiceRoute53RecoveryControlConfig
 	default:
 		return nil, fmt.Errorf(
 			"route53recoverycontrolconfig scanner received service_kind %q", boundary.ServiceKind,
@@ -141,7 +142,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster Cluster) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRoute53RecoveryControlConfigCluster,
+		ResourceType: catalog.ResourceTypeRoute53RecoveryControlConfigCluster,
 		Name:         name,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -164,7 +165,7 @@ func controlPanelObservation(boundary awscloud.Boundary, panel ControlPanel) aws
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRoute53RecoveryControlConfigControlPanel,
+		ResourceType: catalog.ResourceTypeRoute53RecoveryControlConfigControlPanel,
 		Name:         name,
 		State:        strings.TrimSpace(panel.Status),
 		Tags:         cloneStringMap(panel.Tags),
@@ -188,7 +189,7 @@ func routingControlObservation(boundary awscloud.Boundary, control RoutingContro
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRoute53RecoveryControlConfigRoutingControl,
+		ResourceType: catalog.ResourceTypeRoute53RecoveryControlConfigRoutingControl,
 		Name:         name,
 		State:        strings.TrimSpace(control.Status),
 		Tags:         cloneStringMap(control.Tags),
@@ -226,7 +227,7 @@ func safetyRuleObservation(boundary awscloud.Boundary, rule SafetyRule) awscloud
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeRoute53RecoveryControlConfigSafetyRule,
+		ResourceType:       catalog.ResourceTypeRoute53RecoveryControlConfigSafetyRule,
 		Name:               name,
 		State:              strings.TrimSpace(rule.Status),
 		Tags:               cloneStringMap(rule.Tags),

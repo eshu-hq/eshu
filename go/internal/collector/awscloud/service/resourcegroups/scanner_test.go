@@ -101,18 +101,18 @@ func TestClassifyMemberCoversFamilies(t *testing.T) {
 		{"ecs cluster", "arn:aws:ecs:us-east-1:123456789012:cluster/main", catalog.ResourceTypeECSCluster, "arn:aws:ecs:us-east-1:123456789012:cluster/main", true},
 		{"ecs service", "arn:aws:ecs:us-east-1:123456789012:service/main/web", catalog.ResourceTypeECSService, "arn:aws:ecs:us-east-1:123456789012:service/main/web", true},
 		{"eks cluster", "arn:aws:eks:us-east-1:123456789012:cluster/prod", catalog.ResourceTypeEKSCluster, "arn:aws:eks:us-east-1:123456789012:cluster/prod", true},
-		{"elbv2 load balancer", "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", awscloud.ResourceTypeELBv2LoadBalancer, "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", true},
+		{"elbv2 load balancer", "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", catalog.ResourceTypeELBv2LoadBalancer, "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/abc", true},
 		{"secret", "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", awscloud.ResourceTypeSecretsManagerSecret, "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf", true},
 		{"cloudformation stack", "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", awscloud.ResourceTypeCloudFormationStack, "arn:aws:cloudformation:us-east-1:123456789012:stack/my-stack/guid", true},
 
 		// Non-ARN-keyed families: published id must match the target scanner.
 		{"kms key", "arn:aws:kms:us-east-1:123456789012:key/abcd1234-12ab-34cd-56ef-1234567890ab", catalog.ResourceTypeKMSKey, "abcd1234-12ab-34cd-56ef-1234567890ab", false},
-		{"route53 hosted zone", "arn:aws:route53:::hostedzone/Z123456ABC", awscloud.ResourceTypeRoute53HostedZone, "/hostedzone/Z123456ABC", false},
+		{"route53 hosted zone", "arn:aws:route53:::hostedzone/Z123456ABC", catalog.ResourceTypeRoute53HostedZone, "/hostedzone/Z123456ABC", false},
 		{"ec2 instance", "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc1234", "aws_ec2_instance", "i-0abc1234", false},
 		{"ec2 vpc", "arn:aws:ec2:us-east-1:123456789012:vpc/vpc-0abc1234", catalog.ResourceTypeEC2VPC, "vpc-0abc1234", false},
 		{"ec2 subnet", "arn:aws:ec2:us-east-1:123456789012:subnet/subnet-0abc1234", catalog.ResourceTypeEC2Subnet, "subnet-0abc1234", false},
 		{"ec2 security group", "arn:aws:ec2:us-east-1:123456789012:security-group/sg-0abc1234", catalog.ResourceTypeEC2SecurityGroup, "sg-0abc1234", false},
-		{"ec2 elastic ip", "arn:aws:ec2:us-east-1:123456789012:elastic-ip/eipalloc-0abc1234", awscloud.ResourceTypeVPCElasticIP, "eipalloc-0abc1234", false},
+		{"ec2 elastic ip", "arn:aws:ec2:us-east-1:123456789012:elastic-ip/eipalloc-0abc1234", catalog.ResourceTypeVPCElasticIP, "eipalloc-0abc1234", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // namespaceRelationships emits the namespace-to-Route53-hosted-zone edge for a
@@ -25,11 +26,11 @@ func namespaceRelationships(boundary awscloud.Boundary, namespace Namespace) []a
 	targetResourceID := "/hostedzone/" + hostedZoneID
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudMapNamespaceInHostedZone,
+		RelationshipType: catalog.RelationshipCloudMapNamespaceInHostedZone,
 		SourceResourceID: namespaceID,
 		SourceARN:        strings.TrimSpace(namespace.ARN),
 		TargetResourceID: targetResourceID,
-		TargetType:       awscloud.ResourceTypeRoute53HostedZone,
+		TargetType:       catalog.ResourceTypeRoute53HostedZone,
 		Attributes:       map[string]any{"hosted_zone_id": hostedZoneID},
 		SourceRecordID:   namespaceID + "->" + targetResourceID,
 	}}
@@ -46,11 +47,11 @@ func serviceRelationships(boundary awscloud.Boundary, service Service) []awsclou
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudMapServiceInNamespace,
+		RelationshipType: catalog.RelationshipCloudMapServiceInNamespace,
 		SourceResourceID: resourceID,
 		SourceARN:        strings.TrimSpace(service.ARN),
 		TargetResourceID: namespaceID,
-		TargetType:       awscloud.ResourceTypeCloudMapNamespace,
+		TargetType:       catalog.ResourceTypeCloudMapNamespace,
 		SourceRecordID:   resourceID + "->" + namespaceID,
 	}}
 }

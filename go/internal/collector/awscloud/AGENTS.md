@@ -11,7 +11,11 @@
    `constants_common.go` for cross-service targets like `ResourceTypeAWSAccount`
    and `constants_cloudtrail.go` for the CloudTrail slice) - service, resource type,
    and relationship constants. Consolidated categories live in `catalog/`
-   instead (GuardDuty now lives in `catalog/security_threat.go`). New service
+   instead (GuardDuty now lives in `catalog/security_threat.go`; VPC, VPC
+   Lattice, Route 53, Route 53 Resolver, Route 53 Recovery Control Config,
+   Direct Connect, Transit Gateway, Network Manager, Network Firewall, ELB,
+   ELBv2, Global Accelerator, Service Discovery, and CloudFront now live in
+   `catalog/network.go` and `catalog/network_edge.go`). New service
    constants MUST land in their own
    `constants_<service>.go` sibling, not back in `types.go`, so the 500-line
    cap stays satisfied.

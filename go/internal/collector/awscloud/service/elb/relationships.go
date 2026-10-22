@@ -41,7 +41,7 @@ func loadBalancerRelationships(
 	for _, instanceID := range dedupe(loadBalancer.InstanceIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipELBLoadBalancerRegistersInstance,
+			RelationshipType: catalog.RelationshipELBLoadBalancerRegistersInstance,
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: instanceID,
@@ -53,7 +53,7 @@ func loadBalancerRelationships(
 	for _, subnetID := range dedupe(loadBalancer.Subnets) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipELBLoadBalancerInSubnet,
+			RelationshipType: catalog.RelationshipELBLoadBalancerInSubnet,
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: subnetID,
@@ -65,7 +65,7 @@ func loadBalancerRelationships(
 	for _, groupID := range dedupe(loadBalancer.SecurityGroups) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipELBLoadBalancerUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipELBLoadBalancerUsesSecurityGroup,
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: groupID,
@@ -77,7 +77,7 @@ func loadBalancerRelationships(
 	if vpcID := strings.TrimSpace(loadBalancer.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipELBLoadBalancerInVPC,
+			RelationshipType: catalog.RelationshipELBLoadBalancerInVPC,
 			SourceResourceID: loadBalancerARN,
 			SourceARN:        loadBalancerARN,
 			TargetResourceID: vpcID,
@@ -143,9 +143,9 @@ func certificateRelationships(
 func certificateEdgeKind(certificateARN string) (relationshipType, targetType string, ok bool) {
 	switch {
 	case arnService(certificateARN) == "acm":
-		return awscloud.RelationshipELBLoadBalancerUsesACMCertificate, catalog.ResourceTypeACMCertificate, true
+		return catalog.RelationshipELBLoadBalancerUsesACMCertificate, catalog.ResourceTypeACMCertificate, true
 	case arnService(certificateARN) == "iam":
-		return awscloud.RelationshipELBLoadBalancerUsesIAMServerCertificate, iamServerCertificateTargetType, true
+		return catalog.RelationshipELBLoadBalancerUsesIAMServerCertificate, iamServerCertificateTargetType, true
 	default:
 		return "", "", false
 	}

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
@@ -78,7 +77,7 @@ func protectedResourceTargetType(resilienceHubType string) string {
 	case "AWS::EFS::FileSystem":
 		return catalog.ResourceTypeEFSFileSystem
 	case "AWS::ElasticLoadBalancingV2::LoadBalancer":
-		return awscloud.ResourceTypeELBv2LoadBalancer
+		return catalog.ResourceTypeELBv2LoadBalancer
 	case "AWS::Lambda::Function":
 		return catalog.ResourceTypeLambdaFunction
 	case "AWS::SNS::Topic":

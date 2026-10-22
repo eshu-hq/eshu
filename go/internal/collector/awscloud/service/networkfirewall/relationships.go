@@ -26,7 +26,7 @@ func firewallRelationships(boundary awscloud.Boundary, firewall Firewall) []awsc
 	if vpcID := strings.TrimSpace(firewall.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipNetworkFirewallFirewallInVPC,
+			RelationshipType: catalog.RelationshipNetworkFirewallFirewallInVPC,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: vpcID,
@@ -38,7 +38,7 @@ func firewallRelationships(boundary awscloud.Boundary, firewall Firewall) []awsc
 	for _, subnetID := range dedupeStrings(firewall.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipNetworkFirewallFirewallUsesSubnet,
+			RelationshipType: catalog.RelationshipNetworkFirewallFirewallUsesSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnetID,
@@ -50,12 +50,12 @@ func firewallRelationships(boundary awscloud.Boundary, firewall Firewall) []awsc
 	if policyARN := strings.TrimSpace(firewall.FirewallPolicyARN); policyARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipNetworkFirewallFirewallUsesPolicy,
+			RelationshipType: catalog.RelationshipNetworkFirewallFirewallUsesPolicy,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: policyARN,
 			TargetARN:        policyARN,
-			TargetType:       awscloud.ResourceTypeNetworkFirewallPolicy,
+			TargetType:       catalog.ResourceTypeNetworkFirewallPolicy,
 			SourceRecordID:   sourceID + "#policy#" + policyARN,
 		})
 	}
@@ -77,12 +77,12 @@ func policyRelationships(boundary awscloud.Boundary, policy FirewallPolicy) []aw
 	for _, ruleGroupARN := range dedupeStrings(policy.RuleGroupARNs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipNetworkFirewallPolicyUsesRuleGroup,
+			RelationshipType: catalog.RelationshipNetworkFirewallPolicyUsesRuleGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: ruleGroupARN,
 			TargetARN:        ruleGroupARN,
-			TargetType:       awscloud.ResourceTypeNetworkFirewallRuleGroup,
+			TargetType:       catalog.ResourceTypeNetworkFirewallRuleGroup,
 			SourceRecordID:   sourceID + "#rule-group#" + ruleGroupARN,
 		})
 	}
@@ -90,12 +90,12 @@ func policyRelationships(boundary awscloud.Boundary, policy FirewallPolicy) []aw
 	if tlsARN := strings.TrimSpace(policy.TLSInspectionConfigurationARN); tlsARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipNetworkFirewallPolicyUsesTLSInspectionConfiguration,
+			RelationshipType: catalog.RelationshipNetworkFirewallPolicyUsesTLSInspectionConfiguration,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: tlsARN,
 			TargetARN:        tlsARN,
-			TargetType:       awscloud.ResourceTypeNetworkFirewallTLSInspectionConfiguration,
+			TargetType:       catalog.ResourceTypeNetworkFirewallTLSInspectionConfiguration,
 			SourceRecordID:   sourceID + "#tls-inspection-configuration#" + tlsARN,
 		})
 	}

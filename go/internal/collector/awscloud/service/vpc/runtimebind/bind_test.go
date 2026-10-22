@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/vpc/runtimebind"
 )
 
 // TestVPCRuntimeBindRegisters confirms importing the binding installs the VPC
 // scanner builder.
 func TestVPCRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceVPC)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceVPC)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceVPC)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceVPC)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceVPC,
+			ServiceKind: catalog.ServiceVPC,
 		},
 	})
 	if err != nil {

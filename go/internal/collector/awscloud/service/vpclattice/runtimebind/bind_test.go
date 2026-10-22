@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/vpclattice/runtimebind"
 )
 
 // TestVPCLatticeRuntimeBindRegisters confirms importing the binding installs
 // the VPC Lattice scanner builder.
 func TestVPCLatticeRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceVPCLattice)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceVPCLattice)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceVPCLattice)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceVPCLattice)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceVPCLattice,
+			ServiceKind: catalog.ServiceVPCLattice,
 		},
 	})
 	if err != nil {

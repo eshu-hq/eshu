@@ -12,6 +12,7 @@ import (
 	awsarctypes "github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientSnapshotsRecoveryControlMetadataOnly(t *testing.T) {
@@ -283,6 +284,6 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-west-2",
-		ServiceKind: awscloud.ServiceRoute53RecoveryControlConfig,
+		ServiceKind: catalog.ServiceRoute53RecoveryControlConfig,
 	}
 }

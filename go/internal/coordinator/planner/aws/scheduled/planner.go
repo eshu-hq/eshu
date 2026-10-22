@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
@@ -179,7 +178,7 @@ func awsScheduledTargetAllowed(target awsfreshness.Target) (string, bool) {
 
 func awsScheduledServiceGlobalOnly(serviceKind string) bool {
 	switch serviceKind {
-	case awscloud.ServiceCloudFront, catalog.ServiceIAM, awscloud.ServiceRoute53:
+	case catalog.ServiceCloudFront, catalog.ServiceIAM, catalog.ServiceRoute53:
 		return true
 	default:
 		return false

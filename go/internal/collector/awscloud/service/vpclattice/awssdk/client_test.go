@@ -12,6 +12,7 @@ import (
 	awsvpclatticetypes "github.com/aws/aws-sdk-go-v2/service/vpclattice/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientSnapshotsVPCLatticeMetadataOnly(t *testing.T) {
@@ -157,6 +158,6 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceVPCLattice,
+		ServiceKind: catalog.ServiceVPCLattice,
 	}
 }

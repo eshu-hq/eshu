@@ -132,7 +132,7 @@ func domainRelationships(
 				SourceResourceID: appID,
 				SourceARN:        appArnValue,
 				TargetResourceID: domainName,
-				TargetType:       awscloud.ResourceTypeRoute53HostedZone,
+				TargetType:       catalog.ResourceTypeRoute53HostedZone,
 				Attributes: map[string]any{
 					"domain_name":   domainName,
 					"domain_status": strings.TrimSpace(domain.Status),
@@ -155,7 +155,7 @@ func domainRelationships(
 				SourceResourceID: appID,
 				SourceARN:        appArnValue,
 				TargetResourceID: cf,
-				TargetType:       awscloud.ResourceTypeCloudFrontDistribution,
+				TargetType:       catalog.ResourceTypeCloudFrontDistribution,
 				Attributes: map[string]any{
 					"domain_name":  domainName,
 					"subdomain":    strings.TrimSpace(sub.Prefix),

@@ -103,6 +103,32 @@ avoid.
   `RelationshipInspector2*`, `RelationshipMacie*`,
   `RelationshipShield*`, `RelationshipFMS*` — security-threat-category
   reducer relationship types
+- `ServiceVPC`, `ServiceVPCLattice`, `ServiceRoute53`,
+  `ServiceRoute53Resolver`, `ServiceRoute53RecoveryControlConfig`,
+  `ServiceDirectConnect`, `ServiceTransitGateway` — network-category
+  service-kind strings (core fabric, DNS, and hybrid connectivity, in
+  `network.go`)
+- `ResourceTypeVPC*`, `ResourceTypeVPCLattice*`, `ResourceTypeRoute53*`,
+  `ResourceTypeDirectConnect*`, `ResourceTypeTransitGateway*` —
+  network-category fact-schema resource-type tokens
+- `RelationshipVPC*`, `RelationshipVPCLattice*`,
+  `RelationshipRoute53Resolver*`,
+  `RelationshipRoute53RecoveryControlConfig*`,
+  `RelationshipDirectConnect*`, `RelationshipTransitGateway*` —
+  network-category reducer relationship types
+- `ServiceNetworkManager`, `ServiceNetworkFirewall`, `ServiceELB`,
+  `ServiceELBv2`, `ServiceGlobalAccelerator`, `ServiceServiceDiscovery`,
+  `ServiceCloudFront` — network-edge-category service-kind strings (traffic
+  delivery and service connectivity, in `network_edge.go`)
+- `ResourceTypeNetworkManager*`, `ResourceTypeNetworkFirewall*`,
+  `ResourceTypeELB*`, `ResourceTypeELBv2*`, `ResourceTypeGlobalAccelerator*`,
+  `ResourceTypeCloudMap*`, `ResourceTypeCloudFront*` —
+  network-edge-category fact-schema resource-type tokens
+- `RelationshipNetworkManager*`, `RelationshipNetworkFirewall*`,
+  `RelationshipELB*`, `RelationshipELBv2*`,
+  `RelationshipGlobalAccelerator*`, `RelationshipCloudMap*`,
+  `RelationshipCloudFront*` — network-edge-category reducer relationship
+  types
 
 See `doc.go` for the full contract. Each follow-up category lands as one more
 `<category>.go` file with the same shape. The analytics category ships as
@@ -112,8 +138,11 @@ movement; `analytics_ml.go` for machine learning) because one file would pass
 the 500-line Go cap at ~989 lines. The security category ships as two files
 (`security.go` for identity, access, and cryptography; `security_threat.go`
 for detection and response) because one file would pass the 500-line Go cap;
-all stay under it. The remaining `constants_*` files stay in the awscloud root
-until their category lands.
+all stay under it. The network category ships as two files
+(`network.go` for core fabric, DNS, and hybrid connectivity;
+`network_edge.go` for traffic delivery and service connectivity) because one
+file would pass the 500-line Go cap; both stay under it. The remaining
+`constants_*` files stay in the awscloud root until their category lands.
 
 ## Dependencies
 
@@ -133,9 +162,10 @@ that consume these constants keep their existing counters; see
 ## Gotchas / invariants
 
 - A consolidation move must never change a value. `storage_test.go`,
-  `compute_test.go`, `messaging_test.go`, `analytics_test.go`, and
-  `security_test.go` pin every constant byte-identical to its
-  pre-consolidation value; a red test there is a behavior change, not a move.
+  `compute_test.go`, `messaging_test.go`, `analytics_test.go`,
+  `security_test.go`, and `network_test.go` pin every constant byte-identical
+  to its pre-consolidation value; a red test there is a behavior change, not
+  a move.
 
 ## Consolidation proof
 
@@ -263,6 +293,38 @@ relocations with no query, graph write, queue, lease, worker, batching, or
 Compose/Helm change, so there are no row counts to regress.
 No-Observability-Change (security slice): the leaf declares no instrument and runs no stage;
 scanner emission stays covered by `eshu_dp_aws_resources_emitted_total` and
+`eshu_dp_aws_scan_duration_seconds` (AWS cloud row in
+`docs/public/observability/telemetry-coverage.md`). Safe because the Go
+compiler resolves every moved reference, the value-pinning test fails on any
+drift, and the relguard/redaction disk-walk derivations already cover the
+catalog directory.
+
+No-Regression Evidence: the network-category consolidation (Refs #6696)
+moves 162 string constants from fourteen `constants_<service>.go` root files
+(vpc, vpclattice, route53, route53resolver, route53recoverycontrolconfig,
+directconnect, transitgateway, networkmanager, networkfirewall, elb, elbv2,
+globalaccelerator, servicediscovery, cloudfront) into `catalog/network.go`
+(core fabric, DNS, and hybrid connectivity) and `catalog/network_edge.go`
+(traffic delivery and service connectivity) verbatim (only the package clause
+changes) — the split is a size measure only: one file would pass the 500-line
+Go cap at ~825 lines, so the category ships as two files, both under the cap.
+The 132 referencing `.go` files change only the qualifier (`awscloud.` to
+`catalog.`, plus the leaf import, dropping it where it goes unused) and the
+same-package `envelope_test.go` qualifies two previously bare identifiers.
+Baseline: the pre-move values read from the base tree
+(`git show origin/main:go/internal/collector/awscloud/constants_<service>.go`)
+are pinned in `network_test.go` (162/162 byte-identical,
+`go test ./internal/collector/awscloud/catalog/ -count=1` green) and the
+full affected suite (collector tree, `go/cmd/collector-aws-cloud`,
+`go/cmd/webhook-listener`) is green after the move; `go build ./...` and
+`go vet ./...` are clean. The redaction-derivation and relguard walks needed
+no change: the storage slice already generalized them to every catalog
+category file, and they pass with `network.go` and `network_edge.go`
+present. Backend/version: none — a pure compile-time constant relocation
+with no query, graph write, queue, lease, worker, batching, or Compose/Helm
+change, so there are no row counts to regress. No-Observability-Change: the
+leaf declares no instrument and runs no stage; scanner emission stays covered
+by `eshu_dp_aws_resources_emitted_total` and
 `eshu_dp_aws_scan_duration_seconds` (AWS cloud row in
 `docs/public/observability/telemetry-coverage.md`). Safe because the Go
 compiler resolves every moved reference, the value-pinning test fails on any

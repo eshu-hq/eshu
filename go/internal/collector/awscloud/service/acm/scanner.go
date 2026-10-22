@@ -127,9 +127,9 @@ func looksLikeARN(value string) bool {
 func targetTypeForARN(arn string) string {
 	switch {
 	case strings.Contains(arn, ":elasticloadbalancing:"):
-		return awscloud.ResourceTypeELBv2LoadBalancer
+		return catalog.ResourceTypeELBv2LoadBalancer
 	case strings.Contains(arn, ":cloudfront:"):
-		return awscloud.ResourceTypeCloudFrontDistribution
+		return catalog.ResourceTypeCloudFrontDistribution
 	case strings.Contains(arn, ":apigateway:"):
 		return awscloud.ResourceTypeAPIGatewayDomainName
 	case strings.Contains(arn, ":appsync:"):

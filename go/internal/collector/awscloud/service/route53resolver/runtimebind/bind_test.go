@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/route53resolver/runtimebind"
 )
 
 // TestRoute53ResolverRuntimeBindRegisters confirms importing the binding
 // installs the Route 53 Resolver scanner builder.
 func TestRoute53ResolverRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceRoute53Resolver)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceRoute53Resolver)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceRoute53Resolver)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceRoute53Resolver)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceRoute53Resolver,
+			ServiceKind: catalog.ServiceRoute53Resolver,
 		},
 	})
 	if err != nil {
@@ -40,7 +41,7 @@ func TestRoute53ResolverRuntimeBindRegisters(t *testing.T) {
 // declare a redaction-key requirement: domain-list contents are dropped by not
 // mapping them, so no HMAC redaction is needed.
 func TestRoute53ResolverDoesNotRequireRedactionKey(t *testing.T) {
-	if awsruntime.ServiceRequiresRedactionKey(awscloud.ServiceRoute53Resolver) {
-		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", awscloud.ServiceRoute53Resolver)
+	if awsruntime.ServiceRequiresRedactionKey(catalog.ServiceRoute53Resolver) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", catalog.ServiceRoute53Resolver)
 	}
 }

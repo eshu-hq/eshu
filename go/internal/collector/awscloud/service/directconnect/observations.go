@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func connectionObservation(boundary awscloud.Boundary, connection Connection) awscloud.ResourceObservation {
@@ -14,7 +15,7 @@ func connectionObservation(boundary awscloud.Boundary, connection Connection) aw
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDirectConnectConnection,
+		ResourceType: catalog.ResourceTypeDirectConnectConnection,
 		Name:         firstNonEmpty(connection.Name, id),
 		State:        strings.TrimSpace(connection.State),
 		Tags:         cloneStringMap(connection.Tags),
@@ -40,7 +41,7 @@ func virtualInterfaceObservation(boundary awscloud.Boundary, vif VirtualInterfac
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDirectConnectVirtualInterface,
+		ResourceType: catalog.ResourceTypeDirectConnectVirtualInterface,
 		Name:         firstNonEmpty(vif.Name, id),
 		State:        strings.TrimSpace(vif.State),
 		Tags:         cloneStringMap(vif.Tags),
@@ -66,7 +67,7 @@ func gatewayObservation(boundary awscloud.Boundary, gateway Gateway) awscloud.Re
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDirectConnectGateway,
+		ResourceType: catalog.ResourceTypeDirectConnectGateway,
 		Name:         firstNonEmpty(gateway.Name, id),
 		State:        strings.TrimSpace(gateway.State),
 		Attributes: map[string]any{
@@ -83,7 +84,7 @@ func lagObservation(boundary awscloud.Boundary, lag LAG) awscloud.ResourceObserv
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeDirectConnectLAG,
+		ResourceType: catalog.ResourceTypeDirectConnectLAG,
 		Name:         firstNonEmpty(lag.Name, id),
 		State:        strings.TrimSpace(lag.State),
 		Tags:         cloneStringMap(lag.Tags),

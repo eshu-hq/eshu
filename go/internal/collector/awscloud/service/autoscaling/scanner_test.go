@@ -294,7 +294,7 @@ func TestScannerEmitsGroupRelationshipsWithGreppedJoinKeys(t *testing.T) {
 	}
 	assertEdge(t, tg[0], "checkout-asg",
 		"arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/checkout-tg/abc123",
-		awscloud.ResourceTypeELBv2TargetGroup)
+		catalog.ResourceTypeELBv2TargetGroup)
 
 	// asg -> service-linked IAM role: role ARN.
 	role := relationshipsByType(t, envelopes, catalog.RelationshipAutoScalingGroupUsesIAMRole)

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -106,9 +105,9 @@ func TestAWSScheduledWorkPlannerSkipsInvalidGlobalRegionPairs(t *testing.T) {
 		gotScopeIDs = append(gotScopeIDs, item.ScopeID)
 	}
 	wantScopeIDs := []string{
-		"aws:123456789012:aws-global:" + awscloud.ServiceCloudFront,
+		"aws:123456789012:aws-global:" + catalog.ServiceCloudFront,
 		"aws:123456789012:aws-global:" + catalog.ServiceIAM,
-		"aws:123456789012:aws-global:" + awscloud.ServiceRoute53,
+		"aws:123456789012:aws-global:" + catalog.ServiceRoute53,
 		"aws:123456789012:us-east-1:" + catalog.ServiceLambda,
 		"aws:123456789012:us-east-1:" + catalog.ServiceS3,
 	}
@@ -137,11 +136,11 @@ func TestAWSScheduledWorkPlannerSkipsInvalidGlobalRegionPairs(t *testing.T) {
 		t.Fatalf("skipped targets = %d, want %d in RequestedScopeSet %s", got, want, run.RequestedScopeSet)
 	}
 	wantSkipped := map[string]string{
-		"aws-global/" + catalog.ServiceLambda:     "regional_service_aws_global",
-		"aws-global/" + catalog.ServiceS3:         "regional_service_aws_global",
-		"us-east-1/" + awscloud.ServiceCloudFront: "global_service_regional_region",
-		"us-east-1/" + catalog.ServiceIAM:         "global_service_regional_region",
-		"us-east-1/" + awscloud.ServiceRoute53:    "global_service_regional_region",
+		"aws-global/" + catalog.ServiceLambda:    "regional_service_aws_global",
+		"aws-global/" + catalog.ServiceS3:        "regional_service_aws_global",
+		"us-east-1/" + catalog.ServiceCloudFront: "global_service_regional_region",
+		"us-east-1/" + catalog.ServiceIAM:        "global_service_regional_region",
+		"us-east-1/" + catalog.ServiceRoute53:    "global_service_regional_region",
 	}
 	for _, skipped := range requested.SkippedTargets {
 		key := skipped.Region + "/" + skipped.ServiceKind

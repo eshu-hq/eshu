@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // serviceResourceID is the join key the Cloud Map service resource is keyed by:
@@ -35,7 +36,7 @@ func namespaceObservation(boundary awscloud.Boundary, namespace Namespace) awscl
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeCloudMapNamespace,
+		ResourceType: catalog.ResourceTypeCloudMapNamespace,
 		Name:         name,
 		Tags:         cloneStringMap(namespace.Tags),
 		Attributes: map[string]any{
@@ -64,7 +65,7 @@ func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeCloudMapService,
+		ResourceType: catalog.ResourceTypeCloudMapService,
 		Name:         name,
 		Tags:         cloneStringMap(service.Tags),
 		Attributes: map[string]any{

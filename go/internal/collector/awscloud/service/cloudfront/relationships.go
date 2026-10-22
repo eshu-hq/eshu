@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func distributionRelationships(
@@ -38,7 +39,7 @@ func acmCertificateRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudFrontDistributionUsesACMCertificate,
+		RelationshipType: catalog.RelationshipCloudFrontDistributionUsesACMCertificate,
 		SourceResourceID: distributionID,
 		SourceARN:        strings.TrimSpace(distribution.ARN),
 		TargetResourceID: certificateARN,
@@ -66,7 +67,7 @@ func wafWebACLRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudFrontDistributionUsesWAFWebACL,
+		RelationshipType: catalog.RelationshipCloudFrontDistributionUsesWAFWebACL,
 		SourceResourceID: distributionID,
 		SourceARN:        strings.TrimSpace(distribution.ARN),
 		TargetResourceID: webACLID,

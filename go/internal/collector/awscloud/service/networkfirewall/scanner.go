@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,10 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("networkfirewall scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceNetworkFirewall:
+	case "", catalog.ServiceNetworkFirewall:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceNetworkFirewall
+		boundary.ServiceKind = catalog.ServiceNetworkFirewall
 	default:
 		return nil, fmt.Errorf("networkfirewall scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -144,7 +145,7 @@ func firewallObservation(boundary awscloud.Boundary, firewall Firewall) awscloud
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkFirewallFirewall,
+		ResourceType: catalog.ResourceTypeNetworkFirewallFirewall,
 		Name:         strings.TrimSpace(firewall.Name),
 		State:        strings.TrimSpace(firewall.Status),
 		Tags:         cloneStringMap(firewall.Tags),
@@ -173,7 +174,7 @@ func policyObservation(boundary awscloud.Boundary, policy FirewallPolicy) awsclo
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkFirewallPolicy,
+		ResourceType: catalog.ResourceTypeNetworkFirewallPolicy,
 		Name:         strings.TrimSpace(policy.Name),
 		State:        strings.TrimSpace(policy.Status),
 		Tags:         cloneStringMap(policy.Tags),
@@ -202,7 +203,7 @@ func ruleGroupObservation(boundary awscloud.Boundary, ruleGroup RuleGroup) awscl
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkFirewallRuleGroup,
+		ResourceType: catalog.ResourceTypeNetworkFirewallRuleGroup,
 		Name:         strings.TrimSpace(ruleGroup.Name),
 		Tags:         cloneStringMap(ruleGroup.Tags),
 		Attributes: map[string]any{
@@ -224,7 +225,7 @@ func tlsInspectionObservation(boundary awscloud.Boundary, tlsConfig TLSInspectio
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeNetworkFirewallTLSInspectionConfiguration,
+		ResourceType: catalog.ResourceTypeNetworkFirewallTLSInspectionConfiguration,
 		Name:         strings.TrimSpace(tlsConfig.Name),
 		State:        strings.TrimSpace(tlsConfig.Status),
 		Tags:         cloneStringMap(tlsConfig.Tags),

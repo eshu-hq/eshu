@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -33,8 +34,8 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("networkmanager scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceNetworkManager:
-		boundary.ServiceKind = awscloud.ServiceNetworkManager
+	case "", catalog.ServiceNetworkManager:
+		boundary.ServiceKind = catalog.ServiceNetworkManager
 	default:
 		return nil, fmt.Errorf("networkmanager scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -144,7 +145,7 @@ func siteEnvelopes(boundary awscloud.Boundary, gnID string, site Site) ([]facts.
 	envelopes := []facts.Envelope{resource}
 	rel := parentGlobalNetworkRelationship(
 		boundary,
-		awscloud.RelationshipNetworkManagerSiteInGlobalNetwork,
+		catalog.RelationshipNetworkManagerSiteInGlobalNetwork,
 		siteResourceID(boundary, site),
 		site.ARN,
 		site.GlobalNetworkID,
@@ -162,7 +163,7 @@ func deviceEnvelopes(boundary awscloud.Boundary, gnID string, device Device) ([]
 	for _, rel := range []*awscloud.RelationshipObservation{
 		parentGlobalNetworkRelationship(
 			boundary,
-			awscloud.RelationshipNetworkManagerDeviceInGlobalNetwork,
+			catalog.RelationshipNetworkManagerDeviceInGlobalNetwork,
 			deviceResourceID(boundary, device),
 			device.ARN,
 			device.GlobalNetworkID,
@@ -187,7 +188,7 @@ func linkEnvelopes(boundary awscloud.Boundary, gnID string, link Link) ([]facts.
 	for _, rel := range []*awscloud.RelationshipObservation{
 		parentGlobalNetworkRelationship(
 			boundary,
-			awscloud.RelationshipNetworkManagerLinkInGlobalNetwork,
+			catalog.RelationshipNetworkManagerLinkInGlobalNetwork,
 			linkResourceID(boundary, link),
 			link.ARN,
 			link.GlobalNetworkID,
@@ -211,7 +212,7 @@ func connectionEnvelopes(boundary awscloud.Boundary, gnID string, connection Con
 	envelopes := []facts.Envelope{resource}
 	envelopes, err = appendRelationship(envelopes, parentGlobalNetworkRelationship(
 		boundary,
-		awscloud.RelationshipNetworkManagerConnectionInGlobalNetwork,
+		catalog.RelationshipNetworkManagerConnectionInGlobalNetwork,
 		connectionResourceID(boundary, connection),
 		connection.ARN,
 		connection.GlobalNetworkID,

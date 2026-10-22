@@ -144,7 +144,7 @@ func TestScannerEmitsEnvironmentRelationshipsWithJoinKeys(t *testing.T) {
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesVPC, "vpc-0123456789abcdef0", catalog.ResourceTypeEC2VPC},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile, testInstanceProf, catalog.ResourceTypeIAMInstanceProfile},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesServiceRole, testServiceRole, catalog.ResourceTypeIAMRole},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer, testLoadBalancerARN, awscloud.ResourceTypeELBv2LoadBalancer},
+		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer, testLoadBalancerARN, catalog.ResourceTypeELBv2LoadBalancer},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup, "awseb-e-abc123-stack-AWSEBAutoScalingGroup", awscloud.ResourceTypeAutoScalingGroup},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate, "lt-0123456789abcdef0", catalog.ResourceTypeEC2LaunchTemplate},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentRunsVersion, testAppVersionARN, awscloud.ResourceTypeElasticBeanstalkApplicationVersion},
@@ -188,7 +188,7 @@ func TestResourceRelationshipsTypesLoadBalancerByIdentifierShape(t *testing.T) {
 			name:           "alb arn keeps elbv2 type and sets target arn",
 			loadBalancer:   albARN,
 			wantTargetID:   albARN,
-			wantTargetType: awscloud.ResourceTypeELBv2LoadBalancer,
+			wantTargetType: catalog.ResourceTypeELBv2LoadBalancer,
 			wantTargetARN:  albARN,
 		},
 		{

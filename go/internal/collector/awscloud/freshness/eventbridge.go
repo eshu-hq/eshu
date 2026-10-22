@@ -153,7 +153,7 @@ func normalizeTriggerRegion(serviceKind string, region string) string {
 
 func isGlobalService(serviceKind string) bool {
 	switch serviceKind {
-	case catalog.ServiceIAM, awscloud.ServiceRoute53, awscloud.ServiceCloudFront:
+	case catalog.ServiceIAM, catalog.ServiceRoute53, catalog.ServiceCloudFront:
 		return true
 	default:
 		return false
@@ -215,7 +215,7 @@ var configResourceTypeServices = map[string]string{
 	"AWS::ApiGateway::Stage":                    awscloud.ServiceAPIGateway,
 	"AWS::ApiGatewayV2::Api":                    awscloud.ServiceAPIGatewayV2,
 	"AWS::ApiGatewayV2::Stage":                  awscloud.ServiceAPIGatewayV2,
-	"AWS::CloudFront::Distribution":             awscloud.ServiceCloudFront,
+	"AWS::CloudFront::Distribution":             catalog.ServiceCloudFront,
 	"AWS::DynamoDB::Table":                      awscloud.ServiceDynamoDB,
 	"AWS::EC2::NetworkInterface":                catalog.ServiceEC2,
 	"AWS::EC2::SecurityGroup":                   catalog.ServiceEC2,
@@ -226,9 +226,9 @@ var configResourceTypeServices = map[string]string{
 	"AWS::ECS::Service":                         catalog.ServiceECS,
 	"AWS::ECS::TaskDefinition":                  catalog.ServiceECS,
 	"AWS::EKS::Cluster":                         catalog.ServiceEKS,
-	"AWS::ElasticLoadBalancingV2::Listener":     awscloud.ServiceELBv2,
-	"AWS::ElasticLoadBalancingV2::LoadBalancer": awscloud.ServiceELBv2,
-	"AWS::ElasticLoadBalancingV2::TargetGroup":  awscloud.ServiceELBv2,
+	"AWS::ElasticLoadBalancingV2::Listener":     catalog.ServiceELBv2,
+	"AWS::ElasticLoadBalancingV2::LoadBalancer": catalog.ServiceELBv2,
+	"AWS::ElasticLoadBalancingV2::TargetGroup":  catalog.ServiceELBv2,
 	"AWS::Events::EventBus":                     catalog.ServiceEventBridge,
 	"AWS::Events::Rule":                         catalog.ServiceEventBridge,
 	"AWS::Glue::Connection":                     catalog.ServiceGlue,
@@ -253,7 +253,7 @@ var configResourceTypeServices = map[string]string{
 	"AWS::Redshift::ClusterSubnetGroup":         awscloud.ServiceRedshift,
 	"AWS::RedshiftServerless::Namespace":        awscloud.ServiceRedshift,
 	"AWS::RedshiftServerless::Workgroup":        awscloud.ServiceRedshift,
-	"AWS::Route53::HostedZone":                  awscloud.ServiceRoute53,
+	"AWS::Route53::HostedZone":                  catalog.ServiceRoute53,
 	"AWS::S3::Bucket":                           catalog.ServiceS3,
 	"AWS::SecretsManager::Secret":               awscloud.ServiceSecretsManager,
 	"AWS::SecurityHub::Hub":                     catalog.ServiceSecurityHub,
@@ -265,13 +265,13 @@ var configResourceTypeServices = map[string]string{
 var cloudTrailSourceServices = map[string]string{
 	"apigateway.amazonaws.com":           awscloud.ServiceAPIGateway,
 	"apigatewayv2.amazonaws.com":         awscloud.ServiceAPIGatewayV2,
-	"cloudfront.amazonaws.com":           awscloud.ServiceCloudFront,
+	"cloudfront.amazonaws.com":           catalog.ServiceCloudFront,
 	"dynamodb.amazonaws.com":             awscloud.ServiceDynamoDB,
 	"ec2.amazonaws.com":                  catalog.ServiceEC2,
 	"ecr.amazonaws.com":                  catalog.ServiceECR,
 	"ecs.amazonaws.com":                  catalog.ServiceECS,
 	"eks.amazonaws.com":                  catalog.ServiceEKS,
-	"elasticloadbalancing.amazonaws.com": awscloud.ServiceELBv2,
+	"elasticloadbalancing.amazonaws.com": catalog.ServiceELBv2,
 	"events.amazonaws.com":               catalog.ServiceEventBridge,
 	"glue.amazonaws.com":                 catalog.ServiceGlue,
 	"iam.amazonaws.com":                  catalog.ServiceIAM,
@@ -280,7 +280,7 @@ var cloudTrailSourceServices = map[string]string{
 	"rds.amazonaws.com":                  awscloud.ServiceRDS,
 	"redshift.amazonaws.com":             awscloud.ServiceRedshift,
 	"redshift-serverless.amazonaws.com":  awscloud.ServiceRedshift,
-	"route53.amazonaws.com":              awscloud.ServiceRoute53,
+	"route53.amazonaws.com":              catalog.ServiceRoute53,
 	"s3.amazonaws.com":                   catalog.ServiceS3,
 	"secretsmanager.amazonaws.com":       awscloud.ServiceSecretsManager,
 	"securityhub.amazonaws.com":          catalog.ServiceSecurityHub,
@@ -294,7 +294,7 @@ var cloudTrailResourceIDKeys = map[string][]string{
 	catalog.ServiceECR:    {"repositoryName"},
 	catalog.ServiceECS:    {"service", "cluster", "taskDefinition", "task"},
 	catalog.ServiceEKS:    {"name", "clusterName", "nodegroupName"},
-	awscloud.ServiceELBv2: {"loadBalancerArn", "listenerArn", "targetGroupArn", "ruleArn"},
+	catalog.ServiceELBv2:  {"loadBalancerArn", "listenerArn", "targetGroupArn", "ruleArn"},
 	catalog.ServiceLambda: {"functionName", "uuid"},
 	awscloud.ServiceRDS:   {"dBInstanceIdentifier", "dBClusterIdentifier", "dBSubnetGroupName"},
 	awscloud.ServiceRedshift: {

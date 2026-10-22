@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -33,10 +34,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("vpclattice scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceVPCLattice:
+	case "", catalog.ServiceVPCLattice:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceVPCLattice
+		boundary.ServiceKind = catalog.ServiceVPCLattice
 	default:
 		return nil, fmt.Errorf("vpclattice scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -169,7 +170,7 @@ func serviceNetworkObservation(boundary awscloud.Boundary, network ServiceNetwor
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVPCLatticeServiceNetwork,
+		ResourceType: catalog.ResourceTypeVPCLatticeServiceNetwork,
 		Name:         name,
 		Tags:         cloneStringMap(network.Tags),
 		Attributes: map[string]any{
@@ -193,7 +194,7 @@ func serviceObservation(boundary awscloud.Boundary, service Service) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVPCLatticeService,
+		ResourceType: catalog.ResourceTypeVPCLatticeService,
 		Name:         name,
 		State:        strings.TrimSpace(service.Status),
 		Tags:         cloneStringMap(service.Tags),
@@ -229,7 +230,7 @@ func listenerObservation(boundary awscloud.Boundary, service Service, listener L
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeVPCLatticeListener,
+		ResourceType:       catalog.ResourceTypeVPCLatticeListener,
 		Name:               name,
 		Tags:               nil,
 		Attributes:         attributes,
@@ -260,7 +261,7 @@ func targetGroupObservation(boundary awscloud.Boundary, group TargetGroup) awscl
 		Boundary:           boundary,
 		ARN:                arn,
 		ResourceID:         resourceID,
-		ResourceType:       awscloud.ResourceTypeVPCLatticeTargetGroup,
+		ResourceType:       catalog.ResourceTypeVPCLatticeTargetGroup,
 		Name:               name,
 		State:              strings.TrimSpace(group.Status),
 		Tags:               cloneStringMap(group.Tags),

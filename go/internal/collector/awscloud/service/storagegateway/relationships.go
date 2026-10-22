@@ -161,7 +161,7 @@ func gatewayVPCEndpointRelationship(boundary awscloud.Boundary, gateway Gateway)
 		SourceResourceID: gatewayARN,
 		SourceARN:        gatewayARN,
 		TargetResourceID: endpointID,
-		TargetType:       awscloud.ResourceTypeVPCEndpoint,
+		TargetType:       catalog.ResourceTypeVPCEndpoint,
 		SourceRecordID:   gatewayARN + "->" + catalog.RelationshipStorageGatewayGatewayUsesVPCEndpoint + ":" + endpointID,
 	}
 }

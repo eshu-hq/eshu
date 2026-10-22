@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/globalaccelerator/runtimebind"
 )
 
 // TestGlobalAcceleratorRuntimeBindRegisters confirms importing the binding
 // installs the Global Accelerator scanner builder.
 func TestGlobalAcceleratorRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceGlobalAccelerator)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceGlobalAccelerator)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceGlobalAccelerator)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceGlobalAccelerator)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-west-2"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-west-2",
-			ServiceKind: awscloud.ServiceGlobalAccelerator,
+			ServiceKind: catalog.ServiceGlobalAccelerator,
 		},
 	})
 	if err != nil {

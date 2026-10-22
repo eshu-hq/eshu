@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func transitGatewayObservation(boundary awscloud.Boundary, gateway TransitGateway) awscloud.ResourceObservation {
@@ -16,7 +17,7 @@ func transitGatewayObservation(boundary awscloud.Boundary, gateway TransitGatewa
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGateway,
+		ResourceType: catalog.ResourceTypeTransitGateway,
 		Name:         id,
 		State:        strings.TrimSpace(gateway.State),
 		Tags:         cloneStringMap(gateway.Tags),
@@ -36,7 +37,7 @@ func routeTableObservation(boundary awscloud.Boundary, rt RouteTable) awscloud.R
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGatewayRouteTable,
+		ResourceType: catalog.ResourceTypeTransitGatewayRouteTable,
 		Name:         id,
 		State:        strings.TrimSpace(rt.State),
 		Tags:         cloneStringMap(rt.Tags),
@@ -56,7 +57,7 @@ func attachmentObservation(boundary awscloud.Boundary, attachment Attachment) aw
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGatewayAttachment,
+		ResourceType: catalog.ResourceTypeTransitGatewayAttachment,
 		Name:         id,
 		State:        strings.TrimSpace(attachment.State),
 		Tags:         cloneStringMap(attachment.Tags),
@@ -80,7 +81,7 @@ func peeringAttachmentObservation(boundary awscloud.Boundary, peering PeeringAtt
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGatewayPeeringAttachment,
+		ResourceType: catalog.ResourceTypeTransitGatewayPeeringAttachment,
 		Name:         id,
 		State:        strings.TrimSpace(peering.State),
 		Tags:         cloneStringMap(peering.Tags),
@@ -103,7 +104,7 @@ func multicastDomainObservation(boundary awscloud.Boundary, domain MulticastDoma
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGatewayMulticastDomain,
+		ResourceType: catalog.ResourceTypeTransitGatewayMulticastDomain,
 		Name:         id,
 		State:        strings.TrimSpace(domain.State),
 		Tags:         cloneStringMap(domain.Tags),
@@ -123,7 +124,7 @@ func policyTableObservation(boundary awscloud.Boundary, policyTable PolicyTable)
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   id,
-		ResourceType: awscloud.ResourceTypeTransitGatewayPolicyTable,
+		ResourceType: catalog.ResourceTypeTransitGatewayPolicyTable,
 		Name:         id,
 		State:        strings.TrimSpace(policyTable.State),
 		Tags:         cloneStringMap(policyTable.Tags),

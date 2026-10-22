@@ -100,8 +100,8 @@ func TestScannerEmitsCertificateFactsMetadataOnlyAndInUseRelationships(t *testin
 		t.Fatalf("relationship count = %d, want %d", got, want)
 	}
 	wantTargets := map[string]string{
-		loadBalancerARN: awscloud.ResourceTypeELBv2LoadBalancer,
-		cloudFrontARN:   awscloud.ResourceTypeCloudFrontDistribution,
+		loadBalancerARN: catalog.ResourceTypeELBv2LoadBalancer,
+		cloudFrontARN:   catalog.ResourceTypeCloudFrontDistribution,
 		apiGatewayARN:   awscloud.ResourceTypeAPIGatewayDomainName,
 		appSyncARN:      "aws_appsync_api",
 		appRunnerARN:    "aws_apprunner_service",

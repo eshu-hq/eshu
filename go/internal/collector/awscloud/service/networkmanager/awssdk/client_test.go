@@ -12,6 +12,7 @@ import (
 	awsnmtypes "github.com/aws/aws-sdk-go-v2/service/networkmanager/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // fakeAPI is a metadata-only Network Manager API stub. Each list/get returns one
@@ -94,7 +95,7 @@ func TestSnapshotMapsNestedTopology(t *testing.T) {
 			Edges:    []awsnmtypes.CoreNetworkEdge{{EdgeLocation: aws.String("us-east-1")}},
 		},
 	}
-	client := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceNetworkManager}}
+	client := &Client{client: api, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceNetworkManager}}
 
 	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {

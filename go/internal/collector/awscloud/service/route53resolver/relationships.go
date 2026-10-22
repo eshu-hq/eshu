@@ -22,7 +22,7 @@ func endpointRelationships(
 	if vpcID := strings.TrimSpace(endpoint.HostVPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipRoute53ResolverEndpointInVPC,
+			RelationshipType: catalog.RelationshipRoute53ResolverEndpointInVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -44,7 +44,7 @@ func endpointRelationships(
 		seen[subnetID] = struct{}{}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipRoute53ResolverEndpointUsesSubnet,
+			RelationshipType: catalog.RelationshipRoute53ResolverEndpointUsesSubnet,
 			SourceResourceID: id,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
@@ -65,10 +65,10 @@ func ruleRelationships(boundary awscloud.Boundary, rule ResolverRule) []awscloud
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipRoute53ResolverRuleUsesEndpoint,
+		RelationshipType: catalog.RelationshipRoute53ResolverRuleUsesEndpoint,
 		SourceResourceID: id,
 		TargetResourceID: endpointID,
-		TargetType:       awscloud.ResourceTypeRoute53ResolverEndpoint,
+		TargetType:       catalog.ResourceTypeRoute53ResolverEndpoint,
 		Attributes: map[string]any{
 			"rule_type": strings.TrimSpace(rule.RuleType),
 		},
@@ -88,7 +88,7 @@ func ruleAssociationRelationships(
 	if vpcID := strings.TrimSpace(association.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipRoute53ResolverRuleAssociationTargetsVPC,
+			RelationshipType: catalog.RelationshipRoute53ResolverRuleAssociationTargetsVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -98,10 +98,10 @@ func ruleAssociationRelationships(
 	if ruleID := strings.TrimSpace(association.ResolverRuleID); ruleID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipRoute53ResolverRuleAssociationUsesRule,
+			RelationshipType: catalog.RelationshipRoute53ResolverRuleAssociationUsesRule,
 			SourceResourceID: id,
 			TargetResourceID: ruleID,
-			TargetType:       awscloud.ResourceTypeRoute53ResolverRule,
+			TargetType:       catalog.ResourceTypeRoute53ResolverRule,
 			SourceRecordID:   id + "#rule#" + ruleID,
 		})
 	}
@@ -120,7 +120,7 @@ func firewallRuleGroupAssociationRelationships(
 	if vpcID := strings.TrimSpace(association.VPCID); vpcID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipRoute53ResolverFirewallRuleGroupAssociationTargetsVPC,
+			RelationshipType: catalog.RelationshipRoute53ResolverFirewallRuleGroupAssociationTargetsVPC,
 			SourceResourceID: id,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
@@ -130,10 +130,10 @@ func firewallRuleGroupAssociationRelationships(
 	if groupID := strings.TrimSpace(association.FirewallRuleGroupID); groupID != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipRoute53ResolverFirewallRuleGroupAssociationUsesRuleGroup,
+			RelationshipType: catalog.RelationshipRoute53ResolverFirewallRuleGroupAssociationUsesRuleGroup,
 			SourceResourceID: id,
 			TargetResourceID: groupID,
-			TargetType:       awscloud.ResourceTypeRoute53ResolverFirewallRuleGroup,
+			TargetType:       catalog.ResourceTypeRoute53ResolverFirewallRuleGroup,
 			SourceRecordID:   id + "#rule-group#" + groupID,
 		})
 	}

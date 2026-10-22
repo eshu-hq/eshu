@@ -15,6 +15,7 @@ import (
 	awsnetfwtypes "github.com/aws/aws-sdk-go-v2/service/networkfirewall/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	netfwservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/networkfirewall"
 )
 
@@ -254,7 +255,7 @@ func newTestClient(fake *fakeAPIClient) *Client {
 		boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceNetworkFirewall,
+			ServiceKind: catalog.ServiceNetworkFirewall,
 		},
 	}
 }
