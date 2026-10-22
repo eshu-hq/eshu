@@ -282,6 +282,36 @@ func TestEntityMapDepthTwoUsesBoundedTraversalSpecs(t *testing.T) {
 	}
 }
 
+func TestEntityMapNeighborhoodBoundsDirectRequestLimit(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingEntityMapGraph{}
+	handler := &Handler{Neo4j: graph}
+	selected := EntityMapCandidate{
+		AnchorLabel:    "Workload",
+		AnchorProperty: "id",
+		AnchorValue:    "workload:checkout",
+	}
+	maxInt := int(^uint(0) >> 1)
+
+	_, _, err := handler.entityMapNeighborhoodRows(context.Background(), entityMapRequest{
+		Relationship: "CONTAINS",
+		Depth:        1,
+		Limit:        maxInt,
+	}, selected)
+	if err != nil {
+		t.Fatalf("entityMapNeighborhoodRows() error = %v, want nil", err)
+	}
+	if got, want := len(graph.runCalls), 2; got != want {
+		t.Fatalf("graph Run calls = %d, want %d", got, want)
+	}
+	for _, call := range graph.runCalls {
+		if got, want := call.params["limit"], entityMapMaxLimit+1; got != want {
+			t.Errorf("traversal limit = %#v, want %d", got, want)
+		}
+	}
+}
+
 // TestEntityMapTraversalAnchorsExpansionInSingleConnectedMatch is the #3549
 // regression guard: the neighborhood traversal must anchor the indexed start
 // node and expand from it in one connected MATCH pattern. Splitting the anchor

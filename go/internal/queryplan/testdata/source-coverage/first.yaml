@@ -224,7 +224,7 @@ source_coverage:
       - {symbol: "(*Handler).resolveEntityMapStart", count: 1, source_sha256: 22bdd85f44cc8a34fcb2fcd615b18af975affbe65bf8322e16a3bf822e748b72, entry_ids: [QP-ENTITY-MAP-RESOLVE-REPOSITORY]}
   - file: impact/entity_map_traversal.go
     calls:
-      - {symbol: "(*Handler).entityMapNeighborhoodRows", count: 1, source_sha256: e907e6ce59da37c4ef04963f1908e2d59a827f4f1307c62b84db246bbc32aca2, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
+      - {symbol: "(*Handler).entityMapNeighborhoodRows", count: 1, source_sha256: b27f562e0e5b05bae8b52d618e61fbebbfff6026e94db8d3f48ef598bff726aa, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
   - file: selector/entity_repo_identity.go
     calls:
       - symbol: "HydrateResolvedEntityRepoIdentity"

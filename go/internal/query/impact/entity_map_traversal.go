@@ -56,8 +56,15 @@ func (h *Handler) entityMapNeighborhoodRows(
 	if selected.AnchorLabel == "" || selected.AnchorProperty == "" || selected.AnchorValue == "" {
 		return nil, false, fmt.Errorf("resolved entity is missing a typed traversal anchor")
 	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = entityMapDefaultLimit
+	}
+	if limit > entityMapMaxLimit {
+		limit = entityMapMaxLimit
+	}
 	specs := entityMapTraversalSpecs(selected, req)
-	rows := make([]map[string]any, 0, req.Limit)
+	rows := make([]map[string]any, 0, limit)
 	truncated := false
 	for _, traversal := range specs {
 		cypher := entityMapTraversalCypher(selected, traversal)
@@ -65,23 +72,23 @@ func (h *Handler) entityMapNeighborhoodRows(
 			"from_id":     selected.AnchorValue,
 			"environment": req.Environment,
 			"repo_id":     req.RepoID,
-			"limit":       req.Limit + 1,
+			"limit":       limit + 1,
 		})
 		if err != nil {
 			return nil, false, fmt.Errorf("load %s entity map neighborhood: %w", traversal.Direction, err)
 		}
 		nextRows = NormalizeEntityMapRows(nextRows, traversal, selected)
-		if len(nextRows) > req.Limit {
+		if len(nextRows) > limit {
 			truncated = true
-			nextRows = nextRows[:req.Limit]
+			nextRows = nextRows[:limit]
 		}
 		rows = append(rows, nextRows...)
 	}
 	rows = dedupeEntityMapRows(rows)
 	sortEntityMapRows(rows)
-	if len(rows) > req.Limit {
+	if len(rows) > limit {
 		truncated = true
-		rows = rows[:req.Limit]
+		rows = rows[:limit]
 	}
 	return entityMapRelationshipMaps(rows, req.Relationship), truncated, nil
 }
