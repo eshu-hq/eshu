@@ -10,13 +10,14 @@ type Annotation struct {
 	Backend Backend
 	Cost    CostClass
 	// Intents are curated natural-language phrases an agent might use when it
-	// needs this surface. The MCP router ranks tools against them. Empty until
-	// the intent-curation lane fills them; an empty slice means "not curated",
-	// not "matches nothing".
+	// needs this surface. The MCP router ranks tools against them. Every MCP
+	// tool carries 3 to 8 phrases (annotations_intents_*.go); API routes carry
+	// none, and an empty slice there means "not curated", not "matches nothing".
 	Intents []string
 	// Canonical marks the preferred tool in a family of overlapping tools. The
-	// router uses it to break ranking ties. False for every surface until the
-	// intent-curation lane sets it.
+	// router uses it to break ranking ties. Exactly one tool per family sets it
+	// (toolFamilies in annotations_intents_families.go); it is false for every
+	// API route and for MCP tools that belong to no family.
 	Canonical bool
 }
 

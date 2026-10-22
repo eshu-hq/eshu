@@ -17,7 +17,7 @@ func iacDriftToolIntents() map[string]toolIntent {
 		"find_unmanaged_resources":       canonicalIntents("unmanaged aws resources", "resources not in terraform", "click ops resources", "cloud resources without iac owner", "image version drift"),
 		"find_unmanaged_resource_owners": intents("who owns unmanaged resource", "owner candidates for drifted resource", "ownership packet for unmanaged resource", "which repo should manage resource"),
 		"get_iac_management_status":      intents("is this resource managed by terraform", "iac management status", "safety gate for resource", "management state of arn"),
-		"explain_iac_management_status":  intents("explain iac management status", "why is resource unmanaged", "evidence for management state", "terraform vs cloud evidence for arn"),
+		"explain_iac_management_status":  intents("terraform ownership proof for one resource", "why is resource unmanaged", "evidence for management state", "terraform vs cloud evidence for arn"),
 		// replatforming
 		"compose_replatforming_plan":    canonicalIntents("replatforming plan", "migration plan to terraform", "ordered migration waves", "plan to bring service under iac", "import ready and blocked items"),
 		"get_replatforming_rollups":     intents("replatforming rollups", "readiness by account and environment", "import ready vs needs review counts", "migration progress summary"),
@@ -36,7 +36,7 @@ func iacDriftToolIntents() map[string]toolIntent {
 		// evidence packets (not in a family)
 		"export_deployable_unit_packet":  intents("deployable unit evidence packet", "export deployable unit admission truth", "admission decisions packet", "deployable unit report"),
 		"build_evidence_citation_packet": intents("citation packet from handles", "hydrate file handles into citations", "cite sources for answer", "evidence citations"),
-		"derive_visualization_packet":    intents("visualize service story", "derive diagram from answer", "visualization from evidence", "render answer as graph"),
+		"derive_visualization_packet":    intents("chart service evidence visually", "derive diagram from answer", "visualization from evidence", "render answer as graph"),
 		// incident (not in a family)
 		"get_incident_context":    intents("incident context", "who is on call for service", "pagerduty routing for service", "what changed before incident", "incident evidence packet"),
 		"list_work_item_evidence": intents("jira work item evidence", "tickets for service", "work items by project", "issue evidence by key"),

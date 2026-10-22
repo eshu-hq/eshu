@@ -65,10 +65,12 @@ type Entry struct {
 	// Cost is the annotated cost class, or CostHigh when unannotated (conservative).
 	Cost CostClass
 	// Intents are the curated phrases copied from the Annotation overlay by
-	// Annotate. Nil until the intent-curation lane fills the overlay. Treat the
-	// slice as read-only: Entries returns shallow copies that share it.
+	// Annotate. An annotated MCP tool holds 3 to 8 phrases; an API route, or an
+	// entry before Annotate, holds none. Treat the slice as read-only: Entries
+	// returns shallow copies that share it.
 	Intents []string
 	// Canonical is the overlay's preferred-in-family flag, copied by Annotate.
+	// One MCP tool per family sets it; it is false for routes and unfamilied tools.
 	Canonical bool
 }
 

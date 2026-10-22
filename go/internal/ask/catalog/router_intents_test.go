@@ -6,6 +6,7 @@ package catalog
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -199,23 +200,21 @@ func TestIntentSourcesAreConsistent(t *testing.T) {
 	failWith(t, "intent sources", problems)
 }
 
-// TestReadmeFamilyTableMatchesFamilies fails when the README family table and
-// toolFamilies disagree on a family, its members, or its canonical tool, and
-// when the README does not explain an allowed shared intent.
-func TestReadmeFamilyTableMatchesFamilies(t *testing.T) {
-	t.Parallel()
-	raw, err := os.ReadFile("README.md")
-	if err != nil {
-		t.Fatalf("read README: %v", err)
-	}
-	readme := string(raw)
+var readmeToolName = regexp.MustCompile("`([a-z0-9_]+)`")
+
+// checkReadmeFamilies reports every way the README family table disagrees with
+// the family list: a missing or extra row, a missing or extra member, a wrong
+// canonical column, a reason that differs from toolFamilies, and an allowed
+// shared intent the README does not explain.
+func checkReadmeFamilies(readme string, tools []Entry, families []toolFamily, allowed map[string]string) []string {
 	_, section, ok := strings.Cut(readme, readmeFamilyHead)
 	if !ok {
-		t.Fatalf("README has no %q section", readmeFamilyHead)
+		return []string{fmt.Sprintf("README has no %q section", readmeFamilyHead)}
 	}
 	if next := strings.Index(section, "\n## "); next >= 0 {
 		section = section[:next]
 	}
+	var problems []string
 	rows := map[string][]string{}
 	for _, line := range strings.Split(section, "\n") {
 		if !strings.HasPrefix(line, "| `") {
@@ -223,46 +222,67 @@ func TestReadmeFamilyTableMatchesFamilies(t *testing.T) {
 		}
 		cols := strings.Split(line, "|")
 		if len(cols) < 6 {
-			t.Fatalf("README family row has fewer than 4 columns: %q", line)
+			problems = append(problems, fmt.Sprintf("README family row has fewer than 4 columns: %q", line))
+			continue
 		}
 		rows[strings.Trim(strings.TrimSpace(cols[1]), "`")] = cols[2:5]
 	}
-	tools := annotatedMCPTools(t)
-	canonicalOf := map[string]string{}
+	canonicalOf := map[string]bool{}
 	for _, e := range tools {
-		if e.Canonical {
-			canonicalOf[e.Name] = e.Name
-		}
+		canonicalOf[e.Name] = e.Canonical
 	}
-	var problems []string
-	families := toolFamilies()
+	known := map[string]bool{}
 	for _, f := range families {
+		known[f.Name] = true
 		cols, ok := rows[f.Name]
 		if !ok {
 			problems = append(problems, fmt.Sprintf("README has no row for family %q", f.Name))
 			continue
 		}
+		want := map[string]bool{}
 		for _, m := range f.Members {
+			want[m] = true
 			if !strings.Contains(cols[0], "`"+m+"`") {
 				problems = append(problems, fmt.Sprintf("README row %q lacks member %q", f.Name, m))
 			}
-			if _, isCanon := canonicalOf[m]; isCanon && strings.TrimSpace(cols[1]) != "`"+m+"`" {
+			if canonicalOf[m] && strings.TrimSpace(cols[1]) != "`"+m+"`" {
 				problems = append(problems, fmt.Sprintf("README row %q canonical column is %q, want `%s`", f.Name, strings.TrimSpace(cols[1]), m))
 			}
 		}
+		for _, m := range readmeToolName.FindAllStringSubmatch(cols[0], -1) {
+			if !want[m[1]] {
+				problems = append(problems, fmt.Sprintf("README row %q lists member %q that toolFamilies does not", f.Name, m[1]))
+			}
+		}
+		if got := strings.TrimSpace(cols[2]); got != f.Reason {
+			problems = append(problems, fmt.Sprintf("README row %q reason differs from toolFamilies: %q", f.Name, got))
+		}
 	}
 	for name := range rows {
-		if !slices.ContainsFunc(families, func(f toolFamily) bool { return f.Name == name }) {
+		if !known[name] {
 			problems = append(problems, fmt.Sprintf("README row %q has no family in toolFamilies", name))
 		}
 	}
-	for phrase := range sharedIntentAllowed {
+	for phrase := range allowed {
 		if !strings.Contains(readme, phrase) {
 			problems = append(problems, fmt.Sprintf("README does not explain shared intent %q", phrase))
 		}
 	}
 	sort.Strings(problems)
-	failWith(t, "README family table", problems)
+	return problems
+}
+
+// TestReadmeFamilyTableMatchesFamilies fails when the README family table and
+// toolFamilies disagree on a family, its members (missing or extra), its
+// canonical tool, or its reason, and when the README does not explain an
+// allowed shared intent.
+func TestReadmeFamilyTableMatchesFamilies(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatalf("read README: %v", err)
+	}
+	failWith(t, "README family table", checkReadmeFamilies(string(raw), annotatedMCPTools(t), toolFamilies(), sharedIntentAllowed))
 }
 
 // TestIntentCheckersRejectSeededViolations proves each checker fails on a
@@ -312,5 +332,61 @@ func TestIntentCheckersRejectSeededViolations(t *testing.T) {
 	}
 	if p := checkSharedIntents(shared, fam, map[string]string{"one": "reason"}); len(p) != 0 {
 		t.Errorf("an allowed shared phrase was flagged: %v", p)
+	}
+
+	// checkFamilies branches not covered above.
+	if len(checkFamilies(clean, []toolFamily{{Name: "f", Members: []string{"a", "ghost"}, Reason: "because"}})) == 0 {
+		t.Error("an unknown family member was not flagged")
+	}
+	twoFam := []toolFamily{
+		{Name: "f", Members: []string{"a", "b"}, Reason: "because"},
+		{Name: "g", Members: []string{"b", "a"}, Reason: "because"},
+	}
+	if len(checkFamilies(clean, twoFam)) == 0 {
+		t.Error("a tool in two families was not flagged")
+	}
+	if len(checkFamilies(clean, []toolFamily{{Name: "f", Members: []string{"a"}, Reason: "because"}})) == 0 {
+		t.Error("a one-member family was not flagged")
+	}
+	if len(checkFamilies(clean, []toolFamily{{Name: "f", Members: []string{"a", "b"}, Reason: "  "}})) == 0 {
+		t.Error("an empty family reason was not flagged")
+	}
+
+	// Phrase-format branches of checkIntentCoverage.
+	for name, phrases := range map[string][]string{
+		"edge whitespace": {"one ", "two", "three"},
+		"upper case":      {"One", "two", "three"},
+		"too many words":  {"a b c d e f g h i", "two", "three"},
+		"duplicate":       {"one", "one", "three"},
+		"empty phrase":    {"", "two", "three"},
+		"too many":        {"1", "2", "3", "4", "5", "6", "7", "8", "9"},
+	} {
+		bad := []Entry{{Name: "a", Kind: KindMCPTool, Intents: phrases}}
+		if len(checkIntentCoverage(bad)) == 0 {
+			t.Errorf("malformed intents (%s) were not flagged", name)
+		}
+	}
+
+	// checkReadmeFamilies on a synthetic README.
+	good := readmeFamilyHead + "\n\n| Family | Members | Canonical | Why |\n|---|---|---|---|\n" +
+		"| `f` | `a`, `b` | `a` | because |\n"
+	if p := checkReadmeFamilies(good, clean, fam, nil); len(p) != 0 {
+		t.Fatalf("clean README flagged: %v", p)
+	}
+	for name, readme := range map[string]string{
+		"extra member":    strings.Replace(good, "`a`, `b`", "`a`, `b`, `c`", 1),
+		"missing member":  strings.Replace(good, "`a`, `b`", "`a`", 1),
+		"wrong canonical": strings.Replace(good, "| `a` | because", "| `b` | because", 1),
+		"wrong reason":    strings.Replace(good, "because", "otherwise", 1),
+		"missing row":     readmeFamilyHead + "\n",
+		"extra row":       good + "| `g` | `a`, `b` | `a` | because |\n",
+		"no section":      "nothing here",
+	} {
+		if len(checkReadmeFamilies(readme, clean, fam, nil)) == 0 {
+			t.Errorf("README defect (%s) was not flagged", name)
+		}
+	}
+	if len(checkReadmeFamilies(good, clean, fam, map[string]string{"unexplained phrase": "x"})) == 0 {
+		t.Error("an unexplained allowed shared intent was not flagged")
 	}
 }

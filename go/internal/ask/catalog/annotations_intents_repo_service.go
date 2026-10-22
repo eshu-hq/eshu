@@ -16,7 +16,7 @@ func repoServiceToolIntents() map[string]toolIntent {
 		"get_repository_coverage": intents("repository index coverage", "is repo fully indexed", "coverage completeness for repo", "indexing coverage state"),
 		// ecosystem-overview
 		"get_ecosystem_overview":    canonicalIntents("ecosystem overview", "high level view of all repos", "repos tiers and infrastructure counts", "cross repo relationship summary", "what is indexed"),
-		"get_graph_summary_packet":  intents("graph summary", "hot entities by call degree", "relationship type counts", "most connected functions in repo", "summary first graph packet"),
+		"get_graph_summary_packet":  intents("bounded graph overview packet", "hot entities by call degree", "relationship type counts", "summary of repo graph shape", "summary first graph packet"),
 		"list_indexed_repositories": intents("list repositories", "how many repositories are indexed", "indexed repository names", "all indexed repos", "repository count"),
 		// repository-language
 		"list_repositories_by_language":     canonicalIntents("repositories written in language", "which repos use python", "list go repositories", "repos containing typescript", "repos by language"),
@@ -38,14 +38,14 @@ func repoServiceToolIntents() map[string]toolIntent {
 		"analyze_pre_change_impact":   intents("impact of this diff", "analyze changed files before merge", "pre change impact analysis", "base head diff impact", "what does this pr affect"),
 		"plan_developer_change":       intents("plan this code change", "developer change plan", "ordered actions and tests for change", "risk of this change", "what tests to run"),
 		"investigate_contract_impact": intents("api contract impact", "who consumes this http endpoint", "cross repo contract consumers", "breaking api change impact"),
-		"explain_dependency_path":     intents("explain dependency path", "how does a depend on b", "dependency path between entities", "why is this a dependency"),
+		"explain_dependency_path":     intents("chain of dependencies between two things", "how does a depend on b", "dependency path between entities", "why is this a dependency"),
 		// changed-since
 		"get_changed_since":         canonicalIntents("what changed since", "changes in repository since generation", "diff since last index", "changed facts since instant", "what is new in repo"),
 		"get_service_changed_since": intents("what changed for service since", "service changes since generation", "service evidence diff", "service materialization changes"),
 		// deployment
 		"trace_deployment_chain":        canonicalIntents("how is this deployed", "deployment chain", "gitops application for service", "trace deployment of service", "deployment path to cluster"),
 		"investigate_deployment_config": intents("deployment configuration story", "image tag source", "helm values layers", "resource limits for service", "what config influences deployment"),
-		"compare_environments":          intents("compare environments", "difference between staging and prod", "shared and dedicated dependencies across environments", "workload across two environments"),
+		"compare_environments":          intents("environment diff for a workload", "difference between staging and prod", "shared and dedicated dependencies across environments", "workload across two environments"),
 		// infra-resource-search
 		"find_infra_resources":         canonicalIntents("find infrastructure resources", "search terraform resources", "search kubernetes resources", "find cloud resources by name", "search crossplane resources"),
 		"count_infra_resources":        intents("how many infrastructure resources", "infrastructure resource totals", "resource counts by provider", "count of cloud resources"),

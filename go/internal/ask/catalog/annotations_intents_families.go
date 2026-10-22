@@ -71,7 +71,7 @@ var toolFamilyTable = []toolFamily{
 	{
 		"repository-language",
 		[]string{"list_repositories_by_language", "count_repositories_by_language", "get_repository_language_inventory"},
-		"rows answer which repos; the count and inventory tools carry how-many and breakdown phrases",
+		"rows answer which repos; the count and inventory tools carry how-many and breakdown phrases; the MCP guide's question table lists the count first for a how-many question, which its own phrases already win, but rows are the broader first try",
 	},
 	{
 		"service-workload",
