@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2154
 # cloud_resource_container_image-targeted live fault cells (#6228 slice D live
-# leaf), mirroring
-# scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh's
-# shape including the kill cell: this domain's claim is NOT readiness-gated
+# leaf), mirroring the cloud_resource family's shape including the kill
+# cell: this domain's claim is NOT readiness-gated
 # (aws_cloud_image_materialization carries no row in the reducer-claim
 # readiness requirements -- go/internal/storage/postgres/
 # reducer_queue_readiness_sql.go names the sibling *_materialization domains
-# but not this one), so the kill cell takes the lock as soon as the
-# projector enqueues the row, with no prereq-scoped reducer and no readiness
-# wait. That is the k8s shape, not the s3 shape: s3's
-# s3_logs_to_materialization claim IS gated on
-# canonical_nodes_committed/cloud_resource_uid, so its kill cell banks
-# readiness through an aws_resource-scoped prereq reducer before the lock;
-# doing that here would add a wait this domain's claim never needs.
-# The handler's OWN sourceNodesReady check (a post-claim retryable requeue
-# until PR-1 canonical nodes commit) is shared by the baseline and kill
-# cells alike, so the kill cell's attempts-above-baseline comparison still
-# proves re-execution rather than readiness churn.
+# but not this one), yet its in-handler sourceNodesReady gate runs BEFORE
+# the fact load the kill cell's lock blocks. Locking as soon as the
+# projector enqueues the row (the k8s shape) leaves the handler
+# spin-deferring on a gate the lock starves while the kill destroys an
+# idle worker -- proven live by PR #8740 shard 2/4 false-failing the
+# attempts-above-baseline proof on a correct recovery. So the kill cell
+# takes the s3/cloud_resource shape instead: an aws_resource-scoped prereq
+# reducer banks the canonical_nodes_committed/cloud_resource_uid phase for
+# the exact acceptance unit first, and only then does the lock go on, so
+# the first claim past the open gate blocks deterministically in its fact
+# load. The readiness deferral is non-counting and shared by the baseline
+# and kill cells alike, and past the banked phase no deferral can fire, so
+# the kill cell's attempts-above-baseline comparison proves re-execution
+# rather than readiness churn.
 # WIRED: scripts/verify-ifa-fault-injection.sh sources this file (through
 # scripts/lib/ifa_fault_injection_sources.sh) and runs all three cells
 # (baseline_cloud_resource_container_image,
@@ -134,6 +136,69 @@ ifa_cloud_resource_container_image_release_fact_records_lock() {
 	ifa_det_untrack_bg_pid "${holder_pid}"
 }
 
+# ifa_cloud_resource_container_image_wait_for_readiness banks the
+# canonical_nodes_committed/cloud_resource_uid phase BEFORE the
+# fact_records lock is taken, mirroring the cloud_resource family's
+# helper: aws_cloud_image_materialization's in-handler sourceNodesReady
+# gate runs BEFORE its fact load, so locking first leaves the handler
+# spin-deferring on a gate the lock starves (the projector's own fact
+# reads can block behind it) while the kill destroys an idle worker --
+# and the replacement's reclaim under the non-counting readiness class
+# adds no attempt, false-failing the attempts-above-baseline proof on a
+# correct recovery (proven live: PR #8740 shard 2/4). The acceptance unit
+# is resolved off the image row's own identity, mirroring the gate's
+# COALESCE(NULLIF(payload->>'entity_key', ''), scope_id) and the handler's
+# gpphase.KeyFromScope derivation, so the poll waits on exactly the unit
+# the handler's lookup will ask for. Fail-closed throughout: no identity
+# row, a failed query, a non-numeric poll result, or budget exhaustion all
+# return non-zero, and a non-numeric phase count is a failure, never a zero.
+ifa_cloud_resource_container_image_wait_for_readiness() {
+	local cell="$1" budget="$2"
+	if [[ ! "${budget}" =~ ^[1-9][0-9]*$ ]]; then
+		printf '%s: readiness wait: budget must be a positive integer, got %s\n' "${cell}" "${budget}" >&2
+		return 1
+	fi
+	local identity scope generation unit
+	if ! identity="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+		"SELECT scope_id || '|' || generation_id || '|' || COALESCE(NULLIF(payload->>'entity_key', ''), scope_id) FROM fact_work_items WHERE stage = 'reducer' AND domain = 'aws_cloud_image_materialization' ORDER BY created_at ASC, work_item_id ASC LIMIT 1;" \
+		"${compose_file}")"; then
+		printf '%s: readiness wait: cloud image identity query failed\n' "${cell}" >&2
+		return 1
+	fi
+	identity="$(printf '%s' "${identity}" | tr -d '[:space:]')"
+	IFS='|' read -r scope generation unit <<<"${identity}"
+	if [[ -z "${scope}" || -z "${generation}" || -z "${unit}" ]]; then
+		printf '%s: readiness wait: no cloud image row to resolve an identity from (got %q)\n' "${cell}" "${identity}" >&2
+		return 1
+	fi
+	# Values come from our own queue rows, but they ride inside string
+	# literals one level down: double any quote rather than trusting shape.
+	scope="${scope//\'/\'\'}"
+	generation="${generation//\'/\'\'}"
+	unit="${unit//\'/\'\'}"
+	local i phase_count
+	for i in $(seq 1 "${budget}"); do
+		if ! phase_count="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"SELECT count(*) FROM graph_projection_phase_state WHERE scope_id = '${scope}' AND acceptance_unit_id = '${unit}' AND source_run_id = '${generation}' AND generation_id = '${generation}' AND keyspace = 'cloud_resource_uid' AND phase = 'canonical_nodes_committed';" \
+			"${compose_file}")"; then
+			printf '%s: readiness wait: phase poll query failed\n' "${cell}" >&2
+			return 1
+		fi
+		phase_count="$(printf '%s' "${phase_count}" | tr -d '[:space:]')"
+		if [[ "${phase_count}" =~ ^[1-9][0-9]*$ ]]; then
+			printf '%s: readiness banked: canonical_nodes_committed/cloud_resource_uid for acceptance unit %s\n' "${cell}" "${unit}"
+			return 0
+		fi
+		if [[ "${phase_count}" != "0" ]]; then
+			printf '%s: readiness wait: phase poll returned non-numeric output %q\n' "${cell}" "${phase_count}" >&2
+			return 1
+		fi
+		sleep 1
+	done
+	printf '%s: readiness wait: no canonical_nodes_committed/cloud_resource_uid phase for acceptance unit %s within %ss\n' "${cell}" "${unit}" "${budget}" >&2
+	return 1
+}
+
 # cell_baseline_cloud_resource_container_image is this family's fault-free
 # reference run. It exists because the cloud_resource_container_image
 # cassette is driven ONLY by this family's own cells:
@@ -171,7 +236,13 @@ cell_baseline_cloud_resource_container_image() {
 	baseline_cloud_resource_container_image_retried="$(ifa_fault_count_retry_attempts "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "aws_cloud_image_materialization")" \
 		|| die "baseline-cloud-resource-container-image: could not count the fault-free aws_cloud_image_materialization retry-attempt baseline"
 	printf 'baseline-cloud-resource-container-image: fault-free aws_cloud_image_materialization retry-attempt baseline: %s\n' "${baseline_cloud_resource_container_image_retried}"
-	capture_digest baseline_crcimage
+	# Captured under the BASELINE KEY, not the cell label: the kill and
+	# fail-graph-write cells assert against
+	# digests[baseline_cloud_resource_container_image]. Capturing under the
+	# label leaves that key unset and the match dies on an unbound variable
+	# under the gate's `set -u` (found by the targeted live proof, which got
+	# past the attempts assert the old lock-first shape never reached).
+	capture_digest baseline_cloud_resource_container_image
 	teardown_cell baseline_crcimage
 	wall_times[baseline_crcimage]=$(( $(date +%s) - cell_start ))
 	printf 'baseline-cloud-resource-container-image: cell wall time: %ss\n' "${wall_times[baseline_crcimage]}"
@@ -185,21 +256,33 @@ cell_killworker_cloud_resource_container_image() {
 	drive_all_cassettes killworkercrcimage
 	ifa_cloud_resource_container_image_drive "killworkercrcimage" "${bin_dir}" "${cloud_resource_container_image_cassette}" "${drive_workers}" "${log_dir}" \
 		|| die "kill-worker-after-claim-cloud-resource-container-image: eshu-ifa drive (cloud_resource_container_image family) failed"
-	local projector_pid reducer_pid_before reducer_pid_after lock_holder_pid claimed_before
+	local projector_pid reducer_pid_prereq reducer_pid_before reducer_pid_after lock_holder_pid claimed_before
 	ifa_det_start_bg "${log_dir}" "projector-killworkercrcimage" projector_pid "${bin_dir}/eshu-projector"
 	# aws_cloud_image_materialization's reducer intent is created by the
 	# PROJECTOR, not ingestion. Wait for the row to exist (any status) before
-	# going further: without it there is nothing to kill, and locking
-	# fact_records before that intent exists risks starving the projector's
-	# OWN fact reads for this scope too, so the row could never be created
-	# for as long as the lock is held -- not merely delayed.
+	# going further: without it there is nothing to make ready and nothing
+	# to kill, and locking fact_records before that intent exists risks
+	# starving the projector's OWN fact reads for this scope too, so the row
+	# could never be created for as long as the lock is held -- not merely
+	# delayed.
 	ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
 		"${CLAIMED_ROW_WAIT_TIMEOUT}" "aws_cloud_image_materialization" 1 >/dev/null \
 		|| die "kill-worker-after-claim-cloud-resource-container-image: aws_cloud_image_materialization was never enqueued by the projector"
-	# No claim-time readiness gate on this domain (unlike s3's
-	# s3_logs_to_materialization): the claim fires as soon as the row is
-	# pending, so the lock goes on now. A prereq-scoped reducer would add a
-	# wait this domain's claim never needs.
+	# Readiness BEFORE the lock -- the s3/cloud_resource shape, not the k8s
+	# one. This domain carries no claim-time readiness row, and its
+	# in-handler sourceNodesReady gate runs BEFORE the fact load the lock
+	# blocks: locking first leaves the handler spin-deferring (non-counting,
+	# so the attempt total never moves) while the kill destroys an idle
+	# worker, and the attempts-above-baseline proof false-fails on a correct
+	# recovery (proven live: PR #8740 shard 2/4). A prereq-scoped reducer
+	# (aws_resource only, so the image row can never be claimed early) runs
+	# unblocked until the exact acceptance unit the handler's lookup will
+	# ask for is banked. Only then does the lock go on, so the first claim
+	# past the open gate blocks deterministically in its fact load.
+	ifa_det_start_bg "${log_dir}" "reducer-killworkercrcimage-prereq" reducer_pid_prereq \
+		env "ESHU_REDUCER_CLAIM_DOMAIN=aws_resource_materialization" "${bin_dir}/eshu-reducer"
+	ifa_cloud_resource_container_image_wait_for_readiness "killworkercrcimage" 300 \
+		|| die "kill-worker-after-claim-cloud-resource-container-image: claim readiness never banked"
 	ifa_cloud_resource_container_image_start_fact_records_lock "killworkercrcimage" lock_holder_pid \
 		|| die "kill-worker-after-claim-cloud-resource-container-image: could not acquire the deterministic fact_records read blocker"
 	# Scoped to aws_cloud_image_materialization only: with the lock already

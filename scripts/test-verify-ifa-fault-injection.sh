@@ -375,6 +375,7 @@ run_ifa_fault_injection_iam_escalation_cases  # direct family (#6228 fault half)
 run_ifa_fault_injection_authenticates_vault_role_cases  # direct family (#6228 slice A), packed for the 500-line cap
 run_ifa_fault_injection_uses_vault_policy_cases  # direct family (#6228 slice A), packed for the 500-line cap
 run_ifa_fault_injection_built_from_cases  # direct family (#6228 slice C live leaf), packed for the 500-line cap
+run_ifa_fault_injection_cloud_resource_container_image_cases  # direct family (#6228 slice D live leaf), packed for the 500-line cap
 run_ifa_fault_injection_repo_dependency_cases; run_ifa_fault_injection_workload_dependency_cases  # family case modules packed for the 500-line cap
 source "${submodule_pin_cases_lib}"; run_ifa_fault_injection_submodule_pin_cases  # submodule_pin_edges (#6002) hermetic cases, same split; packed for the 500-line cap
 

@@ -183,9 +183,70 @@ run_ifa_fault_injection_cloud_resource_container_image_cases() {
 	test_ifa_crc_image_released_lock_holder_is_not_torn_down_twice
 	test_ifa_crc_image_overlong_lock_name_is_rejected
 	test_ifa_crc_image_lock_start_and_release_agree_on_name
+	test_ifa_crc_image_wait_for_readiness_cases
 	test_ifa_crc_image_kill_cell_proves_attempts_above_baseline
 	test_ifa_crc_image_merge_anchor_is_interpolated
 }
+
+# ifa_cloud_resource_container_image_wait_for_readiness banks the
+# canonical_nodes_committed/cloud_resource_uid phase BEFORE the
+# fact_records lock is taken. This domain carries no claim-time readiness
+# row, so without this wait the kill cell locks while the handler is still
+# spin-deferring on its in-handler sourceNodesReady gate: the kill then
+# destroys an idle worker, the row sits retrying under the non-counting
+# readiness class, the replacement's reclaim adds no attempt, and the
+# attempts-above-baseline proof false-fails on a correct recovery (proven
+# live: PR #8740 shard 2/4). The helper resolves the image row's own
+# (scope, generation, entity_key-or-scope) identity and polls the phase
+# table for exactly the acceptance unit the handler's lookup will ask for.
+# Fail-closed throughout: no identity row, a failed query, a non-numeric
+# poll result, or budget exhaustion all return non-zero.
+test_ifa_crc_image_wait_for_readiness_cases() (
+	source "${det_lib}"
+	source "${crc_image_cells_lib}"
+
+	local rc
+	psql() { :; }
+	sleep() { :; }
+	ifa_det_pg() {
+		case "$*" in
+			*graph_projection_phase_state*) printf '%s\n' "${phase_count_output}" ;;
+			*) printf '%s\n' "${identity_output}" ;;
+		esac
+	}
+
+	use_compose=0
+	ESHU_POSTGRES_DSN="postgresql://unused"
+	compose_file="docker-compose.yaml"
+	FAULT_COMPOSE_PROJECT="test"
+	log_dir="$(mktemp -d -t ifa-crc-image-readiness.XXXXXX)"
+	trap 'rm -rf "${log_dir}"' EXIT
+
+	# Phase already published: returns success without consuming budget.
+	identity_output="aws:eshu-fixture-cloud-resource-container-image-account|gen-ifa-cloud-resource-container-image-family-1|aws:eshu-fixture-cloud-resource-container-image-account"
+	phase_count_output="1"
+	rc=0
+	ifa_cloud_resource_container_image_wait_for_readiness readycell 5 || rc=$?
+	[[ "${rc}" -eq 0 ]] \
+		|| fail "ifa_cloud_resource_container_image_wait_for_readiness failed while the exact acceptance-unit phase row exists"
+
+	# Phase never appears: exhausts the budget and fails.
+	identity_output="aws:eshu-fixture-cloud-resource-container-image-account|gen-ifa-cloud-resource-container-image-family-1|aws:eshu-fixture-cloud-resource-container-image-account"
+	phase_count_output="0"
+	rc=0
+	ifa_cloud_resource_container_image_wait_for_readiness unready 2 || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "ifa_cloud_resource_container_image_wait_for_readiness returned success with no phase row; the kill cell would lock before readiness and race the handler's deferral loop"
+
+	# No image row to resolve an identity from: fails instead of polling for
+	# a phase nobody asked for.
+	identity_output=""
+	phase_count_output="1"
+	rc=0
+	ifa_cloud_resource_container_image_wait_for_readiness norow 2 || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "ifa_cloud_resource_container_image_wait_for_readiness returned success with no image row to resolve"
+)
 
 # The AWS_lambda_function_uses_image MERGE anchor the fail-graph-write cell
 # targets: the writer's template carries a %s the closed vocabulary fills per
