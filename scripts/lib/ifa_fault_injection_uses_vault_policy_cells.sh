@@ -39,10 +39,10 @@
 # variables come from scripts/lib/ifa_family_fixtures.sh.
 #
 # scripts/lib/test-ifa-fault-injection-uses-vault-policy-cases.sh
-# sources this file and drives
-# ifa_uses_vault_policy_wait_for_read_models under stubs,
-# and scripts/test-verify-ifa-fault-injection.sh runs that module -- so editing
-# any fail-closed behavior will fail `make pre-pr`.
+# sources this file and the split trust-chain wait lib, and drives
+# ifa_uses_vault_policy_wait_for_read_models and the succeeded wait
+# under stubs, and scripts/test-verify-ifa-fault-injection.sh runs that
+# module -- so editing any fail-closed behavior will fail `make pre-pr`.
 #
 # uses_vault_policy is SINGLE-STAGE-DIRECT at the graph: the projection
 # handler (SecretsIAMGraphProjectionHandler) claims a fact_work_items row
@@ -217,12 +217,14 @@ ifa_uses_vault_policy_wait_for_endpoint_domains() {
 }
 
 # ifa_uses_vault_policy_run_trust_chain_stage runs the trust-chain
-# stage to committed read models and then STOPS its reducer: the stage is
+# stage to a committed queue row and then STOPS its reducer: the stage is
 # scoped to secrets_iam_trust_chain so it can never claim the projection
 # row early, and stopping it before the lock frees its workers. The flag is
 # on for this reducer so the follow-up writer is wired and the trust-chain
 # handler enqueues the projection intent as its read models commit -- but
-# this reducer never claims that row.
+# this reducer never claims that row. The SIGTERM lands only after the
+# trust-chain row reaches `succeeded` (see the split wait lib): read
+# models banked does not mean the row acked.
 ifa_uses_vault_policy_run_trust_chain_stage() {
 	local cell="$1"
 	local trust_reducer_pid
@@ -230,6 +232,11 @@ ifa_uses_vault_policy_run_trust_chain_stage() {
 		env "ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED=true" "ESHU_REDUCER_CLAIM_DOMAIN=secrets_iam_trust_chain" "${bin_dir}/eshu-reducer"
 	ifa_uses_vault_policy_wait_for_read_models "${cell}" 300 \
 		|| die "${cell}: trust-chain stage never committed read models"
+	# Succeeded BEFORE SIGTERM: banked read models do not mean the row
+	# acked -- killing the worker mid-ack strands it. Timeout fails the
+	# cell loudly and never proceeds to kill.
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded "${cell}" 300 \
+		|| die "${cell}: trust-chain row never reached succeeded -- refusing to SIGTERM a live worker"
 	kill "${trust_reducer_pid}" >/dev/null 2>&1 || true
 	wait "${trust_reducer_pid}" 2>/dev/null || true
 	ifa_det_untrack_bg_pid "${trust_reducer_pid}"
