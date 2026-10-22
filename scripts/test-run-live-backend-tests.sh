@@ -211,12 +211,14 @@ EOF
 # read proof, running on both backends)
 # (#8517: +1 neo4j for the new delete_effectiveness_live_test.go retract
 # proof, neo4j-only since relationship DELETE is inert on NornicDB)
+# (#751: +1 neo4j for the historical AppSync key read-route proof, which
+# requires Neo4j's supported graph semantics)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "81" ]] || fail "planned runs ${#plan[@]}, want 81 (34 nornicdb + 47 neo4j)"
+[[ "${#plan[@]}" == "82" ]] || fail "planned runs ${#plan[@]}, want 82 (34 nornicdb + 48 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "34" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 34"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "47" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 47"
+[[ "${#plan_neo4j[@]}" == "48" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 48"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
 	fail "materialized workload-count regression missing from neo4j plan"
 assert_workload_count_neo4j_only() {
