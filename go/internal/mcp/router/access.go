@@ -101,15 +101,16 @@ func (a access) admits(c routeClass) bool {
 	if c.allowlisted {
 		return true
 	}
-	if a.auth.Mode == query.AuthModeBrowserSession && !c.pendingRowFiltering {
-		// Off the allowlist the middleware admits only a tenant-bound
-		// all-scopes console session, and only under deployment policy.
+	if a.auth.Mode == query.AuthModeBrowserSession {
+		// Off the allowlist, pending row-filtering routes included, the
+		// middleware admits only a tenant-bound all-scopes console session,
+		// and only under deployment policy.
 		return a.auth.AllScopes &&
 			strings.TrimSpace(a.auth.TenantID) != "" &&
 			strings.TrimSpace(a.auth.WorkspaceID) != ""
 	}
-	// A scoped bearer (or an unrecognized mode) off the allowlist is always
-	// refused, as is every pending row-filtering route for non-shared callers.
+	// A scoped bearer (or an unrecognized mode) off the allowlist, pending
+	// row-filtering routes included, is always refused.
 	return false
 }
 
