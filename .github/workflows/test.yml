@@ -387,6 +387,8 @@ jobs:
         with:
           path: /tmp/eshu-ci/go-build
           key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         uses: actions/setup-go@v6
@@ -498,6 +500,8 @@ jobs:
         with:
           path: /tmp/eshu-ci/go-build
           key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-gobuild-
       - name: Set up Go
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-race-complete')) }}
         uses: actions/setup-go@v6
