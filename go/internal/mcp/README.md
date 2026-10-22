@@ -455,8 +455,8 @@ membership as trust.
 
 | Identifier | File | Notes |
 |---|---|---|
-| `Server` | `server.go:93` | MCP server struct; fields `handler`, `tools`, `logger`, `sessions`, `transportAuth` |
-| `NewServer` | `server.go:112` | constructs `Server`; calls `ReadOnlyTools()`; accepts `...ServerOption` (e.g. `WithTransportAuth`, `WithQueryProfile`) |
+| `Server` | `server.go:93` | MCP server struct; fields `handler`, `tools`, `surface`, `logger`, `sessions`, `transportAuth`. `tools` stays the profile-filtered registry; `surface` is applied only when `tools/list` is built |
+| `NewServer` | `server.go:112` | constructs `Server`; calls `ReadOnlyTools()`; accepts `...ServerOption` (e.g. `WithTransportAuth`, `WithQueryProfile`, `WithToolSurface`); `WithToolSurface` sets the process tool surface (advertisement only) and `Server.ToolSurfaceSummary` reports surface, tool count, and `tools/list` bytes for the startup log (see [tool-surface.md](tool-surface.md)) |
 | `ServerOption` / `WithTransportAuth` | `transport_auth.go:24,28` | option that wraps the HTTP transport (`GET /sse`, `POST /mcp/message`) with a credential chain (#5168) |
 | `Server.Run` (`Run`) | `server.go:190` | stdio transport; reads stdin, writes stdout; never authenticated (process/filesystem trust boundary) |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:137` | HTTP+SSE transport; listens on `addr` |
@@ -470,7 +470,7 @@ creates an `sseSession` with a 64-element channel, sends an `endpoint` event
 with the POST URL, then loops on the session channel and a 30-second keepalive
 ticker. `handleHTTPMessage` (`server_sse.go:147`) routes responses to the
 session channel when a `sessionId` query param is present and returns HTTP 202;
-otherwise it returns the response directly with HTTP 200.
+otherwise it returns the response directly with HTTP 200. The `surface` query parameter on both routes is described in [tool-surface.md](tool-surface.md).
 
 The session channel lifecycle is mutex-guarded (`sseSession.send` /
 `sseSession.shutdown`, `server_sse.go:39,57`). `handleHTTPMessage` captures the
@@ -561,7 +561,7 @@ global meter in `transport_auth_metrics.go` (the same self-contained pattern
 catalog-enumeration and session-hijack attempts. Everything else — tool
 dispatch spans and per-route latency/error metrics — is emitted by the
 `internal/query` handlers that `dispatchTool` calls into. Structured log events:
-`"mcp server started"` (with `transport` and `tools` count, `server.go`),
+`"mcp server started"` (with `transport`, `tools` count, and `tool_surface`, `server.go`),
 `"sse session started"`, `"sse session closed"`, and `"sse session buffer full
 or closed"` (`server_sse.go`). `dispatchTool` logs at debug level with tool
 name, HTTP method, and path (`dispatch.go:26`).

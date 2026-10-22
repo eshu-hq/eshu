@@ -9,6 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/router"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // toolsListResult runs tools/list through handleMessage and returns the
@@ -65,6 +68,19 @@ func toolsListMismatch(got []byte, gotTools, want []ToolDefinition) string {
 func TestToolsListDefaultSurfaceAdvertisesExactlyRegistry(t *testing.T) {
 	raw, got := toolsListResult(t, testServer())
 	if msg := toolsListMismatch(raw, got, ReadOnlyTools()); msg != "" {
+		t.Fatal(msg)
+	}
+}
+
+// TestToolsListFullUnderProductionEqualsFilteredRegistry carries the #8762
+// review item: full under the production profile is byte-identical to the
+// profile-filtered registry.
+func TestToolsListFullUnderProductionEqualsFilteredRegistry(t *testing.T) {
+	s := NewServer(testServer().handler, nil,
+		WithQueryProfile(querycontract.ProfileProduction), WithToolSurface(router.SurfaceFull))
+	raw, got := toolsListResult(t, s)
+	want := filterToolsForProfile(ReadOnlyTools(), querycontract.ProfileProduction)
+	if msg := toolsListMismatch(raw, got, want); msg != "" {
 		t.Fatal(msg)
 	}
 }

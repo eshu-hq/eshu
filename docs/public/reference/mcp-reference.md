@@ -65,11 +65,22 @@ mode, and tools the query profile hides stay hidden.
 | `core_router` | A small core set of high-traffic tools plus `find_tool` and `call_tool` |
 
 An unknown value makes the server refuse to start and log the allowed values.
-A client can override the setting for its own connection with a `surface`
-query parameter, for example `POST /mcp/message?surface=router`. An unknown
-`surface` value gets a `400` that lists the allowed values. The override does
-not change the process setting or any other connection. In Helm, set
-`mcpServer.env.ESHU_MCP_TOOL_SURFACE`.
+
+A client can override the setting with a `surface` query parameter:
+
+- A client that only POSTs sends `POST /mcp/message?surface=router`. The value
+  applies to that request alone, so send it on every request that needs it.
+- An SSE client sends `GET /sse?surface=router`. The `endpoint` event then
+  carries `surface=router`, so every POST the client follows to that URL uses
+  it. A POST that names its own `surface` overrides the session's value.
+
+An unknown `surface` value gets a `400` that lists the allowed values, on both
+routes. An override never changes the process setting or another client's
+requests. In Helm, set `mcpServer.env.ESHU_MCP_TOOL_SURFACE`.
+
+`router` and `core_router` are not usable until the `find_tool` and `call_tool`
+handlers (#8757) and the core tool set (#8759) land; until then those surfaces
+advertise tools the server cannot yet route. The default `full` is unaffected.
 
 At startup the server logs `mcp tool surface` with the `surface`, the
 `tool_count`, and the `tools_list_bytes` size of the `tools/list` result.

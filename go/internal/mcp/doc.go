@@ -116,6 +116,16 @@
 // advertisement only -- tools/call still enforces the per-call capability
 // gate, so a direct call to an unlisted tool fails closed.
 //
+// WithToolSurface (#8758) chooses what tools/list advertises from that
+// profile-filtered list: the full registry (default), the router pair, or a
+// core set plus the router pair. It is advertisement only; tools/call is
+// unchanged and s.tools is never rewritten. The surface is applied when
+// tools/list is built, so it composes with WithQueryProfile in either option
+// order. A surface query parameter overrides it: on POST /mcp/message for that
+// request, and on GET /sse for the whole SSE session (the endpoint event
+// carries it). A POST that names its own surface wins over the session's, and
+// an unknown value gets a 400.
+//
 // In HTTP mode the transport is wrapped with the caller-supplied credential
 // middleware when the server is constructed with WithTransportAuth (issue
 // #5168): the GET /sse and POST /mcp/message endpoints run every JSON-RPC

@@ -158,7 +158,7 @@ func (s *Server) RunHTTP(ctx context.Context, addr string, base *http.ServeMux) 
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 
-	s.logger.Info("mcp server started", "transport", "http+sse", "addr", addr, "tools", len(s.tools))
+	s.logger.Info("mcp server started", "transport", "http+sse", "addr", addr, "tools", len(s.tools), "tool_surface", string(s.processSurface()))
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("listen: %w", err)
 	}
@@ -209,7 +209,7 @@ func (s *Server) Run(ctx context.Context) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetEscapeHTML(false)
 
-	s.logger.Info("mcp server started", "transport", "stdio", "tools", len(s.tools))
+	s.logger.Info("mcp server started", "transport", "stdio", "tools", len(s.tools), "tool_surface", string(s.processSurface()))
 
 	for {
 		select {
@@ -436,7 +436,7 @@ func WithToolSurface(surface router.Surface) ServerOption {
 	}
 }
 
-// surfaceContextKey carries a per-connection surface override from the HTTP
+// surfaceContextKey carries a per-request or per-SSE-session surface override from the HTTP
 // transport (the surface query parameter on POST /mcp/message) to
 // handleMessage without changing its signature.
 type surfaceContextKey struct{}
@@ -447,11 +447,20 @@ func withSurfaceOverride(ctx context.Context, surface router.Surface) context.Co
 	return context.WithValue(ctx, surfaceContextKey{}, surface)
 }
 
+// processSurface returns the surface set by WithToolSurface, or
+// router.SurfaceFull when the option is absent.
+func (s *Server) processSurface() router.Surface {
+	if s.surface == "" {
+		return router.SurfaceFull
+	}
+	return s.surface
+}
+
 // advertisedTools returns the tools/list payload for this request: the
-// per-connection override when ctx carries one, otherwise the process
+// override when ctx carries one, otherwise the process
 // surface. The registry s.tools is never mutated.
 func (s *Server) advertisedTools(ctx context.Context) []ToolDefinition {
-	surface := s.surface
+	surface := s.processSurface()
 	if override, ok := ctx.Value(surfaceContextKey{}).(router.Surface); ok {
 		surface = override
 	}
@@ -463,10 +472,7 @@ func (s *Server) advertisedTools(ctx context.Context) []ToolDefinition {
 // result. cmd/mcp-server logs it once at startup so an operator can confirm
 // which surface a deployment serves and what it costs a client.
 func (s *Server) ToolSurfaceSummary() (surface router.Surface, count int, bytes int) {
-	surface = s.surface
-	if surface == "" {
-		surface = router.SurfaceFull
-	}
+	surface = s.processSurface()
 	tools := router.Advertise(s.tools, surface)
 	raw, err := json.Marshal(mcpToolsListResult{Tools: tools})
 	if err != nil {

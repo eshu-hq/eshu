@@ -212,8 +212,11 @@ mcpServer:
   #   router       find_tool and call_tool only
   #   core_router  a small core set plus find_tool and call_tool
   #
-  # A client can override the value for one connection with ?surface=<value>
-  # on POST /mcp/message. Example:
+  # A client can override the value with ?surface=<value>: on POST /mcp/message
+  # it applies to that request, and on GET /sse it applies to the whole SSE
+  # session. router and core_router are not usable until the find_tool and
+  # call_tool handlers (#8757) and the core set (#8759) land; the default full
+  # is unaffected. Example:
   #   env:
   #     ESHU_MCP_TOOL_SURFACE: router
   env: {}

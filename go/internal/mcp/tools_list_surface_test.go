@@ -83,19 +83,6 @@ func TestToolsListSurfaceModes(t *testing.T) {
 	}
 }
 
-// TestToolsListFullUnderProductionEqualsFilteredRegistry carries the #8762
-// review item: full under the production profile is byte-identical to the
-// profile-filtered registry.
-func TestToolsListFullUnderProductionEqualsFilteredRegistry(t *testing.T) {
-	s := NewServer(testServer().handler, nil,
-		WithQueryProfile(querycontract.ProfileProduction), WithToolSurface(router.SurfaceFull))
-	raw, got := toolsListResult(t, s)
-	want := filterToolsForProfile(ReadOnlyTools(), querycontract.ProfileProduction)
-	if msg := toolsListMismatch(raw, got, want); msg != "" {
-		t.Fatal(msg)
-	}
-}
-
 // TestToolsListFullWithSurfaceOptionIsByteIdenticalToDefault proves the
 // explicit full surface changes no byte of tools/list.
 func TestToolsListFullWithSurfaceOptionIsByteIdenticalToDefault(t *testing.T) {
