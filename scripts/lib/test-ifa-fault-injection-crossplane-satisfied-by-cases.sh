@@ -136,10 +136,10 @@ test_ifa_xplane_overlong_lock_name_is_rejected() (
 	log_dir="$(mktemp -d -t ifa-xplane-lock.XXXXXX)"
 	trap 'rm -rf "${log_dir}"' EXIT
 
-	# 17-char ifa_xplane_lock_ prefix plus a cell this long exceeds
+	# 16-char ifa_xplane_lock_ prefix plus a cell this long exceeds
 	# the 63-byte application_name cap.
-	long_cell="killworker_xplane_xpad012345678901234567890123"
-	((${#long_cell} > 46)) || fail "test cell name too short to exercise the 63-byte application_name guard"
+	long_cell="killworker_xplane_xpad01234567890123456789012345"
+	((${#long_cell} > 47)) || fail "test cell name too short to exercise the 63-byte application_name guard"
 	bg_pids=()
 	lock_holder_pid=""
 	rc=0
