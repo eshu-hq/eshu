@@ -363,3 +363,36 @@ func TestGuardSizesDeltaWithoutRepositoryFactAsFullLive(t *testing.T) {
 		t.Fatal("gen-b was stored; an unverifiable delta must be sized as a full")
 	}
 }
+
+// TestGuardRefusesSharpShrinkFullWhileChainedDeltaPendingLive is review F1:
+// a second delta in a chain has no anchor (its baseline is the active
+// delta's commit), so it stores and stays pending until the projector
+// refuses it. A full that arrives in that window must still be sized against
+// the scope's projected truth, not the pending delta's few rows.
+func TestGuardRefusesSharpShrinkFullWhileChainedDeltaPendingLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	p.seedLargeFullPrior(200, 300)
+
+	first := guardSizingPaths("f", 0, 5)
+	p.commitGuardSizing(p.deltaGeneration("gen-b", "hint-b", "sha-b", "sha-a"), guardSizingLive(first), 5, first, nil)
+	if got := p.project(); len(got) != 1 || got[0] != "gen-b" {
+		t.Fatalf("projected = %v, want [gen-b]", got)
+	}
+	second := guardSizingPaths("f", 5, 10)
+	p.commitGuardSizing(p.deltaGeneration("gen-c", "hint-c", "sha-c", "sha-b"), guardSizingLive(second), 5, second, nil)
+	if !p.generationStored("gen-c") {
+		t.Fatal("chained delta gen-c was not stored; the window under test never opened")
+	}
+
+	// 20 files and 20 entities: a tenth of the projected repository.
+	p.commitGuardSizing(p.generation("gen-d", "hint-d", "sha-d", "interval_elapsed"), guardSizingFiles("f", 20), 20, nil, nil)
+
+	if p.generationStored("gen-d") {
+		t.Fatal("gen-d was stored; a 20-of-200-file full must be refused while a chained delta is pending")
+	}
+	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonDestructiveSuccessor); got != 1 {
+		t.Fatalf("destructive_successor skips = %d, want 1", got)
+	}
+}
