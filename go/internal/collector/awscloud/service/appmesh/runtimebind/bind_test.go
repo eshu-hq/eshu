@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/appmesh/runtimebind"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -17,9 +18,9 @@ import (
 // TestAppMeshRuntimeBindRegisters confirms importing the binding installs the
 // App Mesh scanner builder.
 func TestAppMeshRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceAppMesh)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceAppMesh)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceAppMesh)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceAppMesh)
 	}
 	key, err := redact.NewKey([]byte("appmesh-redaction-key"))
 	if err != nil {
@@ -27,7 +28,7 @@ func TestAppMeshRuntimeBindRegisters(t *testing.T) {
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig:    aws.Config{Region: "us-east-1"},
-		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAppMesh},
+		Boundary:     awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAppMesh},
 		RedactionKey: key,
 	})
 	if err != nil {
@@ -42,13 +43,13 @@ func TestAppMeshRuntimeBindRegisters(t *testing.T) {
 // when the redaction key is zero, because App Mesh redacts sensitive HTTP
 // header match values.
 func TestAppMeshRuntimeBindRequiresRedactionKey(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceAppMesh)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceAppMesh)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceAppMesh)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceAppMesh)
 	}
 	_, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAppMesh},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceAppMesh},
 	})
 	if err == nil {
 		t.Fatalf("build() error = nil, want redaction-key-required rejection")

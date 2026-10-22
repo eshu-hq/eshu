@@ -64,7 +64,7 @@ func apiAuthRelationships(boundary awscloud.Boundary, api API) []awscloud.Relati
 				SourceResourceID: apiID,
 				SourceARN:        apiARNValue,
 				TargetResourceID: poolID,
-				TargetType:       awscloud.ResourceTypeCognitoUserPool,
+				TargetType:       catalog.ResourceTypeCognitoUserPool,
 				Attributes: map[string]any{
 					"authorizer_id": strings.TrimSpace(authorizer.AuthorizerID),
 					"issuer":        issuer,

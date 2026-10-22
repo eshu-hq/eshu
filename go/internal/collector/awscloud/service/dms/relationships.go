@@ -30,12 +30,12 @@ func instanceRelationships(
 	if subnetGroup := strings.TrimSpace(instance.SubnetGroupIdentifier); subnetGroup != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationInstanceInSubnetGroup,
+			catalog.RelationshipDMSReplicationInstanceInSubnetGroup,
 			sourceID,
 			sourceARN,
 			subnetGroup,
 			"",
-			awscloud.ResourceTypeDMSReplicationSubnetGroup,
+			catalog.ResourceTypeDMSReplicationSubnetGroup,
 			nil,
 		))
 	}
@@ -43,7 +43,7 @@ func instanceRelationships(
 	for _, subnetID := range cloneStrings(instance.SubnetIDs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationInstanceInSubnet,
+			catalog.RelationshipDMSReplicationInstanceInSubnet,
 			sourceID,
 			sourceARN,
 			subnetID,
@@ -56,7 +56,7 @@ func instanceRelationships(
 	for _, securityGroupID := range cloneStrings(instance.SecurityGroupIDs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationInstanceUsesSecurityGroup,
+			catalog.RelationshipDMSReplicationInstanceUsesSecurityGroup,
 			sourceID,
 			sourceARN,
 			securityGroupID,
@@ -69,7 +69,7 @@ func instanceRelationships(
 	if kmsKeyID := strings.TrimSpace(instance.KMSKeyID); kmsKeyID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationInstanceUsesKMSKey,
+			catalog.RelationshipDMSReplicationInstanceUsesKMSKey,
 			sourceID,
 			sourceARN,
 			kmsKeyID,
@@ -98,7 +98,7 @@ func subnetGroupRelationships(
 	if vpcID := strings.TrimSpace(group.VPCID); vpcID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationSubnetGroupInVPC,
+			catalog.RelationshipDMSReplicationSubnetGroupInVPC,
 			sourceID,
 			"",
 			vpcID,
@@ -111,7 +111,7 @@ func subnetGroupRelationships(
 	for _, subnetID := range cloneStrings(group.SubnetIDs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationSubnetGroupHasSubnet,
+			catalog.RelationshipDMSReplicationSubnetGroupHasSubnet,
 			sourceID,
 			"",
 			subnetID,
@@ -144,7 +144,7 @@ func endpointRelationships(
 	if kmsKeyID := strings.TrimSpace(endpoint.KMSKeyID); kmsKeyID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSEndpointUsesKMSKey,
+			catalog.RelationshipDMSEndpointUsesKMSKey,
 			sourceID,
 			sourceARN,
 			kmsKeyID,
@@ -159,7 +159,7 @@ func endpointRelationships(
 		if bucketARN != "" {
 			relationships = append(relationships, relationship(
 				boundary,
-				awscloud.RelationshipDMSEndpointTargetsS3Bucket,
+				catalog.RelationshipDMSEndpointTargetsS3Bucket,
 				sourceID,
 				sourceARN,
 				bucketARN,
@@ -173,7 +173,7 @@ func endpointRelationships(
 	if streamARN := strings.TrimSpace(endpoint.KinesisStreamARN); streamARN != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSEndpointTargetsKinesisStream,
+			catalog.RelationshipDMSEndpointTargetsKinesisStream,
 			sourceID,
 			sourceARN,
 			streamARN,
@@ -186,7 +186,7 @@ func endpointRelationships(
 	if secretID := strings.TrimSpace(endpoint.SecretsManagerSecretID); secretID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSEndpointUsesSecret,
+			catalog.RelationshipDMSEndpointUsesSecret,
 			sourceID,
 			sourceARN,
 			secretID,
@@ -218,12 +218,12 @@ func taskRelationships(
 	if sourceEndpointARN := strings.TrimSpace(task.SourceEndpointARN); sourceEndpointARN != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationTaskUsesSourceEndpoint,
+			catalog.RelationshipDMSReplicationTaskUsesSourceEndpoint,
 			sourceID,
 			sourceARN,
 			sourceEndpointARN,
 			arnIfARN(sourceEndpointARN),
-			awscloud.ResourceTypeDMSEndpoint,
+			catalog.ResourceTypeDMSEndpoint,
 			nil,
 		))
 	}
@@ -231,12 +231,12 @@ func taskRelationships(
 	if targetEndpointARN := strings.TrimSpace(task.TargetEndpointARN); targetEndpointARN != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationTaskUsesTargetEndpoint,
+			catalog.RelationshipDMSReplicationTaskUsesTargetEndpoint,
 			sourceID,
 			sourceARN,
 			targetEndpointARN,
 			arnIfARN(targetEndpointARN),
-			awscloud.ResourceTypeDMSEndpoint,
+			catalog.ResourceTypeDMSEndpoint,
 			nil,
 		))
 	}
@@ -244,12 +244,12 @@ func taskRelationships(
 	if instanceARN := strings.TrimSpace(task.ReplicationInstanceARN); instanceARN != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDMSReplicationTaskRunsOnInstance,
+			catalog.RelationshipDMSReplicationTaskRunsOnInstance,
 			sourceID,
 			sourceARN,
 			instanceARN,
 			arnIfARN(instanceARN),
-			awscloud.ResourceTypeDMSReplicationInstance,
+			catalog.ResourceTypeDMSReplicationInstance,
 			nil,
 		))
 	}

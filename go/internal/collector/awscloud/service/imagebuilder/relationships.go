@@ -29,19 +29,19 @@ func pipelineRelationships(boundary awscloud.Boundary, pipeline ImagePipeline) [
 		}
 		observations = append(observations, arnEdge(boundary, sourceID, relType, targetID, targetType))
 	}
-	add(awscloud.RelationshipImageBuilderPipelineUsesImageRecipe, pipeline.ImageRecipeARN, awscloud.ResourceTypeImageBuilderImageRecipe)
-	add(awscloud.RelationshipImageBuilderPipelineUsesContainerRecipe, pipeline.ContainerRecipeARN, awscloud.ResourceTypeImageBuilderContainerRecipe)
+	add(catalog.RelationshipImageBuilderPipelineUsesImageRecipe, pipeline.ImageRecipeARN, catalog.ResourceTypeImageBuilderImageRecipe)
+	add(catalog.RelationshipImageBuilderPipelineUsesContainerRecipe, pipeline.ContainerRecipeARN, catalog.ResourceTypeImageBuilderContainerRecipe)
 	add(
-		awscloud.RelationshipImageBuilderPipelineUsesInfrastructureConfiguration,
+		catalog.RelationshipImageBuilderPipelineUsesInfrastructureConfiguration,
 		pipeline.InfrastructureConfigurationARN,
-		awscloud.ResourceTypeImageBuilderInfrastructureConfiguration,
+		catalog.ResourceTypeImageBuilderInfrastructureConfiguration,
 	)
 	add(
-		awscloud.RelationshipImageBuilderPipelineUsesDistributionConfiguration,
+		catalog.RelationshipImageBuilderPipelineUsesDistributionConfiguration,
 		pipeline.DistributionConfigurationARN,
-		awscloud.ResourceTypeImageBuilderDistributionConfiguration,
+		catalog.ResourceTypeImageBuilderDistributionConfiguration,
 	)
-	add(awscloud.RelationshipImageBuilderPipelineUsesExecutionRole, pipeline.ExecutionRoleARN, catalog.ResourceTypeIAMRole)
+	add(catalog.RelationshipImageBuilderPipelineUsesExecutionRole, pipeline.ExecutionRoleARN, catalog.ResourceTypeIAMRole)
 	return observations
 }
 
@@ -62,28 +62,28 @@ func infraConfigRelationships(boundary awscloud.Boundary, config InfrastructureC
 	if profileARN := arnForInstanceProfile(partition, boundary.AccountID, config.InstanceProfileName); profileARN != "" {
 		observations = append(observations, arnEdge(
 			boundary, sourceID,
-			awscloud.RelationshipImageBuilderInfraConfigUsesInstanceProfile,
+			catalog.RelationshipImageBuilderInfraConfigUsesInstanceProfile,
 			profileARN, catalog.ResourceTypeIAMInstanceProfile,
 		))
 	}
 	if subnetID := strings.TrimSpace(config.SubnetID); subnetID != "" {
 		observations = append(observations, bareEdge(
 			boundary, sourceID,
-			awscloud.RelationshipImageBuilderInfraConfigUsesSubnet,
+			catalog.RelationshipImageBuilderInfraConfigUsesSubnet,
 			subnetID, catalog.ResourceTypeEC2Subnet,
 		))
 	}
 	for _, groupID := range cloneStrings(config.SecurityGroupIDs) {
 		observations = append(observations, bareEdge(
 			boundary, sourceID,
-			awscloud.RelationshipImageBuilderInfraConfigUsesSecurityGroup,
+			catalog.RelationshipImageBuilderInfraConfigUsesSecurityGroup,
 			groupID, catalog.ResourceTypeEC2SecurityGroup,
 		))
 	}
 	if topicARN := strings.TrimSpace(config.SNSTopicARN); topicARN != "" {
 		observations = append(observations, arnEdge(
 			boundary, sourceID,
-			awscloud.RelationshipImageBuilderInfraConfigUsesSNSTopic,
+			catalog.RelationshipImageBuilderInfraConfigUsesSNSTopic,
 			topicARN, catalog.ResourceTypeSNSTopic,
 		))
 	}
@@ -116,7 +116,7 @@ func infraConfigS3LoggingEdge(
 	}
 	edge := arnEdge(
 		boundary, sourceID,
-		awscloud.RelationshipImageBuilderInfraConfigLogsToS3,
+		catalog.RelationshipImageBuilderInfraConfigLogsToS3,
 		bucketARN, catalog.ResourceTypeS3Bucket,
 	)
 	edge.Attributes = attributes
@@ -171,7 +171,7 @@ func containerRecipeECREdge(
 	}
 	edge := arnEdge(
 		boundary, sourceID,
-		awscloud.RelationshipImageBuilderContainerRecipeUsesECRRepository,
+		catalog.RelationshipImageBuilderContainerRecipeUsesECRRepository,
 		repoARN, catalog.ResourceTypeECRRepository,
 	)
 	edge.Attributes = map[string]any{"repository_name": name}
@@ -194,12 +194,12 @@ func containerRecipeKMSEdge(
 	}
 	edge := awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipImageBuilderContainerRecipeUsesKMSKey,
+		RelationshipType: catalog.RelationshipImageBuilderContainerRecipeUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		TargetResourceID: keyID,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipImageBuilderContainerRecipeUsesKMSKey + ":" + keyID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipImageBuilderContainerRecipeUsesKMSKey + ":" + keyID,
 	}
 	if isARN(keyID) {
 		edge.TargetARN = keyID

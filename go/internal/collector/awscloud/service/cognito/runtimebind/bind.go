@@ -9,15 +9,15 @@ package runtimebind
 import (
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	svc "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/cognito"
 	sdkadapter "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/cognito/awssdk"
 )
 
 func init() {
 	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind:          awscloud.ServiceCognito,
+		ServiceKind:          catalog.ServiceCognito,
 		RequiresRedactionKey: true,
 		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
 			if d.RedactionKey.IsZero() {

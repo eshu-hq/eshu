@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("workspaces scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceWorkSpaces:
+	case "", catalog.ServiceWorkSpaces:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceWorkSpaces
+		boundary.ServiceKind = catalog.ServiceWorkSpaces
 	default:
 		return nil, fmt.Errorf("workspaces scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -136,7 +137,7 @@ func workspaceObservation(boundary awscloud.Boundary, workspace Workspace) awscl
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWorkSpacesWorkspace,
+		ResourceType: catalog.ResourceTypeWorkSpacesWorkspace,
 		Name:         firstNonEmptyValue(name, id),
 		State:        strings.TrimSpace(workspace.State),
 		Tags:         cloneStringMap(workspace.Tags),
@@ -164,7 +165,7 @@ func directoryObservation(boundary awscloud.Boundary, directory Directory) awscl
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWorkSpacesDirectory,
+		ResourceType: catalog.ResourceTypeWorkSpacesDirectory,
 		Name:         firstNonEmptyValue(name, id),
 		State:        strings.TrimSpace(directory.State),
 		Tags:         cloneStringMap(directory.Tags),
@@ -192,7 +193,7 @@ func bundleObservation(boundary awscloud.Boundary, bundle Bundle) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWorkSpacesBundle,
+		ResourceType: catalog.ResourceTypeWorkSpacesBundle,
 		Name:         firstNonEmptyValue(name, id),
 		State:        strings.TrimSpace(bundle.State),
 		Tags:         cloneStringMap(bundle.Tags),
@@ -222,7 +223,7 @@ func ipGroupObservation(boundary awscloud.Boundary, group IPGroup) awscloud.Reso
 		Boundary:     boundary,
 		ARN:          arnOrEmpty(resourceID),
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeWorkSpacesIPGroup,
+		ResourceType: catalog.ResourceTypeWorkSpacesIPGroup,
 		Name:         firstNonEmptyValue(name, id),
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{

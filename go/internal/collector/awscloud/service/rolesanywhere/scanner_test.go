@@ -102,7 +102,7 @@ func TestScannerEmitsRolesAnywhereMetadataAndRelationships(t *testing.T) {
 
 	// trust anchor -> ACM PCA CA edge, keyed by the CA ARN the acmpca scanner publishes.
 	anchorCA := relationshipByType(t, envelopes, catalog.RelationshipRolesAnywhereTrustAnchorUsesACMPCA)
-	assertEdgeTarget(t, anchorCA, awscloud.ResourceTypeACMPCACertificateAuthority, testCAARN)
+	assertEdgeTarget(t, anchorCA, catalog.ResourceTypeACMPCACertificateAuthority, testCAARN)
 	if got, want := anchorCA.Payload["source_resource_id"], testTrustAnchorARN; got != want {
 		t.Fatalf("anchor->ca source_resource_id = %#v, want %q", got, want)
 	}

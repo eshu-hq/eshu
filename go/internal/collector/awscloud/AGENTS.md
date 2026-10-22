@@ -32,6 +32,10 @@
    CloudHSMv2, Access Analyzer, Outposts, DRS, Grafana, Secrets Manager,
    SSM, and Resource Policy now live in `catalog/g2_governance.go`, with
    the shared account/generic targets in `catalog/g2_common.go`).
+   `catalog/management.go`, and `catalog/operations.go`; App Mesh,
+   AppStream, Elastic Beanstalk, WorkSpaces, AMP, Cognito, DMS,
+   Image Builder, Transfer, and Verified Access now live in
+   `catalog/g1_services.go` and `catalog/g1_platform.go`).
    New service
    constants MUST land in their own
    `constants_<service>.go` sibling, not back in `types.go`, so the 500-line

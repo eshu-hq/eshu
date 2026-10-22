@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // TestScannerCanonicalizesPaddedServiceKind proves a whitespace-padded
@@ -17,7 +17,7 @@ import (
 // joins/filters that key on the canonical "transfer".
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceTransfer + "  "
+	boundary.ServiceKind = "  " + catalog.ServiceTransfer + "  "
 	serverID := "s-padded0000000000"
 	client := fakeClient{
 		servers: []Server{{
@@ -36,7 +36,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceTransfer; got != want {
+		if got, want := envelope.Payload["service_kind"], catalog.ServiceTransfer; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // fakeEC2 is a metadata-only test double for the Verified Access describe
@@ -106,7 +107,7 @@ func TestSnapshotPaginatesAndMapsMetadata(t *testing.T) {
 			{},
 		},
 	}
-	client := &Client{client: fake, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceVerifiedAccess}}
+	client := &Client{client: fake, boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceVerifiedAccess}}
 
 	snapshot, err := client.Snapshot(context.Background())
 	if err != nil {

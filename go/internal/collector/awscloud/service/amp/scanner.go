@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -33,10 +34,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("amp scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAMP:
+	case "", catalog.ServiceAMP:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAMP
+		boundary.ServiceKind = catalog.ServiceAMP
 	default:
 		return nil, fmt.Errorf("amp scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -146,7 +147,7 @@ func workspaceObservation(boundary awscloud.Boundary, workspace Workspace) awscl
 		Boundary:     boundary,
 		ARN:          workspaceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAMPWorkspace,
+		ResourceType: catalog.ResourceTypeAMPWorkspace,
 		Name:         name,
 		State:        strings.TrimSpace(workspace.Status),
 		Tags:         cloneStringMap(workspace.Tags),
@@ -173,7 +174,7 @@ func namespaceObservation(
 		Boundary:     boundary,
 		ARN:          namespaceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAMPRuleGroupsNamespace,
+		ResourceType: catalog.ResourceTypeAMPRuleGroupsNamespace,
 		Name:         name,
 		State:        strings.TrimSpace(namespace.Status),
 		Tags:         cloneStringMap(namespace.Tags),
@@ -197,7 +198,7 @@ func scraperObservation(boundary awscloud.Boundary, scraper Scraper) awscloud.Re
 		Boundary:     boundary,
 		ARN:          scraperARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAMPScraper,
+		ResourceType: catalog.ResourceTypeAMPScraper,
 		Name:         name,
 		State:        strings.TrimSpace(scraper.Status),
 		Tags:         cloneStringMap(scraper.Tags),

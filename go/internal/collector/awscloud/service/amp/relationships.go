@@ -29,13 +29,13 @@ func workspaceKMSRelationship(boundary awscloud.Boundary, workspace Workspace) *
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAMPWorkspaceUsesKMSKey,
+		RelationshipType: catalog.RelationshipAMPWorkspaceUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(workspace.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipAMPWorkspaceUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipAMPWorkspaceUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -59,13 +59,13 @@ func namespaceInWorkspaceRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAMPRuleGroupsNamespaceInWorkspace,
+		RelationshipType: catalog.RelationshipAMPRuleGroupsNamespaceInWorkspace,
 		SourceResourceID: namespaceID,
 		SourceARN:        strings.TrimSpace(namespace.ARN),
 		TargetResourceID: workspaceID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeAMPWorkspace,
-		SourceRecordID:   namespaceID + "->" + awscloud.RelationshipAMPRuleGroupsNamespaceInWorkspace + ":" + workspaceID,
+		TargetType:       catalog.ResourceTypeAMPWorkspace,
+		SourceRecordID:   namespaceID + "->" + catalog.RelationshipAMPRuleGroupsNamespaceInWorkspace + ":" + workspaceID,
 	}
 }
 
@@ -86,13 +86,13 @@ func scraperRelationships(boundary awscloud.Boundary, scraper Scraper) []awsclou
 	if clusterARN := strings.TrimSpace(scraper.SourceEKSClusterARN); clusterARN != "" {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAMPScraperScrapesEKSCluster,
+			RelationshipType: catalog.RelationshipAMPScraperScrapesEKSCluster,
 			SourceResourceID: scraperID,
 			SourceARN:        scraperARN,
 			TargetResourceID: clusterARN,
 			TargetARN:        clusterARN,
 			TargetType:       catalog.ResourceTypeEKSCluster,
-			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperScrapesEKSCluster + ":" + clusterARN,
+			SourceRecordID:   scraperID + "->" + catalog.RelationshipAMPScraperScrapesEKSCluster + ":" + clusterARN,
 		})
 	}
 
@@ -103,37 +103,37 @@ func scraperRelationships(boundary awscloud.Boundary, scraper Scraper) []awsclou
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAMPScraperSendsToWorkspace,
+			RelationshipType: catalog.RelationshipAMPScraperSendsToWorkspace,
 			SourceResourceID: scraperID,
 			SourceARN:        scraperARN,
 			TargetResourceID: workspaceARN,
 			TargetARN:        targetARN,
-			TargetType:       awscloud.ResourceTypeAMPWorkspace,
-			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperSendsToWorkspace + ":" + workspaceARN,
+			TargetType:       catalog.ResourceTypeAMPWorkspace,
+			SourceRecordID:   scraperID + "->" + catalog.RelationshipAMPScraperSendsToWorkspace + ":" + workspaceARN,
 		})
 	}
 
 	for _, subnetID := range cloneStrings(scraper.SubnetIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAMPScraperUsesSubnet,
+			RelationshipType: catalog.RelationshipAMPScraperUsesSubnet,
 			SourceResourceID: scraperID,
 			SourceARN:        scraperARN,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
-			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperUsesSubnet + ":" + subnetID,
+			SourceRecordID:   scraperID + "->" + catalog.RelationshipAMPScraperUsesSubnet + ":" + subnetID,
 		})
 	}
 
 	for _, groupID := range cloneStrings(scraper.SecurityGroupIDs) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAMPScraperUsesSecurityGroup,
+			RelationshipType: catalog.RelationshipAMPScraperUsesSecurityGroup,
 			SourceResourceID: scraperID,
 			SourceARN:        scraperARN,
 			TargetResourceID: groupID,
 			TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-			SourceRecordID:   scraperID + "->" + awscloud.RelationshipAMPScraperUsesSecurityGroup + ":" + groupID,
+			SourceRecordID:   scraperID + "->" + catalog.RelationshipAMPScraperUsesSecurityGroup + ":" + groupID,
 		})
 	}
 

@@ -93,7 +93,7 @@ func TestScannerEmitsUserPoolAndIdentityPoolMetadata(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	pool := resourceByType(t, envelopes, awscloud.ResourceTypeCognitoUserPool)
+	pool := resourceByType(t, envelopes, catalog.ResourceTypeCognitoUserPool)
 	poolAttrs := attributesOf(t, pool)
 	if got, want := poolAttrs["mfa_configuration"], "OPTIONAL"; got != want {
 		t.Fatalf("mfa_configuration = %#v, want %q", got, want)
@@ -109,7 +109,7 @@ func TestScannerEmitsUserPoolAndIdentityPoolMetadata(t *testing.T) {
 		t.Fatalf("deletion_protection = %#v, want %q", got, want)
 	}
 
-	client1 := resourceByType(t, envelopes, awscloud.ResourceTypeCognitoUserPoolClient)
+	client1 := resourceByType(t, envelopes, catalog.ResourceTypeCognitoUserPoolClient)
 	clientAttrs := attributesOf(t, client1)
 	for _, forbidden := range []string{"client_secret", "ClientSecret", "secret"} {
 		if _, exists := clientAttrs[forbidden]; exists {
@@ -120,7 +120,7 @@ func TestScannerEmitsUserPoolAndIdentityPoolMetadata(t *testing.T) {
 		t.Fatalf("client_id = %#v, want %q", got, want)
 	}
 
-	provider := resourceByType(t, envelopes, awscloud.ResourceTypeCognitoIdentityProvider)
+	provider := resourceByType(t, envelopes, catalog.ResourceTypeCognitoIdentityProvider)
 	providerAttrs := attributesOf(t, provider)
 	for _, forbidden := range []string{"provider_details", "ProviderDetails", "client_secret", "google_client_secret"} {
 		if _, exists := providerAttrs[forbidden]; exists {
@@ -131,13 +131,13 @@ func TestScannerEmitsUserPoolAndIdentityPoolMetadata(t *testing.T) {
 		t.Fatalf("provider_type = %#v, want %q", got, want)
 	}
 
-	resourceServer := resourceByType(t, envelopes, awscloud.ResourceTypeCognitoResourceServer)
+	resourceServer := resourceByType(t, envelopes, catalog.ResourceTypeCognitoResourceServer)
 	resourceServerAttrs := attributesOf(t, resourceServer)
 	if got, want := resourceServerAttrs["identifier"], "https://api.example.com"; got != want {
 		t.Fatalf("resource server identifier = %#v, want %q", got, want)
 	}
 
-	group := resourceByType(t, envelopes, awscloud.ResourceTypeCognitoUserPoolGroup)
+	group := resourceByType(t, envelopes, catalog.ResourceTypeCognitoUserPoolGroup)
 	groupAttrs := attributesOf(t, group)
 	description, ok := groupAttrs["description"].(map[string]any)
 	if !ok {
@@ -148,7 +148,7 @@ func TestScannerEmitsUserPoolAndIdentityPoolMetadata(t *testing.T) {
 		t.Fatalf("group description marker = %q, want redacted prefix", marker)
 	}
 
-	identityPool := resourceByType(t, envelopes, awscloud.ResourceTypeCognitoIdentityPool)
+	identityPool := resourceByType(t, envelopes, catalog.ResourceTypeCognitoIdentityPool)
 	identityPoolAttrs := attributesOf(t, identityPool)
 	developerName, ok := identityPoolAttrs["developer_provider_name"].(map[string]any)
 	if !ok {
@@ -158,10 +158,10 @@ func TestScannerEmitsUserPoolAndIdentityPoolMetadata(t *testing.T) {
 		t.Fatalf("developer_provider_name marker = %q, want redacted prefix", developerMarker)
 	}
 
-	assertRelationship(t, envelopes, awscloud.RelationshipCognitoUserPoolClientUsesUserPool)
-	assertRelationship(t, envelopes, awscloud.RelationshipCognitoUserPoolUsesLambdaTrigger)
-	assertRelationship(t, envelopes, awscloud.RelationshipCognitoIdentityPoolUsesUserPool)
-	assertRelationship(t, envelopes, awscloud.RelationshipCognitoIdentityPoolUsesIdentityProvider)
+	assertRelationship(t, envelopes, catalog.RelationshipCognitoUserPoolClientUsesUserPool)
+	assertRelationship(t, envelopes, catalog.RelationshipCognitoUserPoolUsesLambdaTrigger)
+	assertRelationship(t, envelopes, catalog.RelationshipCognitoIdentityPoolUsesUserPool)
+	assertRelationship(t, envelopes, catalog.RelationshipCognitoIdentityPoolUsesIdentityProvider)
 
 	// The identity-pool -> user-pool edge must target an identity that the user
 	// pool resource fact actually publishes (its resource_id / correlation
@@ -169,13 +169,13 @@ func TestScannerEmitsUserPoolAndIdentityPoolMetadata(t *testing.T) {
 	// "cognito-idp.<region>.amazonaws.com/<poolId>" provider name string. AWS
 	// returns the provider name in that compound form; emitting it verbatim
 	// produces a dangling edge that never joins the user pool node.
-	identityToUserPool := relationshipByType(t, envelopes, awscloud.RelationshipCognitoIdentityPoolUsesUserPool)
+	identityToUserPool := relationshipByType(t, envelopes, catalog.RelationshipCognitoIdentityPoolUsesUserPool)
 	if got, want := payloadString(t, identityToUserPool, "target_resource_id"), "us-east-1_abc123"; got != want {
 		t.Fatalf("identity-pool -> user-pool target_resource_id = %q, want %q (user pool resource_id)", got, want)
 	}
 	// The Lambda trigger edge must target the function ARN the Lambda scanner
 	// publishes as its resource_id/arn.
-	lambdaEdge := relationshipByType(t, envelopes, awscloud.RelationshipCognitoUserPoolUsesLambdaTrigger)
+	lambdaEdge := relationshipByType(t, envelopes, catalog.RelationshipCognitoUserPoolUsesLambdaTrigger)
 	if got, want := payloadString(t, lambdaEdge, "target_resource_id"), lambdaARN; got != want {
 		t.Fatalf("user-pool -> lambda target_resource_id = %q, want %q", got, want)
 	}
@@ -300,7 +300,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceCognito,
+		ServiceKind:         catalog.ServiceCognito,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:cognito:1",
 		CollectorInstanceID: "aws-prod",

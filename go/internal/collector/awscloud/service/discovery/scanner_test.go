@@ -107,9 +107,9 @@ func TestScanEmitsServiceResourceKeyedForAppMeshJoin(t *testing.T) {
 	}
 	// The App Mesh scanner emits its Cloud Map edge with this exact target_type
 	// and target_resource_id. Assert they match the resource this scanner emits.
-	if awscloud.TargetTypeCloudMapService != catalog.ResourceTypeCloudMapService {
+	if catalog.TargetTypeCloudMapService != catalog.ResourceTypeCloudMapService {
 		t.Fatalf("App Mesh TargetTypeCloudMapService %q != Cloud Map ResourceTypeCloudMapService %q",
-			awscloud.TargetTypeCloudMapService, catalog.ResourceTypeCloudMapService)
+			catalog.TargetTypeCloudMapService, catalog.ResourceTypeCloudMapService)
 	}
 }
 

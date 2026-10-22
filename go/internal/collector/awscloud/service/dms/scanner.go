@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,8 +32,8 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("dms scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDMS:
-		boundary.ServiceKind = awscloud.ServiceDMS
+	case "", catalog.ServiceDMS:
+		boundary.ServiceKind = catalog.ServiceDMS
 	default:
 		return nil, fmt.Errorf("dms scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -145,7 +146,7 @@ func instanceObservation(boundary awscloud.Boundary, instance ReplicationInstanc
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDMSReplicationInstance,
+		ResourceType: catalog.ResourceTypeDMSReplicationInstance,
 		Name:         identifier,
 		State:        strings.TrimSpace(instance.Status),
 		Tags:         cloneStringMap(instance.Tags),
@@ -174,7 +175,7 @@ func subnetGroupObservation(boundary awscloud.Boundary, group ReplicationSubnetG
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   identifier,
-		ResourceType: awscloud.ResourceTypeDMSReplicationSubnetGroup,
+		ResourceType: catalog.ResourceTypeDMSReplicationSubnetGroup,
 		Name:         identifier,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),
@@ -196,7 +197,7 @@ func endpointObservation(boundary awscloud.Boundary, endpoint Endpoint) awscloud
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDMSEndpoint,
+		ResourceType: catalog.ResourceTypeDMSEndpoint,
 		Name:         identifier,
 		State:        strings.TrimSpace(endpoint.Status),
 		Attributes: map[string]any{
@@ -225,7 +226,7 @@ func taskObservation(boundary awscloud.Boundary, task ReplicationTask) awscloud.
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDMSReplicationTask,
+		ResourceType: catalog.ResourceTypeDMSReplicationTask,
 		Name:         identifier,
 		State:        strings.TrimSpace(task.Status),
 		Tags:         cloneStringMap(task.Tags),

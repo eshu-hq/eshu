@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("appstream scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppStream:
+	case "", catalog.ServiceAppStream:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppStream
+		boundary.ServiceKind = catalog.ServiceAppStream
 	default:
 		return nil, fmt.Errorf("appstream scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -161,7 +162,7 @@ func fleetObservation(boundary awscloud.Boundary, fleet Fleet) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppStreamFleet,
+		ResourceType: catalog.ResourceTypeAppStreamFleet,
 		Name:         name,
 		State:        strings.TrimSpace(fleet.State),
 		Tags:         cloneStringMap(fleet.Tags),
@@ -195,7 +196,7 @@ func stackObservation(boundary awscloud.Boundary, stack Stack) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppStreamStack,
+		ResourceType: catalog.ResourceTypeAppStreamStack,
 		Name:         name,
 		Tags:         cloneStringMap(stack.Tags),
 		Attributes: map[string]any{
@@ -219,7 +220,7 @@ func imageBuilderObservation(boundary awscloud.Boundary, builder ImageBuilder) a
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppStreamImageBuilder,
+		ResourceType: catalog.ResourceTypeAppStreamImageBuilder,
 		Name:         name,
 		State:        strings.TrimSpace(builder.State),
 		Tags:         cloneStringMap(builder.Tags),
@@ -248,7 +249,7 @@ func imageObservation(boundary awscloud.Boundary, image Image) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAppStreamImage,
+		ResourceType: catalog.ResourceTypeAppStreamImage,
 		Name:         name,
 		State:        strings.TrimSpace(image.State),
 		Tags:         cloneStringMap(image.Tags),

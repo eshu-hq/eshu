@@ -207,6 +207,30 @@ avoid.
   `RelationshipCloudWatchLogs*`, `RelationshipXRay*`,
   `RelationshipApplicationAutoScaling*`, `RelationshipComputeOptimizer*`,
   `RelationshipMWAA*` — operations-category reducer relationship types
+- `ServiceAppMesh`, `ServiceAppStream`, `ServiceElasticBeanstalk`,
+  `ServiceWorkSpaces` — g1-services-category service-kind
+  strings (service mesh, streaming, desktops, and app hosting, in
+  `g1_services.go`)
+- `ResourceTypeAppMesh*`, `ResourceTypeAppStream*`,
+  `ResourceTypeElasticBeanstalk*`, `ResourceTypeWorkSpaces*`,
+  `ResourceTypeACMPCACertificateAuthority` — g1-services-category
+  fact-schema resource-type tokens
+- `RelationshipAppMesh*`, `RelationshipAppStream*`,
+  `RelationshipElasticBeanstalk*`, `RelationshipWorkSpaces*`,
+  `RelationshipAppMeshVirtualNodeTrustsCertificateAuthority` —
+  g1-services-category reducer relationship types
+- `ServiceAMP`, `ServiceCognito`, `ServiceDMS`, `ServiceImageBuilder`,
+  `ServiceTransfer`, `ServiceVerifiedAccess` — g1-platform-category
+  service-kind strings (migration, image build, access, file transfer,
+  identity, and monitoring, in `g1_platform.go`)
+- `ResourceTypeAMP*`, `ResourceTypeCognito*`, `ResourceTypeDMS*`,
+  `ResourceTypeImageBuilder*`, `ResourceTypeTransfer*`,
+  `ResourceTypeVerifiedAccess*` — g1-platform-category fact-schema
+  resource-type tokens
+- `RelationshipAMP*`, `RelationshipCognito*`, `RelationshipDMS*`,
+  `RelationshipImageBuilder*`, `RelationshipTransfer*`,
+  `RelationshipVerifiedAccess*` — g1-platform-category reducer
+  relationship types
 - `ServiceWAFv2`, `ServiceMGN`, `ServiceLocation`, `ServiceDirectoryService`,
   `ServiceAuditManager`, `ServiceAppFlow`, `ServiceAmplify`,
   `ServiceVerifiedPermissions`, `ServiceRolesAnywhere` — g2-services-category

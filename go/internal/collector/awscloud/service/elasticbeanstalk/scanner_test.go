@@ -91,14 +91,14 @@ func TestScannerEmitsApplicationsEnvironmentsAndVersions(t *testing.T) {
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	application := resourceByType(t, envelopes, awscloud.ResourceTypeElasticBeanstalkApplication)
+	application := resourceByType(t, envelopes, catalog.ResourceTypeElasticBeanstalkApplication)
 	attrs := attributesOf(t, application)
 	templates, ok := attrs["configuration_templates"].([]string)
 	if !ok || len(templates) != 2 || templates[0] != "checkout-template" {
 		t.Fatalf("configuration_templates = %#v, want [checkout-template blue-green]", attrs["configuration_templates"])
 	}
 
-	environment := resourceByType(t, envelopes, awscloud.ResourceTypeElasticBeanstalkEnvironment)
+	environment := resourceByType(t, envelopes, catalog.ResourceTypeElasticBeanstalkEnvironment)
 	envAttrs := attributesOf(t, environment)
 	for key, want := range map[string]string{
 		"status":              "Ready",
@@ -118,7 +118,7 @@ func TestScannerEmitsApplicationsEnvironmentsAndVersions(t *testing.T) {
 		t.Fatalf("environment arn = %#v, want %q", got, testEnvironmentARN)
 	}
 
-	version := resourceByType(t, envelopes, awscloud.ResourceTypeElasticBeanstalkApplicationVersion)
+	version := resourceByType(t, envelopes, catalog.ResourceTypeElasticBeanstalkApplicationVersion)
 	versionAttrs := attributesOf(t, version)
 	if got, _ := versionAttrs["version_label"].(string); got != "v42" {
 		t.Fatalf("version_label = %q, want v42", got)
@@ -137,17 +137,17 @@ func TestScannerEmitsEnvironmentRelationshipsWithJoinKeys(t *testing.T) {
 		targetType   string
 	}{
 		{
-			awscloud.RelationshipElasticBeanstalkEnvironmentBelongsToApplication,
+			catalog.RelationshipElasticBeanstalkEnvironmentBelongsToApplication,
 			"arn:aws:elasticbeanstalk:us-east-1:123456789012:application/checkout",
-			awscloud.ResourceTypeElasticBeanstalkApplication,
+			catalog.ResourceTypeElasticBeanstalkApplication,
 		},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesVPC, "vpc-0123456789abcdef0", catalog.ResourceTypeEC2VPC},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile, testInstanceProf, catalog.ResourceTypeIAMInstanceProfile},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesServiceRole, testServiceRole, catalog.ResourceTypeIAMRole},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer, testLoadBalancerARN, catalog.ResourceTypeELBv2LoadBalancer},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup, "awseb-e-abc123-stack-AWSEBAutoScalingGroup", catalog.ResourceTypeAutoScalingGroup},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate, "lt-0123456789abcdef0", catalog.ResourceTypeEC2LaunchTemplate},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentRunsVersion, testAppVersionARN, awscloud.ResourceTypeElasticBeanstalkApplicationVersion},
+		{catalog.RelationshipElasticBeanstalkEnvironmentUsesVPC, "vpc-0123456789abcdef0", catalog.ResourceTypeEC2VPC},
+		{catalog.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile, testInstanceProf, catalog.ResourceTypeIAMInstanceProfile},
+		{catalog.RelationshipElasticBeanstalkEnvironmentUsesServiceRole, testServiceRole, catalog.ResourceTypeIAMRole},
+		{catalog.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer, testLoadBalancerARN, catalog.ResourceTypeELBv2LoadBalancer},
+		{catalog.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup, "awseb-e-abc123-stack-AWSEBAutoScalingGroup", catalog.ResourceTypeAutoScalingGroup},
+		{catalog.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate, "lt-0123456789abcdef0", catalog.ResourceTypeEC2LaunchTemplate},
+		{catalog.RelationshipElasticBeanstalkEnvironmentRunsVersion, testAppVersionARN, catalog.ResourceTypeElasticBeanstalkApplicationVersion},
 	}
 	for _, tc := range cases {
 		relationship := relationshipByType(t, envelopes, tc.relationship)
@@ -210,7 +210,7 @@ func TestResourceRelationshipsTypesLoadBalancerByIdentifierShape(t *testing.T) {
 			var rel awscloud.RelationshipObservation
 			var found bool
 			for _, obs := range observations {
-				if obs.RelationshipType == awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer {
+				if obs.RelationshipType == catalog.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer {
 					rel = obs
 					found = true
 					break
@@ -243,7 +243,7 @@ func TestScannerRedactsOptionSettingValuesAndNeverPersistsClearText(t *testing.T
 		t.Fatalf("Scan() error = %v", err)
 	}
 
-	environment := resourceByType(t, envelopes, awscloud.ResourceTypeElasticBeanstalkEnvironment)
+	environment := resourceByType(t, envelopes, catalog.ResourceTypeElasticBeanstalkEnvironment)
 	options, ok := attributesOf(t, environment)["option_settings"].([]map[string]any)
 	if !ok {
 		t.Fatalf("option_settings = %#v, want []map[string]any", attributesOf(t, environment)["option_settings"])
@@ -319,7 +319,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceElasticBeanstalk,
+		ServiceKind:         catalog.ServiceElasticBeanstalk,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:elasticbeanstalk:1",
 		CollectorInstanceID: "aws-prod",

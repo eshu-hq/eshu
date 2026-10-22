@@ -30,13 +30,13 @@ func workspaceInDirectoryRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipWorkSpacesWorkspaceInDirectory,
+		RelationshipType: catalog.RelationshipWorkSpacesWorkspaceInDirectory,
 		SourceResourceID: sourceID,
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: targetID,
 		TargetARN:        arnOrEmpty(targetID),
-		TargetType:       awscloud.ResourceTypeWorkSpacesDirectory,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesWorkspaceInDirectory + ":" + targetID,
+		TargetType:       catalog.ResourceTypeWorkSpacesDirectory,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipWorkSpacesWorkspaceInDirectory + ":" + targetID,
 	}
 }
 
@@ -59,13 +59,13 @@ func workspaceUsesBundleRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipWorkSpacesWorkspaceUsesBundle,
+		RelationshipType: catalog.RelationshipWorkSpacesWorkspaceUsesBundle,
 		SourceResourceID: sourceID,
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: targetID,
 		TargetARN:        arnOrEmpty(targetID),
-		TargetType:       awscloud.ResourceTypeWorkSpacesBundle,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesWorkspaceUsesBundle + ":" + targetID,
+		TargetType:       catalog.ResourceTypeWorkSpacesBundle,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipWorkSpacesWorkspaceUsesBundle + ":" + targetID,
 	}
 }
 
@@ -87,13 +87,13 @@ func workspaceUsesKMSKeyRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipWorkSpacesWorkspaceUsesKMSKey,
+		RelationshipType: catalog.RelationshipWorkSpacesWorkspaceUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        arnOrEmpty(sourceID),
 		TargetResourceID: targetID,
 		TargetARN:        arnOrEmpty(targetID),
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesWorkspaceUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipWorkSpacesWorkspaceUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -141,12 +141,12 @@ func directoryUsesDSDirectoryRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipWorkSpacesDirectoryUsesDSDirectory,
+		RelationshipType: catalog.RelationshipWorkSpacesDirectoryUsesDSDirectory,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: targetID,
 		TargetType:       catalog.ResourceTypeDSDirectory,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesDirectoryUsesDSDirectory + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipWorkSpacesDirectoryUsesDSDirectory + ":" + targetID,
 	}
 }
 
@@ -166,12 +166,12 @@ func directorySubnetRelationships(
 	for _, subnet := range subnets {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipWorkSpacesDirectoryInSubnet,
+			RelationshipType: catalog.RelationshipWorkSpacesDirectoryInSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: subnet,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesDirectoryInSubnet + ":" + subnet,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipWorkSpacesDirectoryInSubnet + ":" + subnet,
 		})
 	}
 	return observations
@@ -191,12 +191,12 @@ func directoryUsesSecurityGroupRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipWorkSpacesDirectoryUsesSecurityGroup,
+		RelationshipType: catalog.RelationshipWorkSpacesDirectoryUsesSecurityGroup,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: targetID,
 		TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesDirectoryUsesSecurityGroup + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipWorkSpacesDirectoryUsesSecurityGroup + ":" + targetID,
 	}
 }
 
@@ -215,13 +215,13 @@ func directoryUsesIAMRoleRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipWorkSpacesDirectoryUsesIAMRole,
+		RelationshipType: catalog.RelationshipWorkSpacesDirectoryUsesIAMRole,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: targetID,
 		TargetARN:        arnOrEmpty(targetID),
 		TargetType:       catalog.ResourceTypeIAMRole,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesDirectoryUsesIAMRole + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipWorkSpacesDirectoryUsesIAMRole + ":" + targetID,
 	}
 }
 
@@ -245,13 +245,13 @@ func directoryIPGroupRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipWorkSpacesDirectoryUsesIPGroup,
+			RelationshipType: catalog.RelationshipWorkSpacesDirectoryUsesIPGroup,
 			SourceResourceID: sourceID,
 			SourceARN:        sourceARN,
 			TargetResourceID: targetID,
 			TargetARN:        arnOrEmpty(targetID),
-			TargetType:       awscloud.ResourceTypeWorkSpacesIPGroup,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesDirectoryUsesIPGroup + ":" + targetID,
+			TargetType:       catalog.ResourceTypeWorkSpacesIPGroup,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipWorkSpacesDirectoryUsesIPGroup + ":" + targetID,
 		})
 	}
 	return observations

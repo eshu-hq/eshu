@@ -86,7 +86,7 @@ func TestScannerEmitsAppStreamMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	fleet := resourceByType(t, envelopes, awscloud.ResourceTypeAppStreamFleet)
+	fleet := resourceByType(t, envelopes, catalog.ResourceTypeAppStreamFleet)
 	if got, want := fleet.Payload["resource_id"], testFleetARN; got != want {
 		t.Fatalf("fleet resource_id = %#v, want %q", got, want)
 	}
@@ -98,7 +98,7 @@ func TestScannerEmitsAppStreamMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, fleetAttrs, "instance_type", "stream.standard.medium")
 	assertAttribute(t, fleetAttrs, "subnet_ids", []string{"subnet-aaa", "subnet-bbb"})
 
-	stack := resourceByType(t, envelopes, awscloud.ResourceTypeAppStreamStack)
+	stack := resourceByType(t, envelopes, catalog.ResourceTypeAppStreamStack)
 	if got, want := stack.Payload["resource_id"], testStackARN; got != want {
 		t.Fatalf("stack resource_id = %#v, want %q", got, want)
 	}
@@ -106,12 +106,12 @@ func TestScannerEmitsAppStreamMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, stackAttrs, "application_settings_enabled", true)
 	assertAttribute(t, stackAttrs, "application_settings_s3_bucket", "appstream-settings-bucket")
 
-	builder := resourceByType(t, envelopes, awscloud.ResourceTypeAppStreamImageBuilder)
+	builder := resourceByType(t, envelopes, catalog.ResourceTypeAppStreamImageBuilder)
 	if got, want := builder.Payload["resource_id"], testImageBuilderARN; got != want {
 		t.Fatalf("image builder resource_id = %#v, want %q", got, want)
 	}
 
-	image := resourceByType(t, envelopes, awscloud.ResourceTypeAppStreamImage)
+	image := resourceByType(t, envelopes, catalog.ResourceTypeAppStreamImage)
 	if got, want := image.Payload["resource_id"], testImageARN; got != want {
 		t.Fatalf("image resource_id = %#v, want %q", got, want)
 	}
@@ -119,7 +119,7 @@ func TestScannerEmitsAppStreamMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, imageAttrs, "visibility", "PRIVATE")
 
 	// fleet -> subnet edges keyed by bare subnet ids.
-	subnetEdges := relationshipsByType(t, envelopes, awscloud.RelationshipAppStreamFleetUsesSubnet)
+	subnetEdges := relationshipsByType(t, envelopes, catalog.RelationshipAppStreamFleetUsesSubnet)
 	if len(subnetEdges) != 2 {
 		t.Fatalf("fleet->subnet edge count = %d, want 2", len(subnetEdges))
 	}
@@ -131,35 +131,35 @@ func TestScannerEmitsAppStreamMetadataAndRelationships(t *testing.T) {
 	}
 
 	// fleet -> security group edge keyed by bare sg id.
-	sgEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamFleetUsesSecurityGroup)
+	sgEdge := relationshipByType(t, envelopes, catalog.RelationshipAppStreamFleetUsesSecurityGroup)
 	assertEdgeTarget(t, sgEdge, catalog.ResourceTypeEC2SecurityGroup, "sg-111")
 
 	// fleet -> IAM role edge keyed by role ARN.
-	roleEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamFleetUsesIAMRole)
+	roleEdge := relationshipByType(t, envelopes, catalog.RelationshipAppStreamFleetUsesIAMRole)
 	assertEdgeTarget(t, roleEdge, catalog.ResourceTypeIAMRole, testRoleARN)
 	if got := roleEdge.Payload["target_arn"]; got != testRoleARN {
 		t.Fatalf("fleet->role target_arn = %#v, want %q", got, testRoleARN)
 	}
 
 	// fleet -> image edge keyed by image ARN (the image node resource_id).
-	imageEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamFleetUsesImage)
-	assertEdgeTarget(t, imageEdge, awscloud.ResourceTypeAppStreamImage, testImageARN)
+	imageEdge := relationshipByType(t, envelopes, catalog.RelationshipAppStreamFleetUsesImage)
+	assertEdgeTarget(t, imageEdge, catalog.ResourceTypeAppStreamImage, testImageARN)
 
 	// fleet <-> stack association keyed by the stack node resource_id (ARN).
-	stackEdge := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamFleetAssociatedWithStack)
-	assertEdgeTarget(t, stackEdge, awscloud.ResourceTypeAppStreamStack, testStackARN)
+	stackEdge := relationshipByType(t, envelopes, catalog.RelationshipAppStreamFleetAssociatedWithStack)
+	assertEdgeTarget(t, stackEdge, catalog.ResourceTypeAppStreamStack, testStackARN)
 	if got, _ := stackEdge.Payload["source_resource_id"].(string); got != testFleetARN {
 		t.Fatalf("fleet->stack source_resource_id = %q, want %q", got, testFleetARN)
 	}
 
 	// image builder edges resolve too.
-	builderRole := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamImageBuilderUsesIAMRole)
+	builderRole := relationshipByType(t, envelopes, catalog.RelationshipAppStreamImageBuilderUsesIAMRole)
 	assertEdgeTarget(t, builderRole, catalog.ResourceTypeIAMRole, testRoleARN)
-	builderImage := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamImageBuilderUsesImage)
-	assertEdgeTarget(t, builderImage, awscloud.ResourceTypeAppStreamImage, testImageARN)
+	builderImage := relationshipByType(t, envelopes, catalog.RelationshipAppStreamImageBuilderUsesImage)
+	assertEdgeTarget(t, builderImage, catalog.ResourceTypeAppStreamImage, testImageARN)
 
 	// stack -> S3 bucket edges (app settings + storage connector), synthesized ARN.
-	s3Edges := relationshipsByType(t, envelopes, awscloud.RelationshipAppStreamStackUsesS3Bucket)
+	s3Edges := relationshipsByType(t, envelopes, catalog.RelationshipAppStreamStackUsesS3Bucket)
 	if len(s3Edges) != 2 {
 		t.Fatalf("stack->s3 edge count = %d, want 2", len(s3Edges))
 	}
@@ -195,7 +195,7 @@ func TestScannerSynthesizesGovCloudBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamStackUsesS3Bucket)
+	edge := relationshipByType(t, envelopes, catalog.RelationshipAppStreamStackUsesS3Bucket)
 	wantARN := "arn:aws-us-gov:s3:::gov-settings-bucket"
 	if got := edge.Payload["target_resource_id"]; got != wantARN {
 		t.Fatalf("GovCloud stack->s3 target_resource_id = %#v, want %q", got, wantARN)
@@ -218,7 +218,7 @@ func TestScannerSynthesizesChinaBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamStackUsesS3Bucket)
+	edge := relationshipByType(t, envelopes, catalog.RelationshipAppStreamStackUsesS3Bucket)
 	wantARN := "arn:aws-cn:s3:::cn-settings-bucket"
 	if got := edge.Payload["target_arn"]; got != wantARN {
 		t.Fatalf("China stack->s3 target_arn = %#v, want %q", got, wantARN)
@@ -240,8 +240,8 @@ func TestScannerResolvesAssociationStackByNameToStackResourceID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	edge := relationshipByType(t, envelopes, awscloud.RelationshipAppStreamFleetAssociatedWithStack)
-	assertEdgeTarget(t, edge, awscloud.ResourceTypeAppStreamStack, testStackARN)
+	edge := relationshipByType(t, envelopes, catalog.RelationshipAppStreamFleetAssociatedWithStack)
+	assertEdgeTarget(t, edge, catalog.ResourceTypeAppStreamStack, testStackARN)
 	if got := edge.Payload["target_arn"]; got != testStackARN {
 		t.Fatalf("association target_arn = %#v, want %q", got, testStackARN)
 	}
@@ -300,7 +300,7 @@ func TestScannerRelationshipsSatisfyGraphJoinGuard(t *testing.T) {
 
 func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 	boundary := testBoundary()
-	boundary.ServiceKind = "  " + awscloud.ServiceAppStream + "  "
+	boundary.ServiceKind = "  " + catalog.ServiceAppStream + "  "
 	snapshot := Snapshot{Fleets: []Fleet{{ARN: testFleetARN, Name: "padded-fleet", State: "RUNNING"}}}
 
 	envelopes, err := (Scanner{Client: fakeClient{snapshot: snapshot}}).Scan(context.Background(), boundary)
@@ -311,7 +311,7 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
-		if got, want := envelope.Payload["service_kind"], awscloud.ServiceAppStream; got != want {
+		if got, want := envelope.Payload["service_kind"], catalog.ServiceAppStream; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}
 	}
@@ -359,7 +359,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAppStream,
+		ServiceKind:         catalog.ServiceAppStream,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:appstream:1",
 		CollectorInstanceID: "aws-prod",

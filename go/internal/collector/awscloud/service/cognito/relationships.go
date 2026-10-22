@@ -33,11 +33,11 @@ func userPoolClientRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCognitoUserPoolClientUsesUserPool,
+		RelationshipType: catalog.RelationshipCognitoUserPoolClientUsesUserPool,
 		SourceResourceID: clientID,
 		TargetResourceID: target,
 		TargetARN:        strings.TrimSpace(userPoolARN),
-		TargetType:       awscloud.ResourceTypeCognitoUserPool,
+		TargetType:       catalog.ResourceTypeCognitoUserPool,
 		SourceRecordID:   clientID + "#user-pool#" + userPoolID,
 	}
 }
@@ -67,7 +67,7 @@ func userPoolLambdaTriggerRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCognitoUserPoolUsesLambdaTrigger,
+			RelationshipType: catalog.RelationshipCognitoUserPoolUsesLambdaTrigger,
 			SourceResourceID: source,
 			SourceARN:        poolARN,
 			TargetResourceID: arn,
@@ -111,11 +111,11 @@ func identityPoolRelationships(
 		userPoolID := userPoolIDFromProviderName(providerName)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCognitoIdentityPoolUsesUserPool,
+			RelationshipType: catalog.RelationshipCognitoIdentityPoolUsesUserPool,
 			SourceResourceID: source,
 			SourceARN:        poolARN,
 			TargetResourceID: userPoolID,
-			TargetType:       awscloud.ResourceTypeCognitoUserPool,
+			TargetType:       catalog.ResourceTypeCognitoUserPool,
 			Attributes: map[string]any{
 				"client_id":     strings.TrimSpace(provider.ClientID),
 				"provider_name": providerName,
@@ -127,7 +127,7 @@ func identityPoolRelationships(
 	for _, providerARN := range externalProviderARNs(pool) {
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCognitoIdentityPoolUsesIdentityProvider,
+			RelationshipType: catalog.RelationshipCognitoIdentityPoolUsesIdentityProvider,
 			SourceResourceID: source,
 			SourceARN:        poolARN,
 			TargetResourceID: providerARN,

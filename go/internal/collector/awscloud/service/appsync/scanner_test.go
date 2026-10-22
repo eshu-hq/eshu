@@ -121,8 +121,8 @@ func TestScannerEmitsGraphQLAPIMetadataAndRelationships(t *testing.T) {
 	if got := payloadString(t, userPoolEdge, "target_resource_id"); got != "us-east-1_abc123" {
 		t.Fatalf("user pool target_resource_id = %q, want bare pool id us-east-1_abc123", got)
 	}
-	if got := payloadString(t, userPoolEdge, "target_type"); got != awscloud.ResourceTypeCognitoUserPool {
-		t.Fatalf("user pool target_type = %q, want %q", got, awscloud.ResourceTypeCognitoUserPool)
+	if got := payloadString(t, userPoolEdge, "target_type"); got != catalog.ResourceTypeCognitoUserPool {
+		t.Fatalf("user pool target_type = %q, want %q", got, catalog.ResourceTypeCognitoUserPool)
 	}
 
 	oidcEdge := relationshipByType(t, envelopes, catalog.RelationshipAppSyncAPIUsesOIDCIssuer)
