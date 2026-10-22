@@ -75,10 +75,22 @@ A nil `allowed` returns `ErrNilAllowed` rather than showing every tool.
 
 ## Index lifecycle
 
-`New` tokenizes every tool once. `Rank` reuses that index when it is handed the
-same tool names in the same order and the same `entries` map; any other input is
-ranked from a fresh, uncached index so a stale index can never answer for a
-different registry. Tool definitions and entries must not change after `New`.
+`New` tokenizes every tool once and keeps the tools slice and the entries map it
+was built from. `Rank` reuses that index only when it is handed the same slice
+(same backing array and length) and the same map (same map, same size). Identity
+is the test, so a different slice or map is ranked from a fresh, uncached index
+even when its names, descriptions, or entries look the same. Holding the map in
+the index also keeps its address from being recycled for a different map while
+the index lives.
+
+What this guarantees: a `Rank` result always matches what a brand-new `New(...)`
+would return for the inputs passed. What it does not detect: editing a slice
+element or a map entry in place after `New`. The index then serves the text it
+saw at `New`. Callers must not edit in place, and should keep one tools slice and
+one entries map for the life of the server: `mcp.ReadOnlyTools()` builds a new
+slice per call, so pass the same retained slice every time. A caller that passes
+a new slice or map per request pays the full rebuild on every call.
+
 The index is immutable, so concurrent `Rank` calls are safe.
 
 ## Performance
@@ -107,6 +119,17 @@ no I/O, routing, dispatch, authorization, or response shaping of its own.
   A real word elsewhere in the same description still matches.
 - Weights and the anchor boost are first guesses. Tune them against the #8756
   eval corpus, not by hand on a few queries.
+- Anchors prefer; they do not filter. The scaffold contract says "prefer": a tool
+  that does not accept a supplied anchor still appears, ranked lower.
+- `Example` echoes the caller's real anchor value for any anchor property the
+  tool accepts, so the example can be called as is. Other required properties
+  get placeholders.
+- Anchor values are not length-bounded here. The `find_tool` handler layer
+  (#8757) must cap them before they reach `Rank` and `Example`. Only the intent
+  is bounded in this package.
+- Boilerplate stripping removes about 14.5% of description tokens on the real
+  registry (a reviewer's measurement). Whether that helps or hurts accuracy is
+  unvalidated until the #8756 eval harness exists.
 
 ## Related docs
 

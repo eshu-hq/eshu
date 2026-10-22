@@ -20,7 +20,9 @@
   catalog entry has `CostHigh`.
 - Anchors only boost tools whose lexical score is already above zero.
 - Build the index in `New`. `Rank` must not rebuild it for the same inputs;
-  `TestRankBuildsIndexOnce` checks the build counter.
+  `TestRankBuildsIndexOnce` checks the build counter. Reuse is by identity of the
+  retained tools slice and entries map, never by name or address alone: the index
+  must hold both so the map's address cannot be recycled.
 - Never import `internal/mcp` (the root). `TestRankDoesNotImportMCPRoot` fails
   on an import.
 - Keep `maxIntentBytes` and `maxQueryTerms` in force: the intent is caller
@@ -47,8 +49,11 @@
   hidden tools into visible scores.
 - A fixture of 12 or more tools with one repeated sentence is stripped as
   boilerplate, so give each tool a unique word in tests.
-- Mutating a tool definition or the entries map after `New` leaves a stale index
-  that `Rank` reuses.
+- Editing a tool definition or an entries map entry in place after `New` leaves a
+  stale index that `Rank` reuses. A new slice or map is safe; it rebuilds.
+- Comparing only a map's address, or only tool names, lets a recycled address or
+  a changed description pass as "the same inputs". `cache_test.go` pins this.
+- Anchor values reach `Example` unbounded; the #8757 handler must cap them.
 - Comparing raw floats for ties lets noise beat the Canonical, Cost, and name
   rules.
 

@@ -50,10 +50,14 @@ var ErrNilAllowed = errors.New("rank: allowed func is nil")
 // curated intents, and descriptions.
 //
 // The corpus index is built once by New and shared read-only by every Rank
-// call, so a Lexical is safe for concurrent use. The tool definitions and
-// catalog entries passed to New must not change afterwards: Rank reuses the
-// index whenever it is handed the same tool names in the same order and the
-// same entries map, and ranks from a fresh, uncached index otherwise.
+// call, so a Lexical is safe for concurrent use. The index keeps the tools slice
+// and entries map it was built from. Rank reuses it only when handed that same
+// slice (same backing array and length) and that same map: a different slice or
+// map, even one with equal names or size, is ranked from a fresh uncached index.
+// Callers should therefore keep one tools slice and one entries map for the life
+// of the server. Elements of the slice and entries of the map must not be edited
+// in place after New; an in-place edit is not detected, and the index serves the
+// text it saw at New.
 type Lexical struct {
 	idx    *index
 	builds atomic.Int64

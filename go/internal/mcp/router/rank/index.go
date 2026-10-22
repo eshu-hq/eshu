@@ -51,12 +51,14 @@ type doc struct {
 }
 
 // index is the immutable corpus Rank scores against. Build it once.
+//
+// It holds the tools slice and entries map it was built from. Holding them keeps
+// the map alive, so its address cannot be recycled for a different map while the
+// index exists, and Rank compares identity against these references.
 type index struct {
-	docs []*doc
-	// names, entriesPtr, and entriesLen fingerprint the inputs so Rank can tell
-	// when the caller's tool set differs from the one the index was built from.
-	names      []string
-	entriesPtr uintptr
+	docs       []*doc
+	tools      []toolcontract.ToolDefinition
+	entries    map[string]catalog.Entry
 	entriesLen int
 }
 
@@ -78,13 +80,12 @@ func costRank(c catalog.CostClass) int {
 func buildIndex(tools []toolcontract.ToolDefinition, entries map[string]catalog.Entry) *index {
 	idx := &index{
 		docs:       make([]*doc, 0, len(tools)),
-		names:      make([]string, 0, len(tools)),
-		entriesPtr: reflect.ValueOf(entries).Pointer(),
+		tools:      tools,
+		entries:    entries,
 		entriesLen: len(entries),
 	}
 	boiler := findBoilerplate(tools)
 	for _, t := range tools {
-		idx.names = append(idx.names, t.Name)
 		idx.docs = append(idx.docs, buildDoc(t, entries[t.Name], boiler))
 	}
 	return idx
@@ -134,17 +135,16 @@ func buildDoc(t toolcontract.ToolDefinition, e catalog.Entry, boiler *boilerplat
 	return d
 }
 
-// matches reports whether the index was built from this exact tool-name order
-// and this exact entries map, so Rank may reuse it.
+// matches reports whether the caller handed Rank the very inputs the index was
+// built from: the same tools slice (same backing array and length) and the same
+// entries map (same map, same size). Identity, not equality, is the test, so a
+// new slice or map is always ranked from a fresh index even when its names look
+// the same. Editing a retained slice's elements or the retained map in place is
+// not detected beyond a change in the entries map's size; callers must not.
 func (x *index) matches(tools []toolcontract.ToolDefinition, entries map[string]catalog.Entry) bool {
-	if len(tools) != len(x.names) || len(entries) != x.entriesLen ||
-		reflect.ValueOf(entries).Pointer() != x.entriesPtr {
+	if len(tools) != len(x.tools) || len(entries) != x.entriesLen ||
+		reflect.ValueOf(entries).Pointer() != reflect.ValueOf(x.entries).Pointer() {
 		return false
 	}
-	for i := range tools {
-		if tools[i].Name != x.names[i] {
-			return false
-		}
-	}
-	return true
+	return len(tools) == 0 || &tools[0] == &x.tools[0]
 }
