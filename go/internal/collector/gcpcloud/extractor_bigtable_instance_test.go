@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const bigtableInstanceFullName = "//bigtableadmin.googleapis.com/projects/demo-project/instances/prod-instance"
@@ -14,15 +16,15 @@ const bigtableInstanceFullName = "//bigtableadmin.googleapis.com/projects/demo-p
 func bigtableInstanceContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: bigtableInstanceFullName,
-		AssetType:        assetTypeBigtableInstance,
+		AssetType:        catalog.AssetTypeBigtableInstance,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestBigtableInstanceExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeBigtableInstance); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeBigtableInstance)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeBigtableInstance); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeBigtableInstance)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -28,7 +29,7 @@ func attributesTestBoundary() Boundary {
 func TestNewCloudResourceEnvelopeEmitsAttributesAndAnchors(t *testing.T) {
 	obs := ResourceObservation{
 		Name:      "//bigquery.googleapis.com/projects/demo-project/datasets/analytics/tables/events",
-		AssetType: assetTypeBigQueryTable,
+		AssetType: catalog.AssetTypeBigQueryTable,
 		Attributes: map[string]any{
 			"table_type":         "TABLE",
 			"schema_field_count": 2,

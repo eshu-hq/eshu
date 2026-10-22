@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const storageBucketFullResourceName = "//storage.googleapis.com/projects/_/buckets/demo-bucket"
@@ -80,9 +82,9 @@ func TestExtractStorageBucketFullAttributes(t *testing.T) {
 		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeStorageBucketKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeStorageBucketKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1", assetTypeKMSCryptoKey)
-	assertRelationship(t, got.Relationships, relationshipTypeStorageBucketLogsToBucket,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeStorageBucketLogsToBucket,
 		"//storage.googleapis.com/projects/_/buckets/audit-logs", assetTypeStorageBucket)
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 edges, got %d: %#v", len(got.Relationships), got.Relationships)
@@ -237,7 +239,7 @@ func TestExtractStorageBucketLoggingDestinationResourceNameWellFormed(t *testing
 		t.Fatalf("unexpected error: %v", err)
 	}
 	const want = "//storage.googleapis.com/projects/_/buckets/audit-logs"
-	assertRelationship(t, got.Relationships, relationshipTypeStorageBucketLogsToBucket, want, assetTypeStorageBucket)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeStorageBucketLogsToBucket, want, assetTypeStorageBucket)
 	for _, anchor := range got.CorrelationAnchors {
 		if containsString(anchor, "%") {
 			t.Fatalf("correlation anchor %q contains an unresolved format verb", anchor)

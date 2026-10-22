@@ -6,6 +6,8 @@ package gcpcloud
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func fixtureFirebaseRulesetData(t *testing.T) []byte {
@@ -32,7 +34,7 @@ func firebaseRulesetCtx(t *testing.T) ExtractContext {
 	t.Helper()
 	return ExtractContext{
 		FullResourceName: "//firebaserules.googleapis.com/projects/demo-project/rulesets/abc123",
-		AssetType:        firebaseRulesetAssetType,
+		AssetType:        catalog.FirebaseRulesetAssetType,
 		Data:             fixtureFirebaseRulesetData(t),
 	}
 }
@@ -72,7 +74,7 @@ func TestExtractFirebaseRulesetServicesDeterministic(t *testing.T) {
 	})
 	got, err := extractFirebaseRuleset(ExtractContext{
 		FullResourceName: "//firebaserules.googleapis.com/projects/demo-project/rulesets/x",
-		AssetType:        firebaseRulesetAssetType,
+		AssetType:        catalog.FirebaseRulesetAssetType,
 		Data:             blob,
 	})
 	if err != nil {
@@ -102,7 +104,7 @@ func TestExtractFirebaseRulesetProjectEdge(t *testing.T) {
 	}
 	var edge *RelationshipObservation
 	for i := range got.Relationships {
-		if got.Relationships[i].RelationshipType == relationshipTypeFirebaseRulesetBelongsToProject {
+		if got.Relationships[i].RelationshipType == catalog.RelationshipTypeFirebaseRulesetBelongsToProject {
 			edge = &got.Relationships[i]
 		}
 	}
@@ -112,7 +114,7 @@ func TestExtractFirebaseRulesetProjectEdge(t *testing.T) {
 	if edge.TargetFullResourceName != "//firebase.googleapis.com/projects/demo-project" {
 		t.Errorf("project target = %q, want canonical FirebaseProject name", edge.TargetFullResourceName)
 	}
-	if edge.TargetAssetType != firebaseProjectAssetType {
+	if edge.TargetAssetType != catalog.FirebaseProjectAssetType {
 		t.Errorf("project target asset type = %q", edge.TargetAssetType)
 	}
 }
@@ -122,14 +124,14 @@ func TestExtractFirebaseRulesetProjectEdge(t *testing.T) {
 func TestExtractFirebaseRulesetNoProjectNoEdge(t *testing.T) {
 	got, err := extractFirebaseRuleset(ExtractContext{
 		FullResourceName: "//firebaserules.googleapis.com/rulesets/orphan",
-		AssetType:        firebaseRulesetAssetType,
+		AssetType:        catalog.FirebaseRulesetAssetType,
 		Data:             []byte(`{"createTime":"2024-06-01T00:00:00Z"}`),
 	})
 	if err != nil {
 		t.Fatalf("extractFirebaseRuleset: %v", err)
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeFirebaseRulesetBelongsToProject {
+		if rel.RelationshipType == catalog.RelationshipTypeFirebaseRulesetBelongsToProject {
 			t.Errorf("emitted project edge without a derivable project: %#v", rel)
 		}
 	}
@@ -140,7 +142,7 @@ func TestExtractFirebaseRulesetNoProjectNoEdge(t *testing.T) {
 func TestExtractFirebaseRulesetEmpty(t *testing.T) {
 	got, err := extractFirebaseRuleset(ExtractContext{
 		FullResourceName: "//firebaserules.googleapis.com/projects/demo-project/rulesets/x",
-		AssetType:        firebaseRulesetAssetType,
+		AssetType:        catalog.FirebaseRulesetAssetType,
 		Data:             []byte(`{}`),
 	})
 	if err != nil {
@@ -158,7 +160,7 @@ func TestExtractFirebaseRulesetEmpty(t *testing.T) {
 func TestExtractFirebaseRulesetMalformed(t *testing.T) {
 	_, err := extractFirebaseRuleset(ExtractContext{
 		FullResourceName: "//firebaserules.googleapis.com/projects/demo-project/rulesets/x",
-		AssetType:        firebaseRulesetAssetType,
+		AssetType:        catalog.FirebaseRulesetAssetType,
 		Data:             []byte(`{bad`),
 	})
 	if err == nil {
@@ -169,7 +171,7 @@ func TestExtractFirebaseRulesetMalformed(t *testing.T) {
 // TestFirebaseRulesetExtractorRegistered proves the asset type is wired into the
 // shared registry.
 func TestFirebaseRulesetExtractorRegistered(t *testing.T) {
-	if !HasAssetExtractor(firebaseRulesetAssetType) {
-		t.Fatalf("firebase ruleset extractor not registered for %q", firebaseRulesetAssetType)
+	if !HasAssetExtractor(catalog.FirebaseRulesetAssetType) {
+		t.Fatalf("firebase ruleset extractor not registered for %q", catalog.FirebaseRulesetAssetType)
 	}
 }

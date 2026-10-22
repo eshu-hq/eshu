@@ -9,34 +9,11 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
-)
-
-// assetTypeDataflowJob is the Cloud Asset Inventory asset type for a Dataflow
-// Job. Its edge targets reuse asset-type constants and helpers already
-// declared elsewhere in this package: assetTypeComputeNetwork /
-// assetTypeComputeSubnetwork and computeFullResourceNameFromSelfLink (Compute
-// Network extractor), assetTypeStorageBucket and
-// storageBucketResourceNamePrefixFmt / gcsBucketFromURI (BigQuery Table
-// extractor), and assetTypeKMSCryptoKey / cloudKMSResourceNamePrefix (BigQuery
-// Table extractor) for the CMEK edge.
-const assetTypeDataflowJob = "dataflow.googleapis.com/Job"
-
-// Bounded provider relationship types for Dataflow Job edges. Each is a
-// stable string carried on a gcp_cloud_relationship fact; the reducer
-// materializes an edge only when both endpoints resolve exactly. The job's
-// runtime service account is carried as a fingerprinted-email attribute/
-// anchor, not an edge, because an email is not an exactly resolvable CAI
-// endpoint (mirrors the Dataproc Cluster and GKE Cluster extractors' own
-// service-account treatment).
-const (
-	relationshipTypeDataflowJobUsesNetwork       = "dataflow_job_uses_network"
-	relationshipTypeDataflowJobUsesSubnetwork    = "dataflow_job_uses_subnetwork"
-	relationshipTypeDataflowJobUsesStagingBucket = "dataflow_job_uses_staging_bucket"
-	relationshipTypeDataflowJobEncryptedByKMSKey = "dataflow_job_encrypted_by_kms_key"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeDataflowJob, extractDataflowJob)
+	RegisterAssetExtractor(catalog.AssetTypeDataflowJob, extractDataflowJob)
 }
 
 // dataflowJobData is the bounded view of a CAI dataflow.googleapis.com/Job
@@ -123,24 +100,24 @@ func extractDataflowJob(ctx ExtractContext) (AttributeExtraction, error) {
 		if kms := cmekKeyFullResourceName(env.ServiceKmsKeyName); kms != "" {
 			attrs["service_kms_key_name"] = strings.TrimPrefix(kms, cloudKMSResourceNamePrefix)
 			anchors = append(anchors, kms)
-			rels = append(rels, dataflowJobEdge(ctx, relationshipTypeDataflowJobEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
+			rels = append(rels, dataflowJobEdge(ctx, catalog.RelationshipTypeDataflowJobEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
 		}
 
 		if net, subnet := dataflowJobWorkerPoolNetwork(env.WorkerPools, ctx.ProjectID); net != "" || subnet != "" {
 			if net != "" {
 				anchors = append(anchors, net)
-				rels = append(rels, dataflowJobEdge(ctx, relationshipTypeDataflowJobUsesNetwork, net, assetTypeComputeNetwork))
+				rels = append(rels, dataflowJobEdge(ctx, catalog.RelationshipTypeDataflowJobUsesNetwork, net, assetTypeComputeNetwork))
 			}
 			if subnet != "" {
 				anchors = append(anchors, subnet)
-				rels = append(rels, dataflowJobEdge(ctx, relationshipTypeDataflowJobUsesSubnetwork, subnet, assetTypeComputeSubnetwork))
+				rels = append(rels, dataflowJobEdge(ctx, catalog.RelationshipTypeDataflowJobUsesSubnetwork, subnet, assetTypeComputeSubnetwork))
 			}
 		}
 
 		if bucket := dataflowStagingBucket(env.TempStoragePrefix); bucket != "" {
 			name := storageBucketResourceNamePrefixFmt + bucket
 			anchors = append(anchors, name)
-			rels = append(rels, dataflowJobEdge(ctx, relationshipTypeDataflowJobUsesStagingBucket, name, assetTypeStorageBucket))
+			rels = append(rels, dataflowJobEdge(ctx, catalog.RelationshipTypeDataflowJobUsesStagingBucket, name, assetTypeStorageBucket))
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const dataflowJobFullName = "//dataflow.googleapis.com/projects/demo-project/locations/us-central1/jobs/analytics-job"
@@ -16,15 +17,15 @@ const dataflowJobFullName = "//dataflow.googleapis.com/projects/demo-project/loc
 func dataflowJobContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: dataflowJobFullName,
-		AssetType:        assetTypeDataflowJob,
+		AssetType:        catalog.AssetTypeDataflowJob,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestDataflowJobExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeDataflowJob); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeDataflowJob)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeDataflowJob); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeDataflowJob)
 	}
 }
 
@@ -70,13 +71,13 @@ func TestExtractDataflowJobFullResource(t *testing.T) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeDataflowJobEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDataflowJobEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/df/cryptoKeys/state", assetTypeKMSCryptoKey)
-	assertRelationship(t, got.Relationships, relationshipTypeDataflowJobUsesNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDataflowJobUsesNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/analytics-vpc", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeDataflowJobUsesSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDataflowJobUsesSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/analytics-subnet", assetTypeComputeSubnetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeDataflowJobUsesStagingBucket,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDataflowJobUsesStagingBucket,
 		"//storage.googleapis.com/projects/_/buckets/dataflow-staging-demo", assetTypeStorageBucket)
 	if len(got.Relationships) != 4 {
 		t.Fatalf("expected kms + network + subnet + staging bucket edges, got %d: %#v", len(got.Relationships), got.Relationships)
@@ -97,8 +98,8 @@ func TestExtractDataflowJobFullResource(t *testing.T) {
 		if rel.SourceFullResourceName != dataflowJobFullName {
 			t.Errorf("relationship source = %q, want job full name", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != assetTypeDataflowJob {
-			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, assetTypeDataflowJob)
+		if rel.SourceAssetType != catalog.AssetTypeDataflowJob {
+			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.AssetTypeDataflowJob)
 		}
 	}
 
@@ -187,9 +188,9 @@ func TestExtractDataflowJobShortNetworkAndSubnetworkNames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeDataflowJobUsesNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDataflowJobUsesNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/default", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeDataflowJobUsesSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDataflowJobUsesSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-east1/subnetworks/sub0", assetTypeComputeSubnetwork)
 }
 
@@ -208,7 +209,7 @@ func TestExtractDataflowJobSubnetworkBareNameNeedsZone(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeDataflowJobUsesSubnetwork {
+		if rel.RelationshipType == catalog.RelationshipTypeDataflowJobUsesSubnetwork {
 			t.Fatalf("expected no subnetwork edge without a resolvable zone, got %#v", rel)
 		}
 	}
@@ -229,9 +230,9 @@ func TestExtractDataflowJobFirstWorkerPoolWithReferenceWins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeDataflowJobUsesNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDataflowJobUsesNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/default", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeDataflowJobUsesSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDataflowJobUsesSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/sub0", assetTypeComputeSubnetwork)
 }
 
@@ -253,16 +254,16 @@ func TestExtractDataflowJobDoesNotCrossLatchNetworkAcrossPools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeDataflowJobUsesNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDataflowJobUsesNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/net-a", assetTypeComputeNetwork)
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeDataflowJobUsesSubnetwork {
+		if rel.RelationshipType == catalog.RelationshipTypeDataflowJobUsesSubnetwork {
 			t.Fatalf("must not cross-latch a subnetwork from a different pool, got %#v", rel)
 		}
 	}
 	netEdges := 0
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeDataflowJobUsesNetwork {
+		if rel.RelationshipType == catalog.RelationshipTypeDataflowJobUsesNetwork {
 			netEdges++
 		}
 	}
@@ -295,7 +296,7 @@ func TestExtractDataflowJobStagingBucketURLForms(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			assertRelationship(t, got.Relationships, relationshipTypeDataflowJobUsesStagingBucket, want, assetTypeStorageBucket)
+			assertRelationship(t, got.Relationships, catalog.RelationshipTypeDataflowJobUsesStagingBucket, want, assetTypeStorageBucket)
 			// The object path must never survive into any anchor or edge.
 			blob, err := json.Marshal(got)
 			if err != nil {
@@ -360,7 +361,7 @@ func TestExtractDataflowJobWrongDomainKMSKeyEmitsNoEdgeOrAttribute(t *testing.T)
 		}
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeDataflowJobEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeDataflowJobEncryptedByKMSKey {
 			t.Fatalf("wrong-domain serviceKmsKeyName minted a CMEK edge: %#v", rel)
 		}
 	}
@@ -378,7 +379,7 @@ func TestExtractDataflowJobNoCMEKOmitsEdge(t *testing.T) {
 		t.Errorf("absent CMEK must not set service_kms_key_name: %#v", got.Attributes)
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeDataflowJobEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeDataflowJobEncryptedByKMSKey {
 			t.Fatalf("expected no CMEK edge without serviceKmsKeyName, got %#v", rel)
 		}
 	}

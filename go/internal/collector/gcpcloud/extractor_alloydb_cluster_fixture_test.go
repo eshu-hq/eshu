@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -84,10 +85,10 @@ func TestAlloyDBClusterOfflineFixtureEndToEnd(t *testing.T) {
 
 	// Only the primary cluster has network/KMS config; the secondary fixture
 	// entry has neither, so it emits no edges.
-	if relTypes[relationshipTypeAlloyDBClusterInNetwork] != 1 {
-		t.Errorf("network edges = %d, want 1", relTypes[relationshipTypeAlloyDBClusterInNetwork])
+	if relTypes[catalog.RelationshipTypeAlloyDBClusterInNetwork] != 1 {
+		t.Errorf("network edges = %d, want 1", relTypes[catalog.RelationshipTypeAlloyDBClusterInNetwork])
 	}
-	if relTypes[relationshipTypeAlloyDBClusterEncryptedByKMSKey] != 1 {
-		t.Errorf("kms edges = %d, want 1", relTypes[relationshipTypeAlloyDBClusterEncryptedByKMSKey])
+	if relTypes[catalog.RelationshipTypeAlloyDBClusterEncryptedByKMSKey] != 1 {
+		t.Errorf("kms edges = %d, want 1", relTypes[catalog.RelationshipTypeAlloyDBClusterEncryptedByKMSKey])
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const dnsPolicyFullName = "//dns.googleapis.com/projects/demo-project/policies/default-policy"
@@ -14,15 +16,15 @@ const dnsPolicyFullName = "//dns.googleapis.com/projects/demo-project/policies/d
 func dnsPolicyContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: dnsPolicyFullName,
-		AssetType:        dnsPolicyAssetType,
+		AssetType:        catalog.DNSPolicyAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestDNSPolicyExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(dnsPolicyAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", dnsPolicyAssetType)
+	if _, ok := lookupAssetExtractor(catalog.DNSPolicyAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.DNSPolicyAssetType)
 	}
 }
 
@@ -93,14 +95,14 @@ func TestExtractDNSPolicyNetworksProduceEdgesAndAnchors(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 network edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeDNSPolicyAppliesToNetwork, vpcA, assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeDNSPolicyAppliesToNetwork, vpcB, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDNSPolicyAppliesToNetwork, vpcA, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDNSPolicyAppliesToNetwork, vpcB, assetTypeComputeNetwork)
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != dnsPolicyFullName {
 			t.Errorf("relationship source = %q, want policy full name", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != dnsPolicyAssetType {
-			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, dnsPolicyAssetType)
+		if rel.SourceAssetType != catalog.DNSPolicyAssetType {
+			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.DNSPolicyAssetType)
 		}
 	}
 }

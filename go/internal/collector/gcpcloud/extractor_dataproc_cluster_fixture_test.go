@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -72,10 +73,10 @@ func TestDataprocClusterOfflineFixtureEndToEnd(t *testing.T) {
 		t.Errorf("analytics autoscaling_enabled = %v, want true", analyticsAttrs["autoscaling_enabled"])
 	}
 	for rel, want := range map[string]int{
-		relationshipTypeClusterUsesNetwork:       1,
-		relationshipTypeClusterUsesSubnetwork:    1,
-		relationshipTypeClusterEncryptedByKMSKey: 1,
-		relationshipTypeClusterUsesStagingBucket: 1,
+		catalog.RelationshipTypeClusterUsesNetwork:       1,
+		catalog.RelationshipTypeClusterUsesSubnetwork:    1,
+		catalog.RelationshipTypeClusterEncryptedByKMSKey: 1,
+		catalog.RelationshipTypeClusterUsesStagingBucket: 1,
 	} {
 		if edges[rel] != want {
 			t.Errorf("%s edges = %d, want %d", rel, edges[rel], want)

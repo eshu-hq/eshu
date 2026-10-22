@@ -6,20 +6,9 @@ package gcpcloud //nolint:dirgate // #6696 wave-1: flat extractor moves to extra
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
-
-// dnsPolicyAssetType is the Cloud Asset Inventory asset type for a Cloud DNS
-// Policy. It is distinct from dnsManagedZoneAssetType: a Policy binds
-// inbound-forwarding, logging, and alternative-name-server behavior to a set
-// of VPC networks, while a ManagedZone is a DNS namespace with its own
-// visibility and peering configuration.
-const dnsPolicyAssetType = "dns.googleapis.com/Policy"
-
-// relationshipTypeDNSPolicyAppliesToNetwork marks a DNS Policy's bind to a VPC
-// network it governs (networks[].networkUrl). It is a stable provider
-// relationship string carried on gcp_cloud_relationship facts; the reducer
-// materializes an edge only when both endpoints resolve exactly.
-const relationshipTypeDNSPolicyAppliesToNetwork = "dns_policy_applies_to_network"
 
 // dnsPolicyTargetNameServer is the bounded, redaction-safe view of one
 // alternativeNameServerConfig.targetNameServers[] entry. Per the live Cloud
@@ -62,7 +51,7 @@ type dnsPolicyData struct {
 }
 
 func init() {
-	RegisterAssetExtractor(dnsPolicyAssetType, extractDNSPolicy)
+	RegisterAssetExtractor(catalog.DNSPolicyAssetType, extractDNSPolicy)
 }
 
 // extractDNSPolicy extracts bounded, redaction-safe typed depth for one Cloud
@@ -135,7 +124,7 @@ func dnsPolicyEdge(ctx ExtractContext, targetName string) RelationshipObservatio
 	return RelationshipObservation{
 		SourceFullResourceName: ctx.FullResourceName,
 		SourceAssetType:        ctx.AssetType,
-		RelationshipType:       relationshipTypeDNSPolicyAppliesToNetwork,
+		RelationshipType:       catalog.RelationshipTypeDNSPolicyAppliesToNetwork,
 		TargetFullResourceName: targetName,
 		TargetAssetType:        assetTypeComputeNetwork,
 		SupportState:           RelationshipSupportSupported,

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -52,9 +53,9 @@ func TestPubSubTopicOfflineFixtureEndToEnd(t *testing.T) {
 			}
 		case cloud.GCPCloudRelationshipFactKind:
 			switch stringOrEmpty(env.Payload["relationship_type"]) {
-			case relationshipTypeTopicEncryptedByKMSKey:
+			case catalog.RelationshipTypeTopicEncryptedByKMSKey:
 				kmsEdges++
-			case relationshipTypeTopicUsesSchema:
+			case catalog.RelationshipTypeTopicUsesSchema:
 				schemaEdges++
 			}
 		}

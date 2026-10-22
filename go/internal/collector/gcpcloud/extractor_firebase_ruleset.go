@@ -6,19 +6,12 @@ package gcpcloud //nolint:dirgate // #6696 wave-1: flat extractor moves to extra
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// firebaseRulesetAssetType is the Cloud Asset Inventory asset type for a Firebase
-// Rules Ruleset. The parent project edge targets firebaseProjectAssetType and
-// reuses firebaseProjectResourceNamePrefix declared elsewhere in this package.
-const firebaseRulesetAssetType = "firebaserules.googleapis.com/Ruleset"
-
-// relationshipTypeFirebaseRulesetBelongsToProject is the bounded provider
-// relationship type for the edge from a ruleset to its parent Firebase project.
-const relationshipTypeFirebaseRulesetBelongsToProject = "firebase_ruleset_belongs_to_project"
-
 func init() {
-	RegisterAssetExtractor(firebaseRulesetAssetType, extractFirebaseRuleset)
+	RegisterAssetExtractor(catalog.FirebaseRulesetAssetType, extractFirebaseRuleset)
 }
 
 // firebaseRulesetData is the bounded view of a CAI
@@ -72,14 +65,14 @@ func extractFirebaseRuleset(ctx ExtractContext) (AttributeExtraction, error) {
 	var anchors []string
 	var rels []RelationshipObservation
 	if projectID := ProjectIDFromFullName(ctx.FullResourceName); projectID != "" {
-		target := firebaseProjectResourceNamePrefix + projectID
+		target := catalog.FirebaseProjectResourceNamePrefix + projectID
 		anchors = append(anchors, target)
 		rels = append(rels, RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
-			RelationshipType:       relationshipTypeFirebaseRulesetBelongsToProject,
+			RelationshipType:       catalog.RelationshipTypeFirebaseRulesetBelongsToProject,
 			TargetFullResourceName: target,
-			TargetAssetType:        firebaseProjectAssetType,
+			TargetAssetType:        catalog.FirebaseProjectAssetType,
 			SupportState:           RelationshipSupportSupported,
 		})
 	}

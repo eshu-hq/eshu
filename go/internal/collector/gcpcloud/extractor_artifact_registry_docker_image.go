@@ -7,43 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
-
-// Asset type constants for the Artifact Registry DockerImage typed-depth
-// extractor and the relationship endpoint it derives. The target asset type
-// names the CAI asset type of the parent-repository edge so the reducer can
-// resolve both endpoints exactly before materializing.
-const (
-	assetTypeArtifactRegistryDockerImage = "artifactregistry.googleapis.com/DockerImage"
-	assetTypeArtifactRegistryRepository  = "artifactregistry.googleapis.com/Repository"
-)
-
-// relationshipTypeDockerImageInRepository is the bounded provider relationship
-// type for the image -> parent repository edge carried on a gcp_cloud_relationship
-// fact. The reducer materializes the edge only when both endpoints resolve
-// exactly. Build (built-by) and Run/GKE (deployed-to) edges are intentionally not
-// emitted here: they are cross-source correlations keyed on the content digest
-// from the deploying resource's own image references, not fields of this asset's
-// resource.data, so this extractor never fabricates an unresolved endpoint.
-const relationshipTypeDockerImageInRepository = "docker_image_in_repository"
-
-// repositoriesPathMarker and dockerImagesPathPrefix locate the parent repository
-// inside a CAI DockerImage full resource name of the shape
-// ".../repositories/<repo>/dockerImages/<image>@<digest>". The repository is the
-// single segment after the repositories marker; anchoring on it (rather than the
-// first "/dockerImages/" match) keeps the parse correct when the repository id is
-// itself "dockerImages" or the image name embeds that token.
-const (
-	repositoriesPathMarker = "/repositories/"
-	dockerImagesPathPrefix = "dockerImages/"
-)
-
-// digestSeparator separates an image path from its content digest in both the
-// pullable URI and the CAI full resource name.
-const digestSeparator = "@"
 
 func init() {
-	RegisterAssetExtractor(assetTypeArtifactRegistryDockerImage, extractArtifactRegistryDockerImage)
+	RegisterAssetExtractor(catalog.AssetTypeArtifactRegistryDockerImage, extractArtifactRegistryDockerImage)
 }
 
 // dockerImageData is the bounded view of a CAI
@@ -84,7 +53,7 @@ func extractArtifactRegistryDockerImage(ctx ExtractContext) (AttributeExtraction
 
 	if repoName := dockerImageRepositoryFullName(ctx.FullResourceName); repoName != "" {
 		anchors = append(anchors, repoName)
-		rels = append(rels, dockerImageEdge(ctx, relationshipTypeDockerImageInRepository, repoName, assetTypeArtifactRegistryRepository))
+		rels = append(rels, dockerImageEdge(ctx, catalog.RelationshipTypeDockerImageInRepository, repoName, catalog.AssetTypeArtifactRegistryRepository))
 	}
 	if digest != "" {
 		anchors = append(anchors, digest)
@@ -143,11 +112,11 @@ func dockerImageDigest(uri, fullResourceName string) string {
 // content digest reference, or "" otherwise.
 func digestSuffix(ref string) string {
 	trimmed := strings.TrimSpace(ref)
-	idx := strings.LastIndex(trimmed, digestSeparator)
+	idx := strings.LastIndex(trimmed, catalog.DigestSeparator)
 	if idx < 0 {
 		return ""
 	}
-	return strings.TrimSpace(trimmed[idx+len(digestSeparator):])
+	return strings.TrimSpace(trimmed[idx+len(catalog.DigestSeparator):])
 }
 
 // dockerImageRepositoryFullName derives the parent repository CAI full resource
@@ -160,19 +129,19 @@ func digestSuffix(ref string) string {
 // no parent-repository edge.
 func dockerImageRepositoryFullName(fullResourceName string) string {
 	trimmed := strings.TrimSpace(fullResourceName)
-	idx := strings.Index(trimmed, repositoriesPathMarker)
+	idx := strings.Index(trimmed, catalog.RepositoriesPathMarker)
 	if idx < 0 {
 		return ""
 	}
-	rest := trimmed[idx+len(repositoriesPathMarker):]
+	rest := trimmed[idx+len(catalog.RepositoriesPathMarker):]
 	repo, after, found := strings.Cut(rest, "/")
 	if !found || strings.TrimSpace(repo) == "" {
 		return ""
 	}
-	if !strings.HasPrefix(after, dockerImagesPathPrefix) {
+	if !strings.HasPrefix(after, catalog.DockerImagesPathPrefix) {
 		return ""
 	}
-	return trimmed[:idx] + repositoriesPathMarker + repo
+	return trimmed[:idx] + catalog.RepositoriesPathMarker + repo
 }
 
 func dockerImageEdge(ctx ExtractContext, relationshipType, targetName, targetType string) RelationshipObservation {

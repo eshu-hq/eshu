@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const pubSubTopicFullName = "//pubsub.googleapis.com/projects/demo-project/topics/orders"
@@ -65,10 +67,10 @@ func TestExtractPubSubTopicFullResource(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 1 KMS edge + 1 schema edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeTopicEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTopicEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/pubsub/cryptoKeys/topics", assetTypeKMSCryptoKey)
-	assertRelationship(t, got.Relationships, relationshipTypeTopicUsesSchema,
-		"//pubsub.googleapis.com/projects/demo-project/schemas/order-event", assetTypePubSubSchema)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTopicUsesSchema,
+		"//pubsub.googleapis.com/projects/demo-project/schemas/order-event", catalog.AssetTypePubSubSchema)
 	rel := got.Relationships[0]
 	if rel.SourceFullResourceName != pubSubTopicFullName {
 		t.Errorf("relationship source = %q, want topic full name", rel.SourceFullResourceName)
@@ -125,8 +127,8 @@ func TestExtractPubSubTopicSchemaWithoutEncoding(t *testing.T) {
 	if _, ok := got.Attributes["schema_encoding"]; ok {
 		t.Errorf("missing encoding must omit schema_encoding: %#v", got.Attributes)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeTopicUsesSchema,
-		"//pubsub.googleapis.com/projects/demo-project/schemas/s", assetTypePubSubSchema)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTopicUsesSchema,
+		"//pubsub.googleapis.com/projects/demo-project/schemas/s", catalog.AssetTypePubSubSchema)
 }
 
 func TestExtractPubSubTopicDeletedSchemaEmitsNoEdge(t *testing.T) {
@@ -201,7 +203,7 @@ func TestExtractPubSubTopicWrongDomainKMSKeyEmitsNoEdgeOrAnchor(t *testing.T) {
 		}
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeTopicEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeTopicEncryptedByKMSKey {
 			t.Errorf("wrong-domain kmsKeyName minted an encryption edge: %+v", rel)
 		}
 	}

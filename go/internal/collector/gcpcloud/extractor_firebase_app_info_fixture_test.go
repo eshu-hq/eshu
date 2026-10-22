@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -51,7 +52,7 @@ func TestFirebaseAppInfoOfflineFixtureEndToEnd(t *testing.T) {
 				webAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
 		case cloud.GCPCloudRelationshipFactKind:
-			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeFirebaseAppBelongsToProject {
+			if stringOrEmpty(env.Payload["relationship_type"]) == catalog.RelationshipTypeFirebaseAppBelongsToProject {
 				projectEdges++
 			}
 		}

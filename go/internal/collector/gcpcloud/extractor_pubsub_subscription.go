@@ -8,35 +8,12 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-)
 
-// assetTypePubSubSubscription is the CAI asset type for a Pub/Sub Subscription.
-// Its edge targets reuse asset-type constants already declared elsewhere in this
-// package: assetTypePubSubTopic, assetTypeBigQueryTable, assetTypeStorageBucket,
-// and their //-resource-name prefixes.
-const assetTypePubSubSubscription = "pubsub.googleapis.com/Subscription"
-
-// assetTypeBigtableTable is the CAI asset type for a Cloud Bigtable table, the
-// target of a Bigtable-export subscription's sink edge.
-const assetTypeBigtableTable = "bigtableadmin.googleapis.com/Table"
-
-// bigtableResourceNamePrefix is the CAI full-resource-name prefix for Bigtable
-// resources.
-const bigtableResourceNamePrefix = "//bigtableadmin.googleapis.com/"
-
-// Bounded provider relationship types for Pub/Sub Subscription edges. Each is a
-// stable string carried on a gcp_cloud_relationship fact; the reducer
-// materializes an edge only when both endpoints resolve exactly.
-const (
-	relationshipTypeSubscriptionSubscribesToTopic      = "subscription_subscribes_to_topic"
-	relationshipTypeSubscriptionDeadLettersToTopic     = "subscription_dead_letters_to_topic"
-	relationshipTypeSubscriptionExportsToBigQueryTable = "subscription_exports_to_bigquery_table"
-	relationshipTypeSubscriptionExportsToStorageBucket = "subscription_exports_to_storage_bucket"
-	relationshipTypeSubscriptionExportsToBigtableTable = "subscription_exports_to_bigtable_table"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypePubSubSubscription, extractPubSubSubscription)
+	RegisterAssetExtractor(catalog.AssetTypePubSubSubscription, extractPubSubSubscription)
 }
 
 // pubSubSubscriptionData is the bounded view of a CAI
@@ -96,31 +73,31 @@ func extractPubSubSubscription(ctx ExtractContext) (AttributeExtraction, error) 
 		// always names it), so it is surfaced as an anchor like every other edge
 		// target.
 		anchors = append(anchors, topic)
-		rels = append(rels, pubSubSubscriptionEdge(ctx, relationshipTypeSubscriptionSubscribesToTopic, topic, assetTypePubSubTopic))
+		rels = append(rels, pubSubSubscriptionEdge(ctx, catalog.RelationshipTypeSubscriptionSubscribesToTopic, topic, assetTypePubSubTopic))
 	}
 	if data.DeadLetterPolicy != nil {
 		if dlt := pubSubTopicRefFullName(data.DeadLetterPolicy.DeadLetterTopic); dlt != "" {
 			anchors = append(anchors, dlt)
-			rels = append(rels, pubSubSubscriptionEdge(ctx, relationshipTypeSubscriptionDeadLettersToTopic, dlt, assetTypePubSubTopic))
+			rels = append(rels, pubSubSubscriptionEdge(ctx, catalog.RelationshipTypeSubscriptionDeadLettersToTopic, dlt, assetTypePubSubTopic))
 		}
 	}
 	if data.BigQueryConfig != nil {
 		if tbl := pubSubBigQueryConfigTableFullName(data.BigQueryConfig.Table); tbl != "" {
 			anchors = append(anchors, tbl)
-			rels = append(rels, pubSubSubscriptionEdge(ctx, relationshipTypeSubscriptionExportsToBigQueryTable, tbl, assetTypeBigQueryTable))
+			rels = append(rels, pubSubSubscriptionEdge(ctx, catalog.RelationshipTypeSubscriptionExportsToBigQueryTable, tbl, catalog.AssetTypeBigQueryTable))
 		}
 	}
 	if data.BigtableConfig != nil {
 		if tbl := pubSubBigtableConfigTableFullName(data.BigtableConfig.Table); tbl != "" {
 			anchors = append(anchors, tbl)
-			rels = append(rels, pubSubSubscriptionEdge(ctx, relationshipTypeSubscriptionExportsToBigtableTable, tbl, assetTypeBigtableTable))
+			rels = append(rels, pubSubSubscriptionEdge(ctx, catalog.RelationshipTypeSubscriptionExportsToBigtableTable, tbl, catalog.AssetTypeBigtableTable))
 		}
 	}
 	if data.CloudStorageConfig != nil {
 		if bucket := strings.TrimSpace(data.CloudStorageConfig.Bucket); bucket != "" {
 			name := storageBucketResourceNamePrefixFmt + bucket
 			anchors = append(anchors, name)
-			rels = append(rels, pubSubSubscriptionEdge(ctx, relationshipTypeSubscriptionExportsToStorageBucket, name, assetTypeStorageBucket))
+			rels = append(rels, pubSubSubscriptionEdge(ctx, catalog.RelationshipTypeSubscriptionExportsToStorageBucket, name, assetTypeStorageBucket))
 		}
 	}
 
@@ -237,7 +214,7 @@ func pubSubBigQueryConfigTableFullName(tableRef string) string {
 			return ""
 		}
 	}
-	return fmt.Sprintf("%sprojects/%s/datasets/%s/tables/%s", bigQueryResourceNamePrefix, parts[0], parts[1], parts[2])
+	return fmt.Sprintf("%sprojects/%s/datasets/%s/tables/%s", catalog.BigQueryResourceNamePrefix, parts[0], parts[1], parts[2])
 }
 
 // pubSubBigtableConfigTableFullName builds the CAI Bigtable Table full resource
@@ -253,7 +230,7 @@ func pubSubBigtableConfigTableFullName(tableRef string) string {
 	if strings.HasPrefix(trimmed, "//") {
 		return trimmed
 	}
-	return bigtableResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
+	return catalog.BigtableResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // pubSubSubscriptionEdge builds one typed provider relationship observation

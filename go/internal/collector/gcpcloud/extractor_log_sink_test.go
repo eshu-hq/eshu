@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const logSinkFullName = "//logging.googleapis.com/projects/demo-project/sinks/audit-export"
@@ -16,15 +17,15 @@ const logSinkFullName = "//logging.googleapis.com/projects/demo-project/sinks/au
 func logSinkContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: logSinkFullName,
-		AssetType:        logSinkAssetType,
+		AssetType:        catalog.LogSinkAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestLogSinkExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(logSinkAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", logSinkAssetType)
+	if _, ok := lookupAssetExtractor(catalog.LogSinkAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.LogSinkAssetType)
 	}
 }
 
@@ -58,8 +59,8 @@ func TestExtractLogSinkBigQueryDestination(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 destination edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeLogSinkExportsToDataset,
-		"//bigquery.googleapis.com/projects/demo-project/datasets/audit", assetTypeBigQueryDataset)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeLogSinkExportsToDataset,
+		"//bigquery.googleapis.com/projects/demo-project/datasets/audit", catalog.AssetTypeBigQueryDataset)
 	// anchors: destination + writer identity digest.
 	if !reflect.DeepEqual(got.CorrelationAnchors, []string{"//bigquery.googleapis.com/projects/demo-project/datasets/audit", digest}) {
 		t.Fatalf("anchors mismatch: %#v", got.CorrelationAnchors)
@@ -75,9 +76,9 @@ func TestExtractLogSinkDestinationTypes(t *testing.T) {
 		wantAsset  string
 		wantRel    string
 	}{
-		{"storage", "storage.googleapis.com/my-log-bucket", "storage", "//storage.googleapis.com/projects/_/buckets/my-log-bucket", assetTypeStorageBucket, relationshipTypeLogSinkExportsToBucket},
-		{"pubsub", "pubsub.googleapis.com/projects/p/topics/logs", "pubsub", "//pubsub.googleapis.com/projects/p/topics/logs", assetTypePubSubTopic, relationshipTypeLogSinkExportsToTopic},
-		{"logbucket", "logging.googleapis.com/projects/p/locations/global/buckets/_Default", "logging", "//logging.googleapis.com/projects/p/locations/global/buckets/_Default", logBucketAssetType, relationshipTypeLogSinkExportsToLogBucket},
+		{"storage", "storage.googleapis.com/my-log-bucket", "storage", "//storage.googleapis.com/projects/_/buckets/my-log-bucket", assetTypeStorageBucket, catalog.RelationshipTypeLogSinkExportsToBucket},
+		{"pubsub", "pubsub.googleapis.com/projects/p/topics/logs", "pubsub", "//pubsub.googleapis.com/projects/p/topics/logs", assetTypePubSubTopic, catalog.RelationshipTypeLogSinkExportsToTopic},
+		{"logbucket", "logging.googleapis.com/projects/p/locations/global/buckets/_Default", "logging", "//logging.googleapis.com/projects/p/locations/global/buckets/_Default", catalog.LogBucketAssetType, catalog.RelationshipTypeLogSinkExportsToLogBucket},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

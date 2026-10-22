@@ -7,19 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// logBucketAssetType is the Cloud Asset Inventory asset type for a GCP Logging
-// Log Bucket. The CMEK CryptoKey endpoint reuses assetTypeKMSCryptoKey and
-// cloudKMSResourceNamePrefix already declared elsewhere in this package.
-const logBucketAssetType = "logging.googleapis.com/LogBucket"
-
-// relationshipTypeLogBucketEncryptedByKMSKey is the bounded provider relationship
-// type for the edge from a log bucket to its CMEK CryptoKey.
-const relationshipTypeLogBucketEncryptedByKMSKey = "log_bucket_encrypted_by_kms_key"
-
 func init() {
-	RegisterAssetExtractor(logBucketAssetType, extractLogBucket)
+	RegisterAssetExtractor(catalog.LogBucketAssetType, extractLogBucket)
 }
 
 // logBucketData is the bounded view of a CAI logging.googleapis.com/LogBucket
@@ -82,7 +75,7 @@ func extractLogBucket(ctx ExtractContext) (AttributeExtraction, error) {
 			rels = append(rels, RelationshipObservation{
 				SourceFullResourceName: ctx.FullResourceName,
 				SourceAssetType:        ctx.AssetType,
-				RelationshipType:       relationshipTypeLogBucketEncryptedByKMSKey,
+				RelationshipType:       catalog.RelationshipTypeLogBucketEncryptedByKMSKey,
 				TargetFullResourceName: keyName,
 				TargetAssetType:        assetTypeKMSCryptoKey,
 				SupportState:           RelationshipSupportSupported,

@@ -7,25 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// assetTypeAlloyDBCluster is the Cloud Asset Inventory asset type for an
-// AlloyDB Cluster. assetTypeComputeNetwork, assetTypeKMSCryptoKey, and
-// cloudKMSResourceNamePrefix are shared constants declared by the Compute
-// Network and BigQuery Table extractors in this package and reused here for
-// the network and CMEK edges.
-const assetTypeAlloyDBCluster = "alloydb.googleapis.com/Cluster"
-
-// Bounded provider relationship types for the AlloyDB Cluster edges carried on
-// gcp_cloud_relationship facts. The reducer materializes each edge only when
-// both endpoints resolve exactly.
-const (
-	relationshipTypeAlloyDBClusterInNetwork         = "alloydb_cluster_in_network"
-	relationshipTypeAlloyDBClusterEncryptedByKMSKey = "alloydb_cluster_encrypted_by_kms_key"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeAlloyDBCluster, extractAlloyDBCluster)
+	RegisterAssetExtractor(catalog.AssetTypeAlloyDBCluster, extractAlloyDBCluster)
 }
 
 // alloyDBClusterData is the bounded view of a CAI alloydb.googleapis.com/Cluster
@@ -105,7 +92,7 @@ func extractAlloyDBCluster(ctx ExtractContext) (AttributeExtraction, error) {
 	if networkRef := alloyDBClusterNetworkReference(data); networkRef != "" {
 		if networkName := alloyDBClusterNetworkFullName(networkRef, ctx.ProjectID); networkName != "" {
 			anchors = append(anchors, networkName)
-			rels = append(rels, alloyDBClusterEdge(ctx, relationshipTypeAlloyDBClusterInNetwork, networkName, assetTypeComputeNetwork))
+			rels = append(rels, alloyDBClusterEdge(ctx, catalog.RelationshipTypeAlloyDBClusterInNetwork, networkName, assetTypeComputeNetwork))
 		}
 	}
 
@@ -114,7 +101,7 @@ func extractAlloyDBCluster(ctx ExtractContext) (AttributeExtraction, error) {
 			if kmsName := cmekKeyFullResourceName(kms); kmsName != "" {
 				attrs["kms_key_name"] = kms
 				anchors = append(anchors, kmsName)
-				rels = append(rels, alloyDBClusterEdge(ctx, relationshipTypeAlloyDBClusterEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
+				rels = append(rels, alloyDBClusterEdge(ctx, catalog.RelationshipTypeAlloyDBClusterEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
 			}
 		}
 	}

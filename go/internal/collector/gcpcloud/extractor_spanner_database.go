@@ -8,22 +8,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-)
 
-// assetTypeSpannerDatabase is the Cloud Asset Inventory asset type for a Cloud
-// Spanner Database. It is a separately CAI-inventoried asset type from
-// spanner.googleapis.com/Instance (extractor_spanner_instance.go, #4317): the
-// Instance resource carries no per-database detail or CMEK, both of which
-// live on the Database resource, mirroring the BigQuery Table/Dataset
-// ownership split.
-const assetTypeSpannerDatabase = "spanner.googleapis.com/Database"
-
-// Bounded relationship types for Spanner Database edges. They are stable
-// provider relationship strings carried on gcp_cloud_relationship facts; the
-// reducer materializes an edge only when both endpoints resolve exactly.
-const (
-	relationshipTypeSpannerDatabaseInInstance        = "spanner_database_in_instance"
-	relationshipTypeSpannerDatabaseEncryptedByKMSKey = "spanner_database_encrypted_by_kms_key"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 // spannerDatabaseFullNamePattern anchors the exact CAI full-resource-name
@@ -41,7 +27,7 @@ var spannerDatabaseFullNamePattern = regexp.MustCompile(
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeSpannerDatabase, extractSpannerDatabase)
+	RegisterAssetExtractor(catalog.AssetTypeSpannerDatabase, extractSpannerDatabase)
 }
 
 // spannerDatabaseData is the bounded view of a CAI spanner.googleapis.com/Database
@@ -103,9 +89,9 @@ func extractSpannerDatabase(ctx ExtractContext) (AttributeExtraction, error) {
 		rels = append(rels, RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
-			RelationshipType:       relationshipTypeSpannerDatabaseInInstance,
+			RelationshipType:       catalog.RelationshipTypeSpannerDatabaseInInstance,
 			TargetFullResourceName: instanceName,
-			TargetAssetType:        assetTypeSpannerInstance,
+			TargetAssetType:        catalog.AssetTypeSpannerInstance,
 			SupportState:           RelationshipSupportSupported,
 		})
 	}
@@ -126,7 +112,7 @@ func extractSpannerDatabase(ctx ExtractContext) (AttributeExtraction, error) {
 			rels = append(rels, RelationshipObservation{
 				SourceFullResourceName: ctx.FullResourceName,
 				SourceAssetType:        ctx.AssetType,
-				RelationshipType:       relationshipTypeSpannerDatabaseEncryptedByKMSKey,
+				RelationshipType:       catalog.RelationshipTypeSpannerDatabaseEncryptedByKMSKey,
 				TargetFullResourceName: kmsName,
 				TargetAssetType:        assetTypeKMSCryptoKey,
 				SupportState:           RelationshipSupportSupported,

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -82,7 +83,7 @@ func TestBigQueryDatasetOfflineFixtureEndToEnd(t *testing.T) {
 	}
 
 	// Only the KMS-encrypted dataset (analytics) emits an edge; raw has no KMS.
-	if relTypes[relationshipTypeBigQueryDatasetKMSKey] != 1 {
-		t.Errorf("kms edges = %d, want 1", relTypes[relationshipTypeBigQueryDatasetKMSKey])
+	if relTypes[catalog.RelationshipTypeBigQueryDatasetKMSKey] != 1 {
+		t.Errorf("kms edges = %d, want 1", relTypes[catalog.RelationshipTypeBigQueryDatasetKMSKey])
 	}
 }

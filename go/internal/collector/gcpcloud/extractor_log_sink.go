@@ -9,25 +9,11 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
-
-// logSinkAssetType is the Cloud Asset Inventory asset type for a GCP Logging Log
-// Sink. Destination endpoint asset types (Storage Bucket, BigQuery Dataset,
-// Pub/Sub Topic, Log Bucket) reuse constants declared elsewhere in this package.
-const logSinkAssetType = "logging.googleapis.com/LogSink"
-
-// Bounded provider relationship types for the sink's export destination.
-const (
-	relationshipTypeLogSinkExportsToBucket    = "log_sink_exports_to_bucket"
-	relationshipTypeLogSinkExportsToDataset   = "log_sink_exports_to_dataset"
-	relationshipTypeLogSinkExportsToTopic     = "log_sink_exports_to_topic"
-	relationshipTypeLogSinkExportsToLogBucket = "log_sink_exports_to_log_bucket"
-)
-
-const logSinkWriterIdentityPrefix = "serviceAccount:"
 
 func init() {
-	RegisterAssetExtractor(logSinkAssetType, extractLogSink)
+	RegisterAssetExtractor(catalog.LogSinkAssetType, extractLogSink)
 }
 
 // logSinkData is the bounded view of a CAI logging.googleapis.com/LogSink
@@ -120,13 +106,13 @@ func logSinkDestination(destination string) (target, assetType, relType, destTyp
 		if bucket == "" {
 			return "", "", "", ""
 		}
-		return storageBucketResourceNamePrefixFmt + bucket, assetTypeStorageBucket, relationshipTypeLogSinkExportsToBucket, "storage"
+		return storageBucketResourceNamePrefixFmt + bucket, assetTypeStorageBucket, catalog.RelationshipTypeLogSinkExportsToBucket, "storage"
 	case strings.HasPrefix(trimmed, "bigquery.googleapis.com/"):
-		return "//" + trimmed, assetTypeBigQueryDataset, relationshipTypeLogSinkExportsToDataset, "bigquery"
+		return "//" + trimmed, catalog.AssetTypeBigQueryDataset, catalog.RelationshipTypeLogSinkExportsToDataset, "bigquery"
 	case strings.HasPrefix(trimmed, "pubsub.googleapis.com/"):
-		return "//" + trimmed, assetTypePubSubTopic, relationshipTypeLogSinkExportsToTopic, "pubsub"
+		return "//" + trimmed, assetTypePubSubTopic, catalog.RelationshipTypeLogSinkExportsToTopic, "pubsub"
 	case strings.HasPrefix(trimmed, "logging.googleapis.com/"):
-		return "//" + trimmed, logBucketAssetType, relationshipTypeLogSinkExportsToLogBucket, "logging"
+		return "//" + trimmed, catalog.LogBucketAssetType, catalog.RelationshipTypeLogSinkExportsToLogBucket, "logging"
 	default:
 		return "", "", "", ""
 	}
@@ -137,9 +123,9 @@ func logSinkDestination(destination string) (target, assetType, relType, destTyp
 // the IAM/trust layer can join without the raw email being persisted.
 func logSinkWriterIdentityDigest(writerIdentity string) string {
 	trimmed := strings.TrimSpace(writerIdentity)
-	if !strings.HasPrefix(trimmed, logSinkWriterIdentityPrefix) {
+	if !strings.HasPrefix(trimmed, catalog.LogSinkWriterIdentityPrefix) {
 		return ""
 	}
-	email := strings.TrimPrefix(trimmed, logSinkWriterIdentityPrefix)
+	email := strings.TrimPrefix(trimmed, catalog.LogSinkWriterIdentityPrefix)
 	return posture.GCPServiceAccountEmailDigest(email)
 }

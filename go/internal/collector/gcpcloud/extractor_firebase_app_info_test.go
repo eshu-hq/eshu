@@ -6,6 +6,8 @@ package gcpcloud
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func fixtureFirebaseAppInfoData(t *testing.T) []byte {
@@ -29,7 +31,7 @@ func firebaseAppInfoCtx(t *testing.T) ExtractContext {
 	t.Helper()
 	return ExtractContext{
 		FullResourceName: "//firebase.googleapis.com/projects/demo-project/webApps/1:123456789:web:abc123",
-		AssetType:        firebaseAppInfoAssetType,
+		AssetType:        catalog.FirebaseAppInfoAssetType,
 		Data:             fixtureFirebaseAppInfoData(t),
 	}
 }
@@ -67,7 +69,7 @@ func TestExtractFirebaseAppInfoProjectEdge(t *testing.T) {
 	}
 	var edge *RelationshipObservation
 	for i := range got.Relationships {
-		if got.Relationships[i].RelationshipType == relationshipTypeFirebaseAppBelongsToProject {
+		if got.Relationships[i].RelationshipType == catalog.RelationshipTypeFirebaseAppBelongsToProject {
 			edge = &got.Relationships[i]
 		}
 	}
@@ -77,7 +79,7 @@ func TestExtractFirebaseAppInfoProjectEdge(t *testing.T) {
 	if edge.TargetFullResourceName != "//firebase.googleapis.com/projects/demo-project" {
 		t.Errorf("project target = %q, want canonical FirebaseProject name", edge.TargetFullResourceName)
 	}
-	if edge.TargetAssetType != firebaseProjectAssetType {
+	if edge.TargetAssetType != catalog.FirebaseProjectAssetType {
 		t.Errorf("project target asset type = %q", edge.TargetAssetType)
 	}
 	if edge.SupportState != RelationshipSupportSupported {
@@ -90,14 +92,14 @@ func TestExtractFirebaseAppInfoProjectEdge(t *testing.T) {
 func TestExtractFirebaseAppInfoNoProjectNoEdge(t *testing.T) {
 	got, err := extractFirebaseAppInfo(ExtractContext{
 		FullResourceName: "//firebase.googleapis.com/webApps/orphan",
-		AssetType:        firebaseAppInfoAssetType,
+		AssetType:        catalog.FirebaseAppInfoAssetType,
 		Data:             []byte(`{"appId":"1:1:web:x","platform":"WEB"}`),
 	})
 	if err != nil {
 		t.Fatalf("extractFirebaseAppInfo: %v", err)
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeFirebaseAppBelongsToProject {
+		if rel.RelationshipType == catalog.RelationshipTypeFirebaseAppBelongsToProject {
 			t.Errorf("emitted project edge without a derivable project: %#v", rel)
 		}
 	}
@@ -109,7 +111,7 @@ func TestExtractFirebaseAppInfoNoProjectNoEdge(t *testing.T) {
 func TestExtractFirebaseAppInfoEmpty(t *testing.T) {
 	got, err := extractFirebaseAppInfo(ExtractContext{
 		FullResourceName: "//firebase.googleapis.com/projects/demo-project/webApps/x",
-		AssetType:        firebaseAppInfoAssetType,
+		AssetType:        catalog.FirebaseAppInfoAssetType,
 		Data:             []byte(`{}`),
 	})
 	if err != nil {
@@ -126,7 +128,7 @@ func TestExtractFirebaseAppInfoEmpty(t *testing.T) {
 func TestExtractFirebaseAppInfoMalformed(t *testing.T) {
 	_, err := extractFirebaseAppInfo(ExtractContext{
 		FullResourceName: "//firebase.googleapis.com/projects/demo-project/webApps/x",
-		AssetType:        firebaseAppInfoAssetType,
+		AssetType:        catalog.FirebaseAppInfoAssetType,
 		Data:             []byte(`{bad`),
 	})
 	if err == nil {
@@ -137,7 +139,7 @@ func TestExtractFirebaseAppInfoMalformed(t *testing.T) {
 // TestFirebaseAppInfoExtractorRegistered proves the asset type is wired into the
 // shared registry.
 func TestFirebaseAppInfoExtractorRegistered(t *testing.T) {
-	if !HasAssetExtractor(firebaseAppInfoAssetType) {
-		t.Fatalf("firebase app info extractor not registered for %q", firebaseAppInfoAssetType)
+	if !HasAssetExtractor(catalog.FirebaseAppInfoAssetType) {
+		t.Fatalf("firebase app info extractor not registered for %q", catalog.FirebaseAppInfoAssetType)
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const redisInstanceFullName = "//redis.googleapis.com/projects/demo-project/locations/us-central1/instances/cache-primary"
@@ -14,15 +16,15 @@ const redisInstanceFullName = "//redis.googleapis.com/projects/demo-project/loca
 func redisInstanceContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: redisInstanceFullName,
-		AssetType:        assetTypeRedisInstance,
+		AssetType:        catalog.AssetTypeRedisInstance,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestRedisInstanceExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeRedisInstance); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeRedisInstance)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeRedisInstance); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeRedisInstance)
 	}
 }
 
@@ -73,9 +75,9 @@ func TestExtractRedisInstanceStandardHAWithNetworkAndCMEK(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 edges (network, kms), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeRedisInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRedisInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeRedisInstanceEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRedisInstanceEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key", assetTypeKMSCryptoKey)
 
 	wantAnchors := []string{
@@ -137,7 +139,7 @@ func TestExtractRedisInstanceAuthorizedNetworkFullSelfLink(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (network), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeRedisInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRedisInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
@@ -151,7 +153,7 @@ func TestExtractRedisInstanceAuthorizedNetworkProjectLessPartialResolvedAgainstP
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeRedisInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRedisInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
@@ -165,13 +167,13 @@ func TestExtractRedisInstanceCMEKAlreadyCAIPrefixedNotDoublePrefixed(t *testing.
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeRedisInstanceEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRedisInstanceEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key", assetTypeKMSCryptoKey)
 	if got.Attributes["customer_managed_key"] != "projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key" {
 		t.Errorf("customer_managed_key = %v, want bare relative form matching the anchor/edge normalization", got.Attributes["customer_managed_key"])
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeRedisInstanceEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeRedisInstanceEncryptedByKMSKey {
 			if got := rel.TargetFullResourceName; got != "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key" {
 				t.Fatalf("kms target double-prefixed or malformed: %q", got)
 			}
@@ -213,8 +215,8 @@ func TestExtractRedisInstanceCMEKLeadingSlashNormalizesSameAsBare(t *testing.T) 
 	}
 
 	wantTarget := "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/redis-key"
-	assertRelationship(t, gotSlash.Relationships, relationshipTypeRedisInstanceEncryptedByKMSKey, wantTarget, assetTypeKMSCryptoKey)
-	assertRelationship(t, gotBare.Relationships, relationshipTypeRedisInstanceEncryptedByKMSKey, wantTarget, assetTypeKMSCryptoKey)
+	assertRelationship(t, gotSlash.Relationships, catalog.RelationshipTypeRedisInstanceEncryptedByKMSKey, wantTarget, assetTypeKMSCryptoKey)
+	assertRelationship(t, gotBare.Relationships, catalog.RelationshipTypeRedisInstanceEncryptedByKMSKey, wantTarget, assetTypeKMSCryptoKey)
 
 	if !reflect.DeepEqual(gotSlash.CorrelationAnchors, gotBare.CorrelationAnchors) {
 		t.Errorf("leading-slash and bare anchors differ: %v vs %v", gotSlash.CorrelationAnchors, gotBare.CorrelationAnchors)

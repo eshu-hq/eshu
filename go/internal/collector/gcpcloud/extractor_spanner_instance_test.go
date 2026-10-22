@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const spannerInstanceFullName = "//spanner.googleapis.com/projects/demo-project/instances/prod-instance"
@@ -14,15 +16,15 @@ const spannerInstanceFullName = "//spanner.googleapis.com/projects/demo-project/
 func spannerInstanceContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: spannerInstanceFullName,
-		AssetType:        assetTypeSpannerInstance,
+		AssetType:        catalog.AssetTypeSpannerInstance,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestSpannerInstanceExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeSpannerInstance); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeSpannerInstance)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeSpannerInstance); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeSpannerInstance)
 	}
 }
 
@@ -56,7 +58,7 @@ func TestExtractSpannerInstanceFullAttributesRegional(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly the instance-config edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, assetTypeSpannerInstanceConfig)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, catalog.AssetTypeSpannerInstanceConfig)
 	wantAnchors := []string{wantConfig}
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {
 		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
@@ -102,7 +104,7 @@ func TestExtractSpannerInstanceMultiRegionConfig(t *testing.T) {
 		t.Errorf("config = %v, want nam-eur-asia1", got.Attributes["config"])
 	}
 	wantConfig := "//spanner.googleapis.com/projects/demo-project/instanceConfigs/nam-eur-asia1"
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, assetTypeSpannerInstanceConfig)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, catalog.AssetTypeSpannerInstanceConfig)
 }
 
 func TestExtractSpannerInstanceBareConfigIDQualifiesToProject(t *testing.T) {
@@ -127,7 +129,7 @@ func TestExtractSpannerInstanceBareConfigIDQualifiesToProject(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected the instance-config edge from a bare id, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, assetTypeSpannerInstanceConfig)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, catalog.AssetTypeSpannerInstanceConfig)
 }
 
 func TestExtractSpannerInstanceAlreadyPrefixedConfigNotDoublePrefixed(t *testing.T) {
@@ -145,7 +147,7 @@ func TestExtractSpannerInstanceAlreadyPrefixedConfigNotDoublePrefixed(t *testing
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly one config edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, assetTypeSpannerInstanceConfig)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerInstanceUsesInstanceConfig, wantConfig, catalog.AssetTypeSpannerInstanceConfig)
 	// The short-name attribute is still the trailing segment, not the prefix.
 	if got.Attributes["config"] != "regional-us-central1" {
 		t.Errorf("config attribute = %v, want regional-us-central1", got.Attributes["config"])

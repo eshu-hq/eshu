@@ -7,22 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeMemcacheInstance is the Cloud Asset Inventory asset type for a
-// Memorystore for Memcached instance. assetTypeComputeNetwork is a shared
-// constant declared by the Subnetwork extractor (extractor_subnetwork.go) in
-// this package and reused here for the authorized-network edge.
-const assetTypeMemcacheInstance = "memcache.googleapis.com/Instance"
-
-// relationshipTypeMemcacheInstanceInNetwork is the bounded provider
-// relationship type for the Memorystore Memcached instance's authorized-
-// network edge, carried on a gcp_cloud_relationship fact. The reducer
-// materializes the edge only when both endpoints resolve exactly.
-const relationshipTypeMemcacheInstanceInNetwork = "memcache_instance_in_network"
-
 func init() {
-	RegisterAssetExtractor(assetTypeMemcacheInstance, extractMemcacheInstance)
+	RegisterAssetExtractor(catalog.AssetTypeMemcacheInstance, extractMemcacheInstance)
 }
 
 // memcacheNodeConfigData is the bounded view of the CAI
@@ -90,7 +80,7 @@ func extractMemcacheInstance(ctx ExtractContext) (AttributeExtraction, error) {
 
 	if networkName := computeFullResourceNameFromSelfLink(data.AuthorizedNetwork, ctx.ProjectID); networkName != "" {
 		anchors = append(anchors, networkName)
-		rels = append(rels, memcacheInstanceEdge(ctx, relationshipTypeMemcacheInstanceInNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, memcacheInstanceEdge(ctx, catalog.RelationshipTypeMemcacheInstanceInNetwork, networkName, assetTypeComputeNetwork))
 	}
 
 	return AttributeExtraction{

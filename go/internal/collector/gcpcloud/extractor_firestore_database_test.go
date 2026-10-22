@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const firestoreDatabaseFullName = "//firestore.googleapis.com/projects/demo-project/databases/(default)"
@@ -14,15 +16,15 @@ const firestoreDatabaseFullName = "//firestore.googleapis.com/projects/demo-proj
 func firestoreDatabaseContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: firestoreDatabaseFullName,
-		AssetType:        assetTypeFirestoreDatabase,
+		AssetType:        catalog.AssetTypeFirestoreDatabase,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestFirestoreDatabaseExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeFirestoreDatabase); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeFirestoreDatabase)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeFirestoreDatabase); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeFirestoreDatabase)
 	}
 }
 
@@ -65,10 +67,10 @@ func TestExtractFirestoreDatabaseFullResource(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 KMS edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeFirestoreEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeFirestoreEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/nam5/keyRings/firestore/cryptoKeys/db", assetTypeKMSCryptoKey)
 	rel := got.Relationships[0]
-	if rel.SourceFullResourceName != firestoreDatabaseFullName || rel.SourceAssetType != assetTypeFirestoreDatabase {
+	if rel.SourceFullResourceName != firestoreDatabaseFullName || rel.SourceAssetType != catalog.AssetTypeFirestoreDatabase {
 		t.Errorf("relationship source = %q/%q, want firestore identity", rel.SourceFullResourceName, rel.SourceAssetType)
 	}
 }

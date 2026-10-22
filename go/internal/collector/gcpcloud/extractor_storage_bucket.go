@@ -7,18 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// Bounded provider relationship types for Cloud Storage Bucket edges. Each is a
-// stable string carried on a gcp_cloud_relationship fact; the reducer
-// materializes an edge only when both endpoints resolve exactly.
-const (
-	// relationshipTypeStorageBucketKMSKey is the CMEK default-encryption edge from
-	// the bucket to its Cloud KMS CryptoKey.
-	relationshipTypeStorageBucketKMSKey = "storage_bucket_encrypted_by_kms_key"
-	// relationshipTypeStorageBucketLogsToBucket is the usage-logging export edge
-	// from the bucket to the destination log bucket.
-	relationshipTypeStorageBucketLogsToBucket = "storage_bucket_logs_to_bucket"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
@@ -90,13 +80,13 @@ func extractStorageBucket(ctx ExtractContext) (AttributeExtraction, error) {
 		attrs["kms_key_name"] = kms
 		kmsName := cloudKMSResourceNamePrefix + kms
 		anchors = append(anchors, kmsName)
-		rels = append(rels, storageBucketEdge(ctx, relationshipTypeStorageBucketKMSKey, kmsName, assetTypeKMSCryptoKey))
+		rels = append(rels, storageBucketEdge(ctx, catalog.RelationshipTypeStorageBucketKMSKey, kmsName, assetTypeKMSCryptoKey))
 	}
 
 	if logBucket := storageBucketLoggingDestination(data); logBucket != "" {
 		target := storageBucketResourceNamePrefixFmt + logBucket
 		anchors = append(anchors, target)
-		rels = append(rels, storageBucketEdge(ctx, relationshipTypeStorageBucketLogsToBucket, target, assetTypeStorageBucket))
+		rels = append(rels, storageBucketEdge(ctx, catalog.RelationshipTypeStorageBucketLogsToBucket, target, assetTypeStorageBucket))
 	}
 
 	return AttributeExtraction{

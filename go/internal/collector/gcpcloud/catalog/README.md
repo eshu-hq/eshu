@@ -116,6 +116,33 @@ has no dependency to list, which is what keeps the leaf acyclic.
 - Keep every file under 500 lines; split a family file before the cap (lane H
   already ships as three files for this reason).
 - Keep the SPDX header on every new file.
+- Cross-group constants already owned by `gcpcloud/extractor` (KMS,
+  Compute, Storage, Pub/Sub topic, GKE cluster asset types and their
+  prefixes) stay there; this leaf does not redeclare them.
+
+## No-Regression Evidence (gcp-ij slice): the IJ data+platform consolidation
+moves the data-family and platform-family string constants from the 33 flat
+`extractor_*.go` root files into `catalog/gcp_data.go` and
+`catalog/gcp_platform.go` verbatim (only the package clause and identifier
+case change) — the split is a size measure only: one file would exceed the
+500-line Go cap, so the slice ships as two family leaves, both under the
+cap. Baseline: the pre-move values read from the base tree
+(`git show origin/main:go/internal/collector/gcpcloud/extractor_*.go`) are
+pinned in `gcp_ij_test.go`
+(`TestIJConstantsMatchGCPCloudValues`,
+`go test ./internal/collector/gcpcloud/catalog/ -count=1` green) and the
+full affected suite (`gcpcloud` tree plus the reducer compat retirement
+test) is green after the move; `go build ./...` is clean. Backend/version
+for both: none — pure compile-time constant relocations with no query,
+graph write, queue, lease, worker, batching, or Compose/Helm change, so
+there are no row counts to regress.
+No-Observability-Change (gcp-ij slice): the leaf declares no instrument and
+runs no stage; extraction and emission stay covered by
+`eshu_dp_gcp_cloud_attribute_extractions_total` and
+`eshu_dp_gcp_cloud_facts_emitted_total` (collector gcp rows in
+`docs/public/observability/telemetry-coverage.md`). Safe because the Go
+compiler resolves every moved reference, the value-pinning test fails on
+any drift, and the catalog leaf holds only string constants.
 
 ## Related docs
 

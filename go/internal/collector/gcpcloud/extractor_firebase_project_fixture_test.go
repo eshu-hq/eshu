@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -54,9 +55,9 @@ func TestFirebaseProjectOfflineFixtureEndToEnd(t *testing.T) {
 			}
 		case cloud.GCPCloudRelationshipFactKind:
 			switch stringOrEmpty(env.Payload["relationship_type"]) {
-			case relationshipTypeFirebaseProjectBackedByProject:
+			case catalog.RelationshipTypeFirebaseProjectBackedByProject:
 				projectEdges++
-			case relationshipTypeFirebaseProjectDefaultBucket:
+			case catalog.RelationshipTypeFirebaseProjectDefaultBucket:
 				bucketEdges++
 			}
 		}

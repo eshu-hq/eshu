@@ -8,28 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// assetTypeBigQueryConnection is the CAI asset type for a BigQuery connection,
-// the remote-function connection edge target. assetTypeBigQueryRoutine,
-// assetTypeBigQueryDataset, and bigQueryResourceNamePrefix are already declared
-// by the BigQuery Table/Dataset extractors.
-const (
-	assetTypeBigQueryConnection      = "bigqueryconnection.googleapis.com/Connection"
-	bigQueryConnectionResourcePrefix = "//bigqueryconnection.googleapis.com/"
-)
-
-// Bounded provider relationship types for BigQuery Routine edges. Referenced
-// tables are intentionally absent: a routine's table references live inside its
-// definitionBody (SQL/JS source), which is never read, so only the structured
-// parent-dataset and remote-function connection references become edges.
-const (
-	relationshipTypeRoutineInDataset      = "bigquery_routine_in_dataset"
-	relationshipTypeRoutineUsesConnection = "bigquery_routine_uses_connection"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeBigQueryRoutine, extractBigQueryRoutine)
+	RegisterAssetExtractor(catalog.AssetTypeBigQueryRoutine, extractBigQueryRoutine)
 }
 
 // jsonValuePresent records only whether a JSON field was present with a
@@ -90,12 +74,12 @@ func extractBigQueryRoutine(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 	if dataset := bigQueryRoutineDatasetFullName(ctx, data); dataset != "" {
 		anchors = append(anchors, dataset)
-		rels = append(rels, bigQueryRoutineEdge(ctx, relationshipTypeRoutineInDataset, dataset, assetTypeBigQueryDataset))
+		rels = append(rels, bigQueryRoutineEdge(ctx, catalog.RelationshipTypeRoutineInDataset, dataset, catalog.AssetTypeBigQueryDataset))
 	}
 	if data.RemoteFunctionOptions != nil {
 		if conn := bigQueryConnectionFullName(data.RemoteFunctionOptions.Connection); conn != "" {
 			anchors = append(anchors, conn)
-			rels = append(rels, bigQueryRoutineEdge(ctx, relationshipTypeRoutineUsesConnection, conn, assetTypeBigQueryConnection))
+			rels = append(rels, bigQueryRoutineEdge(ctx, catalog.RelationshipTypeRoutineUsesConnection, conn, catalog.AssetTypeBigQueryConnection))
 		}
 	}
 
@@ -149,7 +133,7 @@ func bigQueryRoutineDatasetFullName(ctx ExtractContext, data bigQueryRoutineData
 		dataset = strings.TrimSpace(data.RoutineReference.DatasetID)
 	}
 	if project != "" && dataset != "" {
-		return fmt.Sprintf("%sprojects/%s/datasets/%s", bigQueryResourceNamePrefix, project, dataset)
+		return fmt.Sprintf("%sprojects/%s/datasets/%s", catalog.BigQueryResourceNamePrefix, project, dataset)
 	}
 	if idx := strings.Index(ctx.FullResourceName, "/routines/"); idx > 0 {
 		return ctx.FullResourceName[:idx]
@@ -169,12 +153,12 @@ func bigQueryConnectionFullName(connectionRef string) string {
 	if strings.HasPrefix(trimmed, "//") {
 		// Only a bigqueryconnection full name is a valid endpoint; a foreign or
 		// wrong-domain absolute name is rejected rather than passed through.
-		if strings.HasPrefix(trimmed, bigQueryConnectionResourcePrefix) {
+		if strings.HasPrefix(trimmed, catalog.BigQueryConnectionResourcePrefix) {
 			return trimmed
 		}
 		return ""
 	}
-	return bigQueryConnectionResourcePrefix + strings.TrimPrefix(trimmed, "/")
+	return catalog.BigQueryConnectionResourcePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // bigQueryRoutineEdge builds one typed provider relationship observation anchored

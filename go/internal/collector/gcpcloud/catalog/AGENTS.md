@@ -38,6 +38,12 @@
   file with no row, and the cap fails a new line — follow the in-place row
   edit, never add a row).
 
+- Do not redeclare the cross-group constants already owned by
+  `gcpcloud/extractor` (KMS, Compute, Storage, Pub/Sub topic, GKE cluster
+  asset types and their prefixes).
+- MUST NOT rename an exported identifier once another slice or lane
+  references it; the pin test names every export.
+
 ## Common Changes
 
 - Add a family: copy the `gcp_compute_net.go` shape (one `// <Family>

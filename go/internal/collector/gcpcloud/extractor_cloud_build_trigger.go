@@ -9,36 +9,11 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
-)
-
-// Bounded provider relationship type for Cloud Build Trigger edges. The
-// assetTypeCloudBuildTrigger and assetTypeSourceRepo asset types are declared
-// and owned by the Cloud Build Build extractor (extractor_cloud_build.go) and
-// are reused here, never redeclared.
-const (
-	relationshipTypeTriggerSourceRepo           = "trigger_source_repo"
-	relationshipTypeTriggerSourceRepositoryLink = "trigger_source_repository_link"
-)
-
-// assetTypeDeveloperConnectGitRepositoryLink is the CAI asset type for a
-// Developer Connect connected repository, per the live Cloud Asset Inventory
-// supported-asset-types reference. A `sourceToBuild.repository` value is
-// always shaped as this asset type's resource name
-// (`projects/*/locations/*/connections/*/repositories/*`) regardless of the
-// underlying `repoType` (Cloud Source Repositories, GitHub, GitLab, or
-// Bitbucket connected through Developer Connect) — Cloud Build's
-// `GitRepoSource.repository` field never carries a `sourcerepo.googleapis.com`
-// resource name, so this is a distinct target asset type from
-// `assetTypeSourceRepo` (the `triggerTemplate` legacy Cloud Source
-// Repositories reference), never the same edge.
-const (
-	assetTypeDeveloperConnectGitRepositoryLink    = "developerconnect.googleapis.com/GitRepositoryLink"
-	developerConnectResourceNamePrefix            = "//developerconnect.googleapis.com/"
-	developerConnectGitRepositoryLinkNameSegments = 8 // projects/<p>/locations/<l>/connections/<c>/repositories/<r>
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeCloudBuildTrigger, extractCloudBuildTrigger)
+	RegisterAssetExtractor(catalog.AssetTypeCloudBuildTrigger, extractCloudBuildTrigger)
 }
 
 // cloudBuildTriggerData is the bounded view of a CAI
@@ -135,7 +110,7 @@ func extractCloudBuildTrigger(ctx ExtractContext) (AttributeExtraction, error) {
 		}
 		if repo := cloudBuildSourceRepoFullName(repoProject, data.TriggerTemplate.RepoName); repo != "" {
 			anchors = append(anchors, repo)
-			rels = append(rels, cloudBuildEdge(ctx, relationshipTypeTriggerSourceRepo, repo, assetTypeSourceRepo))
+			rels = append(rels, cloudBuildEdge(ctx, catalog.RelationshipTypeTriggerSourceRepo, repo, catalog.AssetTypeSourceRepo))
 		}
 	}
 	// sourceToBuild is the build-source reference for a trigger that does not
@@ -146,7 +121,7 @@ func extractCloudBuildTrigger(ctx ExtractContext) (AttributeExtraction, error) {
 	if data.SourceToBuild != nil {
 		if link := developerConnectGitRepositoryLinkFullName(data.SourceToBuild.Repository); link != "" {
 			anchors = append(anchors, link)
-			rels = append(rels, cloudBuildEdge(ctx, relationshipTypeTriggerSourceRepositoryLink, link, assetTypeDeveloperConnectGitRepositoryLink))
+			rels = append(rels, cloudBuildEdge(ctx, catalog.RelationshipTypeTriggerSourceRepositoryLink, link, catalog.AssetTypeDeveloperConnectGitRepositoryLink))
 		}
 	}
 
@@ -248,7 +223,7 @@ func cloudBuildTriggerSourceType(data cloudBuildTriggerData) string {
 // regardless of the underlying `repoType` (Cloud Source Repositories, GitHub,
 // GitLab, or Bitbucket Server/Cloud connected through Developer Connect), so
 // it is never a `sourcerepo.googleapis.com` resource name and must never be
-// routed to `assetTypeSourceRepo`/`cloudBuildSourceRepoFullName`. The
+// routed to `catalog.AssetTypeSourceRepo`/`cloudBuildSourceRepoFullName`. The
 // derivation fails closed: an already-absolute value is trusted only when it
 // carries the exact Developer Connect CAI service prefix, and a relative
 // value is qualified only when it matches the documented
@@ -261,10 +236,10 @@ func developerConnectGitRepositoryLinkFullName(repository string) string {
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {
-		if !strings.HasPrefix(trimmed, developerConnectResourceNamePrefix) {
+		if !strings.HasPrefix(trimmed, catalog.DeveloperConnectResourceNamePrefix) {
 			return ""
 		}
-		relative := strings.TrimPrefix(trimmed, developerConnectResourceNamePrefix)
+		relative := strings.TrimPrefix(trimmed, catalog.DeveloperConnectResourceNamePrefix)
 		if !developerConnectGitRepositoryLinkShapeValid(relative) {
 			return ""
 		}
@@ -274,7 +249,7 @@ func developerConnectGitRepositoryLinkFullName(repository string) string {
 	if !developerConnectGitRepositoryLinkShapeValid(relative) {
 		return ""
 	}
-	return developerConnectResourceNamePrefix + relative
+	return catalog.DeveloperConnectResourceNamePrefix + relative
 }
 
 // developerConnectGitRepositoryLinkShapeValid reports whether a relative
@@ -284,7 +259,7 @@ func developerConnectGitRepositoryLinkFullName(repository string) string {
 // must be non-blank).
 func developerConnectGitRepositoryLinkShapeValid(relative string) bool {
 	segments := strings.Split(relative, "/")
-	if len(segments) != developerConnectGitRepositoryLinkNameSegments {
+	if len(segments) != catalog.DeveloperConnectGitRepositoryLinkNameSegments {
 		return false
 	}
 	wantKeywords := []string{"projects", "", "locations", "", "connections", "", "repositories", ""}

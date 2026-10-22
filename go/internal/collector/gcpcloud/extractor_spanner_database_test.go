@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 // assertAnchorSet asserts that got contains exactly the given anchors, as a
@@ -29,15 +31,15 @@ const spannerDatabaseFullName = "//spanner.googleapis.com/projects/demo-project/
 func spannerDatabaseContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: spannerDatabaseFullName,
-		AssetType:        assetTypeSpannerDatabase,
+		AssetType:        catalog.AssetTypeSpannerDatabase,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestSpannerDatabaseExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeSpannerDatabase); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeSpannerDatabase)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeSpannerDatabase); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeSpannerDatabase)
 	}
 }
 
@@ -77,8 +79,8 @@ func TestExtractSpannerDatabaseFullAttributes(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected parent-instance and CMEK edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerDatabaseInInstance, wantInstance, assetTypeSpannerInstance)
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerDatabaseEncryptedByKMSKey, wantKMS, assetTypeKMSCryptoKey)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerDatabaseInInstance, wantInstance, catalog.AssetTypeSpannerInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerDatabaseEncryptedByKMSKey, wantKMS, assetTypeKMSCryptoKey)
 
 	// Assert anchor set membership, not ordered slice equality: dedupeNonEmpty
 	// preserves insertion order but does not promise a stable ordering
@@ -103,7 +105,7 @@ func TestExtractSpannerDatabaseParentInstanceDerivedFromName(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly the parent-instance edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerDatabaseInInstance, wantInstance, assetTypeSpannerInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerDatabaseInInstance, wantInstance, catalog.AssetTypeSpannerInstance)
 }
 
 func TestExtractSpannerDatabaseMalformedFullResourceNameEmitsNoParentEdge(t *testing.T) {
@@ -112,7 +114,7 @@ func TestExtractSpannerDatabaseMalformedFullResourceNameEmitsNoParentEdge(t *tes
 	// edge; fail closed rather than guess.
 	ctx := ExtractContext{
 		FullResourceName: "//spanner.googleapis.com/projects/demo-project/instances/prod-instance",
-		AssetType:        assetTypeSpannerDatabase,
+		AssetType:        catalog.AssetTypeSpannerDatabase,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(`{"state": "READY"}`),
 	}
@@ -138,7 +140,7 @@ func TestExtractSpannerDatabaseExtraSegmentBetweenInstanceAndDatabaseEmitsNoPare
 	// this and silently mint a wrong parent (".../instances/<i>/extra").
 	ctx := ExtractContext{
 		FullResourceName: "//spanner.googleapis.com/projects/demo-project/instances/prod-instance/extra/databases/orders",
-		AssetType:        assetTypeSpannerDatabase,
+		AssetType:        catalog.AssetTypeSpannerDatabase,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(`{"state": "READY"}`),
 	}
@@ -161,7 +163,7 @@ func TestExtractSpannerDatabaseExtraSegmentAfterDatabaseEmitsNoParentEdge(t *tes
 	// actually the final path segment.
 	ctx := ExtractContext{
 		FullResourceName: "//spanner.googleapis.com/projects/demo-project/instances/prod-instance/databases/orders/extra",
-		AssetType:        assetTypeSpannerDatabase,
+		AssetType:        catalog.AssetTypeSpannerDatabase,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(`{"state": "READY"}`),
 	}
@@ -181,7 +183,7 @@ func TestExtractSpannerDatabaseWrongDomainPrefixEmitsNoParentEdge(t *testing.T) 
 	// instances/databases shape.
 	ctx := ExtractContext{
 		FullResourceName: "//storage.googleapis.com/projects/demo-project/instances/prod-instance/databases/orders",
-		AssetType:        assetTypeSpannerDatabase,
+		AssetType:        catalog.AssetTypeSpannerDatabase,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(`{"state": "READY"}`),
 	}
@@ -204,7 +206,7 @@ func TestExtractSpannerDatabaseEmptyInstanceOrDatabaseIDEmitsNoParentEdge(t *tes
 	} {
 		ctx := ExtractContext{
 			FullResourceName: name,
-			AssetType:        assetTypeSpannerDatabase,
+			AssetType:        catalog.AssetTypeSpannerDatabase,
 			ProjectID:        "demo-project",
 			Data:             json.RawMessage(`{"state": "READY"}`),
 		}
@@ -265,7 +267,7 @@ func TestExtractSpannerDatabaseNoEncryptionConfigEmitsNoKMSEdge(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeSpannerDatabaseEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeSpannerDatabaseEncryptedByKMSKey {
 			t.Errorf("expected no CMEK edge without encryptionConfig, got %#v", rel)
 		}
 	}
@@ -312,7 +314,7 @@ func TestExtractSpannerDatabaseAbsentEnableDropProtectionOmitted(t *testing.T) {
 func TestExtractSpannerDatabasePartialDataOmitsZeroValues(t *testing.T) {
 	got, err := extractSpannerDatabase(ExtractContext{
 		FullResourceName: "not-a-recognizable-name",
-		AssetType:        assetTypeSpannerDatabase,
+		AssetType:        catalog.AssetTypeSpannerDatabase,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(`{}`),
 	})
@@ -353,7 +355,7 @@ func TestExtractSpannerDatabaseMultiRegionKMSKeyNames(t *testing.T) {
 
 	ctx := ExtractContext{
 		FullResourceName: "//spanner.googleapis.com/projects/demo-project/instances/multi-region/databases/orders",
-		AssetType:        assetTypeSpannerDatabase,
+		AssetType:        catalog.AssetTypeSpannerDatabase,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
@@ -368,15 +370,15 @@ func TestExtractSpannerDatabaseMultiRegionKMSKeyNames(t *testing.T) {
 
 	kmsEdges := 0
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeSpannerDatabaseEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeSpannerDatabaseEncryptedByKMSKey {
 			kmsEdges++
 		}
 	}
 	if kmsEdges != 2 {
 		t.Fatalf("expected one CMEK edge per kmsKeyNames[] entry, got %d: %#v", kmsEdges, got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerDatabaseEncryptedByKMSKey, wantKMS1, assetTypeKMSCryptoKey)
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerDatabaseEncryptedByKMSKey, wantKMS2, assetTypeKMSCryptoKey)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerDatabaseEncryptedByKMSKey, wantKMS1, assetTypeKMSCryptoKey)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerDatabaseEncryptedByKMSKey, wantKMS2, assetTypeKMSCryptoKey)
 	assertAnchorSet(t, got.CorrelationAnchors, wantInstance, wantKMS1, wantKMS2)
 }
 
@@ -401,8 +403,8 @@ func TestExtractSpannerDatabaseSingularAndPluralKMSKeysBothEmitEdges(t *testing.
 
 	wantSingular := "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/ring/cryptoKeys/singular-key"
 	wantPlural := "//cloudkms.googleapis.com/projects/demo-project/locations/us-east1/keyRings/ring/cryptoKeys/plural-key"
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerDatabaseEncryptedByKMSKey, wantSingular, assetTypeKMSCryptoKey)
-	assertRelationship(t, got.Relationships, relationshipTypeSpannerDatabaseEncryptedByKMSKey, wantPlural, assetTypeKMSCryptoKey)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerDatabaseEncryptedByKMSKey, wantSingular, assetTypeKMSCryptoKey)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSpannerDatabaseEncryptedByKMSKey, wantPlural, assetTypeKMSCryptoKey)
 }
 
 func TestExtractSpannerDatabaseDuplicateKMSKeyNamesDeduped(t *testing.T) {
@@ -426,7 +428,7 @@ func TestExtractSpannerDatabaseDuplicateKMSKeyNamesDeduped(t *testing.T) {
 	}
 	kmsEdges := 0
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeSpannerDatabaseEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeSpannerDatabaseEncryptedByKMSKey {
 			kmsEdges++
 		}
 	}
@@ -450,7 +452,7 @@ func TestExtractSpannerDatabaseWrongDomainKMSKeyEmitsNoEdge(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeSpannerDatabaseEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeSpannerDatabaseEncryptedByKMSKey {
 			t.Errorf("expected no CMEK edge for a wrong-domain reference, got %#v", rel)
 		}
 	}

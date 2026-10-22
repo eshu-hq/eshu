@@ -131,8 +131,8 @@ func TestExtractOrgPolicyProjectTarget(t *testing.T) {
 	if rel.TargetFullResourceName != wantTarget {
 		t.Errorf("target = %q, want %q", rel.TargetFullResourceName, wantTarget)
 	}
-	if rel.TargetAssetType != assetTypeCloudResourceManagerProject {
-		t.Errorf("target asset type = %q, want %q", rel.TargetAssetType, assetTypeCloudResourceManagerProject)
+	if rel.TargetAssetType != catalog.AssetTypeCloudResourceManagerProject {
+		t.Errorf("target asset type = %q, want %q", rel.TargetAssetType, catalog.AssetTypeCloudResourceManagerProject)
 	}
 }
 
@@ -323,7 +323,7 @@ func TestOrgPolicyTargetFromFullResourceName(t *testing.T) {
 			fullName:       "//orgpolicy.googleapis.com/projects/789/policies/storage.baz",
 			wantConstraint: "storage.baz",
 			wantTarget:     "//cloudresourcemanager.googleapis.com/projects/789",
-			wantAssetType:  assetTypeCloudResourceManagerProject,
+			wantAssetType:  catalog.AssetTypeCloudResourceManagerProject,
 			wantOK:         true,
 		},
 		{

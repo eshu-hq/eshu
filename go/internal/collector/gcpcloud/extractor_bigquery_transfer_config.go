@@ -9,29 +9,11 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
-)
-
-// assetTypeBigQueryTransferConfig is the CAI asset type for a BigQuery Data
-// Transfer Service config. Its edge targets reuse asset-type constants and
-// helpers already declared in this package: assetTypeBigQueryDataset and
-// bigQueryResourceNamePrefix (BigQuery Table extractor), assetTypeKMSCryptoKey
-// and cloudKMSResourceNamePrefix (BigQuery Table extractor), and
-// assetTypePubSubTopic with pubSubTopicRefFullName (Pub/Sub extractors).
-const assetTypeBigQueryTransferConfig = "bigquerydatatransfer.googleapis.com/TransferConfig"
-
-// Bounded provider relationship types for BigQuery Transfer Config edges. The
-// data source is an enumerated source id (not a CAI resource) kept as an
-// attribute, and the owner email (ownerInfo.email) is carried as a fingerprint
-// anchor (an email is not an exactly resolvable CAI endpoint), so neither
-// becomes an edge.
-const (
-	relationshipTypeTransferConfigWritesToDataset   = "transfer_config_writes_to_dataset"
-	relationshipTypeTransferConfigEncryptedByKMSKey = "transfer_config_encrypted_by_kms_key"
-	relationshipTypeTransferConfigNotifiesTopic     = "transfer_config_notifies_topic"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeBigQueryTransferConfig, extractBigQueryTransferConfig)
+	RegisterAssetExtractor(catalog.AssetTypeBigQueryTransferConfig, extractBigQueryTransferConfig)
 }
 
 // bigQueryTransferConfigData is the bounded view of a CAI
@@ -71,19 +53,19 @@ func extractBigQueryTransferConfig(ctx ExtractContext) (AttributeExtraction, err
 	var rels []RelationshipObservation
 	if dataset := bigQueryTransferConfigDatasetFullName(ctx, data); dataset != "" {
 		anchors = append(anchors, dataset)
-		rels = append(rels, bigQueryTransferConfigEdge(ctx, relationshipTypeTransferConfigWritesToDataset, dataset, assetTypeBigQueryDataset))
+		rels = append(rels, bigQueryTransferConfigEdge(ctx, catalog.RelationshipTypeTransferConfigWritesToDataset, dataset, catalog.AssetTypeBigQueryDataset))
 	}
 	if fp := posture.GCPServiceAccountEmailDigest(transferConfigOwnerEmail(data)); fp != "" {
 		anchors = append(anchors, fp)
 	}
 	if topic := pubSubTopicRefFullName(data.NotificationTopic); topic != "" {
 		anchors = append(anchors, topic)
-		rels = append(rels, bigQueryTransferConfigEdge(ctx, relationshipTypeTransferConfigNotifiesTopic, topic, assetTypePubSubTopic))
+		rels = append(rels, bigQueryTransferConfigEdge(ctx, catalog.RelationshipTypeTransferConfigNotifiesTopic, topic, assetTypePubSubTopic))
 	}
 	if data.EncryptionConfig != nil {
 		if kms := bigQueryTransferConfigKMSKeyFullName(data.EncryptionConfig.KMSKeyName); kms != "" {
 			anchors = append(anchors, kms)
-			rels = append(rels, bigQueryTransferConfigEdge(ctx, relationshipTypeTransferConfigEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
+			rels = append(rels, bigQueryTransferConfigEdge(ctx, catalog.RelationshipTypeTransferConfigEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
 		}
 	}
 
@@ -154,7 +136,7 @@ func bigQueryTransferConfigDatasetFullName(ctx ExtractContext, data bigQueryTran
 	if dataset == "" || project == "" {
 		return ""
 	}
-	return fmt.Sprintf("%sprojects/%s/datasets/%s", bigQueryResourceNamePrefix, project, dataset)
+	return fmt.Sprintf("%sprojects/%s/datasets/%s", catalog.BigQueryResourceNamePrefix, project, dataset)
 }
 
 // bigQueryTransferConfigKMSKeyFullName builds the CAI CryptoKey full resource

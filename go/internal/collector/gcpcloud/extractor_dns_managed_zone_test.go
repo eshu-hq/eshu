@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const dnsManagedZoneFullName = "//dns.googleapis.com/projects/demo-project/managedZones/prod-zone"
@@ -14,15 +16,15 @@ const dnsManagedZoneFullName = "//dns.googleapis.com/projects/demo-project/manag
 func dnsManagedZoneContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: dnsManagedZoneFullName,
-		AssetType:        dnsManagedZoneAssetType,
+		AssetType:        catalog.DNSManagedZoneAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestDNSManagedZoneExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(dnsManagedZoneAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", dnsManagedZoneAssetType)
+	if _, ok := lookupAssetExtractor(catalog.DNSManagedZoneAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.DNSManagedZoneAssetType)
 	}
 }
 
@@ -96,14 +98,14 @@ func TestExtractDNSManagedZonePrivateZoneWithNetworks(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 network edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeManagedZoneVisibleFromNetwork, vpcA, assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeManagedZoneVisibleFromNetwork, vpcB, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeManagedZoneVisibleFromNetwork, vpcA, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeManagedZoneVisibleFromNetwork, vpcB, assetTypeComputeNetwork)
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != dnsManagedZoneFullName {
 			t.Errorf("relationship source = %q, want zone full name", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != dnsManagedZoneAssetType {
-			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, dnsManagedZoneAssetType)
+		if rel.SourceAssetType != catalog.DNSManagedZoneAssetType {
+			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.DNSManagedZoneAssetType)
 		}
 	}
 }
@@ -131,7 +133,7 @@ func TestExtractDNSManagedZonePeeringConfig(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 peering edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeManagedZonePeersWithNetwork, peerVPC, assetTypeComputeNetwork)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeManagedZonePeersWithNetwork, peerVPC, assetTypeComputeNetwork)
 	wantAnchors := []string{peerVPC}
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {
 		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)

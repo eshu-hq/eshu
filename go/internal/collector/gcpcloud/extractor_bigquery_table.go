@@ -9,28 +9,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-)
 
-// Asset type constants for the BigQuery Table typed-depth extractor and the
-// relationship endpoints it derives. Target asset types name the CAI asset type
-// of each typed edge so reducers can resolve both endpoints exactly.
-const (
-	assetTypeBigQueryTable   = "bigquery.googleapis.com/Table"
-	assetTypeBigQueryDataset = "bigquery.googleapis.com/Dataset"
-)
-
-// Bounded relationship types for BigQuery Table edges. They are stable, bounded
-// provider relationship strings carried on gcp_cloud_relationship facts; the
-// reducer materializes an edge only when both endpoints resolve exactly.
-const (
-	relationshipTypeBigQueryTableInDataset      = "bigquery_table_in_dataset"
-	relationshipTypeBigQueryTableKMSKey         = "bigquery_table_encrypted_by_kms_key"
-	relationshipTypeBigQueryTableExternalSource = "bigquery_table_reads_external_source"
-	bigQueryResourceNamePrefix                  = "//bigquery.googleapis.com/"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeBigQueryTable, extractBigQueryTable)
+	RegisterAssetExtractor(catalog.AssetTypeBigQueryTable, extractBigQueryTable)
 }
 
 // bigQueryTableData is the bounded view of a CAI bigquery.googleapis.com/Table
@@ -88,18 +72,18 @@ func extractBigQueryTable(ctx ExtractContext) (AttributeExtraction, error) {
 	datasetName := bigQueryDatasetFullName(ctx, data)
 	if datasetName != "" {
 		anchors = append(anchors, datasetName)
-		rels = append(rels, bigQueryTableEdge(ctx, relationshipTypeBigQueryTableInDataset, datasetName, assetTypeBigQueryDataset))
+		rels = append(rels, bigQueryTableEdge(ctx, catalog.RelationshipTypeBigQueryTableInDataset, datasetName, catalog.AssetTypeBigQueryDataset))
 	}
 
 	if kms := encryptionKMSKeyName(data); kms != "" {
 		attrs["kms_key_name"] = kms
 		kmsName := cloudKMSResourceNamePrefix + kms
 		anchors = append(anchors, kmsName)
-		rels = append(rels, bigQueryTableEdge(ctx, relationshipTypeBigQueryTableKMSKey, kmsName, assetTypeKMSCryptoKey))
+		rels = append(rels, bigQueryTableEdge(ctx, catalog.RelationshipTypeBigQueryTableKMSKey, kmsName, assetTypeKMSCryptoKey))
 	}
 
 	for _, bucketName := range externalBucketNames(data) {
-		rels = append(rels, bigQueryTableEdge(ctx, relationshipTypeBigQueryTableExternalSource, bucketName, assetTypeStorageBucket))
+		rels = append(rels, bigQueryTableEdge(ctx, catalog.RelationshipTypeBigQueryTableExternalSource, bucketName, assetTypeStorageBucket))
 	}
 
 	return AttributeExtraction{
@@ -163,7 +147,7 @@ func bigQueryDatasetFullName(ctx ExtractContext, data bigQueryTableData) string 
 	project := firstNonEmpty(data.TableReference.ProjectID, ctx.ProjectID)
 	dataset := strings.TrimSpace(data.TableReference.DatasetID)
 	if project != "" && dataset != "" {
-		return fmt.Sprintf("%sprojects/%s/datasets/%s", bigQueryResourceNamePrefix, project, dataset)
+		return fmt.Sprintf("%sprojects/%s/datasets/%s", catalog.BigQueryResourceNamePrefix, project, dataset)
 	}
 	if idx := strings.Index(ctx.FullResourceName, "/tables/"); idx > 0 {
 		return ctx.FullResourceName[:idx]

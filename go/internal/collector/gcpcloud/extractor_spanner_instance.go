@@ -7,34 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
-
-// assetTypeSpannerInstance is the Cloud Asset Inventory asset type for a Cloud
-// Spanner Instance. assetTypeSpannerInstanceConfig is the CAI asset type for
-// the instance's regional/multi-region topology config, a separately
-// CAI-inventoried resource (per the Cloud Asset Inventory supported-asset-types
-// list), which is why the config reference resolves to a real typed edge rather
-// than staying an opaque attribute.
-const (
-	assetTypeSpannerInstance       = "spanner.googleapis.com/Instance"
-	assetTypeSpannerInstanceConfig = "spanner.googleapis.com/InstanceConfig"
-)
-
-// spannerResourceNamePrefix is the CAI full-resource-name prefix for Cloud
-// Spanner resources, used to build the InstanceConfig edge endpoint from the
-// instance's `config` reference (a "projects/<p>/instanceConfigs/<id>" relative
-// name in the Spanner API).
-const spannerResourceNamePrefix = "//spanner.googleapis.com/"
-
-// relationshipTypeSpannerInstanceUsesInstanceConfig is the bounded provider
-// relationship type carried on a gcp_cloud_relationship fact for the edge from
-// a Spanner Instance to the InstanceConfig that defines its regional or
-// multi-region topology. The reducer materializes the edge only when both
-// endpoints resolve exactly.
-const relationshipTypeSpannerInstanceUsesInstanceConfig = "spanner_instance_uses_instance_config"
 
 func init() {
-	RegisterAssetExtractor(assetTypeSpannerInstance, extractSpannerInstance)
+	RegisterAssetExtractor(catalog.AssetTypeSpannerInstance, extractSpannerInstance)
 }
 
 // spannerInstanceData is the bounded view of a CAI spanner.googleapis.com/Instance
@@ -93,9 +71,9 @@ func extractSpannerInstance(ctx ExtractContext) (AttributeExtraction, error) {
 		rels = append(rels, RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
-			RelationshipType:       relationshipTypeSpannerInstanceUsesInstanceConfig,
+			RelationshipType:       catalog.RelationshipTypeSpannerInstanceUsesInstanceConfig,
 			TargetFullResourceName: configName,
-			TargetAssetType:        assetTypeSpannerInstanceConfig,
+			TargetAssetType:        catalog.AssetTypeSpannerInstanceConfig,
 			SupportState:           RelationshipSupportSupported,
 		})
 	}
@@ -172,15 +150,15 @@ func spannerInstanceConfigFullName(config, sourceProjectID string) string {
 	if trimmed == "" {
 		return ""
 	}
-	if strings.HasPrefix(trimmed, spannerResourceNamePrefix) {
+	if strings.HasPrefix(trimmed, catalog.SpannerResourceNamePrefix) {
 		return trimmed
 	}
 	if strings.HasPrefix(trimmed, "projects/") {
-		return spannerResourceNamePrefix + trimmed
+		return catalog.SpannerResourceNamePrefix + trimmed
 	}
 	project := strings.TrimSpace(sourceProjectID)
 	if project == "" {
 		return ""
 	}
-	return spannerResourceNamePrefix + "projects/" + project + "/instanceConfigs/" + trimmed
+	return catalog.SpannerResourceNamePrefix + "projects/" + project + "/instanceConfigs/" + trimmed
 }

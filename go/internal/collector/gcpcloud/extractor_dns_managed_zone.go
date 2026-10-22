@@ -7,25 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// dnsManagedZoneAssetType is the Cloud Asset Inventory asset type for a Cloud
-// DNS Managed Zone. It is distinct from assetTypeDNSResourceRecordSet, which
-// covers the zone's own record sets and flows through the separate
-// gcp_dns_record fact family (parseDNSRecords), not this typed-depth extractor.
-const dnsManagedZoneAssetType = "dns.googleapis.com/ManagedZone"
-
-// Bounded provider relationship types for the Managed Zone's network edges.
-// They are stable provider relationship strings carried on
-// gcp_cloud_relationship facts; the reducer materializes an edge only when both
-// endpoints resolve exactly.
-const (
-	// relationshipTypeManagedZoneVisibleFromNetwork marks a private zone's bind
-	// to a VPC network that can resolve it (privateVisibilityConfig.networks).
-	relationshipTypeManagedZoneVisibleFromNetwork = "dns_managed_zone_visible_from_network"
-	// relationshipTypeManagedZonePeersWithNetwork marks a DNS peering zone's
-	// forwarding bind to the peer VPC network (peeringConfig.targetNetwork).
-	relationshipTypeManagedZonePeersWithNetwork = "dns_managed_zone_peers_with_network"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 // dnsManagedZoneData is the bounded view of a CAI dns.googleapis.com/ManagedZone
@@ -60,7 +43,7 @@ type dnsManagedZoneData struct {
 }
 
 func init() {
-	RegisterAssetExtractor(dnsManagedZoneAssetType, extractDNSManagedZone)
+	RegisterAssetExtractor(catalog.DNSManagedZoneAssetType, extractDNSManagedZone)
 }
 
 // extractDNSManagedZone extracts bounded, redaction-safe typed depth for one
@@ -102,7 +85,7 @@ func extractDNSManagedZone(ctx ExtractContext) (AttributeExtraction, error) {
 			}
 			networkCount++
 			anchors = append(anchors, name)
-			rels = append(rels, dnsManagedZoneEdge(ctx, relationshipTypeManagedZoneVisibleFromNetwork, name))
+			rels = append(rels, dnsManagedZoneEdge(ctx, catalog.RelationshipTypeManagedZoneVisibleFromNetwork, name))
 		}
 		if networkCount > 0 {
 			attrs["private_network_count"] = networkCount
@@ -121,7 +104,7 @@ func extractDNSManagedZone(ctx ExtractContext) (AttributeExtraction, error) {
 		name := computeFullResourceNameFromSelfLink(data.PeeringConfig.TargetNetwork.NetworkURL, ctx.ProjectID)
 		if name != "" {
 			anchors = append(anchors, name)
-			rels = append(rels, dnsManagedZoneEdge(ctx, relationshipTypeManagedZonePeersWithNetwork, name))
+			rels = append(rels, dnsManagedZoneEdge(ctx, catalog.RelationshipTypeManagedZonePeersWithNetwork, name))
 		}
 	}
 

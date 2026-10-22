@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const bigQueryTableFullName = "//bigquery.googleapis.com/projects/demo-project/datasets/analytics/tables/events"
@@ -14,15 +16,15 @@ const bigQueryTableFullName = "//bigquery.googleapis.com/projects/demo-project/d
 func bigQueryTableContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: bigQueryTableFullName,
-		AssetType:        assetTypeBigQueryTable,
+		AssetType:        catalog.AssetTypeBigQueryTable,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestBigQueryTableExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeBigQueryTable); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeBigQueryTable)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeBigQueryTable); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeBigQueryTable)
 	}
 }
 
@@ -76,9 +78,9 @@ func TestExtractBigQueryTableManagedTable(t *testing.T) {
 		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeBigQueryTableInDataset,
-		"//bigquery.googleapis.com/projects/demo-project/datasets/analytics", assetTypeBigQueryDataset)
-	assertRelationship(t, got.Relationships, relationshipTypeBigQueryTableKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigQueryTableInDataset,
+		"//bigquery.googleapis.com/projects/demo-project/datasets/analytics", catalog.AssetTypeBigQueryDataset)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigQueryTableKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1", assetTypeKMSCryptoKey)
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 relationships (dataset, kms), got %d: %#v", len(got.Relationships), got.Relationships)
@@ -87,8 +89,8 @@ func TestExtractBigQueryTableManagedTable(t *testing.T) {
 		if rel.SourceFullResourceName != bigQueryTableFullName {
 			t.Errorf("relationship source = %q, want table full name", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != assetTypeBigQueryTable {
-			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, assetTypeBigQueryTable)
+		if rel.SourceAssetType != catalog.AssetTypeBigQueryTable {
+			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.AssetTypeBigQueryTable)
 		}
 	}
 }
@@ -114,13 +116,13 @@ func TestExtractBigQueryTableExternalSources(t *testing.T) {
 		t.Errorf("external_source_format = %v, want CSV", got.Attributes["external_source_format"])
 	}
 	// Two distinct buckets; object paths are dropped (data-plane locator).
-	assertRelationship(t, got.Relationships, relationshipTypeBigQueryTableExternalSource,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigQueryTableExternalSource,
 		"//storage.googleapis.com/projects/_/buckets/landing-bucket", assetTypeStorageBucket)
-	assertRelationship(t, got.Relationships, relationshipTypeBigQueryTableExternalSource,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigQueryTableExternalSource,
 		"//storage.googleapis.com/projects/_/buckets/archive-bucket", assetTypeStorageBucket)
 	externalCount := 0
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeBigQueryTableExternalSource {
+		if rel.RelationshipType == catalog.RelationshipTypeBigQueryTableExternalSource {
 			externalCount++
 		}
 	}
@@ -160,8 +162,8 @@ func TestExtractBigQueryTableEmptyDataDerivesDatasetFromName(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected only the derived dataset edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBigQueryTableInDataset,
-		"//bigquery.googleapis.com/projects/demo-project/datasets/analytics", assetTypeBigQueryDataset)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigQueryTableInDataset,
+		"//bigquery.googleapis.com/projects/demo-project/datasets/analytics", catalog.AssetTypeBigQueryDataset)
 }
 
 func TestExtractBigQueryTableMalformedDataErrors(t *testing.T) {

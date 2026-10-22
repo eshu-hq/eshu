@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const gkeClusterFullName = "//container.googleapis.com/projects/demo-project/locations/us-central1/clusters/prod"
@@ -142,9 +143,9 @@ func TestExtractGKEClusterFullConfig(t *testing.T) {
 		t.Fatalf("anchors mismatch: %s\n got %#v\nwant %#v", diff, got.CorrelationAnchors, wantAnchors)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeGKEClusterUsesNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeGKEClusterUsesNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/vpc-main", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeGKEClusterUsesSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeGKEClusterUsesSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/sub-main", assetTypeComputeSubnetwork)
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 relationships (network, subnetwork), got %d: %#v", len(got.Relationships), got.Relationships)
@@ -168,9 +169,9 @@ func TestExtractGKEClusterBareNetworkName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeGKEClusterUsesNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeGKEClusterUsesNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/default", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeGKEClusterUsesSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeGKEClusterUsesSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/default", assetTypeComputeSubnetwork)
 }
 
@@ -226,7 +227,7 @@ func TestExtractGKEClusterZonalSubnetworkNormalizesToRegion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeGKEClusterUsesSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeGKEClusterUsesSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/default", assetTypeComputeSubnetwork)
 }
 

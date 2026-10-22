@@ -9,28 +9,11 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
-)
-
-// Asset types and full-resource-name prefixes for the Cloud Build Build endpoints.
-// The Storage Bucket endpoint reuses storageBucketResourceNamePrefixFmt and the
-// project/location parser is shared with the Cloud Functions extractor.
-const (
-	assetTypeCloudBuild          = "cloudbuild.googleapis.com/Build"
-	assetTypeCloudBuildTrigger   = "cloudbuild.googleapis.com/BuildTrigger"
-	assetTypeSourceRepo          = "sourcerepo.googleapis.com/Repository"
-	cloudBuildResourceNamePrefix = "//cloudbuild.googleapis.com/"
-	sourceRepoResourceNamePrefix = "//sourcerepo.googleapis.com/"
-)
-
-// Bounded provider relationship types for Cloud Build Build edges.
-const (
-	relationshipTypeBuildTriggeredBy  = "build_triggered_by"
-	relationshipTypeBuildSourceBucket = "build_source_bucket"
-	relationshipTypeBuildSourceRepo   = "build_source_repo"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeCloudBuild, extractCloudBuild)
+	RegisterAssetExtractor(catalog.AssetTypeCloudBuild, extractCloudBuild)
 }
 
 // cloudBuildData is the bounded view of a CAI cloudbuild.googleapis.com/Build
@@ -91,7 +74,7 @@ func extractCloudBuild(ctx ExtractContext) (AttributeExtraction, error) {
 	anchors = append(anchors, digests...)
 	if trigger := cloudBuildTriggerFullName(ctx.FullResourceName, data.BuildTriggerID); trigger != "" {
 		anchors = append(anchors, trigger)
-		rels = append(rels, cloudBuildEdge(ctx, relationshipTypeBuildTriggeredBy, trigger, assetTypeCloudBuildTrigger))
+		rels = append(rels, cloudBuildEdge(ctx, catalog.RelationshipTypeBuildTriggeredBy, trigger, catalog.AssetTypeCloudBuildTrigger))
 	}
 	if data.Source.RepoSource != nil {
 		// repoSource.projectId is optional and defaults to the build's own
@@ -102,14 +85,14 @@ func extractCloudBuild(ctx ExtractContext) (AttributeExtraction, error) {
 		}
 		if repo := cloudBuildSourceRepoFullName(repoProject, data.Source.RepoSource.RepoName); repo != "" {
 			anchors = append(anchors, repo)
-			rels = append(rels, cloudBuildEdge(ctx, relationshipTypeBuildSourceRepo, repo, assetTypeSourceRepo))
+			rels = append(rels, cloudBuildEdge(ctx, catalog.RelationshipTypeBuildSourceRepo, repo, catalog.AssetTypeSourceRepo))
 		}
 	}
 	if data.Source.StorageSource != nil {
 		if bucket := strings.TrimSpace(data.Source.StorageSource.Bucket); bucket != "" {
 			full := storageBucketResourceNamePrefixFmt + bucket
 			anchors = append(anchors, full)
-			rels = append(rels, cloudBuildEdge(ctx, relationshipTypeBuildSourceBucket, full, assetTypeStorageBucket))
+			rels = append(rels, cloudBuildEdge(ctx, catalog.RelationshipTypeBuildSourceBucket, full, assetTypeStorageBucket))
 		}
 	}
 
@@ -229,9 +212,9 @@ func cloudBuildTriggerFullName(buildFullName, triggerID string) string {
 		return ""
 	}
 	if location != "" {
-		return cloudBuildResourceNamePrefix + "projects/" + project + "/locations/" + location + "/triggers/" + id
+		return catalog.CloudBuildResourceNamePrefix + "projects/" + project + "/locations/" + location + "/triggers/" + id
 	}
-	return cloudBuildResourceNamePrefix + "projects/" + project + "/triggers/" + id
+	return catalog.CloudBuildResourceNamePrefix + "projects/" + project + "/triggers/" + id
 }
 
 // cloudBuildSourceRepoFullName builds the CAI Cloud Source Repositories repository
@@ -243,7 +226,7 @@ func cloudBuildSourceRepoFullName(projectID, repoName string) string {
 	if project == "" || repo == "" {
 		return ""
 	}
-	return sourceRepoResourceNamePrefix + "projects/" + project + "/repos/" + repo
+	return catalog.SourceRepoResourceNamePrefix + "projects/" + project + "/repos/" + repo
 }
 
 func cloudBuildEdge(ctx ExtractContext, relationshipType, targetName, targetType string) RelationshipObservation {
