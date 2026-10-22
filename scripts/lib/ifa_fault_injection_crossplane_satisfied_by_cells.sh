@@ -42,8 +42,9 @@
 # either function's fail-closed behavior or its bg_pids bookkeeping will
 # fail `make pre-pr`.
 #
-# crossplane_satisfied_by spans TWO scopes (claims + platform) and ONE
-# shared generation. The handler
+# crossplane_satisfied_by spans TWO scopes (claims + platform), each with
+# its own generation (gen-...-claims-1 / gen-...-platform-1 in the committed
+# cassette). The handler
 # (CrossplaneSatisfiedByMaterializationHandler) claims a
 # fact_work_items row under domain "crossplane_satisfied_by_materialization",
 # loads its facts via factload through loadEdgeFacts -> FROM fact_records

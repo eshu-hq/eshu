@@ -228,7 +228,7 @@ cloud_resource_container_image_expected_edges="${repo_root}/go/internal/ifa/test
 # File hangs off Repository), so without them the entity statements complete
 # having written nothing. Two edge-producing claims join
 # (database.example.com, PostgreSQL) against the single postgresql XRD;
-# seven deliberate non-producers cover the ambiguous-match, zero-match,
+# five deliberate non-producer branches cover the ambiguous-match, zero-match,
 # core-group, cluster-scoped-XRD and tombstone branches. Both git scopes
 # own their per-scope generation and carry repo_id in scope metadata (the
 # projector keys content materialization off it); the platform generation

@@ -20,7 +20,7 @@ IFA_FAMILY_PIN_BLOCKER_KIND="table_lock:fact_records"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # The fact_work_items.domain the projector fans this family out under, taken
 # from BuildCrossplaneSatisfiedByMaterializationReducerIntent
-# (go/internal/projector/crossplane/satisfaction/satisfied_by_intents.go:54),
+# (go/internal/projector/crossplane/satisfaction/satisfied_by_intents.go:50),
 # and corroborated by the domain definition
 # (DomainCrossplaneSatisfiedByMaterialization in
 # go/internal/reducer/contract/domain.go:57).

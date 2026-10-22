@@ -44,7 +44,7 @@ IFA_FAMILY_BLOCKER_KIND[crossplane_satisfied_by]="table_lock:fact_records"
 IFA_FAMILY_WAIT_STAGE[crossplane_satisfied_by]="handler"
 # The fact_work_items.domain the projector fans this family out under, read
 # off BuildCrossplaneSatisfiedByMaterializationReducerIntent
-# (go/internal/projector/crossplane/satisfaction/satisfied_by_intents.go:54),
+# (go/internal/projector/crossplane/satisfaction/satisfied_by_intents.go:50),
 # and corroborated by the domain definition
 # (DomainCrossplaneSatisfiedByMaterialization in
 # go/internal/reducer/contract/domain.go:57). The live cell asserts the
