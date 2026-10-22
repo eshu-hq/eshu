@@ -57,7 +57,7 @@ func Tools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        CallToolName,
-			Description: "Run one Eshu tool by name with its arguments, as found by find_tool. Arguments are checked against the tool's input schema first. The response is the same as calling the tool directly. It cannot call find_tool or call_tool.",
+			Description: "Run one Eshu tool by name with its arguments, as found by find_tool. Arguments are checked against the tool's input schema first. The response is the same as calling the tool directly. It cannot call find_tool, call_tool, or ask.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

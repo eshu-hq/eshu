@@ -6,6 +6,7 @@ package router
 import (
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -106,6 +107,9 @@ func TestCallToolSchema(t *testing.T) {
 	}
 	if props["name"].(map[string]any)["type"] != "string" {
 		t.Fatalf("name type = %v, want string", props["name"].(map[string]any)["type"])
+	}
+	if desc := Tools()[1].Description; !strings.Contains(desc, "find_tool, call_tool, or ask") {
+		t.Fatalf("call_tool description must name the refused targets find_tool, call_tool, and ask: %q", desc)
 	}
 	if props["arguments"].(map[string]any)["type"] != "object" {
 		t.Fatalf("arguments type = %v, want object", props["arguments"].(map[string]any)["type"])
