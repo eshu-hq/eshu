@@ -9,8 +9,8 @@
 // repeated across many descriptions, such as the scoped-token refusal sentence,
 // is removed before scoring. Input-schema property names let supplied anchors
 // prefer the tools that accept them. Equal scores order by Canonical, cheaper
-// Cost, then name, so the same query on the same build always returns the same
-// order.
+// Cost, then name, then registry position, so the same query on the same build
+// always returns the same order.
 //
 // The corpus index is built once by New. Rank filters with the caller's
 // allowed func before it scores, so a hidden tool never appears and never

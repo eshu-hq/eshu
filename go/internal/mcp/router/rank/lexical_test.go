@@ -79,7 +79,8 @@ func TestRankTieBreakOrder(t *testing.T) {
 		"beta_d": {Name: "beta_d", Cost: catalog.CostHigh, Canonical: true},
 	}
 	got := rankWith(t, tools, entries, router.Query{Intent: "zebra", Limit: 10})
-	// Canonical first, then cheaper cost, then name.
+	// Canonical first, then cheaper cost, then name (registry position breaks a
+	// remaining tie).
 	if want := []string{"beta_d", "beta_b", "beta_c", "beta_a"}; !equalStrings(names(got), want) {
 		t.Fatalf("order = %v, want %v", names(got), want)
 	}

@@ -92,7 +92,7 @@ type scored struct {
 // alone, so a hidden tool never shifts a visible tool's score. A blank intent,
 // an intent that is all stopwords, an intent with no match, and a Limit below 1
 // return no candidates and no error. Candidates with equal scores order by
-// Canonical, then cheaper Cost, then name.
+// Canonical, then cheaper Cost, then name, then registry position.
 func (l *Lexical) Rank(ctx context.Context, q router.Query, tools []toolcontract.ToolDefinition,
 	entries map[string]catalog.Entry, allowed func(name string) bool,
 ) ([]router.Candidate, error) {
