@@ -126,10 +126,8 @@ func buildDoc(t toolcontract.ToolDefinition, e catalog.Entry, boiler *boilerplat
 	}
 	if schema, ok := t.InputSchema.(map[string]any); ok {
 		d.schema = schema
-		if props, ok := schema["properties"].(map[string]any); ok {
-			for name := range props {
-				d.props[name] = struct{}{}
-			}
+		for _, name := range propertyNames(schema) {
+			d.props[name] = struct{}{}
 		}
 	}
 	return d

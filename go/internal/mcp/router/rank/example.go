@@ -20,7 +20,7 @@ func example(schema map[string]any, anchors router.Anchors) map[string]any {
 	if schema == nil {
 		return nil
 	}
-	props, _ := schema["properties"].(map[string]any)
+	props := propertySchemas(schema)
 	out := map[string]any{}
 	for _, a := range anchorPairs(anchors) {
 		if _, ok := props[a.prop]; ok {
@@ -33,47 +33,27 @@ func example(schema map[string]any, anchors router.Anchors) map[string]any {
 		}
 		out[name] = placeholder(name, props[name])
 	}
-	for name, raw := range props {
+	for name, prop := range props {
 		if _, set := out[name]; set {
 			continue
 		}
-		if prop, ok := raw.(map[string]any); ok {
-			if def, has := prop["default"]; has {
-				out[name] = cloneValue(def)
-			}
+		if def, has := prop["default"]; has {
+			out[name] = cloneValue(def)
 		}
 	}
 	return out
 }
 
-// requiredNames reads a schema's required list, which the registry writes as
-// either []string or []any.
-func requiredNames(schema map[string]any) []string {
-	switch r := schema["required"].(type) {
-	case []string:
-		return r
-	case []any:
-		out := make([]string, 0, len(r))
-		for _, v := range r {
-			if s, ok := v.(string); ok {
-				out = append(out, s)
-			}
-		}
-		return out
-	}
-	return nil
-}
-
-// placeholder returns the sample value for one required property.
-func placeholder(name string, raw any) any {
-	prop, _ := raw.(map[string]any)
+// placeholder returns the sample value for one required property: its schema
+// default, then the first enum value, then a placeholder by type.
+func placeholder(name string, prop map[string]any) any {
 	if def, ok := prop["default"]; ok {
 		return cloneValue(def)
 	}
-	if enum, ok := prop["enum"].([]any); ok && len(enum) > 0 {
-		return cloneValue(enum[0])
+	if first, ok := firstEnum(prop); ok {
+		return cloneValue(first)
 	}
-	switch prop["type"] {
+	switch typeName(prop) {
 	case "integer", "number":
 		return 1
 	case "boolean":
@@ -86,7 +66,9 @@ func placeholder(name string, raw any) any {
 	return "<" + name + ">"
 }
 
-// cloneValue deep-copies the JSON-shaped containers a schema default can hold.
+// cloneValue deep-copies the container types a schema default can hold, so
+// mutating an example never reaches the registry definition. Scalars are
+// immutable and returned as is.
 func cloneValue(v any) any {
 	switch t := v.(type) {
 	case map[string]any:
@@ -99,6 +81,20 @@ func cloneValue(v any) any {
 		out := make([]any, len(t))
 		for i, e := range t {
 			out[i] = cloneValue(e)
+		}
+		return out
+	case []string:
+		return append([]string(nil), t...)
+	case []int:
+		return append([]int(nil), t...)
+	case []float64:
+		return append([]float64(nil), t...)
+	case []bool:
+		return append([]bool(nil), t...)
+	case map[string]string:
+		out := make(map[string]string, len(t))
+		for k, e := range t {
+			out[k] = e
 		}
 		return out
 	}

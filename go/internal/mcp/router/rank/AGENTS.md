@@ -16,8 +16,8 @@
   frequencies and average length over the allowed tools only. A hidden tool must
   never appear or shift a score.
 - A nil `allowed` returns `ErrNilAllowed`. Never treat nil as "allow all".
-- Tie-break order is `Canonical`, then cheaper `Cost`, then name. A tool with no
-  catalog entry has `CostHigh`.
+- Tie-break order is `Canonical`, then cheaper `Cost`, then name, then registry
+  position. A tool with no catalog entry has `CostHigh`.
 - Anchors only boost tools whose lexical score is already above zero.
 - Build the index in `New`. `Rank` must not rebuild it for the same inputs;
   `TestRankBuildsIndexOnce` checks the build counter. Reuse is by identity of the

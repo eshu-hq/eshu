@@ -62,7 +62,8 @@ flowchart LR
 - **`Example`.** Built from the input schema: required properties, properties
   with a `default`, and the anchors the query supplied that the tool accepts.
   Anchor properties carry the supplied value; other required properties use the
-  schema default, the first enum value, or a type placeholder (`"<name>"`, `1`,
+  schema default, the first enum value (`[]string` or `[]any`), or a type
+  placeholder (`"<name>"`, `1`,
   `false`, `[]`, `{}`). A tool with no arguments gets `{}`. Values are cloned from
   the schema.
 
