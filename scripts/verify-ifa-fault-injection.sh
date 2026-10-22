@@ -25,7 +25,7 @@
 # The shard mirror derives the current cell count from its hand-authored
 # roster and cross-checks this script's dispatch block. Cell libraries are
 # split by family under scripts/lib/ifa_fault_injection_*_cells.sh; the
-# symbol-runtime library owns cells 69-75 for issues #5995/#6000/#5997.
+# symbol-runtime library owns cells 70-76 for issues #5995/#6000/#5997.
 # The delta cell's full-node collateral comparator is split into
 # scripts/lib/ifa_fault_injection_collateral_nodes.sh:
 #

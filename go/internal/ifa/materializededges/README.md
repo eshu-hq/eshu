@@ -385,8 +385,9 @@ deriving the canonical `oci-descriptor://registry/repository@digest` source
 id) lives in guard code only; the production BUILT_FROM writer template and
 the OCI canonical node writer are untouched, so live graph truth is unchanged
 and only the guard's expectation moves to match it. The derivation mirrors
-`ociDescriptorUID` exactly (same prefix guard, same trim, same form), and the
-fail-closed paths red instead of asserting less.
+`ociDescriptorUID`'s prefix guard and construction form; it does not copy the
+canonical TrimSpace, so a padded input reds the guard visibly instead of
+asserting wrong, and the fail-closed paths red instead of asserting less.
 
 - Baseline: origin/main 9917c92869 (resolver used the row's bare digest).
 - After: `go -C go test ./internal/ifa/...` all ok, including the guard's
