@@ -4,6 +4,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -131,5 +132,83 @@ func TestDispatchRedirectStatusIsNotSuccess(t *testing.T) {
 				t.Fatalf("status %d: error = %v, want it to name the HTTP status", status, err)
 			}
 		}
+	}
+}
+
+// TestDispatchRedirectLogsWarnOnEveryResponseShape pins the operator signal for
+// a 3xx: one warn line carrying tool, status, path, and location, whether the
+// redirect body is empty (plain path) or a canonical envelope.
+func TestDispatchRedirectLogsWarnOnEveryResponseShape(t *testing.T) {
+	t.Parallel()
+	for name, body := range map[string]string{
+		"empty body":    "",
+		"envelope body": `{"data":null,"truth":null,"error":null}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", "/elsewhere")
+				w.WriteHeader(http.StatusTemporaryRedirect)
+				_, _ = io.WriteString(w, body)
+			})
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
+			_, _ = dispatchTool(context.Background(), handler, "get_workload_story",
+				map[string]any{"workload_id": "w1"}, "", logger)
+
+			var warns []map[string]any
+			for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+				if line == "" {
+					continue
+				}
+				var entry map[string]any
+				if err := json.Unmarshal([]byte(line), &entry); err != nil {
+					t.Fatalf("log line %q is not JSON: %v", line, err)
+				}
+				if entry["msg"] == "mcp tool dispatch got a redirect, not a handler answer" {
+					warns = append(warns, entry)
+				}
+			}
+			if len(warns) != 1 {
+				t.Fatalf("redirect warn lines = %d, want 1; logs = %s", len(warns), logs.String())
+			}
+			want := map[string]any{
+				"level": "WARN", "tool": "get_workload_story", "status": float64(307),
+				"path": "/api/v0/workloads/w1/story", "location": "/elsewhere",
+			}
+			for key, value := range want {
+				if warns[0][key] != value {
+					t.Errorf("warn field %s = %v, want %v", key, warns[0][key], value)
+				}
+			}
+		})
+	}
+}
+
+// TestEveryEmptyPathSegmentRefusalNamesAField walks the whole registry instead
+// of the hand-written emptyPathIDTools list: any tool whose route carries "//"
+// for empty arguments must be refused with an error that names a field, so a
+// future tool with an id in its path but not in its schema "required" list
+// fails here (#8772).
+func TestEveryEmptyPathSegmentRefusalNamesAField(t *testing.T) {
+	t.Parallel()
+	refused := 0
+	for _, tool := range ReadOnlyTools() {
+		route, err := selectRoute(tool.Name, map[string]any{})
+		if err != nil || !strings.Contains(route.Path, "//") {
+			continue
+		}
+		refused++
+		_, err = resolveRoute(tool.Name, map[string]any{})
+		if err == nil {
+			t.Errorf("%s: resolveRoute accepted route %s with an empty segment", tool.Name, route.Path)
+			continue
+		}
+		if !strings.HasSuffix(err.Error(), " is required") || strings.Contains(err.Error(), "required path argument") {
+			t.Errorf("%s: error = %q, want it to name the missing schema-required field", tool.Name, err)
+		}
+	}
+	if refused == 0 {
+		t.Fatal("no registered tool produced an empty path segment; the walk is not exercising the guard")
 	}
 }

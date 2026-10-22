@@ -13,6 +13,10 @@ names the empty required arguments from the tool's `InputSchema`
 (`workload_id is required`). The status check in `dispatchToolWithOptions` is
 the backstop for any redirect that still gets through.
 
+Two tools, `get_relationship_evidence` and `investigate_service`, end in `/`
+rather than `//` when their id is empty. The mux answers those with a 404, which
+was already an error, so the empty-segment guard leaves them alone.
+
 No-Regression Evidence: baseline is `origin/main` `de1e830767`; after is the
 head that carries this note. Measured on Go 1.26.10, linux/arm64, 16 CPUs, a
 shared host with a load average near 20 (not quiet, so single runs swing by up
@@ -42,7 +46,7 @@ benchmark caught. Response budget, timeout, and envelope handling are
 unchanged. `TestDirectCallWithPathIDStillSucceeds` pins that a call with its id
 set still succeeds.
 
-Observability Evidence: a handler status of 3xx logs `mcp tool dispatch got a
+Observability Evidence: a handler status of 3xx, with an empty, plain, or envelope body, logs `mcp tool dispatch got a
 redirect, not a handler answer` at warn level with the fields `tool`, `status`,
 `path`, and `location`; grep for that message to find the route builder that
 produced it. The caller sees `isError: true` with the text `HTTP 307: ...`. A

@@ -103,6 +103,16 @@ func dispatchToolWithOptions(
 		return nil, dispatchContextError(toolName, timeout, err, logger)
 	}
 
+	if rec.Code >= 300 && rec.Code < 400 {
+		// No MCP-reachable route redirects on purpose, so a 3xx means the
+		// request never reached its handler (#8772). Warn before the body is
+		// parsed so an envelope-shaped redirect body logs too, and an operator
+		// can find the route builder that produced it.
+		logger.Warn("mcp tool dispatch got a redirect, not a handler answer",
+			"tool", toolName, "status", rec.Code, "path", route.Path,
+			"location", rec.Header().Get("Location"))
+	}
+
 	if envelope, ok := parseCanonicalEnvelope(rec.Body.Bytes()); ok {
 		return applyResponseBudget(&dispatchResult{
 			Value:    envelope,
@@ -112,14 +122,6 @@ func dispatchToolWithOptions(
 	}
 
 	if !dispatchStatusSucceeded(rec.Code) {
-		if rec.Code >= 300 && rec.Code < 400 {
-			// No MCP-reachable route redirects on purpose, so a 3xx means
-			// the request never reached its handler (#8772). Warn so an
-			// operator can find the route builder that produced it.
-			logger.Warn("mcp tool dispatch got a redirect, not a handler answer",
-				"tool", toolName, "status", rec.Code, "path", route.Path,
-				"location", rec.Header().Get("Location"))
-		}
 		return nil, fmt.Errorf("HTTP %d: %s", rec.Code, rec.Body.String())
 	}
 
