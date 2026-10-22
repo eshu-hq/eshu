@@ -43,8 +43,9 @@ func proofFactCount(input map[string]facts.Envelope, scopeID, generationID strin
 }
 
 // proofGuardFactCounts mirrors successorGuardCountQuery over harness state:
-// collector rows exclude reducer-derived (reducer_-prefixed) kinds.
-func proofGuardFactCounts(input map[string]facts.Envelope, scopeID, generationID string) (collector, total int) {
+// collector rows exclude reducer-derived (reducer_-prefixed) kinds; file
+// rows count every file-kind row.
+func proofGuardFactCounts(input map[string]facts.Envelope, scopeID, generationID string) (collector, total, files int) {
 	for _, envelope := range input {
 		if envelope.ScopeID != scopeID || envelope.GenerationID != generationID {
 			continue
@@ -53,8 +54,11 @@ func proofGuardFactCounts(input map[string]facts.Envelope, scopeID, generationID
 		if !strings.HasPrefix(envelope.FactKind, "reducer_") {
 			collector++
 		}
+		if envelope.FactKind == "file" {
+			files++
+		}
 	}
-	return collector, total
+	return collector, total, files
 }
 
 func proofFactRows(input map[string]facts.Envelope, scopeID, generationID string) [][]any {

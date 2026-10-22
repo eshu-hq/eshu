@@ -88,6 +88,29 @@ func (s DeltaScope) Touched() map[string]struct{} {
 	return touched
 }
 
+// FilePath returns the repo-qualified file path OverlayDeltaBase matches env
+// against the touched set, or "" when env's kind is not file-attributable or
+// carries no usable path. Callers that size a delta's union (the #8750
+// destructive-successor guard) use it so their path matching is the
+// overlay's, byte for byte.
+func (s DeltaScope) FilePath(env Envelope) string {
+	return deltaUnionFilePath(env, s.RepoPath)
+}
+
+// LiveFileRelativePath returns env's relative path when env is a live
+// (non-tombstone) file fact, the rows the #8750 guard counts as a delta's
+// live files. Qualify the result with DeltaScope.FilePath.
+func LiveFileRelativePath(env Envelope) (string, bool) {
+	if env.IsTombstone || normalizeDeltaKind(env.FactKind) != "file" {
+		return "", false
+	}
+	rel, ok := env.Payload[deltaUnionRelativePathKey].(string)
+	if !ok || strings.TrimSpace(rel) == "" {
+		return "", false
+	}
+	return rel, true
+}
+
 // OverlayDeltaBase merges one delta generation's facts over its base full
 // generation's facts so a from-empty projection of the delta writes the full
 // repository tree, not only the delta's files:

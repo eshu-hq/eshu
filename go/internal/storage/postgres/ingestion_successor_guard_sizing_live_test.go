@@ -34,8 +34,30 @@ func (p *reprojectProof) commitGuardSizing(
 	changed, deleted []string,
 ) {
 	p.t.Helper()
+	p.commitGuardSizingStream(generation, files, extraCollectorFacts, changed, deleted, generation.IsDelta)
+}
+
+// commitGuardSizingWithoutRepositoryFact streams a delta's facts with no
+// delta_generation repository fact.
+func (p *reprojectProof) commitGuardSizingWithoutRepositoryFact(
+	generation scope.ScopeGeneration,
+	files []guardSizingFile,
+	extraCollectorFacts int,
+) {
+	p.t.Helper()
+	p.commitGuardSizingStream(generation, files, extraCollectorFacts, nil, nil, false)
+}
+
+func (p *reprojectProof) commitGuardSizingStream(
+	generation scope.ScopeGeneration,
+	files []guardSizingFile,
+	extraCollectorFacts int,
+	changed, deleted []string,
+	withRepositoryFact bool,
+) {
+	p.t.Helper()
 	envelopes := make([]facts.Envelope, 0, len(files)+extraCollectorFacts+1)
-	if generation.IsDelta {
+	if withRepositoryFact {
 		envelopes = append(envelopes, facts.Envelope{
 			FactID: generation.GenerationID + "-repository", ScopeID: generation.ScopeID,
 			GenerationID: generation.GenerationID, FactKind: "repository",
@@ -169,5 +191,175 @@ func TestGuardRefusesSharplyShrunkenFullOverReducerHeavyPriorLive(t *testing.T) 
 	}
 	if p.generationStored("gen-b") {
 		t.Fatal("gen-b was stored; a sharp shrink of collector rows must be refused")
+	}
+}
+
+// deltaGeneration builds a delta generation diffed from baseline.
+func (p *reprojectProof) deltaGeneration(id, hint, sha, baseline string) scope.ScopeGeneration {
+	generation := p.generation(id, hint, sha, "")
+	generation.IsDelta = true
+	generation.DeltaBaselineCommitSHA = baseline
+	return generation
+}
+
+// seedLargeFullPrior commits and projects gen-a at sha-a with files source
+// files and one entity each, then adds reducer rows, mirroring a projected
+// repository whose reducer domains have run.
+func (p *reprojectProof) seedLargeFullPrior(files, reducerRows int) {
+	p.t.Helper()
+	p.commitGuardSizing(p.generation("gen-a", "hint-a", "sha-a", ""), guardSizingFiles("f", files), files, nil, nil)
+	if got := p.project(); len(got) != 1 || got[0] != "gen-a" {
+		p.t.Fatalf("projected = %v, want [gen-a]", got)
+	}
+	p.seedReducerRows("gen-a", reducerRows)
+}
+
+func guardSizingPaths(prefix string, from, to int) []string {
+	paths := make([]string, 0, to-from)
+	for i := from; i < to; i++ {
+		paths = append(paths, fmt.Sprintf("%s%04d.go", prefix, i))
+	}
+	return paths
+}
+
+func guardSizingTombstones(paths []string) []guardSizingFile {
+	files := make([]guardSizingFile, 0, len(paths))
+	for _, path := range paths {
+		files = append(files, guardSizingFile{path: path, tombstone: true})
+	}
+	return files
+}
+
+func guardSizingLive(paths []string) []guardSizingFile {
+	files := make([]guardSizingFile, 0, len(paths))
+	for _, path := range paths {
+		files = append(files, guardSizingFile{path: path})
+	}
+	return files
+}
+
+// TestGuardStoresSmallDeltaOverLargePriorLive is the #8750 delta regression:
+// a webhook delta re-parsing 41 changed files carries only their facts, but
+// its projected union keeps every other file of the base. Sized by its own
+// stream it looked like a 90% shrink and was refused.
+func TestGuardStoresSmallDeltaOverLargePriorLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	p.seedLargeFullPrior(200, 300)
+
+	changed := guardSizingPaths("f", 0, 41)
+	p.commitGuardSizing(p.deltaGeneration("gen-b", "hint-b", "sha-b", "sha-a"), guardSizingLive(changed), 41, changed, nil)
+
+	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonDestructiveSuccessor); got != 0 {
+		t.Fatalf("destructive_successor skips = %d, want 0: a 41-file delta keeps the other 159 files", got)
+	}
+	if !p.generationStored("gen-b") {
+		t.Fatal("gen-b was not stored")
+	}
+}
+
+// TestGuardRefusesMassDeleteDeltaLive keeps the backstop sharp for deltas: a
+// delta whose diff deletes 150 of the base's 200 indexed files would leave a
+// 50-file union, a sharp shrink, so it is refused like the equivalent full.
+func TestGuardRefusesMassDeleteDeltaLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	p.seedLargeFullPrior(200, 300)
+
+	deleted := guardSizingPaths("f", 0, 150)
+	p.commitGuardSizing(p.deltaGeneration("gen-b", "hint-b", "sha-b", "sha-a"), guardSizingTombstones(deleted), 0, deleted, deleted)
+
+	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonDestructiveSuccessor); got != 1 {
+		t.Fatalf("destructive_successor skips = %d, want 1", got)
+	}
+	if p.generationStored("gen-b") {
+		t.Fatal("gen-b was stored; deleting 150 of 200 indexed files must be refused")
+	}
+}
+
+// TestGuardStoresRenameDeltaLive proves renames net to zero: git reports a
+// rename as the old path deleted and the new path changed, so moving 120 of
+// 200 files fails the zero-query lower bound and the exact probe stores it.
+func TestGuardStoresRenameDeltaLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	p.seedLargeFullPrior(200, 300)
+
+	oldPaths := guardSizingPaths("f", 0, 120)
+	newPaths := guardSizingPaths("moved/f", 0, 120)
+	files := append(guardSizingTombstones(oldPaths), guardSizingLive(newPaths)...)
+	p.commitGuardSizing(p.deltaGeneration("gen-b", "hint-b", "sha-b", "sha-a"), files, 120,
+		append(append([]string{}, oldPaths...), newPaths...), oldPaths)
+
+	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonDestructiveSuccessor); got != 0 {
+		t.Fatalf("destructive_successor skips = %d, want 0: a rename keeps every file", got)
+	}
+	if !p.generationStored("gen-b") {
+		t.Fatal("gen-b was not stored")
+	}
+}
+
+// TestGuardStoresDeltaDeletingNeverIndexedPathsLive proves the deleted list
+// is not taken at face value: git names every deleted path, including build
+// output Eshu never indexed. Removing 150 such paths removes no base file.
+func TestGuardStoresDeltaDeletingNeverIndexedPathsLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	p.seedLargeFullPrior(200, 300)
+
+	deleted := guardSizingPaths("dist/bundle", 0, 150)
+	p.commitGuardSizing(p.deltaGeneration("gen-b", "hint-b", "sha-b", "sha-a"), guardSizingTombstones(deleted), 0, deleted, deleted)
+
+	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonDestructiveSuccessor); got != 0 {
+		t.Fatalf("destructive_successor skips = %d, want 0: no indexed file was deleted", got)
+	}
+	if !p.generationStored("gen-b") {
+		t.Fatal("gen-b was not stored")
+	}
+}
+
+// TestGuardStoresDeltaWithMissingBaseLive leaves a delta with no projected
+// full generation at its baseline to the projector, which refuses it as
+// base-missing and arms the reindex watermark for a forced full. A refusal
+// here would arm nothing and loop on every webhook.
+func TestGuardStoresDeltaWithMissingBaseLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	p.seedLargeFullPrior(200, 300)
+
+	changed := guardSizingPaths("f", 0, 5)
+	p.commitGuardSizing(p.deltaGeneration("gen-b", "hint-b", "sha-b", "sha-unknown"), guardSizingLive(changed), 5, changed, nil)
+
+	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonDestructiveSuccessor); got != 0 {
+		t.Fatalf("destructive_successor skips = %d, want 0", got)
+	}
+	if !p.generationStored("gen-b") {
+		t.Fatal("gen-b was not stored")
+	}
+}
+
+// TestGuardSizesDeltaWithoutRepositoryFactAsFullLive fails closed when a
+// generation claims to be a delta but streams no delta_generation repository
+// fact: without the touched paths the union is unknowable, so the full rule
+// applies and a small stream over a large prior is refused.
+func TestGuardSizesDeltaWithoutRepositoryFactAsFullLive(t *testing.T) {
+	telemetry.ResetSkippedRefreshCountForTesting()
+	t.Cleanup(telemetry.ResetSkippedRefreshCountForTesting)
+	p := openReprojectProof(t)
+	p.seedLargeFullPrior(200, 300)
+
+	generation := p.deltaGeneration("gen-b", "hint-b", "sha-b", "sha-a")
+	p.commitGuardSizingWithoutRepositoryFact(generation, guardSizingLive(guardSizingPaths("f", 0, 41)), 41)
+
+	if got := telemetry.SkippedRefreshCountByReason(telemetry.RefreshSkipReasonDestructiveSuccessor); got != 1 {
+		t.Fatalf("destructive_successor skips = %d, want 1", got)
+	}
+	if p.generationStored("gen-b") {
+		t.Fatal("gen-b was stored; an unverifiable delta must be sized as a full")
 	}
 }

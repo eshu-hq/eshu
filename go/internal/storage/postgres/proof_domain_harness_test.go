@@ -294,7 +294,7 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		return newProofRows(nil), nil
 	case query == successorGuardCountQuery:
 		// The destructive-successor guard's prior counts (#8750): collector
-		// rows (reducer_ kinds excluded), then all rows. Matched by identity
+		// rows (reducer_ kinds excluded), all rows, and file rows. Matched by identity
 		// with the production constant for the same reason as countFactsQuery
 		// below.
 		if len(args) != 2 {
@@ -308,8 +308,8 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		if !ok {
 			return nil, fmt.Errorf("guard count generation_id type = %T, want string", args[1])
 		}
-		collector, total := proofGuardFactCounts(database.state.facts, scopeID, generationID)
-		return newProofRows([][]any{{collector, total}}), nil
+		collector, total, files := proofGuardFactCounts(database.state.facts, scopeID, generationID)
+		return newProofRows([][]any{{collector, total, files}}), nil
 	case query == countFactsQuery:
 		// The destructive-successor guard's prior fact count (#7926):
 		// matched by identity with the production constant so it cannot

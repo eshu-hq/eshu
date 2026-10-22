@@ -236,8 +236,8 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 					{rows: [][]any{{false, ""}}},
 					// The destructive-successor guard's prior fact count:
 					// three streamed facts over three prior collector facts
-					// stores (collector rows, then all rows; #8750).
-					{rows: [][]any{{3, 3}}},
+					// stores (collector rows, all rows, file rows; #8750).
+					{rows: [][]any{{3, 3, 0}}},
 				}
 			}
 			scopeValue, generation := reprojectFixture(tc.reason, tc.hint, tc.sha)

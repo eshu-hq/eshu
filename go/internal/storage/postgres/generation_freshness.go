@@ -8,9 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -18,7 +16,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // generationFreshnessSQL reads, in one statement (one snapshot), the scope's
@@ -381,64 +378,6 @@ WHERE generation_id = $1`
 // applies instead of re-parsing unconditionally. A truncated set forces the
 // next parse, since unrecorded drops cannot be re-checked. It runs a
 // statement only on a drop.
-// refuseDestructiveSuccessor evaluates the #7926 successor-emptiness
-// backstop after the fact stream lands, when the successor's size is known,
-// and before any projector work is enqueued; commitScopeGeneration is the
-// only caller. A refusal rolls the commit transaction back — mirroring the
-// finalized-generation replay — so the prior generation stays active,
-// records the refusal under the destructive-successor reason, and reports
-// handled: the next scheduled collection recollects and is re-evaluated,
-// instead of retrying a successor the store will never accept. The
-// projector never sees the refused generation, so observation-preserving
-// projection behavior is unchanged.
-//
-// It acquires no locks and issues no queries: the prior generation and its
-// guard counts arrive in prior, loaded before the transaction opened. The
-// predicate compares the successor with the prior's collector rows only
-// (#8750): reducer-derived rows are written into the prior after it
-// activates and no collector stream carries them. The prior may also be
-// flagged orphanFallback when only the candidate's own rows size it
-// flagged orphanFallback when only the candidate's own rows size it
-// (#8362). The caller marks its transaction closed and returns success
-// on a refusal.
-func (s IngestionStore) refuseDestructiveSuccessor(
-	ctx context.Context,
-	tx db.Transaction,
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-	prior successorPrior,
-	successorFacts int,
-) (bool, error) {
-	refuse, reason := backfill.RefuseDestructiveSuccessor(
-		prior.found, prior.counts.Collector, successorFacts, generation.TrustedDeletion,
-	)
-	if prior.orphanFallback && !generation.TrustedDeletion && successorFacts <= 0 {
-		// #8362: the prior is a delta with no base full generation. The
-		// fallback above already sized the ratio check on the candidate's
-		// own rows; an empty successor is still refused even when that
-		// count is zero, since it retracts everything regardless of size.
-		refuse = true
-		reason = telemetry.RefreshSkipReasonDestructiveSuccessor
-	}
-	if !refuse {
-		return false, nil
-	}
-	guardStart := time.Now()
-	if rollbackErr := tx.Rollback(); rollbackErr != nil {
-		return false, fmt.Errorf("rollback destructive successor: %w", rollbackErr)
-	}
-	s.backfillStore().RecordSkippedRefresh(ctx, scopeValue, generation, prior.candidate.GenerationID, reason)
-	s.logCommitStage(ctx, scopeValue, generation, "refuse_destructive_successor", guardStart,
-		slog.String("candidate_generation_id", prior.candidate.GenerationID),
-		slog.Int("prior_fact_count", prior.counts.Collector),
-		slog.Int("prior_reducer_fact_count", prior.counts.Total-prior.counts.Collector),
-		slog.String("prior_sizing", prior.sizing()),
-		slog.Bool("prior_orphan_fallback", prior.orphanFallback),
-		slog.Int("successor_fact_count", successorFacts),
-	)
-	return true, nil
-}
-
 func recordDroppedPreparseIdentity(ctx context.Context, database db.ExecQueryer, generation scope.ScopeGeneration) error {
 	if !streamDropped(generation) {
 		return nil

@@ -282,6 +282,7 @@ func (s IngestionStore) commitScopeGeneration(
 	currentGenerationRepos := make(map[string]relationships.CatalogEntry)
 	currentGenerationRepoObservedAt := make(map[string]time.Time)
 	relationshipStore := NewRelationshipStore(tx)
+	successorObserver := newSuccessorObserver(generation)
 	stageStart = time.Now()
 	factStats, err := upsertStreamingFacts(
 		ctx,
@@ -300,6 +301,7 @@ func (s IngestionStore) commitScopeGeneration(
 				return err
 			}
 			for _, envelope := range batch {
+				successorObserver.observe(envelope)
 				if envelope.FactKind != "repository" {
 					continue
 				}
@@ -363,7 +365,7 @@ func (s IngestionStore) commitScopeGeneration(
 		slog.Int("batch_count", factStats.Batches),
 	)
 	// The #7926 successor-emptiness backstop; see refuseDestructiveSuccessor.
-	refused, err := s.refuseDestructiveSuccessor(ctx, tx, scopeValue, generation, prior, factStats.Rows)
+	refused, err := s.refuseDestructiveSuccessor(ctx, tx, scopeValue, generation, prior, factStats.Rows, successorObserver)
 	if err != nil {
 		return err
 	}
