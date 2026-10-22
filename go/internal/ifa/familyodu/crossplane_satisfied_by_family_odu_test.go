@@ -20,8 +20,8 @@ import "testing"
 func TestCrossplaneSatisfiedByFamilyOduStableKeysAreUnique(t *testing.T) {
 	t.Parallel()
 	odu := CrossplaneSatisfiedByFamilyOdu().Odu
-	if len(odu.Facts) != 10 {
-		t.Fatalf("crossplane_satisfied_by Odù carries %d facts, want 10 (4 XRDs + 6 claims)", len(odu.Facts))
+	if len(odu.Facts) != 22 {
+		t.Fatalf("crossplane_satisfied_by Odù carries %d facts, want 22 (2 repositories + 10 files + 4 XRDs + 6 claims)", len(odu.Facts))
 	}
 	seen := make(map[string]string, len(odu.Facts))
 	for _, env := range odu.Facts {
