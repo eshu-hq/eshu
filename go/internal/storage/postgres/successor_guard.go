@@ -165,9 +165,15 @@ func (s IngestionStore) successorPriorForGuard(
 		return successorPrior{}, fmt.Errorf("resolve delta successor anchor for scope %s: %w", scopeValue.ScopeID, err)
 	}
 	prior.anchorID = anchorID
-	if side := prior.candidateSide; side.sized && side.id == anchorID && !side.unioned {
-		prior.anchorFiles = side.counts.Files
-		return prior, nil
+	// The anchor is a full generation, usually one a prior side already
+	// sized: the candidate when it is active, the active side when the
+	// candidate is pending (review N1). Reuse that count instead of reading
+	// it again.
+	for _, side := range []guardPriorSide{prior.candidateSide, prior.activeSide} {
+		if side.sized && side.id == anchorID && !side.unioned {
+			prior.anchorFiles = side.counts.Files
+			return prior, nil
+		}
 	}
 	anchorCounts, err := store.countGuardFactsGeneration(ctx, scopeValue.ScopeID, anchorID)
 	if err != nil {

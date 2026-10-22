@@ -161,15 +161,20 @@ the guard is a coarse backstop by contract (`RefuseDestructiveSuccessor`).
 The guard adds bounded reads on the ingestion commit path, so the claim is
 bounded cost, not a speedup.
 
-- Count query: one index-only pass per generation (two for a delta whose
-  anchor is not the prior), replacing the previous single-count pass
-  (`countFactsQuery`) with the same access path and three aggregates.
+- Count query: one index-only pass per generation sized, replacing the
+  previous single-count pass (`countFactsQuery`) with the same access path
+  and three aggregates. A delta's anchor reuses a prior side's count when it
+  is the same generation (review N1), so a delta pays a separate anchor count
+  only when its anchor is neither the candidate nor the active generation.
+- Anchor lookup: every delta resolves its anchor once (`deltaUnionBaseQuery`,
+  the projector's own base lookup, about 0.33 ms warm per the #7797 note).
 - Anchor probe: runs only when the zero-query lower bound fails, a delta that
   may remove most of its anchor's files. It reads the anchor's file rows once.
   Ordinary deltas and fulls never run it.
 - Active lookup (review F1): only when the candidate is pending, one
-  single-row read plus one count of the active generation (the count above).
-  An active candidate, the common case, adds no read.
+  single-row read plus one count of the active generation (the count above);
+  the pending candidate is counted too while its projector work is live. An
+  active candidate, the common case, adds no read.
 
 Measured on a hosted QA read replica (PostgreSQL in recovery, read-only
 session), warm cache, median of five `EXPLAIN (ANALYZE, BUFFERS)` runs after a

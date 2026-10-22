@@ -309,3 +309,36 @@ func TestGuardPriorFeedsTheDeltaArmsWithoutChangingTheAnchor(t *testing.T) {
 		})
 	})
 }
+
+// Review N1: when the candidate is pending, a delta's anchor is normally the
+// active full generation, which the active side has already sized. The
+// anchor must reuse that count, not read it a second time. The delta deletes
+// 120 of the anchor's 200 files, so the decision needs the real anchor file
+// count: a reuse that returned zero files would store a wipe.
+func TestGuardPriorReusesTheActiveSideForTheAnchor(t *testing.T) {
+	for _, workLive := range []bool{true, false} {
+		t.Run(fmt.Sprintf("candidate work live %v", workLive), func(t *testing.T) {
+			scopeValue, generation := guardDeltaFixture(true)
+			database := newGuardRoutingDB(t, 0, 0, 0)
+			database.candidate = []any{"gen-p", "hint-p", "commit-p", "pending", false, workLive}
+			database.activeID = "gen-full"
+			database.targets = map[string][]any{"gen-p": {false, ""}, "gen-full": {false, ""}}
+			database.counts = map[string][]any{"gen-p": {50, 50, 20}, "gen-full": {400, 700, 200}}
+			database.anchorPaths = numberedPaths("f", 200)
+			deleted := numberedPaths("f", 120)
+			stream := guardStream(generation, true, deleted, deleted, nil, deleted, 0)
+
+			decisions, err := commitGuardScenario(t, database, generation, scopeValue, stream)
+			if err != nil {
+				t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
+			}
+			requireRefused(t, database)
+			requireDecisions(t, decisions, guardDecisionKey{
+				telemetry.SuccessorGuardKindDelta, telemetry.SuccessorGuardRuleFileUnionExact, telemetry.SuccessorGuardOutcomeRefused,
+			})
+			if got := database.countedGenerations()["gen-full"]; got != 1 {
+				t.Fatalf("gen-full counted %d times, want once: the anchor must reuse the active side", got)
+			}
+		})
+	}
+}
