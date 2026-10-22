@@ -76,6 +76,24 @@ At startup the server logs `mcp tool surface` with the `surface`, the
 `find_tool` and `call_tool` are not part of the registry count above; the
 router surface owns them (epic #8752).
 
+No-Regression Evidence (#8758): baseline is `main` at `cb8a2d0845`, where
+`tools/list` returns `s.tools` directly. After, `full` still returns the same
+slice: a scratch benchmark on linux/arm64, Go 1.26.10, with the registry of 167
+tools and no graph or Postgres backend, measured 4.4 ns/op with 0 allocs for
+`full` (215,494 bytes), 2,491 ns/op and 33 allocs for `router` (1,508 bytes),
+and 3,233 ns/op and 34 allocs for `core_router` (1,508 bytes while the core set
+is empty). `TestToolsListDefaultSurfaceAdvertisesExactlyRegistry` and
+`TestToolsListFullWithSurfaceOptionIsByteIdenticalToDefault` pin `full` to
+`main` byte for byte. There is no queue, lease, Cypher, or SQL change, so no
+terminal row counts apply. `WithToolSurface` only records a value at
+construction; `tools/list` is a request-time read of an in-memory list.
+
+Observability Evidence (#8758): startup logs `mcp tool surface`
+(`event_name=mcp.tool_surface.configured`) with `surface`, `tool_count`, and
+`tools_list_bytes`. A bad `ESHU_MCP_TOOL_SURFACE` logs
+`runtime.startup.failed` with the allowed values, and a bad `surface` query
+parameter returns a `400` that names them.
+
 ## Call Rules
 
 - Prefer canonical IDs at the tool boundary when the tool supports them.
