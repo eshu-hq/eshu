@@ -1,8 +1,8 @@
 # Hold the core_router tool list empty until measured call counts exist (#8759)
 
-Status: Accepted as an interim step (arbiter ruling on #8759, 2026-10-22). It
-does not approve any tool list, a counter at dispatch entry, or a deployment
-change.
+Status: Interim. The guardrails and the measurement procedure are accepted
+(arbiter ruling on #8759, 2026-10-22). The core list is NOT_PROVEN and #8759
+stays open.
 
 **`coreToolNames` stays empty, so `core_router` behaves like `router`, until
 someone runs the query below on a hosted deployment and records the shares here.
@@ -86,6 +86,11 @@ Phase 1 of this work could not get the counts. Facts, each with its source:
 6. Paste shares only, as percentages of traffic, into the table below.
 7. Cross-check against the #8756 corpus, then prefer canonical family members
    from #8754, then pick at most 10.
+8. Check each chosen name against the production-filtered tool list
+   (`productionHiddenToolNames` in `go/internal/mcp`). A registered tool can be
+   unadvertised in the production profile, so a name that passes
+   `ReadOnlyTools()` can still be hidden there. The PR that fills the list owns
+   this check.
 
 | Tool | Share of traffic | Reason it made the list |
 |---|---|---|
@@ -95,20 +100,22 @@ Deployment class: `<fill in>`. Window: `<fill in>`. Retention: `<fill in>`.
 
 ## Bias in the series
 
-`eshu_dp_mcp_response_bytes` is recorded by `recordResponseBytes` inside
-`applyResponseBudget` (`go/internal/mcp/dispatch_budget.go:63`). That call runs
-only after a dispatch produced a result. These calls leave no sample:
+`eshu_dp_mcp_response_bytes` is recorded by `recordResponseBytes`, called from
+`applyResponseBudget` in `go/internal/mcp/dispatch_budget.go`, after the
+`budget <= 0` early return. That call runs only after a dispatch produced a
+result. These calls leave no sample:
 
 | Missing from the series | Where |
 |---|---|
-| Timeouts and canceled dispatches | `dispatchContextError` returns before the budget runs (`dispatch.go:89`, `dispatch.go:103`, `dispatch_timeout.go:43`) |
-| Unknown tool names | `dispatch.go:313` returns `unknown tool` |
-| HTTP 400 and above whose body is not a canonical envelope | `dispatch.go:114` returns an error |
-| Every call, when the response budget is disabled | `applyResponseBudget` returns at `dispatch_budget.go:59` when `budget <= 0` |
+| Timeouts and canceled dispatches | `dispatchToolWithOptions` returns `dispatchContextError` at its context checks, before the budget runs |
+| Unknown tool names | `resolveRoute` returns `unknown tool` |
+| HTTP 400 and above whose body is not a canonical envelope | `dispatchToolWithOptions` returns an `HTTP <code>` error |
+| Every call, when the response budget is disabled | `applyResponseBudget` returns at the `budget <= 0` early return, before `recordResponseBytes` |
 
-Error responses that carry a canonical envelope are counted (`dispatch.go:110`
-sets `IsError` and still reaches the budget). A deadline-truncated partial
-answer is counted too (`dispatch_timeout.go:93`).
+Error responses that carry a canonical envelope are counted:
+`dispatchToolWithOptions` sets `IsError` and still passes them to
+`applyResponseBudget`. A deadline-truncated partial answer is counted too
+(`deadlinePartialDispatchResult` calls `applyResponseBudget`).
 
 Direction of the bias (a theory, not measured): agents that pick the wrong tool
 tend to hit unknown-name or timeout paths, so the counts under-state

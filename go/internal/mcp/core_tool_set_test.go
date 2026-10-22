@@ -74,6 +74,18 @@ func TestCoreRouterToolSetGuardrails(t *testing.T) {
 		len(names), size, maxCoreRouterBytes, len(routerRaw))
 }
 
+// TestCoreRouterLimitsMatchEpic pins the limits to the epic's numbers, so a
+// quiet edit to either constant fails here instead of loosening the guard.
+func TestCoreRouterLimitsMatchEpic(t *testing.T) {
+	t.Parallel()
+	if maxCoreRouterTools != 10 {
+		t.Errorf("maxCoreRouterTools = %d, epic #8752 allows 10", maxCoreRouterTools)
+	}
+	if maxCoreRouterBytes != 40*1024 {
+		t.Errorf("maxCoreRouterBytes = %d, epic #8752 allows %d", maxCoreRouterBytes, 40*1024)
+	}
+}
+
 // TestCoreSetProblemsFlagsSeededViolations runs the guard against planted bad
 // lists, so a guard that stops checking fails here and not silently.
 func TestCoreSetProblemsFlagsSeededViolations(t *testing.T) {
@@ -99,7 +111,7 @@ func TestCoreSetProblemsFlagsSeededViolations(t *testing.T) {
 		want     string
 	}{
 		{"unregistered name", []string{registry[0].Name, "no_such_tool"}, registry, `"no_such_tool" is not in ReadOnlyTools()`},
-		{"eleven entries", elevenNames, registry, "want at most 10"},
+		{"eleven entries", elevenNames, registry, fmt.Sprintf("want at most %d", maxCoreRouterTools)},
 		{"duplicate entry", []string{registry[0].Name, registry[0].Name}, registry, "is listed twice"},
 		{"oversized set", []string{"oversized_tool"}, bigRegistry, "serialized core set is"},
 	}
