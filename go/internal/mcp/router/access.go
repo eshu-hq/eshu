@@ -1,0 +1,119 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package router
+
+import (
+	"context"
+	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
+	"github.com/eshu-hq/eshu/go/internal/query"
+)
+
+// RouteResolver maps a tool call to the HTTP method and path dispatch would
+// send. The mcp root injects its resolveRoute; this package cannot import it.
+type RouteResolver func(name string, arguments map[string]any) (method, path string, err error)
+
+// routeClass is the auth-relevant classification of one dispatched route.
+type routeClass struct {
+	// resolved is false when no route could be built; such a tool is
+	// admitted only for an all-access caller.
+	resolved bool
+	// sharedKeyOnly marks #5167 Group C routes (raw Cypher, visualize,
+	// operator-wide suppression) that only the shared key may call.
+	sharedKeyOnly bool
+	// pendingRowFiltering marks #5167 Group B routes no scoped caller may call.
+	pendingRowFiltering bool
+	// allowlisted marks routes on the scoped-token tenant-filter allowlist.
+	allowlisted bool
+}
+
+// classifyRoute runs the query package's own route ledgers, so the router
+// agrees with the API auth middleware by construction.
+func classifyRoute(method, path string) routeClass {
+	req := &http.Request{Method: method, URL: &url.URL{Path: path}}
+	return routeClass{
+		resolved:            true,
+		sharedKeyOnly:       query.IsSharedKeyOnlyRoute(req),
+		pendingRowFiltering: query.IsPendingRowFilteringRoute(req),
+		allowlisted:         query.ScopedHTTPRouteSupportsTenantFilter(req),
+	}
+}
+
+// classifyTool resolves a tool's route with placeholder arguments. It tries
+// every-property placeholders, then required-only ones, then none, because
+// some routes need a selector and others reject conflicting selectors.
+func classifyTool(resolve RouteResolver, tool toolcontract.ToolDefinition) routeClass {
+	if resolve == nil {
+		return routeClass{}
+	}
+	for _, args := range []map[string]any{
+		placeholderArguments(tool.InputSchema, true),
+		placeholderArguments(tool.InputSchema, false),
+		{},
+	} {
+		if method, path, err := resolve(tool.Name, args); err == nil && path != "" {
+			return classifyRoute(method, path)
+		}
+	}
+	return routeClass{}
+}
+
+// access is the per-call credential view the router filters with.
+type access struct {
+	auth    query.AuthContext
+	present bool
+}
+
+// accessFromContext reads the AuthContext the transport attached to the
+// request. Its absence (stdio, ESHU_MCP_ALLOW_UNAUTHENTICATED) means the
+// router cannot filter and must say so.
+func accessFromContext(ctx context.Context) access {
+	auth, ok := query.AuthContextFromContext(ctx)
+	return access{auth: auth, present: ok}
+}
+
+// admits reports whether a credential may call a route of class c. It refuses
+// only what the API auth middleware always refuses for that credential, so it
+// never hides a tool the caller could use. Decisions the middleware makes
+// from deployment policy (the all-scope console session off the allowlist,
+// and all-scope callers on grant-bound routes) are admitted here and left to
+// the middleware, which still enforces them at dispatch.
+func (a access) admits(c routeClass) bool {
+	if !a.present || a.auth.Mode == query.AuthModeShared {
+		return true
+	}
+	if !c.resolved || c.sharedKeyOnly {
+		return false
+	}
+	if c.allowlisted {
+		return true
+	}
+	if a.auth.Mode == query.AuthModeBrowserSession && !c.pendingRowFiltering {
+		// Off the allowlist the middleware admits only a tenant-bound
+		// all-scopes console session, and only under deployment policy.
+		return a.auth.AllScopes &&
+			strings.TrimSpace(a.auth.TenantID) != "" &&
+			strings.TrimSpace(a.auth.WorkspaceID) != ""
+	}
+	// A scoped bearer (or an unrecognized mode) off the allowlist is always
+	// refused, as is every pending row-filtering route for non-shared callers.
+	return false
+}
+
+// accessView is the find_tool response block that says whether the
+// candidates were filtered for the caller's credential.
+type accessView struct {
+	Filtered bool   `json:"filtered"`
+	Reason   string `json:"reason,omitempty"`
+}
+
+func (a access) view() accessView {
+	if !a.present {
+		return accessView{Filtered: false, Reason: "no_auth_context"}
+	}
+	return accessView{Filtered: true}
+}

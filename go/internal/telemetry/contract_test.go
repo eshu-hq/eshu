@@ -305,6 +305,8 @@ func TestSpanNames(t *testing.T) {
 		"collector.claimed_run",
 		"collector.snapshot_stage",
 		"config_artifacts.derive",
+		"mcp.router.find",
+		"mcp.router.call",
 	}
 
 	got := SpanNames()

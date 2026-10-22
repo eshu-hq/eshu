@@ -74,6 +74,7 @@ var registrationSteps = []func(){
 	registerInfraSearchKey,
 	registerConfigArtifactDerives,
 	registerClaimQuota,
+	registerMCPRouter,
 }
 
 func init() {
