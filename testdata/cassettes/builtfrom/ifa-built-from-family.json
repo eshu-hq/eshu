@@ -27,7 +27,8 @@
             "graph_kind": "repository",
             "name": "orders-api",
             "remote_url": "https://github.com/acme/orders-api",
-            "repo_id": "repository:eshu-fixture-orders-api"
+            "repo_id": "repository:eshu-fixture-orders-api",
+            "source_run_id": "run-ifa-built-from-family-1"
           }
         },
         {
