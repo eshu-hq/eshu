@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const logBucketFullName = "//logging.googleapis.com/projects/demo-project/locations/global/buckets/_Default"
@@ -14,15 +16,15 @@ const logBucketFullName = "//logging.googleapis.com/projects/demo-project/locati
 func logBucketContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: logBucketFullName,
-		AssetType:        logBucketAssetType,
+		AssetType:        catalog.LogBucketAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestLogBucketExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(logBucketAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", logBucketAssetType)
+	if _, ok := lookupAssetExtractor(catalog.LogBucketAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.LogBucketAssetType)
 	}
 }
 
@@ -52,7 +54,7 @@ func TestExtractLogBucketFullResource(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 CMEK edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeLogBucketEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeLogBucketEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/global/keyRings/logs/cryptoKeys/primary", assetTypeKMSCryptoKey)
 	wantAnchors := []string{"//cloudkms.googleapis.com/projects/demo-project/locations/global/keyRings/logs/cryptoKeys/primary"}
 	if !reflect.DeepEqual(got.CorrelationAnchors, wantAnchors) {

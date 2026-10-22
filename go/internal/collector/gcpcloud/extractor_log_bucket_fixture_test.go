@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -49,7 +50,7 @@ func TestLogBucketOfflineFixtureEndToEnd(t *testing.T) {
 				defaultAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
 		case cloud.GCPCloudRelationshipFactKind:
-			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeLogBucketEncryptedByKMSKey {
+			if stringOrEmpty(env.Payload["relationship_type"]) == catalog.RelationshipTypeLogBucketEncryptedByKMSKey {
 				kmsEdges++
 			}
 		}

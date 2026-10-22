@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const bigtableClusterFullName = "//bigtableadmin.googleapis.com/projects/demo-project/instances/prod-instance/clusters/prod-c1"
@@ -14,15 +16,15 @@ const bigtableClusterFullName = "//bigtableadmin.googleapis.com/projects/demo-pr
 func bigtableClusterContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: bigtableClusterFullName,
-		AssetType:        assetTypeBigtableCluster,
+		AssetType:        catalog.AssetTypeBigtableCluster,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestBigtableClusterExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeBigtableCluster); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeBigtableCluster)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeBigtableCluster); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeBigtableCluster)
 	}
 }
 
@@ -65,9 +67,9 @@ func TestExtractBigtableClusterRealCAIShapeWithCMEK(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 edges (parent instance, kms), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBigtableClusterInInstance,
-		"//bigtableadmin.googleapis.com/projects/demo-project/instances/prod-instance", assetTypeBigtableInstance)
-	assertRelationship(t, got.Relationships, relationshipTypeBigtableClusterEncryptedByKMS,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigtableClusterInInstance,
+		"//bigtableadmin.googleapis.com/projects/demo-project/instances/prod-instance", catalog.AssetTypeBigtableInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigtableClusterEncryptedByKMS,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/bt-key", assetTypeKMSCryptoKey)
 
 	wantAnchors := []string{
@@ -101,8 +103,8 @@ func TestExtractBigtableClusterNoCMEKOnlyParentEdge(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected only the parent-instance edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBigtableClusterInInstance,
-		"//bigtableadmin.googleapis.com/projects/demo-project/instances/prod-instance", assetTypeBigtableInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigtableClusterInInstance,
+		"//bigtableadmin.googleapis.com/projects/demo-project/instances/prod-instance", catalog.AssetTypeBigtableInstance)
 }
 
 func TestExtractBigtableClusterCMEKAlreadyCAIPrefixedNotDoublePrefixed(t *testing.T) {
@@ -117,7 +119,7 @@ func TestExtractBigtableClusterCMEKAlreadyCAIPrefixedNotDoublePrefixed(t *testin
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeBigtableClusterEncryptedByKMS,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigtableClusterEncryptedByKMS,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/bt-key", assetTypeKMSCryptoKey)
 	if got.Attributes["kms_key_name"] != "projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/bt-key" {
 		t.Errorf("kms_key_name = %v, want bare relative form matching the anchor/edge normalization", got.Attributes["kms_key_name"])
@@ -171,8 +173,8 @@ func TestExtractBigtableClusterEmptyDataYieldsParentEdgeOnly(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected only the resource-name-derived parent edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBigtableClusterInInstance,
-		"//bigtableadmin.googleapis.com/projects/demo-project/instances/prod-instance", assetTypeBigtableInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigtableClusterInInstance,
+		"//bigtableadmin.googleapis.com/projects/demo-project/instances/prod-instance", catalog.AssetTypeBigtableInstance)
 }
 
 func TestExtractBigtableClusterMalformedDataErrors(t *testing.T) {

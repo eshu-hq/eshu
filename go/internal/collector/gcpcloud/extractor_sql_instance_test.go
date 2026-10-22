@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const sqlInstanceFullName = "//sqladmin.googleapis.com/projects/demo-project/instances/primary-db"
@@ -15,15 +17,15 @@ const sqlInstanceFullName = "//sqladmin.googleapis.com/projects/demo-project/ins
 func sqlInstanceContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: sqlInstanceFullName,
-		AssetType:        assetTypeSQLInstance,
+		AssetType:        catalog.AssetTypeSQLInstance,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestSQLInstanceExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeSQLInstance); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeSQLInstance)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeSQLInstance); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeSQLInstance)
 	}
 }
 
@@ -88,12 +90,12 @@ func TestExtractSQLInstancePrimaryWithPrivateNetworkAndCMEK(t *testing.T) {
 	if len(got.Relationships) != 3 {
 		t.Fatalf("expected 3 edges (network, kms, replica), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSQLInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSQLInstanceEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/sql-key", assetTypeKMSCryptoKey)
-	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceHasReplica,
-		"//sqladmin.googleapis.com/projects/demo-project/instances/primary-db-replica-1", assetTypeSQLInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSQLInstanceHasReplica,
+		"//sqladmin.googleapis.com/projects/demo-project/instances/primary-db-replica-1", catalog.AssetTypeSQLInstance)
 
 	wantAnchors := []string{
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc",
@@ -125,8 +127,8 @@ func TestExtractSQLInstanceBareReplicaNameResolvedAgainstProject(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (has_replica), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceHasReplica,
-		"//sqladmin.googleapis.com/projects/demo-project/instances/primary-db-replica-1", assetTypeSQLInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSQLInstanceHasReplica,
+		"//sqladmin.googleapis.com/projects/demo-project/instances/primary-db-replica-1", catalog.AssetTypeSQLInstance)
 }
 
 func TestExtractSQLInstanceBareMasterNameResolvedAgainstProject(t *testing.T) {
@@ -146,8 +148,8 @@ func TestExtractSQLInstanceBareMasterNameResolvedAgainstProject(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (replica_of master), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceReplicaOf,
-		"//sqladmin.googleapis.com/projects/demo-project/instances/primary-db", assetTypeSQLInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSQLInstanceReplicaOf,
+		"//sqladmin.googleapis.com/projects/demo-project/instances/primary-db", catalog.AssetTypeSQLInstance)
 }
 
 func TestExtractSQLInstanceReadReplicaEdgeToMaster(t *testing.T) {
@@ -177,8 +179,8 @@ func TestExtractSQLInstanceReadReplicaEdgeToMaster(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (replica_of master), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceReplicaOf,
-		"//sqladmin.googleapis.com/projects/demo-project/instances/primary-db", assetTypeSQLInstance)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSQLInstanceReplicaOf,
+		"//sqladmin.googleapis.com/projects/demo-project/instances/primary-db", catalog.AssetTypeSQLInstance)
 }
 
 func TestExtractSQLInstanceNeverPersistsRawIPAddresses(t *testing.T) {
@@ -233,13 +235,13 @@ func TestExtractSQLInstanceKMSKeyAlreadyCAIPrefixedNotDoublePrefixed(t *testing.
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSQLInstanceEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/sql-key", assetTypeKMSCryptoKey)
 	if got.Attributes["kms_key_name"] != "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/sql-key" {
 		t.Errorf("kms_key_name = %v, want unchanged CAI-prefixed value", got.Attributes["kms_key_name"])
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeSQLInstanceEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeSQLInstanceEncryptedByKMSKey {
 			if strings.Count(rel.TargetFullResourceName, cloudKMSResourceNamePrefix) != 1 {
 				t.Fatalf("kms target double-prefixed: %q", rel.TargetFullResourceName)
 			}
@@ -261,7 +263,7 @@ func TestExtractSQLInstancePrivateNetworkProjectLessPartialResolvedAgainstProjec
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeSQLInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSQLInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 

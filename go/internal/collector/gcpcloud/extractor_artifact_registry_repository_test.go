@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const artifactRepoFullName = "//artifactregistry.googleapis.com/projects/demo-project/locations/us-central1/repositories/team-docker"
@@ -14,15 +16,15 @@ const artifactRepoFullName = "//artifactregistry.googleapis.com/projects/demo-pr
 func artifactRepoContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: artifactRepoFullName,
-		AssetType:        assetTypeArtifactRegistryRepository,
+		AssetType:        catalog.AssetTypeArtifactRegistryRepository,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestArtifactRegistryRepositoryExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeArtifactRegistryRepository); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeArtifactRegistryRepository)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeArtifactRegistryRepository); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeArtifactRegistryRepository)
 	}
 }
 
@@ -62,11 +64,11 @@ func TestExtractArtifactRegistryRepositoryFullResource(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly the CMEK edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeArtifactRepoEncryptedByKMSKey, kms, assetTypeKMSCryptoKey)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeArtifactRepoEncryptedByKMSKey, kms, assetTypeKMSCryptoKey)
 	if got.Relationships[0].SourceFullResourceName != artifactRepoFullName {
 		t.Errorf("relationship source = %q", got.Relationships[0].SourceFullResourceName)
 	}
-	if got.Relationships[0].SourceAssetType != assetTypeArtifactRegistryRepository {
+	if got.Relationships[0].SourceAssetType != catalog.AssetTypeArtifactRegistryRepository {
 		t.Errorf("relationship source asset type = %q", got.Relationships[0].SourceAssetType)
 	}
 }

@@ -7,20 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// relationshipTypeArtifactRepoEncryptedByKMSKey is the bounded provider
-// relationship type for the Artifact Registry repository CMEK edge. It is the
-// only typed edge a repository's own resource.data can resolve: the images and
-// packages it contains reference the repository from their own child assets
-// (see the DockerImage extractor's docker_image_in_repository edge) rather than
-// being named here, and the project is the resource's ancestry. It is a distinct
-// type from the Dataform repository CMEK edge so the two repository kinds stay
-// unambiguous in graph queries.
-const relationshipTypeArtifactRepoEncryptedByKMSKey = "artifact_registry_repository_encrypted_by_kms_key"
-
 func init() {
-	RegisterAssetExtractor(assetTypeArtifactRegistryRepository, extractArtifactRegistryRepository)
+	RegisterAssetExtractor(catalog.AssetTypeArtifactRegistryRepository, extractArtifactRegistryRepository)
 }
 
 // artifactRegistryRepositoryData is the bounded view of a CAI
@@ -55,7 +47,7 @@ func extractArtifactRegistryRepository(ctx ExtractContext) (AttributeExtraction,
 	var rels []RelationshipObservation
 	if kms := dataformKMSKeyFullName(data.KMSKeyName); kms != "" {
 		anchors = append(anchors, kms)
-		rels = append(rels, artifactRegistryRepositoryEdge(ctx, relationshipTypeArtifactRepoEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
+		rels = append(rels, artifactRegistryRepositoryEdge(ctx, catalog.RelationshipTypeArtifactRepoEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
 	}
 
 	return AttributeExtraction{

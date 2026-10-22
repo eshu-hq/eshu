@@ -7,27 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// assetTypeFilestoreInstance is the Cloud Asset Inventory asset type for a
-// Filestore Instance. assetTypeComputeNetwork and assetTypeKMSCryptoKey are
-// shared constants declared by the Compute Network and BigQuery Table
-// extractors in this package and reused here for the authorized-network and
-// CMEK edges.
-const assetTypeFilestoreInstance = "file.googleapis.com/Instance"
-
-// Bounded provider relationship types for the Filestore Instance edges carried
-// on gcp_cloud_relationship facts. The reducer materializes each edge only
-// when both endpoints resolve exactly. relationshipTypeFilestoreInstanceInNetwork
-// is emitted once per entry in the instance's networks array, since a
-// Filestore Instance can be attached to more than one VPC network.
-const (
-	relationshipTypeFilestoreInstanceInNetwork         = "filestore_instance_in_network"
-	relationshipTypeFilestoreInstanceEncryptedByKMSKey = "filestore_instance_encrypted_by_kms_key"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeFilestoreInstance, extractFilestoreInstance)
+	RegisterAssetExtractor(catalog.AssetTypeFilestoreInstance, extractFilestoreInstance)
 }
 
 // filestoreInstanceData is the bounded view of a CAI
@@ -99,13 +84,13 @@ func extractFilestoreInstance(ctx ExtractContext) (AttributeExtraction, error) {
 			continue
 		}
 		anchors = append(anchors, networkName)
-		rels = append(rels, filestoreInstanceEdge(ctx, relationshipTypeFilestoreInstanceInNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, filestoreInstanceEdge(ctx, catalog.RelationshipTypeFilestoreInstanceInNetwork, networkName, assetTypeComputeNetwork))
 	}
 
 	if kmsName := cmekKeyFullResourceName(data.KMSKeyName); kmsName != "" {
 		attrs["kms_key_name"] = strings.TrimPrefix(kmsName, cloudKMSResourceNamePrefix)
 		anchors = append(anchors, kmsName)
-		rels = append(rels, filestoreInstanceEdge(ctx, relationshipTypeFilestoreInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
+		rels = append(rels, filestoreInstanceEdge(ctx, catalog.RelationshipTypeFilestoreInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
 	}
 
 	return AttributeExtraction{

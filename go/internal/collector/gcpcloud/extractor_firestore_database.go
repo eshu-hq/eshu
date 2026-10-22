@@ -7,20 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeFirestoreDatabase is the CAI asset type for a Firestore database. Its
-// CMEK edge target reuses assetTypeKMSCryptoKey and cloudKMSResourceNamePrefix
-// already declared elsewhere in this package.
-const assetTypeFirestoreDatabase = "firestore.googleapis.com/Database"
-
-// relationshipTypeFirestoreEncryptedByKMSKey is the bounded provider
-// relationship type carried on the Firestore CMEK edge; the reducer materializes
-// it only when both endpoints resolve exactly.
-const relationshipTypeFirestoreEncryptedByKMSKey = "firestore_database_encrypted_by_kms_key"
-
 func init() {
-	RegisterAssetExtractor(assetTypeFirestoreDatabase, extractFirestoreDatabase)
+	RegisterAssetExtractor(catalog.AssetTypeFirestoreDatabase, extractFirestoreDatabase)
 }
 
 // firestoreDatabaseData is the bounded view of a CAI
@@ -60,7 +52,7 @@ func extractFirestoreDatabase(ctx ExtractContext) (AttributeExtraction, error) {
 	if data.CMEKConfig != nil {
 		if kmsName := firestoreKMSKeyFullName(data.CMEKConfig.KMSKeyName); kmsName != "" {
 			anchors = append(anchors, kmsName)
-			rels = append(rels, firestoreDatabaseEdge(ctx, relationshipTypeFirestoreEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
+			rels = append(rels, firestoreDatabaseEdge(ctx, catalog.RelationshipTypeFirestoreEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
 		}
 	}
 

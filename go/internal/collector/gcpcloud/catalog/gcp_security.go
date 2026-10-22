@@ -149,8 +149,9 @@ const (
 
 // AssetTypeCloudResourceManagerOrganization and
 // AssetTypeCloudResourceManagerFolder key the resource-hierarchy nodes an
-// Organization Policy can target. assetTypeCloudResourceManagerProject lives in this leaf (consolidated from extractor_firebase_project.go) and reused here, never
-// redeclared.
+// Organization Policy can target. This leaf reuses AssetTypeCloudResourceManagerProject,
+// declared in this package's platform family (gcp_platform.go, consolidated
+// from extractor_firebase_project.go by the IJ slice), never redeclared.
 const (
 	AssetTypeCloudResourceManagerOrganization = "cloudresourcemanager.googleapis.com/Organization"
 	AssetTypeCloudResourceManagerFolder       = "cloudresourcemanager.googleapis.com/Folder"

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const cloudBuildTriggerFullNameConst = "//cloudbuild.googleapis.com/projects/demo-project/locations/us-central1/triggers/trigger-123"
@@ -16,15 +17,15 @@ const cloudBuildTriggerFullNameConst = "//cloudbuild.googleapis.com/projects/dem
 func cloudBuildTriggerContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: cloudBuildTriggerFullNameConst,
-		AssetType:        assetTypeCloudBuildTrigger,
+		AssetType:        catalog.AssetTypeCloudBuildTrigger,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestCloudBuildTriggerExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeCloudBuildTrigger); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeCloudBuildTrigger)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeCloudBuildTrigger); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeCloudBuildTrigger)
 	}
 }
 
@@ -82,12 +83,12 @@ func TestExtractCloudBuildTriggerRepoSource(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected one source-repo edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeTriggerSourceRepo, repo, assetTypeSourceRepo)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTriggerSourceRepo, repo, catalog.AssetTypeSourceRepo)
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != cloudBuildTriggerFullNameConst {
 			t.Errorf("relationship source = %q", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != assetTypeCloudBuildTrigger {
+		if rel.SourceAssetType != catalog.AssetTypeCloudBuildTrigger {
 			t.Errorf("relationship source asset type = %q", rel.SourceAssetType)
 		}
 	}
@@ -101,8 +102,8 @@ func TestExtractCloudBuildTriggerRepoSourceDefaultProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeTriggerSourceRepo,
-		"//sourcerepo.googleapis.com/projects/demo-project/repos/my-repo", assetTypeSourceRepo)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTriggerSourceRepo,
+		"//sourcerepo.googleapis.com/projects/demo-project/repos/my-repo", catalog.AssetTypeSourceRepo)
 }
 
 func TestExtractCloudBuildTriggerGitHubSource(t *testing.T) {
@@ -188,7 +189,7 @@ func TestExtractCloudBuildTriggerPubsubSourceWithSourceToBuild(t *testing.T) {
 	if !containsStringSlice(got.CorrelationAnchors, link) {
 		t.Errorf("missing repository-link anchor %q in %#v", link, got.CorrelationAnchors)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeTriggerSourceRepositoryLink, link, assetTypeDeveloperConnectGitRepositoryLink)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTriggerSourceRepositoryLink, link, catalog.AssetTypeDeveloperConnectGitRepositoryLink)
 }
 
 func TestExtractCloudBuildTriggerWebhookSourceWithSourceToBuild(t *testing.T) {
@@ -206,7 +207,7 @@ func TestExtractCloudBuildTriggerWebhookSourceWithSourceToBuild(t *testing.T) {
 		t.Errorf("source_type = %v, want webhook (sourceToBuild must not shadow the webhook mechanism)", got.Attributes["source_type"])
 	}
 	const link = "//developerconnect.googleapis.com/projects/demo-project/locations/us-central1/connections/my-conn/repositories/my-repo"
-	assertRelationship(t, got.Relationships, relationshipTypeTriggerSourceRepositoryLink, link, assetTypeDeveloperConnectGitRepositoryLink)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeTriggerSourceRepositoryLink, link, catalog.AssetTypeDeveloperConnectGitRepositoryLink)
 }
 
 func TestExtractCloudBuildTriggerSourceToBuildOnlyClassification(t *testing.T) {

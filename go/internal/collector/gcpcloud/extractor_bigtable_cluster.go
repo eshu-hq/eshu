@@ -7,31 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// assetTypeBigtableCluster is the Cloud Asset Inventory asset type for a Cloud
-// Bigtable Cluster. assetTypeBigtableInstance is declared by the sibling
-// Bigtable Instance extractor and reused here for the parent-instance edge;
-// assetTypeKMSCryptoKey and cloudKMSResourceNamePrefix are declared by the
-// BigQuery Table extractor and reused here for the CMEK edge.
-const assetTypeBigtableCluster = "bigtableadmin.googleapis.com/Cluster"
-
-// bigtableClustersMarker separates a Bigtable Cluster full resource name from
-// its parent Instance full resource name. A cluster resource name is
-// ".../instances/<instance>/clusters/<cluster>", so trimming from this marker
-// yields the parent Instance identity.
-const bigtableClustersMarker = "/clusters/"
-
-// Bounded provider relationship types for Bigtable Cluster edges carried on
-// gcp_cloud_relationship facts. The reducer materializes each edge only when
-// both endpoints resolve exactly.
-const (
-	relationshipTypeBigtableClusterInInstance     = "bigtable_cluster_in_instance"
-	relationshipTypeBigtableClusterEncryptedByKMS = "bigtable_cluster_encrypted_by_kms_key"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeBigtableCluster, extractBigtableCluster)
+	RegisterAssetExtractor(catalog.AssetTypeBigtableCluster, extractBigtableCluster)
 }
 
 // bigtableClusterData is the bounded view of a CAI
@@ -74,7 +55,7 @@ func extractBigtableCluster(ctx ExtractContext) (AttributeExtraction, error) {
 
 	if parent := bigtableParentInstanceFullName(ctx.FullResourceName); parent != "" {
 		anchors = append(anchors, parent)
-		rels = append(rels, bigtableClusterEdge(ctx, relationshipTypeBigtableClusterInInstance, parent, assetTypeBigtableInstance))
+		rels = append(rels, bigtableClusterEdge(ctx, catalog.RelationshipTypeBigtableClusterInInstance, parent, catalog.AssetTypeBigtableInstance))
 	}
 
 	if data.EncryptionConfig != nil {
@@ -82,7 +63,7 @@ func extractBigtableCluster(ctx ExtractContext) (AttributeExtraction, error) {
 			if kmsName := bigtableClusterKMSKeyFullName(kms); kmsName != "" {
 				attrs["kms_key_name"] = strings.TrimPrefix(kmsName, cloudKMSResourceNamePrefix)
 				anchors = append(anchors, kmsName)
-				rels = append(rels, bigtableClusterEdge(ctx, relationshipTypeBigtableClusterEncryptedByKMS, kmsName, assetTypeKMSCryptoKey))
+				rels = append(rels, bigtableClusterEdge(ctx, catalog.RelationshipTypeBigtableClusterEncryptedByKMS, kmsName, assetTypeKMSCryptoKey))
 			}
 		}
 	}
@@ -126,7 +107,7 @@ func bigtableClusterAttributes(data bigtableClusterData) map[string]any {
 // so no parent edge is fabricated.
 func bigtableParentInstanceFullName(clusterFullName string) string {
 	trimmed := strings.TrimSpace(clusterFullName)
-	index := strings.LastIndex(trimmed, bigtableClustersMarker)
+	index := strings.LastIndex(trimmed, catalog.BigtableClustersMarker)
 	if index <= 0 {
 		return ""
 	}

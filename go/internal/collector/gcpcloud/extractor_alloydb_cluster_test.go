@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const alloyDBClusterFullName = "//alloydb.googleapis.com/projects/demo-project/locations/us-central1/clusters/primary"
@@ -14,15 +16,15 @@ const alloyDBClusterFullName = "//alloydb.googleapis.com/projects/demo-project/l
 func alloyDBClusterContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: alloyDBClusterFullName,
-		AssetType:        assetTypeAlloyDBCluster,
+		AssetType:        catalog.AssetTypeAlloyDBCluster,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestAlloyDBClusterExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeAlloyDBCluster); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeAlloyDBCluster)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeAlloyDBCluster); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeAlloyDBCluster)
 	}
 }
 
@@ -87,9 +89,9 @@ func TestExtractAlloyDBClusterFullFieldsWithNetworkAndCMEK(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 edges (network, kms), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAlloyDBClusterInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAlloyDBClusterEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/alloydb-key", assetTypeKMSCryptoKey)
 
 	wantAnchors := []string{
@@ -135,7 +137,7 @@ func TestExtractAlloyDBClusterDeprecatedTopLevelNetworkFallback(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (network), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAlloyDBClusterInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/legacy-vpc", assetTypeComputeNetwork)
 }
 
@@ -155,7 +157,7 @@ func TestExtractAlloyDBClusterNetworkConfigTakesPrecedenceOverDeprecatedField(t 
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (network), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAlloyDBClusterInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
@@ -170,7 +172,7 @@ func TestExtractAlloyDBClusterProjectLessNetworkPartialResolvedAgainstProject(t 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAlloyDBClusterInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
@@ -188,7 +190,7 @@ func TestExtractAlloyDBClusterAlphanumericProjectIDNetworkUnchanged(t *testing.T
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAlloyDBClusterInNetwork,
 		"//compute.googleapis.com/projects/other-project-id/global/networks/shared-vpc", assetTypeComputeNetwork)
 }
 
@@ -216,7 +218,7 @@ func TestExtractAlloyDBClusterNumericProjectNetworkNeverRewritten(t *testing.T) 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAlloyDBClusterInNetwork,
 		"//compute.googleapis.com/projects/123456789012/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
@@ -264,7 +266,7 @@ func TestExtractAlloyDBClusterNumericProjectAlreadyCAIPrefixedNetworkUnchanged(t
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAlloyDBClusterInNetwork,
 		"//compute.googleapis.com/projects/123456789012/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
@@ -279,7 +281,7 @@ func TestExtractAlloyDBClusterKMSKeyAlreadyCAIPrefixedNotDoublePrefixed(t *testi
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeAlloyDBClusterEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeAlloyDBClusterEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/alloydb-key", assetTypeKMSCryptoKey)
 	if got.Attributes["kms_key_name"] != "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/alloydb-key" {
 		t.Errorf("kms_key_name = %v, want unchanged CAI-prefixed value", got.Attributes["kms_key_name"])

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -66,9 +67,9 @@ func TestBigQueryTransferConfigOfflineFixtureEndToEnd(t *testing.T) {
 		t.Errorf("data_source_id = %v, want google_cloud_storage", loadAttrs["data_source_id"])
 	}
 	for rel, want := range map[string]int{
-		relationshipTypeTransferConfigWritesToDataset:   2,
-		relationshipTypeTransferConfigNotifiesTopic:     1,
-		relationshipTypeTransferConfigEncryptedByKMSKey: 1,
+		catalog.RelationshipTypeTransferConfigWritesToDataset:   2,
+		catalog.RelationshipTypeTransferConfigNotifiesTopic:     1,
+		catalog.RelationshipTypeTransferConfigEncryptedByKMSKey: 1,
 	} {
 		if edges[rel] != want {
 			t.Errorf("%s edges = %d, want %d", rel, edges[rel], want)

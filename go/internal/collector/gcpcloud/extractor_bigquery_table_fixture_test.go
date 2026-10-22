@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -79,14 +80,14 @@ func TestBigQueryTableOfflineFixtureEndToEnd(t *testing.T) {
 	}
 
 	// events: dataset + kms (2). ext_sales: dataset + landing-bucket (deduped) (2).
-	if relTypes[relationshipTypeBigQueryTableInDataset] != 2 {
-		t.Errorf("dataset edges = %d, want 2", relTypes[relationshipTypeBigQueryTableInDataset])
+	if relTypes[catalog.RelationshipTypeBigQueryTableInDataset] != 2 {
+		t.Errorf("dataset edges = %d, want 2", relTypes[catalog.RelationshipTypeBigQueryTableInDataset])
 	}
-	if relTypes[relationshipTypeBigQueryTableKMSKey] != 1 {
-		t.Errorf("kms edges = %d, want 1", relTypes[relationshipTypeBigQueryTableKMSKey])
+	if relTypes[catalog.RelationshipTypeBigQueryTableKMSKey] != 1 {
+		t.Errorf("kms edges = %d, want 1", relTypes[catalog.RelationshipTypeBigQueryTableKMSKey])
 	}
-	if relTypes[relationshipTypeBigQueryTableExternalSource] != 1 {
-		t.Errorf("external source edges = %d, want 1 (deduped bucket)", relTypes[relationshipTypeBigQueryTableExternalSource])
+	if relTypes[catalog.RelationshipTypeBigQueryTableExternalSource] != 1 {
+		t.Errorf("external source edges = %d, want 1 (deduped bucket)", relTypes[catalog.RelationshipTypeBigQueryTableExternalSource])
 	}
 }
 

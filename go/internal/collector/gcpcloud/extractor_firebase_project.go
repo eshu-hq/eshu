@@ -7,32 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// firebaseProjectAssetType is the Cloud Asset Inventory asset type for a Firebase
-// Project. The default Storage bucket endpoint reuses assetTypeStorageBucket and
-// storageBucketResourceNamePrefixFmt declared elsewhere in this package.
-const firebaseProjectAssetType = "firebase.googleapis.com/FirebaseProject"
-
-// assetTypeCloudResourceManagerProject and cloudProjectResourceNamePrefix key the
-// backing GCP project. Cloud Asset Inventory names a Project by its project
-// number (`//cloudresourcemanager.googleapis.com/projects/<number>`), so the
-// backing edge is only emitted when the FirebaseProject carries projectNumber;
-// deriving it from the project id would target an unresolvable name.
-const (
-	assetTypeCloudResourceManagerProject = "cloudresourcemanager.googleapis.com/Project"
-	cloudProjectResourceNamePrefix       = "//cloudresourcemanager.googleapis.com/projects/"
-)
-
-// Bounded provider relationship types for the Firebase project's backing GCP
-// project and its default Cloud Storage bucket.
-const (
-	relationshipTypeFirebaseProjectBackedByProject = "firebase_project_backed_by_project"
-	relationshipTypeFirebaseProjectDefaultBucket   = "firebase_project_default_bucket"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(firebaseProjectAssetType, extractFirebaseProject)
+	RegisterAssetExtractor(catalog.FirebaseProjectAssetType, extractFirebaseProject)
 }
 
 // firebaseProjectData is the bounded view of a CAI
@@ -84,14 +64,14 @@ func extractFirebaseProject(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 
 	if number := strings.TrimSpace(data.ProjectNumber); number != "" {
-		target := cloudProjectResourceNamePrefix + number
+		target := catalog.CloudProjectResourceNamePrefix + number
 		anchors = append(anchors, target)
 		rels = append(rels, RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
-			RelationshipType:       relationshipTypeFirebaseProjectBackedByProject,
+			RelationshipType:       catalog.RelationshipTypeFirebaseProjectBackedByProject,
 			TargetFullResourceName: target,
-			TargetAssetType:        assetTypeCloudResourceManagerProject,
+			TargetAssetType:        catalog.AssetTypeCloudResourceManagerProject,
 			SupportState:           RelationshipSupportSupported,
 		})
 	}
@@ -121,7 +101,7 @@ func extractFirebaseProject(ctx ExtractContext) (AttributeExtraction, error) {
 			rels = append(rels, RelationshipObservation{
 				SourceFullResourceName: ctx.FullResourceName,
 				SourceAssetType:        ctx.AssetType,
-				RelationshipType:       relationshipTypeFirebaseProjectDefaultBucket,
+				RelationshipType:       catalog.RelationshipTypeFirebaseProjectDefaultBucket,
 				TargetFullResourceName: target,
 				TargetAssetType:        assetTypeStorageBucket,
 				SupportState:           RelationshipSupportPartial,

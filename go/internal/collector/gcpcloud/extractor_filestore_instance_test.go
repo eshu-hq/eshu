@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const filestoreInstanceFullName = "//file.googleapis.com/projects/demo-project/locations/us-central1-a/instances/nfs-share"
@@ -14,15 +16,15 @@ const filestoreInstanceFullName = "//file.googleapis.com/projects/demo-project/l
 func filestoreInstanceContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: filestoreInstanceFullName,
-		AssetType:        assetTypeFilestoreInstance,
+		AssetType:        catalog.AssetTypeFilestoreInstance,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestFilestoreInstanceExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeFilestoreInstance); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeFilestoreInstance)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeFilestoreInstance); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeFilestoreInstance)
 	}
 }
 
@@ -68,9 +70,9 @@ func TestExtractFilestoreInstanceFullAttributesWithNetworkAndCMEK(t *testing.T) 
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 edges (network, kms), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeFilestoreInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeFilestoreInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeFilestoreInstanceEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeFilestoreInstanceEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/filestore-key", assetTypeKMSCryptoKey)
 
 	wantAnchors := []string{
@@ -129,7 +131,7 @@ func TestExtractFilestoreInstanceNetworkFullSelfLink(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (network), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeFilestoreInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeFilestoreInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
@@ -143,13 +145,13 @@ func TestExtractFilestoreInstanceKMSKeyAlreadyCAIPrefixedNotDoublePrefixed(t *te
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeFilestoreInstanceEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeFilestoreInstanceEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/filestore-key", assetTypeKMSCryptoKey)
 	if got.Attributes["kms_key_name"] != "projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/filestore-key" {
 		t.Errorf("kms_key_name = %v, want bare relative form matching the anchor/edge normalization", got.Attributes["kms_key_name"])
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeFilestoreInstanceEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeFilestoreInstanceEncryptedByKMSKey {
 			if got := rel.TargetFullResourceName; got != "//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/rk/cryptoKeys/filestore-key" {
 				t.Fatalf("kms target double-prefixed or malformed: %q", got)
 			}
@@ -173,7 +175,7 @@ func TestExtractFilestoreInstanceWrongDomainKMSKeyEmitsNoEdgeOrAttribute(t *test
 		t.Errorf("kms_key_name should be absent for a wrong-domain key, got %#v", got.Attributes)
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeFilestoreInstanceEncryptedByKMSKey {
+		if rel.RelationshipType == catalog.RelationshipTypeFilestoreInstanceEncryptedByKMSKey {
 			t.Fatalf("expected no CMEK edge for a wrong-domain key, got %#v", rel)
 		}
 	}
@@ -200,9 +202,9 @@ func TestExtractFilestoreInstanceMultipleNetworksEachEmitAnEdge(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected 2 network edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeFilestoreInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeFilestoreInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeFilestoreInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeFilestoreInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/mgmt-vpc", assetTypeComputeNetwork)
 }
 

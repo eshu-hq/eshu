@@ -7,32 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// assetTypeSQLInstance is the Cloud Asset Inventory asset type for a Cloud SQL
-// Instance. assetTypeComputeNetwork and assetTypeKMSCryptoKey are shared
-// constants declared by the Compute Network and BigQuery Table extractors in
-// this package and reused here for the private-network and CMEK edges.
-const assetTypeSQLInstance = "sqladmin.googleapis.com/Instance"
-
-// sqlInstanceResourceNamePrefix is the CAI full-resource-name prefix for a Cloud
-// SQL Instance, used to build the master/replica edge endpoints from a bare
-// "projects/<p>/instances/<i>" reference (the sqladmin API convention for
-// masterInstanceName and replicaNames).
-const sqlInstanceResourceNamePrefix = "//sqladmin.googleapis.com/"
-
-// Bounded provider relationship types for the Cloud SQL Instance edges carried
-// on gcp_cloud_relationship facts. The reducer materializes each edge only when
-// both endpoints resolve exactly.
-const (
-	relationshipTypeSQLInstanceInNetwork         = "sql_instance_in_network"
-	relationshipTypeSQLInstanceEncryptedByKMSKey = "sql_instance_encrypted_by_kms_key"
-	relationshipTypeSQLInstanceHasReplica        = "sql_instance_has_replica"
-	relationshipTypeSQLInstanceReplicaOf         = "sql_instance_replica_of"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeSQLInstance, extractSQLInstance)
+	RegisterAssetExtractor(catalog.AssetTypeSQLInstance, extractSQLInstance)
 }
 
 // sqlInstanceData is the bounded view of a CAI sqladmin.googleapis.com/Instance
@@ -99,7 +79,7 @@ func extractSQLInstance(ctx ExtractContext) (AttributeExtraction, error) {
 	if data.Settings != nil && data.Settings.IPConfiguration != nil {
 		if networkName := sqlInstancePrivateNetworkFullName(data.Settings.IPConfiguration.PrivateNetwork, ctx.ProjectID); networkName != "" {
 			anchors = append(anchors, networkName)
-			rels = append(rels, sqlInstanceEdge(ctx, relationshipTypeSQLInstanceInNetwork, networkName, assetTypeComputeNetwork))
+			rels = append(rels, sqlInstanceEdge(ctx, catalog.RelationshipTypeSQLInstanceInNetwork, networkName, assetTypeComputeNetwork))
 		}
 	}
 
@@ -108,14 +88,14 @@ func extractSQLInstance(ctx ExtractContext) (AttributeExtraction, error) {
 			attrs["kms_key_name"] = kms
 			if kmsName := sqlInstanceKMSKeyFullName(kms); kmsName != "" {
 				anchors = append(anchors, kmsName)
-				rels = append(rels, sqlInstanceEdge(ctx, relationshipTypeSQLInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
+				rels = append(rels, sqlInstanceEdge(ctx, catalog.RelationshipTypeSQLInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
 			}
 		}
 	}
 
 	if masterName := sqlInstanceReferenceFullName(data.MasterInstanceName, ctx.ProjectID); masterName != "" {
 		anchors = append(anchors, masterName)
-		rels = append(rels, sqlInstanceEdge(ctx, relationshipTypeSQLInstanceReplicaOf, masterName, assetTypeSQLInstance))
+		rels = append(rels, sqlInstanceEdge(ctx, catalog.RelationshipTypeSQLInstanceReplicaOf, masterName, catalog.AssetTypeSQLInstance))
 	}
 
 	replicaCount := 0
@@ -126,7 +106,7 @@ func extractSQLInstance(ctx ExtractContext) (AttributeExtraction, error) {
 		}
 		replicaCount++
 		anchors = append(anchors, replicaName)
-		rels = append(rels, sqlInstanceEdge(ctx, relationshipTypeSQLInstanceHasReplica, replicaName, assetTypeSQLInstance))
+		rels = append(rels, sqlInstanceEdge(ctx, catalog.RelationshipTypeSQLInstanceHasReplica, replicaName, catalog.AssetTypeSQLInstance))
 	}
 	if replicaCount > 0 {
 		attrs["replica_count"] = replicaCount
@@ -220,11 +200,11 @@ func sqlInstanceReferenceFullName(ref, sourceProjectID string) string {
 	if trimmed == "" {
 		return ""
 	}
-	if strings.HasPrefix(trimmed, sqlInstanceResourceNamePrefix) {
+	if strings.HasPrefix(trimmed, catalog.SQLInstanceResourceNamePrefix) {
 		return trimmed
 	}
 	if strings.HasPrefix(trimmed, "projects/") && strings.Contains(trimmed, "/instances/") {
-		return sqlInstanceResourceNamePrefix + trimmed
+		return catalog.SQLInstanceResourceNamePrefix + trimmed
 	}
 	// Bare instance name (no "/" at all): qualify against the source project.
 	if !strings.Contains(trimmed, "/") {
@@ -232,7 +212,7 @@ func sqlInstanceReferenceFullName(ref, sourceProjectID string) string {
 		if project == "" {
 			return ""
 		}
-		return sqlInstanceResourceNamePrefix + "projects/" + project + "/instances/" + trimmed
+		return catalog.SQLInstanceResourceNamePrefix + "projects/" + project + "/instances/" + trimmed
 	}
 	return ""
 }

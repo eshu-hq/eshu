@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const dataformRepositoryFullName = "//dataform.googleapis.com/projects/demo-project/locations/us-central1/repositories/analytics"
@@ -16,15 +17,15 @@ const dataformRepositoryFullName = "//dataform.googleapis.com/projects/demo-proj
 func dataformRepositoryContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: dataformRepositoryFullName,
-		AssetType:        assetTypeDataformRepository,
+		AssetType:        catalog.AssetTypeDataformRepository,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestDataformRepositoryExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeDataformRepository); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeDataformRepository)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeDataformRepository); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeDataformRepository)
 	}
 }
 
@@ -56,7 +57,7 @@ func TestExtractDataformRepositoryFullResource(t *testing.T) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeRepositoryEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRepositoryEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/dataform/cryptoKeys/repo", assetTypeKMSCryptoKey)
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected only the CMEK edge, got %d: %#v", len(got.Relationships), got.Relationships)

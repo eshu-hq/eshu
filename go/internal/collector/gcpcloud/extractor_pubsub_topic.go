@@ -7,31 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// assetTypePubSubSchema is the CAI asset type for a Pub/Sub Schema, the target
-// of a topic's schema edge. The Topic asset type (assetTypePubSubTopic) and the
-// //pubsub.googleapis.com/ full-resource-name prefix (pubSubResourceNamePrefix)
-// are already declared by the Secret Manager Secret extractor in this package;
-// the KMS CryptoKey asset type and prefix come from the BigQuery Table extractor.
-const assetTypePubSubSchema = "pubsub.googleapis.com/Schema"
-
-// pubSubDeletedSchemaSentinel is the value Pub/Sub reports for schemaSettings.schema
-// when the referenced schema has been deleted while still attached to the topic.
-// It names no resolvable Schema resource, so it yields no edge or anchor.
-const pubSubDeletedSchemaSentinel = "_deleted-schema_"
-
-// Bounded provider relationship types for Pub/Sub Topic edges. Each is a stable,
-// bounded string carried on a gcp_cloud_relationship fact; the reducer
-// materializes an edge only when both endpoints resolve exactly. Subscription
-// and IAM publisher/subscriber edges are intentionally absent: a Topic's own
-// resource.data carries neither its subscriptions (which reference the topic on
-// their own asset) nor its IAM policy (never persisted per the collector
-// contract), so those joins belong to the subscription asset and IAM-policy
-// paths, not to this metadata-only extractor.
-const (
-	relationshipTypeTopicEncryptedByKMSKey = "topic_encrypted_by_kms_key"
-	relationshipTypeTopicUsesSchema        = "topic_uses_schema"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
@@ -79,12 +56,12 @@ func extractPubSubTopic(ctx ExtractContext) (AttributeExtraction, error) {
 		// no encryption edge.
 		attrs["customer_managed_encryption"] = true
 		anchors = append(anchors, kmsName)
-		rels = append(rels, pubSubTopicEdge(ctx, relationshipTypeTopicEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
+		rels = append(rels, pubSubTopicEdge(ctx, catalog.RelationshipTypeTopicEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
 	}
 	if data.SchemaSettings != nil {
 		if schemaName := pubSubTopicSchemaFullName(data.SchemaSettings.Schema); schemaName != "" {
 			anchors = append(anchors, schemaName)
-			rels = append(rels, pubSubTopicEdge(ctx, relationshipTypeTopicUsesSchema, schemaName, assetTypePubSubSchema))
+			rels = append(rels, pubSubTopicEdge(ctx, catalog.RelationshipTypeTopicUsesSchema, schemaName, catalog.AssetTypePubSubSchema))
 		}
 	}
 
@@ -136,7 +113,7 @@ func pubSubTopicAttributes(data pubSubTopicData) map[string]any {
 // schema edge.
 func pubSubTopicSchemaFullName(schemaRef string) string {
 	trimmed := strings.TrimSpace(schemaRef)
-	if trimmed == "" || trimmed == pubSubDeletedSchemaSentinel || !strings.Contains(trimmed, "/schemas/") {
+	if trimmed == "" || trimmed == catalog.PubSubDeletedSchemaSentinel || !strings.Contains(trimmed, "/schemas/") {
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {

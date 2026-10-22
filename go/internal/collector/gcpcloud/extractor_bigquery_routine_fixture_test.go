@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -68,8 +69,8 @@ func TestBigQueryRoutineOfflineFixtureEndToEnd(t *testing.T) {
 		t.Errorf("enrich has_definition_body = %v, want true", enrichAttrs["has_definition_body"])
 	}
 	for rel, want := range map[string]int{
-		relationshipTypeRoutineInDataset:      2,
-		relationshipTypeRoutineUsesConnection: 1,
+		catalog.RelationshipTypeRoutineInDataset:      2,
+		catalog.RelationshipTypeRoutineUsesConnection: 1,
 	} {
 		if edges[rel] != want {
 			t.Errorf("%s edges = %d, want %d", rel, edges[rel], want)

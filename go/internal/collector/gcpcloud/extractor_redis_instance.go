@@ -7,25 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// assetTypeRedisInstance is the Cloud Asset Inventory asset type for a
-// Memorystore for Redis Instance. assetTypeComputeNetwork and
-// assetTypeKMSCryptoKey are shared constants declared by the Compute Network
-// and BigQuery Table extractors in this package and reused here for the
-// authorized-network and CMEK edges.
-const assetTypeRedisInstance = "redis.googleapis.com/Instance"
-
-// Bounded provider relationship types for the Memorystore Redis Instance edges
-// carried on gcp_cloud_relationship facts. The reducer materializes each edge
-// only when both endpoints resolve exactly.
-const (
-	relationshipTypeRedisInstanceInNetwork         = "redis_instance_in_network"
-	relationshipTypeRedisInstanceEncryptedByKMSKey = "redis_instance_encrypted_by_kms_key"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeRedisInstance, extractRedisInstance)
+	RegisterAssetExtractor(catalog.AssetTypeRedisInstance, extractRedisInstance)
 }
 
 // redisInstanceData is the bounded view of a CAI redis.googleapis.com/Instance
@@ -77,14 +64,14 @@ func extractRedisInstance(ctx ExtractContext) (AttributeExtraction, error) {
 
 	if networkName := computeFullResourceNameFromSelfLink(data.AuthorizedNetwork, ctx.ProjectID); networkName != "" {
 		anchors = append(anchors, networkName)
-		rels = append(rels, redisInstanceEdge(ctx, relationshipTypeRedisInstanceInNetwork, networkName, assetTypeComputeNetwork))
+		rels = append(rels, redisInstanceEdge(ctx, catalog.RelationshipTypeRedisInstanceInNetwork, networkName, assetTypeComputeNetwork))
 	}
 
 	if kms := strings.TrimSpace(data.CustomerManagedKey); kms != "" {
 		if kmsName := cmekKeyFullResourceName(kms); kmsName != "" {
 			attrs["customer_managed_key"] = strings.TrimPrefix(kmsName, cloudKMSResourceNamePrefix)
 			anchors = append(anchors, kmsName)
-			rels = append(rels, redisInstanceEdge(ctx, relationshipTypeRedisInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
+			rels = append(rels, redisInstanceEdge(ctx, catalog.RelationshipTypeRedisInstanceEncryptedByKMSKey, kmsName, assetTypeKMSCryptoKey))
 		}
 	}
 

@@ -27,7 +27,7 @@ var cloudResourceManagerResourceNamePrefixes = map[string]struct {
 }{
 	"organizations": {prefix: "//cloudresourcemanager.googleapis.com/organizations/", assetType: catalog.AssetTypeCloudResourceManagerOrganization},
 	"folders":       {prefix: "//cloudresourcemanager.googleapis.com/folders/", assetType: catalog.AssetTypeCloudResourceManagerFolder},
-	"projects":      {prefix: cloudProjectResourceNamePrefix, assetType: assetTypeCloudResourceManagerProject},
+	"projects":      {prefix: catalog.CloudProjectResourceNamePrefix, assetType: catalog.AssetTypeCloudResourceManagerProject},
 }
 
 func init() {

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const (
@@ -19,15 +20,15 @@ const (
 func cloudBuildContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: cloudBuildFullName,
-		AssetType:        assetTypeCloudBuild,
+		AssetType:        catalog.AssetTypeCloudBuild,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestCloudBuildExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeCloudBuild); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeCloudBuild)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeCloudBuild); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeCloudBuild)
 	}
 }
 
@@ -79,13 +80,13 @@ func TestExtractCloudBuildFullResource(t *testing.T) {
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected trigger + source-repo edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBuildTriggeredBy, trigger, assetTypeCloudBuildTrigger)
-	assertRelationship(t, got.Relationships, relationshipTypeBuildSourceRepo, repo, assetTypeSourceRepo)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBuildTriggeredBy, trigger, catalog.AssetTypeCloudBuildTrigger)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBuildSourceRepo, repo, catalog.AssetTypeSourceRepo)
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != cloudBuildFullName {
 			t.Errorf("relationship source = %q", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != assetTypeCloudBuild {
+		if rel.SourceAssetType != catalog.AssetTypeCloudBuild {
 			t.Errorf("relationship source asset type = %q", rel.SourceAssetType)
 		}
 	}
@@ -104,7 +105,7 @@ func TestExtractCloudBuildStorageSource(t *testing.T) {
 	if got.Attributes["source_type"] != "storage" {
 		t.Errorf("source_type = %v, want storage", got.Attributes["source_type"])
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBuildSourceBucket,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBuildSourceBucket,
 		"//storage.googleapis.com/projects/_/buckets/gcf-build-src", assetTypeStorageBucket)
 	blob, _ := json.Marshal(got)
 	if containsString(string(blob), "source-should-not-leak.tgz") {
@@ -120,8 +121,8 @@ func TestExtractCloudBuildRepoSourceDefaultProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeBuildSourceRepo,
-		"//sourcerepo.googleapis.com/projects/demo-project/repos/my-repo", assetTypeSourceRepo)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBuildSourceRepo,
+		"//sourcerepo.googleapis.com/projects/demo-project/repos/my-repo", catalog.AssetTypeSourceRepo)
 }
 
 func TestExtractCloudBuildNeverPersistsSubstitutions(t *testing.T) {

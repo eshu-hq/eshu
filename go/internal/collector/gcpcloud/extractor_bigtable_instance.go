@@ -7,14 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeBigtableInstance is the Cloud Asset Inventory asset type for a
-// Cloud Bigtable Instance.
-const assetTypeBigtableInstance = "bigtableadmin.googleapis.com/Instance"
-
 func init() {
-	RegisterAssetExtractor(assetTypeBigtableInstance, extractBigtableInstance)
+	RegisterAssetExtractor(catalog.AssetTypeBigtableInstance, extractBigtableInstance)
 }
 
 // bigtableInstanceData is the bounded view of a CAI

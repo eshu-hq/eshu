@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const dataplexEntryGroupFullName = "//dataplex.googleapis.com/projects/demo-project/locations/us-central1/entryGroups/analytics"
@@ -14,15 +16,15 @@ const dataplexEntryGroupFullName = "//dataplex.googleapis.com/projects/demo-proj
 func dataplexEntryGroupContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: dataplexEntryGroupFullName,
-		AssetType:        assetTypeDataplexEntryGroup,
+		AssetType:        catalog.AssetTypeDataplexEntryGroup,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestDataplexEntryGroupExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeDataplexEntryGroup); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeDataplexEntryGroup)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeDataplexEntryGroup); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeDataplexEntryGroup)
 	}
 }
 

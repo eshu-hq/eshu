@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const memcacheInstanceFullName = "//memcache.googleapis.com/projects/demo-project/locations/us-central1/instances/cache-primary"
@@ -14,15 +16,15 @@ const memcacheInstanceFullName = "//memcache.googleapis.com/projects/demo-projec
 func memcacheInstanceContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: memcacheInstanceFullName,
-		AssetType:        assetTypeMemcacheInstance,
+		AssetType:        catalog.AssetTypeMemcacheInstance,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestMemcacheInstanceExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeMemcacheInstance); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeMemcacheInstance)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeMemcacheInstance); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeMemcacheInstance)
 	}
 }
 
@@ -72,7 +74,7 @@ func TestExtractMemcacheInstanceFullWithNetworkAndZones(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (network), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeMemcacheInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeMemcacheInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 
 	wantAnchors := []string{
@@ -131,7 +133,7 @@ func TestExtractMemcacheInstanceAuthorizedNetworkFullSelfLink(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected 1 edge (network), got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeMemcacheInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeMemcacheInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 
@@ -145,7 +147,7 @@ func TestExtractMemcacheInstanceAuthorizedNetworkProjectLessPartialResolvedAgain
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeMemcacheInstanceInNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeMemcacheInstanceInNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/prod-vpc", assetTypeComputeNetwork)
 }
 

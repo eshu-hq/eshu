@@ -7,17 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// assetTypeDataplexEntryGroup is the CAI asset type for a Dataplex entry group.
-// An entry group is a container: its contained entries reference it from their
-// own assets (inbound), and its project is base-observation placement, so the
-// extractor derives no outbound edges or correlation anchors — only bounded
-// posture attributes.
-const assetTypeDataplexEntryGroup = "dataplex.googleapis.com/EntryGroup"
-
 func init() {
-	RegisterAssetExtractor(assetTypeDataplexEntryGroup, extractDataplexEntryGroup)
+	RegisterAssetExtractor(catalog.AssetTypeDataplexEntryGroup, extractDataplexEntryGroup)
 }
 
 // dataplexEntryGroupData is the bounded view of a CAI

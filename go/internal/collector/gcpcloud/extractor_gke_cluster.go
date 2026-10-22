@@ -9,17 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
-)
-
-// Bounded provider relationship types for GKE Cluster edges. Each is a stable
-// string carried on a gcp_cloud_relationship fact; the reducer materializes an
-// edge only when both endpoints resolve exactly. A node pool's own service
-// account is carried per-pool as a fingerprinted-email attribute/anchor, not an
-// edge, because an email is not an exactly resolvable CAI endpoint (mirrors the
-// Dataproc Cluster extractor's cluster-service-account treatment).
-const (
-	relationshipTypeGKEClusterUsesNetwork    = "gke_cluster_uses_network"
-	relationshipTypeGKEClusterUsesSubnetwork = "gke_cluster_uses_subnetwork"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
@@ -115,11 +105,11 @@ func extractGKECluster(ctx ExtractContext) (AttributeExtraction, error) {
 	var rels []RelationshipObservation
 	if net := gkeNetworkFullName(data.Network, ctx.ProjectID); net != "" {
 		anchors = append(anchors, net)
-		rels = append(rels, gkeClusterEdge(ctx, relationshipTypeGKEClusterUsesNetwork, net, assetTypeComputeNetwork))
+		rels = append(rels, gkeClusterEdge(ctx, catalog.RelationshipTypeGKEClusterUsesNetwork, net, assetTypeComputeNetwork))
 	}
 	if subnet := gkeSubnetworkFullName(data.Subnetwork, ctx.ProjectID, data.Location); subnet != "" {
 		anchors = append(anchors, subnet)
-		rels = append(rels, gkeClusterEdge(ctx, relationshipTypeGKEClusterUsesSubnetwork, subnet, assetTypeComputeSubnetwork))
+		rels = append(rels, gkeClusterEdge(ctx, catalog.RelationshipTypeGKEClusterUsesSubnetwork, subnet, assetTypeComputeSubnetwork))
 	}
 	if pools, poolAnchors := gkeNodePoolsAttribute(data.NodePools); len(pools) > 0 {
 		attrs["node_pools"] = pools

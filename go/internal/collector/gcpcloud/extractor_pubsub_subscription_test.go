@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -16,15 +17,15 @@ const pubSubSubscriptionFullName = "//pubsub.googleapis.com/projects/demo-projec
 func pubSubSubscriptionContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: pubSubSubscriptionFullName,
-		AssetType:        assetTypePubSubSubscription,
+		AssetType:        catalog.AssetTypePubSubSubscription,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestPubSubSubscriptionExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypePubSubSubscription); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypePubSubSubscription)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypePubSubSubscription); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypePubSubSubscription)
 	}
 }
 
@@ -75,17 +76,17 @@ func TestExtractPubSubSubscriptionPushWithDeadLetterAndBigQuery(t *testing.T) {
 		}
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeSubscriptionSubscribesToTopic,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSubscriptionSubscribesToTopic,
 		"//pubsub.googleapis.com/projects/demo-project/topics/orders", assetTypePubSubTopic)
-	assertRelationship(t, got.Relationships, relationshipTypeSubscriptionDeadLettersToTopic,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSubscriptionDeadLettersToTopic,
 		"//pubsub.googleapis.com/projects/demo-project/topics/orders-dlq", assetTypePubSubTopic)
-	assertRelationship(t, got.Relationships, relationshipTypeSubscriptionExportsToBigQueryTable,
-		"//bigquery.googleapis.com/projects/demo-project/datasets/analytics/tables/orders_stream", assetTypeBigQueryTable)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSubscriptionExportsToBigQueryTable,
+		"//bigquery.googleapis.com/projects/demo-project/datasets/analytics/tables/orders_stream", catalog.AssetTypeBigQueryTable)
 	if len(got.Relationships) != 3 {
 		t.Fatalf("expected topic + dead-letter + bigquery edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
 	rel := got.Relationships[0]
-	if rel.SourceFullResourceName != pubSubSubscriptionFullName || rel.SourceAssetType != assetTypePubSubSubscription {
+	if rel.SourceFullResourceName != pubSubSubscriptionFullName || rel.SourceAssetType != catalog.AssetTypePubSubSubscription {
 		t.Errorf("relationship source = %q/%q, want subscription identity", rel.SourceFullResourceName, rel.SourceAssetType)
 	}
 }
@@ -103,9 +104,9 @@ func TestExtractPubSubSubscriptionPullWithCloudStorage(t *testing.T) {
 	if got.Attributes["delivery_type"] != "cloud_storage" {
 		t.Errorf("delivery_type = %v, want cloud_storage", got.Attributes["delivery_type"])
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSubscriptionExportsToStorageBucket,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSubscriptionExportsToStorageBucket,
 		"//storage.googleapis.com/projects/_/buckets/events-archive", assetTypeStorageBucket)
-	assertRelationship(t, got.Relationships, relationshipTypeSubscriptionSubscribesToTopic,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSubscriptionSubscribesToTopic,
 		"//pubsub.googleapis.com/projects/demo-project/topics/events", assetTypePubSubTopic)
 }
 
@@ -124,8 +125,8 @@ func TestExtractPubSubSubscriptionBigtableExport(t *testing.T) {
 	if got.Attributes["delivery_type"] != "bigtable" {
 		t.Errorf("delivery_type = %v, want bigtable", got.Attributes["delivery_type"])
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeSubscriptionExportsToBigtableTable,
-		"//bigtableadmin.googleapis.com/projects/demo-project/instances/analytics/tables/events", assetTypeBigtableTable)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeSubscriptionExportsToBigtableTable,
+		"//bigtableadmin.googleapis.com/projects/demo-project/instances/analytics/tables/events", catalog.AssetTypeBigtableTable)
 }
 
 func TestPubSubBigtableConfigTableFullName(t *testing.T) {

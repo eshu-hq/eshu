@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const dockerImageFullName = "//artifactregistry.googleapis.com/projects/demo-project/locations/us/repositories/app-images/dockerImages/api@sha256:abc123"
@@ -14,15 +16,15 @@ const dockerImageFullName = "//artifactregistry.googleapis.com/projects/demo-pro
 func dockerImageContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: dockerImageFullName,
-		AssetType:        assetTypeArtifactRegistryDockerImage,
+		AssetType:        catalog.AssetTypeArtifactRegistryDockerImage,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestDockerImageExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeArtifactRegistryDockerImage); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeArtifactRegistryDockerImage)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeArtifactRegistryDockerImage); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeArtifactRegistryDockerImage)
 	}
 }
 
@@ -70,15 +72,15 @@ func TestExtractDockerImageFullResource(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly the parent-repository edge, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeDockerImageInRepository,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDockerImageInRepository,
 		"//artifactregistry.googleapis.com/projects/demo-project/locations/us/repositories/app-images",
-		assetTypeArtifactRegistryRepository)
+		catalog.AssetTypeArtifactRegistryRepository)
 	rel := got.Relationships[0]
 	if rel.SourceFullResourceName != dockerImageFullName {
 		t.Errorf("relationship source = %q, want docker image full name", rel.SourceFullResourceName)
 	}
-	if rel.SourceAssetType != assetTypeArtifactRegistryDockerImage {
-		t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, assetTypeArtifactRegistryDockerImage)
+	if rel.SourceAssetType != catalog.AssetTypeArtifactRegistryDockerImage {
+		t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.AssetTypeArtifactRegistryDockerImage)
 	}
 }
 
@@ -132,9 +134,9 @@ func TestExtractDockerImageEmptyDataDerivesFromName(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected only the derived repository edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeDockerImageInRepository,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeDockerImageInRepository,
 		"//artifactregistry.googleapis.com/projects/demo-project/locations/us/repositories/app-images",
-		assetTypeArtifactRegistryRepository)
+		catalog.AssetTypeArtifactRegistryRepository)
 }
 
 func TestExtractDockerImageMalformedDataErrors(t *testing.T) {

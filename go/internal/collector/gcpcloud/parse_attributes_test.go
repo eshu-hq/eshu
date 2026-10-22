@@ -3,7 +3,11 @@
 
 package gcpcloud
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
+)
 
 // bigQueryTableAssetsListPage is one assets.list page carrying a single BigQuery
 // Table asset with a KMS-encrypted, partitioned, clustered managed table.
@@ -42,7 +46,7 @@ func TestParseAssetsListPageExtractsBigQueryTableTypedDepth(t *testing.T) {
 	obs := page.Resources[0]
 
 	// Base bounded fields still parse.
-	if obs.AssetType != assetTypeBigQueryTable {
+	if obs.AssetType != catalog.AssetTypeBigQueryTable {
 		t.Errorf("asset type = %q", obs.AssetType)
 	}
 	if obs.Labels["team"] != "data" {

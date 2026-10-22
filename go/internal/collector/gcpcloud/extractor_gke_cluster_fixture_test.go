@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -73,11 +74,11 @@ func TestGKEClusterOfflineFixtureEndToEnd(t *testing.T) {
 
 	// prod: network + subnetwork (2). staging: network + subnetwork (2, resolved
 	// from the bare "default" short names).
-	if relTypes[relationshipTypeGKEClusterUsesNetwork] != 2 {
-		t.Errorf("network edges = %d, want 2", relTypes[relationshipTypeGKEClusterUsesNetwork])
+	if relTypes[catalog.RelationshipTypeGKEClusterUsesNetwork] != 2 {
+		t.Errorf("network edges = %d, want 2", relTypes[catalog.RelationshipTypeGKEClusterUsesNetwork])
 	}
-	if relTypes[relationshipTypeGKEClusterUsesSubnetwork] != 2 {
-		t.Errorf("subnetwork edges = %d, want 2", relTypes[relationshipTypeGKEClusterUsesSubnetwork])
+	if relTypes[catalog.RelationshipTypeGKEClusterUsesSubnetwork] != 2 {
+		t.Errorf("subnetwork edges = %d, want 2", relTypes[catalog.RelationshipTypeGKEClusterUsesSubnetwork])
 	}
 }
 

@@ -7,30 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-// Bounded provider relationship types for BigQuery Dataset edges. Each is a
-// stable string carried on a gcp_cloud_relationship fact; the reducer
-// materializes an edge only when both endpoints resolve exactly.
-const (
-	// relationshipTypeBigQueryDatasetKMSKey mirrors the Table KMS edge: the
-	// dataset is default-encrypted by a Cloud KMS CryptoKey.
-	relationshipTypeBigQueryDatasetKMSKey = "bigquery_dataset_encrypted_by_kms_key"
-	// relationshipTypeBigQueryDatasetAuthorizesView is an authorized-view ACL
-	// grant: this dataset authorizes a view (a BigQuery Table) to read it.
-	relationshipTypeBigQueryDatasetAuthorizesView = "bigquery_dataset_authorizes_view"
-	// relationshipTypeBigQueryDatasetAuthorizesDataset is an authorized-dataset
-	// ACL grant between two datasets.
-	relationshipTypeBigQueryDatasetAuthorizesDataset = "bigquery_dataset_authorizes_dataset"
-	// relationshipTypeBigQueryDatasetAuthorizesRoutine is an authorized-routine
-	// ACL grant to a BigQuery Routine.
-	relationshipTypeBigQueryDatasetAuthorizesRoutine = "bigquery_dataset_authorizes_routine"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
-
-// assetTypeBigQueryRoutine is the CAI asset type for an authorized-routine ACL
-// edge endpoint. assetTypeBigQueryTable and assetTypeBigQueryDataset are shared
-// constants declared in extractor_bigquery_table.go (package-scoped by design).
-const assetTypeBigQueryRoutine = "bigquery.googleapis.com/Routine"
 
 // bigQueryDatasetData is the bounded view of a CAI bigquery.googleapis.com/Dataset
 // resource.data blob. Only redaction-safe control-plane metadata is decoded: the
@@ -98,7 +77,7 @@ type bigQueryDatasetAccessTarget struct {
 }
 
 func init() {
-	RegisterAssetExtractor(assetTypeBigQueryDataset, extractBigQueryDataset)
+	RegisterAssetExtractor(catalog.AssetTypeBigQueryDataset, extractBigQueryDataset)
 }
 
 // extractBigQueryDataset extracts bounded typed depth for one BigQuery Dataset CAI
@@ -125,7 +104,7 @@ func extractBigQueryDataset(ctx ExtractContext) (AttributeExtraction, error) {
 		attrs["kms_key_name"] = kms
 		kmsName := cloudKMSResourceNamePrefix + kms
 		anchors = append(anchors, kmsName)
-		rels = append(rels, bigQueryDatasetEdge(ctx, relationshipTypeBigQueryDatasetKMSKey, kmsName, assetTypeKMSCryptoKey))
+		rels = append(rels, bigQueryDatasetEdge(ctx, catalog.RelationshipTypeBigQueryDatasetKMSKey, kmsName, assetTypeKMSCryptoKey))
 	}
 
 	for _, edge := range authorizedResourceEdges(ctx, data.Access) {
@@ -165,16 +144,16 @@ func authorizedResourceEdges(ctx ExtractContext, access []bigQueryDatasetAccessE
 	}
 	for _, entry := range access {
 		if entry.View != nil {
-			add(relationshipTypeBigQueryDatasetAuthorizesView,
-				bigQueryAuthorizedViewFullName(ctx, entry.View), assetTypeBigQueryTable)
+			add(catalog.RelationshipTypeBigQueryDatasetAuthorizesView,
+				bigQueryAuthorizedViewFullName(ctx, entry.View), catalog.AssetTypeBigQueryTable)
 		}
 		if entry.Routine != nil {
-			add(relationshipTypeBigQueryDatasetAuthorizesRoutine,
-				bigQueryRoutineFullName(ctx, entry.Routine), assetTypeBigQueryRoutine)
+			add(catalog.RelationshipTypeBigQueryDatasetAuthorizesRoutine,
+				bigQueryRoutineFullName(ctx, entry.Routine), catalog.AssetTypeBigQueryRoutine)
 		}
 		if entry.Dataset != nil {
-			add(relationshipTypeBigQueryDatasetAuthorizesDataset,
-				bigQueryAuthorizedDatasetFullName(ctx, entry.Dataset), assetTypeBigQueryDataset)
+			add(catalog.RelationshipTypeBigQueryDatasetAuthorizesDataset,
+				bigQueryAuthorizedDatasetFullName(ctx, entry.Dataset), catalog.AssetTypeBigQueryDataset)
 		}
 	}
 	return edges
@@ -189,7 +168,7 @@ func bigQueryAuthorizedViewFullName(ctx ExtractContext, ref *bigQueryTableRef) s
 	if project == "" || dataset == "" || table == "" {
 		return ""
 	}
-	return fmt.Sprintf("%sprojects/%s/datasets/%s/tables/%s", bigQueryResourceNamePrefix, project, dataset, table)
+	return fmt.Sprintf("%sprojects/%s/datasets/%s/tables/%s", catalog.BigQueryResourceNamePrefix, project, dataset, table)
 }
 
 // bigQueryRoutineFullName builds the CAI full resource name for an authorized
@@ -201,7 +180,7 @@ func bigQueryRoutineFullName(ctx ExtractContext, ref *bigQueryRoutineRef) string
 	if project == "" || dataset == "" || routine == "" {
 		return ""
 	}
-	return fmt.Sprintf("%sprojects/%s/datasets/%s/routines/%s", bigQueryResourceNamePrefix, project, dataset, routine)
+	return fmt.Sprintf("%sprojects/%s/datasets/%s/routines/%s", catalog.BigQueryResourceNamePrefix, project, dataset, routine)
 }
 
 // bigQueryAuthorizedDatasetFullName builds the CAI full resource name for an
@@ -212,7 +191,7 @@ func bigQueryAuthorizedDatasetFullName(ctx ExtractContext, ref *bigQueryDatasetA
 	if project == "" || dataset == "" {
 		return ""
 	}
-	return fmt.Sprintf("%sprojects/%s/datasets/%s", bigQueryResourceNamePrefix, project, dataset)
+	return fmt.Sprintf("%sprojects/%s/datasets/%s", catalog.BigQueryResourceNamePrefix, project, dataset)
 }
 
 // bigQueryDatasetAttributes assembles the bounded attribute map. Empty or absent

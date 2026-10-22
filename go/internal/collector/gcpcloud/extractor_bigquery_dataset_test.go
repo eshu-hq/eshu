@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const bigQueryDatasetFullResourceName = "//bigquery.googleapis.com/projects/demo-project/datasets/analytics"
@@ -14,15 +16,15 @@ const bigQueryDatasetFullResourceName = "//bigquery.googleapis.com/projects/demo
 func bigQueryDatasetContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: bigQueryDatasetFullResourceName,
-		AssetType:        assetTypeBigQueryDataset,
+		AssetType:        catalog.AssetTypeBigQueryDataset,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestBigQueryDatasetExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeBigQueryDataset); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeBigQueryDataset)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeBigQueryDataset); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeBigQueryDataset)
 	}
 }
 
@@ -72,7 +74,7 @@ func TestExtractBigQueryDatasetFullAttributes(t *testing.T) {
 		t.Fatalf("anchors mismatch:\n got %#v\nwant %#v", got.CorrelationAnchors, wantAnchors)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeBigQueryDatasetKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigQueryDatasetKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us/keyRings/rk/cryptoKeys/key1", assetTypeKMSCryptoKey)
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected only the KMS edge, got %d: %#v", len(got.Relationships), got.Relationships)
@@ -81,8 +83,8 @@ func TestExtractBigQueryDatasetFullAttributes(t *testing.T) {
 	if rel.SourceFullResourceName != bigQueryDatasetFullResourceName {
 		t.Errorf("relationship source = %q, want dataset full name", rel.SourceFullResourceName)
 	}
-	if rel.SourceAssetType != assetTypeBigQueryDataset {
-		t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, assetTypeBigQueryDataset)
+	if rel.SourceAssetType != catalog.AssetTypeBigQueryDataset {
+		t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.AssetTypeBigQueryDataset)
 	}
 }
 
@@ -151,17 +153,17 @@ func TestExtractBigQueryDatasetAuthorizedResources(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeBigQueryDatasetAuthorizesView,
-		"//bigquery.googleapis.com/projects/shared-project/datasets/curated/tables/v_events", assetTypeBigQueryTable)
-	assertRelationship(t, got.Relationships, relationshipTypeBigQueryDatasetAuthorizesRoutine,
-		"//bigquery.googleapis.com/projects/demo-project/datasets/udfs/routines/mask_pii", assetTypeBigQueryRoutine)
-	assertRelationship(t, got.Relationships, relationshipTypeBigQueryDatasetAuthorizesDataset,
-		"//bigquery.googleapis.com/projects/demo-project/datasets/raw", assetTypeBigQueryDataset)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigQueryDatasetAuthorizesView,
+		"//bigquery.googleapis.com/projects/shared-project/datasets/curated/tables/v_events", catalog.AssetTypeBigQueryTable)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigQueryDatasetAuthorizesRoutine,
+		"//bigquery.googleapis.com/projects/demo-project/datasets/udfs/routines/mask_pii", catalog.AssetTypeBigQueryRoutine)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigQueryDatasetAuthorizesDataset,
+		"//bigquery.googleapis.com/projects/demo-project/datasets/raw", catalog.AssetTypeBigQueryDataset)
 	// The fourth entry omits projectId; it falls back to the dataset's own
 	// project (demo-project) and thus dedupes against neither the shared-project
 	// view nor itself twice.
-	assertRelationship(t, got.Relationships, relationshipTypeBigQueryDatasetAuthorizesView,
-		"//bigquery.googleapis.com/projects/demo-project/datasets/curated/tables/v_events", assetTypeBigQueryTable)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeBigQueryDatasetAuthorizesView,
+		"//bigquery.googleapis.com/projects/demo-project/datasets/curated/tables/v_events", catalog.AssetTypeBigQueryTable)
 	if len(got.Relationships) != 4 {
 		t.Fatalf("expected 4 authorized-resource edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}

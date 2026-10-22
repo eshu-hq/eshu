@@ -9,30 +9,11 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
-)
-
-// assetTypeDataprocCluster is the CAI asset type for a Dataproc cluster. Its edge
-// targets reuse asset-type constants and helpers already declared elsewhere in
-// this package: assetTypeComputeNetwork / assetTypeComputeSubnetwork and
-// computeFullResourceNameFromSelfLink (Compute extractors), assetTypeStorageBucket
-// and storageBucketResourceNamePrefixFmt (BigQuery Table extractor), and
-// assetTypeKMSCryptoKey / cloudKMSResourceNamePrefix (BigQuery Table extractor).
-const assetTypeDataprocCluster = "dataproc.googleapis.com/Cluster"
-
-// Bounded provider relationship types for Dataproc Cluster edges. Each is a
-// stable string carried on a gcp_cloud_relationship fact; the reducer
-// materializes an edge only when both endpoints resolve exactly. The cluster's
-// service account is carried as a fingerprinted-email anchor, not an edge,
-// because an email is not an exactly resolvable CAI endpoint.
-const (
-	relationshipTypeClusterUsesNetwork       = "dataproc_cluster_uses_network"
-	relationshipTypeClusterUsesSubnetwork    = "dataproc_cluster_uses_subnetwork"
-	relationshipTypeClusterEncryptedByKMSKey = "dataproc_cluster_encrypted_by_kms_key"
-	relationshipTypeClusterUsesStagingBucket = "dataproc_cluster_uses_staging_bucket"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(assetTypeDataprocCluster, extractDataprocCluster)
+	RegisterAssetExtractor(catalog.AssetTypeDataprocCluster, extractDataprocCluster)
 }
 
 // dataprocClusterData is the bounded view of a CAI dataproc.googleapis.com/Cluster
@@ -99,11 +80,11 @@ func extractDataprocCluster(ctx ExtractContext) (AttributeExtraction, error) {
 			region := dataprocRegionFromFullName(ctx.FullResourceName)
 			if net := dataprocNetworkFullName(gce.NetworkURI, ctx.ProjectID); net != "" {
 				anchors = append(anchors, net)
-				rels = append(rels, dataprocClusterEdge(ctx, relationshipTypeClusterUsesNetwork, net, assetTypeComputeNetwork))
+				rels = append(rels, dataprocClusterEdge(ctx, catalog.RelationshipTypeClusterUsesNetwork, net, assetTypeComputeNetwork))
 			}
 			if subnet := dataprocSubnetworkFullName(gce.SubnetworkURI, ctx.ProjectID, region); subnet != "" {
 				anchors = append(anchors, subnet)
-				rels = append(rels, dataprocClusterEdge(ctx, relationshipTypeClusterUsesSubnetwork, subnet, assetTypeComputeSubnetwork))
+				rels = append(rels, dataprocClusterEdge(ctx, catalog.RelationshipTypeClusterUsesSubnetwork, subnet, assetTypeComputeSubnetwork))
 			}
 			if fp := posture.GCPServiceAccountEmailDigest(gce.ServiceAccount); fp != "" {
 				anchors = append(anchors, fp)
@@ -112,13 +93,13 @@ func extractDataprocCluster(ctx ExtractContext) (AttributeExtraction, error) {
 		if enc := cfg.EncryptionConfig; enc != nil {
 			if kms := dataprocKMSKeyFullName(enc.GcePdKMSKeyName); kms != "" {
 				anchors = append(anchors, kms)
-				rels = append(rels, dataprocClusterEdge(ctx, relationshipTypeClusterEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
+				rels = append(rels, dataprocClusterEdge(ctx, catalog.RelationshipTypeClusterEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
 			}
 		}
 		if bucket := strings.TrimSpace(cfg.ConfigBucket); bucket != "" {
 			name := storageBucketResourceNamePrefixFmt + bucket
 			anchors = append(anchors, name)
-			rels = append(rels, dataprocClusterEdge(ctx, relationshipTypeClusterUsesStagingBucket, name, assetTypeStorageBucket))
+			rels = append(rels, dataprocClusterEdge(ctx, catalog.RelationshipTypeClusterUsesStagingBucket, name, assetTypeStorageBucket))
 		}
 	}
 

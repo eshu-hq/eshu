@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 // testExtractorAssetType is a sentinel asset type used only by registry unit
@@ -91,8 +93,8 @@ func TestExtractAssetAttributesPropagatesExtractorError(t *testing.T) {
 }
 
 func TestHasAssetExtractor(t *testing.T) {
-	if !HasAssetExtractor(assetTypeBigQueryTable) {
-		t.Errorf("expected a registered extractor for %q", assetTypeBigQueryTable)
+	if !HasAssetExtractor(catalog.AssetTypeBigQueryTable) {
+		t.Errorf("expected a registered extractor for %q", catalog.AssetTypeBigQueryTable)
 	}
 	if HasAssetExtractor("unregistered.googleapis.com/Nope") {
 		t.Errorf("did not expect an extractor for an unregistered asset type")

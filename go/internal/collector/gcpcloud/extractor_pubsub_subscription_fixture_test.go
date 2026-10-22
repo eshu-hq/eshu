@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -75,10 +76,10 @@ func TestPubSubSubscriptionOfflineFixtureEndToEnd(t *testing.T) {
 		t.Errorf("orders-worker push_endpoint_host_fingerprint = %v, want a sha256: digest", ordersAttrs["push_endpoint_host_fingerprint"])
 	}
 	for rel, want := range map[string]int{
-		relationshipTypeSubscriptionSubscribesToTopic:      3,
-		relationshipTypeSubscriptionDeadLettersToTopic:     1,
-		relationshipTypeSubscriptionExportsToStorageBucket: 1,
-		relationshipTypeSubscriptionExportsToBigQueryTable: 1,
+		catalog.RelationshipTypeSubscriptionSubscribesToTopic:      3,
+		catalog.RelationshipTypeSubscriptionDeadLettersToTopic:     1,
+		catalog.RelationshipTypeSubscriptionExportsToStorageBucket: 1,
+		catalog.RelationshipTypeSubscriptionExportsToBigQueryTable: 1,
 	} {
 		if edges[rel] != want {
 			t.Errorf("%s edges = %d, want %d", rel, edges[rel], want)

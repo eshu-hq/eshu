@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -86,10 +87,10 @@ func TestStorageBucketOfflineFixtureEndToEnd(t *testing.T) {
 	}
 
 	// Only demo-bucket has KMS/logging configured; raw-bucket has neither.
-	if relTypes[relationshipTypeStorageBucketKMSKey] != 1 {
-		t.Errorf("kms edges = %d, want 1", relTypes[relationshipTypeStorageBucketKMSKey])
+	if relTypes[catalog.RelationshipTypeStorageBucketKMSKey] != 1 {
+		t.Errorf("kms edges = %d, want 1", relTypes[catalog.RelationshipTypeStorageBucketKMSKey])
 	}
-	if relTypes[relationshipTypeStorageBucketLogsToBucket] != 1 {
-		t.Errorf("logging edges = %d, want 1", relTypes[relationshipTypeStorageBucketLogsToBucket])
+	if relTypes[catalog.RelationshipTypeStorageBucketLogsToBucket] != 1 {
+		t.Errorf("logging edges = %d, want 1", relTypes[catalog.RelationshipTypeStorageBucketLogsToBucket])
 	}
 }

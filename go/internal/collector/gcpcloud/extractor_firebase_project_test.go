@@ -6,6 +6,8 @@ package gcpcloud
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 // fixtureFirebaseProjectData builds a representative CAI
@@ -36,7 +38,7 @@ func firebaseProjectCtx(t *testing.T) ExtractContext {
 	t.Helper()
 	return ExtractContext{
 		FullResourceName: "//firebase.googleapis.com/projects/demo-project",
-		AssetType:        firebaseProjectAssetType,
+		AssetType:        catalog.FirebaseProjectAssetType,
 		Data:             fixtureFirebaseProjectData(t),
 	}
 }
@@ -78,9 +80,9 @@ func TestExtractFirebaseProjectEdges(t *testing.T) {
 	var projectEdge, bucketEdge *RelationshipObservation
 	for i := range got.Relationships {
 		switch got.Relationships[i].RelationshipType {
-		case relationshipTypeFirebaseProjectBackedByProject:
+		case catalog.RelationshipTypeFirebaseProjectBackedByProject:
 			projectEdge = &got.Relationships[i]
-		case relationshipTypeFirebaseProjectDefaultBucket:
+		case catalog.RelationshipTypeFirebaseProjectDefaultBucket:
 			bucketEdge = &got.Relationships[i]
 		}
 	}
@@ -90,7 +92,7 @@ func TestExtractFirebaseProjectEdges(t *testing.T) {
 	if projectEdge.TargetFullResourceName != "//cloudresourcemanager.googleapis.com/projects/123456789" {
 		t.Errorf("backing project target = %q, want number-keyed canonical name", projectEdge.TargetFullResourceName)
 	}
-	if projectEdge.TargetAssetType != assetTypeCloudResourceManagerProject {
+	if projectEdge.TargetAssetType != catalog.AssetTypeCloudResourceManagerProject {
 		t.Errorf("backing project asset type = %q", projectEdge.TargetAssetType)
 	}
 	if bucketEdge == nil {
@@ -119,14 +121,14 @@ func TestExtractFirebaseProjectBackingProjectRequiresNumber(t *testing.T) {
 	}
 	got, err := extractFirebaseProject(ExtractContext{
 		FullResourceName: "//firebase.googleapis.com/projects/demo-project",
-		AssetType:        firebaseProjectAssetType,
+		AssetType:        catalog.FirebaseProjectAssetType,
 		Data:             raw,
 	})
 	if err != nil {
 		t.Fatalf("extractFirebaseProject: %v", err)
 	}
 	for _, rel := range got.Relationships {
-		if rel.RelationshipType == relationshipTypeFirebaseProjectBackedByProject {
+		if rel.RelationshipType == catalog.RelationshipTypeFirebaseProjectBackedByProject {
 			t.Errorf("emitted backing-project edge without projectNumber: %#v", rel)
 		}
 	}
@@ -137,7 +139,7 @@ func TestExtractFirebaseProjectBackingProjectRequiresNumber(t *testing.T) {
 func TestExtractFirebaseProjectEmpty(t *testing.T) {
 	got, err := extractFirebaseProject(ExtractContext{
 		FullResourceName: "//firebase.googleapis.com/projects/demo-project",
-		AssetType:        firebaseProjectAssetType,
+		AssetType:        catalog.FirebaseProjectAssetType,
 		Data:             []byte(`{}`),
 	})
 	if err != nil {
@@ -153,7 +155,7 @@ func TestExtractFirebaseProjectEmpty(t *testing.T) {
 func TestExtractFirebaseProjectMalformed(t *testing.T) {
 	_, err := extractFirebaseProject(ExtractContext{
 		FullResourceName: "//firebase.googleapis.com/projects/demo-project",
-		AssetType:        firebaseProjectAssetType,
+		AssetType:        catalog.FirebaseProjectAssetType,
 		Data:             []byte(`{not json`),
 	})
 	if err == nil {
@@ -164,7 +166,7 @@ func TestExtractFirebaseProjectMalformed(t *testing.T) {
 // TestFirebaseProjectExtractorRegistered proves the asset type is wired into the
 // shared registry.
 func TestFirebaseProjectExtractorRegistered(t *testing.T) {
-	if !HasAssetExtractor(firebaseProjectAssetType) {
-		t.Fatalf("firebase project extractor not registered for %q", firebaseProjectAssetType)
+	if !HasAssetExtractor(catalog.FirebaseProjectAssetType) {
+		t.Fatalf("firebase project extractor not registered for %q", catalog.FirebaseProjectAssetType)
 	}
 }

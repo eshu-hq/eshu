@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -50,7 +51,7 @@ func TestArtifactRegistryRepositoryOfflineFixtureEndToEnd(t *testing.T) {
 				dockerAttrs, _ = env.Payload["attributes"].(map[string]any)
 			}
 		case cloud.GCPCloudRelationshipFactKind:
-			if stringOrEmpty(env.Payload["relationship_type"]) == relationshipTypeArtifactRepoEncryptedByKMSKey {
+			if stringOrEmpty(env.Payload["relationship_type"]) == catalog.RelationshipTypeArtifactRepoEncryptedByKMSKey {
 				kmsEdges++
 			}
 		}

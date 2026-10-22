@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const bigQueryRoutineAssetName = "//bigquery.googleapis.com/projects/demo-project/datasets/analytics/routines/enrich"
@@ -14,15 +16,15 @@ const bigQueryRoutineAssetName = "//bigquery.googleapis.com/projects/demo-projec
 func bigQueryRoutineContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: bigQueryRoutineAssetName,
-		AssetType:        assetTypeBigQueryRoutine,
+		AssetType:        catalog.AssetTypeBigQueryRoutine,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestBigQueryRoutineExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeBigQueryRoutine); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeBigQueryRoutine)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeBigQueryRoutine); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeBigQueryRoutine)
 	}
 }
 
@@ -57,10 +59,10 @@ func TestExtractBigQueryRoutineRemoteFunction(t *testing.T) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeRoutineInDataset,
-		"//bigquery.googleapis.com/projects/demo-project/datasets/analytics", assetTypeBigQueryDataset)
-	assertRelationship(t, got.Relationships, relationshipTypeRoutineUsesConnection,
-		"//bigqueryconnection.googleapis.com/projects/demo-project/locations/us/connections/remote", assetTypeBigQueryConnection)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRoutineInDataset,
+		"//bigquery.googleapis.com/projects/demo-project/datasets/analytics", catalog.AssetTypeBigQueryDataset)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRoutineUsesConnection,
+		"//bigqueryconnection.googleapis.com/projects/demo-project/locations/us/connections/remote", catalog.AssetTypeBigQueryConnection)
 	if len(got.Relationships) != 2 {
 		t.Fatalf("expected dataset + connection edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
@@ -88,15 +90,15 @@ func TestExtractBigQueryRoutineSQLProcedureDerivesDatasetFromFullName(t *testing
 	if _, ok := got.Attributes["return_type_kind"]; ok {
 		t.Errorf("a procedure has no return type: %#v", got.Attributes)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeRoutineInDataset,
-		"//bigquery.googleapis.com/projects/demo-project/datasets/analytics", assetTypeBigQueryDataset)
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeRoutineInDataset,
+		"//bigquery.googleapis.com/projects/demo-project/datasets/analytics", catalog.AssetTypeBigQueryDataset)
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected only the dataset edge, got %#v", got.Relationships)
 	}
 }
 
 func TestExtractBigQueryRoutineEmptyDataYieldsNothing(t *testing.T) {
-	got, err := extractBigQueryRoutine(ExtractContext{AssetType: assetTypeBigQueryRoutine, Data: json.RawMessage(`{}`)})
+	got, err := extractBigQueryRoutine(ExtractContext{AssetType: catalog.AssetTypeBigQueryRoutine, Data: json.RawMessage(`{}`)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

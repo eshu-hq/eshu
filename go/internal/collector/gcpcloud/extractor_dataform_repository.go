@@ -9,25 +9,12 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// assetTypeDataformRepository is the CAI asset type for a Dataform repository.
-// Its optional CMEK edge reuses assetTypeKMSCryptoKey and cloudKMSResourceNamePrefix
-// declared elsewhere in this package.
-const assetTypeDataformRepository = "dataform.googleapis.com/Repository"
-
-// relationshipTypeRepositoryEncryptedByKMSKey is the bounded provider
-// relationship type for the Dataform repository CMEK edge. It is the only typed
-// edge a repository's own resource.data can resolve: the git remote is an
-// external (non-CAI) endpoint, the service account is an email (not an exactly
-// resolvable CAI endpoint, carried as a fingerprint anchor), and workspaces and
-// compiled BigQuery datasets are child/derived resources that reference the
-// repository from their own assets rather than being named here.
-const relationshipTypeRepositoryEncryptedByKMSKey = "dataform_repository_encrypted_by_kms_key"
-
 func init() {
-	RegisterAssetExtractor(assetTypeDataformRepository, extractDataformRepository)
+	RegisterAssetExtractor(catalog.AssetTypeDataformRepository, extractDataformRepository)
 }
 
 // dataformRepositoryData is the bounded view of a CAI
@@ -73,7 +60,7 @@ func extractDataformRepository(ctx ExtractContext) (AttributeExtraction, error) 
 	}
 	if kms := dataformKMSKeyFullName(data.KMSKeyName); kms != "" {
 		anchors = append(anchors, kms)
-		rels = append(rels, dataformRepositoryEdge(ctx, relationshipTypeRepositoryEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
+		rels = append(rels, dataformRepositoryEdge(ctx, catalog.RelationshipTypeRepositoryEncryptedByKMSKey, kms, assetTypeKMSCryptoKey))
 	}
 
 	return AttributeExtraction{

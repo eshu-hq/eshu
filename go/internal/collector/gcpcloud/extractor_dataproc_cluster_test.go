@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const dataprocClusterFullName = "//dataproc.googleapis.com/projects/demo-project/regions/us-central1/clusters/analytics"
@@ -16,15 +17,15 @@ const dataprocClusterFullName = "//dataproc.googleapis.com/projects/demo-project
 func dataprocClusterContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: dataprocClusterFullName,
-		AssetType:        assetTypeDataprocCluster,
+		AssetType:        catalog.AssetTypeDataprocCluster,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestDataprocClusterExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(assetTypeDataprocCluster); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", assetTypeDataprocCluster)
+	if _, ok := lookupAssetExtractor(catalog.AssetTypeDataprocCluster); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeDataprocCluster)
 	}
 }
 
@@ -71,13 +72,13 @@ func TestExtractDataprocClusterFullResource(t *testing.T) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
 	}
 
-	assertRelationship(t, got.Relationships, relationshipTypeClusterUsesNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeClusterUsesNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/analytics-vpc", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeClusterUsesSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeClusterUsesSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/analytics-subnet", assetTypeComputeSubnetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeClusterEncryptedByKMSKey,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeClusterEncryptedByKMSKey,
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/dataproc/cryptoKeys/pd", assetTypeKMSCryptoKey)
-	assertRelationship(t, got.Relationships, relationshipTypeClusterUsesStagingBucket,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeClusterUsesStagingBucket,
 		"//storage.googleapis.com/projects/_/buckets/dataproc-staging-demo", assetTypeStorageBucket)
 	if len(got.Relationships) != 4 {
 		t.Fatalf("expected network + subnet + kms + bucket edges, got %d: %#v", len(got.Relationships), got.Relationships)
@@ -89,7 +90,7 @@ func TestExtractDataprocClusterFullResource(t *testing.T) {
 		t.Fatalf("dataproc extraction leaked raw service-account email: %s", blob)
 	}
 	rel := got.Relationships[0]
-	if rel.SourceFullResourceName != dataprocClusterFullName || rel.SourceAssetType != assetTypeDataprocCluster {
+	if rel.SourceFullResourceName != dataprocClusterFullName || rel.SourceAssetType != catalog.AssetTypeDataprocCluster {
 		t.Errorf("relationship source = %q/%q, want dataproc identity", rel.SourceFullResourceName, rel.SourceAssetType)
 	}
 }
@@ -163,9 +164,9 @@ func TestExtractDataprocClusterShortNetworkAndSubnetNames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeClusterUsesNetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeClusterUsesNetwork,
 		"//compute.googleapis.com/projects/demo-project/global/networks/default", assetTypeComputeNetwork)
-	assertRelationship(t, got.Relationships, relationshipTypeClusterUsesSubnetwork,
+	assertRelationship(t, got.Relationships, catalog.RelationshipTypeClusterUsesSubnetwork,
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/sub0", assetTypeComputeSubnetwork)
 }
 

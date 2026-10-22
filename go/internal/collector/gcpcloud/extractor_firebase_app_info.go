@@ -7,25 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// firebaseAppInfoAssetType is the Cloud Asset Inventory asset type for a Firebase
-// App Info summary (a Web, Android, or iOS app registered under a Firebase
-// project). The parent project edge targets firebaseProjectAssetType declared in
-// the Firebase Project extractor.
-const firebaseAppInfoAssetType = "firebase.googleapis.com/FirebaseAppInfo"
-
-// firebaseProjectResourceNamePrefix is the canonical CAI full-resource-name
-// prefix for a Firebase Project (`//firebase.googleapis.com/projects/<projectId>`).
-const firebaseProjectResourceNamePrefix = "//firebase.googleapis.com/projects/"
-
-// relationshipTypeFirebaseAppBelongsToProject is the bounded provider
-// relationship type for the edge from a Firebase app to its parent Firebase
-// project.
-const relationshipTypeFirebaseAppBelongsToProject = "firebase_app_belongs_to_project"
-
 func init() {
-	RegisterAssetExtractor(firebaseAppInfoAssetType, extractFirebaseAppInfo)
+	RegisterAssetExtractor(catalog.FirebaseAppInfoAssetType, extractFirebaseAppInfo)
 }
 
 // firebaseAppInfoData is the bounded view of a CAI
@@ -77,14 +64,14 @@ func extractFirebaseAppInfo(ctx ExtractContext) (AttributeExtraction, error) {
 	var anchors []string
 	var rels []RelationshipObservation
 	if projectID := ProjectIDFromFullName(ctx.FullResourceName); projectID != "" {
-		target := firebaseProjectResourceNamePrefix + projectID
+		target := catalog.FirebaseProjectResourceNamePrefix + projectID
 		anchors = append(anchors, target)
 		rels = append(rels, RelationshipObservation{
 			SourceFullResourceName: ctx.FullResourceName,
 			SourceAssetType:        ctx.AssetType,
-			RelationshipType:       relationshipTypeFirebaseAppBelongsToProject,
+			RelationshipType:       catalog.RelationshipTypeFirebaseAppBelongsToProject,
 			TargetFullResourceName: target,
-			TargetAssetType:        firebaseProjectAssetType,
+			TargetAssetType:        catalog.FirebaseProjectAssetType,
 			SupportState:           RelationshipSupportSupported,
 		})
 	}

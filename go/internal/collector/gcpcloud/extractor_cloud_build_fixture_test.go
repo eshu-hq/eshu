@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -55,11 +56,11 @@ func TestCloudBuildOfflineFixtureEndToEnd(t *testing.T) {
 			}
 		case cloud.GCPCloudRelationshipFactKind:
 			switch stringOrEmpty(env.Payload["relationship_type"]) {
-			case relationshipTypeBuildTriggeredBy:
+			case catalog.RelationshipTypeBuildTriggeredBy:
 				triggerEdges++
-			case relationshipTypeBuildSourceRepo:
+			case catalog.RelationshipTypeBuildSourceRepo:
 				repoEdges++
-			case relationshipTypeBuildSourceBucket:
+			case catalog.RelationshipTypeBuildSourceBucket:
 				bucketEdges++
 			}
 		}
