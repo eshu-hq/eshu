@@ -171,7 +171,7 @@ on a fixed `tools/call`.
   `go test -race -count=1 -run TestHostServeIsSafeUnderConcurrentCalls ./internal/mcp/router/`
   passes (0.41 s), and the store stays at 1,024 entries or fewer with its map
   and order in step. Removing the lock in `remember` makes the same command
-  report 7 data races. The engine's other maps are written once in
+  report data races (7 to 8 across runs). The engine's other maps are written once in
   `NewEngine`, and `Host` builds it under `sync.Once`.
 - Why the input side is safe: the transport has no body cap, so the router is
   the bound (`routed_call_bounds_test.go`, `go test -run TestCallToolBounds -v ./internal/mcp/`).
@@ -187,9 +187,9 @@ Observability Evidence (#8757): an operator answers "does routing work" from
 `eshu_dp_mcp_router_call_total{tool,outcome}` (`dispatched`,
 `invalid_arguments`, `unknown_tool`, `refused`), and
 `eshu_dp_mcp_router_target_rank` (0 = the agent called a tool `find_tool`
-did not offer). The `mcp.router.find` and `mcp.router.call` spans carry
-`outcome` and `mcp.router.target`, and a dispatched call's own spans nest
-inside `mcp.router.call`. Error results carry typed codes:
+did not offer). Both spans carry `outcome`; `mcp.router.call` also carries
+`mcp.router.target`, and a dispatched call's own spans nest inside
+`mcp.router.call`. Error results carry typed codes:
 `mcp_router_invalid_arguments` (with `field_errors` and
 `field_errors_truncated`), `mcp_router_unknown_tool`, `mcp_router_refused`,
 `mcp_router_ranker_unavailable`, `mcp_router_rank_failed`, and
