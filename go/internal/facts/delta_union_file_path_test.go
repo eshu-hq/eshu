@@ -95,3 +95,27 @@ func TestLiveFileRelativePathCells(t *testing.T) {
 		})
 	}
 }
+
+// TestFileFactRelativePathIncludesTombstones pins the helper the #8750 guard
+// uses to add tombstone paths to a delta's touched set: live and tombstone
+// file facts both report their path; other kinds and empty paths do not.
+func TestFileFactRelativePathIncludesTombstones(t *testing.T) {
+	cases := []struct {
+		name string
+		env  Envelope
+		want string
+		ok   bool
+	}{
+		{"live", Envelope{FactKind: "file", Payload: map[string]any{"relative_path": "a.go"}}, "a.go", true},
+		{"tombstone", Envelope{FactKind: "file", IsTombstone: true, Payload: map[string]any{"relative_path": "a.go"}}, "a.go", true},
+		{"legacy kind", Envelope{FactKind: "fileFact", IsTombstone: true, Payload: map[string]any{"relative_path": "b.go"}}, "b.go", true},
+		{"content kind", Envelope{FactKind: "content", Payload: map[string]any{"relative_path": "a.go"}}, "", false},
+		{"empty path", Envelope{FactKind: "file", IsTombstone: true, Payload: map[string]any{"relative_path": "  "}}, "", false},
+	}
+	for _, tc := range cases {
+		got, ok := FileFactRelativePath(tc.env)
+		if got != tc.want || ok != tc.ok {
+			t.Fatalf("%s: FileFactRelativePath() = (%q, %v), want (%q, %v)", tc.name, got, ok, tc.want, tc.ok)
+		}
+	}
+}

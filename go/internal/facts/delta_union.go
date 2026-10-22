@@ -101,7 +101,17 @@ func (s DeltaScope) FilePath(env Envelope) string {
 // (non-tombstone) file fact, the rows the #8750 guard counts as a delta's
 // live files. Qualify the result with DeltaScope.FilePath.
 func LiveFileRelativePath(env Envelope) (string, bool) {
-	if env.IsTombstone || normalizeDeltaKind(env.FactKind) != "file" {
+	if env.IsTombstone {
+		return "", false
+	}
+	return FileFactRelativePath(env)
+}
+
+// FileFactRelativePath returns env's relative path when env is a file fact,
+// live or tombstone. The #8750 guard adds tombstone paths to a delta's
+// touched set, since OverlayDeltaBase drops a base row by tombstone key.
+func FileFactRelativePath(env Envelope) (string, bool) {
+	if normalizeDeltaKind(env.FactKind) != "file" {
 		return "", false
 	}
 	rel, ok := env.Payload[deltaUnionRelativePathKey].(string)

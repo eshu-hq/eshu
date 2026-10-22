@@ -121,8 +121,12 @@ func guardAnchorFilesTouched(t *testing.T, base, delta []facts.Envelope) int {
 	for _, env := range base {
 		database.anchorPaths = append(database.anchorPaths, env.Payload["relative_path"].(string))
 	}
+	tx, err := database.Begin(context.Background())
+	if err != nil {
+		t.Fatalf("Begin() error = %v", err)
+	}
 	touched, err := NewIngestionStore(database).countAnchorFilesTouched(
-		context.Background(), "scope-8750", "gen-full", observer.scope, touchedOrLive)
+		context.Background(), tx, "scope-8750", "gen-full", observer.scope, touchedOrLive)
 	if err != nil {
 		t.Fatalf("countAnchorFilesTouched() error = %v", err)
 	}
@@ -192,5 +196,25 @@ func TestGuardTouchedAnchorCountMatchesOverlayWhenLiveFileSharesTheBaseKey(t *te
 
 	if dropped != 9 || touched != dropped {
 		t.Fatalf("overlay dropped %d, guard counted %d, want both 9", dropped, touched)
+	}
+}
+
+// TestGuardTouchedAnchorCountMatchesOverlayForUnlistedTombstone is review F3:
+// the overlay drops a base row whenever a delta tombstone shares its stable
+// key, whether or not the repository fact lists the path. The guard must
+// count that file as touched too, or a tombstone-heavy stream whose manifest
+// omits paths would wipe files the guard counts as kept.
+func TestGuardTouchedAnchorCountMatchesOverlayForUnlistedTombstone(t *testing.T) {
+	base := append(overlayDiffAdversarialBase(), overlayDiffBaseFile("base-extra", "unlisted/gone.go"))
+	delta := append(overlayDiffAdversarialDelta(), overlayDiffDeltaFile("delta-tomb-extra", "unlisted/gone.go", true))
+
+	dropped := overlayDroppedBaseFiles(base, delta)
+	touched := guardAnchorFilesTouched(t, base, delta)
+
+	if dropped != 9 {
+		t.Fatalf("overlay dropped %d base file rows, want 9: the unlisted tombstone no longer removes its base row", dropped)
+	}
+	if touched != dropped {
+		t.Fatalf("guard counted %d anchor files touched, overlay dropped %d: an unlisted tombstone escapes the guard", touched, dropped)
 	}
 }

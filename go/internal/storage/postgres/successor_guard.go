@@ -178,7 +178,8 @@ func (s IngestionStore) successorPriorForGuard(
 	if !generation.IsDelta {
 		return prior, nil
 	}
-	anchorID, err := store.resolveDeltaBaseAtCommit(ctx, scopeValue.ScopeID, generation.GenerationID, generation.DeltaBaselineCommitSHA)
+	anchorID, err := store.resolveDeltaBaseAtCommit(ctx, scopeValue.ScopeID, generation.GenerationID,
+		strings.TrimSpace(generation.DeltaBaselineCommitSHA))
 	if err != nil {
 		if isDeltaBaseMissing(err) {
 			prior.anchorMissing = true
@@ -209,9 +210,10 @@ func isDeltaBaseMissing(err error) bool {
 // the relative paths of its live file facts. It costs one map lookup per
 // envelope and keeps file paths only for delta generations.
 type successorObserver struct {
-	keepFiles         bool
-	scope             facts.DeltaScope
-	liveRelativePaths []string
+	keepFiles              bool
+	scope                  facts.DeltaScope
+	liveRelativePaths      []string
+	tombstoneRelativePaths []string
 }
 
 func newSuccessorObserver(generation scope.ScopeGeneration) *successorObserver {
@@ -231,19 +233,33 @@ func (o *successorObserver) observe(envelope facts.Envelope) {
 	if !o.keepFiles {
 		return
 	}
-	if rel, ok := facts.LiveFileRelativePath(envelope); ok {
-		o.liveRelativePaths = append(o.liveRelativePaths, rel)
+	rel, ok := facts.FileFactRelativePath(envelope)
+	if !ok {
+		return
 	}
+	if envelope.IsTombstone {
+		o.tombstoneRelativePaths = append(o.tombstoneRelativePaths, rel)
+		return
+	}
+	o.liveRelativePaths = append(o.liveRelativePaths, rel)
 }
 
 // unionSets returns the qualified touched-or-live path set and the count of
 // distinct qualified live file paths, matched exactly as OverlayDeltaBase
-// matches base rows.
+// matches base rows. A file tombstone joins the set even when the repository
+// fact does not list its path (review F3): the overlay drops a base row by
+// tombstone stable key too. That is exact when the keys match and stricter
+// otherwise.
 func (o *successorObserver) unionSets() (map[string]struct{}, int) {
 	touchedOrLive := o.scope.Touched()
+	for _, rel := range o.tombstoneRelativePaths {
+		if qualified := o.qualify(rel); qualified != "" {
+			touchedOrLive[qualified] = struct{}{}
+		}
+	}
 	live := make(map[string]struct{}, len(o.liveRelativePaths))
 	for _, rel := range o.liveRelativePaths {
-		qualified := o.scope.FilePath(facts.Envelope{FactKind: "file", Payload: map[string]any{"relative_path": rel}})
+		qualified := o.qualify(rel)
 		if qualified == "" {
 			continue
 		}
@@ -253,17 +269,26 @@ func (o *successorObserver) unionSets() (map[string]struct{}, int) {
 	return touchedOrLive, len(live)
 }
 
+func (o *successorObserver) qualify(rel string) string {
+	return o.scope.FilePath(facts.Envelope{FactKind: "file", Payload: map[string]any{"relative_path": rel}})
+}
+
 // countAnchorFilesTouched counts the anchor's file rows inside touchedOrLive,
 // qualified with the delta's repository path exactly as OverlayDeltaBase
-// qualifies base rows.
+// qualifies base rows. The caller passes its open commit transaction: the
+// probe runs while that transaction is open, and reading on it keeps a
+// probing commit to one connection (review F2). The anchor is an older,
+// committed generation, so READ COMMITTED visibility is the same as on the
+// pool.
 func (s IngestionStore) countAnchorFilesTouched(
 	ctx context.Context,
+	querier db.Queryer,
 	scopeID string,
 	anchorID string,
 	deltaScope facts.DeltaScope,
 	touchedOrLive map[string]struct{},
 ) (int, error) {
-	rows, err := s.database.QueryContext(ctx, successorGuardAnchorFilePathsQuery, scopeID, anchorID)
+	rows, err := querier.QueryContext(ctx, successorGuardAnchorFilePathsQuery, scopeID, anchorID)
 	if err != nil {
 		return 0, fmt.Errorf("read delta successor anchor file paths: %w", err)
 	}
@@ -297,7 +322,7 @@ func (s IngestionStore) countAnchorFilesTouched(
 // prior's collector rows, and a delta successor with the file-level union
 // it will project over its anchor (backfill.DecideSuccessor). Only a delta
 // whose zero-query bound fails reads anything here: one probe of the
-// anchor's file paths on the base connection. Every decision logs the
+// anchor's file paths on the commit transaction. Every decision logs the
 // successor_guard stage and counts
 // eshu_dp_ingestion_successor_guard_decisions_total. The caller marks its
 // transaction closed and returns success on a refusal.
@@ -343,7 +368,7 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	var probeDuration time.Duration
 	if decision.NeedsProbe {
 		probeStart := time.Now()
-		touched, err := s.countAnchorFilesTouched(ctx, scopeValue.ScopeID, prior.anchorID, observer.scope, touchedOrLive)
+		touched, err := s.countAnchorFilesTouched(ctx, tx, scopeValue.ScopeID, prior.anchorID, observer.scope, touchedOrLive)
 		probeDuration = time.Since(probeStart)
 		if err != nil {
 			return false, err

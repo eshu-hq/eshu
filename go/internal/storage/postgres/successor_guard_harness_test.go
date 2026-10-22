@@ -40,7 +40,38 @@ type guardRoutingDB struct {
 	queries []fakeQueryCall
 }
 
-func (g *guardRoutingDB) Begin(context.Context) (db.Transaction, error) { return g.tx, nil }
+func (g *guardRoutingDB) Begin(context.Context) (db.Transaction, error) {
+	return &guardRoutingTx{fakeTx: g.tx, routes: g}, nil
+}
+
+// guardRoutingTx serves the anchor probe on the commit transaction (review
+// F2): the probe must not take a second pool connection while the
+// transaction is open. Every other query falls through to fakeTx.
+type guardRoutingTx struct {
+	*fakeTx
+	routes *guardRoutingDB
+}
+
+func (tx *guardRoutingTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	if query == successorGuardAnchorFilePathsQuery {
+		return tx.routes.anchorProbe(query, args)
+	}
+	return tx.fakeTx.QueryContext(ctx, query, args...)
+}
+
+// anchorProbe answers successorGuardAnchorFilePathsQuery from the staged
+// anchor paths and records the call.
+func (g *guardRoutingDB) anchorProbe(query string, args []any) (db.Rows, error) {
+	g.queries = append(g.queries, fakeQueryCall{query: query, args: args})
+	if g.probeErr != nil {
+		return nil, g.probeErr
+	}
+	rows := make([][]any, 0, len(g.anchorPaths))
+	for _, path := range g.anchorPaths {
+		rows = append(rows, []any{path})
+	}
+	return &queueFakeRows{rows: rows}, nil
+}
 
 func (g *guardRoutingDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return nil, errors.New("unexpected ExecContext on outer db")
@@ -58,14 +89,7 @@ func (g *guardRoutingDB) QueryContext(_ context.Context, query string, args ...a
 	case successorGuardCountQuery:
 		return g.rowsFor(g.counts, args[1], false), nil
 	case successorGuardAnchorFilePathsQuery:
-		if g.probeErr != nil {
-			return nil, g.probeErr
-		}
-		rows := make([][]any, 0, len(g.anchorPaths))
-		for _, path := range g.anchorPaths {
-			rows = append(rows, []any{path})
-		}
-		return &queueFakeRows{rows: rows}, nil
+		g.t.Fatal("anchor probe ran on the base connection; it must run on the commit transaction")
 	}
 	if strings.Contains(query, "FROM fact_records") && strings.Contains(query, "fact_kind = 'repository'") {
 		return &queueFakeRows{}, nil
