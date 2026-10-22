@@ -6,7 +6,9 @@ package materializededges
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -113,7 +115,10 @@ func resolveDerivedFromMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) 
 		return false, problem
 	}
 
-	actual := derivedFromRowsToExpectedEdges(rows, scopeID)
+	actual, problem := derivedFromRowsToExpectedEdges(rows, scopeID, odu)
+	if problem != "" {
+		return false, problem
+	}
 	if mismatch := compareDirectFamilyExpectedEdges(odu.Name, derivedFromFamily, expected, actual); mismatch != "" {
 		return false, mismatch
 	}
@@ -154,25 +159,69 @@ func directFamilyOwningRepository(odu ifa.Odu, family string) (string, string) {
 // into the edge identity the write template MERGEs.
 //
 // digest and base_digest are the built :ContainerImage digest and the base
-// :ContainerImage digest the template's two MATCH clauses bind, so they are
-// the edge's source and target identity. scope_id and evidence_source are
-// MERGE identity the writer stamps per run: the guard reproduces the live
-// contract (the Odù's single scope, the container-image-base-image domain),
-// and the fixture pins the same values. attribution_basis is SET after the
-// MERGE — deliberately outside the relationship key — and is asserted here
-// as a mutable pin so a new attribution model cannot pass on edge identity
-// alone. generation_id, evidence_kinds and source_tool are SET after the
-// MERGE from per-run writer arguments and carried on no row, so they are
-// outside what this guard can or should assert. The live assert reads only
-// fixture-declared keys off each rel, so extra live props never collide
-// with these pins.
-func derivedFromRowsToExpectedEdges(rows []map[string]any, scopeID string) []ExpectedEdge {
+// :ContainerImage digest the template's two MATCH clauses bind, but neither
+// is the edge endpoint identity: the template matches :ContainerImage nodes
+// by their digest property, while each endpoint is the node's id, which the
+// OCI canonical writer stamps as the resolved descriptor uid
+// (oci-descriptor://registry/repository@digest, same construction as
+// ociDescriptorUID in projector/canonical/oci_registry.go). The resolver
+// reproduces that construction from the Odù's own image-manifest facts
+// rather than trusting the row, and fails closed when a digest has no (or
+// no unambiguous oci-registry://) manifest. scope_id and evidence_source
+// are MERGE identity the writer stamps per run: the guard reproduces the
+// live contract (the Odù's single scope, the container-image-base-image
+// domain), and the fixture pins the same values. attribution_basis is SET
+// after the MERGE — deliberately outside the relationship key — and is
+// asserted here as a mutable pin so a new attribution model cannot pass on
+// edge identity alone. generation_id, evidence_kinds and source_tool are
+// SET after the MERGE from per-run writer arguments and carried on no row,
+// so they are outside what this guard can or should assert. The live assert
+// reads only fixture-declared keys off each rel, so extra live props never
+// collide with these pins.
+func derivedFromRowsToExpectedEdges(rows []map[string]any, scopeID string, odu ifa.Odu) ([]ExpectedEdge, string) {
+	manifestRegistry := make(map[string]string, len(odu.Facts))
+	for _, env := range odu.Facts {
+		if env.FactKind != chain.OCIImageManifestFactKind {
+			continue
+		}
+		payload := env.Payload
+		if payload == nil {
+			continue
+		}
+		digest := anyToStringValue(payload["digest"])
+		registryID := anyToStringValue(payload["repository_id"])
+		if digest == "" || registryID == "" {
+			continue
+		}
+		if prev, dup := manifestRegistry[digest]; dup && prev != registryID {
+			return nil, fmt.Sprintf("odù %q: digest %q maps to two manifest repository_ids %q and %q; the descriptor uid is ambiguous so the guard cannot pin the edge endpoints", odu.Name, digest, prev, registryID)
+		}
+		manifestRegistry[digest] = registryID
+	}
+	resolveEndpoint := func(digest string) (string, string) {
+		registryID, ok := manifestRegistry[digest]
+		if !ok || registryID == "" {
+			return "", fmt.Sprintf("odù %q: row digest %q has no image-manifest fact; the descriptor uid needs the manifest's oci-registry:// repository_id", odu.Name, digest)
+		}
+		if !strings.HasPrefix(registryID, "oci-registry://") {
+			return "", fmt.Sprintf("odù %q: manifest repository_id %q lacks the oci-registry:// prefix; the descriptor uid construction does not apply", odu.Name, registryID)
+		}
+		return "oci-descriptor://" + strings.TrimPrefix(registryID, "oci-registry://") + "@" + digest, ""
+	}
 	edges := make([]ExpectedEdge, 0, len(rows))
 	for _, row := range rows {
+		source, problem := resolveEndpoint(anyToStringValue(row["digest"]))
+		if problem != "" {
+			return nil, problem
+		}
+		target, problem := resolveEndpoint(anyToStringValue(row["base_digest"]))
+		if problem != "" {
+			return nil, problem
+		}
 		edge := ExpectedEdge{
 			RelationshipType: derivedFromRelationshipType,
-			SourceEntityID:   anyToStringValue(row["digest"]),
-			TargetEntityID:   anyToStringValue(row["base_digest"]),
+			SourceEntityID:   source,
+			TargetEntityID:   target,
 			Identity: map[string]string{
 				"scope_id":        scopeID,
 				"evidence_source": containerimage.ContainerImageDerivedFromProvenanceEvidenceSource,
@@ -183,5 +232,5 @@ func derivedFromRowsToExpectedEdges(rows []map[string]any, scopeID string) []Exp
 		}
 		edges = append(edges, edge)
 	}
-	return edges
+	return edges, ""
 }
