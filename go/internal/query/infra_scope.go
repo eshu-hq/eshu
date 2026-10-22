@@ -94,10 +94,10 @@ func infraRelationshipAnchorClause(access querycontract.RepositoryAccessFilter) 
 // unscoped Cypher is unchanged.
 func infraRelationshipNeighborClause(access querycontract.RepositoryAccessFilter, alias string) string {
 	if !access.Scoped() {
-		return " WHERE NOT ('CloudResource' IN labels(" + alias + ") AND coalesce(" + alias + ".resource_type, " + alias + ".data_type, '') = 'aws_appsync_api_key')"
+		return " WHERE NOT ('CloudResource' IN labels(" + alias + ") AND (coalesce(" + alias + ".resource_type, '') = 'aws_appsync_api_key' OR coalesce(" + alias + ".data_type, '') = 'aws_appsync_api_key'))"
 	}
 	scalars, _ := access.ScopeGrantInlineScalars()
-	return " WHERE NOT ('CloudResource' IN labels(" + alias + ") AND coalesce(" + alias + ".resource_type, " + alias + ".data_type, '') = 'aws_appsync_api_key') AND " + infraResourceScopePredicate(alias, scalars)
+	return " WHERE NOT ('CloudResource' IN labels(" + alias + ") AND (coalesce(" + alias + ".resource_type, '') = 'aws_appsync_api_key' OR coalesce(" + alias + ".data_type, '') = 'aws_appsync_api_key')) AND " + infraResourceScopePredicate(alias, scalars)
 }
 
 // writeEmptyInfraSearch returns the bounded empty search page for an empty-grant

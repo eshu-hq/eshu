@@ -265,6 +265,9 @@ func TestExplainDependencyPathAnchorsResolvedEndpoints(t *testing.T) {
 	if !strings.Contains(pathCypher, "shortestPath((source:CloudResource {id: $source_id})-[*1..8]-(target:Repository {id: $target_id}))") {
 		t.Fatalf("shortestPath must anchor both resolved labels inline: %s", pathCypher)
 	}
+	if strings.Contains(pathCypher, "all(n IN nodes(path)") || strings.Contains(pathCypher, "IN labels(") {
+		t.Fatalf("shortestPath must leave legacy-key suppression to the backend-independent Go path guard: %s", pathCypher)
+	}
 	// The handler intentionally returns "path": null when no path exists.
 	if v, ok := data["path"]; ok && v != nil {
 		t.Fatalf("path = %#v, want absent/null when no shortest path exists", v)
@@ -272,5 +275,66 @@ func TestExplainDependencyPathAnchorsResolvedEndpoints(t *testing.T) {
 	// Source and target are still resolved and returned.
 	if src, _ := data["source"].(map[string]any); querycontract.StringVal(src, "id") != "resource:queue" {
 		t.Fatalf("source = %#v, want resolved resource:queue", data["source"])
+	}
+}
+
+type legacyKeyPathProbe struct {
+	stubImpactPathProbe
+	hopCalls int
+}
+
+func (*legacyKeyPathProbe) ResolveAnchor(_ context.Context, _ querycontract.GraphQuery, _, id string) (*deployment.ResolvedImpactAnchor, error) {
+	return &deployment.ResolvedImpactAnchor{ID: id, Name: id, Label: "Workload", Labels: []string{"Workload"}}, nil
+}
+
+func (*legacyKeyPathProbe) PathHasNodes(any) bool { return true }
+
+func (*legacyKeyPathProbe) PathNodes(any) []deployment.ImpactNodeIdentity {
+	return []deployment.ImpactNodeIdentity{
+		{ID: "workload:source", Labels: []string{"Workload"}},
+		{ID: "legacy-key-id", Name: "legacy-key-name", Labels: []string{"CloudResource"}, ResourceType: "aws_appsync_api_key"},
+		{ID: "workload:target", Labels: []string{"Workload"}},
+	}
+}
+
+func (p *legacyKeyPathProbe) DependencyHops(_, _ any) []map[string]any {
+	p.hopCalls++
+	return []map[string]any{{"from_id": "workload:source", "to_id": "legacy-key-id", "to_name": "legacy-key-name"}}
+}
+
+func TestExplainDependencyPathSuppressesKeyWhenBackendIgnoresPathPredicate(t *testing.T) {
+	t.Parallel()
+	probe := &legacyKeyPathProbe{}
+	handler := &Handler{
+		Profile:   querycontract.ProfileLocalAuthoritative,
+		PathProbe: probe,
+		Neo4j: graph.FakeGraphReaderWithSingle{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+				if strings.Contains(cypher, "shortestPath") {
+					return map[string]any{"depth": 2, "ns": "backend-path", "rels": "backend-relationships"}, nil
+				}
+				if _, ok := params["source_id"]; ok {
+					return map[string]any{"label": "Workload", "id": "workload:source", "name": "source", "labels": []any{"Workload"}}, nil
+				}
+				return map[string]any{"label": "Workload", "id": "workload:target", "name": "target", "labels": []any{"Workload"}}, nil
+			},
+		},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/explain-dependency-path", bytes.NewBufferString(`{"source":"workload:source","target":"workload:target"}`))
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	handler.explainDependencyPath(rec, req)
+	data := testutil.DecodeImpactEnvelopeData(t, rec)
+	if path, ok := data["path"]; ok && path != nil {
+		t.Fatalf("path exposed a legacy key when the backend ignored the path predicate: %#v", path)
+	}
+	if probe.hopCalls != 0 {
+		t.Fatalf("DependencyHops calls = %d, want 0 for a path crossing a historical key", probe.hopCalls)
+	}
+	if source, _ := data["source"].(map[string]any); source["id"] != "workload:source" {
+		t.Fatalf("source = %#v, want the resolved healthy source", data["source"])
+	}
+	if target, _ := data["target"].(map[string]any); target["id"] != "workload:target" {
+		t.Fatalf("target = %#v, want the resolved healthy target", data["target"])
 	}
 }

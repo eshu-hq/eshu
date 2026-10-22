@@ -333,7 +333,7 @@ entries:
     source:
       file: go/internal/query/impact/deployment/cloud_resource_dependencies.go
       symbol: LoadMaterializedServiceCloudResourceDependencies
-      source_sha256: f515885f0736c6350d44d1bca7c723c5edd892006d4f214ff740108ec4c2e516
+      source_sha256: 1c540da4d0717011561f3a2251c7c4646e15c8358db5dc250bb286e3d17dc85c
       line_hint: 19
     required_anchors:
       - label: Repository
@@ -357,7 +357,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "e7b5dd677a995a2bb66efb24872ea909008608c6d85031d1f56a1035d02818f9"
+    cypher_sha256: "943c7b22e565912d547932232ff2579c8763da12d06c37a21242e2d82df79085"
   - id: QP-CODE-REL-STORY
     domain: code_relationship
     backend: nornicdb
@@ -560,7 +560,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "cb1e0e54ad3a3d992a639d5ba32ff7200dcef48e41a9b18308242eceff70d31b"
+    cypher_sha256: "b08fb9a83f32a5e92dd479b2649fd4f0ccef94506173480f95a12d721afd883a"
   - id: QP-IMPACT-CHANGE-SURFACE-SCOPED
     domain: impact
     backend: nornicdb
@@ -589,7 +589,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "5bb181704ddebfc38038cab6b85c79e43a861d38335b8db4ae7858ca7be41307"
+    cypher_sha256: "86772ed8a8b246c8b6a4c152c91f695d8d196d5537ecef92ff04b832e8104650"
   - id: QP-IMPACT-CHANGE-SURFACE-CONSUMERS
     domain: impact
     backend: nornicdb
@@ -814,7 +814,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "5e82c2e99686c3d8f6d188eddaf4ca03a0f6cfd1244a74226f4f397b14b5857a"
+    cypher_sha256: "6e8aaff3f4a192f3989be7c217bcaa04d6f05cb302a6901548425208b325cbed"
   - id: QP-INFRA-RESOURCE-SEARCH-FULLTEXT
     domain: infra
     backend: neo4j

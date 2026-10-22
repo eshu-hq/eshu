@@ -52,3 +52,25 @@ func TestResolveAnchorPicksFirstGrantedCandidate(t *testing.T) {
 		t.Fatalf("empty grant resolved %+v with %d calls, %v; want nil and no call", got, resolveCalls+candidateCalls, err)
 	}
 }
+
+func TestContainsLegacyAppSyncKeyNode(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		nodes []deployment.ImpactNodeIdentity
+		want  bool
+	}{
+		{name: "legacy cloud resource", nodes: []deployment.ImpactNodeIdentity{{Labels: []string{"CloudResource"}, ResourceType: "aws_appsync_api_key"}}, want: true},
+		{name: "legacy fallback data type", nodes: []deployment.ImpactNodeIdentity{{Labels: []string{"CloudResource"}, DataType: "aws_appsync_api_key"}}, want: true},
+		{name: "healthy cloud resource", nodes: []deployment.ImpactNodeIdentity{{Labels: []string{"CloudResource"}, ResourceType: "aws_appsync_graphql_api"}}},
+		{name: "same type on another label", nodes: []deployment.ImpactNodeIdentity{{Labels: []string{"Workload"}, ResourceType: "aws_appsync_api_key"}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ContainsLegacyAppSyncKeyNode(tc.nodes); got != tc.want {
+				t.Fatalf("ContainsLegacyAppSyncKeyNode() = %t, want %t", got, tc.want)
+			}
+		})
+	}
+}

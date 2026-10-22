@@ -84,9 +84,15 @@ type ImpactNodeIdentity struct {
 	Name string
 	// UID, RepoID, and Labels feed the #5167 scoped ownership check
 	// (impact/ownership); hop shaping reads only ID and Name.
-	UID    string
+	UID string
+	// RepoID is the repository ownership signal used by scoped path checks.
 	RepoID string
+	// Labels identify the canonical graph labels for this path node.
 	Labels []string
+	// ResourceType is the CloudResource type, when present.
+	ResourceType string
+	// DataType is the legacy CloudResource type fallback, when present.
+	DataType string
 }
 
 // impactAnchorResolveCypher builds the CALL{UNION} that resolves a node to its
@@ -110,7 +116,7 @@ func impactAnchorResolveUnion(idParam string) string {
 		for _, prop := range []string{"id", "name"} {
 			where := ""
 			if label == "CloudResource" {
-				where = " WHERE coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'"
+				where = " WHERE coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'"
 			}
 			branches = append(branches, fmt.Sprintf(
 				"MATCH (n:%s {%s: $%s})%s RETURN '%s' AS label, n.id AS id, n.name AS name, labels(n) AS labels, n.uid AS uid, n.repo_id AS repo_id",

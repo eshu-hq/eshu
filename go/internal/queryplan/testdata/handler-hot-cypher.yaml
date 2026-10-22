@@ -202,7 +202,7 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/entity_map_resolver.go, symbol: EntityMapNodeResolverQuery, source_sha256: 3f86ac4ea4802169ac132955edeb192f1e5a2452dc8d7d13280da6327c692368}
+    source: {file: go/internal/query/impact/entity_map_resolver.go, symbol: EntityMapNodeResolverQuery, source_sha256: c2bdd3fef7cbd76da1136af6de709afb2101f0f587f6ac156ba3ff69fe1aff41}
     query_fragment: 'MATCH (n:%s {%s: $from})'
     cypher_sha256: bfc49a9d51179a00f16f3397f3b9d18cb2a347705ad346712cf52700a44cdfb6
     required_anchors: [{label: Repository, property: id}]
@@ -215,9 +215,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapDirectTraversalCypher, source_sha256: 90671cddd69cca3a3155e3ae5679cf674a82a4a6820192c13ab347f0e40e2a37}
+    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapDirectTraversalCypher, source_sha256: b76e4e23360ddaf0fe3a637d0ce0b54580221f4646ce93680f2ef6a6b299916a}
     query_fragment: '(start:%s {%s: $from_id})-[rel:%s]->(entity)'
-    cypher_sha256: ebf572525bc3ff77ea4bb32b0be6baa2656a12f2f7823b84411debc8030fc2aa
+    cypher_sha256: 600896badc35e23c8bbcbeaf6b036d4a00c3688692b99a4edaca3eb2b476bccd
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$limit]
@@ -228,9 +228,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapVariableTraversalCypher, source_sha256: 708c051800f61adaadc4ee741659feec8f8aaccbd3710ac6478aef2dd2e22fb6}
+    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapVariableTraversalCypher, source_sha256: 542ab92be4b6f81ae7028f72128e255f309c3c3f7bbf4049192487f5f4c8b6c7}
     query_fragment: '(start:%s {%s: $from_id})-[%s]->(entity)'
-    cypher_sha256: 3c14e8ea97e6625991dce3339f24345893ab497e3fecd19464cdddc65bcd25f4
+    cypher_sha256: 4e672ca90719275452072e029f5eaf49515548845589672cc1a7319f7194e6d1
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$limit]
@@ -253,7 +253,7 @@ entries:
     domain: infra
     backend: postgresql
     query_kind: sql_read_model
-    source: {file: go/internal/query/cloud_resource_list_store.go, symbol: buildCloudResourceIdentityListQuery, source_sha256: d5cd6ab1a6bf600c8adbca345b4573cd29a025c68064ae8a99944e10115f8203}
+    source: {file: go/internal/query/cloud_resource_list_store.go, symbol: buildCloudResourceIdentityListQuery, source_sha256: 05459434d97adcf7b1313dfffa7572e240d5ad0a1bc4498ce08bebbbdc470e31}
     caveats:
       - The hash-frozen 64-variant SQL family is validated by TestHandlerQueryplanCloudResourceListVariantsStayCovered; live EXPLAIN evidence is captured separately because this manifest does not connect to Postgres.
 
@@ -321,9 +321,9 @@ entries:
     domain: graph
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/graph_entity_inventory_counts.go, symbol: graphEntityKindCountsCypher, source_sha256: de1181801d70acd1a609670f991d732d6a2ac5602166281a61d11777b378a2be}
+    source: {file: go/internal/query/graph_entity_inventory_counts.go, symbol: graphEntityKindCountsCypher, source_sha256: 4b7d78fcf696b40530cdc3d028858627bf17359d3db47cab12a25c89cdfea36c}
     query_fragment: 'MATCH (n:'
-    cypher_sha256: edca70bc98b4a1554e161d5babb61385245328b9c30f36ba6066724b80033566
+    cypher_sha256: d24c086f0478b8672c612e0c4985b13980ba839e757ae81ed08543af24da4ead
     caveats: [Eight scalar CALL subqueries return all fixed facet counts in one round trip; every subquery returns exactly one row and stays label-bounded, the live Neo4j gate requires exactly seven bounded one-row CartesianProduct joins plus eight count-store anchors, and no all-node scan is permitted.]
     plan:
       operators: [NodeCountFromCountStore, CartesianProduct]
@@ -333,7 +333,7 @@ entries:
     domain: graph
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindListCypher, source_sha256: a7ed0ba404c2835649180eb6fb95762ddcba8daab3fea881e6807f4d9d211dce}
+    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindListCypher, source_sha256: d2176500cfdb07984b83e5551fc5ee9805fabed3a76342277bef0258908efc2d}
     query_fragment: 'MATCH (n:'
     cypher_sha256: ed4a6cde0b451ba5ea6b1f030c64faaa2d8378e882853f604d5fcbb6f79ef891
     required_anchors: [{label: Workload, property: name}]
@@ -375,9 +375,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/resource_investigation_selector.go, symbol: ResourceInvestigationSelectorLabelCypher, source_sha256: 2a14d3cdfc2bce1f39fa1ca3389453e770374b3f096ddcaed52f3a50830804f8}
+    source: {file: go/internal/query/impact/resource_investigation_selector.go, symbol: ResourceInvestigationSelectorLabelCypher, source_sha256: a2609463e1b9b166ef1b9a5daa22379ddfa3085627b5f9dfca0ed3d8f8631738}
     query_fragment: 'MATCH (n:%s)'
-    cypher_sha256: 1e154f33006bc426483b465f1aedcc6604920e83c7e8a7b8c485de384c4ad980
+    cypher_sha256: e1571599b061dd20f0da95321eab1807b19b07a7e29ffe62ee3c271ab460f5d5
     required_anchors: [{label: CloudResource, property: resource_id}]
     required_schema: [cloud_resource_resource_id]
     required_limits: [$limit]

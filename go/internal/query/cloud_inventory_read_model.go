@@ -89,7 +89,7 @@ func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []an
 	clauses := []string{
 		"fact_records.fact_kind = '" + cloudInventoryFactKind + "'",
 		"fact_records.is_tombstone = FALSE",
-		"fact_records.payload->>'resource_type' IS DISTINCT FROM 'aws_appsync_api_key'",
+		"fact_records.payload->>'resource_type' IS DISTINCT FROM 'aws_appsync_api_key' AND fact_records.payload->>'data_type' IS DISTINCT FROM 'aws_appsync_api_key'",
 	}
 	addPayloadFilter := func(field string, value string) {
 		value = strings.TrimSpace(value)

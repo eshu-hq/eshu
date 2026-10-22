@@ -165,7 +165,7 @@ func infraSearchLegacyCloudKeyClause(label string) string {
 	if label != "CloudResource" {
 		return ""
 	}
-	return " AND coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'"
+	return " AND coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'"
 }
 
 // infraSearchReturnExprs renders infraSearchReturnColumns as "expr as alias"

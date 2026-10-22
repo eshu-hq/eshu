@@ -24,8 +24,8 @@ const (
 	// additions to allInfraLabels and the resource-investigation selector
 	// labels, and the CrossplaneClaim/#5478 removal from both, once this file
 	// lands on main.
-	handlerQueryplanSafeVariantFamilySHA256       = "95a1a8be77642b04336d0ef3e37d474fe8077e41f88182a66172d4eff6c9f7e7"
-	cloudResourcePageQueryplanFamilySHA256        = "9728cdfb5d4016bec2cde87db6931325e95a88cefc38d52bf6ddc8475b495abe"
+	handlerQueryplanSafeVariantFamilySHA256       = "d32126cfd6a92e880774042a6d6ebecbcc46d94f019f7075cb7af93caca4d1c6"
+	cloudResourcePageQueryplanFamilySHA256        = "b889ab41aab08cd5aea478ae22f6b5c5b558043ff8f49e98fad21c51a97c8236"
 	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
 	entityNameSearchQueryplanBuilderSourceSHA256  = "2f4738bd6dd5067e7a97d8ac0968941c99412da5f75d4060f59ca9ca9af0fc03"
 	entityNameSearchQueryplanExpectedVariantCount = 17

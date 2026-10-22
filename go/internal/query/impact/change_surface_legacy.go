@@ -166,7 +166,7 @@ WHERE impacted.id <> $target_id
     OR impacted:CloudResource OR impacted:TerraformModule OR impacted:DataAsset)
   AND ('Repository' IN labels(impacted) OR 'Workload' IN labels(impacted) OR 'WorkloadInstance' IN labels(impacted)
     OR 'CloudResource' IN labels(impacted) OR 'TerraformModule' IN labels(impacted) OR 'DataAsset' IN labels(impacted))%s
-  AND NOT ('CloudResource' IN labels(impacted) AND coalesce(impacted.resource_type, impacted.data_type, '') = 'aws_appsync_api_key')
+  AND NOT ('CloudResource' IN labels(impacted) AND (coalesce(impacted.resource_type, '') = 'aws_appsync_api_key' OR coalesce(impacted.data_type, '') = 'aws_appsync_api_key'))
 RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,
 	impacted.repo_id as repo_id, length(path) as depth, relationships(path) as rels
 ORDER BY name, id

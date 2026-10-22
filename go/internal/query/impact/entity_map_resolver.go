@@ -184,7 +184,7 @@ func EntityMapNodeResolverQuery(
 ) entityMapResolverQuery {
 	legacyCloudKeyClause := ""
 	if label == "CloudResource" {
-		legacyCloudKeyClause = "\n  AND coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'"
+		legacyCloudKeyClause = "\n  AND coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'"
 	}
 	return entityMapResolverQuery{
 		Cypher: fmt.Sprintf(`MATCH (n:%s {%s: $from})

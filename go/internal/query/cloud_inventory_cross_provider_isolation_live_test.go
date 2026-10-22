@@ -83,7 +83,7 @@ func TestCloudInventoryReadbackSuppressesLegacyAppSyncKeyLive(t *testing.T) {
 	}
 	reader := NewContentReader(db)
 	productionQuery, args := buildCloudInventoryIdentitiesSQL(filter)
-	legacyPredicate := "fact_records.payload->>'resource_type' IS DISTINCT FROM 'aws_appsync_api_key'"
+	legacyPredicate := "fact_records.payload->>'resource_type' IS DISTINCT FROM 'aws_appsync_api_key' AND fact_records.payload->>'data_type' IS DISTINCT FROM 'aws_appsync_api_key'"
 	if strings.Count(productionQuery, legacyPredicate) != 1 {
 		t.Fatalf("production read query must contain exactly one legacy AppSync predicate:\n%s", productionQuery)
 	}
@@ -153,11 +153,14 @@ VALUES ($1, $2, 'active', now(), now(), 'snapshot')
 		factID, uid  string
 		resourceType *string
 		nullType     bool
+		dataType     *string
 	}{
-		{"legacy-appsync-api", "aws:appsync:api-123", &apiType, false},
-		{"legacy-appsync-key", "aws:appsync:SYNTHETIC-LEGACY-API-KEY", &keyType, false},
-		{"missing-appsync-type", "aws:custom:missing-resource-type", nil, false},
-		{"null-appsync-type", "aws:custom:null-resource-type", nil, true},
+		{"legacy-appsync-api", "aws:appsync:api-123", &apiType, false, nil},
+		{"legacy-appsync-key", "aws:appsync:SYNTHETIC-LEGACY-API-KEY", &keyType, false, nil},
+		{"legacy-appsync-data-type-key", "aws:appsync:SYNTHETIC-DATA-TYPE-KEY", nil, false, &keyType},
+		{"legacy-appsync-conflicting-key", "aws:appsync:SYNTHETIC-CONFLICTING-KEY", &apiType, false, &keyType},
+		{"missing-appsync-type", "aws:custom:missing-resource-type", nil, false, nil},
+		{"null-appsync-type", "aws:custom:null-resource-type", nil, true, nil},
 	}
 	for _, row := range rows {
 		payloadFields := map[string]any{
@@ -173,6 +176,9 @@ VALUES ($1, $2, 'active', now(), now(), 'snapshot')
 			payloadFields["resource_type"] = *row.resourceType
 		} else if row.nullType {
 			payloadFields["resource_type"] = nil
+		}
+		if row.dataType != nil {
+			payloadFields["data_type"] = *row.dataType
 		}
 		payload, err := json.Marshal(payloadFields)
 		if err != nil {

@@ -130,12 +130,12 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	anchorClause := infraRelationshipAnchorClause(access)
 	targetClause := infraRelationshipNeighborClause(access, "target")
 	sourceClause := infraRelationshipNeighborClause(access, "source")
-	anchorClause += " AND NOT ('CloudResource' IN labels(n) AND coalesce(n.resource_type, n.data_type, '') = 'aws_appsync_api_key')"
+	anchorClause += " AND NOT ('CloudResource' IN labels(n) AND (coalesce(n.resource_type, '') = 'aws_appsync_api_key' OR coalesce(n.data_type, '') = 'aws_appsync_api_key'))"
 	if neo4jScoped {
 		anchorClause = " AND " + infraResourceScopeListPredicate("n")
-		anchorClause += " AND NOT ('CloudResource' IN labels(n) AND coalesce(n.resource_type, n.data_type, '') = 'aws_appsync_api_key')"
-		targetClause = " WHERE NOT ('CloudResource' IN labels(target) AND coalesce(target.resource_type, target.data_type, '') = 'aws_appsync_api_key') AND " + infraResourceScopeListPredicate("target")
-		sourceClause = " WHERE NOT ('CloudResource' IN labels(source) AND coalesce(source.resource_type, source.data_type, '') = 'aws_appsync_api_key') AND " + infraResourceScopeListPredicate("source")
+		anchorClause += " AND NOT ('CloudResource' IN labels(n) AND (coalesce(n.resource_type, '') = 'aws_appsync_api_key' OR coalesce(n.data_type, '') = 'aws_appsync_api_key'))"
+		targetClause = " WHERE NOT ('CloudResource' IN labels(target) AND (coalesce(target.resource_type, '') = 'aws_appsync_api_key' OR coalesce(target.data_type, '') = 'aws_appsync_api_key')) AND " + infraResourceScopeListPredicate("target")
+		sourceClause = " WHERE NOT ('CloudResource' IN labels(source) AND (coalesce(source.resource_type, '') = 'aws_appsync_api_key' OR coalesce(source.data_type, '') = 'aws_appsync_api_key')) AND " + infraResourceScopeListPredicate("source")
 	}
 	buildCypher := func(anchor string) string {
 		return `

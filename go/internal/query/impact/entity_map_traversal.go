@@ -218,7 +218,7 @@ func EntityMapDirectTraversalCypher(selected EntityMapCandidate, spec EntityMapT
 		`MATCH %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
   AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id)
-  AND NOT ('CloudResource' IN labels(entity) AND coalesce(entity.resource_type, entity.data_type, '') = 'aws_appsync_api_key')
+  AND NOT ('CloudResource' IN labels(entity) AND (coalesce(entity.resource_type, '') = 'aws_appsync_api_key' OR coalesce(entity.data_type, '') = 'aws_appsync_api_key'))
 RETURN %s,
        type(rel) AS relationship_type
 ORDER BY name, id
@@ -238,7 +238,7 @@ func EntityMapVariableTraversalCypher(selected EntityMapCandidate, spec EntityMa
 		`MATCH path = %s
 WHERE ($environment = '' OR coalesce(entity.environment, '') = '' OR entity.environment = $environment)
   AND ($repo_id = '' OR coalesce(entity.repo_id, '') = '' OR coalesce(entity.repo_id, entity.id, '') = $repo_id)
-  AND NOT ('CloudResource' IN labels(entity) AND coalesce(entity.resource_type, entity.data_type, '') = 'aws_appsync_api_key')
+  AND NOT ('CloudResource' IN labels(entity) AND (coalesce(entity.resource_type, '') = 'aws_appsync_api_key' OR coalesce(entity.data_type, '') = 'aws_appsync_api_key'))
 RETURN %s,
        length(path) AS path_length,
        [rel IN relationships(path) | type(rel)] AS relationship_types

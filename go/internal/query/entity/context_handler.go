@@ -170,6 +170,12 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if isLegacyAppSyncKeyNode(row) {
+		res.resolvedBy = resolvedByNone
+		querycontract.WriteError(w, http.StatusNotFound, "entity not found")
+		return
+	}
+
 	// Defense-in-depth guard against a backend that stops honoring
 	// `e.id = $entity_id` (the exact failure #6786 proved on NornicDB
 	// v1.3.3): a row whose id does not match the requested entity is treated
@@ -327,7 +333,6 @@ func entityContextStatement(anchorClause string, access querycontract.Repository
 	`
 	cypher += `
 		WITH e
-		WHERE NOT ('CloudResource' IN labels(e) AND coalesce(e.resource_type, e.data_type, '') = 'aws_appsync_api_key')
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
 	`
 	if access.Scoped() {
@@ -337,15 +342,17 @@ func entityContextStatement(anchorClause string, access querycontract.Repository
 	}
 	cypher += `
 		OPTIONAL MATCH (e)-[rel]->(target)
-		WHERE NOT ('CloudResource' IN labels(target) AND coalesce(target.resource_type, target.data_type, '') = 'aws_appsync_api_key')
 		RETURN e.id as id, labels(e) as labels, e.name as name,
+		       e.resource_type as resource_type,
 		       f.relative_path as file_path,
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
 ` + rows.GraphSemanticMetadataProjection() + `
 		       ,r.id as repo_id, r.name as repo_name,
-		       collect(DISTINCT {type: type(rel), target_name: target.name, target_id: target.id}) as relationships
+		       collect(DISTINCT {type: type(rel), target_name: target.name, target_id: target.id,
+		                       target_labels: labels(target), target_resource_type: target.resource_type,
+		                       target_data_type: target.data_type}) as relationships
 	`
 	return cypher
 }

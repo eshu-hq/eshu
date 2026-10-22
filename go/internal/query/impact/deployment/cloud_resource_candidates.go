@@ -63,7 +63,7 @@ func LoadUncorrelatedCloudResourceCandidatesBounded(
 	fetchLimit := limit + 1
 	rows, err := graph.Run(ctx, `
 MATCH (n:CloudResource)
-WHERE coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'
+WHERE coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'
   AND `+InfraResourceFreeTextPredicate+`
 RETURN coalesce(n.id, '') AS id,
        coalesce(n.name, '') AS name,

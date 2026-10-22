@@ -110,7 +110,7 @@ func graphEntityKindListCypher(kind graphEntityKind, hasSearch bool) string {
 	b.WriteString("MATCH (n:" + kind.label + ")")
 	conditions := make([]string, 0, 2)
 	if kind.label == "CloudResource" {
-		conditions = append(conditions, "coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'")
+		conditions = append(conditions, "coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'")
 	}
 	if hasSearch {
 		conditions = append(conditions, "toLower(coalesce(n."+kind.nameProp+", '')) CONTAINS $q")

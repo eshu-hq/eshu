@@ -21,7 +21,7 @@ func TestChangeSurfaceCloudResourceResolverExcludesLegacyAppSyncKeys(t *testing.
 	t.Parallel()
 
 	query := changeSurfaceCloudResourceResolverQuery("id", "aws-key", 0, 10, querycontract.RepositoryAccessFilter{AllScopes: true})
-	if !strings.Contains(query.cypher, "coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'") {
+	if !strings.Contains(query.cypher, "coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'") {
 		t.Fatalf("resolver query must suppress historical AppSync keys: %s", query.cypher)
 	}
 }

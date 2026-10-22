@@ -39,7 +39,7 @@ LIMIT %d`
 const changeSurfaceScopedOutgoingCypher = `CALL {
   MATCH path = %s-[*%d..%d]->(impacted)
   WHERE impacted.id <> $target_id AND (impacted.repo_id IN $allowed_repository_ids OR impacted.repo_id IN $allowed_scope_ids)%s
-    AND NOT ('CloudResource' IN labels(impacted) AND coalesce(impacted.resource_type, impacted.data_type, '') = 'aws_appsync_api_key')
+    AND NOT ('CloudResource' IN labels(impacted) AND (coalesce(impacted.resource_type, '') = 'aws_appsync_api_key' OR coalesce(impacted.data_type, '') = 'aws_appsync_api_key'))
   WITH path, impacted
   WHERE impacted:Workload OR impacted:WorkloadInstance OR impacted:CloudResource OR impacted:TerraformModule OR impacted:DataAsset
   RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels,

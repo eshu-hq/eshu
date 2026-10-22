@@ -208,17 +208,25 @@ func TestCodeSeamExportsForward(t *testing.T) {
 	if inv.NormalizedLimit() != StructuralInventoryDefaultLimit {
 		t.Fatalf("StructuralInventoryRequest.NormalizedLimit() = %d, want default %d", inv.NormalizedLimit(), StructuralInventoryDefaultLimit)
 	}
-	// QueryLimit and NormalizedLimit diverge above the display cap: QueryLimit
-	// (the SQL LIMIT content_reader_structural_inventory.go binds) does not
-	// clamp, while NormalizedLimit (the display cap reported to the caller)
-	// does. An over-cap Limit distinguishes them; a value at or below the cap
-	// would not.
-	overCap := StructuralInventoryRequest{Limit: 9000}
-	if got, want := overCap.QueryLimit(), 9000; got != want {
-		t.Fatalf("StructuralInventoryRequest.QueryLimit() = %d, want unclamped %d", got, want)
-	}
-	if got := overCap.NormalizedLimit(); got == 9000 {
-		t.Fatalf("StructuralInventoryRequest.NormalizedLimit() = %d, want it to clamp below QueryLimit", got)
+	// QueryLimit preserves the display-limit-plus-one probe but caps direct
+	// store calls so a large request cannot drive an unbounded SQL result or
+	// slice allocation.
+	for _, test := range []struct {
+		name  string
+		limit int
+		want  int
+	}{
+		{name: "default", limit: 0, want: StructuralInventoryDefaultLimit},
+		{name: "within display cap", limit: 100, want: 100},
+		{name: "plus one probe", limit: structuralInventoryMaxLimit + 1, want: structuralInventoryMaxLimit + 1},
+		{name: "over cap", limit: 9000, want: structuralInventoryMaxLimit + 1},
+		{name: "integer max", limit: int(^uint(0) >> 1), want: structuralInventoryMaxLimit + 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := (StructuralInventoryRequest{Limit: test.limit}).QueryLimit(); got != test.want {
+				t.Fatalf("StructuralInventoryRequest.QueryLimit() = %d, want %d", got, test.want)
+			}
+		})
 	}
 	sym := SymbolSearchRequest{Symbol: " Foo ", MatchMode: "exact", EntityType: "function"}
 	if sym.ResolvedSymbol() != "Foo" {

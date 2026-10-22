@@ -15,11 +15,11 @@ source_coverage:
       - {symbol: "(*Handler).catalogWorkloadEnrichments", count: 4, source_sha256: 50f2c427ab6e827db20f247da3e5d0f993185f031e3e0db185787401e31244cd, entry_ids: [QP-DEPLOY-CATALOG-ENV, QP-DEPLOY-CATALOG-WORKLOAD-REPO, QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE, QP-DEPLOY-CATALOG-WORKLOAD-SIBLINGS]}
   - file: impact/deployment/cloud_resource_candidates.go
     calls:
-      - {symbol: "LoadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot: {class: keyed_support, source_sha256: d3496a4317e3b26cf0310e989f4dc224bad3cc2ca51bbbdd18790a7581768903, key_bound: single_key, max_results: 51}}
+      - {symbol: "LoadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot: {class: keyed_support, source_sha256: a6e5a8d98cc0796c87a802874dda38d3e0bf7fd0daa546541bd308c8ac6ac270, key_bound: single_key, max_results: 51}}
   - file: impact/deployment/cloud_resource_dependencies.go
     calls:
-      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: a6a6a73edd7f0d6992b23c9ac5c3b75ca975ce47575016f85d07b3b505198324, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
-      - {symbol: "LoadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: f515885f0736c6350d44d1bca7c723c5edd892006d4f214ff740108ec4c2e516, entry_ids: [QP-SVC-CLOUD-DEPS]}
+      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: 4d9875407a4fd553569593d05705e01621d2d24c11f55d6d13168640999a7ec9, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
+      - {symbol: "LoadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: 1c540da4d0717011561f3a2251c7c4646e15c8358db5dc250bb286e3d17dc85c, entry_ids: [QP-SVC-CLOUD-DEPS]}
   - file: impact/deployment/enrichment.go
     calls:
       - {symbol: "QueryProvisioningRepositoryCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 04fe31e5ded3fa10bf241df57165eb744896a77da3d5c8a6215c099560c0b76c, key_bound: single_key, max_results: 101}}
@@ -185,7 +185,7 @@ source_coverage:
       - {symbol: "resolveEffectiveRepositoryOwner", count: 1, source_sha256: 5bc6fe8010838b8efff50d18d515b196ef2fb2f0031eed460b2fe7f5e1f459b1, entry_ids: [QP-CODEOWNERS-LAST-MATCH-OWNER]}
   - file: compare/handler.go
     calls:
-      - {symbol: "(*Handler).environmentSnapshot", count: 2, non_hot: {class: keyed_support, source_sha256: d2bc1f327a391f00695d37ea581822efe22392bf9ff64bf793842fd14f590109, key_bound: single_key, max_results: 201}}
+      - {symbol: "(*Handler).environmentSnapshot", count: 2, non_hot: {class: keyed_support, source_sha256: db28105b60e257aa820f3fa03d6f587ffd9c927846a56eb5cc5ba54783b0fda3, key_bound: single_key, max_results: 201}}
   - file: compare/workload_lookup.go
     calls:
       - {symbol: "(*Handler).fetchWorkload", count: 1, non_hot: {class: keyed_support, source_sha256: d0865faccfb0fc086c8ca3c8e55b6bf8a3419fc93d34dc4430866a56831a7626, key_bound: single_key, max_results: 1}}
@@ -202,7 +202,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 8cc23ad5d7871f83483ff40ab75769a0ec653e99c1bbecbe185abb41a5619ff1
+          source_sha256: 9d570a6704af3a42db9d1cb3a77db742001c4d41d52ec34eb338077ef09d7884
           key_bound: single_key
           max_results: 1
   - file: entity/handler.go
@@ -337,7 +337,7 @@ source_coverage:
           max_results: 1200
   - file: impact/handler.go
     calls:
-      - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: 623aa6ee262ecb5605377d234403863d6a96e794d87e1b610fdf44c2b96d3dcb, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}
+      - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: ba1936df9537085516726c7c5678b43113927c925633de759ebd8394916aab3d, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}
       - {symbol: "(*Handler).traceResourceToCode", count: 1, non_hot: {class: keyed_support, source_sha256: df67f1fc7b2995e57a0fb370d70e4040a07649d71b5c1e1aa8cde3540c813b1b, key_bound: single_key, max_results: 201}}
   - file: impact/ownership/checker.go
     calls:

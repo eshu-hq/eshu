@@ -236,17 +236,18 @@ func (r StructuralInventoryRequest) NormalizedLimit() int {
 	}
 }
 
-// QueryLimit is the LIMIT content_reader_structural_inventory.go's SQL readers
-// bind, distinct from NormalizedLimit's display cap: it defaults an unset
-// Limit but never clamps to structuralInventoryMaxLimit, so the caller's
-// display-limit-plus-one probe (structuralInventoryData) reaches SQL
-// unclamped. Relocated from content_reader_structural_inventory.go (#6060) so
-// StructuralInventoryRequest and every one of its methods travel together
-// when this file's family moves to its own subpackage -- Go requires a
-// type's methods to live in the same package as their declaration.
+// QueryLimit returns the bounded SQL LIMIT, including the extra row needed
+// to report whether the display page is truncated. Direct content-store calls
+// are capped at one row above the display maximum so caller input cannot drive
+// an unbounded result or allocation. Relocated from
+// content_reader_structural_inventory.go (#6060) so StructuralInventoryRequest
+// and its methods stay in the owning package.
 func (req StructuralInventoryRequest) QueryLimit() int {
 	if req.Limit <= 0 {
 		return StructuralInventoryDefaultLimit
+	}
+	if req.Limit > structuralInventoryMaxLimit+1 {
+		return structuralInventoryMaxLimit + 1
 	}
 	return req.Limit
 }

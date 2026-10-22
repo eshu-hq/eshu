@@ -260,7 +260,7 @@ func TestCloudInventoryReadbackSelectsOnlyActiveScopeGenerations(t *testing.T) {
 			t.Fatalf("cloud inventory query missing active-generation guard %q:\n%s", required, query)
 		}
 	}
-	if !strings.Contains(query, "fact_records.payload->>'resource_type' IS DISTINCT FROM 'aws_appsync_api_key'") {
+	if !strings.Contains(query, "fact_records.payload->>'resource_type' IS DISTINCT FROM 'aws_appsync_api_key' AND fact_records.payload->>'data_type' IS DISTINCT FROM 'aws_appsync_api_key'") {
 		t.Fatalf("cloud inventory query must suppress legacy AppSync key identities:\n%s", query)
 	}
 }

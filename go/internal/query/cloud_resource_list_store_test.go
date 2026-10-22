@@ -59,7 +59,7 @@ func TestBuildCloudResourceIdentityListQueryExcludesLegacyAppSyncKeysBeforeLimit
 	t.Parallel()
 
 	query, _ := buildCloudResourceIdentityListQuery(CloudResourceListPageFilter{Limit: 2, AllScopes: true})
-	predicate := "owner.winning_row->>'resource_type' <> 'aws_appsync_api_key'"
+	predicate := "owner.winning_row->>'resource_type' <> 'aws_appsync_api_key' AND owner.winning_row->>'data_type' IS DISTINCT FROM 'aws_appsync_api_key'"
 	if !strings.Contains(query, predicate) {
 		t.Fatalf("query = %q, want legacy AppSync key exclusion before pagination", query)
 	}

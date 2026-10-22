@@ -28,7 +28,7 @@ func TestImpactAnchorResolveCypherIsPerLabelUnion(t *testing.T) {
 	// never the label disjunction, and never a `WHERE n.id` predicate that would
 	// reintroduce the disjunction-shaped scan.
 	resolve := impactAnchorResolveCypher("start_id")
-	if !strings.Contains(resolve, "coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'") {
+	if !strings.Contains(resolve, "coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'") {
 		t.Fatalf("CloudResource anchor resolution must suppress legacy API keys: %s", resolve)
 	}
 	assertNoImpactLabelDisjunction(t, resolve)

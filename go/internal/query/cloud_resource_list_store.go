@@ -329,7 +329,7 @@ func buildCloudResourceIdentityListQuery(filter CloudResourceListPageFilter) (st
 
 	conditions := []string{
 		"owner.winning_row->>'resource_type' IS NOT NULL",
-		"owner.winning_row->>'resource_type' <> 'aws_appsync_api_key'",
+		"owner.winning_row->>'resource_type' <> 'aws_appsync_api_key' AND owner.winning_row->>'data_type' IS DISTINCT FROM 'aws_appsync_api_key'",
 		`COALESCE((
         SELECT TRUE
         FROM fact_records AS fact
@@ -340,7 +340,7 @@ func buildCloudResourceIdentityListQuery(filter CloudResourceListPageFilter) (st
           AND generation.scope_id = scope.scope_id
           AND generation.status = 'active'
           AND fact.is_tombstone = FALSE` + authorization + `
-          AND (fact.payload->>'resource_type' IS NULL OR fact.payload->>'resource_type' <> 'aws_appsync_api_key')
+          AND fact.payload->>'resource_type' IS DISTINCT FROM 'aws_appsync_api_key' AND fact.payload->>'data_type' IS DISTINCT FROM 'aws_appsync_api_key'
         LIMIT 1
       ), FALSE)`,
 	}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact/deployment"
+	"github.com/eshu-hq/eshu/go/internal/query/impact/ownership"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -48,6 +49,17 @@ func TestImpactPathDecodersDecodeBothBackendShapes(t *testing.T) {
 		got := impactNodeIdentityList(raw)
 		if len(got) != 2 || got[0].ID != "z:1" || got[0].Name != "one" || got[1].ID != "z:2" {
 			t.Errorf("%s: decoded %#v, want [z:1/one, z:2/two]", name, got)
+		}
+	}
+
+	legacyNodeCases := map[string]any{
+		"legacy AppSync key map":   []any{map[string]any{"labels": []any{"CloudResource"}, "properties": map[string]any{"id": "key:1", "resource_type": "aws_appsync_api_key"}}},
+		"legacy AppSync key Neo4j": []any{neo4jdriver.Node{Labels: []string{"CloudResource"}, Props: map[string]any{"id": "key:1", "data_type": "aws_appsync_api_key"}}},
+	}
+	for name, raw := range legacyNodeCases {
+		legacyKey := impactNodeIdentityList(raw)
+		if len(legacyKey) != 1 || !ownership.ContainsLegacyAppSyncKeyNode(legacyKey) {
+			t.Errorf("%s decoder missed legacy AppSync key type: %#v", name, legacyKey)
 		}
 	}
 

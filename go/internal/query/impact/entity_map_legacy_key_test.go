@@ -17,7 +17,7 @@ func TestEntityMapSuppressesLegacyAppSyncKeysInResolverAndNeighborhood(t *testin
 	t.Parallel()
 
 	resolver := EntityMapNodeResolverQuery("CloudResource", "id", "api-key", "id", 0, 10)
-	predicate := "coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'"
+	predicate := "coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key'"
 	if !strings.Contains(resolver.Cypher, predicate) || strings.Index(resolver.Cypher, predicate) > strings.Index(resolver.Cypher, "ORDER BY") {
 		t.Fatalf("CloudResource resolver must exclude legacy keys before LIMIT: %s", resolver.Cypher)
 	}

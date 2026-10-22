@@ -345,7 +345,7 @@ func TestChangeSurfaceNonLegacyCypherIsPinned(t *testing.T) {
 	t.Parallel()
 
 	for name, tc := range map[string]struct{ cypher, sha string }{
-		"scoped outgoing":      {changeSurfaceScopedOutgoingCypher, "6242a4561cca718f4a6cbbd541acfe1da5fbb7f6c237b570a1f2d3441fb3a4fc"},
+		"scoped outgoing":      {changeSurfaceScopedOutgoingCypher, "c9f62c28f524868ae19d808de86bda4b0ae248e317eb09963d1ab5b9654aa067"},
 		"repository consumers": {changeSurfaceRepositoryConsumersCypher, "52761ea308175d03bc3e889388774d2ec90081ed8505979ef9b5b2db7bc8c940"},
 	} {
 		sum := sha256.Sum256([]byte(tc.cypher))
