@@ -146,34 +146,66 @@ ifa_uses_vault_policy_wait_for_read_models() {
 # secrets_iam_endpoint_not_ready forever, the hold never engages, and the
 # marker wait dies at budget. Only the workload keyspace is waited on: the
 # family cassette carries no iam_role_cloud_resource_uid, so the gate's
-# cloud set is empty and skipped. A cassette that gains cloud endpoints
-# fails loudly here naming the keyspace, and the fix is one domain string.
-# Polls fact_work_items until that domain has no open rows and at least one
-# succeeded row. Fail-closed throughout: a terminally-bad row fails fast, a
-# failed query or non-numeric output fails, budget exhaustion fails, and
-# zero rows is never a pass.
+# cloud set is empty and skipped; a cassette that gains cloud endpoints
+# would pass this wait and die downstream at the hold-marker wait, which is
+# what the marker-timeout message (not this wait) would then report.
+# Polls fact_work_items by status and classifies in shell so the
+# queue-lifecycle mapping is pinned by the stub cases below instead of
+# hiding in SQL: succeeded counts as done; pending/claimed/running/
+# retrying count as open (retrying is transient -- the reclaim path
+# re-drives stale rows through it, see the claim SQL pinned by
+# go/internal/storage/postgres/claim_reclaim_test.go); superseded is
+# ignored (benign-terminal -- the drain contract defines residual as
+# status NOT IN ('succeeded', 'superseded')); failed/dead_letter -- plus
+# any unknown future status -- fail fast in the safe direction. Zero
+# committal rows is never a pass.
 ifa_uses_vault_policy_wait_for_endpoint_domains() {
 	local cell="$1" budget="$2"
 	if [[ ! "${budget}" =~ ^[1-9][0-9]*$ ]]; then
 		printf '%s: endpoint wait: budget must be a positive integer, got %s\n' "${cell}" "${budget}" >&2
 		return 1
 	fi
-	local i counts ok open bad
+	local i rows row status count ok open bad
 	for i in $(seq 1 "${budget}"); do
-		if ! counts="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-			"SELECT count(*) FILTER (WHERE status = 'succeeded'), count(*) FILTER (WHERE status IN ('pending', 'claimed', 'running')), count(*) FILTER (WHERE status NOT IN ('succeeded', 'pending', 'claimed', 'running')) FROM fact_work_items WHERE stage = 'reducer' AND domain = 'kubernetes_workload_materialization';" \
+		if ! rows="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"SELECT status, count(*) FROM fact_work_items WHERE stage = 'reducer' AND domain = 'kubernetes_workload_materialization' GROUP BY status;" \
 			"${compose_file}")"; then
 			printf '%s: endpoint wait: endpoint-domain poll query failed\n' "${cell}" >&2
 			return 1
 		fi
-		counts="$(printf '%s' "${counts}" | tr -d '[:space:]')"
-		ok="${counts%%|*}"
-		open="$(printf '%s' "${counts#*|}" | cut -d'|' -f1)"
-		bad="${counts##*|}"
-		if [[ ! "${ok}" =~ ^[0-9]+$ || ! "${open}" =~ ^[0-9]+$ || ! "${bad}" =~ ^[0-9]+$ ]]; then
-			printf '%s: endpoint wait: endpoint-domain poll returned non-numeric output %q\n' "${cell}" "${counts}" >&2
-			return 1
-		fi
+		ok=0
+		open=0
+		bad=0
+		# Statuses carry no spaces, so unquoted word-splitting walks
+		# one status|count row at a time; an empty result walks zero
+		# times and can never pass below.
+		for row in ${rows}; do
+			status="${row%%|*}"
+			count="${row##*|}"
+			if [[ ! "${count}" =~ ^[0-9]+$ ]]; then
+				printf '%s: endpoint wait: endpoint-domain poll returned non-numeric output %q\n' "${cell}" "${rows}" >&2
+				return 1
+			fi
+			case "${status}" in
+			succeeded)
+				ok=$((ok + count))
+				;;
+			pending | claimed | running | retrying)
+				open=$((open + count))
+				;;
+			superseded)
+				# Benign-terminal: replaced by a newer row, which
+				# reports its own status separately.
+				;;
+			failed | dead_letter)
+				bad=$((bad + count))
+				;;
+			*)
+				printf '%s: endpoint wait: endpoint-domain poll returned unknown status %q -- refusing to arm the hold on an unclassified queue state\n' "${cell}" "${status}" >&2
+				return 1
+				;;
+			esac
+		done
 		if [[ "${bad}" -gt 0 ]]; then
 			printf '%s: endpoint wait: %s kubernetes_workload_materialization row(s) terminally bad -- refusing to arm the hold on a half-committed graph\n' "${cell}" "${bad}" >&2
 			return 1

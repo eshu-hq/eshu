@@ -84,11 +84,14 @@ test_ifa_uses_vault_policy_wait_for_read_models_cases() (
 # wait the projection handler defers on secrets_iam_endpoint_not_ready
 # forever, the hold never engages, and the marker wait dies at budget
 # (CI fault-injection shard 4/4 on #8737: 120s timeout with exactly
-# the workload UIDs missing). Polls fact_work_items until that domain
-# has no open rows and at least one succeeded row. Fail-closed
-# throughout: terminally-bad rows fail fast, a failed query or
-# non-numeric output fails, budget exhaustion fails, and zero rows is
-# never a pass.
+# the workload UIDs missing). Polls fact_work_items by status and
+# classifies in shell so the queue-lifecycle mapping is pinned here,
+# not hidden in SQL: succeeded counts as done; pending/claimed/running/
+# retrying count as open (retrying is transient -- the reclaim path
+# re-drives stale rows through it); superseded is ignored
+# (benign-terminal: the drain contract defines residual as NOT IN
+# (succeeded, superseded)); failed/dead_letter -- plus any unknown
+# future status -- fail fast. Zero committal rows is never a pass.
 test_ifa_uses_vault_policy_wait_for_endpoint_domains_cases() (
 	source "${det_lib}"
 	source "${uses_vault_policy_cells_lib}"
@@ -96,8 +99,14 @@ test_ifa_uses_vault_policy_wait_for_endpoint_domains_cases() (
 	local rc
 	psql() { :; }
 	sleep() { :; }
+	# Command substitution runs the stub in a subshell, so the poll
+	# sequence advances through a counter file, not a variable.
 	ifa_det_pg() {
-		printf '%s\n' "${endpoint_counts_output}"
+		local idx
+		local idx
+		idx="$(cat "${poll_index_file}")"
+		printf '%s' "$((idx + 1))" >"${poll_index_file}"
+		printf '%s\n' "${endpoint_poll_outputs[${idx}]}"
 	}
 
 	use_compose=0
@@ -106,37 +115,84 @@ test_ifa_uses_vault_policy_wait_for_endpoint_domains_cases() (
 	FAULT_COMPOSE_PROJECT="test"
 	log_dir="$(mktemp -d -t ifa-uses-vault-policy-endpoints.XXXXXX)"
 	trap 'rm -rf "${log_dir}"' EXIT
+	poll_index_file="$(mktemp -t ifa-uses-vault-policy-pollidx.XXXXXX)"
 
-	# Endpoints committed: open rows drained and work actually ran.
-	endpoint_counts_output="3|0|0"
-	rc=0
+	# Endpoints committed: one poll, success, no waiting.
+	endpoint_poll_outputs=("succeeded|3")
+	printf '%s' 0 >"${poll_index_file}"
+		rc=0
 	ifa_uses_vault_policy_wait_for_endpoint_domains readycell 5 || rc=$?
-	[[ "${rc}" -eq 0 ]] \
-		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains failed while the endpoint domain drained with succeeded rows"
+	[[ "${rc}" -eq 0 && "$(cat "${poll_index_file}")" -eq 1 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains failed while the endpoint domain drained with succeeded rows (rc=${rc} calls=$(cat "${poll_index_file}"))"
 
-	# Endpoint rows still open: exhausts the budget and fails instead of
-	# arming a hold the projection can never reach.
-	endpoint_counts_output="0|2|0"
+	# A retrying row is waited on, not failed: first poll open, second
+	# poll drained. This is the P1: retrying is transient, and failing
+	# fast on it would false-red the cell the first time a workload
+	# row retries.
+	endpoint_poll_outputs=("retrying|1" "succeeded|2")
+	printf '%s' 0 >"${poll_index_file}"
+		rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains retrycell 5 || rc=$?
+	[[ "${rc}" -eq 0 && "$(cat "${poll_index_file}")" -eq 2 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains failed fast on a retrying endpoint row instead of waiting for it (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# Superseded beside succeeded is ignored, not blocking and not bad.
+	endpoint_poll_outputs=("superseded|1
+succeeded|1")
+	printf '%s' 0 >"${poll_index_file}"
 	rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains mixedcell 5 || rc=$?
+	[[ "${rc}" -eq 0 && "$(cat "${poll_index_file}")" -eq 1 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains blocked or failed on a superseded row beside succeeded rows (rc=${rc})"
+
+	# A superseded row is ignored: it neither blocks nor passes alone.
+	endpoint_poll_outputs=("superseded|1")
+	printf '%s' 0 >"${poll_index_file}"
+		rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains supersededcell 2 || rc=$?
+	[[ "${rc}" -ne 0 && "$(cat "${poll_index_file}")" -eq 2 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains passed on superseded rows alone, or failed without exhausting the budget (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# A dead-letter row fails fast: one poll, no budget burn.
+	endpoint_poll_outputs=("dead_letter|1")
+	printf '%s' 0 >"${poll_index_file}"
+		rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains deadcell 5 || rc=$?
+	[[ "${rc}" -ne 0 && "$(cat "${poll_index_file}")" -eq 1 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains did not fail fast on a dead-letter endpoint row (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# An unknown future status fails fast in the safe direction.
+	endpoint_poll_outputs=("bogus|1")
+	printf '%s' 0 >"${poll_index_file}"
+		rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains unknowncell 5 || rc=$?
+	[[ "${rc}" -ne 0 && "$(cat "${poll_index_file}")" -eq 1 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains did not fail fast on an unknown endpoint row status (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# Open rows that never drain: exhausts the budget and fails instead
+	# of arming a hold the projection can never reach.
+	endpoint_poll_outputs=("pending|2")
+	printf '%s' 0 >"${poll_index_file}"
+		rc=0
 	ifa_uses_vault_policy_wait_for_endpoint_domains unready 2 || rc=$?
-	[[ "${rc}" -ne 0 ]] \
-		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains returned success with endpoint rows still open; the hold would never engage"
+	[[ "${rc}" -ne 0 && "$(cat "${poll_index_file}")" -eq 2 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains returned success with endpoint rows still open (rc=${rc} calls=$(cat "${poll_index_file}"))"
 
-	# No endpoint rows at all: fails instead of passing vacuously with
-	# nothing committed.
-	endpoint_counts_output="0|0|0"
-	rc=0
-	ifa_uses_vault_policy_wait_for_endpoint_domains norows 2 || rc=$?
+	# A non-numeric count fails instead of classifying garbage.
+	endpoint_poll_outputs=("succeeded|lots")
+	printf '%s' 0 >"${poll_index_file}"
+		rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains nonnumeric 2 || rc=$?
 	[[ "${rc}" -ne 0 ]] \
-		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains returned success with zero endpoint rows; the gate would defer on missing endpoints"
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains returned success on a non-numeric endpoint count"
 
-	# A terminally-bad endpoint row: fails fast instead of arming the
-	# hold on a half-committed graph.
-	endpoint_counts_output="1|0|1"
-	rc=0
-	ifa_uses_vault_policy_wait_for_endpoint_domains badrow 5 || rc=$?
-	[[ "${rc}" -ne 0 ]] \
-		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains returned success with a bad endpoint row present"
+	# A bad budget fails before any poll.
+	endpoint_poll_outputs=("succeeded|3")
+	printf '%s' 0 >"${poll_index_file}"
+		rc=0
+	ifa_uses_vault_policy_wait_for_endpoint_domains badbudget 0 || rc=$?
+	[[ "${rc}" -ne 0 && "$(cat "${poll_index_file}")" -eq 0 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_endpoint_domains polled on a bad budget (rc=${rc} calls=$(cat "${poll_index_file}"))"
 )
 
 run_ifa_fault_injection_uses_vault_policy_cases() {
