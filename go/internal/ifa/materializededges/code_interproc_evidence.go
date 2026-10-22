@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/facts/code"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
@@ -53,12 +55,12 @@ func codeInterprocEvidenceExpectedEdgesPath(repoRoot string) string {
 // covered by the reducer's own unit tests: the guard asserts the exact
 // two-edge set, so a ghost edge or a dropped producer reds here either way.
 //
-// The Odù's facts pass through to the extractor unpartitioned: the
-// extraction entry takes the whole envelope slice and dispatches on
-// tombstone status internally before decoding each envelope through the
-// typed contracts seam, so a guard-side partition would be a second copy of
-// that dispatch to keep in step rather than the two-case kind split the AWS
-// families reproduce.
+// The Odù's node-substrate facts (repository, file, content_entity) never
+// reach the extractor: the guard partitions to code_interproc_evidence facts
+// first, exactly what the handler's fact loader (ListFactsByKind) feeds the
+// extractor in production. That kind partition is the production contract,
+// not a second copy of dispatch: the tombstone/valid split the old comment
+// warned about stays inside the extractor, untouched.
 //
 // A quarantined fact is fatal rather than skipped, for the same reason as every
 // sibling guard: a fixture that stopped decoding against the
@@ -75,7 +77,14 @@ func resolveCodeInterprocEvidenceMaterializedEdges(odu ifa.Odu, expectedEdgesPat
 	if len(odu.Facts) == 0 {
 		return false, fmt.Sprintf("odù %q: carries no facts", odu.Name)
 	}
-	rows, quarantined, err := taint.ExtractInterprocEvidenceRowsWithQuarantine(odu.Facts)
+	interprocFacts := make([]facts.Envelope, 0, len(odu.Facts))
+	for _, env := range odu.Facts {
+		if env.FactKind != code.InterprocEvidenceFactKind {
+			continue
+		}
+		interprocFacts = append(interprocFacts, env)
+	}
+	rows, quarantined, err := taint.ExtractInterprocEvidenceRowsWithQuarantine(interprocFacts)
 	if err != nil {
 		return false, fmt.Sprintf("odù %q: ExtractInterprocEvidenceRowsWithQuarantine failed: %v", odu.Name, err)
 	}

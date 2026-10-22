@@ -425,6 +425,11 @@ ifa_fault_shard_run cell_failgraphwrite_cloud_resource_container_image
 ifa_fault_shard_run cell_baseline_crossplane_satisfied_by
 ifa_fault_shard_run cell_killworker_crossplane_satisfied_by
 ifa_fault_shard_run cell_failgraphwrite_crossplane_satisfied_by
+# code_interproc_evidence (#6228 code_interproc_evidence live leaf):
+# thirteenth direct family, baseline first, same trio shape as above.
+ifa_fault_shard_run cell_baseline_code_interproc_evidence
+ifa_fault_shard_run cell_killworker_code_interproc_evidence
+ifa_fault_shard_run cell_failgraphwrite_code_interproc_evidence
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,

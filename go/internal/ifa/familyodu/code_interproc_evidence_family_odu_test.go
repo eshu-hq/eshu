@@ -21,8 +21,8 @@ import "testing"
 func TestCodeInterprocEvidenceFamilyOduStableKeysAreUnique(t *testing.T) {
 	t.Parallel()
 	odu := CodeInterprocEvidenceFamilyOdu().Odu
-	if len(odu.Facts) != 3 {
-		t.Fatalf("code_interproc_evidence Odù carries %d facts, want 3 (2 live findings + 1 tombstoned finding)", len(odu.Facts))
+	if len(odu.Facts) != 10 {
+		t.Fatalf("code_interproc_evidence Odù carries %d facts, want 10 (1 repository + 2 files + 4 content entities + 2 live findings + 1 tombstoned finding)", len(odu.Facts))
 	}
 	seen := make(map[string]string, len(odu.Facts))
 	for _, env := range odu.Facts {

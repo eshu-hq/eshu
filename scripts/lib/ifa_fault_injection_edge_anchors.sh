@@ -130,6 +130,16 @@ cloud_resource_container_image_edge_operation_match="MERGE (source)-[rel:AWS_lam
 # parameterized form would match no executed statement and the fault would
 # never fire.
 crossplane_satisfied_by_edge_operation_match="MERGE (claim)-[rel:SATISFIED_BY]->(xrd)"
+# The TAINT_FLOWS_TO MERGE anchor cell_failgraphwrite_code_interproc_evidence
+# (#6228 code_interproc_evidence live leaf) targets:
+# go/internal/storage/cypher/edge/writer/code_interproc_evidence.go:29 emits
+# MERGE (s)-[rel:TAINT_FLOWS_TO {evidence_uid: row.uid}]->(t) with no
+# vocabulary substitution, so the anchor carries the PREFIX form that
+# matches executed statement text (the template's MERGE carries the property
+# map; the bare `]->(t)` spelling never appears there). A parameterized form
+# would match the retract DELETEs instead and the fault would fire outside
+# the upsert the cell asserts.
+code_interproc_evidence_edge_operation_match="MERGE (s)-[rel:TAINT_FLOWS_TO"
 
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical/node/documentation_edges.go's

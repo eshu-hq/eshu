@@ -28,7 +28,7 @@ submodule_pin_lib="${repo_root}/scripts/lib/ifa_submodule_pin_live.sh"
 inheritance_lib="${repo_root}/scripts/lib/ifa_inheritance_live.sh"
 shell_exec_lib="${repo_root}/scripts/lib/ifa_shell_exec_live.sh"
 symbol_runtime_lib="${repo_root}/scripts/lib/ifa_symbol_runtime_live.sh"
-direct_family_lib="${repo_root}/scripts/lib/ifa_direct_family_live.sh"; direct_family_cloud_lib="${repo_root}/scripts/lib/ifa_direct_family_live_cloud_resource.sh"; direct_family_built_from_lib="${repo_root}/scripts/lib/ifa_direct_family_live_built_from.sh"; direct_family_crc_image_lib="${repo_root}/scripts/lib/ifa_direct_family_live_cloud_resource_container_image.sh"; direct_family_xplane_lib="${repo_root}/scripts/lib/ifa_direct_family_live_crossplane_satisfied_by.sh"  # packed for the 500-line cap
+direct_family_lib="${repo_root}/scripts/lib/ifa_direct_family_live.sh"; direct_family_cloud_lib="${repo_root}/scripts/lib/ifa_direct_family_live_cloud_resource.sh"; direct_family_built_from_lib="${repo_root}/scripts/lib/ifa_direct_family_live_built_from.sh"; direct_family_crc_image_lib="${repo_root}/scripts/lib/ifa_direct_family_live_cloud_resource_container_image.sh"; direct_family_xplane_lib="${repo_root}/scripts/lib/ifa_direct_family_live_crossplane_satisfied_by.sh"; direct_family_ciproc_lib="${repo_root}/scripts/lib/ifa_direct_family_live_code_interproc_evidence.sh"  # packed for the 500-line cap
 vault_family_lib="${repo_root}/scripts/lib/ifa_vault_family_live.sh"
 fixtures_lib="${repo_root}/scripts/lib/ifa_family_fixtures.sh"
 require_helpers_lib="${repo_root}/scripts/lib/test-ifa-determinism-require-helpers.sh"
@@ -253,7 +253,7 @@ require_shell_exec_lib() {
 # so a shared file cannot let one family's coverage stand in for the other's.
 require_direct_family_lib() {
 	local label="$1" needle="$2"
-	[[ "$(_ifa_det_count_code_matches "${needle}" "${direct_family_lib}")" -ge 1 || "$(_ifa_det_count_code_matches "${needle}" "${direct_family_cloud_lib}")" -ge 1 || "$(_ifa_det_count_code_matches "${needle}" "${direct_family_built_from_lib}")" -ge 1 || "$(_ifa_det_count_code_matches "${needle}" "${direct_family_crc_image_lib}")" -ge 1 || "$(_ifa_det_count_code_matches "${needle}" "${direct_family_xplane_lib}")" -ge 1 ]] \
+	[[ "$(_ifa_det_count_code_matches "${needle}" "${direct_family_lib}")" -ge 1 || "$(_ifa_det_count_code_matches "${needle}" "${direct_family_cloud_lib}")" -ge 1 || "$(_ifa_det_count_code_matches "${needle}" "${direct_family_built_from_lib}")" -ge 1 || "$(_ifa_det_count_code_matches "${needle}" "${direct_family_crc_image_lib}")" -ge 1 || "$(_ifa_det_count_code_matches "${needle}" "${direct_family_xplane_lib}")" -ge 1 || "$(_ifa_det_count_code_matches "${needle}" "${direct_family_ciproc_lib}")" -ge 1 ]] \
 		|| fail "missing ${label} (direct-family lib): ${needle}, or it survives only inside a comment"
 }
 
