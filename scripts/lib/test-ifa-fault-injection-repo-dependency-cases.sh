@@ -370,7 +370,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	run_ifa_repo_dependency_graph_terminal_owner_controls || return 1
 	run_ifa_repo_dependency_quarantine_telemetry_controls || return 1
 	# 85 = 1 shared cell_baseline + 84 IFA_FAULT_ALL_CELLS entries
-	# (scripts/lib/ifa_fault_shard.sh). #5995/#6000/#5997 added the shared
+	# (scripts/lib/ifa_fault_shard_cells.sh). #5995/#6000/#5997 added the shared
 	# symbol-runtime baseline and three graph-write cells; #6208 adds the
 	# trio's three runner-lease kill/reclaim cells; #6309 adds the two
 	# direct-family trios (kubernetes_namespace_environment,
