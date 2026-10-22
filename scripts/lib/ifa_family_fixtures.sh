@@ -236,6 +236,16 @@ cloud_resource_container_image_expected_edges="${repo_root}/go/internal/ifa/test
 # candidates.
 crossplane_satisfied_by_cassette="${repo_root}/testdata/cassettes/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family.json"
 crossplane_satisfied_by_expected_edges="${repo_root}/go/internal/ifa/testdata/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family-expected-edges.json"
+# derived_from (#6228 derived_from live leaf): a projection of the compiled
+# DerivedFromFamilyOdu by construction
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- one
+# repository fact, one single-base Dockerfile fact, four OCI manifest facts
+# (the base, two edge-producing children, and the deploy-only third-party
+# image) and the deploy-only Kubernetes reference proving a runtime
+# reference never confers derivation. The single git repository scope owns
+# its own ACTIVE generation, like every sibling above.
+derived_from_cassette="${repo_root}/testdata/cassettes/derivedfrom/ifa-derived-from-family.json"
+derived_from_expected_edges="${repo_root}/go/internal/ifa/testdata/derivedfrom/ifa-derived-from-family-expected-edges.json"
 # code_interproc_evidence (#6228 code_interproc_evidence live leaf): a
 # projection of the compiled CodeInterprocEvidenceFamilyOdu by construction
 # (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- one
@@ -324,6 +334,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${cloud_resource_container_image_expected_edges}" ]] || { echo "${gate}: cloud-resource-container-image expected-edge set not found: ${cloud_resource_container_image_expected_edges}" >&2; exit 1; }
 	[[ -f "${crossplane_satisfied_by_cassette}" ]] || { echo "${gate}: crossplane-satisfied-by cassette not found: ${crossplane_satisfied_by_cassette}" >&2; exit 1; }
 	[[ -f "${crossplane_satisfied_by_expected_edges}" ]] || { echo "${gate}: crossplane-satisfied-by expected-edge set not found: ${crossplane_satisfied_by_expected_edges}" >&2; exit 1; }
+	[[ -f "${derived_from_cassette}" ]] || { echo "${gate}: derived-from cassette not found: ${derived_from_cassette}" >&2; exit 1; }
+	[[ -f "${derived_from_expected_edges}" ]] || { echo "${gate}: derived-from expected-edge set not found: ${derived_from_expected_edges}" >&2; exit 1; }
 	[[ -f "${code_interproc_evidence_cassette}" ]] || { echo "${gate}: code-interproc-evidence cassette not found: ${code_interproc_evidence_cassette}" >&2; exit 1; }
 	[[ -f "${code_interproc_evidence_expected_edges}" ]] || { echo "${gate}: code-interproc-evidence expected-edge set not found: ${code_interproc_evidence_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
@@ -347,4 +359,10 @@ ifa_family_fixtures_require() {
 	# changing what the handler reads, so pin the honest value.
 	built_from_scope_system="$(jq -r '.scopes[0].source_system' "${built_from_cassette}")"
 	[[ "${built_from_scope_system}" == "git" ]] || { echo "${gate}: built-from cassette scope source_system is ${built_from_scope_system:-missing}, want git" >&2; exit 1; }
+	# The derived_from scope is the same shape -- a git repository scope
+	# driven through the same ContainerImageIdentityHandler, whose
+	# scope-local LoadFactsForKinds carries no source_system predicate --
+	# so its stamp stays 'git' for the same reason as built_from's above.
+	derived_from_scope_system="$(jq -r '.scopes[0].source_system' "${derived_from_cassette}")"
+	[[ "${derived_from_scope_system}" == "git" ]] || { echo "${gate}: derived-from cassette scope source_system is ${derived_from_scope_system:-missing}, want git" >&2; exit 1; }
 }

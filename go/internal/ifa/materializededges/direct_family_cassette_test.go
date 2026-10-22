@@ -205,6 +205,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.CrossplaneSatisfiedByFamilyCassetteFullPath,
 			load:         ifa.LoadCrossplaneSatisfiedByFamilyOdu,
 		},
+		{
+			name:         ifa.DerivedFromFamilyOduName,
+			compiled:     ifa.DerivedFromFamilyOdu,
+			cassettePath: ifa.DerivedFromFamilyCassetteFullPath,
+			load:         ifa.LoadDerivedFromFamilyOdu,
+		},
 	}
 }
 

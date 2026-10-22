@@ -48,18 +48,19 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# THIRTEEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# FOURTEEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, built_from, cloud_resource_container_image,
-# crossplane_satisfied_by, and code_interproc_evidence
+# crossplane_satisfied_by, derived_from, and code_interproc_evidence
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
 # and -- since #6309 for the first two, since the #6228 fault halves and
 # slice A for seven, slice C for built_from, slice D for
 # cloud_resource_container_image, the crossplane live leaf for
-# crossplane_satisfied_by, and the code_interproc_evidence live leaf -- live
+# crossplane_satisfied_by, the derived_from live leaf for
+# derived_from, and the code_interproc_evidence live leaf -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
@@ -314,6 +315,25 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-crossplane-satisfied-by-family"
     proof_gate: ifa-fault-injection
+  # derived_from: fault-free baseline plus fault-injection
+  # recovery, all asserting the two-edge DERIVED_FROM exact set with
+  # identical graph digests (#6228 derived_from live leaf). The two
+  # children the owning repository built from its single declared base
+  # each fan out to one edge on that base with attribution_basis
+  # repository_single_base; the base itself (never its own ancestor, or
+  # CVE lineage traversal would cycle) and the exact third-party digest
+  # the repository merely deploys (a runtime reference never confers
+  # derivation) resolve to nothing.
+  - surface: "materialized_edges:derived_from"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-derived-from-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:derived_from"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-derived-from-family"
+    proof_gate: ifa-fault-injection
   # code_interproc_evidence: fault-free baseline plus fault-injection
   # recovery, all asserting the two-edge TAINT_FLOWS_TO exact set with
   # identical graph digests (#6228 code_interproc_evidence live leaf). The
@@ -364,16 +384,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteCodeTaintEvidence -> cypher/edge/writer/code_taint_evidence.go merges HAS_TAINT_EVIDENCE; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the single-type table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (family stays waived: neither live matrix drives it yet)"
-  - surface: "materialized_edges:derived_from"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteDerivedFromEdges -> cypher/derived_from_edge_writer.go merges DERIVED_FROM; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
-  - surface: "materialized_edges:derived_from"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteDerivedFromEdges -> cypher/derived_from_edge_writer.go merges DERIVED_FROM; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:grants_secret_read"
     proof_gate: ifa-determinism
     issue: "#6228"

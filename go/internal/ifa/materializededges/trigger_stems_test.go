@@ -131,6 +131,11 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// (scripts/lib/ifa_fault_injection_crossplane_satisfied_by_cells.sh),
 	// the fault cases file, and the Odù the triggers name.
 	"crossplane_satisfied_by": "crossplane_satisfied_by",
+	// derived_from joins them with the #6228 derived_from live leaf: same
+	// stem shape, read off the fault cells file
+	// (scripts/lib/ifa_fault_injection_derived_from_cells.sh), the fault
+	// cases file, and the Odù the triggers name.
+	"derived_from": "derived_from",
 	// code_interproc_evidence joins them with the #6228 code_interproc
 	// live leaf: same stem shape, read off the fault cells file
 	// (scripts/lib/ifa_fault_injection_code_interproc_evidence_cells.sh),

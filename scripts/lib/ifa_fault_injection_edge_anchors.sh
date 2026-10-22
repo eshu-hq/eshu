@@ -130,6 +130,15 @@ cloud_resource_container_image_edge_operation_match="MERGE (source)-[rel:AWS_lam
 # parameterized form would match no executed statement and the fault would
 # never fire.
 crossplane_satisfied_by_edge_operation_match="MERGE (claim)-[rel:SATISFIED_BY]->(xrd)"
+# The DERIVED_FROM MERGE anchor cell_failgraphwrite_derived_from
+# (#6228 derived_from live leaf) targets:
+# go/internal/storage/cypher/edge/writer/derived_from.go emits
+# MERGE (img)-[rel:DERIVED_FROM {scope_id, evidence_source}] with the
+# identity the writer stamps per run, so the anchor carries the PREFIX
+# form (the same rationale as the built_from pin). A full `]->(base)`
+# spelling would match no executed statement and the fault would never
+# fire.
+derived_from_edge_operation_match="MERGE (img)-[rel:DERIVED_FROM"
 # The TAINT_FLOWS_TO MERGE anchor cell_failgraphwrite_code_interproc_evidence
 # (#6228 code_interproc_evidence live leaf) targets:
 # go/internal/storage/cypher/edge/writer/code_interproc_evidence.go:29 emits

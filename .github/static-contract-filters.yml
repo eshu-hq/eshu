@@ -204,6 +204,7 @@ ifa:
   - 'testdata/cassettes/cloudresourcecontainerimage/**'
   - 'testdata/cassettes/codeinterproc/**'
   - 'testdata/cassettes/crossplanesatisfiedby/**'
+  - 'testdata/cassettes/derivedfrom/**'
   - 'testdata/cassettes/shellexec/**'
   - 'testdata/cassettes/submodulepin/**'
   - 'testdata/cassettes/workloaddependency/**'

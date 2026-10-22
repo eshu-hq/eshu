@@ -83,7 +83,7 @@ scoped baseline and two recovery cells each for deployable_unit_edges,
 codeowners_ownership_edges, repository-dependency edges, submodule_pin_edges,
 inheritance_edges, shell_exec, workload_dependency,
 kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume,
-iam_can_perform, ec2_uses_profile, s3_logs_to, cloud_resource, iam_escalation, authenticates_vault_role, uses_vault_policy (whose kill cell holds the USES_VAULT_POLICY MERGE at the graph-executor seam instead of borrowing the shared handler wait, #8539), built_from, cloud_resource_container_image, crossplane_satisfied_by, code_interproc_evidence, and a shared baseline
+iam_can_perform, ec2_uses_profile, s3_logs_to, cloud_resource, iam_escalation, authenticates_vault_role, uses_vault_policy (whose kill cell holds the USES_VAULT_POLICY MERGE at the graph-executor seam instead of borrowing the shared handler wait, #8539), built_from, cloud_resource_container_image, crossplane_satisfied_by, derived_from, code_interproc_evidence, and a shared baseline
 plus three failed-graph-write and three runner-lease killed-worker recovery
 cells for the handles_route/runs_in/invokes_cloud_action trio — with zero
 durable dead letters throughout.

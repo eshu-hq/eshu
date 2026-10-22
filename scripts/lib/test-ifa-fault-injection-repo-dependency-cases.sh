@@ -382,6 +382,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	# cloud_resource trio; #6228 slice C live leaf adds the built_from trio;
 	# #6228 slice D live leaf adds the cloud_resource_container_image trio;
 	# #6228 crossplane live leaf adds the crossplane_satisfied_by trio;
-	# #6228 code_interproc_evidence live leaf adds the code_interproc_evidence trio.
-	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 85 ]] || return 1
+	# #6228 derived_from live leaf adds the derived_from trio, and the
+	# code_interproc_evidence live leaf adds the code_interproc_evidence trio.
+	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 88 ]] || return 1
 }
