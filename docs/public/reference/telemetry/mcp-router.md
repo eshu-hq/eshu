@@ -29,8 +29,8 @@ records rank `0`.
 
 Router error results are bounded whatever the input: a `call_tool` name over
 128 bytes is rejected without being echoed or compared with registered names;
-at most 20 field errors are returned (`field_errors_truncated` says when the
-validator stopped); a caller-supplied key in a field path is cut at 256 bytes;
+at most 20 field errors are returned (`field_errors_truncated` is true only
+when more existed); a caller-supplied key in a field path is cut at 256 bytes;
 and an array that fails `maxItems` gets no per-item errors.
 
 ## Spans

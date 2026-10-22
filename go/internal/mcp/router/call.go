@@ -51,14 +51,14 @@ func (e *Engine) Call(ctx context.Context, req Request, args map[string]any) Cal
 
 // call returns the outcome plus the bounded tool label and outcome label.
 func (e *Engine) call(ctx context.Context, req Request, args map[string]any) (CallOutcome, string, string) {
-	if errs := ValidateArguments(Tools()[1].InputSchema, args); len(errs) != 0 {
-		return CallOutcome{Result: invalidArgumentsResult(CallToolName, errs)}, unregisteredToolLabel, callOutcomeInvalidArgument
+	if errs, truncated := ValidateArgumentsDetail(Tools()[1].InputSchema, args); len(errs) != 0 {
+		return CallOutcome{Result: invalidArgumentsResult(CallToolName, errs, truncated)}, unregisteredToolLabel, callOutcomeInvalidArgument
 	}
 	name, _ := args["name"].(string)
 	if len(name) > MaxToolNameBytes {
 		return CallOutcome{Result: invalidArgumentsResult(CallToolName, []FieldError{{
 			Path: "name", Keyword: "maxLength", Message: fmt.Sprintf("must be at most %d bytes", MaxToolNameBytes),
-		}})}, unregisteredToolLabel, callOutcomeInvalidArgument
+		}}, false)}, unregisteredToolLabel, callOutcomeInvalidArgument
 	}
 	arguments, _ := asObject(args["arguments"])
 	out := CallOutcome{Target: name}
@@ -74,14 +74,14 @@ func (e *Engine) call(ctx context.Context, req Request, args map[string]any) (Ca
 			map[string]any{"tool": name, "suggestions": e.closestNames(name)})
 		return out, unregisteredToolLabel, callOutcomeUnknownTool
 	}
-	if errs := ValidateArguments(tool.InputSchema, arguments); len(errs) != 0 {
+	if errs, truncated := ValidateArgumentsDetail(tool.InputSchema, arguments); len(errs) != 0 {
 		out.Result = errorResult("mcp_router_invalid_arguments", "arguments for "+name+" do not match its input schema",
 			map[string]any{
 				"tool":                   name,
 				"field_errors":           errs,
-				"field_errors_truncated": len(errs) >= MaxFieldErrors,
+				"field_errors_truncated": truncated,
 				"input_schema":           tool.InputSchema,
-				"example":                map[string]any{"name": name, "arguments": ExampleArguments(tool.InputSchema)},
+				"example":                map[string]any{"name": name, "arguments": e.examples[name]},
 			})
 		return out, name, callOutcomeInvalidArgument
 	}

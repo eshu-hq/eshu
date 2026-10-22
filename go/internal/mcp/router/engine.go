@@ -6,6 +6,8 @@ package router
 import (
 	"encoding/json"
 	"log/slog"
+	"maps"
+	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/ask/catalog"
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
@@ -43,6 +45,7 @@ type Engine struct {
 	registry map[string]toolcontract.ToolDefinition
 	names    []string
 	routes   map[string]routeClass
+	examples map[string]map[string]any
 	resolve  RouteResolver
 	ranker   Ranker
 	entries  map[string]catalog.Entry
@@ -73,6 +76,7 @@ func NewEngine(cfg Config) *Engine {
 	e := &Engine{
 		registry: make(map[string]toolcontract.ToolDefinition, len(cfg.Registry)),
 		routes:   make(map[string]routeClass, len(cfg.Registry)),
+		examples: make(map[string]map[string]any, len(cfg.Registry)),
 		resolve:  cfg.Resolve,
 		ranker:   cfg.Ranker,
 		entries:  cfg.Entries,
@@ -83,11 +87,54 @@ func NewEngine(cfg Config) *Engine {
 		e.registry[tool.Name] = tool
 		e.names = append(e.names, tool.Name)
 		e.routes[tool.Name] = classifyTool(cfg.Resolve, tool)
+		e.examples[tool.Name] = callableExample(cfg.Resolve, tool)
 	}
 	if e.entries == nil {
 		e.entries = loadCatalogEntries(logger)
 	}
 	return e
+}
+
+// Example returns a copy of the example arguments the engine hands back for
+// a registered tool: the required-only ExampleArguments, plus the first
+// optional property (in name order) that lets the route resolve when the
+// tool needs one of several selectors its schema cannot mark required.
+func (e *Engine) Example(name string) (map[string]any, bool) {
+	example, ok := e.examples[name]
+	if !ok {
+		return nil, false
+	}
+	return maps.Clone(example), true
+}
+
+// callableExample builds a tool's example and, when the required-only one
+// does not resolve to a route, adds one optional placeholder at a time.
+func callableExample(resolve RouteResolver, tool toolcontract.ToolDefinition) map[string]any {
+	base := ExampleArguments(tool.InputSchema)
+	if resolve == nil || resolves(resolve, tool.Name, base) {
+		return base
+	}
+	all := placeholderArguments(tool.InputSchema, true)
+	names := make([]string, 0, len(all))
+	for name := range all {
+		if _, ok := base[name]; !ok {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		candidate := maps.Clone(base)
+		candidate[name] = all[name]
+		if resolves(resolve, tool.Name, candidate) {
+			return candidate
+		}
+	}
+	return base
+}
+
+func resolves(resolve RouteResolver, name string, args map[string]any) bool {
+	route, err := resolve(name, args)
+	return err == nil && route != nil && route.Path != ""
 }
 
 // loadCatalogEntries annotates the embedded surface inventory and keeps the

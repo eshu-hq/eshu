@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/ask/catalog"
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 )
 
@@ -39,6 +40,29 @@ func TestRegisteredToolExamplesValidate(t *testing.T) {
 		example := router.ExampleArguments(tool.InputSchema)
 		if errs := router.ValidateArguments(tool.InputSchema, example); len(errs) != 0 {
 			t.Errorf("tool %s example %v fails its own schema: %v", tool.Name, example, errs)
+		}
+	}
+}
+
+// TestRegisteredToolExamplesResolve proves the example the engine hands back
+// for every registered tool is a callable request: it validates and builds a
+// dispatch route, including tools whose one-of selectors the schema cannot
+// mark required (get_repo_summary, get_service_story,
+// get_service_intelligence_report).
+func TestRegisteredToolExamplesResolve(t *testing.T) {
+	t.Parallel()
+
+	engine := router.NewEngine(router.Config{Registry: ReadOnlyTools(), Resolve: resolveRoute, Entries: map[string]catalog.Entry{}})
+	for _, tool := range ReadOnlyTools() {
+		example, ok := engine.Example(tool.Name)
+		if !ok {
+			t.Fatalf("no example for %s", tool.Name)
+		}
+		if errs := router.ValidateArguments(tool.InputSchema, example); len(errs) != 0 {
+			t.Errorf("%s example %v fails its schema: %v", tool.Name, example, errs)
+		}
+		if _, err := resolveRoute(tool.Name, example); err != nil {
+			t.Errorf("%s example %v builds no route: %v", tool.Name, example, err)
 		}
 	}
 }

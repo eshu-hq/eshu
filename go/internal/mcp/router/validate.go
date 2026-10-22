@@ -42,7 +42,8 @@ const (
 	MaxEchoBytes = 256
 )
 
-// errorSink collects field errors up to MaxFieldErrors.
+// errorSink collects field errors. It keeps one past MaxFieldErrors so the
+// caller can tell a list of exactly MaxFieldErrors from a truncated one.
 type errorSink struct{ errs []FieldError }
 
 func (c *errorSink) add(e FieldError) {
@@ -53,7 +54,23 @@ func (c *errorSink) add(e FieldError) {
 	c.errs = append(c.errs, e)
 }
 
-func (c *errorSink) full() bool { return len(c.errs) >= MaxFieldErrors }
+func (c *errorSink) full() bool { return len(c.errs) > MaxFieldErrors }
+
+// result sorts the collected errors and cuts them to MaxFieldErrors,
+// reporting whether any were dropped.
+func (c *errorSink) result() ([]FieldError, bool) {
+	errs := c.errs
+	sort.SliceStable(errs, func(i, j int) bool {
+		if errs[i].Path != errs[j].Path {
+			return errs[i].Path < errs[j].Path
+		}
+		return errs[i].Keyword < errs[j].Keyword
+	})
+	if len(errs) > MaxFieldErrors {
+		return errs[:MaxFieldErrors], true
+	}
+	return errs, false
+}
 
 // boundEcho cuts caller-controlled text to MaxEchoBytes on a rune boundary.
 func boundEcho(text string) string {
@@ -68,9 +85,9 @@ func boundEcho(text string) string {
 }
 
 // ValidateArguments checks args against a registered tool's input schema and
-// returns its violations, ordered by path then keyword: all of them, or the
-// first MaxFieldErrors in traversal order (object keys sorted, array items in
-// order). A nil or empty result means the arguments are valid.
+// returns its violations, ordered by path then keyword: all of them, or
+// MaxFieldErrors of them when there are more (see ValidateArgumentsDetail). A
+// nil or empty result means the arguments are valid.
 //
 // It implements the keywords registered tools use (see
 // UnsupportedSchemaFeatures) and mirrors the dispatch path's tolerance where
@@ -80,19 +97,20 @@ func boundEcho(text string) string {
 // trim it to "not set". default and description are annotations and are never
 // applied, so a validated call reaches dispatch byte-for-byte unchanged.
 func ValidateArguments(schema any, args map[string]any) []FieldError {
+	errs, _ := ValidateArgumentsDetail(schema, args)
+	return errs
+}
+
+// ValidateArgumentsDetail is ValidateArguments plus whether the list was cut
+// at MaxFieldErrors. Validation stops walking the arguments once it has found
+// one error more than MaxFieldErrors.
+func ValidateArgumentsDetail(schema any, args map[string]any) ([]FieldError, bool) {
 	sink := &errorSink{}
 	if args == nil {
 		args = map[string]any{}
 	}
 	validateValue(schema, args, "", sink)
-	errs := sink.errs
-	sort.SliceStable(errs, func(i, j int) bool {
-		if errs[i].Path != errs[j].Path {
-			return errs[i].Path < errs[j].Path
-		}
-		return errs[i].Keyword < errs[j].Keyword
-	})
-	return errs
+	return sink.result()
 }
 
 func validateValue(rawSchema any, value any, path string, errs *errorSink) {

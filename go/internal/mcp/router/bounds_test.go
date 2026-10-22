@@ -87,3 +87,28 @@ func TestFindBoundsUnknownAnchorErrors(t *testing.T) {
 		t.Fatalf("details = %v, want field_errors_truncated", details["field_errors_truncated"])
 	}
 }
+
+func TestValidateArgumentsDetailReportsRealTruncation(t *testing.T) {
+	t.Parallel()
+
+	schema := map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "string"}}
+	for _, tc := range []struct {
+		bad           int
+		wantLen       int
+		wantTruncated bool
+	}{
+		{MaxFieldErrors - 1, MaxFieldErrors - 1, false},
+		{MaxFieldErrors, MaxFieldErrors, false},
+		{MaxFieldErrors + 1, MaxFieldErrors, true},
+		{5 * MaxFieldErrors, MaxFieldErrors, true},
+	} {
+		args := map[string]any{}
+		for i := range tc.bad {
+			args[strings.Repeat("k", i+1)] = i
+		}
+		errs, truncated := ValidateArgumentsDetail(schema, args)
+		if len(errs) != tc.wantLen || truncated != tc.wantTruncated {
+			t.Errorf("%d bad values: %d errors truncated=%v, want %d truncated=%v", tc.bad, len(errs), truncated, tc.wantLen, tc.wantTruncated)
+		}
+	}
+}

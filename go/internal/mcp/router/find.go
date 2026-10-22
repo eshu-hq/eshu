@@ -69,15 +69,15 @@ func (e *Engine) Find(ctx context.Context, req Request, args map[string]any) Too
 }
 
 func (e *Engine) find(ctx context.Context, req Request, args map[string]any) (ToolResult, string) {
-	if errs := ValidateArguments(Tools()[0].InputSchema, args); len(errs) != 0 {
-		return invalidArgumentsResult(FindToolName, errs), findOutcomeError
+	if errs, truncated := ValidateArgumentsDetail(Tools()[0].InputSchema, args); len(errs) != 0 {
+		return invalidArgumentsResult(FindToolName, errs, truncated), findOutcomeError
 	}
-	if errs := boundFindRequest(args); len(errs) != 0 {
-		return invalidArgumentsResult(FindToolName, errs), findOutcomeError
+	if errs, truncated := boundFindRequest(args); len(errs) != 0 {
+		return invalidArgumentsResult(FindToolName, errs, truncated), findOutcomeError
 	}
 	q := parseQuery(args)
 	if q.Intent == "" {
-		return invalidArgumentsResult(FindToolName, []FieldError{{Path: "intent", Keyword: "minLength", Message: "must not be blank"}}), findOutcomeError
+		return invalidArgumentsResult(FindToolName, []FieldError{{Path: "intent", Keyword: "minLength", Message: "must not be blank"}}, false), findOutcomeError
 	}
 	if e.ranker == nil {
 		return errorResult("mcp_router_ranker_unavailable", "find_tool has no ranker configured on this server", nil), findOutcomeError
@@ -142,6 +142,9 @@ func (e *Engine) view(c Candidate) candidateView {
 	}
 	example := c.Example
 	if example == nil {
+		example = e.examples[c.Name]
+	}
+	if example == nil {
 		example = ExampleArguments(schema)
 	}
 	return candidateView{Name: c.Name, Why: c.Why, Cost: c.Cost, InputSchema: schema, Example: example, Score: c.Score}
@@ -149,7 +152,7 @@ func (e *Engine) view(c Candidate) candidateView {
 
 // boundFindRequest enforces MaxIntentBytes, MaxAnchorValueBytes, and the
 // closed anchor key set on a request that already passed schema validation.
-func boundFindRequest(args map[string]any) []FieldError {
+func boundFindRequest(args map[string]any) ([]FieldError, bool) {
 	errs := &errorSink{}
 	if intent, _ := args["intent"].(string); len(intent) > MaxIntentBytes {
 		errs.add(FieldError{Path: "intent", Keyword: "maxLength", Message: fmt.Sprintf("must be at most %d bytes", MaxIntentBytes)})
@@ -172,7 +175,7 @@ func boundFindRequest(args map[string]any) []FieldError {
 			errs.add(FieldError{Path: "anchors." + key, Keyword: "maxLength", Message: fmt.Sprintf("must be at most %d bytes", MaxAnchorValueBytes)})
 		}
 	}
-	return errs.errs
+	return errs.result()
 }
 
 // parseQuery reads a find_tool request that already passed validation.
@@ -194,7 +197,7 @@ func parseQuery(args map[string]any) Query {
 
 // invalidArgumentsResult reports field errors for a router tool's own
 // arguments or a call_tool target's arguments.
-func invalidArgumentsResult(tool string, errs []FieldError) ToolResult {
+func invalidArgumentsResult(tool string, errs []FieldError, truncated bool) ToolResult {
 	return errorResult("mcp_router_invalid_arguments", "arguments for "+tool+" do not match its input schema",
-		map[string]any{"tool": tool, "field_errors": errs, "field_errors_truncated": len(errs) >= MaxFieldErrors})
+		map[string]any{"tool": tool, "field_errors": errs, "field_errors_truncated": truncated})
 }

@@ -4,6 +4,8 @@
 package mcp
 
 import (
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -18,9 +20,9 @@ type divergenceClass struct {
 	id       string
 	name     string
 	evidence string
-	// divergence is true when a direct tools/call would succeed where
-	// call_tool refuses (classes A, B, D). Classes C and E are refused by
-	// dispatch or its handler too.
+	// divergence is true when a direct tools/call can succeed where call_tool
+	// refuses (classes A, B, D, E, F). Class C is refused by the handler too,
+	// or reaches no handler.
 	divergence bool
 	match      func(tool string, schema any, args map[string]any, errs []router.FieldError) bool
 }
@@ -70,30 +72,39 @@ var validatorDivergenceClasses = []divergenceClass{
 		},
 	},
 	{
-		id: "C", name: "handler-400 route shape",
-		evidence: "route-shape tests without a required selector; handlers answer 400, for example " +
-			"deadcode cross_repo (repo_id), entity Handler (name), contentread content_handler (entity_id), " +
-			"compare Handler (workload_id, left, right), the tag-history and codeowners handlers; " +
-			"plus the off-enum values the count and inventory handlers reject",
+		id: "F", name: "handler-optional required field", divergence: true,
+		evidence: "handlerOptionalRequired rows: dispatch defaults the field or the handler serves without it",
 		match: func(tool string, _ any, _ map[string]any, errs []router.FieldError) bool {
-			if allKeyword(errs, "required") {
-				return true
-			}
-			field, ok := rejectedEnumFields[tool]
-			return ok && onlyFieldErrors(errs, field, "enum")
+			return allKeyword(errs, "required") && requiredRowMatches(handlerOptionalRequired, tool, errs)
 		},
 	},
 	{
-		id: "E", name: "hostile types",
-		evidence: "type-confusion tests (catalog sweep policy, scoped refusal, dispatch argument guards) that send " +
-			"wrong JSON types on purpose; dispatch falls back to defaults or the handler rejects them",
-		match: func(_ string, _ any, _ map[string]any, errs []router.FieldError) bool {
+		id: "C", name: "handler rejects too",
+		evidence: "handlerRejectedRequired and handlerRejectedEnums rows: the handler answers 400, or an empty path segment reaches no handler",
+		match: func(tool string, _ any, _ map[string]any, errs []router.FieldError) bool {
+			if allKeyword(errs, "required") {
+				return requiredRowMatches(handlerRejectedRequired, tool, errs)
+			}
+			row, ok := handlerRejectedEnums[tool]
+			return ok && onlyFieldErrors(errs, row.field, "enum")
+		},
+	},
+	{
+		id: "E", name: "dispatch defaults a wrong type", divergence: true,
+		evidence: "defaultedTypeFields rows: dispatch's argument helpers drop a wrong-typed value or use the default",
+		match: func(tool string, _ any, _ map[string]any, errs []router.FieldError) bool {
+			fields := defaultedTypeFields[tool]
+			seen := false
 			for _, e := range errs {
-				if e.Keyword == "type" {
-					return true
+				if e.Keyword != "type" {
+					continue
+				}
+				seen = true
+				if !slices.Contains(fields, indexFree(e.Path)) {
+					return false
 				}
 			}
-			return false
+			return seen
 		},
 	},
 }
@@ -105,15 +116,28 @@ var listFilterFields = map[string]string{
 	"list_sbom_attestation_attachments": "attachment_status",
 }
 
-// rejectedEnumFields are enum fields whose off-enum value the handler
-// rejects (class C).
-var rejectedEnumFields = map[string]string{
-	"find_blast_radius":                         "target_type",
-	"get_workload_context":                      "evidence_detail",
-	"count_ci_cd_run_correlations":              "outcome",
-	"get_ci_cd_run_correlation_inventory":       "outcome",
-	"count_sbom_attestation_attachments":        "attachment_status",
-	"get_sbom_attestation_attachment_inventory": "attachment_status",
+// requiredRowMatches reports whether errs, all `required`, name exactly the
+// missing set of one row for tool.
+func requiredRowMatches(rows []requiredFieldRow, tool string, errs []router.FieldError) bool {
+	missing := make([]string, 0, len(errs))
+	for _, e := range errs {
+		missing = append(missing, e.Path)
+	}
+	sort.Strings(missing)
+	for _, row := range rows {
+		if row.tool == tool && slices.Equal(row.missing, missing) {
+			return true
+		}
+	}
+	return false
+}
+
+// indexFree drops array indices from a field path: "ids[2]" becomes "ids".
+func indexFree(path string) string {
+	if i := strings.IndexByte(path, '['); i >= 0 {
+		return path[:i]
+	}
+	return path
 }
 
 // classifyRejection returns the class of a rejected dispatch-accepted map, or
@@ -226,8 +250,12 @@ func TestDivergenceClassWitnesses(t *testing.T) {
 		{"C", "compare_environments", map[string]any{"repo_id": "repo-1"}},
 		{"C", "find_blast_radius", map[string]any{"target": "payments-db", "target_type": "resource"}},
 		{"C", "get_workload_context", map[string]any{"workload_id": "wl-1", "evidence_detail": "compact"}},
-		{"D", "list_ci_cd_run_correlations", map[string]any{"outcome": "correlated", "limit": 25}},
-		{"D", "list_sbom_attestation_attachments", map[string]any{"attachment_status": "verified", "limit": 25}},
+		{"D", "list_ci_cd_run_correlations", map[string]any{"repository_id": "repo-1", "outcome": "correlated", "limit": 25}},
+		{"D", "list_sbom_attestation_attachments", map[string]any{"repository_id": "repo-1", "attachment_status": "verified", "limit": 25}},
+		{"F", "analyze_infra_relationships", map[string]any{"target": "tf:aws_s3_bucket.api"}},
+		{"F", "analyze_code_relationships", map[string]any{"target": "handler"}},
+		{"F", "build_evidence_citation_packet", map[string]any{}},
+		{"F", "list_package_registry_packages", map[string]any{"ecosystem": "npm"}},
 		{"D", "list_secrets_iam_posture_gaps", map[string]any{"scope_id": "scope-1", "state": "active", "limit": 25}},
 		{"E", "list_indexed_repositories", map[string]any{"limit": "25"}},
 	}
@@ -253,6 +281,36 @@ func TestDivergenceClassWitnesses(t *testing.T) {
 	for _, c := range validatorDivergenceClasses {
 		if !seen[c.id] {
 			t.Errorf("divergence class %s (%s) has no live witness", c.id, c.name)
+		}
+	}
+}
+
+// TestDifferentialRefusesUnlistedRejections is the seeded RED half of the
+// class tables: a required-only map and a wrong-type map that no row lists
+// must fall in no class, which is exactly what fails
+// TestValidatorAcceptsEveryDispatchedArgumentMap.
+func TestDifferentialRefusesUnlistedRejections(t *testing.T) {
+	t.Parallel()
+
+	for _, seed := range []struct {
+		tool string
+		args map[string]any
+	}{
+		// get_file_lines lists only its all-four-missing row.
+		{"get_file_lines", map[string]any{"repo_id": "repo-1", "relative_path": "main.go", "end_line": 9}},
+		// find_symbol has no defaulted-type row.
+		{"find_symbol", map[string]any{"symbol": 42}},
+	} {
+		if _, err := resolveRoute(seed.tool, seed.args); err != nil {
+			t.Fatalf("%s: seed %v builds no route: %v", seed.tool, seed.args, err)
+		}
+		schema := registrySchema(t, seed.tool)
+		errs := router.ValidateArguments(schema, seed.args)
+		if len(errs) == 0 {
+			t.Fatalf("%s: seed %v validates, want a rejection", seed.tool, seed.args)
+		}
+		if c := classifyRejection(seed.tool, schema, seed.args, errs); c != nil {
+			t.Fatalf("%s: unlisted seed %v classified as %s; the tables must enumerate rows, not match a keyword", seed.tool, seed.args, c.id)
 		}
 	}
 }

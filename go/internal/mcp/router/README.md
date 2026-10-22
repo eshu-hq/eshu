@@ -40,7 +40,7 @@ package ranks against. They are empty until the intent-curation lane fills them.
 - `Host`, `Intercepts`
 - `Engine`, `NewEngine`, `Config`, `Request`, `CallOutcome`, `ToolResult`,
   `Content`, `RouteResolver`
-- `ValidateArguments`, `FieldError`, `UnsupportedSchemaFeatures`,
+- `ValidateArguments`, `ValidateArgumentsDetail`, `FieldError`, `UnsupportedSchemaFeatures`,
   `ExampleArguments`, `RouteProbeArguments`
 
 ## Engine behavior
@@ -62,7 +62,13 @@ package ranks against. They are empty until the intent-curation lane fills them.
   at most `MaxFieldErrors` (20) errors and stops walking once it has them, cuts
   caller-supplied keys in a path at `MaxEchoBytes` (256), and reports no
   per-item errors for an array that fails `maxItems`. Error details carry
-  `field_errors_truncated`.
+  `field_errors_truncated`, true only when errors were dropped
+  (`ValidateArgumentsDetail`).
+- An example call (in a `find_tool` candidate or a `call_tool` validation
+  error) fills required properties, and for a tool whose route needs one of
+  several optional selectors (`get_repo_summary`, `get_service_story`,
+  `get_service_intelligence_report`) adds the first selector, in name order,
+  that makes the route resolve. `Engine.Example` returns it.
 - The ranker gets the caller's visible slice and the engine's entries map
   unchanged on every call, so it can cache an index keyed on them; the
   per-call credential filter travels in `allowed`.
@@ -126,31 +132,42 @@ and `eshu_dp_mcp_router_target_rank`, plus the `mcp.router.find` and
 ## Known divergence from a direct call
 
 `call_tool` validates against the advertised `inputSchema` with no tolerance; a
-direct `tools/call` goes straight to the route builder. Three recorded classes
-of call succeed directly but are refused by `call_tool` with a field error that
-names the schema's rule (arbiter ruling on #8757). The schemas stay as they
-are, because widening them would change `tools/list` for the `full` surface.
+direct `tools/call` goes straight to the route builder. Five recorded classes
+of call can succeed directly but are refused by `call_tool` with a field error
+that names the schema's rule (arbiter ruling on #8757). The schemas stay as
+they are, because widening them would change `tools/list` for the `full`
+surface.
 
 | Class | Direct call | `call_tool` | Handler evidence |
 | --- | --- | --- | --- |
 | A, undocumented alias | `search_entity_content` / `search_file_content` with `query` and no `pattern`; `resolve_entity` with the legacy `name`/`type` keys | `pattern` or `query` is required | `mcp/content` `contentSearchBody` sends `query` when `pattern` is absent; `mcp/entity/resolution` `resolveEntityBody` sends `name` |
 | B, enum case | `execute_language_query` with `entity_type: "Function"` | `entity_type` must be one of the lowercase values | `query/language` `Handler.handleLanguageQuery` lowercases `entity_type` |
 | D, off-enum list filter | `list_ci_cd_run_correlations` `outcome`, `list_sbom_attestation_attachments` `attachment_status`, `list_secrets_iam_*` `state` outside the enum | the filter must be one of the enum values | the list handlers pass the filter to the store, which matches no rows |
+| E, wrong type defaulted | a wrong JSON type on one of the fields listed per tool, such as `list_indexed_repositories` `limit: "25"` | the field must have the schema type | dispatch's argument helpers (`routecontract` `Arguments.String`, `IntOr`, `BoolOr`, `StringSlice`; root `str`, `intOr`, `boolOr`) drop the value or use the default |
+| F, handler-optional required field | `analyze_code_relationships` and `analyze_infra_relationships` without `query_type`, `build_evidence_citation_packet` without `handles`, `list_package_registry_packages` without `limit` | the field is required | the route sends an empty or default value and the handler serves it; each row cites its handler |
 
-Two more classes are not divergences, because dispatch or its handler rejects
-the call too: C, route-shape calls without a required selector or with an
-off-enum value a count or inventory handler rejects (HTTP 400), and E,
-deliberately wrong JSON types.
+Class C is not a divergence: the handler answers 400 for the same call (each
+row records the handler's message), or an empty path segment reaches no
+handler at all.
 
 `TestValidatorAcceptsEveryDispatchedArgumentMap` in the mcp root holds the
 validator to every literal argument map in the dispatch tests and every map in
-the catalog sweep corpus, except maps in a class. Classes and their evidence
-live in `routed_call_divergence_test.go`; each class has a live witness, and A
-and B have pinning tests that fail once a schema accepts the alias or case. The
-literal extractor cannot see maps built at run time, so a one-off runtime
-capture covered them. Run on the commit that added this section, it recorded
-every map `resolveRoute` built across `go test ./internal/mcp`: 1339 distinct
-maps, 249 rejected, 0 outside a class (A 77, B 2, C 97, D 9, E 64). To repeat it, wrap
+the catalog sweep corpus, except maps in a class. The classes are enumerated
+tables, not keyword matches: `routed_call_divergence_tables_test.go` lists each
+tool and field set with its evidence, and a rejection no row lists fails the
+test (`TestDifferentialRefusesUnlistedRejections` seeds one of each kind). Each
+class has a live witness, and A and B have pinning tests that fail once a
+schema accepts the alias or case.
+
+The rows came from a one-off probe. A runtime capture recorded every map
+`resolveRoute` built across `go test ./internal/mcp`, and a throwaway test
+replayed each rejected map's route against the real API router with nil
+backends. A required-field row was replayed with the tool's catalog-sweep
+arguments minus only those fields, so a 400 is attributed to the right field;
+a call that got past validation (a 2xx, or a 5xx from the nil store) became a
+class F or E row. Run on the commit that added the tables, the capture recorded
+1346 distinct maps and 253 rejected: A 77, B 2, C 91, D 9, E 64, F 8, and the
+2 seeded unlisted maps outside any class, by design. To repeat it, wrap
 `resolveRoute` in `dispatch.go` to record each resolved map, and classify the
 rejected ones with `classifyRejection` from a `TestMain`, through
 `go test -overlay`.
