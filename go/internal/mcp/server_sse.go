@@ -120,7 +120,7 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	if surface != "" {
 		endpoint += "&surface=" + string(surface)
 	}
-	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint)
+	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint) // #nosec G705 -- text/event-stream, not HTML; sessionID is server-generated and surface is a closed enum value from router.ParseSurface
 	flusher.Flush()
 
 	s.logger.Info("sse session started", "session_id", sessionID)
