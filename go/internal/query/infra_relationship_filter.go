@@ -274,9 +274,21 @@ func splitInfraRelationships(row map[string]any) (outgoing, incoming []map[strin
 	if isLegacyAppSyncKeyNode(row, "labels", "anchor_resource_type", "anchor_data_type") {
 		return nil, nil, true
 	}
-	outgoing = filterLegacyAppSyncKeyRelationships(filterNullRelationships(row["outgoing"]), "target")
-	incoming = filterLegacyAppSyncKeyRelationships(filterNullRelationships(row["incoming"]), "source")
+	outgoing = stripInfraRelationshipTypeFields(filterLegacyAppSyncKeyRelationships(filterNullRelationships(row["outgoing"]), "target"), "target")
+	incoming = stripInfraRelationshipTypeFields(filterLegacyAppSyncKeyRelationships(filterNullRelationships(row["incoming"]), "source"), "source")
 	return outgoing, incoming, false
+}
+
+// stripInfraRelationshipTypeFields removes the internal neighbor type
+// projections the Go key filter reads. The wire entries keep the public
+// shape (direction, type, name, id, labels); the filter inputs stay
+// Cypher-side only.
+func stripInfraRelationshipTypeFields(relationships []map[string]any, prefix string) []map[string]any {
+	for _, entry := range relationships {
+		delete(entry, prefix+"_resource_type")
+		delete(entry, prefix+"_data_type")
+	}
+	return relationships
 }
 
 // legacyAppSyncKeyResourceType is matched by literal: the exported catalog

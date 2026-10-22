@@ -262,6 +262,52 @@ func TestInfraRelationshipsScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 	}
 }
 
+func TestSplitInfraRelationshipsStripsFilterInputsAndFlagsKeyAnchor(t *testing.T) {
+	outgoing, incoming, keyAnchor := splitInfraRelationships(map[string]any{
+		"labels":               []any{"Function"},
+		"anchor_resource_type": nil,
+		"anchor_data_type":     nil,
+		"outgoing": []any{
+			map[string]any{"type": "CALLS", "target_id": "fn-healthy", "target_labels": []any{"Function"}},
+			map[string]any{"type": "USES", "target_id": "key-1", "target_labels": []any{"CloudResource"}, "target_resource_type": "aws_appsync_api_key"},
+		},
+		"incoming": []any{
+			map[string]any{"type": "CALLS", "source_id": "fn-caller", "source_labels": []any{"Function"}, "source_resource_type": "other", "source_data_type": "other"},
+		},
+	})
+	if keyAnchor {
+		t.Fatal("healthy anchor must not report keyAnchor")
+	}
+	if len(outgoing) != 1 || outgoing[0]["target_id"] != "fn-healthy" {
+		t.Fatalf("outgoing must keep only the healthy neighbor, got %v", outgoing)
+	}
+	for _, entry := range outgoing {
+		if _, ok := entry["target_resource_type"]; ok {
+			t.Fatalf("wire entry must not carry the filter input, got %v", entry)
+		}
+		if _, ok := entry["target_data_type"]; ok {
+			t.Fatalf("wire entry must not carry the filter input, got %v", entry)
+		}
+	}
+	if len(incoming) != 1 || incoming[0]["source_id"] != "fn-caller" {
+		t.Fatalf("incoming must keep the healthy neighbor, got %v", incoming)
+	}
+	if _, ok := incoming[0]["source_resource_type"]; ok {
+		t.Fatalf("wire entry must not carry the filter input, got %v", incoming[0])
+	}
+
+	_, _, keyAnchor = splitInfraRelationships(map[string]any{
+		"labels":               []any{"CloudResource"},
+		"anchor_resource_type": "aws_appsync_api_key",
+		"anchor_data_type":     nil,
+		"outgoing":             []any{},
+		"incoming":             []any{},
+	})
+	if !keyAnchor {
+		t.Fatal("legacy key anchor must report keyAnchor")
+	}
+}
+
 // TestInfraRelationshipsScopedEmptyGrantReturnsNotFoundWithoutGraphRead proves
 // an empty-grant scoped token fails closed (not found) without a graph read.
 func TestInfraRelationshipsScopedEmptyGrantReturnsNotFoundWithoutGraphRead(t *testing.T) {
