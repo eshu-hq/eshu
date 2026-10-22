@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // policyInStoreRelationship records a policy's membership in its parent policy
@@ -29,12 +30,12 @@ func policyInStoreRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedPermissionsPolicyInStore,
+		RelationshipType: catalog.RelationshipVerifiedPermissionsPolicyInStore,
 		SourceResourceID: sourceID,
 		TargetResourceID: storeID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeVerifiedPermissionsPolicyStore,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedPermissionsPolicyInStore + ":" + storeID,
+		TargetType:       catalog.ResourceTypeVerifiedPermissionsPolicyStore,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVerifiedPermissionsPolicyInStore + ":" + storeID,
 	}
 }
 
@@ -57,12 +58,12 @@ func identitySourceInStoreRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedPermissionsIdentitySourceInStore,
+		RelationshipType: catalog.RelationshipVerifiedPermissionsIdentitySourceInStore,
 		SourceResourceID: sourceID,
 		TargetResourceID: storeID,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeVerifiedPermissionsPolicyStore,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedPermissionsIdentitySourceInStore + ":" + storeID,
+		TargetType:       catalog.ResourceTypeVerifiedPermissionsPolicyStore,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVerifiedPermissionsIdentitySourceInStore + ":" + storeID,
 	}
 }
 
@@ -95,11 +96,11 @@ func identitySourceCognitoRelationship(
 	// target_arn, and a bare id is exactly what joins the user pool node.
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool,
+		RelationshipType: catalog.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool,
 		SourceResourceID: sourceID,
 		TargetResourceID: poolID,
 		TargetType:       awscloud.ResourceTypeCognitoUserPool,
 		Attributes:       map[string]any{"user_pool_arn": poolARN},
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool + ":" + poolID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipVerifiedPermissionsIdentitySourceUsesCognitoUserPool + ":" + poolID,
 	}
 }

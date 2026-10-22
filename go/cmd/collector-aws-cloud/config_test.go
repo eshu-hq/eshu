@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
@@ -306,7 +305,7 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForAccessAnalyzer(t *testing
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
 	}
-	if got, want := config.AWS.Targets[0].AllowedServices[0], awscloud.ServiceAccessAnalyzer; got != want {
+	if got, want := config.AWS.Targets[0].AllowedServices[0], catalog.ServiceAccessAnalyzer; got != want {
 		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
 	}
 	if !config.AWSRedactionKey.IsZero() {

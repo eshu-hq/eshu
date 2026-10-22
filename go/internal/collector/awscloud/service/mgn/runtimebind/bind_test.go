@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/mgn/runtimebind"
 )
 
 // TestMGNRuntimeBindRegisters confirms importing the binding installs the MGN
 // scanner builder.
 func TestMGNRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceMGN)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceMGN)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceMGN)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceMGN)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceMGN,
+			ServiceKind: catalog.ServiceMGN,
 		},
 	})
 	if err != nil {

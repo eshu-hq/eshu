@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 // ec2InstanceTargetType is the relationship target_type for a launched EC2
@@ -34,12 +35,12 @@ func sourceServerRecoversToInstanceRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDRSSourceServerRecoversToInstance,
+		RelationshipType: catalog.RelationshipDRSSourceServerRecoversToInstance,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: recoveryInstanceID,
-		TargetType:       awscloud.ResourceTypeDRSRecoveryInstance,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDRSSourceServerRecoversToInstance + ":" + recoveryInstanceID,
+		TargetType:       catalog.ResourceTypeDRSRecoveryInstance,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipDRSSourceServerRecoversToInstance + ":" + recoveryInstanceID,
 	}
 }
 
@@ -60,11 +61,11 @@ func recoveryInstanceRunsOnEC2InstanceRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDRSRecoveryInstanceRunsOnEC2Instance,
+		RelationshipType: catalog.RelationshipDRSRecoveryInstanceRunsOnEC2Instance,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(instance.ARN),
 		TargetResourceID: ec2InstanceID,
 		TargetType:       ec2InstanceTargetType,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDRSRecoveryInstanceRunsOnEC2Instance + ":" + ec2InstanceID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipDRSRecoveryInstanceRunsOnEC2Instance + ":" + ec2InstanceID,
 	}
 }

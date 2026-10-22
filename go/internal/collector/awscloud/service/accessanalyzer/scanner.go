@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,10 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("accessanalyzer scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAccessAnalyzer:
+	case "", catalog.ServiceAccessAnalyzer:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAccessAnalyzer
+		boundary.ServiceKind = catalog.ServiceAccessAnalyzer
 	default:
 		return nil, fmt.Errorf("accessanalyzer scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -123,7 +124,7 @@ func analyzerObservation(boundary awscloud.Boundary, analyzer Analyzer) awscloud
 		Boundary:     boundary,
 		ARN:          analyzerARN,
 		ResourceID:   firstNonEmpty(analyzerARN, analyzer.Name),
-		ResourceType: awscloud.ResourceTypeAccessAnalyzerAnalyzer,
+		ResourceType: catalog.ResourceTypeAccessAnalyzerAnalyzer,
 		Name:         strings.TrimSpace(analyzer.Name),
 		State:        strings.TrimSpace(analyzer.Status),
 		Tags:         cloneStringMap(analyzer.Tags),
@@ -149,7 +150,7 @@ func archiveRuleObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAccessAnalyzerArchiveRule,
+		ResourceType: catalog.ResourceTypeAccessAnalyzerArchiveRule,
 		Name:         strings.TrimSpace(rule.Name),
 		Attributes: map[string]any{
 			"analyzer_arn": strings.TrimSpace(firstNonEmpty(rule.AnalyzerARN, analyzer.ARN)),
@@ -170,7 +171,7 @@ func findingCountObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAccessAnalyzerFindingCount,
+		ResourceType: catalog.ResourceTypeAccessAnalyzerFindingCount,
 		Name:         strings.TrimSpace(count.Status + " " + count.ResourceType),
 		State:        strings.TrimSpace(count.Status),
 		Attributes: map[string]any{
@@ -195,7 +196,7 @@ func unusedAccessSummaryObservation(
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAccessAnalyzerUnusedAccessSummary,
+		ResourceType: catalog.ResourceTypeAccessAnalyzerUnusedAccessSummary,
 		Name:         strings.TrimSpace(summary.ResourceID),
 		State:        strings.TrimSpace(summary.Status),
 		Attributes: map[string]any{
@@ -229,12 +230,12 @@ func analyzerOrganizationAccountRelationship(
 	accountARN := "arn:" + partition + ":iam::" + accountID + ":root"
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAccessAnalyzerAnalyzerScopesOrganizationAccount,
+		RelationshipType: catalog.RelationshipAccessAnalyzerAnalyzerScopesOrganizationAccount,
 		SourceResourceID: strings.TrimSpace(analyzer.ARN),
 		SourceARN:        strings.TrimSpace(analyzer.ARN),
 		TargetResourceID: accountARN,
 		TargetARN:        accountARN,
-		TargetType:       awscloud.ResourceTypeAWSAccount,
+		TargetType:       catalog.ResourceTypeAWSAccount,
 		Attributes: map[string]any{
 			"account_id": accountID,
 			"scope":      "ORGANIZATION",
@@ -255,11 +256,11 @@ func analyzerArchiveRuleRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAccessAnalyzerAnalyzerHasArchiveRule,
+		RelationshipType: catalog.RelationshipAccessAnalyzerAnalyzerHasArchiveRule,
 		SourceResourceID: analyzerARN,
 		SourceARN:        analyzerARN,
 		TargetResourceID: ruleID,
-		TargetType:       awscloud.ResourceTypeAccessAnalyzerArchiveRule,
+		TargetType:       catalog.ResourceTypeAccessAnalyzerArchiveRule,
 		Attributes: map[string]any{
 			"rule_name": strings.TrimSpace(rule.Name),
 		},

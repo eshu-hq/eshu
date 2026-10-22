@@ -272,7 +272,7 @@ func resourcePolicyPermissionObservation() awscloud.ResourcePolicyPermissionObse
 		Resources:           []string{"arn:aws:s3:::eshu-shared-bucket/*"},
 		PrincipalARNs:       []string{"arn:aws:iam::111122223333:role/partner"},
 		PrincipalAccountIDs: []string{"111122223333"},
-		PrincipalTypes:      []string{awscloud.ResourcePolicyPrincipalTypeAWS},
+		PrincipalTypes:      []string{catalog.ResourcePolicyPrincipalTypeAWS},
 		IsCrossAccount:      true,
 	}
 }

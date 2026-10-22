@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	kmsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/kms"
 )
 
@@ -194,13 +194,13 @@ func (s keyPolicyStatement) derivePrincipalFacts(owner string) (accountIDs, prin
 func principalTypeForKey(key string) string {
 	switch strings.TrimSpace(key) {
 	case "AWS":
-		return awscloud.ResourcePolicyPrincipalTypeAWS
+		return catalog.ResourcePolicyPrincipalTypeAWS
 	case "Service":
-		return awscloud.ResourcePolicyPrincipalTypeService
+		return catalog.ResourcePolicyPrincipalTypeService
 	case "Federated":
-		return awscloud.ResourcePolicyPrincipalTypeFederated
+		return catalog.ResourcePolicyPrincipalTypeFederated
 	case "CanonicalUser":
-		return awscloud.ResourcePolicyPrincipalTypeCanonical
+		return catalog.ResourcePolicyPrincipalTypeCanonical
 	default:
 		return ""
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("outposts scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceOutposts:
+	case "", catalog.ServiceOutposts:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceOutposts
+		boundary.ServiceKind = catalog.ServiceOutposts
 	default:
 		return nil, fmt.Errorf("outposts scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -125,7 +126,7 @@ func outpostObservation(boundary awscloud.Boundary, outpost Outpost) awscloud.Re
 		Boundary:     boundary,
 		ARN:          outpostARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOutpostsOutpost,
+		ResourceType: catalog.ResourceTypeOutpostsOutpost,
 		Name:         name,
 		State:        strings.TrimSpace(outpost.LifeCycleStatus),
 		Tags:         cloneStringMap(outpost.Tags),
@@ -151,7 +152,7 @@ func siteObservation(boundary awscloud.Boundary, site Site) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          siteARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeOutpostsSite,
+		ResourceType: catalog.ResourceTypeOutpostsSite,
 		Name:         name,
 		Tags:         cloneStringMap(site.Tags),
 		Attributes: map[string]any{
@@ -181,7 +182,7 @@ func assetObservation(
 	return awscloud.ResourceObservation{
 		Boundary:           boundary,
 		ResourceID:         assetID,
-		ResourceType:       awscloud.ResourceTypeOutpostsAsset,
+		ResourceType:       catalog.ResourceTypeOutpostsAsset,
 		Name:               strings.TrimSpace(asset.AssetID),
 		State:              strings.TrimSpace(asset.ComputeState),
 		Attributes:         attributes,

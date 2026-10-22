@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -34,10 +35,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("amplify scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAmplify:
+	case "", catalog.ServiceAmplify:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAmplify
+		boundary.ServiceKind = catalog.ServiceAmplify
 	default:
 		return nil, fmt.Errorf("amplify scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -116,7 +117,7 @@ func appObservation(boundary awscloud.Boundary, app App) awscloud.ResourceObserv
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAmplifyApp,
+		ResourceType: catalog.ResourceTypeAmplifyApp,
 		Name:         strings.TrimSpace(app.Name),
 		Tags:         cloneStringMap(app.Tags),
 		Attributes: map[string]any{
@@ -143,7 +144,7 @@ func branchObservation(boundary awscloud.Boundary, branch Branch) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeAmplifyBranch,
+		ResourceType: catalog.ResourceTypeAmplifyBranch,
 		Name:         strings.TrimSpace(branch.Name),
 		State:        strings.TrimSpace(branch.Stage),
 		Tags:         cloneStringMap(branch.Tags),

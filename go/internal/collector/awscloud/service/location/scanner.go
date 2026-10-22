@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("location scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceLocation:
+	case "", catalog.ServiceLocation:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceLocation
+		boundary.ServiceKind = catalog.ServiceLocation
 	default:
 		return nil, fmt.Errorf("location scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -165,7 +166,7 @@ func mapObservation(boundary awscloud.Boundary, resource Map) awscloud.ResourceO
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLocationMap,
+		ResourceType: catalog.ResourceTypeLocationMap,
 		Name:         name,
 		Tags:         cloneStringMap(resource.Tags),
 		Attributes: map[string]any{
@@ -190,7 +191,7 @@ func placeIndexObservation(boundary awscloud.Boundary, resource PlaceIndex) awsc
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLocationPlaceIndex,
+		ResourceType: catalog.ResourceTypeLocationPlaceIndex,
 		Name:         name,
 		Tags:         cloneStringMap(resource.Tags),
 		Attributes: map[string]any{
@@ -213,7 +214,7 @@ func trackerObservation(boundary awscloud.Boundary, tracker Tracker) awscloud.Re
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLocationTracker,
+		ResourceType: catalog.ResourceTypeLocationTracker,
 		Name:         name,
 		Tags:         cloneStringMap(tracker.Tags),
 		Attributes: map[string]any{
@@ -242,7 +243,7 @@ func geofenceCollectionObservation(
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLocationGeofenceCollection,
+		ResourceType: catalog.ResourceTypeLocationGeofenceCollection,
 		Name:         name,
 		Tags:         cloneStringMap(collection.Tags),
 		Attributes: map[string]any{
@@ -268,7 +269,7 @@ func routeCalculatorObservation(
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLocationRouteCalculator,
+		ResourceType: catalog.ResourceTypeLocationRouteCalculator,
 		Name:         name,
 		Tags:         cloneStringMap(calculator.Tags),
 		Attributes: map[string]any{

@@ -71,14 +71,14 @@ func TestScannerEmitsAccessAnalyzerMetadataOnlyFactsAndRelationships(t *testing.
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerAnalyzer, 2)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerArchiveRule, 1)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerFindingCount, 3)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerUnusedAccessSummary, 1)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipAccessAnalyzerAnalyzerScopesOrganizationAccount)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipAccessAnalyzerAnalyzerHasArchiveRule)
+	assertResourceCount(t, envelopes, catalog.ResourceTypeAccessAnalyzerAnalyzer, 2)
+	assertResourceCount(t, envelopes, catalog.ResourceTypeAccessAnalyzerArchiveRule, 1)
+	assertResourceCount(t, envelopes, catalog.ResourceTypeAccessAnalyzerFindingCount, 3)
+	assertResourceCount(t, envelopes, catalog.ResourceTypeAccessAnalyzerUnusedAccessSummary, 1)
+	assertRelationshipType(t, envelopes, catalog.RelationshipAccessAnalyzerAnalyzerScopesOrganizationAccount)
+	assertRelationshipType(t, envelopes, catalog.RelationshipAccessAnalyzerAnalyzerHasArchiveRule)
 
-	analyzer := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAccessAnalyzerAnalyzer, unusedARN)
+	analyzer := resourceByTypeAndID(t, envelopes, catalog.ResourceTypeAccessAnalyzerAnalyzer, unusedARN)
 	attrs := attributesOf(t, analyzer)
 	if got, want := attrs["scope"], "ORGANIZATION"; got != want {
 		t.Fatalf("scope = %#v, want %q", got, want)
@@ -90,7 +90,7 @@ func TestScannerEmitsAccessAnalyzerMetadataOnlyFactsAndRelationships(t *testing.
 	findingCount := resourceByTypeAndID(
 		t,
 		envelopes,
-		awscloud.ResourceTypeAccessAnalyzerFindingCount,
+		catalog.ResourceTypeAccessAnalyzerFindingCount,
 		externalARN+"/finding-count/ACTIVE/AWS::S3::Bucket",
 	)
 	if got, want := attributesOf(t, findingCount)["count"], int64(2); got != want {
@@ -100,7 +100,7 @@ func TestScannerEmitsAccessAnalyzerMetadataOnlyFactsAndRelationships(t *testing.
 	unused := resourceByTypeAndID(
 		t,
 		envelopes,
-		awscloud.ResourceTypeAccessAnalyzerUnusedAccessSummary,
+		catalog.ResourceTypeAccessAnalyzerUnusedAccessSummary,
 		unusedARN+"/unused-access/unused-permission-1",
 	)
 	unusedAttrs := attributesOf(t, unused)
@@ -145,10 +145,10 @@ func TestScannerSkipsAnalyzerChildrenWhenAnalyzerARNMissing(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerAnalyzer, 1)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerArchiveRule, 0)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerFindingCount, 0)
-	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerUnusedAccessSummary, 0)
+	assertResourceCount(t, envelopes, catalog.ResourceTypeAccessAnalyzerAnalyzer, 1)
+	assertResourceCount(t, envelopes, catalog.ResourceTypeAccessAnalyzerArchiveRule, 0)
+	assertResourceCount(t, envelopes, catalog.ResourceTypeAccessAnalyzerFindingCount, 0)
+	assertResourceCount(t, envelopes, catalog.ResourceTypeAccessAnalyzerUnusedAccessSummary, 0)
 	assertNoResourceIDPrefix(t, envelopes, "/")
 }
 
@@ -221,7 +221,7 @@ func TestScannerMapsSupportedAnalyzerScopesAndAnalysisTypes(t *testing.T) {
 				t.Fatalf("Scan() error = %v, want nil", err)
 			}
 
-			analyzer := resourceByTypeAndID(t, envelopes, awscloud.ResourceTypeAccessAnalyzerAnalyzer, analyzerARN)
+			analyzer := resourceByTypeAndID(t, envelopes, catalog.ResourceTypeAccessAnalyzerAnalyzer, analyzerARN)
 			attrs := attributesOf(t, analyzer)
 			if got := attrs["scope"]; got != tt.wantScope {
 				t.Fatalf("scope = %#v, want %q", got, tt.wantScope)
@@ -237,7 +237,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAccessAnalyzer,
+		ServiceKind:         catalog.ServiceAccessAnalyzer,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:accessanalyzer:1",
 		CollectorInstanceID: "aws-prod",

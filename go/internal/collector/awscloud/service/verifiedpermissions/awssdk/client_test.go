@@ -13,6 +13,7 @@ import (
 	awsvptypes "github.com/aws/aws-sdk-go-v2/service/verifiedpermissions/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func TestClientSnapshotsVerifiedPermissionsMetadataOnly(t *testing.T) {
@@ -236,6 +237,6 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceVerifiedPermissions,
+		ServiceKind: catalog.ServiceVerifiedPermissions,
 	}
 }

@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/cloudhsmv2/runtimebind"
 )
 
 // TestCloudHSMV2RuntimeBindRegisters confirms importing the binding installs the
 // CloudHSM v2 scanner builder.
 func TestCloudHSMV2RuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceCloudHSMV2)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceCloudHSMV2)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceCloudHSMV2)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceCloudHSMV2)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceCloudHSMV2,
+			ServiceKind: catalog.ServiceCloudHSMV2,
 		},
 	})
 	if err != nil {

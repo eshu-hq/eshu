@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("verifiedpermissions scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceVerifiedPermissions:
+	case "", catalog.ServiceVerifiedPermissions:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceVerifiedPermissions
+		boundary.ServiceKind = catalog.ServiceVerifiedPermissions
 	default:
 		return nil, fmt.Errorf("verifiedpermissions scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -138,7 +139,7 @@ func policyStoreObservation(boundary awscloud.Boundary, store PolicyStore) awscl
 		Boundary:     boundary,
 		ARN:          storeARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVerifiedPermissionsPolicyStore,
+		ResourceType: catalog.ResourceTypeVerifiedPermissionsPolicyStore,
 		Name:         storeID,
 		Tags:         cloneStringMap(store.Tags),
 		Attributes: map[string]any{
@@ -162,7 +163,7 @@ func policyObservation(boundary awscloud.Boundary, policy Policy) awscloud.Resou
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVerifiedPermissionsPolicy,
+		ResourceType: catalog.ResourceTypeVerifiedPermissionsPolicy,
 		Name:         policyID,
 		Attributes: map[string]any{
 			"policy_id":         policyID,
@@ -183,7 +184,7 @@ func identitySourceObservation(boundary awscloud.Boundary, source IdentitySource
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeVerifiedPermissionsIdentitySource,
+		ResourceType: catalog.ResourceTypeVerifiedPermissionsIdentitySource,
 		Name:         sourceID,
 		Attributes: map[string]any{
 			"identity_source_id":    sourceID,

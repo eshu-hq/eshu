@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/ds/runtimebind"
 )
 
@@ -18,13 +19,13 @@ import (
 // needs no redaction key, so the builder resolves with a zero-value ScannerDeps
 // redaction key.
 func TestDirectoryServiceRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceDirectoryService)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceDirectoryService)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceDirectoryService)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceDirectoryService)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceDirectoryService},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceDirectoryService},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

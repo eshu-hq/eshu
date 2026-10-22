@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/rolesanywhere/runtimebind"
 )
 
 // TestRolesAnywhereRuntimeBindRegisters confirms importing the binding installs
 // the Roles Anywhere scanner builder.
 func TestRolesAnywhereRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceRolesAnywhere)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceRolesAnywhere)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceRolesAnywhere)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceRolesAnywhere)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceRolesAnywhere,
+			ServiceKind: catalog.ServiceRolesAnywhere,
 		},
 	})
 	if err != nil {

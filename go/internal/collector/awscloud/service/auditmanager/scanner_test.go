@@ -71,7 +71,7 @@ func TestScannerEmitsAuditManagerMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Assessment resource node.
-	assessment := resourceByType(t, envelopes, awscloud.ResourceTypeAuditManagerAssessment)
+	assessment := resourceByType(t, envelopes, catalog.ResourceTypeAuditManagerAssessment)
 	if got, want := assessment.Payload["resource_id"], testAssessmentARN; got != want {
 		t.Fatalf("assessment resource_id = %#v, want %q", got, want)
 	}
@@ -84,7 +84,7 @@ func TestScannerEmitsAuditManagerMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, aAttrs, "scope_account_ids", []string{"123456789012", "210987654321"})
 
 	// Framework resource node.
-	framework := resourceByType(t, envelopes, awscloud.ResourceTypeAuditManagerFramework)
+	framework := resourceByType(t, envelopes, catalog.ResourceTypeAuditManagerFramework)
 	if got, want := framework.Payload["resource_id"], testFrameworkARN; got != want {
 		t.Fatalf("framework resource_id = %#v, want %q", got, want)
 	}
@@ -93,7 +93,7 @@ func TestScannerEmitsAuditManagerMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, fAttrs, "controls_count", int32(61))
 
 	// Control resource node.
-	control := resourceByType(t, envelopes, awscloud.ResourceTypeAuditManagerControl)
+	control := resourceByType(t, envelopes, catalog.ResourceTypeAuditManagerControl)
 	if got, want := control.Payload["resource_id"], testControlARN; got != want {
 		t.Fatalf("control resource_id = %#v, want %q", got, want)
 	}
@@ -102,14 +102,14 @@ func TestScannerEmitsAuditManagerMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, cAttrs, "control_sources", "AWS Config, AWS Security Hub")
 
 	// assessment -> framework edge, keyed by the framework ARN.
-	frameworkEdge := relationshipByType(t, envelopes, awscloud.RelationshipAuditManagerAssessmentUsesFramework)
-	assertEdgeTarget(t, frameworkEdge, awscloud.ResourceTypeAuditManagerFramework, testFrameworkARN)
+	frameworkEdge := relationshipByType(t, envelopes, catalog.RelationshipAuditManagerAssessmentUsesFramework)
+	assertEdgeTarget(t, frameworkEdge, catalog.ResourceTypeAuditManagerFramework, testFrameworkARN)
 	if got, want := frameworkEdge.Payload["source_resource_id"], testAssessmentARN; got != want {
 		t.Fatalf("assessment->framework source_resource_id = %#v, want %q", got, want)
 	}
 
 	// assessment -> S3 reports bucket edge, keyed by the synthesized bucket ARN.
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipAuditManagerAssessmentReportsToS3)
+	s3Edge := relationshipByType(t, envelopes, catalog.RelationshipAuditManagerAssessmentReportsToS3)
 	wantBucketARN := "arn:aws:s3:::audit-reports-bucket"
 	assertEdgeTarget(t, s3Edge, catalog.ResourceTypeS3Bucket, wantBucketARN)
 	if got, want := s3Edge.Payload["target_arn"], wantBucketARN; got != want {
@@ -117,16 +117,16 @@ func TestScannerEmitsAuditManagerMetadataAndRelationships(t *testing.T) {
 	}
 
 	// assessment -> KMS key edge, keyed by the account settings key ARN.
-	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipAuditManagerAssessmentEncryptedWithKMSKey)
+	kmsEdge := relationshipByType(t, envelopes, catalog.RelationshipAuditManagerAssessmentEncryptedWithKMSKey)
 	assertEdgeTarget(t, kmsEdge, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := kmsEdge.Payload["target_arn"], testKMSARN; got != want {
 		t.Fatalf("assessment->kms target_arn = %#v, want %q", got, want)
 	}
 
 	// assessment -> account edges, keyed by the partition-aware account root ARN.
-	accountEdge := relationshipByType(t, envelopes, awscloud.RelationshipAuditManagerAssessmentInAccount)
-	assertEdgeTarget(t, accountEdge, awscloud.ResourceTypeAWSAccount, "arn:aws:iam::123456789012:root")
-	if accountEdges := countRelationships(envelopes, awscloud.RelationshipAuditManagerAssessmentInAccount); accountEdges != 2 {
+	accountEdge := relationshipByType(t, envelopes, catalog.RelationshipAuditManagerAssessmentInAccount)
+	assertEdgeTarget(t, accountEdge, catalog.ResourceTypeAWSAccount, "arn:aws:iam::123456789012:root")
+	if accountEdges := countRelationships(envelopes, catalog.RelationshipAuditManagerAssessmentInAccount); accountEdges != 2 {
 		t.Fatalf("assessment->account edge count = %d, want 2", accountEdges)
 	}
 
@@ -163,11 +163,11 @@ func TestScannerSynthesizesGovCloudBucketAndAccountARNs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipAuditManagerAssessmentReportsToS3)
+	s3Edge := relationshipByType(t, envelopes, catalog.RelationshipAuditManagerAssessmentReportsToS3)
 	if got, want := s3Edge.Payload["target_resource_id"], "arn:aws-us-gov:s3:::gov-reports-bucket"; got != want {
 		t.Fatalf("GovCloud assessment->s3 target_resource_id = %#v, want %q", got, want)
 	}
-	accountEdge := relationshipByType(t, envelopes, awscloud.RelationshipAuditManagerAssessmentInAccount)
+	accountEdge := relationshipByType(t, envelopes, catalog.RelationshipAuditManagerAssessmentInAccount)
 	if got, want := accountEdge.Payload["target_resource_id"], "arn:aws-us-gov:iam::123456789012:root"; got != want {
 		t.Fatalf("GovCloud assessment->account target_resource_id = %#v, want %q", got, want)
 	}
@@ -187,7 +187,7 @@ func TestScannerSynthesizesChinaBucketARN(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	s3Edge := relationshipByType(t, envelopes, awscloud.RelationshipAuditManagerAssessmentReportsToS3)
+	s3Edge := relationshipByType(t, envelopes, catalog.RelationshipAuditManagerAssessmentReportsToS3)
 	if got, want := s3Edge.Payload["target_arn"], "arn:aws-cn:s3:::cn-reports-bucket"; got != want {
 		t.Fatalf("China assessment->s3 target_arn = %#v, want %q", got, want)
 	}
@@ -226,7 +226,7 @@ func TestScannerOmitsKMSEdgeForNonARNKeyButKeepsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	kmsEdge := relationshipByType(t, envelopes, awscloud.RelationshipAuditManagerAssessmentEncryptedWithKMSKey)
+	kmsEdge := relationshipByType(t, envelopes, catalog.RelationshipAuditManagerAssessmentEncryptedWithKMSKey)
 	if got, want := kmsEdge.Payload["target_resource_id"], "alias/auditmanager"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -292,7 +292,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceAuditManager,
+		ServiceKind:         catalog.ServiceAuditManager,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:auditmanager:1",
 		CollectorInstanceID: "aws-prod",

@@ -70,7 +70,7 @@ func TestScannerEmitsDRSMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Source server resource node.
-	server := resourceByType(t, envelopes, awscloud.ResourceTypeDRSSourceServer)
+	server := resourceByType(t, envelopes, catalog.ResourceTypeDRSSourceServer)
 	if got, want := server.Payload["resource_id"], testSourceServerID; got != want {
 		t.Fatalf("source server resource_id = %#v, want %q", got, want)
 	}
@@ -84,7 +84,7 @@ func TestScannerEmitsDRSMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, serverAttrs, "recommended_instance_type", "m5.large")
 
 	// Recovery instance resource node.
-	instance := resourceByType(t, envelopes, awscloud.ResourceTypeDRSRecoveryInstance)
+	instance := resourceByType(t, envelopes, catalog.ResourceTypeDRSRecoveryInstance)
 	if got, want := instance.Payload["resource_id"], testRecoveryInstID2; got != want {
 		t.Fatalf("recovery instance resource_id = %#v, want %q", got, want)
 	}
@@ -94,7 +94,7 @@ func TestScannerEmitsDRSMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, instAttrs, "source_server_id", testSourceServerID)
 
 	// Replication configuration template resource node.
-	template := resourceByType(t, envelopes, awscloud.ResourceTypeDRSReplicationConfigurationTemplate)
+	template := resourceByType(t, envelopes, catalog.ResourceTypeDRSReplicationConfigurationTemplate)
 	if got, want := template.Payload["resource_id"], testTemplateID; got != want {
 		t.Fatalf("template resource_id = %#v, want %q", got, want)
 	}
@@ -105,14 +105,14 @@ func TestScannerEmitsDRSMetadataAndRelationships(t *testing.T) {
 
 	// source server -> recovery instance edge, keyed by the recovery instance id
 	// the recovery instance node publishes.
-	recovers := relationshipByType(t, envelopes, awscloud.RelationshipDRSSourceServerRecoversToInstance)
-	assertEdgeTarget(t, recovers, awscloud.ResourceTypeDRSRecoveryInstance, testRecoveryInstID2)
+	recovers := relationshipByType(t, envelopes, catalog.RelationshipDRSSourceServerRecoversToInstance)
+	assertEdgeTarget(t, recovers, catalog.ResourceTypeDRSRecoveryInstance, testRecoveryInstID2)
 	if got, want := recovers.Payload["source_resource_id"], testSourceServerID; got != want {
 		t.Fatalf("source->recovery source_resource_id = %#v, want %q", got, want)
 	}
 
 	// recovery instance -> EC2 instance edge, keyed by the bare i- id, target_arn empty.
-	runsOn := relationshipByType(t, envelopes, awscloud.RelationshipDRSRecoveryInstanceRunsOnEC2Instance)
+	runsOn := relationshipByType(t, envelopes, catalog.RelationshipDRSRecoveryInstanceRunsOnEC2Instance)
 	assertEdgeTarget(t, runsOn, "aws_ec2_instance", testEC2InstanceID)
 	if got := runsOn.Payload["target_arn"]; got != "" {
 		t.Fatalf("recovery->ec2 target_arn = %#v, want empty (forward reference)", got)
@@ -242,7 +242,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceDRS,
+		ServiceKind:         catalog.ServiceDRS,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:drs:1",
 		CollectorInstanceID: "aws-prod",

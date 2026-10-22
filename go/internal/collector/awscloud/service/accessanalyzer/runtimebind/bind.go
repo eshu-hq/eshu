@@ -7,15 +7,15 @@
 package runtimebind
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	svc "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/accessanalyzer"
 	sdkadapter "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/accessanalyzer/awssdk"
 )
 
 func init() {
 	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind: awscloud.ServiceAccessAnalyzer,
+		ServiceKind: catalog.ServiceAccessAnalyzer,
 		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
 			return svc.Scanner{
 				Client: sdkadapter.NewClient(d.AWSConfig, d.Boundary, d.Tracer, d.Instruments),

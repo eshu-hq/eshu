@@ -25,23 +25,23 @@ func directoryRelationships(boundary awscloud.Boundary, directory Directory) []a
 	if vpcID := strings.TrimSpace(directory.VPCID); vpcID != "" {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDSDirectoryInVPC,
+			RelationshipType: catalog.RelationshipDSDirectoryInVPC,
 			SourceResourceID: sourceID,
 			TargetResourceID: vpcID,
 			TargetType:       catalog.ResourceTypeEC2VPC,
 			Attributes:       map[string]any{"vpc_id": vpcID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDSDirectoryInVPC, vpcID),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipDSDirectoryInVPC, vpcID),
 		})
 	}
 	for _, subnetID := range cloneStrings(directory.SubnetIDs) {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDSDirectoryInSubnet,
+			RelationshipType: catalog.RelationshipDSDirectoryInSubnet,
 			SourceResourceID: sourceID,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes:       map[string]any{"subnet_id": subnetID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDSDirectoryInSubnet, subnetID),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipDSDirectoryInSubnet, subnetID),
 		})
 	}
 	return relationships
@@ -58,12 +58,12 @@ func trustRelationships(boundary awscloud.Boundary, trust Trust) []awscloud.Rela
 	}
 	return []awscloud.RelationshipObservation{{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDSTrustTargetsDirectory,
+		RelationshipType: catalog.RelationshipDSTrustTargetsDirectory,
 		SourceResourceID: sourceID,
 		TargetResourceID: directoryID,
-		TargetType:       awscloud.ResourceTypeDSDirectory,
+		TargetType:       catalog.ResourceTypeDSDirectory,
 		Attributes:       map[string]any{"directory_id": directoryID},
-		SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDSTrustTargetsDirectory, directoryID),
+		SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipDSTrustTargetsDirectory, directoryID),
 	}}
 }
 
@@ -87,26 +87,26 @@ func sharedDirectoryRelationships(
 		_, inScope := directoryIDs[ownerDirectoryID]
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDSSharedDirectoryTargetsOwnerDirectory,
+			RelationshipType: catalog.RelationshipDSSharedDirectoryTargetsOwnerDirectory,
 			SourceResourceID: sourceID,
 			TargetResourceID: ownerDirectoryID,
-			TargetType:       awscloud.ResourceTypeDSDirectory,
+			TargetType:       catalog.ResourceTypeDSDirectory,
 			Attributes: map[string]any{
 				"owner_directory_id": ownerDirectoryID,
 				"in_scope":           inScope,
 			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipDSSharedDirectoryTargetsOwnerDirectory, ownerDirectoryID),
+			SourceRecordID: relationshipRecordID(sourceID, catalog.RelationshipDSSharedDirectoryTargetsOwnerDirectory, ownerDirectoryID),
 		})
 	}
 	if ownerAccountID := strings.TrimSpace(share.OwnerAccountID); ownerAccountID != "" {
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipDSSharedDirectoryTargetsOwnerAccount,
+			RelationshipType: catalog.RelationshipDSSharedDirectoryTargetsOwnerAccount,
 			SourceResourceID: sourceID,
 			TargetResourceID: ownerAccountID,
-			TargetType:       awscloud.ResourceTypeAWSAccount,
+			TargetType:       catalog.ResourceTypeAWSAccount,
 			Attributes:       map[string]any{"owner_account_id": ownerAccountID},
-			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipDSSharedDirectoryTargetsOwnerAccount, ownerAccountID),
+			SourceRecordID:   relationshipRecordID(sourceID, catalog.RelationshipDSSharedDirectoryTargetsOwnerAccount, ownerAccountID),
 		})
 	}
 	return relationships

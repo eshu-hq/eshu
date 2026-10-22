@@ -36,11 +36,11 @@ func applicationContainsSourceServerRelationship(
 	// empty (relguard rejects a bare join key alongside a populated ARN).
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMGNApplicationContainsSourceServer,
+		RelationshipType: catalog.RelationshipMGNApplicationContainsSourceServer,
 		SourceResourceID: applicationID,
 		TargetResourceID: sourceID,
-		TargetType:       awscloud.ResourceTypeMGNSourceServer,
-		SourceRecordID:   applicationID + "->" + awscloud.RelationshipMGNApplicationContainsSourceServer + ":" + sourceID,
+		TargetType:       catalog.ResourceTypeMGNSourceServer,
+		SourceRecordID:   applicationID + "->" + catalog.RelationshipMGNApplicationContainsSourceServer + ":" + sourceID,
 	}
 }
 
@@ -63,12 +63,12 @@ func sourceServerLaunchedEC2Relationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMGNSourceServerLaunchedEC2Instance,
+		RelationshipType: catalog.RelationshipMGNSourceServerLaunchedEC2Instance,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(server.ARN),
 		TargetResourceID: instanceID,
 		TargetType:       ec2InstanceTargetType,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMGNSourceServerLaunchedEC2Instance + ":" + instanceID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipMGNSourceServerLaunchedEC2Instance + ":" + instanceID,
 	}
 }
 
@@ -95,11 +95,11 @@ func launchConfigurationUsesLaunchTemplateRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipMGNLaunchConfigurationUsesLaunchTemplate,
+		RelationshipType: catalog.RelationshipMGNLaunchConfigurationUsesLaunchTemplate,
 		SourceResourceID: sourceID,
 		TargetResourceID: templateID,
 		TargetType:       catalog.ResourceTypeEC2LaunchTemplate,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipMGNLaunchConfigurationUsesLaunchTemplate + ":" + templateID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipMGNLaunchConfigurationUsesLaunchTemplate + ":" + templateID,
 	}
 }
 
@@ -128,12 +128,12 @@ func jobTargetsSourceServerRelationships(
 		seen[serverID] = struct{}{}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipMGNJobTargetsSourceServer,
+			RelationshipType: catalog.RelationshipMGNJobTargetsSourceServer,
 			SourceResourceID: jobID,
 			SourceARN:        strings.TrimSpace(job.ARN),
 			TargetResourceID: serverID,
-			TargetType:       awscloud.ResourceTypeMGNSourceServer,
-			SourceRecordID:   jobID + "->" + awscloud.RelationshipMGNJobTargetsSourceServer + ":" + serverID,
+			TargetType:       catalog.ResourceTypeMGNSourceServer,
+			SourceRecordID:   jobID + "->" + catalog.RelationshipMGNJobTargetsSourceServer + ":" + serverID,
 		})
 	}
 	return relationships

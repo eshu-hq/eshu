@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	s3service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/s3"
 )
 
@@ -120,13 +120,13 @@ func normalizeStatementEffect(value string) string {
 func principalTypeForKey(key string) string {
 	switch strings.TrimSpace(key) {
 	case "AWS":
-		return awscloud.ResourcePolicyPrincipalTypeAWS
+		return catalog.ResourcePolicyPrincipalTypeAWS
 	case "Service":
-		return awscloud.ResourcePolicyPrincipalTypeService
+		return catalog.ResourcePolicyPrincipalTypeService
 	case "Federated":
-		return awscloud.ResourcePolicyPrincipalTypeFederated
+		return catalog.ResourcePolicyPrincipalTypeFederated
 	case "CanonicalUser":
-		return awscloud.ResourcePolicyPrincipalTypeCanonical
+		return catalog.ResourcePolicyPrincipalTypeCanonical
 	default:
 		return ""
 	}

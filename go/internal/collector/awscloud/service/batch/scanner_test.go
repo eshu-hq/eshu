@@ -261,7 +261,7 @@ func TestComputeEnvironmentRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) 
 		},
 		{
 			relationshipType: catalog.RelationshipBatchJobDefinitionReferencesSecret,
-			targetType:       awscloud.ResourceTypeSecretsManagerSecret,
+			targetType:       catalog.ResourceTypeSecretsManagerSecret,
 			targetResourceID: "arn:aws:secretsmanager:us-east-1:123456789012:secret:api-token",
 		},
 	}

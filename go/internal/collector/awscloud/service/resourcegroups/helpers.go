@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
@@ -169,7 +168,7 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 		}
 	case "secretsmanager":
 		if resourceType == "secret" {
-			return arnTarget(awscloud.ResourceTypeSecretsManagerSecret, arn), true
+			return arnTarget(catalog.ResourceTypeSecretsManagerSecret, arn), true
 		}
 	case "cloudformation":
 		// arn:p:cloudformation:region:acct:stack/name/guid. The cloudformation

@@ -84,11 +84,11 @@ func TestScannerEmitsLocationMetadataAndRelationships(t *testing.T) {
 		resourceType string
 		wantID       string
 	}{
-		{awscloud.ResourceTypeLocationMap, testMapARN},
-		{awscloud.ResourceTypeLocationPlaceIndex, testIndexARN},
-		{awscloud.ResourceTypeLocationTracker, testTrackerARN},
-		{awscloud.ResourceTypeLocationGeofenceCollection, testCollectionARN},
-		{awscloud.ResourceTypeLocationRouteCalculator, testRouteARN},
+		{catalog.ResourceTypeLocationMap, testMapARN},
+		{catalog.ResourceTypeLocationPlaceIndex, testIndexARN},
+		{catalog.ResourceTypeLocationTracker, testTrackerARN},
+		{catalog.ResourceTypeLocationGeofenceCollection, testCollectionARN},
+		{catalog.ResourceTypeLocationRouteCalculator, testRouteARN},
 	} {
 		node := resourceByType(t, envelopes, tc.resourceType)
 		if got := node.Payload["resource_id"]; got != tc.wantID {
@@ -100,22 +100,22 @@ func TestScannerEmitsLocationMetadataAndRelationships(t *testing.T) {
 	}
 
 	// Tracker attributes carry control-plane metadata only.
-	tracker := resourceByType(t, envelopes, awscloud.ResourceTypeLocationTracker)
+	tracker := resourceByType(t, envelopes, catalog.ResourceTypeLocationTracker)
 	trackerAttrs := attributesOf(t, tracker)
 	assertAttribute(t, trackerAttrs, "position_filtering", "TimeBased")
 	assertAttribute(t, trackerAttrs, "event_bridge_enabled", true)
 	assertAttribute(t, trackerAttrs, "consumer_geofence_collection_count", 1)
 
-	collection := resourceByType(t, envelopes, awscloud.ResourceTypeLocationGeofenceCollection)
+	collection := resourceByType(t, envelopes, catalog.ResourceTypeLocationGeofenceCollection)
 	assertAttribute(t, attributesOf(t, collection), "geofence_count", int32(7))
 
-	mapNode := resourceByType(t, envelopes, awscloud.ResourceTypeLocationMap)
+	mapNode := resourceByType(t, envelopes, catalog.ResourceTypeLocationMap)
 	mapAttrs := attributesOf(t, mapNode)
 	assertAttribute(t, mapAttrs, "style", "VectorEsriStreets")
 	assertAttribute(t, mapAttrs, "custom_layers", []string{"POI"})
 
 	// tracker -> KMS key edge.
-	trackerKMS := relationshipByType(t, envelopes, awscloud.RelationshipLocationTrackerUsesKMSKey)
+	trackerKMS := relationshipByType(t, envelopes, catalog.RelationshipLocationTrackerUsesKMSKey)
 	assertEdgeTarget(t, trackerKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := trackerKMS.Payload["source_resource_id"], testTrackerARN; got != want {
 		t.Fatalf("tracker->kms source_resource_id = %#v, want %q", got, want)
@@ -125,7 +125,7 @@ func TestScannerEmitsLocationMetadataAndRelationships(t *testing.T) {
 	}
 
 	// geofence collection -> KMS key edge.
-	collectionKMS := relationshipByType(t, envelopes, awscloud.RelationshipLocationGeofenceCollectionUsesKMSKey)
+	collectionKMS := relationshipByType(t, envelopes, catalog.RelationshipLocationGeofenceCollectionUsesKMSKey)
 	assertEdgeTarget(t, collectionKMS, catalog.ResourceTypeKMSKey, testKMSARN)
 	if got, want := collectionKMS.Payload["source_resource_id"], testCollectionARN; got != want {
 		t.Fatalf("collection->kms source_resource_id = %#v, want %q", got, want)
@@ -133,8 +133,8 @@ func TestScannerEmitsLocationMetadataAndRelationships(t *testing.T) {
 
 	// tracker -> geofence collection consumer edge, keyed by the collection ARN
 	// the collection node publishes.
-	consumer := relationshipByType(t, envelopes, awscloud.RelationshipLocationTrackerConsumesGeofenceCollection)
-	assertEdgeTarget(t, consumer, awscloud.ResourceTypeLocationGeofenceCollection, testCollectionARN)
+	consumer := relationshipByType(t, envelopes, catalog.RelationshipLocationTrackerConsumesGeofenceCollection)
+	assertEdgeTarget(t, consumer, catalog.ResourceTypeLocationGeofenceCollection, testCollectionARN)
 	if got, want := consumer.Payload["source_resource_id"], testTrackerARN; got != want {
 		t.Fatalf("tracker->collection source_resource_id = %#v, want %q", got, want)
 	}
@@ -171,7 +171,7 @@ func TestScannerOmitsKMSEdgeForNonARNKeyButKeepsValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	trackerKMS := relationshipByType(t, envelopes, awscloud.RelationshipLocationTrackerUsesKMSKey)
+	trackerKMS := relationshipByType(t, envelopes, catalog.RelationshipLocationTrackerUsesKMSKey)
 	if got, want := trackerKMS.Payload["target_resource_id"], "alias/location-fleet"; got != want {
 		t.Fatalf("kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -278,7 +278,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceLocation,
+		ServiceKind:         catalog.ServiceLocation,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:location:1",
 		CollectorInstanceID: "aws-prod",

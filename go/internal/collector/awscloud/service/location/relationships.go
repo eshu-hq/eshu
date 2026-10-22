@@ -31,13 +31,13 @@ func trackerKMSRelationship(boundary awscloud.Boundary, tracker Tracker) *awsclo
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLocationTrackerUsesKMSKey,
+		RelationshipType: catalog.RelationshipLocationTrackerUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(tracker.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipLocationTrackerUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipLocationTrackerUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -64,13 +64,13 @@ func geofenceCollectionKMSRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLocationGeofenceCollectionUsesKMSKey,
+		RelationshipType: catalog.RelationshipLocationGeofenceCollectionUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(collection.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipLocationGeofenceCollectionUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipLocationGeofenceCollectionUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -99,12 +99,12 @@ func trackerConsumerRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLocationTrackerConsumesGeofenceCollection,
+		RelationshipType: catalog.RelationshipLocationTrackerConsumesGeofenceCollection,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(tracker.ARN),
 		TargetResourceID: consumerARN,
 		TargetARN:        targetARN,
-		TargetType:       awscloud.ResourceTypeLocationGeofenceCollection,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipLocationTrackerConsumesGeofenceCollection + ":" + consumerARN,
+		TargetType:       catalog.ResourceTypeLocationGeofenceCollection,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipLocationTrackerConsumesGeofenceCollection + ":" + consumerARN,
 	}
 }

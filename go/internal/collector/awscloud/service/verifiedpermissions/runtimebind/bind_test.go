@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/verifiedpermissions/runtimebind"
 )
 
 // TestVerifiedPermissionsRuntimeBindRegisters confirms importing the binding
 // installs the Verified Permissions scanner builder.
 func TestVerifiedPermissionsRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceVerifiedPermissions)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceVerifiedPermissions)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceVerifiedPermissions)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceVerifiedPermissions)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceVerifiedPermissions,
+			ServiceKind: catalog.ServiceVerifiedPermissions,
 		},
 	})
 	if err != nil {

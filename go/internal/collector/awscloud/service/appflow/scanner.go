@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("appflow scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceAppFlow:
+	case "", catalog.ServiceAppFlow:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceAppFlow
+		boundary.ServiceKind = catalog.ServiceAppFlow
 	default:
 		return nil, fmt.Errorf("appflow scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -130,7 +131,7 @@ func flowObservation(boundary awscloud.Boundary, flow Flow) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   flowID,
-		ResourceType: awscloud.ResourceTypeAppFlowFlow,
+		ResourceType: catalog.ResourceTypeAppFlowFlow,
 		Name:         name,
 		State:        strings.TrimSpace(flow.Status),
 		Attributes: map[string]any{
@@ -159,7 +160,7 @@ func connectorProfileObservation(boundary awscloud.Boundary, profile ConnectorPr
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   name,
-		ResourceType: awscloud.ResourceTypeAppFlowConnectorProfile,
+		ResourceType: catalog.ResourceTypeAppFlowConnectorProfile,
 		Name:         name,
 		State:        strings.TrimSpace(profile.ConnectionMode),
 		Attributes: map[string]any{

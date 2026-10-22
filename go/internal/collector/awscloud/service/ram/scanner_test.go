@@ -286,8 +286,8 @@ func TestScanShareResourceWithBlankTypeFallsBackToGenericTargetType(t *testing.T
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 	rel := findRelationship(t, envelopes, catalog.RelationshipRAMShareIncludesResource)
-	if rel.TargetType != awscloud.ResourceTypeGeneric {
-		t.Fatalf("TargetType = %q, want generic %q for blank RAM type", rel.TargetType, awscloud.ResourceTypeGeneric)
+	if rel.TargetType != catalog.ResourceTypeGeneric {
+		t.Fatalf("TargetType = %q, want generic %q for blank RAM type", rel.TargetType, catalog.ResourceTypeGeneric)
 	}
 	if rel.TargetResourceID != "ec2-arn:subnet/subnet-blank" {
 		t.Fatalf("TargetResourceID = %q, want shared resource ARN", rel.TargetResourceID)
@@ -329,8 +329,8 @@ func TestScanUnknownPrincipalDoesNotMasqueradeAsAccount(t *testing.T) {
 		}
 		if relType == catalog.RelationshipRAMShareTargetsPrincipal {
 			rel := relationshipFromEnvelope(t, envelope)
-			if rel.TargetType != awscloud.ResourceTypeGeneric {
-				t.Fatalf("TargetType = %q, want generic %q for unknown principal", rel.TargetType, awscloud.ResourceTypeGeneric)
+			if rel.TargetType != catalog.ResourceTypeGeneric {
+				t.Fatalf("TargetType = %q, want generic %q for unknown principal", rel.TargetType, catalog.ResourceTypeGeneric)
 			}
 			if rel.TargetResourceID != "ram.amazonaws.com" {
 				t.Fatalf("TargetResourceID = %q, want raw principal id", rel.TargetResourceID)

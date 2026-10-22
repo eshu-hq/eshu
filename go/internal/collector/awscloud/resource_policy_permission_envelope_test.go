@@ -33,7 +33,7 @@ func TestNewResourcePolicyPermissionEnvelopeCrossAccountAllow(t *testing.T) {
 		Resources:           []string{"arn:aws:s3:::eshu-shared-bucket/*"},
 		PrincipalARNs:       []string{"arn:aws:iam::111122223333:role/partner"},
 		PrincipalAccountIDs: []string{"111122223333"},
-		PrincipalTypes:      []string{ResourcePolicyPrincipalTypeAWS},
+		PrincipalTypes:      []string{catalog.ResourcePolicyPrincipalTypeAWS},
 		IsCrossAccount:      true,
 	})
 	if err != nil {
@@ -49,7 +49,7 @@ func TestNewResourcePolicyPermissionEnvelopeCrossAccountAllow(t *testing.T) {
 	assertPayloadString(t, envelope.Payload, "resource_type", catalog.ResourceTypeS3Bucket)
 	assertPayloadString(t, envelope.Payload, "account_id", "123456789012")
 	assertPayloadString(t, envelope.Payload, "region", "us-east-1")
-	assertPayloadString(t, envelope.Payload, "policy_source", ResourcePolicySourceResource)
+	assertPayloadString(t, envelope.Payload, "policy_source", catalog.ResourcePolicySourceResource)
 	assertPayloadString(t, envelope.Payload, "effect", "Allow")
 
 	actions := payloadStrings(t, envelope.Payload, "actions")
@@ -65,7 +65,7 @@ func TestNewResourcePolicyPermissionEnvelopeCrossAccountAllow(t *testing.T) {
 	assertStringSlice(t, "principal_arns", principalARNs, []string{"arn:aws:iam::111122223333:role/partner"})
 
 	principalTypes := payloadStrings(t, envelope.Payload, "principal_types")
-	assertStringSlice(t, "principal_types", principalTypes, []string{ResourcePolicyPrincipalTypeAWS})
+	assertStringSlice(t, "principal_types", principalTypes, []string{catalog.ResourcePolicyPrincipalTypeAWS})
 
 	assertPayloadBool(t, envelope.Payload, "is_cross_account", true)
 	assertPayloadBool(t, envelope.Payload, "is_public", false)
@@ -83,7 +83,7 @@ func TestNewResourcePolicyPermissionEnvelopePublicPrincipal(t *testing.T) {
 		Effect:         "Allow",
 		Actions:        []string{"s3:GetObject"},
 		Resources:      []string{"arn:aws:s3:::eshu-public-bucket/*"},
-		PrincipalTypes: []string{ResourcePolicyPrincipalTypeAWS},
+		PrincipalTypes: []string{catalog.ResourcePolicyPrincipalTypeAWS},
 		IsPublic:       true,
 	})
 	if err != nil {
@@ -132,7 +132,7 @@ func TestNewResourcePolicyPermissionEnvelopeConditionKeysCarryNamesOnly(t *testi
 			" Bool ",
 			"IpAddress",
 		},
-		PrincipalTypes: []string{ResourcePolicyPrincipalTypeAWS},
+		PrincipalTypes: []string{catalog.ResourcePolicyPrincipalTypeAWS},
 	})
 	if err != nil {
 		t.Fatalf("NewResourcePolicyPermissionEnvelope returned error: %v", err)
@@ -242,7 +242,7 @@ func TestNewResourcePolicyPermissionEnvelopeStableIdentityIncludesConditionSumma
 		Resources:           []string{"arn:aws:s3:::eshu-shared-bucket/*"},
 		PrincipalARNs:       []string{"arn:aws:iam::111122223333:role/partner"},
 		PrincipalAccountIDs: []string{"111122223333"},
-		PrincipalTypes:      []string{ResourcePolicyPrincipalTypeAWS},
+		PrincipalTypes:      []string{catalog.ResourcePolicyPrincipalTypeAWS},
 	}
 	unconditional, err := NewResourcePolicyPermissionEnvelope(base)
 	if err != nil {
@@ -254,7 +254,7 @@ func TestNewResourcePolicyPermissionEnvelopeStableIdentityIncludesConditionSumma
 		"effect":                "Allow",
 		"not_actions":           "",
 		"not_resources":         "",
-		"policy_source":         ResourcePolicySourceResource,
+		"policy_source":         catalog.ResourcePolicySourceResource,
 		"principal_account_ids": "111122223333",
 		"principal_arns":        "arn:aws:iam::111122223333:role/partner",
 		"region":                boundary.Region,

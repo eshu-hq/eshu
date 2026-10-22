@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
 func kmsRelationship(boundary awscloud.Boundary, parameter Parameter) *awscloud.RelationshipObservation {
@@ -21,13 +22,13 @@ func kmsRelationship(boundary awscloud.Boundary, parameter Parameter) *awscloud.
 	}
 	relationship := awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipSSMParameterUsesKMSKey,
+		RelationshipType: catalog.RelationshipSSMParameterUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(parameter.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       "aws_kms_key",
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipSSMParameterUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipSSMParameterUsesKMSKey + ":" + targetID,
 	}
 	return &relationship
 }

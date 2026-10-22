@@ -22,11 +22,11 @@ func clusterVPCRelationship(boundary awscloud.Boundary, cluster Cluster) *awsclo
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudHSMV2ClusterInVPC,
+		RelationshipType: catalog.RelationshipCloudHSMV2ClusterInVPC,
 		SourceResourceID: sourceID,
 		TargetResourceID: vpcID,
 		TargetType:       catalog.ResourceTypeEC2VPC,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2ClusterInVPC + ":" + vpcID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipCloudHSMV2ClusterInVPC + ":" + vpcID,
 	}
 }
 
@@ -42,11 +42,11 @@ func clusterSecurityGroupRelationship(boundary awscloud.Boundary, cluster Cluste
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudHSMV2ClusterUsesSecurityGroup,
+		RelationshipType: catalog.RelationshipCloudHSMV2ClusterUsesSecurityGroup,
 		SourceResourceID: sourceID,
 		TargetResourceID: groupID,
 		TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2ClusterUsesSecurityGroup + ":" + groupID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipCloudHSMV2ClusterUsesSecurityGroup + ":" + groupID,
 	}
 }
 
@@ -77,12 +77,12 @@ func clusterSubnetRelationships(boundary awscloud.Boundary, cluster Cluster) []a
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipCloudHSMV2ClusterInSubnet,
+			RelationshipType: catalog.RelationshipCloudHSMV2ClusterInSubnet,
 			SourceResourceID: sourceID,
 			TargetResourceID: subnetID,
 			TargetType:       catalog.ResourceTypeEC2Subnet,
 			Attributes:       attributes,
-			SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2ClusterInSubnet + ":" + subnetID,
+			SourceRecordID:   sourceID + "->" + catalog.RelationshipCloudHSMV2ClusterInSubnet + ":" + subnetID,
 		})
 	}
 	return relationships
@@ -101,11 +101,11 @@ func backupClusterRelationship(boundary awscloud.Boundary, backup Backup) *awscl
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipCloudHSMV2BackupOfCluster,
+		RelationshipType: catalog.RelationshipCloudHSMV2BackupOfCluster,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(backup.ARN),
 		TargetResourceID: clusterID,
-		TargetType:       awscloud.ResourceTypeCloudHSMV2Cluster,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipCloudHSMV2BackupOfCluster + ":" + clusterID,
+		TargetType:       catalog.ResourceTypeCloudHSMV2Cluster,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipCloudHSMV2BackupOfCluster + ":" + clusterID,
 	}
 }

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/apprunner"
 )
@@ -149,13 +148,13 @@ func TestServiceRelationshipsHaveTargetTypeAndJoinKeys(t *testing.T) {
 		},
 		{
 			relationshipType: catalog.RelationshipAppRunnerServiceReferencesSecret,
-			targetType:       awscloud.ResourceTypeSecretsManagerSecret,
+			targetType:       catalog.ResourceTypeSecretsManagerSecret,
 			sourceResourceID: serviceARN,
 			targetResourceID: secretARN,
 		},
 		{
 			relationshipType: catalog.RelationshipAppRunnerServiceReferencesSecret,
-			targetType:       awscloud.ResourceTypeSSMParameter,
+			targetType:       catalog.ResourceTypeSSMParameter,
 			sourceResourceID: serviceARN,
 			targetResourceID: ssmSecretARN,
 		},
@@ -289,11 +288,11 @@ func TestSecretReferenceClassification(t *testing.T) {
 	for _, relationship := range relationships {
 		seen[relationship["target_resource_id"].(string)] = relationship["target_type"].(string)
 	}
-	if seen[secretARN] != awscloud.ResourceTypeSecretsManagerSecret {
-		t.Fatalf("secret %q target_type = %q, want %q", secretARN, seen[secretARN], awscloud.ResourceTypeSecretsManagerSecret)
+	if seen[secretARN] != catalog.ResourceTypeSecretsManagerSecret {
+		t.Fatalf("secret %q target_type = %q, want %q", secretARN, seen[secretARN], catalog.ResourceTypeSecretsManagerSecret)
 	}
-	if seen[ssmSecretARN] != awscloud.ResourceTypeSSMParameter {
-		t.Fatalf("secret %q target_type = %q, want %q", ssmSecretARN, seen[ssmSecretARN], awscloud.ResourceTypeSSMParameter)
+	if seen[ssmSecretARN] != catalog.ResourceTypeSSMParameter {
+		t.Fatalf("secret %q target_type = %q, want %q", ssmSecretARN, seen[ssmSecretARN], catalog.ResourceTypeSSMParameter)
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -255,7 +254,7 @@ func TestScannerEmitsAllFlavorsAndRelationships(t *testing.T) {
 	if got, want := adEdge.Payload["target_resource_id"], "d-1234567890"; got != want {
 		t.Fatalf("file-system->ad target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := adEdge.Payload["target_type"], awscloud.ResourceTypeDSDirectory; got != want {
+	if got, want := adEdge.Payload["target_type"], catalog.ResourceTypeDSDirectory; got != want {
 		t.Fatalf("file-system->ad target_type = %#v, want %q", got, want)
 	}
 

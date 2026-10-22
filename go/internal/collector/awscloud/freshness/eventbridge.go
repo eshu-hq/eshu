@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
@@ -255,11 +254,11 @@ var configResourceTypeServices = map[string]string{
 	"AWS::RedshiftServerless::Workgroup":        catalog.ServiceRedshift,
 	"AWS::Route53::HostedZone":                  catalog.ServiceRoute53,
 	"AWS::S3::Bucket":                           catalog.ServiceS3,
-	"AWS::SecretsManager::Secret":               awscloud.ServiceSecretsManager,
+	"AWS::SecretsManager::Secret":               catalog.ServiceSecretsManager,
 	"AWS::SecurityHub::Hub":                     catalog.ServiceSecurityHub,
 	"AWS::SNS::Topic":                           catalog.ServiceSNS,
 	"AWS::SQS::Queue":                           catalog.ServiceSQS,
-	"AWS::SSM::Parameter":                       awscloud.ServiceSSM,
+	"AWS::SSM::Parameter":                       catalog.ServiceSSM,
 }
 
 var cloudTrailSourceServices = map[string]string{
@@ -282,11 +281,11 @@ var cloudTrailSourceServices = map[string]string{
 	"redshift-serverless.amazonaws.com":  catalog.ServiceRedshift,
 	"route53.amazonaws.com":              catalog.ServiceRoute53,
 	"s3.amazonaws.com":                   catalog.ServiceS3,
-	"secretsmanager.amazonaws.com":       awscloud.ServiceSecretsManager,
+	"secretsmanager.amazonaws.com":       catalog.ServiceSecretsManager,
 	"securityhub.amazonaws.com":          catalog.ServiceSecurityHub,
 	"sns.amazonaws.com":                  catalog.ServiceSNS,
 	"sqs.amazonaws.com":                  catalog.ServiceSQS,
-	"ssm.amazonaws.com":                  awscloud.ServiceSSM,
+	"ssm.amazonaws.com":                  catalog.ServiceSSM,
 }
 
 var cloudTrailResourceIDKeys = map[string][]string{
@@ -308,11 +307,11 @@ var cloudTrailResourceIDKeys = map[string][]string{
 		"workgroupArn",
 		"scheduledActionName",
 	},
-	catalog.ServiceS3:              {"bucketName"},
-	awscloud.ServiceSecretsManager: {"secretId"},
-	catalog.ServiceSecurityHub:     {"hubArn", "standardsSubscriptionArn", "standardsControlArn", "insightArn", "actionTargetArn", "accountId"},
-	awscloud.ServiceSSM:            {"name"},
-	catalog.ServiceGlue:            {"databaseName", "tableName", "crawlerName", "jobName", "triggerName", "workflowName", "connectionName"},
+	catalog.ServiceS3:             {"bucketName"},
+	catalog.ServiceSecretsManager: {"secretId"},
+	catalog.ServiceSecurityHub:    {"hubArn", "standardsSubscriptionArn", "standardsControlArn", "insightArn", "actionTargetArn", "accountId"},
+	catalog.ServiceSSM:            {"name"},
+	catalog.ServiceGlue:           {"databaseName", "tableName", "crawlerName", "jobName", "triggerName", "workflowName", "connectionName"},
 }
 
 var genericCloudTrailResourceIDKeys = []string{"resourceId", "resourceName", "id", "name"}

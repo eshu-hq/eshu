@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -32,10 +33,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("drs scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDRS:
+	case "", catalog.ServiceDRS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDRS
+		boundary.ServiceKind = catalog.ServiceDRS
 	default:
 		return nil, fmt.Errorf("drs scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -123,7 +124,7 @@ func sourceServerObservation(boundary awscloud.Boundary, server SourceServer) aw
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDRSSourceServer,
+		ResourceType: catalog.ResourceTypeDRSSourceServer,
 		Name:         name,
 		State:        strings.TrimSpace(server.DataReplicationState),
 		Tags:         cloneStringMap(server.Tags),
@@ -153,7 +154,7 @@ func recoveryInstanceObservation(boundary awscloud.Boundary, instance RecoveryIn
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDRSRecoveryInstance,
+		ResourceType: catalog.ResourceTypeDRSRecoveryInstance,
 		Name:         resourceID,
 		State:        strings.TrimSpace(instance.EC2InstanceState),
 		Tags:         cloneStringMap(instance.Tags),
@@ -177,7 +178,7 @@ func templateObservation(boundary awscloud.Boundary, template ReplicationConfigu
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDRSReplicationConfigurationTemplate,
+		ResourceType: catalog.ResourceTypeDRSReplicationConfigurationTemplate,
 		Name:         resourceID,
 		Tags:         cloneStringMap(template.Tags),
 		Attributes: map[string]any{

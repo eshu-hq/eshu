@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/outposts/runtimebind"
 )
 
 // TestOutpostsRuntimeBindRegisters confirms importing the binding installs the
 // Outposts scanner builder.
 func TestOutpostsRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceOutposts)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceOutposts)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceOutposts)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceOutposts)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceOutposts,
+			ServiceKind: catalog.ServiceOutposts,
 		},
 	})
 	if err != nil {

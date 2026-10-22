@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -26,10 +27,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("secretsmanager scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceSecretsManager:
+	case "", catalog.ServiceSecretsManager:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceSecretsManager
+		boundary.ServiceKind = catalog.ServiceSecretsManager
 	default:
 		return nil, fmt.Errorf("secretsmanager scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -79,7 +80,7 @@ func secretObservation(boundary awscloud.Boundary, secret Secret) awscloud.Resou
 		Boundary:     boundary,
 		ARN:          secretARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeSecretsManagerSecret,
+		ResourceType: catalog.ResourceTypeSecretsManagerSecret,
 		Name:         name,
 		Tags:         cloneStringMap(secret.Tags),
 		Attributes: map[string]any{

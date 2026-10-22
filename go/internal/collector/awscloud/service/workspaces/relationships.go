@@ -145,7 +145,7 @@ func directoryUsesDSDirectoryRelationship(
 		SourceResourceID: sourceID,
 		SourceARN:        sourceARN,
 		TargetResourceID: targetID,
-		TargetType:       awscloud.ResourceTypeDSDirectory,
+		TargetType:       catalog.ResourceTypeDSDirectory,
 		SourceRecordID:   sourceID + "->" + awscloud.RelationshipWorkSpacesDirectoryUsesDSDirectory + ":" + targetID,
 	}
 }

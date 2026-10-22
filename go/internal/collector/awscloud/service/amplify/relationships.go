@@ -61,7 +61,7 @@ func repositoryRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAmplifyAppDeploysFromRepository,
+		RelationshipType: catalog.RelationshipAmplifyAppDeploysFromRepository,
 		SourceResourceID: appID,
 		SourceARN:        appArnValue,
 		TargetResourceID: repo,
@@ -96,7 +96,7 @@ func roleRelationships(
 		}
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAmplifyAppUsesIAMRole,
+			RelationshipType: catalog.RelationshipAmplifyAppUsesIAMRole,
 			SourceResourceID: appID,
 			SourceARN:        appArnValue,
 			TargetResourceID: roleARN,
@@ -128,7 +128,7 @@ func domainRelationships(
 		if domainName != "" {
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipAmplifyAppServesCustomDomainViaHostedZone,
+				RelationshipType: catalog.RelationshipAmplifyAppServesCustomDomainViaHostedZone,
 				SourceResourceID: appID,
 				SourceARN:        appArnValue,
 				TargetResourceID: domainName,
@@ -151,7 +151,7 @@ func domainRelationships(
 			seenCloudFront[cf] = struct{}{}
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipAmplifyAppServesCustomDomainViaCloudFront,
+				RelationshipType: catalog.RelationshipAmplifyAppServesCustomDomainViaCloudFront,
 				SourceResourceID: appID,
 				SourceARN:        appArnValue,
 				TargetResourceID: cf,
@@ -187,12 +187,12 @@ func branchAppRelationship(
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipAmplifyBranchBelongsToApp,
+		RelationshipType: catalog.RelationshipAmplifyBranchBelongsToApp,
 		SourceResourceID: branchID,
 		SourceARN:        strings.TrimSpace(branch.ARN),
 		TargetResourceID: appResourceIDValue,
 		TargetARN:        appArnValue,
-		TargetType:       awscloud.ResourceTypeAmplifyApp,
+		TargetType:       catalog.ResourceTypeAmplifyApp,
 		Attributes:       map[string]any{"branch_name": strings.TrimSpace(branch.Name)},
 		SourceRecordID:   branchID + "#belongs-to#" + appResourceIDValue,
 	}, true

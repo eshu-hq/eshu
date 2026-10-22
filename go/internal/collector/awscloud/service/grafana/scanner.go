@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -31,10 +32,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("grafana scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceGrafana:
+	case "", catalog.ServiceGrafana:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceGrafana
+		boundary.ServiceKind = catalog.ServiceGrafana
 	default:
 		return nil, fmt.Errorf("grafana scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -93,7 +94,7 @@ func workspaceObservation(boundary awscloud.Boundary, workspace Workspace) awscl
 		Boundary:     boundary,
 		ARN:          arn,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeGrafanaWorkspace,
+		ResourceType: catalog.ResourceTypeGrafanaWorkspace,
 		Name:         name,
 		State:        strings.TrimSpace(workspace.Status),
 		Tags:         cloneStringMap(workspace.Tags),

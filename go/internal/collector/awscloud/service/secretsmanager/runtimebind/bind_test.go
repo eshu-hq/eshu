@@ -10,19 +10,20 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/secretsmanager/runtimebind"
 )
 
 // TestSecretsManagerRuntimeBindRegisters confirms importing the binding
 // installs the Secrets Manager scanner builder.
 func TestSecretsManagerRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceSecretsManager)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceSecretsManager)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceSecretsManager)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceSecretsManager)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
-		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceSecretsManager},
+		Boundary:  awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: catalog.ServiceSecretsManager},
 	})
 	if err != nil {
 		t.Fatalf("build() error = %v", err)

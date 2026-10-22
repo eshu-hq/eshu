@@ -160,7 +160,7 @@ func TestScannerEmitsDMSMetadataAndRelationships(t *testing.T) {
 
 	// endpoint -> secret edge keyed by the secret ARN.
 	epSecret := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointUsesSecret)
-	assertEdgeTarget(t, epSecret, awscloud.ResourceTypeSecretsManagerSecret, testSecretARN)
+	assertEdgeTarget(t, epSecret, catalog.ResourceTypeSecretsManagerSecret, testSecretARN)
 
 	// endpoint -> Kinesis stream edge.
 	epStream := relationshipByType(t, envelopes, awscloud.RelationshipDMSEndpointTargetsKinesisStream)

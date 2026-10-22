@@ -10,22 +10,23 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/drs/runtimebind"
 )
 
 // TestDRSRuntimeBindRegisters confirms importing the binding installs the DRS
 // scanner builder.
 func TestDRSRuntimeBindRegisters(t *testing.T) {
-	build, ok := awsruntime.LookupBuilder(awscloud.ServiceDRS)
+	build, ok := awsruntime.LookupBuilder(catalog.ServiceDRS)
 	if !ok {
-		t.Fatalf("LookupBuilder(%q) ok = false, want true", awscloud.ServiceDRS)
+		t.Fatalf("LookupBuilder(%q) ok = false, want true", catalog.ServiceDRS)
 	}
 	scanner, err := build(awsruntime.ScannerDeps{
 		AWSConfig: aws.Config{Region: "us-east-1"},
 		Boundary: awscloud.Boundary{
 			AccountID:   "123456789012",
 			Region:      "us-east-1",
-			ServiceKind: awscloud.ServiceDRS,
+			ServiceKind: catalog.ServiceDRS,
 		},
 	})
 	if err != nil {
