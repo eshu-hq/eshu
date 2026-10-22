@@ -43,18 +43,27 @@ func classifyRoute(method, path string) routeClass {
 	}
 }
 
-// classifyTool resolves a tool's route with placeholder arguments. It tries
-// every-property placeholders, then required-only ones, then none, because
-// some routes need a selector and others reject conflicting selectors.
+// RouteProbeArguments returns, in order, the argument maps the engine tries
+// when it classifies a tool's route without a real call: the required-only
+// example, then a placeholder for every property (some routes need one of
+// several optional selectors), then no arguments. The mcp root tests that one
+// of them resolves for every registered tool and lands on the same auth class
+// as the dispatch tests' own arguments.
+func RouteProbeArguments(schema any) []map[string]any {
+	return []map[string]any{
+		ExampleArguments(schema),
+		placeholderArguments(schema, true),
+		{},
+	}
+}
+
+// classifyTool resolves a tool's route with the first RouteProbeArguments map
+// that builds one. A tool with no buildable route is unresolved.
 func classifyTool(resolve RouteResolver, tool toolcontract.ToolDefinition) routeClass {
 	if resolve == nil {
 		return routeClass{}
 	}
-	for _, args := range []map[string]any{
-		placeholderArguments(tool.InputSchema, true),
-		placeholderArguments(tool.InputSchema, false),
-		{},
-	} {
+	for _, args := range RouteProbeArguments(tool.InputSchema) {
 		if method, path, err := resolve(tool.Name, args); err == nil && path != "" {
 			return classifyRoute(method, path)
 		}

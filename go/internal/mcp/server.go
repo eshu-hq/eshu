@@ -111,6 +111,13 @@ type Server struct {
 	// is unauthenticated -- the local stdio path never uses this field at all,
 	// since Run() (stdio) never touches httpMux.
 	transportAuth func(http.Handler) http.Handler
+
+	// routerEngine serves find_tool and call_tool (#8757), built once on
+	// first use. routerRanker orders find_tool candidates; while it is nil
+	// find_tool answers mcp_router_ranker_unavailable.
+	routerOnce   sync.Once
+	routerEngine *router.Engine
+	routerRanker router.Ranker
 }
 
 // NewServer creates an MCP server backed by the given HTTP handler.
@@ -282,6 +289,9 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return s.errorResponse(req.ID, -32602, "invalid params")
 		}
+		if params.Name == router.FindToolName || params.Name == router.CallToolName {
+			return &jsonrpcResponse{JSONRPC: "2.0", ID: req.ID, Result: s.serveRouterTool(ctx, params, authHeader)}
+		}
 		result, err := dispatchTool(ctx, s.handler, params.Name, params.Arguments, authHeader, s.logger)
 		if err != nil {
 			return &jsonrpcResponse{
@@ -302,6 +312,48 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 	default:
 		return s.errorResponse(req.ID, -32601, fmt.Sprintf("method not found: %s", req.Method))
 	}
+}
+
+// serveRouterTool answers find_tool and call_tool, which stay out of
+// ReadOnlyTools. find_tool ranks s.tools, the query-profile-filtered list;
+// call_tool looks targets up in the full registry and runs them through
+// dispatchTool and the same renderers as a direct tools/call, so a routed
+// result is byte-identical to a direct one.
+func (s *Server) serveRouterTool(ctx context.Context, params mcpToolCallParams, authHeader string) any {
+	s.routerOnce.Do(func() {
+		s.routerEngine = router.NewEngine(router.Config{
+			Registry: ReadOnlyTools(), Resolve: routerRoute, Ranker: s.routerRanker, Logger: s.logger,
+		})
+	})
+	req := router.Request{
+		Visible: s.tools,
+		Session: authPrincipalKey(ctx),
+		Dispatch: func(ctx context.Context, name string, args map[string]any) (any, error) {
+			return dispatchTool(ctx, s.handler, name, args, authHeader, s.logger)
+		},
+	}
+	if params.Name == router.FindToolName {
+		return s.routerEngine.Find(ctx, req, params.Arguments)
+	}
+	out := s.routerEngine.Call(ctx, req, params.Arguments)
+	switch {
+	case !out.Dispatched:
+		return out.Result
+	case out.Err != nil:
+		return mcpToolErrorResult(out.Err)
+	default:
+		return renderToolResult(out.Target, out.Value.(*dispatchResult))
+	}
+}
+
+// routerRoute is the router's RouteResolver: the method and path
+// dispatchTool would send for a call.
+func routerRoute(name string, args map[string]any) (string, string, error) {
+	route, err := resolveRoute(name, args)
+	if err != nil {
+		return "", "", err
+	}
+	return route.Method, route.Path, nil
 }
 
 // renderToolResult keeps MCP response construction shared by the byte guard
