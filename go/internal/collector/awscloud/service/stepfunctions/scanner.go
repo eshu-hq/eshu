@@ -218,7 +218,7 @@ func targetTypeForARN(arn string) string {
 	case strings.Contains(arn, ":states:"):
 		return catalog.ResourceTypeStepFunctionsStateMachine
 	case strings.Contains(arn, ":dynamodb:"):
-		return awscloud.ResourceTypeDynamoDBTable
+		return catalog.ResourceTypeDynamoDBTable
 	case strings.Contains(arn, ":ecs:"):
 		return catalog.ResourceTypeECSTaskDefinition
 	default:

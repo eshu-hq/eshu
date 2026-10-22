@@ -31,18 +31,18 @@ func clusterRelationships(
 	if subnet, ok := subnets[subnetGroupName]; ok && subnet.id != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDocDBClusterInSubnetGroup,
+			catalog.RelationshipDocDBClusterInSubnetGroup,
 			sourceID,
 			sourceARN,
 			subnet.id,
 			arnIfARN(subnet.id),
-			awscloud.ResourceTypeDocDBSubnetGroup,
+			catalog.ResourceTypeDocDBSubnetGroup,
 			map[string]any{"db_subnet_group_name": subnetGroupName},
 		))
 		if vpcID := strings.TrimSpace(subnet.vpcID); vpcID != "" {
 			relationships = append(relationships, relationship(
 				boundary,
-				awscloud.RelationshipDocDBClusterInVPC,
+				catalog.RelationshipDocDBClusterInVPC,
 				sourceID,
 				sourceARN,
 				vpcID,
@@ -55,7 +55,7 @@ func clusterRelationships(
 
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipDocDBClusterUsesKMSKey,
+		catalog.RelationshipDocDBClusterUsesKMSKey,
 		sourceID,
 		sourceARN,
 		strings.TrimSpace(cluster.KMSKeyID),
@@ -80,12 +80,12 @@ func instanceRelationships(
 	membership := memberships[strings.TrimSpace(instance.Identifier)]
 	return []awscloud.RelationshipObservation{relationship(
 		boundary,
-		awscloud.RelationshipDocDBInstanceMemberOfCluster,
+		catalog.RelationshipDocDBInstanceMemberOfCluster,
 		sourceID,
 		sourceARN,
 		targetID,
 		arnIfARN(targetID),
-		awscloud.ResourceTypeDocDBCluster,
+		catalog.ResourceTypeDocDBCluster,
 		map[string]any{
 			"cluster_identifier": clusterIdentifier,
 			"is_writer":          membership.isWriter,
@@ -107,12 +107,12 @@ func globalClusterRelationships(
 		}
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipDocDBGlobalClusterHasCluster,
+			catalog.RelationshipDocDBGlobalClusterHasCluster,
 			sourceID,
 			sourceARN,
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeDocDBCluster,
+			catalog.ResourceTypeDocDBCluster,
 			map[string]any{"is_writer": member.IsWriter},
 		))
 	}

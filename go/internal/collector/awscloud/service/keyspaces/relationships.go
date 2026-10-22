@@ -28,16 +28,16 @@ func tableKeyspaceRelationship(boundary awscloud.Boundary, table Table) *awsclou
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipKeyspacesTableInKeyspace,
+		RelationshipType: catalog.RelationshipKeyspacesTableInKeyspace,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		TargetResourceID: keyspaceARN,
 		TargetARN:        keyspaceARN,
-		TargetType:       awscloud.ResourceTypeKeyspacesKeyspace,
+		TargetType:       catalog.ResourceTypeKeyspacesKeyspace,
 		Attributes: map[string]any{
 			"keyspace_name": strings.TrimSpace(table.KeyspaceName),
 		},
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipKeyspacesTableInKeyspace + ":" + keyspaceARN,
+		SourceRecordID: sourceID + "->" + catalog.RelationshipKeyspacesTableInKeyspace + ":" + keyspaceARN,
 	}
 }
 
@@ -61,7 +61,7 @@ func tableKMSRelationship(boundary awscloud.Boundary, table Table) *awscloud.Rel
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipKeyspacesTableUsesKMSKey,
+		RelationshipType: catalog.RelationshipKeyspacesTableUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        sourceID,
 		TargetResourceID: targetID,
@@ -70,7 +70,7 @@ func tableKMSRelationship(boundary awscloud.Boundary, table Table) *awscloud.Rel
 		Attributes: map[string]any{
 			"encryption_type": strings.TrimSpace(table.Encryption.Type),
 		},
-		SourceRecordID: sourceID + "->" + awscloud.RelationshipKeyspacesTableUsesKMSKey + ":" + targetID,
+		SourceRecordID: sourceID + "->" + catalog.RelationshipKeyspacesTableUsesKMSKey + ":" + targetID,
 	}
 }
 

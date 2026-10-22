@@ -31,18 +31,18 @@ func clusterRelationships(
 	if subnet, ok := subnets[subnetGroupName]; ok && subnet.id != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipNeptuneClusterInSubnetGroup,
+			catalog.RelationshipNeptuneClusterInSubnetGroup,
 			sourceID,
 			sourceARN,
 			subnet.id,
 			arnIfARN(subnet.id),
-			awscloud.ResourceTypeNeptuneSubnetGroup,
+			catalog.ResourceTypeNeptuneSubnetGroup,
 			map[string]any{"db_subnet_group_name": subnetGroupName},
 		))
 		if vpcID := strings.TrimSpace(subnet.vpcID); vpcID != "" {
 			relationships = append(relationships, relationship(
 				boundary,
-				awscloud.RelationshipNeptuneClusterInVPC,
+				catalog.RelationshipNeptuneClusterInVPC,
 				sourceID,
 				sourceARN,
 				vpcID,
@@ -55,7 +55,7 @@ func clusterRelationships(
 
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipNeptuneClusterUsesKMSKey,
+		catalog.RelationshipNeptuneClusterUsesKMSKey,
 		sourceID,
 		sourceARN,
 		strings.TrimSpace(cluster.KMSKeyID),
@@ -65,7 +65,7 @@ func clusterRelationships(
 	for _, roleARN := range cloneStrings(cluster.AssociatedRoleARNs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipNeptuneClusterUsesIAMRole,
+			catalog.RelationshipNeptuneClusterUsesIAMRole,
 			sourceID,
 			sourceARN,
 			roleARN,
@@ -93,12 +93,12 @@ func instanceRelationships(
 	membership := memberships[strings.TrimSpace(instance.Identifier)]
 	return []awscloud.RelationshipObservation{relationship(
 		boundary,
-		awscloud.RelationshipNeptuneInstanceMemberOfCluster,
+		catalog.RelationshipNeptuneInstanceMemberOfCluster,
 		sourceID,
 		sourceARN,
 		targetID,
 		arnIfARN(targetID),
-		awscloud.ResourceTypeNeptuneCluster,
+		catalog.ResourceTypeNeptuneCluster,
 		map[string]any{
 			"cluster_identifier": clusterIdentifier,
 			"is_writer":          membership.isWriter,
@@ -120,12 +120,12 @@ func globalClusterRelationships(
 		}
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipNeptuneGlobalClusterHasCluster,
+			catalog.RelationshipNeptuneGlobalClusterHasCluster,
 			sourceID,
 			sourceARN,
 			targetARN,
 			targetARN,
-			awscloud.ResourceTypeNeptuneCluster,
+			catalog.ResourceTypeNeptuneCluster,
 			map[string]any{"is_writer": member.IsWriter},
 		))
 	}
@@ -140,7 +140,7 @@ func graphRelationships(
 	sourceARN := strings.TrimSpace(graph.ARN)
 	return optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipNeptuneGraphUsesKMSKey,
+		catalog.RelationshipNeptuneGraphUsesKMSKey,
 		sourceID,
 		sourceARN,
 		strings.TrimSpace(graph.KMSKeyID),

@@ -14,6 +14,7 @@ import (
 	awsmemorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	memorydbservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/service/memorydb"
 )
 
@@ -308,7 +309,7 @@ func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceMemoryDB,
+		ServiceKind: catalog.ServiceMemoryDB,
 	}
 }
 

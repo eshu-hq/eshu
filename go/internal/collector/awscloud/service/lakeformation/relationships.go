@@ -30,14 +30,14 @@ func resourceS3BucketRelationship(boundary awscloud.Boundary, resource Registere
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLakeFormationResourceAtS3Bucket,
+		RelationshipType: catalog.RelationshipLakeFormationResourceAtS3Bucket,
 		SourceResourceID: resourceARN,
 		SourceARN:        resourceARN,
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       catalog.ResourceTypeS3Bucket,
 		Attributes:       attributes,
-		SourceRecordID:   resourceARN + "->" + awscloud.RelationshipLakeFormationResourceAtS3Bucket + ":" + bucketARN,
+		SourceRecordID:   resourceARN + "->" + catalog.RelationshipLakeFormationResourceAtS3Bucket + ":" + bucketARN,
 	}
 }
 
@@ -54,13 +54,13 @@ func resourceRoleRelationship(boundary awscloud.Boundary, resource RegisteredRes
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLakeFormationResourceUsesIAMRole,
+		RelationshipType: catalog.RelationshipLakeFormationResourceUsesIAMRole,
 		SourceResourceID: resourceARN,
 		SourceARN:        resourceARN,
 		TargetResourceID: roleARN,
 		TargetARN:        roleARN,
 		TargetType:       catalog.ResourceTypeIAMRole,
-		SourceRecordID:   resourceARN + "->" + awscloud.RelationshipLakeFormationResourceUsesIAMRole + ":" + roleARN,
+		SourceRecordID:   resourceARN + "->" + catalog.RelationshipLakeFormationResourceUsesIAMRole + ":" + roleARN,
 	}
 }
 
@@ -102,12 +102,12 @@ func permissionResourceRelationship(boundary awscloud.Boundary, permissionID str
 			}
 			return &awscloud.RelationshipObservation{
 				Boundary:         boundary,
-				RelationshipType: awscloud.RelationshipLakeFormationPermissionOnGlueDatabase,
+				RelationshipType: catalog.RelationshipLakeFormationPermissionOnGlueDatabase,
 				SourceResourceID: permissionID,
 				TargetResourceID: databaseName,
 				TargetType:       catalog.ResourceTypeGlueDatabase,
 				Attributes:       map[string]any{"table_wildcard": true},
-				SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
+				SourceRecordID:   permissionID + "->" + catalog.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
 			}
 		}
 		tableID := glueTableResourceID(databaseName, permission.TableName)
@@ -116,12 +116,12 @@ func permissionResourceRelationship(boundary awscloud.Boundary, permissionID str
 		}
 		return &awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipLakeFormationPermissionOnGlueTable,
+			RelationshipType: catalog.RelationshipLakeFormationPermissionOnGlueTable,
 			SourceResourceID: permissionID,
 			TargetResourceID: tableID,
 			TargetType:       catalog.ResourceTypeGlueTable,
 			Attributes:       map[string]any{"database_name": databaseName},
-			SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueTable + ":" + tableID,
+			SourceRecordID:   permissionID + "->" + catalog.RelationshipLakeFormationPermissionOnGlueTable + ":" + tableID,
 		}
 	case "database":
 		if databaseName == "" {
@@ -129,11 +129,11 @@ func permissionResourceRelationship(boundary awscloud.Boundary, permissionID str
 		}
 		return &awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipLakeFormationPermissionOnGlueDatabase,
+			RelationshipType: catalog.RelationshipLakeFormationPermissionOnGlueDatabase,
 			SourceResourceID: permissionID,
 			TargetResourceID: databaseName,
 			TargetType:       catalog.ResourceTypeGlueDatabase,
-			SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
+			SourceRecordID:   permissionID + "->" + catalog.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
 		}
 	default:
 		return nil
@@ -151,11 +151,11 @@ func permissionPrincipalRelationship(boundary awscloud.Boundary, permissionID st
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipLakeFormationPermissionGrantedToPrincipal,
+		RelationshipType: catalog.RelationshipLakeFormationPermissionGrantedToPrincipal,
 		SourceResourceID: permissionID,
 		TargetResourceID: principalID,
 		TargetARN:        principalID,
 		TargetType:       catalog.ResourceTypeIAMRole,
-		SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionGrantedToPrincipal + ":" + principalID,
+		SourceRecordID:   permissionID + "->" + catalog.RelationshipLakeFormationPermissionGrantedToPrincipal + ":" + principalID,
 	}
 }

@@ -92,7 +92,7 @@ func TestScannerEmitsSecurityLakeMetadataAndRelationships(t *testing.T) {
 
 	// data lake -> Lake Formation registered resource edge, keyed by the bucket ARN.
 	lakeLF := relationshipByType(t, envelopes, catalog.RelationshipSecurityLakeDataLakeRegisteredInLakeFormation)
-	assertEdgeTarget(t, lakeLF, awscloud.ResourceTypeLakeFormationResource, testS3BucketARN)
+	assertEdgeTarget(t, lakeLF, catalog.ResourceTypeLakeFormationResource, testS3BucketARN)
 
 	// log source -> data lake membership edge, keyed by the data lake ARN.
 	srcInLake := relationshipByType(t, envelopes, catalog.RelationshipSecurityLakeLogSourceInDataLake)

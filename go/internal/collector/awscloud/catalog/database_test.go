@@ -1,0 +1,162 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package catalog
+
+import "testing"
+
+// TestDatabaseConstantsMatchAWSCloudValues pins every database-category constant
+// to the exact value it carried in package awscloud before the #6696 catalog
+// consolidation. The consolidation moves declarations only: any value drift
+// here is a behavior change, not a move.
+func TestDatabaseConstantsMatchAWSCloudValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{name: "ServiceRDS", got: ServiceRDS, want: "rds"},
+		{name: "ResourceTypeRDSDBInstance", got: ResourceTypeRDSDBInstance, want: "aws_rds_db_instance"},
+		{name: "ResourceTypeRDSDBCluster", got: ResourceTypeRDSDBCluster, want: "aws_rds_db_cluster"},
+		{name: "ResourceTypeRDSDBSubnetGroup", got: ResourceTypeRDSDBSubnetGroup, want: "aws_rds_db_subnet_group"},
+		{name: "RelationshipRDSDBInstanceMemberOfCluster", got: RelationshipRDSDBInstanceMemberOfCluster, want: "rds_db_instance_member_of_cluster"},
+		{name: "RelationshipRDSDBInstanceInSubnetGroup", got: RelationshipRDSDBInstanceInSubnetGroup, want: "rds_db_instance_in_subnet_group"},
+		{name: "RelationshipRDSDBClusterInSubnetGroup", got: RelationshipRDSDBClusterInSubnetGroup, want: "rds_db_cluster_in_subnet_group"},
+		{name: "RelationshipRDSDBInstanceUsesSecurityGroup", got: RelationshipRDSDBInstanceUsesSecurityGroup, want: "rds_db_instance_uses_security_group"},
+		{name: "RelationshipRDSDBClusterUsesSecurityGroup", got: RelationshipRDSDBClusterUsesSecurityGroup, want: "rds_db_cluster_uses_security_group"},
+		{name: "RelationshipRDSDBInstanceUsesKMSKey", got: RelationshipRDSDBInstanceUsesKMSKey, want: "rds_db_instance_uses_kms_key"},
+		{name: "RelationshipRDSDBClusterUsesKMSKey", got: RelationshipRDSDBClusterUsesKMSKey, want: "rds_db_cluster_uses_kms_key"},
+		{name: "RelationshipRDSDBInstanceUsesMonitoringRole", got: RelationshipRDSDBInstanceUsesMonitoringRole, want: "rds_db_instance_uses_monitoring_role"},
+		{name: "RelationshipRDSDBClusterUsesIAMRole", got: RelationshipRDSDBClusterUsesIAMRole, want: "rds_db_cluster_uses_iam_role"},
+		{name: "RelationshipRDSDBInstanceUsesParameterGroup", got: RelationshipRDSDBInstanceUsesParameterGroup, want: "rds_db_instance_uses_parameter_group"},
+		{name: "RelationshipRDSDBClusterUsesParameterGroup", got: RelationshipRDSDBClusterUsesParameterGroup, want: "rds_db_cluster_uses_parameter_group"},
+		{name: "RelationshipRDSDBInstanceUsesOptionGroup", got: RelationshipRDSDBInstanceUsesOptionGroup, want: "rds_db_instance_uses_option_group"},
+		{name: "ServiceDynamoDB", got: ServiceDynamoDB, want: "dynamodb"},
+		{name: "ResourceTypeDynamoDBTable", got: ResourceTypeDynamoDBTable, want: "aws_dynamodb_table"},
+		{name: "RelationshipDynamoDBTableUsesKMSKey", got: RelationshipDynamoDBTableUsesKMSKey, want: "dynamodb_table_uses_kms_key"},
+		{name: "ServiceElastiCache", got: ServiceElastiCache, want: "elasticache"},
+		{name: "ResourceTypeElastiCacheCacheCluster", got: ResourceTypeElastiCacheCacheCluster, want: "aws_elasticache_cache_cluster"},
+		{name: "ResourceTypeElastiCacheReplicationGroup", got: ResourceTypeElastiCacheReplicationGroup, want: "aws_elasticache_replication_group"},
+		{name: "ResourceTypeElastiCacheSubnetGroup", got: ResourceTypeElastiCacheSubnetGroup, want: "aws_elasticache_subnet_group"},
+		{name: "ResourceTypeElastiCacheParameterGroup", got: ResourceTypeElastiCacheParameterGroup, want: "aws_elasticache_parameter_group"},
+		{name: "ResourceTypeElastiCacheUser", got: ResourceTypeElastiCacheUser, want: "aws_elasticache_user"},
+		{name: "ResourceTypeElastiCacheUserGroup", got: ResourceTypeElastiCacheUserGroup, want: "aws_elasticache_user_group"},
+		{name: "ResourceTypeElastiCacheSnapshot", got: ResourceTypeElastiCacheSnapshot, want: "aws_elasticache_snapshot"},
+		{name: "RelationshipElastiCacheClusterInVPC", got: RelationshipElastiCacheClusterInVPC, want: "elasticache_cluster_in_vpc"},
+		{name: "RelationshipElastiCacheClusterInSubnet", got: RelationshipElastiCacheClusterInSubnet, want: "elasticache_cluster_in_subnet"},
+		{name: "RelationshipElastiCacheClusterUsesKMSKey", got: RelationshipElastiCacheClusterUsesKMSKey, want: "elasticache_cluster_uses_kms_key"},
+		{name: "RelationshipElastiCacheReplicationGroupHasCluster", got: RelationshipElastiCacheReplicationGroupHasCluster, want: "elasticache_replication_group_has_cluster"},
+		{name: "RelationshipElastiCacheUserGroupHasUser", got: RelationshipElastiCacheUserGroupHasUser, want: "elasticache_user_group_has_user"},
+		{name: "ServiceRedshift", got: ServiceRedshift, want: "redshift"},
+		{name: "ResourceTypeRedshiftCluster", got: ResourceTypeRedshiftCluster, want: "aws_redshift_cluster"},
+		{name: "ResourceTypeRedshiftClusterParameterGroup", got: ResourceTypeRedshiftClusterParameterGroup, want: "aws_redshift_cluster_parameter_group"},
+		{name: "ResourceTypeRedshiftClusterSubnetGroup", got: ResourceTypeRedshiftClusterSubnetGroup, want: "aws_redshift_cluster_subnet_group"},
+		{name: "ResourceTypeRedshiftClusterSnapshot", got: ResourceTypeRedshiftClusterSnapshot, want: "aws_redshift_cluster_snapshot"},
+		{name: "ResourceTypeRedshiftScheduledAction", got: ResourceTypeRedshiftScheduledAction, want: "aws_redshift_scheduled_action"},
+		{name: "ResourceTypeRedshiftServerlessNamespace", got: ResourceTypeRedshiftServerlessNamespace, want: "aws_redshift_serverless_namespace"},
+		{name: "ResourceTypeRedshiftServerlessWorkgroup", got: ResourceTypeRedshiftServerlessWorkgroup, want: "aws_redshift_serverless_workgroup"},
+		{name: "RelationshipRedshiftClusterInVPC", got: RelationshipRedshiftClusterInVPC, want: "redshift_cluster_in_vpc"},
+		{name: "RelationshipRedshiftClusterInSubnetGroup", got: RelationshipRedshiftClusterInSubnetGroup, want: "redshift_cluster_in_subnet_group"},
+		{name: "RelationshipRedshiftClusterUsesSecurityGroup", got: RelationshipRedshiftClusterUsesSecurityGroup, want: "redshift_cluster_uses_security_group"},
+		{name: "RelationshipRedshiftClusterUsesKMSKey", got: RelationshipRedshiftClusterUsesKMSKey, want: "redshift_cluster_uses_kms_key"},
+		{name: "RelationshipRedshiftClusterUsesIAMRole", got: RelationshipRedshiftClusterUsesIAMRole, want: "redshift_cluster_uses_iam_role"},
+		{name: "RelationshipRedshiftClusterUsesParameterGroup", got: RelationshipRedshiftClusterUsesParameterGroup, want: "redshift_cluster_uses_parameter_group"},
+		{name: "RelationshipRedshiftClusterSubnetGroupInVPC", got: RelationshipRedshiftClusterSubnetGroupInVPC, want: "redshift_cluster_subnet_group_in_vpc"},
+		{name: "RelationshipRedshiftClusterSnapshotOfCluster", got: RelationshipRedshiftClusterSnapshotOfCluster, want: "redshift_cluster_snapshot_of_cluster"},
+		{name: "RelationshipRedshiftClusterSnapshotUsesKMSKey", got: RelationshipRedshiftClusterSnapshotUsesKMSKey, want: "redshift_cluster_snapshot_uses_kms_key"},
+		{name: "RelationshipRedshiftScheduledActionTargetsCluster", got: RelationshipRedshiftScheduledActionTargetsCluster, want: "redshift_scheduled_action_targets_cluster"},
+		{name: "RelationshipRedshiftScheduledActionUsesIAMRole", got: RelationshipRedshiftScheduledActionUsesIAMRole, want: "redshift_scheduled_action_uses_iam_role"},
+		{name: "RelationshipRedshiftServerlessWorkgroupInNamespace", got: RelationshipRedshiftServerlessWorkgroupInNamespace, want: "redshift_serverless_workgroup_in_namespace"},
+		{name: "RelationshipRedshiftServerlessWorkgroupUsesSubnet", got: RelationshipRedshiftServerlessWorkgroupUsesSubnet, want: "redshift_serverless_workgroup_uses_subnet"},
+		{name: "RelationshipRedshiftServerlessWorkgroupUsesSecurityGroup", got: RelationshipRedshiftServerlessWorkgroupUsesSecurityGroup, want: "redshift_serverless_workgroup_uses_security_group"},
+		{name: "RelationshipRedshiftServerlessNamespaceUsesKMSKey", got: RelationshipRedshiftServerlessNamespaceUsesKMSKey, want: "redshift_serverless_namespace_uses_kms_key"},
+		{name: "RelationshipRedshiftServerlessNamespaceUsesIAMRole", got: RelationshipRedshiftServerlessNamespaceUsesIAMRole, want: "redshift_serverless_namespace_uses_iam_role"},
+		{name: "ServiceNeptune", got: ServiceNeptune, want: "neptune"},
+		{name: "ResourceTypeNeptuneCluster", got: ResourceTypeNeptuneCluster, want: "aws_neptune_db_cluster"},
+		{name: "ResourceTypeNeptuneClusterInstance", got: ResourceTypeNeptuneClusterInstance, want: "aws_neptune_db_instance"},
+		{name: "ResourceTypeNeptuneClusterParameterGroup", got: ResourceTypeNeptuneClusterParameterGroup, want: "aws_neptune_db_cluster_parameter_group"},
+		{name: "ResourceTypeNeptuneClusterSnapshot", got: ResourceTypeNeptuneClusterSnapshot, want: "aws_neptune_db_cluster_snapshot"},
+		{name: "ResourceTypeNeptuneSubnetGroup", got: ResourceTypeNeptuneSubnetGroup, want: "aws_neptune_db_subnet_group"},
+		{name: "ResourceTypeNeptuneGlobalCluster", got: ResourceTypeNeptuneGlobalCluster, want: "aws_neptune_global_cluster"},
+		{name: "ResourceTypeNeptuneGraph", got: ResourceTypeNeptuneGraph, want: "aws_neptune_graph"},
+		{name: "ResourceTypeNeptuneGraphSnapshot", got: ResourceTypeNeptuneGraphSnapshot, want: "aws_neptune_graph_snapshot"},
+		{name: "RelationshipNeptuneClusterInVPC", got: RelationshipNeptuneClusterInVPC, want: "neptune_db_cluster_in_vpc"},
+		{name: "RelationshipNeptuneClusterInSubnetGroup", got: RelationshipNeptuneClusterInSubnetGroup, want: "neptune_db_cluster_in_subnet_group"},
+		{name: "RelationshipNeptuneClusterUsesKMSKey", got: RelationshipNeptuneClusterUsesKMSKey, want: "neptune_db_cluster_uses_kms_key"},
+		{name: "RelationshipNeptuneClusterUsesIAMRole", got: RelationshipNeptuneClusterUsesIAMRole, want: "neptune_db_cluster_uses_iam_role"},
+		{name: "RelationshipNeptuneInstanceMemberOfCluster", got: RelationshipNeptuneInstanceMemberOfCluster, want: "neptune_db_instance_member_of_cluster"},
+		{name: "RelationshipNeptuneGlobalClusterHasCluster", got: RelationshipNeptuneGlobalClusterHasCluster, want: "neptune_global_cluster_has_cluster"},
+		{name: "RelationshipNeptuneGraphUsesKMSKey", got: RelationshipNeptuneGraphUsesKMSKey, want: "neptune_graph_uses_kms_key"},
+		{name: "ServiceDocDB", got: ServiceDocDB, want: "docdb"},
+		{name: "ResourceTypeDocDBCluster", got: ResourceTypeDocDBCluster, want: "aws_docdb_db_cluster"},
+		{name: "ResourceTypeDocDBClusterInstance", got: ResourceTypeDocDBClusterInstance, want: "aws_docdb_db_instance"},
+		{name: "ResourceTypeDocDBClusterParameterGroup", got: ResourceTypeDocDBClusterParameterGroup, want: "aws_docdb_db_cluster_parameter_group"},
+		{name: "ResourceTypeDocDBClusterSnapshot", got: ResourceTypeDocDBClusterSnapshot, want: "aws_docdb_db_cluster_snapshot"},
+		{name: "ResourceTypeDocDBSubnetGroup", got: ResourceTypeDocDBSubnetGroup, want: "aws_docdb_db_subnet_group"},
+		{name: "ResourceTypeDocDBGlobalCluster", got: ResourceTypeDocDBGlobalCluster, want: "aws_docdb_global_cluster"},
+		{name: "ResourceTypeDocDBEventSubscription", got: ResourceTypeDocDBEventSubscription, want: "aws_docdb_event_subscription"},
+		{name: "RelationshipDocDBClusterInVPC", got: RelationshipDocDBClusterInVPC, want: "docdb_db_cluster_in_vpc"},
+		{name: "RelationshipDocDBClusterInSubnetGroup", got: RelationshipDocDBClusterInSubnetGroup, want: "docdb_db_cluster_in_subnet_group"},
+		{name: "RelationshipDocDBClusterUsesKMSKey", got: RelationshipDocDBClusterUsesKMSKey, want: "docdb_db_cluster_uses_kms_key"},
+		{name: "RelationshipDocDBInstanceMemberOfCluster", got: RelationshipDocDBInstanceMemberOfCluster, want: "docdb_db_instance_member_of_cluster"},
+		{name: "RelationshipDocDBGlobalClusterHasCluster", got: RelationshipDocDBGlobalClusterHasCluster, want: "docdb_global_cluster_has_cluster"},
+		{name: "ServiceDocDBElastic", got: ServiceDocDBElastic, want: "docdbelastic"},
+		{name: "ResourceTypeDocDBElasticCluster", got: ResourceTypeDocDBElasticCluster, want: "aws_docdbelastic_cluster"},
+		{name: "RelationshipDocDBElasticClusterInSubnet", got: RelationshipDocDBElasticClusterInSubnet, want: "docdbelastic_cluster_in_subnet"},
+		{name: "RelationshipDocDBElasticClusterUsesSecurityGroup", got: RelationshipDocDBElasticClusterUsesSecurityGroup, want: "docdbelastic_cluster_uses_security_group"},
+		{name: "RelationshipDocDBElasticClusterUsesKMSKey", got: RelationshipDocDBElasticClusterUsesKMSKey, want: "docdbelastic_cluster_uses_kms_key"},
+		{name: "RelationshipDocDBElasticClusterUsesAdminSecret", got: RelationshipDocDBElasticClusterUsesAdminSecret, want: "docdbelastic_cluster_uses_admin_secret"},
+		{name: "ServiceMemoryDB", got: ServiceMemoryDB, want: "memorydb"},
+		{name: "ResourceTypeMemoryDBCluster", got: ResourceTypeMemoryDBCluster, want: "aws_memorydb_cluster"},
+		{name: "ResourceTypeMemoryDBSubnetGroup", got: ResourceTypeMemoryDBSubnetGroup, want: "aws_memorydb_subnet_group"},
+		{name: "ResourceTypeMemoryDBParameterGroup", got: ResourceTypeMemoryDBParameterGroup, want: "aws_memorydb_parameter_group"},
+		{name: "ResourceTypeMemoryDBUser", got: ResourceTypeMemoryDBUser, want: "aws_memorydb_user"},
+		{name: "ResourceTypeMemoryDBACL", got: ResourceTypeMemoryDBACL, want: "aws_memorydb_acl"},
+		{name: "ResourceTypeMemoryDBSnapshot", got: ResourceTypeMemoryDBSnapshot, want: "aws_memorydb_snapshot"},
+		{name: "RelationshipMemoryDBClusterInSubnetGroup", got: RelationshipMemoryDBClusterInSubnetGroup, want: "memorydb_cluster_in_subnet_group"},
+		{name: "RelationshipMemoryDBClusterUsesKMSKey", got: RelationshipMemoryDBClusterUsesKMSKey, want: "memorydb_cluster_uses_kms_key"},
+		{name: "RelationshipMemoryDBClusterNotifiesSNSTopic", got: RelationshipMemoryDBClusterNotifiesSNSTopic, want: "memorydb_cluster_notifies_sns_topic"},
+		{name: "RelationshipMemoryDBACLHasUser", got: RelationshipMemoryDBACLHasUser, want: "memorydb_acl_has_user"},
+		{name: "ServiceTimestream", got: ServiceTimestream, want: "timestream"},
+		{name: "ResourceTypeTimestreamDatabase", got: ResourceTypeTimestreamDatabase, want: "aws_timestream_database"},
+		{name: "ResourceTypeTimestreamTable", got: ResourceTypeTimestreamTable, want: "aws_timestream_table"},
+		{name: "RelationshipTimestreamTableInDatabase", got: RelationshipTimestreamTableInDatabase, want: "timestream_table_in_database"},
+		{name: "RelationshipTimestreamDatabaseUsesKMSKey", got: RelationshipTimestreamDatabaseUsesKMSKey, want: "timestream_database_uses_kms_key"},
+		{name: "RelationshipTimestreamTableRejectsToS3", got: RelationshipTimestreamTableRejectsToS3, want: "timestream_table_rejects_to_s3"},
+		{name: "ServiceKeyspaces", got: ServiceKeyspaces, want: "keyspaces"},
+		{name: "ResourceTypeKeyspacesKeyspace", got: ResourceTypeKeyspacesKeyspace, want: "aws_keyspaces_keyspace"},
+		{name: "ResourceTypeKeyspacesTable", got: ResourceTypeKeyspacesTable, want: "aws_keyspaces_table"},
+		{name: "RelationshipKeyspacesTableInKeyspace", got: RelationshipKeyspacesTableInKeyspace, want: "keyspaces_table_in_keyspace"},
+		{name: "RelationshipKeyspacesTableUsesKMSKey", got: RelationshipKeyspacesTableUsesKMSKey, want: "keyspaces_table_uses_kms_key"},
+		{name: "ServiceDAX", got: ServiceDAX, want: "dax"},
+		{name: "ResourceTypeDAXCluster", got: ResourceTypeDAXCluster, want: "aws_dax_cluster"},
+		{name: "ResourceTypeDAXSubnetGroup", got: ResourceTypeDAXSubnetGroup, want: "aws_dax_subnet_group"},
+		{name: "ResourceTypeDAXParameterGroup", got: ResourceTypeDAXParameterGroup, want: "aws_dax_parameter_group"},
+		{name: "RelationshipDAXClusterInSubnetGroup", got: RelationshipDAXClusterInSubnetGroup, want: "dax_cluster_in_subnet_group"},
+		{name: "RelationshipDAXClusterUsesSecurityGroup", got: RelationshipDAXClusterUsesSecurityGroup, want: "dax_cluster_uses_security_group"},
+		{name: "RelationshipDAXClusterAssumesIAMRole", got: RelationshipDAXClusterAssumesIAMRole, want: "dax_cluster_assumes_iam_role"},
+		{name: "RelationshipDAXSubnetGroupInVPC", got: RelationshipDAXSubnetGroupInVPC, want: "dax_subnet_group_in_vpc"},
+		{name: "RelationshipDAXSubnetGroupHasSubnet", got: RelationshipDAXSubnetGroupHasSubnet, want: "dax_subnet_group_has_subnet"},
+		{name: "ServiceLakeFormation", got: ServiceLakeFormation, want: "lakeformation"},
+		{name: "ResourceTypeLakeFormationResource", got: ResourceTypeLakeFormationResource, want: "aws_lakeformation_resource"},
+		{name: "ResourceTypeLakeFormationSettings", got: ResourceTypeLakeFormationSettings, want: "aws_lakeformation_settings"},
+		{name: "ResourceTypeLakeFormationPermission", got: ResourceTypeLakeFormationPermission, want: "aws_lakeformation_permission"},
+		{name: "RelationshipLakeFormationResourceAtS3Bucket", got: RelationshipLakeFormationResourceAtS3Bucket, want: "lakeformation_resource_at_s3_bucket"},
+		{name: "RelationshipLakeFormationResourceUsesIAMRole", got: RelationshipLakeFormationResourceUsesIAMRole, want: "lakeformation_resource_uses_iam_role"},
+		{name: "RelationshipLakeFormationPermissionOnGlueDatabase", got: RelationshipLakeFormationPermissionOnGlueDatabase, want: "lakeformation_permission_on_glue_database"},
+		{name: "RelationshipLakeFormationPermissionOnGlueTable", got: RelationshipLakeFormationPermissionOnGlueTable, want: "lakeformation_permission_on_glue_table"},
+		{name: "RelationshipLakeFormationPermissionGrantedToPrincipal", got: RelationshipLakeFormationPermissionGrantedToPrincipal, want: "lakeformation_permission_granted_to_principal"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.got != tt.want {
+				t.Errorf("got %q, want %q", tt.got, tt.want)
+			}
+		})
+	}
+}

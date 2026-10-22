@@ -161,7 +161,7 @@ func dataSourceRedshiftRelationship(
 		SourceResourceID: sourceID,
 		TargetResourceID: clusterARN,
 		TargetARN:        clusterARN,
-		TargetType:       awscloud.ResourceTypeRedshiftCluster,
+		TargetType:       catalog.ResourceTypeRedshiftCluster,
 		Attributes: map[string]any{
 			"cluster_name": strings.TrimSpace(dataSource.RedshiftClusterName),
 		},

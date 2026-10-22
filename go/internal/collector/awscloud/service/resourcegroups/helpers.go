@@ -127,7 +127,7 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 		}
 	case "dynamodb":
 		if resourceType == "table" {
-			return arnTarget(awscloud.ResourceTypeDynamoDBTable, arn), true
+			return arnTarget(catalog.ResourceTypeDynamoDBTable, arn), true
 		}
 	case "sqs":
 		// SQS queue ARNs have no resource-type token; the resource segment is the
@@ -144,9 +144,9 @@ func classifyMember(member ResourceMember) (memberTarget, bool) {
 	case "rds":
 		switch resourceType {
 		case "cluster":
-			return arnTarget(awscloud.ResourceTypeRDSDBCluster, arn), true
+			return arnTarget(catalog.ResourceTypeRDSDBCluster, arn), true
 		case "db":
-			return arnTarget(awscloud.ResourceTypeRDSDBInstance, arn), true
+			return arnTarget(catalog.ResourceTypeRDSDBInstance, arn), true
 		}
 	case "ecs":
 		switch resourceType {

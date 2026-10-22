@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,10 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("timestream scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceTimestream:
+	case "", catalog.ServiceTimestream:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceTimestream
+		boundary.ServiceKind = catalog.ServiceTimestream
 	default:
 		return nil, fmt.Errorf("timestream scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -121,7 +122,7 @@ func databaseObservation(boundary awscloud.Boundary, database Database) awscloud
 		Boundary:     boundary,
 		ARN:          databaseARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeTimestreamDatabase,
+		ResourceType: catalog.ResourceTypeTimestreamDatabase,
 		Name:         name,
 		Tags:         cloneStringMap(database.Tags),
 		Attributes: map[string]any{
@@ -144,7 +145,7 @@ func tableObservation(boundary awscloud.Boundary, table Table) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          tableARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeTimestreamTable,
+		ResourceType: catalog.ResourceTypeTimestreamTable,
 		Name:         name,
 		State:        strings.TrimSpace(table.State),
 		Tags:         cloneStringMap(table.Tags),

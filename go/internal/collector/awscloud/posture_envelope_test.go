@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -15,12 +16,12 @@ func TestNewRDSInstancePostureEnvelopeCarriesDerivedPosture(t *testing.T) {
 	t.Parallel()
 
 	boundary := testBoundary(time.Date(2026, 5, 14, 18, 30, 0, 0, time.UTC))
-	boundary.ServiceKind = ServiceRDS
+	boundary.ServiceKind = catalog.ServiceRDS
 	observation := RDSPostureObservation{
 		Boundary:                         boundary,
 		ARN:                              "arn:aws:rds:us-east-1:123456789012:db:orders-writer",
 		ResourceID:                       "db-ORDERSWRITER",
-		ResourceType:                     ResourceTypeRDSDBInstance,
+		ResourceType:                     catalog.ResourceTypeRDSDBInstance,
 		Identifier:                       "orders-writer",
 		Engine:                           "postgres",
 		PubliclyAccessible:               true,
@@ -65,13 +66,13 @@ func TestNewRDSInstancePostureEnvelopeCarriesDerivedPosture(t *testing.T) {
 	}
 
 	payload := envelope.Payload
-	if got, want := payload["resource_type"], ResourceTypeRDSDBInstance; got != want {
+	if got, want := payload["resource_type"], catalog.ResourceTypeRDSDBInstance; got != want {
 		t.Fatalf("resource_type = %#v, want %q", got, want)
 	}
 	if got, want := payload["resource_id"], "db-ORDERSWRITER"; got != want {
 		t.Fatalf("resource_id = %#v, want %q", got, want)
 	}
-	if got, want := payload["service_kind"], ServiceRDS; got != want {
+	if got, want := payload["service_kind"], catalog.ServiceRDS; got != want {
 		t.Fatalf("service_kind = %#v, want %q", got, want)
 	}
 	if got, want := payload["publicly_accessible"], true; got != want {
@@ -144,10 +145,10 @@ func TestNewRDSInstancePostureEnvelopeRequiresResourceIdentity(t *testing.T) {
 	t.Parallel()
 
 	boundary := testBoundary(time.Date(2026, 5, 14, 18, 30, 0, 0, time.UTC))
-	boundary.ServiceKind = ServiceRDS
+	boundary.ServiceKind = catalog.ServiceRDS
 	_, err := NewRDSInstancePostureEnvelope(RDSPostureObservation{
 		Boundary:     boundary,
-		ResourceType: ResourceTypeRDSDBInstance,
+		ResourceType: catalog.ResourceTypeRDSDBInstance,
 	})
 	if err == nil {
 		t.Fatalf("NewRDSInstancePostureEnvelope() error = nil, want missing-identity error")
@@ -158,7 +159,7 @@ func TestNewRDSInstancePostureEnvelopeRequiresResourceType(t *testing.T) {
 	t.Parallel()
 
 	boundary := testBoundary(time.Date(2026, 5, 14, 18, 30, 0, 0, time.UTC))
-	boundary.ServiceKind = ServiceRDS
+	boundary.ServiceKind = catalog.ServiceRDS
 	_, err := NewRDSInstancePostureEnvelope(RDSPostureObservation{
 		Boundary: boundary,
 		ARN:      "arn:aws:rds:us-east-1:123456789012:db:orders-writer",
@@ -172,11 +173,11 @@ func TestNewRDSInstancePostureEnvelopeStableKeyDistinguishesInstanceAndCluster(t
 	t.Parallel()
 
 	boundary := testBoundary(time.Date(2026, 5, 14, 18, 30, 0, 0, time.UTC))
-	boundary.ServiceKind = ServiceRDS
+	boundary.ServiceKind = catalog.ServiceRDS
 	instance, err := NewRDSInstancePostureEnvelope(RDSPostureObservation{
 		Boundary:     boundary,
 		ResourceID:   "orders",
-		ResourceType: ResourceTypeRDSDBInstance,
+		ResourceType: catalog.ResourceTypeRDSDBInstance,
 	})
 	if err != nil {
 		t.Fatalf("instance posture error = %v", err)
@@ -184,7 +185,7 @@ func TestNewRDSInstancePostureEnvelopeStableKeyDistinguishesInstanceAndCluster(t
 	cluster, err := NewRDSInstancePostureEnvelope(RDSPostureObservation{
 		Boundary:     boundary,
 		ResourceID:   "orders",
-		ResourceType: ResourceTypeRDSDBCluster,
+		ResourceType: catalog.ResourceTypeRDSDBCluster,
 	})
 	if err != nil {
 		t.Fatalf("cluster posture error = %v", err)

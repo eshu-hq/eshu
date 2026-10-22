@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 )
 
@@ -139,7 +138,7 @@ func TestScannerEmitsVaultPlanSelectionAndRelationships(t *testing.T) {
 	if got, want := selResource.Payload["target_arn"], includedResource; got != want {
 		t.Fatalf("selection-resource target_arn = %#v, want %q", got, want)
 	}
-	if got, want := selResource.Payload["target_type"], awscloud.ResourceTypeDynamoDBTable; got != want {
+	if got, want := selResource.Payload["target_type"], catalog.ResourceTypeDynamoDBTable; got != want {
 		t.Fatalf("selection-resource target_type = %#v, want %q", got, want)
 	}
 
@@ -222,7 +221,7 @@ func TestScannerEmitsRecoveryPointMetadataOnly(t *testing.T) {
 	if got, want := ofResource.Payload["target_arn"], sourceARN; got != want {
 		t.Fatalf("recovery-point of-resource target_arn = %#v, want %q", got, want)
 	}
-	if got, want := ofResource.Payload["target_type"], awscloud.ResourceTypeRDSDBInstance; got != want {
+	if got, want := ofResource.Payload["target_type"], catalog.ResourceTypeRDSDBInstance; got != want {
 		t.Fatalf("recovery-point of-resource target_type = %#v, want %q", got, want)
 	}
 }

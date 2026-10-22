@@ -52,12 +52,12 @@ func clusterSubnetRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDocDBElasticClusterInSubnet,
+		RelationshipType: catalog.RelationshipDocDBElasticClusterInSubnet,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: subnetID,
 		TargetType:       catalog.ResourceTypeEC2Subnet,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDocDBElasticClusterInSubnet + ":" + subnetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipDocDBElasticClusterInSubnet + ":" + subnetID,
 	}
 }
 
@@ -78,12 +78,12 @@ func clusterSecurityGroupRelationship(
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDocDBElasticClusterUsesSecurityGroup,
+		RelationshipType: catalog.RelationshipDocDBElasticClusterUsesSecurityGroup,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: groupID,
 		TargetType:       catalog.ResourceTypeEC2SecurityGroup,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDocDBElasticClusterUsesSecurityGroup + ":" + groupID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipDocDBElasticClusterUsesSecurityGroup + ":" + groupID,
 	}
 }
 
@@ -106,13 +106,13 @@ func clusterKMSRelationship(boundary awscloud.Boundary, cluster Cluster) *awsclo
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDocDBElasticClusterUsesKMSKey,
+		RelationshipType: catalog.RelationshipDocDBElasticClusterUsesKMSKey,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: targetID,
 		TargetARN:        targetARN,
 		TargetType:       catalog.ResourceTypeKMSKey,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDocDBElasticClusterUsesKMSKey + ":" + targetID,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipDocDBElasticClusterUsesKMSKey + ":" + targetID,
 	}
 }
 
@@ -133,12 +133,12 @@ func clusterAdminSecretRelationship(boundary awscloud.Boundary, cluster Cluster)
 	}
 	return &awscloud.RelationshipObservation{
 		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipDocDBElasticClusterUsesAdminSecret,
+		RelationshipType: catalog.RelationshipDocDBElasticClusterUsesAdminSecret,
 		SourceResourceID: sourceID,
 		SourceARN:        strings.TrimSpace(cluster.ARN),
 		TargetResourceID: secretARN,
 		TargetARN:        secretARN,
 		TargetType:       awscloud.ResourceTypeSecretsManagerSecret,
-		SourceRecordID:   sourceID + "->" + awscloud.RelationshipDocDBElasticClusterUsesAdminSecret + ":" + secretARN,
+		SourceRecordID:   sourceID + "->" + catalog.RelationshipDocDBElasticClusterUsesAdminSecret + ":" + secretARN,
 	}
 }

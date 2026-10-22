@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -35,10 +36,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("lakeformation scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceLakeFormation:
+	case "", catalog.ServiceLakeFormation:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceLakeFormation
+		boundary.ServiceKind = catalog.ServiceLakeFormation
 	default:
 		return nil, fmt.Errorf("lakeformation scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -126,7 +127,7 @@ func settingsObservation(boundary awscloud.Boundary, settings Settings) awscloud
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeLakeFormationSettings,
+		ResourceType: catalog.ResourceTypeLakeFormationSettings,
 		Name:         resourceID,
 		Attributes: map[string]any{
 			"data_lake_admins":      cloneStringSlice(settings.Admins),
@@ -145,7 +146,7 @@ func registeredResourceObservation(boundary awscloud.Boundary, resource Register
 		Boundary:     boundary,
 		ARN:          resourceARN,
 		ResourceID:   resourceARN,
-		ResourceType: awscloud.ResourceTypeLakeFormationResource,
+		ResourceType: catalog.ResourceTypeLakeFormationResource,
 		Name:         resourceARN,
 		State:        strings.TrimSpace(resource.VerificationStatus),
 		Attributes: map[string]any{
@@ -166,7 +167,7 @@ func permissionObservation(boundary awscloud.Boundary, permissionID string, perm
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   permissionID,
-		ResourceType: awscloud.ResourceTypeLakeFormationPermission,
+		ResourceType: catalog.ResourceTypeLakeFormationPermission,
 		Name:         permissionID,
 		Attributes: map[string]any{
 			"principal_id":         strings.TrimSpace(permission.PrincipalID),

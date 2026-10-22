@@ -134,7 +134,7 @@ func TestScannerEmitsRedshiftDestinationEdgeKeyedByClusterIdentifier(t *testing.
 	if got, want := redshift.Payload["target_resource_id"], "warehouse-prod"; got != want {
 		t.Fatalf("redshift target_resource_id = %#v, want %q (bare cluster id, the Redshift scanner Name)", got, want)
 	}
-	if got, want := redshift.Payload["target_type"], awscloud.ResourceTypeRedshiftCluster; got != want {
+	if got, want := redshift.Payload["target_type"], catalog.ResourceTypeRedshiftCluster; got != want {
 		t.Fatalf("redshift target_type = %#v, want %q", got, want)
 	}
 	if _, exists := redshift.Payload["target_arn"]; exists {

@@ -82,7 +82,7 @@ func dataLakeLakeFormationRelationship(boundary awscloud.Boundary, lake DataLake
 		SourceARN:        strings.TrimSpace(lake.ARN),
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
-		TargetType:       awscloud.ResourceTypeLakeFormationResource,
+		TargetType:       catalog.ResourceTypeLakeFormationResource,
 		SourceRecordID:   sourceID + "->" + catalog.RelationshipSecurityLakeDataLakeRegisteredInLakeFormation + ":" + bucketARN,
 	}
 }

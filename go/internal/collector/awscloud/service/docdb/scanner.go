@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,10 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("docdb scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceDocDB:
+	case "", catalog.ServiceDocDB:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceDocDB
+		boundary.ServiceKind = catalog.ServiceDocDB
 	default:
 		return nil, fmt.Errorf("docdb scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -198,7 +199,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster DBCluster) awscloud.
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBCluster,
+		ResourceType: catalog.ResourceTypeDocDBCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -242,7 +243,7 @@ func instanceObservation(boundary awscloud.Boundary, instance ClusterInstance) a
 		Boundary:     boundary,
 		ARN:          instanceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBClusterInstance,
+		ResourceType: catalog.ResourceTypeDocDBClusterInstance,
 		Name:         identifier,
 		State:        strings.TrimSpace(instance.Status),
 		Tags:         cloneStringMap(instance.Tags),
@@ -278,7 +279,7 @@ func parameterGroupObservation(boundary awscloud.Boundary, group ClusterParamete
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBClusterParameterGroup,
+		ResourceType: catalog.ResourceTypeDocDBClusterParameterGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -299,7 +300,7 @@ func snapshotObservation(boundary awscloud.Boundary, snapshot ClusterSnapshot) a
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBClusterSnapshot,
+		ResourceType: catalog.ResourceTypeDocDBClusterSnapshot,
 		Name:         identifier,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),
@@ -325,7 +326,7 @@ func subnetGroupObservation(boundary awscloud.Boundary, subnetGroup SubnetGroup)
 		Boundary:     boundary,
 		ARN:          subnetGroupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBSubnetGroup,
+		ResourceType: catalog.ResourceTypeDocDBSubnetGroup,
 		Name:         name,
 		State:        strings.TrimSpace(subnetGroup.Status),
 		Tags:         cloneStringMap(subnetGroup.Tags),
@@ -347,7 +348,7 @@ func globalClusterObservation(boundary awscloud.Boundary, globalCluster GlobalCl
 		Boundary:     boundary,
 		ARN:          globalARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBGlobalCluster,
+		ResourceType: catalog.ResourceTypeDocDBGlobalCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(globalCluster.Status),
 		Tags:         cloneStringMap(globalCluster.Tags),
@@ -376,7 +377,7 @@ func eventSubscriptionObservation(boundary awscloud.Boundary, subscription Event
 		Boundary:     boundary,
 		ARN:          subscriptionARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeDocDBEventSubscription,
+		ResourceType: catalog.ResourceTypeDocDBEventSubscription,
 		Name:         name,
 		State:        firstNonEmpty(strings.TrimSpace(subscription.Status), state),
 		Tags:         cloneStringMap(subscription.Tags),

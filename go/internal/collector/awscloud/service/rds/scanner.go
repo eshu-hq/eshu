@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -26,10 +27,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("rds scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceRDS:
+	case "", catalog.ServiceRDS:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceRDS
+		boundary.ServiceKind = catalog.ServiceRDS
 	default:
 		return nil, fmt.Errorf("rds scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -147,7 +148,7 @@ func instanceObservation(boundary awscloud.Boundary, instance DBInstance) awsclo
 		Boundary:     boundary,
 		ARN:          instanceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRDSDBInstance,
+		ResourceType: catalog.ResourceTypeRDSDBInstance,
 		Name:         identifier,
 		State:        strings.TrimSpace(instance.Status),
 		Tags:         cloneStringMap(instance.Tags),
@@ -200,7 +201,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster DBCluster) awscloud.
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRDSDBCluster,
+		ResourceType: catalog.ResourceTypeRDSDBCluster,
 		Name:         identifier,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -251,7 +252,7 @@ func subnetGroupObservation(
 		Boundary:     boundary,
 		ARN:          subnetGroupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeRDSDBSubnetGroup,
+		ResourceType: catalog.ResourceTypeRDSDBSubnetGroup,
 		Name:         name,
 		State:        strings.TrimSpace(subnetGroup.Status),
 		Tags:         cloneStringMap(subnetGroup.Tags),

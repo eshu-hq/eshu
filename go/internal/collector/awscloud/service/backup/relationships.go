@@ -161,17 +161,17 @@ func frameworkHasControlRelationship(
 func targetTypeForARN(arn string) string {
 	switch {
 	case strings.Contains(arn, ":dynamodb:"):
-		return awscloud.ResourceTypeDynamoDBTable
+		return catalog.ResourceTypeDynamoDBTable
 	case strings.Contains(arn, ":rds:") && strings.Contains(arn, ":cluster:"):
-		return awscloud.ResourceTypeRDSDBCluster
+		return catalog.ResourceTypeRDSDBCluster
 	case strings.Contains(arn, ":rds:"):
-		return awscloud.ResourceTypeRDSDBInstance
+		return catalog.ResourceTypeRDSDBInstance
 	case strings.Contains(arn, ":s3:::") || strings.HasPrefix(arn, "arn:aws:s3:::"):
 		return catalog.ResourceTypeS3Bucket
 	case strings.Contains(arn, ":elasticache:"):
-		return awscloud.ResourceTypeElastiCacheCacheCluster
+		return catalog.ResourceTypeElastiCacheCacheCluster
 	case strings.Contains(arn, ":redshift:"):
-		return awscloud.ResourceTypeRedshiftCluster
+		return catalog.ResourceTypeRedshiftCluster
 	default:
 		return "aws_resource"
 	}

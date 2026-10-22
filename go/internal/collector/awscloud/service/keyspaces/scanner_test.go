@@ -68,7 +68,7 @@ func TestScannerEmitsKeyspaceAndTableMetadataWithEdges(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	keyspace := resourceByType(t, envelopes, awscloud.ResourceTypeKeyspacesKeyspace)
+	keyspace := resourceByType(t, envelopes, catalog.ResourceTypeKeyspacesKeyspace)
 	if got, want := keyspace.Payload["resource_id"], testKeyspaceARN; got != want {
 		t.Fatalf("keyspace resource_id = %#v, want %q", got, want)
 	}
@@ -78,7 +78,7 @@ func TestScannerEmitsKeyspaceAndTableMetadataWithEdges(t *testing.T) {
 	ksAttrs := attributesOf(t, keyspace)
 	assertAttribute(t, ksAttrs, "replication_strategy", "SINGLE_REGION")
 
-	table := resourceByType(t, envelopes, awscloud.ResourceTypeKeyspacesTable)
+	table := resourceByType(t, envelopes, catalog.ResourceTypeKeyspacesTable)
 	if got, want := table.Payload["resource_id"], testTableARN; got != want {
 		t.Fatalf("table resource_id = %#v, want %q", got, want)
 	}
@@ -123,18 +123,18 @@ func TestScannerEmitsKeyspaceAndTableMetadataWithEdges(t *testing.T) {
 		}
 	}
 
-	inKeyspace := relationshipByType(t, envelopes, awscloud.RelationshipKeyspacesTableInKeyspace)
+	inKeyspace := relationshipByType(t, envelopes, catalog.RelationshipKeyspacesTableInKeyspace)
 	if got, want := inKeyspace.Payload["target_resource_id"], testKeyspaceARN; got != want {
 		t.Fatalf("table-in-keyspace target_resource_id = %#v, want %q", got, want)
 	}
-	if got, want := inKeyspace.Payload["target_type"], awscloud.ResourceTypeKeyspacesKeyspace; got != want {
+	if got, want := inKeyspace.Payload["target_type"], catalog.ResourceTypeKeyspacesKeyspace; got != want {
 		t.Fatalf("table-in-keyspace target_type = %#v, want %q", got, want)
 	}
 	if got, want := inKeyspace.Payload["target_arn"], testKeyspaceARN; got != want {
 		t.Fatalf("table-in-keyspace target_arn = %#v, want %q", got, want)
 	}
 
-	usesKMS := relationshipByType(t, envelopes, awscloud.RelationshipKeyspacesTableUsesKMSKey)
+	usesKMS := relationshipByType(t, envelopes, catalog.RelationshipKeyspacesTableUsesKMSKey)
 	if got, want := usesKMS.Payload["target_resource_id"], testKMSARN; got != want {
 		t.Fatalf("table-uses-kms target_resource_id = %#v, want %q", got, want)
 	}
@@ -169,12 +169,12 @@ func TestScannerOmitsKMSEdgeForAWSOwnedKey(t *testing.T) {
 		if envelope.FactKind != cloud.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["relationship_type"].(string); got == awscloud.RelationshipKeyspacesTableUsesKMSKey {
+		if got, _ := envelope.Payload["relationship_type"].(string); got == catalog.RelationshipKeyspacesTableUsesKMSKey {
 			t.Fatalf("KMS edge emitted for AWS-owned key; want none")
 		}
 	}
 	// The table-in-keyspace edge must still be present.
-	relationshipByType(t, envelopes, awscloud.RelationshipKeyspacesTableInKeyspace)
+	relationshipByType(t, envelopes, catalog.RelationshipKeyspacesTableInKeyspace)
 }
 
 func TestTableKeyspaceRelationshipDerivesPartitionFromTableARN(t *testing.T) {
@@ -214,8 +214,8 @@ func TestTableKeyspaceRelationshipDerivesPartitionFromTableARN(t *testing.T) {
 			if obs.TargetARN != tc.wantKSARN {
 				t.Fatalf("target_arn = %q, want %q", obs.TargetARN, tc.wantKSARN)
 			}
-			if obs.TargetType != awscloud.ResourceTypeKeyspacesKeyspace {
-				t.Fatalf("target_type = %q, want %q", obs.TargetType, awscloud.ResourceTypeKeyspacesKeyspace)
+			if obs.TargetType != catalog.ResourceTypeKeyspacesKeyspace {
+				t.Fatalf("target_type = %q, want %q", obs.TargetType, catalog.ResourceTypeKeyspacesKeyspace)
 			}
 		})
 	}
@@ -270,14 +270,14 @@ func TestScannerEmitsWarningFacts(t *testing.T) {
 	if got := warning.Payload["error_class"]; got != "throttled" {
 		t.Fatalf("warning error_class = %#v, want throttled", got)
 	}
-	resourceByType(t, envelopes, awscloud.ResourceTypeKeyspacesKeyspace)
+	resourceByType(t, envelopes, catalog.ResourceTypeKeyspacesKeyspace)
 }
 
 func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
 		Region:              "us-east-1",
-		ServiceKind:         awscloud.ServiceKeyspaces,
+		ServiceKind:         catalog.ServiceKeyspaces,
 		ScopeID:             "aws:123456789012:us-east-1",
 		GenerationID:        "aws:123456789012:us-east-1:keyspaces:1",
 		CollectorInstanceID: "aws-prod",

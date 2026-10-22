@@ -35,11 +35,11 @@ func dataSourceBackingRelationship(
 	case BackingStoreRedshiftCluster:
 		base.RelationshipType = catalog.RelationshipQuickSightDataSourceUsesRedshiftCluster
 		base.TargetResourceID = identifier
-		base.TargetType = awscloud.ResourceTypeRedshiftCluster
+		base.TargetType = catalog.ResourceTypeRedshiftCluster
 	case BackingStoreRDSInstance:
 		base.RelationshipType = catalog.RelationshipQuickSightDataSourceUsesRDSInstance
 		base.TargetResourceID = identifier
-		base.TargetType = awscloud.ResourceTypeRDSDBInstance
+		base.TargetType = catalog.ResourceTypeRDSDBInstance
 	case BackingStoreAthenaWorkGroup:
 		base.RelationshipType = catalog.RelationshipQuickSightDataSourceUsesAthenaWorkGroup
 		base.TargetResourceID = identifier

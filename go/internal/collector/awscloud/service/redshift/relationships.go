@@ -26,7 +26,7 @@ func clusterRelationships(
 	if vpcID := strings.TrimSpace(cluster.VPCID); vpcID != "" {
 		relationships = append(relationships, namedRelationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterInVPC,
+			catalog.RelationshipRedshiftClusterInVPC,
 			sourceID,
 			clusterARN,
 			vpcID,
@@ -37,24 +37,24 @@ func clusterRelationships(
 	if targetID := subnetGroupIDs[strings.TrimSpace(cluster.ClusterSubnetGroupName)]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterInSubnetGroup,
+			catalog.RelationshipRedshiftClusterInSubnetGroup,
 			sourceID,
 			clusterARN,
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRedshiftClusterSubnetGroup,
+			catalog.ResourceTypeRedshiftClusterSubnetGroup,
 			map[string]any{"cluster_subnet_group_name": strings.TrimSpace(cluster.ClusterSubnetGroupName)},
 		))
 	}
 	if targetID := parameterGroupIDs[strings.TrimSpace(cluster.ClusterParameterGroup)]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterUsesParameterGroup,
+			catalog.RelationshipRedshiftClusterUsesParameterGroup,
 			sourceID,
 			clusterARN,
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRedshiftClusterParameterGroup,
+			catalog.ResourceTypeRedshiftClusterParameterGroup,
 			map[string]any{"cluster_parameter_group_name": strings.TrimSpace(cluster.ClusterParameterGroup)},
 		))
 	}
@@ -62,7 +62,7 @@ func clusterRelationships(
 		targetARN := securityGroupARN(boundary, groupID)
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterUsesSecurityGroup,
+			catalog.RelationshipRedshiftClusterUsesSecurityGroup,
 			sourceID,
 			clusterARN,
 			targetARN,
@@ -73,7 +73,7 @@ func clusterRelationships(
 	}
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRedshiftClusterUsesKMSKey,
+		catalog.RelationshipRedshiftClusterUsesKMSKey,
 		sourceID,
 		clusterARN,
 		strings.TrimSpace(cluster.KMSKeyID),
@@ -83,7 +83,7 @@ func clusterRelationships(
 	for _, roleARN := range cloneStrings(cluster.IAMRoleARNs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterUsesIAMRole,
+			catalog.RelationshipRedshiftClusterUsesIAMRole,
 			sourceID,
 			clusterARN,
 			roleARN,
@@ -106,7 +106,7 @@ func subnetGroupVPCRelationship(
 	}
 	return namedRelationship(
 		boundary,
-		awscloud.RelationshipRedshiftClusterSubnetGroupInVPC,
+		catalog.RelationshipRedshiftClusterSubnetGroupInVPC,
 		sourceID,
 		strings.TrimSpace(group.ARN),
 		vpcID,
@@ -129,18 +129,18 @@ func snapshotRelationships(
 	if targetID := clusterIDs[clusterIdentifier]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftClusterSnapshotOfCluster,
+			catalog.RelationshipRedshiftClusterSnapshotOfCluster,
 			sourceID,
 			strings.TrimSpace(snapshot.ARN),
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRedshiftCluster,
+			catalog.ResourceTypeRedshiftCluster,
 			map[string]any{"cluster_identifier": clusterIdentifier},
 		))
 	}
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRedshiftClusterSnapshotUsesKMSKey,
+		catalog.RelationshipRedshiftClusterSnapshotUsesKMSKey,
 		sourceID,
 		strings.TrimSpace(snapshot.ARN),
 		strings.TrimSpace(snapshot.KMSKeyID),
@@ -164,12 +164,12 @@ func scheduledActionRelationships(
 	if targetID := clusterIDs[clusterIdentifier]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftScheduledActionTargetsCluster,
+			catalog.RelationshipRedshiftScheduledActionTargetsCluster,
 			sourceID,
 			"",
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRedshiftCluster,
+			catalog.ResourceTypeRedshiftCluster,
 			map[string]any{
 				"target_action_name": strings.TrimSpace(action.TargetActionName),
 				"cluster_identifier": clusterIdentifier,
@@ -178,7 +178,7 @@ func scheduledActionRelationships(
 	}
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRedshiftScheduledActionUsesIAMRole,
+		catalog.RelationshipRedshiftScheduledActionUsesIAMRole,
 		sourceID,
 		"",
 		strings.TrimSpace(action.IAMRoleARN),
@@ -200,7 +200,7 @@ func serverlessNamespaceRelationships(
 	var relationships []awscloud.RelationshipObservation
 	relationships = append(relationships, optionalTargetRelationship(
 		boundary,
-		awscloud.RelationshipRedshiftServerlessNamespaceUsesKMSKey,
+		catalog.RelationshipRedshiftServerlessNamespaceUsesKMSKey,
 		sourceID,
 		namespaceARN,
 		strings.TrimSpace(namespace.KMSKeyID),
@@ -210,7 +210,7 @@ func serverlessNamespaceRelationships(
 	for _, roleARN := range cloneStrings(namespace.IAMRoleARNs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftServerlessNamespaceUsesIAMRole,
+			catalog.RelationshipRedshiftServerlessNamespaceUsesIAMRole,
 			sourceID,
 			namespaceARN,
 			roleARN,
@@ -237,19 +237,19 @@ func serverlessWorkgroupRelationships(
 	if targetID := namespaceIDs[namespaceName]; targetID != "" {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftServerlessWorkgroupInNamespace,
+			catalog.RelationshipRedshiftServerlessWorkgroupInNamespace,
 			sourceID,
 			workgroupARN,
 			targetID,
 			targetARNFor(targetID),
-			awscloud.ResourceTypeRedshiftServerlessNamespace,
+			catalog.ResourceTypeRedshiftServerlessNamespace,
 			map[string]any{"namespace_name": namespaceName},
 		))
 	}
 	for _, subnetID := range cloneStrings(workgroup.SubnetIDs) {
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftServerlessWorkgroupUsesSubnet,
+			catalog.RelationshipRedshiftServerlessWorkgroupUsesSubnet,
 			sourceID,
 			workgroupARN,
 			subnetID,
@@ -262,7 +262,7 @@ func serverlessWorkgroupRelationships(
 		targetARN := securityGroupARN(boundary, groupID)
 		relationships = append(relationships, relationship(
 			boundary,
-			awscloud.RelationshipRedshiftServerlessWorkgroupUsesSecurityGroup,
+			catalog.RelationshipRedshiftServerlessWorkgroupUsesSecurityGroup,
 			sourceID,
 			workgroupARN,
 			targetARN,

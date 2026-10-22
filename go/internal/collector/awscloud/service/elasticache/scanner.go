@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,10 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("elasticache scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceElastiCache:
+	case "", catalog.ServiceElastiCache:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceElastiCache
+		boundary.ServiceKind = catalog.ServiceElastiCache
 	default:
 		return nil, fmt.Errorf("elasticache scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -150,7 +151,7 @@ func clusterObservation(boundary awscloud.Boundary, cluster CacheCluster) awsclo
 		Boundary:     boundary,
 		ARN:          clusterARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheCacheCluster,
+		ResourceType: catalog.ResourceTypeElastiCacheCacheCluster,
 		Name:         id,
 		State:        strings.TrimSpace(cluster.Status),
 		Tags:         cloneStringMap(cluster.Tags),
@@ -198,7 +199,7 @@ func replicationGroupObservation(boundary awscloud.Boundary, group ReplicationGr
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheReplicationGroup,
+		ResourceType: catalog.ResourceTypeElastiCacheReplicationGroup,
 		Name:         id,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),
@@ -232,7 +233,7 @@ func subnetGroupObservation(boundary awscloud.Boundary, group SubnetGroup) awscl
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheSubnetGroup,
+		ResourceType: catalog.ResourceTypeElastiCacheSubnetGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -253,7 +254,7 @@ func parameterGroupObservation(boundary awscloud.Boundary, group ParameterGroup)
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheParameterGroup,
+		ResourceType: catalog.ResourceTypeElastiCacheParameterGroup,
 		Name:         name,
 		Tags:         cloneStringMap(group.Tags),
 		Attributes: map[string]any{
@@ -274,7 +275,7 @@ func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObs
 		Boundary:     boundary,
 		ARN:          userARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheUser,
+		ResourceType: catalog.ResourceTypeElastiCacheUser,
 		Name:         strings.TrimSpace(user.Name),
 		State:        strings.TrimSpace(user.Status),
 		Tags:         cloneStringMap(user.Tags),
@@ -298,7 +299,7 @@ func userGroupObservation(boundary awscloud.Boundary, group UserGroup) awscloud.
 		Boundary:     boundary,
 		ARN:          groupARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheUserGroup,
+		ResourceType: catalog.ResourceTypeElastiCacheUserGroup,
 		Name:         id,
 		State:        strings.TrimSpace(group.Status),
 		Tags:         cloneStringMap(group.Tags),
@@ -319,7 +320,7 @@ func snapshotObservation(boundary awscloud.Boundary, snapshot SnapshotMetadata) 
 		Boundary:     boundary,
 		ARN:          snapshotARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeElastiCacheSnapshot,
+		ResourceType: catalog.ResourceTypeElastiCacheSnapshot,
 		Name:         name,
 		State:        strings.TrimSpace(snapshot.Status),
 		Tags:         cloneStringMap(snapshot.Tags),

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -29,10 +30,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("keyspaces scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "", awscloud.ServiceKeyspaces:
+	case "", catalog.ServiceKeyspaces:
 		// Canonicalize so emitted facts and telemetry always carry the exact
 		// service_kind string, even when the caller passes whitespace padding.
-		boundary.ServiceKind = awscloud.ServiceKeyspaces
+		boundary.ServiceKind = catalog.ServiceKeyspaces
 	default:
 		return nil, fmt.Errorf("keyspaces scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -103,7 +104,7 @@ func keyspaceObservation(boundary awscloud.Boundary, keyspace Keyspace) awscloud
 		Boundary:     boundary,
 		ARN:          keyspaceARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeKeyspacesKeyspace,
+		ResourceType: catalog.ResourceTypeKeyspacesKeyspace,
 		Name:         keyspaceName,
 		Attributes: map[string]any{
 			"keyspace_name":        keyspaceName,
@@ -123,7 +124,7 @@ func tableObservation(boundary awscloud.Boundary, table Table) awscloud.Resource
 		Boundary:     boundary,
 		ARN:          tableARN,
 		ResourceID:   resourceID,
-		ResourceType: awscloud.ResourceTypeKeyspacesTable,
+		ResourceType: catalog.ResourceTypeKeyspacesTable,
 		Name:         tableName,
 		State:        strings.TrimSpace(table.Status),
 		Tags:         cloneStringMap(table.Tags),

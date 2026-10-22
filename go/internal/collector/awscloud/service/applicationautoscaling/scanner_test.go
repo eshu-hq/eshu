@@ -76,7 +76,7 @@ func TestScannerEmitsScalableTargetAndResourceEdges(t *testing.T) {
 
 	// dynamodb edge -> partition-aware table ARN.
 	ddb := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesDynamoDBTable)
-	assertEdgeTarget(t, ddb, awscloud.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/orders")
+	assertEdgeTarget(t, ddb, catalog.ResourceTypeDynamoDBTable, "arn:aws:dynamodb:us-east-1:123456789012:table/orders")
 
 	// ecs edge -> long-format service ARN.
 	ecs := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesECSService)
@@ -84,7 +84,7 @@ func TestScannerEmitsScalableTargetAndResourceEdges(t *testing.T) {
 
 	// rds edge -> aurora cluster ARN.
 	rds := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesRDSCluster)
-	assertEdgeTarget(t, rds, awscloud.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:orders")
+	assertEdgeTarget(t, rds, catalog.ResourceTypeRDSDBCluster, "arn:aws:rds:us-east-1:123456789012:cluster:orders")
 
 	// lambda edge -> base function ARN (qualifier dropped).
 	lambda := relationshipByType(t, envelopes, awscloud.RelationshipApplicationAutoScalingTargetScalesLambdaFunction)
