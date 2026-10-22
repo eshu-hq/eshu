@@ -82,12 +82,15 @@ whitespace-only value means no override. An unknown `surface` value gets a
 the process setting or another client's requests. In Helm, set
 `mcpServer.env.ESHU_MCP_TOOL_SURFACE`.
 
-`router` and `core_router` are not usable until the `find_tool` and `call_tool`
-handlers (#8757) and the core tool set (#8759) land; until then those surfaces
-advertise tools the server cannot yet route. The default `full` is unaffected.
+`router` and `core_router` need the `find_tool` and `call_tool` handlers
+(#8757) and a `find_tool` ranker. The server builds the lexical ranker once at
+startup on every surface (#8771), and refuses to start on `router` or
+`core_router` when no ranker was built. The default `full` is unaffected.
 
 At startup the server logs `mcp tool surface` with the `surface`, the
-`tool_count`, and the `tools_list_bytes` size of the `tools/list` result.
+`tool_count`, and the `tools_list_bytes` size of the `tools/list` result, plus
+`router_ranker`, `router_ranker_tool_count`, `router_ranker_entry_count`, and
+`router_ranker_build_ms` for the `find_tool` ranker.
 `find_tool` and `call_tool` are not part of the registry count above; the
 router surface owns them (epic #8752).
 

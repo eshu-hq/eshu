@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 	"github.com/eshu-hq/eshu/go/internal/query"
 )
 
@@ -28,6 +29,22 @@ type ServerOption func(*Server)
 func WithTransportAuth(middleware func(http.Handler) http.Handler) ServerOption {
 	return func(s *Server) {
 		s.transportAuth = middleware
+	}
+}
+
+// WithRouterRanker sets the builder for the ranker find_tool uses (#8771).
+// NewServer runs it once, after every option, over the final
+// profile-filtered tool list and the catalog entries it loads, and the
+// router hands Rank that same slice and map on every call, so the ranker's
+// index is built once and reused (see router/rank README "Index lifecycle").
+// Option order therefore does not matter. Without this option, or when build
+// returns nil, find_tool answers mcp_router_ranker_unavailable;
+// cmd/mcp-server refuses to start that way on the router and core_router
+// surfaces. It lives here, beside ServerOption, so server.go stays under the
+// file cap.
+func WithRouterRanker(build router.RankerBuilder) ServerOption {
+	return func(s *Server) {
+		s.router.NewRanker = build
 	}
 }
 

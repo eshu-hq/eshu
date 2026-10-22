@@ -37,7 +37,7 @@ package ranks against. They are empty until the intent-curation lane fills them.
 - `FindToolName`, `CallToolName`, `Tools`, `DefaultLimit`, `MaxLimit`
 - `Anchors`, `Query`, `Candidate`, `Ranker`, `Dispatcher`
 - `CoreToolNames`, `Advertise`
-- `Host`, `Intercepts`
+- `Host`, `Intercepts`, `RankerBuilder` (`Host.NewRanker`, `Host.Prepare`)
 - `Engine`, `NewEngine`, `Config`, `Request`, `CallOutcome`, `ToolResult`,
   `Content`, `RouteResolver`
 - `ValidateArguments`, `ValidateArgumentsDetail`, `FieldError`, `UnsupportedSchemaFeatures`,
@@ -263,10 +263,16 @@ rejected ones with `classifyRejection` from a `TestMain`, through
   fallback to `full`.
 - `CoreToolNames` is empty until #8759. `core_router` advertises only the two
   router tools until then.
-- `find_tool` needs an injected `Ranker`; the lexical ranker (#8755) is wired
-  by the root in #8771. Until then `find_tool` answers the typed
-  `mcp_router_ranker_unavailable` error, counted as
-  `eshu_dp_mcp_router_find_total{outcome="error"}`.
+- `find_tool` needs a `Ranker`. `cmd/mcp-server` wires the lexical ranker
+  (`router/rank`, #8755) through `mcp.WithRouterRanker` (#8771): `NewServer`
+  calls `Host.Prepare` after every option, which loads the catalog entries once
+  and builds the ranker once over the profile-filtered tool list. The Engine
+  then gets that same entries map, and the root passes that same tool slice as
+  `Request.Visible`, so `rank`'s index is reused on every call instead of
+  rebuilt. `cmd/mcp-server` refuses to start on `router` or `core_router` when
+  no ranker was built. A server built without a ranker (a test, an embedding
+  host) still answers the typed `mcp_router_ranker_unavailable` error, counted
+  as `eshu_dp_mcp_router_find_total{outcome="error"}`.
 - A new keyword, type, or format in a registered tool schema fails
   `TestRegisteredSchemasUseOnlyValidatedKeywords` in the mcp root until
   `ValidateArguments` implements it.
