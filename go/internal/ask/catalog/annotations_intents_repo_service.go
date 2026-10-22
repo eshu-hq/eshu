@@ -15,8 +15,9 @@ func repoServiceToolIntents() map[string]toolIntent {
 		"get_repository_stats":    intents("repository statistics", "entity counts for repository", "repo size stats", "how big is this repository"),
 		"get_repository_coverage": intents("repository index coverage", "is repo fully indexed", "coverage completeness for repo", "indexing coverage state"),
 		// ecosystem-overview
-		"get_ecosystem_overview":    canonicalIntents("ecosystem overview", "high level view of all repos", "repos tiers and infrastructure counts", "cross repo relationship summary", "what is indexed"),
-		"get_graph_summary_packet":  intents("bounded graph overview packet", "hot entities by call degree", "relationship type counts", "summary of repo graph shape", "summary first graph packet"),
+		"get_ecosystem_overview":   canonicalIntents("ecosystem overview", "high level view of all repos", "repos tiers and infrastructure counts", "cross repo relationship summary", "what is indexed"),
+		"get_graph_summary_packet": intents("bounded graph overview packet", "hot entities by call degree", "relationship type counts", "summary of repo graph shape", "summary first graph packet"),
+		// repository listing (not in a family)
 		"list_indexed_repositories": intents("list repositories", "how many repositories are indexed", "indexed repository names", "all indexed repos", "repository count"),
 		// repository-language
 		"list_repositories_by_language":     canonicalIntents("repositories written in language", "which repos use python", "list go repositories", "repos containing typescript", "repos by language"),

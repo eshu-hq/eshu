@@ -9,9 +9,10 @@ package catalog
 func iacDriftToolIntents() map[string]toolIntent {
 	return map[string]toolIntent{
 		// runtime-drift
-		"list_cloud_runtime_drift_findings":          canonicalIntents("cloud runtime drift", "drift between cloud and terraform", "aws gcp azure drift findings", "resources that drifted from code", "multi cloud drift list"),
-		"list_aws_runtime_drift_findings":            intents("aws runtime drift", "aws drift reducer findings", "aws drift rejected promotions", "aws account drift"),
-		"export_cloud_runtime_drift_packet":          intents("export drift evidence packet", "runtime drift investigation packet", "shareable drift report", "drift packet artifact"),
+		"list_cloud_runtime_drift_findings": canonicalIntents("cloud runtime drift", "drift between cloud and terraform", "aws gcp azure drift findings", "resources that drifted from code", "multi cloud drift list"),
+		"list_aws_runtime_drift_findings":   intents("aws runtime drift", "aws drift reducer findings", "aws drift rejected promotions", "aws account drift"),
+		"export_cloud_runtime_drift_packet": intents("export drift evidence packet", "runtime drift investigation packet", "shareable drift report", "drift packet artifact"),
+		// terraform config vs state drift (not in a family)
 		"list_terraform_config_state_drift_findings": intents("terraform config vs state drift", "state snapshot drift", "terraform address drift", "config state mismatch"),
 		// iac-management
 		"find_unmanaged_resources":       canonicalIntents("unmanaged aws resources", "resources not in terraform", "click ops resources", "cloud resources without iac owner", "image version drift"),

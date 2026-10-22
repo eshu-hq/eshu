@@ -21,10 +21,15 @@ type toolFamily struct {
 // enforce "exactly one canonical tool per family" and "no shared intent inside a
 // family" read it, and the README family table must match it row for row. The
 // canonical member is the one whose intents use canonicalIntents. The table is
-// a package variable so the function stays short; callers get a copy and may
-// not change the shared rows.
+// a package variable so the function stays short; callers get a deep copy (the
+// rows and each Members slice) and cannot change the shared table.
 func toolFamilies() []toolFamily {
-	return slices.Clone(toolFamilyTable)
+	out := make([]toolFamily, len(toolFamilyTable))
+	for i, f := range toolFamilyTable {
+		f.Members = slices.Clone(f.Members)
+		out[i] = f
+	}
+	return out
 }
 
 var toolFamilyTable = []toolFamily{

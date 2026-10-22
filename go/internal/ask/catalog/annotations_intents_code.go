@@ -30,7 +30,8 @@ func codeToolIntents() map[string]toolIntent {
 		"investigate_import_dependencies": intents("which modules import this module", "import cycles", "package import cycle", "imports by file", "importers of package", "cross module calls"),
 		"inspect_call_graph_metrics":      intents("recursive functions", "hub functions", "most connected functions", "highly called functions", "call graph metrics"),
 		"trace_route_callers":             intents("who calls this http route handler", "route handler callers", "workloads impacted by route", "framework route to callers"),
-		"trace_exposure_path":             intents("internet exposed handler reaches secret", "exposure path to cloud sink", "reachability to privileged iam action", "handler to sql table path", "attack surface reachability"),
+		// exposure reachability (not in a family)
+		"trace_exposure_path": intents("internet exposed handler reaches secret", "exposure path to cloud sink", "reachability to privileged iam action", "handler to sql table path", "attack surface reachability"),
 		// dead-code
 		"investigate_dead_code":     canonicalIntents("what code looks dead", "unused functions with coverage", "dead code candidates", "unreferenced code with exactness blockers", "find dead code safely"),
 		"find_dead_code":            intents("find unused functions", "potentially unused code", "dead functions in repository", "exclude decorated functions from dead code"),
@@ -44,14 +45,15 @@ func codeToolIntents() map[string]toolIntent {
 		"report_code_divergence":      canonicalIntents("duplicate code rollup", "parallel implementations summary", "code divergence counts by kind", "copy paste drift overview", "how much duplicated code"),
 		"find_code_divergence":        intents("find duplicate functions", "identical token streams", "near duplicate implementations", "wrapper bypass", "missing call in cohort", "convention outliers"),
 		"investigate_code_divergence": intents("drill into divergence finding", "divergence finding by fingerprint", "follow up on duplicate pair", "members of duplicate cluster"),
-		// data-flow
+		// data-flow (not in a family)
 		"dispatch_taint_path":   intents("taint path evidence", "tainted data flow", "source to sink taint", "taint analysis for repository"),
 		"dispatch_reaching_def": intents("reaching definitions", "def use chains", "where is variable defined", "data flow definitions"),
 		"dispatch_cfg_summary":  intents("control flow graph summary", "cfg for function", "branches and loops summary", "control flow of repository"),
 		"dispatch_pdg_summary":  intents("program dependence graph summary", "pdg for function", "control and data dependence", "program dependence summary"),
-		// graph-query
-		"execute_cypher_query":          intents("run cypher query", "raw graph query", "custom read only cypher", "diagnostic graph query", "query code graph directly"),
-		"visualize_graph_query":         intents("visualize graph", "render cypher result as graph", "draw nodes and edges", "graph visualization packet"),
+		// graph-query (not in a family)
+		"execute_cypher_query":  intents("run cypher query", "raw graph query", "custom read only cypher", "diagnostic graph query", "query code graph directly"),
+		"visualize_graph_query": intents("visualize graph", "render cypher result as graph", "draw nodes and edges", "graph visualization packet"),
+		// hardcoded secrets (not in a family)
 		"investigate_hardcoded_secrets": intents("hardcoded secrets", "api keys in code", "committed passwords", "private keys in repository", "risky literals", "leaked tokens in source"),
 	}
 }

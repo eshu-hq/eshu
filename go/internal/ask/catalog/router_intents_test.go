@@ -20,9 +20,9 @@ const (
 	readmeFamilyHead = "## Router families"
 )
 
-// annotatedMCPTools parses the committed inventory, applies the overlay, and
-// returns the implemented MCP tool entries.
-func annotatedMCPTools(t *testing.T) []Entry {
+// annotatedEntries parses the committed inventory, applies the overlay, and
+// returns every catalog entry.
+func annotatedEntries(t *testing.T) []Entry {
 	t.Helper()
 	inventoryJSON, err := os.ReadFile(realInventoryPath(t))
 	if err != nil {
@@ -33,8 +33,14 @@ func annotatedMCPTools(t *testing.T) []Entry {
 		t.Fatalf("Parse: %v", err)
 	}
 	cat.Annotate()
+	return cat.Entries()
+}
+
+// annotatedMCPTools returns the implemented MCP tool entries after annotation.
+func annotatedMCPTools(t *testing.T) []Entry {
+	t.Helper()
 	var tools []Entry
-	for _, e := range cat.Entries() {
+	for _, e := range annotatedEntries(t) {
 		if e.Kind == KindMCPTool {
 			tools = append(tools, e)
 		}
@@ -43,6 +49,21 @@ func annotatedMCPTools(t *testing.T) []Entry {
 		t.Fatal("inventory has no implemented MCP tools")
 	}
 	return tools
+}
+
+// checkRouteRouterFields reports an API route entry that carries router intents
+// or a canonical flag; only MCP tools are routed.
+func checkRouteRouterFields(entries []Entry) []string {
+	var problems []string
+	for _, e := range entries {
+		if e.Kind != KindAPIRoute {
+			continue
+		}
+		if len(e.Intents) != 0 || e.Canonical {
+			problems = append(problems, fmt.Sprintf("api route %q carries router fields: %d intents, canonical=%v", e.Name, len(e.Intents), e.Canonical))
+		}
+	}
+	return problems
 }
 
 // checkIntentCoverage reports every tool whose intent list is outside the
@@ -176,6 +197,38 @@ func TestFamiliesHaveExactlyOneCanonicalTool(t *testing.T) {
 func TestNoIntentSharedInsideFamily(t *testing.T) {
 	t.Parallel()
 	failWith(t, "shared intents", checkSharedIntents(annotatedMCPTools(t), toolFamilies(), sharedIntentAllowed))
+}
+
+// TestAPIRoutesCarryNoRouterFields pins the route-side invariant: only MCP
+// tools are routed, so an annotated API route has no intents and is never
+// canonical.
+func TestAPIRoutesCarryNoRouterFields(t *testing.T) {
+	t.Parallel()
+	entries := annotatedEntries(t)
+	routes := 0
+	for _, e := range entries {
+		if e.Kind == KindAPIRoute {
+			routes++
+		}
+	}
+	if routes == 0 {
+		t.Fatal("inventory has no implemented API routes; the check would be vacuous")
+	}
+	failWith(t, "api route router fields", checkRouteRouterFields(entries))
+}
+
+// TestToolFamiliesReturnsIndependentCopy fails when a caller can change the
+// family table by editing a returned family, including its Members slice.
+func TestToolFamiliesReturnsIndependentCopy(t *testing.T) {
+	t.Parallel()
+	first := toolFamilies()
+	wantName, wantMember := first[0].Name, first[0].Members[0]
+	first[0].Name = "mutated"
+	first[0].Members[0] = "mutated"
+	again := toolFamilies()
+	if again[0].Name != wantName || again[0].Members[0] != wantMember {
+		t.Fatalf("toolFamilies()[0] = %q/%q after a caller edit, want %q/%q", again[0].Name, again[0].Members[0], wantName, wantMember)
+	}
 }
 
 // TestIntentSourcesAreConsistent fails on an intent key with no overlay entry
@@ -388,5 +441,19 @@ func TestIntentCheckersRejectSeededViolations(t *testing.T) {
 	}
 	if len(checkReadmeFamilies(good, clean, fam, map[string]string{"unexplained phrase": "x"})) == 0 {
 		t.Error("an unexplained allowed shared intent was not flagged")
+	}
+
+	// checkRouteRouterFields.
+	routes := []Entry{{Name: "GET /x", Kind: KindAPIRoute}, {Name: "t", Kind: KindMCPTool, Intents: []string{"a", "b", "c"}, Canonical: true}}
+	if p := checkRouteRouterFields(routes); len(p) != 0 {
+		t.Fatalf("clean routes flagged: %v", p)
+	}
+	routes[0].Intents = []string{"stray"}
+	if len(checkRouteRouterFields(routes)) == 0 {
+		t.Error("an intent on an API route was not flagged")
+	}
+	routes[0].Intents, routes[0].Canonical = nil, true
+	if len(checkRouteRouterFields(routes)) == 0 {
+		t.Error("a canonical flag on an API route was not flagged")
 	}
 }

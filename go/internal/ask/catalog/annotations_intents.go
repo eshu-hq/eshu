@@ -51,7 +51,7 @@ func toolIntents() map[string]toolIntent {
 // applyToolIntents copies the curated router metadata onto the overlay entries
 // that already carry a backend and cost. A name with no overlay entry is
 // skipped, not created: an intent cannot invent a surface, and
-// TestIntentKeysAreOverlayTools reports the stale key.
+// TestIntentSourcesAreConsistent reports the stale key.
 func applyToolIntents(merged map[string]Annotation) {
 	for name, ti := range toolIntents() {
 		a, ok := merged[name]
