@@ -9,37 +9,13 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// Claim status values are bounded enums for the claim lifecycle counter. They
-// are safe as telemetry labels.
-const (
-	// ClaimStatusStarted marks a claim the collector began.
-	ClaimStatusStarted = "started"
-	// ClaimStatusSucceeded marks a claim that completed with full coverage.
-	ClaimStatusSucceeded = "succeeded"
-	// ClaimStatusPartial marks a claim that completed with durable warning
-	// evidence for incomplete coverage.
-	ClaimStatusPartial = "partial"
-	// ClaimStatusFailed marks a claim that failed before producing complete
-	// evidence.
-	ClaimStatusFailed = "failed"
-	// ClaimStatusRetried marks a claim retry attempt.
-	ClaimStatusRetried = "retried"
-)
-
-// Attribute-extraction outcomes are bounded enums for the typed-depth extractor
-// counter, so an operator can see whether per-asset-type extraction is producing
-// depth or silently coming back empty.
-const (
-	// ExtractionOutcomeExtracted marks a resource whose registered extractor
-	// produced at least one bounded attribute.
-	ExtractionOutcomeExtracted = "extracted"
-	// ExtractionOutcomeEmpty marks a resource whose extractor ran but produced no
-	// usable attributes.
-	ExtractionOutcomeEmpty = "empty"
-)
+// Claim status values (catalog leaf, #6696 slice L) are bounded enums for the
+// claim lifecycle counter; attribute-extraction outcomes are bounded enums
+// for the typed-depth extractor counter. They are safe as telemetry labels.
 
 // Metrics holds the scoped OTEL instruments for the GCP cloud collector. Every
 // label is a bounded enum: collector kind, claim status, CAI operation, parent
@@ -133,7 +109,7 @@ func NewMetrics(meter metric.Meter) (*Metrics, error) {
 		warnings:             warnings,
 		attributeExtractions: attributeExtractions,
 		freshnessLag:         freshnessLag,
-		collectorKind:        CollectorKind,
+		collectorKind:        catalog.CollectorKind,
 	}, nil
 }
 

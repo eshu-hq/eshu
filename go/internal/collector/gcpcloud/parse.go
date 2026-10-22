@@ -9,10 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
-)
 
-const (
-	assetTypeDNSResourceRecordSet = "dns.googleapis.com/ResourceRecordSet"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 // AssetsListPage is the parsed, redacted result of one Cloud Asset Inventory
@@ -286,7 +284,7 @@ func parseTime(value string) time.Time {
 }
 
 func displayNameForAsset(assetType, displayName, dataName string) string {
-	if strings.TrimSpace(assetType) == assetTypeDNSResourceRecordSet {
+	if strings.TrimSpace(assetType) == catalog.AssetTypeDNSResourceRecordSet {
 		return ""
 	}
 	return firstNonEmpty(displayName, dataName)
@@ -321,7 +319,7 @@ func parseIAMPolicyBindings(policy caiIAMPolicyWire) []IAMPolicyBindingObservati
 }
 
 func serviceAccountEmail(assetType string, data caiResourceDataWire) string {
-	if strings.TrimSpace(assetType) != serviceAccountAssetType {
+	if strings.TrimSpace(assetType) != catalog.ServiceAccountAssetType {
 		return ""
 	}
 	return strings.ToLower(strings.TrimSpace(data.Email))
@@ -340,7 +338,7 @@ func parseRelatedAsset(assetName, assetType string, related caiRelatedAssetWire)
 		RelationshipType:       relationshipType,
 		TargetFullResourceName: targetName,
 		TargetAssetType:        strings.TrimSpace(related.AssetType),
-		SupportState:           RelationshipSupportSupported,
+		SupportState:           catalog.RelationshipSupportSupported,
 	}}
 }
 
@@ -365,7 +363,7 @@ func compactRawJSON(raw json.RawMessage) string {
 }
 
 func parseDNSRecords(assetName, assetType string, data caiResourceDataWire) []DNSRecordObservation {
-	if strings.TrimSpace(assetType) != assetTypeDNSResourceRecordSet {
+	if strings.TrimSpace(assetType) != catalog.AssetTypeDNSResourceRecordSet {
 		return nil
 	}
 	record := DNSRecordObservation{
@@ -413,7 +411,7 @@ func parseImageReferences(assetName, assetType string, data caiResourceDataWire)
 
 func isCloudRunRuntimeAsset(assetType string) bool {
 	switch strings.TrimSpace(assetType) {
-	case assetTypeRunService, assetTypeRunJob:
+	case catalog.AssetTypeRunService, catalog.AssetTypeRunJob:
 		return true
 	default:
 		return false

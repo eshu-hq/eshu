@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -67,9 +68,9 @@ func (s *Source) recordAttributeExtractions(ctx context.Context, resources []gcp
 		if !gcpcloud.HasAssetExtractor(resource.AssetType) {
 			continue
 		}
-		outcome := gcpcloud.ExtractionOutcomeEmpty
+		outcome := catalog.ExtractionOutcomeEmpty
 		if len(resource.Attributes) > 0 {
-			outcome = gcpcloud.ExtractionOutcomeExtracted
+			outcome = catalog.ExtractionOutcomeExtracted
 		}
 		s.Metrics.RecordAttributeExtraction(ctx, gcpcloud.AssetTypeFamily(resource.AssetType), outcome)
 	}

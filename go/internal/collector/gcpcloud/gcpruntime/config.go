@@ -9,11 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
-
-// DefaultPollInterval is the source poll cadence used when a config supplies no
-// explicit interval. It keeps idle scaffolding polls bounded.
-const DefaultPollInterval = 30 * time.Minute
 
 // Config is the declarative GCP cloud collector runtime configuration. It names
 // the collector instance, the bounded parent scopes to scan, and the read-only
@@ -23,7 +20,8 @@ type Config struct {
 	// CollectorInstanceID is the configured runtime instance that owns target
 	// policy and credential environment. It is required.
 	CollectorInstanceID string
-	// PollInterval is the source poll cadence. Zero selects DefaultPollInterval.
+	// PollInterval is the source poll cadence. Zero selects the catalog-leaf
+	// DefaultPollInterval.
 	PollInterval time.Duration
 	// Scopes is the bounded set of parent scopes the instance is authorized to
 	// scan. It must be non-empty.
@@ -150,7 +148,7 @@ func (s ScopeConfig) validate() error {
 // contract form gcp:<parent_kind>:<parent_id>:<asset_family>:<content_family>:<location_bucket>.
 func DeriveScopeID(kind gcpcloud.ParentScopeKind, parentID, assetFamily, contentFamily, locationBucket string) string {
 	return strings.Join([]string{
-		gcpcloud.CollectorKind,
+		catalog.CollectorKind,
 		string(kind),
 		strings.TrimSpace(parentID),
 		strings.TrimSpace(assetFamily),

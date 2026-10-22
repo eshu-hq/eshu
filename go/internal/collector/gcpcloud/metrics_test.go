@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
@@ -23,14 +24,14 @@ func TestMetricsRecordBoundedLabels(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	metrics.RecordClaim(ctx, ClaimStatusSucceeded)
-	metrics.RecordAPICall(ctx, "assets.list", ParentScopeProject, "compute", "resource", "ok")
-	metrics.RecordPage(ctx, ParentScopeProject)
-	metrics.RecordPageTokenResume(ctx, ParentScopeProject)
-	metrics.RecordFactsEmitted(ctx, "gcp_cloud_resource", ParentScopeProject, 3)
-	metrics.RecordWarning(ctx, WarningKindPartialPermission, OutcomePartial)
-	metrics.RecordAttributeExtraction(ctx, "bigquery", ExtractionOutcomeExtracted)
-	metrics.RecordFreshnessLag(ctx, ParentScopeProject, 42.0)
+	metrics.RecordClaim(ctx, catalog.ClaimStatusSucceeded)
+	metrics.RecordAPICall(ctx, "assets.list", catalog.ParentScopeProject, "compute", "resource", "ok")
+	metrics.RecordPage(ctx, catalog.ParentScopeProject)
+	metrics.RecordPageTokenResume(ctx, catalog.ParentScopeProject)
+	metrics.RecordFactsEmitted(ctx, "gcp_cloud_resource", catalog.ParentScopeProject, 3)
+	metrics.RecordWarning(ctx, catalog.WarningKindPartialPermission, catalog.OutcomePartial)
+	metrics.RecordAttributeExtraction(ctx, "bigquery", catalog.ExtractionOutcomeExtracted)
+	metrics.RecordFreshnessLag(ctx, catalog.ParentScopeProject, 42.0)
 
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(ctx, &rm); err != nil {
@@ -68,8 +69,8 @@ func TestMetricsRecordsAttributeExtractionCounter(t *testing.T) {
 		t.Fatalf("NewMetrics: %v", err)
 	}
 	ctx := context.Background()
-	metrics.RecordAttributeExtraction(ctx, "bigquery", ExtractionOutcomeExtracted)
-	metrics.RecordAttributeExtraction(ctx, "bigquery", ExtractionOutcomeEmpty)
+	metrics.RecordAttributeExtraction(ctx, "bigquery", catalog.ExtractionOutcomeExtracted)
+	metrics.RecordAttributeExtraction(ctx, "bigquery", catalog.ExtractionOutcomeEmpty)
 
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(ctx, &rm); err != nil {

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -16,14 +17,8 @@ import (
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
-// maxDNSRecordTargets bounds the number of fingerprinted targets carried on one
-// gcp_dns_record fact so a record set cannot emit an unbounded payload.
-const maxDNSRecordTargets = 100
-
-const (
-	redactionReasonDNSRecordName = "gcp_dns_record_name"
-	redactionReasonDNSTarget     = "gcp_dns_target"
-)
+// The DNS observation bounds and redaction reasons live in the catalog leaf
+// (#6696, slice L).
 
 // DNSRecordObservation is one observed Cloud DNS record. DNS names are sensitive,
 // so the collector fingerprints the record name and every target with the
@@ -87,8 +82,8 @@ func NewDNSRecordEnvelope(obs DNSRecordObservation, key redact.Key) (facts.Envel
 	})
 
 	projectID := strings.TrimSpace(ProjectIDFromFullName(zoneName))
-	// fingerprintDNSTargets bounds targets to maxDNSRecordTargets before this
-	// widening conversion.
+	// fingerprintDNSTargets bounds targets to catalog.MaxDNSRecordTargets before
+	// this widening conversion.
 	// #nosec G115 -- len(targets) is capped at 100 by fingerprintDNSTargets.
 	targetCount := int64(len(targets))
 	payload, err := factschema.EncodeGCPDNSRecord(gcpv1.DNSRecord{
@@ -107,7 +102,7 @@ func NewDNSRecordEnvelope(obs DNSRecordObservation, key redact.Key) (facts.Envel
 	addGCPBoundaryPayload(payload, obs.Boundary)
 	payload["read_time"] = timeOrNil(obs.Boundary.ReadTime)
 	payload["update_time"] = timeOrNil(obs.UpdateTime.UTC())
-	payload["redaction_policy_version"] = RedactionPolicyVersion
+	payload["redaction_policy_version"] = catalog.RedactionPolicyVersion
 
 	return newEnvelope(
 		obs.Boundary,
@@ -121,7 +116,7 @@ func NewDNSRecordEnvelope(obs DNSRecordObservation, key redact.Key) (facts.Envel
 }
 
 func dnsRecordNameFingerprint(recordName, recordType string, key redact.Key) string {
-	return redact.String(recordName, redactionReasonDNSRecordName, redactionReasonDNSRecordName+":"+recordType, key).Marker
+	return redact.String(recordName, catalog.RedactionReasonDNSRecordName, catalog.RedactionReasonDNSRecordName+":"+recordType, key).Marker
 }
 
 // fingerprintDNSTargets fingerprints each non-blank DNS target, de-duplicating
@@ -142,13 +137,13 @@ func fingerprintDNSTargets(targets []string, recordType string, key redact.Key) 
 	}
 	sort.Strings(raw)
 	truncated := false
-	if len(raw) > maxDNSRecordTargets {
-		raw = raw[:maxDNSRecordTargets]
+	if len(raw) > catalog.MaxDNSRecordTargets {
+		raw = raw[:catalog.MaxDNSRecordTargets]
 		truncated = true
 	}
 	out := make([]string, 0, len(raw))
 	for _, t := range raw {
-		out = append(out, redact.String(t, redactionReasonDNSTarget, redactionReasonDNSTarget+":"+recordType, key).Marker)
+		out = append(out, redact.String(t, catalog.RedactionReasonDNSTarget, catalog.RedactionReasonDNSTarget+":"+recordType, key).Marker)
 	}
 	return out, truncated
 }

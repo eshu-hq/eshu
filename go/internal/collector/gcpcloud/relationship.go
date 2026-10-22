@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -69,7 +70,7 @@ func NewCloudRelationshipEnvelope(obs RelationshipObservation) (facts.Envelope, 
 		"support_state":             supportState,
 		"read_time":                 timeOrNil(obs.Boundary.ReadTime),
 		"update_time":               timeOrNil(obs.UpdateTime.UTC()),
-		"redaction_policy_version":  RedactionPolicyVersion,
+		"redaction_policy_version":  catalog.RedactionPolicyVersion,
 	}
 	sourceAssetType := strings.TrimSpace(obs.SourceAssetType)
 	targetAssetType := strings.TrimSpace(obs.TargetAssetType)
@@ -103,13 +104,13 @@ func NewCloudRelationshipEnvelope(obs RelationshipObservation) (facts.Envelope, 
 func normalizeRelationshipSupportState(state string) (string, error) {
 	switch strings.TrimSpace(state) {
 	case "":
-		return RelationshipSupportSupported, nil
-	case RelationshipSupportSupported:
-		return RelationshipSupportSupported, nil
-	case RelationshipSupportPartial:
-		return RelationshipSupportPartial, nil
-	case RelationshipSupportUnsupported:
-		return RelationshipSupportUnsupported, nil
+		return catalog.RelationshipSupportSupported, nil
+	case catalog.RelationshipSupportSupported:
+		return catalog.RelationshipSupportSupported, nil
+	case catalog.RelationshipSupportPartial:
+		return catalog.RelationshipSupportPartial, nil
+	case catalog.RelationshipSupportUnsupported:
+		return catalog.RelationshipSupportUnsupported, nil
 	default:
 		return "", fmt.Errorf("gcp relationship observation has unknown support_state %q", state)
 	}

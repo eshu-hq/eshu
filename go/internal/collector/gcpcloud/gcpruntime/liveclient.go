@@ -18,26 +18,11 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-const (
-	// CloudAssetInventoryEndpoint is the default Cloud Asset Inventory API
-	// endpoint used by LiveClient.
-	CloudAssetInventoryEndpoint = "https://cloudasset.googleapis.com"
-	// CloudAssetInventoryOAuthScope is the OAuth scope accepted by assets.list.
-	CloudAssetInventoryOAuthScope = "https://www.googleapis.com/auth/cloud-platform"
-	// DefaultLivePageSize keeps live assets.list pages bounded when the caller
-	// does not specify a smaller page size.
-	DefaultLivePageSize = 100
-	// MaxLivePageSize is the largest pageSize LiveClient sends to assets.list.
-	MaxLivePageSize = 1000
-	// DefaultLiveResponseBytes caps one assets.list response body before parsing.
-	DefaultLiveResponseBytes = int64(16 << 20)
-	// DefaultLiveRequestTimeout bounds one assets.list HTTP attempt.
-	DefaultLiveRequestTimeout = 30 * time.Second
-	// DefaultLiveMaxAttempts bounds retryable Cloud Asset Inventory attempts.
-	DefaultLiveMaxAttempts = 3
-)
+// The live-client API endpoint and bounds live in the catalog leaf (#6696,
+// slice L).
 
 // ProviderWarning is a bounded PageProvider coverage warning. Source converts
 // it into a durable gcp_collection_warning fact instead of treating expected
@@ -120,7 +105,7 @@ func NewADCLiveClient(ctx context.Context, credentialRef string, quotaProjectID 
 	if strings.TrimSpace(credentialRef) == "" {
 		return LiveClient{}, errors.New("gcp live credential_ref is required")
 	}
-	ts, err := google.DefaultTokenSource(ctx, CloudAssetInventoryOAuthScope)
+	ts, err := google.DefaultTokenSource(ctx, catalog.CloudAssetInventoryOAuthScope)
 	if err != nil {
 		return LiveClient{}, errors.New("gcp application default token source unavailable")
 	}
@@ -156,8 +141,8 @@ func (c LiveClient) FetchPage(ctx context.Context, req PageRequest) (gcpcloud.As
 		}
 	}
 	return gcpcloud.AssetsListPage{}, ProviderWarning{
-		WarningKind: gcpcloud.WarningKindUnavailable,
-		Outcome:     gcpcloud.OutcomeUnavailable,
+		WarningKind: catalog.WarningKindUnavailable,
+		Outcome:     catalog.OutcomeUnavailable,
 		Reason:      "cloud asset inventory retry attempts exhausted",
 		Retryable:   true,
 	}
@@ -185,8 +170,8 @@ func (c LiveClient) fetchAttempt(
 			return gcpcloud.AssetsListPage{}, false, attemptCtx.Err()
 		}
 		return gcpcloud.AssetsListPage{}, true, ProviderWarning{
-			WarningKind: gcpcloud.WarningKindUnavailable,
-			Outcome:     gcpcloud.OutcomeUnavailable,
+			WarningKind: catalog.WarningKindUnavailable,
+			Outcome:     catalog.OutcomeUnavailable,
 			Reason:      "cloud asset inventory transport unavailable",
 			Retryable:   true,
 		}
@@ -198,8 +183,8 @@ func (c LiveClient) fetchAttempt(
 	body, err := readBounded(resp.Body, c.maxResponseBytes())
 	if err != nil {
 		return gcpcloud.AssetsListPage{}, false, ProviderWarning{
-			WarningKind: gcpcloud.WarningKindRedaction,
-			Outcome:     gcpcloud.OutcomeUnavailable,
+			WarningKind: catalog.WarningKindRedaction,
+			Outcome:     catalog.OutcomeUnavailable,
 			Reason:      "cloud asset inventory response exceeded size limit",
 		}
 	}
@@ -221,16 +206,16 @@ func (c LiveClient) token() (*oauth2.Token, error) {
 	token, err := c.TokenSource.Token()
 	if err != nil {
 		return nil, ProviderWarning{
-			WarningKind: gcpcloud.WarningKindPartialPermission,
-			Outcome:     gcpcloud.OutcomeUnavailable,
+			WarningKind: catalog.WarningKindPartialPermission,
+			Outcome:     catalog.OutcomeUnavailable,
 			Reason:      "credential token unavailable",
 			Retryable:   true,
 		}
 	}
 	if token == nil || strings.TrimSpace(token.AccessToken) == "" {
 		return nil, ProviderWarning{
-			WarningKind: gcpcloud.WarningKindPartialPermission,
-			Outcome:     gcpcloud.OutcomeUnavailable,
+			WarningKind: catalog.WarningKindPartialPermission,
+			Outcome:     catalog.OutcomeUnavailable,
 			Reason:      "credential token empty",
 			Retryable:   true,
 		}
@@ -247,7 +232,7 @@ func (c LiveClient) requestURL(req PageRequest) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	base := strings.TrimRight(firstNonEmpty(c.Endpoint, CloudAssetInventoryEndpoint), "/")
+	base := strings.TrimRight(firstNonEmpty(c.Endpoint, catalog.CloudAssetInventoryEndpoint), "/")
 	values := url.Values{}
 	values.Set("contentType", contentType)
 	values.Set("pageSize", strconv.Itoa(c.pageSize()))
@@ -273,11 +258,11 @@ func liveParentPath(scopeCfg ScopeConfig) (string, error) {
 		return "", errors.New("gcp live parent scope id contains unsupported path characters")
 	}
 	switch scopeCfg.ParentScopeKind {
-	case gcpcloud.ParentScopeProject:
+	case catalog.ParentScopeProject:
 		return "projects/" + url.PathEscape(id), nil
-	case gcpcloud.ParentScopeFolder:
+	case catalog.ParentScopeFolder:
 		return "folders/" + url.PathEscape(id), nil
-	case gcpcloud.ParentScopeOrganization:
+	case catalog.ParentScopeOrganization:
 		return "organizations/" + url.PathEscape(id), nil
 	default:
 		return "", fmt.Errorf("gcp live unsupported parent scope kind %q", scopeCfg.ParentScopeKind)
@@ -291,8 +276,8 @@ func liveContentType(family string) (string, error) {
 		return contentType, nil
 	default:
 		return "", ProviderWarning{
-			WarningKind: gcpcloud.WarningKindUnsupported,
-			Outcome:     gcpcloud.OutcomeUnsupported,
+			WarningKind: catalog.WarningKindUnsupported,
+			Outcome:     catalog.OutcomeUnsupported,
 			Reason:      "cloud asset inventory content family unsupported",
 		}
 	}
@@ -316,16 +301,16 @@ func liveAssetTypes(family string) ([]string, error) {
 			out = append(out, value+".googleapis.com.*")
 		default:
 			return nil, ProviderWarning{
-				WarningKind: gcpcloud.WarningKindUnsupported,
-				Outcome:     gcpcloud.OutcomeUnsupported,
+				WarningKind: catalog.WarningKindUnsupported,
+				Outcome:     catalog.OutcomeUnsupported,
 				Reason:      "cloud asset inventory asset family unsupported",
 			}
 		}
 	}
 	if len(out) == 0 {
 		return nil, ProviderWarning{
-			WarningKind: gcpcloud.WarningKindUnsupported,
-			Outcome:     gcpcloud.OutcomeUnsupported,
+			WarningKind: catalog.WarningKindUnsupported,
+			Outcome:     catalog.OutcomeUnsupported,
 			Reason:      "cloud asset inventory asset family unsupported",
 		}
 	}
@@ -346,35 +331,35 @@ func classifyLiveStatus(status int) ProviderWarning {
 	switch status {
 	case http.StatusUnauthorized:
 		return ProviderWarning{
-			WarningKind: gcpcloud.WarningKindPartialPermission,
-			Outcome:     gcpcloud.OutcomeUnavailable,
+			WarningKind: catalog.WarningKindPartialPermission,
+			Outcome:     catalog.OutcomeUnavailable,
 			Reason:      "credential token rejected by provider",
 			Retryable:   true,
 		}
 	case http.StatusForbidden:
 		return ProviderWarning{
-			WarningKind: gcpcloud.WarningKindPartialPermission,
-			Outcome:     gcpcloud.OutcomePartial,
+			WarningKind: catalog.WarningKindPartialPermission,
+			Outcome:     catalog.OutcomePartial,
 			Reason:      "cloud asset inventory permission denied",
 		}
 	case http.StatusBadRequest, http.StatusNotFound, http.StatusNotImplemented:
 		return ProviderWarning{
-			WarningKind: gcpcloud.WarningKindUnsupported,
-			Outcome:     gcpcloud.OutcomeUnsupported,
+			WarningKind: catalog.WarningKindUnsupported,
+			Outcome:     catalog.OutcomeUnsupported,
 			Reason:      "cloud asset inventory request unsupported",
 		}
 	case http.StatusTooManyRequests:
 		return ProviderWarning{
-			WarningKind: gcpcloud.WarningKindQuota,
-			Outcome:     gcpcloud.OutcomeUnavailable,
+			WarningKind: catalog.WarningKindQuota,
+			Outcome:     catalog.OutcomeUnavailable,
 			Reason:      "cloud asset inventory throttle exhausted",
 			Retryable:   true,
 		}
 	default:
 		retryable := status >= http.StatusInternalServerError
 		return ProviderWarning{
-			WarningKind: gcpcloud.WarningKindUnavailable,
-			Outcome:     gcpcloud.OutcomeUnavailable,
+			WarningKind: catalog.WarningKindUnavailable,
+			Outcome:     catalog.OutcomeUnavailable,
 			Reason:      "cloud asset inventory source unavailable",
 			Retryable:   retryable,
 		}
@@ -403,9 +388,9 @@ func (c LiveClient) httpClient() *http.Client {
 func (c LiveClient) pageSize() int {
 	switch {
 	case c.PageSize <= 0:
-		return DefaultLivePageSize
-	case c.PageSize > MaxLivePageSize:
-		return MaxLivePageSize
+		return catalog.DefaultLivePageSize
+	case c.PageSize > catalog.MaxLivePageSize:
+		return catalog.MaxLivePageSize
 	default:
 		return c.PageSize
 	}
@@ -413,21 +398,21 @@ func (c LiveClient) pageSize() int {
 
 func (c LiveClient) requestTimeout() time.Duration {
 	if c.RequestTimeout <= 0 {
-		return DefaultLiveRequestTimeout
+		return catalog.DefaultLiveRequestTimeout
 	}
 	return c.RequestTimeout
 }
 
 func (c LiveClient) maxAttempts() int {
 	if c.MaxAttempts <= 0 {
-		return DefaultLiveMaxAttempts
+		return catalog.DefaultLiveMaxAttempts
 	}
 	return c.MaxAttempts
 }
 
 func (c LiveClient) maxResponseBytes() int64 {
 	if c.MaxResponseBytes <= 0 {
-		return DefaultLiveResponseBytes
+		return catalog.DefaultLiveResponseBytes
 	}
 	return c.MaxResponseBytes
 }

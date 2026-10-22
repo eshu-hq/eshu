@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/fake"
@@ -46,7 +46,7 @@ func TestGCPFreshnessStoreStoreTriggerUpsertsByFreshnessKey(t *testing.T) {
 	receivedAt := time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC)
 	trigger := testGCPFreshnessTrigger(receivedAt)
 	db := &fake.ExecQueryer{
-		QueryResponses: []fake.Rows{gcpFreshnessTriggerRow(trigger, freshness.TriggerStatusQueued, receivedAt)},
+		QueryResponses: []fake.Rows{gcpFreshnessTriggerRow(trigger, catalog.TriggerStatusQueued, receivedAt)},
 	}
 	store := NewGCPFreshnessStore(db)
 
@@ -54,8 +54,8 @@ func TestGCPFreshnessStoreStoreTriggerUpsertsByFreshnessKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StoreTrigger() error = %v, want nil", err)
 	}
-	if stored.Status != freshness.TriggerStatusQueued {
-		t.Fatalf("Status = %q, want %q", stored.Status, freshness.TriggerStatusQueued)
+	if stored.Status != catalog.TriggerStatusQueued {
+		t.Fatalf("Status = %q, want %q", stored.Status, catalog.TriggerStatusQueued)
 	}
 	if stored.TriggerID == "" || stored.DeliveryKey == "" || stored.FreshnessKey == "" {
 		t.Fatalf("stored trigger missing durable keys: %#v", stored)
@@ -90,7 +90,7 @@ func TestGCPFreshnessStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 	now := time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC)
 	trigger := testGCPFreshnessTrigger(now)
 	db := &fake.ExecQueryer{
-		QueryResponses: []fake.Rows{gcpFreshnessTriggerRow(trigger, freshness.TriggerStatusClaimed, now)},
+		QueryResponses: []fake.Rows{gcpFreshnessTriggerRow(trigger, catalog.TriggerStatusClaimed, now)},
 	}
 	store := NewGCPFreshnessStore(db)
 
@@ -101,8 +101,8 @@ func TestGCPFreshnessStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 	if got, want := len(triggers), 1; got != want {
 		t.Fatalf("len(triggers) = %d, want %d", got, want)
 	}
-	if triggers[0].Status != freshness.TriggerStatusClaimed {
-		t.Fatalf("Status = %q, want %q", triggers[0].Status, freshness.TriggerStatusClaimed)
+	if triggers[0].Status != catalog.TriggerStatusClaimed {
+		t.Fatalf("Status = %q, want %q", triggers[0].Status, catalog.TriggerStatusClaimed)
 	}
 	if !strings.Contains(db.Queries[0].Query, "FOR UPDATE SKIP LOCKED") {
 		t.Fatalf("claim query missing SKIP LOCKED: %s", db.Queries[0].Query)
@@ -140,7 +140,7 @@ func TestGCPFreshnessStoreReapExpiredTriggerClaimsUsesSkipLockedAndLeaseExpiry(t
 	now := time.Date(2026, time.May, 15, 10, 30, 0, 0, time.UTC)
 	trigger := testGCPFreshnessTrigger(now)
 	db := &fake.ExecQueryer{
-		QueryResponses: []fake.Rows{gcpFreshnessTriggerRow(trigger, freshness.TriggerStatusQueued, now)},
+		QueryResponses: []fake.Rows{gcpFreshnessTriggerRow(trigger, catalog.TriggerStatusQueued, now)},
 	}
 	store := NewGCPFreshnessStore(db)
 
@@ -151,8 +151,8 @@ func TestGCPFreshnessStoreReapExpiredTriggerClaimsUsesSkipLockedAndLeaseExpiry(t
 	if got, want := len(reclaimed), 1; got != want {
 		t.Fatalf("len(reclaimed) = %d, want %d", got, want)
 	}
-	if reclaimed[0].Status != freshness.TriggerStatusQueued {
-		t.Fatalf("reclaimed Status = %q, want %q", reclaimed[0].Status, freshness.TriggerStatusQueued)
+	if reclaimed[0].Status != catalog.TriggerStatusQueued {
+		t.Fatalf("reclaimed Status = %q, want %q", reclaimed[0].Status, catalog.TriggerStatusQueued)
 	}
 	query := db.Queries[0].Query
 	for _, want := range []string{
@@ -234,8 +234,8 @@ func TestGCPFreshnessStoreMarkTriggersFailedRequiresFailureClass(t *testing.T) {
 func testGCPFreshnessTrigger(observedAt time.Time) freshness.Trigger {
 	return freshness.Trigger{
 		EventID:         "evt-123",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "demo-project",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1-a",

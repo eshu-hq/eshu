@@ -3,31 +3,17 @@
 
 package extractor
 
-import "time"
+import (
+	"time"
 
-// ParentScopeKind enumerates the Cloud Asset Inventory parent scope kinds a GCP
-// collector claim can shard by. Values are bounded enums safe for telemetry
-// labels and scope identity; they never carry provider numbers or names.
-type ParentScopeKind string
-
-const (
-	// ParentScopeOrganization is an organization-level CAI parent scope.
-	ParentScopeOrganization ParentScopeKind = "organization"
-	// ParentScopeFolder is a folder-level CAI parent scope.
-	ParentScopeFolder ParentScopeKind = "folder"
-	// ParentScopeProject is a project-level CAI parent scope.
-	ParentScopeProject ParentScopeKind = "project"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Valid reports whether the parent scope kind is one of the bounded enum values.
-func (p ParentScopeKind) Valid() bool {
-	switch p {
-	case ParentScopeOrganization, ParentScopeFolder, ParentScopeProject:
-		return true
-	default:
-		return false
-	}
-}
+// ParentScopeKind and its bounded values live in the catalog leaf (#6696,
+// slice L) so the root, every extractor file, and the runtime subpackages
+// share one definition. The alias keeps the Boundary shape and every
+// existing extractor reference compiling unchanged.
+type ParentScopeKind = catalog.ParentScopeKind
 
 // Boundary carries the durable scope-generation and claim identity shared by all
 // facts emitted for one GCP collector claim.

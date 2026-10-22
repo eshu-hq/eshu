@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -103,13 +104,13 @@ func TestExtractRunRevisionFullResource(t *testing.T) {
 	if len(got.Relationships) != 4 {
 		t.Fatalf("expected parent-service + connector + 2 secret edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeRevisionOfService, runRevisionParentSvc, extractor.AssetTypeRunService)
+	assertRelationship(t, got.Relationships, relationshipTypeRevisionOfService, runRevisionParentSvc, catalog.AssetTypeRunService)
 	assertRelationship(t, got.Relationships, relationshipTypeRevisionUsesVPCConnector,
 		"//vpcaccess.googleapis.com/projects/demo-project/locations/us-central1/connectors/serverless-conn", assetTypeVPCAccessConnector)
 	assertRelationship(t, got.Relationships, relationshipTypeRevisionMountsSecret,
-		"//secretmanager.googleapis.com/projects/demo-project/secrets/db-password", extractor.SecretManagerSecretAssetType)
+		"//secretmanager.googleapis.com/projects/demo-project/secrets/db-password", catalog.SecretManagerSecretAssetType)
 	assertRelationship(t, got.Relationships, relationshipTypeRevisionMountsSecret,
-		"//secretmanager.googleapis.com/projects/demo-project/secrets/app-config", extractor.SecretManagerSecretAssetType)
+		"//secretmanager.googleapis.com/projects/demo-project/secrets/app-config", catalog.SecretManagerSecretAssetType)
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != runRevisionFullName {
 			t.Errorf("relationship source = %q, want revision full name", rel.SourceFullResourceName)
@@ -153,7 +154,7 @@ func TestExtractRunRevisionParentServiceFromName(t *testing.T) {
 	if len(got.Relationships) != 1 {
 		t.Fatalf("expected exactly the parent-service edge, got %#v", got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeRevisionOfService, runRevisionParentSvc, extractor.AssetTypeRunService)
+	assertRelationship(t, got.Relationships, relationshipTypeRevisionOfService, runRevisionParentSvc, catalog.AssetTypeRunService)
 }
 
 func TestExtractRunRevisionImageWithoutDigestOmitsDigest(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/gcpruntime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -81,7 +82,7 @@ func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig,
 	if err != nil {
 		return claimedRuntimeConfig{}, err
 	}
-	pollInterval, err := envDuration(getenv, envPollInterval, gcpruntime.DefaultPollInterval)
+	pollInterval, err := envDuration(getenv, envPollInterval, catalog.DefaultPollInterval)
 	if err != nil {
 		return claimedRuntimeConfig{}, err
 	}

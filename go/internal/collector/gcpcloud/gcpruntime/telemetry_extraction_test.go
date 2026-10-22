@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 // TestRecordAttributeExtractionsOutcomes proves the source records one extraction
@@ -51,7 +52,7 @@ func TestRecordAttributeExtractionsOutcomes(t *testing.T) {
 				total += dp.Value
 				for _, attr := range dp.Attributes.ToSlice() {
 					switch attr.Value.AsString() {
-					case gcpcloud.ExtractionOutcomeExtracted, gcpcloud.ExtractionOutcomeEmpty:
+					case catalog.ExtractionOutcomeExtracted, catalog.ExtractionOutcomeEmpty:
 						byOutcome[attr.Value.AsString()] += dp.Value
 					}
 				}
@@ -59,10 +60,10 @@ func TestRecordAttributeExtractionsOutcomes(t *testing.T) {
 		}
 	}
 
-	if got := byOutcome[gcpcloud.ExtractionOutcomeExtracted]; got != 1 {
+	if got := byOutcome[catalog.ExtractionOutcomeExtracted]; got != 1 {
 		t.Errorf("extracted count = %d, want 1", got)
 	}
-	if got := byOutcome[gcpcloud.ExtractionOutcomeEmpty]; got != 1 {
+	if got := byOutcome[catalog.ExtractionOutcomeEmpty]; got != 1 {
 		t.Errorf("empty count = %d, want 1", got)
 	}
 	if total != 2 {

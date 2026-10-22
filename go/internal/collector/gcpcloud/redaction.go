@@ -6,31 +6,14 @@ package gcpcloud
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
-// RedactionPolicyVersion identifies the GCP cloud collector redaction policy
-// attached to every emitted fact payload. Reducers and audits use it to know
-// which fingerprinting and payload-boundary rules produced a fact.
-//
-// Rotation: rotating the underlying redact.Key material MUST be accompanied by
-// bumping this constant. The version stamp is what distinguishes the pre- and
-// post-rotation keyspaces, so fingerprints produced under different keys are
-// never treated as the same identity. Bumping it also signals that facts
-// stamped with an older version were fingerprinted under retired key material
-// and must be re-collected (re-fingerprinted) to join the current keyspace. A
-// key rotation without a version bump is unsupported: it would silently
-// produce mismatched fingerprints for the same underlying identity across the
-// rotation boundary. See docs/internal/design/multicloud-live-collector-security-review.md
-// (section 2, Redaction-key handling) for the full rotation procedure.
-const RedactionPolicyVersion = "gcp-cloud-2026-06-09"
-
-const (
-	// redactionReasonLabel marks a fingerprinted resource label value.
-	redactionReasonLabel = "gcp_label_value"
-	// redactionReasonMember marks a fingerprinted IAM member identity.
-	redactionReasonMember = "gcp_iam_member"
-)
+// The redaction policy version and reasons (catalog leaf, #6696 slice L)
+// identify the GCP cloud collector redaction policy attached to every emitted
+// fact payload. The rotation invariant lives with the constant: rotating the
+// underlying redact.Key material MUST bump catalog.RedactionPolicyVersion.
 
 // FingerprintLabelValues returns a copy of labels with the values of keys named
 // in fingerprintKeys replaced by deterministic keyed redaction markers. Label
@@ -47,7 +30,7 @@ func FingerprintLabelValues(labels map[string]string, fingerprintKeys []string, 
 	out := make(map[string]string, len(labels))
 	for k, v := range labels {
 		if _, ok := fingerprint[k]; ok {
-			out[k] = redact.String(v, redactionReasonLabel, "gcp_label:"+k, key).Marker
+			out[k] = redact.String(v, catalog.RedactionReasonLabel, "gcp_label:"+k, key).Marker
 			continue
 		}
 		out[k] = v
@@ -63,7 +46,7 @@ func FingerprintLabelValues(labels map[string]string, fingerprintKeys []string, 
 func MemberClass(member string) string {
 	trimmed := strings.TrimSpace(member)
 	if trimmed == "" {
-		return unknownLabel
+		return catalog.UnknownLabel
 	}
 	if after, ok := strings.CutPrefix(trimmed, "deleted:"); ok {
 		trimmed = after
@@ -76,13 +59,13 @@ func MemberClass(member string) string {
 	}
 	prefix, _, ok := strings.Cut(trimmed, ":")
 	if !ok || prefix == "" {
-		return unknownLabel
+		return catalog.UnknownLabel
 	}
 	switch prefix {
 	case "user", "group", "serviceAccount", "domain", "principal", "principalSet":
 		return prefix
 	default:
-		return unknownLabel
+		return catalog.UnknownLabel
 	}
 }
 
@@ -91,5 +74,5 @@ func MemberClass(member string) string {
 // is never retained; reducers join on the class plus fingerprint, never on the
 // raw email.
 func FingerprintMember(member string, key redact.Key) string {
-	return redact.String(strings.TrimSpace(member), redactionReasonMember, "gcp_iam_member:"+MemberClass(member), key).Marker
+	return redact.String(strings.TrimSpace(member), catalog.RedactionReasonMember, "gcp_iam_member:"+MemberClass(member), key).Marker
 }

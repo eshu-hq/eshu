@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -91,10 +92,10 @@ func (c gcpStatusCommitter) recordOutcome(ctx context.Context, commitErr error) 
 		return
 	}
 	if commitErr != nil {
-		c.metrics.RecordClaim(ctx, gcpcloud.ClaimStatusFailed)
+		c.metrics.RecordClaim(ctx, catalog.ClaimStatusFailed)
 		return
 	}
-	c.metrics.RecordClaim(ctx, gcpcloud.ClaimStatusSucceeded)
+	c.metrics.RecordClaim(ctx, catalog.ClaimStatusSucceeded)
 }
 
 var (

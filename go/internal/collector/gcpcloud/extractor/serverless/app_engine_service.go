@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -97,7 +98,7 @@ func extractAppEngineService(ctx extractor.ExtractContext) (extractor.AttributeE
 						RelationshipType:       relationshipTypeServiceSplitsTrafficToVersion,
 						TargetFullResourceName: versionName,
 						TargetAssetType:        assetTypeAppEngineVersion,
-						SupportState:           extractor.RelationshipSupportSupported,
+						SupportState:           catalog.RelationshipSupportSupported,
 					})
 				}
 			}

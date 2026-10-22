@@ -5,25 +5,6 @@ package extractor
 
 import "time"
 
-// GCP relationship support states classify how completely the provider described
-// an observed relationship. They are provenance only: the collector reports what
-// Cloud Asset Inventory returned and resolves no endpoints and writes no graph
-// edge (reducer-owned).
-const (
-	// RelationshipSupportSupported means the provider returned a complete
-	// relationship between two resources. It is the default for an observed
-	// relationship.
-	RelationshipSupportSupported = "supported"
-	// RelationshipSupportPartial means the relationship was observed but the
-	// target is opaque or outside the readable boundary (cross-project), so a
-	// reducer must treat the target as unresolved rather than a clean match.
-	RelationshipSupportPartial = "partial"
-	// RelationshipSupportUnsupported means the relationship type or tier is not
-	// fully supported (for example a Security Command Center
-	// premium/enterprise-gated edge), carried as provenance only.
-	RelationshipSupportUnsupported = "unsupported"
-)
-
 // RelationshipObservation is one provider-observed relationship between two GCP
 // resources, identified by Cloud Asset Inventory full resource names. The
 // collector preserves both full resource names, the asset types, the bounded

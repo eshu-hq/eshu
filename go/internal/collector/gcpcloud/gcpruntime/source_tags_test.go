@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 )
@@ -31,10 +32,10 @@ func TestSourceEmitsOptInDirectAndEffectiveTagFacts(t *testing.T) {
 	})
 	tagProvider := &recordingTagProvider{
 		pages: map[string][]TagPage{
-			tagProviderKey(resource.Name, TagSourceKindDirect): {
+			tagProviderKey(resource.Name, catalog.TagSourceKindDirect): {
 				{Tags: map[string]string{"123/env": "prod"}, SourceURI: "resourcemanager://tagBindings.list"},
 			},
-			tagProviderKey(resource.Name, TagSourceKindEffective): {
+			tagProviderKey(resource.Name, catalog.TagSourceKindEffective): {
 				{
 					Tags:             map[string]string{"123/env": "prod", "123/team": "platform"},
 					InheritanceState: map[string]string{"123/env": "direct", "123/team": "inherited"},
@@ -68,10 +69,10 @@ func TestSourceEmitsOptInDirectAndEffectiveTagFacts(t *testing.T) {
 		}
 		seen[stringify(env.Payload["source_kind"])] = env
 	}
-	if _, ok := seen[TagSourceKindDirect]; !ok {
+	if _, ok := seen[catalog.TagSourceKindDirect]; !ok {
 		t.Fatalf("direct tag fact missing: %#v", seen)
 	}
-	effective := seen[TagSourceKindEffective]
+	effective := seen[catalog.TagSourceKindEffective]
 	if effective.FactKind == "" {
 		t.Fatalf("effective tag fact missing: %#v", seen)
 	}
@@ -99,8 +100,8 @@ func TestSourceTagProviderWarningBecomesCollectionWarning(t *testing.T) {
 	})
 	src := newSource(t, testConfig(scopeCfg), provider, nil)
 	src.TagProvider = warningTagProvider{warning: ProviderWarning{
-		WarningKind: gcpcloud.WarningKindPartialPermission,
-		Outcome:     gcpcloud.OutcomePartial,
+		WarningKind: catalog.WarningKindPartialPermission,
+		Outcome:     catalog.OutcomePartial,
 		Reason:      "resource manager tag permission denied",
 		SourceURI:   "resourcemanager://tagBindings.list",
 	}}
@@ -117,7 +118,7 @@ func TestSourceTagProviderWarningBecomesCollectionWarning(t *testing.T) {
 		t.Fatalf("warning fact count = %d, want 1", got)
 	}
 	warning := firstEnvelopeKind(t, envs, cloud.GCPCollectionWarningFactKind)
-	if got := warning.Payload["warning_kind"]; got != gcpcloud.WarningKindPartialPermission {
+	if got := warning.Payload["warning_kind"]; got != catalog.WarningKindPartialPermission {
 		t.Fatalf("warning_kind = %v, want partial_permission", got)
 	}
 	if got := warning.SourceRef.SourceURI; got != "resourcemanager://tagBindings.list" {
@@ -141,7 +142,7 @@ func TestSourceMergesPaginatedTagPagesIntoOneFact(t *testing.T) {
 	})
 	tagProvider := &recordingTagProvider{
 		pages: map[string][]TagPage{
-			tagProviderKey(resource.Name, TagSourceKindEffective): {
+			tagProviderKey(resource.Name, catalog.TagSourceKindEffective): {
 				{
 					Tags:             map[string]string{"123/env": "prod"},
 					InheritanceState: map[string]string{"123/env": "direct"},
@@ -198,8 +199,8 @@ func (p *recordingTagProvider) FetchTagPage(_ context.Context, req TagRequest) (
 	pages := p.pages[key]
 	if len(pages) == 0 {
 		return TagPage{}, ProviderWarning{
-			WarningKind: gcpcloud.WarningKindUnsupported,
-			Outcome:     gcpcloud.OutcomeUnsupported,
+			WarningKind: catalog.WarningKindUnsupported,
+			Outcome:     catalog.OutcomeUnsupported,
 			Reason:      "test tag page missing",
 			SourceURI:   "resourcemanager://test",
 		}
@@ -216,8 +217,8 @@ func (p *recordingTagProvider) FetchTagPage(_ context.Context, req TagRequest) (
 		}
 	}
 	return TagPage{}, ProviderWarning{
-		WarningKind: gcpcloud.WarningKindPageTokenExpired,
-		Outcome:     gcpcloud.OutcomePartial,
+		WarningKind: catalog.WarningKindPageTokenExpired,
+		Outcome:     catalog.OutcomePartial,
 		Reason:      "test tag page token expired",
 		SourceURI:   "resourcemanager://test",
 	}

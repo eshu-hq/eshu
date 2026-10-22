@@ -10,11 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
-const tagSourceKindLabel = "label"
+// The label tag source kind lives in the catalog leaf (#6696, slice L).
 
 // ErrStaleGeneration reports that a generation was rejected because a newer
 // generation (higher fencing token) already owns the scope. Callers classify it
@@ -215,7 +216,7 @@ func (g *Generation) tagObservationEnvelope(obs ResourceObservation) (facts.Enve
 		FullResourceName: obs.Name,
 		AssetType:        obs.AssetType,
 		Tags:             obs.Labels,
-		SourceKind:       tagSourceKindLabel,
+		SourceKind:       catalog.TagSourceKindLabel,
 		UpdateTime:       obs.UpdateTime,
 		SourceRecordID:   obs.SourceRecordID,
 		SourceURI:        obs.SourceURI,

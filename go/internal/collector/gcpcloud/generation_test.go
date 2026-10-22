@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -210,8 +211,8 @@ func TestGenerationPartialPermissionWarning(t *testing.T) {
 
 	gen.AddWarning(WarningObservation{
 		Boundary:    testGenerationBoundary(),
-		WarningKind: WarningKindPartialPermission,
-		Outcome:     OutcomePartial,
+		WarningKind: catalog.WarningKindPartialPermission,
+		Outcome:     catalog.OutcomePartial,
 		Reason:      "missing roles/cloudasset.viewer",
 		HiddenCount: 4,
 	})

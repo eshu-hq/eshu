@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -16,8 +17,7 @@ import (
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
-// redactionReasonTagValue marks a fingerprinted GCP tag/label value.
-const redactionReasonTagValue = "gcp_tag_value"
+// The tag redaction reason lives in the catalog leaf (#6696, slice L).
 
 // TagObservation is one GCP resource's tag/label evidence. The collector keeps
 // the tag keys (not sensitive) and fingerprints every tag value with the
@@ -88,7 +88,7 @@ func NewTagObservationEnvelope(obs TagObservation, key redact.Key) (facts.Envelo
 		ProjectID:              &projectID,
 		TagKeys:                tagKeys,
 		SourceKind:             &sourceKind,
-		RedactionPolicyVersion: stringPtr(RedactionPolicyVersion),
+		RedactionPolicyVersion: stringPtr(catalog.RedactionPolicyVersion),
 	})
 	if err != nil {
 		return facts.Envelope{}, fmt.Errorf("encode gcp_tag_observation payload: %w", err)
@@ -123,7 +123,7 @@ func fingerprintTagValues(tags map[string]string, key redact.Key) (map[string]st
 		if trimmedKey == "" {
 			continue
 		}
-		out[trimmedKey] = redact.String(v, redactionReasonTagValue, "gcp_tag:"+trimmedKey, key).Marker
+		out[trimmedKey] = redact.String(v, catalog.RedactionReasonTagValue, "gcp_tag:"+trimmedKey, key).Marker
 	}
 	if len(out) == 0 {
 		return nil, nil

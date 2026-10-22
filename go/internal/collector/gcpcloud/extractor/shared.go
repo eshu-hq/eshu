@@ -7,37 +7,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
-
-// CloudKMSResourceNamePrefix is the CAI full-resource-name prefix for Cloud
-// KMS keys. A bare relative CMEK reference (projects/.../cryptoKeys/...) is
-// normalized by prefixing it with this value.
-const CloudKMSResourceNamePrefix = "//cloudkms.googleapis.com/"
-
-// Asset types shared by extractors across service groups. Each names the CAI
-// asset type of a typed edge endpoint so reducers can resolve both endpoints
-// exactly. They live in this leaf because extractors in several groups derive
-// edges to them.
-const (
-	// AssetTypeKMSCryptoKey is the CAI asset type for a Cloud KMS CryptoKey,
-	// the target of CMEK encryption edges from many groups.
-	AssetTypeKMSCryptoKey = "cloudkms.googleapis.com/CryptoKey"
-	// AssetTypeStorageBucket is the CAI asset type for a Cloud Storage bucket,
-	// the target of source-bucket and DAG-bucket edges.
-	AssetTypeStorageBucket = "storage.googleapis.com/Bucket"
-	// AssetTypeRunService is the CAI asset type for a Cloud Run service, the
-	// target of trigger and revision-parent edges.
-	AssetTypeRunService = "run.googleapis.com/Service"
-	// AssetTypeRunJob is the CAI asset type for a Cloud Run job, handled
-	// alongside services for container image references.
-	AssetTypeRunJob = "run.googleapis.com/Job"
-)
-
-// StorageBucketResourceNamePrefixFmt is a plain string prefix, not a
-// fmt.Sprintf format string, despite the "Fmt" suffix: it carries no `%` verb.
-// Every caller builds a bucket full resource name by concatenating the bucket
-// name directly onto this prefix, never via fmt.Sprintf.
-const StorageBucketResourceNamePrefixFmt = "//storage.googleapis.com/projects/_/buckets/"
 
 // CMEKKeyFullResourceName normalizes a customer-managed-encryption CryptoKey
 // reference into a Cloud KMS CAI full resource name shared by every extractor
@@ -59,12 +31,12 @@ func CMEKKeyFullResourceName(kmsKeyName string) string {
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {
-		if strings.HasPrefix(trimmed, CloudKMSResourceNamePrefix) {
+		if strings.HasPrefix(trimmed, catalog.CloudKMSResourceNamePrefix) {
 			return trimmed
 		}
 		return ""
 	}
-	return CloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
+	return catalog.CloudKMSResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // DedupeNonEmpty trims, drops blanks, and deduplicates a string slice,

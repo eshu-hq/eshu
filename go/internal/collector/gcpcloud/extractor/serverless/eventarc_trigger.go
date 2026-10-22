@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -97,9 +98,9 @@ func extractEventarcTrigger(ctx extractor.ExtractContext) (extractor.AttributeEx
 		rels = append(rels, eventarcTriggerEdge(ctx, relType, dest, targetType))
 	}
 	if data.Transport != nil && data.Transport.Pubsub != nil {
-		if topic := eventarcRelativeFullName(extractor.PubSubResourceNamePrefix, data.Transport.Pubsub.Topic); topic != "" {
+		if topic := eventarcRelativeFullName(catalog.PubSubResourceNamePrefix, data.Transport.Pubsub.Topic); topic != "" {
 			anchors = append(anchors, topic)
-			rels = append(rels, eventarcTriggerEdge(ctx, relationshipTypeTriggerTransportTopic, topic, extractor.AssetTypePubSubTopic))
+			rels = append(rels, eventarcTriggerEdge(ctx, relationshipTypeTriggerTransportTopic, topic, catalog.AssetTypePubSubTopic))
 		}
 	}
 	if channel := eventarcRelativeFullName(eventarcResourceNamePrefix, data.Channel); channel != "" {
@@ -183,8 +184,8 @@ func eventarcTriggerDestination(triggerFullName string, data eventarcTriggerData
 		if project == "" || region == "" {
 			return "", "", ""
 		}
-		full = extractor.RunServiceResourceNamePrefix + "projects/" + project + "/locations/" + region + "/services/" + strings.TrimSpace(cr.Service)
-		return full, extractor.AssetTypeRunService, relationshipTypeTriggerTargetsService
+		full = catalog.RunServiceResourceNamePrefix + "projects/" + project + "/locations/" + region + "/services/" + strings.TrimSpace(cr.Service)
+		return full, catalog.AssetTypeRunService, relationshipTypeTriggerTargetsService
 	}
 	if fn := eventarcRelativeFullName(cloudFunctionResourceNamePrefix, data.Destination.CloudFunction); fn != "" {
 		return fn, assetTypeCloudFunction, relationshipTypeTriggerTargetsFunction
@@ -222,6 +223,6 @@ func eventarcTriggerEdge(ctx extractor.ExtractContext, relationshipType, targetN
 		RelationshipType:       relationshipType,
 		TargetFullResourceName: targetName,
 		TargetAssetType:        targetType,
-		SupportState:           extractor.RelationshipSupportSupported,
+		SupportState:           catalog.RelationshipSupportSupported,
 	}
 }

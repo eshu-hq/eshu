@@ -15,21 +15,11 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-const (
-	// CloudResourceManagerEndpoint is the default endpoint for Resource Manager
-	// direct and effective tag APIs.
-	CloudResourceManagerEndpoint = "https://cloudresourcemanager.googleapis.com"
-	// DefaultLiveTagPageSize keeps Resource Manager tag pages bounded.
-	DefaultLiveTagPageSize = 100
-	// MaxLiveTagPageSize is the largest pageSize LiveClient sends to tag APIs.
-	MaxLiveTagPageSize = 300
-
-	tagBindingsSourceURI = "resourcemanager://tagBindings.list"
-	effectiveTagsURI     = "resourcemanager://effectiveTags.list"
-)
+// The live tag API endpoint, page bounds, and source URIs live in the catalog
+// leaf (#6696, slice L).
 
 type tagBindingsListResponse struct {
 	TagBindings   []tagBindingResponse `json:"tagBindings"`
@@ -79,8 +69,8 @@ func (c LiveClient) FetchTagPage(ctx context.Context, req TagRequest) (TagPage, 
 		}
 	}
 	return TagPage{}, ProviderWarning{
-		WarningKind: gcpcloud.WarningKindUnavailable,
-		Outcome:     gcpcloud.OutcomeUnavailable,
+		WarningKind: catalog.WarningKindUnavailable,
+		Outcome:     catalog.OutcomeUnavailable,
 		Reason:      "resource manager tag retry attempts exhausted",
 		Retryable:   true,
 		SourceURI:   sourceURI,
@@ -108,8 +98,8 @@ func (c LiveClient) fetchTagAttempt(
 			return TagPage{}, false, attemptCtx.Err()
 		}
 		return TagPage{}, true, ProviderWarning{
-			WarningKind: gcpcloud.WarningKindUnavailable,
-			Outcome:     gcpcloud.OutcomeUnavailable,
+			WarningKind: catalog.WarningKindUnavailable,
+			Outcome:     catalog.OutcomeUnavailable,
 			Reason:      "resource manager tag transport unavailable",
 			Retryable:   true,
 			SourceURI:   sourceURI,
@@ -122,8 +112,8 @@ func (c LiveClient) fetchTagAttempt(
 	body, err := readBounded(resp.Body, c.maxResponseBytes())
 	if err != nil {
 		return TagPage{}, false, ProviderWarning{
-			WarningKind: gcpcloud.WarningKindRedaction,
-			Outcome:     gcpcloud.OutcomeUnavailable,
+			WarningKind: catalog.WarningKindRedaction,
+			Outcome:     catalog.OutcomeUnavailable,
 			Reason:      "resource manager tag response exceeded size limit",
 			SourceURI:   sourceURI,
 		}
@@ -144,7 +134,7 @@ func (c LiveClient) tagRequestURL(req TagRequest) (string, string, error) {
 	if fullName == "" {
 		return "", "", errors.New("gcp live tag full resource name is required")
 	}
-	base := strings.TrimRight(firstNonEmpty(c.ResourceManagerEndpoint, CloudResourceManagerEndpoint), "/")
+	base := strings.TrimRight(firstNonEmpty(c.ResourceManagerEndpoint, catalog.CloudResourceManagerEndpoint), "/")
 	values := url.Values{}
 	values.Set("parent", fullName)
 	values.Set("pageSize", strconv.Itoa(c.tagPageSize()))
@@ -152,14 +142,14 @@ func (c LiveClient) tagRequestURL(req TagRequest) (string, string, error) {
 		values.Set("pageToken", token)
 	}
 	switch strings.TrimSpace(req.SourceKind) {
-	case TagSourceKindDirect:
-		return base + "/v3/tagBindings?" + values.Encode(), tagBindingsSourceURI, nil
-	case TagSourceKindEffective:
-		return base + "/v3/effectiveTags?" + values.Encode(), effectiveTagsURI, nil
+	case catalog.TagSourceKindDirect:
+		return base + "/v3/tagBindings?" + values.Encode(), catalog.TagBindingsSourceURI, nil
+	case catalog.TagSourceKindEffective:
+		return base + "/v3/effectiveTags?" + values.Encode(), catalog.EffectiveTagsSourceURI, nil
 	default:
 		return "", "", ProviderWarning{
-			WarningKind: gcpcloud.WarningKindUnsupported,
-			Outcome:     gcpcloud.OutcomeUnsupported,
+			WarningKind: catalog.WarningKindUnsupported,
+			Outcome:     catalog.OutcomeUnsupported,
 			Reason:      "resource manager tag source unsupported",
 			SourceURI:   "resourcemanager://unknown",
 		}
@@ -168,7 +158,7 @@ func (c LiveClient) tagRequestURL(req TagRequest) (string, string, error) {
 
 func parseTagPage(body []byte, sourceKind string, sourceURI string) (TagPage, error) {
 	switch strings.TrimSpace(sourceKind) {
-	case TagSourceKindDirect:
+	case catalog.TagSourceKindDirect:
 		var response tagBindingsListResponse
 		if err := json.Unmarshal(body, &response); err != nil {
 			return TagPage{}, err
@@ -181,7 +171,7 @@ func parseTagPage(body []byte, sourceKind string, sourceURI string) (TagPage, er
 				continue
 			}
 			tags[key] = value
-			states[key] = tagInheritanceDirect
+			states[key] = catalog.TagInheritanceDirect
 		}
 		return TagPage{
 			Tags:             tags,
@@ -189,7 +179,7 @@ func parseTagPage(body []byte, sourceKind string, sourceURI string) (TagPage, er
 			NextPageToken:    strings.TrimSpace(response.NextPageToken),
 			SourceURI:        sourceURI,
 		}, nil
-	case TagSourceKindEffective:
+	case catalog.TagSourceKindEffective:
 		var response effectiveTagsListResponse
 		if err := json.Unmarshal(body, &response); err != nil {
 			return TagPage{}, err
@@ -203,9 +193,9 @@ func parseTagPage(body []byte, sourceKind string, sourceURI string) (TagPage, er
 			}
 			tags[key] = value
 			if tag.Inherited {
-				states[key] = tagInheritanceInherited
+				states[key] = catalog.TagInheritanceInherited
 			} else {
-				states[key] = tagInheritanceDirect
+				states[key] = catalog.TagInheritanceDirect
 			}
 		}
 		return TagPage{
@@ -216,8 +206,8 @@ func parseTagPage(body []byte, sourceKind string, sourceURI string) (TagPage, er
 		}, nil
 	default:
 		return TagPage{}, ProviderWarning{
-			WarningKind: gcpcloud.WarningKindUnsupported,
-			Outcome:     gcpcloud.OutcomeUnsupported,
+			WarningKind: catalog.WarningKindUnsupported,
+			Outcome:     catalog.OutcomeUnsupported,
 			Reason:      "resource manager tag source unsupported",
 			SourceURI:   sourceURI,
 		}
@@ -257,15 +247,15 @@ func classifyTagStatus(status int, sourceURI string) ProviderWarning {
 	warning := classifyLiveStatus(status)
 	warning.SourceURI = sourceURI
 	switch warning.WarningKind {
-	case gcpcloud.WarningKindPartialPermission:
+	case catalog.WarningKindPartialPermission:
 		if status == http.StatusForbidden {
 			warning.Reason = "resource manager tag permission denied"
 		} else {
 			warning.Reason = "credential token rejected by resource manager"
 		}
-	case gcpcloud.WarningKindUnsupported:
+	case catalog.WarningKindUnsupported:
 		warning.Reason = "resource manager tag request unsupported"
-	case gcpcloud.WarningKindQuota:
+	case catalog.WarningKindQuota:
 		warning.Reason = "resource manager tag throttle exhausted"
 	default:
 		warning.Reason = "resource manager tag source unavailable"
@@ -276,9 +266,9 @@ func classifyTagStatus(status int, sourceURI string) ProviderWarning {
 func (c LiveClient) tagPageSize() int {
 	switch {
 	case c.TagPageSize <= 0:
-		return DefaultLiveTagPageSize
-	case c.TagPageSize > MaxLiveTagPageSize:
-		return MaxLiveTagPageSize
+		return catalog.DefaultLiveTagPageSize
+	case c.TagPageSize > catalog.MaxLiveTagPageSize:
+		return catalog.MaxLiveTagPageSize
 	default:
 		return c.TagPageSize
 	}

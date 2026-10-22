@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
@@ -16,15 +17,8 @@ import (
 	gcpv1 "github.com/eshu-hq/eshu/sdk/go/factschema/gcp/v1"
 )
 
-// maxIAMPolicyMembers bounds the number of member bindings carried on one
-// gcp_iam_policy_observation fact so a large binding cannot emit an unbounded
-// payload.
-const maxIAMPolicyMembers = 500
-
-const (
-	redactionReasonIAMEtag      = "gcp_iam_etag"
-	redactionReasonIAMCondition = "gcp_iam_condition"
-)
+// The IAM observation bounds and redaction reasons live in the catalog leaf
+// (#6696, slice L).
 
 // IAMPolicyObservation is one GCP IAM role binding observed on a resource. The
 // collector keeps the role and condition presence as evidence and fingerprints
@@ -116,9 +110,9 @@ func NewIAMPolicyObservationEnvelope(obs IAMPolicyObservation, key redact.Key) (
 	payload["member_truncated"] = memberTruncated
 	payload["read_time"] = timeOrNil(obs.Boundary.ReadTime)
 	payload["update_time"] = timeOrNil(obs.UpdateTime.UTC())
-	payload["redaction_policy_version"] = RedactionPolicyVersion
+	payload["redaction_policy_version"] = catalog.RedactionPolicyVersion
 	if etag := strings.TrimSpace(obs.Etag); etag != "" {
-		payload["etag_fingerprint"] = redact.String(etag, redactionReasonIAMEtag, "gcp_iam_etag", key).Marker
+		payload["etag_fingerprint"] = redact.String(etag, catalog.RedactionReasonIAMEtag, "gcp_iam_etag", key).Marker
 	}
 
 	return newEnvelope(
@@ -137,7 +131,7 @@ func fingerprintIAMCondition(condition string, key redact.Key) string {
 	if condition == "" {
 		return ""
 	}
-	return redact.String(condition, redactionReasonIAMCondition, "gcp_iam_condition", key).Marker
+	return redact.String(condition, catalog.RedactionReasonIAMCondition, "gcp_iam_condition", key).Marker
 }
 
 // fingerprintIAMMembers records each non-blank member as its class plus a keyed
@@ -168,8 +162,8 @@ func fingerprintIAMMembers(members []string, key redact.Key) ([]map[string]strin
 	}
 	sort.Strings(fingerprints)
 	truncated := false
-	if len(fingerprints) > maxIAMPolicyMembers {
-		fingerprints = fingerprints[:maxIAMPolicyMembers]
+	if len(fingerprints) > catalog.MaxIAMPolicyMembers {
+		fingerprints = fingerprints[:catalog.MaxIAMPolicyMembers]
 		truncated = true
 	}
 	out := make([]map[string]string, 0, len(fingerprints))

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -92,11 +93,11 @@ func TestExtractCloudFunctionV1FullResource(t *testing.T) {
 	}
 	assertRelationship(t, got.Relationships, relationshipTypeFunctionUsesVPCConnector, conn, assetTypeVPCAccessConnector)
 	assertRelationship(t, got.Relationships, relationshipTypeFunctionSourceBucket,
-		"//storage.googleapis.com/projects/_/buckets/gcf-sources-v1", extractor.AssetTypeStorageBucket)
+		"//storage.googleapis.com/projects/_/buckets/gcf-sources-v1", catalog.AssetTypeStorageBucket)
 	assertRelationship(t, got.Relationships, relationshipTypeFunctionTriggeredByTopic,
-		"//pubsub.googleapis.com/projects/demo-project/topics/events", extractor.AssetTypePubSubTopic)
+		"//pubsub.googleapis.com/projects/demo-project/topics/events", catalog.AssetTypePubSubTopic)
 	assertRelationship(t, got.Relationships, relationshipTypeFunctionMountsSecret,
-		"//secretmanager.googleapis.com/projects/demo-project/secrets/db-password", extractor.SecretManagerSecretAssetType)
+		"//secretmanager.googleapis.com/projects/demo-project/secrets/db-password", catalog.SecretManagerSecretAssetType)
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != cloudFunctionV1FullName {
 			t.Errorf("relationship source = %q", rel.SourceFullResourceName)

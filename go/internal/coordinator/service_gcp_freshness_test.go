@@ -14,7 +14,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -139,8 +139,8 @@ func TestServiceRunActiveModeFansOutGCPFreshnessTriggerToMultipleContentFamilies
 	now := time.Date(2026, time.July, 2, 12, 0, 0, 0, time.UTC)
 	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
 		EventID:         "event-1",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "project-alpha",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1",
@@ -242,8 +242,8 @@ func TestServiceRunActiveModeSkipsGCPFreshnessWhenPriorTargetIsOpen(t *testing.T
 	now := time.Date(2026, time.July, 2, 12, 30, 0, 0, time.UTC)
 	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
 		EventID:         "event-1",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "project-alpha",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1",
@@ -337,8 +337,8 @@ func TestScheduleGCPFreshnessWorkRequiresPlannerBeforeClaim(t *testing.T) {
 	now := time.Date(2026, time.July, 2, 12, 45, 0, 0, time.UTC)
 	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
 		EventID:         "event-1",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "project-alpha",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1",
@@ -383,8 +383,8 @@ func TestScheduleGCPFreshnessWorkMarksFailedWhenNoScopeMatchesTuple(t *testing.T
 	now := time.Date(2026, time.July, 2, 13, 0, 0, 0, time.UTC)
 	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
 		EventID:         "event-1",
-		Kind:            freshness.EventKindAssetChange,
-		ParentScopeKind: gcpcloud.ParentScopeProject,
+		Kind:            catalog.EventKindAssetChange,
+		ParentScopeKind: catalog.ParentScopeProject,
 		ParentScopeID:   "project-unconfigured",
 		AssetType:       "compute.googleapis.com/Instance",
 		Location:        "us-central1",

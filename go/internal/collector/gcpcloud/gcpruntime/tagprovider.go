@@ -8,17 +8,11 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-const (
-	// TagSourceKindDirect identifies directly attached Resource Manager tags.
-	TagSourceKindDirect = "direct"
-	// TagSourceKindEffective identifies Resource Manager effective tags.
-	TagSourceKindEffective = "effective"
-
-	tagInheritanceDirect    = "direct"
-	tagInheritanceInherited = "inherited"
-)
+// Tag source kinds and inheritance states live in the catalog leaf (#6696,
+// slice L).
 
 // TagRequest identifies one bounded Resource Manager tag-listing page request.
 // It carries only source identity and no credential material.
@@ -48,10 +42,10 @@ type TagProvider interface {
 func tagSourceKinds(scopeCfg ScopeConfig) []string {
 	kinds := make([]string, 0, 2)
 	if scopeCfg.DirectTagsEnabled {
-		kinds = append(kinds, TagSourceKindDirect)
+		kinds = append(kinds, catalog.TagSourceKindDirect)
 	}
 	if scopeCfg.EffectiveTagsEnabled {
-		kinds = append(kinds, TagSourceKindEffective)
+		kinds = append(kinds, catalog.TagSourceKindEffective)
 	}
 	return kinds
 }

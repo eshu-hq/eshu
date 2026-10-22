@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -17,7 +18,7 @@ const runServiceFullName = "//run.googleapis.com/projects/demo-project/locations
 func runServiceContext(data string) extractor.ExtractContext {
 	return extractor.ExtractContext{
 		FullResourceName: runServiceFullName,
-		AssetType:        extractor.AssetTypeRunService,
+		AssetType:        catalog.AssetTypeRunService,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
@@ -33,8 +34,8 @@ func containsStringSlice(haystack []string, needle string) bool {
 }
 
 func TestRunServiceExtractorIsRegistered(t *testing.T) {
-	if _, ok := extractor.LookupAssetExtractor(extractor.AssetTypeRunService); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", extractor.AssetTypeRunService)
+	if _, ok := extractor.LookupAssetExtractor(catalog.AssetTypeRunService); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.AssetTypeRunService)
 	}
 }
 
@@ -114,15 +115,15 @@ func TestExtractRunServiceFullResource(t *testing.T) {
 	assertRelationship(t, got.Relationships, relationshipTypeRunServiceUsesVPCConnector,
 		"//vpcaccess.googleapis.com/projects/demo-project/locations/us-central1/connectors/serverless-conn", assetTypeVPCAccessConnector)
 	assertRelationship(t, got.Relationships, relationshipTypeRunServiceMountsSecret,
-		"//secretmanager.googleapis.com/projects/demo-project/secrets/db-password", extractor.SecretManagerSecretAssetType)
+		"//secretmanager.googleapis.com/projects/demo-project/secrets/db-password", catalog.SecretManagerSecretAssetType)
 	assertRelationship(t, got.Relationships, relationshipTypeRunServiceMountsSecret,
-		"//secretmanager.googleapis.com/projects/demo-project/secrets/app-config", extractor.SecretManagerSecretAssetType)
+		"//secretmanager.googleapis.com/projects/demo-project/secrets/app-config", catalog.SecretManagerSecretAssetType)
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != runServiceFullName {
 			t.Errorf("relationship source = %q, want run service full name", rel.SourceFullResourceName)
 		}
-		if rel.SourceAssetType != extractor.AssetTypeRunService {
-			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, extractor.AssetTypeRunService)
+		if rel.SourceAssetType != catalog.AssetTypeRunService {
+			t.Errorf("relationship source asset type = %q, want %q", rel.SourceAssetType, catalog.AssetTypeRunService)
 		}
 	}
 }
@@ -169,7 +170,7 @@ func TestExtractRunServiceSecretCountStableWhenUnresolvable(t *testing.T) {
 	}`
 	ctx := extractor.ExtractContext{
 		FullResourceName: runServiceFullName,
-		AssetType:        extractor.AssetTypeRunService,
+		AssetType:        catalog.AssetTypeRunService,
 		ProjectID:        "",
 		Data:             json.RawMessage(data),
 	}

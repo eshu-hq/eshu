@@ -16,6 +16,7 @@ import (
 	"google.golang.org/api/impersonate"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts/cloud"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -82,7 +83,7 @@ func TestLiveSmokeCloudAssetInventory(t *testing.T) {
 
 	ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
 		TargetPrincipal: sa,
-		Scopes:          []string{CloudAssetInventoryOAuthScope},
+		Scopes:          []string{catalog.CloudAssetInventoryOAuthScope},
 	})
 	if err != nil {
 		t.Fatalf("impersonate.CredentialsTokenSource: %v", err)
@@ -118,7 +119,7 @@ func TestLiveSmokeCloudAssetInventory(t *testing.T) {
 	}
 
 	scopeCfg := ScopeConfig{
-		ParentScopeKind: gcpcloud.ParentScopeOrganization,
+		ParentScopeKind: catalog.ParentScopeOrganization,
 		ParentScopeID:   org,
 		AssetTypeFamily: "mixed",
 		ContentFamily:   "resource",

@@ -9,10 +9,11 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 func init() {
-	RegisterAssetExtractor(serviceAccountAssetType, extractServiceAccount)
+	RegisterAssetExtractor(catalog.ServiceAccountAssetType, extractServiceAccount)
 }
 
 // serviceAccountData is the bounded view of a CAI

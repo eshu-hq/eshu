@@ -10,12 +10,13 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
 // Asset type and full-resource-name prefix for the Serverless VPC Access
 // connector a Cloud Run Service egresses through. The Secret Manager Secret
-// endpoint reuses extractor.SecretManagerSecretAssetType already declared in
+// endpoint reuses catalog.SecretManagerSecretAssetType already declared in
 // gcp_secrets_iam.go.
 const (
 	assetTypeVPCAccessConnector     = "vpcaccess.googleapis.com/Connector"
@@ -33,7 +34,7 @@ const (
 )
 
 func init() {
-	extractor.RegisterAssetExtractor(extractor.AssetTypeRunService, extractRunService)
+	extractor.RegisterAssetExtractor(catalog.AssetTypeRunService, extractRunService)
 }
 
 // runServiceData is the bounded view of a CAI run.googleapis.com/Service
@@ -114,7 +115,7 @@ func extractRunService(ctx extractor.ExtractContext) (extractor.AttributeExtract
 	}
 	for _, secret := range runServiceSecretFullNames(ctx.ProjectID, data) {
 		anchors = append(anchors, secret)
-		rels = append(rels, runServiceEdge(ctx, relationshipTypeRunServiceMountsSecret, secret, extractor.SecretManagerSecretAssetType))
+		rels = append(rels, runServiceEdge(ctx, relationshipTypeRunServiceMountsSecret, secret, catalog.SecretManagerSecretAssetType))
 	}
 
 	return extractor.AttributeExtraction{
@@ -323,6 +324,6 @@ func runServiceEdge(ctx extractor.ExtractContext, relationshipType, targetName, 
 		RelationshipType:       relationshipType,
 		TargetFullResourceName: targetName,
 		TargetAssetType:        targetType,
-		SupportState:           extractor.RelationshipSupportSupported,
+		SupportState:           catalog.RelationshipSupportSupported,
 	}
 }

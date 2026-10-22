@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 )
 
@@ -72,11 +72,11 @@ func TestWebhookHandlerAcceptsGCPFreshnessPushPayload(t *testing.T) {
 		t.Fatalf("stored triggers = %d, want %d", got, want)
 	}
 	trigger := store.triggers[0]
-	if trigger.Kind != freshness.EventKindAssetChange {
-		t.Fatalf("Kind = %q, want %q", trigger.Kind, freshness.EventKindAssetChange)
+	if trigger.Kind != catalog.EventKindAssetChange {
+		t.Fatalf("Kind = %q, want %q", trigger.Kind, catalog.EventKindAssetChange)
 	}
-	if trigger.ParentScopeKind != gcpcloud.ParentScopeProject {
-		t.Fatalf("ParentScopeKind = %q, want %q", trigger.ParentScopeKind, gcpcloud.ParentScopeProject)
+	if trigger.ParentScopeKind != catalog.ParentScopeProject {
+		t.Fatalf("ParentScopeKind = %q, want %q", trigger.ParentScopeKind, catalog.ParentScopeProject)
 	}
 }
 
@@ -308,8 +308,8 @@ func TestWebhookHandlerGCPFreshnessCoalescedRedeliveryReturnsCoalescedAction(t *
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response body: %v", err)
 	}
-	if body["status"] != string(freshness.TriggerStatusQueued) {
-		t.Fatalf("status = %v, want %q", body["status"], freshness.TriggerStatusQueued)
+	if body["status"] != string(catalog.TriggerStatusQueued) {
+		t.Fatalf("status = %v, want %q", body["status"], catalog.TriggerStatusQueued)
 	}
 }
 

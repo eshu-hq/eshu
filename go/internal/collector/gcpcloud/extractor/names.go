@@ -7,55 +7,18 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// Cross-group CAI asset types, resource-name prefixes, sentinels, and
-// resource-name builders shared by extractors in several service groups. Each
-// names the CAI asset type or full-resource-name shape of a typed edge endpoint
-// so reducers can resolve both endpoints exactly. They live in this leaf
-// because extractors in several groups derive edges to them; the declaring
-// files keep working through the parent package's compat aliases.
+// Cross-group resource-name builders shared by extractors in several service
+// groups. The CAI asset types, resource-name prefixes, sentinels, and markers
+// they build with live in the catalog leaf (#6696, slice L) so the root,
+// every extractor file, and the runtime subpackages share one definition.
 //
 // Helpers here decode only resource identities (bucket names, topic names,
 // hosts, key names). They never return data-plane locators such as object
 // paths inside source URIs or request bodies.
-const (
-	// AssetTypeGKECluster is the CAI asset type for a GKE cluster, the target
-	// of environment-to-cluster edges.
-	AssetTypeGKECluster = "container.googleapis.com/Cluster"
-	// AssetTypeComputeNetwork is the CAI asset type for a Compute Engine VPC
-	// network.
-	AssetTypeComputeNetwork = "compute.googleapis.com/Network"
-	// AssetTypeComputeSubnetwork is the CAI asset type for a Compute Engine
-	// subnetwork.
-	AssetTypeComputeSubnetwork = "compute.googleapis.com/Subnetwork"
-	// AssetTypePubSubTopic is the CAI asset type for a Pub/Sub topic.
-	AssetTypePubSubTopic = "pubsub.googleapis.com/Topic"
-	// SecretManagerSecretAssetType is the CAI asset type for a Secret Manager
-	// secret.
-	SecretManagerSecretAssetType = "secretmanager.googleapis.com/Secret"
-	// ComputeResourceNamePrefix is the CAI full-resource-name prefix for
-	// Compute Engine resources.
-	ComputeResourceNamePrefix = "//compute.googleapis.com/"
-	// PubSubResourceNamePrefix is the CAI full-resource-name prefix for
-	// Pub/Sub resources.
-	PubSubResourceNamePrefix = "//pubsub.googleapis.com/"
-	// DefaultServiceAccountSentinel is the GKE API's sentinel value for "use
-	// the default service account".
-	DefaultServiceAccountSentinel = "default"
-	// PubSubDeletedTopicSentinel is the value Pub/Sub reports for a
-	// subscription's topic when the topic was deleted.
-	PubSubDeletedTopicSentinel = "_deleted-topic_"
-)
-
-// computeSelfLinkMarker delimits the API version segment in a Compute Engine
-// selfLink; the path after the version segment is the CAI resource path.
-const computeSelfLinkMarker = "/compute/"
-
-// RunServiceResourceNamePrefix is the CAI full-resource-name prefix for Cloud
-// Run services, used to build revision-parent and trigger-target endpoints.
-const RunServiceResourceNamePrefix = "//run.googleapis.com/"
 
 // CloudFunctionProjectLocation extracts the project id and location from a Cloud
 // Functions CAI full resource name
@@ -104,7 +67,7 @@ func SecretManagerTopicFullName(topicRef string) string {
 	if strings.HasPrefix(trimmed, "//") {
 		return trimmed
 	}
-	return PubSubResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
+	return catalog.PubSubResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // PubSubTopicRefFullName builds the CAI Pub/Sub Topic full resource name from
@@ -113,13 +76,13 @@ func SecretManagerTopicFullName(topicRef string) string {
 // the deleted-topic sentinel, or a reference that does not name a topic.
 func PubSubTopicRefFullName(topicRef string) string {
 	trimmed := strings.TrimSpace(topicRef)
-	if trimmed == "" || trimmed == PubSubDeletedTopicSentinel || !strings.Contains(trimmed, "/topics/") {
+	if trimmed == "" || trimmed == catalog.PubSubDeletedTopicSentinel || !strings.Contains(trimmed, "/topics/") {
 		return ""
 	}
 	if strings.HasPrefix(trimmed, "//") {
 		return trimmed
 	}
-	return PubSubResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
+	return catalog.PubSubResourceNamePrefix + strings.TrimPrefix(trimmed, "/")
 }
 
 // PubSubPushEndpointHostFingerprint returns a stable, case-normalized digest of
@@ -189,12 +152,12 @@ func ComputeFullResourceNameFromSelfLink(selfLink, sourceProjectID string) strin
 	if trimmed == "" {
 		return ""
 	}
-	if strings.HasPrefix(trimmed, ComputeResourceNamePrefix) {
+	if strings.HasPrefix(trimmed, catalog.ComputeResourceNamePrefix) {
 		return trimmed
 	}
 	// Full selfLink: take the path after the /compute/<version>/ segment.
-	if idx := strings.Index(trimmed, computeSelfLinkMarker); idx >= 0 {
-		afterMarker := trimmed[idx+len(computeSelfLinkMarker):]
+	if idx := strings.Index(trimmed, catalog.ComputeSelfLinkMarker); idx >= 0 {
+		afterMarker := trimmed[idx+len(catalog.ComputeSelfLinkMarker):]
 		if _, path, ok := strings.Cut(afterMarker, "/"); ok {
 			if normalized := ComputeResourceNameFromPath(path, sourceProjectID); normalized != "" {
 				return normalized
@@ -216,7 +179,7 @@ func ComputeResourceNameFromPath(path, sourceProjectID string) string {
 	case path == "":
 		return ""
 	case strings.HasPrefix(path, "projects/"):
-		return ComputeResourceNamePrefix + path
+		return catalog.ComputeResourceNamePrefix + path
 	case strings.HasPrefix(path, "global/"),
 		strings.HasPrefix(path, "regions/"),
 		strings.HasPrefix(path, "zones/"):
@@ -224,7 +187,7 @@ func ComputeResourceNameFromPath(path, sourceProjectID string) string {
 		if project == "" {
 			return ""
 		}
-		return ComputeResourceNamePrefix + "projects/" + project + "/" + path
+		return catalog.ComputeResourceNamePrefix + "projects/" + project + "/" + path
 	default:
 		return ""
 	}

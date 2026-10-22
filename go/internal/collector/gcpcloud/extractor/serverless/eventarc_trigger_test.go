@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/extractor"
 )
 
@@ -75,8 +76,8 @@ func TestExtractEventarcTriggerCloudRun(t *testing.T) {
 	if len(got.Relationships) != 3 {
 		t.Fatalf("expected service + topic + channel edges, got %d: %#v", len(got.Relationships), got.Relationships)
 	}
-	assertRelationship(t, got.Relationships, relationshipTypeTriggerTargetsService, service, extractor.AssetTypeRunService)
-	assertRelationship(t, got.Relationships, relationshipTypeTriggerTransportTopic, topic, extractor.AssetTypePubSubTopic)
+	assertRelationship(t, got.Relationships, relationshipTypeTriggerTargetsService, service, catalog.AssetTypeRunService)
+	assertRelationship(t, got.Relationships, relationshipTypeTriggerTransportTopic, topic, catalog.AssetTypePubSubTopic)
 	assertRelationship(t, got.Relationships, relationshipTypeTriggerUsesChannel, channel, assetTypeEventarcChannel)
 	for _, rel := range got.Relationships {
 		if rel.SourceFullResourceName != eventarcTriggerFullName {

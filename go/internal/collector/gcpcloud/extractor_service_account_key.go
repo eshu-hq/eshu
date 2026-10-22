@@ -12,7 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
-// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X.
+// Family constants for this extractor now live in catalog/gcp_security.go (#6696 HK slice); uses below name catalog.X. The parent ServiceAccount
+// endpoint type lives in catalog/gcp_shared.go (#6696 L slice).
 
 func init() {
 	RegisterAssetExtractor(catalog.ServiceAccountKeyAssetType, extractServiceAccountKey)
@@ -79,7 +80,7 @@ func extractServiceAccountKey(ctx ExtractContext) (AttributeExtraction, error) {
 			SourceAssetType:        ctx.AssetType,
 			RelationshipType:       catalog.RelationshipTypeServiceAccountKeyOf,
 			TargetFullResourceName: parent,
-			TargetAssetType:        serviceAccountAssetType,
+			TargetAssetType:        catalog.ServiceAccountAssetType,
 			SupportState:           RelationshipSupportSupported,
 		})
 	}

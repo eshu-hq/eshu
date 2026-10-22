@@ -14,6 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/aws"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/gcp"
@@ -181,7 +182,7 @@ func TestAWSGCPFreshnessClaimLeaseMigrationBackfillsStuckClaimedRowsIntegration(
 
 	stuckGCPTrigger, err := gcpfreshness.NewStoredTrigger(gcpfreshness.Trigger{
 		EventID:         "evt-pre-existing-stuck",
-		Kind:            gcpfreshness.EventKindAssetChange,
+		Kind:            catalog.EventKindAssetChange,
 		ParentScopeKind: "project",
 		ParentScopeID:   "demo-project-pre-existing-stuck",
 		AssetType:       "compute.googleapis.com/Instance",
@@ -239,7 +240,7 @@ func TestAWSGCPFreshnessClaimLeaseMigrationBackfillsStuckClaimedRowsIntegration(
 	if reclaimedGCP[0].TriggerID != stuckGCPTrigger.TriggerID {
 		t.Fatalf("reclaimedGCP[0].TriggerID = %q, want %q", reclaimedGCP[0].TriggerID, stuckGCPTrigger.TriggerID)
 	}
-	if reclaimedGCP[0].Status != gcpfreshness.TriggerStatusQueued {
-		t.Fatalf("reclaimedGCP[0].Status = %q, want %q", reclaimedGCP[0].Status, gcpfreshness.TriggerStatusQueued)
+	if reclaimedGCP[0].Status != catalog.TriggerStatusQueued {
+		t.Fatalf("reclaimedGCP[0].Status = %q, want %q", reclaimedGCP[0].Status, catalog.TriggerStatusQueued)
 	}
 }

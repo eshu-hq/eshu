@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 )
 
 const serviceAccountFullName = "//iam.googleapis.com/projects/demo-project/serviceAccounts/pipeline-runner@demo-project.iam.gserviceaccount.com"
@@ -19,15 +20,15 @@ const serviceAccountSampleEmail = "pipeline-runner@demo-project.iam.gserviceacco
 func serviceAccountContext(data string) ExtractContext {
 	return ExtractContext{
 		FullResourceName: serviceAccountFullName,
-		AssetType:        serviceAccountAssetType,
+		AssetType:        catalog.ServiceAccountAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(data),
 	}
 }
 
 func TestServiceAccountExtractorIsRegistered(t *testing.T) {
-	if _, ok := lookupAssetExtractor(serviceAccountAssetType); !ok {
-		t.Fatalf("expected %q extractor to self-register via init()", serviceAccountAssetType)
+	if _, ok := lookupAssetExtractor(catalog.ServiceAccountAssetType); !ok {
+		t.Fatalf("expected %q extractor to self-register via init()", catalog.ServiceAccountAssetType)
 	}
 }
 
@@ -164,7 +165,7 @@ func TestExtractServiceAccountRejectsNonEmailNameSegment(t *testing.T) {
 	// contract.
 	ctx := ExtractContext{
 		FullResourceName: "//iam.googleapis.com/projects/demo-project/serviceAccounts/pipeline-runner@demo-project.iam.gserviceaccount.com/keys/abc123",
-		AssetType:        serviceAccountAssetType,
+		AssetType:        catalog.ServiceAccountAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(`{"uniqueId": "104567890123456789012"}`),
 	}
@@ -201,7 +202,7 @@ func TestExtractServiceAccountEmptyData(t *testing.T) {
 	// no attributes, anchors, or relationships are fabricated.
 	ctx := ExtractContext{
 		FullResourceName: "//iam.googleapis.com/projects/demo-project/serviceAccounts/",
-		AssetType:        serviceAccountAssetType,
+		AssetType:        catalog.ServiceAccountAssetType,
 		ProjectID:        "demo-project",
 		Data:             json.RawMessage(`{}`),
 	}

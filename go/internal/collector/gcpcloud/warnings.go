@@ -3,66 +3,29 @@
 
 package gcpcloud
 
-// WarningKind enumerates the bounded GCP collection warning kinds. Each value is
-// a low-cardinality enum safe for telemetry labels and durable status keys.
-const (
-	// WarningKindPartialPermission marks a scope or content family the collector
-	// could not fully read because a project, folder, or content-type permission
-	// was missing.
-	WarningKindPartialPermission = "partial_permission"
-	// WarningKindUnsupported marks a content family or relationship tier the
-	// provider does not expose, for example missing Security Command Center tier
-	// for relationship content.
-	WarningKindUnsupported = "unsupported"
-	// WarningKindQuota marks a scan that hit Cloud Asset Inventory quota or
-	// throttle limits before completing.
-	WarningKindQuota = "quota"
-	// WarningKindUnavailable marks a scan that could not reach Cloud Asset
-	// Inventory or received a retry-exhausted provider availability failure.
-	WarningKindUnavailable = "unavailable"
-	// WarningKindStale marks a generation that was rejected because a newer
-	// generation already owns the shard.
-	WarningKindStale = "stale_generation"
-	// WarningKindRedaction marks a resource whose payload required redaction
-	// beyond the normal label/member fingerprinting policy.
-	WarningKindRedaction = "redaction"
-	// WarningKindPageTokenExpired marks a paginated scan whose continuation token
-	// expired before the shard finished.
-	WarningKindPageTokenExpired = "page_token_expired" // #nosec G101 -- warning-kind label for a pagination token expiry, not a credential
-)
+import "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/catalog"
 
-// Outcome enumerates the bounded per-shard source states a warning reports.
-// These mirror the multi-cloud contract per-path evidence states.
-const (
-	// OutcomePartial means the collector read only part of the configured scope or
-	// content family.
-	OutcomePartial = "partial"
-	// OutcomeUnsupported means the provider, tier, API, or content family does not
-	// expose this evidence.
-	OutcomeUnsupported = "unsupported"
-	// OutcomeUnavailable means the source was configured but unreachable,
-	// unauthorized, or rate-limited without current evidence.
-	OutcomeUnavailable = "unavailable"
-	// OutcomeStale means the accepted generation is older than the configured
-	// freshness window.
-	OutcomeStale = "stale"
-)
+// validWarningKinds and validOutcomes bound the warning-kind and per-shard
+// outcome strings the validators below accept; the enums themselves live in
+// the catalog leaf (#6696 slice L). Each value is a low-cardinality enum safe
+// for telemetry labels and durable status keys, mirroring the multi-cloud
+// contract per-path evidence states.
 
 var validWarningKinds = map[string]struct{}{
-	WarningKindPartialPermission: {},
-	WarningKindUnsupported:       {},
-	WarningKindQuota:             {},
-	WarningKindUnavailable:       {},
-	WarningKindStale:             {},
-	WarningKindRedaction:         {},
-	WarningKindPageTokenExpired:  {},
+	catalog.WarningKindPartialPermission: {},
+	catalog.WarningKindUnsupported:       {},
+	catalog.WarningKindQuota:             {},
+	catalog.WarningKindUnavailable:       {},
+	catalog.WarningKindStale:             {},
+	catalog.WarningKindRedaction:         {},
+	catalog.WarningKindPageTokenExpired:  {},
 }
 
 var validOutcomes = map[string]struct{}{
-	OutcomePartial:     {},
-	OutcomeUnsupported: {},
-	OutcomeUnavailable: {},
-	OutcomeStale:       {},
+	catalog.OutcomePartial:     {},
+	catalog.OutcomeUnsupported: {},
+	catalog.OutcomeUnavailable: {},
+	catalog.OutcomeStale:       {},
 }
 
 // ValidWarningKind reports whether kind is one of the bounded warning kinds.
