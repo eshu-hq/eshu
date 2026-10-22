@@ -232,8 +232,17 @@ func TestInfraRelationshipsScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 		t.Fatalf("unscoped anchor clause must be empty, got %q", unscopedAnchor)
 	}
 	unscopedNeighbor := infraRelationshipNeighborClause(querycontract.RepositoryAccessFilter{AllScopes: true}, "target")
-	if !strings.Contains(unscopedNeighbor, "'CloudResource' IN labels(target)") || !strings.Contains(unscopedNeighbor, "aws_appsync_api_key") {
-		t.Fatalf("unscoped neighbor clause must suppress legacy API keys, got %q", unscopedNeighbor)
+	if unscopedNeighbor != "" {
+		t.Fatalf("unscoped neighbor clause must stay bare (a WHERE after the trailing OPTIONAL MATCH binds it to null on NornicDB), got %q", unscopedNeighbor)
+	}
+	filtered := filterLegacyAppSyncKeyRelationships([]map[string]any{
+		{"type": "CALLS", "target_id": "fn-healthy", "target_labels": []any{"Function"}},
+		{"type": "USES", "target_id": "key-1", "target_labels": []any{"CloudResource"}, "target_resource_type": "aws_appsync_api_key"},
+		{"type": "USES", "target_id": "key-2", "target_labels": []any{"CloudResource"}, "target_data_type": "aws_appsync_api_key"},
+		{"type": "USES", "target_id": "fn-typed", "target_labels": []any{"Function"}, "target_resource_type": "aws_appsync_api_key"},
+	}, "target")
+	if len(filtered) != 2 || filtered[0]["target_id"] != "fn-healthy" || filtered[1]["target_id"] != "fn-typed" {
+		t.Fatalf("unscoped neighbor Go filter must drop only CloudResource key rows, got %v", filtered)
 	}
 
 	scoped := querycontract.RepositoryAccessFilter{

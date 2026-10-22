@@ -332,7 +332,6 @@ func entityContextStatement(anchorClause string, access querycontract.Repository
 		` + anchorClause + `
 	`
 	cypher += `
-		WITH e
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
 	`
 	if access.Scoped() {

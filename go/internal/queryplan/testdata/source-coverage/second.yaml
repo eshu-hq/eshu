@@ -102,11 +102,11 @@ source_coverage:
       - {symbol: "(*InfraHandler).graphSummaryRepoLanguages", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: infra_relationship_filter.go
     calls:
-      - symbol: "(*InfraHandler).getRelationships"
+      - symbol: "(*InfraHandler).probeInfraRelationshipAnchors"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 36d81b1b37d98ecd50b2180ad495de0ef42dee083c6873ff5cded893a720c498
+          source_sha256: 72a4b0d8ba166c713aacd5e8608ec9e52ef385075cb8471ff4243c8631cca769
           key_bound: single_key
           max_results: 1
   - file: infra_scope.go

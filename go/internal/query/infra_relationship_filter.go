@@ -4,6 +4,7 @@
 package query
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -143,19 +144,24 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 		OPTIONAL MATCH (n)-[r` + typeFilter + `]->(target)` + targetClause + `
 		OPTIONAL MATCH (source)-[r2` + typeFilter + `]->(n)` + sourceClause + `
 		RETURN n.id as id, n.name as name, labels(n) as labels,
+		       n.resource_type as anchor_resource_type, n.data_type as anchor_data_type,
 		       collect(DISTINCT {
 		           direction: 'outgoing',
 		           type: type(r),
 		           target_name: target.name,
 		           target_id: target.id,
-		           target_labels: labels(target)
+		           target_labels: labels(target),
+		           target_resource_type: target.resource_type,
+		           target_data_type: target.data_type
 		       }) as outgoing,
 		       collect(DISTINCT {
 		           direction: 'incoming',
 		           type: type(r2),
 		           source_name: source.name,
 		           source_id: source.id,
-		           source_labels: labels(source)
+		           source_labels: labels(source),
+		           source_resource_type: source.resource_type,
+		           source_data_type: source.data_type
 		       }) as incoming
 	`
 	}
@@ -193,13 +199,7 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 			attribute.Int("eshu.entity_anchor_scoped_reads", read.scopedReads),
 		)
 	} else {
-		for _, anchor := range anchors {
-			labelsAttempted++
-			row, err = h.Neo4j.RunSingle(ctx, buildCypher(anchor), params)
-			if err != nil || row != nil {
-				break
-			}
-		}
+		row, labelsAttempted, err = h.probeInfraRelationshipAnchors(ctx, anchors, buildCypher, params)
 	}
 	span.SetAttributes(attribute.Int("eshu.entity_anchor_labels_tried", labelsAttempted))
 	if err != nil {
@@ -224,9 +224,11 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Extract relationships, filtering out null entries
-	outgoing := filterNullRelationships(row["outgoing"])
-	incoming := filterNullRelationships(row["incoming"])
+	outgoing, incoming, keyAnchor := splitInfraRelationships(row)
+	if keyAnchor {
+		WriteError(w, http.StatusNotFound, "entity not found")
+		return
+	}
 
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"id":       StringVal(row, "id"),
@@ -242,6 +244,76 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 // root callers unchanged.
 func filterNullRelationships(v any) []map[string]any {
 	return querycontract.FilterNullRelationships(v)
+}
+
+// probeInfraRelationshipAnchors tries each single-label anchor in order,
+// stopping at the first resolving row, and reports how many anchors ran.
+func (h *InfraHandler) probeInfraRelationshipAnchors(ctx context.Context, anchors []string, buildCypher func(string) string, params map[string]any) (map[string]any, int, error) {
+	var row map[string]any
+	var err error
+	labelsAttempted := 0
+	for _, anchor := range anchors {
+		labelsAttempted++
+		row, err = h.Neo4j.RunSingle(ctx, buildCypher(anchor), params)
+		if err != nil || row != nil {
+			break
+		}
+	}
+	return row, labelsAttempted, err
+}
+
+// splitInfraRelationships extracts the outgoing and incoming relationship
+// lists from a getRelationships row, filtering out null entries and
+// historical per-key AppSync rows. It reports whether the anchor itself is
+// a legacy key row, which answers not-found. The neighbor filter lives in
+// Go (not Cypher) because a WHERE after the trailing OPTIONAL MATCH binds
+// that match to null on the pinned NornicDB executor, and a labels()
+// predicate empties the whole result there; the scoped Neo4j Cypher
+// predicates stay as defense in depth with identical semantics.
+func splitInfraRelationships(row map[string]any) (outgoing, incoming []map[string]any, keyAnchor bool) {
+	if isLegacyAppSyncKeyNode(row, "labels", "anchor_resource_type", "anchor_data_type") {
+		return nil, nil, true
+	}
+	outgoing = filterLegacyAppSyncKeyRelationships(filterNullRelationships(row["outgoing"]), "target")
+	incoming = filterLegacyAppSyncKeyRelationships(filterNullRelationships(row["incoming"]), "source")
+	return outgoing, incoming, false
+}
+
+// legacyAppSyncKeyResourceType is matched by literal: the exported catalog
+// constant was retired with per-key emission, and historical graph rows keep
+// this value in resource_type or data_type.
+const legacyAppSyncKeyResourceType = "aws_appsync_api_key"
+
+// isLegacyAppSyncKeyNode reports whether projected node fields describe a
+// historical per-key AppSync CloudResource row. Labels plus either type
+// field must agree; a bare resource_type on another label is not a key.
+func isLegacyAppSyncKeyNode(row map[string]any, labelsKey, resourceTypeKey, dataTypeKey string) bool {
+	cloudResource := false
+	for _, label := range querycontract.StringSliceVal(row, labelsKey) {
+		if label == "CloudResource" {
+			cloudResource = true
+			break
+		}
+	}
+	if !cloudResource {
+		return false
+	}
+	return querycontract.StringVal(row, resourceTypeKey) == legacyAppSyncKeyResourceType ||
+		querycontract.StringVal(row, dataTypeKey) == legacyAppSyncKeyResourceType
+}
+
+// filterLegacyAppSyncKeyRelationships drops neighbor entries that resolve
+// to historical per-key AppSync rows. Prefix selects the neighbor projection
+// keys ("target" for outgoing, "source" for incoming).
+func filterLegacyAppSyncKeyRelationships(relationships []map[string]any, prefix string) []map[string]any {
+	kept := relationships[:0]
+	for _, entry := range relationships {
+		if isLegacyAppSyncKeyNode(entry, prefix+"_labels", prefix+"_resource_type", prefix+"_data_type") {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	return kept
 }
 
 // infraRelationshipTypeAliases maps each semantic analyze_infra_relationships

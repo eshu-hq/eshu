@@ -202,9 +202,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/entity_map_resolver.go, symbol: EntityMapNodeResolverQuery, source_sha256: c2bdd3fef7cbd76da1136af6de709afb2101f0f587f6ac156ba3ff69fe1aff41}
+    source: {file: go/internal/query/impact/entity_map_resolver.go, symbol: EntityMapNodeResolverQuery, source_sha256: b77c2315db9fe5556b1df7ec1a696bcae51328af3a4562ca1bd85aec476690f5}
     query_fragment: 'MATCH (n:%s {%s: $from})'
-    cypher_sha256: bfc49a9d51179a00f16f3397f3b9d18cb2a347705ad346712cf52700a44cdfb6
+    cypher_sha256: 6e2ba9b81c2aff0d15a4dd2a561272eba61bc1c5fbfe53eef9dcbd5fd4795c00
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [51]
@@ -215,9 +215,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapDirectTraversalCypher, source_sha256: b76e4e23360ddaf0fe3a637d0ce0b54580221f4646ce93680f2ef6a6b299916a}
+    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapDirectTraversalCypher, source_sha256: 8e0ccbbf9c6bc963c5e93fb452658b741ac75132f705cfb8f7708173d717e638}
     query_fragment: '(start:%s {%s: $from_id})-[rel:%s]->(entity)'
-    cypher_sha256: 600896badc35e23c8bbcbeaf6b036d4a00c3688692b99a4edaca3eb2b476bccd
+    cypher_sha256: c377ed9fa34ba41667edfdb033b52b9d815581a2ae7501b2ac94e1032afd2467
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$limit]
@@ -228,9 +228,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapVariableTraversalCypher, source_sha256: 542ab92be4b6f81ae7028f72128e255f309c3c3f7bbf4049192487f5f4c8b6c7}
+    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapVariableTraversalCypher, source_sha256: 60c8fccf0780af4b1f509a019883da43e6000402c8a8a293c2d790c43ccf6d30}
     query_fragment: '(start:%s {%s: $from_id})-[%s]->(entity)'
-    cypher_sha256: 4e672ca90719275452072e029f5eaf49515548845589672cc1a7319f7194e6d1
+    cypher_sha256: f934db3b000d59880b3bec4cec59e5db3603410e01050320fa7c85f91e8ee125
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$limit]

@@ -93,8 +93,13 @@ func infraRelationshipAnchorClause(access querycontract.RepositoryAccessFilter) 
 // way. Returns the empty string for shared / admin / local callers so the
 // unscoped Cypher is unchanged.
 func infraRelationshipNeighborClause(access querycontract.RepositoryAccessFilter, alias string) string {
+	// Unscoped neighbor matches stay bare: a WHERE after the trailing
+	// OPTIONAL MATCH binds the second match to null on the pinned NornicDB
+	// executor (answer-truth A7), and a labels() predicate empties the whole
+	// result. Legacy AppSync keys are suppressed in Go from the projected
+	// neighbor labels and types instead, uniformly across backends.
 	if !access.Scoped() {
-		return " WHERE NOT ('CloudResource' IN labels(" + alias + ") AND (coalesce(" + alias + ".resource_type, '') = 'aws_appsync_api_key' OR coalesce(" + alias + ".data_type, '') = 'aws_appsync_api_key'))"
+		return ""
 	}
 	scalars, _ := access.ScopeGrantInlineScalars()
 	return " WHERE NOT ('CloudResource' IN labels(" + alias + ") AND (coalesce(" + alias + ".resource_type, '') = 'aws_appsync_api_key' OR coalesce(" + alias + ".data_type, '') = 'aws_appsync_api_key')) AND " + infraResourceScopePredicate(alias, scalars)

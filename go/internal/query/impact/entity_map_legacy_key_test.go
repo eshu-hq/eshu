@@ -23,8 +23,32 @@ func TestEntityMapSuppressesLegacyAppSyncKeysInResolverAndNeighborhood(t *testin
 	}
 	selected := EntityMapCandidate{ID: "workload:service", AnchorLabel: "Workload", AnchorProperty: "id"}
 	traversal := EntityMapDirectTraversalCypher(selected, EntityMapTraversalSpec{Direction: "outgoing", Relationships: []string{"USES"}, MinHops: 1, MaxHops: 1})
-	if !strings.Contains(traversal, "NOT ('CloudResource' IN labels(entity)") {
-		t.Fatalf("entity map neighborhood must exclude legacy keys before LIMIT: %s", traversal)
+	if strings.Contains(traversal, "labels(entity) AND") || strings.Contains(traversal, "IN labels(entity)") {
+		t.Fatalf("entity map neighborhood WHERE must stay bare (a labels() predicate empties the result on NornicDB): %s", traversal)
+	}
+	if !strings.Contains(traversal, "entity.resource_type AS resource_type") || !strings.Contains(traversal, "entity.data_type AS data_type") {
+		t.Fatalf("entity map neighborhood must project the type fields the Go key filter reads: %s", traversal)
+	}
+	rows := NormalizeEntityMapRows([]map[string]any{
+		{"id": "workload:healthy", "name": "healthy", "entity_labels": []any{"Workload"}, "relationship_type": "USES"},
+		{"id": "key:1", "name": "key-1", "entity_labels": []any{"CloudResource"}, "resource_type": "aws_appsync_api_key", "relationship_type": "USES"},
+		{"id": "key:2", "name": "key-2", "entity_labels": []any{"CloudResource"}, "data_type": "aws_appsync_api_key", "relationship_type": "USES"},
+		{"id": "fn:typed", "name": "typed", "entity_labels": []any{"Function"}, "resource_type": "aws_appsync_api_key", "relationship_type": "CALLS"},
+	}, EntityMapTraversalSpec{Direction: "outgoing", Relationships: []string{"USES"}, MinHops: 1, MaxHops: 1}, selected)
+	if len(rows) != 2 {
+		t.Fatalf("neighborhood must drop only CloudResource key rows, got %v", rows)
+	}
+	for _, row := range rows {
+		if id := querycontract.StringVal(row, "entity_id"); id != "workload:healthy" && id != "fn:typed" {
+			t.Fatalf("neighborhood kept unexpected row %v", row)
+		}
+	}
+	candidates := entityMapCandidates([]map[string]any{
+		{"id": "key:1", "name": "key-1", "labels": []any{"CloudResource"}, "resource_type": "aws_appsync_api_key", "repo_id": "r", "anchor_label": "CloudResource", "anchor_property": "id", "anchor_value": "key:1"},
+		{"id": "workload:healthy", "name": "healthy", "labels": []any{"Workload"}, "repo_id": "r", "anchor_label": "Workload", "anchor_property": "id", "anchor_value": "workload:healthy"},
+	})
+	if len(candidates) != 1 || candidates[0].ID != "workload:healthy" {
+		t.Fatalf("resolver must drop legacy key candidates, got %+v", candidates)
 	}
 }
 

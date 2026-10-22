@@ -42,11 +42,11 @@ const (
 // the old bare `<alias>.id` terms back reproduces the pre-#7220 digests exactly.
 var nornicDBStatementDigests = map[string]string{
 	"search/g1":         "79de602a974f92d2ad37d9013f9606195a8350e5c0571d16db8e727a5ee8ab4f",
-	"relationships/g1":  "88001f09cfa81d78cc5348795d7469676c9b7827ad65985443f40ee20e1079d1",
+	"relationships/g1":  "828dff5eb40fa5314cc0c3bf4893ebb16ca554ba0417f5a24056072051cc29fa",
 	"search/g5":         "50e571c09e0e81a2e9866df0e57a688fb2d228049019b9ee9b017b52026fc598",
-	"relationships/g5":  "02edf7dc88f188c996aa001422facf346f9e0307e92b943b1d5425fc3bace715",
+	"relationships/g5":  "5d8ee3fbcb445239423ee23dfad776502f2ee6013abad01b18d8c0d85bc4ec23",
 	"search/cap":        "69276d1e9e88219441a5cfcaf006f5e084498a108b4704ebe2c5ff9eec194f33",
-	"relationships/cap": "bba59c7ee06d6c1c9cfbed2ea6f1c46d76ff4b10e0111ec08c36ea06129b2b30",
+	"relationships/cap": "54119eaed58acc3b1f2b0ed8393bcc4a1a5802e3d4c952f31cf3f6e8d8f7c3c3",
 }
 
 func TestInfraScopeNornicDBStatementsByteIdentical(t *testing.T) {
