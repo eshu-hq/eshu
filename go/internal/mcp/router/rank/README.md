@@ -85,9 +85,9 @@ The index is immutable, so concurrent `Rank` calls are safe.
 
 Benchmark Evidence: `BenchmarkRank163Tools` ranks one query over a synthetic
 163-tool registry (3 intents per tool, 30-45 word descriptions) with a prebuilt
-index. On the dev host (aarch64, 16 cores, Go 1.26) it runs about 60 microseconds
-per op with 69 allocations and about 21.6 KB, against a target of under 1 ms.
-`BenchmarkNew163Tools` measures the one-time build at about 11 ms. Rerun with
+index. On the dev host (aarch64, 16 cores, Go 1.26) it runs about 44 microseconds
+per op with 68 allocations and about 21.5 KB, against a target of under 1 ms.
+`BenchmarkNew163Tools` measures the one-time build at about 5.8 ms. Rerun with
 `go test ./internal/mcp/router/rank/ -run '^$' -bench . -benchmem` from `go/`.
 The CI runner figure is NOT_CHECKED until the benchmark runs there.
 
