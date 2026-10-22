@@ -28,6 +28,9 @@ func TestImpactAnchorResolveCypherIsPerLabelUnion(t *testing.T) {
 	// never the label disjunction, and never a `WHERE n.id` predicate that would
 	// reintroduce the disjunction-shaped scan.
 	resolve := impactAnchorResolveCypher("start_id")
+	if !strings.Contains(resolve, "coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'") {
+		t.Fatalf("CloudResource anchor resolution must suppress legacy API keys: %s", resolve)
+	}
 	assertNoImpactLabelDisjunction(t, resolve)
 	if !strings.Contains(resolve, "CALL {") {
 		t.Errorf("resolve must wrap the per-label union in CALL {}: %s", resolve)

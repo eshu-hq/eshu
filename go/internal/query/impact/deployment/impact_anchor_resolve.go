@@ -108,9 +108,13 @@ func impactAnchorResolveUnion(idParam string) string {
 	branches := make([]string, 0, len(impactAnchorLabels)*2)
 	for _, label := range impactAnchorLabels {
 		for _, prop := range []string{"id", "name"} {
+			where := ""
+			if label == "CloudResource" {
+				where = " WHERE coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'"
+			}
 			branches = append(branches, fmt.Sprintf(
-				"MATCH (n:%s {%s: $%s}) RETURN '%s' AS label, n.id AS id, n.name AS name, labels(n) AS labels, n.uid AS uid, n.repo_id AS repo_id",
-				label, prop, idParam, label))
+				"MATCH (n:%s {%s: $%s})%s RETURN '%s' AS label, n.id AS id, n.name AS name, labels(n) AS labels, n.uid AS uid, n.repo_id AS repo_id",
+				label, prop, idParam, where, label))
 		}
 	}
 	return "CALL {\n" + strings.Join(branches, "\nUNION\n") + "\n}"

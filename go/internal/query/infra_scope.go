@@ -94,10 +94,10 @@ func infraRelationshipAnchorClause(access querycontract.RepositoryAccessFilter) 
 // unscoped Cypher is unchanged.
 func infraRelationshipNeighborClause(access querycontract.RepositoryAccessFilter, alias string) string {
 	if !access.Scoped() {
-		return ""
+		return " WHERE NOT ('CloudResource' IN labels(" + alias + ") AND coalesce(" + alias + ".resource_type, " + alias + ".data_type, '') = 'aws_appsync_api_key')"
 	}
 	scalars, _ := access.ScopeGrantInlineScalars()
-	return " WHERE " + infraResourceScopePredicate(alias, scalars)
+	return " WHERE NOT ('CloudResource' IN labels(" + alias + ") AND coalesce(" + alias + ".resource_type, " + alias + ".data_type, '') = 'aws_appsync_api_key') AND " + infraResourceScopePredicate(alias, scalars)
 }
 
 // writeEmptyInfraSearch returns the bounded empty search page for an empty-grant
@@ -237,9 +237,10 @@ func bindInfraNeo4jScopeParams(params map[string]any, access querycontract.Repos
 func infraSearchNeo4jScopedCypher(labels []string, whereExtra string) string {
 	branches := make([]string, 0, len(labels))
 	for _, label := range labels {
+		legacyCloudKeyClause := infraSearchLegacyCloudKeyClause(label)
 		branches = append(branches, `
 		MATCH (n:`+label+`)
-		WHERE true`+whereExtra+`
+		WHERE true`+legacyCloudKeyClause+whereExtra+`
 		RETURN n
 	`)
 	}

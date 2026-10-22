@@ -326,6 +326,8 @@ func entityContextStatement(anchorClause string, access querycontract.Repository
 		` + anchorClause + `
 	`
 	cypher += `
+		WITH e
+		WHERE NOT ('CloudResource' IN labels(e) AND coalesce(e.resource_type, e.data_type, '') = 'aws_appsync_api_key')
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
 	`
 	if access.Scoped() {
@@ -335,6 +337,7 @@ func entityContextStatement(anchorClause string, access querycontract.Repository
 	}
 	cypher += `
 		OPTIONAL MATCH (e)-[rel]->(target)
+		WHERE NOT ('CloudResource' IN labels(target) AND coalesce(target.resource_type, target.data_type, '') = 'aws_appsync_api_key')
 		RETURN e.id as id, labels(e) as labels, e.name as name,
 		       f.relative_path as file_path,
 		       coalesce(e.language, f.language) as language,

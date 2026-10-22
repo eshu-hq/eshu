@@ -24,6 +24,7 @@ func TestCloudResourceCandidatesUseInfraSearchSourceFields(t *testing.T) {
 	}
 	for _, want := range []string{
 		"MATCH (n:CloudResource)",
+		"coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'",
 		"LIMIT $limit",
 		"coalesce(n.arn, '') CONTAINS $query",
 		"coalesce(n.id, '') CONTAINS $query",

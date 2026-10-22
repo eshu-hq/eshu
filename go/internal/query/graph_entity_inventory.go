@@ -108,8 +108,15 @@ func (h *GraphEntityInventoryHandler) profile() QueryProfile {
 func graphEntityKindListCypher(kind graphEntityKind, hasSearch bool) string {
 	var b strings.Builder
 	b.WriteString("MATCH (n:" + kind.label + ")")
+	conditions := make([]string, 0, 2)
+	if kind.label == "CloudResource" {
+		conditions = append(conditions, "coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'")
+	}
 	if hasSearch {
-		b.WriteString(" WHERE toLower(coalesce(n." + kind.nameProp + ", '')) CONTAINS $q")
+		conditions = append(conditions, "toLower(coalesce(n."+kind.nameProp+", '')) CONTAINS $q")
+	}
+	if len(conditions) > 0 {
+		b.WriteString(" WHERE " + strings.Join(conditions, " AND "))
 	}
 	b.WriteString(" RETURN coalesce(n.id, '') AS id, coalesce(n." + kind.nameProp + ", '') AS name")
 	if kind.accountProp != "" {

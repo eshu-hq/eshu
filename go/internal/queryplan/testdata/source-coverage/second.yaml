@@ -51,7 +51,7 @@ source_coverage:
       - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot: {class: keyed_support, source_sha256: b63226afd9a3ef88cc3f666c6ef56a4a5d840b8d2e4795e872ab430ba90e9d4c, key_bound: bounded_key_batch, max_keys: 250, fan_out_multiplier: 1, max_results: 250}}
   - file: impact/trace_deployment_resources.go
     calls:
-      - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 8a8ae375580c5df13960ae8c5767a0981b6ef37638bf643db72c5b4cdbf8fa7e, key_bound: single_key, max_results: 2501}}
+      - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: a7974444898568b82de87b033e6344c1e3e83c6b1808397158bfe1f170046ddc, key_bound: single_key, max_results: 2501}}
   - file: impact/deployment/workload_selection.go
     calls:
       - {symbol: "ResolveWorkloadSelector", count: 2, non_hot: {class: keyed_support, source_sha256: 9f8e2cf82d5a6e8c93d76f0227be983968004d6b9208d7b8750432d3dd173d49, key_bound: single_key, max_results: 51}}
@@ -106,7 +106,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: ff3621c5ac9ba72a55a56bb8dfa785f5b7672256e1fe0d8442ad8fa42a153fec
+          source_sha256: d8ee09bc4e052465890aec663f75ff824ae30ba4109df66093933ae82f7279f8
           key_bound: single_key
           max_results: 1
   - file: infra_scope.go

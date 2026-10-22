@@ -15,6 +15,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/testutil/graph"
 )
 
+func TestEntityContextSuppressesLegacyAppSyncKeysAtAnchorAndRelationshipTarget(t *testing.T) {
+	t.Parallel()
+
+	cypher := entityContextStatement("MATCH (e:Workload {id: $entity_id})", querycontract.RepositoryAccessFilter{AllScopes: true})
+	anchorFilter := "WHERE NOT ('CloudResource' IN labels(e) AND coalesce(e.resource_type, e.data_type, '') = 'aws_appsync_api_key')"
+	targetFilter := "WHERE NOT ('CloudResource' IN labels(target) AND coalesce(target.resource_type, target.data_type, '') = 'aws_appsync_api_key')"
+	if !strings.Contains(cypher, anchorFilter) || !strings.Contains(cypher, targetFilter) {
+		t.Fatalf("entity context must filter legacy key anchors and targets: %s", cypher)
+	}
+}
+
 // TestGetEntityContextAnchorsOneLabelPerMatch pins the #7006 fix's final
 // shape: the bare `MATCH (e) WHERE e.id = $entity_id` anchor scanned every
 // node in the graph on every call -- proven live on QA to blow the 10s

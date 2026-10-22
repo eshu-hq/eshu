@@ -232,8 +232,8 @@ func TestInfraRelationshipsScopePredicateRendersOnlyWhenScoped(t *testing.T) {
 		t.Fatalf("unscoped anchor clause must be empty, got %q", unscopedAnchor)
 	}
 	unscopedNeighbor := infraRelationshipNeighborClause(querycontract.RepositoryAccessFilter{AllScopes: true}, "target")
-	if unscopedNeighbor != "" {
-		t.Fatalf("unscoped neighbor clause must be empty, got %q", unscopedNeighbor)
+	if !strings.Contains(unscopedNeighbor, "'CloudResource' IN labels(target)") || !strings.Contains(unscopedNeighbor, "aws_appsync_api_key") {
+		t.Fatalf("unscoped neighbor clause must suppress legacy API keys, got %q", unscopedNeighbor)
 	}
 
 	scoped := querycontract.RepositoryAccessFilter{

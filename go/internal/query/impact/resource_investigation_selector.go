@@ -175,8 +175,16 @@ func ResourceInvestigationSelectorLabelCypher(
 	predicates []string,
 ) string {
 	typeClause := ""
+	if label == "CloudResource" {
+		typeClause = "\n  AND coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'"
+	}
 	if typePredicate := ResourceInvestigationTypePredicate(req.ResourceType); typePredicate != "1 = 1" {
-		typeClause = "\n  AND " + typePredicate
+		if typeClause != "" {
+			typeClause += "\n  AND "
+		} else {
+			typeClause = "\n  AND "
+		}
+		typeClause += typePredicate
 	}
 	environmentClause := ""
 	if req.Environment != "" {

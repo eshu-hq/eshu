@@ -202,9 +202,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/entity_map_resolver.go, symbol: EntityMapNodeResolverQuery, source_sha256: 71244cb39299d7b7c8679c96295fa8c2248586d1c488f3c08f5511bc47ee17ab}
+    source: {file: go/internal/query/impact/entity_map_resolver.go, symbol: EntityMapNodeResolverQuery, source_sha256: 3f86ac4ea4802169ac132955edeb192f1e5a2452dc8d7d13280da6327c692368}
     query_fragment: 'MATCH (n:%s {%s: $from})'
-    cypher_sha256: 785acf58218cccb6d99b9b783edacdd596930f3a3b627e36645069feed7dee9c
+    cypher_sha256: bfc49a9d51179a00f16f3397f3b9d18cb2a347705ad346712cf52700a44cdfb6
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [51]
@@ -215,9 +215,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapDirectTraversalCypher, source_sha256: 8e0ccbbf9c6bc963c5e93fb452658b741ac75132f705cfb8f7708173d717e638}
+    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapDirectTraversalCypher, source_sha256: 90671cddd69cca3a3155e3ae5679cf674a82a4a6820192c13ab347f0e40e2a37}
     query_fragment: '(start:%s {%s: $from_id})-[rel:%s]->(entity)'
-    cypher_sha256: 1c133fed5c939ca0e9f310431ac7d5c6602a476eaa7c125c48d828aa930af2d7
+    cypher_sha256: ebf572525bc3ff77ea4bb32b0be6baa2656a12f2f7823b84411debc8030fc2aa
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$limit]
@@ -228,9 +228,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapVariableTraversalCypher, source_sha256: 60c8fccf0780af4b1f509a019883da43e6000402c8a8a293c2d790c43ccf6d30}
+    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapVariableTraversalCypher, source_sha256: 708c051800f61adaadc4ee741659feec8f8aaccbd3710ac6478aef2dd2e22fb6}
     query_fragment: '(start:%s {%s: $from_id})-[%s]->(entity)'
-    cypher_sha256: 797d2c60e7de3f2a9539d6ebd078b1731e7193696ef5de84edc9b6f33cf2a573
+    cypher_sha256: 3c14e8ea97e6625991dce3339f24345893ab497e3fecd19464cdddc65bcd25f4
     required_anchors: [{label: Repository, property: id}]
     required_schema: [repository_id]
     required_limits: [$limit]
@@ -253,7 +253,7 @@ entries:
     domain: infra
     backend: postgresql
     query_kind: sql_read_model
-    source: {file: go/internal/query/cloud_resource_list_store.go, symbol: buildCloudResourceIdentityListQuery, source_sha256: fbced2dfb725aa9d3a0f1aca42b538ee22e8965c2ada84c2258b2c9afe78e57a}
+    source: {file: go/internal/query/cloud_resource_list_store.go, symbol: buildCloudResourceIdentityListQuery, source_sha256: d5cd6ab1a6bf600c8adbca345b4573cd29a025c68064ae8a99944e10115f8203}
     caveats:
       - The hash-frozen 64-variant SQL family is validated by TestHandlerQueryplanCloudResourceListVariantsStayCovered; live EXPLAIN evidence is captured separately because this manifest does not connect to Postgres.
 
@@ -321,9 +321,9 @@ entries:
     domain: graph
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/graph_entity_inventory_counts.go, symbol: graphEntityKindCountsCypher, source_sha256: 4b7d78fcf696b40530cdc3d028858627bf17359d3db47cab12a25c89cdfea36c}
+    source: {file: go/internal/query/graph_entity_inventory_counts.go, symbol: graphEntityKindCountsCypher, source_sha256: de1181801d70acd1a609670f991d732d6a2ac5602166281a61d11777b378a2be}
     query_fragment: 'MATCH (n:'
-    cypher_sha256: d24c086f0478b8672c612e0c4985b13980ba839e757ae81ed08543af24da4ead
+    cypher_sha256: edca70bc98b4a1554e161d5babb61385245328b9c30f36ba6066724b80033566
     caveats: [Eight scalar CALL subqueries return all fixed facet counts in one round trip; every subquery returns exactly one row and stays label-bounded, the live Neo4j gate requires exactly seven bounded one-row CartesianProduct joins plus eight count-store anchors, and no all-node scan is permitted.]
     plan:
       operators: [NodeCountFromCountStore, CartesianProduct]
@@ -333,7 +333,7 @@ entries:
     domain: graph
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindListCypher, source_sha256: d5ebe60e75c9078e0f7d4915c73edfe6ff686a81c205b374625bc953c57c921e}
+    source: {file: go/internal/query/graph_entity_inventory.go, symbol: graphEntityKindListCypher, source_sha256: a7ed0ba404c2835649180eb6fb95762ddcba8daab3fea881e6807f4d9d211dce}
     query_fragment: 'MATCH (n:'
     cypher_sha256: ed4a6cde0b451ba5ea6b1f030c64faaa2d8378e882853f604d5fcbb6f79ef891
     required_anchors: [{label: Workload, property: name}]
@@ -375,9 +375,9 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact/resource_investigation_selector.go, symbol: ResourceInvestigationSelectorLabelCypher, source_sha256: 93d8669d297699c79651f681c6a298f46e39f9e9d17d317d0cf20db47950fee4}
+    source: {file: go/internal/query/impact/resource_investigation_selector.go, symbol: ResourceInvestigationSelectorLabelCypher, source_sha256: 2a14d3cdfc2bce1f39fa1ca3389453e770374b3f096ddcaed52f3a50830804f8}
     query_fragment: 'MATCH (n:%s)'
-    cypher_sha256: 37986e9c5d95e6ed09806952f0f52cf683d660df41a276fea1668d246c517612
+    cypher_sha256: 1e154f33006bc426483b465f1aedcc6604920e83c7e8a7b8c485de384c4ad980
     required_anchors: [{label: CloudResource, property: resource_id}]
     required_schema: [cloud_resource_resource_id]
     required_limits: [$limit]

@@ -202,6 +202,12 @@ LIMIT %d`, property, where, rank, limit),
 
 func changeSurfaceCloudResourceResolverQuery(property string, target string, rank int, limit int, access querycontract.RepositoryAccessFilter) changeSurfaceResolverQuery {
 	where, params := changeSurfaceResolverGrantClause(access, "n", "repo_id", map[string]any{"target": target})
+	legacyKeyPredicate := "coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'"
+	if where == "" {
+		where = "\nWHERE " + legacyKeyPredicate
+	} else {
+		where += "\n  AND " + legacyKeyPredicate
+	}
 	return changeSurfaceResolverQuery{
 		cypher: fmt.Sprintf(`MATCH (n:CloudResource {%s: $target})%s
 RETURN n.id as id, n.name as name, labels(n) as labels, n.repo_id as repo_id, n.environment as environment, %d as rank

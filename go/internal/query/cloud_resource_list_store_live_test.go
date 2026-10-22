@@ -416,7 +416,7 @@ func seedCloudResourceListLiveCorpus(t *testing.T, ctx context.Context, db *sql.
         )`,
 		`CREATE TEMP TABLE fact_records (
           fact_id text PRIMARY KEY, scope_id text NOT NULL, generation_id text NOT NULL,
-          is_tombstone boolean NOT NULL
+          is_tombstone boolean NOT NULL, payload jsonb NOT NULL DEFAULT '{}'::jsonb
         )`,
 		`CREATE TEMP TABLE graph_node_owner (
           uid text PRIMARY KEY, winning_row jsonb NOT NULL
@@ -427,11 +427,12 @@ func seedCloudResourceListLiveCorpus(t *testing.T, ctx context.Context, db *sql.
 		`INSERT INTO scope_generations VALUES
 		  ('generation:allowed', 'scope:allowed', 'active'),
 		  ('generation:denied', 'scope:denied', 'active')`,
-		`INSERT INTO fact_records
+		`INSERT INTO fact_records (fact_id, scope_id, generation_id, is_tombstone, payload)
 		 SELECT 'fact-' || lpad(value::text, 6, '0'),
 		        CASE WHEN value % 2 = 1 THEN 'scope:allowed' ELSE 'scope:denied' END,
 		        CASE WHEN value % 2 = 1 THEN 'generation:allowed' ELSE 'generation:denied' END,
-		        false
+		        false,
+		        jsonb_build_object('resource_type', 'type-' || lpad((value % 20)::text, 2, '0'))
 		 FROM generate_series(1, 20000) AS value`,
 		`INSERT INTO graph_node_owner
          SELECT 'uid-' || lpad(value::text, 6, '0'),

@@ -52,6 +52,7 @@ func TestSearchInfraResourcesAcceptsStructuredFiltersWithoutQuery(t *testing.T) 
 		"n.service_kind = $resource_service",
 		"n.resource_category = $resource_category",
 		"n.environment = $environment",
+		"coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'",
 	} {
 		if !strings.Contains(reader.lastCypher, want) {
 			t.Fatalf("cypher = %q, want structured filter fragment %q", reader.lastCypher, want)

@@ -55,6 +55,19 @@ func TestBuildCloudResourceIdentityListQueryAppliesAuthorizationBeforeLimit(t *t
 	}
 }
 
+func TestBuildCloudResourceIdentityListQueryExcludesLegacyAppSyncKeysBeforeLimit(t *testing.T) {
+	t.Parallel()
+
+	query, _ := buildCloudResourceIdentityListQuery(CloudResourceListPageFilter{Limit: 2, AllScopes: true})
+	predicate := "owner.winning_row->>'resource_type' <> 'aws_appsync_api_key'"
+	if !strings.Contains(query, predicate) {
+		t.Fatalf("query = %q, want legacy AppSync key exclusion before pagination", query)
+	}
+	if strings.Index(query, predicate) > strings.Index(query, "ORDER BY") {
+		t.Fatalf("legacy AppSync key exclusion must run before ordering and LIMIT: %q", query)
+	}
+}
+
 func TestBuildCloudResourceCurrentInventoryQueryScopedAppliesActiveGenAndAuth(t *testing.T) {
 	t.Parallel()
 

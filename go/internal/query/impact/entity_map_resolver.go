@@ -182,9 +182,14 @@ func EntityMapNodeResolverQuery(
 	rank int,
 	limit int,
 ) entityMapResolverQuery {
+	legacyCloudKeyClause := ""
+	if label == "CloudResource" {
+		legacyCloudKeyClause = "\n  AND coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'"
+	}
 	return entityMapResolverQuery{
 		Cypher: fmt.Sprintf(`MATCH (n:%s {%s: $from})
-WHERE ($environment = '' OR coalesce(n.environment, '') = '' OR n.environment = $environment)
+WHERE true%s
+  AND ($environment = '' OR coalesce(n.environment, '') = '' OR n.environment = $environment)
   AND ($repo_id = '' OR coalesce(n.repo_id, n.id, '') = $repo_id)
 RETURN coalesce(n.id, n.uid, n.resource_id, n.path, n.name) AS id,
        coalesce(n.name, n.address, n.qualified_name, n.path, n.id, n.uid) AS name,
@@ -196,7 +201,7 @@ RETURN coalesce(n.id, n.uid, n.resource_id, n.path, n.name) AS id,
        coalesce(n.%s, n.id, n.uid, n.path, n.name) AS anchor_value,
        %d AS rank
 ORDER BY rank, name, id
-LIMIT %d`, label, matchProperty, label, anchorProperty, anchorProperty, rank, limit),
+LIMIT %d`, label, matchProperty, legacyCloudKeyClause, label, anchorProperty, anchorProperty, rank, limit),
 		Params: map[string]any{"from": from},
 	}
 }

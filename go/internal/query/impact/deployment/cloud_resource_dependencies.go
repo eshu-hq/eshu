@@ -59,6 +59,7 @@ func LoadMaterializedServiceCloudResourceDependencies(
 	rows, err := graph.Run(ctx, fmt.Sprintf(`
 MATCH (repo:Repository)-[:DEFINES]->(workload:Workload {id: $workload_id})<-[:INSTANCE_OF]-(instance:WorkloadInstance)-[rel:USES]->(c:CloudResource)
 WHERE repo.id = $repo_id%s
+  AND coalesce(c.resource_type, c.data_type, '') <> 'aws_appsync_api_key'
 RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        c.name AS name,
        coalesce(c.kind, c.resource_type, c.data_type, '') AS kind,
@@ -181,10 +182,11 @@ func loadConfigDerivedCloudResourceDependenciesWithLimit(
 	anchorPattern := configReadCloudResourceAnchorPattern(anchors)
 	rows, err := graph.Run(ctx, `
 MATCH (c:CloudResource)
-WHERE coalesce(c.name, '') =~ $config_anchor_pattern
+WHERE (coalesce(c.name, '') =~ $config_anchor_pattern
    OR coalesce(c.config_path, '') =~ $config_anchor_pattern
    OR coalesce(c.resource_id, '') =~ $config_anchor_pattern
-   OR coalesce(c.arn, '') =~ $config_anchor_pattern
+   OR coalesce(c.arn, '') =~ $config_anchor_pattern)
+  AND coalesce(c.resource_type, c.data_type, '') <> 'aws_appsync_api_key'
 RETURN DISTINCT coalesce(c.id, c.uid, c.resource_id, c.arn, c.name) AS id,
        c.name AS name,
        coalesce(c.kind, c.resource_type, c.data_type, '') AS kind,

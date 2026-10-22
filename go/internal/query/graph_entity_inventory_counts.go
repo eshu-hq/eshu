@@ -18,9 +18,13 @@ func graphEntityKindCountsCypher(kinds []graphEntityKind) string {
 	subqueries := make([]string, 0, len(kinds))
 	columns := make([]string, 0, len(kinds))
 	for _, kind := range kinds {
+		where := ""
+		if kind.label == "CloudResource" {
+			where = " WHERE coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key'"
+		}
 		subqueries = append(subqueries, fmt.Sprintf(
-			"CALL {\nMATCH (n:%s) RETURN count(n) AS %s\n}",
-			kind.label, kind.key,
+			"CALL {\nMATCH (n:%s)%s RETURN count(n) AS %s\n}",
+			kind.label, where, kind.key,
 		))
 		columns = append(columns, kind.key)
 	}

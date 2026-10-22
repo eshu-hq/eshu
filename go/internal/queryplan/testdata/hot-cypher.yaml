@@ -333,7 +333,7 @@ entries:
     source:
       file: go/internal/query/impact/deployment/cloud_resource_dependencies.go
       symbol: LoadMaterializedServiceCloudResourceDependencies
-      source_sha256: c12098c98fcc3e9bbdd585558eb57eaf01e5badd257e6f24068d61e04c86cb47
+      source_sha256: f515885f0736c6350d44d1bca7c723c5edd892006d4f214ff740108ec4c2e516
       line_hint: 19
     required_anchors:
       - label: Repository
@@ -357,7 +357,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "79e62402ecebbf1fc97dfa8ad89dd37a11b5c298ef3597f4f87269a0c6868a08"
+    cypher_sha256: "e7b5dd677a995a2bb66efb24872ea909008608c6d85031d1f56a1035d02818f9"
   - id: QP-CODE-REL-STORY
     domain: code_relationship
     backend: nornicdb
@@ -560,7 +560,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "f00bdf5ef5c4649fa86cdd39edeb339ff0edf36f4d568cd185261d8c02dd0010"
+    cypher_sha256: "cb1e0e54ad3a3d992a639d5ba32ff7200dcef48e41a9b18308242eceff70d31b"
   - id: QP-IMPACT-CHANGE-SURFACE-SCOPED
     domain: impact
     backend: nornicdb
@@ -589,7 +589,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "2456d561fd0cfd1db990656ae1521b8b9ef66ce7ffa003082c1c0d812c2c8501"
+    cypher_sha256: "5bb181704ddebfc38038cab6b85c79e43a861d38335b8db4ae7858ca7be41307"
   - id: QP-IMPACT-CHANGE-SURFACE-CONSUMERS
     domain: impact
     backend: nornicdb
@@ -799,7 +799,7 @@ entries:
     source:
       file: go/internal/query/infra.go
       symbol: (*InfraHandler).searchResources
-      source_sha256: 5e5fca0bdf20e936ca59d49651165964d59561f3f0ee83d5ca2bbbce984521a3
+      source_sha256: 3c3efa7feecc1ec179596a84ba94d316d68ba54f5a9190409e701f06a6070286
       line_hint: 203
     required_limits:
       - $limit
@@ -814,7 +814,7 @@ entries:
       forbidden_operators:
         - AllNodesScan
         - CartesianProduct
-    cypher_sha256: "7047e6e0961883a760e32a9523cd0d5b6553d572611062e09e4caaafd92151c3"
+    cypher_sha256: "5e82c2e99686c3d8f6d188eddaf4ca03a0f6cfd1244a74226f4f397b14b5857a"
   - id: QP-INFRA-RESOURCE-SEARCH-FULLTEXT
     domain: infra
     backend: neo4j

@@ -40,6 +40,9 @@ func TestGraphEntityKindCountsCypherUsesOneSafeScalarRead(t *testing.T) {
 			}
 		}
 	}
+	if !strings.Contains(cypher, "MATCH (n:CloudResource) WHERE coalesce(n.resource_type, n.data_type, '') <> 'aws_appsync_api_key' RETURN count(n) AS cloud_resources") {
+		t.Fatalf("cloud-resource facet count must exclude legacy AppSync keys: %s", cypher)
+	}
 	if tail := cypher[strings.LastIndex(cypher, "}")+1:]; strings.Contains(tail, "count(") || strings.Contains(tail, "sum(") {
 		t.Fatalf("outer projection must not aggregate NornicDB CALL rows: %s", tail)
 	}
