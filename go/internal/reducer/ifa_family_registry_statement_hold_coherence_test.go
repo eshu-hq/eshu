@@ -67,6 +67,15 @@ func checkStatementStageCoherence(
 		case hasStage && stage == "statement" && blocker != string(blockerStatementHold):
 			return fmt.Errorf("family %q declares wait_stage=statement with blocker_kind=%q -- a statement-stage wait rendezvouses with a per-statement hold, so only blocker_kind=statement_hold may use it", family, blocker)
 		}
+		if hasStage && stage == "statement" {
+			raw := strings.TrimSpace(waitKeys[family])
+			if raw == "" {
+				return fmt.Errorf("family %q declares wait_stage=statement but no IFA_FAMILY_WAIT_KEY -- a statement-stage wait with no key polls nothing", family)
+			}
+			if err := reducercontract.Domain(raw).Validate(); err != nil {
+				return fmt.Errorf("family %q declares wait_stage=statement with wait_key %q that is not a real reducer Domain (%v) -- the kill cell rendezvouses on the claimed projection work item in fact_work_items", family, raw, err)
+			}
+		}
 	}
 
 	// Exclusivity on the family-own anchor: no two statement-stage families
@@ -159,6 +168,20 @@ func TestCheckStatementStageCoherence_SeededViolations(t *testing.T) {
 			anchors:  map[string]string{},
 			wantErr:  "no IFA_FAMILY_ANCHOR",
 		},
+		"statement_hold with blank wait_key": {
+			blockers: map[string]string{"uses_vault_policy": "statement_hold"},
+			stages:   map[string]string{"uses_vault_policy": "statement"},
+			keys:     map[string]string{},
+			anchors:  map[string]string{"uses_vault_policy": anchorUses},
+			wantErr:  "no IFA_FAMILY_WAIT_KEY",
+		},
+		"statement_hold with non-domain wait_key": {
+			blockers: map[string]string{"uses_vault_policy": "statement_hold"},
+			stages:   map[string]string{"uses_vault_policy": "statement"},
+			keys:     map[string]string{"uses_vault_policy": "not a domain!!"},
+			anchors:  map[string]string{"uses_vault_policy": anchorUses},
+			wantErr:  "real reducer Domain",
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -246,7 +269,7 @@ func TestIfaFamilyRegistryStatementStageCohereLive(t *testing.T) {
 		if !ok || strings.TrimSpace(raw) == "" {
 			t.Fatalf("family %q declares wait_stage=statement but no IFA_FAMILY_WAIT_KEY -- a statement-stage wait with no key polls nothing", family)
 		}
-		if err := reducercontract.Domain(raw).Validate(); err != nil {
+		if err := reducercontract.Domain(strings.TrimSpace(raw)).Validate(); err != nil {
 			t.Fatalf("family %q: wait_stage=statement but wait_key %q is not a real reducer Domain (%v) -- the kill cell rendezvouses on the claimed projection work item in fact_work_items", family, raw, err)
 		}
 	}
