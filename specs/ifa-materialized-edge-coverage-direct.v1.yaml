@@ -48,16 +48,18 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# ELEVEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# TWELVE OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
-# uses_vault_policy, built_from, and cloud_resource_container_image
+# uses_vault_policy, built_from, cloud_resource_container_image,
+# and crossplane_satisfied_by
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
 # and -- since #6309 for the first two, since the #6228 fault halves and
 # slice A for seven, slice C for built_from, slice D for
-# cloud_resource_container_image -- live ifa-determinism AND
+# cloud_resource_container_image, and the crossplane live leaf for
+# crossplane_satisfied_by -- live ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
 # and asserting its exact edge set. Their coverage rows below say so. Every
@@ -293,6 +295,24 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-cloud-resource-container-image-family"
     proof_gate: ifa-fault-injection
+  # crossplane_satisfied_by: fault-free baseline plus fault-injection
+  # recovery, all asserting the two-edge SATISFIED_BY exact set with
+  # identical graph digests (#6228 crossplane live leaf). The orders-db and
+  # billing-db claims each join (database.example.com, PostgreSQL) against
+  # the single XRD; the cache claim matching two XRDs (ambiguous, never a
+  # fabricated pick), the deploy object that is no Claim, the core-group
+  # config with no group segment, the cluster-scoped XRD with no claim
+  # kind, and the tombstoned retired claim resolve to nothing.
+  - surface: "materialized_edges:crossplane_satisfied_by"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-crossplane-satisfied-by-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:crossplane_satisfied_by"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-crossplane-satisfied-by-family"
+    proof_gate: ifa-fault-injection
 
 waivers:
   - surface: "materialized_edges:assumes_iam_role"
@@ -335,16 +355,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteCodeTaintEvidence -> cypher/edge/writer/code_taint_evidence.go merges HAS_TAINT_EVIDENCE; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the single-type table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (family stays waived: neither live matrix drives it yet)"
-  - surface: "materialized_edges:crossplane_satisfied_by"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteCrossplaneSatisfiedByEdges -> cypher/crossplane_satisfied_by_edge_writer.go merges SATISFIED_BY; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
-  - surface: "materialized_edges:crossplane_satisfied_by"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteCrossplaneSatisfiedByEdges -> cypher/crossplane_satisfied_by_edge_writer.go merges SATISFIED_BY; offline catalog Odu + vacuity guard + hand-derived expected-edge-set fixture + single-type registry row landed in the slice-C offline change (#6228; seated on the guarded roster with LiveProven unset, READY-FOR-LIVE). Stays waived: no live determinism or fault-injection matrix drives the family yet (per-family live leaf owns coverage rows + roster flag flip)"
   - surface: "materialized_edges:derived_from"
     proof_gate: ifa-determinism
     issue: "#6228"

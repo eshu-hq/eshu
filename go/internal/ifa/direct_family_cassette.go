@@ -45,8 +45,9 @@ const (
 	// cloudResourceFamilyCassettePath, codeTaintEvidenceFamilyCassettePath,
 	// observabilityCoverageFamilyCassettePath,
 	// codeInterprocEvidenceFamilyCassettePath,
-	// builtFromFamilyCassettePath, and
-	// cloudResourceContainerImageFamilyCassettePath are repo-root-relative so the
+	// builtFromFamilyCassettePath,
+	// cloudResourceContainerImageFamilyCassettePath, and
+	// crossplaneSatisfiedByFamilyCassettePath are repo-root-relative so the
 	// constants stay machine-independent; callers join a repo root onto
 	// them through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
@@ -67,6 +68,7 @@ const (
 	codeTaintEvidenceFamilyCassettePath              = "testdata/cassettes/codetaint/ifa-code-taint-evidence-family.json"
 	observabilityCoverageFamilyCassettePath          = "testdata/cassettes/obscoverage/ifa-observability-coverage-family.json"
 	codeInterprocEvidenceFamilyCassettePath          = "testdata/cassettes/codeinterproc/ifa-code-interproc-evidence-family.json"
+	crossplaneSatisfiedByFamilyCassettePath          = "testdata/cassettes/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -375,6 +377,43 @@ func CodeInterprocEvidenceFamilyCassetteFullPath(repoRoot string) string {
 // code_interproc_evidence counterpart to LoadObservabilityCoverageFamilyOdu.
 func LoadCodeInterprocEvidenceFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, CodeInterprocEvidenceFamilyOduName)
+}
+
+// CrossplaneSatisfiedByFamilyCassetteFullPath joins repoRoot onto the
+// committed crossplane_satisfied_by family cassette path.
+func CrossplaneSatisfiedByFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, crossplaneSatisfiedByFamilyCassettePath)
+}
+
+// LoadCrossplaneSatisfiedByFamilyOdu reads the committed cassette and projects
+// it onto the fact envelopes the reducer's extractor consumes.
+//
+// Unlike the single-scope siblings it REQUIRES exactly two scopes -- the
+// claims scope and the platform XRD scope -- because the family's Odù keeps
+// Claim candidates and XRDs in separate repos, mirroring the handler's
+// own-scope plus cross-scope XRD load. The single-scope loader rejects that
+// shape as ambiguous; here the scope is carried on every projected envelope,
+// so which scope produced an edge stays unambiguous. The strict decode and
+// fail-closed emptiness rules are the shared ones.
+func LoadCrossplaneSatisfiedByFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	parsed, err := parseDirectFamilyCassette(cassettePath, CrossplaneSatisfiedByFamilyOduName)
+	if err != nil {
+		return familyodu.Odu{}, err
+	}
+	if len(parsed.Scopes) != 2 {
+		return familyodu.Odu{}, fmt.Errorf(
+			"ifa: %s cassette %s declares %d scopes, want exactly 2 (claims plus platform XRD); a missing scope would silently drop one side of the resolution from the proof",
+			CrossplaneSatisfiedByFamilyOduName, cassettePath, len(parsed.Scopes),
+		)
+	}
+	var envelopes []facts.Envelope
+	for _, scope := range parsed.Scopes {
+		if len(scope.Facts) == 0 {
+			return familyodu.Odu{}, fmt.Errorf("ifa: %s cassette %s scope %q carries no facts; an empty scope makes that side's assertion vacuous", CrossplaneSatisfiedByFamilyOduName, cassettePath, scope.ScopeID)
+		}
+		envelopes = append(envelopes, projectDirectFamilyScopeFacts(scope)...)
+	}
+	return familyodu.Odu{Name: CrossplaneSatisfiedByFamilyOduName, Facts: envelopes}, nil
 }
 
 // parseDirectFamilyCassette is the shared strict decode behind the loaders.

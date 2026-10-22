@@ -4,7 +4,13 @@
 package familyodu
 
 import (
+	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+
+	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
 const (
@@ -25,20 +31,42 @@ const (
 	// the CrossplaneXRD facts.
 	crossplaneSatisfiedByFamilyPlatformScopeID = "git:eshu-fixture-crossplane-platform"
 
-	// crossplaneSatisfiedByFamilyGenerationID is the single generation both
-	// scopes replay.
-	crossplaneSatisfiedByFamilyGenerationID = "gen-ifa-crossplane-satisfied-by-family-1"
+	// Generations are PER SCOPE, not shared: the drive/projector path keys
+	// generations without a scope qualifier, so one generation ID replayed
+	// in two scopes collides and the loser fails with "generation not
+	// found" (proven live). The cloud_resource sibling uses the same
+	// per-scope suffix shape (...-aws-1, ...-gcp-1, ...-azure-1).
+	crossplaneSatisfiedByFamilyClaimsGenerationID = "gen-ifa-crossplane-satisfied-by-family-claims-1"
+
+	// crossplaneSatisfiedByFamilyPlatformGenerationID is the platform XRD
+	// scope's generation. The handler's cross-scope XRD load only sees
+	// platform facts once THIS generation is active, so the live cells
+	// drive both scopes and drain to the residual bound rather than
+	// assuming the platform side is ready when the claims intent claims.
+	crossplaneSatisfiedByFamilyPlatformGenerationID = "gen-ifa-crossplane-satisfied-by-family-platform-1"
 
 	// crossplaneSatisfiedByFamilyCollectorKind mirrors what the git
 	// collector stamps on a content_entity fact.
 	crossplaneSatisfiedByFamilyCollectorKind = "git"
+
+	// crossplaneSatisfiedByFamilySchemaVersion is the content_entity wire
+	// version these facts carry. The drive path rejects a cassette fact
+	// with an empty schema_version, so the compiled half must stamp what
+	// the cassette carries (and the lockstep test holds them equal) --
+	// the same 1.0.0 the code_interproc sibling stamps.
+	crossplaneSatisfiedByFamilySchemaVersion = "1.0.0"
 )
 
 // crossplaneSatisfiedByFixture describes one content_entity fact in the Odù.
 type crossplaneSatisfiedByFixture struct {
-	// EntityID is the node's canonical uid. It is the edge endpoint
-	// identity, so it is what the expected-edge fixture's source and target
-	// identities are derived from.
+	// EntityID is the node's canonical uid for Claim candidates: it is the
+	// edge source identity, so it is what the expected-edge fixture's
+	// source identities are derived from. For XRD fixtures this input is
+	// schematic only (xrd: names): the builder replaces it with
+	// content.CanonicalEntityID because the canonical projector recomputes
+	// CrossplaneXRD uids, and the writer's MATCH needs the fact to carry
+	// the recomputed id. The expected-edge target identities derive from
+	// the COMPUTED ids, not these inputs.
 	EntityID string
 	// EntityType is the canonical Neo4j label materializeEntities stamps:
 	// "K8sResource" for a Claim candidate, "CrossplaneXRD" for an XRD.
@@ -220,40 +248,172 @@ var crossplaneSatisfiedByFamilyFixtures = []crossplaneSatisfiedByFixture{
 // crossplane_satisfied_by direct-materialization family.
 //
 // Exported because catalog_seed.go registers it at package-init time and
-// materializededges' guard test resolves it by name. It carries no encode
-// step — content_entity payloads are collector-shaped maps, not SDK-typed
-// values — so there is nothing to panic on; the guard's exact-set
-// comparison is what voids stale claims here.
+// materializededges' guard test resolves it by name. Content_entity payloads
+// are collector-shaped maps with no encode step; the TYPED file and
+// repository facts below DO encode through factschema and panic on failure
+// (a fixture that cannot encode is a broken fixture, and the guard's
+// exact-set comparison is what voids stale claims here).
+//
+// The Odù carries the full repo snapshot the live projector needs, not just
+// the entities the extractor reads: two repository facts (one per repo),
+// one TYPED file fact per relative_path the fixtures reference, and the ten
+// content_entity facts. The entities phase writes nodes with containment
+// (MATCH File first), so file facts are load-bearing: without them the
+// entity statements complete having written nothing, and the writer's MATCH
+// misses every endpoint. The handler's fact load filters content_entity
+// only, so the repo/file facts are invisible to extraction.
 func CrossplaneSatisfiedByFamilyOdu() CatalogOdu {
-	factsForOdu := make([]facts.Envelope, 0, len(crossplaneSatisfiedByFamilyFixtures))
-	for _, fixture := range crossplaneSatisfiedByFamilyFixtures {
-		scopeID := crossplaneSatisfiedByFamilyClaimsScopeID
-		if fixture.PlatformScope {
-			scopeID = crossplaneSatisfiedByFamilyPlatformScopeID
+	// Scope-grouped fact order (platform repo, platform files, platform
+	// entities, then claims repo, claims files, claims entities) mirrors the
+	// cassette's scope nesting exactly: the lockstep test compares canonical
+	// JSON arrays in order, and a flat repos-then-files-then-entities layout
+	// would diverge from the renderer's scope-grouped projection on every
+	// run. Fact ORDER carries no semantic meaning (the projector keys by
+	// scope+generation+stable key); the grouping exists only to keep the
+	// two halves byte-comparable.
+	factsForOdu := make([]facts.Envelope, 0, len(crossplaneSatisfiedByFamilyFixtures)+12)
+	for _, scope := range []struct {
+		scopeID      string
+		generationID string
+		repoID       string
+		localPath    string
+		platform     bool
+	}{
+		{
+			scopeID:      crossplaneSatisfiedByFamilyPlatformScopeID,
+			generationID: crossplaneSatisfiedByFamilyPlatformGenerationID,
+			repoID:       "repo-platform",
+			localPath:    "/repo-crossplane-platform",
+			platform:     true,
+		},
+		{
+			scopeID:      crossplaneSatisfiedByFamilyClaimsScopeID,
+			generationID: crossplaneSatisfiedByFamilyClaimsGenerationID,
+			repoID:       "repo-claims-app",
+			localPath:    "/repo-claims-app",
+			platform:     false,
+		},
+	} {
+		factsForOdu = append(factsForOdu, crossplaneSatisfiedByRepositoryFact(
+			scope.scopeID, scope.generationID, scope.repoID, scope.localPath,
+		))
+		seenFiles := map[string]bool{}
+		for _, fixture := range crossplaneSatisfiedByFamilyFixtures {
+			if fixture.PlatformScope != scope.platform || seenFiles[fixture.RelativePath] {
+				continue
+			}
+			seenFiles[fixture.RelativePath] = true
+			factsForOdu = append(factsForOdu, crossplaneSatisfiedByFileFact(
+				scope.scopeID, scope.generationID, fixture.RepoID, fixture.RelativePath,
+			))
 		}
-		factsForOdu = append(factsForOdu, facts.Envelope{
-			ScopeID:          scopeID,
-			GenerationID:     crossplaneSatisfiedByFamilyGenerationID,
-			FactKind:         ContentEntityFactKind,
-			StableFactKey:    "content_entity:" + fixture.EntityID,
-			CollectorKind:    crossplaneSatisfiedByFamilyCollectorKind,
-			SourceConfidence: facts.SourceConfidenceObserved,
-			IsTombstone:      fixture.Tombstone,
-			Payload: map[string]any{
-				"graph_id":        fixture.EntityID,
-				"graph_kind":      "content_entity",
-				"entity_id":       fixture.EntityID,
-				"repo_id":         fixture.RepoID,
-				"relative_path":   fixture.RelativePath,
-				"entity_type":     fixture.EntityType,
-				"entity_name":     fixture.EntityName,
-				"entity_metadata": fixture.Metadata,
-			},
-		})
+		for _, fixture := range crossplaneSatisfiedByFamilyFixtures {
+			if fixture.PlatformScope != scope.platform {
+				continue
+			}
+			factsForOdu = append(factsForOdu, crossplaneSatisfiedByContentEntityFact(
+				scope.scopeID, scope.generationID, fixture,
+			))
+		}
 	}
+	return crossplaneSatisfiedByAssembleOdu(factsForOdu)
+}
 
+func crossplaneSatisfiedByAssembleOdu(factsForOdu []facts.Envelope) CatalogOdu {
 	return CatalogOdu{
 		Odu:    Odu{Name: CrossplaneSatisfiedByFamilyOduName, Facts: factsForOdu},
-		Detail: "ten content_entity facts for the direct-materialization crossplane_satisfied_by family: one XRD with two edge-producing claims (proving the fan-out counts) and five deliberate non-producers covering the ambiguous-match, zero-match, core-group, cluster-scoped-XRD and tombstone branches, so the SATISFIED_BY expected set proves both promotion and restraint",
+		Detail: "twenty-two facts for the direct-materialization crossplane_satisfied_by family: two repository facts, ten typed file facts (one per referenced path), and ten content_entity facts -- one XRD with two edge-producing claims (proving the fan-out counts) and five deliberate non-producers covering the ambiguous-match, zero-match, core-group, cluster-scoped-XRD and tombstone branches, so the SATISFIED_BY expected set proves both promotion and restraint",
+	}
+}
+
+func crossplaneSatisfiedByContentEntityFact(scopeID, generationID string, fixture crossplaneSatisfiedByFixture) facts.Envelope {
+	entityID := fixture.EntityID
+	if fixture.PlatformScope {
+		// The canonical projector RECOMPUTES CrossplaneXRD node uids
+		// (CrossplaneXRD is in canonicalNamePathLineEntityLabels), so
+		// the fact's entity_id must already be that recomputed id or
+		// the writer's MATCH (xrd {uid: row.xrd_uid}) misses nodes the
+		// projection did commit. Compute it exactly as production
+		// facts carry it, not as a pretty xrd: name. K8sResource keeps
+		// the incoming id (it is not in the recompute set), so claims
+		// keep their fixture names.
+		entityID = content.CanonicalEntityID(fixture.RepoID, fixture.RelativePath, "CrossplaneXRD", fixture.EntityName, 0)
+	}
+	return facts.Envelope{
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         ContentEntityFactKind,
+		StableFactKey:    "content_entity:" + entityID,
+		SchemaVersion:    crossplaneSatisfiedByFamilySchemaVersion,
+		CollectorKind:    crossplaneSatisfiedByFamilyCollectorKind,
+		SourceConfidence: facts.SourceConfidenceObserved,
+		IsTombstone:      fixture.Tombstone,
+		Payload: map[string]any{
+			"graph_id":        entityID,
+			"graph_kind":      "content_entity",
+			"entity_id":       entityID,
+			"repo_id":         fixture.RepoID,
+			"relative_path":   fixture.RelativePath,
+			"entity_type":     fixture.EntityType,
+			"entity_name":     fixture.EntityName,
+			"entity_metadata": fixture.Metadata,
+		},
+	}
+}
+
+// crossplaneSatisfiedByRepositoryFact builds one typed repository fact for
+// the given repo. Repository nodes are what the entities phase hangs File
+// nodes off (MATCH Repository first), so without these the file statements
+// complete having written nothing, exactly like the entity statements did
+// without files.
+func crossplaneSatisfiedByRepositoryFact(scopeID, generationID, repoID, localPath string) facts.Envelope {
+	return facts.Envelope{
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         RepositoryFactKind,
+		SchemaVersion:    "1.0.0",
+		StableFactKey:    "repository:" + repoID,
+		CollectorKind:    crossplaneSatisfiedByFamilyCollectorKind,
+		SourceConfidence: facts.SourceConfidenceObserved,
+		Payload: map[string]any{
+			"repo_id":       repoID,
+			"source_run_id": "run-ifa-crossplane-satisfied-by-family-1",
+			"local_path":    localPath,
+		},
+	}
+}
+
+// crossplaneSatisfiedByFileFact builds one TYPED file fact for a referenced
+// path. The entities phase writes nodes with containment (MATCH File
+// first), so every relative_path the content_entity fixtures reference
+// needs its file fact or the entity statements complete having written
+// nothing. ParsedFileData stays empty: the File node write needs path and
+// repo identity, not parsed content.
+func crossplaneSatisfiedByFileFact(scopeID, generationID, repoID, relativePath string) facts.Envelope {
+	graphID := repoID + ":" + relativePath
+	graphKind := "file"
+	isDependency := false
+	language := "yaml"
+	payload, err := factschema.EncodeCodegraphFile(codegraphv1.File{
+		RepoID:         repoID,
+		RelativePath:   relativePath,
+		ParsedFileData: map[string]any{},
+		GraphID:        &graphID,
+		GraphKind:      &graphKind,
+		Language:       &language,
+		IsDependency:   &isDependency,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("familyodu: encode crossplane file %q: %v", relativePath, err))
+	}
+	return facts.Envelope{
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         FileFactKind,
+		SchemaVersion:    "1.0.0",
+		StableFactKey:    "file:" + repoID + ":" + relativePath,
+		CollectorKind:    crossplaneSatisfiedByFamilyCollectorKind,
+		SourceConfidence: facts.SourceConfidenceObserved,
+		Payload:          payload,
 	}
 }

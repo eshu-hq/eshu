@@ -177,9 +177,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    crossplaneSatisfiedByFamily,
-		OduName:   ifa.CrossplaneSatisfiedByFamilyOduName,
-		EdgeTypes: []string{"SATISFIED_BY"},
+		Family:     crossplaneSatisfiedByFamily,
+		OduName:    ifa.CrossplaneSatisfiedByFamilyOduName,
+		EdgeTypes:  []string{"SATISFIED_BY"},
+		LiveProven: true,
 	},
 	{
 		Family:     cloudResourceContainerImageFamily,

@@ -218,6 +218,24 @@ built_from_expected_edges="${repo_root}/go/internal/ifa/testdata/builtfrom/ifa-b
 # sibling above.
 cloud_resource_container_image_cassette="${repo_root}/testdata/cassettes/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family.json"
 cloud_resource_container_image_expected_edges="${repo_root}/go/internal/ifa/testdata/cloudresourcecontainerimage/ifa-cloud-resource-container-image-family-expected-edges.json"
+# crossplane_satisfied_by (#6228 crossplane live leaf): a projection of the
+# compiled CrossplaneSatisfiedByFamilyOdu by construction
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- two
+# repository facts, ten typed file facts (one per referenced path) and ten
+# content_entity facts (six Claim candidates in the claims scope, four XRDs
+# in the platform scope). The repo/file facts are load-bearing, not padding:
+# the entities phase writes nodes with containment (MATCH File first, and
+# File hangs off Repository), so without them the entity statements complete
+# having written nothing. Two edge-producing claims join
+# (database.example.com, PostgreSQL) against the single postgresql XRD;
+# five deliberate non-producer branches cover the ambiguous-match, zero-match,
+# core-group, cluster-scoped-XRD and tombstone branches. Both git scopes
+# own their per-scope generation and carry repo_id in scope metadata (the
+# projector keys content materialization off it); the platform generation
+# must be ACTIVE before the handler's cross-scope XRD load can see its
+# candidates.
+crossplane_satisfied_by_cassette="${repo_root}/testdata/cassettes/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family.json"
+crossplane_satisfied_by_expected_edges="${repo_root}/go/internal/ifa/testdata/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -288,6 +306,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${built_from_expected_edges}" ]] || { echo "${gate}: built-from expected-edge set not found: ${built_from_expected_edges}" >&2; exit 1; }
 	[[ -f "${cloud_resource_container_image_cassette}" ]] || { echo "${gate}: cloud-resource-container-image cassette not found: ${cloud_resource_container_image_cassette}" >&2; exit 1; }
 	[[ -f "${cloud_resource_container_image_expected_edges}" ]] || { echo "${gate}: cloud-resource-container-image expected-edge set not found: ${cloud_resource_container_image_expected_edges}" >&2; exit 1; }
+	[[ -f "${crossplane_satisfied_by_cassette}" ]] || { echo "${gate}: crossplane-satisfied-by cassette not found: ${crossplane_satisfied_by_cassette}" >&2; exit 1; }
+	[[ -f "${crossplane_satisfied_by_expected_edges}" ]] || { echo "${gate}: crossplane-satisfied-by expected-edge set not found: ${crossplane_satisfied_by_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
 	# stamps fact.source_system from the scope, and the
 	# container-image-identity loader the handler reads only accepts OCI

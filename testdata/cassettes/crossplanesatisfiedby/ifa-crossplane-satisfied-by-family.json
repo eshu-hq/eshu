@@ -1,0 +1,448 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "git:eshu-fixture-crossplane-platform",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "git:eshu-fixture-crossplane-platform",
+      "metadata": {
+        "fixture": "ifa-crossplane-satisfied-by-family",
+        "repo_id": "repo-platform"
+      },
+      "generation_id": "gen-ifa-crossplane-satisfied-by-family-platform-1",
+      "observed_at": "2026-09-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-platform",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "local_path": "/repo-crossplane-platform",
+            "repo_id": "repo-platform",
+            "source_run_id": "run-ifa-crossplane-satisfied-by-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-platform:xrds/postgresql.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-platform:xrds/postgresql.yaml",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "yaml",
+            "parsed_file_data": {},
+            "relative_path": "xrds/postgresql.yaml",
+            "repo_id": "repo-platform"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-platform:xrds/redis-a.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-platform:xrds/redis-a.yaml",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "yaml",
+            "parsed_file_data": {},
+            "relative_path": "xrds/redis-a.yaml",
+            "repo_id": "repo-platform"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-platform:xrds/redis-b.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-platform:xrds/redis-b.yaml",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "yaml",
+            "parsed_file_data": {},
+            "relative_path": "xrds/redis-b.yaml",
+            "repo_id": "repo-platform"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-platform:xrds/cluster-scoped.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-platform:xrds/cluster-scoped.yaml",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "yaml",
+            "parsed_file_data": {},
+            "relative_path": "xrds/cluster-scoped.yaml",
+            "repo_id": "repo-platform"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_e366e05cfa0f",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_id": "content-entity:e_e366e05cfa0f",
+            "entity_metadata": {
+              "claim_kind": "PostgreSQL",
+              "group": "database.example.com",
+              "kind": "XPostgreSQL"
+            },
+            "entity_name": "postgresql",
+            "entity_type": "CrossplaneXRD",
+            "graph_id": "content-entity:e_e366e05cfa0f",
+            "graph_kind": "content_entity",
+            "relative_path": "xrds/postgresql.yaml",
+            "repo_id": "repo-platform"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_3443f64ee7ea",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_id": "content-entity:e_3443f64ee7ea",
+            "entity_metadata": {
+              "claim_kind": "Redis",
+              "group": "cache.example.com",
+              "kind": "XRedis"
+            },
+            "entity_name": "redis-a",
+            "entity_type": "CrossplaneXRD",
+            "graph_id": "content-entity:e_3443f64ee7ea",
+            "graph_kind": "content_entity",
+            "relative_path": "xrds/redis-a.yaml",
+            "repo_id": "repo-platform"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_456c798f5cd3",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_id": "content-entity:e_456c798f5cd3",
+            "entity_metadata": {
+              "claim_kind": "Redis",
+              "group": "cache.example.com",
+              "kind": "XRedis"
+            },
+            "entity_name": "redis-b",
+            "entity_type": "CrossplaneXRD",
+            "graph_id": "content-entity:e_456c798f5cd3",
+            "graph_kind": "content_entity",
+            "relative_path": "xrds/redis-b.yaml",
+            "repo_id": "repo-platform"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:content-entity:e_e86777d4276c",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_id": "content-entity:e_e86777d4276c",
+            "entity_metadata": {
+              "group": "database.example.com",
+              "kind": "XClusterScoped"
+            },
+            "entity_name": "cluster-scoped",
+            "entity_type": "CrossplaneXRD",
+            "graph_id": "content-entity:e_e86777d4276c",
+            "graph_kind": "content_entity",
+            "relative_path": "xrds/cluster-scoped.yaml",
+            "repo_id": "repo-platform"
+          }
+        }
+      ]
+    },
+    {
+      "scope_id": "git:eshu-fixture-crossplane-claims",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "git:eshu-fixture-crossplane-claims",
+      "metadata": {
+        "fixture": "ifa-crossplane-satisfied-by-family",
+        "repo_id": "repo-claims-app"
+      },
+      "generation_id": "gen-ifa-crossplane-satisfied-by-family-claims-1",
+      "observed_at": "2026-09-28T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repo-claims-app",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "local_path": "/repo-claims-app",
+            "repo_id": "repo-claims-app",
+            "source_run_id": "run-ifa-crossplane-satisfied-by-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-claims-app:claims/orders-db.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-claims-app:claims/orders-db.yaml",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "yaml",
+            "parsed_file_data": {},
+            "relative_path": "claims/orders-db.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-claims-app:claims/billing-db.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-claims-app:claims/billing-db.yaml",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "yaml",
+            "parsed_file_data": {},
+            "relative_path": "claims/billing-db.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-claims-app:claims/cache.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-claims-app:claims/cache.yaml",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "yaml",
+            "parsed_file_data": {},
+            "relative_path": "claims/cache.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-claims-app:apps/orders-api.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-claims-app:apps/orders-api.yaml",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "yaml",
+            "parsed_file_data": {},
+            "relative_path": "apps/orders-api.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-claims-app:apps/app-config.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-claims-app:apps/app-config.yaml",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "yaml",
+            "parsed_file_data": {},
+            "relative_path": "apps/app-config.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repo-claims-app:claims/retired-db.yaml",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repo-claims-app:claims/retired-db.yaml",
+            "graph_kind": "file",
+            "is_dependency": false,
+            "language": "yaml",
+            "parsed_file_data": {},
+            "relative_path": "claims/retired-db.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:k8s:claim-orders-db",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_id": "k8s:claim-orders-db",
+            "entity_metadata": {
+              "api_version": "database.example.com/v1",
+              "kind": "PostgreSQL"
+            },
+            "entity_name": "orders-db",
+            "entity_type": "K8sResource",
+            "graph_id": "k8s:claim-orders-db",
+            "graph_kind": "content_entity",
+            "relative_path": "claims/orders-db.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:k8s:claim-billing-db",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_id": "k8s:claim-billing-db",
+            "entity_metadata": {
+              "api_version": "database.example.com/v1alpha1",
+              "kind": "PostgreSQL"
+            },
+            "entity_name": "billing-db",
+            "entity_type": "K8sResource",
+            "graph_id": "k8s:claim-billing-db",
+            "graph_kind": "content_entity",
+            "relative_path": "claims/billing-db.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:k8s:claim-cache",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_id": "k8s:claim-cache",
+            "entity_metadata": {
+              "api_version": "cache.example.com/v1",
+              "kind": "Redis"
+            },
+            "entity_name": "cache",
+            "entity_type": "K8sResource",
+            "graph_id": "k8s:claim-cache",
+            "graph_kind": "content_entity",
+            "relative_path": "claims/cache.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:k8s:deploy-orders-api",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_id": "k8s:deploy-orders-api",
+            "entity_metadata": {
+              "api_version": "apps/v1",
+              "kind": "Deployment"
+            },
+            "entity_name": "orders-api",
+            "entity_type": "K8sResource",
+            "graph_id": "k8s:deploy-orders-api",
+            "graph_kind": "content_entity",
+            "relative_path": "apps/orders-api.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:k8s:config-app",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "entity_id": "k8s:config-app",
+            "entity_metadata": {
+              "api_version": "v1",
+              "kind": "ConfigMap"
+            },
+            "entity_name": "app-config",
+            "entity_type": "K8sResource",
+            "graph_id": "k8s:config-app",
+            "graph_kind": "content_entity",
+            "relative_path": "apps/app-config.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:k8s:claim-retired-db",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "entity_id": "k8s:claim-retired-db",
+            "entity_metadata": {
+              "api_version": "database.example.com/v1",
+              "kind": "PostgreSQL"
+            },
+            "entity_name": "retired-db",
+            "entity_type": "K8sResource",
+            "graph_id": "k8s:claim-retired-db",
+            "graph_kind": "content_entity",
+            "relative_path": "claims/retired-db.yaml",
+            "repo_id": "repo-claims-app"
+          }
+        }
+      ]
+    }
+  ]
+}

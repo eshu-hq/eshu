@@ -335,3 +335,7 @@ teeth_off.go and gcp_resource_materialization_teeth_off.go (tag
 - `go/internal/replaycoverage/README.md`
 - `go/internal/relationships/README.md`
 - `go/internal/goldengate/README.md`
+
+No-Regression Evidence (#6228 crossplane live leaf): `familyodu/crossplane_satisfied_by_family_odu.go` adds the compiled Odu literal (stable keys, per-scope generations, repo/file facts) plus comments describing the production `SATISFIED_BY` MERGE -- it contains no Cypher, worker claim, batching, or concurrency code of its own; it is a pure fixture the lockstep test pins against the checked-in cassette. The production write path (`SatisfiedByEdgeUpsertCypher`, `CrossplaneSatisfiedByMaterializationHandler`, the projector intent) is unchanged by this PR; zero Go files outside `go/internal/ifa` change.
+No-Observability-Change: same reasoning -- no runtime path, worker, queue, or graph write is added or altered.
+Live evidence (current head): `scripts/verify-ifa-fault-injection.sh --shard 3/4` exits 0 on the gate-owned disposable Compose stack (Postgres + Neo4j), driving the 2-scope 22-fact cassette to the exact 2-edge set; killworkerxplane converged to digest 1bd09c333c4ee2a97cbc5196e0412f0b7595067c0d6c11f071de8ae0bb139990 (wall 77s), byte-identical to the family baseline per the gate's exact comparison, with zero dead letters.

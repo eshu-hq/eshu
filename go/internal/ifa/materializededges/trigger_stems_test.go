@@ -126,6 +126,11 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// (scripts/lib/ifa_fault_injection_cloud_resource_container_image_cells.sh),
 	// the fault cases file, and the Odù the triggers name.
 	"cloud_resource_container_image": "cloud_resource_container_image",
+	// crossplane_satisfied_by joins them with the #6228 crossplane live
+	// leaf: same stem shape, read off the fault cells file
+	// (scripts/lib/ifa_fault_injection_crossplane_satisfied_by_cells.sh),
+	// the fault cases file, and the Odù the triggers name.
+	"crossplane_satisfied_by": "crossplane_satisfied_by",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

@@ -354,10 +354,7 @@ require_symbol_runtime_lib "handles_route assert-edges domain" "-domain handles_
 require_symbol_runtime_lib "runs_in assert-edges domain" "-domain runs_in"
 require_symbol_runtime_lib "invokes_cloud_action assert-edges domain" "-domain invokes_cloud_action"
 require_symbol_runtime_lib "symbol-runtime drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
-# One per family, three in all. The label used to name handles_route while the
-# pin was satisfied by any of the three, so runs_in or invokes_cloud_action could
-# drop its exact-set flag -- turning that family's assertion into something
-# weaker than the exact set the comment above promises -- and stay green.
+# One per family, three in all: the old label named handles_route while any of the three satisfied the pin, so runs_in or invokes_cloud_action could drop its exact-set flag -- weakening that family's assertion below the promised exact set -- and stay green.
 require_symbol_runtime_lib_count "all three trio asserts are exact-set, not digests" '-expected "${expected_edges}"' 3
 
 declare -A ifa_det_family_cases_hand_authored=(
@@ -382,6 +379,7 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[s3_logs_to]="-domain s3_logs_to"
 	[built_from]="-domain built_from"
 	[cloud_resource_container_image]="-domain cloud_resource_container_image"
+	[crossplane_satisfied_by]="-domain crossplane_satisfied_by"
 	[authenticates_vault_role]="-domain authenticates_vault_role"
 	[uses_vault_policy]="-domain uses_vault_policy"
 	[kubernetes_correlation]="-domain kubernetes_correlation"
@@ -412,7 +410,7 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 	rg --fixed-strings --quiet -- "${domain_needle}" \
 		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
 		"${submodule_pin_lib}" "${inheritance_lib}" "${shell_exec_lib}" "${symbol_runtime_lib}" \
-		"${direct_family_lib}" "${direct_family_cloud_lib}" "${direct_family_built_from_lib}" "${direct_family_crc_image_lib}" "${vault_family_lib}" \
+		"${direct_family_lib}" "${direct_family_cloud_lib}" "${direct_family_built_from_lib}" "${direct_family_crc_image_lib}" "${direct_family_xplane_lib}" "${vault_family_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh

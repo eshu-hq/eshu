@@ -27,7 +27,7 @@ run_ifa_determinism_post_delta_cases() {
 	# matches the expected set. A count pin alone would be satisfied by the
 	# pre-delta call moving out of the loop, so the ordering check below is what
 	# says WHERE the surviving call has to be.
-	for direct_assert_fn in ifa_kubernetes_namespace_environment_assert ifa_iam_instance_profile_role_assert ifa_iam_can_assume_assert ifa_iam_can_perform_assert ifa_workload_cloud_relationship_assert ifa_iam_escalation_assert ifa_ec2_uses_profile_assert ifa_s3_logs_to_assert ifa_authenticates_vault_role_assert ifa_uses_vault_policy_assert ifa_built_from_assert ifa_cloud_resource_container_image_assert ifa_kubernetes_correlation_assert ifa_cloud_resource_assert ifa_semantic_entity_containment_assert; do
+	for direct_assert_fn in ifa_kubernetes_namespace_environment_assert ifa_iam_instance_profile_role_assert ifa_iam_can_assume_assert ifa_iam_can_perform_assert ifa_workload_cloud_relationship_assert ifa_iam_escalation_assert ifa_ec2_uses_profile_assert ifa_s3_logs_to_assert ifa_authenticates_vault_role_assert ifa_uses_vault_policy_assert ifa_built_from_assert ifa_cloud_resource_container_image_assert ifa_crossplane_satisfied_by_assert ifa_kubernetes_correlation_assert ifa_cloud_resource_assert ifa_semantic_entity_containment_assert; do
 		# `|| true`, and the shape check that follows it, are load-bearing under
 		# `set -e`: rg exits 1 on ZERO matches, so a bare command substitution
 		# would abort this whole mirror with status 1 and print nothing at all --
@@ -50,10 +50,11 @@ run_ifa_determinism_post_delta_cases() {
 	post_delta_usesvault_line="$(rg -n --fixed-strings -- 'ifa_uses_vault_policy_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
 	post_delta_builtfrom_line="$(rg -n --fixed-strings -- 'ifa_built_from_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
 	post_delta_crcimage_line="$(rg -n --fixed-strings -- 'ifa_cloud_resource_container_image_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
+	post_delta_xplane_line="$(rg -n --fixed-strings -- 'ifa_crossplane_satisfied_by_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
 	post_delta_k8s_line="$(rg -n --fixed-strings -- 'ifa_kubernetes_correlation_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
 	post_delta_cloud_line="$(rg -n --fixed-strings -- 'ifa_cloud_resource_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
 	post_delta_semantic_line="$(rg -n --fixed-strings -- 'ifa_semantic_entity_containment_assert "post-delta N=${n}"' "${script}" | cut -d: -f1 || true)"
-	[[ "${post_delta_ns_line}" =~ ^[0-9]+$ && "${post_delta_iam_line}" =~ ^[0-9]+$ && "${post_delta_can_line}" =~ ^[0-9]+$ && "${post_delta_perform_line}" =~ ^[0-9]+$ && "${post_delta_workload_line}" =~ ^[0-9]+$ && "${post_delta_escalation_line}" =~ ^[0-9]+$ && "${post_delta_ec2_line}" =~ ^[0-9]+$ && "${post_delta_s3_line}" =~ ^[0-9]+$ && "${post_delta_authvault_line}" =~ ^[0-9]+$ && "${post_delta_usesvault_line}" =~ ^[0-9]+$ && "${post_delta_builtfrom_line}" =~ ^[0-9]+$ && "${post_delta_crcimage_line}" =~ ^[0-9]+$ && "${post_delta_k8s_line}" =~ ^[0-9]+$ && "${post_delta_cloud_line}" =~ ^[0-9]+$ && "${post_delta_semantic_line}" =~ ^[0-9]+$ \
+	[[ "${post_delta_ns_line}" =~ ^[0-9]+$ && "${post_delta_iam_line}" =~ ^[0-9]+$ && "${post_delta_can_line}" =~ ^[0-9]+$ && "${post_delta_perform_line}" =~ ^[0-9]+$ && "${post_delta_workload_line}" =~ ^[0-9]+$ && "${post_delta_escalation_line}" =~ ^[0-9]+$ && "${post_delta_ec2_line}" =~ ^[0-9]+$ && "${post_delta_s3_line}" =~ ^[0-9]+$ && "${post_delta_authvault_line}" =~ ^[0-9]+$ && "${post_delta_usesvault_line}" =~ ^[0-9]+$ && "${post_delta_builtfrom_line}" =~ ^[0-9]+$ && "${post_delta_crcimage_line}" =~ ^[0-9]+$ && "${post_delta_xplane_line}" =~ ^[0-9]+$ && "${post_delta_k8s_line}" =~ ^[0-9]+$ && "${post_delta_cloud_line}" =~ ^[0-9]+$ && "${post_delta_semantic_line}" =~ ^[0-9]+$ \
 		&& "${delta_call_line}" -lt "${post_delta_ns_line}" \
 		&& "${post_delta_ns_line}" -lt "${post_delta_dump_line}" \
 		&& "${delta_call_line}" -lt "${post_delta_iam_line}" \
@@ -78,11 +79,13 @@ run_ifa_determinism_post_delta_cases() {
 		&& "${post_delta_builtfrom_line}" -lt "${post_delta_dump_line}" \
 		&& "${delta_call_line}" -lt "${post_delta_crcimage_line}" \
 		&& "${post_delta_crcimage_line}" -lt "${post_delta_dump_line}" \
+		&& "${delta_call_line}" -lt "${post_delta_xplane_line}" \
+		&& "${post_delta_xplane_line}" -lt "${post_delta_dump_line}" \
 		&& "${delta_call_line}" -lt "${post_delta_k8s_line}" \
 		&& "${post_delta_k8s_line}" -lt "${post_delta_dump_line}" \
 		&& "${delta_call_line}" -lt "${post_delta_cloud_line}" \
 		&& "${post_delta_cloud_line}" -lt "${post_delta_dump_line}" \
 		&& "${delta_call_line}" -lt "${post_delta_semantic_line}" \
 		&& "${post_delta_semantic_line}" -lt "${post_delta_dump_line}" ]] \
-		|| fail "every N cell must exact-assert all fifteen DIRECT families (kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume, iam_can_perform, workload_cloud_relationship, iam_escalation, ec2_uses_profile, s3_logs_to, authenticates_vault_role, uses_vault_policy, built_from, cloud_resource_container_image, kubernetes_correlation, cloud_resource, semantic_entity_containment) AFTER the shared delta drain and BEFORE its graph dump -- asserted only pre-delta, an identical-across-N generation-2 mutation leaves every digest equal and the matrix green"
+		|| fail "every N cell must exact-assert all sixteen DIRECT families (kubernetes_namespace_environment, iam_instance_profile_role, iam_can_assume, iam_can_perform, workload_cloud_relationship, iam_escalation, ec2_uses_profile, s3_logs_to, authenticates_vault_role, uses_vault_policy, built_from, cloud_resource_container_image, crossplane_satisfied_by, kubernetes_correlation, cloud_resource, semantic_entity_containment) AFTER the shared delta drain and BEFORE its graph dump -- asserted only pre-delta, an identical-across-N generation-2 mutation leaves every digest equal and the matrix green"
 }
