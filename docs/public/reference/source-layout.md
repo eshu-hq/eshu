@@ -76,6 +76,7 @@ live in the repository today.
 | `go/internal/mcp/observability/coverage/` | observability-coverage MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/package/registry/` | package-registry MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
+| `go/internal/mcp/router/` | opt-in MCP router contract: tool-surface selector, `find_tool`/`call_tool` definitions, `Ranker` and `Dispatcher` types |
 | `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP registrations plus pure family membership and dependency-neutral route selection |
 | `go/internal/mcp/contract/route/` | dependency-neutral MCP route arguments and internal-request shape |
 | `go/internal/mcp/access/posture/` | secrets/IAM posture MCP family membership and dependency-neutral route selection |
