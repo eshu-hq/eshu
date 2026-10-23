@@ -254,9 +254,12 @@ silent yield loss, and the existing sweep logs for the sweep period.
 discovery calls `symlinkTargetAdmitted` from the walk matcher, and
 `resolveNativeSnapshotFileSetForTargets` calls `admitTargetSymlink` for each
 `--file-targets` entry, so a link dropped by one mode is dropped by the other
-(`TestSymlinkTargetAdmissionAgreesAcrossSyncModes`). A target must be a regular
-file inside the root, in the link's admission category, and not excluded by
-`discovery.PathRules` built from the repo-merged options. The delta path still
+(`TestSymlinkTargetAdmissionAgreesAcrossSyncModes`). Discovery tests the link
+name but the content read follows the link, so a target must be a regular file
+inside the root, in the link's admission category (the same parser definition,
+or both terraform state, documentation, `.gitmodules`, or CODEOWNERS), and not
+excluded by `discovery.PathRules` built from the repo-merged options. Dangling
+links, cycles, and directory links are dropped too. The delta path still
 records an admitted link under its resolved target path, as before.
 
 Behavior change in the delta path: an in-root link whose target leaves the

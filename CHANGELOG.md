@@ -70,7 +70,7 @@ recent shipped work grouped by feature area.
   inside the repository in the same admission category (same parser
   definition, or both terraform state, documentation, `.gitmodules`, or
   CODEOWNERS), at a path discovery would admit as a regular file (no ignored or
-  hidden directory, ignored extension, or ignored path glob). So
+  hidden directory, hidden name, ignored extension, or ignored path glob). So
   `.nvmrc -> .env` or a link into `.git/config` no longer stores the target's
   text. `.gitignore` and `.eshuignore` are not re-applied to the target.
   Dangling links, cycles, and directory links are dropped too. In a delta
@@ -85,8 +85,8 @@ recent shipped work grouped by feature area.
 - **A failed full discovery is no longer hidden in a delta sync.** When
   `--file-targets` was set, the delta file-set call overwrote the error from
   the full walk, so a failed walk (for example a missing repository root)
-  surfaced as a later, unrelated error. The snapshot now returns the discovery
-  error itself.
+  surfaced as a later, unrelated error, or none. The snapshot now returns the
+  discovery error itself.
 
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 
