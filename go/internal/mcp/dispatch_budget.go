@@ -71,12 +71,13 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 	// The resource fallback exists because the dual shape sends the payload
 	// twice. The structured shape sends it once, so size is already the
 	// emitted size and goes straight to a page or the error envelope.
+	singleCopy := mode == resultshape.Structured
 	emittedSize := size
-	if mode == resultshape.Dual {
+	if !singleCopy {
 		result.ResourceOnly = true
 		emittedSize = estimateResponseBytes(result)
 	}
-	if mode == resultshape.Dual && emittedSize > 0 && emittedSize <= budget {
+	if !singleCopy && emittedSize > 0 && emittedSize <= budget {
 		recordResponseResourceFallback(toolName, mode)
 		if logger != nil {
 			logger.Info("mcp tool response resource fallback",
@@ -106,14 +107,19 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 	}
 	recordResponseOverBudget(toolName, mode)
 	if logger != nil {
-		logger.Warn(
-			"mcp tool response over budget",
+		// resource_bytes is the size of the resource-only copy, so it exists
+		// only where that copy was measured. The structured shape has no such
+		// copy: response_bytes is already the single emitted size.
+		attrs := []any{
 			"tool", toolName,
 			"shape", string(mode),
 			"response_bytes", size,
-			"resource_bytes", emittedSize,
-			"budget_bytes", budget,
-		)
+		}
+		if !singleCopy {
+			attrs = append(attrs, "resource_bytes", emittedSize)
+		}
+		attrs = append(attrs, "budget_bytes", budget)
+		logger.Warn("mcp tool response over budget", attrs...)
 	}
 	overBudget := overBudgetResult(toolName, size, budget)
 	overBudget.Shape = mode

@@ -28,7 +28,10 @@ func TestParse(t *testing.T) {
 func TestOrDual(t *testing.T) {
 	t.Parallel()
 	if OrDual("") != Dual || OrDual(Structured) != Structured || OrDual(Dual) != Dual {
-		t.Fatal("OrDual must map only the zero value to Dual")
+		t.Fatal("OrDual must keep dual and structured and map the zero value to Dual")
+	}
+	if OrDual(Mode("bogus")) != Dual || OrDual(Mode("Structured")) != Dual {
+		t.Fatal("OrDual must map any value that is not exactly dual or structured to Dual")
 	}
 }
 

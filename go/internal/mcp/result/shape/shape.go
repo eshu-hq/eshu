@@ -38,13 +38,16 @@ func Parse(raw string) (Mode, error) {
 	}
 }
 
-// OrDual returns mode, or Dual when mode is the zero value. Result values that
-// predate the shape field carry the zero value and must render as Dual.
+// OrDual returns mode when it is exactly Dual or Structured, and Dual for any
+// other value, including the zero value. Result values that predate the shape
+// field carry the zero value and must render as Dual. Folding unknown values
+// here keeps the render, the budget, and the metric label on one two-value set,
+// even for a Mode that did not come from Parse.
 func OrDual(mode Mode) Mode {
-	if mode == "" {
-		return Dual
+	if mode == Structured {
+		return Structured
 	}
-	return mode
+	return Dual
 }
 
 type contextKey struct{}

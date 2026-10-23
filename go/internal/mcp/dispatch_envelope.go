@@ -28,10 +28,12 @@ type dispatchResult struct {
 
 // WithResultShape sets the process default tools/call result shape. A
 // connection can still choose its own with the shape query parameter. The
-// option only records the value; the default stays resultshape.Dual.
+// option records the value after resultshape.OrDual, so a value that did not
+// come from resultshape.Parse folds to resultshape.Dual instead of reaching
+// the render and budget code as a third shape.
 func WithResultShape(mode resultshape.Mode) ServerOption {
 	return func(s *Server) {
-		s.shape = mode
+		s.shape = resultshape.OrDual(mode)
 	}
 }
 
@@ -53,7 +55,7 @@ func (s *Server) ResultShape() resultshape.Mode {
 // A context with no override is the stdio path.
 func (s *Server) shapeFor(ctx context.Context) resultshape.Mode {
 	if mode, ok := resultshape.FromContext(ctx); ok {
-		return mode
+		return resultshape.OrDual(mode)
 	}
 	return s.processShape()
 }
