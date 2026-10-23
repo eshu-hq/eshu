@@ -82,6 +82,11 @@ recent shipped work grouped by feature area.
   line as `files_skipped.content.symlink_target`; a repository that relied on
   such a link, for example `sub/app.conf -> ../vendor/x/app.conf`, stops
   indexing it.
+- **A failed full discovery is no longer hidden in a delta sync.** When
+  `--file-targets` was set, the delta file-set call overwrote the error from
+  the full walk, so a failed walk (for example a missing repository root)
+  surfaced as a later, unrelated error. The snapshot now returns the discovery
+  error itself.
 
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 
