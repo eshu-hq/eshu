@@ -1,0 +1,26 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: reducer-contention-gate.yml
+  name: Reducer Contention Gate
+  synchronize: true
+  paths:
+  - go/internal/storage/postgres/**
+  - go/internal/reducer/**
+  - go/internal/query/service_story_target_support*.go
+  - schema/data-plane/postgres/**
+  - scripts/ci/go-mod-download-retry.sh
+  - scripts/lib/reducer_contention_*
+  - scripts/test-reducer-contention-*.py
+  - scripts/lib/verify-live-tests-ledger.py
+  - scripts/verify-live-tests-ledger.sh
+  - scripts/test-verify-live-tests-ledger.sh
+  - specs/live-tests*.yaml
+  - specs/live-tests.d/**
+  - specs/ci-gates.d/gates-05.yaml
+  - .github/workflows/reducer-contention-gate.yml
+  jobs:
+  - contention-gate
+  - queue-selection
+  job_names:
+    contention-gate: reducer contention gate

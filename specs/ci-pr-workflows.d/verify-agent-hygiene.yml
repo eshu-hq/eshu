@@ -1,0 +1,13 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: verify-agent-hygiene.yml
+  name: Verify Agent Hygiene
+  synchronize: true
+  jobs:
+  - queue-selection
+  - test-verify
+  - verify
+  job_names:
+    test-verify: Agent hygiene test mirror
+    verify: Agent hygiene gate

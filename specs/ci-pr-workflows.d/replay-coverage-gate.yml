@@ -1,0 +1,58 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: replay-coverage-gate.yml
+  name: Replay Coverage Gate
+  synchronize: true
+  branches:
+  - main
+  paths:
+  - go/cmd/replay-coverage-gate/**
+  - go/cmd/eshu/**
+  - go/internal/cli/**
+  - go/internal/replaycoverage/**
+  - go/internal/cigates/**
+  - go/internal/query/**
+  - go/internal/mcp/**
+  - go/internal/scopedtoken/**
+  - go/internal/replay/inputtape/**
+  - go/internal/replay/parserfixture/**
+  - go/internal/replay/schedulereplay/**
+  - go/internal/replay/crashreplay/**
+  - go/internal/replay/costcounting/**
+  - go/internal/capabilitycatalog/**
+  - go/internal/facts/**
+  - go/internal/goldengate/**
+  - go/internal/storage/cypher/**
+  - specs/ci-gates.v1.yaml
+  - specs/ci-gates.d/**
+  - specs/capability-budget-proof.v1.yaml
+  - specs/capability-catalog.v1.yaml
+  - specs/replay-coverage-manifest.v1.yaml
+  - specs/replay-depth-requirements.v1.yaml
+  - specs/authorization-catalog.v1.yaml
+  - specs/authorization-replay-coverage.v1.yaml
+  - specs/parser-backing-ledger.v1.yaml
+  - specs/language-feature-parity-ledger.v1.yaml
+  - specs/fact-kind-registry.v1.yaml
+  - specs/surface-inventory.v1.yaml
+  - specs/capability-matrix.v1.yaml
+  - specs/capability-matrix/**
+  - specs/product-claims.v1.yaml
+  - testdata/golden/e2e-20repo-snapshot.json
+  - testdata/cassettes/**
+  - scripts/verify-replay-coverage-gate.sh
+  - scripts/test-verify-replay-coverage-gate.sh
+  - scripts/lib/go-test-run-guard.sh
+  - scripts/go-test-run-guard.sh
+  - scripts/lib/ci-gates-resolved-fixtures.sh
+  - scripts/ci/install-apt-packages.sh
+  - scripts/ci/go-mod-download-retry.sh
+  - .github/workflows/replay-coverage-gate.yml
+  jobs:
+  - coverage-gate
+  - queue-selection
+  - static-mirror
+  job_names:
+    coverage-gate: coverage-gate (blocking)
+    static-mirror: static mirror

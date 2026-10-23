@@ -1,0 +1,52 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: read-api-latency-gate.yml
+  name: Read API Latency Gate
+  synchronize: true
+  branches:
+  - main
+  paths:
+  - scripts/ci/compose.sh
+  - scripts/lib/ci-image-compose.sh
+  - scripts/lib/ci_image_compose.py
+  - scripts/lib/ci_image_compose_signature.py
+  - specs/ci-images.v1.json
+  - go/**
+  - testdata/benchmarks/read-api-route-budgets.txt
+  - testdata/benchmarks/read-api-route-work-budgets.txt
+  - scripts/verify-read-api-latency-gate.sh
+  - scripts/lib/status-diagnostic-runner.sh
+  - scripts/lib/status_diagnostic_artifacts.py
+  - scripts/lib/status_diagnostic_resources.py
+  - scripts/test-status-diagnostic-artifacts.py
+  - scripts/test-status-diagnostic-resources.py
+  - scripts/test-status-diagnostic-runner.sh
+  - scripts/refresh-read-api-work-budgets.sh
+  - scripts/test-refresh-read-api-work-budgets.sh
+  - scripts/extend-read-api-work-budgets.sh
+  - scripts/test-extend-read-api-work-budgets.sh
+  - scripts/test-methodology-scale-resource-observer.sh
+  - scripts/lib/test-methodology-scale-resource-observer-*.sh
+  - scripts/compare-backend-latency.sh
+  - scripts/test-compare-backend-latency.sh
+  - scripts/lib/test-compare-backend-latency-report.json
+  - scripts/lib/live-gate-lock.sh
+  - scripts/lib/golden-corpus-host-helpers.sh
+  - scripts/lib/compose_verification_runtime_common.sh
+  - scripts/ci/install-apt-packages.sh
+  - scripts/ci/go-mod-download-retry.sh
+  - docker-compose.yaml
+  - docker-compose.read-api-latency-gate.yaml
+  - .github/workflows/read-api-latency-gate.yml
+  jobs:
+  - latency-gate
+  - methodology-scale
+  - queue-selection
+  - static-mirror
+  - static-mirror-backend-latency-compare
+  job_names:
+    latency-gate: latency-gate (nornicdb)
+    methodology-scale: methodology scale (neo4j)
+    static-mirror: static-mirror (work budget refresh)
+    static-mirror-backend-latency-compare: static-mirror (backend latency comparator)

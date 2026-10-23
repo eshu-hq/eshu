@@ -1,0 +1,17 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: scorecard-example-conformance.yml
+  name: Scorecard Example Conformance
+  synchronize: true
+  paths:
+  - examples/collector-extensions/scorecard/**
+  - sdk/go/collector/**
+  - sdk/go/factschema/**
+  - scripts/ci/go-mod-download-retry.sh
+  - .github/workflows/scorecard-example-conformance.yml
+  jobs:
+  - queue-selection
+  - test
+  job_names:
+    test: Scorecard example go test

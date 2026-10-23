@@ -1,86 +1,24 @@
 name: Frontend
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   merge_group:
     types: [checks_requested]
   push:
     branches:
       - main
-  pull_request:
-    paths:
-      - 'scripts/lib/ci-image-compose.sh'
-      - 'scripts/lib/ci_image_compose.py'
-      - 'scripts/lib/ci_image_compose_signature.py'
-      - 'specs/ci-images.v1.json'
-      - "src/**"
-      - "apps/console/**"
-      - "index.html"
-      - "package.json"
-      - "package-lock.json"
-      - "vite.config.ts"
-      - "tsconfig*.json"
-      - "wrangler.jsonc"
-      - ".nvmrc"
-      - "CLOUDFLARE_PAGES.md"
-      - "scripts/marketing-review.mjs"
-      - "scripts/marketing-review-runtime.mjs"
-      - "scripts/marketing-review-runtime.test.mjs"
-      - "public/**"
-      - "eslint.config.js"
-      - ".prettierrc.json"
-      - ".prettierignore"
-      - "tests/lint-fixture/**"
-      - "scripts/test-eslint-config.sh"
-      - "scripts/verify-eslint-config.sh"
-      - "scripts/test-verify-frontend-format-changed.sh"
-      - "scripts/verify-frontend-format-changed.sh"
-      - "scripts/ci/install-apt-packages.sh"
-      - "scripts/run-console-live-e2e.sh"
-      - "scripts/run-console-retained-e2e.sh"
-      - "scripts/test-run-console-live-e2e.sh"
-      - "scripts/test-run-console-retained-e2e.sh"
-      - "scripts/dev/precommit-console.sh"
-      - "scripts/test-precommit-console.sh"
-      - "scripts/console-live-e2e-runtime.mjs"
-      - "scripts/lib/console-retained-create-proof-schema.sql"
-      - "scripts/lib/console-retained-verify-public-identity.sql"
-      - "scripts/console-bundle-budget.mjs"
-      - "scripts/console-bundle-budget.d.mts"
-      - "scripts/console-bundle-report.mjs"
-      - "scripts/console-bundle-report.d.mts"
-      - ".pre-commit-config.yaml"
-      - ".github/workflows/frontend.yml"
-      - "scripts/lib/auth_e2e_cli.sh"
-      - "scripts/test-auth-e2e-cli.sh"
-      - "scripts/run-auth-e2e.sh"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - "scripts/console-auth-e2e-runtime.mjs"
-      - "docker-compose.e2e.yaml"
-      - "docker-compose.neo4j.yml"
-      - "docker-compose.yaml"
-      - "Dockerfile"
-      - "go/cmd/mock-oidc-idp/**"
-      - "go/cmd/api/**"
-      - "go/internal/oidclogin/**"
-      - "scripts/run-auth-mcp-e2e.sh"
-      - "scripts/auth-mcp-e2e-runtime.mjs"
-      - "scripts/verify-auth-mcp-e2e-sensitivity.sh"
-      - "scripts/verify-auth-mcp-e2e-manifest.sh"
-      - "scripts/refresh-auth-mcp-e2e-baseline.sh"
-      - "scripts/lib/auth_mcp_e2e_sensitivity.sh"
-      - "scripts/lib/auth_mcp_e2e_manifest.sh"
-      - "scripts/test-verify-auth-mcp-e2e-sensitivity.sh"
-      - "scripts/test-verify-auth-mcp-e2e-manifest.sh"
-      - "docker-compose.e2e.mutation.yaml"
-      - "testdata/golden/auth-mcp-e2e-baseline.json"
-      - "go/cmd/mock-github/**"
-      - "go/cmd/mcp-server/**"
-      - "go/internal/oidcbearer/**"
-      - "go/internal/githublogin/**"
-      - "go/internal/query/**"
-      - "go/internal/mcp/**"
   workflow_dispatch:
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-frontend-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
@@ -94,10 +32,12 @@ env:
 
 jobs:
   queue-selection:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: frontend.yml
   marketing-site:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'marketing-site') }}
     needs: queue-selection
     name: Marketing site (root Vite)
     timeout-minutes: 20
@@ -129,6 +69,7 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Marketing site (root Vite)')) }}
         run: npm run build
   console:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'console') }}
     needs: queue-selection
     name: Console (apps/console)
     timeout-minutes: 20
@@ -177,6 +118,7 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console (apps/console)')) }}
         run: npm run console:e2e:mock
   auth-sso-e2e:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'auth-sso-e2e') }}
     needs: queue-selection
     name: SSO auth E2E (browser, fresh stack)
     timeout-minutes: 30
@@ -230,6 +172,7 @@ jobs:
           path: e2e-artifacts/
           if-no-files-found: ignore
   auth-mcp-e2e:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'auth-mcp-e2e') }}
     needs: queue-selection
     name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
     timeout-minutes: 30
@@ -281,6 +224,7 @@ jobs:
           path: e2e-artifacts/
           if-no-files-found: ignore
   console-a11y:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'console-a11y') }}
     needs: queue-selection
     name: Console a11y audit (axe-core)
     timeout-minutes: 60
@@ -309,6 +253,7 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'Console a11y audit (axe-core)')) }}
         run: npm run console:a11y
   lint:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'lint') }}
     needs: queue-selection
     name: "ESLint flat config (issue #3763)"
     timeout-minutes: 10
@@ -337,6 +282,7 @@ jobs:
         if: "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'ESLint flat config (issue #3763)')) }}"
         run: scripts/test-eslint-config.sh
   format:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'format') }}
     needs: queue-selection
     name: "Prettier format check (issue #3763)"
     continue-on-error: true
@@ -366,6 +312,7 @@ jobs:
         shell: bash
         run: scripts/verify-frontend-format-changed.sh
   audit:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'audit') }}
     needs: queue-selection
     name: npm audit (fail on high/critical)
     timeout-minutes: 20

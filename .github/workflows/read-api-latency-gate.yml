@@ -20,6 +20,17 @@ name: Read API Latency Gate
 # gate must be green on a tree that contains it before this row is required.
 
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   # Merge-queue entries (#7111): every job runs, publication stays off, and
   # required-gates.yml aggregates the merge_group check rows.
   # Main has no merge queue since 2026-10-16 (#8288): inert until re-enabled.
@@ -27,49 +38,6 @@ on:
     types: [checks_requested]
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'scripts/ci/compose.sh'
-      - 'scripts/lib/ci-image-compose.sh'
-      - 'scripts/lib/ci_image_compose.py'
-      - 'scripts/lib/ci_image_compose_signature.py'
-      - 'specs/ci-images.v1.json'
-      # cmd/api compiles 363 of the repo's 558 internal packages (go list
-      # -deps ./cmd/api, 2026-09) — a narrower,
-      # hand-picked list drifts silently as eshu-api's own imports grow.
-      # "go/**" mirrors the specs/ci-gates.v1.yaml registry row exactly
-      # (kept in lockstep — verify with scripts/verify-ci-gates-registry.sh
-      # --drift) and the same whole-module-compile-in problem the
-      # golden-corpus-filter-exhaustive gate's own trigger solves the same
-      # way.
-      - 'go/**'
-      - 'testdata/benchmarks/read-api-route-budgets.txt'
-      - 'testdata/benchmarks/read-api-route-work-budgets.txt'
-      - 'scripts/verify-read-api-latency-gate.sh'
-      - 'scripts/lib/status-diagnostic-runner.sh'
-      - 'scripts/lib/status_diagnostic_artifacts.py'
-      - 'scripts/lib/status_diagnostic_resources.py'
-      - 'scripts/test-status-diagnostic-artifacts.py'
-      - 'scripts/test-status-diagnostic-resources.py'
-      - 'scripts/test-status-diagnostic-runner.sh'
-      - 'scripts/refresh-read-api-work-budgets.sh'
-      - 'scripts/test-refresh-read-api-work-budgets.sh'
-      - 'scripts/extend-read-api-work-budgets.sh'
-      - 'scripts/test-extend-read-api-work-budgets.sh'
-      - 'scripts/test-methodology-scale-resource-observer.sh'
-      - 'scripts/lib/test-methodology-scale-resource-observer-*.sh'
-      - 'scripts/compare-backend-latency.sh'
-      - 'scripts/test-compare-backend-latency.sh'
-      - 'scripts/lib/test-compare-backend-latency-report.json'
-      - 'scripts/lib/live-gate-lock.sh'
-      - 'scripts/lib/golden-corpus-host-helpers.sh'
-      - 'scripts/lib/compose_verification_runtime_common.sh'
-      - 'scripts/ci/install-apt-packages.sh'
-      - 'scripts/ci/go-mod-download-retry.sh'
-      - 'docker-compose.yaml'
-      - 'docker-compose.read-api-latency-gate.yaml'
-      - '.github/workflows/read-api-latency-gate.yml'
   workflow_dispatch:
     inputs:
       status_diagnostic:
@@ -93,7 +61,7 @@ on:
     # docs/internal/evidence/6797-read-api-work-metric-shim.md.
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-read-api-latency-gate-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -109,6 +77,7 @@ env:
 
 jobs:
   queue-selection:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: read-api-latency-gate.yml
@@ -116,8 +85,8 @@ jobs:
   # Supported-backend scale/concurrency proof is a dedicated manual run.
   # Existing NornicDB PR, push and merge-group checks retain their identity.
   methodology-scale:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'methodology-scale')) && (github.event_name == 'workflow_dispatch') }}
     needs: queue-selection
-    if: github.event_name == 'workflow_dispatch'
     name: methodology scale (neo4j)
     runs-on: ubuntu-latest
     # Run 38032713508 reached its serial report after 30m8s from first job
@@ -219,6 +188,7 @@ jobs:
   # never runs (it only executes the live gate). It is cheap and needs no Docker,
   # so a change to the jq formula fails here instead of silently going unproven.
   static-mirror:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}
     needs: queue-selection
     name: static-mirror (work budget refresh)
     runs-on: ubuntu-latest
@@ -248,6 +218,7 @@ jobs:
   # separate job so specs/ci-gates.v1.yaml's registry row for it (
   # backend-latency-compare-mirror) can name its own job.
   static-mirror-backend-latency-compare:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror-backend-latency-compare') }}
     needs: queue-selection
     name: static-mirror (backend latency comparator)
     runs-on: ubuntu-latest
@@ -271,6 +242,7 @@ jobs:
         run: bash scripts/test-compare-backend-latency.sh
 
   latency-gate:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'latency-gate') }}
     needs: queue-selection
     name: latency-gate (nornicdb)
     runs-on: ubuntu-latest

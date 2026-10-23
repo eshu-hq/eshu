@@ -1,0 +1,134 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: golden-corpus-gate.yml
+  name: Golden Corpus Gate
+  synchronize: true
+  branches:
+  - main
+  paths:
+  - scripts/ci/compose.sh
+  - scripts/lib/ci-image-compose.sh
+  - scripts/lib/ci_image_compose.py
+  - scripts/lib/ci_image_compose_signature.py
+  - specs/ci-images.v1.json
+  - scripts/lib/stage-differential-capture.sh
+  - scripts/test-stage-differential-capture.sh
+  - scripts/lib/golden-corpus-capture-leg-cases.sh
+  - go/internal/collector/**
+  - go/internal/parser/**
+  - go/internal/projector/**
+  - go/internal/reducer/**
+  - go/internal/query/**
+  - go/internal/relationships/**
+  - go/internal/storage/**
+  - sdk/go/factschema/**
+  - go/cmd/bootstrap-index/**
+  - go/cmd/ingester/**
+  - go/cmd/projector/**
+  - go/cmd/reducer/**
+  - go/cmd/collector-**
+  - go/cmd/api/**
+  - go/cmd/golden-corpus-gate/**
+  - go/cmd/mock-prometheus-mimir/**
+  - go/cmd/mock-openai-compatible/**
+  - go/internal/demospec/**
+  - go/cmd/mcp-server/**
+  - go/internal/mcp/**
+  - go/internal/goldengate/**
+  - go/internal/graph/**
+  - go/internal/graphowner/**
+  - go/internal/graphschemacompat/**
+  - go/internal/graphbackpressure/**
+  - go/internal/facts/**
+  - go/internal/queue/**
+  - go/internal/replay/**
+  - go/internal/content/**
+  - go/internal/contentrefs/**
+  - go/internal/codeprovenance/**
+  - go/internal/packageidentity/**
+  - go/internal/repositoryidentity/**
+  - go/internal/sourcetool/**
+  - go/internal/terraformschema/**
+  - go/internal/workloadid/**
+  - go/internal/environment/**
+  - go/internal/exposure/**
+  - go/internal/doctruth/**
+  - go/internal/serviceintel/**
+  - go/internal/serviceintelhttp/**
+  - go/internal/correlation/**
+  - go/internal/truth/**
+  - go/internal/scope/**
+  - go/internal/factenvelope/**
+  - go/internal/ghactionsref/**
+  - go/internal/secret/**
+  - go/internal/workflowimage/**
+  - go/internal/searchretrieval/**
+  - go/internal/searchdocs/**
+  - go/internal/searchbench/**
+  - go/internal/searchdecay/**
+  - go/internal/searchhybrid/**
+  - go/internal/searchrerank/**
+  - go/internal/searchembed/**
+  - go/internal/searchembedprovider/**
+  - go/internal/searchembedruntime/**
+  - go/internal/searchvector/**
+  - go/internal/semanticqueue/**
+  - go/internal/semanticpolicy/**
+  - go/internal/semanticguard/**
+  - go/internal/semanticprofile/**
+  - go/internal/ask/**
+  - go/internal/askwiring/**
+  - go/internal/answerguardrail/**
+  - go/internal/answernarration/**
+  - go/internal/iacreachability/**
+  - go/internal/rubycontroller/**
+  - go/internal/capabilitycatalog/**
+  - go/internal/extraction/**
+  - go/internal/governanceaudit/**
+  - go/internal/status/**
+  - go/internal/buildinfo/**
+  - go/internal/boundedset/**
+  - go/internal/tfstatewarning/**
+  - go/internal/evidencebundle/**
+  - go/internal/urlredact/**
+  - testdata/golden/**
+  - testdata/cassettes/**
+  - tests/fixtures/ecosystems/**
+  - specs/demo-first-answers.v1.yaml
+  - scripts/verify-golden-corpus-gate.sh
+  - scripts/test-verify-golden-corpus-gate.sh
+  - scripts/test-golden-documentation-section-reseed.sh
+  - scripts/fixtures/golden-documentation-reseed-schema.sql
+  - scripts/lib/golden-corpus-*.sh
+  - scripts/lib/golden_corpus_identity.py
+  - scripts/test-golden-corpus-identity.py
+  - scripts/lib/verify-live-tests-ledger.py
+  - scripts/lib/live_tests_registry.py
+  - scripts/verify-live-tests-ledger.sh
+  - specs/live-tests.v1.yaml
+  - specs/live-tests.d/**
+  - scripts/lib/test-golden-corpus-*.sh
+  - scripts/lib/ci-gates-resolved-fixtures.sh
+  - scripts/lib/live-gate-lock.sh
+  - scripts/ci/install-apt-packages.sh
+  - scripts/ci/go-mod-download-retry.sh
+  - docker-compose.neo4j.yml
+  - docker-compose.yaml
+  - specs/backend-divergence-allowlist.v1.yaml
+  - specs/ci-gates.v1.yaml
+  - specs/ci-gates.d/**
+  - go/internal/backendconformance/**
+  - go/internal/queryplan/**
+  - .github/workflows/golden-corpus-gate.yml
+  jobs:
+  - corpus-gate
+  - differential
+  - differential-capture
+  - queue-selection
+  - static-mirror
+  job_names:
+    corpus-gate: corpus-gate (${{ matrix.graph_backend }})
+    differential: differential nornicdb vs neo4j
+    differential-capture: differential capture (pair ${{ matrix.pair }}, ${{ matrix.graph_backend }})
+    static-mirror: static mirror

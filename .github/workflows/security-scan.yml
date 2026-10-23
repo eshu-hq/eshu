@@ -1,9 +1,19 @@
 name: Security Scan
 run-name: "${{ github.event_name == 'workflow_run' && format('Security Scan: triggered by {0} @ {1}', github.event.workflow_run.head_branch, github.event.workflow_run.head_sha) || ' ' }}"
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   merge_group:
     types: [checks_requested]
-  pull_request:
   push:
     branches:
       - main
@@ -16,21 +26,22 @@ on:
     workflows: ["Publish Image and Helm Chart"]
     types: [completed]
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha) || github.ref }}
+  group: ci-leaf-security-scan-${{ github.event_name }}-${{ github.event.workflow_run.head_sha || (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha) || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
   queue-selection:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: security-scan.yml
   changes:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'changes')) && (github.event_name != 'workflow_run') }}
     needs: queue-selection
     name: Detect code changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: github.event_name != 'workflow_run'
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -57,11 +68,11 @@ jobs:
               - '!.github/**/*.md'
               - '!.agents/**'
   trivy-fs:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'trivy-fs')) && (github.event_name != 'workflow_run') }}
     needs: queue-selection
     name: Trivy filesystem scan (vuln + secret + config)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name != 'workflow_run'
     permissions:
       contents: read
       security-events: write
@@ -101,11 +112,11 @@ jobs:
           sarif_file: trivy-fs.sarif
           category: trivy-fs
   trivy-image:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'trivy-image')) && (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')) }}
     needs: queue-selection
     name: Trivy image scan (ghcr.io/eshu-hq/eshu)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
     permissions:
       contents: read
       packages: read
@@ -154,11 +165,11 @@ jobs:
           sarif_file: trivy-image.sarif
           category: trivy-image
   govulncheck:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'govulncheck')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
     name: govulncheck (Go vulnerability database)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [queue-selection, changes]
-    if: ${{ github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     permissions:
       contents: read
       security-events: write
@@ -197,11 +208,11 @@ jobs:
           path: go/govulncheck.out
           if-no-files-found: ignore
   gosec:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'gosec')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
     name: gosec (Go static analysis)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [queue-selection, changes]
-    if: ${{ github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     permissions:
       contents: read
       security-events: write
@@ -251,11 +262,11 @@ jobs:
         if: ${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'gosec (Go static analysis)')) }}
         run: bash scripts/dev/precommit-go.sh gosec-all
   nancy:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'nancy')) && (github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
     name: nancy (Sonatype dep CVE + license scan)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [queue-selection, changes]
-    if: ${{ github.event_name != 'workflow_run' && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true') }}
     permissions:
       contents: read
       security-events: write

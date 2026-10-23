@@ -1,0 +1,34 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: docker-publish.yml
+  name: Publish Image and Helm Chart
+  synchronize: true
+  branches:
+  - main
+  paths:
+  - scripts/ci/build-reproducibility-image.sh
+  - specs/ci-images.v1.json
+  - Dockerfile
+  - .dockerignore
+  - deploy/helm/**
+  - .github/workflows/docker-publish.yml
+  - scripts/ci/select-docker-publish-lanes.sh
+  - scripts/ci/push-helm-chart.sh
+  - scripts/verify-apk-floors.sh
+  - scripts/test-verify-apk-floors.sh
+  - scripts/fixtures/apk-floors/**
+  - scripts/verify-runtime-image-tools.sh
+  - scripts/test-verify-runtime-image-tools.sh
+  jobs:
+  - attach-release-sbom
+  - build-and-push-image
+  - changes
+  - package-and-push-chart
+  - promote-moving-tags
+  - publish-ci-service-mirrors
+  - queue-selection
+  - verify-apk-floors
+  - verify-public-ci-service-mirrors
+  - verify-reproducibility
+  job_names: {}

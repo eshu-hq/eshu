@@ -1,0 +1,22 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: factschema-diff.yml
+  name: Fact Schema Diff
+  synchronize: true
+  paths:
+  - sdk/go/factschema/schema/**
+  - sdk/go/factschema/aws/v1/**
+  - sdk/go/factschema/internal/schemagen/**
+  - go/cmd/factschema-diff/**
+  - scripts/*verify-factschema-diff*.sh
+  - scripts/ci/install-apt-packages.sh
+  - scripts/ci/go-mod-download-retry.sh
+  - .github/workflows/factschema-diff.yml
+  jobs:
+  - gate
+  - queue-selection
+  - test-mirror
+  job_names:
+    gate: Verify factschema-diff gate
+    test-mirror: Verify factschema-diff test mirror
