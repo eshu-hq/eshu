@@ -165,6 +165,47 @@ func TestReferenceRegenerationLeavesSubdirectoriesAlone(t *testing.T) {
 	}
 }
 
+// TestReferenceRegenerationRemovesHiddenFilesAndSymlinksNotTargets pins what
+// orphanedPages documents: every non-directory entry is an orphan, hidden files
+// and symlinks included, and removing a symlink leaves its target alone.
+func TestReferenceRegenerationRemovesHiddenFilesAndSymlinksNotTargets(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pagesDir := filepath.Join(dir, PagesDir)
+	target := filepath.Join(dir, "elsewhere")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(pagesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	targetFile := filepath.Join(target, "keep.md")
+	if err := os.WriteFile(targetFile, []byte("keep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pagesDir, ".draft.md"), []byte("hidden\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(pagesDir, "link-to-dir")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := os.Symlink(targetFile, filepath.Join(pagesDir, "link-to-file.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := regenerateReference(dir, Default().RenderPages); err != nil {
+		t.Fatalf("regenerateReference: %v", err)
+	}
+	for _, name := range []string{".draft.md", "link-to-dir", "link-to-file.md"} {
+		if _, err := os.Lstat(filepath.Join(pagesDir, name)); !os.IsNotExist(err) {
+			t.Errorf("%s was not removed (lstat err %v)", name, err)
+		}
+	}
+	if body, err := os.ReadFile(targetFile); err != nil || string(body) != "keep\n" {
+		t.Errorf("a symlink target was touched (read err %v)", err)
+	}
+}
+
 // regenerateReference renders the reference and, only when rendering succeeds,
 // writes every page under refDir and removes files in the generated pages
 // directory that the render no longer produces. A failed render touches
@@ -194,10 +235,12 @@ func regenerateReference(refDir string, render func() ([]Page, error)) error {
 	return nil
 }
 
-// orphanedPages lists regular files under the generated pages directory that
-// pages no longer includes, as paths relative to refDir. Subdirectories are not
-// the generator's to remove and are skipped, so a directory someone placed
-// there neither fails regeneration nor is deleted by it.
+// orphanedPages lists every entry under the generated pages directory that is
+// not a directory and that pages no longer includes (files, hidden files, and
+// symlinks), as paths relative to refDir. Removing a symlink never touches its
+// target. Real subdirectories are not the generator's to remove and are
+// skipped, so a directory someone placed there neither fails regeneration nor
+// is deleted by it.
 func orphanedPages(refDir string, pages []Page) ([]string, error) {
 	want := map[string]struct{}{}
 	for _, p := range pages {

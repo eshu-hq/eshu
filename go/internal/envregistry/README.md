@@ -86,7 +86,9 @@ The checked-in reference is also guarded by
 `docs/public/reference/env-registry.md` or any page under
 `docs/public/reference/env-registry/` is manually edited, missing, stale
 relative to `go/internal/envregistry`, or left over after the generator stopped
-producing it.
+producing it. "Left over" means any non-directory entry in `env-registry/`
+(files, hidden files, symlinks; removing a symlink never touches its target);
+subdirectories are skipped, never deleted.
 
 ### Page layout
 
