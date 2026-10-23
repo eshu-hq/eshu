@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/canonical"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher/canonical/node"
 )
 
 func TestCanonicalNodeWriterScopesDeltaProjectionToTouchedFiles(t *testing.T) {
@@ -367,8 +368,7 @@ func TestCanonicalNodeWriterPinsDeltaStatementsOnUnionBase(t *testing.T) {
 	touchedFiles := sortedStrings([]string{keepPath, otherPath, xPath, wPath})
 
 	deletedRetract := -1
-	var refreshRetracts []int
-	var parameterRetracts, entityRetracts []int
+	var refreshRetracts, parameterRetracts, entityRetracts []int
 	for i, call := range calls {
 		got := filePathsOf(call)
 		_, hasGeneration := call.Parameters["generation_id"]
@@ -392,8 +392,8 @@ func TestCanonicalNodeWriterPinsDeltaStatementsOnUnionBase(t *testing.T) {
 	// (iii) The refresh retracts (IMPORTS and Directory-CONTAINS) cover the
 	// union files; the Parameter and per-label entity retracts cover the
 	// union files plus the deleted path and carry the delta generation.
-	if len(refreshRetracts) != 2 {
-		t.Fatalf("refresh retract statements = %d, want 2 (file imports, directory contains)", len(refreshRetracts))
+	if len(refreshRetracts) != 2 || calls[refreshRetracts[0]].Cypher != node.RefreshCurrentFileImportEdgesCypher || calls[refreshRetracts[1]].Cypher != node.RefreshCurrentDirectoryFileEdgesCypher {
+		t.Fatalf("refresh retracts at %v, want the file-imports refresh then the directory-contains refresh", refreshRetracts)
 	}
 	for _, i := range refreshRetracts {
 		if got := filePathsOf(calls[i]); !reflect.DeepEqual(got, unionFiles) {
