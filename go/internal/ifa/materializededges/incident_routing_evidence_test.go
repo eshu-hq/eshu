@@ -51,15 +51,21 @@ func TestIncidentRoutingEvidenceEnvelopeMirrorsParserOutput(t *testing.T) {
 	}
 
 	odu := ifa.IncidentRoutingEvidenceFamilyOdu().Odu
-	var envelope map[string]any
+	var envelopes []map[string]any
 	for _, fact := range odu.Facts {
 		if kind, _ := fact.Payload["graph_kind"].(string); kind == "content_entity" {
-			envelope = fact.Payload
+			envelopes = append(envelopes, fact.Payload)
 		}
 	}
-	if envelope == nil {
-		t.Fatal("odù carries no content_entity envelope")
+	if len(envelopes) != 1 {
+		for i, env := range envelopes {
+			name, _ := env["entity_name"].(string)
+			line, _ := env["start_line"].(int)
+			t.Logf("content_entity envelope %d: entity_name=%q start_line=%d", i, name, line)
+		}
+		t.Fatalf("odù carries %d content_entity envelopes, want 1", len(envelopes))
 	}
+	envelope := envelopes[0]
 	entityName, _ := envelope["entity_name"].(string)
 	startLine, _ := envelope["start_line"].(int)
 	metadata, _ := envelope["entity_metadata"].(map[string]any)
