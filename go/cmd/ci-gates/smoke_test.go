@@ -313,7 +313,8 @@ func publisherArmDescriptions(t *testing.T) map[int]string {
 // candidateRanFull's switch cases by parsing smoke.go, not by
 // searching it for text. A fixed-string search would still pass if a
 // case were commented out or moved into dead code. Only case-list
-// literals count: any third accept (or a missing one) fails the
+// literals or the canonical provenance constant count: any third accept
+// (or a missing one) fails the
 // caller, so widening the allowlist without updating the publisher
 // coupling it claims cannot slip through.
 func smokeAllowedDescriptions(t *testing.T) map[string]bool {
@@ -338,6 +339,14 @@ func smokeAllowedDescriptions(t *testing.T) map[string]bool {
 				return true
 			}
 			for _, expression := range clause.List {
+				if selector, ok := expression.(*ast.SelectorExpr); ok {
+					owner, valid := selector.X.(*ast.Ident)
+					if !valid || owner.Name != "cigates" || selector.Sel.Name != "FullBackedReuseDescription" {
+						t.Fatal("candidateRanFull case accepts an unknown constant")
+					}
+					allowed[cigates.FullBackedReuseDescription] = true
+					continue
+				}
 				literal, ok := expression.(*ast.BasicLit)
 				if !ok || literal.Kind != token.STRING {
 					t.Fatalf("candidateRanFull case accepts a non-literal")

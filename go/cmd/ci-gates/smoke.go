@@ -90,7 +90,7 @@ func candidateRanFull(ctx context.Context, runner ghRunner, repo, candidate stri
 	}
 	switch description {
 	case "All path-selected blocking gates passed",
-		"Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)":
+		cigates.FullBackedReuseDescription:
 		return true, nil
 	}
 	return false, nil
