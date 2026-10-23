@@ -61,6 +61,13 @@ this reducer package.
   blocked, truncated, reason.
 - WARN `legacy workload kept`: workload_id, blocked_reason, relationship_counts,
   one per judged blocked node.
+- WARN `legacy workload retirement deleted fewer nodes than were eligible`:
+  eligible and deleted. A node changed between the read and the delete, so the
+  lock-first statement refused it; re-run the dry run.
+- ERROR `legacy workload retirement failed`: eligible, reason, error. The
+  request returns an error and the audit event carries `_failed`.
+- WARN `legacy workload retirement audit append failed`: error. The audit
+  event is lost; the retirement itself is unaffected.
 - Governance audit event `admin_recovery_action` with reason code
   `legacy_workload_retire_executed`, `_failed`, or a `_refused_*` code.
 

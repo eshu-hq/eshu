@@ -124,7 +124,9 @@ nothing.
 
 The reducer records the `eshu_dp_workload_legacy_retirements_total{outcome}`
 counter, an INFO line per request, a WARN line per node it kept, and a governance
-audit event.
+audit event. A WARN `legacy workload retirement deleted fewer nodes than were
+eligible` means a node changed under the delete, so re-run the dry run. An ERROR
+`legacy workload retirement failed` means the delete statement itself failed.
 
 ## 5. Verify
 

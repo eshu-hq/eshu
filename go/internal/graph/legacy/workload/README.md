@@ -57,3 +57,7 @@ standard library, so every side imports it and none imports another.
 - `go/internal/query` hosted readiness (`workload_identity_leftovers`).
 - `go/internal/reducer/workload/legacy/retire` (dry run and execute).
 - `go/internal/runtime` admin route (request, response, and error types only).
+- `go/internal/query/entity` service story: the `legacy_id` marker on a
+  service workload candidate (`service_workload_candidate_maps.go`).
+- `go/cmd/reducer` wires the retirement runner onto the reducer's Neo4j
+  executor.

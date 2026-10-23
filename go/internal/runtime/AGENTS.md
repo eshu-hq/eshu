@@ -32,9 +32,9 @@
 
 - **Admin endpoints are not authenticated** — `NewAdminMux` mounts `/healthz`,
   `/readyz`, `/admin/status`, `/metrics`, and optionally `/admin/replay`,
-  `/admin/refinalize`, `/admin/replay-collector-generations`, and the reducer-only
-  `/admin/retire-legacy-workloads` without authentication. These must be served only on the admin/metrics port, never on
-  the public API port.
+  `/admin/refinalize`, `/admin/replay-collector-generations`, and the
+  reducer-only `/admin/retire-legacy-workloads` without authentication. These
+  must be served only on the admin/metrics port, never on the public API port.
 
 - **No reducer imports** — the API, MCP server, and ingester link this
   package, so it must not import `internal/reducer/...`. The legacy workload

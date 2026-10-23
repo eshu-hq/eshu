@@ -50,9 +50,9 @@ type workloadLeftovers struct {
 // classify every node the same way. The figures still differ: readiness
 // counts every node with a scoped twin and no instance, including ones a
 // relationship blocks from retirement, over up to 5,000 nodes, while a dry run
-// reports the eligible ones over up to 1,000. It runs only after query_readback passed, so a failure here
-// is its own condition: it is logged, recorded on the request span, and fails
-// the check.
+// reports the eligible ones over up to 1,000. It runs only after
+// query_readback passed, so a failure here is its own condition: it is logged,
+// recorded on the request span, and fails the check.
 func (h *StatusHandler) readWorkloadLeftovers(ctx context.Context) workloadLeftovers {
 	if h.Neo4j == nil {
 		return workloadLeftovers{}

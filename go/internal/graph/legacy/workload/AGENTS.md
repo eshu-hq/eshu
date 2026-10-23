@@ -3,9 +3,9 @@
 Scoped instructions for this package. The root `AGENTS.md` still applies.
 
 - This is a leaf package. It may import `go/internal/workloadid` and the
-  standard library only. `go/internal/query`, `go/internal/runtime`, and the
-  reducer import it, so it must never import any of them, nor
-  `storage/cypher`.
+  standard library only. `go/internal/query` (including `query/entity`),
+  `go/internal/runtime`, the reducer, and `go/cmd/reducer` import it, so it
+  must never import any of them, nor `storage/cypher`.
 - It performs no writes and emits no telemetry. Keep it that way: the writer
   and its counters live in `go/internal/reducer/workload/legacy/retire`.
 - Keep the read statements single-clause and identity-anchored with a bound

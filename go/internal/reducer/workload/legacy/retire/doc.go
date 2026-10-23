@@ -22,6 +22,5 @@
 //
 // Every executed request records the eshu_dp_workload_legacy_retirements_total
 // counter by outcome for every node it judged, one INFO line, one WARN line
-// per kept node, and a
-// governance audit event. Dry runs record none of these.
+// per kept node, and a governance audit event. Dry runs record none of these.
 package retire

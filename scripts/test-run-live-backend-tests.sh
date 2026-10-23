@@ -214,7 +214,7 @@ EOF
 # (#751: +1 neo4j for the historical AppSync key read-route proof, which
 # requires Neo4j's supported graph semantics)
 # (#8795: +4 neo4j ledger rows for the legacy workload detection, retirement,
-# and story-route live proofs, neo4j-only because the delete runs on Neo4j)
+# and story-route live proofs; #8795 is tested on Neo4j only by owner direction)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
 [[ "${#plan[@]}" == "86" ]] || fail "planned runs ${#plan[@]}, want 86 (34 nornicdb + 52 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)

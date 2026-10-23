@@ -57,8 +57,8 @@ could miss. The fixture also carries a twin with a null `generation_id`, a
 foreign repository `DEFINES` into an otherwise eligible leftover, and a
 non-legacy-shaped id passed in `$ids`; dropping the own-repository `DEFINES`
 rule, either twin `generation_id IS NOT NULL` check, or the legacy-shape clause
-each fails a live test. Plain `DELETE w` on a node that still has relationships is refused by
-Neo4j.
+each fails a live test. Plain `DELETE w` on a node that still has relationships
+is refused by Neo4j.
 
 ## Query plans (Neo4j 2026.08.1, community, constraints `workload_id` and
 `repository_id` unique, index `workload_instance_workload_id` present; the plan
@@ -129,19 +129,22 @@ through the reducer executor's existing classification.
 
 Observability Evidence: `eshu_dp_workload_legacy_retirements_total{outcome}`
 (bounded: `deleted`, `blocked_has_instances`, `blocked_no_twin`,
-`blocked_relationships`) increments per node judged by an executed request (every verdict, up to the
-1,000 examined, not only the 100 blocked nodes the response lists). An
-INFO line `legacy workload retirement executed` carries candidates, eligible,
-deleted, blocked, truncated, and the operator's reason; a WARN line
-`legacy workload kept` carries the node id, the blocked reason, and the
-per-type relationship counts for each node kept. A Neo4j reducer with no graph
-writer wired refuses execute with `503` and the audit reason
+`blocked_relationships`) increments per node judged by an executed request
+(every verdict, up to the 1,000 examined, not only the 100 blocked nodes the
+response lists). An INFO line `legacy workload retirement executed` carries
+candidates, eligible, deleted, blocked, truncated, and the operator's reason; a
+WARN line `legacy workload kept` carries the node id, the blocked reason, and
+the per-type relationship counts for each node kept. A WARN `legacy workload
+retirement deleted fewer nodes than were eligible` (eligible, deleted) marks a
+node that changed between the read and the delete, and an ERROR `legacy workload
+retirement failed` marks a failed delete statement. A Neo4j reducer with no
+graph writer wired refuses execute with `503` and the audit reason
 `legacy_workload_retire_refused_writer_unavailable`. A governance audit event
-(`admin_recovery_action`, reason `legacy_workload_retire_executed`, `_failed`, or a
-`_refused_*` code) records each decision. The standing condition is visible at 3
-AM as the failed hosted-readiness check `workload_identity_leftovers` (failure
-class `legacy_workload_nodes`) with a `next_diagnostic` that names the dry-run
-route. Dry runs record no counter and no audit event.
+(`admin_recovery_action`, reason `legacy_workload_retire_executed`, `_failed`,
+or a `_refused_*` code) records each decision. The standing condition is visible
+at 3 AM as the failed hosted-readiness check `workload_identity_leftovers`
+(failure class `legacy_workload_nodes`) with a `next_diagnostic` that names the
+dry-run route. Dry runs record no counter and no audit event.
 
 ## What ran where
 
