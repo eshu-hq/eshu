@@ -378,8 +378,9 @@ coverage:
   # identical graph digests (#6228 observability_coverage live leaf). The
   # one AWS_COVERS_<signal> edge per closed vocabulary member (alarm,
   # composite_alarm, dashboard, log_group, trace_sampling) each resolves
-  # its observability object against the scanned CloudResource target by
-  # ARN dimension; the metric-name-only alarm (no resolvable dimension),
+  # its observability object against the scanned CloudResource target
+  # (four by ARN dimension, the dashboard-to-database pair by bare id);
+  # the metric-name-only alarm (no resolvable dimension),
   # the service-name X-Ray rule (derived provenance-only), and the alarm
   # naming an unscanned target (unresolved gap) resolve to nothing.
   - surface: "materialized_edges:observability_coverage"

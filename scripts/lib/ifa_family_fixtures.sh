@@ -251,7 +251,8 @@ derived_from_expected_edges="${repo_root}/go/internal/ifa/testdata/derivedfrom/i
 # (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- five
 # edge-producing observability objects (one alarm, one composite alarm, one
 # dashboard, one log group, one X-Ray sampling rule, one per coverage
-# signal), five scanned CloudResource targets resolved by ARN dimension, and
+# signal), five scanned CloudResource targets (four resolved by ARN
+# dimension, the dashboard-to-database pair by bare id), and
 # three deliberate non-producers (metric-name-only alarm, service-name X-Ray
 # rule, alarm naming an unscanned target). The single aws account scope owns
 # its own ACTIVE generation, like every sibling above.

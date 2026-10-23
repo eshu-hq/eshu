@@ -297,6 +297,13 @@ func (h ObservabilityCoverageMaterializationHandler) canonicalNodesReady(intent 
 	// deferral error is budget-safe (ObservabilityCoverageNodesNotReadyFailureClass
 	// is nonCounting), so an early claim retries instead of writing a partial
 	// edge set.
+	// Invariant: every observability_coverage scope must carry an
+	// ec2_instance_posture fact, because ec2_instance_node_materialization
+	// (and therefore the phase this lookup waits on) is only created then
+	// (BuildInstanceNodeMaterializationReducerIntent returns ok=false
+	// otherwise). A future scope with no EC2 targets would enqueue an intent
+	// that defers retryably forever without dead-lettering, so a scope that
+	// drops the posture fact must condition or remove this hold first.
 	ec2Key, ok := gpphase.KeyFromScope(intent.ScopeID, intent.GenerationID, []string{"ec2_instance_node_materialization:" + intent.ScopeID}, gpphase.KeyspaceCloudResourceUID)
 	if !ok {
 		return false
