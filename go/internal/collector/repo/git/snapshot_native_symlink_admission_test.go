@@ -109,6 +109,30 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 			link: ".nvmrc",
 		},
 		{
+			name: "link to terraform state",
+			setup: func(t *testing.T, root string) {
+				writeCollectorTestFile(t, filepath.Join(root, "real", "terraform.tfstate"), "{\"version\":4}\n")
+				mustSymlink(t, "real/terraform.tfstate", filepath.Join(root, ".nvmrc"))
+			},
+			link: ".nvmrc",
+		},
+		{
+			name: "link to gitmodules",
+			setup: func(t *testing.T, root string) {
+				writeCollectorTestFile(t, filepath.Join(root, ".gitmodules"), "[submodule \"x\"]\n\turl = https://example.test/x.git\n")
+				mustSymlink(t, ".gitmodules", filepath.Join(root, ".nvmrc"))
+			},
+			link: ".nvmrc",
+		},
+		{
+			name: "link into an ignored directory",
+			setup: func(t *testing.T, root string) {
+				writeCollectorTestFile(t, filepath.Join(root, "node_modules", "pkg", ".nvmrc"), "20.11.1\n")
+				mustSymlink(t, "node_modules/pkg/.nvmrc", filepath.Join(root, ".nvmrc"))
+			},
+			link: ".nvmrc",
+		},
+		{
 			name: "link to directory",
 			setup: func(t *testing.T, root string) {
 				if err := os.MkdirAll(filepath.Join(root, "real"), 0o755); err != nil {

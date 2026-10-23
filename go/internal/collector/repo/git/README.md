@@ -174,8 +174,9 @@ asserted from recorded runs in the resolve tests.
 
 Discovery tests the link name but the content read follows the link.
 `symlinkTargetAdmitted` keeps a symlink only when it resolves to a regular file
-inside the repository that the same matcher admits, with the same parser
-definition when both names are registry names. `.nvmrc -> .env` is dropped, as
+inside the repository, outside ignored directories, in the same admission
+category as the link (same parser definition, or both terraform state,
+documentation, `.gitmodules`, or CODEOWNERS). `.nvmrc -> .env` is dropped, as
 are dangling links, cycles, and directory links. This covers every admitted name.
 
 ## Directory size

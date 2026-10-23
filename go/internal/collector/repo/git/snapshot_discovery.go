@@ -313,20 +313,29 @@ func resolveNativeSnapshotFileSet(
 	if err != nil {
 		return discovery.RepoFileSet{}, discovery.DiscoveryStats{}, err
 	}
-	admitted := func(path string) bool {
+	category := func(path string) string {
 		if isTerraformStateCandidateName(filepath.Base(path)) {
-			return true
+			return "terraform_state"
 		}
-		_, ok := registry.LookupByPath(path)
-		if ok || docs.IsGitDocumentationPath(path) {
-			return true
+		if definition, ok := registry.LookupByPath(path); ok {
+			return "registry:" + definition.ParserKey
 		}
-		return submodule.IsGitmodulesCandidatePath(repoPath, path) || codeowners.IsCodeownersCandidatePath(repoPath, path)
+		if docs.IsGitDocumentationPath(path) {
+			return "documentation"
+		}
+		if submodule.IsGitmodulesCandidatePath(repoPath, path) {
+			return "gitmodules"
+		}
+		if codeowners.IsCodeownersCandidatePath(repoPath, path) {
+			return "codeowners"
+		}
+		return ""
 	}
 	stats, fileSets, err := discovery.ResolveRepositoryFileSetsWithStats(
 		repoPath,
 		func(path string) bool {
-			return admitted(path) && symlinkTargetAdmitted(repoPath, path, registry, admitted)
+			linkCategory := category(path)
+			return linkCategory != "" && symlinkTargetAdmitted(repoPath, path, linkCategory, opts.IgnoredDirs, category)
 		},
 		opts,
 	)
@@ -342,21 +351,24 @@ func resolveNativeSnapshotFileSet(
 	return discovery.RepoFileSet{RepoRoot: repoPath}, stats, nil
 }
 
-// symlinkTargetAdmitted keeps a symlink from smuggling a file the registry
-// would never admit. Discovery tests only the link name, and the content read
-// follows the link, so `.nvmrc -> .env` or `.nvmrc -> .git/config` would store
-// credential text the content store cannot redact. A regular file passes
-// unchanged. A symlink passes only when it resolves to a regular file inside
-// repoPath that the same matcher admits and, when both names resolve to a
-// registry definition, that parses with the same definition. Dangling links,
-// link cycles, links to directories, and links that leave the repository fail
-// closed. This mirrors the --file-targets path, which resolves symlinks before
-// it asks the registry.
+// symlinkTargetAdmitted keeps a symlink from smuggling a file its name would
+// never earn. Discovery tests only the link name and the content read follows
+// the link, so `.nvmrc -> .env`, `.nvmrc -> .git/config`, or
+// `.nvmrc -> terraform.tfstate` would store text the content store cannot
+// redact. A regular file passes unchanged. A symlink passes only when it
+// resolves to a regular file inside repoPath, under no ignored directory, and
+// the target falls in the same admission category as the link (the same parser
+// definition for registry names; terraform state, documentation, .gitmodules,
+// and CODEOWNERS each match only their own kind). Dangling links, link cycles,
+// directory links, and links that leave the repository fail closed. This
+// mirrors the --file-targets path, which resolves symlinks before it asks the
+// registry. Gitignore and eshuignore rules are not re-applied to the target.
 func symlinkTargetAdmitted(
 	repoPath string,
 	path string,
-	registry parser.Registry,
-	admitted func(string) bool,
+	linkCategory string,
+	ignoredDirs []string,
+	category func(string) string,
 ) bool {
 	info, err := os.Lstat(path)
 	if err != nil {
@@ -377,17 +389,28 @@ func symlinkTargetAdmitted(
 	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(filepath.ToSlash(rel), "../") {
 		return false
 	}
+	if pathUnderIgnoredDir(filepath.Dir(filepath.ToSlash(rel)), ignoredDirs) {
+		return false
+	}
 	target, err := os.Stat(resolved)
 	if err != nil || !target.Mode().IsRegular() {
 		return false
 	}
-	if !admitted(resolved) {
+	return category(resolved) == linkCategory
+}
+
+// pathUnderIgnoredDir reports whether any directory component of the
+// slash-separated relative directory dir is an ignored directory name.
+func pathUnderIgnoredDir(dir string, ignoredDirs []string) bool {
+	if dir == "." {
 		return false
 	}
-	linkDef, linkOK := registry.LookupByPath(path)
-	targetDef, targetOK := registry.LookupByPath(resolved)
-	if linkOK && targetOK {
-		return linkDef.ParserKey == targetDef.ParserKey
+	for _, segment := range strings.Split(dir, "/") {
+		for _, ignored := range ignoredDirs {
+			if strings.EqualFold(segment, ignored) {
+				return true
+			}
+		}
 	}
-	return true
+	return false
 }

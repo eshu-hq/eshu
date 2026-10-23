@@ -61,7 +61,8 @@ recent shipped work grouped by feature area.
   ([reconciliation sweep](docs/public/reference/reconciliation-sweep.md)).
   Watch the ingester queue and the reducer backlog while it drains.
 - **Hardening for every admitted name:** discovery now drops a symlink unless
-  its resolved target is an admitted regular file inside the repository, so
+  its resolved target is a regular file inside the repository in the same
+  admission category (same parser definition, outside ignored directories), so
   `.nvmrc -> .env` or a link into `.git/config` no longer stores the target's
   text. Dangling links, cycles, and directory links are dropped too.
 
