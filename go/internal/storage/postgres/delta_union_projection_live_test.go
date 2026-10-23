@@ -354,6 +354,24 @@ func TestDeltaGenerationProjectsOverUnionBaseLive(t *testing.T) {
 		t.Fatalf("canonical files = %s, want %s (the base's untouched other.go must survive)", got, want)
 	}
 
+	// Entities per file: the overlay drops the base's entities for the files
+	// the delta touched (keep.go's old keep, the deleted w.go's w) and keeps
+	// the untouched base file's entity, so the writer sees exactly the union.
+	entitiesByFile := make(map[string][]string)
+	for _, entity := range mat.Entities {
+		entitiesByFile[entity.RelativePath] = append(entitiesByFile[entity.RelativePath], entity.EntityName)
+	}
+	for file, want := range map[string]string{"keep.go": "keepNew", "other.go": "other", "x.go": "x"} {
+		got := entitiesByFile[file]
+		if len(got) != 1 || got[0] != want {
+			t.Fatalf("canonical entities under %s = %v, want exactly [%s]", file, got, want)
+		}
+	}
+	if len(entitiesByFile) != 3 {
+		t.Fatalf("canonical entities by file = %v, want only keep.go, other.go, and x.go (nothing under deleted w.go)",
+			entitiesByFile)
+	}
+
 	// Content: the store holds the union tree; w.go's tombstone removed it.
 	if got, want := strings.Join(h.contentFiles(), ","), "keep.go,other.go,x.go"; got != want {
 		t.Fatalf("content_files = %s, want %s", got, want)
