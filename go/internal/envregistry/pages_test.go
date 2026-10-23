@@ -192,35 +192,61 @@ func renderFailureCases(t *testing.T) []renderFailureCase {
 		return must(append(layoutCoveringEntries(),
 			Entry{Name: "ESHU_EXTRA", Type: VarString, Subsystem: subsystem, Description: "x"}))
 	}
-	oneSpec := func(spec pageSpec) []pageSpec { return append(append([]pageSpec(nil), pageLayout...), spec) }
+	// spare is a valid subsystem that no pageLayout page claims. Each slug and
+	// title case puts it on the page under test so the page is otherwise
+	// valid: without it, an earlier "lists no subsystems" check would reject
+	// the page first and a loose wantErr could mistake that for the real guard.
+	spare := withSub("spare")
+	extra := func(spec pageSpec) []pageSpec { return append(append([]pageSpec(nil), pageLayout...), spec) }
+	onSpare := []string{"spare"}
 
 	return []renderFailureCase{
 		{
 			"over the line cap", must(oversize), pageLayout, PageLineCap,
 			[]string{"env-registry/api-and-auth.md", "500", "pageLayout"},
 		},
-		{"unassigned subsystem", withSub("brand-new"), pageLayout, PageLineCap, []string{"brand-new"}},
+		{"unassigned subsystem", withSub("brand-new"), pageLayout, PageLineCap, []string{"have registry entries but no page", "brand-new"}},
 		{"empty subsystem", withSub(""), pageLayout, PageLineCap, []string{"empty subsystem"}},
-		{"subsystem with an unsafe anchor name", withSub("Foo Bar"), oneSpec(
-			pageSpec{Slug: "odd", Title: "Odd", Subsystems: []string{"Foo Bar"}}), PageLineCap, []string{"Foo Bar"}},
+		{
+			"subsystem with an unsafe anchor name", withSub("Foo Bar"), extra(
+				pageSpec{Slug: "odd", Title: "Odd", Subsystems: []string{"Foo Bar"}}), PageLineCap,
+			[]string{"is not a lowercase hyphenated name", "Foo Bar"},
+		},
 		{"subsystem on two pages", base, []pageSpec{
 			{Slug: "a", Title: "A", Subsystems: []string{"api"}},
 			{Slug: "b", Title: "B", Subsystems: []string{"api"}},
-		}, PageLineCap, []string{"api", "both"}},
+		}, PageLineCap, []string{"is on both page", "api"}},
 		{
-			"layout subsystem with no entries", base, oneSpec(
+			"layout subsystem with no entries", base, extra(
 				pageSpec{Slug: "gone", Title: "Gone", Subsystems: []string{"no-such-subsystem"}}), PageLineCap,
-			[]string{"no-such-subsystem"},
+			[]string{"which has no registry entries", "no-such-subsystem"},
 		},
-		{"duplicate slug", base, oneSpec(
-			pageSpec{Slug: pageLayout[0].Slug, Title: "Dup"}), PageLineCap, []string{pageLayout[0].Slug}},
-		{"empty slug", base, oneSpec(pageSpec{Slug: "", Title: "No slug"}), PageLineCap, []string{"slug"}},
-		{"index slug", base, oneSpec(pageSpec{Slug: "index", Title: "Index"}), PageLineCap, []string{"index"}},
 		{
-			"slug that is not a URL-safe name", base, oneSpec(pageSpec{Slug: "Bad Slug", Title: "Bad"}), PageLineCap,
-			[]string{"Bad Slug"},
+			"duplicate slug", spare, extra(
+				pageSpec{Slug: pageLayout[0].Slug, Title: "Dup", Subsystems: onSpare}), PageLineCap,
+			[]string{"appears twice", pageLayout[0].Slug},
 		},
-		{"empty title", base, oneSpec(pageSpec{Slug: "untitled"}), PageLineCap, []string{"untitled", "title"}},
+		{
+			"empty slug", spare, extra(pageSpec{Slug: "", Title: "No slug", Subsystems: onSpare}), PageLineCap,
+			[]string{`pageLayout slug ""`, "must be a lowercase hyphenated name"},
+		},
+		{
+			"index slug", spare, extra(pageSpec{Slug: "index", Title: "Index", Subsystems: onSpare}), PageLineCap,
+			[]string{`pageLayout slug "index"`, "must be a lowercase hyphenated name"},
+		},
+		{
+			"slug that is not a URL-safe name", spare,
+			extra(pageSpec{Slug: "Bad Slug", Title: "Bad", Subsystems: onSpare}), PageLineCap,
+			[]string{`pageLayout slug "Bad Slug"`, "must be a lowercase hyphenated name"},
+		},
+		{
+			"empty title", spare, extra(pageSpec{Slug: "untitled", Subsystems: onSpare}), PageLineCap,
+			[]string{`"untitled"`, "has an empty title"},
+		},
+		{
+			"page with no subsystems", base, extra(pageSpec{Slug: "hollow", Title: "Hollow"}), PageLineCap,
+			[]string{`"hollow"`, "lists no subsystems"},
+		},
 	}
 }
 
