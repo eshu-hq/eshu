@@ -99,7 +99,7 @@ operator-facing signals, scaling guidance, and runtime invariants for the
 ## Retiring leftover name-only Workload nodes
 
 The admin listener serves `POST /admin/retire-legacy-workloads` (#8795), wired in
-`legacy_workload_retirement_wiring.go` from the retrying Cypher executor
+`run.go` (`legacyWorkloadRetirementHandler`) from the retrying Cypher executor
 (`ExecuteCypherCountingNodeDeletes`), the raw session reader, and the governance
 audit store. Dry runs work on both graph backends; execute is enabled only on
 Neo4j. Nothing in the queue path calls it. See

@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,12 +16,16 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/app"
 	"github.com/eshu-hq/eshu/go/internal/graph/anchor"
+	legacyworkload "github.com/eshu-hq/eshu/go/internal/graph/legacy/workload"
 	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/census"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workload/legacy/retire"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	auditstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/governance/audit"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -198,4 +203,42 @@ func idAnchorCensusReader(raw node.CypherReader, decorated query.GraphQuery) anc
 		return decorated
 	}
 	return nil
+}
+
+// legacyWorkloadRetirementHandler builds the POST /admin/retire-legacy-workloads
+// handler for the reducer admin listener (#8795).
+//
+// Reads go through the raw session runner when it can serve rows: like the
+// id-anchor census this is an operator probe, and a recorded copy of it would
+// appear as a graph-specific statement in a differential capture. Execute is
+// enabled only on Neo4j, the backend whose clause evaluation the retirement
+// statement was proven on; NornicDB mis-evaluates those clauses, so there the
+// route serves dry runs and refuses execute.
+func legacyWorkloadRetirementHandler(
+	cypherExec reducer.CypherExecutor,
+	rawReader node.CypherReader,
+	decorated query.GraphQuery,
+	backend runtimecfg.GraphBackend,
+	db *sql.DB,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (*runtimecfg.LegacyWorkloadRetirementHandler, error) {
+	reader, _ := rawReader.(legacyworkload.Reader)
+	if reader == nil && decorated != nil {
+		reader = decorated
+	}
+	writer, _ := cypherExec.(retire.Writer)
+	var audit retire.Auditor
+	if db != nil {
+		audit = auditstore.NewGovernanceAuditStore(postgres.SQLDB{DB: db})
+	}
+	runner := &retire.Runner{
+		Reader:           reader,
+		Writer:           writer,
+		ExecuteSupported: backend == runtimecfg.GraphBackendNeo4j,
+		Audit:            audit,
+		Instruments:      instruments,
+		Logger:           logger,
+	}
+	return runtimecfg.NewLegacyWorkloadRetirementHandler(runner)
 }
