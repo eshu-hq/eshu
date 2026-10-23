@@ -2,7 +2,7 @@ version: 1
 source_coverage:
   - file: impact/resource_investigation_selector.go
     calls:
-      - {symbol: "runResourceInvestigationSelectorFanout", count: 1, source_sha256: 6a6ea3aa13feb8ae8887ff401e261d084de14fccae239b7a49da3526978b2d02, entry_ids: [QP-RESOURCE-INVESTIGATION-SELECTOR]}
+      - {symbol: "runResourceInvestigationSelectorFanout", count: 1, source_sha256: 92bc66b6d5f47253a604cb592ae4747273716c0e8272363354a7804c9f20b024, entry_ids: [QP-RESOURCE-INVESTIGATION-SELECTOR]}
   - file: impact/resource_investigation_reads.go
     calls:
       - {symbol: "(*Handler).ResourceInvestigationInstanceWorkloads", count: 1, source_sha256: 7939e3c2d92d21ea6ebdd792fab084628d3157a00c0138f776431b25cb7e8ffc, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}
