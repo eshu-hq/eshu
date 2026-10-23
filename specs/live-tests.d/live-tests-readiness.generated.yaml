@@ -499,6 +499,11 @@ tests:
     class: postgres_ci
     reason: "#8780 disposable PostgreSQL proof that a cumulative delta over an active delta (diffed from the newest activated full, its fence commit the active delta's) projects over that full through the production projector service and activates, with no base-missing refusal and no reindex watermark; isolated bootstrapped schema per test; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/delta_union_chain_proof_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8780 disposable PostgreSQL proofs of cumulative chained deltas on the #8779 projector harness: the chained union equals a full built at the same head (content_files and the admin completeness check report complete), a burst delta diffed from a moved active is refused at preflight and the next cumulative re-diff activates, a delta fenced on an older full refuses, and a chained delta whose union base was drained fails closed with a reindex watermark; isolated bootstrapped schema per test; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/delta_union_live_test.go
     tag: ~
     class: postgres_ci
@@ -543,6 +548,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8167 first-generation retract predicate proof: NewPriorGenerationCheck answers from strictly older generations in activation order (ingested_at, generation_id), so a newer generation committed before a first attempt runs does not flip the retract decision; covers newer-only, older-only, both, none, failed and superseded predecessors, ingested_at ties, a missing intent row, and repeat calls; untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/generation_retention_chain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8780 disposable PostgreSQL 18 proof that retention keeps a cumulative delta chain's union base: with F, a superseded delta d1, and an active cumulative delta d2 whose union base is F, F and d1 survive past the hard ceiling as delta_base; bridges ESHU_GENERATION_RETENTION_PROOF_DSN onto ESHU_POSTGRES_TEST_DSN as the #7802 proof does"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/generation_retention_chunk_insert_wait_live_test.go
     tag: ~
@@ -688,6 +698,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8316 fingerprint invalidation when a Repository deleter removes a node: deleting the rows whose repo_ids contain the removed repository re-opens exactly those items, keeps unrelated rows, and is a no-op for empty and unknown inputs; isolated schema from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_successor_guard_chain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8780 disposable PostgreSQL 18 proof that the #8750 destructive-successor guard anchors a cumulative chained delta at its union-base commit (the newest activated full), so a chained delta that deletes most of the base's files is refused at commit and a small chained delta stores; reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ingestion_successor_guard_sizing_live_test.go
     tag: ~

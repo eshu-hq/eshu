@@ -7,6 +7,22 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres": {
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_live_test.go": (
+            "TestReducerContentionGateServiceCatalogRetriggerRepairsNoProducerGeneration",
+            "TestReducerContentionGateServiceCatalogRetriggerFlagsClaimedRow",
+            "TestReducerContentionGateServiceCatalogRetriggerFlagsFirstRunWithoutDecisions",
+        ),
+        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_window_live_test.go": (
+            "TestReducerContentionGateServiceCatalogRetriggerFlagsRunThatNewlyNamesRepo",
+        ),
+        "go/internal/storage/postgres/relationship_activation_wake_live_test.go": (
+            "TestActivationWakesOwnGateConsumersLive",
+        ),
+        "go/internal/storage/postgres/relationship_activation_wake_race_live_test.go": (
+            "TestActivationWaitsForAnInflightFinalFailLive",
+            "TestFinalFailAfterTheActivationLockIsWokenLive",
+            "TestActivationLockTimeoutFailsRetryablyLive",
+        ),
         "go/internal/storage/postgres/relationship_store_completion_wake_contention_live_test.go": (
             "TestCompletionWakeLockTimeoutClassifiedLive",
             "TestCompletionWakeEvalPlanQualDropsReopenedRowLive",
