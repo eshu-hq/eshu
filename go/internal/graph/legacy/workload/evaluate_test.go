@@ -126,6 +126,23 @@ func TestEvaluateBlankRepoOrNameNeverHasTwin(t *testing.T) {
 	}
 }
 
+func TestEvaluateUntrimmedNameOrRepoNeverHasTwin(t *testing.T) {
+	// workloadid trims its inputs, but the delete Cypher builds the twin id by
+	// exact concatenation, so a padded name or repo id must not look eligible
+	// in Go while the delete can never match.
+	for _, c := range []Candidate{
+		{ID: "workload: svc", Name: " svc", RepoID: "repository:a"},
+		{ID: "workload:svc ", Name: "svc ", RepoID: "repository:a"},
+		{ID: "workload:svc", Name: "svc", RepoID: " repository:a"},
+		{ID: "workload:svc", Name: "svc", RepoID: "repository:a "},
+	} {
+		facts := Facts{Candidates: []Candidate{c}, Twins: map[string][]string{TwinID(c.RepoID, c.Name): {c.RepoID}}}
+		if v := Evaluate(facts)[0]; v.Eligible || v.BlockedReason != BlockedNoTwin {
+			t.Errorf("%+v: eligible=%v reason=%q, want blocked no_twin", c, v.Eligible, v.BlockedReason)
+		}
+	}
+}
+
 func TestSameNameInEitherDirectionIsSafeButOnlyBetweenWorkloads(t *testing.T) {
 	c := cand("p", "repository:a")
 	facts := Facts{

@@ -5,6 +5,7 @@ package workload
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
@@ -88,16 +89,22 @@ type Verdict struct {
 // the prefix plus the name, compared byte for byte with no trimming or prefix
 // stripping, the same test the detection and delete Cypher apply
 // ('workload:' + w.name = w.id). A repository-scoped id never matches. A blank
-// name never matches here; the Cypher can list such a node, but it has no twin,
-// so it is reported blocked (no_twin) and never deleted.
+// name never matches here. The detection Cypher can list such a node, but
+// candidatesFromRows drops it, so Detect never reports or deletes it.
 func IsLegacyID(id, name string) bool {
 	return name != "" && id == workloadid.WorkloadHandlePrefix+name
 }
 
 // TwinID returns the repository-scoped id for the same name and repository,
-// built by the production constructor. It is empty when either part is blank
-// or the name carries a colon, so it can never equal a node id.
+// built by the production constructor. It is empty when either part is blank,
+// when either part has leading or trailing whitespace, or when the name
+// carries a colon, so it can never equal a node id. The constructor trims its
+// inputs but the delete Cypher joins them byte for byte, so a padded part has
+// no twin the delete could match.
 func TwinID(repoID, name string) string {
+	if strings.TrimSpace(repoID) != repoID || strings.TrimSpace(name) != name {
+		return ""
+	}
 	return workloadid.NewWorkloadID(repoID, name).String()
 }
 
