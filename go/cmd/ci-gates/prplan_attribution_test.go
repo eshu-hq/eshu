@@ -31,10 +31,10 @@ func TestCalledAndDirectGateIdentitiesBothMustPass(t *testing.T) {
 func TestReadCurrentCalledChecksUsesExactHeadAndAttempt(t *testing.T) {
 	t.Parallel()
 	runner := &endpointRunner{routes: map[string]string{
-		"actions/runs?":                    `[{"workflow_runs":[{"id":20,"name":"Build Test","event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":2},{"id":19,"name":"Build Test","event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":1}]}]`,
+		"actions/runs?":                    `[{"workflow_runs":[{"id":20,"name":"Build Test","path":".github/workflows/test.yml","pull_requests":[{"number":42}],"event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":2},{"id":19,"name":"Build Test","path":".github/workflows/test.yml","pull_requests":[{"number":42}],"event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":1}]}]`,
 		"/actions/runs/20/attempts/2/jobs": `[{"jobs":[{"name":"call-frontend / console","status":"completed","conclusion":"failure","run_attempt":2},{"name":"queue-selection / select","status":"completed","conclusion":"success","run_attempt":2}]}]`,
 	}}
-	got, err := readCurrentCalledChecks(context.Background(), runner, "eshu-hq/eshu", headSHAFixture)
+	got, err := readCurrentCalledChecks(context.Background(), runner, "eshu-hq/eshu", 42, headSHAFixture)
 	if err != nil || len(got) != 1 || got[0].Name != "call-frontend / console" || got[0].RunID != 20 || got[0].Bucket != "fail" {
 		t.Fatalf("called checks = %#v, err=%v", got, err)
 	}
@@ -48,11 +48,52 @@ func TestReadCurrentCalledChecksUsesExactHeadAndAttempt(t *testing.T) {
 func TestReadCurrentCalledChecksRejectsWrongHead(t *testing.T) {
 	t.Parallel()
 	runner := &endpointRunner{routes: map[string]string{
-		"actions/runs?": `[{"workflow_runs":[{"id":20,"name":"Build Test","event":"pull_request","head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","run_attempt":1}]}]`,
+		"actions/runs?": `[{"workflow_runs":[{"id":20,"name":"Build Test","path":".github/workflows/test.yml","pull_requests":[{"number":42}],"event":"pull_request","head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","run_attempt":1}]}]`,
 	}}
-	got, err := readCurrentCalledChecks(context.Background(), runner, "eshu-hq/eshu", headSHAFixture)
+	got, err := readCurrentCalledChecks(context.Background(), runner, "eshu-hq/eshu", 42, headSHAFixture)
 	if err != nil || len(got) != 0 {
 		t.Fatalf("wrong head produced checks: %#v, err=%v", got, err)
+	}
+}
+
+func TestReadPRChecksWithCalledRejectsNewerUnownedRun(t *testing.T) {
+	t.Parallel()
+	runner := &endpointRunner{routes: map[string]string{
+		"pr checks": `[{"name":"call-frontend / console","state":"SUCCESS","bucket":"pass","workflow":"Build Test","event":"pull_request"}]`,
+		"actions/runs?": `[{"workflow_runs":[` +
+			`{"id":30,"name":"Build Test","path":".github/workflows/other.yml","event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":1,"pull_requests":[{"number":42}]},` +
+			`{"id":29,"name":"Build Test","path":".github/workflows/test.yml","event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":1,"pull_requests":[{"number":43}]},` +
+			`{"id":20,"name":"Build Test","path":".github/workflows/test.yml","event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":1,"pull_requests":[{"number":42}]}]}]`,
+		"/actions/runs/30/attempts/1/jobs": `[{"jobs":[{"name":"call-frontend / console","status":"completed","conclusion":"success","run_attempt":1}]}]`,
+		"/actions/runs/29/attempts/1/jobs": `[{"jobs":[{"name":"call-frontend / console","status":"completed","conclusion":"success","run_attempt":1}]}]`,
+		"/actions/runs/20/attempts/1/jobs": `[{"jobs":[{"name":"call-frontend / console","status":"completed","conclusion":"failure","run_attempt":1}]}]`,
+	}}
+	required := []resolvedRequiredGate{{WorkflowFile: "frontend.yml", WorkflowName: "Frontend", Job: "console"}}
+	checks, err := readPRChecksWithCalled(context.Background(), runner, "eshu-hq/eshu", 42, headSHAFixture, required)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := evaluateRequiredChecks(required, checks, nil)
+	if len(got.Failed) != 1 {
+		t.Fatalf("newer unowned run displaced owning failure: checks=%#v, evaluation=%#v", checks, got)
+	}
+}
+
+func TestReadPRChecksWithCalledYAMLLeafAlias(t *testing.T) {
+	t.Parallel()
+	runner := &endpointRunner{routes: map[string]string{
+		"pr checks":                        `[{"name":"call-frontend / console","state":"SUCCESS","bucket":"pass","workflow":"Build Test","event":"pull_request"}]`,
+		"actions/runs?":                    `[{"workflow_runs":[{"id":20,"name":"Build Test","path":".github/workflows/test.yml","event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":1,"pull_requests":[{"number":42}]}]}]`,
+		"/actions/runs/20/attempts/1/jobs": `[{"jobs":[{"name":"call-frontend / console","status":"completed","conclusion":"failure","run_attempt":1}]}]`,
+	}}
+	required := []resolvedRequiredGate{{WorkflowFile: "frontend.yaml", WorkflowName: "Frontend", Job: "console"}}
+	checks, err := readPRChecksWithCalled(context.Background(), runner, "eshu-hq/eshu", 42, headSHAFixture, required)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := evaluateRequiredChecks(required, checks, nil)
+	if len(got.Failed) != 1 {
+		t.Fatalf("yaml leaf alias failure was ignored: checks=%#v, evaluation=%#v", checks, got)
 	}
 }
 
@@ -60,7 +101,7 @@ func TestReadPRChecksWithCalledRejectsStaleCallerRollup(t *testing.T) {
 	t.Parallel()
 	runner := &endpointRunner{routes: map[string]string{
 		"pr checks":                        `[{"name":"console","state":"SUCCESS","bucket":"pass","workflow":"Frontend","event":"pull_request"},{"name":"call-frontend / console","state":"SUCCESS","bucket":"pass","workflow":"Build Test","event":"pull_request"}]`,
-		"actions/runs?":                    `[{"workflow_runs":[{"id":20,"name":"Build Test","event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":2}]}]`,
+		"actions/runs?":                    `[{"workflow_runs":[{"id":20,"name":"Build Test","path":".github/workflows/test.yml","pull_requests":[{"number":42}],"event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":2}]}]`,
 		"/actions/runs/20/attempts/2/jobs": `[{"jobs":[]}]`,
 	}}
 	required := []resolvedRequiredGate{{WorkflowFile: "frontend.yml", WorkflowName: "Frontend", Job: "console"}}

@@ -14,6 +14,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// PRWorkflowStem returns the caller stem of a basename workflow filename.
+// Both GitHub Actions YAML suffixes have the same callable identity.
+func PRWorkflowStem(file string) (string, bool) {
+	stem, ok := strings.CutSuffix(file, ".yml")
+	if !ok {
+		stem, ok = strings.CutSuffix(file, ".yaml")
+	}
+	return stem, ok && stem != "" && !strings.ContainsAny(stem, "/\\")
+}
+
 // ParsePRPlanFragment reads one trusted, versioned inventory fragment for
 // callable workflows whose direct PR triggers were removed.
 func ParsePRPlanFragment(raw []byte) ([]PRWorkflowDefinition, error) {
@@ -38,7 +48,7 @@ func ParsePRPlanFragment(raw []byte) ([]PRWorkflowDefinition, error) {
 	}
 	seen := make(map[string]bool)
 	for _, def := range fragment.Workflows {
-		if filepath.Base(def.File) != def.File || (!strings.HasSuffix(def.File, ".yml") && !strings.HasSuffix(def.File, ".yaml")) || seen[def.File] {
+		if _, ok := PRWorkflowStem(def.File); !ok || filepath.Base(def.File) != def.File || seen[def.File] {
 			return nil, fmt.Errorf("invalid or duplicate PR plan workflow filename %q", def.File)
 		}
 		seen[def.File] = true

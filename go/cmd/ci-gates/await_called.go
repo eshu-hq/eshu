@@ -3,13 +3,13 @@
 
 package main
 
-import "strings"
+import "github.com/eshu-hq/eshu/go/internal/cigates"
 
 // calledCheckName is the single allowed Build Test caller alias for a trusted
 // workflow filename and its existing API-visible job name.
 func calledCheckName(workflow, job string) string {
-	base, ok := strings.CutSuffix(workflow, ".yml")
-	if !ok || base == "" || strings.ContainsAny(base, "/\\") || job == "" {
+	base, ok := cigates.PRWorkflowStem(workflow)
+	if !ok || job == "" {
 		return ""
 	}
 	return "call-" + base + " / " + job

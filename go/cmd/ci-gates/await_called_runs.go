@@ -13,9 +13,10 @@ import (
 )
 
 // readCurrentCalledChecks reads only jobs belonging to the newest Build Test
-// run's current attempt on the exact PR head. The jobs endpoint is necessary:
+// run's current attempt for the requested PR and trusted workflow path.
+// A head can be shared by PRs, and display names are not unique. The jobs endpoint is necessary:
 // commit check runs do not identify which rerun attempt produced a row.
-func readCurrentCalledChecks(ctx context.Context, runner ghRunner, repo, headSHA string) ([]checkRollup, error) {
+func readCurrentCalledChecks(ctx context.Context, runner ghRunner, repo string, pr int, headSHA string) ([]checkRollup, error) {
 	endpoint := "repos/" + repo + "/actions/runs?per_page=100&head_sha=" + url.QueryEscape(headSHA) + "&event=pull_request"
 	output, err := runner.Run(ctx, "api", "--paginate", "--slurp", endpoint)
 	if err != nil {
@@ -23,12 +24,16 @@ func readCurrentCalledChecks(ctx context.Context, runner ghRunner, repo, headSHA
 	}
 	var pages []struct {
 		WorkflowRuns []struct {
-			ID         int64  `json:"id"`
-			Name       string `json:"name"`
-			Event      string `json:"event"`
-			HeadSHA    string `json:"head_sha"`
-			HeadBranch string `json:"head_branch"`
-			RunAttempt int    `json:"run_attempt"`
+			ID           int64  `json:"id"`
+			Name         string `json:"name"`
+			Path         string `json:"path"`
+			Event        string `json:"event"`
+			HeadSHA      string `json:"head_sha"`
+			HeadBranch   string `json:"head_branch"`
+			RunAttempt   int    `json:"run_attempt"`
+			PullRequests []struct {
+				Number int `json:"number"`
+			} `json:"pull_requests"`
 		} `json:"workflow_runs"`
 	}
 	if err := json.Unmarshal(output, &pages); err != nil {
@@ -39,7 +44,9 @@ func readCurrentCalledChecks(ctx context.Context, runner ghRunner, repo, headSHA
 	var branch string
 	for _, page := range pages {
 		for _, run := range page.WorkflowRuns {
-			if run.Name != "Build Test" || run.Event != eventPullRequest || run.HeadSHA != headSHA {
+			if run.Name != "Build Test" || run.Path != ".github/workflows/test.yml" ||
+				run.Event != eventPullRequest || run.HeadSHA != headSHA ||
+				len(run.PullRequests) != 1 || run.PullRequests[0].Number != pr {
 				continue
 			}
 			if run.ID > id || run.ID == id && run.RunAttempt > attempt {
@@ -112,7 +119,7 @@ func readPRChecksWithCalled(ctx context.Context, runner ghRunner, repo string, p
 	if !aliasSeen {
 		return rollup, nil
 	}
-	current, err := readCurrentCalledChecks(ctx, runner, repo, headSHA)
+	current, err := readCurrentCalledChecks(ctx, runner, repo, pr, headSHA)
 	if err != nil {
 		return nil, err
 	}

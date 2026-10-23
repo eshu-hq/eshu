@@ -150,11 +150,13 @@ func checkWorkflowJobOwnership(repoRoot string, reg *Registry, workflow string) 
 // fragment bind this carrier to the same workflow. An arbitrary uses job,
 // misspelled caller, or undeclared leaf stays unowned.
 func callableCarrierOwned(repoRoot string, reg *Registry, workflow, key string, job ownershipJob) bool {
-	if workflow != "test.yml" || !strings.HasPrefix(key, "call-") || job.Name != "" {
+	const localWorkflowPrefix = "./.github/workflows/"
+	if workflow != "test.yml" || job.Name != "" || !strings.HasPrefix(job.Uses, localWorkflowPrefix) {
 		return false
 	}
-	file := strings.TrimPrefix(key, "call-") + ".yml"
-	if file != filepath.Base(file) || job.Uses != "./.github/workflows/"+file {
+	file := strings.TrimPrefix(job.Uses, localWorkflowPrefix)
+	stem, ok := PRWorkflowStem(file)
+	if !ok || key != "call-"+stem {
 		return false
 	}
 	ownedLeaf := false
@@ -173,22 +175,42 @@ func callableCarrierOwned(repoRoot string, reg *Registry, workflow, key string, 
 	if !ownedLeaf {
 		return false
 	}
-	fragmentPath := filepath.Join(repoRoot, "specs", "ci-pr-workflows.d", file)
-	fragment, err := os.ReadFile(fragmentPath) // #nosec G304 -- fixed repository root and caller-derived basename
-	if err != nil {
-		return false
-	}
-	defs, err := ParsePRPlanFragment(fragment)
-	if err != nil || len(defs) != 1 || defs[0].File != file {
-		return false
-	}
 	workflowPath := filepath.Join(repoRoot, ".github", "workflows", file)
-	raw, err := os.ReadFile(workflowPath) // #nosec G304 -- fixed repository root and caller-derived basename
+	raw, err := os.ReadFile(workflowPath) // #nosec G304 -- fixed repository root and validated basename
 	if err != nil {
 		return false
 	}
-	_, err = ValidateCallablePRWorkflow(defs[0], raw)
-	return err == nil
+	fragmentDir := filepath.Join(repoRoot, "specs", "ci-pr-workflows.d")
+	matched := false
+	for _, pattern := range []string{"*.yaml", "*.yml"} {
+		paths, globErr := filepath.Glob(filepath.Join(fragmentDir, pattern))
+		if globErr != nil {
+			return false
+		}
+		for _, path := range paths {
+			fragment, readErr := os.ReadFile(path) // #nosec G304 -- confined trusted fragment glob
+			if readErr != nil {
+				return false
+			}
+			defs, parseErr := ParsePRPlanFragment(fragment)
+			if parseErr != nil {
+				return false
+			}
+			for _, def := range defs {
+				if def.File != file {
+					continue
+				}
+				if matched {
+					return false // duplicate inventory identity
+				}
+				if _, validateErr := ValidateCallablePRWorkflow(def, raw); validateErr != nil {
+					return false
+				}
+				matched = true
+			}
+		}
+	}
+	return matched
 }
 
 // parseOwnershipJobs decodes the jobs of a workflow file. Each job is decoded
