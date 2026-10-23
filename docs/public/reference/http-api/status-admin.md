@@ -96,15 +96,16 @@ public query API status.
 The hosted readiness report composes existing status and query-readback signals
 without changing Kubernetes probes. It separates process health, dependency
 readiness, queue drain, collector completion, shared projection backlog, and
-first-query truth. It returns `state=not_ready` with stable `failure_classes[]`
-when the status snapshot is empty, collector instances are missing, queue work
-is stalled or not drained, work is dead-lettered, projection backlog remains,
-graph readback fails, the repository readback returns zero rows, or [legacy
-workload leftovers](hosted-readiness-leftovers.md) remain. It returns
-`state=ready` only when those checks pass. Diagnostics point to `/admin/status`,
+first-query truth. The report returns `state=not_ready` with stable
+`failure_classes[]` when the status snapshot is empty, hosted collector
+instances are missing, queue work is stalled or not drained, work is
+dead-lettered, shared projection backlog remains, graph readback fails, the
+repository readback returns zero rows, or [legacy workload
+leftovers](hosted-readiness-leftovers.md) remain. It returns `state=ready` only
+when those checks pass. Diagnostic pointers reference `/admin/status`,
 `/api/v0/status/index`, `/api/v0/status/collectors`, and repository coverage;
-raw backend errors, resource IDs, account-local names, paths, and credentials
-are not included. The MCP equivalent is `get_hosted_readiness`.
+raw graph backend errors, resource IDs, account-local names, paths, and
+credentials are not included. The MCP equivalent is `get_hosted_readiness`.
 
 The governance status report composes explicit runtime readback from
 `ESHU_GOVERNANCE_*` settings and existing semantic aggregate status. It reports
@@ -186,12 +187,11 @@ changing deterministic health.
 
 `/api/v0/status/answer-narration` is a separate optional presentation-status
 surface. The default state is unavailable or disabled, with
-`deterministic_fallback_available=true` and `canonical_truth_affected=false`.
-It reports only low-cardinality state, reason, policy hash, retention posture,
-and validator reason-code metadata. It does not generate narration, call
-providers, retain prompt or response bodies, mutate answer packets, or expose
-source IDs, credentials, private paths, private hostnames, prompts, or provider
-responses.
+`deterministic_fallback_available=true` and `canonical_truth_affected=false`. It
+reports only low-cardinality state, reason, policy hash, retention posture, and
+validator reason-code metadata. It does not generate narration, call providers,
+retain prompt or response bodies, mutate answer packets, or expose source IDs,
+credentials, private paths, private hostnames, prompts, or provider responses.
 
 No-Observability-Change: answer narration status is a read-only runtime posture
 projection over `internal/status`. It adds no provider call, graph read, content

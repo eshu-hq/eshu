@@ -63,14 +63,20 @@ The response lists candidates with `eligible` and, for blocked nodes,
 | `blocked_reason` | meaning | what to do |
 | --- | --- | --- |
 | `has_instances` | an instance still references the node | find why an instance keeps the old id; do not delete |
-| `no_twin` | no scoped twin the same repository defines; also a name or repository id with leading or trailing whitespace, which has no twin because the delete matches byte for byte | wait for workload materialization, or investigate; deleting would lose the only node. For a padded name or repository id, fix it at the source (see the note after this table) |
+| `no_twin` | no scoped twin the same repository defines; also a name or repository id with leading or trailing whitespace, which has no twin because the delete matches byte for byte | wait for workload materialization, or investigate; deleting would lose the only node. For a padded name or repository id, retirement cannot remove it: see the note after this table and #8903 |
 | `relationships` | an edge outside the safe set; `relationships` shows counts by type | decide whether that evidence lives on the twin; remove it deliberately or leave the node |
 
 A node whose name or repository id has leading or trailing whitespace is always
-reported `no_twin`, and the readiness check does not count it. Readiness can
-therefore pass while that node still makes the service name ambiguous. This is a
-known limit: retirement cannot remove it, so fix the padded name or repository id
-at the source and let the next materialization write a clean node.
+reported `no_twin`, and the readiness check does not count it, so readiness can
+pass while it is still there. A padded repository id leaves the name clean, so
+that node still matches a by-name selector and makes the service name
+ambiguous. A padded name does not match the bare name (`svc`), because the name
+probe is exact; it answers only to its exact handle, such as `workload: svc`.
+
+This is a known limit, tracked in #8903. Fixing the value at the source writes a
+clean scoped node but does not remove the old one: the padded node has no twin,
+stays `no_twin`, and retirement cannot delete it. It needs a manual, reviewed
+removal.
 
 `truncated: true` means more candidates exist than one request examined. Page by
 repeating the call after retiring, or name a subset with `"ids": [...]`.

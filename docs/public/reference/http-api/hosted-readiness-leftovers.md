@@ -25,8 +25,13 @@ Fields on the check:
 
 A node whose name or repository id has leading or trailing whitespace has no
 twin the delete could match. It is reported `no_twin` and is not counted, so the
-check can pass while that node still makes the name ambiguous. This is a known
-limit: fix the padded name or repository id at the source.
+check can pass while it is still there. A padded repository id leaves the name
+clean, so that node still matches a by-name selector and makes the name
+ambiguous; a padded name matches only its exact handle, such as `workload: svc`.
+
+This is a known limit, tracked in #8903. Fixing the value at the source writes a
+clean scoped node but does not remove the old one, and retirement cannot delete
+it. It needs a manual, reviewed removal.
 
 The count is a lower bound (`N+`) if the read hit its examined cap of 5,000
 candidates. The read is the same detection the retirement dry run uses, so the

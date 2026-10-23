@@ -157,7 +157,11 @@ func (f fixture) paddedIDs() []string {
 // DEFINES. The delete statement joins name and repository id byte for byte, so
 // neither leftover has a twin it can match; Detect must agree and report
 // no_twin. Without the TwinID trim guard the padded-name leftover would look
-// eligible in Go while the statement keeps it.
+// eligible in Go while the statement keeps it. The padded-repo-id seed is
+// belt and braces: Evaluate's slices.Contains(facts.Twins[twin], c.RepoID)
+// already yields no_twin for it, so only the unit tests (TestTwinID repo-id
+// rows, TestEvaluateUntrimmedNameOrRepoNeverHasTwin) pin the repo-id half of
+// the guard.
 func seedPadded(t *testing.T, db *liveDB, f fixture) {
 	t.Helper()
 	nameRepo, repoRepo := f.repo("pn"), f.repo("pr")
