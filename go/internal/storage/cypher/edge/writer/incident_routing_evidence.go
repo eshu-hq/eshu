@@ -252,7 +252,7 @@ func (w *IncidentRoutingEvidenceWriter) WriteIncidentRoutingEvidence(
 		},
 	}
 	if err := w.executor.Execute(ctx, anchor); err != nil {
-		return fmt.Errorf("write incident routing anchor nodes: %w", err)
+		return fmt.Errorf("write incident routing anchor nodes: %w", sourcecypher.WrapRetryableNeo4jError(err))
 	}
 
 	var stmts []sourcecypher.Statement

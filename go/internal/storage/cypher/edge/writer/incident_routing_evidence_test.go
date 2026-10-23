@@ -5,8 +5,12 @@ package writer
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
 func incidentRoutingEvidenceRows() []map[string]any {
@@ -225,5 +229,28 @@ func TestIncidentRoutingEvidenceWriterDedupesIncidentAnchors(t *testing.T) {
 	}
 	if incidents[0]["incident_uid"] != "incident-evidence-1" || incidents[1]["incident_uid"] != "incident-evidence-2" {
 		t.Fatalf("anchor incidents not deduped and sorted: %#v", incidents)
+	}
+}
+
+func TestIncidentRoutingEvidenceWriterAnchorErrorIsRetryable(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{errAtCall: &neo4jdriver.ConnectivityError{
+		Inner: errors.New("dial tcp 10.0.0.1:7687: connect: connection refused"),
+	}}
+	writer := NewIncidentRoutingEvidenceWriter(executor, 0)
+
+	err := writer.WriteIncidentRoutingEvidence(
+		context.Background(),
+		incidentRoutingEvidenceRows(),
+		"scope-1",
+		"gen-1",
+		"reducer/incident-routing",
+	)
+	if err == nil {
+		t.Fatal("WriteIncidentRoutingEvidence returned nil error, want connectivity failure")
+	}
+	if !contract.IsRetryable(err) {
+		t.Fatalf("anchor-commit error Retryable() = false, want true: %v", err)
 	}
 }
