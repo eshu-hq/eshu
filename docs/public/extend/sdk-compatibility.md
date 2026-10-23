@@ -1,21 +1,31 @@
 # SDK Compatibility
 
-Use this page to answer one question: which `sdk/go/collector` version, which
-`sdk/go/factschema` version (fixture-pack version), which wire protocol, and
-which core Eshu release are meant to run together.
+Use this page to identify published SDK/core combinations and to track the
+separate Eshu SDK repository migration. A candidate module path is not a
+supported core/SDK combination until its own qualification evidence exists.
 
 Both SDK modules are public Go subdirectory modules with independent tags —
 `sdk/go/collector/vX.Y.Z` and `sdk/go/factschema/vX.Y.Z` — per the repository's
 `RELEASING.md`. Core Eshu itself tags as `vX.Y.Z` at the repository root. The
-three version lines move independently; this table is the single place that
-states which combinations are supported together.
+three version lines move independently. The compatibility table states the
+combinations supported under the original module paths. The new-path mapping
+below records source preparation without adding a supported combination.
 
 ## Compatibility table
 
 | SDK module version | Core release | Wire protocol | Fixture-pack version | Support window |
 | --- | --- | --- | --- | --- |
 | `sdk/go/collector` v0.1.0 (`sdk/go/collector/v0.1.0`, 2026-07-06; proxy-verified per #6708) | Enforced manifest range `>=0.0.5 <0.2.0` (worked example `examples/collector-extensions/scorecard/manifest.yaml`, checked by `verifyCompatibleCore` in `go/internal/component/policy.go`). Latest tagged core is `v0.0.3-pre-release-*` (see [Release Log](../releases/index.md)); dev builds report version `dev`, which skips the range check, so the example activates on dev builds and enforces on release builds. | `collector-sdk/v1alpha1` | `sdk/go/factschema` v0.1.0 (`sdk/go/factschema/v0.1.0`, 2026-07-06) | Supported. Initial tagged combination; 130 fixture-pack schemas. |
-| `sdk/go/collector` v0.2.0 (`sdk/go/collector/v0.2.0`, 2026-09-16; tag cut after merge per `RELEASING.md`, proxy verification to be recorded in #6708) | Same enforced range and dev-build behavior as the `v0.1.0` row above. | `collector-sdk/v1alpha1` (unchanged) | `sdk/go/factschema` v0.2.0 (`sdk/go/factschema/v0.2.0`, 2026-09-16; same tag/proxy note) | Pending tag cut (supported once tagged and proxy-verified). Additive post-v0.1.0 changes only: redaction helper exports, opaque-URI credential refusal, six new fact-schema families (46 new schemas), fixture-pack growth. Manifests may set `payloadSchemaRef` to validate a namespaced component fact against a fixture-pack payload shape. |
+| `sdk/go/collector` v0.2.0 (`sdk/go/collector/v0.2.0`, 2026-09-16) | Same enforced range and dev-build behavior as the `v0.1.0` row above. | `collector-sdk/v1alpha1` (unchanged) | `sdk/go/factschema` v0.2.0 (`sdk/go/factschema/v0.2.0`, 2026-09-16) | Published and proxy-verified on the original module paths. Their existing support and security policy remains in force during migration. Additive post-v0.1.0 changes include redaction helper exports, opaque-URI credential refusal, six new fact-schema families (46 new schemas), and fixture-pack growth. Manifests may set `payloadSchemaRef` for a namespaced component fact. |
+
+Both original `v0.2.0` module tags resolve from origin commit
+`2c8ab5c228c87a7b47f16063d4b1f43027d33ad6`. The Go proxy module-zip
+checksums are `h1:wOlmnu26Q/MAo50lNGlqj+KJvYDnI6x1CYOThhzNlEg=` for
+`github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` and
+`h1:47bNIgc95iYH7Thf0YWwIKbcHqf+m1UHC+En6IjOMKU=` for
+`github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0`. The corresponding
+`go.mod` checksums and reproducible proxy query are in the
+[SDK migration evidence](https://github.com/eshu-hq/eshu-sdk/blob/d6ce994d6709a13b6f2dc797f7b988b7b64a68fc/docs/sdk-migration-evidence.md).
 
 The `v0.2.0` row includes core-side generated adapters between
 `sdk/go/collector.Fact`, `go/internal/facts.Envelope`, and
@@ -23,9 +33,41 @@ The `v0.2.0` row includes core-side generated adapters between
 `collector-sdk/v1alpha1` JSON field names and do not require a wire-protocol or
 fixture-pack version bump.
 
-This table grows one row per tagged SDK release. Do not
-remove a row when a newer one is added — a consumer pinned to an older tag
-still needs to find its row.
+This table grows one row per qualified SDK/core combination. Do not remove a
+row when a newer one is added: a consumer pinned to an older tag still needs
+to find its row. Candidate availability by itself is not qualification.
+
+## New repository path mapping
+
+The following source is prepared in the separate `eshu-hq/eshu-sdk`
+repository. This mapping must merge here before either new-path candidate tag
+is approved. It records new Go module identities, not a compatible core
+release, and does not imply the tags have been published.
+
+| Original published module | New module identity | Prepared candidate tag in new repository |
+| --- | --- | --- |
+| `github.com/eshu-hq/eshu/sdk/go/collector@v0.2.0` | `github.com/eshu-hq/eshu-sdk/collector` | `collector/v0.1.0-rc.1` |
+| `github.com/eshu-hq/eshu/sdk/go/factschema@v0.2.0` | `github.com/eshu-hq/eshu-sdk/factschema` | `factschema/v0.1.0-rc.1` |
+
+The new `v0.1.0` lines start independently of the original `v0.2.0` lines.
+Go named types from the old and new import paths have different identities;
+the new paths are not drop-in replacements. Keep exact pins to the original
+published versions until the target consumer and core pair qualifies. Never
+use `@latest` as migration evidence.
+
+| State | Required evidence | Status for the new paths at source preparation |
+| --- | --- | --- |
+| Candidate available | Reviewed and merged source SHA, green CI, separate tag approval, immutable directory-prefixed tags, and fresh proxy resolution | Source prepared; publication is not claimed |
+| Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair qualified or core range assigned |
+| Deployed accepted pair | Matching deployment, reducer, graph, API/MCP, retry, operator, and rollback proof | No deployment accepted |
+
+The SDK candidate includes current collector tooling and `TrustedDeletion`,
+and excludes the unimplemented CoreFacts API. Core keeps grant, admission,
+graph, queue, lease, and durable-state ownership. The original modules retain
+their support and security policy until consumer and deployed acceptance
+authorize a cutover. See the
+[new repository compatibility policy](https://github.com/eshu-hq/eshu-sdk/blob/d6ce994d6709a13b6f2dc797f7b988b7b64a68fc/docs/compatibility.md)
+for the candidate scope and schema comparison.
 
 ## Release ownership
 
@@ -35,7 +77,9 @@ a mistake cannot be un-pushed. Contributors prepare the release in a PR
 (CHANGELOG entry, this compatibility row, schema/fixture proof); a maintainer
 cuts the tag after merge with the exact commands in `RELEASING.md`. Never tag
 from a worktree or a stale checkout — only from a clean, fast-forwarded
-`main`.
+`main`. For the new repository, merge this mapping first, then bind separate
+tag approval to its exact reviewed and merged source SHA with green CI. Check
+Git tags and the public Go proxy for current candidate availability.
 
 ## Version support policy
 
@@ -97,10 +141,11 @@ require github.com/eshu-hq/eshu/sdk/go/factschema v0.1.0
 with no `replace` directive and no `go.work` — `go get
 github.com/eshu-hq/eshu/sdk/go/collector@v0.1.0` resolves through the public
 Go module proxy. The `sdk/go/factschema` pin is also the fixture-pack pin.
-Module paths are unchanged since the first tag, so migration today is only
-"delete the `replace` lines, `require` the row above"; if paths ever change
-(e.g. a future `eshu-sdk` repository split), the new paths land here with a
-mapping row before any tag uses them.
+For the original paths, removing the monorepo `replace` directives and pinning
+the published versions in the compatibility table remains valid. The separate
+`eshu-sdk` paths are now mapped above as candidate source; migrate to them only
+after their tags are available and the intended consumer/core pair qualifies.
+Use exact versions and no workspace or local replacement for that proof.
 
 ## How to read a row
 
