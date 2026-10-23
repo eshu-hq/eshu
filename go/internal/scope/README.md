@@ -76,7 +76,9 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   `Validate`, `HasPriorGeneration`, `MetadataCopy`.
 - `ScopeGeneration` — one observed snapshot: `GenerationID`, `ScopeID`,
   `ObservedAt`, `IngestedAt`, `Status`, `TriggerKind`, `FreshnessHint`,
-  `SourceCommitSHA`, `IsDelta`, `DeltaBaselineCommitSHA`, `ReconcileReason`
+  `SourceCommitSHA`, `IsDelta`, `DeltaBaselineCommitSHA` (the #7319 fence
+  commit), `DeltaUnionBaseCommitSHA` (the #8780 union-base commit a cumulative
+  delta was diffed from; `Validate` rejects it on a full), `ReconcileReason`
   (the forced reconcile reason; never blanks the hint, #7978), and
   `DefaultBranchChanged` (#7678, always stored), `PreparseIdentity` (the
   snapshot's pre-parse identity, #7978 follow-up), and `PreparseIdentityDropped`
@@ -91,7 +93,11 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   `LatestFullProjected`). `internal/storage/postgres` fills it and the git
   collector's sweep decides on it (#7288); it carries no behavior. While the
   newest activated full is still active, a reconcile re-projection request
-  (#7978) counts as its `LastProjectedFullAt`.
+  (#7978) counts as its `LastProjectedFullAt`. `LastProjectedFullCommitSHA` and
+  the `Active*` fields let a delta sync reuse it as its baseline (#8780).
+- `DeltaSyncBaseline` — what a git delta sync diffs from (#8780): the active
+  generation's commit and delta flag, and the newest activated full's commit
+  (the union base).
 - `NewTerraformStateSnapshotScope` — builds a stable `state_snapshot` scope from
   backend kind and locator hash. The embedded locator hash is version-agnostic
   by design and MUST stay aligned with `terraformstate.ScopeLocatorHash`; the
@@ -122,6 +128,8 @@ This package emits no metrics, spans, or logs.
   built a delta's #7797 union, just before `Project`, and the fact boundary
   accepts that base's rows (#8779). `ValidateForScope` rejects it on a
   non-delta generation or when it names the generation itself.
+  `DeltaUnionChained` rides the same path for the `build_projection` log only
+  (#8780) and is never persisted.
 - `TransitionTo` validates the generation before checking the transition table.
   A generation with blank identifiers or a zero timestamp returns an error from
   `Validate` before the transition check runs.

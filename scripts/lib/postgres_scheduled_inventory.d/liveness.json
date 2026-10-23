@@ -3,7 +3,7 @@
     "group": "liveness",
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": [
-      "TestLastProjectedCommitSHAUsesActiveGenerationLive"
+      "TestDeltaSyncBaselineUsesActiveGenerationLive"
     ]
   },
   "go/internal/storage/postgres/projector_queue_ack_superseded_live_test.go": {

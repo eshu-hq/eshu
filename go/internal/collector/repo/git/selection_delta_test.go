@@ -24,7 +24,7 @@ case "$*" in
 		;;
 	*"fetch --progress"*)
 		;;
-	*"rev-parse HEAD"*)
+`+fakeGitLsTreeArm+`	*"rev-parse HEAD"*)
 		printf "oldsha\n"
 		;;
 	*"rev-parse refs/remotes/origin/main"*)
@@ -57,7 +57,7 @@ esac
 		"",
 		slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		gitSyncLogEventFor("example/private-service", 1, 1),
-		"oldsha",
+		activeFullBaseline("oldsha"),
 		nil,
 		"",
 	)

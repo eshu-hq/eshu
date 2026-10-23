@@ -180,7 +180,7 @@ func TestFactStoreLoadFactsReturnsEnvelope(t *testing.T) {
 					[]byte(`{"name":"eshu"}`),
 				}},
 			},
-			{rows: [][]any{{false, ""}}},
+			{rows: [][]any{{false, "", ""}}},
 		},
 	}
 	store := NewFactStore(db)
@@ -421,7 +421,7 @@ func TestFactStoreCountFactsReturnsCount(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{false, ""}}},
+			{rows: [][]any{{false, "", ""}}},
 			{rows: [][]any{{42}}},
 		},
 	}
@@ -447,7 +447,7 @@ func TestFactStoreCountFactsPropagatesQueryErrors(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{false, ""}}},
+			{rows: [][]any{{false, "", ""}}},
 			{err: errors.New("boom")},
 		},
 	}

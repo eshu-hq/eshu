@@ -37,6 +37,14 @@ Ack(gen-d) after gen-b activated = <nil>, want ErrWorkSuperseded
 - `projector.DecideDeltaBaseline` is the one decision table. The enforced
   invariant is: a delta generation activates only while
   `active(scope).source_commit_sha == delta.delta_baseline_commit_sha`.
+- Clarifying note (#8780, not an amendment): "the commit the delta was diffed
+  from" is the active commit when the collector read its baseline, the fence
+  commit. A cumulative delta's changed set is diffed from the newest
+  activated full instead, and that union base is a separate recorded commit
+  (`delta_union_base_commit_sha`, migration 210). The fence's text, table,
+  phases, and lock order are unchanged; its row read gained one diagnostic
+  column (`target.delta_union_base_commit_sha`) that only refusal logs and
+  `failure_details` read.
 - `projector.PreflightDeltaBaseline` runs first in `Service.processWork` (the
   projector and ingester binaries) and in `drainProjectorWorkItem`
   (bootstrap-index, sequential and concurrent), before the heartbeat, the

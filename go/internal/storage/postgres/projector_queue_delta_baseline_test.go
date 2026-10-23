@@ -24,9 +24,9 @@ import (
 // baselineFenceRow is one scripted delta-baseline fence row:
 // target status, is_delta, baseline, active generation id, active commit.
 type baselineFenceRow struct {
-	status                            string
-	isDelta                           bool
-	baseline, activeGen, activeCommit sql.NullString
+	status                                       string
+	isDelta                                      bool
+	baseline, unionBase, activeGen, activeCommit sql.NullString
 }
 
 type baselineFenceRows struct {
@@ -42,8 +42,9 @@ func (r *baselineFenceRows) Scan(dest ...any) error {
 	*dest[0].(*string) = row.status
 	*dest[1].(*bool) = row.isDelta
 	*dest[2].(*sql.NullString) = row.baseline
-	*dest[3].(*sql.NullString) = row.activeGen
-	*dest[4].(*sql.NullString) = row.activeCommit
+	*dest[3].(*sql.NullString) = row.unionBase
+	*dest[4].(*sql.NullString) = row.activeGen
+	*dest[5].(*sql.NullString) = row.activeCommit
 	return nil
 }
 
@@ -114,8 +115,8 @@ func TestProjectorAckRefusesDeltaWhoseBaselineIsNotActive(t *testing.T) {
 	}
 	fake.queryRows = []db.Rows{
 		&baselineFenceRows{rows: []baselineFenceRow{{
-			status: "pending", isDelta: true,
-			baseline: nullString("A"), activeGen: nullString("gen-b"), activeCommit: nullString("B"),
+			status: "pending", isDelta: true, baseline: nullString("A"), unionBase: nullString("F"),
+			activeGen: nullString("gen-b"), activeCommit: nullString("B"),
 		}}},
 		&markRows{work: 1, generation: 1},
 	}
@@ -151,7 +152,8 @@ func TestProjectorAckRefusesDeltaWhoseBaselineIsNotActive(t *testing.T) {
 	}
 	if mark.args[3] != "projector-1" || mark.args[4] != 3 ||
 		mark.args[5] != projector.DeltaBaselineMismatchAfterProjectionClass ||
-		mark.args[7] != "A" || mark.args[8] != "B" || mark.args[9] != "gen-b" || mark.args[10] != "ack" {
+		mark.args[7] != "A" || mark.args[8] != "B" || mark.args[9] != "gen-b" || mark.args[10] != "ack" ||
+		mark.args[11] != "F" {
 		t.Fatalf("mark args = %v", mark.args)
 	}
 
@@ -245,7 +247,8 @@ func TestProjectorQueueReadDeltaBaseline(t *testing.T) {
 	t.Parallel()
 	fake := &recordingExecQueryer{queryRows: []db.Rows{&baselineFenceRows{rows: []baselineFenceRow{{
 		status:  "pending",
-		isDelta: true, baseline: nullString(" A "), activeGen: nullString("gen-b"), activeCommit: nullString("B"),
+		isDelta: true, baseline: nullString(" A "), unionBase: nullString(" F "),
+		activeGen: nullString("gen-b"), activeCommit: nullString("B"),
 	}}}}}
 	queue := NewProjectorQueue(fake, "projector-1", time.Minute)
 	state, err := queue.ReadDeltaBaseline(context.Background(), deltaFenceWork())
@@ -254,7 +257,7 @@ func TestProjectorQueueReadDeltaBaseline(t *testing.T) {
 	}
 	want := projector.DeltaBaselineState{
 		TargetFound: true, TargetStatus: scope.GenerationStatusPending,
-		IsDelta: true, BaselineCommitSHA: "A", ActiveGenerationID: "gen-b", ActiveCommitSHA: "B",
+		IsDelta: true, BaselineCommitSHA: "A", UnionBaseCommitSHA: "F", ActiveGenerationID: "gen-b", ActiveCommitSHA: "B",
 	}
 	if state != want {
 		t.Fatalf("state = %+v, want %+v", state, want)
@@ -321,8 +324,8 @@ func TestDeltaBaselineMarkStatementShape(t *testing.T) {
 // cannot drift apart.
 func TestDeltaBaselineFenceSharesActivePredicate(t *testing.T) {
 	t.Parallel()
-	if !strings.Contains(lastProjectedCommitSHAQuery, "AND "+activeGenerationPredicate) {
-		t.Fatalf("baseline read does not use the shared predicate:\n%s", lastProjectedCommitSHAQuery)
+	if !strings.Contains(deltaSyncBaselineQuery, "AND "+activeGenerationPredicate) {
+		t.Fatalf("baseline read does not use the shared predicate:\n%s", deltaSyncBaselineQuery)
 	}
 	if !strings.Contains(deltaBaselineFenceQuery, "AND "+activeGenerationPredicate) {
 		t.Fatalf("fence read does not use the shared predicate:\n%s", deltaBaselineFenceQuery)

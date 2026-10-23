@@ -23,6 +23,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"testing"
@@ -56,9 +57,11 @@ type deltaProjFile struct {
 // changed and deleted paths relative to its baseline.
 type deltaProjGen struct {
 	id, commit, baseline string
-	delta                bool
-	files                []deltaProjFile
-	changed, deleted     []string
+	// unionBase is the #8780 union-base commit; empty for the legacy shape.
+	unionBase        string
+	delta            bool
+	files            []deltaProjFile
+	changed, deleted []string
 }
 
 var (
@@ -100,6 +103,8 @@ type deltaProjHarness struct {
 	repo      repositoryidentity.Metadata
 	canonical *recordingCanonicalWriter
 	observed  time.Time
+	// factLog, when set, receives the union FactStore's decision log.
+	factLog *slog.Logger
 }
 
 func newDeltaProjHarness(t *testing.T) *deltaProjHarness {
@@ -138,7 +143,7 @@ func (h *deltaProjHarness) commit(gen deltaProjGen) {
 		GenerationID: gen.id, ScopeID: scopeID, ObservedAt: observed, IngestedAt: observed,
 		Status: scope.GenerationStatusPending, TriggerKind: scope.TriggerKindSnapshot,
 		FreshnessHint: "hint-" + gen.id, SourceCommitSHA: gen.commit, IsDelta: gen.delta,
-		DeltaBaselineCommitSHA: gen.baseline,
+		DeltaBaselineCommitSHA: gen.baseline, DeltaUnionBaseCommitSHA: gen.unionBase,
 	}
 	repoPath := h.repo.LocalPath
 	envelopes := []facts.Envelope{gitcontent.RepositoryFactEnvelope(
@@ -221,7 +226,7 @@ func (h *deltaProjHarness) project() {
 	service := projector.Service{
 		PollInterval: time.Millisecond,
 		WorkSource:   queue,
-		FactStore:    NewFactStore(database),
+		FactStore:    NewFactStore(database).WithLogger(h.factLog),
 		Runner: runtime.Runtime{
 			CanonicalWriter: h.canonical,
 			ContentWriter:   NewContentWriter(database),
@@ -403,10 +408,11 @@ func TestDeltaGenerationProjectsOverUnionBaseLive(t *testing.T) {
 		}
 	}
 
-	// Chained delta (#8780, pinned here, not fixed): C's baseline is B's
-	// commit, the base rule requires a full generation at the baseline, and
-	// none exists there, so C refuses base-missing before any write and the
-	// active delta B stays active. Fresh projection is one delta per full.
+	// Legacy chained shape (#8780): C records B's commit as its baseline and
+	// no union base, so the base resolves at COALESCE(union base, baseline) =
+	// B's commit, where no full generation exists. C refuses base-missing
+	// before any write and the active delta B stays active. A cumulative
+	// delta that records its union base is TestChainedDeltaProjectsOverNewestFullLive.
 	canonicalBeforeC := len(h.canonical.calls)
 	h.commit(deltaProjDeltaC)
 	h.project()

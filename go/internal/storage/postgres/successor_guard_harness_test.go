@@ -119,7 +119,7 @@ func (g *guardRoutingDB) QueryContext(_ context.Context, query string, args ...a
 		}
 		return &queueFakeRows{rows: [][]any{g.candidate}}, nil
 	case deltaUnionTargetQuery:
-		return g.rowsFor(g.targets, args[1], false), nil
+		return g.rowsFor(withUnionBaseColumn(g.targets), args[1], false), nil
 	case deltaUnionBaseQuery:
 		return g.rowsFor(g.bases, args[1], true), nil
 	case successorGuardActiveGenerationQuery:

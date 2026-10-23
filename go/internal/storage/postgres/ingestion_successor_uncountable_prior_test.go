@@ -43,7 +43,7 @@ func orphanFallbackPriorFixture() (scope.IngestionScope, scope.ScopeGeneration) 
 func orphanFallbackPriorDB(tx *fakeTx, fallbackFacts int) *fakeTransactionalDB {
 	return &fakeTransactionalDB{tx: tx, queryResponses: []queueFakeRows{
 		{rows: [][]any{{"generation-active", "hint-prior", "commit-old", "active", false, false}}},
-		{rows: [][]any{{true, "commit-old-baseline"}}},
+		{rows: [][]any{{true, "commit-old-baseline", ""}}},
 		{},
 		// Guard counts: collector rows, all rows, file rows (#8750).
 		{rows: [][]any{{fallbackFacts, fallbackFacts, 0}}},
@@ -139,7 +139,7 @@ func TestCommitFailsClosedOnFallbackCountError(t *testing.T) {
 	tx := &fakeTx{}
 	db := &fakeTransactionalDB{tx: tx, queryResponses: []queueFakeRows{
 		{rows: [][]any{{"generation-active", "hint-prior", "commit-old", "active", false, false}}},
-		{rows: [][]any{{true, "commit-old-baseline"}}},
+		{rows: [][]any{{true, "commit-old-baseline", ""}}},
 		{},
 		{err: errors.New("connection reset")},
 	}}

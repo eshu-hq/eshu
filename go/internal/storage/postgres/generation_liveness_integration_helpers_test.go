@@ -64,6 +64,7 @@ CREATE TABLE scope_generations (
     payload         JSONB NOT NULL DEFAULT '{}'::jsonb,
     -- migration 148 (#7319)
     delta_baseline_commit_sha TEXT NULL,
+    delta_union_base_commit_sha TEXT NULL,
     -- migration 149 (#7389)
     projection_write_started_at TIMESTAMPTZ NULL
 );

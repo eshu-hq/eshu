@@ -65,6 +65,15 @@ TABLE = {
             "TestPoisonRecoveryDropsRowChangedBeforeItsLockLive",
             "TestPoisonRecoveryConcurrentWithReplaysNeverDeadlockLive",
         ),
+        "go/internal/storage/postgres/delta_union_chain_live_test.go": (
+            "TestChainedDeltaProjectsOverNewestFullLive",
+        ),
+        "go/internal/storage/postgres/delta_union_chain_proof_live_test.go": (
+            "TestChainedDeltaUnionMatchesFullAtHeadLive",
+            "TestBurstDeltaRefusedThenCumulativeRediffActivatesLive",
+            "TestDeltaFencedOnOlderFullRefusesLive",
+            "TestChainedDeltaWithDrainedBaseFailsClosedLive",
+        ),
         "go/internal/storage/postgres/delta_union_live_test.go": (
             "TestFactStoreListFactsDeltaUnionLive",
             "TestFactStoreListFactsDeltaBaseMissingLive",
@@ -103,6 +112,9 @@ TABLE = {
         "go/internal/storage/postgres/generation_prior_check_live_test.go": (
             "TestPriorGenerationCheckIgnoresNewerGenerationLive",
             "TestPriorGenerationCheckStrictlyOlderCasesLive",
+        ),
+        "go/internal/storage/postgres/generation_retention_chain_live_test.go": (
+            "TestGenerationRetentionKeepsCumulativeDeltaBaseLive",
         ),
         "go/internal/storage/postgres/generation_retention_chunk_insert_wait_live_test.go": (
             "TestGenerationRetentionChunkConcurrentInsertWaitsLive",
@@ -236,6 +248,10 @@ TABLE = {
             "TestListAllDeployableUnitAdmittedAnchorReposLive",
             "TestListAllDeployableUnitAdmittedAnchorReposConvergesAfterSupersedingDecisionLive",
             "TestListAllDeployableUnitAdmittedAnchorReposBreaksDecidedAtTiesLive",
+        ),
+        "go/internal/storage/postgres/ingestion_successor_guard_chain_live_test.go": (
+            "TestGuardAnchorsChainedDeltaAtUnionBaseLive",
+            "TestGuardStoresSmallChainedDeltaLive",
         ),
         "go/internal/storage/postgres/ingestion_successor_guard_sizing_live_test.go": (
             "TestGuardStoresForcedFullOverReducerHeavyPriorLive",
@@ -467,22 +483,6 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_fence_live_test.go": (
             "TestReducerContentionGateServiceCatalogFenceWaitsOnRunsOnIntent",
             "TestReducerContentionGateServiceCatalogConcurrentAcksReopenOnce",
-        ),
-        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_live_test.go": (
-            "TestReducerContentionGateServiceCatalogRetriggerRepairsNoProducerGeneration",
-            "TestReducerContentionGateServiceCatalogRetriggerFlagsClaimedRow",
-            "TestReducerContentionGateServiceCatalogRetriggerFlagsFirstRunWithoutDecisions",
-        ),
-        "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_window_live_test.go": (
-            "TestReducerContentionGateServiceCatalogRetriggerFlagsRunThatNewlyNamesRepo",
-        ),
-        "go/internal/storage/postgres/relationship_activation_wake_live_test.go": (
-            "TestActivationWakesOwnGateConsumersLive",
-        ),
-        "go/internal/storage/postgres/relationship_activation_wake_race_live_test.go": (
-            "TestActivationWaitsForAnInflightFinalFailLive",
-            "TestFinalFailAfterTheActivationLockIsWokenLive",
-            "TestActivationLockTimeoutFailsRetryablyLive",
         ),
     },
 }

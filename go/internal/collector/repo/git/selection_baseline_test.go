@@ -31,7 +31,7 @@ case "$*" in
 		;;
 	*"fetch --progress"*)
 		;;
-` + caseArms + `
+` + fakeGitLsTreeArm + caseArms + `
 	*)
 		;;
 esac
@@ -41,6 +41,15 @@ esac
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
+
+// fakeGitLsTreeArm answers the #8780 growth valve's base-file count with a
+// 100-file union base, so a small cumulative delta in a fake-git test stays a
+// delta. Fake scripts without it would report an empty base and fire the
+// valve.
+const fakeGitLsTreeArm = `	*"ls-tree -r --name-only -z"*)
+		i=0; while [ $i -lt 100 ]; do printf "f%d\0" $i; i=$((i+1)); done
+		;;
+`
 
 func baselineTestConfig() RepoSyncConfig {
 	return RepoSyncConfig{CloneDepth: 1, GitAuthMethod: "none"}
@@ -57,7 +66,9 @@ func discardLogger() *slog.Logger {
 var errStubResolver = errors.New("stub resolver failure")
 
 type stubBaselineResolver struct {
-	sha          string
+	sha string
+	// baseline, when set, answers DeltaSyncBaseline instead of sha (#8780).
+	baseline     *scope.DeltaSyncBaseline
 	err          error
 	scopeIDs     []string
 	state        scope.FullReconcileState
@@ -68,14 +79,41 @@ type stubBaselineResolver struct {
 	writersErr error
 }
 
-func (s *stubBaselineResolver) LastProjectedCommitSHA(_ context.Context, scopeID string) (string, error) {
+func (s *stubBaselineResolver) DeltaSyncBaseline(_ context.Context, scopeID string) (scope.DeltaSyncBaseline, error) {
 	s.scopeIDs = append(s.scopeIDs, scopeID)
-	return s.sha, s.err
+	if s.baseline != nil {
+		return *s.baseline, s.err
+	}
+	return activeFullBaseline(s.sha), s.err
+}
+
+// withSyncBaseline fills the commits a FullReconcileState fake leaves empty
+// from the baseline its DeltaSyncBaseline answers, so a sync that reuses the
+// state (#8780) sees the same baseline the standalone read would return, as
+// the two Postgres reads do.
+func withSyncBaseline(state scope.FullReconcileState, baseline scope.DeltaSyncBaseline) scope.FullReconcileState {
+	if state.ActiveCommitSHA == "" {
+		state.ActiveCommitSHA, state.ActiveIsDelta = baseline.ActiveCommitSHA, baseline.ActiveIsDelta
+	}
+	if state.LastProjectedFullCommitSHA == "" {
+		state.LastProjectedFullCommitSHA = baseline.NewestActivatedFullCommitSHA
+	}
+	return state
+}
+
+// activeFullBaseline is the baseline of a scope whose active generation is
+// the full generation at sha: the union base and the fence commit coincide.
+func activeFullBaseline(sha string) scope.DeltaSyncBaseline {
+	return scope.DeltaSyncBaseline{ActiveCommitSHA: sha, NewestActivatedFullCommitSHA: sha}
 }
 
 func (s *stubBaselineResolver) FullReconcileState(_ context.Context, scopeID string) (scope.FullReconcileState, error) {
 	s.fullScopeIDs = append(s.fullScopeIDs, scopeID)
-	return s.state, s.stateErr
+	baseline := activeFullBaseline(s.sha)
+	if s.baseline != nil {
+		baseline = *s.baseline
+	}
+	return withSyncBaseline(s.state, baseline), s.stateErr
 }
 
 func (s *stubBaselineResolver) UncoveredProjectionWriters(context.Context, string) ([]scope.UncoveredProjectionWriter, error) {
@@ -279,7 +317,7 @@ func TestUpdateRepositoryBaselinesDeltaOnLastProjectedCommit(t *testing.T) {
 		"",
 		discardLogger(),
 		baselineTestEvent(),
-		"oldsha",
+		activeFullBaseline("oldsha"),
 		nil,
 		"",
 	)
@@ -318,7 +356,7 @@ func TestUpdateRepositoryNoOpWhenBaselineEqualsRemote(t *testing.T) {
 		"",
 		discardLogger(),
 		baselineTestEvent(),
-		"newsha",
+		activeFullBaseline("newsha"),
 		nil,
 		"",
 	)
@@ -356,7 +394,7 @@ func TestUpdateRepositoryFallsBackToFullSnapshotWhenNoBaseline(t *testing.T) {
 		"",
 		discardLogger(),
 		baselineTestEvent(),
-		"",
+		activeFullBaseline(""),
 		func(reason string) { fallbacks = append(fallbacks, reason) },
 		"",
 	)
@@ -401,7 +439,7 @@ func TestUpdateRepositoryFallsBackWhenBaselineUnreachable(t *testing.T) {
 		"",
 		discardLogger(),
 		baselineTestEvent(),
-		"prunedsha",
+		activeFullBaseline("prunedsha"),
 		func(reason string) { fallbacks = append(fallbacks, reason) },
 		"",
 	)

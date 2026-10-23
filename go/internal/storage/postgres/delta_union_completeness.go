@@ -13,11 +13,15 @@ import (
 )
 
 // deltaUnionActiveGenerationsQuery lists the active generation of every
-// in-filter scope: the generation the graph must reflect. An empty filter
-// covers every active generation; the LIMIT only guards the unfiltered call
-// against a fleet-wide accident (delta-active scopes are few).
+// in-filter scope: the generation the graph must reflect. For a delta it
+// returns the commit its union base resolves at, the #8780 union-base
+// commit COALESCEd to the baseline for a legacy delta, the same rule the
+// union read applies. An empty filter covers every active generation; the
+// LIMIT only guards the unfiltered call against a fleet-wide accident
+// (delta-active scopes are few).
 const deltaUnionActiveGenerationsQuery = `
-SELECT scope_id, generation_id, is_delta, COALESCE(delta_baseline_commit_sha, '')
+SELECT scope_id, generation_id, is_delta,
+       COALESCE(delta_union_base_commit_sha, delta_baseline_commit_sha, '')
 FROM scope_generations
 WHERE status = 'active'
   AND ($1 OR scope_id = ANY($2))
@@ -27,7 +31,7 @@ LIMIT 2000
 
 // deltaUnionActiveBaseQuery resolves, for each delta-active scope, the same
 // base the union read resolves: the newest projected full generation at the
-// baseline commit, intact statuses first. It is a deliberate second spelling
+// union-base commit (#8780), intact statuses first. It is a deliberate second spelling
 // of the union's base rule (deltaUnionBaseQuery), never a call into it, so
 // one bug cannot hide in both.
 const deltaUnionActiveBaseQuery = `

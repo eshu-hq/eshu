@@ -300,6 +300,12 @@ type ScopeGeneration struct {
 	// baseline. The projector refuses the delta unless that is still the active
 	// commit. Set only when IsDelta is true; empty for full generations.
 	DeltaBaselineCommitSHA string
+	// DeltaUnionBaseCommitSHA is the commit of the newest activated full
+	// generation a delta's changed set was diffed from (#8780): the projector
+	// resolves the delta's union base at this commit, falling back to
+	// DeltaBaselineCommitSHA for a delta stored before the column existed.
+	// Set only when IsDelta is true; Validate rejects it on a full generation.
+	DeltaUnionBaseCommitSHA string
 	// ReconcileReason is the bounded reason a forced full reconciliation
 	// snapshot was taken (epic #2340, #7978), for example interval_elapsed or
 	// graph_dirty. Empty for an ordinary observation. It never changes
@@ -330,6 +336,11 @@ type ScopeGeneration struct {
 	// serialized, is set only on a delta, and never names the generation
 	// itself; ValidateForScope rejects either misuse.
 	DeltaUnionBaseGenerationID string `json:"-"`
+	// DeltaUnionChained marks, for the build_projection stage log only, a
+	// delta whose union base is not its fence commit's generation: it was
+	// diffed over a prior delta in the chain (#8780). Set with
+	// DeltaUnionBaseGenerationID from the same load; never persisted.
+	DeltaUnionChained bool `json:"-"`
 	// PreparseIdentity is the pre-parse identity of the snapshot this
 	// generation came from (#7978 follow-up, ruling a9-143): the content
 	// version, commit, default branch, and configuration that determine its
@@ -375,6 +386,9 @@ func (g ScopeGeneration) Validate() error {
 	}
 	if err := validateIdentifier("trigger_kind", string(g.TriggerKind)); err != nil {
 		return err
+	}
+	if g.DeltaUnionBaseCommitSHA != "" && !g.IsDelta {
+		return fmt.Errorf("delta_union_base_commit_sha is set on non-delta generation %q", g.GenerationID)
 	}
 	return nil
 }

@@ -111,12 +111,26 @@ func (g *guardRoutingDB) txGuardAnswer(query string, args []any) (db.Rows, error
 		}
 		return g.rowsFor(mergeGuardTable(g.counts, state.counts), args[1], false), nil
 	case deltaUnionTargetQuery:
-		return g.rowsFor(mergeGuardTable(g.targets, state.targets), args[1], false), nil
+		return g.rowsFor(withUnionBaseColumn(mergeGuardTable(g.targets, state.targets)), args[1], false), nil
 	case deltaUnionBaseQuery:
 		return g.rowsFor(mergeGuardTable(g.bases, state.bases), args[1], true), nil
 	default: // deltaUnionBasePrunedQuery: no retention event, the base is intact
 		return &queueFakeRows{}, nil
 	}
+}
+
+// withUnionBaseColumn pads {is_delta, baseline} target rows with an empty
+// #8780 union-base column, the shape of a delta stored before the column
+// existed; a three-column row passes through.
+func withUnionBaseColumn(targets map[string][]any) map[string][]any {
+	padded := make(map[string][]any, len(targets))
+	for key, row := range targets {
+		if len(row) == 2 {
+			row = append(append([]any(nil), row...), "")
+		}
+		padded[key] = row
+	}
+	return padded
 }
 
 // mergeGuardTable overlays the in-tx rows on the base rows.

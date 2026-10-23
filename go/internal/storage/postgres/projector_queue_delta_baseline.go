@@ -208,11 +208,11 @@ func readDeltaBaselineState(
 		return projector.DeltaBaselineState{}, nil
 	}
 	var (
-		status                            string
-		isDelta                           bool
-		baseline, activeGen, activeCommit sql.NullString
+		status                                       string
+		isDelta                                      bool
+		baseline, unionBase, activeGen, activeCommit sql.NullString
 	)
-	if err := rows.Scan(&status, &isDelta, &baseline, &activeGen, &activeCommit); err != nil {
+	if err := rows.Scan(&status, &isDelta, &baseline, &unionBase, &activeGen, &activeCommit); err != nil {
 		return projector.DeltaBaselineState{}, fmt.Errorf("read delta baseline: scan: %w", err)
 	}
 	if err := rows.Err(); err != nil {
@@ -223,6 +223,7 @@ func readDeltaBaselineState(
 		TargetStatus:       scope.GenerationStatus(status),
 		IsDelta:            isDelta,
 		BaselineCommitSHA:  strings.TrimSpace(baseline.String),
+		UnionBaseCommitSHA: strings.TrimSpace(unionBase.String),
 		ActiveGenerationID: strings.TrimSpace(activeGen.String),
 		ActiveCommitSHA:    strings.TrimSpace(activeCommit.String),
 	}, nil
@@ -262,7 +263,7 @@ func (q ProjectorQueue) markDeltaBaselineRefused(
 	rows, err := q.database.QueryContext(ctx, markProjectorDeltaBaselineRefusedQuery,
 		now, work.Scope.ScopeID, work.Generation.GenerationID, q.LeaseOwner, work.AttemptCount,
 		class, message, refusal.State.BaselineCommitSHA, refusal.ActiveCommitForLog(),
-		refusal.State.ActiveGenerationID, refusal.Phase)
+		refusal.State.ActiveGenerationID, refusal.Phase, refusal.State.UnionBaseCommitSHA)
 	if err != nil {
 		return fmt.Errorf("mark delta baseline refusal: %w", err)
 	}
@@ -351,10 +352,14 @@ func (q ProjectorQueue) refuseDeltaBaselineAck(
 // Both sides are index scans: the primary key for the target and the partial
 // unique index scope_generations_active_scope_idx for the active row
 // (generic-plan measurement in docs/internal/evidence/7319-delta-baseline-fence.md).
+// target.delta_union_base_commit_sha (#8780) is a diagnostic column on the
+// same primary-key row, read for refusal logs and failure details only; the
+// decision never reads it.
 const deltaBaselineFenceQuery = `
 SELECT target.status,
        target.is_delta,
        target.delta_baseline_commit_sha,
+       target.delta_union_base_commit_sha,
        active.generation_id,
        active.source_commit_sha
 FROM scope_generations AS target
@@ -380,7 +385,7 @@ WHERE target.scope_id = $1
 //
 // $1 now, $2 scope, $3 generation, $4 lease owner, $5 attempt, $6 failure
 // class, $7 failure message, $8 baseline commit, $9 active commit (or none),
-// $10 active generation id, $11 fence phase.
+// $10 active generation id, $11 fence phase, $12 union-base commit (#8780).
 const markProjectorDeltaBaselineRefusedQuery = `
 WITH refused_work AS (
     UPDATE fact_work_items AS work
@@ -397,6 +402,7 @@ WITH refused_work AS (
             'work_item_id', work.work_item_id,
             'generation_id', work.generation_id,
             'delta_baseline_commit_sha', $8::text,
+            'delta_union_base_commit_sha', $12::text,
             'active_commit_sha', $9::text,
             'active_generation_id', $10::text,
             'phase', $11::text

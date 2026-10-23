@@ -78,9 +78,13 @@ type DeltaUnionDeltaPaths struct {
 	Deleted []string
 }
 
-// deltaUnionFileKinds mirrors the union's file-attributable kinds so the
-// independent assembly drops base rows under touched paths the same way.
-// It is a deliberate second spelling of the rule, not a call into it.
+// deltaUnionFileKinds lists the file-attributable kinds this assembly's
+// database read carries a file path for, so the independent assembly drops
+// base rows under touched paths the same way the union does. The union drops
+// base rows for more kinds (the git observability kinds, #8780); those rows
+// reach this read without a file path and are skipped either way, so they
+// are not listed here. It is a deliberate second spelling of the rule, not a
+// call into it.
 var deltaUnionFileKinds = map[string]bool{
 	"file": true, "content_entity": true, "parsed_file_data": true, "content": true,
 }

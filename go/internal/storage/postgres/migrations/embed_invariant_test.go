@@ -118,13 +118,15 @@ import (
 // #8659 adds 208_repository_retirement_graph_capture.sql (graph_repo_root
 // plus graph_scope_ids capture columns for the 2c graph retraction) and
 // 209_partition_lease_claimed_at.sql (claim epoch for the 2b' barrier).
-const goldenBootstrapDefinitionsDigest = "0813bb3b0e916c3fd964764dae97df23111111eccbebf71138a19ce9112ed76a"
+// #8780 adds 210_scope_generations_delta_union_base_commit_sha.sql (the
+// union-base commit a cumulative delta was diffed from; catalog-only column).
+const goldenBootstrapDefinitionsDigest = "7925d61ad6a42fa1e7fd97813c515a6fb0136c0ce28a42df9c8d75a8de6b9bf5"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 227
+const goldenBootstrapDefinitionsCount = 228
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

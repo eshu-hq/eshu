@@ -26,14 +26,42 @@ const (
 	deltaUnionContentPathKey = "content_path"
 )
 
+// deltaUnionObservabilityKinds are the observability kinds the git
+// collector emits per file (collector/repo/git/observability). Their stable
+// keys carry the generation id, so a delta's rows can never replace the
+// base's by key; they name their file under relative_path, so the union
+// attributes them to it like the other file kinds (#8780). Without this a
+// changed file's base rows survived beside the delta's.
+var deltaUnionObservabilityKinds = []string{
+	ObservabilitySourceInstanceFactKind,
+	ObservabilityDeclaredFolderFactKind,
+	ObservabilityDeclaredDashboardFactKind,
+	ObservabilityDeclaredDatasourceFactKind,
+	ObservabilityDeclaredAlertRuleFactKind,
+	ObservabilityDeclaredScrapeConfigFactKind,
+	ObservabilityDeclaredMetricRuleFactKind,
+	ObservabilityDeclaredMetricRouteFactKind,
+	ObservabilityDeclaredLogRouteFactKind,
+	ObservabilityDeclaredTraceRouteFactKind,
+	ObservabilityAppliedResourceFactKind,
+	ObservabilityAppliedSyncStateFactKind,
+	ObservabilityCoverageWarningFactKind,
+}
+
 // deltaUnionFileKinds are the fact kinds attributed to one file by payload
 // path for touched-path removal.
-var deltaUnionFileKinds = map[string]string{
-	"file":             deltaUnionRelativePathKey,
-	"content_entity":   deltaUnionRelativePathKey,
-	"parsed_file_data": deltaUnionRelativePathKey,
-	"content":          deltaUnionContentPathKey,
-}
+var deltaUnionFileKinds = func() map[string]string {
+	kinds := map[string]string{
+		"file":             deltaUnionRelativePathKey,
+		"content_entity":   deltaUnionRelativePathKey,
+		"parsed_file_data": deltaUnionRelativePathKey,
+		"content":          deltaUnionContentPathKey,
+	}
+	for _, kind := range deltaUnionObservabilityKinds {
+		kinds[kind] = deltaUnionRelativePathKey
+	}
+	return kinds
+}()
 
 // DeltaScope is one delta generation's file-scoped change set, parsed from
 // its repository fact payload. Changed and Deleted hold repo-qualified paths;

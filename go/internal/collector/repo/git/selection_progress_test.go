@@ -235,7 +235,7 @@ esac
 		"",
 		logger,
 		event,
-		"abc123",
+		activeFullBaseline("abc123"),
 		nil,
 		"",
 	)
@@ -288,7 +288,7 @@ esac
 		"",
 		slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		gitSyncLogEventFor("example/private-service", 1, 1),
-		"abc123",
+		activeFullBaseline("abc123"),
 		nil,
 		"",
 	)
@@ -355,7 +355,7 @@ esac
 		"",
 		slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		gitSyncLogEventFor("example/private-service", 1, 1),
-		"abc123",
+		activeFullBaseline("abc123"),
 		nil,
 		"",
 	)

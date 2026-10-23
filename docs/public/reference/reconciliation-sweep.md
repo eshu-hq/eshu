@@ -396,12 +396,13 @@ and the `git_reconcile_forced` log for the requested `scope_id`.
 
 ## Delta baseline fence
 
-A delta generation is the diff from the scope's active commit, read when the
-collector starts its cycle, to the new remote head. Another generation can
-activate while that delta is parsed, committed, or projected (#7319). The
-collector therefore records the commit it diffed from on
-`scope_generations.delta_baseline_commit_sha`, and the projector enforces one
-invariant:
+A delta generation is diffed while some commit is active; another generation
+can activate while it is parsed, committed, or projected (#7319). The
+collector records that active commit, read when its cycle starts, on
+`scope_generations.delta_baseline_commit_sha`. Since #8780 a delta's changed
+set is diffed from the newest activated full's commit instead, recorded
+separately as `delta_union_base_commit_sha` (the union base); the fence column
+stays the active commit at diff time. The projector enforces one invariant:
 
 > A delta generation activates only while
 > `active(scope).source_commit_sha == delta.delta_baseline_commit_sha`.
@@ -437,8 +438,9 @@ so replay and dead-letter drains leave it alone. The work row carries
 `failure_class = projector_delta_baseline_mismatch` when preflight refused it
 (the graph was not touched) or `projector_delta_baseline_mismatch_after_projection`
 when Ack refused it, and `failure_details` names the scope, generation, baseline
-commit, active commit (or `none`), active generation, and phase. The next
-collector cycle diffs from the new active commit, so recovery needs no trigger.
+commit, union-base commit, active commit (or `none`), active generation, and
+phase. The next cycle re-diffs fenced on the new active commit, so recovery
+needs no trigger.
 
 What the fence does not enforce on its own: that the graph content equals the
 baseline commit. The write-through contract (#7389) closes that gap. Before
@@ -485,7 +487,8 @@ refused outcome here -- it is `target_superseded` (see above), so it cannot be
 mistaken for the two-valid-claims signal. `unfenced` should fall to zero once
 every collector writes the baseline. Commit SHAs appear in logs and
 `failure_details`, never as labels. The collector's `git repository sync
-completed` log carries `delta_baseline_commit_sha` for a delta sync.
+completed` log carries `delta_baseline_commit_sha`, `delta_union_base_commit_sha`,
+`delta_changed_count`, `delta_deleted_count`, and `active_is_delta` for a delta.
 
 Rollout order is migrations 148-150, then binaries. Deltas written by an older
 collector, or in flight during the rollout, have no baseline and are not fenced.

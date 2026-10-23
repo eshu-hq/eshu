@@ -546,4 +546,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// (claimed_at IS NULL OR claimed_at <= intent_barrier_at). DDL only,
 	// no backfill: claimed_at is stamped when a new owner takes the lease.
 	"partition_lease_claimed_at",
+	// Migration 210 (#8780) records the union-base commit a cumulative delta
+	// was diffed from, next to its #7319 fence commit. DDL only, no backfill.
+	"scope_generations_delta_union_base_commit_sha",
 }

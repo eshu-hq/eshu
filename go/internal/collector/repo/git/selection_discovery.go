@@ -104,9 +104,19 @@ type RefWorktreeEntry struct {
 type GitSyncDelta struct {
 	ChangedFileTargets   []string
 	DeletedRelativePaths []string
-	// BaselineCommitSHA is the commit the diff was taken from (#7319). The
-	// projector refuses the delta unless it is still the active commit.
+	// BaselineCommitSHA is the active commit when the sync read its baseline
+	// (#7319). The projector refuses the delta unless it is still the active
+	// commit.
 	BaselineCommitSHA string
+	// UnionBaseCommitSHA is the commit of the newest activated full
+	// generation, which the changed set was diffed from (#8780): the union
+	// base the projector overlays the delta on.
+	UnionBaseCommitSHA string
+	// BaseTouchedRatio is the touched/base-file ratio the #8780 growth valve
+	// evaluated for a cumulative diff, on both outcomes; zero when no
+	// cumulative diff ran. The sync records it on the touched-ratio
+	// histogram and nothing persists it.
+	BaseTouchedRatio float64
 	// DefaultBranchChanged marks a full snapshot taken because the remote
 	// default branch changed (#7678). The sync keeps such an entry in
 	// DeltaByRepoPath even though it carries no paths, and the selection

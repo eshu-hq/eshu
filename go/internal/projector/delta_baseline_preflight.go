@@ -104,13 +104,14 @@ func LogDeltaBaselineRefusal(
 		attribute.String("fence_phase", refusal.Phase),
 		attribute.String("outcome", string(refusal.Outcome)),
 		attribute.String("delta_baseline_commit_sha", refusal.State.BaselineCommitSHA),
+		attribute.String("delta_union_base_commit_sha", refusal.State.UnionBaseCommitSHA),
 		attribute.String("active_commit_sha", activeCommit),
 	))
 	if logger == nil {
 		return
 	}
 	scopeAttrs := telemetry.ScopeAttrs(work.Scope.ScopeID, work.Generation.GenerationID, work.Scope.SourceSystem)
-	attrs := make([]any, 0, len(scopeAttrs)+9)
+	attrs := make([]any, 0, len(scopeAttrs)+10)
 	for _, attr := range scopeAttrs {
 		attrs = append(attrs, attr)
 	}
@@ -120,6 +121,7 @@ func LogDeltaBaselineRefusal(
 		slog.String("fence_phase", refusal.Phase),
 		slog.String("outcome", string(refusal.Outcome)),
 		slog.String("delta_baseline_commit_sha", refusal.State.BaselineCommitSHA),
+		slog.String("delta_union_base_commit_sha", refusal.State.UnionBaseCommitSHA),
 		slog.String("active_commit_sha", activeCommit),
 		slog.String("active_generation_id", refusal.State.ActiveGenerationID),
 		telemetry.PhaseAttr(telemetry.PhaseProjection),
@@ -184,12 +186,18 @@ func RefuseDeltaUnionBaseMissing(
 	if fence == nil {
 		return missing
 	}
+	// The union base is the commit the missing base was looked up at
+	// (#8780); the baseline stays the delta's fence commit.
 	state := DeltaBaselineState{
-		TargetFound:       true,
-		IsDelta:           true,
-		BaselineCommitSHA: missing.BaselineCommitSHA,
+		TargetFound:        true,
+		IsDelta:            true,
+		BaselineCommitSHA:  missing.BaselineCommitSHA,
+		UnionBaseCommitSHA: missing.UnionBaseCommitSHA,
 	}
 	if read, readErr := fence.ReadDeltaBaseline(ctx, work); readErr == nil {
+		if read.BaselineCommitSHA != "" {
+			state.BaselineCommitSHA = read.BaselineCommitSHA
+		}
 		state.ActiveGenerationID = read.ActiveGenerationID
 		state.ActiveCommitSHA = read.ActiveCommitSHA
 	}

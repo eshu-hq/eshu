@@ -60,7 +60,7 @@ case "$*" in
 		;;
 	*"fetch --progress"*)
 		;;
-	*"rev-parse refs/remotes/origin/main"*)
+` + fakeGitLsTreeArm + `	*"rev-parse refs/remotes/origin/main"*)
 		printf "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n"
 		;;
 ` + failArms + `
@@ -382,7 +382,7 @@ case "$*" in
 		;;
 	*"fetch --progress"*)
 		;;
-	*"rev-parse refs/remotes/origin/main"*)
+` + fakeGitLsTreeArm + `	*"rev-parse refs/remotes/origin/main"*)
 		printf "newsha\n"
 		;;
 	*"cat-file -e oldsha"*)

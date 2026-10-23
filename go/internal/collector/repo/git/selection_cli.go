@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 const staleGitLockMinAge = 5 * time.Minute
@@ -114,7 +115,7 @@ func syncGitRepositoriesWithLogger(
 			if forceReconcile {
 				holdIfHead = expiredPendingHoldHead(reconcile.Reason, reconcile.State)
 			}
-			updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, forceReconcile, holdIfHead)
+			updated, delta, sourceSHA, updateErr := syncExistingRepository(ctx, config, repoPath, token, logger, event, baseline, reconcile, forceReconcile, holdIfHead)
 			if delta.ReconcileHeld {
 				baseline.recordReconcileSuppressed(ctx, reconcileReasonInFlightExpiredHeld)
 				logReconcileHeld(ctx, logger, reconcile, holdIfHead)
@@ -210,16 +211,18 @@ func syncGitRepositoriesWithLogger(
 }
 
 // updateRepository fetches the remote branch and decides how to project the
-// new state. The delta baseline is baselineSHA, the commit of the most recent
-// generation that reached a projected state (epic #2340) — NOT the local
-// working-copy HEAD. Diffing from local HEAD is unsafe: if a prior projection
-// failed after its checkout advanced HEAD, the next sync would skip the
-// unprojected changes. When baselineSHA is empty (no projected generation yet)
-// or unreachable in the local checkout (shallow-clone prune or divergence), or
-// when the remote default branch changed (#7678, see fetchDefaultBranch), the
-// sync falls back to a full snapshot — an empty delta — and reports the reason
-// through onFallback so operators can watch the delta-skip rate. onFallback may
-// be nil.
+// new state from syncBaseline, read from the generation lifecycle (epic
+// #2340) and never from the local working-copy HEAD: if a prior projection
+// failed after its checkout advanced HEAD, a diff from HEAD would skip the
+// unprojected changes. A delta is cumulative (#8780, see cumulativeGitDelta):
+// it is diffed from the newest activated full generation's commit, deletes
+// everything deleted since that commit or the active commit, and records the
+// active commit as the #7319 fence commit. The sync takes a full snapshot (an
+// empty delta) and reports the reason through onFallback when the remote
+// default branch changed (#7678), there is no active generation, no full
+// generation ever activated, either commit is unreachable in the local
+// checkout (shallow-clone prune or divergence), or the growth valve fires.
+// onFallback may be nil.
 //
 // When updated is true, sourceCommitSHA is the remote HEAD SHA resolved during
 // this sync. After checkoutRemoteBranch completes, HEAD equals sourceCommitSHA,
@@ -232,7 +235,7 @@ func updateRepository(
 	token string,
 	logger *slog.Logger,
 	event gitSyncLogEvent,
-	baselineSHA string,
+	syncBaseline scope.DeltaSyncBaseline,
 	onFallback func(reason string),
 	holdIfHead string,
 ) (updated bool, delta GitSyncDelta, sourceCommitSHA string, _ error) {
@@ -264,37 +267,51 @@ func updateRepository(
 		return false, GitSyncDelta{ReconcileHeld: true}, "", nil
 	}
 
-	baseline := strings.TrimSpace(baselineSHA)
+	active := strings.TrimSpace(syncBaseline.ActiveCommitSHA)
+	full := strings.TrimSpace(syncBaseline.NewestActivatedFullCommitSHA)
+	var valveRatio float64
 	switch {
 	case detection != "":
 		// The projected commit belongs to the previous default branch's
 		// history; re-observe fully rather than diff across branches.
 		logDefaultBranchChanged(ctx, logger, event, previousBranch, detection)
 		notifyDeltaFallback(onFallback, deltaFallbackDefaultBranchChanged)
-	case baseline == "":
-		// No projected generation yet: there is no trustworthy baseline, so the
+	case active == "":
+		// No active generation: there is no trustworthy baseline, so the
 		// whole repository must be re-observed.
 		notifyDeltaFallback(onFallback, deltaFallbackNoProjectedBaseline)
-	case baseline == remoteSHA:
-		// The last projected commit already equals the remote head; nothing new
-		// has been observed since the last successful projection.
+	case active == remoteSHA:
+		// The active commit already equals the remote head; nothing new has
+		// been observed since the last successful projection. This check stays
+		// on the active commit (#8780), or every quiet sync of a delta-active
+		// scope would re-parse its cumulative set.
 		logGitSyncCompleted(ctx, logger, event, false)
 		return false, GitSyncDelta{}, "", nil
-	case !isGitCommitReachable(ctx, config, repoPath, token, baseline):
-		// The baseline is known but absent from local history (shallow-clone
-		// prune or divergence); a delta diff would be wrong, so re-observe fully.
+	case full == "":
+		// No activated full generation to diff a cumulative delta from.
+		notifyDeltaFallback(onFallback, deltaFallbackNoProjectedFull)
+	case !isGitCommitReachable(ctx, config, repoPath, token, active) ||
+		(full != active && !isGitCommitReachable(ctx, config, repoPath, token, full)):
+		// A baseline commit is absent from local history (shallow-clone prune
+		// or divergence); a delta diff would be wrong, so re-observe fully.
 		notifyDeltaFallback(onFallback, deltaFallbackBaselineUnreachable)
 	default:
-		delta, err := gitDiffDelta(ctx, config, repoPath, token, baseline, remoteRef)
+		delta, reason, err := cumulativeGitDelta(ctx, config, repoPath, token, active, full, remoteRef)
 		if err != nil {
 			logGitSyncFailed(ctx, logger, event, err)
 			return false, GitSyncDelta{}, "", err
+		}
+		if reason != "" {
+			notifyDeltaFallback(onFallback, reason)
+			valveRatio = delta.BaseTouchedRatio
+			break
 		}
 		if err := checkoutRemoteBranch(ctx, config, repoPath, token, branch); err != nil {
 			logGitSyncFailed(ctx, logger, event, err)
 			return false, GitSyncDelta{}, "", err
 		}
-		delta.BaselineCommitSHA, event.DeltaBaselineCommitSHA = baseline, baseline
+		delta.BaselineCommitSHA, delta.UnionBaseCommitSHA = active, full
+		event = event.withDelta(delta, syncBaseline.ActiveIsDelta)
 		logGitSyncCompleted(ctx, logger, event, true)
 		return true, delta, remoteSHA, nil
 	}
@@ -304,7 +321,7 @@ func updateRepository(
 		return false, GitSyncDelta{}, "", err
 	}
 	logGitSyncCompleted(ctx, logger, event, true)
-	return true, GitSyncDelta{DefaultBranchChanged: detection != ""}, remoteSHA, nil
+	return true, GitSyncDelta{DefaultBranchChanged: detection != "", BaseTouchedRatio: valveRatio}, remoteSHA, nil
 }
 
 func checkoutRemoteBranch(

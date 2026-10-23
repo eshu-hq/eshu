@@ -9,6 +9,13 @@ refuses the additive `union_scope_mismatch` overlay before any write. The
 operator record is the "Projection boundary" section of
 `docs/public/operate/graph-delta-union.md`.
 
+#8780 changes the base rule of #7797: the base is the newest projected full
+generation at the delta's union-base commit,
+`COALESCE(delta_union_base_commit_sha, delta_baseline_commit_sha)`, so a
+cumulative delta over an active delta resolves a full and activates. The
+boundary below is unchanged; the refused chained delta C in the live proof is
+the legacy shape (no union base recorded) and still refuses base-missing.
+
 Root-Cause Evidence: the live proof
 `TestDeltaGenerationProjectsOverUnionBaseLive`
 (`go/internal/storage/postgres/delta_union_projection_live_test.go`) at the

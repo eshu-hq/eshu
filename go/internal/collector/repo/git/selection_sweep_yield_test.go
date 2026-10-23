@@ -97,7 +97,7 @@ func TestSweepYieldReturnsPartialSelectionAndResumeCoversTail(t *testing.T) {
 	if !first.YieldedToWebhook {
 		t.Fatal("first walk did not yield with a trigger queued from the start")
 	}
-	if got := len(resolver.scopeIDs); got != 2 {
+	if got := len(resolver.fullScopeIDs); got != 2 {
 		t.Fatalf("first walk visited %d repositories, want 2 (check interval) of 5", got)
 	}
 	if first.NextReconcileStartOffset != 2 || first.SweepRemainingRepositories != 3 {
@@ -118,10 +118,10 @@ func TestSweepYieldReturnsPartialSelectionAndResumeCoversTail(t *testing.T) {
 	if third.YieldedToWebhook {
 		t.Fatal("final one-repository walk yielded instead of completing the sweep")
 	}
-	if got := len(resolver.scopeIDs); got != 5 {
+	if got := len(resolver.fullScopeIDs); got != 5 {
 		t.Fatalf("logical sweep visited %d repositories, want exactly 5 (no re-fetch past the wrap)", got)
 	}
-	if got := distinctStrings(resolver.scopeIDs); got != 5 {
+	if got := distinctStrings(resolver.fullScopeIDs); got != 5 {
 		t.Fatalf("logical sweep visited %d distinct repositories, want all 5", got)
 	}
 }
@@ -149,7 +149,7 @@ func TestSweepYieldProbeErrorCompletesSweep(t *testing.T) {
 	if synced.YieldedToWebhook {
 		t.Fatal("sweep yielded on a probe error")
 	}
-	if got := len(resolver.scopeIDs); got != 5 {
+	if got := len(resolver.fullScopeIDs); got != 5 {
 		t.Fatalf("sweep visited %d repositories after a probe error, want all 5", got)
 	}
 }
@@ -184,18 +184,18 @@ func TestNativeSelectorSweepYieldBoundCompletesSweepUnderTriggerStorm(t *testing
 	}
 
 	cycle()
-	if got := len(resolver.scopeIDs); got != 2 {
+	if got := len(resolver.fullScopeIDs); got != 2 {
 		t.Fatalf("cycle 1 visited %d repositories, want 2 (yielded)", got)
 	}
 	cycle()
-	if got := len(resolver.scopeIDs); got != 5 {
+	if got := len(resolver.fullScopeIDs); got != 5 {
 		t.Fatalf("after cycle 2 visited %d repositories, want 5 (yield budget spent, tail completed)", got)
 	}
-	if got := distinctStrings(resolver.scopeIDs); got != 5 {
+	if got := distinctStrings(resolver.fullScopeIDs); got != 5 {
 		t.Fatalf("sweep under storm visited %d distinct repositories, want all 5", got)
 	}
 	cycle()
-	if got := len(resolver.scopeIDs); got != 7 {
+	if got := len(resolver.fullScopeIDs); got != 7 {
 		t.Fatalf("after cycle 3 visited %d repositories, want 7 (new sweep yielded again)", got)
 	}
 }
@@ -220,7 +220,7 @@ func TestNativeSelectorWithoutYieldProbeWalksEveryRepository(t *testing.T) {
 	if _, err := selector.SelectRepositories(context.Background()); err != nil {
 		t.Fatalf("SelectRepositories() error = %v", err)
 	}
-	if got := len(resolver.scopeIDs); got != 5 {
+	if got := len(resolver.fullScopeIDs); got != 5 {
 		t.Fatalf("sweep without probe visited %d repositories, want all 5 in one cycle", got)
 	}
 }
@@ -340,7 +340,7 @@ func TestPrioritySelectorClaimsTriggerQueuedMidSweepBeforeSweepEnds(t *testing.T
 	if len(batch.Repositories) != 0 {
 		t.Fatalf("cycle 1 selected %d repositories, want 0 (unchanged heads)", len(batch.Repositories))
 	}
-	if got := len(resolver.scopeIDs); got != 2 {
+	if got := len(resolver.fullScopeIDs); got != 2 {
 		t.Fatalf("cycle 1 visited %d of 5 repositories, want 2 (sweep yielded mid-walk)", got)
 	}
 	if len(store.claimedAt) != 0 {
@@ -358,7 +358,7 @@ func TestPrioritySelectorClaimsTriggerQueuedMidSweepBeforeSweepEnds(t *testing.T
 	if len(store.handedOff) != 1 || store.handedOff[0] != "trigger-mid-sweep" {
 		t.Fatalf("handed off = %v, want [trigger-mid-sweep]", store.handedOff)
 	}
-	if got := len(resolver.scopeIDs); got != 2 {
+	if got := len(resolver.fullScopeIDs); got != 2 {
 		t.Fatalf("at claim time the sweep had visited %d of 5 repositories, want 2 (claim before sweep end)", got)
 	}
 
@@ -366,10 +366,10 @@ func TestPrioritySelectorClaimsTriggerQueuedMidSweepBeforeSweepEnds(t *testing.T
 	if _, err := selector.SelectRepositories(context.Background()); err != nil {
 		t.Fatalf("cycle 3 SelectRepositories() error = %v", err)
 	}
-	if got := len(resolver.scopeIDs); got != 5 {
+	if got := len(resolver.fullScopeIDs); got != 5 {
 		t.Fatalf("after resume the sweep visited %d repositories, want exactly 5", got)
 	}
-	if got := distinctStrings(resolver.scopeIDs); got != 5 {
+	if got := distinctStrings(resolver.fullScopeIDs); got != 5 {
 		t.Fatalf("after resume the sweep visited %d distinct repositories, want all 5", got)
 	}
 }

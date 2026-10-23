@@ -215,6 +215,14 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
 
 ## Gotchas / invariants
 
+- `OverlayDeltaBase` drops a base row under a delta's touched path only for
+  the file-attributable kinds (`deltaUnionFileKinds`): file, content,
+  content_entity, parsed_file_data, and, since #8780, the thirteen
+  observability kinds the git collector emits per file. Those key on the
+  generation id, so stable-key overlay alone kept a changed file's base rows
+  beside the delta's. A new per-file kind with a generation-scoped key must
+  join the set.
+
 - `Envelope` fields and their types are frozen on-disk contracts. New fields
   must be additive; removing or renaming a field breaks stored rows. The
   `doc.go` contract states this explicitly.

@@ -21,12 +21,16 @@ import (
 )
 
 // deltaUnionTargetQuery reads the claimed generation's delta identity by
-// primary key: whether it carries only file-scoped changes and which commit
-// it was diffed from. A missing row yields no rows; the caller then loads
-// without a union.
+// primary key: whether it carries only file-scoped changes, its #7319 fence
+// commit, and the #8780 union-base commit its changed set was diffed from.
+// Both columns come back raw; the base resolves at
+// COALESCE(union base, baseline) in Go (deltaUnionCommitsFor), so a refusal
+// can name the fence commit and the commit the lookup used. A missing row
+// yields no rows; the caller then loads without a union.
 const deltaUnionTargetQuery = `
 SELECT is_delta,
-       COALESCE(delta_baseline_commit_sha, '')
+       COALESCE(delta_baseline_commit_sha, ''),
+       COALESCE(delta_union_base_commit_sha, '')
 FROM scope_generations
 WHERE scope_id = $1
   AND generation_id = $2
@@ -72,6 +76,36 @@ WHERE scope_id_hash = $1
 LIMIT 1
 `
 
+// deltaUnionCommits names the two commits a delta records (#8780): Baseline,
+// its #7319 fence commit (the active commit when it was diffed), and
+// UnionBase, the commit its base full generation resolves at.
+type deltaUnionCommits struct {
+	Baseline  string
+	UnionBase string
+}
+
+// deltaUnionCommitsFor builds the commits from the raw columns, resolving the
+// union base at COALESCE(union base, baseline). The fallback is sound for a
+// delta stored before the union-base column existed: only a delta diffed from
+// an active full could activate then, so its baseline is its base full's
+// commit.
+func deltaUnionCommitsFor(baseline, unionBase string) deltaUnionCommits {
+	baseline, unionBase = strings.TrimSpace(baseline), strings.TrimSpace(unionBase)
+	if unionBase == "" {
+		unionBase = baseline
+	}
+	return deltaUnionCommits{Baseline: baseline, UnionBase: unionBase}
+}
+
+// chained reports that the delta was diffed over a prior delta in the chain:
+// the active commit at diff time was not its union base's commit. An active
+// delta at the union base's own commit cannot exist, because a full at the
+// active delta's head that activated would be the active generation, so the
+// inequality is exact.
+func (c deltaUnionCommits) chained() bool {
+	return c.UnionBase != "" && c.UnionBase != c.Baseline
+}
+
 // WithLogger returns a copy that logs one line per delta-base union decision.
 // A nil logger disables the log; instruments and spans are unaffected.
 func (s FactStore) WithLogger(logger *slog.Logger) *FactStore {
@@ -91,39 +125,39 @@ func (s FactStore) resolveDeltaUnionBase(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) (baseGenerationID string, baselineSHA string, wantUnion bool, err error) {
+) (baseGenerationID string, commits deltaUnionCommits, wantUnion bool, err error) {
 	if s.database == nil {
-		return "", "", false, fmt.Errorf("fact store database is required")
+		return "", deltaUnionCommits{}, false, fmt.Errorf("fact store database is required")
 	}
-	isDelta, baseline, err := s.readDeltaUnionTarget(ctx, scopeID, generationID)
+	isDelta, commits, err := s.readDeltaUnionTarget(ctx, scopeID, generationID)
 	if err != nil {
-		return "", "", false, err
+		return "", deltaUnionCommits{}, false, err
 	}
-	baseline = strings.TrimSpace(baseline)
-	if !isDelta || baseline == "" {
-		return "", "", false, nil
+	if !isDelta || commits.Baseline == "" {
+		return "", deltaUnionCommits{}, false, nil
 	}
-	baseID, err := s.resolveDeltaBaseAtCommit(ctx, scopeID, generationID, baseline)
+	baseID, err := s.resolveDeltaBaseAtCommit(ctx, scopeID, generationID, commits)
 	if err != nil {
-		return "", baseline, false, err
+		return "", commits, false, err
 	}
-	return baseID, baseline, true, nil
+	return baseID, commits, true, nil
 }
 
 // resolveDeltaBaseAtCommit returns the newest projected full generation at
-// baseline, the base a delta diffed from baseline overlays at projection.
-// The #8750 destructive-successor guard sizes a delta against the same base
-// through this helper, so the guard and the projector cannot disagree on it.
-// A missing, pruned, or unconfirmed base fails closed with
-// projector.DeltaBaseMissingError naming generationID.
-func (s FactStore) resolveDeltaBaseAtCommit(ctx context.Context, scopeID, generationID, baseline string) (string, error) {
-	baseID, baseStatus, err := s.readDeltaUnionBase(ctx, scopeID, baseline)
+// commits.UnionBase, the base a delta overlays at projection (#8780: the
+// union-base commit, COALESCEd to the baseline for a legacy delta). The #8750
+// destructive-successor guard sizes a delta against the same base through
+// this helper, so the guard and the projector cannot disagree on it. A
+// missing, pruned, or unconfirmed base fails closed with
+// projector.DeltaBaseMissingError naming generationID and both commits.
+func (s FactStore) resolveDeltaBaseAtCommit(ctx context.Context, scopeID, generationID string, commits deltaUnionCommits) (string, error) {
+	baseID, baseStatus, err := s.readDeltaUnionBase(ctx, scopeID, commits.UnionBase)
 	if err != nil {
 		return "", err
 	}
 	baseID = strings.TrimSpace(baseID)
 	if baseID == "" {
-		return "", deltaBaseMissing(scopeID, generationID, baseline)
+		return "", deltaBaseMissing(scopeID, generationID, commits)
 	}
 	if baseStatus == "superseded" {
 		pruned, err := s.deltaUnionBasePruned(ctx, scopeID, baseID)
@@ -139,10 +173,10 @@ func (s FactStore) resolveDeltaBaseAtCommit(ctx context.Context, scopeID, genera
 					slog.String("generation_id", generationID),
 					slog.Any("probe_error", err))
 			}
-			return "", deltaBaseMissing(scopeID, generationID, baseline)
+			return "", deltaBaseMissing(scopeID, generationID, commits)
 		}
 		if pruned {
-			return "", deltaBaseMissing(scopeID, generationID, baseline)
+			return "", deltaBaseMissing(scopeID, generationID, commits)
 		}
 	}
 	return baseID, nil
@@ -153,21 +187,25 @@ func (s FactStore) resolveDeltaBaseAtCommit(ctx context.Context, scopeID, genera
 // destructive-successor guard runs these reads on its commit transaction
 // (#8750 window), one connection, where pgx refuses a statement while an
 // earlier cursor is open ("conn busy").
-func (s FactStore) readDeltaUnionTarget(ctx context.Context, scopeID, generationID string) (isDelta bool, baseline string, err error) {
+func (s FactStore) readDeltaUnionTarget(ctx context.Context, scopeID, generationID string) (bool, deltaUnionCommits, error) {
 	rows, err := s.database.QueryContext(ctx, deltaUnionTargetQuery, scopeID, generationID)
 	if err != nil {
-		return false, "", fmt.Errorf("resolve delta union target: %w", err)
+		return false, deltaUnionCommits{}, fmt.Errorf("resolve delta union target: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
+	var (
+		isDelta             bool
+		baseline, unionBase string
+	)
 	if rows.Next() {
-		if scanErr := rows.Scan(&isDelta, &baseline); scanErr != nil {
-			return false, "", fmt.Errorf("resolve delta union target scan: %w", scanErr)
+		if scanErr := rows.Scan(&isDelta, &baseline, &unionBase); scanErr != nil {
+			return false, deltaUnionCommits{}, fmt.Errorf("resolve delta union target scan: %w", scanErr)
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return false, "", fmt.Errorf("resolve delta union target: %w", err)
+		return false, deltaUnionCommits{}, fmt.Errorf("resolve delta union target: %w", err)
 	}
-	return isDelta, baseline, nil
+	return isDelta, deltaUnionCommitsFor(baseline, unionBase), nil
 }
 
 // readDeltaUnionBase reads the newest projected full generation at baseline
@@ -192,11 +230,12 @@ func (s FactStore) readDeltaUnionBase(ctx context.Context, scopeID, baseline str
 
 // deltaBaseMissing builds the fail-closed refusal for a delta with no usable
 // base: never projected, fully pruned, or retention-pruned while superseded.
-func deltaBaseMissing(scopeID, generationID, baseline string) *projector.DeltaBaseMissingError {
+func deltaBaseMissing(scopeID, generationID string, commits deltaUnionCommits) *projector.DeltaBaseMissingError {
 	return &projector.DeltaBaseMissingError{
-		ScopeID:           scopeID,
-		GenerationID:      generationID,
-		BaselineCommitSHA: baseline,
+		ScopeID:            scopeID,
+		GenerationID:       generationID,
+		BaselineCommitSHA:  commits.Baseline,
+		UnionBaseCommitSHA: commits.UnionBase,
 	}
 }
 
@@ -232,7 +271,7 @@ func (s FactStore) listFactsUnion(
 	scopeID string,
 	generationID string,
 	baseGenerationID string,
-	baselineSHA string,
+	commits deltaUnionCommits,
 	delta []facts.Envelope,
 ) ([]facts.Envelope, projector.DeltaUnionOutcome, error) {
 	base, err := s.listFactsGeneration(ctx, scopeID, baseGenerationID)
@@ -245,8 +284,8 @@ func (s FactStore) listFactsUnion(
 		// persisted. A stored full generation always carries at least its
 		// repository fact, so an empty read is a pruned base, and overlaying
 		// the delta on it would restore only the delta's files.
-		s.recordDeltaUnionRefused(ctx, scopeID, generationID, len(delta))
-		return nil, "", deltaBaseMissing(scopeID, generationID, baselineSHA)
+		s.recordDeltaUnionRefused(ctx, scopeID, generationID, commits, len(delta))
+		return nil, "", deltaBaseMissing(scopeID, generationID, commits)
 	}
 	scope := facts.ParseDeltaScope(delta)
 	if !scope.IsDelta {
@@ -267,12 +306,12 @@ func (s FactStore) listFactsUnion(
 				slog.Int("union_fact_count", len(merged)),
 			)
 		}
-		s.recordDeltaUnion(ctx, scopeID, generationID, projector.DeltaUnionScopeMismatch,
+		s.recordDeltaUnion(ctx, scopeID, generationID, commits, projector.DeltaUnionScopeMismatch,
 			len(base), len(delta), len(merged))
 		return merged, projector.DeltaUnionScopeMismatch, nil
 	}
 	merged := facts.OverlayDeltaBase(base, delta, scope)
-	s.recordDeltaUnion(ctx, scopeID, generationID, projector.DeltaUnionBaseFound,
+	s.recordDeltaUnion(ctx, scopeID, generationID, commits, projector.DeltaUnionBaseFound,
 		len(base), len(delta), len(merged))
 	return merged, projector.DeltaUnionBaseFound, nil
 }
@@ -303,13 +342,16 @@ func (s FactStore) listFactsGeneration(
 }
 
 // recordDeltaUnion counts one union decision, records its fact counts, adds
-// a span event to the active projection span, and logs one line. Nil
-// instruments skip the metrics; a span without a recorder drops the event;
-// a nil logger skips the log. Commit SHAs never become labels.
+// a span event to the active projection span, and logs one line. The span
+// event and log carry both commits and whether the delta is chained (#8780);
+// commit SHAs and chained never become metric labels. Nil instruments skip
+// the metrics; a span without a recorder drops the event; a nil logger skips
+// the log.
 func (s FactStore) recordDeltaUnion(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
+	commits deltaUnionCommits,
 	outcome projector.DeltaUnionOutcome,
 	baseCount int,
 	deltaCount int,
@@ -343,6 +385,9 @@ func (s FactStore) recordDeltaUnion(
 		attribute.Int("base_fact_count", baseCount),
 		attribute.Int("delta_fact_count", deltaCount),
 		attribute.Int("union_fact_count", unionCount),
+		attribute.String("delta_baseline_commit_sha", commits.Baseline),
+		attribute.String("delta_union_base_commit_sha", commits.UnionBase),
+		attribute.Bool("chained", commits.chained()),
 	))
 	if s.logger == nil {
 		return
@@ -354,6 +399,9 @@ func (s FactStore) recordDeltaUnion(
 		slog.Int("base_fact_count", baseCount),
 		slog.Int("delta_fact_count", deltaCount),
 		slog.Int("union_fact_count", unionCount),
+		slog.String("delta_baseline_commit_sha", commits.Baseline),
+		slog.String("delta_union_base_commit_sha", commits.UnionBase),
+		slog.Bool("chained", commits.chained()),
 	)
 }
 
@@ -364,8 +412,9 @@ func (s FactStore) recordDeltaUnionRefused(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
+	commits deltaUnionCommits,
 	deltaCount int,
 ) {
-	s.recordDeltaUnion(ctx, scopeID, generationID,
+	s.recordDeltaUnion(ctx, scopeID, generationID, commits,
 		projector.DeltaUnionBaseMissingRefused, 0, deltaCount, 0)
 }

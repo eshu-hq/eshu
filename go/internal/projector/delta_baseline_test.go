@@ -78,6 +78,13 @@ func TestDecideDeltaBaseline(t *testing.T) {
 			if got := DecideDeltaBaseline(tc.state); got != tc.want {
 				t.Fatalf("DecideDeltaBaseline(%+v) = %q, want %q", tc.state, got, tc.want)
 			}
+			// #8780: the union-base commit is diagnostic only; the fence
+			// decides on the active commit and the baseline alone.
+			withUnion := tc.state
+			withUnion.UnionBaseCommitSHA = "F-8780"
+			if got := DecideDeltaBaseline(withUnion); got != tc.want {
+				t.Fatalf("DecideDeltaBaseline(%+v) = %q, want %q (union base must not change the outcome)", withUnion, got, tc.want)
+			}
 		})
 	}
 }

@@ -81,7 +81,7 @@ pull one `ScopeGenerationWork` from the Postgres projector queue. If nothing is
 ready, the worker waits `PollInterval` (default 1 s) and retries.
 
 Once a claim is held, the worker loads all fact envelopes for that scope
-generation via `FactStore.LoadProjectionFacts` (a delta loads over its #7797 union base, and `ProjectionFacts.ProjectionGeneration` names that base on the generation so the fact boundary accepts it, #8779), then hands them to `Runtime.Project`. The
+generation via `FactStore.LoadProjectionFacts` (a delta loads over its #7797 union base, and `ProjectionFacts.ProjectionGeneration` names that base on the generation so the fact boundary accepts it, #8779), then hands them to `Runtime.Project`. A chained delta (diffed over a prior delta, #8780) loads with `ProjectionFacts.UnionChained`, which reaches the `build_projection` stage log as `chained`; a base-missing refusal names both the fence commit and the union-base commit (`DeltaBaseMissingError.UnionBaseCommitSHA`). The
 `Runtime` builds a `CanonicalMaterialization` (repository, directory, file,
 entity, module, import, parameter, class member, nested-function,
 Terraform-state rows, and OCI registry rows) and a content materialization

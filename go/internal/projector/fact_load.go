@@ -28,6 +28,9 @@ type ProjectionFacts struct {
 	// UnionOutcome is the union read's outcome; only DeltaUnionBaseFound is
 	// projectable when UnionBaseGenerationID is set.
 	UnionOutcome DeltaUnionOutcome
+	// UnionChained reports that the delta was diffed over a prior delta: its
+	// fence commit is not its union base's commit (#8780). Diagnostic only.
+	UnionChained bool
 }
 
 // ProjectionGeneration returns generation prepared for Project. A union load
@@ -39,6 +42,7 @@ type ProjectionFacts struct {
 func (f ProjectionFacts) ProjectionGeneration(generation scope.ScopeGeneration) (scope.ScopeGeneration, error) {
 	base := strings.TrimSpace(f.UnionBaseGenerationID)
 	generation.DeltaUnionBaseGenerationID = ""
+	generation.DeltaUnionChained = false
 	if base == "" {
 		return generation, nil
 	}
@@ -49,5 +53,6 @@ func (f ProjectionFacts) ProjectionGeneration(generation scope.ScopeGeneration) 
 	}
 	generation.IsDelta = true
 	generation.DeltaUnionBaseGenerationID = base
+	generation.DeltaUnionChained = f.UnionChained
 	return generation, nil
 }

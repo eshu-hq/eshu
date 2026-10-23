@@ -134,9 +134,10 @@ INSERT INTO scope_generations (
     activated_at,
     superseded_at,
     payload,
-    delta_baseline_commit_sha
+    delta_baseline_commit_sha,
+    delta_union_base_commit_sha
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, $12::jsonb, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, $12::jsonb, $11, $13
 )
 ON CONFLICT (generation_id) DO UPDATE SET
     scope_id = EXCLUDED.scope_id,
@@ -145,6 +146,7 @@ ON CONFLICT (generation_id) DO UPDATE SET
     source_commit_sha = EXCLUDED.source_commit_sha,
     is_delta = EXCLUDED.is_delta,
     delta_baseline_commit_sha = EXCLUDED.delta_baseline_commit_sha,
+    delta_union_base_commit_sha = EXCLUDED.delta_union_base_commit_sha,
     -- A generation ID fixes its original chronology. A retry may refresh a
     -- pending generation's metadata and facts, but must not make it newer
     -- than a successor or reopen a published/terminal generation.
@@ -252,6 +254,7 @@ func upsertScopeGeneration(
 		activeTimestamp(generation),
 		payloadstore.EmptyToNil(strings.TrimSpace(generation.DeltaBaselineCommitSHA)),
 		scopeGenerationPayload(generation),
+		payloadstore.EmptyToNil(strings.TrimSpace(generation.DeltaUnionBaseCommitSHA)),
 	)
 	if err != nil {
 		return err

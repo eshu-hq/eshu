@@ -96,15 +96,15 @@ type perScopeResolver struct {
 	fallback scope.FullReconcileState
 }
 
-func (r *perScopeResolver) LastProjectedCommitSHA(context.Context, string) (string, error) {
-	return "samesha", nil
+func (r *perScopeResolver) DeltaSyncBaseline(context.Context, string) (scope.DeltaSyncBaseline, error) {
+	return activeFullBaseline("samesha"), nil
 }
 
 func (r *perScopeResolver) FullReconcileState(_ context.Context, scopeID string) (scope.FullReconcileState, error) {
 	if state, ok := r.states[scopeID]; ok {
-		return state, nil
+		return withSyncBaseline(state, activeFullBaseline("samesha")), nil
 	}
-	return r.fallback, nil
+	return withSyncBaseline(r.fallback, activeFullBaseline("samesha")), nil
 }
 
 func (r *perScopeResolver) UncoveredProjectionWriters(context.Context, string) ([]scope.UncoveredProjectionWriter, error) {

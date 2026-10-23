@@ -358,15 +358,9 @@ func buildSelectedRepositories(
 			}
 		}
 		if delta, ok := deltaByRepoPath[repoPath]; ok && !delta.IsEmpty() {
-			repository.Delta = true
-			repository.FileTargets = sortUniquePathStrings(append(repository.FileTargets, delta.ChangedFileTargets...))
-			repository.DeletedRelativePaths = sortUniquePathStrings(delta.DeletedRelativePaths)
-			repository.DeltaBaselineCommitSHA = delta.BaselineCommitSHA
+			applySelectedDelta(&repository, delta)
 		} else if delta, ok := deltaByRepoPath[absolutePath]; ok && !delta.IsEmpty() {
-			repository.Delta = true
-			repository.FileTargets = sortUniquePathStrings(append(repository.FileTargets, delta.ChangedFileTargets...))
-			repository.DeletedRelativePaths = sortUniquePathStrings(delta.DeletedRelativePaths)
-			repository.DeltaBaselineCommitSHA = delta.BaselineCommitSHA
+			applySelectedDelta(&repository, delta)
 		}
 		if sha, ok := sourceCommitSHAByRepoPath[repoPath]; ok {
 			repository.SourceCommitSHA = sha

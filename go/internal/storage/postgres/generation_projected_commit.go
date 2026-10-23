@@ -17,30 +17,52 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// lastProjectedCommitSHAQuery returns the source commit of the scope's active
-// generation: the one generation whose content the graph currently holds.
-// Projector Ack supersedes the previous active generation and activates the
-// new one in a single transaction, so a reader sees exactly one of them.
+// deltaSyncBaselineQuery reads what a git delta sync diffs from (#8780), in
+// one statement and so one snapshot, always as exactly one row:
 //
-// A superseded generation is not a safe baseline. A generation superseded
-// while still pending never activated and never reached the graph (#7317);
-// diffing the next delta against its commit would skip every change between
-// the active commit and it. When no generation is active (a failed projection
-// can clear the active pointer), the graph content is unknown, so the read
-// returns no row and the caller takes the full-snapshot path.
-//
-// The partial unique index scope_generations_active_scope_idx
-// (scope_id) WHERE status = 'active' serves the read as a single-row lookup.
-const lastProjectedCommitSHAQuery = `
-SELECT source_commit_sha
-FROM scope_generations
-WHERE scope_id = $1
-  AND ` + activeGenerationPredicate + `
-LIMIT 1
+//   - active_*: the scope's active generation, the one whose content the
+//     graph holds. Its commit is the #7319 fence commit a delta records as
+//     delta_baseline_commit_sha. Projector Ack supersedes the previous active
+//     generation and activates the new one in one transaction, so a reader
+//     sees exactly one of them. A generation superseded while still pending
+//     never activated (#7317), so it is never the active row. When no
+//     generation is active the columns are empty and the caller takes the
+//     full-snapshot path. Served by the partial unique index
+//     scope_generations_active_scope_idx as a single-row lookup.
+//   - newest_full_commit_sha: the newest activated full generation's commit,
+//     the union base the delta's changed set is diffed from. It uses the
+//     projected_full rule of fullReconcileStateQuery. Generation retention's
+//     delta_base CTE keeps the same row for a delta-active scope (#7802)
+//     provided no activated full carries a status outside
+//     (active,completed,superseded); a mismatch refuses fail-closed
+//     to a forced full.
+//     An ordered LIMIT 1 read on scope_generations_scope_latest_lookup_idx.
+const deltaSyncBaselineQuery = `
+SELECT COALESCE(active.source_commit_sha, ''),
+       COALESCE(active.is_delta, false),
+       COALESCE(projected.source_commit_sha, '')
+FROM (SELECT 1) AS one
+LEFT JOIN LATERAL (
+    SELECT source_commit_sha, is_delta
+    FROM scope_generations
+    WHERE scope_id = $1
+      AND ` + activeGenerationPredicate + `
+    LIMIT 1
+) AS active ON true
+LEFT JOIN LATERAL (
+    SELECT projected.source_commit_sha
+    FROM scope_generations AS projected
+    WHERE projected.scope_id = $1
+      AND projected.is_delta = false
+      AND projected.activated_at IS NOT NULL
+      AND projected.status IN ('active', 'completed', 'superseded')
+    ORDER BY projected.ingested_at DESC, projected.generation_id DESC
+    LIMIT 1
+) AS projected ON true
 `
 
 // activeGenerationPredicate selects a scope's active generation. The delta
-// baseline read above and the projector's delta-baseline fence
+// sync baseline read above and the projector's delta-baseline fence
 // (deltaBaselineFenceQuery, #7319) share it, so the commit a delta is diffed
 // from and the commit the fence compares it with come from the same rule. The
 // destructive-successor guard's active read (#8750) uses it too.
@@ -153,41 +175,42 @@ func sameGuardCandidate(a, b backfill.UnchangedGenerationCandidate) bool {
 	return a.GenerationID == b.GenerationID && a.Status == b.Status && a.WorkLive == b.WorkLive
 }
 
-// LastProjectedCommitSHA returns the source commit SHA of the active generation
-// for scopeID, or an empty string when the scope has no active generation or
-// the active generation carries no commit. It is the durable delta-sync
-// baseline: diffing the next snapshot against this commit rather than the local
-// working-copy HEAD prevents a projection that failed after a checkout advanced
-// HEAD from silently skipping its changes. An empty result drives a full
+// DeltaSyncBaseline returns scopeID's delta-sync baseline (#8780): the
+// active generation's commit and delta flag, and the newest activated full
+// generation's commit. A git sync diffs the next delta's changed set from the
+// full's commit (the union base the projector overlays), adds every path
+// deleted since the active commit, and records the active commit for the
+// #7319 fence. Diffing from the generation lifecycle rather than the local
+// working-copy HEAD keeps a projection that failed after a checkout advanced
+// HEAD from silently skipping its changes. Empty fields drive a full
 // snapshot.
 //
-// A blank scopeID returns an empty SHA without querying so callers can probe
-// optimistically. Reachability of the returned SHA in the local checkout is
-// the caller's concern: a SHA pruned by a shallow fetch is unreachable and the
-// caller must fall back to a full snapshot rather than a broken delta.
-func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID string) (string, error) {
+// A blank scopeID returns a zero baseline without querying so callers can
+// probe optimistically. Reachability of either commit in the local checkout
+// is the caller's concern: a commit pruned by a shallow fetch is unreachable
+// and the caller must fall back to a full snapshot rather than a broken delta.
+func (s IngestionStore) DeltaSyncBaseline(ctx context.Context, scopeID string) (scope.DeltaSyncBaseline, error) {
 	if s.database == nil || strings.TrimSpace(scopeID) == "" {
-		return "", nil
+		return scope.DeltaSyncBaseline{}, nil
 	}
-
-	rows, err := s.database.QueryContext(ctx, lastProjectedCommitSHAQuery, scopeID)
+	rows, err := s.database.QueryContext(ctx, deltaSyncBaselineQuery, scopeID)
 	if err != nil {
-		return "", err
+		return scope.DeltaSyncBaseline{}, err
 	}
 	defer func() { _ = rows.Close() }()
-
 	if !rows.Next() {
-		return "", rows.Err()
+		return scope.DeltaSyncBaseline{}, rows.Err()
 	}
-
-	var sha sql.NullString
-	if err := rows.Scan(&sha); err != nil {
-		return "", err
+	var baseline scope.DeltaSyncBaseline
+	if err := rows.Scan(&baseline.ActiveCommitSHA, &baseline.ActiveIsDelta, &baseline.NewestActivatedFullCommitSHA); err != nil {
+		return scope.DeltaSyncBaseline{}, err
 	}
 	if err := rows.Err(); err != nil {
-		return "", err
+		return scope.DeltaSyncBaseline{}, err
 	}
-	return strings.TrimSpace(sha.String), nil
+	baseline.ActiveCommitSHA = strings.TrimSpace(baseline.ActiveCommitSHA)
+	baseline.NewestActivatedFullCommitSHA = strings.TrimSpace(baseline.NewestActivatedFullCommitSHA)
+	return baseline, nil
 }
 
 // fullReconcileStateQuery reads the two facts the reconciliation sweep decides
@@ -198,7 +221,8 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 //     activated_at NULL and does not count, so it cannot satisfy the sweep.
 //     While that generation is still active, the time its last #7978
 //     re-projection was acknowledged (payload reconcile_projected_at) counts
-//     when it is later.
+//     when it is later. Its commit (last_projected_full_commit_sha) is the
+//     #8780 union base a delta sync diffs from when it reuses this read.
 //   - last_stored_full_at: that generation's own ingest time, without any
 //     re-projection Ack. Only it can satisfy a reindex watermark (a9-125).
 //   - active_* (ruling a9-143): the generation ingestion_scopes points at, its
@@ -225,6 +249,7 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 const fullReconcileStateQuery = `
 SELECT
     projected_full.last_projected_full_at,
+    COALESCE(projected_full.source_commit_sha, '') AS last_projected_full_commit_sha,
     projected_full.last_stored_full_at,
     projected_full.reconcile_requested_at,
     projected_full.reconcile_projected_at,
@@ -245,6 +270,7 @@ FROM (SELECT 1) AS one
 LEFT JOIN LATERAL (
     SELECT GREATEST(projected.ingested_at, reconcile.projected_at) AS last_projected_full_at,
            projected.ingested_at     AS last_stored_full_at,
+           projected.source_commit_sha,
            reconcile.requested_at    AS reconcile_requested_at,
            reconcile.projected_at    AS reconcile_projected_at,
            reconcile.dead_lettered_at AS reconcile_dead_lettered_at
@@ -316,6 +342,7 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 
 	var (
 		lastProjectedFullAt     sql.NullTime
+		lastProjectedFullCommit string
 		lastStoredFullAt        sql.NullTime
 		reconcileRequestedAt    sql.NullTime
 		reconcileProjectedAt    sql.NullTime
@@ -329,7 +356,7 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 		active                  scope.FullReconcileState
 	)
 	if err := rows.Scan(
-		&lastProjectedFullAt, &lastStoredFullAt, &reconcileRequestedAt, &reconcileProjectedAt, &reconcileDeadLetteredAt,
+		&lastProjectedFullAt, &lastProjectedFullCommit, &lastStoredFullAt, &reconcileRequestedAt, &reconcileProjectedAt, &reconcileDeadLetteredAt,
 		&latestFullAt, &latestFullStatus, &latestFullProjected, &latestFullCommit, &latestFullWorkLive,
 		&active.ActiveGenerationID, &active.ActiveIsDelta, &active.ActiveCommitSHA,
 		&active.ActivePreparseIdentity, &active.ActivePreparseSkips, &activeStreamDropped,
@@ -347,6 +374,7 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 	}
 	if lastProjectedFullAt.Valid {
 		state.LastProjectedFullAt = lastProjectedFullAt.Time.UTC()
+		state.LastProjectedFullCommitSHA = strings.TrimSpace(lastProjectedFullCommit)
 	}
 	if lastStoredFullAt.Valid {
 		state.LastStoredFullAt = lastStoredFullAt.Time.UTC()

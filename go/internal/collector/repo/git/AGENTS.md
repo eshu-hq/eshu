@@ -38,10 +38,18 @@ same change, and the golden-corpus gate re-run. Load `eshu-golden-corpus-rigor`
 and `eshu-contract-rigor` first. A restructure that changes projected truth is a
 bug, not a new baseline.
 
-A delta generation must carry the commit it was diffed from
+A delta generation must carry the active commit it was diffed under
 (`GitSyncDelta.BaselineCommitSHA` through `ScopeGeneration.DeltaBaselineCommitSHA`,
 #7319); the projector refuses a delta whose baseline is not the active commit,
-and `validateGenerationInput` rejects a delta without one.
+and `validateGenerationInput` rejects a delta without one. Since #8780 the
+changed set is diffed from the newest activated full instead
+(`GitSyncDelta.UnionBaseCommitSHA` through `DeltaUnionBaseCommitSHA`) and the
+deleted set must keep the `D(active..head)` term (`cumulativeGitDelta`): drop
+it and a file the active chain added is never retracted. The no-change check
+stays on the active commit. `syncBaselineFromState` reuses the sweep's
+`FullReconcileState`; keep every `DeltaBaselineResolver` fake's two reads
+consistent (`withSyncBaseline` in the tests), and give fake-git scripts the
+`fakeGitLsTreeArm` or the growth valve fires on an empty base.
 
 `UncoveredProjectionWriters` (#7389) is a reconcile reason, not a fallback:
 `decideForScope` probes it only when the sweep is not due and not throttled,

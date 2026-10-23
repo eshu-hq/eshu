@@ -49,6 +49,10 @@ for review F1", and "size the guard prior against the active generation too"
   unchanged.
 - A git delta successor is sized by its projected file-level union against its
   anchor: the newest projected full generation at `DeltaBaselineCommitSHA`.
+  Note (#8780): the anchor semantics are unchanged, but the anchor commit is
+  now the delta's union base, `COALESCE(DeltaUnionBaseCommitSHA,
+  DeltaBaselineCommitSHA)` (`deltaUnionCommitsFor`), the commit the projector
+  resolves; `TestGuardAnchorsChainedDeltaAtUnionBaseLive` pins it.
   The anchor comes from `resolveDeltaBaseAtCommit`, the resolver the
   projector's overlay already uses. Path matching uses
   `facts.DeltaScope.FilePath`, the overlay's own qualifier.

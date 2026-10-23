@@ -269,7 +269,7 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		generationID, _ := args[1].(string)
 		for id, generation := range database.state.generations {
 			if id == generationID && generation.ScopeID == scopeID {
-				return newProofRows([][]any{{generation.IsDelta, generation.DeltaBaselineCommitSHA}}), nil
+				return newProofRows([][]any{{generation.IsDelta, generation.DeltaBaselineCommitSHA, generation.DeltaUnionBaseCommitSHA}}), nil
 			}
 		}
 		return newProofRows(nil), nil

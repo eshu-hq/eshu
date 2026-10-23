@@ -22,6 +22,10 @@ type FullReconcileState struct {
 	// generation, or the time its last #7978 re-projection was acknowledged
 	// when that is later. It is zero when HasProjectedFull is false.
 	LastProjectedFullAt time.Time
+	// LastProjectedFullCommitSHA is the source commit of that newest
+	// activated full generation, the union base a delta sync diffs from when
+	// it reuses this read (#8780). Empty when HasProjectedFull is false.
+	LastProjectedFullCommitSHA string
 	// LastStoredFullAt is the ingest time of the newest activated full
 	// generation itself, without any re-projection Ack. A reindex watermark is
 	// satisfied only by it (ruling a9-125, review r2 N1): a re-projection does
@@ -141,4 +145,23 @@ type UncoveredProjectionWriter struct {
 	FailureClass string
 	// ProjectionWriteStartedAt is its latest projection write start.
 	ProjectionWriteStartedAt time.Time
+}
+
+// DeltaSyncBaseline is what a git delta sync diffs from (#8780): the scope's
+// active generation and the newest activated full generation, read in one
+// snapshot. A delta is cumulative: its changed set is taken from the newest
+// activated full's commit (the union base the projector overlays it on), and
+// its deleted set also covers everything deleted since the active commit,
+// which is the commit the #7319 fence compares against at Ack.
+type DeltaSyncBaseline struct {
+	// ActiveCommitSHA is the active generation's source commit; empty when
+	// the scope has no active generation. A delta records it as its
+	// DeltaBaselineCommitSHA.
+	ActiveCommitSHA string
+	// ActiveIsDelta reports that the active generation is a delta.
+	ActiveIsDelta bool
+	// NewestActivatedFullCommitSHA is the source commit of the scope's newest
+	// activated full generation, the union base a delta is diffed from; empty
+	// when no full generation ever activated.
+	NewestActivatedFullCommitSHA string
 }

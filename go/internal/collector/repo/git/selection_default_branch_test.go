@@ -45,7 +45,11 @@ func newDefaultBranchFixture(t *testing.T) defaultBranchFixture {
 	}
 	runGit(t, root, "init", "-q", "-b", "old", f.src)
 	writeFixtureFile(t, filepath.Join(f.src, "app.js"), "old\n")
-	runGit(t, f.src, "add", "app.js")
+	// Untouched fillers keep a one-file delta under the #8780 growth valve.
+	for _, name := range []string{"lib.js", "util.js", "README.md"} {
+		writeFixtureFile(t, filepath.Join(f.src, name), name+"\n")
+	}
+	runGit(t, f.src, "add", "-A")
 	runGit(t, f.src, "commit", "-qm", "old")
 	f.oldTip = runGit(t, f.src, "rev-parse", "HEAD")
 	runGit(t, root, "clone", "-q", "--bare", f.src, f.remote)
@@ -90,7 +94,7 @@ func runUpdate(f defaultBranchFixture, baselineSHA string) *updateResult {
 	r := &updateResult{}
 	logger := slog.New(slog.NewJSONHandler(&r.logs, nil))
 	r.updated, r.delta, r.sourceSHA, r.err = updateRepository(context.Background(), baselineTestConfig(), f.checkout, "",
-		logger, baselineTestEvent(), baselineSHA, func(reason string) { r.fallbacks = append(r.fallbacks, reason) }, "")
+		logger, baselineTestEvent(), activeFullBaseline(baselineSHA), func(reason string) { r.fallbacks = append(r.fallbacks, reason) }, "")
 	return r
 }
 
@@ -306,7 +310,7 @@ esac
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	updated, _, _, err := updateRepository(context.Background(), baselineTestConfig(), t.TempDir(), "",
-		discardLogger(), baselineTestEvent(), "oldsha", nil, "")
+		discardLogger(), baselineTestEvent(), activeFullBaseline("oldsha"), nil, "")
 	if err == nil || updated || !strings.Contains(err.Error(), "Could not resolve host") {
 		t.Fatalf("updateRepository() updated=%v err=%v; want the adopt fetch error", updated, err)
 	}

@@ -24,6 +24,10 @@
 // FullReconcileState is the value the git reconciliation sweep decides on: the
 // newest activated full generation and the newest full generation of any
 // status for one scope, filled by the Postgres ingestion store.
+// DeltaSyncBaseline is what a git delta sync diffs from (#8780): the active
+// commit, which a delta records as its #7319 fence commit, and the newest
+// activated full's commit, the union base its cumulative changed set is
+// diffed from (ScopeGeneration.DeltaUnionBaseCommitSHA).
 // UncoveredProjectionWriter is a generation that started writing the graph,
 // never activated, and is not covered by a later activated full generation
 // (#7389); the git collector forces a full snapshot while one exists.
