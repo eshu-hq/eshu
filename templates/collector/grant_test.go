@@ -6,6 +6,7 @@ package collector
 import (
 	"encoding/json"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -37,39 +38,39 @@ func TestProducerGrantContract(t *testing.T) {
 		Version:        "0.1.0",
 		Kind:           "aws_resource",
 		SchemaVersions: []string{"1.0.0"},
-		Scope:          "component:template-primary",
+		Scope:          CollectorKind,
 		ExpiresAt:      time.Now().Add(time.Hour),
 	}
-	if !authorizesEmission(grant, ComponentID, "0.1.0", "aws_resource", "1.0.0", "component:template-primary", time.Now()) {
+	if !authorizesEmission(grant, ComponentID, "0.1.0", "aws_resource", "1.0.0", CollectorKind, time.Now()) {
 		t.Fatal("live grant must authorize its kind/schema/scope")
 	}
 	// Namespaced template kinds need no grant.
-	if !authorizesEmission(grant, ComponentID, "0.1.0", FactKindRecord, "1.0.0", "component:template-primary", time.Now()) {
+	if !authorizesEmission(grant, ComponentID, "0.1.0", FactKindRecord, "1.0.0", CollectorKind, time.Now()) {
 		t.Fatal("namespaced kind must pass without a grant")
 	}
 	// Wrong scope, wrong schema, and wrong producer fail closed.
-	if authorizesEmission(grant, ComponentID, "0.1.0", "aws_resource", "1.0.0", "component:other", time.Now()) {
+	if authorizesEmission(grant, ComponentID, "0.1.0", "aws_resource", "1.0.0", "other", time.Now()) {
 		t.Fatal("out-of-scope emission must fail closed")
 	}
-	if authorizesEmission(grant, ComponentID, "0.1.0", "aws_resource", "2.0.0", "component:template-primary", time.Now()) {
+	if authorizesEmission(grant, ComponentID, "0.1.0", "aws_resource", "2.0.0", CollectorKind, time.Now()) {
 		t.Fatal("ungranted schema version must fail closed")
 	}
-	if authorizesEmission(grant, "dev.eshu.other.collector", "0.1.0", "aws_resource", "1.0.0", "component:template-primary", time.Now()) {
+	if authorizesEmission(grant, "dev.eshu.other.collector", "0.1.0", "aws_resource", "1.0.0", CollectorKind, time.Now()) {
 		t.Fatal("foreign producer must fail closed")
 	}
 	revoked := grant
 	revoked.Revoked = true
-	if authorizesEmission(revoked, ComponentID, "0.1.0", "aws_resource", "1.0.0", "component:template-primary", time.Now()) {
+	if authorizesEmission(revoked, ComponentID, "0.1.0", "aws_resource", "1.0.0", CollectorKind, time.Now()) {
 		t.Fatal("revoked grant must fail closed")
 	}
 	expired := grant
 	expired.ExpiresAt = time.Now().Add(-time.Minute)
-	if authorizesEmission(expired, ComponentID, "0.1.0", "aws_resource", "1.0.0", "component:template-primary", time.Now()) {
+	if authorizesEmission(expired, ComponentID, "0.1.0", "aws_resource", "1.0.0", CollectorKind, time.Now()) {
 		t.Fatal("expired grant must fail closed")
 	}
 	// Revocation and expiry constrain core-owned kinds only: a revoked grant
 	// object must not block namespaced-kind emission.
-	if !authorizesEmission(revoked, ComponentID, "0.1.0", FactKindRecord, "1.0.0", "component:template-primary", time.Now()) {
+	if !authorizesEmission(revoked, ComponentID, "0.1.0", FactKindRecord, "1.0.0", CollectorKind, time.Now()) {
 		t.Fatal("revoked grant must not block namespaced kinds")
 	}
 	// Conflicting producers never share one scope+generation: the template
@@ -97,6 +98,31 @@ func TestGrantExampleParses(t *testing.T) {
 	}
 	if strings.TrimSpace(grant.ProducerID) == "" || strings.TrimSpace(grant.Scope) == "" {
 		t.Fatalf("grant example missing producer or scope: %+v", grant)
+	}
+}
+
+// TestGrantExampleScopeIsCollectorKind proves the example grant is scoped the
+// way the host matches it. The host compares a grant's scope against the
+// manifest's spec.collectorKinds, not against a claim scope ID such as the
+// activation config's host.scope.id, so an example scoped by ID would be
+// issued and then never match at install or activation.
+func TestGrantExampleScopeIsCollectorKind(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("grant.example.json")
+	if err != nil {
+		t.Fatalf("os.ReadFile(grant.example.json) error = %v", err)
+	}
+	var grant GrantRequest
+	if err := json.Unmarshal(raw, &grant); err != nil {
+		t.Fatalf("json.Unmarshal(grant.example.json) error = %v", err)
+	}
+	manifest := loadManifest(t)
+	if !slices.Contains(manifest.Spec.CollectorKinds, grant.Scope) {
+		t.Fatalf("grant scope %q is not a collector kind in the manifest %v", grant.Scope, manifest.Spec.CollectorKinds)
+	}
+	if grant.Scope != CollectorKind {
+		t.Fatalf("grant scope %q, want the collector kind %q", grant.Scope, CollectorKind)
 	}
 }
 
