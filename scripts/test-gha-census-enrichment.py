@@ -181,6 +181,54 @@ class TestPercentiles(unittest.TestCase):
 
 
 class TestCancellation(unittest.TestCase):
+    def test_workflow_categories_include_missing_budget_and_failed_jobs(self):
+        end = datetime(2026, 10, 23, tzinfo=timezone.utc)
+        names = {1: "Required Gates", 2: "Required Gates",
+                 3: "Required Gates", 4: "Build Test", 5: None}
+        raw = [{"databaseId": rid, "workflowName": name,
+                "conclusion": "cancelled"} for rid, name in names.items()]
+        fetched = [{"id": rid, "check_suite_node_id": f"suite-{rid}"}
+                   for rid in (1, 2, 3, 5, 6)]
+        job = {"runner_id": 1, "started_at": "2026-10-23T12:00:00Z",
+               "completed_at": "2026-10-23T12:01:00Z"}
+
+        def jobs(path, array_key, page_limit):
+            if "/3/jobs" in path:
+                raise RuntimeError("incomplete jobs page")
+            return [job]
+
+        with mock.patch.object(gha_census_enrichment, "_cancelled_runs",
+                               return_value=fetched) as cancelled_api, \
+                mock.patch.object(gha_census_enrichment, "_suite_counts",
+                                  return_value={"suite-1": 0, "suite-2": 1,
+                                                "suite-3": 1, "suite-5": 1}) as suites_api, \
+                mock.patch.object(gha_census_enrichment,
+                                  "MAX_JOB_ENRICHMENTS", 2), \
+                mock.patch.object(gha_census_enrichment, "_pages",
+                                  side_effect=jobs) as pages:
+            result = gha_census_enrichment.cancellation_cost(
+                end - timedelta(hours=1), end, raw)
+        self.assertEqual(cancelled_api.call_count, 1)
+        self.assertEqual(suites_api.call_count, 1)
+        self.assertEqual(pages.call_count, 2)
+        self.assertEqual(result["categories"],
+                         {"zero_job": 1, "executed": 1, "unknown": 3})
+        self.assertEqual(result["by_workflow"]["Required Gates"],
+                         {"runs": 3, "categories": {
+                             "zero_job": 1, "executed": 1, "unknown": 1}})
+        self.assertEqual(result["by_workflow"]["Build Test"],
+                         {"runs": 1, "categories": {"unknown": 1}})
+        self.assertEqual(result["by_workflow"]["Unknown workflow"],
+                         {"runs": 1, "categories": {"unknown": 1}})
+        self.assertEqual(result["source_drift"],
+                         {"missing_from_rest": 1, "late_cancelled": 1})
+        self.assertEqual(sum(group["runs"] for group in
+                             result["by_workflow"].values()), result["runs"])
+        for category, count in result["categories"].items():
+            self.assertEqual(sum(group["categories"].get(category, 0)
+                                 for group in result["by_workflow"].values()),
+                             count)
+
     def test_failed_jobs_page_keeps_other_cancelled_run(self):
         end = datetime(2026, 10, 23, tzinfo=timezone.utc)
         runs = [{"databaseId": rid, "conclusion": "cancelled"}
