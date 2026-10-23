@@ -122,6 +122,17 @@ Both read the GitLab host from the config (`ESHU_GITLAB_HOST`, default
 `TestRepositoryIdentityStableOnDefaultGitlabHost` cover the custom host and
 the default-host identity stability (#7764).
 
+## Filesystem copy keeps only admitted dotfiles
+
+The managed-workspace copy prunes dot-prefixed entries unless
+`preserveFilesystemHiddenPath` (`selection_copy_workspace.go`) allows them. When
+the parser registry admits a new dot-prefixed name (#8814), add its basename
+there, or filesystem mode never sees it. Never add a credential-bearing dotfile
+(`.env`, `.npmrc`, `.pypirc`, `.netrc`), and keep `.gitignore` out: the copy
+applies the source ignore rules itself, and copying the file would make
+discovery filter a second time. `skipFilesystemMavenEntry` keeps every `.mvn`
+file except `extensions.xml` out of the copy.
+
 ## Directory size
 
 This directory is grandfathered over the 40-file cap. The ledger row is a

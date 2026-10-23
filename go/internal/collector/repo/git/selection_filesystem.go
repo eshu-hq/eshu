@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -400,6 +399,9 @@ func shouldSkipFilesystemEntry(
 	if strings.HasPrefix(name, ".") && !preserveFilesystemHiddenPath(rel) {
 		return true
 	}
+	if skipFilesystemMavenEntry(rel) {
+		return true
+	}
 	// .eshuignore is the operator's own opt-out and applies unconditionally,
 	// tracked or not. Check it first and independently of the gitignore
 	// check below.
@@ -443,33 +445,6 @@ func shouldSkipFilesystemEntry(
 
 func isCollectorIgnoreControlFile(name string) bool {
 	return name == ".gitignore" || name == ".eshuignore"
-}
-
-// preservedHiddenFilesystemFileNames lists hidden (dot-prefixed) file basenames
-// that the managed-workspace copy must keep even though they would otherwise be
-// pruned as dotfiles. Unlike .github/workflows (a directory prefix), these are
-// individual hidden config FILES that can live at the repo root or, for GitLab
-// CI, in a subdirectory referenced via include:. They are matched by basename so
-// the copy preserves them wherever they appear in the tree.
-var preservedHiddenFilesystemFileNames = map[string]struct{}{
-	".gitlab-ci.yml":  {},
-	".gitlab-ci.yaml": {},
-	".gitmodules":     {},
-}
-
-func preserveFilesystemHiddenPath(rel string) bool {
-	normalized := path.Clean(filepath.ToSlash(rel))
-	if normalized == "." {
-		return false
-	}
-
-	if _, ok := preservedHiddenFilesystemFileNames[path.Base(normalized)]; ok {
-		return true
-	}
-
-	return normalized == ".github" ||
-		normalized == ".github/workflows" ||
-		strings.HasPrefix(normalized, ".github/workflows/")
 }
 
 type collectorIgnoreCaches struct {
