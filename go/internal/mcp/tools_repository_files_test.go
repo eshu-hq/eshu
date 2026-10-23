@@ -78,6 +78,11 @@ func TestIndexedFilesRuleInFileToolDescriptions(t *testing.T) {
 		for _, want := range []string{
 			"parser-registry name, prefix, extension, or documentation format",
 			"Dotfiles are not hidden",
+			".gitmodules",
+			"CODEOWNERS",
+			"gitignored",
+			".eshuignore",
+			"default-pruned",
 			".eslintrc.js",
 			".github/workflows/*",
 			".env",

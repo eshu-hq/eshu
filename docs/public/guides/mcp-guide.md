@@ -140,12 +140,17 @@ cache, and finally a user handoff.
 
 `list_repository_files`, `get_file_content`, and `search_file_content` see only
 files that discovery kept. A file is indexed only if it matched a
-parser-registry name, prefix, extension, or documentation format. Dotfiles are
+parser-registry name, prefix, extension, or documentation format, or is a
+`.gitmodules` or CODEOWNERS file. Dotfiles are
 not hidden: `.eslintrc.js` and `.github/workflows/*` are indexed. Extensionless
 names with no registry entry, such as `.env`, are not.
 
 A "file not found" answer may simply mean the file is not indexed. It does not
-mean Eshu cannot see dotfiles. Check the path and repository selector first,
+mean Eshu cannot see dotfiles. A file that matches can also be absent when it
+is gitignored, listed in `.eshuignore`, inside a default-pruned directory, has
+an ignored extension, or is generated; the
+[default skips](../reference/eshuignore.md#default-skips) list the pruned
+directories and extensions. Check the path and repository selector first,
 then use `list_repository_files` to see what is indexed.
 
 ## Local Testing

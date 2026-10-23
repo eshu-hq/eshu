@@ -106,11 +106,14 @@ symbol. Use ` + "`limit`" + `/` + "`offset`" + `/cursors for lists and check ` +
 ### A missing file may not be indexed
 
 A file is indexed only if it matched a parser-registry name, prefix, extension,
-or documentation format. Dotfiles are not hidden: ` + "`.eslintrc.js`" + ` and
+or documentation format, or is a ` + "`.gitmodules`" + ` or CODEOWNERS file. Dotfiles are not hidden: ` + "`.eslintrc.js`" + ` and
 ` + "`.github/workflows/*`" + ` are indexed; extensionless names with no registry entry,
 such as ` + "`.env`" + `, are not. When ` + "`get_file_content`" + ` or
-` + "`list_repository_files`" + ` finds no file, say it may simply not be indexed. Do not
-tell the user Eshu cannot see dotfiles.
+` + "`list_repository_files`" + ` finds no file, say it may simply not be indexed. A file that matches can
+still be absent when it is gitignored, listed in ` + "`.eshuignore`" + `, inside a
+default-pruned directory, has an ignored extension, or is generated (see the
+` + "`.eshuignore`" + ` reference in the Eshu docs). Do not tell the user Eshu cannot see
+dotfiles.
 
 ### First prompts to try
 

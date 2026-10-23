@@ -5,11 +5,13 @@ package mcp
 
 // indexedFilesRule is the one-sentence rule the file tools share. Discovery
 // keeps a file only when it matches a parser-registry entry or a documentation
-// format, so a missing file is not proof that Eshu cannot see it (#8808).
-const indexedFilesRule = " A file is indexed only if it matched a parser-registry name, prefix, extension, or documentation format. " +
+// format, or is a .gitmodules or CODEOWNERS file, so a missing file is not
+// proof that Eshu cannot see it (#8808). The collector test
+// TestResolveNativeSnapshotFileSetIndexedFileRule pins this text.
+const indexedFilesRule = " A file is indexed only if it matched a parser-registry name, prefix, extension, or documentation format, or is a .gitmodules or CODEOWNERS file. " +
 	"Dotfiles are not hidden: .eslintrc.js and .github/workflows/* are indexed; " +
 	"extensionless names with no registry entry, such as .env, are not. " +
-	"A file not found may simply not be indexed."
+	"A file not found may simply not be indexed, or may be gitignored, in .eshuignore, in a default-pruned directory (node_modules, vendor, dist, build), have an ignored extension, or be generated."
 
 // repositoryFilesTool defines the bounded repository file-listing tool. It
 // proxies GET /api/v0/repositories/{repo_id}/tree, which reconstructs a
