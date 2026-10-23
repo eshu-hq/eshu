@@ -115,6 +115,7 @@ gates:
       - "go/internal/storage/postgres/**"
       - "go/cmd/reducer/**"
       - "go/internal/reducer/maintenance/**"
+      - "go/internal/reducer/freshness/links/**"
       - "go/internal/testutil/postgresproof/**"
       - "go/internal/reducer/status/**"
       - "go/internal/cigates/readiness_job_split_test.go"

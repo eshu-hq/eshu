@@ -3,6 +3,10 @@
 
 package links_test
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8836 changed-since generation lock timeout stays non-counting; six-root race proof on PostgreSQL 18.6 recorded in docs/internal/evidence/8836-readiness-enrollment.md.
+//eshu:readiness:env ESHU_POSTGRES_TEST_DSN
+
 import (
 	"context"
 	"errors"

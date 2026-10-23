@@ -62,6 +62,9 @@ CONSTANT_MANAGED = frozenset({
 # no code reader at all). The generator force-includes them so the
 # requirement stays visible and byte-identical; minting a new one is a
 # conscious generator edit, never a silent marker line.
+CHILD_ONLY_DSN = "ESHU_CHANGED_SINCE_LINK_CHILD_DSN"
+CHILD_ONLY_FILE = "go/internal/reducer/freshness/links/process_live_test.go"
+
 ACK_VARS = frozenset({
     "ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DISPOSABLE",
     "ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE",
@@ -233,12 +236,16 @@ def check_env_honesty(root: pathlib.Path, enrolled: dict) -> None:
         anywhere.update(code_literals(source))
     for rel in sorted(enrolled):
         marker = enrolled[rel]
+        if CHILD_ONLY_DSN in (set(marker["env"]) | set(marker["optional"])):
+            raise fail(f"{rel}: child-only DSN cannot be a parent marker: "
+                       f"{CHILD_ONLY_DSN}")
         for var in marker["env"] + marker["optional"]:
             if var not in anywhere and var not in ACK_VARS:
                 raise fail(f"{rel}: marker var {var} matches no Go literal")
         declared = set(marker["env"]) | set(marker["optional"])
+        child_only = {CHILD_ONLY_DSN} if rel == CHILD_ONLY_FILE else set()
         for var in sorted(code_literals(marker["source"])):
-            if var not in declared | DENYLIST | CONSTANT_MANAGED:
+            if var not in declared | DENYLIST | CONSTANT_MANAGED | child_only:
                 raise fail(f"{rel}: undeclared proof env literal: {var}")
 
 

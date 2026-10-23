@@ -179,6 +179,26 @@ tests:
     class: postgres_ci
     reason: "#7533 helper-only source with no Test root; exercised by the enrolled TestSupplyChainSuppressionPathsPerformanceLive proof in the preimplementation main run at 271d54e5 (readiness run 38997937360, shard 1 job 117294524860: 24.070s PASS); source dependency pinned in the live-postgres-readiness helper inventory"
     runner: live-postgres-readiness
+  - file: go/internal/reducer/freshness/links/lock_timeout_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8836 changed-since generation lock timeout stays non-counting; six-root race proof on PostgreSQL 18.6 recorded in docs/internal/evidence/8836-readiness-enrollment.md."
+    runner: live-postgres-readiness
+  - file: go/internal/reducer/freshness/links/process_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8836 two child processes drain one changed-since activation backlog without duplicate links; six-root race proof on PostgreSQL 18.6 recorded in docs/internal/evidence/8836-readiness-enrollment.md."
+    runner: live-postgres-readiness
+  - file: go/internal/reducer/freshness/links/retention_process_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8836 changed-since linking and generation retention race alongside a non-key updater in OS processes; six-root race proof on PostgreSQL 18.6 recorded in docs/internal/evidence/8836-readiness-enrollment.md."
+    runner: live-postgres-readiness
+  - file: go/internal/reducer/freshness/links/runner_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8836 changed-since poison, non-counting outcome and busy-slot runner proofs; six-root race proof on PostgreSQL 18.6 recorded in docs/internal/evidence/8836-readiness-enrollment.md."
+    runner: live-postgres-readiness
   - file: go/internal/reducer/status/summary/contention_live_test.go
     tag: ~
     class: postgres_ci

@@ -442,6 +442,7 @@ gates:
       - ".github/static-contract-filters.yml"
       - "scripts/generate-live-postgres-readiness.py"
       - "scripts/test-generate-live-postgres-readiness.sh"
+      - "scripts/test-live-postgres-readiness-child-env.py"
       - "scripts/verify-live-postgres-readiness-drift.sh"
       - "scripts/lib/live_postgres_readiness_gen_scan.py"
       - "scripts/lib/live_postgres_readiness_gen_render.py"
@@ -461,13 +462,14 @@ gates:
       - ".github/workflows/live-postgres-readiness.yml"
     self_test_triggers:
       - "scripts/test-generate-live-postgres-readiness.sh"
+      - "scripts/test-live-postgres-readiness-child-env.py"
       - "scripts/generate-live-postgres-readiness.py"
       - "scripts/lib/live_postgres_readiness_gen_scan.py"
       - "scripts/lib/live_postgres_readiness_gen_render.py"
     local:
       command: "bash scripts/verify-live-postgres-readiness-drift.sh"
       pre_push: floor
-      test_command: "bash scripts/test-generate-live-postgres-readiness.sh"
+      test_command: "python3 scripts/test-live-postgres-readiness-child-env.py && bash scripts/test-generate-live-postgres-readiness.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify live-readiness registration drift gate"

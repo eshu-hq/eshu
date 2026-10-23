@@ -142,22 +142,6 @@ tests:
     tag: live_nornicdb_answer_truth
     class: ci
     reason: "deterministic nonce-scoped #7306 retract-scope proof through the real DeployableUnitCorrelationHandler and EdgeWriter; a matching and a foreign-keyed deployable_unit_correlation intent in both orders and racing (10 trials) must leave only the admitted CORRELATES_DEPLOYABLE_UNIT edge, a foreign-keyed intent must change nothing, and a matching intent must retract a disappeared edge; local neo4j:2026-community runs took 1.11s warm and 19.2s with a cold schema apply on a shared host; runs on both backends in the live-backend CI job"
-  - file: go/internal/reducer/freshness/links/lock_timeout_live_test.go
-    tag: ~
-    class: scheduled
-    reason: changed-since runner non-counting generation_lock_timeout (#7127 PR-3e, arbiter ruling arb-7127-3e-wait W5, G16b extended) with its planted RED classifier; untagged and gated by env Skip; about 5s
-  - file: go/internal/reducer/freshness/links/process_live_test.go
-    tag: ~
-    class: scheduled
-    reason: changed-since link runner two-process race proof (#7127 PR-3a gates G9/G16d), spawns two copies of the compiled test binary against one cloned database; gated by env Skip; unmeasured in the CI lane -- promote to blocking with timing evidence
-  - file: go/internal/reducer/freshness/links/retention_process_live_test.go
-    tag: ~
-    class: scheduled
-    reason: changed-since ledger retention against the link runner and a non-key updater in OS processes of the test binary (#7127 PR-3d P7, PR-3e W10 of arbiter ruling arb-7127-3e-wait), untagged and gated by env Skip; about 15-25s; scheduled, never blocking
-  - file: go/internal/reducer/freshness/links/runner_live_test.go
-    tag: ~
-    class: scheduled
-    reason: changed-since link runner poison and non-counting proofs (#7127 PR-3a gates G12/G16a/G16b), each with its planted RED; gated by env Skip; unmeasured in the CI lane -- promote to blocking with timing evidence
   - file: go/internal/reducer/provenance_replay_tombstone_live_test.go
     tag: ~
     class: scheduled

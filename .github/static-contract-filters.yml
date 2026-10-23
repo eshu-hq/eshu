@@ -487,6 +487,7 @@ readinessderive:
   - 'scripts/lib/test-run-live-postgres-readiness-seed-cases.sh'
   - 'scripts/lib/tooling-line-cap-core.sh'
   - 'scripts/test-generate-live-postgres-readiness.sh'
+  - 'scripts/test-live-postgres-readiness-child-env.py'
   - 'scripts/verify-live-postgres-readiness-drift.sh'
   - 'scripts/lib/live_postgres_readiness_gen_scan.py'
   - 'scripts/lib/live_postgres_readiness_gen_render.py'
