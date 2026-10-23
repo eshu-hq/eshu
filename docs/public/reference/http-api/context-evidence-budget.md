@@ -72,3 +72,16 @@ returns 400 `invalid_argument` before any read runs.
   `resolved_id`.
 - Under `handles` the index is dropped, so reaching an artifact row beyond the
   50 shipped, or any dropped value, takes a call with `evidence_detail: full`.
+
+## Service investigation repository count
+
+`GET /api/v0/investigations/services/{service_name}` cuts `repositories_considered`
+to 50 rows and closes a cut list with one `__truncated__` marker row.
+`coverage_summary.repository_count` is the true number of repositories before
+that cut, and it never counts the marker. `coverage_summary.repositories_truncated`
+is `true` when the list was cut, so a caller reads one field instead of scanning
+rows for the marker: 120 repositories report `120` and `true`, exactly 50 report
+`50` and `false`, and 51 report `51` and `true`.
+`repositories_with_evidence_count` counts only the rows returned, so it can be
+lower than `repository_count` when the list was cut. `coverage_summary.truncated`
+stays the combined flag and is also `true` when `repositories_truncated` is.

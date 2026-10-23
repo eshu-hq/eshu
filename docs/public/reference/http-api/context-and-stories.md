@@ -403,18 +403,6 @@ report `downstream_read_limit`, the bound that actually fires on the
 downstream lists (25 by default). Read it rather than `result_limits.limit` or
 `coverage_summary.result_limit`, which report the 50-row rendering cap.
 
-On the service investigation route, `coverage_summary.repository_count` is the
-true number of repositories considered, taken before that 50-row cap. It never
-counts the `__truncated__` marker row that closes a cut `repositories_considered`
-list. `coverage_summary.repositories_truncated` is `true` when that list was
-cut, so a caller reads one field instead of scanning rows for the marker: 120
-repositories report `repository_count: 120` and `repositories_truncated: true`,
-exactly 50 report `50` and `false`, and 51 report `51` and `true`.
-`repositories_with_evidence_count` counts only the rows returned, so it can be
-lower than the true count when the list was cut.
-`coverage_summary.truncated` stays the combined flag: it is also `true` when
-`repositories_truncated` is.
-
 `downstream_read_limit` is not the only bound behind `truncated`, though.
 `dependents_truncated` and `provisioning_source_chains_truncated` reflect the
 provisioning-candidate graph read alone, so when either one drives
