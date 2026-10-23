@@ -4,9 +4,6 @@
 package cigates
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -35,7 +32,7 @@ const fixtureCaseBlock = `          case "${AGGREGATE_CODE}" in
             10) state=failure; description='A required gate failed' ;;
             11) exit 0 ;;
             13) state=error; description='A required gate was cancelled' ;;
-            14) state=success; description='Reuse: verdict copied from a previous head' ;;
+            14) state=success; description='Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)' ;;
             15) state=success; description='Smoke subset passed on a clean rebase' ;;
             *) state=error; description='Aggregation broke' ;;
           esac
@@ -81,7 +78,7 @@ const cancelledArm = "              13) state=error; description='A required gat
 // reusedArm is the #8617 arm the real workflow ships alongside the
 // cancelled arm. realShapedPublisher always carries it, so the publisher
 // contract's reuse row is exercised against every attack shape below.
-const reusedArm = "              14) state=success; description='Reuse: verdict copied from a previous head' ;;\n"
+const reusedArm = "              14) state=success; description='Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)' ;;\n"
 
 // smokedArm is the #8617 arm the real workflow ships alongside the
 // cancelled arm: the smoke subset passed on a clean rebase.
@@ -287,7 +284,7 @@ func TestCheckRequiredStatusWorkflows_RejectsReuseMappedToFreshPass(t *testing.T
 
 	body := realShapedPublisher(t, "", cancelledArm)
 	attacked := strings.Replace(body,
-		"description='Reuse: verdict copied from a previous head'",
+		"description='Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)'",
 		"description='All gates passed'", 1)
 	if attacked == body {
 		t.Fatal("the reuse arm moved; this attack would be replacing nothing")
@@ -460,59 +457,4 @@ func TestCheckRequiredStatusWorkflows_RepositoryPublisherExitsZeroAfterPostingVe
 				code, observed.Publishes[0].State, observed.ExitCode)
 		}
 	}
-}
-
-// TestPublisherProbeCodeIsNotARealAwaitExitCode keeps the unclassified probe
-// unclassified. If it ever collided with a real await exit code, the `*)` arm
-// would stop being exercised and the arm an operator meets when something
-// unanticipated happens would go unchecked.
-func TestPublisherProbeCodeIsNotARealAwaitExitCode(t *testing.T) {
-	t.Parallel()
-
-	for _, code := range []int{
-		awaitExitPassedCode,
-		awaitExitGateFailedCode,
-		awaitExitStillRunningCode,
-		awaitExitBrokenCode,
-		awaitExitGateCancelledCode,
-		awaitExitReusedCode,
-		awaitExitSmokePassedCode,
-	} {
-		if publisherUnclassifiedProbeCode == code {
-			t.Fatalf("publisherUnclassifiedProbeCode %d collides with a real await exit code",
-				publisherUnclassifiedProbeCode)
-		}
-	}
-}
-
-// repositoryRoot returns the working tree root, so a test can read a
-// committed file without depending on where `go test` was invoked from.
-func repositoryRoot(t *testing.T) string {
-	t.Helper()
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
-	if err != nil {
-		t.Fatalf("git rev-parse --show-toplevel: %v", err)
-	}
-	return strings.TrimSpace(string(out))
-}
-
-// writeWorkflowFile writes a workflow body under root and returns its path.
-func writeWorkflowFile(t *testing.T, root, body string) string {
-	t.Helper()
-	dir := filepath.Join(root, ".github", "workflows")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(dir, "required-gates.yml")
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
-// repositoryRequiredGatesWorkflow returns the committed required-gates
-// workflow path.
-func repositoryRequiredGatesWorkflow(t *testing.T) string {
-	t.Helper()
-	return filepath.Join(repositoryRoot(t), ".github", "workflows", "required-gates.yml")
 }

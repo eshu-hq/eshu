@@ -134,11 +134,18 @@ func probeReuse(ctx context.Context, runner ghRunner, repo string, pr int, headS
 			return reuseVerdict{}, err
 		}
 		if green {
+			fullBacked, err := candidateRanFull(ctx, runner, repo, candidate)
+			if err != nil {
+				return reuseVerdict{}, err
+			}
+			if !fullBacked {
+				continue
+			}
 			return reuseVerdict{
 				Reuse:     true,
 				SourceSHA: candidate,
 				Tree:      head.Tree.SHA,
-				Reason:    "identical tree already green on every required context",
+				Reason:    "identical tree has a full-backed green verdict on every required context",
 			}, nil
 		}
 	}
@@ -163,8 +170,8 @@ func gitCommit(ctx context.Context, runner ghRunner, repo, sha string) (gitCommi
 	if err := json.Unmarshal(out, &commit); err != nil {
 		return gitCommitResponse{}, fmt.Errorf("parse commit %s: %w", sha, err)
 	}
-	if commit.Tree.SHA == "" {
-		return gitCommitResponse{}, fmt.Errorf("commit %s carries no tree", sha)
+	if !commitSHAPattern.MatchString(commit.Tree.SHA) {
+		return gitCommitResponse{}, fmt.Errorf("commit %s carries no valid tree SHA", sha)
 	}
 	return commit, nil
 }

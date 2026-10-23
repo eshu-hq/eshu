@@ -181,7 +181,8 @@ func publishedOutcomeErrors(check RequiredStatusCheck, want publisherOutcome, ob
 // must carry a description, and whatever the publisher says about one outcome
 // it must not say about another.
 //
-// Distinctness, deliberately, rather than any required phrase. An earlier
+// Distinctness for ordinary outcomes, plus an exact v2 reuse provenance
+// sentence. An earlier
 // draft also required the cancelled outcome's description to contain
 // "cancel". That is a wording pin: rewording a description is ordinary
 // maintenance, and the draft turned it into a red -- caught by a positive
@@ -205,7 +206,8 @@ func publishedOutcomeErrors(check RequiredStatusCheck, want publisherOutcome, ob
 // argument over -- "A required gate failed" posted for a head where nothing
 // failed. Observation catches it without naming a spelling, because a literal
 // produces the SAME sentence for every arm. Distinctness is checked rather
-// than any particular wording, so the workflow's prose can be reworded freely.
+// than any particular wording for ordinary outcomes. Code 14 is pinned because
+// smoke consumes its versioned description as full-backed evidence.
 func publishedDescriptionErrors(check RequiredStatusCheck, descriptions map[int]string) []error {
 	// The `*)` arm serves both the broken code and anything unclassified, so
 	// those two legitimately share a sentence. Compare the arms that must
@@ -226,6 +228,13 @@ func publishedDescriptionErrors(check RequiredStatusCheck, descriptions map[int]
 		// Distinctness over mostly-empty strings would report the same cause
 		// a second time in a less useful shape.
 		return errs
+	}
+	// Code 14 is accepted as a future smoke source. Its versioned text is a
+	// provenance assertion, so a generic historical reuse result must never
+	// be published by the new workflow or accepted as full-backed evidence.
+	const fullBackedReuseDescription = "Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)"
+	if descriptions[awaitExitReusedCode] != fullBackedReuseDescription {
+		errs = append(errs, fmt.Errorf("required status context %q: reuse outcome must publish the v2 full-backed provenance description", check.Context))
 	}
 	seen := make(map[string][]int, len(distinct))
 	for _, code := range distinct {

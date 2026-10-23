@@ -374,7 +374,7 @@ jobs:
               # proved this exact tree green on every required context, so
               # the verdict transfers. The await log names the source SHA
               # and tree; this description must not claim the gates ran now.
-              14) state=success; description='Tree-identical reuse: verdict copied from a previous head (see run log)' ;;
+              14) state=success; description='Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)' ;;
               # 15 (#8617 step 5): clean rebase, disjoint base delta; the
               # fast subset ran and passed, heavy verdicts transferred.
               15) state=success; description='Smoke subset passed on a clean rebase; heavy verdicts transferred (see run log)' ;;

@@ -59,7 +59,7 @@ func successRoutes(oldSHA string) []mappedGHRoute {
 		{match: "check-runs?check_name=go-core-complete", output: `[{"check_runs":[{"id":7,"conclusion":"success"}]}]`},
 		{match: "check-runs?check_name=go-race-complete", output: `[{"check_runs":[{"id":3,"conclusion":"failure"}]},{"check_runs":[{"id":9,"conclusion":"success"}]}]`},
 		{match: "check-runs?check_name=required-gates-complete", output: `[{"check_runs":[]}]`},
-		{match: "commits/" + oldSHA + "/statuses", output: `[{"context":"required-gates-complete","state":"success"}]`},
+		{match: "commits/" + oldSHA + "/statuses", output: `[{"context":"required-gates-complete","state":"success","description":"` + fullRunDescription + `"}]`},
 	}
 }
 

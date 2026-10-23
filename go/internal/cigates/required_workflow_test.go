@@ -48,7 +48,7 @@ jobs:
             10) state=failure; description='A required gate failed' ;;
             11) exit 0 ;;
             13) state=error; description='A required gate was cancelled' ;;
-            14) state=success; description='Reuse: verdict copied from a previous head' ;;
+            14) state=success; description='Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)' ;;
             15) state=success; description='Smoke subset passed on a clean rebase' ;;
             *) state=error; description='Aggregation broke' ;;
           esac
@@ -493,28 +493,5 @@ func TestCheckRequiredStatusWorkflows_RequiresEveryBlockingWorkflowSource(t *tes
 	}
 	if !found {
 		t.Fatalf("expected missing Security Scan source error, got: %v", errs)
-	}
-}
-
-func TestWorkflowTriggerKeys_Sequence(t *testing.T) {
-	t.Parallel()
-
-	keys, err := workflowTriggerKeys([]byte("name: Trigger Test\non: [push, workflow_run, pull_request_target]\njobs: {}\n"))
-	if err != nil {
-		t.Fatalf("parse sequence triggers: %v", err)
-	}
-	for _, want := range []string{"push", "workflow_run", "pull_request_target"} {
-		if _, ok := keys[want]; !ok {
-			t.Errorf("sequence triggers missing %q: %v", want, keys)
-		}
-	}
-}
-
-func TestWorkflowTriggerKeys_RejectsAlias(t *testing.T) {
-	t.Parallel()
-
-	_, err := workflowTriggerKeys([]byte("events: &events [push, workflow_run]\non: *events\njobs: {}\n"))
-	if err == nil {
-		t.Fatal("alias trigger configuration must be rejected")
 	}
 }

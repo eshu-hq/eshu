@@ -45,11 +45,19 @@ func probeSmoke(ctx context.Context, runner ghRunner, repo string, pr int, headS
 	if candidate == "" || !commitSHAPattern.MatchString(candidate) {
 		return false, nil
 	}
-	delta, err := compareFiles(ctx, runner, repo, candidate, headSHA)
+	green, err := requiredContextsGreen(ctx, runner, repo, candidate, contexts)
+	if err != nil || !green {
+		return false, err
+	}
+	fullBacked, err := candidateRanFull(ctx, runner, repo, candidate)
+	if err != nil || !fullBacked {
+		return false, err
+	}
+	delta, complete, err := endpointTreeDelta(ctx, runner, repo, candidate, headSHA)
 	if err != nil {
 		return false, err
 	}
-	if delta == nil { // compare truncated: cannot prove disjointness
+	if !complete {
 		return false, nil
 	}
 	changed := make(map[string]bool, len(changedPaths))
@@ -67,11 +75,7 @@ func probeSmoke(ctx context.Context, runner ghRunner, repo string, pr int, headS
 			return false, nil
 		}
 	}
-	green, err := requiredContextsGreen(ctx, runner, repo, candidate, contexts)
-	if err != nil || !green {
-		return green, err
-	}
-	return candidateRanFull(ctx, runner, repo, candidate)
+	return true, nil
 }
 
 // candidateRanFull requires the candidate's aggregating status to name
@@ -86,7 +90,7 @@ func candidateRanFull(ctx context.Context, runner ghRunner, repo, candidate stri
 	}
 	switch description {
 	case "All path-selected blocking gates passed",
-		"Tree-identical reuse: verdict copied from a previous head (see run log)":
+		"Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)":
 		return true, nil
 	}
 	return false, nil
@@ -116,37 +120,91 @@ func latestStatusDescription(ctx context.Context, runner ghRunner, repo, sha, co
 	return "", false, nil
 }
 
-type compareResponse struct {
-	Files []struct {
-		Filename         string `json:"filename"`
-		PreviousFilename string `json:"previous_filename"`
-	} `json:"files"`
+type gitTreeEntry struct {
+	Path string `json:"path"`
+	Mode string `json:"mode"`
+	Type string `json:"type"`
+	SHA  string `json:"sha"`
 }
 
-// compareFiles lists files changed between two commits. A nil slice
-// (with nil error) means the response may be truncated (the request
-// pages at 100 and the API caps compare files at 300), where absence
-// of an overlap cannot be proven.
-func compareFiles(ctx context.Context, runner ghRunner, repo, base, head string) ([]string, error) {
-	out, err := runner.Run(ctx, "api", "repos/"+repo+"/compare/"+base+"..."+head+"?per_page=100")
+type gitTreeResponse struct {
+	Truncated *bool          `json:"truncated"`
+	Tree      []gitTreeEntry `json:"tree"`
+}
+
+// readEndpointTree reads a complete recursive tree. Missing, truncated, or
+// malformed data cannot prove that an apparent path absence is real.
+func readEndpointTree(ctx context.Context, runner ghRunner, repo, treeSHA string) (map[string]gitTreeEntry, bool, error) {
+	out, err := runner.Run(ctx, "api", "repos/"+repo+"/git/trees/"+treeSHA+"?recursive=1")
 	if err != nil {
-		return nil, fmt.Errorf("compare %s...%s: %w", base, head, err)
+		return nil, false, fmt.Errorf("read tree %s: %w", treeSHA, err)
 	}
-	var response compareResponse
+	var response gitTreeResponse
 	if err := json.Unmarshal(out, &response); err != nil {
-		return nil, fmt.Errorf("parse compare %s...%s: %w", base, head, err)
+		return nil, false, fmt.Errorf("parse tree %s: %w", treeSHA, err)
 	}
-	if len(response.Files) >= 100 {
-		return nil, nil
+	if response.Truncated == nil || *response.Truncated || response.Tree == nil {
+		return nil, false, nil
 	}
-	files := make([]string, 0, len(response.Files))
-	for _, file := range response.Files {
-		files = append(files, file.Filename)
-		if file.PreviousFilename != "" {
-			files = append(files, file.PreviousFilename)
+	entries := make(map[string]gitTreeEntry, len(response.Tree))
+	for _, entry := range response.Tree {
+		if entry.Path == "" || strings.HasPrefix(entry.Path, "/") || !commitSHAPattern.MatchString(entry.SHA) || !validTreeEntryMode(entry) {
+			return nil, false, nil
+		}
+		if _, duplicate := entries[entry.Path]; duplicate {
+			return nil, false, nil
+		}
+		entries[entry.Path] = entry
+	}
+	return entries, true, nil
+}
+
+// validTreeEntryMode rejects impossible Git tree type and mode pairs. A
+// malformed entry cannot establish that a protected path is unchanged.
+func validTreeEntryMode(entry gitTreeEntry) bool {
+	switch entry.Type {
+	case "blob":
+		return entry.Mode == "100644" || entry.Mode == "100755" || entry.Mode == "120000"
+	case "tree":
+		return entry.Mode == "040000"
+	case "commit":
+		return entry.Mode == "160000"
+	}
+	return false
+}
+
+// endpointTreeDelta compares the exact endpoint trees, not GitHub's three-dot
+// compare, which includes merge-base history after a rebase. Added and deleted
+// paths are both reported; renames naturally report the old and new path.
+func endpointTreeDelta(ctx context.Context, runner ghRunner, repo, base, head string) ([]string, bool, error) {
+	oldCommit, err := gitCommit(ctx, runner, repo, base)
+	if err != nil {
+		return nil, false, err
+	}
+	newCommit, err := gitCommit(ctx, runner, repo, head)
+	if err != nil {
+		return nil, false, err
+	}
+	oldTree, complete, err := readEndpointTree(ctx, runner, repo, oldCommit.Tree.SHA)
+	if err != nil || !complete {
+		return nil, false, err
+	}
+	newTree, complete, err := readEndpointTree(ctx, runner, repo, newCommit.Tree.SHA)
+	if err != nil || !complete {
+		return nil, false, err
+	}
+	changed := make([]string, 0)
+	for path, old := range oldTree {
+		if next, present := newTree[path]; !present || old.Mode != next.Mode || old.Type != next.Type || old.SHA != next.SHA {
+			changed = append(changed, path)
 		}
 	}
-	return files, nil
+	for path := range newTree {
+		if _, present := oldTree[path]; !present {
+			changed = append(changed, path)
+		}
+	}
+	return changed, true, nil
 }
 
 // smokeSubset keeps the resolved jobs that must still run on a smoke

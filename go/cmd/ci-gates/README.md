@@ -163,10 +163,12 @@ ci-gates reuse \
 
 Prints `reuse`, `source_sha`, `tree`, and `reason` lines. `reuse=true` means a
 previous head of the same PR (the force-pushed-away head, or the first parent)
-has a byte-identical git tree and a success verdict on every required status
-context, so a workflow may transfer that verdict instead of re-running gates
+has a byte-identical git tree, a success verdict on every required status
+context, and a full run or validated v2 reuse provenance, so a workflow may
+transfer that verdict instead of re-running gates
 (#8617). Anything short of that — different tree, a missing or non-success
-context, no candidate — prints `reuse=false` and exits 0; a probe error exits
+context, an old generic reuse or smoke provenance, no candidate — prints
+`reuse=false` and exits 0; a probe error exits
 non-zero and callers must treat it as no reuse. The probe is bounded to two
 minutes.
 
@@ -175,6 +177,14 @@ publisher runs from the default branch, so the pull request that introduces
 a transfer outcome cannot itself ride one. Its landing head must run the
 gates in full, and transfers activate for later heads once the consumer
 has merged.
+
+The clean-rebase smoke probe compares the previous and current head trees
+directly, including path, mode, type, and object SHA. It refuses an
+overlapping PR path, a gate-definition change, or an incomplete recursive
+tree. A full run or validated v2 reuse may supply the prior verdict; a
+smoke result and historical generic reuse cannot start another smoke
+transfer. The recursive trees are fetched only after that prior verdict
+has been verified.
 
 ### await
 
@@ -333,7 +343,7 @@ The exit code is the contract with the `case "${AGGREGATE_CODE}"` arms in
 | `11` | selected gates still running (timeout or superseded run) | nothing; the status stays pending for the next run |
 | `12` | aggregation could not reach a verdict (API error, bad token, unreadable registry) | `error` |
 | `13` | every selected gate is terminal and at least one never produced a verdict (cancelled, stale, skipped by its run's cancellation, or missing because that run was cancelled before the job existed) | `error` |
-| `14` | verdict transferred from a tree-identical previous head (#8617 reuse) | `success`, with a description that names the transfer |
+| `14` | verdict transferred from a tree-identical, full-backed previous head (#8617 reuse) | `success`, with a versioned full-backed description |
 | `15` | fast subset passed on a clean rebase, heavy verdicts transferred (#8617 smoke) | `success`, with a description that names the smoke shape |
 
 Codes start at `10` so a `go build` failure (`1`) or a usage error (`2`) cannot
