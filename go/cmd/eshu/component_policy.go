@@ -44,6 +44,13 @@ func componentPolicyFromFlagsAndEnv(cmd *cobra.Command, getenv func(string) stri
 	provenanceIdentity, _ := cmd.Flags().GetString(componentProvenanceIdentityFlag)
 	provenanceIssuer, _ := cmd.Flags().GetString(componentProvenanceIssuerFlag)
 	provenancePredicateType, _ := cmd.Flags().GetString(componentProvenancePredicateTypeFlag)
+	if !flagPassed(cmd, componentProvenancePredicateTypeFlag) && provenanceIdentity == "" && provenanceIssuer == "" {
+		// The predicate-type flag has a non-empty default. Carrying it alone
+		// would make an unconfigured policy non-zero, and a non-zero policy
+		// re-verifies every installed component in list. A blank value is
+		// equivalent for strict mode, which defaults the predicate itself.
+		provenancePredicateType = ""
+	}
 	policy := component.Policy{
 		Mode:              mode,
 		AllowedIDs:        allowedIDs,
