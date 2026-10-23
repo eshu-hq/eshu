@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import quote
 
 Json = dict[str, Any]
+UNKNOWN_WORKFLOW = "Unknown workflow"
 REPOSITORY = "repos/eshu-hq/eshu"
 REQUIRED_CHECKS = ("go-core-complete", "go-race-complete")
 REQUIRED_STATUS = "required-gates-complete"
@@ -246,8 +247,9 @@ def _suite_counts(node_ids: list[str]) -> dict[str, int | None]:
 def cancellation_cost(start: datetime, end: datetime,
                       census_runs: list[Json]) -> Json:
     """Account for cancelled runs without changing the raw census totals."""
-    expected = {run["databaseId"] for run in census_runs
-                if run.get("conclusion") == "cancelled"}
+    raw_workflows = {run["databaseId"]: run.get("workflowName") or UNKNOWN_WORKFLOW
+                     for run in census_runs if run.get("conclusion") == "cancelled"}
+    expected = raw_workflows.keys()
     fetched = {run["id"]: run for run in _cancelled_runs(start, end)}
     missing = expected - fetched.keys()
     extra = fetched.keys() - expected
@@ -255,8 +257,12 @@ def cancellation_cost(start: datetime, end: datetime,
     suites = _suite_counts(list({run["check_suite_node_id"] for run in matched.values()
                                  if run.get("check_suite_node_id")}))
     categories: Counter[str] = Counter()
+    by_workflow: dict[str, Counter[str]] = {
+        name: Counter() for name in raw_workflows.values()}
     if missing:
         categories["unknown"] = len(missing)
+        for run_id in missing:
+            by_workflow[raw_workflows[run_id]]["unknown"] += 1
     runner_minutes = 0.0
     examples: dict[str, list[int]] = {key: [] for key in
                                       ("zero_job", "executed", "unknown")}
@@ -298,12 +304,16 @@ def cancellation_cost(start: datetime, end: datetime,
             authoritative_count = count
         category, minutes = classify_cancellation(authoritative_count, jobs)
         categories[category] += 1
+        by_workflow[raw_workflows[run["id"]]][category] += 1
         if minutes is not None:
             runner_minutes += minutes
         if len(examples[category]) < 3:
             examples[category].append(run["id"])
     return {"population": "cancelled workflow runs created in window",
             "runs": len(expected), "categories": dict(categories),
+            "by_workflow": {
+                name: {"runs": sum(counts.values()), "categories": dict(counts)}
+                for name, counts in by_workflow.items()},
             "source_drift": {"missing_from_rest": len(missing),
                              "late_cancelled": len(extra)},
             "evidenced_runner_minutes": round(runner_minutes, 2),

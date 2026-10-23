@@ -51,6 +51,12 @@ class TestGhaCensus(unittest.TestCase):
         self.assertEqual(report["by_conclusion"]["cancelled"], 2)
         self.assertAlmostEqual(report["cancelled_share"], 2 / 5)
         self.assertEqual(report["over_60m"], 1)
+        required = report["workflows"]["Required Gates"]
+        self.assertEqual(required["created_runs"], 3)
+        self.assertEqual(required["runs"], 2)
+        self.assertEqual(required["cancelled_runs"], 1)
+        self.assertEqual(required["by_conclusion"],
+                         {"cancelled": 1, "success": 1})
 
     def test_workflow_durations(self):
         report = aggregate(FIXTURE)
@@ -63,13 +69,36 @@ class TestGhaCensus(unittest.TestCase):
         self.assertEqual(build["p95_minutes"], 90.0)
         self.assertEqual(build["max_minutes"], 90.0)
 
+    def test_created_only_workflow_has_no_invented_duration(self):
+        pending = [run(7, "Pending Only", None, "2026-10-19T04:00:00Z",
+                       "2026-10-19T04:00:30Z", status="in_progress")]
+        report = aggregate(pending)
+        stats = report["workflows"]["Pending Only"]
+        self.assertEqual(stats["created_runs"], 1)
+        self.assertEqual(stats["runs"], 0)
+        self.assertNotIn("p50_minutes", stats)
+        rendered = render_markdown(report, "start", "end")
+        self.assertIn("| Pending Only | 1 | 0 | 0 | 0 | — | — | — |",
+                      rendered)
+
     def test_render_names_the_numbers(self):
-        text = render_markdown(aggregate(FIXTURE), "2026-10-18T00:00:00Z",
+        report = aggregate(FIXTURE)
+        report["cancellation_cost"] = {
+            "runs": 2, "categories": {"zero_job": 1, "unknown": 1},
+            "evidenced_runner_minutes": 0, "job_budget_exhausted": 0,
+            "source_drift": {"missing_from_rest": 0, "late_cancelled": 0},
+            "by_workflow": {"Required Gates": {
+                "runs": 1, "categories": {"zero_job": 1}}},
+            "completeness": "partial",
+        }
+        text = render_markdown(report, "2026-10-18T00:00:00Z",
                                "2026-10-19T00:00:00Z")
         self.assertIn("6 runs", text)
         self.assertIn("Build Test", text)
         self.assertIn("40.0%", text)
         self.assertIn("P95 min", text)
+        self.assertIn("Required Gates: 3 created, 1 cancelled", text)
+        self.assertIn("1 zero-job, 0 executed, 0 unknown", text)
 
     def test_required_green_header_describes_publisher_kind(self):
         report = aggregate(FIXTURE)
@@ -171,6 +200,7 @@ class TestMalformedRows(unittest.TestCase):
         report = aggregate(rows)
         self.assertEqual(report["total"], 8)
         self.assertEqual(report["malformed_rows"], 1)
+        self.assertEqual(report["workflows"]["Unknown workflow"]["created_runs"], 1)
 
 
 class TestFetchWindow(unittest.TestCase):

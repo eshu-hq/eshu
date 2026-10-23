@@ -20,7 +20,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Sequence
 
-from gha_census_enrichment import cancellation_cost, percentile, required_green
+from gha_census_enrichment import (UNKNOWN_WORKFLOW, cancellation_cost,
+                                   percentile, required_green)
 
 Run = dict[str, Any]
 
@@ -60,21 +61,31 @@ def aggregate(runs: Sequence[Run]) -> dict[str, Any]:
     Returns:
         A JSON-serializable dict with totals, conclusion counts, the
         cancelled share of completed runs, the count of completed runs
-        over 60 minutes, and per-workflow stats.
+        over 60 minutes, and per-workflow created and completed counts.
     """
-    # One malformed row must not abort the census: it is counted in the
-    # totals but excluded from per-workflow stats, and named in the report.
+    # Keep malformed rows in the raw and created counts. Completed-run
+    # durations still require a workflow name.
     malformed = sum(1 for r in runs if not r.get("workflowName"))
     named = [r for r in runs if r.get("workflowName")]
     completed = [r for r in named if r.get("status") == "completed"]
     by_conclusion = Counter(r.get("conclusion") or "none" for r in completed)
     workflows: dict[str, dict[str, Any]] = {}
+    for run in runs:
+        name = run.get("workflowName") or UNKNOWN_WORKFLOW
+        stats = workflows.setdefault(name, {"created_runs": 0, "runs": 0,
+                                            "cancelled_runs": 0, "failures": 0,
+                                            "by_conclusion": {}})
+        stats["created_runs"] += 1
+        if run.get("conclusion") == "cancelled":
+            stats["cancelled_runs"] += 1
     durations: dict[str, list[float]] = {}
     over_60m = 0
     for run in completed:
-        stats = workflows.setdefault(
-            run["workflowName"], {"runs": 0, "failures": 0})
+        stats = workflows[run["workflowName"]]
         stats["runs"] += 1
+        conclusion = run.get("conclusion") or "none"
+        stats["by_conclusion"][conclusion] = (
+            stats["by_conclusion"].get(conclusion, 0) + 1)
         if run.get("conclusion") == "failure":
             stats["failures"] += 1
         minutes = _minutes(run)
@@ -115,18 +126,20 @@ def render_markdown(report: dict[str, Any], start: str, end: str) -> str:
     if report.get("malformed_rows"):
         lines.append(
             f"WARNING: {report['malformed_rows']} row(s) had no workflow "
-            "name and are excluded from per-workflow stats.")
+            "name; created/cancelled counts use Unknown workflow, while "
+            "completed-run stats exclude them.")
     lines += [
         "",
-        "| Workflow | Runs | Failures | P50 min | P95 min | Max min |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| Workflow | Created | Completed | Cancelled | Failures | P50 min | P95 min | Max min |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     ranked = sorted(
         report["workflows"].items(),
         key=lambda item: item[1].get("median_minutes", 0.0), reverse=True)
-    for name, stats in ranked[:15]:
+    for name, stats in ranked:
         lines.append(
-            f"| {name} | {stats['runs']} | {stats['failures']} | "
+            f"| {name} | {stats['created_runs']} | {stats['runs']} | "
+            f"{stats['cancelled_runs']} | {stats['failures']} | "
             f"{stats.get('p50_minutes', '—')} | "
             f"{stats.get('p95_minutes', '—')} | "
             f"{stats.get('max_minutes', '—')} |")
@@ -136,6 +149,19 @@ def render_markdown(report: dict[str, Any], start: str, end: str) -> str:
     if failures:
         lines += ["", "Failures by workflow: " + ", ".join(
             f"{name} {count}" for count, name in failures[:8]) + "."]
+    required = report["workflows"].get("Required Gates", {})
+    lines += ["", "### Required Gates window counts",
+              f"Required Gates: {required.get('created_runs', 0)} created, "
+              f"{required.get('cancelled_runs', 0)} cancelled, "
+              f"{required.get('runs', 0)} completed."]
+    cost = report.get("cancellation_cost", {})
+    if cost.get("completeness") == "failed":
+        lines.append("Cancellation classification unavailable: enrichment failed.")
+    elif cost.get("by_workflow") is not None:
+        counts = cost["by_workflow"].get("Required Gates", {}).get("categories", {})
+        lines.append(f"{counts.get('zero_job', 0)} zero-job, "
+                     f"{counts.get('executed', 0)} executed, "
+                     f"{counts.get('unknown', 0)} unknown cancellations.")
     green = report.get("required_green")
     if green:
         if green.get("completeness") == "failed":

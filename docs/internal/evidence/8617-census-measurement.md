@@ -56,3 +56,15 @@ A failed or incomplete jobs page affects only that cancelled run: it becomes
 `unknown`, the request counts against the enrichment budget, and the JSON
 records `job_fetch_errors` plus up to three bounded examples with run IDs and
 error reasons. The Markdown report warns about these failed fetches.
+
+Future reports also separate each workflow's `created_runs` from its existing
+completed-only `runs` and duration percentiles. `cancelled_runs` counts raw runs
+whose conclusion is cancelled, and `by_conclusion` counts named completed runs
+only.
+The cancellation section's `by_workflow` groups zero-job, executed, and unknown
+classifications by the raw run's workflow name; a missing name uses `Unknown
+workflow`. The groups include raw cancellations missing from REST as unknown
+and exclude later REST cancellations from the raw snapshot. The Markdown table
+shows all workflows, including those with only created runs and no duration
+sample, and a separate Required Gates line shows its window counts and classes.
+These counters are absent from the earlier committed measurement artifacts.
