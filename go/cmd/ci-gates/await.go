@@ -69,12 +69,12 @@ func runAwait(args []string) error {
 	if verdict, probeErr := probeReuseForAwait(ctx, runner, reg, *repo, *pr, *headSHA); probeErr != nil {
 		_, _ = fmt.Fprintf(os.Stdout, "required-gates: reuse probe failed (%v); awaiting gates normally\n", probeErr)
 	} else if verdict.Reuse {
-		_, _ = fmt.Fprintf(os.Stdout, "required-gates: reuse source=%s tree=%s (%s)\n", verdict.SourceSHA, verdict.Tree, verdict.Reason)
-		if err := verifyPRHead(ctx, runner, *repo, *pr, *headSHA); err != nil {
+		transferred, err := transferProvenReuse(ctx, runner, root, *repo, *pr, *headSHA, *pollInterval, verdict)
+		if transferred || err != nil {
 			return err
 		}
-		return fmt.Errorf("%w: source %s tree %s", errReuseProven, verdict.SourceSHA, verdict.Tree)
 	}
+
 	paths, truncated, err := changedPathsForPR(ctx, runner, *repo, *pr)
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func runAwait(args []string) error {
 		if smokeErr != nil {
 			_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke probe failed (%v); awaiting full selection\n", smokeErr)
 		} else if applied {
-			if subset := smokeSubset(reg, resolved); len(subset) == 0 {
+			if subset := smokeSubset(reg, resolved); !smokeHasFastWork(subset) {
 				_, _ = fmt.Fprintln(os.Stdout, "required-gates: smoke subset empty (all-heavy selection); awaiting full selection")
 			} else {
 				smoke = true
@@ -140,6 +140,13 @@ func selectRequiredGates(reg *cigates.Registry, root string, paths []string, tru
 	resolved, err := resolveRequiredGateWorkflows(root, required)
 	if err != nil {
 		return nil, err
+	}
+	planner, active, err := requiredPlannerGate(root)
+	if err != nil {
+		return nil, err
+	}
+	if active {
+		resolved = append(resolved, planner)
 	}
 	_, _ = fmt.Fprintf(os.Stdout, "required-gates: selected %d blocking workflow job(s) for %d changed path(s) (truncated=%v)\n", len(resolved), len(paths), truncated)
 	return resolved, nil

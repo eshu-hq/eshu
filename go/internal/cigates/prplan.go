@@ -16,15 +16,16 @@ import (
 // PRWorkflowDefinition is the trusted, parsed pull-request scheduling contract
 // for one workflow. Synchronize is false for opened-only and labeled-only jobs.
 type PRWorkflowDefinition struct {
-	File           string
-	Name           string
-	Synchronize    bool
-	Branches       []string
-	BranchesIgnore []string
-	Paths          []string
-	PathsIgnore    []string
-	Jobs           []string
-	JobNames       map[string]string
+	File           string              `yaml:"file"`
+	Name           string              `yaml:"name"`
+	Synchronize    bool                `yaml:"synchronize"`
+	Branches       []string            `yaml:"branches"`
+	BranchesIgnore []string            `yaml:"branches_ignore"`
+	Paths          []string            `yaml:"paths"`
+	PathsIgnore    []string            `yaml:"paths_ignore"`
+	Jobs           []string            `yaml:"jobs"`
+	JobNames       map[string]string   `yaml:"job_names"`
+	JobNeeds       map[string][]string `yaml:"-"`
 }
 
 // PlanPRWorkflows selects local job IDs from trusted workflow definitions.
@@ -61,6 +62,13 @@ func PlanPRWorkflows(defs []PRWorkflowDefinition, paths []string, truncated bool
 			if !slices.Contains(planned[def.File], job) {
 				planned[def.File] = append(planned[def.File], job)
 			}
+		}
+		if len(planned[def.File]) > 0 {
+			closed, err := closeSmokeJobNeeds(def, planned[def.File])
+			if err != nil {
+				return nil, err
+			}
+			planned[def.File] = closed
 		}
 	}
 	if mode == "smoke" {
@@ -175,7 +183,8 @@ func ParsePRWorkflowDefinition(file string, raw []byte) (PRWorkflowDefinition, b
 		Name string    `yaml:"name"`
 		On   yaml.Node `yaml:"on"`
 		Jobs map[string]struct {
-			Name string `yaml:"name"`
+			Name  string    `yaml:"name"`
+			Needs yaml.Node `yaml:"needs"`
 		} `yaml:"jobs"`
 	}
 	if err := yaml.Unmarshal(raw, &wf); err != nil {
@@ -188,7 +197,7 @@ func ParsePRWorkflowDefinition(file string, raw []byte) (PRWorkflowDefinition, b
 	if err != nil || !present {
 		return PRWorkflowDefinition{}, false, err
 	}
-	def := PRWorkflowDefinition{File: file, Name: wf.Name, Synchronize: true, JobNames: make(map[string]string)}
+	def := PRWorkflowDefinition{File: file, Name: wf.Name, Synchronize: true, JobNames: make(map[string]string), JobNeeds: make(map[string][]string)}
 	if pull.Kind == yaml.MappingNode {
 		var event struct {
 			Types          []string `yaml:"types"`
@@ -222,6 +231,11 @@ func ParsePRWorkflowDefinition(file string, raw []byte) (PRWorkflowDefinition, b
 	for job, value := range wf.Jobs {
 		def.Jobs = append(def.Jobs, job)
 		def.JobNames[job] = value.Name
+		needs, err := parsePRJobNeeds(&value.Needs)
+		if err != nil {
+			return PRWorkflowDefinition{}, false, fmt.Errorf("workflow %s job %s needs: %w", file, job, err)
+		}
+		def.JobNeeds[job] = needs
 	}
 	sort.Strings(def.Jobs)
 	if len(def.Jobs) == 0 {
@@ -252,4 +266,102 @@ func pullRequestNode(on *yaml.Node) (*yaml.Node, bool, error) {
 		return nil, false, fmt.Errorf("unsupported workflow trigger shape")
 	}
 	return nil, false, nil
+}
+
+// SelectPRGateIDs names the registry rows whose CI cells the plan may run.
+// Jobs alone cannot distinguish matrix cells sharing one local job ID. Full
+// mode keeps every path-selected row of an applicable workflow; smoke keeps
+// only fast rows mapped to one selected local job; reuse keeps none.
+func SelectPRGateIDs(reg *Registry, defs []PRWorkflowDefinition, paths []string, truncated bool, mode string, jobs map[string][]string) ([]string, error) {
+	ids := make([]string, 0)
+	if mode == "reuse" {
+		return ids, nil
+	}
+	if mode != "full" && mode != "smoke" {
+		return nil, fmt.Errorf("unsupported PR gate plan mode %q", mode)
+	}
+	defByFile := make(map[string]PRWorkflowDefinition, len(defs))
+	for _, def := range defs {
+		defByFile[def.File] = def
+	}
+	for _, gate := range reg.Gates {
+		workflow := gate.CI.Workflow
+		if workflow == "" || len(jobs[workflow]) == 0 || !truncated && !gateMatchesAnyPath(gate, paths) {
+			continue
+		}
+		if gate.CI.Job == "" {
+			return nil, fmt.Errorf("gate %q has a workflow but no local job owner", gate.ID)
+		}
+		if mode == "smoke" {
+			if gate.Tier != TierPreCommit && gate.Tier != TierPrePush {
+				continue
+			}
+			def, ok := defByFile[workflow]
+			if !ok {
+				return nil, fmt.Errorf("smoke workflow %s is absent from trusted definitions", workflow)
+			}
+			localID := ""
+			for _, job := range def.Jobs {
+				if job == gate.CI.Job || def.JobNames[job] == gate.CI.Job {
+					if localID != "" {
+						return nil, fmt.Errorf("smoke gate %s has ambiguous local job", gate.ID)
+					}
+					localID = job
+				}
+			}
+			if localID == "" {
+				return nil, fmt.Errorf("smoke gate %s has no known local job", gate.ID)
+			}
+			if !slices.Contains(jobs[workflow], localID) {
+				continue
+			}
+		}
+		ids = append(ids, gate.ID)
+	}
+	sort.Strings(ids)
+	return ids, nil
+}
+
+func closeSmokeJobNeeds(def PRWorkflowDefinition, selected []string) ([]string, error) {
+	included := make(map[string]bool)
+	visiting := make(map[string]bool)
+	visited := make(map[string]bool)
+	var visit func(string) error
+	visit = func(job string) error {
+		if visiting[job] {
+			return fmt.Errorf("smoke workflow %s has a job dependency cycle at %s", def.File, job)
+		}
+		if visited[job] {
+			return nil
+		}
+		if !slices.Contains(def.Jobs, job) {
+			return fmt.Errorf("smoke workflow %s needs unknown job %s", def.File, job)
+		}
+		visiting[job] = true
+		included[job] = true
+		// These required-status aggregates intentionally accept transferred
+		// heavy results. Their `if: always()` jobs may need a skipped heavy
+		// job, but selecting that job would run the heavy lane again.
+		if def.File != "test.yml" || (job != "go-core-complete" && job != "go-race-complete") {
+			for _, dependency := range def.JobNeeds[job] {
+				if err := visit(dependency); err != nil {
+					return err
+				}
+			}
+		}
+		visiting[job] = false
+		visited[job] = true
+		return nil
+	}
+	for _, job := range selected {
+		if err := visit(job); err != nil {
+			return nil, err
+		}
+	}
+	closed := make([]string, 0, len(included))
+	for job := range included {
+		closed = append(closed, job)
+	}
+	sort.Strings(closed)
+	return closed, nil
 }

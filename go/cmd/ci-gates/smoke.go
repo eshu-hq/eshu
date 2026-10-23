@@ -28,54 +28,66 @@ import (
 // heavy verdicts transfer at most once from a fully run tree — the
 // fast subset still runs on the new tree, and the full set re-runs on
 // the merge result via Main Health, where a miss surfaces.
+type smokeEvidence struct {
+	Applied   bool
+	SourceSHA string
+	Tree      string
+}
+
 func probeSmoke(ctx context.Context, runner ghRunner, repo string, pr int, headSHA string, changedPaths, contexts []string) (bool, error) {
+	verdict, err := probeSmokeEvidence(ctx, runner, repo, pr, headSHA, changedPaths, contexts)
+	return verdict.Applied, err
+}
+
+// probeSmokeEvidence binds a smoke decision to its full-backed source and the
+// current head tree. The scheduler needs both to publish transferred aggregates.
+func probeSmokeEvidence(ctx context.Context, runner ghRunner, repo string, pr int, headSHA string, changedPaths, contexts []string) (smokeEvidence, error) {
 	if !validRepoName(repo) {
-		return false, fmt.Errorf("invalid --repo %q", repo)
+		return smokeEvidence{}, fmt.Errorf("invalid --repo %q", repo)
 	}
 	if !commitSHAPattern.MatchString(headSHA) {
-		return false, fmt.Errorf("invalid --head-sha %q", headSHA)
+		return smokeEvidence{}, fmt.Errorf("invalid --head-sha %q", headSHA)
 	}
 	if len(contexts) == 0 {
-		return false, fmt.Errorf("no required status contexts to transfer against")
+		return smokeEvidence{}, fmt.Errorf("no required status contexts to transfer against")
 	}
 	candidate, err := forcePushBefore(ctx, runner, repo, pr, headSHA)
 	if err != nil {
-		return false, err
+		return smokeEvidence{}, err
 	}
 	if candidate == "" || !commitSHAPattern.MatchString(candidate) {
-		return false, nil
+		return smokeEvidence{}, nil
 	}
 	green, err := requiredContextsGreen(ctx, runner, repo, candidate, contexts)
 	if err != nil || !green {
-		return false, err
+		return smokeEvidence{}, err
 	}
 	fullBacked, err := candidateRanFull(ctx, runner, repo, candidate)
 	if err != nil || !fullBacked {
-		return false, err
+		return smokeEvidence{}, err
 	}
 	delta, complete, err := endpointTreeDelta(ctx, runner, repo, candidate, headSHA)
 	if err != nil {
-		return false, err
+		return smokeEvidence{}, err
 	}
 	if !complete {
-		return false, nil
+		return smokeEvidence{}, nil
 	}
 	changed := make(map[string]bool, len(changedPaths))
 	for _, path := range changedPaths {
 		changed[path] = true
 	}
 	for _, file := range delta {
-		// Gate-definition surfaces refuse transfer too: a workflow,
-		// registry, or gate-script change means the old verdicts were
-		// produced by different definitions than the new tree would run.
-		if strings.HasPrefix(file, ".github/") ||
-			strings.HasPrefix(file, "specs/ci-gates") ||
-			strings.HasPrefix(file, "scripts/") ||
-			changed[file] {
-			return false, nil
+		if strings.HasPrefix(file, ".github/") || strings.HasPrefix(file, "specs/ci-gates") ||
+			strings.HasPrefix(file, "specs/ci-pr-workflows.d/") || strings.HasPrefix(file, "scripts/") || changed[file] {
+			return smokeEvidence{}, nil
 		}
 	}
-	return true, nil
+	head, err := gitCommit(ctx, runner, repo, headSHA)
+	if err != nil {
+		return smokeEvidence{}, err
+	}
+	return smokeEvidence{Applied: true, SourceSHA: candidate, Tree: head.Tree.SHA}, nil
 }
 
 // candidateRanFull requires the candidate's aggregating status to name
@@ -235,6 +247,18 @@ func smokeKeeps(tiers map[string]cigates.Tier, gateIDs []string) bool {
 		if tier == cigates.TierPreCommit || tier == cigates.TierPrePush {
 			return true
 		}
+	}
+	return false
+}
+
+// smokeHasFastWork excludes the central planning check from the fast proof.
+// The planner must pass, but planner-only success cannot transfer heavy gates.
+func smokeHasFastWork(subset []resolvedRequiredGate) bool {
+	for _, gate := range subset {
+		if len(gate.GateIDs) == 1 && gate.GateIDs[0] == "central-pr-plan" {
+			continue
+		}
+		return true
 	}
 	return false
 }

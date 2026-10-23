@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ type prPlan struct {
 	Tree          string              `json:"tree,omitempty"`
 	Workflows     []string            `json:"workflows"`
 	Jobs          map[string][]string `json:"jobs"`
+	Gates         []string            `json:"gates"`
 	Reason        string              `json:"reason"`
 }
 
@@ -112,10 +114,74 @@ func trustedPRWorkflowDefinitions(root string) ([]cigates.PRWorkflowDefinition, 
 			defs = append(defs, def)
 		}
 	}
+	seen := make(map[string]bool, len(defs))
+	for _, def := range defs {
+		seen[def.File] = true
+	}
+	callable, _, err := trustedCallablePRWorkflowDefinitions(root, seen)
+	if err != nil {
+		return nil, err
+	}
+	defs = append(defs, callable...)
 	if len(defs) == 0 {
-		return nil, fmt.Errorf("trusted checkout has no pull_request workflow")
+		return nil, fmt.Errorf("trusted checkout has no PR workflow definition")
 	}
 	return defs, nil
+}
+
+func trustedCallablePRWorkflowDefinitions(root string, seen map[string]bool) ([]cigates.PRWorkflowDefinition, bool, error) {
+	dir := filepath.Join(root, "specs", "ci-pr-workflows.d")
+	info, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("stat PR plan fragments: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, false, fmt.Errorf("PR plan fragments path is not a directory")
+	}
+	paths, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
+	if err != nil {
+		return nil, false, err
+	}
+	ymlPaths, err := filepath.Glob(filepath.Join(dir, "*.yml"))
+	if err != nil {
+		return nil, false, err
+	}
+	paths = append(paths, ymlPaths...)
+	sort.Strings(paths)
+	if len(paths) == 0 {
+		return nil, true, fmt.Errorf("PR plan fragment directory is empty")
+	}
+	var defs []cigates.PRWorkflowDefinition
+	for _, path := range paths {
+		raw, err := os.ReadFile(path) // #nosec G304 -- trusted fragment path from a confined glob
+		if err != nil {
+			return nil, true, err
+		}
+		rows, err := cigates.ParsePRPlanFragment(raw)
+		if err != nil {
+			return nil, true, fmt.Errorf("fragment %s: %w", filepath.Base(path), err)
+		}
+		for _, row := range rows {
+			if seen[row.File] {
+				return nil, true, fmt.Errorf("duplicate direct/callable PR workflow %s", row.File)
+			}
+			seen[row.File] = true
+			workflowPath := filepath.Join(root, ".github", "workflows", row.File)
+			workflowRaw, err := os.ReadFile(workflowPath) // #nosec G304 -- fragment filename is basename-validated
+			if err != nil {
+				return nil, true, fmt.Errorf("read callable %s: %w", row.File, err)
+			}
+			def, err := cigates.ValidateCallablePRWorkflow(row, workflowRaw)
+			if err != nil {
+				return nil, true, err
+			}
+			defs = append(defs, def)
+		}
+	}
+	return defs, true, nil
 }
 
 func buildPRPlan(ctx context.Context, runner ghRunner, reg *cigates.Registry, defs []cigates.PRWorkflowDefinition, repo string, pr int, headSHA string) (prPlan, error) {
@@ -130,13 +196,31 @@ func buildPRPlan(ctx context.Context, runner ghRunner, reg *cigates.Registry, de
 	if err != nil {
 		return prPlan{}, err
 	}
+	var required []cigates.RequiredGate
+	if truncated {
+		required, err = reg.AllBlockingGates()
+	} else {
+		required, err = reg.RequiredGates(paths)
+	}
+	if err != nil {
+		return prPlan{}, err
+	}
+	known := make(map[string]bool, len(defs))
+	for _, def := range defs {
+		known[def.File] = true
+	}
+	for _, gate := range required {
+		if !known[gate.Workflow] {
+			return prPlan{}, fmt.Errorf("selected blocking workflow %s lacks a trusted direct trigger or callable fragment", gate.Workflow)
+		}
+	}
 	plan := prPlan{SchemaVersion: 1, Mode: "full", HeadSHA: headSHA, Reason: "full applicable synchronize selection"}
 	// A PR that edits gate definitions cannot transfer a prior verdict. The
 	// default-branch publisher keeps judging with trusted definitions until
 	// the changed definitions land, so this path must be a full execution.
 	definitionsChanged := truncated || cigates.HasUnknownPRWorkflowDefinitions(reg, defs)
 	for _, path := range paths {
-		if strings.HasPrefix(path, ".github/") || strings.HasPrefix(path, "specs/ci-gates") || strings.HasPrefix(path, "scripts/") {
+		if strings.HasPrefix(path, ".github/") || strings.HasPrefix(path, "specs/ci-gates") || strings.HasPrefix(path, "specs/ci-pr-workflows.d/") || strings.HasPrefix(path, "scripts/") {
 			definitionsChanged = true
 			break
 		}
@@ -150,9 +234,9 @@ func buildPRPlan(ctx context.Context, runner ghRunner, reg *cigates.Registry, de
 			for _, check := range reg.RequiredStatusChecks {
 				contexts = append(contexts, check.Context)
 			}
-			smoke, smokeErr := probeSmoke(ctx, runner, repo, pr, headSHA, paths, contexts)
-			if smokeErr == nil && smoke {
-				plan.Mode, plan.Reason = "smoke", "full-backed clean rebase; explicit fast jobs only"
+			smoke, smokeErr := probeSmokeEvidence(ctx, runner, repo, pr, headSHA, paths, contexts)
+			if smokeErr == nil && smoke.Applied {
+				plan.Mode, plan.SourceSHA, plan.Tree, plan.Reason = "smoke", smoke.SourceSHA, smoke.Tree, "full-backed clean rebase; explicit fast jobs only"
 			}
 		}
 	} else {
@@ -162,13 +246,25 @@ func buildPRPlan(ctx context.Context, runner ghRunner, reg *cigates.Registry, de
 	if plan.Mode == "smoke" {
 		fast, err = smokeJobIDs(reg, defs, paths)
 		if err != nil {
-			plan.Mode, plan.Reason = "full", "smoke job ownership unresolved; full selection required: "+err.Error()
+			plan.Mode, plan.SourceSHA, plan.Tree, plan.Reason = "full", "", "", "smoke job ownership unresolved; full selection required: "+err.Error()
 		}
 	}
 	plan.Jobs, err = cigates.PlanPRWorkflows(defs, paths, truncated, baseRef, plan.Mode, fast)
 	if err != nil && plan.Mode == "smoke" {
-		plan.Mode, plan.Reason = "full", "smoke selection incomplete; full selection required: "+err.Error()
+		plan.Mode, plan.SourceSHA, plan.Tree, plan.Reason = "full", "", "", "smoke selection incomplete; full selection required: "+err.Error()
 		plan.Jobs, err = cigates.PlanPRWorkflows(defs, paths, truncated, baseRef, "full", nil)
+	}
+	if err != nil {
+		return prPlan{}, err
+	}
+	plan.Gates, err = cigates.SelectPRGateIDs(reg, defs, paths, truncated, plan.Mode, plan.Jobs)
+	if err != nil && plan.Mode == "smoke" {
+		plan.Mode, plan.SourceSHA, plan.Tree, plan.Reason = "full", "", "", "smoke gate-cell ownership unresolved; full selection required: "+err.Error()
+		plan.Jobs, err = cigates.PlanPRWorkflows(defs, paths, truncated, baseRef, "full", nil)
+		if err != nil {
+			return prPlan{}, err
+		}
+		plan.Gates, err = cigates.SelectPRGateIDs(reg, defs, paths, truncated, "full", plan.Jobs)
 	}
 	if err != nil {
 		return prPlan{}, err
@@ -202,6 +298,7 @@ func smokeJobIDs(reg *cigates.Registry, defs []cigates.PRWorkflowDefinition, pat
 		defByFile[def.File] = def
 	}
 	fast := make(map[string][]string)
+	fastRequired := 0
 	for _, gate := range required {
 		keep := false
 		for _, id := range gate.GateIDs {
@@ -213,6 +310,7 @@ func smokeJobIDs(reg *cigates.Registry, defs []cigates.PRWorkflowDefinition, pat
 		if !keep {
 			continue
 		}
+		fastRequired++
 		def, known := defByFile[gate.Workflow]
 		if !known {
 			return nil, fmt.Errorf("unknown workflow %s", gate.Workflow)
@@ -237,6 +335,33 @@ func smokeJobIDs(reg *cigates.Registry, defs []cigates.PRWorkflowDefinition, pat
 		}
 		if !exists {
 			fast[gate.Workflow] = append(fast[gate.Workflow], match)
+		}
+	}
+	if fastRequired == 0 {
+		return nil, fmt.Errorf("smoke has no selected fast blocking gate")
+	}
+	for _, check := range reg.RequiredStatusChecks {
+		if check.Context != "go-core-complete" && check.Context != "go-race-complete" {
+			continue
+		}
+		def, known := defByFile[check.Workflow]
+		if !known {
+			return nil, fmt.Errorf("required status workflow %s is absent", check.Workflow)
+		}
+		job := ""
+		for _, localID := range def.Jobs {
+			if localID == check.Job || def.JobNames[localID] == check.Job {
+				if job != "" {
+					return nil, fmt.Errorf("required status %s has ambiguous local job", check.Context)
+				}
+				job = localID
+			}
+		}
+		if job == "" {
+			return nil, fmt.Errorf("required status %s has no local job", check.Context)
+		}
+		if !slices.Contains(fast[check.Workflow], job) {
+			fast[check.Workflow] = append(fast[check.Workflow], job)
 		}
 	}
 	return fast, nil

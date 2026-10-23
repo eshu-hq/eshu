@@ -263,5 +263,12 @@ cd go && go test ./internal/cigates/ -count=1
 IDs from one trusted workflow file. `PlanPRWorkflows` is pure: it selects the
 synchronize jobs for changed PR paths, retaining non-gate workflows and ordered
 positive and negative `paths:` rules. The CLI owns filesystem and GitHub reads,
-including the full-backed reuse and smoke probes. A smoke plan must name known
-local job IDs; unknown IDs and an empty smoke set are rejected.
+including the full-backed reuse and smoke probes. A smoke plan names known local job IDs and selected gate IDs, so
+matrix cells under one job remain distinct; unknown IDs and an empty smoke set are rejected.
+
+Callable leaves without direct PR triggers are inventoried in versioned
+`specs/ci-pr-workflows.d/*.yaml` fragments. Each row retains its former PR
+filters and job identities; the parser checks the callable file's name, jobs,
+and display names before planning. Smoke closes selected fast jobs over actual
+`needs` edges while keeping transfer-aware Go aggregate jobs separate from
+their intentionally skipped heavy dependencies.

@@ -5,6 +5,7 @@ package cigates
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -93,5 +94,54 @@ func TestUnknownPRWorkflowDefinitionsForbidTransfer(t *testing.T) {
 	}
 	if !HasUnknownPRWorkflowDefinitions(reg, append(known, PRWorkflowDefinition{File: "new.yml"})) {
 		t.Fatal("unknown workflow must forbid transfer")
+	}
+}
+
+func TestSelectPRGateIDsDistinguishesSharedJobCells(t *testing.T) {
+	t.Parallel()
+	reg := &Registry{Gates: []Gate{
+		{ID: "fast", Tier: TierPrePush, Triggers: []string{"go/**"}, CI: CI{Workflow: "static.yml", Job: "verify"}},
+		{ID: "heavy", Tier: TierCIHeavy, Triggers: []string{"go/**"}, CI: CI{Workflow: "static.yml", Job: "verify"}},
+	}}
+	defs := []PRWorkflowDefinition{{File: "static.yml", Name: "Static", Synchronize: true, Jobs: []string{"verify"}}}
+	jobs := map[string][]string{"static.yml": {"verify"}}
+	full, err := SelectPRGateIDs(reg, defs, []string{"go/a.go"}, false, "full", jobs)
+	if err != nil || !reflect.DeepEqual(full, []string{"fast", "heavy"}) {
+		t.Fatalf("full gates = %v, err=%v", full, err)
+	}
+	smoke, err := SelectPRGateIDs(reg, defs, []string{"go/a.go"}, false, "smoke", jobs)
+	if err != nil || !reflect.DeepEqual(smoke, []string{"fast"}) {
+		t.Fatalf("smoke gates = %v, err=%v", smoke, err)
+	}
+	reuse, err := SelectPRGateIDs(reg, defs, []string{"go/a.go"}, false, "reuse", map[string][]string{})
+	if err != nil || reuse == nil || len(reuse) != 0 {
+		t.Fatalf("reuse gates = %v, err=%v", reuse, err)
+	}
+}
+
+func TestPlanPRWorkflowsSmokeClosesFastNeedsWithoutHeavyAggregateNeeds(t *testing.T) {
+	t.Parallel()
+	def := PRWorkflowDefinition{
+		File: "test.yml", Name: "Build Test", Synchronize: true,
+		Jobs: []string{"verify", "test-verify", "queue-selection", "go-core-complete", "go-race-complete", "go-race"},
+		JobNeeds: map[string][]string{
+			"verify":           {"test-verify"},
+			"test-verify":      {"queue-selection"},
+			"go-core-complete": {"verify", "go-race"},
+			"go-race-complete": {"go-race"},
+		},
+	}
+	fast := map[string][]string{"test.yml": {"verify", "go-core-complete", "go-race-complete"}}
+	got, err := PlanPRWorkflows([]PRWorkflowDefinition{def}, []string{"go/x.go"}, false, "main", "smoke", fast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, job := range []string{"verify", "test-verify", "queue-selection", "go-core-complete", "go-race-complete"} {
+		if !slices.Contains(got["test.yml"], job) {
+			t.Fatalf("smoke lost dependency %s: %v", job, got)
+		}
+	}
+	if slices.Contains(got["test.yml"], "go-race") {
+		t.Fatalf("heavy aggregate need re-admitted go-race: %v", got)
 	}
 }

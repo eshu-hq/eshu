@@ -14,7 +14,7 @@ func validatePRPlan(plan prPlan) error {
 	if !commitSHAPattern.MatchString(plan.HeadSHA) {
 		return fmt.Errorf("PR plan has no exact head SHA")
 	}
-	if plan.Jobs == nil || plan.Workflows == nil {
+	if plan.Jobs == nil || plan.Workflows == nil || plan.Gates == nil {
 		return fmt.Errorf("PR plan has missing jobs or workflows output")
 	}
 	if plan.Reason == "" {
@@ -22,10 +22,18 @@ func validatePRPlan(plan prPlan) error {
 	}
 	switch plan.Mode {
 	case "reuse":
-		if !commitSHAPattern.MatchString(plan.SourceSHA) || !commitSHAPattern.MatchString(plan.Tree) || len(plan.Workflows) != 0 || len(plan.Jobs) != 0 {
+		if !commitSHAPattern.MatchString(plan.SourceSHA) || !commitSHAPattern.MatchString(plan.Tree) || len(plan.Workflows) != 0 || len(plan.Jobs) != 0 || len(plan.Gates) != 0 {
 			return fmt.Errorf("reuse plan lacks source proof or schedules leaf jobs")
 		}
-	case "full", "smoke":
+	case "smoke":
+		if !commitSHAPattern.MatchString(plan.SourceSHA) || !commitSHAPattern.MatchString(plan.Tree) {
+			return fmt.Errorf("smoke plan lacks source proof")
+		}
+		fallthrough
+	case "full":
+		if plan.Mode == "full" && (plan.SourceSHA != "" || plan.Tree != "") {
+			return fmt.Errorf("full plan cannot claim transferred provenance")
+		}
 		if len(plan.Workflows) == 0 || len(plan.Jobs) == 0 {
 			return fmt.Errorf("%s plan selects no workflow", plan.Mode)
 		}
