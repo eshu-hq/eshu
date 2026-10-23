@@ -95,14 +95,15 @@ func TestProjectRejectsThirdGenerationFactInDeltaProjection(t *testing.T) {
 }
 
 // With the union base named, a third generation is still rejected: the
-// boundary widens to exactly {delta, base}.
+// boundary widens to exactly {delta, base}. The error names the accepted base
+// so an operator can see the union was in play without the stage log.
 func TestProjectRejectsThirdGenerationFactWithUnionBaseSet(t *testing.T) {
 	t.Parallel()
 	generation := boundaryDeltaGeneration()
 	generation.DeltaUnionBaseGenerationID = boundaryBaseGenID
 	assertProjectRejects(t, generation,
 		[]facts.Envelope{boundaryDeltaRepositoryFact(), boundaryFileFact("fact-8779-third-c", boundaryScopeID, boundaryThirdGenID)},
-		"fact-8779-third-c", boundaryThirdGenID)
+		"fact-8779-third-c", boundaryThirdGenID, `union base "`+boundaryBaseGenID+`"`)
 }
 
 // A base fact is accepted when the generation names that base as its union
@@ -171,8 +172,8 @@ func assertBoundaryRejects(t *testing.T, stray facts.Envelope, wantFactID, wantF
 }
 
 // assertProjectRejects projects input under generation and requires an error
-// naming both want strings, with no canonical, content, or reducer write.
-func assertProjectRejects(t *testing.T, generation scope.ScopeGeneration, input []facts.Envelope, want, wantForeign string) {
+// naming every want string, with no canonical, content, or reducer write.
+func assertProjectRejects(t *testing.T, generation scope.ScopeGeneration, input []facts.Envelope, wants ...string) {
 	t.Helper()
 	canonicalWriter := &recordingCanonicalWriter{}
 	contentWriter := &recordingContentWriter{}
@@ -181,10 +182,12 @@ func assertProjectRejects(t *testing.T, generation scope.ScopeGeneration, input 
 
 	_, err := runtime.Project(context.Background(), boundaryDeltaScope(), generation, input)
 	if err == nil {
-		t.Fatalf("Project() error = nil, want a rejection naming %q", want)
+		t.Fatalf("Project() error = nil, want a rejection naming %q", wants)
 	}
-	if !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), wantForeign) {
-		t.Fatalf("Project() error = %q, want it to name %q and %q", err, want, wantForeign)
+	for _, want := range wants {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("Project() error = %q, want it to name %q", err, want)
+		}
 	}
 	if len(canonicalWriter.calls) != 0 || len(contentWriter.calls) != 0 || len(intentWriter.calls) != 0 {
 		t.Fatalf("writes after a boundary rejection: canonical=%d content=%d intents=%d, want none",

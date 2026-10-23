@@ -23,8 +23,11 @@ func validateFactBoundary(scopeValue scope.IngestionScope, generation scope.Scop
 	if fact.GenerationID == generation.GenerationID {
 		return nil
 	}
-	if base := generation.DeltaUnionBaseGenerationID; base != "" && fact.GenerationID == base {
-		return nil
+	if base := generation.DeltaUnionBaseGenerationID; base != "" {
+		if fact.GenerationID == base {
+			return nil
+		}
+		return fmt.Errorf("fact %q generation_id %q does not match generation %q or its union base %q", fact.FactID, fact.GenerationID, generation.GenerationID, base)
 	}
 	return fmt.Errorf("fact %q generation_id %q does not match generation %q", fact.FactID, fact.GenerationID, generation.GenerationID)
 }
