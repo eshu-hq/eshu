@@ -100,7 +100,7 @@ cost.
   older-full fence negative, the drained-base fail-closed, the guard anchor at
   the union base, and retention keeping the union base.
 
-## Performance Evidence
+## Performance Evidence:
 
 Benchmark Evidence: the benchmark table at the end of this section compares
 the union read and the collector baseline path on the touched code at the
@@ -143,7 +143,7 @@ path led to. Commands: `go test ./internal/facts ./internal/storage/postgres
 -benchmem -count=4` and `go test ./internal/collector/repo/git -run '^$'
 -bench BenchmarkUpdateRepositoryChainedDelta -benchtime=20x -count=4`.
 
-## Observability Evidence
+## Observability Evidence:
 
 `eshu_dp_collector_delta_baseline_fallback_total{skip_reason}` gains
 `no_projected_full` and `delta_exceeds_base_half`;
