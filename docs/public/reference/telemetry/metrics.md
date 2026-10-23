@@ -175,10 +175,10 @@ instance and scope; `failure_class` is one of `auth_denied`, `not_found`,
 `rate_limited`, `terminal`, `retryable`, `attempt_budget_exhausted`,
 `identity_mismatch`, `collect_failure`, `commit_failure`, or `unknown`. A class
 only another collector kind writes (not one of these nine) reads `unknown`
-(#8896). It is
-a gauge, not a counter, so a recovered or aged-out instance drops out. Every runtime that
-scrapes status exports the same value with its own `service_name`, so read it
-with `max by (collector_kind, failure_class)`, never summed.
+(#8896). It is a gauge, not a counter, so a recovered or aged-out instance
+drops out. Every runtime that scrapes status exports the same value with its
+own `service_name`, so read it with `max by (collector_kind, failure_class)`,
+never summed.
 
 ## Data-Plane Core
 

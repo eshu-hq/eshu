@@ -26,7 +26,9 @@ blocker. A healthy instance omits the failure fields on both routes.
 Scoped callers receive only the per-kind health aggregate on the collectors
 route; `last_failure_*` fields are withheld from them. On the readiness route
 they keep the class, operation, and blocker, and only `instance_id` is
-withheld. Browser-session and all-scope callers get the full rows.
+withheld. Callers on the shared key and browser sessions get the full rows;
+every scoped-token caller gets the redacted view, including an all-scope
+scoped token.
 
 ## Values
 
