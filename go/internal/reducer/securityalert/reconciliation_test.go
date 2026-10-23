@@ -315,6 +315,12 @@ func TestSecurityAlertReconciliationDefersPackageTriggeredUnmatchedEvidence(t *t
 	if shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
 		t.Fatal("shouldDeferSecurityAlertReconciliationForPendingImpact() = true after bounded attempts, want false")
 	}
+	// The handler's cap is its own: a queue budget above 3 (ESHU_REDUCER_MAX_ATTEMPTS)
+	// does not lengthen the wait, so later attempts still resolve (#8826).
+	intent.AttemptCount = 4
+	if shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
+		t.Fatal("shouldDeferSecurityAlertReconciliationForPendingImpact() = true past the handler cap, want false")
+	}
 
 	intent.AttemptCount = 1
 	intent.SourceSystem = "security_alert"

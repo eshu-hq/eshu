@@ -402,8 +402,10 @@ values each counter carries.
   A retryable error that implements `ExpectedWait() bool` (`reducercontract.IsExpectedWait`,
   e.g. `security_alert_reconciliation_waiting_for_impact`) also records `deferred`/WARN,
   but only while `intent.AttemptCount < Service.RetryMaxAttempts` (wired from
-  `ESHU_REDUCER_MAX_ATTEMPTS`). The queue still counts that attempt, and the final attempt,
-  which dead-letters, stays `failed`/ERROR (#8826).
+  `ESHU_REDUCER_MAX_ATTEMPTS`). The queue still counts that attempt, and an attempt at the
+  budget, which dead-letters, stays `failed`/ERROR (#8826). The security alert handler stops
+  waiting at attempt 3 on its own and writes, so that attempt succeeds. At the default budget
+  of 3 the wait never fails; it fails only when the budget is 1 or 2.
 - **Phase publications and graph writes are not atomic** — if a graph write
   commits but the phase publication fails, `gpphase.PhaseRepairQueue`
   captures the retry.
