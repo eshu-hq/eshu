@@ -24,6 +24,23 @@ func PRWorkflowStem(file string) (string, bool) {
 	return stem, ok && stem != "" && !strings.ContainsAny(stem, "/\\")
 }
 
+// ValidatePRWorkflowCallerStems rejects distinct workflow filenames that
+// would publish the same call-<stem> check identity.
+func ValidatePRWorkflowCallerStems(files []string) error {
+	seen := make(map[string]string, len(files))
+	for _, file := range files {
+		stem, ok := PRWorkflowStem(file)
+		if !ok {
+			return fmt.Errorf("invalid caller workflow filename %q", file)
+		}
+		if prior, duplicate := seen[stem]; duplicate && prior != file {
+			return fmt.Errorf("duplicate caller stem %q for %q and %q", stem, prior, file)
+		}
+		seen[stem] = file
+	}
+	return nil
+}
+
 // ParsePRPlanFragment reads one trusted, versioned inventory fragment for
 // callable workflows whose direct PR triggers were removed.
 func ParsePRPlanFragment(raw []byte) ([]PRWorkflowDefinition, error) {

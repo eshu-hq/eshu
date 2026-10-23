@@ -97,6 +97,23 @@ func TestReadPRChecksWithCalledYAMLLeafAlias(t *testing.T) {
 	}
 }
 
+func TestReadPRChecksWithCalledRejectsDuplicateLeafStem(t *testing.T) {
+	t.Parallel()
+	runner := &endpointRunner{routes: map[string]string{
+		"pr checks":                        `[{"name":"call-frontend / console","state":"SUCCESS","bucket":"pass","workflow":"Build Test","event":"pull_request"}]`,
+		"actions/runs?":                    `[{"workflow_runs":[{"id":20,"name":"Build Test","path":".github/workflows/test.yml","event":"pull_request","head_sha":"` + headSHAFixture + `","run_attempt":1,"pull_requests":[{"number":42}]}]}]`,
+		"/actions/runs/20/attempts/1/jobs": `[{"jobs":[{"name":"call-frontend / console","status":"completed","conclusion":"success","run_attempt":1}]}]`,
+	}}
+	required := []resolvedRequiredGate{
+		{WorkflowFile: "frontend.yml", WorkflowName: "Frontend Old", Job: "console"},
+		{WorkflowFile: "frontend.yaml", WorkflowName: "Frontend New", Job: "console"},
+	}
+	checks, err := readPRChecksWithCalled(context.Background(), runner, "eshu-hq/eshu", 42, headSHAFixture, required)
+	if err == nil || !strings.Contains(err.Error(), "caller stem") {
+		t.Fatalf("one green caller check could satisfy two leaves: checks=%#v, err=%v", checks, err)
+	}
+}
+
 func TestReadPRChecksWithCalledRejectsStaleCallerRollup(t *testing.T) {
 	t.Parallel()
 	runner := &endpointRunner{routes: map[string]string{

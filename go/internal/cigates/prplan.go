@@ -41,6 +41,13 @@ func PlanPRWorkflows(defs []PRWorkflowDefinition, paths []string, truncated bool
 	if len(paths) == 0 && mode != "reuse" {
 		return nil, fmt.Errorf("PR plan has no changed paths")
 	}
+	files := make([]string, 0, len(defs))
+	for _, def := range defs {
+		files = append(files, def.File)
+	}
+	if err := ValidatePRWorkflowCallerStems(files); err != nil {
+		return nil, err
+	}
 	planned := make(map[string][]string)
 	seen := make(map[string]bool)
 	for _, def := range defs {

@@ -121,6 +121,30 @@ func TestTrustedPRWorkflowDefinitionsIncludeCallableFragment(t *testing.T) {
 	}
 }
 
+func TestTrustedPRWorkflowDefinitionsRejectDuplicateCallerStem(t *testing.T) {
+	root := t.TempDir()
+	workflowDir := filepath.Join(root, ".github", "workflows")
+	fragmentDir := filepath.Join(root, "specs", "ci-pr-workflows.d")
+	for _, dir := range []string{workflowDir, fragmentDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files := map[string]string{
+		filepath.Join(workflowDir, "frontend.yml"):  "name: Frontend Old\non: {pull_request: {types: [opened, synchronize]}}\njobs: {console: {runs-on: ubuntu-latest}}\n",
+		filepath.Join(workflowDir, "frontend.yaml"): "name: Frontend New\non: {workflow_call: {}}\njobs: {console: {runs-on: ubuntu-latest}}\n",
+		filepath.Join(fragmentDir, "frontend.yml"):  "schema_version: 1\nworkflows:\n- file: frontend.yaml\n  name: Frontend New\n  synchronize: true\n  jobs: [console]\n",
+	}
+	for path, body := range files {
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := trustedPRWorkflowDefinitions(root); err == nil || !strings.Contains(err.Error(), "caller stem") {
+		t.Fatalf("same caller stem across direct and callable leaves must fail: %v", err)
+	}
+}
+
 func TestTrustedPRWorkflowDefinitionsRejectManifestDrift(t *testing.T) {
 	for _, fragment := range []string{
 		"schema_version: 2\nworkflows:\n  - file: frontend.yml\n    name: Frontend\n    synchronize: true\n    jobs: [console]\n    job_names: {console: Console}\n",

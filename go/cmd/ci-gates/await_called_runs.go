@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
 // readCurrentCalledChecks reads only jobs belonging to the newest Build Test
@@ -103,6 +105,15 @@ func readCurrentCalledChecks(ctx context.Context, runner ghRunner, repo string, 
 }
 
 func readPRChecksWithCalled(ctx context.Context, runner ghRunner, repo string, pr int, headSHA string, required []resolvedRequiredGate) ([]checkRollup, error) {
+	files := make([]string, 0, len(required))
+	for _, gate := range required {
+		if _, ok := cigates.PRWorkflowStem(gate.WorkflowFile); ok {
+			files = append(files, gate.WorkflowFile)
+		}
+	}
+	if err := cigates.ValidatePRWorkflowCallerStems(files); err != nil {
+		return nil, err
+	}
 	rollup, err := readPRChecks(ctx, runner, repo, pr)
 	if err != nil {
 		return nil, err

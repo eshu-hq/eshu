@@ -126,6 +126,13 @@ func trustedPRWorkflowDefinitions(root string) ([]cigates.PRWorkflowDefinition, 
 	if len(defs) == 0 {
 		return nil, fmt.Errorf("trusted checkout has no PR workflow definition")
 	}
+	files := make([]string, 0, len(defs))
+	for _, def := range defs {
+		files = append(files, def.File)
+	}
+	if err := cigates.ValidatePRWorkflowCallerStems(files); err != nil {
+		return nil, err
+	}
 	return defs, nil
 }
 
