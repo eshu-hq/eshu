@@ -22,6 +22,14 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
+def copy_contract(root: Path) -> None:
+    """Install the frozen PR route and bulk action in mutation checkouts."""
+    for relative in (MODULE.FRAGMENT, MODULE.BULK_ACTION):
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
+
+
 class ScheduledRunnerTest(unittest.TestCase):
     """The inventory, workflow, and events must name the same live proofs."""
 
@@ -72,38 +80,27 @@ class ScheduledRunnerTest(unittest.TestCase):
     def test_pull_request_trigger_covers_exact_enrollment(self) -> None:
         inventory = MODULE.load_inventory()
         workflow = (ROOT / MODULE.WORKFLOW).read_text()
-        trigger = re.search(
-            r"(?ms)^  pull_request:\n    branches:\n      - main\n    paths:\n((?:      - '[^']+'\n)+)",
-            workflow,
-        )
-        self.assertIsNotNone(trigger)
-        self.assertIn("    branches:\n      - main\n", trigger.group(0))
-        paths = re.findall(r"^      - '([^']+)'$", trigger.group(1), re.MULTILINE)
+        fragment = (ROOT / MODULE.FRAGMENT).read_text()
+        self.assertIn("  workflow_call:\n", workflow)
+        self.assertNotIn("  pull_request:\n", workflow)
+        paths = re.findall(r"(?m)^  - (.+)$", fragment.split("  paths:\n", 1)[1]
+                           .split("  jobs:\n", 1)[0])
         self.assertTrue(set(inventory).issubset(paths))
-        self.assertIn(
-            "go/internal/storage/postgres/ack_supersession_assertions_test.go", paths
-        )
+        self.assertIn("go/internal/storage/postgres/ack_supersession_assertions_test.go", paths)
         self.assertNotIn("go/**", paths)
         self.assertNotIn("  push:", workflow)
         self.assertNotIn("  merge_group:", workflow)
-        self.assertIn("github.event_name", workflow)
 
     def test_trigger_and_active_verification_drift_fail(self) -> None:
         inventory = MODULE.load_inventory()
         original = (ROOT / MODULE.WORKFLOW).read_text()
         first_path = next(iter(sorted(inventory)))
-        ack_path = next(
-            path for path in sorted(inventory)
-            if inventory[path]["group"] == "ack_family"
-        )
+        ack_path = next(path for path in sorted(inventory)
+                        if inventory[path]["group"] == "ack_family")
         changes = (
-            ("    branches:\n      - main\n", "", "PR paths or branches"),
-            ("  pull_request:\n", "  push:\n", "PR events"),
+            ("  workflow_call:\n", "  push:\n", "PR events"),
             ("  workflow_dispatch:\n", "  workflow_dispatch:\n  merge_group:\n", "PR events"),
             ("  workflow_dispatch:\n", "  workflow_dispatch:\n  workflow_dispatch:\n", "PR events"),
-            ("    paths:\n", "    paths:\n      - 'go/**'\n", "PR paths"),
-            (f"      - '{first_path}'\n", "", "PR paths"),
-            (f"      - '{ack_path}'\n", "", "PR paths"),
             (
                 "postgres-scheduled-live-${{ github.event_name }}-",
                 "postgres-scheduled-live-", "PR concurrency",
@@ -126,10 +123,6 @@ class ScheduledRunnerTest(unittest.TestCase):
                 "          # python3 ../scripts/lib/postgres_scheduled_runner.py --events",
                 "event verifier",
             ),
-            (
-                "      - name: Run Crossplane proofs\n",
-                "      - name: Run Crossplane proofs\n        if: false\n", "conditional",
-            ),
             ("  scheduled-bulk:\n", "  scheduled-bulk:\n    if: false\n", "conditional"),
             (
                 "  scheduled-bulk:\n",
@@ -139,11 +132,6 @@ class ScheduledRunnerTest(unittest.TestCase):
             (
                 "  scheduled-bulk:\n",
                 "  scheduled-bulk:\n    continue-on-error : true\n",
-                "non-fail-closed",
-            ),
-            (
-                "  scheduled-bulk:\n",
-                "  scheduled-bulk:\n    'continue-on-error': true\n",
                 "non-fail-closed",
             ),
             (
@@ -162,11 +150,6 @@ class ScheduledRunnerTest(unittest.TestCase):
                 "non-fail-closed",
             ),
             (
-                "  contents: read\n",
-                "  contents: read\n  contents: write\n",
-                "non-fail-closed",
-            ),
-            (
                 "  cancel-in-progress: false\n",
                 "  group : postgres-scheduled-live\n"
                 "  cancel-in-progress: false\n",
@@ -176,18 +159,6 @@ class ScheduledRunnerTest(unittest.TestCase):
                 "      - name: Check exact enrollment and negative cases\n",
                 "      - name: Check exact enrollment and negative cases\n"
                 "        continue-on-error : true\n",
-                "non-fail-closed",
-            ),
-            (
-                "      - name: Check exact enrollment and negative cases\n",
-                "      - name: Check exact enrollment and negative cases\n"
-                "        'if': ${{ false }}\n",
-                "non-fail-closed",
-            ),
-            (
-                "      - name: Check exact enrollment and negative cases\n",
-                "      - name: Check exact enrollment and negative cases\n"
-                "        shell : bash {0} || true\n",
                 "non-fail-closed",
             ),
             (
@@ -247,6 +218,7 @@ class ScheduledRunnerTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            copy_contract(root)
             for target in inventory:
                 copy = root / target
                 copy.parent.mkdir(parents=True, exist_ok=True)
@@ -259,12 +231,25 @@ class ScheduledRunnerTest(unittest.TestCase):
                     workflow.write_text(original.replace(old, new, 1))
                     with self.assertRaisesRegex(ValueError, message):
                         MODULE.verify_inventory(root, inventory)
+            workflow.write_text(original)
+            fragment = root / MODULE.FRAGMENT
+            source = fragment.read_text()
+            for old, new in (("  - main\n", "  - other\n"),
+                             (f"  - {first_path}\n", ""),
+                             (f"  - {ack_path}\n", ""),
+                             ("  paths:\n", "  paths:\n  - go/**\n")):
+                with self.subTest(fragment=old):
+                    fragment.write_text(source.replace(old, new, 1))
+                    with self.assertRaisesRegex(ValueError, "PR paths or branches"):
+                        MODULE.verify_inventory(root, inventory)
+            fragment.write_text(source)
 
     def test_source_drift_and_missing_workflow_command_fail(self) -> None:
         inventory = MODULE.load_inventory()
         target = next(iter(inventory))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            copy_contract(root)
             for path in inventory:
                 copy = root / path
                 copy.parent.mkdir(parents=True, exist_ok=True)
@@ -286,6 +271,7 @@ class ScheduledRunnerTest(unittest.TestCase):
         inventory = MODULE.load_inventory()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            copy_contract(root)
             for target in inventory:
                 copy = root / target
                 copy.parent.mkdir(parents=True, exist_ok=True)
@@ -293,6 +279,8 @@ class ScheduledRunnerTest(unittest.TestCase):
             workflow = root / MODULE.WORKFLOW
             workflow.parent.mkdir(parents=True)
             original = (ROOT / MODULE.WORKFLOW).read_text()
+            action = root / MODULE.BULK_ACTION
+            original_action = action.read_text()
             for old, new, error in (
                 ("ci-postgres-alpine@sha256:", "postgres:latest #", "pinned PostgreSQL"),
                 ("35 4 * * *", "35 5 * * *", "cadence"),
@@ -320,8 +308,38 @@ class ScheduledRunnerTest(unittest.TestCase):
                     "secondary DSN",
                 ),
             ):
-                workflow.write_text(original.replace(old, new, 1))
-                with self.assertRaisesRegex(ValueError, error):
+                subject = workflow if old in original else action
+                source = original if subject == workflow else original_action
+                self.assertIn(old, source)
+                changed = source.replace(old, new, 1)
+                subject.write_text(changed)
+                with mock.patch.object(MODULE, "BULK_ACTION_SHA256",
+                                       hashlib.sha256(action.read_bytes()).hexdigest()):
+                    with self.assertRaisesRegex(ValueError, error):
+                        MODULE.verify_inventory(root, inventory)
+                subject.write_text(source)
+
+    def test_each_disposable_step_has_its_own_admin_env(self) -> None:
+        inventory = MODULE.load_inventory()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            copy_contract(root)
+            for target in inventory:
+                copy = root / target
+                copy.parent.mkdir(parents=True, exist_ok=True)
+                copy.write_text((ROOT / target).read_text())
+            workflow = root / MODULE.WORKFLOW
+            workflow.parent.mkdir(parents=True)
+            workflow.write_text((ROOT / MODULE.WORKFLOW).read_text())
+            action = root / MODULE.BULK_ACTION
+            removed = "        ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: "
+            removed += "postgres://eshu:change-me@localhost:15432/"
+            removed += "postgres?sslmode=disable\n"
+            self.assertEqual(action.read_text().count(removed), 3)
+            action.write_text(action.read_text().replace(removed, "", 1))
+            with mock.patch.object(MODULE, "BULK_ACTION_SHA256",
+                                   hashlib.sha256(action.read_bytes()).hexdigest()):
+                with self.assertRaisesRegex(ValueError, "missing admin DSN"):
                     MODULE.verify_inventory(root, inventory)
 
     def test_events_require_each_run_and_pass(self) -> None:

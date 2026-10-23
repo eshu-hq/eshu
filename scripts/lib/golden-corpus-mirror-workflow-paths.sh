@@ -21,7 +21,7 @@
 # while the real filter entry is gone.
 require_workflow_path() {
 	local label="$1" path_glob="$2"
-	require_in "golden-corpus-gate.yml paths filter (${label})" "${workflow}" "- '${path_glob}'"
+	require_in "golden-corpus-gate.yml paths filter (${label})" "${workflow_paths}" "- ${path_glob}"
 }
 
 # #7362: the pre-pr live step must run the blocking Neo4j leg. Scoped to the

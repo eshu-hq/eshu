@@ -36,6 +36,11 @@ check_ci_gate_workflow_shapes() {
 	require "Build Test docs/Helm hygiene job" "  docs-helm-hygiene:" "${build_test_workflow}"
 	rg '^[[:space:]]+if:.*!cancelled\(\)' "${build_test_workflow}" >/dev/null ||
 		fail "Build Test go-core steps must retain their cancellation guard"
+	local go_core_action="${repo_root}/.github/actions/ci-go-core/action.yml"
+	[[ -f "${go_core_action}" ]] || fail "missing ${go_core_action}"
+	require "Build Test calls Go core action" "uses: ./.github/actions/ci-go-core" "${build_test_workflow}"
+	[[ "$(rg -c '^      if:.*!cancelled\(\)' "${go_core_action}")" -eq "$(rg -c '^    - name:' "${go_core_action}")" ]] ||
+		fail "every Go core action step must retain its cancellation guard"
 	require "Build Test race Helm setup" "Set up Helm for race tests" "${build_test_workflow}"
 	if rg --quiet '^  build:' "${build_test_workflow}"; then
 		fail "test.yml must not keep the monolithic build job after #4263 split"

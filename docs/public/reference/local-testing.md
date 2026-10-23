@@ -410,7 +410,29 @@ See [verification proof notes](local-testing/proof-notes.md#remote-collector-e2e
 
 ## Secrets/IAM Activation Proof
 
-See [verification proof notes](local-testing/proof-notes.md#secretsiam-activation-proof).
+No-Regression Evidence: issue #2430 remote-validation proof on 2026-06-16
+against NornicDB with data-plane schema bootstrapped first. Baseline live
+writer conformance failed scoped retract with
+`SecretsIAMServiceAccount survived retract: count = 1`. After changing
+secrets/IAM graph retracts from list/`UNWIND` mutation predicates to one
+scalar `scope_id` cleanup statement per label/scope and executing retracts
+sequentially, `ESHU_SECRETS_IAM_GRAPH_LIVE=1 ESHU_GRAPH_BACKEND=nornicdb go
+test ./internal/storage/cypher -run '^TestSecretsIAMGraphWriterLiveConformance$'
+-count=1 -v` passed in 0.066s. Sanitized readback counted all four
+`SecretsIAM*` node families and all five `SECRETS_IAM_*` relationship families
+at one before retract, and the sensitive-property spot check reported
+`suspicious_values=0`. The same target passed the focused reducer, cypher
+storage, and reducer command packages, and the flag-on reducer startup emitted
+the `secrets/IAM graph projection ENABLED` warning and reached the normal worker
+startup log after the projection truth contract moved from output-only
+`canonical_asset` to source evidence `observed_resource`.
+
+No-Observability-Change: the activation fix adds no metric name, metric label,
+worker, queue domain, runtime knob, backend branch, or graph-write route.
+Secrets/IAM graph writes and retracts still flow through
+`SecretsIAMGraphWriter` statement metadata with `phase=secrets_iam_graph`,
+entity labels, existing executor error wrapping, existing graph-write
+spans/metrics, and the existing reducer flag-on warning.
 
 ## Helm Workspace Setup PVC Retry Proof
 

@@ -252,6 +252,7 @@ class RouteGuardTest(unittest.TestCase):
                   "specs/live-tests.v1.yaml", "specs/live-tests.d/**")
 
         relatives = [".github/workflows/golden-corpus-gate.yml",
+                     "specs/ci-pr-workflows.d/golden-corpus-gate.yml",
                      "specs/ci-gates.d/gates-07.yaml", "specs/ci-gates.d/gates-08.yaml"]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -264,8 +265,8 @@ class RouteGuardTest(unittest.TestCase):
                 path = root / relative
                 before = path.read_text()
                 for route in inputs:
-                    quote = "'" if relative.endswith("yml") else '"'
-                    line = "      - " + quote + route + quote + "\n"
+                    line = ("  - " + route + "\n" if "ci-pr-workflows.d" in relative
+                            else "      - \"" + route + "\"\n")
                     for occurrence in range(before.count(line)):
                         index = -1
                         for _ in range(occurrence + 1):

@@ -22,7 +22,10 @@ from postgres_scheduled_workflow import (
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
-WORKFLOW_SHA256 = "4cdaf4b8cd1595611d19121f8bf428bc71cf669c9f394a6dbb559d4e32d4b8cc"
+FRAGMENT = Path("specs/ci-pr-workflows.d/postgres-scheduled-live.yml")
+BULK_ACTION = Path(".github/actions/postgres-scheduled-bulk/action.yml")
+WORKFLOW_SHA256 = "4eed424cfcdb5ce050921b7aa4536420b275dbafcb338fd8b9a51d44bd9fe7c9"
+BULK_ACTION_SHA256 = "d366a58c744788453f5701cbc069b8555454215cc483054ff167b1b0ba8a2865"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 GROUP_LABELS = {
     "crossplane": "Crossplane",
@@ -43,10 +46,41 @@ GROUP_TIMEOUTS = {
 
 
 
-def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]]) -> None:
+def expand_bulk_action(workflow: str, action: str) -> str:
+    """Expose the reviewed composite's commands to the existing proof checks."""
+    if hashlib.sha256(action.encode()).hexdigest() != BULK_ACTION_SHA256:
+        raise ValueError("hosted bulk action executable bytes differ from reviewed contract")
+    prefix = (
+        "name: Scheduled PostgreSQL bulk proofs\n"
+        "description: Run the enrolled bulk proof families and upload their streams.\n"
+        "inputs:\n  postgres_container:\n"
+        "    description: PostgreSQL service container ID.\n"
+        "    required: true\n"
+        "runs:\n  using: composite\n  steps:\n"
+    )
+    if not action.startswith(prefix):
+        raise ValueError("hosted bulk action has unsupported controls")
+    marker = ("      - name: Run bulk proof families\n"
+              "        uses: ./.github/actions/postgres-scheduled-bulk\n"
+              "        with:\n"
+              "          postgres_container: ${{ job.services.postgres.id }}\n")
+    if workflow.count(marker) != 1:
+        raise ValueError("hosted bulk action is not called exactly once")
+    steps = []
+    for line in action[len(prefix):].splitlines():
+        if line == "      shell: bash":
+            continue
+        if "shell:" in line or (line and not line.startswith("    ")):
+            raise ValueError("hosted bulk action has unsupported step controls")
+        steps.append("  " + line.replace("${{ inputs.postgres_container }}",
+                                        "${{ job.services.postgres.id }}"))
+    return workflow.replace(marker, "\n".join(steps) + "\n", 1)
+
+
+def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]], fragment: str) -> None:
     """Verify the canonical scheduled and narrow PR trigger."""
     verify_canonical_workflow(workflow)
-    verify_workflow_trigger(workflow, inventory, PR_PATHS)
+    verify_workflow_trigger(workflow, inventory, PR_PATHS, fragment)
 
 
 def load_inventory(path: Path = INVENTORY) -> dict[str, dict[str, object]]:
@@ -59,10 +93,12 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
     workflow = (root / WORKFLOW).read_text(encoding="utf-8")
     if "--local-simulation" in workflow or "--allow-local-simulation" in workflow:
         raise ValueError("local simulation cannot appear in hosted workflow")
-    verify_trigger(workflow, inventory)
-    if IMAGE not in workflow or "postgres:latest" in workflow:
+    expanded = expand_bulk_action(
+        workflow, (root / BULK_ACTION).read_text(encoding="utf-8"))
+    verify_trigger(expanded, inventory, (root / FRAGMENT).read_text(encoding="utf-8"))
+    if IMAGE not in expanded or "postgres:latest" in expanded:
         raise ValueError("pinned PostgreSQL backend missing")
-    blocks = job_blocks(workflow)
+    blocks = job_blocks(expanded)
     if list(blocks) != list(JOB_ORDER):
         raise ValueError("hosted proof legs differ from reviewed matrix")
     for job in SERVICE_JOBS:
@@ -219,9 +255,9 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             raise ValueError(f"reviewed source guard missing for {group}")
         if re.search(r"(?m)^\s*if:", step):
             raise ValueError(f"conditional proof step for {group}")
-    if workflow.count("set -euo pipefail") != len(PACKAGES) + 1:
+    if expanded.count("set -euo pipefail") != len(PACKAGES) + 1:
         raise ValueError("every scheduled package step requires fail-closed shell")
-    all_steps = re.split(r"(?m)^      - name:", workflow)
+    all_steps = re.split(r"(?m)^      - name:", expanded)
     for group, database in DATABASES.items():
         label = GROUP_LABELS.get(group, group)
         create_index, create_step = named_step(all_steps, f"Create fresh {label} database")
@@ -232,8 +268,8 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
         )
         dsn = f"{DSNS[group]}: postgres://eshu:change-me@localhost:15432/{database}?sslmode=disable"
         if (create_step.splitlines().count(expected_create) != 1
-                or workflow.count(f"-c 'CREATE DATABASE {database}'") != 1
-                or workflow.count(dsn) != 1):
+                or expanded.count(f"-c 'CREATE DATABASE {database}'") != 1
+                or expanded.count(dsn) != 1):
             raise ValueError(f"fresh database and DSN mismatch for {group}")
         run_name = {"infra_inventory": "Run infra inventory proofs",
                     "ack_family": "Run ACK and completion proofs"}.get(
