@@ -36,7 +36,8 @@
   into it.
 - The ARG default evidence on a stage (ArgDefaults) is capped at 256 bytes per
   value and 16 entries per stage (names are not capped on their own; they come
-  from one reference of at most 4096 bytes, so a stage stays under about 8 KB), with ArgDefaultsTruncated and
+  from one reference of at most 4096 bytes, so the base_ref_arg_defaults
+  evidence of a stage stays under about 8 KB), with ArgDefaultsTruncated and
   ArgDefaultsOmitted making the cut visible. Resolution reads the declared
   default, never the stored evidence. Do not raise either cap without
   re-measuring the marshaled payload (base_ref_payload_test.go).

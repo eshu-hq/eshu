@@ -105,9 +105,11 @@ Dockerfile rule for how `ARG` and `FROM` interact:
   stored as a known value and later `FROM` lines cannot read it. In every case
   the reference stays unresolved. All nesting levels of one reference write into
   a single output buffer, so no level copies an inner level's result outward.
-  Allocation for one reference is bounded by the 4096-byte output cap (a
-  631-byte nested line allocates about 9.1 KB), and scan work by the output cap
-  and 64 times the reference length, whatever it nests.
+  Allocation for one reference is bounded by the reference length (at most
+  4096 bytes), not by the output cap, because the name lists grow once per `$`.
+  A 4094-byte reference of bare `$U` allocates about 250 KB, and a 631-byte
+  nested line about 9.1 KB. Scan work is bounded by the output cap and 64
+  times the reference length, whatever it nests.
   Not retaining the value of an unknown default is hygiene: `lookup` already
   ignores a global that is not known, so correctness does not depend on it.
 - The ARG default evidence is bounded too. A raw default is repeated on every
@@ -122,8 +124,11 @@ Dockerfile rule for how `ARG` and `FROM` interact:
   are unchanged. A stage row is self-contained evidence, so a default is not
   deduplicated across stages; the per-stage cap bounds the repeat instead. The
   bound is 16 values of 256 bytes plus their names. Names are not capped on
-  their own, but they come from one reference of at most 4096 bytes, so a
-  stage carries at most about 8 KB of evidence.
+  their own, but they come from one reference of at most 4096 bytes, so the
+  `base_ref_arg_defaults` evidence of a stage is at most about 8 KB. The
+  stage row also carries `base_ref_arg_defaults_truncated` (at most 16 names)
+  and `base_ref_unresolved_args` (names from one reference), which are small
+  next to it.
 
 No-Regression Evidence: #8810. The reference bound adds one linear pass over
 each reference that contains `$`. The output cap adds one length compare after
@@ -132,8 +137,8 @@ each expansion. The evidence cap adds one length compare per stored default.
 old and new interleaved on one loaded host (load average about 32): the ordinary
 `ARG` plus `FROM` Dockerfile took 2.3 to 6.3 us per Dockerfile depending on host
 load, with old and new within noise of each other in every pair, and 33
-allocs/op both times (5472 B/op old, 5504 B/op new: the three added `Stage`
-fields). That is no measurable change. Differential: `RuntimeMetadata(...).Map()`
+allocs/op old, 36 new (5504 B/op old, 6136 B/op new: the expander state and
+the three added `Stage` fields). That is no measurable change in time. Differential: `RuntimeMetadata(...).Map()`
 JSON for the 23 tracked Dockerfile inputs (22 files named `Dockerfile`,
 `Dockerfile.<ext>` or `*.Dockerfile`, plus the `Dockerfile.j2` template) is
 byte-identical between the unbounded and the bounded expander. Against main, 5
