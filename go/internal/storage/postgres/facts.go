@@ -304,6 +304,7 @@ func (s FactStore) loadUnion(
 		Facts:                 merged,
 		UnionBaseGenerationID: baseGenerationID,
 		UnionOutcome:          outcome,
+		UnionChained:          commits.chained(),
 	}, nil
 }
 

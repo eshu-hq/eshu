@@ -336,6 +336,11 @@ type ScopeGeneration struct {
 	// serialized, is set only on a delta, and never names the generation
 	// itself; ValidateForScope rejects either misuse.
 	DeltaUnionBaseGenerationID string `json:"-"`
+	// DeltaUnionChained marks, for the build_projection stage log only, a
+	// delta whose union base is not its fence commit's generation: it was
+	// diffed over a prior delta in the chain (#8780). Set with
+	// DeltaUnionBaseGenerationID from the same load; never persisted.
+	DeltaUnionChained bool `json:"-"`
 	// PreparseIdentity is the pre-parse identity of the snapshot this
 	// generation came from (#7978 follow-up, ruling a9-143): the content
 	// version, commit, default branch, and configuration that determine its

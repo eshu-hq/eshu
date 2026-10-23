@@ -45,6 +45,21 @@ func TestProjectionFactsProjectionGeneration(t *testing.T) {
 		t.Fatalf("union load generation = %+v, want IsDelta and union base gen-base on %s", union, claimed.GenerationID)
 	}
 
+	if union.DeltaUnionChained {
+		t.Fatalf("unchained union load generation = %+v, want DeltaUnionChained false", union)
+	}
+	// #8780: a chained delta (diffed over a prior delta) carries the mark to
+	// the build_projection stage log; the claimed generation never does.
+	chained, err := ProjectionFacts{UnionBaseGenerationID: "gen-base", UnionOutcome: DeltaUnionBaseFound, UnionChained: true}.
+		ProjectionGeneration(claimed)
+	if err != nil || !chained.DeltaUnionChained {
+		t.Fatalf("chained union load generation = %+v, %v; want DeltaUnionChained", chained, err)
+	}
+	claimed.DeltaUnionChained = true
+	if single, _ := (ProjectionFacts{}).ProjectionGeneration(claimed); single.DeltaUnionChained {
+		t.Fatalf("single-generation load kept DeltaUnionChained: %+v", single)
+	}
+
 	if _, err := (ProjectionFacts{UnionBaseGenerationID: "gen-base", UnionOutcome: DeltaUnionScopeMismatch}).
 		ProjectionGeneration(claimed); err == nil || !strings.Contains(err.Error(), string(DeltaUnionScopeMismatch)) {
 		t.Fatalf("scope-mismatch union load error = %v, want a refusal naming %s", err, DeltaUnionScopeMismatch)

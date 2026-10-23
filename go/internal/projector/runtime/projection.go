@@ -179,6 +179,7 @@ func (r Runtime) Project(ctx context.Context, scopeValue scope.IngestionScope, g
 		"fact_count", len(inputFacts),
 		"generation_fact_count", projection.ownedFactCount,
 		"union_base_fact_count", len(inputFacts)-projection.ownedFactCount,
+		"chained", generation.DeltaUnionChained,
 		"content_record_count", len(projection.contentMaterialization.Records),
 		"content_entity_count", len(projection.contentMaterialization.Entities),
 		"content_repository_ref_count", len(projection.contentMaterialization.RepositoryRefs),
