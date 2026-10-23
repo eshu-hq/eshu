@@ -411,7 +411,11 @@ coverage:
     scenario_type: baseline
     ref: "odu:ifa-incident-routing-evidence-family"
     proof_gate: ifa-determinism
+  - surface: "materialized_edges:incident_routing_evidence"
+    scenario: odu
     scenario_type: fault
+    ref: "odu:ifa-incident-routing-evidence-family"
+    proof_gate: ifa-fault-injection
   # publishes: fault-free baseline plus fault-injection
   # recovery, all asserting the three-edge PUBLISHES exact set with
   # identical graph digests (#6228 publishes live leaf). The
@@ -423,6 +427,13 @@ coverage:
   # (unresolved), and the two-remote match (ambiguous, never picked)
   # resolve to nothing on either path.
   - surface: "materialized_edges:publishes"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-publishes-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:publishes"
+    scenario: odu
+    scenario_type: fault
     ref: "odu:ifa-publishes-family"
     proof_gate: ifa-fault-injection
 
