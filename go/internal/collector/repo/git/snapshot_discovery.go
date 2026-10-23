@@ -7,7 +7,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
@@ -311,17 +313,20 @@ func resolveNativeSnapshotFileSet(
 	if err != nil {
 		return discovery.RepoFileSet{}, discovery.DiscoveryStats{}, err
 	}
+	admitted := func(path string) bool {
+		if isTerraformStateCandidateName(filepath.Base(path)) {
+			return true
+		}
+		_, ok := registry.LookupByPath(path)
+		if ok || docs.IsGitDocumentationPath(path) {
+			return true
+		}
+		return submodule.IsGitmodulesCandidatePath(repoPath, path) || codeowners.IsCodeownersCandidatePath(repoPath, path)
+	}
 	stats, fileSets, err := discovery.ResolveRepositoryFileSetsWithStats(
 		repoPath,
 		func(path string) bool {
-			if isTerraformStateCandidateName(filepath.Base(path)) {
-				return true
-			}
-			_, ok := registry.LookupByPath(path)
-			if ok || docs.IsGitDocumentationPath(path) {
-				return true
-			}
-			return submodule.IsGitmodulesCandidatePath(repoPath, path) || codeowners.IsCodeownersCandidatePath(repoPath, path)
+			return admitted(path) && symlinkTargetAdmitted(repoPath, path, registry, admitted)
 		},
 		opts,
 	)
@@ -335,4 +340,54 @@ func resolveNativeSnapshotFileSet(
 		}
 	}
 	return discovery.RepoFileSet{RepoRoot: repoPath}, stats, nil
+}
+
+// symlinkTargetAdmitted keeps a symlink from smuggling a file the registry
+// would never admit. Discovery tests only the link name, and the content read
+// follows the link, so `.nvmrc -> .env` or `.nvmrc -> .git/config` would store
+// credential text the content store cannot redact. A regular file passes
+// unchanged. A symlink passes only when it resolves to a regular file inside
+// repoPath that the same matcher admits and, when both names resolve to a
+// registry definition, that parses with the same definition. Dangling links,
+// link cycles, links to directories, and links that leave the repository fail
+// closed. This mirrors the --file-targets path, which resolves symlinks before
+// it asks the registry.
+func symlinkTargetAdmitted(
+	repoPath string,
+	path string,
+	registry parser.Registry,
+	admitted func(string) bool,
+) bool {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return true
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return false
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(repoPath)
+	if err != nil {
+		resolvedRoot = repoPath
+	}
+	rel, err := filepath.Rel(resolvedRoot, resolved)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(filepath.ToSlash(rel), "../") {
+		return false
+	}
+	target, err := os.Stat(resolved)
+	if err != nil || !target.Mode().IsRegular() {
+		return false
+	}
+	if !admitted(resolved) {
+		return false
+	}
+	linkDef, linkOK := registry.LookupByPath(path)
+	targetDef, targetOK := registry.LookupByPath(resolved)
+	if linkOK && targetOK {
+		return linkDef.ParserKey == targetDef.ParserKey
+	}
+	return true
 }
