@@ -36,6 +36,23 @@ def run(package: str, test: str) -> str:
 class ShardContractTest(unittest.TestCase):
     """Exercise planner and fail-closed shard accounting."""
 
+    def test_failed_package_upload_includes_hidden_streams(self) -> None:
+        """Keep failure logs discoverable without widening the upload path."""
+        workflow = (SCRIPT.parents[2] / ".github/workflows/live-postgres-readiness.yml").read_text(
+            encoding="utf-8")
+        owner = workflow.split("\n  live-postgres-readiness-shards:\n", 1)[1]
+        owner = owner.split("\n  live-postgres-readiness:\n", 1)[0]
+        marker = "\n      - name: Upload failed-package event streams\n"
+        self.assertEqual(owner.count(marker), 1)
+        step = owner.split(marker, 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("        uses: actions/upload-artifact@v4\n", step)
+        self.assertRegex(step, r"(?m)^        if: .*failure\(\)")
+        with_block = step.split("\n        with:\n", 1)[1]
+        with_block = re.split(r"\n        \S", with_block, maxsplit=1)[0]
+        inputs = dict(re.findall(r"(?m)^          ([a-z-]+): ([^\n]+)$", with_block))
+        self.assertEqual(inputs.get("path"), ".readiness-debug/")
+        self.assertEqual(inputs.get("include-hidden-files"), "true")
+
     @classmethod
     def setUpClass(cls) -> None:
         proc = subprocess.run([sys.executable, str(LIB / "live_postgres_readiness_results.py"),

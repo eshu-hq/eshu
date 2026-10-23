@@ -388,6 +388,7 @@ jobs:
         with:
           name: readiness-debug-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
           path: .readiness-debug/
+          include-hidden-files: true
           if-no-files-found: ignore
 
       - name: Stop disposable physical standby
