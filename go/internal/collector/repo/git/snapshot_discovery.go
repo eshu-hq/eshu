@@ -304,6 +304,11 @@ func (s NativeRepositorySnapshotter) now() time.Time {
 	return time.Now().UTC()
 }
 
+// symlinkTargetSkipReason is the content skip reason for a symlink whose
+// resolved target failed admission (#8809). It surfaces as skip_reason
+// "content:symlink_target" and log key files_skipped.content.symlink_target.
+const symlinkTargetSkipReason = "symlink_target"
+
 func resolveNativeSnapshotFileSet(
 	repoPath string,
 	registry parser.Registry,
@@ -331,14 +336,30 @@ func resolveNativeSnapshotFileSet(
 		}
 		return ""
 	}
+	// The walk calls the matcher once per file from one goroutine, so a plain
+	// counter is safe. Dropped links join the content skip stats after the walk.
+	droppedLinks := 0
 	stats, fileSets, err := discovery.ResolveRepositoryFileSetsWithStats(
 		repoPath,
 		func(path string) bool {
 			linkCategory := category(path)
-			return linkCategory != "" && symlinkTargetAdmitted(repoPath, path, linkCategory, opts.IgnoredDirs, category)
+			if linkCategory == "" {
+				return false
+			}
+			admitted, linkDropped := symlinkTargetAdmitted(repoPath, path, linkCategory, opts.IgnoredDirs, category)
+			if linkDropped {
+				droppedLinks++
+			}
+			return admitted
 		},
 		opts,
 	)
+	if droppedLinks > 0 {
+		if stats.FilesSkippedByContent == nil {
+			stats.FilesSkippedByContent = make(map[string]int)
+		}
+		stats.FilesSkippedByContent[symlinkTargetSkipReason] += droppedLinks
+	}
 	if err != nil {
 		return discovery.RepoFileSet{}, stats, fmt.Errorf("resolve repository file sets: %w", err)
 	}
@@ -362,21 +383,42 @@ func resolveNativeSnapshotFileSet(
 // and CODEOWNERS each match only their own kind). Dangling links, link cycles,
 // directory links, and links that leave the repository fail closed. This
 // mirrors the --file-targets path, which resolves symlinks before it asks the
-// registry. Gitignore and eshuignore rules are not re-applied to the target.
+// registry. Gitignore and eshuignore rules are not re-applied to the target:
+// an operator-excluded path can still surface through an in-root link whose
+// name is admitted, the same as before this check existed.
+//
+// The second result is true only when path is a symlink that was rejected, so
+// the caller can count dropped links without counting a vanished file.
 func symlinkTargetAdmitted(
 	repoPath string,
 	path string,
 	linkCategory string,
 	ignoredDirs []string,
 	category func(string) string,
-) bool {
+) (admitted bool, linkDropped bool) {
 	info, err := os.Lstat(path)
 	if err != nil {
-		return false
+		return false, false
 	}
 	if info.Mode()&os.ModeSymlink == 0 {
-		return true
+		return true, false
 	}
+	if symlinkResolvesToAdmittedTarget(repoPath, path, linkCategory, ignoredDirs, category) {
+		return true, false
+	}
+	return false, true
+}
+
+// symlinkResolvesToAdmittedTarget reports whether the symlink at path resolves
+// to a regular file inside repoPath, under no ignored directory, in the same
+// admission category as the link.
+func symlinkResolvesToAdmittedTarget(
+	repoPath string,
+	path string,
+	linkCategory string,
+	ignoredDirs []string,
+	category func(string) string,
+) bool {
 	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return false
