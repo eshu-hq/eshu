@@ -59,7 +59,9 @@ func RenderArtifactMarkdown(artifact Artifact) (string, error) {
 	if summary := strings.TrimSpace(artifact.Connection.QuerySummary); summary != "" {
 		fmt.Fprintf(&b, "- First answer: %s\n", summary)
 	}
-	fmt.Fprintf(&b, "- MCP tools visible: `%d`\n", artifact.Connection.ToolCount)
+	fmt.Fprintf(&b, "- MCP tools registered in this build: `%d` (a deployment advertises "+
+		"fewer when `ESHU_MCP_TOOL_SURFACE` is `router` or `core_router`)\n",
+		artifact.Connection.ToolCount)
 
 	onboardMarkdownList(&b, "Starter prompts", artifact.StarterPrompts)
 	onboardMarkdownStarterPlaybooks(&b, artifact.StarterPlaybooks)
