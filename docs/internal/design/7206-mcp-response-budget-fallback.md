@@ -70,3 +70,65 @@ A local three-run, 250 ms microbenchmark on a synthetic 25-row envelope
 measured the former estimator at 376.8–384.5 µs/op and exact rendering at
 570.3–570.6 µs/op. The added per-call cost was about 0.19 ms. This measures
 serialization overhead only; it is not a full-corpus latency result.
+
+## Decision note, 2026-10-23: a one-copy result shape (#8800)
+
+The decision above stands for the default `dual` shape. Issue #8796 measured
+that Claude Code and Codex both put the two copies of a result into the model's
+input, and the arbiter ruled that a connection may choose a one-copy
+`structured` shape: one text summary plus `structuredContent`, with no embedded
+resource. This note records how that interacts with the budget.
+
+- The budget keeps counting `len(json.Marshal(renderToolResult(...)))`, the
+  exact bytes sent in the connection's shape. The 262,144-byte limit does not
+  move, and no tool default is loosened. Defaults calibrated to two-copy
+  accounting stay as they are; under `structured` they simply have more room.
+- Under `structured` there is no second copy to drop, so the resource-only
+  fallback does not apply and `ResourceOnly` is never set. Any result up to
+  256 KiB passes untouched, including the results of about 128 KiB and up that
+  `dual` would rewrite to a resource. A result over 256 KiB goes to a page for
+  `find_code` and `search_entity_content` (the page fits by construction,
+  because `trimToBudgetPage` measures the same rendering) and to
+  `mcp_response_over_budget` for every other tool.
+- Error results follow the shape: a text item and `structuredContent`, with no
+  `eshu://tool-error/dispatch` resource.
+- The four budget instruments and three budget log lines gain a bounded `shape`
+  attribute (`dual`, `structured`). Metric names are unchanged so dashboards
+  keep working; samples recorded before this change are all `dual`.
+  `eshu_dp_mcp_response_resource_fallback_total` keeps its meaning and records
+  only under `dual`; it is zero by construction under `structured`. The
+  `eshu_dp_mcp_response_bytes` description now reads "as sent for the
+  connection's result shape" instead of "including both wire copies".
+- Rollout is opt-in: `?shape=` on `/sse` and `/mcp/message`,
+  `ESHU_MCP_RESULT_SHAPE` for the process default, default `dual`.
+  `eshu mcp setup` opts the `claude` and `codex` platforms in. Rollback is
+  switching the connection or the process default back to `dual`.
+- Not decided here, and not implemented: flipping the default to `structured`
+  (it needs a two-client re-measurement within 1.1 times the one-copy rate, a
+  scoring run that is not worse, a manual run on the other documented clients,
+  a week of no over-budget increase on a hosted deployment, the golden-corpus
+  gate run once in `structured`, four scripts taught to read
+  `structuredContent`, and a decision on non-object bodies), and an
+  `initialize` reply that echoes a requested protocol version.
+- The token saving was measured only on the pre-change doubling. The
+  post-change two-client re-measurement is pending, so no saving is claimed for
+  the `structured` shape.
+- The golden-corpus gate in `structured` is pending. It needs a live Docker
+  stack, so it is not part of this change's local proof. Run it with
+  `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
+- Four scripts read only the embedded resource and fail against a `structured`
+  server: `scripts/lib/remote_e2e_target_story_common.sh`,
+  `scripts/verify_local_public_collector_proof.sh`,
+  `scripts/verify_dead_iac_compose.sh`, and
+  `scripts/run-remote-e2e-component-extension.sh`. They run on `dual` today.
+  Each must read `structuredContent` first before the default flips or a
+  deployment sets `ESHU_MCP_RESULT_SHAPE=structured`.
+- A JSON array body or a non-JSON 2xx body becomes a non-object
+  `structuredContent` (an array or a JSON string), while the MCP specification
+  types `structuredContent` as an object. Under `dual` the resource still
+  carries the payload. Under `structured` the non-object `structuredContent` is
+  the only machine copy. Behavior is unchanged here; a decision is needed
+  before the default flips.
+- `find_tool` results and router error results come from the router, not tool
+  dispatch, and carry the payload as text and as `structuredContent` in both
+  shapes. "Once on the wire" describes tool results only.

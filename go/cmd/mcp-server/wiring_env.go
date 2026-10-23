@@ -13,6 +13,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -106,6 +107,14 @@ func loadQueryProfile(getenv func(string) string) (query.QueryProfile, error) {
 // the wrong tools.
 func loadToolSurface(getenv func(string) string) (router.Surface, error) {
 	return router.ParseSurface(strings.TrimSpace(getenv("ESHU_MCP_TOOL_SURFACE")))
+}
+
+// loadResultShape parses ESHU_MCP_RESULT_SHAPE. An empty value selects the dual
+// shape so an unset variable keeps today's tools/call result. An unknown value
+// is an error naming the allowed values; the caller refuses to start instead of
+// falling back, so a misspelled setting cannot silently change the wire shape.
+func loadResultShape(getenv func(string) string) (resultshape.Mode, error) {
+	return resultshape.Parse(strings.TrimSpace(getenv("ESHU_MCP_RESULT_SHAPE")))
 }
 
 // loadGraphBackend parses ESHU_GRAPH_BACKEND. An empty value defaults to

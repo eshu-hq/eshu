@@ -1,0 +1,37 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "exact/fresh — Returned 1 result(s)."
+    },
+    {
+      "type": "resource",
+      "resource": {
+        "uri": "eshu://tool-result/envelope",
+        "mimeType": "application/eshu.envelope+json",
+        "text": "{\"data\":{\"count\":1,\"repositories\":[{\"id\":\"repo-1\",\"name\":\"alpha\"}]},\"truth\":{\"level\":\"exact\",\"capability\":\"platform_impact.context_overview\",\"profile\":\"local_authoritative\",\"basis\":\"authoritative_graph\",\"freshness\":{\"state\":\"fresh\"}},\"error\":null}"
+      }
+    }
+  ],
+  "structuredContent": {
+    "data": {
+      "count": 1,
+      "repositories": [
+        {
+          "id": "repo-1",
+          "name": "alpha"
+        }
+      ]
+    },
+    "truth": {
+      "level": "exact",
+      "capability": "platform_impact.context_overview",
+      "profile": "local_authoritative",
+      "basis": "authoritative_graph",
+      "freshness": {
+        "state": "fresh"
+      }
+    },
+    "error": null
+  }
+}

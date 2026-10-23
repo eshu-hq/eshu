@@ -83,7 +83,7 @@ cd "${repo_root}"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: keep fix
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${GATE_API_PORT:=18080}"   # off the default 8080 so a sibling stack does not collide
-: "${GATE_MCP_PORT:=18091}"   # eshu-mcp-server http transport for B-7(c) MCP query truth
+: "${GATE_MCP_PORT:=18091}" "${GATE_MCP_RESULT_SHAPE:=}" # B-7(c) MCP port; shape dual|structured, empty = server default (#8800)
 : "${GATE_PROMETHEUS_SOURCE_PORT:=19090}" # credential-free Prometheus-compatible range source
 : "${GATE_ASK_PROVIDER_PORT:=19191}" # credential-free OpenAI-compatible Ask provider
 : "${GATE_API_KEY:=golden-corpus-gate-local-key}"
@@ -478,7 +478,7 @@ gate_status=0
 	-snapshot="${golden_query_runtime_snapshot}" \
 	-demo-manifest=specs/demo-first-answers.v1.yaml \
 	-api-base-url="http://localhost:${GATE_API_PORT}" \
-	-mcp-base-url="http://localhost:${GATE_MCP_PORT}" \
+	-mcp-base-url="http://localhost:${GATE_MCP_PORT}" -mcp-result-shape="${GATE_MCP_RESULT_SHAPE:-}" \
 	-graph-required-only=false \
 	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow,Platform,GitlabPipeline,GitlabJob,CloudAction" \
 	-required-correlations="all" \

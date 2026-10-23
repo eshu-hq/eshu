@@ -6,7 +6,7 @@ server, JSON-RPC dispatcher, SSE session model, HTTP transport authentication
 the HTTP API, so both surfaces return the same truth. Each request gets a
 deterministic 30-second default deadline; handlers must still honor
 `r.Context()` cancellation. Deadline and parent cancellation return an MCP error
-result with structured content and an `eshu://tool-error/dispatch` JSON resource.
+result with structured content, plus an `eshu://tool-error/dispatch` JSON resource under the `dual` result shape.
 `get_capability_catalog` is transport-only over `/api/v0/capabilities`; it preserves
 the top-level built-in role, grant, and data-class catalog plus each capability's
 matched permission family, action, scope levels, default roles, and sensitive-data marker.
@@ -90,8 +90,8 @@ flowchart TB
     serve["handler.ServeHTTP(rec, req)"]
     timeout["structured MCP error\neshu://tool-error/dispatch"]
     pce["parseCanonicalEnvelope(body)\ndispatch_envelope.go:15"]
-    envelope["mcpToolResult with\ntext summary + resource; structuredContent when it fits"]
-    plain["mcpToolResult with\ntext summary + JSON resource; structuredContent when it fits"]
+    envelope["mcpToolResult: dual = text summary + resource,\nstructuredContent when it fits; structured = text summary + structuredContent"]
+    plain["mcpToolResult: dual = text summary + JSON resource,\nstructuredContent when it fits; structured = text summary + structuredContent"]
 
     hm --> parse
     parse --> dt
@@ -134,12 +134,13 @@ Issue #3498 adds a tool-agnostic response-size budget at the dispatch boundary
 budget is enforced there once instead of per route. `applyResponseBudget`
 measures the exact serialized MCP result against `defaultToolResponseByteBudget`
 (256 KiB, ~64k tokens at the repo's conservative ~4-bytes-per-token heuristic).
-The normal result carries a bounded text summary, `structuredContent`, and an
-embedded resource holding the complete canonical envelope or plain JSON. When
-the duplicate copies exceed the budget but the complete resource-only result
-fits, dispatch omits `structuredContent` and returns `isError=false`; clients
-must parse the resource's JSON `text` when the structured copy is absent. When
-the resource-only result also exceeds the budget, `find_code` and `search_entity_content` (budgetPagedTools) answer with the largest first run of whole rows that fits (`truncated=true`, `next_offset`, `budget_page`, `truth.truncated`, `truth.omissions`; #7725), except that a `rank_cursor` walk page keeps the first rows of its walk order and re-mints `rank_walk.next_cursor` through `rank.TrimWalk` instead of setting `next_offset` (#7746); every other tool, and a first row that is over budget alone, gets a small bounded canonical envelope (`error.code=mcp_response_over_budget`)
+A connection picks a result shape (`internal/mcp/result/shape`, #8800; `?shape=`,
+`ESHU_MCP_RESULT_SHAPE`); the budget counts the result as sent in it and the limit does not move.
+`dual`, the default, carries a text summary, `structuredContent`, and an embedded resource with the
+complete envelope or plain JSON; when the copies exceed the budget but the resource-only result fits,
+dispatch omits `structuredContent` and returns `isError=false`, so clients parse the resource's JSON
+`text`. `structured` has no resource and never sets `ResourceOnly`. When the resource-only (`dual`)
+or single-copy (`structured`) result still exceeds the budget, `find_code` and `search_entity_content` (budgetPagedTools) answer with the largest first run of whole rows that fits (`truncated=true`, `next_offset`, `budget_page`, `truth.truncated`, `truth.omissions`; #7725), except that a `rank_cursor` walk page keeps the first rows of its walk order and re-mints `rank_walk.next_cursor` through `rank.TrimWalk` instead of setting `next_offset` (#7746); every other tool, and a first row that is over budget alone, gets a small bounded canonical envelope (`error.code=mcp_response_over_budget`)
 carrying `response_bytes`, `budget_bytes`, `estimated_tokens`, the tool name,
 and narrowing guidance. Per-route token budgets such as the relationship-story
 `token_budget` still apply first; this is the outer, tool-agnostic guard, the
@@ -155,7 +156,7 @@ fallback` with `tool`, `response_bytes`, `emitted_bytes`, and `budget_bytes`.
 Refusal emits `mcp tool response over budget` and returns budget accounting and
 narrowing guidance in `error.details`. Per-tool `eshu_dp_mcp_response_bytes`,
 `eshu_dp_mcp_response_resource_fallback_total`, `eshu_dp_mcp_response_budget_page_total` (log `mcp tool response budget page` carries `rows_returned`, `rows_available`), and
-`eshu_dp_mcp_response_over_budget_total` distinguish the attempted size,
+`eshu_dp_mcp_response_over_budget_total` (all four carry a bounded `shape` label, and the three budget log lines a `shape` field) distinguish the attempted size,
 successful fallback, budget page, and refusal (see [MCP response-budget telemetry](../../../docs/public/reference/telemetry/mcp-response-budget.md)).
 
 ## Tool groups
@@ -620,15 +621,15 @@ element and sets `repo_id` rather than `repo_ids`.
 
 - The `Envelope` field of `dispatchResult` is populated by
   `parseCanonicalEnvelope` and rendered by `handleMessage`. When it is non-nil,
-  the response has a two-block `mcpToolResult` containing the complete envelope
-  resource. `structuredContent` is included when the two-copy result fits the
-  budget. Do not substitute the `query.EnvelopeMIMEType` string literal; use
+  a `dual` response is a two-block `mcpToolResult` with the envelope resource;
+  `structured` is one text block plus `structuredContent`. Do not substitute
+  the `query.EnvelopeMIMEType` string literal; use
   the constant.
 
 - Plain JSON handler payloads are not canonical envelopes, but they still carry
-  evidence. MCP returns the complete payload as an `application/json` resource
-  at `eshu://tool-result/payload`, and in `structuredContent` when the duplicate
-  fits. Do not collapse them back to text-only summaries; that breaks API/MCP
+  evidence. `dual` returns the payload as an `application/json` resource at
+  `eshu://tool-result/payload` (plus `structuredContent`); `structured` in
+  `structuredContent` alone. Do not collapse them to text-only summaries; that breaks API/MCP
   parity for handlers that have not adopted the canonical envelope shape yet.
 
 ## Text summaries

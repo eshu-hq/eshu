@@ -1,0 +1,22 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Eshu query completed."
+    },
+    {
+      "type": "resource",
+      "resource": {
+        "uri": "eshu://tool-result/payload",
+        "mimeType": "application/json",
+        "text": "{\"repos\":[\"a\",\"b\"]}"
+      }
+    }
+  ],
+  "structuredContent": {
+    "repos": [
+      "a",
+      "b"
+    ]
+  }
+}

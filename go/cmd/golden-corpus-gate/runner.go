@@ -311,7 +311,7 @@ func runQuery(ctx context.Context, o options, getenv func(string) string, snap S
 	// tool query shapes live through the MCP tool layer (#3866 criterion 4), not
 	// just the HTTP routes those tools proxy to.
 	if strings.TrimSpace(o.mcpBaseURL) != "" {
-		if err := checkMCPQuery(ctx, newMCPClient(o.mcpBaseURL, apiKey), snap, r); err != nil {
+		if err := checkMCPQuery(ctx, newMCPClient(o.mcpBaseURL, apiKey, o.mcpResultShape), snap, r); err != nil {
 			return fmt.Errorf("mcp query shapes: %w", err)
 		}
 	}
@@ -328,7 +328,7 @@ func runDemoAnswers(ctx context.Context, o options, getenv func(string) string, 
 	}
 	apiKey := strings.TrimSpace(getenv("ESHU_API_KEY"))
 	qc := newQueryClient(o.apiBaseURL, apiKey)
-	mc := newMCPClient(o.mcpBaseURL, apiKey)
+	mc := newMCPClient(o.mcpBaseURL, apiKey, o.mcpResultShape)
 	return checkDemoAnswers(ctx, qc, mc, o.demoManifestPath, r)
 }
 

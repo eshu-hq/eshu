@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 )
 
 // marshalIndentNoHTML renders v as 2-space-indented JSON without HTML escaping
@@ -51,7 +53,7 @@ func hostedBaseURL(req SetupRequest) string {
 func hostedServerEntry(p *Platform, req SetupRequest) map[string]any {
 	entry := map[string]any{
 		"type": "http",
-		"url":  hostedBaseURL(req) + "/mcp/message",
+		"url":  hostedMessageURL(p, req),
 	}
 	switch req.Posture {
 	case PostureSSO:
@@ -74,16 +76,39 @@ func serverEntry(p *Platform, req SetupRequest) map[string]any {
 	if req.Mode == ModeHostedHTTP {
 		return hostedServerEntry(p, req)
 	}
-	return localStdioServerEntry()
+	entry := localStdioServerEntry()
+	if wantsStructuredShape(p) {
+		// eshu mcp start passes its environment to the MCP server, which reads
+		// ESHU_MCP_RESULT_SHAPE as the process default for stdio.
+		entry["env"] = map[string]string{resultShapeEnvVar: string(resultshape.Structured)}
+	}
+	return entry
+}
+
+// resultShapeEnvVar is the MCP server variable that sets the process default
+// tools/call result shape.
+const resultShapeEnvVar = "ESHU_MCP_RESULT_SHAPE"
+
+// wantsStructuredShape reports whether the platform's profile asks for the
+// one-copy structured result shape. Every other platform stays on dual.
+func wantsStructuredShape(p *Platform) bool {
+	return p != nil && resultshape.OrDual(p.ResultShape) == resultshape.Structured
+}
+
+// hostedMessageURL returns the JSON-RPC endpoint URL. A platform that asks for
+// the structured shape carries it as a shape query parameter, which the server
+// honors per request and per SSE session.
+func hostedMessageURL(p *Platform, req SetupRequest) string {
+	url := hostedBaseURL(req) + "/mcp/message"
+	if wantsStructuredShape(p) {
+		url += "?shape=" + string(resultshape.Structured)
+	}
+	return url
 }
 
 // mcpServersJSONSnippet renders the common { "mcpServers": { "eshu": {...} } }
 // shape used by Claude Code, Cursor, and generic MCP clients.
-func mcpServersJSONSnippet(req SetupRequest) (string, error) {
-	p, err := ResolvePlatform("generic")
-	if err != nil {
-		return "", err
-	}
+func mcpServersJSONSnippet(p *Platform, req SetupRequest) (string, error) {
 	doc := map[string]any{
 		"mcpServers": map[string]any{
 			mcpServerKey: serverEntry(p, req),
@@ -94,11 +119,7 @@ func mcpServersJSONSnippet(req SetupRequest) (string, error) {
 
 // vscodeJSONSnippet renders the VS Code .vscode/mcp.json shape, which nests
 // servers under a top-level "servers" key.
-func vscodeJSONSnippet(req SetupRequest) (string, error) {
-	p, err := ResolvePlatform("vscode")
-	if err != nil {
-		return "", err
-	}
+func vscodeJSONSnippet(p *Platform, req SetupRequest) (string, error) {
 	doc := map[string]any{
 		"servers": map[string]any{
 			mcpServerKey: serverEntry(p, req),
@@ -121,18 +142,21 @@ func vscodeJSONSnippet(req SetupRequest) (string, error) {
 // SSO posture emits the URL only: Codex's streamable_http transport has no
 // documented client-side OAuth flow, so the guidance block (RenderSetupSnippet)
 // tells the operator to fall back to --auth token if the OAuth flow cannot run.
-func codexTOMLSnippet(req SetupRequest) (string, error) {
+func codexTOMLSnippet(p *Platform, req SetupRequest) (string, error) {
 	if req.Mode != ModeHostedHTTP {
 		var b strings.Builder
 		fmt.Fprintf(&b, "[mcp_servers.%s]\n", mcpServerKey)
 		b.WriteString("command = \"eshu\"\n")
 		b.WriteString("args = [\"mcp\", \"start\"]\n")
+		if wantsStructuredShape(p) {
+			fmt.Fprintf(&b, "env = { %s = %q }\n", resultShapeEnvVar, string(resultshape.Structured))
+		}
 		return strings.TrimRight(b.String(), "\n"), nil
 	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "[mcp_servers.%s]\n", mcpServerKey)
-	fmt.Fprintf(&b, "url = %q\n", hostedBaseURL(req)+"/mcp/message")
+	fmt.Fprintf(&b, "url = %q\n", hostedMessageURL(p, req))
 	switch req.Posture {
 	case PostureSSO:
 		// URL only; no bearer_token_env_var, no http_headers.
@@ -147,7 +171,7 @@ func codexTOMLSnippet(req SetupRequest) (string, error) {
 // RenderSetupSnippet builds the full guidance block for a platform: snippet plus
 // target-file and notes. It never prints a raw token.
 func RenderSetupSnippet(p *Platform, req SetupRequest) (string, error) {
-	snippet, err := p.snippet(req)
+	snippet, err := p.snippet(p, req)
 	if err != nil {
 		return "", err
 	}

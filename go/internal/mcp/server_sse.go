@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 )
 
@@ -34,6 +35,10 @@ type sseSession struct {
 	// is empty when the client chose none, so the process surface applies. A
 	// POST that names its own surface still overrides it (#8758).
 	surface router.Surface
+	// shape is the tools/call result shape the client chose with
+	// GET /sse?shape=. It is empty when the client chose none, so the process
+	// shape applies. A POST that names its own shape still overrides it.
+	shape resultshape.Mode
 
 	mu     sync.Mutex
 	closed bool
@@ -89,11 +94,19 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A shape query parameter picks the tools/call result shape for every
+	// message of this SSE session; an unknown value is rejected the same way.
+	shape, err := parseShapeParam(r)
+	if err != nil {
+		writeSurfaceError(w, err)
+		return
+	}
+
 	// Create a session for this SSE connection, binding it to the credential
 	// that opened it (empty when transport auth is not configured -- see
 	// authPrincipalKey and handleHTTPMessage's session-principal check).
 	sessionID := fmt.Sprintf("sess_%d", time.Now().UnixNano())
-	sess := &sseSession{ch: make(chan []byte, 64), principal: authPrincipalKey(r.Context()), surface: surface}
+	sess := &sseSession{ch: make(chan []byte, 64), principal: authPrincipalKey(r.Context()), surface: surface, shape: shape}
 
 	s.sessMu.Lock()
 	s.sessions[sessionID] = sess
@@ -121,7 +134,10 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	if surface != "" {
 		endpoint += "&surface=" + string(surface)
 	}
-	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint) // #nosec G705 -- text/event-stream, not HTML; sessionID is server-generated and surface is a closed enum value from router.ParseSurface
+	if shape != "" {
+		endpoint += "&shape=" + string(shape) // closed enum from resultshape.Parse, URL-safe
+	}
+	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint) // #nosec G705 -- text/event-stream, not HTML; sessionID is server-generated, surface is a closed enum value from router.ParseSurface, and shape is a closed enum from resultshape.Parse
 	flusher.Flush()
 
 	s.logger.Info("sse session started", "session_id", sessionID)
@@ -206,6 +222,19 @@ func (s *Server) handleHTTPMessage(w http.ResponseWriter, r *http.Request) {
 	if surface != "" {
 		ctx = withSurfaceOverride(ctx, surface)
 	}
+	// The same precedence for the result shape: the request's parameter, then
+	// its session's choice, then the process default applied by callTool.
+	shape, err := parseShapeParam(r)
+	if err != nil {
+		writeSurfaceError(w, err)
+		return
+	}
+	if shape == "" && sess != nil {
+		shape = sess.shape
+	}
+	if shape != "" {
+		ctx = resultshape.WithOverride(ctx, shape)
+	}
 
 	var req jsonrpcRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -256,7 +285,19 @@ func parseSurfaceParam(r *http.Request) (router.Surface, error) {
 	return router.ParseSurface(raw)
 }
 
-// writeSurfaceError answers an unknown surface value with a 400 JSON-RPC
+// parseShapeParam reads the shape query parameter with the same contract as
+// parseSurfaceParam: trimmed, "" when absent or whitespace-only so the caller
+// keeps the process shape, an error naming the allowed values when unknown, and
+// a canonical (lower case) value otherwise.
+func parseShapeParam(r *http.Request) (resultshape.Mode, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("shape"))
+	if raw == "" {
+		return "", nil
+	}
+	return resultshape.Parse(raw)
+}
+
+// writeSurfaceError answers an unknown surface or shape value with a 400 JSON-RPC
 // error whose message lists the allowed values.
 func writeSurfaceError(w http.ResponseWriter, err error) {
 	w.Header().Set("Content-Type", "application/json")

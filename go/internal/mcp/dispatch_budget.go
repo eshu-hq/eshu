@@ -6,7 +6,6 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"sync"
 
@@ -14,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/search/rank"
@@ -41,9 +41,11 @@ const errorCodeResponseOverBudget query.ErrorCode = "mcp_response_over_budget"
 
 // applyResponseBudget enforces a serialized response-size budget on a dispatch
 // result. When budget <= 0 the guard is disabled and the result is returned
-// unchanged. If both complete copies exceed the budget but the full embedded
-// resource fits, the structured copy is omitted. If the resource also exceeds
-// the budget and the tool pages (budgetPagedTools), the result becomes the
+// unchanged. The budget counts the serialized result as sent in result.Shape.
+// Under the dual shape, if both complete copies exceed the budget but the full
+// embedded resource fits, the structured copy is omitted. The structured shape
+// sends one copy, so it skips that step. If the result still exceeds the
+// budget and the tool pages (budgetPagedTools), the result becomes the
 // largest page of whole rows that fits, marked truncated with a next_offset
 // (trimToBudgetPage). Otherwise, or when the first row alone is over budget,
 // a bounded error envelope replaces the result.
@@ -56,21 +58,31 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 		return result
 	}
 	result.ToolName = toolName
+	result.Shape = resultshape.OrDual(result.Shape)
+	mode := result.Shape
 	if budget <= 0 {
 		return result
 	}
 	size := estimateResponseBytes(result)
-	recordResponseBytes(toolName, size)
+	recordResponseBytes(toolName, mode, size)
 	if size <= budget {
 		return result
 	}
-	result.ResourceOnly = true
-	emittedSize := estimateResponseBytes(result)
-	if emittedSize > 0 && emittedSize <= budget {
-		recordResponseResourceFallback(toolName)
+	// The resource fallback exists because the dual shape sends the payload
+	// twice. The structured shape sends it once, so size is already the
+	// emitted size and goes straight to a page or the error envelope.
+	singleCopy := mode == resultshape.Structured
+	emittedSize := size
+	if !singleCopy {
+		result.ResourceOnly = true
+		emittedSize = estimateResponseBytes(result)
+	}
+	if !singleCopy && emittedSize > 0 && emittedSize <= budget {
+		recordResponseResourceFallback(toolName, mode)
 		if logger != nil {
 			logger.Info("mcp tool response resource fallback",
 				"tool", toolName,
+				"shape", string(mode),
 				"response_bytes", size,
 				"emitted_bytes", emittedSize,
 				"budget_bytes", budget,
@@ -79,10 +91,11 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 		return result
 	}
 	if page, ok := trimToBudgetPage(result, toolName, budget); ok {
-		recordResponseBudgetPage(toolName)
+		recordResponseBudgetPage(toolName, mode)
 		if logger != nil {
 			logger.Info("mcp tool response budget page",
 				"tool", toolName,
+				"shape", string(mode),
 				"response_bytes", size,
 				"emitted_bytes", page.bytes,
 				"budget_bytes", budget,
@@ -92,17 +105,25 @@ func applyResponseBudget(result *dispatchResult, toolName string, budget int, lo
 		}
 		return page.result
 	}
-	recordResponseOverBudget(toolName)
+	recordResponseOverBudget(toolName, mode)
 	if logger != nil {
-		logger.Warn(
-			"mcp tool response over budget",
+		// resource_bytes is the size of the resource-only copy, so it exists
+		// only where that copy was measured. The structured shape has no such
+		// copy: response_bytes is already the single emitted size.
+		attrs := []any{
 			"tool", toolName,
+			"shape", string(mode),
 			"response_bytes", size,
-			"resource_bytes", emittedSize,
-			"budget_bytes", budget,
-		)
+		}
+		if !singleCopy {
+			attrs = append(attrs, "resource_bytes", emittedSize)
+		}
+		attrs = append(attrs, "budget_bytes", budget)
+		logger.Warn("mcp tool response over budget", attrs...)
 	}
-	return overBudgetResult(toolName, size, budget)
+	overBudget := overBudgetResult(toolName, size, budget)
+	overBudget.Shape = mode
+	return overBudget
 }
 
 // estimateResponseBytes returns the exact serialized size of mcpToolResult,
@@ -118,50 +139,6 @@ func estimateResponseBytes(result *dispatchResult) int {
 		return 0
 	}
 	return len(encoded)
-}
-
-// estimateResponseTokens converts a serialized byte size into a conservative
-// token estimate using the repo's shared ~4-bytes-per-token heuristic. It is a
-// bound, not a billing-grade tokenizer.
-func estimateResponseTokens(bytes int) int {
-	if bytes <= 0 {
-		return 0
-	}
-	return (bytes + 3) / 4
-}
-
-// overBudgetResult builds the bounded canonical envelope returned in place of an
-// over-budget tool response.
-func overBudgetResult(toolName string, size, budget int) *dispatchResult {
-	envelope := &query.ResponseEnvelope{
-		Data: nil,
-		Error: &query.ErrorEnvelope{
-			Code:       errorCodeResponseOverBudget,
-			Message:    fmt.Sprintf("MCP tool %q response of %d bytes exceeds the %d byte response budget", toolName, size, budget),
-			Capability: "mcp.dispatch",
-			Details: map[string]any{
-				"tool":             toolName,
-				"response_bytes":   size,
-				"budget_bytes":     budget,
-				"estimated_tokens": estimateResponseTokens(size),
-				"guidance":         responseBudgetGuidance(),
-			},
-		},
-	}
-	return &dispatchResult{
-		Value:    envelope,
-		Envelope: envelope,
-		IsError:  true,
-	}
-}
-
-// responseBudgetGuidance returns a deterministic instruction teaching the agent
-// how to shrink a tool response that exceeded the dispatch budget.
-func responseBudgetGuidance() string {
-	return "response exceeded the MCP response budget; lower limit, add repo_id/scope filters, " +
-		"request a single relationship_type or direction, set a smaller token_budget where supported, " +
-		"then drill in via the returned handles instead of fetching the whole result at once; " +
-		"a row with source_cache_clipped=true has a clipped body, so call get_entity_content for its full text"
 }
 
 // dispatchBudgetMeterName scopes the lazily registered budget instruments to
@@ -200,7 +177,7 @@ func dispatchBudgetMetrics() *dispatchBudgetInstruments {
 		inst := &dispatchBudgetInstruments{}
 		if hist, err := meter.Int64Histogram(
 			"eshu_dp_mcp_response_bytes",
-			metric.WithDescription("Attempted serialized MCP tools/call result size in bytes, including both wire copies, labeled by tool"),
+			metric.WithDescription("Attempted serialized MCP tools/call result size in bytes, as sent for the connection's result shape (dual carries two copies, structured one), labeled by tool and shape"),
 			metric.WithUnit("By"),
 			metric.WithExplicitBucketBoundaries(responseBytesBuckets...),
 		); err == nil {
@@ -208,19 +185,19 @@ func dispatchBudgetMetrics() *dispatchBudgetInstruments {
 		}
 		if counter, err := meter.Int64Counter(
 			"eshu_dp_mcp_response_over_budget_total",
-			metric.WithDescription("MCP tool responses replaced by the mcp_response_over_budget error envelope, labeled by tool, so an operator sees which tool defaults exceed the response budget"),
+			metric.WithDescription("MCP tool responses replaced by the mcp_response_over_budget error envelope, labeled by tool and shape, so an operator sees which tool defaults exceed the response budget"),
 		); err == nil {
 			inst.overBudget = counter
 		}
 		if counter, err := meter.Int64Counter(
 			"eshu_dp_mcp_response_resource_fallback_total",
-			metric.WithDescription("MCP tool responses whose full resource was preserved by omitting oversized structuredContent, labeled by tool"),
+			metric.WithDescription("MCP tool responses whose full resource was preserved by omitting oversized structuredContent, labeled by tool and shape; dual only, zero by construction under structured"),
 		); err == nil {
 			inst.resourceFallback = counter
 		}
 		if counter, err := meter.Int64Counter(
 			"eshu_dp_mcp_response_budget_page_total",
-			metric.WithDescription("MCP tool responses trimmed to a page of whole rows with truncated=true and a next_offset because the full result exceeded the response budget, labeled by tool"),
+			metric.WithDescription("MCP tool responses trimmed to a page of whole rows with truncated=true and a next_offset because the full result exceeded the response budget, labeled by tool and shape"),
 		); err == nil {
 			inst.budgetPage = counter
 		}
@@ -243,34 +220,42 @@ func toolAttr(toolName string) attribute.KeyValue {
 	return attribute.String("tool", toolName)
 }
 
+// shapeAttr labels a budget sample with the connection's result shape. The set
+// is closed (dual, structured), so the label cannot grow the series count past
+// twice the tool catalog. Samples recorded before the structured shape existed
+// were all dual.
+func shapeAttr(mode resultshape.Mode) attribute.KeyValue {
+	return attribute.String("shape", string(resultshape.OrDual(mode)))
+}
+
 // recordResponseBytes records one sized response for toolName.
-func recordResponseBytes(toolName string, size int) {
+func recordResponseBytes(toolName string, mode resultshape.Mode, size int) {
 	if inst := dispatchBudgetMetrics(); inst.bytes != nil {
-		inst.bytes.Record(context.Background(), int64(size), metric.WithAttributes(toolAttr(toolName)))
+		inst.bytes.Record(context.Background(), int64(size), metric.WithAttributes(toolAttr(toolName), shapeAttr(mode)))
 	}
 }
 
 // recordResponseOverBudget counts one response replaced by the over-budget
 // envelope for toolName.
-func recordResponseOverBudget(toolName string) {
+func recordResponseOverBudget(toolName string, mode resultshape.Mode) {
 	if inst := dispatchBudgetMetrics(); inst.overBudget != nil {
-		inst.overBudget.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName)))
+		inst.overBudget.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName), shapeAttr(mode)))
 	}
 }
 
 // recordResponseResourceFallback counts a complete response emitted as one
 // embedded resource after its two-copy form exceeded the byte budget.
-func recordResponseResourceFallback(toolName string) {
+func recordResponseResourceFallback(toolName string, mode resultshape.Mode) {
 	if inst := dispatchBudgetMetrics(); inst.resourceFallback != nil {
-		inst.resourceFallback.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName)))
+		inst.resourceFallback.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName), shapeAttr(mode)))
 	}
 }
 
 // recordResponseBudgetPage counts one over-budget response answered as a page
 // of whole rows instead of the over-budget error envelope.
-func recordResponseBudgetPage(toolName string) {
+func recordResponseBudgetPage(toolName string, mode resultshape.Mode) {
 	if inst := dispatchBudgetMetrics(); inst.budgetPage != nil {
-		inst.budgetPage.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName)))
+		inst.budgetPage.Add(context.Background(), 1, metric.WithAttributes(toolAttr(toolName), shapeAttr(mode)))
 	}
 }
 
@@ -324,6 +309,9 @@ func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budg
 	if !paged || result == nil || result.IsError {
 		return budgetPage{}, false
 	}
+	// A dual page is a single-copy resource-only result; a structured page is
+	// already single-copy, so it never sets ResourceOnly.
+	mode := resultshape.OrDual(result.Shape)
 	envelope := result.Envelope
 	if envelope == nil || envelope.Error != nil || envelope.Truth == nil {
 		return budgetPage{}, false
@@ -346,7 +334,7 @@ func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budg
 	candidate := func(keep int) *dispatchResult {
 		if !rankWalk {
 			page := budgetPageEnvelope(envelope, data, offsetPrefix(rows, positions, keep), len(rows), keep, offset, maxOffset, budget)
-			return &dispatchResult{Value: page, Envelope: page, ToolName: toolName, ResourceOnly: true}
+			return &dispatchResult{Value: page, Envelope: page, ToolName: toolName, Shape: mode, ResourceOnly: mode == resultshape.Dual}
 		}
 		// A #7746 rank-walk page is cut to a prefix of its walk order, and the
 		// walk block is re-minted so next_cursor resumes at the first
@@ -355,7 +343,7 @@ func trimToBudgetPage(result *dispatchResult, toolName string, budget int) (budg
 		cutFailed = cutFailed || !ok
 		page := budgetPageEnvelope(envelope, data, rows[:keep], len(rows), keep, offset, -1, budget)
 		page.Data.(map[string]any)[rank.BlockKey] = walk
-		return &dispatchResult{Value: page, Envelope: page, ToolName: toolName, ResourceOnly: true}
+		return &dispatchResult{Value: page, Envelope: page, ToolName: toolName, Shape: mode, ResourceOnly: mode == resultshape.Dual}
 	}
 	if size := estimateResponseBytes(candidate(1)); size <= 0 || size > budget {
 		return budgetPage{}, false

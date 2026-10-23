@@ -57,8 +57,8 @@ func object(value any) bool {
 
 // validateStatusMCPEnvelope checks the tools/call envelope shared by the
 // #7009 status-proxy MCP pilots: the JSON-RPC identity, a non-error result,
-// structured content, the two-block content shape, and the resource text
-// mirroring structured content. A successful status with an empty or
+// structured content, a content layout in either result shape, and the resource text
+// mirroring structured content (dual shape). A successful status with an empty or
 // unrelated payload is not a latency proof.
 func validateStatusMCPEnvelope(payload map[string]any) (map[string]any, error) {
 	result, structured, err := validateMCPEnvelopeHead(payload)
@@ -88,14 +88,45 @@ func validateMCPEnvelopeHead(payload map[string]any) (map[string]any, map[string
 	return result, structured, nil
 }
 
-// validateMCPContentMirror checks the two-block content shape and that the
-// resource text mirrors structured content.
+// validateMCPContentMirror checks the content layout of either result shape
+// (#8800). The dual shape holds a text summary and an embedded resource whose
+// text mirrors structured content. The structured shape holds exactly one
+// non-empty text summary and no resource. Any other layout fails, so a result
+// that drifts from both shapes is not accepted as a latency proof.
 func validateMCPContentMirror(result, structured map[string]any) error {
 	content, ok := result["content"].([]any)
-	if !ok || len(content) != 2 {
+	if !ok {
 		return fmt.Errorf("MCP tool content missing summary or resource")
 	}
-	resourceBlock, ok := content[1].(map[string]any)
+	switch len(content) {
+	case 1:
+		return validateMCPSummaryBlock(content[0])
+	case 2:
+		if err := validateMCPSummaryBlock(content[0]); err != nil {
+			return err
+		}
+		return validateMCPResourceMirror(content[1], structured)
+	default:
+		return fmt.Errorf("MCP tool content missing summary or resource")
+	}
+}
+
+// validateMCPSummaryBlock checks the leading text summary both shapes carry.
+func validateMCPSummaryBlock(block any) error {
+	summary, ok := block.(map[string]any)
+	if !ok || summary["type"] != "text" || summary["resource"] != nil {
+		return fmt.Errorf("MCP summary block missing")
+	}
+	if text, ok := summary["text"].(string); !ok || text == "" {
+		return fmt.Errorf("MCP summary text missing")
+	}
+	return nil
+}
+
+// validateMCPResourceMirror checks the dual shape's embedded resource block
+// and that its text mirrors structured content.
+func validateMCPResourceMirror(block any, structured map[string]any) error {
+	resourceBlock, ok := block.(map[string]any)
 	if !ok || resourceBlock["type"] != "resource" {
 		return fmt.Errorf("MCP resource block missing")
 	}

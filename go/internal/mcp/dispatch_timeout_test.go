@@ -13,6 +13,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 )
 
 func markedDeadlinePartialRecorder() *httptest.ResponseRecorder {
@@ -25,7 +27,7 @@ func markedDeadlinePartialRecorder() *httptest.ResponseRecorder {
 func TestDeadlinePartialDispatchResultHonorsMarkerOnCapableTool(t *testing.T) {
 	t.Parallel()
 
-	result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "investigate_code_topic", 1<<20, nil)
+	result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "investigate_code_topic", resultshape.Dual, 1<<20, nil)
 	if !ok || result == nil {
 		t.Fatalf("deadlinePartialDispatchResult(marked, investigate_code_topic) = (%v, %v), want partial result, true", result, ok)
 	}
@@ -34,7 +36,7 @@ func TestDeadlinePartialDispatchResultHonorsMarkerOnCapableTool(t *testing.T) {
 func TestDeadlinePartialDispatchResultIgnoresMarkerOnOtherTool(t *testing.T) {
 	t.Parallel()
 
-	result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "list_indexed_repositories", 1<<20, nil)
+	result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "list_indexed_repositories", resultshape.Dual, 1<<20, nil)
 	if ok || result != nil {
 		t.Fatalf("deadlinePartialDispatchResult(marked, other tool) = (%v, %v), want (nil, false): only the partial-capable tool may surface a marked envelope", result, ok)
 	}
@@ -148,7 +150,7 @@ func TestMCPToolErrorResultIncludesStructuredDispatchTimeout(t *testing.T) {
 		discardDispatchLogger(),
 	)
 
-	result := mcpToolErrorResult(err)
+	result := mcpToolErrorResult(resultshape.Dual, err)
 	if !result.IsError {
 		t.Fatal("mcpToolErrorResult() IsError = false, want true")
 	}
@@ -193,4 +195,41 @@ func TestMCPToolErrorResultIncludesStructuredDispatchTimeout(t *testing.T) {
 
 func discardDispatchLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+// TestDeadlinePartialDispatchResultCarriesShape proves the bounded partial
+// renders in the connection's result shape: one text block plus
+// structuredContent and no embedded resource under structured, and the
+// two-block layout under dual.
+func TestDeadlinePartialDispatchResultCarriesShape(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		mode          resultshape.Mode
+		wantContent   int
+		wantResources int
+		wantStructure bool
+	}{
+		{resultshape.Structured, 1, 0, true},
+		{resultshape.Dual, 2, 1, true},
+	}
+	for _, tc := range cases {
+		result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "investigate_code_topic", tc.mode, 1<<20, nil)
+		if !ok || result == nil {
+			t.Fatalf("%s: deadlinePartialDispatchResult = (%v, %v), want partial result, true", tc.mode, result, ok)
+		}
+		rendered := renderToolResult("investigate_code_topic", result)
+		resources := 0
+		for _, content := range rendered.Content {
+			if content.Type == "resource" {
+				resources++
+			}
+		}
+		if len(rendered.Content) != tc.wantContent || resources != tc.wantResources {
+			t.Fatalf("%s: content blocks = %d, resources = %d, want %d and %d", tc.mode, len(rendered.Content), resources, tc.wantContent, tc.wantResources)
+		}
+		if (rendered.StructuredContent != nil) != tc.wantStructure {
+			t.Fatalf("%s: structuredContent present = %v, want %v", tc.mode, rendered.StructuredContent != nil, tc.wantStructure)
+		}
+	}
 }

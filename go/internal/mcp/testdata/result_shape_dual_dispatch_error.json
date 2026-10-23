@@ -1,0 +1,30 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "MCP tool \"list_indexed_repositories\" dispatch deadline exceeded: context deadline exceeded"
+    },
+    {
+      "type": "resource",
+      "resource": {
+        "uri": "eshu://tool-error/dispatch",
+        "mimeType": "application/json",
+        "text": "{\"data\":null,\"error\":{\"capability\":\"mcp.dispatch\",\"code\":\"mcp_dispatch_timeout\",\"details\":{\"configured_timeout\":\"20ms\",\"tool\":\"list_indexed_repositories\"},\"message\":\"MCP tool \\\"list_indexed_repositories\\\" dispatch deadline exceeded: context deadline exceeded\"},\"truth\":null}"
+      }
+    }
+  ],
+  "structuredContent": {
+    "data": null,
+    "error": {
+      "capability": "mcp.dispatch",
+      "code": "mcp_dispatch_timeout",
+      "details": {
+        "configured_timeout": "20ms",
+        "tool": "list_indexed_repositories"
+      },
+      "message": "MCP tool \"list_indexed_repositories\" dispatch deadline exceeded: context deadline exceeded"
+    },
+    "truth": null
+  },
+  "isError": true
+}

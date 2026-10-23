@@ -28,7 +28,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
+
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 )
 
 func main() {
@@ -43,6 +46,7 @@ type options struct {
 	phase                       string
 	apiBaseURL                  string
 	mcpBaseURL                  string
+	mcpResultShape              string
 	demoManifestPath            string
 	drainTimeout                time.Duration
 	drainPoll                   time.Duration
@@ -80,6 +84,7 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&o.demoManifestPath, "demo-manifest", "specs/demo-first-answers.v1.yaml", "path to the demo-first-answers manifest asserted live by the demo-answers phase (#4776)")
 	fs.StringVar(&o.apiBaseURL, "api-base-url", "http://localhost:8080", "base URL of a running eshu-api for query truth")
 	fs.StringVar(&o.mcpBaseURL, "mcp-base-url", "", "base URL of a running eshu-mcp-server (http transport); when set, the query phase also asserts the snapshot's MCP tool query shapes live (#3866)")
+	fs.StringVar(&o.mcpResultShape, "mcp-result-shape", "", "MCP tools/call result shape to ask for with ?shape= on the JSON-RPC endpoint: dual or structured (#8800); empty leaves the server default, so the gate can prove the structured-first reader path against the same server")
 	fs.DurationVar(&o.drainTimeout, "drain-timeout", 10*time.Minute, "max time to wait for queues to drain")
 	fs.DurationVar(&o.drainPoll, "drain-poll", 2*time.Second, "interval between drain polls")
 	fs.Float64Var(&o.budgetSeconds, "budget-seconds", 0, "baseline pipeline wall-time budget in seconds (0 disables timing)")
@@ -108,6 +113,20 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&o.coverageDirs, "coverage-dirs", "", "comma-separated directories of differential capture recordings to cover, one per leg (recordings merge by backend); read by the statement-coverage and writer-coverage phases")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
+	}
+	// The server trims the shape before parsing, so a padded env value (the
+	// driver script forwards GATE_MCP_RESULT_SHAPE verbatim) must pass here too,
+	// and the trimmed value is what goes on the request URL.
+	// A non-empty value is canonicalized to the shape name Parse returns. An
+	// empty value stays empty: Parse("") is Dual, but "no shape asked" must
+	// leave the URL bare so the server default applies.
+	o.mcpResultShape = strings.TrimSpace(o.mcpResultShape)
+	mode, err := resultshape.Parse(o.mcpResultShape)
+	if err != nil {
+		return options{}, fmt.Errorf("-mcp-result-shape: %w", err)
+	}
+	if o.mcpResultShape != "" {
+		o.mcpResultShape = string(mode)
 	}
 	if o.diffExecutionsAdvisoryMax < 0 {
 		return options{}, fmt.Errorf("-diff-executions-advisory-max must be >= 0 (0 disables the ceiling), got %d", o.diffExecutionsAdvisoryMax)

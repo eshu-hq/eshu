@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 )
 
 // mcpServerKey is the server name Eshu registers in every MCP client config.
@@ -80,8 +82,13 @@ type Platform struct {
 	// Writable reports whether --write has a safe, implemented merge target for
 	// this platform.
 	Writable bool
+	// ResultShape is the MCP tools/call result shape the generated config asks
+	// for (#8800). The zero value is resultshape.Dual, the server default, and
+	// emits nothing; resultshape.Structured adds ?shape=structured to a hosted
+	// URL and ESHU_MCP_RESULT_SHAPE to a stdio entry's environment.
+	ResultShape resultshape.Mode
 	// snippet renders the platform-specific config text for a request.
-	snippet func(req SetupRequest) (string, error)
+	snippet func(p *Platform, req SetupRequest) (string, error)
 	// notes are short post-snippet guidance lines.
 	notes []string
 }
@@ -98,10 +105,12 @@ func mcpPlatformRegistry() map[string]*Platform {
 			TargetFile:          ".mcp.json (project) or ~/.claude.json (user)",
 			SupportsEnvVarToken: true,
 			Writable:            true,
+			ResultShape:         resultshape.Structured,
 			snippet:             mcpServersJSONSnippet,
 			notes: []string{
 				"Project scope: commit .mcp.json at the repository root.",
 				"User scope: merge under \"mcpServers\" in ~/.claude.json.",
+				"Results use the one-copy structured shape; drop ?shape=structured (hosted) or the ESHU_MCP_RESULT_SHAPE env entry (stdio) to go back to dual.",
 			},
 		},
 		{
@@ -135,10 +144,12 @@ func mcpPlatformRegistry() map[string]*Platform {
 			TargetFile:          "~/.codex/config.toml",
 			SupportsEnvVarToken: true,
 			Writable:            false,
+			ResultShape:         resultshape.Structured,
 			snippet:             codexTOMLSnippet,
 			notes: []string{
 				"Add the block under [mcp_servers.eshu] in ~/.codex/config.toml.",
 				"Repo-local .mcp.json is not enough for Codex; configure the active Codex MCP config.",
+				"Results use the one-copy structured shape; drop ?shape=structured (hosted) or the ESHU_MCP_RESULT_SHAPE env entry (stdio) to go back to dual.",
 			},
 		},
 		{
