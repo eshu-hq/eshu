@@ -164,6 +164,15 @@ func TestDetectStopsAtMaxEligibleButKeepsBlockedOnes(t *testing.T) {
 	if !report.Truncated {
 		t.Fatal("more candidates remain: want truncated")
 	}
+	blocked := 0
+	for _, v := range report.Verdicts {
+		if !v.Eligible {
+			blocked++
+		}
+	}
+	if blocked != 12 {
+		t.Fatalf("blocked verdicts listed = %d, want the twelve blocked head nodes kept", blocked)
+	}
 }
 
 func TestDetectByIDsOnlyEvaluatesNamedNodesAndIgnoresShapeMismatch(t *testing.T) {
