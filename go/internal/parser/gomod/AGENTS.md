@@ -6,8 +6,9 @@
 2. `doc.go` - godoc contract for parent parser callers.
 3. `parser.go` - `Parse` entrypoint, go.mod dispatch, row construction.
 4. `gosum.go` - go.sum line scanner and checksum row construction.
-5. Parent wrapper in `../gomod_language.go`.
-6. Coverage matrix in `../json/dependency_coverage.go` and the parent-level
+5. `gowork.go` - go.work dispatch and workspace `use` row construction.
+6. Parent wrapper in `../gomod_language.go`.
+7. Coverage matrix in `../json/dependency_coverage.go` and the parent-level
    engine test `../dependency_coverage_engine_test.go` (this package owns
    the `go.mod` covered entry and the `go.sum` gap entry's "checksum-only"
    ambiguity rule).
@@ -25,7 +26,13 @@
   `ambiguous=true`. The reducer must treat these as missing evidence
   until paired with a `go.mod` require, because `go.sum` records every
   version any tool has verified, not the currently selected version.
-- A malformed `go.mod` MUST return a payload with zero dependency rows
+- `go.work` `use` rows MUST use `config_kind=workspace_use` with the use
+  path verbatim, and workspace `replace` rows MUST reuse the go.mod
+  `dependency_replace` shape. A `go.work` MUST NOT emit
+  `config_kind=dependency` or `module_declaration` rows, and its
+  `gomod_state` MUST NOT carry `module_path`: the code-call reducer reads
+  `module_path` from every `lang=gomod` file to find module roots.
+- A malformed `go.mod` or `go.work` MUST return a payload with zero dependency rows
   and a `gomod_state.parse_error` envelope; the parser never panics and
   never falls back to inventing rows from partial parses.
 - Module identity is the full module path (for example

@@ -45,33 +45,37 @@ package v1
 
 // GomodState is the typed view of a parsed_file_data "gomod_state" inner key,
 // the per-file parse-state envelope the Go module manifest parser emits
-// (go/internal/parser/gomod/parser.go for go.mod, gomod/gosum.go for go.sum).
+// (go/internal/parser/gomod/parser.go for go.mod, gomod/gosum.go for go.sum,
+// gomod/gowork.go for go.work).
 //
 // Only the two fields the cross-repo-export reducer reads are named: State (the
 // "parsed"/"malformed" discriminator) and ModulePath (the declared module path
 // goModuleDeclaredPath resolves,
 // go/internal/reducer/code/call/shared/go_index.go). Every other producer field
 // (go_version, toolchain, the *_count tallies, replaced_modules, parse_error,
-// checksum_count, ambiguous_entry) differs between the go.mod and go.sum
-// producers and is carried verbatim in the open Attributes pass-through so the
-// accessor drops no evidence — mirroring aws_resource.Attributes. ModulePath is
-// present only on a parsed go.mod, so it is optional; State is present on every
-// gomod_state envelope both producers emit.
+// checksum_count, ambiguous_entry) differs between the go.mod, go.sum, and
+// go.work producers and is carried verbatim in the open Attributes
+// pass-through so the accessor drops no evidence — mirroring
+// aws_resource.Attributes. ModulePath is present only on a parsed go.mod, so it
+// is optional; State is present on every gomod_state envelope all three
+// producers emit.
 type GomodState struct {
-	// State is the parse-state discriminator ("parsed" or "malformed") both the
-	// go.mod and go.sum producers stamp on every gomod_state envelope. Required:
+	// State is the parse-state discriminator ("parsed" or "malformed") the
+	// go.mod, go.sum, and go.work producers stamp on every gomod_state
+	// envelope. Required:
 	// a gomod_state key with no state is a malformed producer emission.
 	State string `json:"state"`
 
 	// ModulePath is the declared module path from a parsed go.mod's module
-	// directive. Optional: go.sum and malformed go.mod envelopes omit it, and
+	// directive. Optional: go.sum, go.work, and malformed go.mod envelopes omit
+	// it (a go.work is a workspace, not a module declaration), and
 	// the reducer treats an absent module_path as "not a resolvable Go module
 	// declaration" rather than a failure.
 	ModulePath *string `json:"module_path,omitempty"`
 
 	// Attributes carries every gomod_state field with no named struct field
 	// above (go_version, toolchain, require_count, replace_count, exclude_count,
-	// retract_count, indirect_count, replaced_modules, parse_error,
+	// retract_count, indirect_count, use_count, replaced_modules, parse_error,
 	// checksum_count, ambiguous_entry, ...), preserving each value's JSON-native
 	// Go type. It is the open pass-through that keeps the accessor from dropping
 	// producer evidence the reducer does not yet read.
