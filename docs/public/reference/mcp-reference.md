@@ -161,9 +161,11 @@ families are:
 `evidence_detail` argument, `full` or `handles`, and default to `handles` over
 MCP. `handles` keeps every section, count, and top-level status, truth, and
 freshness field, and names each reduced family, with its total, in
-`truth.omissions`; a list it cut also carries `truncated` and an omitted count.
-On `get_service_story` the bulky evidence lists become identity rows that keep
-their row-level truth labels. On all three tools, deployment artifact rows keep
+`truth.omissions`. On `get_service_story` the bulky evidence lists become
+identity rows that keep their row-level truth labels; a `code_to_runtime_trace`
+preview also carries `truncated`, `evidence_shipped`, and `evidence_omitted`,
+`evidence_graph` carries `nodes_truncated` and `nodes_omitted`, and a dropped
+list is named by a `*_shipped_at` pointer or only in `truth.omissions`. On all three tools, deployment artifact rows keep
 `id`, `relationship_type`, and `resolved_id`; `get_relationship_evidence` by
 `resolved_id` returns the rest, including confidence. Pass `evidence_detail: full` for every
 row. On a large service `full` can exceed the response budget and fail with
