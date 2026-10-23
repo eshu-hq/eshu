@@ -256,8 +256,9 @@ D 9, E 64, F 8, G 7, and the 2 seeded unlisted maps outside any class, by
 design. With #8772 applied the 7 G maps are no longer built, and one E map (a
 wrong-typed `entity_id`) goes with them; the same capture then recorded 1351
 distinct maps (the new #8772 tests add some) and 245 rejected: A 77, B 2, C 84,
-D 9, E 63, F 8, and the 2 seeded maps. To repeat it, wrap
-`resolveRoute` in `dispatch.go` to record each resolved map, and classify the
+D 9, E 63, F 8, and the 2 seeded maps. To repeat it, wrap `resolveRoute` in
+`dispatch.go` to record each map it returns a route for (refused maps are not
+recorded; recording every call gives different counts), and classify the
 rejected ones with `classifyRejection` from a `TestMain`, through
 `go test -overlay`.
 

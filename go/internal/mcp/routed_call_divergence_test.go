@@ -322,9 +322,11 @@ func TestDifferentialRefusesUnlistedRejections(t *testing.T) {
 // TestDirectCallRefusesEmptyPathSegmentRows holds the class C rows that name a
 // path id ("direct dispatch:" evidence) to what they say: resolveRoute refuses
 // the empty-argument call with "<field> is required" before any request is
-// built, so a direct tools/call is an error and no handler runs (#8772). The
-// router refuses the same call with a typed field error, so these are not a
-// divergence.
+// built, so a direct tools/call is an error (#8772). The mux has no routes: the
+// call is refused before dispatch builds a request, so a registered handler
+// could never run and a "handler ran" flag could not fail. The error text and
+// the absent result carry the test. The router refuses the same call with a
+// typed field error, so these are not a divergence.
 func TestDirectCallRefusesEmptyPathSegmentRows(t *testing.T) {
 	t.Parallel()
 
@@ -334,12 +336,7 @@ func TestDirectCallRefusesEmptyPathSegmentRows(t *testing.T) {
 			continue
 		}
 		checked++
-		ran := false
 		mux := http.NewServeMux()
-		mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
-			ran = true
-			w.WriteHeader(http.StatusOK)
-		})
 		result, err := dispatchTool(context.Background(), mux, row.tool, map[string]any{}, "", slog.New(slog.NewTextHandler(io.Discard, nil)))
 		if err == nil || result != nil {
 			t.Errorf("%s: direct dispatch = (%+v, %v), want an error and no result", row.tool, result, err)
@@ -347,9 +344,6 @@ func TestDirectCallRefusesEmptyPathSegmentRows(t *testing.T) {
 		}
 		if want := row.missing[0] + " is required"; !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: error = %q, want it to contain %q", row.tool, err, want)
-		}
-		if ran {
-			t.Errorf("%s: a handler ran for an empty path id", row.tool)
 		}
 	}
 	if checked != 5 {
