@@ -94,6 +94,30 @@ step's fixed message as the description; a client cancel adds
 `server_failure*_test.go` asserts both span shapes with a recording tracer for
 every route and step.
 
+No-Regression Evidence (#8881): the only runtime delta in
+`resource_investigation_selector.go` is two `ctx.Err()` checks in
+`runResourceInvestigationSelectorFanout`: one before the fanout starts, and
+one in each goroutine after it takes a semaphore slot. Each is one context
+read, which is not measurable against the graph read it guards. No Cypher
+text, SQL, parameter, or row bound changed. The semaphore width stays 4, the
+fanout stays one query per default label (11), result order is unchanged, and
+a canceled request returns `ctx.Err()`, the error the goroutines already
+stored when `Done` won the `select`. Proof: an uncommitted resolver probe of
+20,000 pre-canceled runs on CI's fake graph returned 5 successes at `-cpu 1`
+and 13 at `-cpu 16` before the change and 0 and 0 after. A
+`go test -race -count=2000 -cpu 1,4` run on the fixed handler had 0 of 4,000
+failures. `TestResourceInvestigationSelectorFanoutNeverReadsOnCanceledContext`
+fails on the old code and passes now.
+`TestResourceInvestigationSelectorFanoutRechecksContextAfterTakingSlot` fails
+when either check is deleted. No benchmark is claimed, because the success
+path adds no work beyond those two reads.
+
+Observability Evidence (#8881): no instrument, label, span attribute, or log
+key was added. A canceled request now returns the existing cancel error
+before any graph read starts. It is the same error the `select` path already
+stored, and an abandoned request no longer starts reads that the graph read
+signals would count.
+
 ## Performance
 
 Handler methods are request-orchestration, not a hot decode loop; the move
