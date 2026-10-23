@@ -34,7 +34,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	path := filepath.Join(*repoRoot, parser.AdmissionDocPath)
-	current, err := os.ReadFile(path)
+	// path is -repo-root joined to the fixed parser.AdmissionDocPath constant.
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", path, err)
+	}
+	current, err := os.ReadFile(path) // #nosec G304 -- -repo-root is an explicit operator-controlled CLI flag and the doc path under it is a fixed constant.
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
@@ -49,7 +54,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if *check {
 		return fmt.Errorf("%s admission table is stale; run scripts/generate-parser-admission-doc.sh", parser.AdmissionDocPath)
 	}
-	if err := os.WriteFile(path, []byte(next), 0o644); err != nil {
+	// The page already exists, so WriteFile keeps its permission bits; pass them explicitly rather than widening to a literal mode.
+	if err := os.WriteFile(path, []byte(next), info.Mode().Perm()); err != nil { // #nosec G703 -- -repo-root is an explicit operator-controlled CLI flag and the doc path under it is a fixed constant.
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	_, _ = fmt.Fprintf(stdout, "wrote %s\n", parser.AdmissionDocPath)

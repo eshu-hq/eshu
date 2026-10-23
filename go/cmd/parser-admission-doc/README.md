@@ -21,4 +21,5 @@ page alone. A page without the markers is an error.
 - Output is deterministic and byte-idempotent.
 - The drift gate is `TestAdmissionTableDocIsCurrent` in `go/internal/parser`,
   which runs with the normal parser tests, and `-check` here.
+- The page must already exist; a rewrite keeps its file permission bits.
 - Build-time only. No storage, graph, network, or telemetry dependency.
