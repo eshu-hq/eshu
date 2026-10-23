@@ -4,6 +4,7 @@
 package router
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 
@@ -72,7 +73,7 @@ func matchPlaybook(q Query, allowed func(string) bool) *playbookPlan {
 	if best == nil || bestScore < 0.5 {
 		return nil
 	}
-	return planFor(*best, q.Anchors)
+	return planFor(*best, q.Anchors, allowed)
 }
 
 func stepsAllowed(def playbook.Definition, allowed func(string) bool) bool {
@@ -84,7 +85,7 @@ func stepsAllowed(def playbook.Definition, allowed func(string) bool) bool {
 	return true
 }
 
-func planFor(def playbook.Definition, anchors Anchors) *playbookPlan {
+func planFor(def playbook.Definition, anchors Anchors, allowed func(string) bool) *playbookPlan {
 	plan := &playbookPlan{ID: def.ID, Name: def.Name, Version: def.Version, PromptFamily: def.PromptFamily}
 	for _, in := range def.RequiredInputs {
 		if in.Required {
@@ -105,6 +106,12 @@ func planFor(def playbook.Definition, anchors Anchors) *playbookPlan {
 		}
 	}
 	if resolved, err := def.Resolve(inputs); err == nil {
+		// Drilldowns name tools too; keep only those the caller may be
+		// offered, like the steps (matchPlaybook checks those).
+		for i := range resolved.Calls {
+			resolved.Calls[i].Drilldowns = slices.DeleteFunc(slices.Clone(resolved.Calls[i].Drilldowns),
+				func(d playbook.Drilldown) bool { return !allowed(d.Tool) })
+		}
 		plan.Resolved = &resolved
 	}
 	return plan

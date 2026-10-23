@@ -25,9 +25,11 @@ const maxSuggestions = 3
 const MaxToolNameBytes = 128
 
 // Call serves call_tool. It refuses find_tool, call_tool, and ask; answers an
-// unknown name with the closest registered names; validates arguments
-// against the target's input schema; refuses a target the credential can
-// never call; and otherwise hands the caller's arguments, unchanged, to the
+// unknown name with the closest names find_tool could offer this caller;
+// refuses a target the credential can never call, before validation so the
+// refusal does not echo that tool's schema; validates arguments against the
+// target's input schema; re-checks access on the route those arguments
+// select; and otherwise hands the caller's arguments, unchanged, to the
 // Dispatcher. A dispatched outcome carries the Dispatcher's value and error
 // untouched so the root renders it exactly like a direct tools/call.
 func (e *Engine) Call(ctx context.Context, req Request, args map[string]any) CallOutcome {
@@ -73,8 +75,16 @@ func (e *Engine) call(ctx context.Context, req Request, args map[string]any) (Ca
 	tool, registered := e.registry[name]
 	if !registered {
 		out.Result = errorResult("mcp_router_unknown_tool", "no registered tool is named "+name,
-			map[string]any{"tool": name, "suggestions": e.closestNames(name)})
+			map[string]any{"tool": name, "suggestions": e.closestNames(name, e.allowedFunc(accessFromContext(ctx), e.rankable(req.Visible)))})
 		return out, unregisteredToolLabel, callOutcomeUnknownTool
+	}
+	acc := accessFromContext(ctx)
+	if !acc.admits(e.routes[name]) {
+		// Refuse before validation, so a caller who can never call the tool
+		// does not get its schema and example back.
+		out.Result = errorResult("mcp_router_refused", "this credential cannot call "+name,
+			map[string]any{"tool": name, "reason": "not_permitted"})
+		return out, name, callOutcomeRefused
 	}
 	if errs, truncated := ValidateArgumentsDetail(tool.InputSchema, arguments); len(errs) != 0 {
 		out.Result = errorResult("mcp_router_invalid_arguments", "arguments for "+name+" do not match its input schema",
@@ -87,7 +97,7 @@ func (e *Engine) call(ctx context.Context, req Request, args map[string]any) (Ca
 			})
 		return out, name, callOutcomeInvalidArgument
 	}
-	if acc := accessFromContext(ctx); !acc.admits(e.callRouteClass(name, arguments)) {
+	if !acc.admits(e.callRouteClass(name, arguments)) {
 		out.Result = errorResult("mcp_router_refused", "this credential cannot call "+name,
 			map[string]any{"tool": name, "reason": "not_permitted"})
 		return out, name, callOutcomeRefused
@@ -116,18 +126,19 @@ func (e *Engine) callRouteClass(name string, arguments map[string]any) routeClas
 }
 
 // closestNames returns up to maxSuggestions registered names nearest to name
-// by edit distance, ties broken by name. It skips the refused targets but does
-// not apply the credential or profile filter: a suggestion is a spelling hint,
-// and call_tool still checks access when it is called. The caller bounds name
-// by MaxToolNameBytes, so the work is at most that times the registry size.
-func (e *Engine) closestNames(name string) []string {
+// by edit distance, ties broken by name, drawn only from names allowed admits:
+// the same per-call profile, credential, and refused-target filter find_tool
+// applies, so a suggestion is never a tool find_tool would not offer this
+// caller. The caller bounds name by MaxToolNameBytes, so the work is at most
+// that times the registry size.
+func (e *Engine) closestNames(name string, allowed func(string) bool) []string {
 	type scored struct {
 		name     string
 		distance int
 	}
 	scoredNames := make([]scored, 0, len(e.names))
 	for _, candidate := range e.names {
-		if refusedTargets[candidate] {
+		if !allowed(candidate) {
 			continue
 		}
 		scoredNames = append(scoredNames, scored{candidate, editDistance(name, candidate)})

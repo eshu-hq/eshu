@@ -80,12 +80,16 @@ package ranks against. They are empty until the intent-curation lane fills them.
   from deployment policy are admitted here and enforced at dispatch.
 - When a query playbook's title words cover the intent and every step is
   callable, `find_tool` attaches its plan; anchors that name a required input
-  add the resolver's fully specified calls.
+  add the resolver's fully specified calls, keeping only drilldowns the caller
+  may be offered.
 - `call_tool` looks targets up in the full registry, so a profile-hidden tool
   stays callable, as it is through `tools/call`. Errors use the
   `{data, truth, error}` envelope with codes `mcp_router_invalid_arguments`
-  (with field errors, the input schema, and an example call),
-  `mcp_router_unknown_tool` (with up to three close names), and
+  (with field errors, the input schema, and an example call; a target the
+  credential can never call is refused before validation, so its schema is not
+  echoed),
+  `mcp_router_unknown_tool` (with up to three close names, drawn only from
+  tools `find_tool` could offer the same caller), and
   `mcp_router_refused`.
 - Validation mirrors dispatch where strict JSON schema would not: a JSON null
   for an optional property is absent, undeclared properties are ignored, a

@@ -9,10 +9,10 @@
 // the query profile and the caller's AuthContext (classified with the query
 // package's route ledgers), asks the injected Ranker for candidates, and
 // attaches a matching query-playbook plan. Engine.Call refuses find_tool,
-// call_tool, and ask as targets, suggests close names for an unknown one,
-// validates arguments with ValidateArguments, refuses a target the credential
-// can never call, and otherwise runs the injected Dispatcher with the caller's
-// arguments untouched. ValidateArguments is an in-repo JSON-schema subset
+// call_tool, and ask as targets, suggests close names the caller could be
+// offered for an unknown one, refuses a target the credential can never call,
+// validates arguments with ValidateArguments, and otherwise runs the injected
+// Dispatcher with the caller's arguments untouched. ValidateArguments is an in-repo JSON-schema subset
 // covering every keyword the registered tools use; UnsupportedSchemaFeatures
 // reports any it does not.
 //
