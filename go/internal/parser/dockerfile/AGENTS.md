@@ -24,8 +24,9 @@
 - A FROM line sees only ARGs declared before the first FROM. Never widen that
   scope, and never fill an unresolved value with a guess: keep the placeholder
   and report it in UnresolvedArgs.
-- An expansion that produces more than 4096 bytes is unresolved, checked on the
-  finished output. An ARG default past the cap is never stored as known.
+- An expansion that produces more than 4096 bytes is unresolved. The cap is
+  checked before each write, so the output never passes 4096 bytes. An ARG
+  default past the cap is never stored as known.
 - Every nesting level of one reference writes into the single expander output
   buffer, and the length is checked before each write. Do not give a nested
   word its own builder: copying results outward costs O(depth^2 x 4096) bytes
@@ -34,7 +35,8 @@
   base_ref_expand.go for a construct with no name. Never copy Dockerfile text
   into it.
 - The ARG default evidence on a stage (ArgDefaults) is capped at 256 bytes per
-  value and 16 entries per stage, with ArgDefaultsTruncated and
+  value and 16 entries per stage (names are not capped on their own; they come
+  from one reference of at most 4096 bytes, so a stage stays under about 8 KB), with ArgDefaultsTruncated and
   ArgDefaultsOmitted making the cut visible. Resolution reads the declared
   default, never the stored evidence. Do not raise either cap without
   re-measuring the marshaled payload (base_ref_payload_test.go).

@@ -13,8 +13,9 @@ import (
 // paddedArgChain declares n global ARGs. Each default is padLen literal bytes
 // followed by a reference to the previous ARG, so every default passes the
 // per-reference length bound and the literal prefix keeps the running output
-// under maxExpandedLen at the moment the previous value is appended. Only a
-// check on the final output length catches the growth.
+// under maxExpandedLen at the moment the previous value is appended. The
+// cap is enforced before each write, so the output never passes
+// maxExpandedLen however the bytes are built up.
 func paddedArgChain(n, padLen int) string {
 	pad := strings.Repeat("x", padLen)
 	var source strings.Builder

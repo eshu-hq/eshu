@@ -37,9 +37,15 @@ func argFanOutSource(args, stages, padLen int) string {
 func TestBaseRefArgDefaultEvidencePayloadStaysBounded(t *testing.T) {
 	t.Parallel()
 
-	// Largest legal stage evidence: maxArgDefaultsPerStage entries of
-	// maxArgDefaultLen bytes, each with a name and JSON punctuation.
-	const perStageEvidence = maxArgDefaultsPerStage * (maxArgDefaultLen + 64)
+	// Largest legal stage evidence: maxArgDefaultsPerStage values of at most
+	// maxArgDefaultLen bytes, plus their names and a few bytes of JSON
+	// punctuation each. A name is not length-bounded on its own, but every name
+	// listed comes from one FROM reference of at most maxReferenceLen bytes, so
+	// the names together fit in that length.
+	const (
+		perStageValueBytes = maxArgDefaultsPerStage * maxArgDefaultLen
+		perStageEvidence   = perStageValueBytes + maxArgDefaultsPerStage*8 + maxReferenceLen
+	)
 	cases := []struct {
 		name       string
 		stages     int
@@ -62,6 +68,14 @@ func TestBaseRefArgDefaultEvidencePayloadStaysBounded(t *testing.T) {
 				t.Fatalf("payload is %d bytes for %d bytes of input, want at most %d", len(body), len(source), tc.maxPayload)
 			}
 			for _, stage := range metadata.Stages {
+				valueBytes := 0
+				for _, value := range stage.ArgDefaults {
+					valueBytes += len(value)
+				}
+				if valueBytes > perStageValueBytes {
+					t.Fatalf("stage on line %d stores %d bytes of ARG default values, want at most %d",
+						stage.LineNumber, valueBytes, perStageValueBytes)
+				}
 				evidence, err := json.Marshal(stage.ArgDefaults)
 				if err != nil {
 					t.Fatalf("marshal evidence: %v", err)
