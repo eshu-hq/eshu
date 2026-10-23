@@ -203,6 +203,26 @@ repository id). A fence verdict answers the retryable `503` with no
 `TestRepositorySelectorReadsAnswerRetryable503` and
 `TestRepositorySelectorHandlerOwned500RecordsSpanError`.
 
+## Security-alert empty answers
+
+An empty security-alert list, count, or first inventory page reads the
+collector's state before it answers (#8803), so a zero-row page is never
+reported complete, exact, and fresh when the collector has not collected the
+requested scope. `SecurityAlertCollectionStateStore` (implemented in root
+`security_alert_collection_state_postgres.go`) returns the enabled instances'
+target configuration and, per covering target, the latest work item plus
+whether a projected generation exists. `security_alert_collection_state.go`
+decodes only the membership fields (`scope`, `scope_id`, `repository`,
+`organization`, `allowed_repositories`) and classifies the answer into
+`coverage.state` and the closed `coverage.reasons` set;
+`security_alert_coverage_truth.go` applies it to the body and truth envelope.
+The read runs as stage `security_alert_collection_state`, whose completion log
+carries `coverage_state`, `coverage_reason`, and `collector_state`, and it
+increments `eshu_dp_query_security_alert_empty_answers_total`. Pages with rows
+never run it. A store error serves `collection_state_unavailable` with a
+`readiness_unavailable` envelope instead of a `500`. The state table is in
+[Provider Alert Parity](../../../../../docs/public/reference/security-intelligence-provider-alert-parity.md#empty-answers).
+
 When the catalog has no match and the selector is not canonical, the exact
 `selector.ResolveExact` fallback (which reruns the catalog read and issues the
 graph reads) runs as a third stage, `repository_selector_resolve`, also logged

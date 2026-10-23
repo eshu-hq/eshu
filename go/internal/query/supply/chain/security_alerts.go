@@ -120,10 +120,11 @@ func (h *Handler) listSecurityAlertReconciliations(w http.ResponseWriter, r *htt
 	for _, row := range rows {
 		results = append(results, SecurityAlertReconciliationResult(row))
 	}
+	coverage := securityAlertCoverageForRows(results)
 	body := map[string]any{
 		"reconciliations": results,
 		"count":           len(results),
-		"coverage":        securityAlertCoverageForRows(results),
+		"coverage":        coverage,
 		"limit":           limit,
 		"truncated":       truncated,
 	}
@@ -132,12 +133,22 @@ func (h *Handler) listSecurityAlertReconciliations(w http.ResponseWriter, r *htt
 			"after_reconciliation_id": results[len(results)-1].ReconciliationID,
 		}
 	}
-	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
+	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),
 		SecurityAlertReconciliationsCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned provider alert reconciliation facts; provider alert state and Eshu impact state remain separate",
-	))
+	)
+	// #8803: an empty first page is classified from collector state so it never
+	// reads as complete, exact, and fresh when the collector has not collected
+	// the requested scope. A later cursor page that comes back empty ends a
+	// stream whose earlier rows already proved collection.
+	if len(results) == 0 && filter.AfterReconciliationID == "" {
+		if verdict, ok := h.securityAlertEmptyAnswerVerdict(r, supplyChainSecurityAlertReconciliationOperation, repositoryID, repositoryScopeIDs); ok {
+			applySecurityAlertCoverageVerdict(body, coverage, truth, verdict)
+		}
+	}
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, truth)
 }
 
 func requiredSecurityAlertReconciliationLimit(w http.ResponseWriter, r *http.Request) (int, bool) {

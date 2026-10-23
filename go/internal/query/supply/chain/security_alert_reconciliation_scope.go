@@ -117,6 +117,10 @@ type securityAlertReconciliationCoverageSummary struct {
 	State          string `json:"state"`
 	PartialRows    int    `json:"partial_rows"`
 	RowsConsidered int    `json:"rows_considered"`
+	// Reasons names why an empty answer is not complete (#8803), from the
+	// closed securityAlertCoverageReasons set. It is absent on a complete
+	// answer and on a non-empty answer, whose rows are their own evidence.
+	Reasons []string `json:"reasons,omitempty"`
 }
 
 func securityAlertCoverageForRows(

@@ -25,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/workitem"
 	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // newIncidentEvidenceSourceWithReadStore builds the durable incident evidence source for the
@@ -65,29 +66,32 @@ func newSupplyChainHandler(
 	profile query.QueryProfile,
 	readImpactFromWinners bool,
 	logger *slog.Logger,
+	instruments *telemetry.Instruments,
 ) *query.SupplyChainHandler {
 	return &query.SupplyChainHandler{
-		Neo4j:                       neo4jReader,
-		Logger:                      logger,
-		Content:                     contentReader,
-		SBOMAttachments:             query.NewPostgresSBOMAttestationAttachmentStoreWithReadStore(reader),
-		SBOMAttachmentAggregates:    query.NewPostgresSBOMAttestationAttachmentAggregateStoreWithReadStore(reader),
-		AdvisoryEvidence:            advisory.NewPostgresEvidenceStoreWithReadStore(reader),
-		AdvisoryCatalog:             advisory.NewPostgresCatalogStoreWithReadStore(reader),
-		ImpactFindings:              impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
-		ImpactAggregates:            impact.NewPostgresAggregateStoreWithReadStore(reader),
-		ImpactExplanations:          impact.NewPostgresFindingStoreWithReadStore(reader, false),
-		ContainerImageIdentities:    query.NewPostgresContainerImageIdentityStoreWithReadStore(reader),
-		ContainerImageAggregates:    query.NewPostgresContainerImageIdentityAggregateStoreWithReadStore(reader),
-		SecurityAlerts:              alerts.NewPostgresStoreWithReadStore(reader),
-		SecurityAlertAggregates:     alerts.NewPostgresAggregateStoreWithReadStore(reader),
-		Readiness:                   impact.NewPostgresReadinessStoreWithReadStore(reader),
-		SuppressionMutations:        query.NewPostgresVulnerabilitySuppressionMutationStore(writer),
-		CloudResourceInventory:      query.NewPostgresCloudResourceListStoreWithReadStore(reader),
-		KubernetesWorkloadInventory: kubernetes.NewPostgresRuntimeWorkloadStoreWithReadStore(reader),
-		CollectorReadiness:          query.NewPostgresCollectorListReadinessStoreWithReadStore(reader),
-		PacketResponder:             query.NewSupplyChainImpactPacketResponder(),
-		Profile:                     profile,
+		Neo4j:                        neo4jReader,
+		Logger:                       logger,
+		Content:                      contentReader,
+		SBOMAttachments:              query.NewPostgresSBOMAttestationAttachmentStoreWithReadStore(reader),
+		SBOMAttachmentAggregates:     query.NewPostgresSBOMAttestationAttachmentAggregateStoreWithReadStore(reader),
+		AdvisoryEvidence:             advisory.NewPostgresEvidenceStoreWithReadStore(reader),
+		AdvisoryCatalog:              advisory.NewPostgresCatalogStoreWithReadStore(reader),
+		ImpactFindings:               impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
+		ImpactAggregates:             impact.NewPostgresAggregateStoreWithReadStore(reader),
+		ImpactExplanations:           impact.NewPostgresFindingStoreWithReadStore(reader, false),
+		ContainerImageIdentities:     query.NewPostgresContainerImageIdentityStoreWithReadStore(reader),
+		ContainerImageAggregates:     query.NewPostgresContainerImageIdentityAggregateStoreWithReadStore(reader),
+		SecurityAlerts:               alerts.NewPostgresStoreWithReadStore(reader),
+		SecurityAlertAggregates:      alerts.NewPostgresAggregateStoreWithReadStore(reader),
+		Readiness:                    impact.NewPostgresReadinessStoreWithReadStore(reader),
+		SuppressionMutations:         query.NewPostgresVulnerabilitySuppressionMutationStore(writer),
+		CloudResourceInventory:       query.NewPostgresCloudResourceListStoreWithReadStore(reader),
+		KubernetesWorkloadInventory:  kubernetes.NewPostgresRuntimeWorkloadStoreWithReadStore(reader),
+		CollectorReadiness:           query.NewPostgresCollectorListReadinessStoreWithReadStore(reader),
+		SecurityAlertCollectionState: query.NewPostgresSecurityAlertCollectionStateStoreWithReadStore(reader),
+		PacketResponder:              query.NewSupplyChainImpactPacketResponder(),
+		Profile:                      profile,
+		Instruments:                  instruments,
 	}
 }
 

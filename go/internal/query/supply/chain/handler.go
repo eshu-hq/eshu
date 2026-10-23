@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Capability strings key this family's rows in the root contract capability
@@ -74,6 +75,13 @@ type Handler struct {
 	// not_configured when the feeding collector is disabled. It is optional: a
 	// nil store leaves the collector_readiness envelope off the response.
 	CollectorReadiness querycontract.CollectorListReadinessStore
+	// SecurityAlertCollectionState reads the security-alert collector's
+	// configuration and per-target work-item and generation state for an
+	// empty security-alert answer (#8803), so a zero-row page is never
+	// reported complete, exact, and fresh when the collector has not collected
+	// the requested repository. A nil store leaves the existing row-derived
+	// coverage untouched.
+	SecurityAlertCollectionState SecurityAlertCollectionStateStore
 	// PacketResponder composes and writes the impact investigation packet.
 	// Root package query provides it from the lane-B packet envelope; cmd
 	// wiring always injects it. A nil responder answers the packet route
@@ -86,6 +94,10 @@ type Handler struct {
 	// Logger disables the stage events entirely (used by unit tests that
 	// construct a Handler without one).
 	Logger *slog.Logger
+	// Instruments records eshu_dp_query_security_alert_empty_answers_total
+	// for each classified empty security-alert answer (#8803). Nil disables
+	// the counter; the stage log still carries the classification.
+	Instruments *telemetry.Instruments
 }
 
 // ContainerImageIdentityResult is one reducer-owned container image identity

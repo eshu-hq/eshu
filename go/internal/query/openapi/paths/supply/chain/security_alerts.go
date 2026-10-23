@@ -122,15 +122,7 @@ const SecurityAlerts = `
                       }
                     },
                     "count": {"type": "integer"},
-                    "coverage": {
-                      "type": "object",
-                      "description": "Provider-source coverage for the returned reconciliation page. target_incomplete means at least one row came from a capped open-alert provider read.",
-                      "properties": {
-                        "state": {"type": "string", "enum": ["complete", "target_incomplete"]},
-                        "partial_rows": {"type": "integer"},
-                        "rows_considered": {"type": "integer"}
-                      }
-                    },
+                    ` + securityAlertCoverageSchema + `,
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "next_cursor": {"type": "object"}

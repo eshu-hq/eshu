@@ -99,23 +99,29 @@ func (h *Handler) countSecurityAlertReconciliations(w http.ResponseWriter, r *ht
 		writeStageFailure(w, r, countTimer, err, securityAlertCountReadFailedMessage)
 		return
 	}
-	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
+	coverage := securityAlertCoverageFromFreshnessCounts(count.TotalReconciliations, count.BySourceFreshness)
+	body := map[string]any{
 		"total_reconciliations":    count.TotalReconciliations,
 		"by_reconciliation_status": count.ByReconciliationStatus,
 		"by_provider":              count.ByProvider,
 		"by_provider_state":        count.ByProviderState,
 		"by_source_freshness":      count.BySourceFreshness,
-		"coverage": securityAlertCoverageFromFreshnessCounts(
-			count.TotalReconciliations,
-			count.BySourceFreshness,
-		),
-		"scope": securityAlertReconciliationAggregateScope(filter),
-	}, querycontract.BuildTruthEnvelope(
+		"coverage":                 coverage,
+		"scope":                    securityAlertReconciliationAggregateScope(filter),
+	}
+	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),
 		SecurityAlertReconciliationAggregateCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned reconciliation facts; provider alert state stays separate from Eshu impact state",
-	))
+	)
+	// #8803: a zero total is classified from collector state.
+	if count.TotalReconciliations == 0 {
+		if verdict, ok := h.securityAlertEmptyAnswerVerdict(r, supplyChainSecurityAlertAggregateOperation, filter.RepositoryID, filter.RepositoryScopeIDs); ok {
+			applySecurityAlertCoverageVerdict(body, coverage, truth, verdict)
+		}
+	}
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, truth)
 }
 
 func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r *http.Request) {
@@ -210,12 +216,20 @@ func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r 
 		"next_offset": NextSecurityAlertReconciliationAggregateOffset(offset, limit, truncated),
 		"scope":       securityAlertReconciliationAggregateScope(filter),
 	}
-	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
+	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),
 		SecurityAlertReconciliationAggregateCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned reconciliation facts; one grouped bucket per row, ordered by count desc",
-	))
+	)
+	// #8803: an empty first page is classified from collector state and gains
+	// the coverage object; a non-empty or later page keeps its existing shape.
+	if len(rows) == 0 && offset == 0 {
+		if verdict, ok := h.securityAlertEmptyAnswerVerdict(r, supplyChainSecurityAlertAggregateOperation, filter.RepositoryID, filter.RepositoryScopeIDs); ok {
+			applySecurityAlertCoverageVerdict(body, securityAlertCoverageFromCounts(0, 0), truth, verdict)
+		}
+	}
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, truth)
 }
 
 func (h *Handler) securityAlertReconciliationAggregateFilterFromRequest(
