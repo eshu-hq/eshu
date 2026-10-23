@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8834 real PostgreSQL quota-gated claim plan proof: indexed fair candidate walk and quota primary-key budget filter without a backlog sequential scan; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"strings"

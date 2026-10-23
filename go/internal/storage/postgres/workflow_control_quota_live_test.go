@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8834 quota claim proofs on real PostgreSQL: idle throttling and window release, racing replicas bounded by a shared reservation, restart durability, and unreadable-budget floor fallback; six-root baseline proven with race detection; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"
