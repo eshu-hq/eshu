@@ -159,15 +159,61 @@ func (s Service) preflightDeltaBaseline(
 	}
 }
 
-// refuseDeltaUnionBaseMissing routes a delta-base union base-missing load
-// failure through the fence. The load already failed closed (the graph is
-// untouched and nothing was projected), so this only retires the work: the
-// fence marks the work and generation superseded with refused_base_missing
-// and records a reindex watermark, and the next selection forces the full
-// re-parse that restores the base. A refused delta drops (nil); a lost claim
-// drops; a mark failure routes to Fail so the queue retries it. It always
-// reports handled: the load error must never reach the generic fail path,
-// which would retry a projection that can never succeed without a base.
+// RefuseDeltaUnionBaseMissing retires a claimed delta whose #7797 union base
+// is missing, through the delta-baseline fence. Every projection loop calls it
+// when its fact load returns DeltaBaseMissingError (#8779 review F3: the
+// projector service and the bootstrap-index projector share it). The load
+// already failed closed, so the graph is untouched; the fence marks the work
+// and generation superseded with refused_base_missing and records a reindex
+// watermark, and the next selection forces the full re-parse that restores
+// the base. The load error must never reach the generic fail path, which
+// would retry a projection that cannot succeed without a base.
+//
+// It returns an error wrapping failure.ErrWorkSuperseded for a marked
+// refusal (counted and logged here), one wrapping failure.ErrWorkClaimLost
+// when the attempt lost its claim first, and otherwise the error the caller
+// routes to Fail: missing itself when no fence is wired, or the mark failure.
+func RefuseDeltaUnionBaseMissing(
+	ctx context.Context,
+	fence DeltaBaselineFence,
+	work ScopeGenerationWork,
+	missing *DeltaBaseMissingError,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) error {
+	if fence == nil {
+		return missing
+	}
+	state := DeltaBaselineState{
+		TargetFound:       true,
+		IsDelta:           true,
+		BaselineCommitSHA: missing.BaselineCommitSHA,
+	}
+	if read, readErr := fence.ReadDeltaBaseline(ctx, work); readErr == nil {
+		state.ActiveGenerationID = read.ActiveGenerationID
+		state.ActiveCommitSHA = read.ActiveCommitSHA
+	}
+	refusal := DeltaBaselineRefusal{
+		Phase:   DeltaBaselinePhasePreflight,
+		Outcome: DeltaBaselineRefusedBaseMissing,
+		State:   state,
+	}
+	markErr := fence.RefuseDeltaBaseline(ctx, work, refusal)
+	switch {
+	case errors.Is(markErr, failure.ErrWorkSuperseded):
+		RecordDeltaBaselineFence(ctx, instruments, refusal.Phase, refusal.Outcome)
+		LogDeltaBaselineRefusal(ctx, logger, work, refusal)
+		return markErr
+	case markErr == nil:
+		return deltaBaselineRetryableError{errors.New("mark delta union base-missing refusal: fence reported no outcome")}
+	default:
+		return markErr
+	}
+}
+
+// refuseDeltaUnionBaseMissing runs RefuseDeltaUnionBaseMissing for
+// processWork. It always reports handled: a refused delta drops (nil), a lost
+// claim drops, and anything else routes to Fail so the queue retries it.
 func (s Service) refuseDeltaUnionBaseMissing(
 	ctx context.Context,
 	work ScopeGenerationWork,
@@ -175,35 +221,14 @@ func (s Service) refuseDeltaUnionBaseMissing(
 	workerID int,
 	missing *DeltaBaseMissingError,
 ) (bool, error) {
-	state := DeltaBaselineState{
-		TargetFound:       true,
-		IsDelta:           true,
-		BaselineCommitSHA: missing.BaselineCommitSHA,
-	}
-	if s.DeltaBaselineFence != nil {
-		if read, readErr := s.DeltaBaselineFence.ReadDeltaBaseline(ctx, work); readErr == nil {
-			state.ActiveGenerationID = read.ActiveGenerationID
-			state.ActiveCommitSHA = read.ActiveCommitSHA
-		}
-	}
-	refusal := DeltaBaselineRefusal{
-		Phase:   DeltaBaselinePhasePreflight,
-		Outcome: DeltaBaselineRefusedBaseMissing,
-		State:   state,
-	}
-	if s.DeltaBaselineFence == nil {
-		return true, s.failWork(ctx, work, start, 0, missing, workerID)
-	}
-	markErr := s.DeltaBaselineFence.RefuseDeltaBaseline(ctx, work, refusal)
+	err := RefuseDeltaUnionBaseMissing(ctx, s.DeltaBaselineFence, work, missing, s.Instruments, s.Logger)
 	switch {
-	case errors.Is(markErr, failure.ErrWorkSuperseded):
-		RecordDeltaBaselineFence(ctx, s.Instruments, refusal.Phase, refusal.Outcome)
-		LogDeltaBaselineRefusal(ctx, s.Logger, work, refusal)
+	case errors.Is(err, failure.ErrWorkSuperseded):
 		return true, nil
-	case s.recordClaimLostWork(ctx, work, start, 0, markErr, "delta_union", workerID):
+	case s.recordClaimLostWork(ctx, work, start, 0, err, "delta_union", workerID):
 		return true, nil
 	default:
-		return true, s.failWork(ctx, work, start, 0, markErr, workerID)
+		return true, s.failWork(ctx, work, start, 0, err, workerID)
 	}
 }
 

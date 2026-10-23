@@ -266,6 +266,10 @@ func drainProjectorWorkItem(
 				return nil
 			}
 			loadErr = errors.Join(loadErr, heartbeatErr)
+		} else if handled, err := refuseBootstrapDeltaUnionBaseMissing(
+			itemCtx, baselineFence, workSink, work, workerID, itemStart, loadErr, span, instruments, logger,
+		); handled {
+			return err
 		}
 		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, loadErr, span, logger, func() {
 			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", 0, loadErr, span, instruments, logger)

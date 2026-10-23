@@ -50,6 +50,43 @@ func preflightBootstrapDeltaBaseline(
 	}
 }
 
+// refuseBootstrapDeltaUnionBaseMissing retires a delta whose #7797 union
+// base is missing through the shared projector.RefuseDeltaUnionBaseMissing,
+// as the projector service does (#8779 review F3): the fence marks the work
+// and generation superseded with refused_base_missing and records the reindex
+// watermark. It reports handled false when loadErr is not a base-missing
+// refusal. A refused delta and a lost claim are dropped without Fail; a mark
+// failure routes to the queue's Fail path through the usual isolation.
+func refuseBootstrapDeltaUnionBaseMissing(
+	ctx context.Context,
+	fence projector.DeltaBaselineFence,
+	workSink projector.ProjectorWorkSink,
+	work projector.ScopeGenerationWork,
+	workerID int,
+	itemStart time.Time,
+	loadErr error,
+	span trace.Span,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (bool, error) {
+	var missing *projector.DeltaBaseMissingError
+	if !errors.As(loadErr, &missing) {
+		return false, nil
+	}
+	err := projector.RefuseDeltaUnionBaseMissing(ctx, fence, work, missing, instruments, logger)
+	switch {
+	case errors.Is(err, failure.ErrWorkSuperseded):
+		endBootstrapDeltaSpan(span, projector.DeltaBaselineBaseMissingClass)
+		return true, nil
+	case dropLostBootstrapClaim(ctx, work, workerID, err, "delta_union", span, logger):
+		return true, nil
+	default:
+		return true, isolateBootstrapProjectorFailure(ctx, workSink, work, workerID, err, span, logger, func() {
+			recordBootstrapProjectionResult(ctx, work, workerID, itemStart, "failed", 0, err, span, instruments, logger)
+		})
+	}
+}
+
 // endRefusedBootstrapDelta ends the item span for an Ack-phase delta-baseline
 // refusal and reports whether ackErr was one. The Postgres queue already
 // logged it at ERROR and counted it, so the generic "superseded by newer

@@ -1,4 +1,9 @@
 tests:
+  - file: go/cmd/bootstrap-index/bootstrap_projector_base_missing_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8779 review F3 disposable PostgreSQL proof that the bootstrap-index projector retires a delta whose union base is missing through the delta-baseline fence like the projector service does: the delta generation is superseded with the projector_delta_base_missing class and the scope gets a reindex watermark, instead of a generic Fail retry; isolated bootstrapped schema per test; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/cmd/reducer/config_artifact_walker_live_test.go
     tag: ~
     class: postgres_ci

@@ -472,7 +472,7 @@ exposing repository paths or raw parameters.
   lease at `leaseDuration/3`, capped at 1 minute. `ErrWorkSuperseded` (a newer
   generation) is expected, not a failure, and never logs at ERROR; the
   required `writeMarker` runs after LoadProjectionFacts, before any write, and once
-  it is set the heartbeat no longer supersedes that generation (#7389).
+  it is set the heartbeat no longer supersedes that generation (#7389). A load that fails with `projector.DeltaBaseMissingError` (a delta whose #7797 union base is gone) is retired through the shared `projector.RefuseDeltaUnionBaseMissing`, like the projector service: the fence supersedes it as `refused_base_missing` (`projector_delta_base_missing`) and records the reindex watermark, and it never reaches the queue's Fail path (#8779).
 - **NornicDB grouped writes.** `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false`
   by default. The toggle is conformance-only; on NornicDB both states commit per
   dependency phase, because whole-materialization atomic canonical writes silently

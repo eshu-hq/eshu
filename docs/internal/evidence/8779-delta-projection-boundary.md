@@ -18,6 +18,19 @@ generation `failed`, `failure_class = projection_bug`, and the message
 `fact "…" generation_id "gen-8779-full-a" does not match generation
 "gen-8779-delta-b"`, matching the production report.
 
+Refusal parity (review F3): the bootstrap-index projector used to send a
+`DeltaBaseMissingError` load down the generic Fail path, so a delta with no
+union base dead-lettered as `projection_bug` and armed no reindex watermark.
+The commit "route bootstrap-index base-missing deltas through the fence"
+moves the service's fence refusal into the shared
+`projector.RefuseDeltaUnionBaseMissing`, and both loops call it. Root-Cause
+Evidence: before that commit, the live proof
+`TestDrainProjectorBaseMissingSupersedesAndRequestsReindexLive`
+(`go/cmd/bootstrap-index/bootstrap_projector_base_missing_live_test.go`)
+ended with delta B `dead_letter`, `projection_bug`, generation `failed`.
+After it, B ends superseded with `projector_delta_base_missing`, and the
+scope has one `repository_reindex_requests` row.
+
 ## No-Regression Evidence:
 
 - Non-union path (every full generation, and every delta before #7797
