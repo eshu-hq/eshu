@@ -39,8 +39,8 @@ this procedure never touches them.
 - Reach the reducer admin port from inside the network (for example by port
   forward). The admin routes are unauthenticated by design and must never be
   exposed outside it. Use `<reducer-admin>` below for that address.
-- Execute is supported on Neo4j only. On any other graph backend the route
-  answers `501` to an execute with a fixed message.
+- The route is supported on Neo4j only. On any other graph backend it answers
+  `501` to dry runs and execute alike, with a fixed message.
 - Do not run this during the #5385 cutover or a rollback to a pre-cutover
   binary. The old binary writes name-only nodes again; retire only after the
   deployment settles on the new one.
@@ -97,7 +97,8 @@ curl -s -X POST http://<reducer-admin>/admin/retire-legacy-workloads \
 `reason` is required and goes to the log. `dry_run` has no default: a body
 without it is rejected. Each request retires at most 100 nodes in one short
 transaction. The route runs on Neo4j only; on any other graph backend it answers
-`501` to dry runs and execute alike.
+`501` to dry runs and execute alike. A reducer with no graph writer wired
+answers `503` to an execute; dry runs still work there.
 
 Execute is irreversible. There is no undo; recovering a deleted node means
 rebuilding it from facts (re-materializing the repository).
@@ -118,9 +119,7 @@ it does not trust the dry run. What that covers, measured on Neo4j 2026.08.1:
   Neither touches the node, so the statement does not see it.
 
 So run execute in a quiet window, and send it to one reducer pod: the reducer's
-request lock is per process and does not span replicas. (Two delete statements
-on the same id at once were probed on Neo4j: in five of five rounds exactly one
-deleted the node; that is not a reason to run two pods.) A second run deletes
+request lock is per process and does not span replicas. A second run deletes
 nothing.
 
 The reducer records the `eshu_dp_workload_legacy_retirements_total{outcome}`
