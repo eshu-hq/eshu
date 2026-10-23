@@ -208,4 +208,11 @@ func TestTwinID(t *testing.T) {
 	if TwinID("", "svc") != "" || TwinID("repository:r", "") != "" {
 		t.Fatal("blank repo or name must give a blank twin id so it never matches a node")
 	}
+	for _, padded := range [][2]string{
+		{"repository:r", " svc"}, {"repository:r", "svc "}, {" repository:r", "svc"}, {"repository:r\t", "svc"},
+	} {
+		if got := TwinID(padded[0], padded[1]); got != "" {
+			t.Fatalf("TwinID(%q, %q) = %q, want blank: the delete joins byte for byte, so a padded part has no twin", padded[0], padded[1], got)
+		}
+	}
 }

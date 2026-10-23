@@ -170,7 +170,8 @@ func TestLiveDetectionAndDeleteStatementSelectTheSameIDs(t *testing.T) {
 	db := openLiveDB(t)
 	f := seedFixture(t, db)
 	ctx := context.Background()
-	allIDs := append(f.legacyIDs(), f.extraIDs()...)
+	seedPadded(t, db, f)
+	allIDs := append(append(f.legacyIDs(), f.extraIDs()...), f.paddedIDs()...)
 	p1, twin := f.legacy("p1"), f.scoped("a", "p1")
 
 	readForm := gateReadForm(t)
@@ -205,6 +206,23 @@ func TestLiveDetectionAndDeleteStatementSelectTheSameIDs(t *testing.T) {
 	rows, _ := db.Run(ctx, readForm, map[string]any{"ids": allIDs})
 	if len(rows) != 1 || rows[0]["id"] != p1 {
 		t.Fatalf("base fixture: statement selects %v, want exactly p1", rows)
+	}
+	// A padded name or repository id has a trimmed twin the delete cannot
+	// match, so neither side selects it; Detect reports it no_twin.
+	padded, err := legacyworkload.Detect(ctx, db, legacyworkload.Options{IDs: f.paddedIDs()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(padded.Verdicts) != len(f.paddedIDs()) {
+		t.Fatalf("padded leftovers: got %d verdicts, want %d", len(padded.Verdicts), len(f.paddedIDs()))
+	}
+	for _, v := range padded.Verdicts {
+		if v.Eligible || v.BlockedReason != legacyworkload.BlockedNoTwin {
+			t.Fatalf("padded leftover %q: eligible=%v reason=%q, want no_twin", v.ID, v.Eligible, v.BlockedReason)
+		}
+	}
+	if padded.WithScopedTwin() != 0 {
+		t.Fatalf("padded leftovers: WithScopedTwin = %d, want 0 (readiness does not count them)", padded.WithScopedTwin())
 	}
 
 	db.mustWrite(t, `CREATE (:WorkloadInstance {id: $id, workload_id: $w})`, map[string]any{"id": "inst:late-" + f.nonce, "w": p1})

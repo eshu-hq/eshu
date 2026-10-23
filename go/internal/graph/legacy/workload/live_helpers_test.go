@@ -146,6 +146,49 @@ func (f fixture) scoped(repo, name string) string {
 // the legacy-shape clause keeps it out.
 func (f fixture) odd() string { return "workload:odd-" + f.nonce }
 
+// paddedIDs are the two leftovers seedPadded writes: one whose name and one
+// whose repository id has leading whitespace.
+func (f fixture) paddedIDs() []string {
+	return []string{"workload: padname-" + f.nonce, "workload:padrepo-" + f.nonce}
+}
+
+// seedPadded writes a leftover with a padded name and a leftover with a padded
+// repository id, each beside a trimmed scoped twin that its repository
+// DEFINES. The delete statement joins name and repository id byte for byte, so
+// neither leftover has a twin it can match; Detect must agree and report
+// no_twin. Without the TwinID trim guard the padded-name leftover would look
+// eligible in Go while the statement keeps it.
+func seedPadded(t *testing.T, db *liveDB, f fixture) {
+	t.Helper()
+	nameRepo, repoRepo := f.repo("pn"), f.repo("pr")
+	for _, r := range []string{nameRepo, repoRepo} {
+		db.mustWrite(t, `CREATE (:Repository {id: $id})`, map[string]any{"id": r})
+	}
+	node := func(id, name, repo string, scoped bool) {
+		params := map[string]any{"id": id, "name": name, "repo": repo}
+		if scoped {
+			db.mustWrite(t, `CREATE (:Workload {id: $id, name: $name, repo_id: $repo, generation_id: 'g1'})`, params)
+			return
+		}
+		db.mustWrite(t, `CREATE (:Workload {id: $id, name: $name, repo_id: $repo})`, params)
+	}
+	defines := func(repo, id string) {
+		db.mustWrite(t, `MATCH (r:Repository {id: $r}), (w:Workload {id: $w}) CREATE (r)-[:DEFINES]->(w)`,
+			map[string]any{"r": repo, "w": id})
+	}
+	ids := f.paddedIDs()
+
+	padName := " padname-" + f.nonce
+	node(ids[0], padName, nameRepo, false)
+	node("workload:"+nameRepo+":"+strings.TrimSpace(padName), strings.TrimSpace(padName), nameRepo, true)
+	defines(nameRepo, ids[0])
+	defines(nameRepo, "workload:"+nameRepo+":"+strings.TrimSpace(padName))
+
+	node(ids[1], "padrepo-"+f.nonce, " "+repoRepo, false)
+	node("workload:"+repoRepo+":padrepo-"+f.nonce, "padrepo-"+f.nonce, repoRepo, true)
+	defines(repoRepo, "workload:"+repoRepo+":padrepo-"+f.nonce)
+}
+
 // extraIDs are ids that must never be deleted or become eligible when a
 // caller passes them explicitly: a non-legacy-shaped node (odd), a scoped
 // node with a null generation_id (N1), and N7's null-generation twin.
