@@ -275,12 +275,12 @@ covers both modes).
 Performance Evidence: `BenchmarkSymlinkTargetAdmitted` (committed in
 `snapshot_native_symlink_cost_test.go`) measures the matcher, not an end-to-end
 discovery before/after. `go test -run '^$' -bench BenchmarkSymlinkTargetAdmitted
--benchtime=20000x -count=5 ./internal/collector/repo/git/`, run twice on a shared
-16-thread arm64 Linux host, gave 0.68 to 1.40 µs per regular file (one `Lstat`)
-and 10.6 to 16.4 µs per symlink (`EvalSymlinks`, the location rules, and
-`Stat`), against zero before. The spread is host load. Both are far below the parse and read cost of the file they guard,
-and no queue, graph, or SQL path changes. A repository-scale discovery
-comparison is NOT_CHECKED.
+-benchtime=20000x -count=5 ./internal/collector/repo/git/`, run twice on a
+shared 16-thread arm64 Linux host, gave 0.68 to 1.40 µs per regular file (one
+`Lstat`) and 10.6 to 16.4 µs per symlink (`EvalSymlinks`, the location rules,
+and `Stat`), against zero before. The spread is host load. Both are far below
+the parse and read cost of the file they guard, and no queue, graph, or SQL
+path changes. A repository-scale discovery comparison is NOT_CHECKED.
 
 Observability Evidence: each dropped link adds one to
 `DiscoveryStats.FilesSkippedByContent["symlink_target"]`. That map already
@@ -293,6 +293,9 @@ link. No instrument, label set, span, or status field is added. The matcher
 runs once per file on one goroutine, so the counter needs no lock. The walk
 asks the matcher before it checks path globs, so a rejected link whose own path
 matches an operator glob counts as `content:symlink_target`, not `user:`.
+`.gitignore` and `.eshuignore` run after the walk, so a dropped link those
+files would also skip counts as `content:symlink_target`, not
+`gitignore` or `eshuignore` (before #8809 it counted under those).
 `TestResolveNativeSnapshotFileSetCountsDroppedSymlinks` pins the count.
 
 Known limits: the target check re-applies ignored directory names, hidden

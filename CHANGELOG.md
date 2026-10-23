@@ -68,7 +68,8 @@ recent shipped work grouped by feature area.
 - **Hardening for every admitted name:** full and delta (`--file-targets`)
   discovery now drop a symlink unless its resolved target is a regular file
   inside the repository in the same admission category (same parser
-  definition), at a path discovery would admit as a regular file (no ignored or
+  definition, or both terraform state, documentation, `.gitmodules`, or
+  CODEOWNERS), at a path discovery would admit as a regular file (no ignored or
   hidden directory, ignored extension, or ignored path glob). So
   `.nvmrc -> .env` or a link into `.git/config` no longer stores the target's
   text. `.gitignore` and `.eshuignore` are not re-applied to the target.
@@ -76,8 +77,7 @@ recent shipped work grouped by feature area.
   sync, an in-repository link whose target leaves the repository is now
   dropped and counted instead of failing the whole delta with "outside
   repository root"; a target path that is itself outside the repository still
-  fails. Each
-  dropped link is counted as `skip_reason=content:symlink_target` on
+  fails. Each dropped link is counted as `skip_reason=content:symlink_target` on
   `eshu_dp_discovery_files_skipped_total` and logged in the `discovery stats`
   line as `files_skipped.content.symlink_target`; a repository that relied on
   such a link, for example `sub/app.conf -> ../vendor/x/app.conf`, stops

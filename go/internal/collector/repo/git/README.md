@@ -71,6 +71,9 @@ path instead of a run of `../` segments.
 `TestFileGraphIDStableThroughSymlinkedCheckoutRoot` snapshots one repository
 through both spellings and requires identical file `graph_id` values.
 
+A symlink inside the checkout follows one admission rule in both sync modes
+(`symlinkAdmission`, #8809); the rule and its limits are in `AGENTS.md`.
+
 No-Regression Evidence (#7998): the helper runs once per emitted file fact
 plus a few documentation and commit-index facts per sync. A throwaway
 `go test -bench` (not committed) on linux/amd64 (AMD EPYC 9R14), Go 1.26.9,
@@ -169,15 +172,6 @@ Observability Evidence (#8092): `eshu_dp_git_resolve_cache_lookups_total`,
 `eshu_dp_git_resolve_cache_lookup_duration_seconds`, the
 `git.resolve_cache.lookup` span, and the `git resolve cache lookup` log lines,
 asserted from recorded runs in the resolve tests.
-
-## Symlink admission (#8809)
-
-Discovery tests the link name but the content read follows the link. In both
-sync modes `symlinkAdmission` keeps a symlink only when it resolves to a regular
-file inside the repository that `discovery.PathRules` admits, in the same
-admission category as the link (same parser definition, or both terraform state,
-documentation, `.gitmodules`, or CODEOWNERS). `.nvmrc -> .env` is dropped, as
-are dangling links, cycles, and directory links. Limits are in `AGENTS.md`.
 
 ## Directory size
 

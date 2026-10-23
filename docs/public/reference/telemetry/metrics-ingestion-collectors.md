@@ -70,6 +70,9 @@ an ignored extension, a hidden name, or an ignored path glob). The `discovery
 stats` log carries it as `files_skipped.content.symlink_target`. The target
 check runs before the path glob check, so a rejected link whose own path also
 matches an operator glob counts as `content:symlink_target`, not `user:`.
+`.gitignore` and `.eshuignore` run after the walk, so a dropped link those
+files would also skip counts as `content:symlink_target`, not as an ignore
+skip (it counted as an ignore skip before #8809).
 Repo-local `.eshu/discovery.json` rules use the `user:` prefix. `.eshuignore`
 matches use `skip_reason=eshuignore`.
 
