@@ -314,6 +314,13 @@ func resolveNativeSnapshotFileSet(
 	registry parser.Registry,
 	opts discovery.Options,
 ) (discovery.RepoFileSet, discovery.DiscoveryStats, error) {
+	// Resolve the root once so every later use agrees with the symlink target
+	// containment check, which measures resolved targets against the resolved
+	// root. A caller that hands in a symlinked root would otherwise relativize
+	// CODEOWNERS and .gitmodules targets against the wrong prefix (#8809).
+	if resolvedRoot, evalErr := filepath.EvalSymlinks(repoPath); evalErr == nil {
+		repoPath = resolvedRoot
+	}
 	opts, err := discoveryOptionsWithRepoDiscoveryConfig(repoPath, opts)
 	if err != nil {
 		return discovery.RepoFileSet{}, discovery.DiscoveryStats{}, err

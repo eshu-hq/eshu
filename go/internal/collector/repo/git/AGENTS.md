@@ -268,6 +268,12 @@ matcher runs once per file on one goroutine, so the counter needs no lock. The
 `symlink admission` tests pin the dropped paths and
 `TestResolveNativeSnapshotFileSetCountsDroppedSymlinks` pins the count.
 
+`resolveNativeSnapshotFileSet` resolves `repoPath` with `EvalSymlinks` once at
+the top, so CODEOWNERS and `.gitmodules` target detection, the containment
+check, and the returned `RepoRoot` all use one root. A caller that passes a
+symlinked root gets the same admission as one that resolved it first
+(`TestResolveNativeSnapshotFileSetSymlinkedRepoRootKeepsSameCategoryLinks`).
+
 Known limit: `.gitignore` and `.eshuignore` rules are not re-applied to a link
 target, only the ignored-directory names are. An operator-excluded path can
 still surface through an in-root link whose own name is admitted. Every
