@@ -150,9 +150,9 @@ class ScheduledRunnerTest(unittest.TestCase):
                 "non-fail-closed",
             ),
             (
-                "  cancel-in-progress: false\n",
+                "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
                 "  group : postgres-scheduled-live\n"
-                "  cancel-in-progress: false\n",
+                "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
                 "non-fail-closed",
             ),
             (
