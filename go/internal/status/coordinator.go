@@ -24,6 +24,11 @@ type CoordinatorSnapshot struct {
 	ActiveClaims          int                              `json:"active_claims"`
 	OverdueClaims         int                              `json:"overdue_claims"`
 	OldestPendingAge      time.Duration                    `json:"oldest_pending_age"`
+	// CollectorTerminalFailures carries, per collector instance, the newest
+	// terminal work-item failure that no later completed work item for the same
+	// scope has superseded. It feeds the collector runtime health and promotion
+	// proof; only bounded class and operation tokens are carried.
+	CollectorTerminalFailures []collector.TerminalFailure `json:"collector_terminal_failures,omitempty"`
 	// RecentFailures carries failure counts bounded to a recent time window so
 	// the degraded health state reflects active failures, not aged all-time
 	// totals. A nil value means the reader did not compute a window; callers
@@ -62,15 +67,16 @@ func cloneCoordinatorSnapshot(snapshot *CoordinatorSnapshot) *CoordinatorSnapsho
 		return nil
 	}
 	cloned := &CoordinatorSnapshot{
-		CollectorInstances:    slices.Clone(snapshot.CollectorInstances),
-		RunStatusCounts:       slices.Clone(snapshot.RunStatusCounts),
-		WorkItemStatusCounts:  slices.Clone(snapshot.WorkItemStatusCounts),
-		CompletenessCounts:    slices.Clone(snapshot.CompletenessCounts),
-		CollectorBackpressure: collector.CloneBackpressure(snapshot.CollectorBackpressure),
-		ActiveClaims:          snapshot.ActiveClaims,
-		OverdueClaims:         snapshot.OverdueClaims,
-		OldestPendingAge:      shared.NonNegativeDuration(snapshot.OldestPendingAge),
-		RecentFailures:        cloneCoordinatorRecentFailures(snapshot.RecentFailures),
+		CollectorInstances:        slices.Clone(snapshot.CollectorInstances),
+		RunStatusCounts:           slices.Clone(snapshot.RunStatusCounts),
+		WorkItemStatusCounts:      slices.Clone(snapshot.WorkItemStatusCounts),
+		CompletenessCounts:        slices.Clone(snapshot.CompletenessCounts),
+		CollectorBackpressure:     collector.CloneBackpressure(snapshot.CollectorBackpressure),
+		ActiveClaims:              snapshot.ActiveClaims,
+		OverdueClaims:             snapshot.OverdueClaims,
+		OldestPendingAge:          shared.NonNegativeDuration(snapshot.OldestPendingAge),
+		CollectorTerminalFailures: slices.Clone(snapshot.CollectorTerminalFailures),
+		RecentFailures:            cloneCoordinatorRecentFailures(snapshot.RecentFailures),
 	}
 	return cloned
 }

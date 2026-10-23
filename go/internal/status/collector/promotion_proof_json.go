@@ -33,30 +33,39 @@ type PromotionProofJSON struct {
 	Blockers         []string `json:"blockers,omitempty"`
 	LastObservedAt   string   `json:"last_observed_at,omitempty"`
 	UpdatedAt        string   `json:"updated_at,omitempty"`
+	// LastFailureClass, LastFailureOperation, and LastFailureAt are present only
+	// when the instance has an unresolved terminal provider failure. The class
+	// and operation are bounded tokens; no failure message is ever included.
+	LastFailureClass     string `json:"last_failure_class,omitempty"`
+	LastFailureOperation string `json:"last_failure_operation,omitempty"`
+	LastFailureAt        string `json:"last_failure_at,omitempty"`
 }
 
 func PromotionProofsJSON(rows []PromotionProof) []PromotionProofJSON {
 	projected := make([]PromotionProofJSON, 0, len(rows))
 	for _, row := range rows {
 		projected = append(projected, PromotionProofJSON{
-			CollectorKind:    row.CollectorKind,
-			InstanceID:       row.InstanceID,
-			DisplayName:      row.DisplayName,
-			PromotionState:   row.PromotionState,
-			RuntimeCategory:  row.RuntimeCategory,
-			Health:           row.Health,
-			ClaimDriven:      row.ClaimDriven,
-			ClaimState:       row.ClaimState,
-			SourceScope:      row.SourceScope,
-			FixtureOnly:      row.FixtureOnly,
-			EvidenceSources:  row.EvidenceSources,
-			SourceSystems:    row.SourceSystems,
-			ObservationCount: row.ObservationCount,
-			ReducerReadback:  row.ReducerReadback,
-			TelemetryHandles: row.TelemetryHandles,
-			Blockers:         row.Blockers,
-			LastObservedAt:   shared.NullableRFC3339Value(row.LastObservedAt),
-			UpdatedAt:        shared.NullableRFC3339Value(row.UpdatedAt),
+			CollectorKind:        row.CollectorKind,
+			InstanceID:           row.InstanceID,
+			DisplayName:          row.DisplayName,
+			PromotionState:       row.PromotionState,
+			RuntimeCategory:      row.RuntimeCategory,
+			Health:               row.Health,
+			ClaimDriven:          row.ClaimDriven,
+			ClaimState:           row.ClaimState,
+			SourceScope:          row.SourceScope,
+			FixtureOnly:          row.FixtureOnly,
+			EvidenceSources:      row.EvidenceSources,
+			SourceSystems:        row.SourceSystems,
+			ObservationCount:     row.ObservationCount,
+			ReducerReadback:      row.ReducerReadback,
+			TelemetryHandles:     row.TelemetryHandles,
+			Blockers:             row.Blockers,
+			LastObservedAt:       shared.NullableRFC3339Value(row.LastObservedAt),
+			UpdatedAt:            shared.NullableRFC3339Value(row.UpdatedAt),
+			LastFailureClass:     row.LastFailureClass,
+			LastFailureOperation: row.LastFailureOperation,
+			LastFailureAt:        shared.NullableRFC3339Value(row.LastFailureAt),
 		})
 	}
 	return projected

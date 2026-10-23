@@ -99,6 +99,12 @@ type PromotionProof struct {
 	SourceSystems []string
 	// ObservationCount is the aggregate observed fact count.
 	ObservationCount int
+	// LastFailureClass, LastFailureOperation, and LastFailureAt carry the
+	// bounded newest unresolved terminal provider failure from the underlying
+	// RuntimeStatus. They are empty for a proof with no such failure.
+	LastFailureClass     string
+	LastFailureOperation string
+	LastFailureAt        time.Time
 	// ReducerReadback reports whether reducer-projected evidence is available.
 	ReducerReadback string
 	// TelemetryHandles lists stable metric and span names for diagnosis.
@@ -238,22 +244,25 @@ func promotionProofForInstance(
 	fixtureOnly := opts.FixtureOnly[entry.CollectorKind]
 
 	proof := PromotionProof{
-		CollectorKind:    entry.CollectorKind,
-		InstanceID:       row.InstanceID,
-		DisplayName:      displayName(entry, row),
-		RuntimeCategory:  row.StatusCategory,
-		Health:           row.Health,
-		ClaimDriven:      entry.ClaimDriven,
-		ClaimState:       claimState,
-		SourceScope:      entry.SourceScope,
-		FixtureOnly:      fixtureOnly,
-		EvidenceSources:  slices.Clone(row.EvidenceSources),
-		SourceSystems:    slices.Clone(row.SourceSystems),
-		ObservationCount: row.ObservationCount,
-		ReducerReadback:  readback,
-		TelemetryHandles: telemetryHandles(entry),
-		LastObservedAt:   row.LastObservedAt,
-		UpdatedAt:        row.UpdatedAt,
+		CollectorKind:        entry.CollectorKind,
+		InstanceID:           row.InstanceID,
+		DisplayName:          displayName(entry, row),
+		RuntimeCategory:      row.StatusCategory,
+		Health:               row.Health,
+		ClaimDriven:          entry.ClaimDriven,
+		ClaimState:           claimState,
+		SourceScope:          entry.SourceScope,
+		FixtureOnly:          fixtureOnly,
+		EvidenceSources:      slices.Clone(row.EvidenceSources),
+		SourceSystems:        slices.Clone(row.SourceSystems),
+		ObservationCount:     row.ObservationCount,
+		ReducerReadback:      readback,
+		LastFailureClass:     row.LastFailureClass,
+		LastFailureOperation: row.LastFailureOperation,
+		LastFailureAt:        row.LastFailureAt,
+		TelemetryHandles:     telemetryHandles(entry),
+		LastObservedAt:       row.LastObservedAt,
+		UpdatedAt:            row.UpdatedAt,
 	}
 	proof.PromotionState, proof.Blockers = derivePromotionState(entry, row, readback, claimState, fixtureOnly, opts, asOf)
 	return proof
@@ -274,6 +283,8 @@ func derivePromotionState(
 	switch {
 	case row.StatusCategory == RuntimeDisabled || row.Health == "disabled":
 		return PromotionDisabled, []string{"collector disabled or deactivated"}
+	case row.LastFailureTerminal && row.Health == "degraded":
+		return PromotionFailed, []string{terminalFailureDetail(row.LastFailureClass, row.LastFailureOperation)}
 	case row.Health == "degraded":
 		return PromotionFailed, []string{degradedBlocker(row)}
 	case row.Health == "partial":
