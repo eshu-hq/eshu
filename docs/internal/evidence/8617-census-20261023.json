@@ -1,0 +1,407 @@
+{
+  "by_conclusion": {
+    "cancelled": 623,
+    "failure": 4,
+    "success": 636
+  },
+  "cancellation_cost": {
+    "categories": {
+      "executed": 47,
+      "zero_job": 576
+    },
+    "evidenced_runner_minutes": 1162.84,
+    "examples": {
+      "executed": [
+        39973541904,
+        39989827608,
+        39991013455
+      ],
+      "unknown": [],
+      "zero_job": [
+        39987718144,
+        39994939396,
+        40002504714
+      ]
+    },
+    "job_budget_exhausted": 0,
+    "job_enrichments": 47,
+    "population": "cancelled workflow runs created in window",
+    "runs": 623,
+    "source_drift": {
+      "late_cancelled": 2,
+      "missing_from_rest": 0
+    },
+    "validity": {
+      "invalid_fields": [
+        "categories.executed",
+        "categories.unknown",
+        "evidenced_runner_minutes",
+        "examples.executed"
+      ],
+      "reason": "runner_id=0 was counted as runner allocation; executed, unknown, and runner-minute figures must be remeasured",
+      "status": "INVALIDATED"
+    }
+  },
+  "cancelled_share": 0.4932699920823436,
+  "completed": 1263,
+  "malformed_rows": 0,
+  "over_60m": 8,
+  "required_green": {
+    "cohort": "PRs merged in window; final head, green by merge",
+    "end_boundary": "last of three successful required contexts by merge",
+    "enqueue_boundary": "first observed pull_request workflow created_at",
+    "groups": {
+      "ordinary": {
+        "heads": 5,
+        "p50_minutes": 32.18,
+        "p95_minutes": 41.72,
+        "success": 5
+      },
+      "reuse": {
+        "heads": 0,
+        "p50_minutes": null,
+        "p95_minutes": null,
+        "success": 0
+      },
+      "smoke": {
+        "heads": 0,
+        "p50_minutes": null,
+        "p95_minutes": null,
+        "success": 0
+      },
+      "unknown": {
+        "heads": 1,
+        "p50_minutes": null,
+        "p95_minutes": null,
+        "success": 0
+      }
+    },
+    "heads": [
+      {
+        "head_sha": "8161d0e69e21bff2525cb1acfcdc75f29c536249",
+        "kind": "ordinary",
+        "minutes": 41.72,
+        "number": 8831,
+        "outcome": "success"
+      },
+      {
+        "head_sha": "4b0d05c8f5777d5e27a00dee411cec7f541e8dea",
+        "kind": "ordinary",
+        "minutes": 32.18,
+        "number": 8806,
+        "outcome": "success"
+      },
+      {
+        "head_sha": "ac8cb90eeb89c9e83857b6becdaa510cc4c28256",
+        "kind": "ordinary",
+        "minutes": 32.4,
+        "number": 8804,
+        "outcome": "success"
+      },
+      {
+        "head_sha": "9dabd0292ff3d19b69af3266f3c605e5dc5e68a9",
+        "kind": "ordinary",
+        "minutes": 31.57,
+        "number": 8793,
+        "outcome": "success"
+      },
+      {
+        "head_sha": "7766e43acd9591c4a0132da5ad2ba25e3984b366",
+        "kind": "unknown",
+        "minutes": null,
+        "number": 8794,
+        "outcome": "pending"
+      },
+      {
+        "head_sha": "e58d1157fceb1c7f8156ccd3ef0767d23f8cccbb",
+        "kind": "ordinary",
+        "minutes": 31.03,
+        "number": 8792,
+        "outcome": "success"
+      }
+    ],
+    "outcomes": {
+      "pending": 1,
+      "success": 5
+    },
+    "overall": {
+      "heads": 6,
+      "p50_minutes": 32.18,
+      "p95_minutes": 41.72,
+      "success": 5
+    },
+    "push_to_dispatch_delay": "NOT_CHECKED"
+  },
+  "total": 1304,
+  "truncated_slices": 0,
+  "window": {
+    "end": "2026-10-23T18:25:45+00:00",
+    "start": "2026-10-23T14:25:45+00:00"
+  },
+  "workflows": {
+    "Benchmarks": {
+      "failures": 0,
+      "max_minutes": 32.9,
+      "median_minutes": 27.9,
+      "p50_minutes": 27.33,
+      "p95_minutes": 32.85,
+      "runs": 14
+    },
+    "Build Test": {
+      "failures": 0,
+      "max_minutes": 24.6,
+      "median_minutes": 23.5,
+      "p50_minutes": 23.1,
+      "p95_minutes": 24.62,
+      "runs": 14
+    },
+    "Build and Release Binaries": {
+      "failures": 0,
+      "max_minutes": 5.1,
+      "median_minutes": 2.9,
+      "p50_minutes": 2.87,
+      "p95_minutes": 5.08,
+      "runs": 18
+    },
+    "Code Coverage Report": {
+      "failures": 0,
+      "max_minutes": 25.2,
+      "median_minutes": 0.5,
+      "p50_minutes": 0.52,
+      "p95_minutes": 25.23,
+      "runs": 17
+    },
+    "CodeQL": {
+      "failures": 0,
+      "max_minutes": 3.1,
+      "median_minutes": 1.6,
+      "p50_minutes": 1.55,
+      "p95_minutes": 3.15,
+      "runs": 16
+    },
+    "Deploy Docs": {
+      "failures": 0,
+      "max_minutes": 1.1,
+      "median_minutes": 0.7,
+      "p50_minutes": 0.72,
+      "p95_minutes": 1.07,
+      "runs": 6
+    },
+    "End-to-end Tests": {
+      "failures": 0,
+      "max_minutes": 4.9,
+      "median_minutes": 4.5,
+      "p50_minutes": 4.5,
+      "p95_minutes": 4.93,
+      "runs": 18
+    },
+    "Fact Schema Diff": {
+      "failures": 0,
+      "max_minutes": 2.0,
+      "median_minutes": 1.6,
+      "p50_minutes": 1.53,
+      "p95_minutes": 1.98,
+      "runs": 6
+    },
+    "Frontend": {
+      "failures": 0,
+      "max_minutes": 26.1,
+      "median_minutes": 18.9,
+      "p50_minutes": 18.95,
+      "p95_minutes": 26.12,
+      "runs": 9
+    },
+    "Golden Corpus Gate": {
+      "failures": 0,
+      "max_minutes": 31.4,
+      "median_minutes": 28.1,
+      "p50_minutes": 28.08,
+      "p95_minutes": 31.45,
+      "runs": 13
+    },
+    "Ifa Determinism Gate": {
+      "failures": 0,
+      "max_minutes": 72.2,
+      "median_minutes": 22.1,
+      "p50_minutes": 21.73,
+      "p95_minutes": 72.15,
+      "runs": 10
+    },
+    "If\u00e1 Scheduled Live Proofs": {
+      "failures": 0,
+      "max_minutes": 6.9,
+      "median_minutes": 6.9,
+      "p50_minutes": 6.88,
+      "p95_minutes": 6.88,
+      "runs": 1
+    },
+    "Live Backend Tests": {
+      "failures": 1,
+      "max_minutes": 14.7,
+      "median_minutes": 13.1,
+      "p50_minutes": 13.1,
+      "p95_minutes": 14.68,
+      "runs": 17
+    },
+    "Live PostgreSQL Migrations": {
+      "failures": 0,
+      "max_minutes": 11.7,
+      "median_minutes": 9.6,
+      "p50_minutes": 8.88,
+      "p95_minutes": 11.7,
+      "runs": 8
+    },
+    "Live PostgreSQL Readiness": {
+      "failures": 1,
+      "max_minutes": 30.2,
+      "median_minutes": 29.0,
+      "p50_minutes": 29.03,
+      "p95_minutes": 30.23,
+      "runs": 7
+    },
+    "MCP Schema Drift": {
+      "failures": 0,
+      "max_minutes": 3.8,
+      "median_minutes": 3.3,
+      "p50_minutes": 3.3,
+      "p95_minutes": 3.82,
+      "runs": 18
+    },
+    "Main Health": {
+      "failures": 0,
+      "max_minutes": 1.2,
+      "median_minutes": 0.6,
+      "p50_minutes": 0.62,
+      "p95_minutes": 1.1,
+      "runs": 128
+    },
+    "Payload Usage Manifest": {
+      "failures": 0,
+      "max_minutes": 5.9,
+      "median_minutes": 5.3,
+      "p50_minutes": 5.2,
+      "p95_minutes": 5.9,
+      "runs": 14
+    },
+    "Post Discord Invite on Issue or PR": {
+      "failures": 1,
+      "max_minutes": 0.3,
+      "median_minutes": 0.1,
+      "p50_minutes": 0.12,
+      "p95_minutes": 0.22,
+      "runs": 53
+    },
+    "Product Claim Ledger": {
+      "failures": 0,
+      "max_minutes": 3.1,
+      "median_minutes": 2.7,
+      "p50_minutes": 2.67,
+      "p95_minutes": 3.15,
+      "runs": 18
+    },
+    "Publish Image and Helm Chart": {
+      "failures": 0,
+      "max_minutes": 67.1,
+      "median_minutes": 63.3,
+      "p50_minutes": 63.27,
+      "p95_minutes": 67.07,
+      "runs": 5
+    },
+    "Race Graph Writes": {
+      "failures": 0,
+      "max_minutes": 9.3,
+      "median_minutes": 7.3,
+      "p50_minutes": 6.63,
+      "p95_minutes": 9.27,
+      "runs": 6
+    },
+    "Read API Latency Gate": {
+      "failures": 0,
+      "max_minutes": 26.8,
+      "median_minutes": 23.8,
+      "p50_minutes": 22.17,
+      "p95_minutes": 26.83,
+      "runs": 14
+    },
+    "Reducer Contention Gate": {
+      "failures": 0,
+      "max_minutes": 27.6,
+      "median_minutes": 25.1,
+      "p50_minutes": 25.07,
+      "p95_minutes": 27.6,
+      "runs": 5
+    },
+    "Replay Coverage Gate": {
+      "failures": 0,
+      "max_minutes": 3.3,
+      "median_minutes": 3.0,
+      "p50_minutes": 2.9,
+      "p95_minutes": 3.28,
+      "runs": 18
+    },
+    "Replay Tier (offline NornicDB)": {
+      "failures": 0,
+      "max_minutes": 9.3,
+      "median_minutes": 7.6,
+      "p50_minutes": 7.5,
+      "p95_minutes": 9.35,
+      "runs": 14
+    },
+    "Required Gates": {
+      "failures": 1,
+      "max_minutes": 134.5,
+      "median_minutes": 0.1,
+      "p50_minutes": 0.07,
+      "p95_minutes": 4.05,
+      "runs": 714
+    },
+    "SDK Go Modules": {
+      "failures": 0,
+      "max_minutes": 0.9,
+      "median_minutes": 0.7,
+      "p50_minutes": 0.6,
+      "p95_minutes": 0.87,
+      "runs": 6
+    },
+    "Scorecard Example Conformance": {
+      "failures": 0,
+      "max_minutes": 0.7,
+      "median_minutes": 0.5,
+      "p50_minutes": 0.52,
+      "p95_minutes": 0.68,
+      "runs": 6
+    },
+    "Security Scan": {
+      "failures": 0,
+      "max_minutes": 23.4,
+      "median_minutes": 18.2,
+      "p50_minutes": 17.55,
+      "p95_minutes": 22.35,
+      "runs": 20
+    },
+    "Static Contract Gates": {
+      "failures": 0,
+      "max_minutes": 37.1,
+      "median_minutes": 27.3,
+      "p50_minutes": 27.12,
+      "p95_minutes": 37.1,
+      "runs": 14
+    },
+    "Verify Agent Hygiene": {
+      "failures": 0,
+      "max_minutes": 3.3,
+      "median_minutes": 2.9,
+      "p50_minutes": 2.87,
+      "p95_minutes": 3.32,
+      "runs": 18
+    },
+    "Verify CI Gate Registry": {
+      "failures": 0,
+      "max_minutes": 3.2,
+      "median_minutes": 2.9,
+      "p50_minutes": 2.87,
+      "p95_minutes": 3.25,
+      "runs": 18
+    }
+  }
+}

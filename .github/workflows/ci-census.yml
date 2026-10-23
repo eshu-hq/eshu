@@ -17,7 +17,10 @@ on:
 
 permissions:
   actions: read
+  checks: read
   contents: read
+  pull-requests: read
+  statuses: read
 
 concurrency:
   group: ci-census
@@ -31,7 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Test census aggregation
-        run: python3 scripts/test-gha-census.py
+        run: |
+          python3 scripts/test-gha-census.py
+          python3 scripts/test-gha-census-enrichment.py
       - name: Run census
         env:
           GH_TOKEN: ${{ github.token }}

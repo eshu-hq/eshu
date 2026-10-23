@@ -5,7 +5,8 @@ Fetches the last 24 hours of workflow runs in hourly slices (the run-list
 endpoint caps one query at 1000 rows, roughly an hour of this repo's
 traffic), dedupes by run id, and aggregates what the revamp is measured
 against: total runs, cancelled share, runs over 60 minutes, and per-workflow
-duration percentiles. Output is a Markdown report (job summary) plus the
+duration percentiles, merged-head required-green latency, and evidenced
+cancelled-run runner occupancy. Output is a Markdown report (job summary) plus the
 same numbers as JSON (build artifact), so a census is comparable to the
 baseline recorded on #8617 without re-deriving anything by hand.
 """
@@ -18,6 +19,8 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Sequence
+
+from gha_census_enrichment import cancellation_cost, percentile, required_green
 
 Run = dict[str, Any]
 
@@ -81,6 +84,8 @@ def aggregate(runs: Sequence[Run]) -> dict[str, Any]:
                 over_60m += 1
     for name, values in durations.items():
         workflows[name]["median_minutes"] = round(statistics.median(values), 1)
+        workflows[name]["p50_minutes"] = percentile(values, 0.5)
+        workflows[name]["p95_minutes"] = percentile(values, 0.95)
         workflows[name]["max_minutes"] = round(max(values), 1)
     cancelled = by_conclusion.get("cancelled", 0)
     return {
@@ -113,8 +118,8 @@ def render_markdown(report: dict[str, Any], start: str, end: str) -> str:
             "name and are excluded from per-workflow stats.")
     lines += [
         "",
-        "| Workflow | Runs | Failures | Median min | Max min |",
-        "|---|---:|---:|---:|---:|",
+        "| Workflow | Runs | Failures | P50 min | P95 min | Max min |",
+        "|---|---:|---:|---:|---:|---:|",
     ]
     ranked = sorted(
         report["workflows"].items(),
@@ -122,14 +127,90 @@ def render_markdown(report: dict[str, Any], start: str, end: str) -> str:
     for name, stats in ranked[:15]:
         lines.append(
             f"| {name} | {stats['runs']} | {stats['failures']} | "
-            f"{stats.get('median_minutes', 0)} | {stats.get('max_minutes', 0)} |")
+            f"{stats.get('p50_minutes', '—')} | "
+            f"{stats.get('p95_minutes', '—')} | "
+            f"{stats.get('max_minutes', '—')} |")
     failures = sorted(
         ((s["failures"], n) for n, s in report["workflows"].items()
          if s["failures"]), reverse=True)
     if failures:
         lines += ["", "Failures by workflow: " + ", ".join(
             f"{name} {count}" for count, name in failures[:8]) + "."]
+    green = report.get("required_green")
+    if green:
+        if green.get("completeness") == "failed":
+            lines += ["", "### Required-green latency (merged PR final heads)",
+                      "WARNING: enrichment failed; required-green metrics are "
+                      f"unavailable: {green['error']}."]
+        else:
+            lines += _render_required_green(green)
+    cancellation = report.get("cancellation_cost")
+    if cancellation:
+        if cancellation.get("completeness") == "failed":
+            lines += ["", "### Cancelled-run runner cost",
+                      "WARNING: enrichment failed; runner-cost metrics are "
+                      f"unavailable: {cancellation['error']}."]
+        else:
+            lines += _render_cancellation_cost(cancellation)
     return "\n".join(lines) + "\n"
+
+
+def _render_required_green(green: dict[str, Any]) -> list[str]:
+    """Render successful required-green enrichment."""
+    lines = ["", "### Required-green latency (merged PR final heads)",
+             "First observed PR workflow enqueue → last required context green by merge; "
+             "includes queueing and retries. Push-to-dispatch delay: NOT_CHECKED.",
+             f"Outcomes: {green['outcomes']}.",
+             "| Publisher kind | Heads | Green | P50 min | P95 min |",
+             "|---|---:|---:|---:|---:|"]
+    overall = green["overall"]
+    overall_p50 = overall["p50_minutes"] if overall["p50_minutes"] is not None else "—"
+    overall_p95 = overall["p95_minutes"] if overall["p95_minutes"] is not None else "—"
+    lines.append(f"| All | {overall['heads']} | {overall['success']} | "
+                 f"{overall_p50} | {overall_p95} |")
+    for kind, stats in green["groups"].items():
+        p50 = stats["p50_minutes"] if stats["p50_minutes"] is not None else "—"
+        p95 = stats["p95_minutes"] if stats["p95_minutes"] is not None else "—"
+        lines.append(f"| {kind} | {stats['heads']} | {stats['success']} | "
+                     f"{p50} | {p95} |")
+    non_green = [f"#{head['number']} {head['outcome']}"
+                 for head in green["heads"] if head["outcome"] != "success"]
+    if non_green:
+        lines.append("Non-green final heads at merge: " + ", ".join(non_green) + ".")
+    return lines
+
+
+def _render_cancellation_cost(cancellation: dict[str, Any]) -> list[str]:
+    """Render successful cancellation-cost enrichment."""
+    lines = ["", "### Cancelled-run runner cost",
+             "Raw cancelled share above is unchanged. Job evidence covers "
+             f"{cancellation['runs']} cancelled runs; "
+             f"categories: {cancellation['categories']}.",
+             "Evidenced runner occupancy: "
+             f"{cancellation['evidenced_runner_minutes']} runner-minutes. "
+             "Unknown runs are excluded from this sum."]
+    if cancellation["job_budget_exhausted"]:
+        lines.append("WARNING: job enrichment stopped at "
+                     f"{cancellation['job_enrichments']} requests; "
+                     f"{cancellation['job_budget_exhausted']} further "
+                     "cancelled runs are unknown.")
+    if cancellation.get("job_fetch_errors"):
+        count = cancellation["job_fetch_errors"]
+        lines.append(f"WARNING: {count} cancelled-run job fetch failed"
+                     f"{'s' if count != 1 else ''}; affected runs are unknown. "
+                     "See job_fetch_error_examples in JSON.")
+    if cancellation["categories"].get("unknown"):
+        lines.append("WARNING: unknown cancellation observations have incomplete "
+                     "suite or job evidence; runner cost is a floor.")
+    drift = cancellation["source_drift"]
+    if drift["missing_from_rest"] or drift["late_cancelled"]:
+        lines.append("Source drift after raw snapshot: "
+                     f"{drift['missing_from_rest']} raw cancellations missing "
+                     f"from REST; {drift['late_cancelled']} later cancellations "
+                     "excluded from raw totals and classification.")
+    if cancellation.get("completeness") == "partial":
+        lines.append("Completeness: partial; inspect unknown runs and source drift.")
+    return lines
 
 
 def _gh_run_list(start: datetime, end: datetime) -> list[Run]:
@@ -197,6 +278,25 @@ def main(argv: Sequence[str] | None = None) -> int:
               "maximum subdivision; counts for those windows are a floor",
               file=sys.stderr)
     report["window"] = {"start": start.isoformat(), "end": end.isoformat()}
+    try:
+        report["required_green"] = required_green(start, end)
+        report["required_green"]["completeness"] = "complete"
+    except Exception as exc:  # noqa: BLE001 -- retain raw census on enrichment failure
+        print(f"gha-census: warning: required-green enrichment failed: {exc}",
+              file=sys.stderr)
+        report["required_green"] = {"completeness": "failed", "error": str(exc)}
+    try:
+        report["cancellation_cost"] = cancellation_cost(start, end, runs)
+        cost = report["cancellation_cost"]
+        cost["completeness"] = (
+            "partial" if cost["categories"].get("unknown") or
+            cost["job_budget_exhausted"] or
+            cost.get("job_fetch_errors") or
+            cost["source_drift"]["missing_from_rest"] else "complete")
+    except Exception as exc:  # noqa: BLE001 -- the enrichments are independent
+        print(f"gha-census: warning: cancellation enrichment failed: {exc}",
+              file=sys.stderr)
+        report["cancellation_cost"] = {"completeness": "failed", "error": str(exc)}
     sys.stdout.write(render_markdown(
         report, report["window"]["start"], report["window"]["end"]))
     if args.json_out:
