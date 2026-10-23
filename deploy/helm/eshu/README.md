@@ -267,6 +267,14 @@ workers and the coordinator that run once at pod start; no steady-state query,
 queue, lease or graph path changes. Verified by `go test ./internal/runtime -run
 TestHelmComponentActivations -count=1`.
 
+No-Observability-Change (#8894): `componentExtensionCollector.activations` adds no
+metric, span, log key or status field. Each activation worker exposes the same
+`/metrics`, `/healthz` and `/readyz` surface as the single worker, and its
+metrics Service carries an `eshu.dev/component-instance` label so an operator
+can tell workers apart in Prometheus. The init containers print the grant,
+install and enable results to the pod log (`kubectl logs <pod> -c
+reconcile-<instanceId>`).
+
 No-Observability-Change: the chart adds no new metric names, labels, spans,
 queue domains, graph writes, or reducer paths. Operators use the existing
 workflow coordinator reconcile metrics, collector `/admin/status`, `/metrics`,
