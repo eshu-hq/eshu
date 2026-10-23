@@ -145,7 +145,7 @@ func (f *legacyRetireFixture) runner() *retire.Runner {
 	return &retire.Runner{
 		Reader:           liveEdgeReader{exec: f.live.exec},
 		Writer:           liveRetireWriter{exec: f.live.exec},
-		ExecuteSupported: true,
+		BackendValidated: true,
 	}
 }
 

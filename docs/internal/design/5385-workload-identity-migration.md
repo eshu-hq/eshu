@@ -483,5 +483,5 @@ binary, and an automatic reaper would fight it during a mixed-version window.
 The delete is a graph production data change, so it runs only after an operator
 reviews the dry run. The statement and its safe set are described in the
 [leftover retirement runbook](../../public/operate/legacy-workload-retirement-runbook.md);
-the NornicDB findings that shaped the detection are in
+the backend scope (Neo4j only) and the measured cost are in
 `docs/internal/evidence/8795-legacy-workload-retirement.md`.

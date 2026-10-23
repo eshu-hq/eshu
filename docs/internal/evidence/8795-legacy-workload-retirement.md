@@ -17,10 +17,33 @@ The detection is still written so it does not depend on the Cypher shapes
 aggregate): the negative clauses (no instance, a scoped twin, only safe
 relationships) are decided in Go over single-clause, identity-anchored reads
 (`legacyworkload.Detect` and `Evaluate`), and one code path serves the readiness
-check, the dry run, and the pre-delete verification. The delete statement
-`DeleteNeo4jCypher` re-evaluates every clause itself and is offered on Neo4j
-only; the route answers `501` to an execute on any other backend. No NornicDB
-behavior is claimed.
+check, the dry run, and the pre-delete verification. That shape is a design
+choice, not a NornicDB claim: no NornicDB behavior is claimed. The route
+answers `501` to dry runs and execute on any backend other than Neo4j, and the
+readiness check reports `unknown` there and does not run the detection.
+
+## Concurrent writers (lock-first delete)
+
+`DeleteNeo4jCypher` sets and removes a marker property on each named node before
+it evaluates any retirement clause, so it holds the node's write lock while it
+checks. A throwaway probe on a fresh Neo4j 2026.08.1 first proved the defect in
+the earlier shape (clauses in the first `WHERE`): a writer transaction T1
+created a `WorkloadInstance -[:INSTANCE_OF]->` the eligible node and stayed
+open; the delete blocked on T1; after T1 committed the delete reported
+`nodes=1`, and the instance was left without its target. Same probe with the
+lock-first shape: the delete was aborted with
+`Neo.TransientError.Transaction.DeadlockDetected` (T1 held a shared
+relationship-group lock and needed the node lock at commit; the delete held the
+node lock and needed the relationship-group lock), nothing was deleted, and T1's
+edge committed.
+
+`TestLiveDeleteNeo4jRechecksAfterTheLockWait` pins both cases: a property write
+on the node (the delete waits, re-reads, deletes nothing, no error) and an
+`INSTANCE_OF` edge created into the node over three rounds (every round ended
+with the delete aborted, the node and the edge intact, and a retry deleting
+nothing). Not covered, and stated in the runbook: a writer that touches neither
+the node nor its relationships (an instance naming the node only by its
+`workload_id` property, or the twin losing its `DEFINES`) while the delete runs.
 
 On the pinned Neo4j, the nine-case fixture (a leftover with an own-repository
 twin; a scoped node with a null `generation_id`; a leftover with an instance by
@@ -30,11 +53,17 @@ whose twin is in another repository; one with a `DOCUMENTS` edge; one with a
 eligible leftover from both the Go detection and the delete statement's own
 predicate, and `TestLiveDetectionAndDeleteStatementSelectTheSameIDs` pins that
 the two select identical ids on the fixture and after each late change a dry run
-could miss. Plain `DELETE w` on a node that still has relationships is refused by
+could miss. The fixture also carries a twin with a null `generation_id`, a
+foreign repository `DEFINES` into an otherwise eligible leftover, and a
+non-legacy-shaped id passed in `$ids`; dropping the own-repository `DEFINES`
+rule, either twin `generation_id IS NOT NULL` check, or the legacy-shape clause
+each fails a live test. Plain `DELETE w` on a node that still has relationships is refused by
 Neo4j.
 
 ## Query plans (Neo4j 2026.08.1, community, constraints `workload_id` and
-`repository_id` unique, index `workload_instance_workload_id` present)
+`repository_id` unique, index `workload_instance_workload_id` present; the plan
+pin applies these from the production schema statements itself, so it holds on
+a fresh database)
 
 Seeded graph: 15,017 `Workload` nodes (10,000 scoped with a `generation_id` and
 an instance each, 5,000 name-only leftovers each with an own-repository twin, a
@@ -71,10 +100,14 @@ No-Regression Evidence: the change adds no worker, queue, lease, claim, or batch
 setting, and nothing in the reducer's queue path calls the retirement. The only
 new graph statements run when an operator calls the admin route or when hosted
 readiness is read, never from a projection or materialization stage. Delete
-shape: `MATCH (w:Workload) WHERE w.id IN $ids AND <clauses> DETACH DELETE w`,
+shape: `MATCH (w:Workload) WHERE w.id IN $ids SET w.__eshu_retire_lock = true
+REMOVE w.__eshu_retire_lock WITH w WHERE <clauses> DETACH DELETE w`,
 Neo4j 2026.08.1, at most 100 ids per statement, one auto-commit transaction,
 anchored on the `workload_id` unique constraint (`NodeUniqueIndexSeek`), about
-2,500 db hits per 100 ids and 0.03 s for the live eligible-delete case. It does
+2,500 db hits per 100 ids and 0.03 s for the live eligible-delete case (measured
+on the earlier shape without the lock markers; the lock-first shape adds one
+property set and one remove per named node, and its plan pin still finds the two
+unique-index seeks and no scan, but its db hits were not re-measured). It does
 not UNWIND the delete. Lock scope is the batch's nodes and their incident
 relationships; the live race proof
 (`TestLiveLegacyWorkloadRetirementC2RacesAMaterializationPass`) runs the

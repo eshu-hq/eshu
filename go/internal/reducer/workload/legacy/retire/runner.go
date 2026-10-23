@@ -51,9 +51,10 @@ var (
 	// ErrInvalidRequest wraps a caller-fixable request problem; its text is
 	// safe to return to the caller.
 	ErrInvalidRequest = errors.New("invalid legacy workload retirement request")
-	// ErrExecuteUnsupported reports that the configured graph backend cannot
-	// evaluate the retirement statement. Dry runs still work.
-	ErrExecuteUnsupported = errors.New("legacy workload retirement execute is supported on Neo4j only; run a dry run to list candidates")
+	// ErrBackendUnvalidated reports that the configured graph backend is not
+	// the one the detection and the delete were tested on (Neo4j). Both dry
+	// runs and execute are refused, so an untested answer is never served.
+	ErrBackendUnvalidated = errors.New("legacy workload retirement is validated on Neo4j only; dry runs and execute are refused on this graph backend")
 )
 
 // Writer is the graph write port: one auto-commit statement, returning the
@@ -76,9 +77,10 @@ type Runner struct {
 	Reader legacyworkload.Reader
 	// Writer runs the retirement statement; required for execute.
 	Writer Writer
-	// ExecuteSupported is true on the graph backend that can evaluate
-	// legacyworkload.DeleteNeo4jCypher (Neo4j). When false, execute is refused.
-	ExecuteSupported bool
+	// BackendValidated is true on Neo4j, the only backend the detection and
+	// legacyworkload.DeleteNeo4jCypher were tested on. When false, dry runs and
+	// execute are refused with ErrBackendUnvalidated.
+	BackendValidated bool
 	// Audit records execute decisions; nil disables recording.
 	Audit Auditor
 	// Instruments carries the retirement counter; nil skips it.
@@ -141,9 +143,11 @@ func (r *Runner) Run(ctx context.Context, req Request) (Response, error) {
 	if req.Limit == 0 {
 		req.Limit = MaxLimit
 	}
-	if !req.DryRun && (!r.ExecuteSupported || r.Writer == nil) {
-		r.audit(ctx, governanceaudit.DecisionDenied, reasonRefusedUnsupportedGraph)
-		return Response{}, ErrExecuteUnsupported
+	if !r.BackendValidated || (!req.DryRun && r.Writer == nil) {
+		if !req.DryRun {
+			r.audit(ctx, governanceaudit.DecisionDenied, reasonRefusedUnsupportedGraph)
+		}
+		return Response{}, ErrBackendUnvalidated
 	}
 
 	r.mu.Lock()

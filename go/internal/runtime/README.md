@@ -64,8 +64,8 @@ When `WithRecoveryHandler` is passed, `RecoveryHandler.Mount` adds
 `/admin/replay`, `/admin/refinalize`, and
 `/admin/replay-collector-generations` to the same mux. `WithLegacyWorkloadRetirement`
 adds `POST /admin/retire-legacy-workloads` (#8795); only the reducer passes it. The
-handler maps `retire.ErrInvalidRequest` to 422, `retire.ErrExecuteUnsupported` to
-501, and any other failure to a fixed 500 message that never carries the cause.
+handler maps `retire.ErrInvalidRequest` to 422, `retire.ErrBackendUnvalidated`
+(any backend other than Neo4j, for dry runs and execute alike) to 501, and any other failure to a fixed 500 message that never carries the cause.
 
 ## Lifecycle / workflow
 

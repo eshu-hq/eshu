@@ -282,6 +282,7 @@ func newRouterWithSemanticEmbeddingWithReadStore(
 		Freshness:     newFreshnessHandler(reader, queryProfile),
 		Status: &query.StatusHandler{
 			Neo4j:           neo4jReader,
+			GraphBackend:    graphBackend,
 			DB:              writer,
 			StatusReader:    statusReader,
 			Retirements:     pgstatus.NewRetirementStore(reader),

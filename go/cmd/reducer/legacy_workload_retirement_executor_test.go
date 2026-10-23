@@ -107,17 +107,17 @@ func (emptyQuery) RunSingle(context.Context, string, map[string]any) (map[string
 	return nil, nil
 }
 
-func TestLegacyWorkloadRetirementExecuteIsNeo4jOnlyAndDryRunWorksOnBoth(t *testing.T) {
+// TestLegacyWorkloadRetirementIsNeo4jOnly pins the backend gate: Neo4j serves
+// dry runs and execute; any other backend answers 501 to both, because the
+// detection and the delete were tested on Neo4j only.
+func TestLegacyWorkloadRetirementIsNeo4jOnly(t *testing.T) {
 	t.Parallel()
-	for _, backend := range []runtimecfg.GraphBackend{runtimecfg.GraphBackendNeo4j, runtimecfg.GraphBackendNornicDB} {
-		if rec := postLegacyRetirement(t, backend, `{"dry_run": true}`); rec.Code != http.StatusOK {
-			t.Errorf("%s dry run status = %d body = %s", backend, rec.Code, rec.Body)
+	for _, body := range []string{`{"dry_run": true}`, `{"dry_run": false, "reason": "r"}`} {
+		if rec := postLegacyRetirement(t, runtimecfg.GraphBackendNeo4j, body); rec.Code != http.StatusOK {
+			t.Errorf("neo4j %s status = %d body = %s", body, rec.Code, rec.Body)
 		}
-	}
-	if rec := postLegacyRetirement(t, runtimecfg.GraphBackendNeo4j, `{"dry_run": false, "reason": "r"}`); rec.Code != http.StatusOK {
-		t.Errorf("neo4j execute status = %d body = %s", rec.Code, rec.Body)
-	}
-	if rec := postLegacyRetirement(t, runtimecfg.GraphBackendNornicDB, `{"dry_run": false, "reason": "r"}`); rec.Code != http.StatusNotImplemented {
-		t.Errorf("nornicdb execute status = %d, want 501", rec.Code)
+		if rec := postLegacyRetirement(t, runtimecfg.GraphBackendNornicDB, body); rec.Code != http.StatusNotImplemented {
+			t.Errorf("nornicdb %s status = %d, want 501", body, rec.Code)
+		}
 	}
 }

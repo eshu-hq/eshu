@@ -18,15 +18,25 @@ Fields on the check:
 | field | value |
 | --- | --- |
 | `name` | `workload_identity_leftovers` |
-| `state` | `fail` while any exist, else `pass` (readiness has no warn state) |
-| `failure_class` | `legacy_workload_nodes` |
+| `state` | `fail` while any exist or when the detection read fails; `unknown` when it gave no verdict (see below); else `pass` |
+| `failure_class` | `legacy_workload_nodes`, or `legacy_workload_detection_unavailable` when the read failed |
 | `detail` | `<N> name-only Workload nodes with a scoped twin (pre-#5385 leftovers)`, or `no name-only Workload nodes with a scoped twin` |
 | `next_diagnostic` | `POST /admin/retire-legacy-workloads {"dry_run":true}` on the reducer admin port, and the retirement runbook |
 
-The count is a lower bound (`N+`) if the read hit its examined cap. When the
-bounded graph read fails the check is omitted rather than failed, because
-`query_readback` already reports an unreadable graph. The read is the same
-detection the retirement dry run uses, so the two cannot disagree.
+The count is a lower bound (`N+`) if the read hit its examined cap of 5,000
+candidates. The read is the same detection the retirement dry run uses, so the
+two cannot disagree.
+
+- **Read failure.** The check runs only after `query_readback` passed, so a
+  failed detection read is its own condition. The check fails closed with
+  `legacy_workload_detection_unavailable`, readiness is `not_ready`, the API
+  logs the WARN line `hosted readiness legacy workload detection failed`, and
+  the request span records the error. The body never carries the error text.
+- **`unknown`, no failure class.** The detection is validated on Neo4j only.
+  On any other graph backend (including an unset `ESHU_GRAPH_BACKEND`) it does
+  not run and the check is `unknown`, never `pass`. The check is also `unknown`
+  when the read examined its cap and found no leftover, because the nodes past
+  the cap were not examined.
 
 To clear it, follow the
 [leftover retirement runbook](../../operate/legacy-workload-retirement-runbook.md).

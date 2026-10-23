@@ -123,7 +123,7 @@ func (a *recordingAudit) Append(_ context.Context, events []governanceaudit.Even
 }
 
 func newRunner(g *stubGraph, w *recordingWriter) *Runner {
-	return &Runner{Reader: g, Writer: w, ExecuteSupported: true, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))}
+	return &Runner{Reader: g, Writer: w, BackendValidated: true, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))}
 }
 
 func TestDryRunNeverWritesAndReportsEligibleAndBlocked(t *testing.T) {
@@ -226,19 +226,21 @@ func TestRequestValidation(t *testing.T) {
 	}
 }
 
-func TestExecuteRefusedOnUnsupportedBackendButDryRunWorks(t *testing.T) {
+// TestUnvalidatedBackendRefusesDryRunAndExecute pins that off Neo4j, the only
+// backend the detection and the delete were tested on, neither a dry run nor an
+// execute reads the graph: an untested answer is never served as a result.
+func TestUnvalidatedBackendRefusesDryRunAndExecute(t *testing.T) {
 	g := &stubGraph{}
 	g.addEligible("a")
 	r := newRunner(g, &recordingWriter{})
-	r.ExecuteSupported = false
-	if _, err := r.Run(context.Background(), Request{Reason: "r"}); !errors.Is(err, ErrExecuteUnsupported) {
-		t.Fatalf("err = %v, want ErrExecuteUnsupported", err)
+	r.BackendValidated = false
+	for _, req := range []Request{{Reason: "r"}, {DryRun: true}} {
+		if _, err := r.Run(context.Background(), req); !errors.Is(err, ErrBackendUnvalidated) {
+			t.Fatalf("dry_run=%v: err = %v, want ErrBackendUnvalidated", req.DryRun, err)
+		}
 	}
 	if g.reads != 0 {
-		t.Fatalf("a refused execute must not read the graph; reads = %d", g.reads)
-	}
-	if resp, err := r.Run(context.Background(), Request{DryRun: true}); err != nil || resp.Eligible != 1 {
-		t.Fatalf("dry run on an unsupported backend: resp=%+v err=%v", resp, err)
+		t.Fatalf("a refused request must not read the graph; reads = %d", g.reads)
 	}
 }
 

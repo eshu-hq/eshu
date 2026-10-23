@@ -67,6 +67,18 @@ The response lists candidates with `eligible` and, for blocked nodes,
 `truncated: true` means more candidates exist than one request examined. Page by
 repeating the call after retiring, or name a subset with `"ids": [...]`.
 
+A dry run examines at most 1,000 candidates in id order and has no cursor. When
+the first 1,000 are all blocked, repeating the call returns the same blocked
+nodes and makes no progress. In that case list candidate ids with a read-only
+query against the graph (`MATCH (w:Workload) WHERE 'workload:' + w.name = w.id
+AND w.generation_id IS NULL AND w.id > $after RETURN w.id ORDER BY w.id LIMIT
+100`) and pass each page as `"ids"`.
+
+The detection checks `WorkloadInstance` references (edge and `workload_id`
+property) and the node's own relationships. It does not check other labels
+that may name a workload only by a property, such as `CloudResource.workload_id`
+or `Endpoint.workload_id`. Check those yourself for the ids you plan to retire.
+
 ## 3. Review
 
 Check the eligible ids against the twin ids in the response. Use `ids` to retire
@@ -82,9 +94,30 @@ curl -s -X POST http://<reducer-admin>/admin/retire-legacy-workloads \
 
 `reason` is required and goes to the log. `dry_run` has no default: a body
 without it is rejected. Each request retires at most 100 nodes in one short
-transaction. The statement re-checks every clause for every id, so a node that
-gained an instance or an edge since the dry run is simply kept. A second run
-deletes nothing.
+transaction. The route runs on Neo4j only; on any other graph backend it answers
+`501` to dry runs and execute alike.
+
+Execute is irreversible. There is no undo; recovering a deleted node means
+rebuilding it from facts (re-materializing the repository).
+
+The statement takes each node's write lock and then re-checks every clause, so
+it does not trust the dry run. What that covers, measured on Neo4j 2026.08.1:
+
+- A change committed before the statement runs (a new instance, a new edge, a
+  twin that lost its `DEFINES`) keeps the node.
+- A writer that changes the node itself while the statement runs makes the
+  statement wait; it then reads the committed change and keeps the node.
+- A writer that creates an `INSTANCE_OF` or other edge to the node while the
+  statement runs makes the two transactions wait on each other. Neo4j aborts
+  one with a deadlock error: if it aborts the delete, nothing is deleted and the
+  retry keeps the node; if it aborts the writer, its edge never existed.
+- Not covered: a `WorkloadInstance` created with only a `workload_id` property
+  naming the node, or the twin losing its `DEFINES`, while the statement runs.
+  Neither touches the node, so the statement does not see it.
+
+So run execute in a quiet window, and send it to one reducer pod. The
+per-process lock does not span replicas: two pods executing the same ids at once
+can both count the same deleted node in `deleted`. A second run deletes nothing.
 
 The reducer records the `eshu_dp_workload_legacy_retirements_total{outcome}`
 counter, an INFO line per request, a WARN line per node it kept, and a governance

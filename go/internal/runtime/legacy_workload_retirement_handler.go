@@ -93,8 +93,8 @@ func (h *LegacyWorkloadRetirementHandler) handle(w http.ResponseWriter, r *http.
 		writeJSON(w, http.StatusOK, resp)
 	case errors.Is(err, retire.ErrInvalidRequest):
 		writeJSONError(w, http.StatusUnprocessableEntity, err.Error())
-	case errors.Is(err, retire.ErrExecuteUnsupported):
-		writeJSONError(w, http.StatusNotImplemented, retire.ErrExecuteUnsupported.Error())
+	case errors.Is(err, retire.ErrBackendUnvalidated):
+		writeJSONError(w, http.StatusNotImplemented, retire.ErrBackendUnvalidated.Error())
 	default:
 		writeRecoveryFailure(w, r, err, legacyWorkloadRetirementFailedMessage)
 	}

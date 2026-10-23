@@ -8,10 +8,11 @@
 // listener. A dry run reads only: it asks the shared detection in
 // graph/legacy/workload which leftovers are eligible and why the rest are not.
 // An execute reads the same way, then sends one auto-commit statement over at
-// most [MaxLimit] eligible ids. That statement re-evaluates every retirement
-// clause, so the dry run is advisory and the delete is the gate. Execute is
-// offered on Neo4j only; on NornicDB the runner refuses it with
-// [ErrExecuteUnsupported].
+// most [MaxLimit] eligible ids. That statement takes each node's lock and then
+// re-evaluates every retirement clause, so the dry run is advisory and the
+// delete is the gate. Both are offered on Neo4j only, the one backend they
+// were tested on; on any other backend the runner refuses both with
+// [ErrBackendUnvalidated].
 //
 // Retirement is never automatic. The reducer does not call this package from
 // any queue path, because the rollback runbook for #5385 re-materializes the

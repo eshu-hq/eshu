@@ -71,5 +71,7 @@ removed, or reworded, apart from the `Routes` rename described above.
 `HostedReadiness` also documents the `workload_identity_leftovers` check (#8795),
 built in `go/internal/query/status_hosted_readiness.go` from the shared
 `graph/legacy/workload` detection. It fails with `legacy_workload_nodes` while
-name-only `Workload` nodes with a scoped twin remain, and is omitted when its
-bounded graph read errors. See `docs/public/reference/http-api/hosted-readiness-leftovers.md`.
+name-only `Workload` nodes with a scoped twin remain, fails with
+`legacy_workload_detection_unavailable` when its bounded graph read errors, and
+is `unknown` off Neo4j or when its examined cap hid the rest (the check `state`
+enum is `pass`, `fail`, `unknown`). See `docs/public/reference/http-api/hosted-readiness-leftovers.md`.

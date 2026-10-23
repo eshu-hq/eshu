@@ -38,7 +38,7 @@ func (g leftoverGraph) Run(_ context.Context, cypher string, params map[string]a
 	ids, _ := params["ids"].([]string)
 	total := g.leftovers + g.blocked
 	row := func(i int) map[string]any {
-		name := fmt.Sprintf("svc%03d", i)
+		name := fmt.Sprintf("svc%05d", i) // zero-padded so id order is index order
 		return map[string]any{"id": "workload:" + name, "name": name, "repo_id": "repository:" + name}
 	}
 	switch {
@@ -141,15 +141,51 @@ func TestHostedReadinessIgnoresNameOnlyNodesWithoutATwinOrWithInstances(t *testi
 	}
 }
 
-func TestHostedReadinessAddsNoLeftoverCheckWhenTheGraphReadErrors(t *testing.T) {
+// TestHostedReadinessFailsClosedWhenTheDetectionReadErrors pins that a failed
+// detection read is its own failure: the repository readback (RunSingle)
+// passed, so query_readback reports nothing, and the leftover check must not
+// disappear and let the report say ready.
+func TestHostedReadinessFailsClosedWhenTheDetectionReadErrors(t *testing.T) {
 	t.Parallel()
 	payload := hostedReadinessPayload(t, leftoverSnapshot(), leftoverGraph{repositoryCount: 3, runErr: errors.New("bolt unavailable")})
-	if _, ok := findCheck(t, payload, "workload_identity_leftovers"); ok {
-		t.Fatal("a failed detection read must add no check; query_readback owns graph_unavailable")
+	check, ok := findCheck(t, payload, "workload_identity_leftovers")
+	if !ok || check["state"] != "fail" || check["failure_class"] != "legacy_workload_detection_unavailable" {
+		t.Fatalf("check = %v ok=%v, want fail with legacy_workload_detection_unavailable", check, ok)
 	}
-	for _, c := range payload["failure_classes"].([]any) {
-		if c == "legacy_workload_nodes" {
-			t.Fatal("a failed detection read must not fail readiness")
+	if strings.Contains(fmt.Sprint(check), "bolt unavailable") {
+		t.Fatalf("check must not carry backend error text: %v", check)
+	}
+	requireFailureClass(t, payload, "legacy_workload_detection_unavailable")
+	if payload["state"] != "not_ready" {
+		t.Fatalf("state = %v, want not_ready", payload["state"])
+	}
+}
+
+// TestHostedReadinessLeftoverCheckIsUnknownOffNeo4j pins that the detection,
+// tested on Neo4j only, never runs or passes on another backend.
+func TestHostedReadinessLeftoverCheckIsUnknownOffNeo4j(t *testing.T) {
+	t.Parallel()
+	for _, backend := range []GraphBackend{GraphBackendNornicDB, ""} {
+		payload := hostedReadinessPayloadFor(t, &StatusHandler{
+			Neo4j:        leftoverGraph{repositoryCount: 3, runErr: errors.New("detection must not run")},
+			GraphBackend: backend,
+			StatusReader: fakeStatusReader{snapshot: leftoverSnapshot()},
+		})
+		check, ok := findCheck(t, payload, "workload_identity_leftovers")
+		if !ok || check["state"] != "unknown" || !strings.Contains(check["detail"].(string), "Neo4j only") {
+			t.Fatalf("backend %q: check = %v ok=%v, want unknown naming Neo4j only", backend, check, ok)
 		}
+	}
+}
+
+// TestHostedReadinessLeftoverCheckIsUnknownWhenTheCapHidesTheRest pins that a
+// read which examined its cap and found no leftover does not pass: the nodes
+// past the cap were never examined.
+func TestHostedReadinessLeftoverCheckIsUnknownWhenTheCapHidesTheRest(t *testing.T) {
+	t.Parallel()
+	payload := hostedReadinessPayload(t, leftoverSnapshot(), leftoverGraph{repositoryCount: 3, blocked: hostedReadinessWorkloadLeftoversExamined + 1})
+	check, ok := findCheck(t, payload, "workload_identity_leftovers")
+	if !ok || check["state"] != "unknown" {
+		t.Fatalf("check = %v ok=%v, want unknown", check, ok)
 	}
 }

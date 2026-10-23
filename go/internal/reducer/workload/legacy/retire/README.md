@@ -29,7 +29,7 @@ flowchart LR
 |---|---|---|
 | `Runner`, `Request`, `Response`, `Candidate` | `runner.go` | validates, detects, deletes, records |
 | `Writer`, `Auditor` | `runner.go` | write and audit ports; the reducer's retrying Cypher executor and the governance audit store satisfy them |
-| `ErrInvalidRequest`, `ErrExecuteUnsupported` | `runner.go` | errors the HTTP route maps to 422 and 501 |
+| `ErrInvalidRequest`, `ErrBackendUnvalidated` | `runner.go` | errors the HTTP route maps to 422 and 501 |
 
 ## Contract
 

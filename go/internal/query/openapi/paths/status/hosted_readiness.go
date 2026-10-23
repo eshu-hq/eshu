@@ -12,7 +12,7 @@ const HostedReadiness = `
       "get": {
         "tags": ["status"],
         "summary": "Get hosted operator readiness",
-        "description": "Returns a fail-closed hosted readiness report across status snapshot loading, queue drain, collector completion, shared projection backlog, API/MCP query readback, and leftover name-only Workload nodes: the check workload_identity_leftovers fails with failure class legacy_workload_nodes while pre-repository-scoped Workload nodes (id workload:<name>) with a scoped twin remain, and is omitted when its graph read errors. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability operations.hosted_readiness_status.",
+        "description": "Returns a fail-closed hosted readiness report across status snapshot loading, queue drain, collector completion, shared projection backlog, API/MCP query readback, and leftover name-only Workload nodes: the check workload_identity_leftovers fails with failure class legacy_workload_nodes while pre-repository-scoped Workload nodes (id workload:<name>) with a scoped twin remain, fails with failure class legacy_workload_detection_unavailable when its detection read errors, and is unknown (no failure class) on a graph backend other than Neo4j, where the detection is not validated and does not run, or when its examined cap was reached with none found. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability operations.hosted_readiness_status.",
         "operationId": "getHostedReadiness",
         "x-scoped-token-support": true,
         "parameters": [
@@ -49,7 +49,7 @@ const HostedReadiness = `
                         "type": "object",
                         "properties": {
                           "name": {"type": "string"},
-                          "state": {"type": "string", "enum": ["pass", "fail"]},
+                          "state": {"type": "string", "enum": ["pass", "fail", "unknown"]},
                           "failure_class": {"type": "string"},
                           "detail": {"type": "string"},
                           "next_diagnostic": {"type": "string"}

@@ -119,7 +119,7 @@ func TestLegacyWorkloadRetirementMapsRunnerErrors(t *testing.T) {
 		body string
 	}{
 		{"invalid request keeps its text", fmt.Errorf("%w: reason is required when dry_run is false", retire.ErrInvalidRequest), http.StatusUnprocessableEntity, "reason is required"},
-		{"unsupported backend", retire.ErrExecuteUnsupported, http.StatusNotImplemented, "Neo4j only"},
+		{"unsupported backend", retire.ErrBackendUnvalidated, http.StatusNotImplemented, "Neo4j only"},
 	}
 	for _, c := range cases {
 		rec := postRetire(t, &fakeRetirer{err: c.err}, `{"dry_run": false, "reason": "r"}`)

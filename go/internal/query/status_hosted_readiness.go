@@ -6,9 +6,13 @@ package query
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	legacyworkload "github.com/eshu-hq/eshu/go/internal/graph/legacy/workload"
@@ -23,6 +27,9 @@ const (
 
 	hostedReadinessCheckPass = "pass"
 	hostedReadinessCheckFail = "fail"
+	// hostedReadinessCheckUnknown marks a check that gave no verdict on this
+	// deployment (not run, or not complete). It adds no failure class.
+	hostedReadinessCheckUnknown = "unknown"
 )
 
 type hostedReadinessReport struct {
@@ -172,6 +179,10 @@ func (b *hostedReadinessBuilder) addPass(name, detail string) {
 		State:  hostedReadinessCheckPass,
 		Detail: detail,
 	})
+}
+
+func (b *hostedReadinessBuilder) addUnknown(name, detail string) {
+	b.checks = append(b.checks, hostedReadinessCheck{Name: name, State: hostedReadinessCheckUnknown, Detail: detail})
 }
 
 func (b *hostedReadinessBuilder) addFail(name, class, detail, next string) {
@@ -392,10 +403,14 @@ const (
 // workloadLeftovers is the outcome of the name-only Workload detection read
 // for the hosted readiness report.
 type workloadLeftovers struct {
-	// Checked is false when the read was not attempted or failed; the report
-	// then carries no check, because query_readback already reports a
-	// graph that cannot be read.
+	// Checked is false when the read was not attempted (no graph configured;
+	// query_readback then fails readiness).
 	Checked bool
+	// Unvalidated is true off Neo4j, the only backend the detection was
+	// tested on; the detection is not run there.
+	Unvalidated bool
+	// Err is the detection read failure. It fails the check closed.
+	Err error
 	// Count is the name-only Workload nodes that still have a scoped twin and
 	// no instance (pre-#5385 leftovers).
 	Count int
@@ -405,32 +420,65 @@ type workloadLeftovers struct {
 
 // readWorkloadLeftovers counts the pre-#5385 name-only Workload nodes through
 // the shared detection, so the readiness check and the retirement dry run
-// cannot disagree.
+// cannot disagree. It runs only after query_readback passed, so a failure here
+// is its own condition: it is logged, recorded on the request span, and fails
+// the check.
 func (h *StatusHandler) readWorkloadLeftovers(ctx context.Context) workloadLeftovers {
 	if h.Neo4j == nil {
 		return workloadLeftovers{}
 	}
-	ctx, cancel := context.WithTimeout(ctx, hostedReadinessWorkloadLeftoversTimeout)
+	if h.GraphBackend != GraphBackendNeo4j {
+		return workloadLeftovers{Checked: true, Unvalidated: true}
+	}
+	readCtx, cancel := context.WithTimeout(ctx, hostedReadinessWorkloadLeftoversTimeout)
 	defer cancel()
-	report, err := legacyworkload.Detect(ctx, h.Neo4j, legacyworkload.Options{
+	report, err := legacyworkload.Detect(readCtx, h.Neo4j, legacyworkload.Options{
 		MaxExamined: hostedReadinessWorkloadLeftoversExamined,
 		PageSize:    hostedReadinessWorkloadLeftoversPage,
 	})
 	if err != nil {
-		return workloadLeftovers{}
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, hostedReadinessWorkloadDetectionFailed)
+		slog.Default().WarnContext(ctx, "hosted readiness legacy workload detection failed",
+			slog.String("check", "workload_identity_leftovers"),
+			slog.String("failure_class", hostedReadinessWorkloadDetectionClass),
+			slog.String("error", err.Error()))
+		return workloadLeftovers{Checked: true, Err: err}
 	}
 	return workloadLeftovers{Checked: true, Count: report.WithScopedTwin(), Truncated: report.Truncated}
 }
 
+const (
+	// hostedReadinessWorkloadDetectionClass is the failure class of a failed
+	// detection read.
+	hostedReadinessWorkloadDetectionClass = "legacy_workload_detection_unavailable"
+	// hostedReadinessWorkloadDetectionFailed is the fixed span status text.
+	hostedReadinessWorkloadDetectionFailed = "legacy workload detection read failed"
+)
+
 // addWorkloadLeftoversCheck fails readiness while name-only Workload nodes
-// with a scoped twin remain: the resolver sees two candidates for each and
-// refuses to guess. The vocabulary is pass or fail only.
+// with a scoped twin remain (the resolver sees two candidates for each and
+// refuses to guess) and when the detection read fails. Off Neo4j, and when the
+// examined cap was reached with none found, the check is unknown: never pass.
 func (b *hostedReadinessBuilder) addWorkloadLeftoversCheck(leftovers workloadLeftovers) {
-	if !leftovers.Checked {
+	const name = "workload_identity_leftovers"
+	switch {
+	case !leftovers.Checked:
 		return
-	}
-	if leftovers.Count == 0 {
-		b.addPass("workload_identity_leftovers", "no name-only Workload nodes with a scoped twin")
+	case leftovers.Unvalidated:
+		b.addUnknown(name, "legacy workload detection is validated on Neo4j only; not run on this graph backend")
+		return
+	case leftovers.Err != nil:
+		b.addFail(name, hostedReadinessWorkloadDetectionClass,
+			"the legacy workload detection read failed, so leftovers are unknown",
+			"retry; if it persists, check graph backend health and the API log line 'hosted readiness legacy workload detection failed'")
+		return
+	case leftovers.Count == 0 && leftovers.Truncated:
+		b.addUnknown(name, fmt.Sprintf("none found in the first %d name-only Workload nodes examined; the rest were not examined", hostedReadinessWorkloadLeftoversExamined))
+		return
+	case leftovers.Count == 0:
+		b.addPass(name, "no name-only Workload nodes with a scoped twin")
 		return
 	}
 	count := fmt.Sprintf("%d", leftovers.Count)
@@ -438,7 +486,7 @@ func (b *hostedReadinessBuilder) addWorkloadLeftoversCheck(leftovers workloadLef
 		count += "+"
 	}
 	b.addFail(
-		"workload_identity_leftovers",
+		name,
 		"legacy_workload_nodes",
 		fmt.Sprintf("%s name-only Workload nodes with a scoped twin (pre-#5385 leftovers)", count),
 		`POST /admin/retire-legacy-workloads {"dry_run":true} on the reducer admin port; see the leftover retirement runbook`,
