@@ -403,7 +403,8 @@ values each counter carries.
   e.g. `security_alert_reconciliation_waiting_for_impact`) also records `deferred`/WARN,
   but only while `intent.AttemptCount < Service.RetryMaxAttempts` (wired from
   `ESHU_REDUCER_MAX_ATTEMPTS`). The queue still counts that attempt, and the final attempt,
-  which dead-letters, stays `failed`/ERROR (#8826).
+  which dead-letters, stays `failed`/ERROR (#8826). The security alert handler also caps its
+  own wait at 3 attempts, so the wait lasts the smaller of that cap and the queue budget.
 - **Phase publications and graph writes are not atomic** — if a graph write
   commits but the phase publication fails, `gpphase.PhaseRepairQueue`
   captures the retry.

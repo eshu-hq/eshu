@@ -2,7 +2,11 @@
 
 `security_alert_reconciliation` returns a retryable error while a package has
 owned dependency evidence but no impact finding yet. That wait is designed: the
-queue retries it up to `ESHU_REDUCER_MAX_ATTEMPTS` (default 3). The reducer
+queue retries it for the smaller of `ESHU_REDUCER_MAX_ATTEMPTS` (default 3) and
+the handler's own cap of 3 attempts
+(`pendingImpactSecurityAlertReconciliationMaxAttempts`: at attempt 3 the handler
+writes instead of returning the wait error). A larger queue budget therefore
+does not lengthen this wait. The reducer
 logged every such attempt as ERROR `reducer execution failed` and counted it in
 `eshu_dp_reducer_executions_total{status="failed"}`, so a healthy wait read as a
 failure.

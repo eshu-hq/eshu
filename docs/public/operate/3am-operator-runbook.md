@@ -93,8 +93,9 @@ not `failed`.
 
 - **Do nothing** while the deferred count is small and the impact findings
   arrive on the next attempt. Do not page on `deferred` alone.
-- **Worry** when the same work item is still deferred after the attempt budget
-  (`ESHU_REDUCER_MAX_ATTEMPTS`, default 3). The last attempt logs ERROR
+- **Worry** when the same work item is still deferred after its attempt budget:
+  the smaller of `ESHU_REDUCER_MAX_ATTEMPTS` (default 3) and the handler's own
+  cap of 3 attempts. The last attempt logs ERROR
   `reducer execution failed` with the same `failure_class` and records
   `status="failed"`, and the item dead-letters. That means the package impact
   evidence never arrived: check that `supply_chain_impact` ran for the

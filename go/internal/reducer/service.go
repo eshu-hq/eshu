@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 507 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs.
+package reducer //nolint:filelength // 510 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs.
 
 import (
 	"context"
@@ -204,6 +204,9 @@ type Service struct {
 	// An expected-wait error (reducercontract.IsExpectedWait) records "deferred"
 	// only while intent.AttemptCount is below it; the final attempt dead-letters
 	// and stays "failed"/ERROR (#8826). Zero mirrors the queue default of 3.
+	// Note: security_alert_reconciliation's handler additionally caps its own
+	// wait at 3 attempts (pendingImpactSecurityAlertReconciliationMaxAttempts),
+	// so a larger queue budget does not lengthen that wait.
 	RetryMaxAttempts int
 
 	// Telemetry fields (optional)
