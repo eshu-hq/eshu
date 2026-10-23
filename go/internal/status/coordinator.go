@@ -27,8 +27,9 @@ type CoordinatorSnapshot struct {
 	// CollectorTerminalFailures carries, per collector instance, the newest
 	// terminal work-item failure that no later completed work item for the same
 	// scope has superseded. It feeds the collector runtime health and promotion
-	// proof; only bounded class and operation tokens are carried.
-	CollectorTerminalFailures []collector.TerminalFailure `json:"collector_terminal_failures,omitempty"`
+	// proof. The slice holds the persisted class before it is bounded, so it is
+	// excluded from JSON; the status surfaces bound it first.
+	CollectorTerminalFailures []collector.TerminalFailure `json:"-"`
 	// RecentFailures carries failure counts bounded to a recent time window so
 	// the degraded health state reflects active failures, not aged all-time
 	// totals. A nil value means the reader did not compute a window; callers

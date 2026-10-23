@@ -59,7 +59,7 @@ const Routes = `
       "get": {
         "tags": ["status"],
         "summary": "List collectors",
-        "description": "Returns collector runtime status classified by workflow coordinator registration, direct status evidence, and persisted source or reducer fact evidence. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability operations.collector_status.",
+        "description": "Returns collector runtime status classified by workflow coordinator registration, direct status evidence, and persisted source or reducer fact evidence. An unresolved terminal fetch failure marks the instance health degraded and adds last_failure_class, last_failure_operation, last_failure_terminal, and last_failure_at. Scoped callers receive only the per-kind health aggregate; last_failure_* fields appear only for the shared key. A 503 with Retry-After means a transient condition that is safe to retry: the status snapshot read hit a stale or timed-out PostgreSQL reader; a 503 without Retry-After means a configuration state: the status reader is not configured on this API instance. No 5xx body carries backend error text. A reader-verdict 503 error envelope names capability operations.collector_status.",
         "operationId": "listCollectors",
         "x-scoped-token-support": true,
         "responses": {
@@ -93,7 +93,7 @@ const Routes = `
                           "observation_count": {"type": "integer"},
                           "health": {"type": "string"},
                           "detail": {"type": "string"},
-                          "last_failure_class": {"type": "string", "enum": ["auth_denied", "not_found", "rate_limited", "terminal", "retryable", "attempt_budget_exhausted", "identity_mismatch", "collect_failure", "commit_failure", "unknown"], "description": "Bounded class of the newest unresolved terminal fetch failure; present only with last_failure_terminal."},
+                          "last_failure_class": {"type": "string", "enum": ["auth_denied", "not_found", "rate_limited", "terminal", "retryable", "attempt_budget_exhausted", "identity_mismatch", "collect_failure", "commit_failure", "unknown"], "description": "Bounded class of the newest unresolved terminal fetch failure; present only with last_failure_terminal. Other collector kinds' own classes read as unknown."},
                           "last_failure_operation": {"type": "string", "description": "Bounded snake_case operation token of that failure, or unknown."},
                           "last_failure_terminal": {"type": "boolean"},
                           "last_failure_at": {"type": "string", "format": "date-time", "description": "When that failure became terminal; present only with last_failure_terminal."}

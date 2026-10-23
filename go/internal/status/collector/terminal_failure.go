@@ -43,11 +43,15 @@ type TerminalFailure struct {
 	ObservedAt       time.Time
 }
 
-// boundedFailureClasses is every failure class a claim runner can persist on a
-// terminal work item. A class outside the set reads as UnknownFailureToken, so
-// free text never reaches a status payload or metric label. The literals are
-// pinned here, not imported, so the status leaf stays free of collector
-// runtime packages. Sources:
+// boundedFailureClasses is every failure class the security-alert provider and
+// the claim runner itself persist on a terminal work item. Other collector
+// kinds persist their own bounded classes through the same
+// classifiedFailureClass path (for example registry_auth_denied,
+// permission_denied, stale_fence, and any extension-host class); those read as
+// UnknownFailureToken here until a per-kind set lands (#8896). A class outside
+// the set reads as UnknownFailureToken, so free text never reaches a status
+// payload or metric label. The literals are pinned here, not imported, so the
+// status leaf stays free of collector runtime packages. Sources:
 //
 //   - auth_denied, not_found, rate_limited, terminal, retryable: the provider
 //     classes (go/internal/collector/sdk/failure.go, mapped by

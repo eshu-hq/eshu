@@ -26,15 +26,18 @@ blocker. A healthy instance omits the failure fields on both routes.
 ## Values
 
 `last_failure_class` is one of these, or `unknown` for any persisted value
-outside the set:
+outside the set, including the bounded classes other collector kinds write for
+themselves (for example `registry_auth_denied`, `permission_denied`,
+`stale_fence`); health and the blocker are still reported for those kinds,
+only the class reads `unknown` (#8896):
 
 | Class | Written by | Meaning |
 | --- | --- | --- |
-| `auth_denied` | provider | The credential was refused or lacks the grant. |
-| `not_found` | provider | The target is missing or the credential cannot see it. |
-| `rate_limited` | provider | The provider throttled the run. |
-| `terminal` | provider | The provider returned another non-retryable error. |
-| `retryable` | provider | A transient provider failure used up the attempt budget. |
+| `auth_denied` | security-alert provider | The credential was refused or lacks the grant. |
+| `not_found` | security-alert provider | The target is missing or the credential cannot see it. |
+| `rate_limited` | security-alert provider | The provider throttled the run. |
+| `terminal` | security-alert provider | The provider returned another non-retryable error. |
+| `retryable` | security-alert provider | A transient provider failure used up the attempt budget. |
 | `attempt_budget_exhausted` | claim runner | The attempt budget ran out on a cause that carried no class. |
 | `identity_mismatch` | claim runner | The collected generation's identity did not match the claim. |
 | `collect_failure` | claim runner | A non-retryable collect error carried no class. |

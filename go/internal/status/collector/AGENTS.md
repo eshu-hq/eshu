@@ -37,9 +37,11 @@ fails its promotion proof with the blocker
 must pass `BoundedFailureClass` (a local allowlist, deliberately not an import
 of any collector runtime package) and the operation must pass
 `BoundedFailureOperation`; anything else reads as `unknown`. The allowlist
-holds every class a claim runner persists on a terminal row: the five provider
-classes plus the runner's own `attempt_budget_exhausted`, `identity_mismatch`,
-`collect_failure`, and `commit_failure`. A class added there must also land in
+holds the classes the security-alert provider and the claim runner itself
+persist: the five provider classes plus `attempt_budget_exhausted`,
+`identity_mismatch`, `collect_failure`, and `commit_failure`. Other collector
+kinds' own classes read as `unknown` (known limit, #8896); do not widen the
+set without the OpenAPI enum change. A class added there must also land in
 both OpenAPI `last_failure_class` enums
 (`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query` fails
 otherwise) and stay aligned with the security-alert read's class set. Never add the
