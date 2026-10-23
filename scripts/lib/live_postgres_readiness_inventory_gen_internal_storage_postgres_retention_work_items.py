@@ -7,6 +7,11 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres/retention/work/items": {
+        "go/internal/storage/postgres/retention/work/items/cancel_live_test.go": (
+            "TestPruneWorkItemsLiveLockTimeoutIsAFailureNotACancellation",
+            "TestPruneWorkItemsLiveShutdownDuringABatchIsACancellation",
+            "TestLiveStatementTimeoutSurfacesAsAPgError",
+        ),
         "go/internal/storage/postgres/retention/work/items/concurrency_live_test.go": (
             "TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle",
             "TestPruneWorkItemsLiveSkipsLockedRowsWithoutWaiting",

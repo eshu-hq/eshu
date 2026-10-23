@@ -3,6 +3,10 @@
 
 package items
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8829 disposable PostgreSQL 18 proofs of the driver contract the retention canceled outcome rests on: a batch lock timeout (55P03) and a statement timeout (57014) surface as *pgconn.PgError and do not match context.Canceled, while a cancel during a waiting batch surfaces as context.Canceled and rolls the batch back; each proof creates and drops its own database from the bootstrap schema; about 1.5 to 2 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"
