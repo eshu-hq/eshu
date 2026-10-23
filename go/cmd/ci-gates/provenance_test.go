@@ -100,3 +100,34 @@ func TestProbeSmokeUnchangedEndpointWorkflowIgnoresThreeDotNoise(t *testing.T) {
 		t.Fatal("direct endpoint delta is disjoint despite three-dot compare noise")
 	}
 }
+
+func TestEndpointTreeDeltaDetectsTypeAndSHA(t *testing.T) {
+	routes := []mappedGHRoute{
+		{match: "git/commits/" + reuseOldSHA, output: commitJSON(reuseTreeSHA, "")},
+		{match: "git/commits/" + reuseHeadSHA, output: commitJSON(reuseOtherTree, "")},
+		{match: "git/trees/" + reuseTreeSHA, output: `{"truncated":false,"tree":[{"path":"type-changed","mode":"100644","type":"blob","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"path":"sha-changed","mode":"100644","type":"blob","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}`},
+		{match: "git/trees/" + reuseOtherTree, output: `{"truncated":false,"tree":[{"path":"type-changed","mode":"160000","type":"commit","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"path":"sha-changed","mode":"100644","type":"blob","sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}`},
+	}
+	paths, complete, err := endpointTreeDelta(context.Background(), &mappedGHRunner{routes: routes}, "eshu-hq/eshu", reuseOldSHA, reuseHeadSHA)
+	if err != nil || !complete || len(paths) != 2 {
+		t.Fatalf("type/SHA delta paths=%v complete=%v error=%v", paths, complete, err)
+	}
+}
+
+func TestProbeSmokeDeletedProtectedOrPRPathRefuses(t *testing.T) {
+	for _, path := range []string{".github/workflows/check.yml", "go/cmd/ci-gates/reuse.go"} {
+		t.Run(path, func(t *testing.T) {
+			oldTree := `{"truncated":false,"tree":[{"path":"` + path + `","mode":"100644","type":"blob","sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}`
+			routes := append([]mappedGHRoute{
+				{match: "git/trees/" + reuseTreeSHA, output: oldTree},
+				{match: "git/trees/" + reuseOtherTree, output: `{"truncated":false,"tree":[]}`},
+			}, smokeRoutes(compareJSON())...)
+			got, err := probeSmoke(context.Background(), &mappedGHRunner{routes: routes}, "eshu-hq/eshu", 42, reuseHeadSHA,
+				[]string{"go/cmd/ci-gates/reuse.go"},
+				[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
+			if err != nil || got {
+				t.Fatalf("deleted path %q: smoke=%v error=%v", path, got, err)
+			}
+		})
+	}
+}
