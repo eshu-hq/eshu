@@ -67,7 +67,7 @@ rc=0
 out=""
 run_script() {
 	rc=0
-	out="$(PATH="${bin_dir}:${PATH}" ESHU_ROLLBACK_POLL_SECONDS=0.05 "${script}" "$@" 2>&1)" || rc=$?
+	out="$(PATH="${bin_dir}:${PATH}" ROLLBACK_POLL_SECONDS=0.05 "${script}" "$@" 2>&1)" || rc=$?
 }
 
 calls() { cat "${FAKE_STATE}/calls.log" 2>/dev/null || true; }
@@ -307,7 +307,7 @@ expect_rc "capture refuses an empty truth set" 3
 
 new_state secrets
 rc=0
-out="$(PATH="${bin_dir}:${PATH}" PGPASSWORD='s3cr3t-token-value' ESHU_ROLLBACK_POLL_SECONDS=0.05 \
+out="$(PATH="${bin_dir}:${PATH}" PGPASSWORD='s3cr3t-token-value' ROLLBACK_POLL_SECONDS=0.05 \
 	"${script}" run --yes --baseline "${FAKE_STATE}/baseline" "${ARGS[@]}" 2>&1)" || rc=$?
 expect_rc "run with a PGPASSWORD set succeeds" 0
 if [[ "${out}" != *s3cr3t-token-value* && "$(calls)" != *s3cr3t-token-value* ]]; then
@@ -321,8 +321,8 @@ fi
 new_state inject
 cp "${bin_dir}/eshu" "${tmp_root}/my-eshu"
 rc=0
-out="$(PATH="${bin_dir}:${PATH}" ESHU_BIN="${tmp_root}/my-eshu" "${script}" plan "${ARGS[@]}" 2>&1)" || rc=$?
-expect_rc "plan honors ESHU_BIN" 0
+out="$(PATH="${bin_dir}:${PATH}" ROLLBACK_ESHU_BIN="${tmp_root}/my-eshu" "${script}" plan "${ARGS[@]}" 2>&1)" || rc=$?
+expect_rc "plan honors ROLLBACK_ESHU_BIN" 0
 expect_out "plan prints the injected binary" "${tmp_root}/my-eshu component disable"
 
 if [[ "${failures}" -gt 0 ]]; then

@@ -21,7 +21,7 @@
 #   verify  check authority and compare truth to a baseline (read-only)
 #
 # Dependencies are injected through the environment so tests can stub them:
-#   ESHU_BIN (eshu)  KUBECTL_BIN (kubectl)  PSQL_BIN (psql)  HELM_BIN (helm)
+#   ROLLBACK_ESHU_BIN (eshu)  ROLLBACK_KUBECTL_BIN (kubectl)  ROLLBACK_PSQL_BIN (psql)  ROLLBACK_HELM_BIN (helm)
 # psql reads its connection from the standard libpq environment (PGHOST,
 # PGUSER, PGDATABASE, PGPASSFILE, ...). No secret is ever passed on a command
 # line or printed.
@@ -33,10 +33,10 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-ESHU_BIN="${ESHU_BIN:-eshu}"
-KUBECTL_BIN="${KUBECTL_BIN:-kubectl}"
-PSQL_BIN="${PSQL_BIN:-psql}"
-HELM_BIN="${HELM_BIN:-helm}"
+ROLLBACK_ESHU_BIN="${ROLLBACK_ESHU_BIN:-eshu}"
+ROLLBACK_KUBECTL_BIN="${ROLLBACK_KUBECTL_BIN:-kubectl}"
+ROLLBACK_PSQL_BIN="${ROLLBACK_PSQL_BIN:-psql}"
+ROLLBACK_HELM_BIN="${ROLLBACK_HELM_BIN:-helm}"
 
 # Exit codes. Distinct codes let a wrapper tell a refusal from a failure.
 readonly EX_USAGE=2
@@ -86,7 +86,7 @@ Run control:
   --from-step N                 start at step N (earlier predicates re-checked)
   --through-step N              stop after step N
   --since TIMESTAMP             replay window start; required with --from-step 5 or 6
-  --drain-timeout SECONDS       step 2 limit (default 600; env ESHU_ROLLBACK_DRAIN_TIMEOUT)
+  --drain-timeout SECONDS       step 2 limit (default 600; env ROLLBACK_DRAIN_TIMEOUT)
   --step-timeout SECONDS        step 1 confirmation limit (default 180)
   --replay-timeout SECONDS      step 5 limit (default 1800)
   --poll-seconds SECONDS        poll interval (default 5)
@@ -133,10 +133,10 @@ keys_only="false"
 from_step="1"
 through_step="6"
 since=""
-drain_timeout="${ESHU_ROLLBACK_DRAIN_TIMEOUT:-600}"
-step_timeout="${ESHU_ROLLBACK_STEP_TIMEOUT:-180}"
-replay_timeout="${ESHU_ROLLBACK_REPLAY_TIMEOUT:-1800}"
-poll_seconds="${ESHU_ROLLBACK_POLL_SECONDS:-5}"
+drain_timeout="${ROLLBACK_DRAIN_TIMEOUT:-600}"
+step_timeout="${ROLLBACK_STEP_TIMEOUT:-180}"
+replay_timeout="${ROLLBACK_REPLAY_TIMEOUT:-1800}"
+poll_seconds="${ROLLBACK_POLL_SECONDS:-5}"
 
 # need_value fails with a usage error when an option has no value.
 need_value() {
@@ -293,35 +293,35 @@ validate() {
 CMD=()
 
 build_disable() { # instance
-	CMD=("$ESHU_BIN" component disable "$component_id" --instance "$1" --component-home "$component_home")
+	CMD=("$ROLLBACK_ESHU_BIN" component disable "$component_id" --instance "$1" --component-home "$component_home")
 }
 build_scale_worker_zero() {
-	CMD=("$KUBECTL_BIN" -n "$namespace" scale "deployment/${worker_deployment}" --replicas=0)
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" scale "deployment/${worker_deployment}" --replicas=0)
 }
 build_restart_coordinator() {
-	CMD=("$KUBECTL_BIN" -n "$namespace" rollout restart "deployment/${coordinator_deployment}")
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" rollout restart "deployment/${coordinator_deployment}")
 }
 build_coordinator_status() {
-	CMD=("$KUBECTL_BIN" -n "$namespace" rollout status "deployment/${coordinator_deployment}" "--timeout=${step_timeout}s")
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" rollout status "deployment/${coordinator_deployment}" "--timeout=${step_timeout}s")
 }
 build_worker_pods() {
-	CMD=("$KUBECTL_BIN" -n "$namespace" get pods -l "$worker_selector" -o name)
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" get pods -l "$worker_selector" -o name)
 }
 build_revoke() { # fact kind
-	CMD=("$ESHU_BIN" component revoke-grant "$producer_id" --version "$component_version"
+	CMD=("$ROLLBACK_ESHU_BIN" component revoke-grant "$producer_id" --version "$component_version"
 		--kind "$1" --scope "$grant_scope" --component-home "$component_home")
 }
 build_grants() {
-	CMD=("$ESHU_BIN" component grants --producer "$producer_id" --component-home "$component_home")
+	CMD=("$ROLLBACK_ESHU_BIN" component grants --producer "$producer_id" --component-home "$component_home")
 }
 build_helm_restore() {
-	CMD=("$HELM_BIN" upgrade "$helm_release" "$helm_chart" --namespace "$namespace" --reuse-values -f "$restore_values")
+	CMD=("$ROLLBACK_HELM_BIN" upgrade "$helm_release" "$helm_chart" --namespace "$namespace" --reuse-values -f "$restore_values")
 }
 build_scale_in_tree() {
-	CMD=("$KUBECTL_BIN" -n "$namespace" scale "deployment/${in_tree_deployment}" "--replicas=${in_tree_replicas}")
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" scale "deployment/${in_tree_deployment}" "--replicas=${in_tree_replicas}")
 }
 build_in_tree_status() {
-	CMD=("$KUBECTL_BIN" -n "$namespace" rollout status "deployment/${in_tree_deployment}" "--timeout=${step_timeout}s")
+	CMD=("$ROLLBACK_KUBECTL_BIN" -n "$namespace" rollout status "deployment/${in_tree_deployment}" "--timeout=${step_timeout}s")
 }
 
 # show_cmd prints CMD in copy-pasteable form.
@@ -339,7 +339,7 @@ sql_file() { printf '%s/lib/collector-cutover-rollback-%s.sql' "$script_dir" "$1
 
 plan_psql_line() { # sql-name description
 	printf '  $ %s -X -A -t -F "|" -v ON_ERROR_STOP=1 -v kind=%s ... -f %s   # %s (read-only)\n' \
-		"$PSQL_BIN" "$collector_kind" "$(sql_file "$1")" "$2"
+		"$ROLLBACK_PSQL_BIN" "$collector_kind" "$(sql_file "$1")" "$2"
 }
 
 print_plan() {

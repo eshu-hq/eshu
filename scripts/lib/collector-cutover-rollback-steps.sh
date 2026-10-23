@@ -71,7 +71,7 @@ psql_run() { # sql-name -v name=value ...
 	local name="$1"
 	shift
 	XRC=0
-	XOUT="$("$PSQL_BIN" -X -A -t -F '|' -v ON_ERROR_STOP=1 "$@" -f "$(sql_file "$name")" 2>&1)" || XRC=$?
+	XOUT="$("$ROLLBACK_PSQL_BIN" -X -A -t -F '|' -v ON_ERROR_STOP=1 "$@" -f "$(sql_file "$name")" 2>&1)" || XRC=$?
 	XOUT="$(printf '%s\n' "$XOUT" | awk 'NF')"
 }
 
