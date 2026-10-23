@@ -262,6 +262,8 @@ def cancellation_cost(start: datetime, end: datetime,
                                       ("zero_job", "executed", "unknown")}
     examples["unknown"].extend(sorted(missing)[:3])
     job_enrichments = 0
+    job_fetch_errors = 0
+    job_fetch_error_examples: list[Json] = []
     budget_exhausted = 0
     for run in matched.values():
         count = suites.get(run.get("check_suite_node_id"))
@@ -270,9 +272,20 @@ def cancellation_cost(start: datetime, end: datetime,
             jobs = None
             budget_exhausted += 1
         elif needs_jobs:
-            jobs = _pages(f"{REPOSITORY}/actions/runs/{run['id']}/jobs?filter=all",
-                          "jobs", page_limit=MAX_JOB_PAGES)
             job_enrichments += 1
+            try:
+                jobs = _pages(
+                    f"{REPOSITORY}/actions/runs/{run['id']}/jobs?filter=all",
+                    "jobs", page_limit=MAX_JOB_PAGES)
+            except (RuntimeError, subprocess.CalledProcessError,
+                    subprocess.TimeoutExpired, json.JSONDecodeError,
+                    KeyError, TypeError) as exc:
+                jobs = None
+                job_fetch_errors += 1
+                if len(job_fetch_error_examples) < 3:
+                    job_fetch_error_examples.append({
+                        "run_id": run["id"],
+                        "error": f"{type(exc).__name__}: {exc}"[:200]})
         else:
             jobs = [] if count == 0 else None
         # A retry suite can describe only its current attempt, while REST
@@ -295,5 +308,7 @@ def cancellation_cost(start: datetime, end: datetime,
                              "late_cancelled": len(extra)},
             "evidenced_runner_minutes": round(runner_minutes, 2),
             "job_enrichments": job_enrichments,
+            "job_fetch_errors": job_fetch_errors,
+            "job_fetch_error_examples": job_fetch_error_examples,
             "job_budget_exhausted": budget_exhausted,
             "examples": examples}

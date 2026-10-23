@@ -97,7 +97,11 @@ class TestEnrichmentFailure(unittest.TestCase):
     def test_unknown_cancellation_is_marked_partial(self):
         cost = {"runs": 1, "categories": {"unknown": 1},
                 "evidenced_runner_minutes": 0, "job_budget_exhausted": 0,
+                "job_fetch_errors": 1,
+                "job_fetch_error_examples": [{"run_id": 1,
+                                              "error": "RuntimeError: incomplete page"}],
                 "source_drift": {"missing_from_rest": 0, "late_cancelled": 0}}
+        out = io.StringIO()
         with TemporaryDirectory() as folder:
             target = Path(folder) / "report.json"
             with mock.patch.object(gha_census, "fetch_window",
@@ -110,11 +114,12 @@ class TestEnrichmentFailure(unittest.TestCase):
                                                     "groups": {}, "heads": []}), \
                     mock.patch.object(gha_census, "cancellation_cost",
                                       return_value=cost), \
-                    redirect_stdout(io.StringIO()):
+                    redirect_stdout(out):
                 self.assertEqual(gha_census.main(["--hours", "1", "--json-out",
                                                   str(target)]), 0)
             report = json.loads(target.read_text(encoding="utf-8"))
         self.assertEqual(report["cancellation_cost"]["completeness"], "partial")
+        self.assertIn("1 cancelled-run job fetch failed", out.getvalue())
 
     def _check_failure(self, failing: str, successful: str) -> None:
         good = ({"outcomes": {}, "overall": {"heads": 0, "success": 0,

@@ -194,6 +194,11 @@ def _render_cancellation_cost(cancellation: dict[str, Any]) -> list[str]:
                      f"{cancellation['job_enrichments']} requests; "
                      f"{cancellation['job_budget_exhausted']} further "
                      "cancelled runs are unknown.")
+    if cancellation.get("job_fetch_errors"):
+        count = cancellation["job_fetch_errors"]
+        lines.append(f"WARNING: {count} cancelled-run job fetch failed"
+                     f"{'s' if count != 1 else ''}; affected runs are unknown. "
+                     "See job_fetch_error_examples in JSON.")
     if cancellation["categories"].get("unknown"):
         lines.append("WARNING: unknown cancellation observations have incomplete "
                      "suite or job evidence; runner cost is a floor.")
@@ -286,6 +291,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         cost["completeness"] = (
             "partial" if cost["categories"].get("unknown") or
             cost["job_budget_exhausted"] or
+            cost.get("job_fetch_errors") or
             cost["source_drift"]["missing_from_rest"] else "complete")
     except Exception as exc:  # noqa: BLE001 -- the enrichments are independent
         print(f"gha-census: warning: cancellation enrichment failed: {exc}",

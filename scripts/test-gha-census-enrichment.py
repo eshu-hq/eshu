@@ -181,6 +181,36 @@ class TestPercentiles(unittest.TestCase):
 
 
 class TestCancellation(unittest.TestCase):
+    def test_failed_jobs_page_keeps_other_cancelled_run(self):
+        end = datetime(2026, 10, 23, tzinfo=timezone.utc)
+        runs = [{"databaseId": rid, "conclusion": "cancelled"}
+                for rid in (1, 2)]
+        fetched = [{"id": rid, "check_suite_node_id": f"suite-{rid}"}
+                   for rid in (1, 2)]
+        job = {"runner_id": 5, "started_at": "2026-10-23T12:00:00Z",
+               "completed_at": "2026-10-23T12:01:00Z"}
+
+        def jobs(path, array_key, page_limit):
+            if "/1/jobs" in path:
+                raise RuntimeError("GitHub API incomplete page for run 1")
+            return [job]
+
+        with mock.patch.object(gha_census_enrichment, "_cancelled_runs",
+                               return_value=fetched), \
+                mock.patch.object(gha_census_enrichment, "_suite_counts",
+                                  return_value={"suite-1": 1, "suite-2": 1}), \
+                mock.patch.object(gha_census_enrichment, "_pages",
+                                  side_effect=jobs) as pages:
+            result = gha_census_enrichment.cancellation_cost(
+                end - timedelta(hours=1), end, runs)
+        self.assertEqual(pages.call_count, 2)
+        self.assertEqual(result["runs"], 2)
+        self.assertEqual(result["categories"], {"unknown": 1, "executed": 1})
+        self.assertEqual(result["evidenced_runner_minutes"], 1.0)
+        self.assertEqual(result["job_enrichments"], 2)
+        self.assertEqual(result["job_fetch_errors"], 1)
+        self.assertEqual(result["job_fetch_error_examples"][0]["run_id"], 1)
+
     def test_later_cancellation_does_not_change_raw_snapshot(self):
         end = datetime(2026, 10, 23, tzinfo=timezone.utc)
         runs = [{"databaseId": 1, "conclusion": "cancelled"},

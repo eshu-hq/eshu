@@ -51,3 +51,8 @@ unknown jobs, an exhausted job budget, or missing REST runs leave runner cost
 incomplete. Successful complete reads record `complete`. Enrichment failures
 also print a warning to stderr. These fields describe report coverage, not CI
 improvement or regression.
+
+A failed or incomplete jobs page affects only that cancelled run: it becomes
+`unknown`, the request counts against the enrichment budget, and the JSON
+records `job_fetch_errors` plus up to three bounded examples with run IDs and
+error reasons. The Markdown report warns about these failed fetches.
