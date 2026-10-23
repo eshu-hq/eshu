@@ -196,15 +196,25 @@ A `tools/call` result comes in one of two shapes. A connection picks one, and
 `dual` is the default.
 
 - **`dual`**: a short text summary for humans, a resource content block with
-  the complete result, and `structuredContent` with the same data. The payload
-  is on the wire twice.
+  the complete result, and `structuredContent` with the same data. A tool
+  result's payload is on the wire twice.
 - **`structured`**: one text summary and `structuredContent`. There is no
-  embedded resource, so the payload is on the wire once. Error results follow
-  the same rule: a text item and `structuredContent`, with no
+  embedded resource, so a tool result's payload is on the wire once. Error
+  results follow the same rule: a text item and `structuredContent`, with no
   `eshu://tool-error/dispatch` resource.
 
-`structuredContent` carries the same data in both shapes, byte for byte. A
-client that reads `structuredContent` works unchanged on either shape.
+"Once" applies to tool results. `find_tool` results and the router's own error
+results (a `call_tool` that cannot route) are built by the router, not by tool
+dispatch. They carry the payload as compact JSON text and again as
+`structuredContent` in both shapes, and the shape does not change them.
+
+Where `structuredContent` is present it carries the same data in both shapes.
+Under `dual` it can be absent: when a result is too large to send both copies,
+the response budget drops `structuredContent` and keeps the resource (see the
+[response budget](telemetry/mcp-response-budget.md)). A client that reads
+`structuredContent` works unchanged on `structured`, where it is always sent.
+Under `dual`, such a client must fall back to the resource's JSON `text` when
+`structuredContent` is missing.
 
 When the underlying HTTP route returns the canonical Eshu envelope, the
 machine-readable copies contain that envelope. The `dual` shape looks like
@@ -273,6 +283,22 @@ The `structured` shape is opt-in. Its purpose is to stop sending the same
 payload twice to clients that put both copies in the model's context. That
 saving was measured only on the `dual` doubling (#8796); the re-measurement on
 the `structured` shape is pending, so this page claims no token figure for it.
+
+The default does not flip to `structured` until these are done, each recorded
+where it ran:
+
+- The two-client token re-measurement and the scoring run named in the
+  design record `docs/internal/design/7206-mcp-response-budget-fallback.md`.
+- The golden-corpus gate in `structured`. That run is pending: it needs a live
+  Docker stack and has not been run for this change. Run it with
+  `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
+- Four repository scripts that read only the embedded resource and would fail
+  against a `structured` server: `scripts/lib/remote_e2e_target_story_common.sh`,
+  `scripts/verify_local_public_collector_proof.sh`,
+  `scripts/verify_dead_iac_compose.sh`, and
+  `scripts/run-remote-e2e-component-extension.sh`. They run on `dual` today, so
+  they are unaffected until a deployment or the default selects `structured`.
+  Teach each one to read `structuredContent` first, then flip.
 
 When an HTTP route still returns plain JSON instead of the canonical envelope,
 MCP preserves the plain JSON payload in `structuredContent` and in an

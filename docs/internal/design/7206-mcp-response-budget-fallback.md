@@ -105,8 +105,23 @@ resource. This note records how that interacts with the budget.
 - Not decided here, and not implemented: flipping the default to `structured`
   (it needs a two-client re-measurement within 1.1 times the one-copy rate, a
   scoring run that is not worse, a manual run on the other documented clients,
-  and a week of no over-budget increase on a hosted deployment), and an
+  a week of no over-budget increase on a hosted deployment, the golden-corpus
+  gate run once in `structured`, and four scripts taught to read
+  `structuredContent`), and an
   `initialize` reply that echoes a requested protocol version.
 - The token saving was measured only on the pre-change doubling. The
   post-change two-client re-measurement is pending, so no saving is claimed for
   the `structured` shape.
+- The golden-corpus gate in `structured` is pending. It needs a live Docker
+  stack, so it is not part of this change's local proof. Run it with
+  `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
+- Four scripts read only the embedded resource and fail against a `structured`
+  server: `scripts/lib/remote_e2e_target_story_common.sh`,
+  `scripts/verify_local_public_collector_proof.sh`,
+  `scripts/verify_dead_iac_compose.sh`, and
+  `scripts/run-remote-e2e-component-extension.sh`. They run on `dual` today.
+  Each must read `structuredContent` first before the default flips or a
+  deployment sets `ESHU_MCP_RESULT_SHAPE=structured`.
+- `find_tool` results and router error results come from the router, not tool
+  dispatch, and carry the payload as text and as `structuredContent` in both
+  shapes. "Once on the wire" describes tool results only.

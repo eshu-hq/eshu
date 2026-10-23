@@ -8,8 +8,8 @@ carries a connection's choice through a request context.
 - `Dual` (default): text summary, the envelope again as an embedded resource,
   and `structuredContent`. This is the layout Eshu sent before `Structured`
   existed.
-- `Structured`: one text summary and `structuredContent`. The payload crosses
-  the wire once and no embedded resource is sent.
+- `Structured`: one text summary and `structuredContent`. A tool result's
+  payload crosses the wire once and no embedded resource is sent.
 
 ## Ownership boundary
 
@@ -38,5 +38,7 @@ shape as a bounded `shape` attribute.
 
 - `Parse` does not trim. Callers that accept padded input trim first, as they
   do for the tool surface.
-- A zero `Mode` renders as `Dual`. Use `OrDual` when a value may predate the
-  field.
+- `OrDual` returns `Structured` only for exactly `Structured`; the zero value
+  and any unrecognized `Mode` become `Dual`. `WithResultShape`, the render, the
+  budget, and the metric label all go through it, so a value that did not come
+  from `Parse` cannot act as a third shape.

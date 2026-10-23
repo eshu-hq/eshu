@@ -6,7 +6,7 @@
 //
 // Dual is the layout Eshu has always sent: a text summary, the envelope again
 // as an embedded resource, and structuredContent. Structured sends one text
-// summary and structuredContent, so the payload crosses the wire once. The
+// summary and structuredContent, so a tool result's payload crosses the wire once. The
 // package owns only the value, its parsing, and the context carrier. Rendering
 // a result, counting it against the response budget, reading the query
 // parameter or environment variable, and recording telemetry stay in

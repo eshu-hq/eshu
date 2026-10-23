@@ -12,7 +12,7 @@ are outside that count. The limit is the same in both shapes.
   the resource. It returns the `mcp_response_over_budget` error envelope only
   when the resource-only result also exceeds the budget and the tool cannot
   page.
-- Under the `structured` shape, the result carries the payload once, as
+- Under the `structured` shape, a tool result carries the payload once, as
   `structuredContent` beside one text summary. There is no second copy to drop,
   so a result that fits is untouched, and one that does not goes straight to a
   page or the error envelope.
@@ -54,8 +54,11 @@ filter `shape="dual"`, and a sum across shapes mixes the two meanings.
   and `rows_available`. Clients should follow `next_offset` or lower `limit`.
 - A non-zero `eshu_dp_mcp_response_over_budget_total` rate means even the full
   resource does not fit. The `mcp tool response over budget` log includes
-  `tool`, `shape`, `response_bytes`, and `budget_bytes`; narrow the query scope or page
-  size to retrieve the remaining data.
+  `tool`, `shape`, `response_bytes`, and `budget_bytes`, plus `resource_bytes`
+  under `dual` only; narrow the query scope or page size to retrieve the
+  remaining data. `resource_bytes` is the size of the resource-only copy.
+  Under `structured` there is no such copy, so the field is absent and
+  `response_bytes` is the single emitted size.
 - A disabled guard (`budget <= 0`) records nothing.
 
 Parser fingerprint keys (`body_fp_exact`, `body_fp_renamed`, `body_sketch`,

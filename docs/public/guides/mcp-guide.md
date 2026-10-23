@@ -12,7 +12,7 @@ MCP results include a human-readable text block and `structuredContent`. In the
 default `dual` shape they also include a resource block with
 `mimeType: application/eshu.envelope+json` for canonical envelopes, so the
 payload is on the wire twice. The opt-in `structured` shape (`?shape=structured`,
-or `ESHU_MCP_RESULT_SHAPE`) leaves the resource out and sends the payload once;
+or `ESHU_MCP_RESULT_SHAPE`) leaves the resource out and sends a tool result's payload once;
 `eshu mcp setup` asks for it for Claude Code and Codex. Programmatic clients
 should read `structuredContent` when present, or, under `dual`, parse the
 resource's JSON `text` when it is absent. See

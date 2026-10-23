@@ -18,7 +18,7 @@ const (
 	// existed.
 	Dual Mode = "dual"
 	// Structured sends one text summary and structuredContent, with no embedded
-	// resource, so the payload is on the wire once.
+	// resource, so a tool result's payload is on the wire once.
 	Structured Mode = "structured"
 )
 
