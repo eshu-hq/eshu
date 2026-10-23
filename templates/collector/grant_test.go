@@ -29,51 +29,63 @@ type GrantRequest struct {
 }
 
 // TestProducerGrantContract proves the template's grant wiring follows the
-// merged #6709 contract: namespaced kinds need no grant, core-owned kinds
-// require a live grant naming this producer/version/kind/scope, and anything
-// outside the grant fails closed.
+// merged #6709 contract: a core-owned kind needs a live grant naming this
+// producer/version/kind/schema with a scope declared in spec.collectorKinds,
+// and anything outside the grant fails closed. Which kinds are core-owned is
+// the host's decision, not the template's: see uncoveredEmissions.
 func TestProducerGrantContract(t *testing.T) {
 	t.Parallel()
 
+	now := time.Now()
+	scopes := loadManifest(t).Spec.CollectorKinds
 	grant := GrantRequest{
 		ProducerID:     ComponentID,
 		Version:        "0.1.0",
 		Kind:           "aws_resource",
 		SchemaVersions: []string{"1.0.0"},
 		Scope:          CollectorKind,
-		ExpiresAt:      time.Now().Add(time.Hour),
+		ExpiresAt:      now.Add(time.Hour),
 	}
-	if !authorizesEmission(grant, ComponentID, "0.1.0", "aws_resource", "1.0.0", CollectorKind, time.Now()) {
+	covers := func(g GrantRequest, producer, kind, schema string) bool {
+		return grantCovers([]GrantRequest{g}, producer, "0.1.0", kind, schema, scopes, now)
+	}
+	if !covers(grant, ComponentID, "aws_resource", "1.0.0") {
 		t.Fatal("live grant must authorize its kind/schema/scope")
 	}
-	// Namespaced template kinds need no grant.
-	if !authorizesEmission(grant, ComponentID, "0.1.0", FactKindRecord, "1.0.0", CollectorKind, time.Now()) {
-		t.Fatal("namespaced kind must pass without a grant")
+	// A scope outside the manifest's collector kinds never matches.
+	outOfScope := grant
+	outOfScope.Scope = "other"
+	if covers(outOfScope, ComponentID, "aws_resource", "1.0.0") {
+		t.Fatal("out-of-scope grant must fail closed")
 	}
-	// Wrong scope, wrong schema, and wrong producer fail closed.
-	if authorizesEmission(grant, ComponentID, "0.1.0", "aws_resource", "1.0.0", "other", time.Now()) {
-		t.Fatal("out-of-scope emission must fail closed")
-	}
-	if authorizesEmission(grant, ComponentID, "0.1.0", "aws_resource", "2.0.0", CollectorKind, time.Now()) {
+	if covers(grant, ComponentID, "aws_resource", "2.0.0") {
 		t.Fatal("ungranted schema version must fail closed")
 	}
-	if authorizesEmission(grant, "dev.eshu.other.collector", "0.1.0", "aws_resource", "1.0.0", CollectorKind, time.Now()) {
+	if covers(grant, ComponentID, "aws_security_group", "1.0.0") {
+		t.Fatal("ungranted kind must fail closed")
+	}
+	if covers(grant, "dev.eshu.other.collector", "aws_resource", "1.0.0") {
 		t.Fatal("foreign producer must fail closed")
 	}
 	revoked := grant
 	revoked.Revoked = true
-	if authorizesEmission(revoked, ComponentID, "0.1.0", "aws_resource", "1.0.0", CollectorKind, time.Now()) {
+	if covers(revoked, ComponentID, "aws_resource", "1.0.0") {
 		t.Fatal("revoked grant must fail closed")
 	}
 	expired := grant
-	expired.ExpiresAt = time.Now().Add(-time.Minute)
-	if authorizesEmission(expired, ComponentID, "0.1.0", "aws_resource", "1.0.0", CollectorKind, time.Now()) {
+	expired.ExpiresAt = now.Add(-time.Minute)
+	if covers(expired, ComponentID, "aws_resource", "1.0.0") {
 		t.Fatal("expired grant must fail closed")
 	}
-	// Revocation and expiry constrain core-owned kinds only: a revoked grant
-	// object must not block namespaced-kind emission.
-	if !authorizesEmission(revoked, ComponentID, "0.1.0", FactKindRecord, "1.0.0", CollectorKind, time.Now()) {
-		t.Fatal("revoked grant must not block namespaced kinds")
+	zeroExpiry := grant
+	zeroExpiry.ExpiresAt = time.Time{}
+	if covers(zeroExpiry, ComponentID, "aws_resource", "1.0.0") {
+		t.Fatal("zero expiry is already expired and must fail closed")
+	}
+	// Revocation and expiry constrain granted kinds only: a revoked grant
+	// object must not block the template's own namespaced kinds.
+	if problems := uncoveredEmissions(loadManifest(t), []GrantRequest{revoked}, now); len(problems) != 0 {
+		t.Fatalf("revoked grant blocked namespaced kinds: %v", problems)
 	}
 	// Conflicting producers never share one scope+generation: the template
 	// emits under its own claim scope only.
@@ -232,34 +244,55 @@ func TestUncoveredEmissionsNamespaceBoundary(t *testing.T) {
 	}
 }
 
-// authorizesEmission mirrors go/internal/component.AuthorizesEmission without
-// importing it: core-owned (unprefixed) kinds require the grant, namespaced
-// kinds pass. Core remains the enforcement owner; this keeps the template's
-// pre-submit check identical to the host's verdict.
-func authorizesEmission(grant GrantRequest, producerID, version, kind, schemaVersion, scope string, now time.Time) bool {
-	// Namespaced kinds need no grant, so they bypass before revocation and
-	// expiry are consulted: those only constrain core-owned kinds, and a
-	// revoked or expired grant object must never block namespaced emission.
+// uncoveredEmissions returns one problem per emitted fact kind and schema
+// version the manifest declares that neither sits in the template's own
+// namespace nor has a live grant. It derives its verdict from the manifest and
+// the grants alone. The template cannot import the core registry, so it does
+// not decide which kinds are core-owned: that stays with the host, which
+// enforces core ownership at install and at every emission. A kind outside the
+// template's namespace is therefore treated as potentially core-owned, which
+// means a dotted name such as incident.record is never assumed namespaced.
+//
+// A grant binds only when it names this producer and version, its scope is one
+// of spec.collectorKinds, and it is neither revoked nor expired, matching the
+// host's grant lookup in go/internal/component.
+func uncoveredEmissions(manifest conformance.Manifest, grants []GrantRequest, now time.Time) []string {
+	var problems []string
+	for _, family := range manifest.Spec.EmittedFacts {
+		kind := strings.TrimSpace(family.Kind)
+		if strings.HasPrefix(kind, ComponentID+".") {
+			continue
+		}
+		if len(family.SchemaVersions) == 0 {
+			problems = append(problems, "kind "+kind+" declares no schema versions and is outside the "+ComponentID+" namespace")
+			continue
+		}
+		for _, schemaVersion := range family.SchemaVersions {
+			if !grantCovers(grants, manifest.Metadata.ID, manifest.Metadata.Version, kind, schemaVersion, manifest.Spec.CollectorKinds, now) {
+				problems = append(problems, "kind "+kind+" schema "+schemaVersion+" has no live grant scoped to a collector kind")
+			}
+		}
+	}
+	return problems
+}
+
+// grantCovers reports whether one live grant names this producer, version,
+// kind, and schema version with a scope declared in scopes. Revoked grants
+// never match and a zero expiry is already expired, mirroring the host.
+func grantCovers(grants []GrantRequest, producerID, version, kind, schemaVersion string, scopes []string, now time.Time) bool {
 	kind = strings.TrimSpace(kind)
-	scope = strings.TrimSpace(scope)
-	if strings.Contains(kind, ".") {
-		return true
-	}
-	if grant.Revoked {
-		return false
-	}
-	if grant.ExpiresAt.IsZero() || !now.Before(grant.ExpiresAt) {
-		return false
-	}
-	if strings.TrimSpace(grant.ProducerID) != strings.TrimSpace(producerID) ||
-		normalizeVersion(grant.Version) != normalizeVersion(version) {
-		return false
-	}
-	if strings.TrimSpace(grant.Kind) != kind || strings.TrimSpace(grant.Scope) != scope {
-		return false
-	}
-	for _, covered := range grant.SchemaVersions {
-		if covered == schemaVersion {
+	for _, grant := range grants {
+		if grant.Revoked || grant.ExpiresAt.IsZero() || !now.Before(grant.ExpiresAt) {
+			continue
+		}
+		if strings.TrimSpace(grant.ProducerID) != strings.TrimSpace(producerID) ||
+			normalizeVersion(grant.Version) != normalizeVersion(version) {
+			continue
+		}
+		if strings.TrimSpace(grant.Kind) != kind || !slices.Contains(scopes, strings.TrimSpace(grant.Scope)) {
+			continue
+		}
+		if slices.Contains(grant.SchemaVersions, schemaVersion) {
 			return true
 		}
 	}

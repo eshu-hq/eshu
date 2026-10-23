@@ -73,6 +73,15 @@ before it ever reaches a reducer. Keep the compatibility row in step with
 
 Core-owned fact kinds require a live #6709 producer grant naming this
 producer, version, kind, schema, and scope; namespaced kinds need none.
+The template emits only kinds in its own namespace (`ComponentID` + `.`), so
+it ships no grant requirement. A first-party collector that emits core kinds
+must add a grant for each of them, for every schema version it declares in
+`spec.emittedFacts`. `TestManifestEmissionsAreAuthorized` fails when a
+declared kind is outside the collector's namespace and has no live grant
+scoped to a collector kind. The template cannot see the core registry, so it
+treats any kind outside its namespace as potentially core-owned, including
+dotted names such as `incident.record`. The host decides ownership: it
+enforces core-ownership at install and again at every emission.
 `grant.example.json` is the issuance request shape. A grant's scope is the
 collector kind (`CollectorKind`, declared in `spec.collectorKinds`), not a
 scope ID such as `host.scope.id`: the host matches the grant against the
