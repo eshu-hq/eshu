@@ -8,7 +8,7 @@ owned by the job, because the harness clears it. The job uses pinned service
 images, an anchored Go selector, `-race -count=1`, a twelve minute test timeout,
 `pipefail`, strict Go JSON event accounting, and uploaded events. Its artifact
 also records the checkout SHA, Go version, PostgreSQL and Neo4j versions,
-service image IDs, and proof wall seconds. The workflow
+service image IDs, and wall seconds after a successful proof. The workflow
 sets nonempty Neo4j username and password values even with `NEO4J_AUTH: none`.
 
 The static mirror compares the actual source functions with the selector and
