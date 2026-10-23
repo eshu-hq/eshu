@@ -1,0 +1,18 @@
+{
+  "comment": "Corpus question ids for the #8760 hosted validation: two per family, all 13 families. Question text comes from go/internal/mcp/router/eval/testdata/corpus.json unless a private bindings file overrides it with a real entity.",
+  "tasks": [
+    "code-lookup-001", "code-lookup-005",
+    "code-graph-002", "code-graph-005",
+    "dead-code-001", "dead-code-005",
+    "change-impact-001", "change-impact-004",
+    "service-workload-001", "service-workload-004",
+    "infrastructure-001", "infrastructure-004",
+    "drift-replatforming-001", "drift-replatforming-002",
+    "supply-chain-003", "supply-chain-004",
+    "security-posture-002", "security-posture-004",
+    "repository-overview-001", "repository-overview-004",
+    "documentation-001", "documentation-005",
+    "operations-001", "operations-002",
+    "investigation-001", "investigation-003"
+  ]
+}
