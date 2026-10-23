@@ -46,8 +46,10 @@ package ranks against. They are empty until the intent-curation lane fills them.
 ## Engine behavior
 
 - `find_tool` ranks only tools that are in the query profile's visible list,
-  are not `find_tool`, `call_tool`, or `ask`, and that the caller's credential
-  can call. It re-checks the ranker's output, so a ranker that ignores
+  are not `find_tool`, `call_tool`, or `ask`, and that the API auth middleware
+  does not always refuse for the caller's credential. It never hides a tool the
+  caller could call; a tool the middleware admits only under deployment policy
+  is offered, and the middleware may still refuse it at dispatch. It re-checks the ranker's output, so a ranker that ignores
   `allowed` still cannot leak a tool. Without an `AuthContext` (stdio or
   `ESHU_MCP_ALLOW_UNAUTHENTICATED`) it does not filter and answers
   `access: {filtered: false, reason: "no_auth_context"}`. With no `Ranker`

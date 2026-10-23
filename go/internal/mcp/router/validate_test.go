@@ -172,3 +172,39 @@ func TestValidateArgumentsNilArgumentsChecksRequired(t *testing.T) {
 		t.Fatalf("ValidateArguments(nil) = %+v, want one required error at repo_id", errs)
 	}
 }
+
+// TestValidateArgumentsHandlesUncomparableEnumMembers covers JSON Schema's
+// any-valued enums: comparing an array- or object-valued member with a value
+// of the same dynamic type must not panic, and equal values must match.
+func TestValidateArgumentsHandlesUncomparableEnumMembers(t *testing.T) {
+	t.Parallel()
+
+	schema := map[string]any{"type": "object", "properties": map[string]any{
+		"pair":  map[string]any{"enum": []any{[]any{"a", "b"}, []any{"c"}}},
+		"shape": map[string]any{"enum": []any{map[string]any{"kind": "file"}, "plain"}},
+		"num":   map[string]any{"enum": []any{1, 2.5}},
+	}}
+	cases := []struct {
+		name  string
+		args  map[string]any
+		valid bool
+	}{
+		{"array member matches", map[string]any{"pair": []any{"a", "b"}}, true},
+		{"array member differs", map[string]any{"pair": []any{"a"}}, false},
+		{"object member matches", map[string]any{"shape": map[string]any{"kind": "file"}}, true},
+		{"object member differs", map[string]any{"shape": map[string]any{"kind": "dir"}}, false},
+		{"string beside object member", map[string]any{"shape": "plain"}, true},
+		{"json float matches int member", map[string]any{"num": float64(1)}, true},
+		{"go int matches float member", map[string]any{"num": 2.5}, true},
+		{"number not in enum", map[string]any{"num": 3}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			errs := ValidateArguments(schema, tc.args)
+			if (len(errs) == 0) != tc.valid {
+				t.Fatalf("ValidateArguments(%v) = %v, want valid=%v", tc.args, errs, tc.valid)
+			}
+		})
+	}
+}

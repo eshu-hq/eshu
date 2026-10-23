@@ -4,6 +4,7 @@
 package router
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -306,16 +307,34 @@ func enumContains(enum any, value any) bool {
 	if !ok {
 		return true
 	}
-	number, isNumber := asNumber(value)
 	for _, option := range options {
-		if option == value {
-			return true
-		}
-		if optionNumber, ok := asNumber(option); ok && isNumber && optionNumber == number {
+		if enumEqual(option, value) {
 			return true
 		}
 	}
 	return false
+}
+
+// enumEqual compares one enum member with a value. Numbers compare by value,
+// so a JSON float64 matches an int member. Comparable scalars use ==. Arrays
+// and objects, which JSON Schema allows as enum members and which would panic
+// under ==, compare by canonical JSON encoding (sorted keys, numbers by
+// value).
+func enumEqual(option, value any) bool {
+	if optionNumber, ok := asNumber(option); ok {
+		number, isNumber := asNumber(value)
+		return isNumber && optionNumber == number
+	}
+	switch option.(type) {
+	case nil, string, bool:
+		return option == value
+	}
+	optionJSON, err := json.Marshal(option)
+	if err != nil {
+		return false
+	}
+	valueJSON, err := json.Marshal(value)
+	return err == nil && bytes.Equal(optionJSON, valueJSON)
 }
 
 func enumText(enum any) string {

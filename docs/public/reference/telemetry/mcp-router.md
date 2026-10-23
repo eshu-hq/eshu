@@ -50,8 +50,10 @@ status.
   cause: `mcp_router_invalid_arguments`, `mcp_router_ranker_unavailable`, or
   `mcp_router_rank_failed`.
 - `eshu_dp_mcp_router_find_total{outcome="empty"}` with a scoped credential can
-  be expected: `find_tool` never offers a tool that credential cannot call
-  (`execute_cypher_query` among them) or one the query profile hides.
+  be expected: `find_tool` never offers a tool the API auth middleware always
+  refuses for that credential (`execute_cypher_query` among them) or one the
+  query profile hides. A tool the middleware admits only under deployment
+  policy is offered and may still be refused at dispatch.
 - `eshu_dp_mcp_router_call_total{outcome="invalid_arguments"}` by `tool` shows
   which schemas agents misread. The result carries the field errors, the input
   schema, and an example call, so a retry should succeed.

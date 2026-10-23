@@ -52,9 +52,12 @@ type findResponse struct {
 
 // Find serves find_tool: it validates the request, ranks the tools the
 // caller's credential and the query profile allow, and attaches a matching
-// playbook plan. It never returns a tool the caller cannot call, a
-// profile-hidden tool, find_tool, call_tool, or ask. Without an AuthContext
-// it cannot filter and says so in the access block.
+// playbook plan. It never hides a tool the caller could call, and never
+// offers a profile-hidden tool, find_tool, call_tool, ask, or a tool the API
+// auth middleware always refuses for that credential. A tool the middleware
+// admits only under deployment policy is offered, and the middleware may
+// still refuse it at dispatch (see access.admits). Without an AuthContext it
+// cannot filter and says so in the access block.
 func (e *Engine) Find(ctx context.Context, req Request, args map[string]any) ToolResult {
 	ctx, span := otel.Tracer(telemetry.DefaultSignalName).Start(ctx, contract.SpanMCPRouterFind)
 	defer span.End()
