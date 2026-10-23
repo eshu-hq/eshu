@@ -26,6 +26,10 @@ Active coordinator mode is guarded. The process rejects
 `ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=true` and at least one enabled
 collector instance has `claims_enabled: true`.
 
+Retention of old terminal `workflow_work_items` rows is off until
+`ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE` is set; its settings and
+runbook are on [Workflow Work Item Retention](telemetry/workflow-work-item-retention.md).
+
 No-Regression Evidence: `go test ./internal/coordinator/... -run 'Test(ParseCollectorEgressPolicyJSON|CollectorEgressPolicy|LoadConfigParsesCollectorEgressPolicy|ServiceRunActiveModeSkipsDeniedCollectorEgress|ServiceIncidentFreshnessSkipsDeniedCollectorEgress)' -count=1` proves collector egress policy parsing, restricted default-deny behavior, deny-over-allow precedence, broad-mode validation, config loading, scheduled work suppression, and incident freshness suppression. The gate filters scheduler inputs only; it does not change claim lease timing, worker counts, queue ordering, reducer graph writes, fact emission, or provider API calls.
 
 Observability Evidence: denied collector egress creates no claimable row and

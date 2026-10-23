@@ -59,6 +59,9 @@ type Config struct {
 	// always non-nil; with nothing to enforce every kind reports
 	// unthrottled and claims keep the plain statement.
 	QuotaLookup workflow.QuotaLookup
+	// WorkItemRetention controls the workflow_work_items retention loop
+	// (#8829). The zero value is off.
+	WorkItemRetention WorkItemRetentionConfig
 }
 
 // LoadConfig parses the workflow coordinator config from environment without
@@ -179,6 +182,10 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 	if err != nil {
 		return Config{}, err
 	}
+	workItemRetention, err := loadWorkItemRetentionConfig(getenv)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		DeploymentMode:                 deploymentMode,
@@ -198,6 +205,7 @@ func LoadConfigObserved(getenv func(string) string, observer component.GrantObse
 		TenantBoundary:                 tenantBoundary,
 		CollectorInstances:             instances,
 		QuotaLookup:                    quotaLookup,
+		WorkItemRetention:              workItemRetention,
 	}
 	cfg = cfg.withDefaults()
 	if err := cfg.Validate(); err != nil {

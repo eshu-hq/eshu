@@ -483,6 +483,9 @@ labels.
 | `eshu_dp_workflow_coordinator_last_reconciled_runs` | none | Runs reconciled by the last successful run reconciliation pass. |
 | `eshu_dp_workflow_coordinator_semantic_provider_claim_total` | `outcome`, `provider_kind`, `provider_profile_class`, `source_class` | Semantic-provider worker claim outcomes by egress decision and terminal disposition (`egress_denied`, `egress_policy_missing`, `provider_disabled`, `dispatched`, `provider_unavailable`). Labels are redacted and low-cardinality; no provider host, endpoint, URL, or credential is emitted. |
 
+The `workflow_work_items` retention loop's metrics, log line, and runbook are
+on [Workflow Work Item Retention](workflow-work-item-retention.md).
+
 ## Webhook Listener
 
 | Metric | Key labels | Use |

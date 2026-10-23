@@ -1,0 +1,137 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package items
+
+// pruneBatchQuery examines one primary-key window of workflow_work_items and
+// deletes the rows in it that retention may remove. Arguments: $1 the
+// exclusive work_item_id cursor (the empty string starts at the head), $2 the
+// window size, $3 the updated_at cutoff.
+//
+// It returns one row: the window's last work_item_id (NULL for an empty
+// window), the rows the window examined, and the deleted completed and
+// failed_terminal counts. A window shorter than $2 means the walk reached the
+// table end.
+//
+// Eligibility (all must hold):
+//   - status completed or failed_terminal: claimed, pending, failed_retryable
+//     and expired rows are never touched;
+//   - updated_at older than the cutoff;
+//   - the run is closed (complete or failed): run reconciliation counts the
+//     items of open runs, and removing one would change the derived status;
+//   - not the scope's active generation: collector readiness evidence joins
+//     ingestion_scopes.active_generation_id to the work item;
+//   - a newer row exists for the same (collector_kind, collector_instance_id,
+//     scope_id): the latest-row reads keep their answer;
+//   - for failed_terminal, a newer failed_terminal row exists for the same
+//     target: failure reporting keeps the newest terminal failure.
+//
+// "Newer" is the strict order (updated_at, work_item_id), so exactly one row
+// per target is newest even when timestamps tie.
+//
+// Plan shape (#8829 EXPLAIN on 300k rows, 50 scopes x 6,000 cycles): the
+// window is an index-only primary-key range scan; each windowed row is a
+// primary-key probe whose two newest-row checks probe
+// workflow_work_items_collector_scope_generation_updated_idx once per row.
+// The OFFSET 0 fences keep those checks per-row: without them the planner
+// turned the first check into a hash semi-join over a full sequential scan
+// (457 ms with a temp spill, against 54 ms fenced).
+//
+// Locking: FOR UPDATE OF item SKIP LOCKED. Lifecycle writers (claim,
+// heartbeat, complete, fail, release, reap) only lock rows in status claimed
+// or pending, which this statement never selects, so the row sets are
+// disjoint; SKIP LOCKED means a batch never waits on an item row anyway. The
+// ON DELETE CASCADE into workflow_claims locks only the finished claims of the
+// deleted items, which no other writer locks. The row predicates sit on the
+// locked relation itself, so EvalPlanQual rechecks them if a row changed
+// between snapshot and lock.
+const pruneBatchQuery = `
+WITH scan_window AS MATERIALIZED (
+    SELECT work_item_id
+    FROM workflow_work_items
+    WHERE work_item_id > $1
+    ORDER BY work_item_id
+    LIMIT $2
+),
+candidates AS (
+    SELECT item.work_item_id
+    FROM scan_window
+    JOIN workflow_work_items AS item
+      ON item.work_item_id = scan_window.work_item_id
+    WHERE item.status IN ('completed', 'failed_terminal')
+      AND item.updated_at < $3
+      AND EXISTS (
+          SELECT 1
+          FROM workflow_runs AS run
+          WHERE run.run_id = item.run_id
+            AND run.status IN ('complete', 'failed')
+      )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM ingestion_scopes AS scope
+          WHERE scope.scope_id = item.scope_id
+            AND scope.active_generation_id = item.generation_id
+      )
+      AND EXISTS (
+          SELECT 1
+          FROM workflow_work_items AS newer
+          WHERE newer.collector_kind = item.collector_kind
+            AND newer.scope_id = item.scope_id
+            AND newer.collector_instance_id = item.collector_instance_id
+            AND (newer.updated_at, newer.work_item_id) > (item.updated_at, item.work_item_id)
+          OFFSET 0
+      )
+      AND (
+          item.status = 'completed'
+          OR EXISTS (
+              SELECT 1
+              FROM workflow_work_items AS newer_failure
+              WHERE newer_failure.collector_kind = item.collector_kind
+                AND newer_failure.scope_id = item.scope_id
+                AND newer_failure.collector_instance_id = item.collector_instance_id
+                AND newer_failure.status = 'failed_terminal'
+                AND (newer_failure.updated_at, newer_failure.work_item_id) > (item.updated_at, item.work_item_id)
+              OFFSET 0
+          )
+      )
+    FOR UPDATE OF item SKIP LOCKED
+),
+deleted AS (
+    DELETE FROM workflow_work_items AS doomed
+    USING candidates
+    WHERE doomed.work_item_id = candidates.work_item_id
+    RETURNING doomed.status
+)
+SELECT
+    (SELECT MAX(work_item_id) FROM scan_window) AS next_cursor,
+    (SELECT COUNT(*) FROM scan_window) AS scanned,
+    COUNT(*) FILTER (WHERE status = 'completed') AS deleted_completed,
+    COUNT(*) FILTER (WHERE status = 'failed_terminal') AS deleted_failed_terminal
+FROM deleted
+`
+
+// setBatchTimeoutsQuery sets the batch transaction's lock and statement
+// timeouts. set_config with is_local true scopes both to the transaction, so a
+// pooled connection never carries them into another caller's work.
+// Arguments: $1 lock_timeout, $2 statement_timeout, both as Postgres
+// duration strings such as '2000ms'.
+const setBatchTimeoutsQuery = `
+SELECT set_config('lock_timeout', $1, true), set_config('statement_timeout', $2, true)
+`
+
+// statementTimeoutSetting bounds one batch statement. The measured batch is
+// tens of milliseconds; 30 s stops a regressed plan from holding its row
+// locks and snapshot for minutes.
+const statementTimeoutSetting = "30000ms"
+
+// tableSizeQuery reads workflow_work_items' total relation size and the
+// planner's live-row estimate from the catalog. Both are cheap metadata reads
+// that scan no table rows; reltuples is -1 before the first ANALYZE, which
+// GREATEST clamps to 0.
+const tableSizeQuery = `
+SELECT
+    pg_total_relation_size(class.oid) AS total_bytes,
+    GREATEST(class.reltuples, 0)::bigint AS estimated_rows
+FROM pg_class AS class
+WHERE class.oid = 'workflow_work_items'::regclass
+`

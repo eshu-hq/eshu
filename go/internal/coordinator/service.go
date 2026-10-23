@@ -134,7 +134,11 @@ type Service struct {
 	// configured it makes no real provider traffic unless its default-OFF
 	// execution flag and an enabled provider client are both supplied.
 	SemanticProviderWorker *semantic.ProviderWorker
-	Clock                  func() time.Time
+	// WorkItemRetention deletes old terminal workflow_work_items rows when
+	// Config.WorkItemRetention is enabled in active mode (#8829). Run fails
+	// when retention is enabled and this is nil.
+	WorkItemRetention WorkItemRetentionStore
+	Clock             func() time.Time
 }
 
 // Run periodically reconciles declarative collector instance state and, in
@@ -148,6 +152,9 @@ func (s Service) Run(ctx context.Context) error {
 		return err
 	}
 	s.logScanIntervalOverrides()
+	if err := s.checkWorkItemRetention(); err != nil {
+		return err
+	}
 
 	if err := s.runReconcile(ctx); err != nil {
 		return fmt.Errorf("initial collector reconciliation: %w", err)
@@ -158,6 +165,11 @@ func (s Service) Run(ctx context.Context) error {
 		}
 		if err := s.runWorkflowReconciliation(ctx); err != nil {
 			return fmt.Errorf("initial workflow run reconciliation: %w", err)
+		}
+		// Retention runs after run reconciliation so runs that just finished
+		// are already closed when the pass checks run status.
+		if s.workItemRetentionActive() {
+			s.runWorkItemRetention(ctx)
 		}
 	}
 	if s.Logger != nil {
@@ -186,6 +198,11 @@ func (s Service) Run(ctx context.Context) error {
 		runReconcileTicker = time.NewTicker(s.Config.RunReconcileInterval)
 		defer runReconcileTicker.Stop()
 	}
+	var retentionTicker *time.Ticker
+	if s.workItemRetentionActive() {
+		retentionTicker = time.NewTicker(s.Config.WorkItemRetention.Interval)
+		defer retentionTicker.Stop()
+	}
 
 	for {
 		select {
@@ -203,6 +220,8 @@ func (s Service) Run(ctx context.Context) error {
 			if err := s.runWorkflowReconciliation(ctx); err != nil {
 				return fmt.Errorf("reconcile workflow runs: %w", err)
 			}
+		case <-tickerChan(retentionTicker):
+			s.runWorkItemRetention(ctx)
 		}
 	}
 }

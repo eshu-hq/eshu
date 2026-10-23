@@ -274,7 +274,7 @@ OTEL instruments registered under `eshu_dp_workflow_coordinator_`:
 | `last_reconciled_runs` | gauge | runs recomputed in the most recent pass |
 
 Outcome labels: `success`, `reconcile_error`, `state_read_error` for reconcile;
-`success` and `error` for reap and run-reconcile.
+`success`/`error` elsewhere. Work item retention: `work-item-retention.md`.
 
 Structured log events: startup mode message (info), collector instance drift
 warning, collector scheduling skips by egress policy, and component extension

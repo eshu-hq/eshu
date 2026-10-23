@@ -234,6 +234,8 @@ var coreEntries = []Entry{
 	{Name: "ESHU_WORKFLOW_COORDINATOR_GCP_FRESHNESS_CLAIM_LEASE_DURATION", Type: VarDuration, Default: "5m", Subsystem: "coordinator", Description: "Claim lease duration for GCP freshness trigger handoff (#4576)."},
 	{Name: "ESHU_WORKFLOW_COORDINATOR_FRESHNESS_CLAIM_REAP_LIMIT", Type: VarInt, Default: "100", Subsystem: "coordinator", Description: "Reap batch limit for expired AWS/GCP freshness trigger claims per pass (#4576)."},
 	{Name: "ESHU_WORKFLOW_COORDINATOR_TENANT_BOUNDARY_JSON", Type: VarString, Subsystem: "coordinator", Description: "JSON tenant boundary configuration."},
+	{Name: "ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE", Type: VarDuration, Subsystem: "coordinator", Description: "Turns on retention of old terminal workflow_work_items rows in active mode (#8829) and sets how long a completed or failed_terminal row is kept; unset or 0 is off, otherwise at least 24h. Deleted history cannot be restored."},
+	{Name: "ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_BATCH_SIZE", Type: VarInt, Default: "1000", Subsystem: "coordinator", Description: "Rows one retention batch transaction examines and may delete; 1 to 10000."},
 	{Name: "ESHU_COLLECTOR_INSTANCES_JSON", Type: VarString, Subsystem: "coordinator", Description: "JSON array of desired collector instances reconciled by the coordinator."},
 	{Name: "ESHU_HOSTED_COLLECTOR_EGRESS_POLICY_JSON", Type: VarString, Subsystem: "coordinator", Description: "JSON egress policy applied to hosted collectors."},
 	{Name: "ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON", Type: VarString, Subsystem: "coordinator", Description: "JSON egress policy applied to hosted extensions."},

@@ -26,6 +26,8 @@ The reducer, projector, workflow coordinator, push hooks, and semantic providers
 | `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` | duration | `30s` | Workflow state reconciliation interval. |
 | `ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL` | duration | `30s` | Run-level reconciliation interval. |
 | `ESHU_WORKFLOW_COORDINATOR_TENANT_BOUNDARY_JSON` | string | — | JSON tenant boundary configuration. |
+| `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE` | duration | — | Turns on retention of old terminal workflow_work_items rows in active mode (#8829) and sets how long a completed or failed_terminal row is kept; unset or 0 is off, otherwise at least 24h. Deleted history cannot be restored. |
+| `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_BATCH_SIZE` | int | `1000` | Rows one retention batch transaction examines and may delete; 1 to 10000. |
 
 ## projector
 
