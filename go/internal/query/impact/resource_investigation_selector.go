@@ -122,13 +122,20 @@ func (h *Handler) resourceInvestigationSelectorCandidates(
 // runResourceInvestigationSelectorFanout runs each direct-label query with at
 // most resourceInvestigationSelectorConcurrency graph reads in flight. It
 // preserves query order, joins all query errors, and leaves result merging and
-// deduplication to the caller.
+// deduplication to the caller. A context that is already canceled returns its
+// error before any read starts, and a goroutine rechecks the context after it
+// takes a slot: select picks at random when a free slot and a closed Done
+// channel are both ready, so without the checks a canceled request would start
+// a random subset of its reads (#8881).
 func runResourceInvestigationSelectorFanout(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
 	queries []string,
 	params map[string]any,
 ) ([][]map[string]any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	rowGroups := make([][]map[string]any, len(queries))
 	errs := make([]error, len(queries))
 	semaphore := make(chan struct{}, resourceInvestigationSelectorConcurrency)
@@ -142,6 +149,10 @@ func runResourceInvestigationSelectorFanout(
 				defer func() { <-semaphore }()
 			case <-ctx.Done():
 				errs[index] = ctx.Err()
+				return
+			}
+			if err := ctx.Err(); err != nil {
+				errs[index] = err
 				return
 			}
 			rowGroups[index], errs[index] = graph.Run(ctx, cypher, params)
