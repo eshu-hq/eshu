@@ -72,7 +72,7 @@ func (e *Engine) Find(ctx context.Context, req Request, args map[string]any) Too
 }
 
 func (e *Engine) find(ctx context.Context, req Request, args map[string]any) (ToolResult, string) {
-	if errs, truncated := ValidateArgumentsDetail(Tools()[0].InputSchema, args); len(errs) != 0 {
+	if errs, truncated := ValidateArgumentsDetail(toolSchema(FindToolName), args); len(errs) != 0 {
 		return invalidArgumentsResult(FindToolName, errs, truncated), findOutcomeError
 	}
 	if errs, truncated := boundFindRequest(args); len(errs) != 0 {

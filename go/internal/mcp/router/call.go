@@ -53,7 +53,7 @@ func (e *Engine) Call(ctx context.Context, req Request, args map[string]any) Cal
 
 // call returns the outcome plus the bounded tool label and outcome label.
 func (e *Engine) call(ctx context.Context, req Request, args map[string]any) (CallOutcome, string, string) {
-	if errs, truncated := ValidateArgumentsDetail(Tools()[1].InputSchema, args); len(errs) != 0 {
+	if errs, truncated := ValidateArgumentsDetail(toolSchema(CallToolName), args); len(errs) != 0 {
 		return CallOutcome{Result: invalidArgumentsResult(CallToolName, errs, truncated)}, unregisteredToolLabel, callOutcomeInvalidArgument
 	}
 	name, _ := args["name"].(string)
