@@ -78,7 +78,10 @@ def verify(root: Path, workflow: str | None = None) -> None:
         "          set -euo pipefail\n",
         f"          go test ./cmd/projector -run '{SELECTOR}' -json -race -count=1 -p 4 -timeout 12m | tee \"${{RUNNER_TEMP}}/delta-union.jsonl\"\n",
         '          python3 ../scripts/lib/delta_union_scheduled.py --events "${RUNNER_TEMP}/delta-union.jsonl"\n',
+        "      - name: Record backend and checkout metadata\n",
         "      - name: Upload delta union events\n",
+        "            ${{ runner.temp }}/delta-union.jsonl\n",
+        "            ${{ runner.temp }}/delta-union-meta.txt\n",
         "        uses: actions/upload-artifact@v4\n",
         "          if-no-files-found: error\n",
     )
@@ -86,12 +89,53 @@ def verify(root: Path, workflow: str | None = None) -> None:
         raise ValueError("missing pinned service, selector, event verifier, or artifact route")
     step_names = re.findall(r"(?m)^      - name: (.+)$", jobs)
     if step_names != ["Checkout repository", "Verify delta union contract", "Set up Go",
-                      "Pre-warm Go modules", "Run delta union proofs", "Upload delta union events"]:
+                      "Pre-warm Go modules", "Record backend and checkout metadata",
+                      "Run delta union proofs", "Upload delta union events"]:
         raise ValueError("delta union proof steps changed")
-    if "          python3 scripts/test-delta-union-scheduled.py\n" not in jobs or \
-       "          python3 scripts/lib/delta_union_scheduled.py\n" not in jobs or \
-       "          bash scripts/verify-live-tests-ledger.sh\n" not in jobs:
-        raise ValueError("missing static contract step")
+    headers = list(re.finditer(r"(?m)^      - name: (.+)\n", jobs))
+    sections = {
+        match.group(1): jobs[match.end():headers[index + 1].start()]
+        if index + 1 < len(headers) else jobs[match.end():]
+        for index, match in enumerate(headers)
+    }
+    # These blocks are the active proof route. Require their complete command
+    # body so an early successful exit cannot leave expected tokens inert.
+    expected_runs = {
+        "Verify delta union contract": (
+            "          python3 scripts/test-delta-union-scheduled.py\n"
+            "          python3 scripts/lib/delta_union_scheduled.py\n"
+            "          bash scripts/verify-live-tests-ledger.sh\n"
+        ),
+        "Record backend and checkout metadata": (
+            '          set -euo pipefail\n'
+            '          checkout_sha="$(git rev-parse HEAD)"\n'
+            '          go_version="$(go version)"\n'
+            '          pg_image="$(docker inspect --format \'{{.Image}}\' \'${{ job.services.postgres.id }}\')"\n'
+            '          pg_version="$(docker exec \'${{ job.services.postgres.id }}\' psql -U eshu -d eshu_delta_union -tAc \'SHOW server_version\')"\n'
+            '          neo_image="$(docker inspect --format \'{{.Image}}\' \'${{ job.services.neo4j.id }}\')"\n'
+            '          neo_version="$(docker exec \'${{ job.services.neo4j.id }}\' cypher-shell -a bolt://localhost:7687 \'CALL dbms.components() YIELD name, versions RETURN name, versions\')"\n'
+            '          test -n "$checkout_sha" && test -n "$go_version" && test -n "$pg_image" && test -n "$pg_version" && test -n "$neo_image" && test -n "$neo_version"\n'
+            '          {\n'
+            '            printf \'checkout_sha=%s\\n\' "$checkout_sha"\n'
+            '            printf \'go_version=%s\\n\' "$go_version"\n'
+            '            printf \'postgres_image_id=%s\\n\' "$pg_image"\n'
+            '            printf \'postgres_version=%s\\n\' "$pg_version"\n'
+            '            printf \'neo4j_image_id=%s\\n\' "$neo_image"\n'
+            '            printf \'neo4j_version=%s\\n\' "$neo_version"\n'
+            '          } > "${RUNNER_TEMP}/delta-union-meta.txt"\n'
+        ),
+        "Run delta union proofs": (
+            "          set -euo pipefail\n"
+            "          started=${SECONDS}\n"
+            f"          go test ./cmd/projector -run '{SELECTOR}' -json -race -count=1 -p 4 -timeout 12m | tee \"${{RUNNER_TEMP}}/delta-union.jsonl\"\n"
+            '          python3 ../scripts/lib/delta_union_scheduled.py --events "${RUNNER_TEMP}/delta-union.jsonl"\n'
+            '          printf \'proof_wall_seconds=%s\\n\' "$((SECONDS-started))" >> "${RUNNER_TEMP}/delta-union-meta.txt"\n'
+        ),
+    }
+    for name, expected in expected_runs.items():
+        section = sections[name]
+        if section.count("        run: |\n") != 1 or section.split("        run: |\n", 1)[1] != expected:
+            raise ValueError(f"non-fail-closed delta union step command body: {name}")
 
 
 def main() -> int:
