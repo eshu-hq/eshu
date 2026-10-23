@@ -2500,6 +2500,11 @@
     },
     {
       "category": "command",
+      "name": "parser-admission-doc",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "payload-usage-manifest",
       "readiness": "implemented"
     },
