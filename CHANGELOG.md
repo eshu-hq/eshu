@@ -120,11 +120,16 @@ recent shipped work grouped by feature area.
   `.gitignore`, `.eslintrc`, `.prettierrc`, `.babelrc`, `.npmignore`, `tox.ini`,
   `mypy.ini`, `pytest.ini`, `.flake8`, `rustfmt.toml`, `clippy.toml`,
   `renovate.json5` and `.mvn/extensions.xml`. They reach the content store as
-  searchable text with no entities or facts. Credential-bearing names (`.env`,
-  `.npmrc`, `settings.xml`, `phpunit.xml`, `.mvn/jvm.config`,
-  `.mvn/maven.config`) stay unadmitted. The registry fingerprint and
-  `git-collector` content version move, so the next sweep re-collects every
-  repository once.
+  searchable text: each file emits a file fact and a content fact, and no
+  entities. Credential-bearing names (`.env`, `.npmrc`, `settings.xml`,
+  `phpunit.xml`, `.mvn/jvm.config`, `.mvn/maven.config`) stay unadmitted.
+  Filesystem source mode now keeps these dot-prefixed names, matched
+  case-insensitively, and the whole `.mvn` directory in its managed copy, so it
+  treats them like clone mode; `.gitignore` is still not copied there. Because
+  the copy keeps `.mvn` whole, filesystem mode also now indexes other files the
+  registry admits under it, such as `.mvn/wrapper/MavenWrapperDownloader.java`,
+  as clone mode already did. The registry fingerprint and `git-collector`
+  content version move, so the next sweep re-collects every repository once.
 
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 

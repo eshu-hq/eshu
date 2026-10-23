@@ -130,8 +130,17 @@ the parser registry admits a new dot-prefixed name (#8814), add its basename
 there, or filesystem mode never sees it. Never add a credential-bearing dotfile
 (`.env`, `.npmrc`, `.pypirc`, `.netrc`), and keep `.gitignore` out: the copy
 applies the source ignore rules itself, and copying the file would make
-discovery filter a second time. The copy keeps the whole `.mvn` directory;
-discovery admits only `.mvn/extensions.xml` and refuses the other `.mvn` files.
+discovery filter a second time. Names match case-insensitively, like the
+registry. The copy keeps the whole `.mvn` directory and discovery applies the
+registry rules to it, as in clone mode: `.mvn/extensions.xml` is admitted as
+text, a `.java` file under `.mvn/wrapper` is parsed as Java, and `.mvn/jvm.config`,
+`.mvn/maven.config` and the wrapper properties have no registry entry
+(`TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules`).
+`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails when a
+dot-prefixed registry exact name (all except `.gitignore`) is missing from
+`preservedHiddenFilesystemFileNames`. A PR that adds dotfile names to the
+registry, for example the version-pin names in #8882, goes red on it until it
+adds them to that map in the same change.
 
 No-Regression Evidence (#8814): `LookupByPath` over 29,083 repository paths
 averaged 14.94 ms before and 15.29 ms after the new names and the
@@ -139,13 +148,16 @@ averaged 14.94 ms before and 15.29 ms after the new names and the
 benchmark, +12 ns per path), and `resolveNativeSnapshotFileSet` over the staged
 35-repository golden corpus (192 files, none of the admitted names) averaged
 3.22 ms before and 3.20 ms after. Every lookup pays one base-name compare for
-the new rule. The copy path gains one extra base-name compare per
-dot-prefixed entry. Input shape: the golden-corpus fixtures and the repo's own
+the new rule. The copy path gains one base-name lowercase per dot-prefixed
+entry and now copies the `.mvn` directory whole, which is not measured here.
+Input shape: the golden-corpus fixtures and the repo's own
 path list; no Postgres, graph, queue or lease path is touched.
 
 No-Observability-Change: discovery reports the same skip and admit counters. A
 newly admitted file is counted as an ordinary admitted file, and an unadmitted
-dotfile is still pruned silently by the copy, as before.
+dotfile is still pruned silently by the copy, as before. When a PR adds dotfile
+names to the registry without adding them to `preservedHiddenFilesystemFileNames`,
+`TestPreserveFilesystemHiddenPathCoversRegistryDotfiles` fails.
 
 ## Directory size
 

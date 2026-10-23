@@ -93,6 +93,10 @@ Some names are left out on purpose:
   admitted.
 
 In filesystem source mode, the managed-workspace copy keeps the admitted
-dot-prefixed names and `.mvn/extensions.xml`, but not `.gitignore`: the copy
-already applies the source repository's ignore rules, so `.gitignore` is not
-indexed in that mode.
+dot-prefixed names (matched case-insensitively) and the whole `.mvn` directory,
+but not `.gitignore`: the copy already applies the source repository's ignore
+rules, so `.gitignore` is not indexed in that mode. Discovery then applies the
+registry to what the copy kept, as it does in clone mode: `.mvn/extensions.xml`
+is admitted as text, a `.java` file under `.mvn/wrapper` is admitted as Java,
+and `.mvn/jvm.config`, `.mvn/maven.config` and the wrapper properties have no
+registry entry, so they are not indexed.

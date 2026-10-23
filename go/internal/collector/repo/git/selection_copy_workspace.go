@@ -43,7 +43,8 @@ func cleanManagedWorkspace(reposDir string) error {
 // pruned as dotfiles. Unlike .github/workflows (a directory prefix), these are
 // individual hidden config FILES that can live at the repo root or, for GitLab
 // CI, in a subdirectory referenced via include:. They are matched by basename so
-// the copy preserves them wherever they appear in the tree.
+// the copy preserves them wherever they appear in the tree. Keys are lower
+// case; the lookup lowercases the entry name.
 //
 // The tool configuration names (#8814) are the dot-prefixed names the parser
 // registry admits as plain text. .gitignore is deliberately absent: the copy
@@ -66,19 +67,24 @@ var preservedHiddenFilesystemFileNames = map[string]struct{}{
 }
 
 // preserveFilesystemHiddenPath reports whether the managed-workspace copy keeps
-// the dot-prefixed entry at rel. The .mvn directory is kept so its
-// extensions.xml reaches discovery; discovery itself refuses the other .mvn
-// files, so the copy does not filter them.
+// the dot-prefixed entry at rel. Names match case-insensitively, like the
+// parser registry that decides what discovery admits, so .EditorConfig and
+// .MVN reach discovery in filesystem mode exactly as they do in clone mode.
+// The .mvn directory is kept whole: discovery then applies the registry rules
+// to what is inside it, as it does in clone mode.
+// TestPreserveFilesystemHiddenPathCoversRegistryDotfiles fails when a
+// dot-prefixed registry exact name is missing from the allowlist above.
 func preserveFilesystemHiddenPath(rel string) bool {
 	normalized := path.Clean(filepath.ToSlash(rel))
 	if normalized == "." {
 		return false
 	}
 
-	if _, ok := preservedHiddenFilesystemFileNames[path.Base(normalized)]; ok {
+	base := strings.ToLower(path.Base(normalized))
+	if _, ok := preservedHiddenFilesystemFileNames[base]; ok {
 		return true
 	}
-	if path.Base(normalized) == ".mvn" {
+	if base == ".mvn" {
 		return true
 	}
 

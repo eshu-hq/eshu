@@ -152,8 +152,8 @@ func TestFilesystemSelectorPreservesUniversalConfigDotfiles(t *testing.T) {
 	}
 	// .gitignore stays uncopied: the copy applies the source ignore rules
 	// itself, and a copied file would let discovery filter a second time. The
-	// other .mvn files may be copied; discovery refuses them (see
-	// TestResolveNativeSnapshotFileSetAdmitsUniversalConfigNames).
+	// copy keeps .mvn whole; what discovery then admits from it is pinned by
+	// TestFilesystemCopyKeepsMvnDirectoryAndDiscoveryAppliesRegistryRules.
 	dropped := []string{".env", ".npmrc", ".pypirc", ".netrc", ".secret-config", ".gitignore"}
 	for _, rel := range append(append([]string{}, kept...), dropped...) {
 		writeSelectionTestFile(t, filepath.Join(sourceRepo, rel), "x = 1\n")
