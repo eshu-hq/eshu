@@ -237,8 +237,11 @@ type securityAlertCoverageVerdict struct {
 	freshness      querycontract.FreshnessState
 	collectorState string
 	// readiness is the collector_readiness envelope state to attach, or ""
-	// to leave the envelope off (a target_incomplete answer, whose coverage
-	// already says why it is not a configured-but-empty result).
+	// to leave the envelope off: a target_incomplete answer or a repository
+	// outside every target, whose coverage already says why it is not a
+	// configured-but-empty result. An outside-target answer has an enabled
+	// instance, so the envelope's not_configured ("no enabled instance")
+	// would be false for it.
 	readiness querycontract.CollectorListReadinessState
 	// cause reports whether the freshness gap has the proven
 	// missing_collector_completion cause.
@@ -250,14 +253,33 @@ func (v securityAlertCoverageVerdict) healthy() bool {
 	return v.collectorState == securityAlertCollectorStateHealthy
 }
 
-func securityAlertNotConfiguredVerdict(reason, collectorState string) securityAlertCoverageVerdict {
+// securityAlertCollectorNotConfiguredVerdict is the verdict when no enabled
+// instance decodes to a target. It is the only coverage verdict that attaches
+// the not_configured readiness envelope, because that envelope state means no
+// enabled instance of the feeding collector is registered.
+func securityAlertCollectorNotConfiguredVerdict() securityAlertCoverageVerdict {
 	return securityAlertCoverageVerdict{
 		coverageState:  securityAlertCoverageNotConfigured,
-		reasons:        []string{reason},
+		reasons:        []string{securityAlertReasonCollectorNotConfigured},
 		level:          querycontract.TruthLevelFallback,
 		freshness:      querycontract.FreshnessUnavailable,
-		collectorState: collectorState,
+		collectorState: securityAlertCollectorStateNotConfigured,
 		readiness:      querycontract.CollectorListReadinessStateNotConfigured,
+		cause:          true,
+	}
+}
+
+// securityAlertOutsideTargetsVerdict is the verdict when an enabled instance
+// exists but no target covers the requested repository. It carries no
+// readiness envelope: the collector is configured, only target membership is
+// missing, and coverage.reasons already names that.
+func securityAlertOutsideTargetsVerdict() securityAlertCoverageVerdict {
+	return securityAlertCoverageVerdict{
+		coverageState:  securityAlertCoverageNotConfigured,
+		reasons:        []string{securityAlertReasonRepositoryOutsideTargets},
+		level:          querycontract.TruthLevelFallback,
+		freshness:      querycontract.FreshnessUnavailable,
+		collectorState: securityAlertCollectorStateOutsideTargets,
 		cause:          true,
 	}
 }
@@ -369,8 +391,5 @@ func classifySecurityAlertCollection(
 		return best
 	}
 	worst.reasons = UniqueSortedNonEmpty(reasons)
-	if worst.healthy() {
-		worst.reasons = nil
-	}
 	return worst
 }

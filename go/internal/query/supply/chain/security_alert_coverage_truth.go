@@ -175,15 +175,11 @@ func (h *Handler) readSecurityAlertCollectionVerdict(
 	}
 	targets := decodeSecurityAlertTargets(configs)
 	if len(targets) == 0 {
-		return securityAlertNotConfiguredVerdict(
-			securityAlertReasonCollectorNotConfigured, securityAlertCollectorStateNotConfigured,
-		), nil
+		return securityAlertCollectorNotConfiguredVerdict(), nil
 	}
 	scopeIDs := securityAlertTargetScopeIDs(targets, securityAlertRequestedSlugs(repositoryScopeIDs), anchored)
 	if len(scopeIDs) == 0 {
-		return securityAlertNotConfiguredVerdict(
-			securityAlertReasonRepositoryOutsideTargets, securityAlertCollectorStateOutsideTargets,
-		), nil
+		return securityAlertOutsideTargetsVerdict(), nil
 	}
 	states, err := h.SecurityAlertCollectionState.SecurityAlertTargetStates(ctx, scopeIDs)
 	if err != nil {
@@ -225,8 +221,8 @@ func applySecurityAlertCoverageVerdict(
 		body["collector_readiness"] = querycontract.BuildCollectorListReadinessUnavailable(scope.CollectorSecurityAlert, 0, false)
 	case querycontract.CollectorListReadinessStateReadyWithResults:
 		// Unreachable: a verdict exists only for an empty answer. A
-		// target_incomplete verdict leaves readiness empty and attaches no
-		// envelope, because its coverage already says why the page is not a
-		// configured-but-empty result.
+		// target_incomplete or outside-target verdict leaves readiness empty
+		// and attaches no envelope, because its coverage already says why the
+		// page is not a configured-but-empty result.
 	}
 }

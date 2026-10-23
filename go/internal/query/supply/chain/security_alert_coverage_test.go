@@ -241,7 +241,7 @@ func TestSecurityAlertEmptyAnswerCoverageInvariant(t *testing.T) {
 			name:    "repository outside every target",
 			configs: []string{coverageTestOrgTarget},
 			states:  map[string]SecurityAlertTargetState{"sa-target-org": healthy},
-			want:    coverageWant{"not_configured", []string{"repository_outside_target_set"}, "fallback", "unavailable", cause, "not_configured"},
+			want:    coverageWant{"not_configured", []string{"repository_outside_target_set"}, "fallback", "unavailable", cause, ""},
 		},
 		{
 			name:    "target pending with no committed generation",
@@ -323,7 +323,7 @@ func TestSecurityAlertEmptyAnswerCoverageInvariant(t *testing.T) {
 			name:    "org allowlist names the repository under another owner",
 			configs: []string{`{"targets":[{"provider":"github_dependabot","scope":"organization","scope_id":"sa-target-org-other","organization":"another-org","allowed_repositories":["example-org/example-repo"]}]}`},
 			states:  map[string]SecurityAlertTargetState{"sa-target-org-other": healthy},
-			want:    coverageWant{"not_configured", []string{"repository_outside_target_set"}, "fallback", "unavailable", cause, "not_configured"},
+			want:    coverageWant{"not_configured", []string{"repository_outside_target_set"}, "fallback", "unavailable", cause, ""},
 		},
 		{
 			name:    "healthy zero control",
