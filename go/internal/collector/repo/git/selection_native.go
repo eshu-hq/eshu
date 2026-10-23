@@ -358,15 +358,9 @@ func buildSelectedRepositories(
 			}
 		}
 		if delta, ok := deltaByRepoPath[repoPath]; ok && !delta.IsEmpty() {
-			repository.Delta = true
-			repository.FileTargets = sortUniquePathStrings(append(repository.FileTargets, delta.ChangedFileTargets...))
-			repository.DeletedRelativePaths = sortUniquePathStrings(delta.DeletedRelativePaths)
-			repository.DeltaBaselineCommitSHA = delta.BaselineCommitSHA
+			applySelectedDelta(&repository, delta)
 		} else if delta, ok := deltaByRepoPath[absolutePath]; ok && !delta.IsEmpty() {
-			repository.Delta = true
-			repository.FileTargets = sortUniquePathStrings(append(repository.FileTargets, delta.ChangedFileTargets...))
-			repository.DeletedRelativePaths = sortUniquePathStrings(delta.DeletedRelativePaths)
-			repository.DeltaBaselineCommitSHA = delta.BaselineCommitSHA
+			applySelectedDelta(&repository, delta)
 		}
 		if sha, ok := sourceCommitSHAByRepoPath[repoPath]; ok {
 			repository.SourceCommitSHA = sha
@@ -495,3 +489,12 @@ func (s NativeRepositorySelector) now() time.Time {
 
 // applyPreparseIdentities and preparseConfig live in selection_skip.go
 // with the identity stamp they feed.
+
+// applySelectedDelta marks repository as a delta selection carrying delta's
+// changed targets, deleted paths, and baseline.
+func applySelectedDelta(repository *SelectedRepository, delta GitSyncDelta) {
+	repository.Delta = true
+	repository.FileTargets = sortUniquePathStrings(append(repository.FileTargets, delta.ChangedFileTargets...))
+	repository.DeletedRelativePaths = sortUniquePathStrings(delta.DeletedRelativePaths)
+	repository.DeltaBaselineCommitSHA = delta.BaselineCommitSHA
+}
