@@ -103,6 +103,15 @@ Pass the narrowest known ` + "`repo_id`" + `, service, environment, resource, fi
 symbol. Use ` + "`limit`" + `/` + "`offset`" + `/cursors for lists and check ` + "`truncated`" + `,
 ` + "`next_offset`" + `, or ` + "`next_cursor`" + ` before claiming a complete result.
 
+### A missing file may not be indexed
+
+A file is indexed only if it matched a parser-registry name, prefix, extension,
+or documentation format. Dotfiles are not hidden: ` + "`.eslintrc.js`" + ` and
+` + "`.github/workflows/*`" + ` are indexed; extensionless names with no registry entry,
+such as ` + "`.nvmrc`" + `, are not. When ` + "`get_file_content`" + ` or
+` + "`list_repository_files`" + ` finds no file, say it may simply not be indexed. Do not
+tell the user Eshu cannot see dotfiles.
+
 ### First prompts to try
 
 - "Build the service story for <service> and cite source, manifest, and runtime evidence."

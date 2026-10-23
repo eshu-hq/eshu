@@ -128,6 +128,10 @@ The block instructs assistants to:
 - Keep calls bounded with the narrowest known `repo_id`, service, environment,
   resource, file, or symbol, and to honor `truncated`, `next_offset`, and
   `next_cursor`.
+- Treat a missing file as possibly not indexed: a file is indexed only if it
+  matched a parser-registry name, prefix, extension, or documentation format.
+  Dotfiles are not hidden (`.eslintrc.js` and `.github/workflows/*` are indexed;
+  `.nvmrc` is not), so a "file not found" is not proof Eshu cannot see dotfiles.
 - Start from concrete first prompts such as building a service story or tracing a
   deployment chain.
 - Respect Eshu truth labels: read `truth.level` (exact, derived, partial, fallback) and

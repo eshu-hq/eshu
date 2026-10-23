@@ -136,6 +136,18 @@ Remote deployments may not have a local checkout for every repository. Content
 reads prefer the PostgreSQL content store, then server workspace, then graph
 cache, and finally a user handoff.
 
+## Which Files Are Indexed
+
+`list_repository_files`, `get_file_content`, and `search_file_content` see only
+files that discovery kept. A file is indexed only if it matched a
+parser-registry name, prefix, extension, or documentation format. Dotfiles are
+not hidden: `.eslintrc.js` and `.github/workflows/*` are indexed. Extensionless
+names with no registry entry, such as `.nvmrc`, are not.
+
+A "file not found" answer may simply mean the file is not indexed. It does not
+mean Eshu cannot see dotfiles. Check the path and repository selector first,
+then use `list_repository_files` to see what is indexed.
+
 ## Local Testing
 
 - Local owner: [Local MCP](../run-locally/mcp-local.md)
