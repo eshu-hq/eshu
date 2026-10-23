@@ -18,6 +18,7 @@ the reducer's handle ladder skips edges as `workload_handle_ambiguous`.
 | `Candidate`, `Facts`, `Verdict`, `Evaluate`, `IsLegacyID`, `TwinID` | `evaluate.go` | pure decision logic over facts already read from the graph |
 | `Detect`, `Options`, `Report`, `Reader` | `detect.go` | pages the candidates and reads the facts through a graph read port |
 | read statements, `DeleteNeo4jCypher`, `MaxBatch` | `cypher.go` | the Cypher text; one definition shared by every caller |
+| `RetireRequest`, `RetireResponse`, `RetireCandidate`, `ErrInvalidRequest`, `ErrBackendUnvalidated`, `ErrWriterUnavailable` | `retirement.go` | the admin route contract, shared by `internal/runtime` (HTTP) and the reducer runner |
 
 ## Contract
 
@@ -44,14 +45,15 @@ the reducer's handle ladder skips edges as `workload_handle_ambiguous`.
 
 ## Why a separate leaf package
 
-`go/internal/query` (hosted readiness) and the reducer both need the same
-detection. `query` must not import `storage/cypher/canonical/node`: that package
-pulls the whole canonical writer tree (fact schemas, content, status) into the
-API binary's dependency graph, and `query` has no such dependency today. This
-package depends only on `workloadid` and the standard library, so both sides
-import it and neither imports the other.
+`go/internal/query` (hosted readiness), `go/internal/runtime` (the admin
+route), and the reducer all need the same detection or its contract types.
+`query` and `runtime` must not import the reducer, and this code has nothing
+to do with the canonical writers, so it is not in a reducer or
+`storage/cypher` package. This package depends only on `workloadid` and the
+standard library, so every side imports it and none imports another.
 
 ## Used by
 
 - `go/internal/query` hosted readiness (`workload_identity_leftovers`).
 - `go/internal/reducer/workload/legacy/retire` (dry run and execute).
+- `go/internal/runtime` admin route (request, response, and error types only).

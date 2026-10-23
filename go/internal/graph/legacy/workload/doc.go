@@ -21,6 +21,10 @@
 // comment states exactly which concurrent writers that does and does not
 // cover.
 //
+// [RetireRequest], [RetireResponse], [RetireCandidate], and the retirement
+// errors are the contract of POST /admin/retire-legacy-workloads, shared by the
+// runtime admin route and the reducer runner so neither imports the other.
+//
 // The package depends only on the standard library and workloadid. It runs no
 // writes and emits no telemetry; the reducer's workload/legacy/retire package
 // owns the execution, counters, and logs.

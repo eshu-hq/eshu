@@ -27,9 +27,14 @@ flowchart LR
 
 | piece | file | what it does |
 |---|---|---|
-| `Runner`, `Request`, `Response`, `Candidate` | `runner.go` | validates, detects, deletes, records |
+| `Runner` | `runner.go` | validates, detects, deletes, records |
 | `Writer`, `Auditor` | `runner.go` | write and audit ports; the reducer's retrying Cypher executor and the governance audit store satisfy them |
-| `ErrInvalidRequest`, `ErrBackendUnvalidated` | `runner.go` | errors the HTTP route maps to 422 and 501 |
+
+The request, response, and error types (`RetireRequest`, `RetireResponse`,
+`RetireCandidate`, `ErrInvalidRequest`, `ErrBackendUnvalidated`,
+`ErrWriterUnavailable`) live in `internal/graph/legacy/workload`, so the
+runtime admin route that maps the errors to 422, 501, and 503 does not import
+this reducer package.
 
 ## Contract
 
@@ -42,15 +47,20 @@ flowchart LR
 - `candidates` lists up to `limit` eligible nodes and up to 100 blocked ones.
   `truncated` is true when more candidates may remain.
 - Requests in one process are serialized by a mutex. It holds no queue lane.
+- A Neo4j runner with no `Writer` refuses execute with `ErrWriterUnavailable`
+  and the audit reason `legacy_workload_retire_refused_writer_unavailable`;
+  dry runs still read.
 
 ## Telemetry
 
 - `eshu_dp_workload_legacy_retirements_total{outcome}`, outcome one of
   `deleted`, `blocked_has_instances`, `blocked_no_twin`,
-  `blocked_relationships`.
+  `blocked_relationships`. The blocked outcomes count every node the request
+  judged (at most 1,000), not only the 100 the response lists.
 - INFO `legacy workload retirement executed`: candidates, eligible, deleted,
   blocked, truncated, reason.
-- WARN `legacy workload kept`: workload_id, blocked_reason, relationship_counts.
+- WARN `legacy workload kept`: workload_id, blocked_reason, relationship_counts,
+  one per judged blocked node.
 - Governance audit event `admin_recovery_action` with reason code
   `legacy_workload_retire_executed`, `_failed`, or a `_refused_*` code.
 

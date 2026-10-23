@@ -265,7 +265,8 @@ relationships while it runs (for example an instance naming the node only by
 its `workload_id` property), so run execute in a quiet window against one
 reducer pod; the runbook states the exact guarantee. Execute is irreversible. A
 bad body answers `400`, a rejected request `422`, and a dry run or execute on a
-graph backend other than Neo4j `501`; a server fault answers
+graph backend other than Neo4j `501`, an execute on a reducer with no graph
+writer wired `503`; a server fault answers
 `500` with a fixed message. The route is unauthenticated like the rest of this
 surface. See the
 [leftover retirement runbook](../operate/legacy-workload-retirement-runbook.md).

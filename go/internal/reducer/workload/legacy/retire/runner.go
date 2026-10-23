@@ -41,20 +41,11 @@ const (
 
 // Governance audit reason codes for the execute decisions.
 const (
-	reasonExecuted                = "legacy_workload_retire_executed"
-	reasonFailed                  = "legacy_workload_retire_failed"
-	reasonRefusedMissingReason    = "legacy_workload_retire_refused_missing_reason"
-	reasonRefusedUnsupportedGraph = "legacy_workload_retire_refused_unsupported_backend"
-)
-
-var (
-	// ErrInvalidRequest wraps a caller-fixable request problem; its text is
-	// safe to return to the caller.
-	ErrInvalidRequest = errors.New("invalid legacy workload retirement request")
-	// ErrBackendUnvalidated reports that the configured graph backend is not
-	// the one the detection and the delete were tested on (Neo4j). Both dry
-	// runs and execute are refused, so an untested answer is never served.
-	ErrBackendUnvalidated = errors.New("legacy workload retirement is validated on Neo4j only; dry runs and execute are refused on this graph backend")
+	reasonExecuted                 = "legacy_workload_retire_executed"
+	reasonFailed                   = "legacy_workload_retire_failed"
+	reasonRefusedMissingReason     = "legacy_workload_retire_refused_missing_reason"
+	reasonRefusedUnsupportedGraph  = "legacy_workload_retire_refused_unsupported_backend"
+	reasonRefusedWriterUnavailable = "legacy_workload_retire_refused_writer_unavailable"
 )
 
 // Writer is the graph write port: one auto-commit statement, returning the
@@ -79,7 +70,7 @@ type Runner struct {
 	Writer Writer
 	// BackendValidated is true on Neo4j, the only backend the detection and
 	// legacyworkload.DeleteNeo4jCypher were tested on. When false, dry runs and
-	// execute are refused with ErrBackendUnvalidated.
+	// execute are refused with legacyworkload.ErrBackendUnvalidated.
 	BackendValidated bool
 	// Audit records execute decisions; nil disables recording.
 	Audit Auditor
@@ -97,57 +88,27 @@ type Runner struct {
 	mu sync.Mutex
 }
 
-// Request is one retirement request.
-type Request struct {
-	DryRun bool
-	// Limit bounds the eligible nodes returned or deleted; zero means MaxLimit.
-	Limit int
-	// IDs optionally restricts the request to these node ids.
-	IDs []string
-	// Reason is required when DryRun is false and goes to the log line.
-	Reason string
-}
-
-// Candidate is one name-only Workload node in a response.
-type Candidate struct {
-	ID            string         `json:"id"`
-	TwinID        string         `json:"twin_id"`
-	RepoID        string         `json:"repo_id"`
-	Name          string         `json:"name"`
-	Relationships map[string]int `json:"relationships"`
-	Eligible      bool           `json:"eligible"`
-	BlockedReason string         `json:"blocked_reason"`
-}
-
-// Response is the result of a request.
-type Response struct {
-	DryRun     bool        `json:"dry_run"`
-	Candidates []Candidate `json:"candidates"`
-	Eligible   int         `json:"eligible"`
-	Blocked    int         `json:"blocked"`
-	Deleted    int         `json:"deleted"`
-	// Truncated is true when the request stopped before the label was
-	// exhausted, so more candidates may remain.
-	Truncated bool `json:"truncated"`
-}
-
 // Run executes one request.
-func (r *Runner) Run(ctx context.Context, req Request) (Response, error) {
+func (r *Runner) Run(ctx context.Context, req legacyworkload.RetireRequest) (legacyworkload.RetireResponse, error) {
 	req.Reason = strings.TrimSpace(req.Reason)
 	if err := validate(req); err != nil {
 		if !req.DryRun && errors.Is(err, errReasonRequired) {
 			r.audit(ctx, governanceaudit.DecisionDenied, reasonRefusedMissingReason)
 		}
-		return Response{}, err
+		return legacyworkload.RetireResponse{}, err
 	}
 	if req.Limit == 0 {
 		req.Limit = MaxLimit
 	}
-	if !r.BackendValidated || (!req.DryRun && r.Writer == nil) {
+	if !r.BackendValidated {
 		if !req.DryRun {
 			r.audit(ctx, governanceaudit.DecisionDenied, reasonRefusedUnsupportedGraph)
 		}
-		return Response{}, ErrBackendUnvalidated
+		return legacyworkload.RetireResponse{}, legacyworkload.ErrBackendUnvalidated
+	}
+	if !req.DryRun && r.Writer == nil {
+		r.audit(ctx, governanceaudit.DecisionDenied, reasonRefusedWriterUnavailable)
+		return legacyworkload.RetireResponse{}, legacyworkload.ErrWriterUnavailable
 	}
 
 	r.mu.Lock()
@@ -159,7 +120,7 @@ func (r *Runner) Run(ctx context.Context, req Request) (Response, error) {
 		MaxExamined: maxExamined,
 	})
 	if err != nil {
-		return Response{}, fmt.Errorf("detect legacy workloads: %w", err)
+		return legacyworkload.RetireResponse{}, fmt.Errorf("detect legacy workloads: %w", err)
 	}
 	resp, eligibleIDs := buildResponse(report, req)
 	if req.DryRun {
@@ -171,25 +132,25 @@ func (r *Runner) Run(ctx context.Context, req Request) (Response, error) {
 		r.audit(ctx, governanceaudit.DecisionUnavailable, reasonFailed)
 		r.logger().ErrorContext(ctx, "legacy workload retirement failed",
 			slog.Int("eligible", resp.Eligible), slog.String("reason", req.Reason), slog.String("error", err.Error()))
-		return Response{}, fmt.Errorf("retire legacy workloads: %w", err)
+		return legacyworkload.RetireResponse{}, fmt.Errorf("retire legacy workloads: %w", err)
 	}
 	resp.Deleted = deleted
-	r.record(ctx, resp, req.Reason)
+	r.record(ctx, resp, report.Verdicts, req.Reason)
 	r.audit(ctx, governanceaudit.DecisionAllowed, reasonExecuted)
 	return resp, nil
 }
 
-var errReasonRequired = fmt.Errorf("%w: reason is required when dry_run is false", ErrInvalidRequest)
+var errReasonRequired = fmt.Errorf("%w: reason is required when dry_run is false", legacyworkload.ErrInvalidRequest)
 
-func validate(req Request) error {
+func validate(req legacyworkload.RetireRequest) error {
 	if req.Limit < 0 || req.Limit > MaxLimit {
-		return fmt.Errorf("%w: limit must be between 1 and %d", ErrInvalidRequest, MaxLimit)
+		return fmt.Errorf("%w: limit must be between 1 and %d", legacyworkload.ErrInvalidRequest, MaxLimit)
 	}
 	if len(req.IDs) > MaxLimit {
-		return fmt.Errorf("%w: ids may hold at most %d entries", ErrInvalidRequest, MaxLimit)
+		return fmt.Errorf("%w: ids may hold at most %d entries", legacyworkload.ErrInvalidRequest, MaxLimit)
 	}
 	if slices.ContainsFunc(req.IDs, func(id string) bool { return strings.TrimSpace(id) == "" }) {
-		return fmt.Errorf("%w: ids must not hold a blank entry", ErrInvalidRequest)
+		return fmt.Errorf("%w: ids must not hold a blank entry", legacyworkload.ErrInvalidRequest)
 	}
 	if !req.DryRun && req.Reason == "" {
 		return errReasonRequired
@@ -199,8 +160,8 @@ func validate(req Request) error {
 
 // buildResponse lists up to Limit eligible nodes and up to maxBlockedListed
 // blocked ones, and returns the ids to delete.
-func buildResponse(report legacyworkload.Report, req Request) (Response, []string) {
-	resp := Response{DryRun: req.DryRun, Candidates: []Candidate{}, Truncated: report.Truncated}
+func buildResponse(report legacyworkload.Report, req legacyworkload.RetireRequest) (legacyworkload.RetireResponse, []string) {
+	resp := legacyworkload.RetireResponse{DryRun: req.DryRun, Candidates: []legacyworkload.RetireCandidate{}, Truncated: report.Truncated}
 	var eligibleIDs []string
 	for _, v := range report.Verdicts {
 		switch {
@@ -218,7 +179,7 @@ func buildResponse(report legacyworkload.Report, req Request) (Response, []strin
 		} else {
 			resp.Blocked++
 		}
-		resp.Candidates = append(resp.Candidates, Candidate{
+		resp.Candidates = append(resp.Candidates, legacyworkload.RetireCandidate{
 			ID: v.ID, TwinID: v.TwinID, RepoID: v.RepoID, Name: v.Name,
 			Relationships: v.Relationships, Eligible: v.Eligible, BlockedReason: v.BlockedReason,
 		})
@@ -240,17 +201,19 @@ func (r *Runner) deleteBatch(ctx context.Context, ids []string) (int, error) {
 	return int(n), nil
 }
 
-// record emits the counter and the log lines for an executed request.
-func (r *Runner) record(ctx context.Context, resp Response, reason string) {
+// record emits the counter and the log lines for an executed request. The
+// blocked outcomes and the per-node WARN cover every verdict the request
+// judged (at most maxExamined), not only the blocked nodes the response lists.
+func (r *Runner) record(ctx context.Context, resp legacyworkload.RetireResponse, verdicts []legacyworkload.Verdict, reason string) {
 	blocked := map[string]int{}
-	for _, c := range resp.Candidates {
-		if c.Eligible {
+	for _, v := range verdicts {
+		if v.Eligible {
 			continue
 		}
-		blocked[c.BlockedReason]++
+		blocked[v.BlockedReason]++
 		r.logger().WarnContext(ctx, "legacy workload kept",
-			slog.String("workload_id", c.ID), slog.String("blocked_reason", c.BlockedReason),
-			slog.Any("relationship_counts", c.Relationships))
+			slog.String("workload_id", v.ID), slog.String("blocked_reason", v.BlockedReason),
+			slog.Any("relationship_counts", v.Relationships))
 	}
 	r.count(ctx, OutcomeDeleted, resp.Deleted)
 	r.count(ctx, OutcomeBlockedHasInstances, blocked[legacyworkload.BlockedHasInstances])

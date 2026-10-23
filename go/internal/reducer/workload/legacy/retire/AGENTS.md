@@ -7,6 +7,10 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
   standard library. It must never import the parent `internal/reducer` package
   or `internal/query`; the graph ports are the local `Writer` and
   `legacyworkload.Reader` interfaces.
+- The request, response, and error types belong to
+  `internal/graph/legacy/workload` (`RetireRequest` and friends). Do not
+  define wire types here: `internal/runtime` decodes the route body and must
+  not import this package.
 - Nothing in the reducer's queue path may call `Runner.Run`. Retirement is an
   explicit operator action. The #5385 rollback re-materializes old ids with the
   old binary, and an automatic reaper would fight it.

@@ -12,13 +12,16 @@
 // re-evaluates every retirement clause, so the dry run is advisory and the
 // delete is the gate. Both are offered on Neo4j only, the one backend they
 // were tested on; on any other backend the runner refuses both with
-// [ErrBackendUnvalidated].
+// legacyworkload.ErrBackendUnvalidated. The request, response, and error types
+// live in graph/legacy/workload so the runtime admin route need not import
+// this package.
 //
 // Retirement is never automatic. The reducer does not call this package from
 // any queue path, because the rollback runbook for #5385 re-materializes the
 // old ids with the old binary and an automatic reaper would fight it.
 //
 // Every executed request records the eshu_dp_workload_legacy_retirements_total
-// counter by outcome, one INFO line, one WARN line per kept node, and a
+// counter by outcome for every node it judged, one INFO line, one WARN line
+// per kept node, and a
 // governance audit event. Dry runs record none of these.
 package retire

@@ -21,8 +21,10 @@ type Options struct {
 	// IDs restricts the pass to these node ids. Empty means page the whole
 	// label.
 	IDs []string
-	// MaxEligible stops the scan once this many eligible candidates were
-	// found. Zero means no limit.
+	// MaxEligible stops a label scan after the first page that brings the
+	// eligible count to this many; that page is kept whole, so the report can
+	// hold more, and callers cap their own output. An IDs pass ignores it:
+	// the caller already bounds IDs. Zero means no limit.
 	MaxEligible int
 	// MaxExamined caps how many candidates the pass reads and evaluates.
 	// Zero or negative uses DefaultMaxExamined.

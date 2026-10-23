@@ -196,7 +196,7 @@ func TestLiveLegacyWorkloadRetirementP1AndC1(t *testing.T) {
 		t.Fatalf("readiness count before = %d (err %v), want 1: readiness is fail", before.WithScopedTwin(), err)
 	}
 
-	dry, err := runner.Run(ctx, retire.Request{DryRun: true, IDs: []string{f.legacyID}})
+	dry, err := runner.Run(ctx, legacyworkload.RetireRequest{DryRun: true, IDs: []string{f.legacyID}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestLiveLegacyWorkloadRetirementP1AndC1(t *testing.T) {
 		t.Fatal("a dry run must not delete")
 	}
 
-	resp, err := runner.Run(ctx, retire.Request{IDs: []string{f.legacyID}, Reason: "post-cutover cleanup"})
+	resp, err := runner.Run(ctx, legacyworkload.RetireRequest{IDs: []string{f.legacyID}, Reason: "post-cutover cleanup"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestLiveLegacyWorkloadRetirementP1AndC1(t *testing.T) {
 
 	// C1: a second execute deletes nothing, and the clean-graph dry run lists
 	// nothing for this fixture.
-	again, err := runner.Run(ctx, retire.Request{IDs: []string{f.legacyID}, Reason: "post-cutover cleanup"})
+	again, err := runner.Run(ctx, legacyworkload.RetireRequest{IDs: []string{f.legacyID}, Reason: "post-cutover cleanup"})
 	if err != nil || again.Deleted != 0 || again.Eligible != 0 {
 		t.Fatalf("second run = %+v err=%v, want deleted 0", again, err)
 	}
@@ -257,7 +257,7 @@ func TestLiveLegacyWorkloadRetirementC2RacesAMaterializationPass(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			_, runErr = runner.Run(ctx, retire.Request{IDs: []string{f.legacyID}, Reason: fmt.Sprintf("race round %d", round)})
+			_, runErr = runner.Run(ctx, legacyworkload.RetireRequest{IDs: []string{f.legacyID}, Reason: fmt.Sprintf("race round %d", round)})
 		}()
 		go func() {
 			defer wg.Done()
@@ -269,7 +269,7 @@ func TestLiveLegacyWorkloadRetirementC2RacesAMaterializationPass(t *testing.T) {
 		}
 		// The pass and the retirement can finish in either order; a final run
 		// is the idempotent convergence step an operator would do.
-		if _, err := runner.Run(ctx, retire.Request{IDs: []string{f.legacyID}, Reason: "converge"}); err != nil {
+		if _, err := runner.Run(ctx, legacyworkload.RetireRequest{IDs: []string{f.legacyID}, Reason: "converge"}); err != nil {
 			t.Fatalf("round %d: converge: %v", round, err)
 		}
 		f.settle(t, "legacy node", 0, func() int64 { return f.nodes(t, f.legacyID) })

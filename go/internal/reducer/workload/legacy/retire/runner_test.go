@@ -131,7 +131,7 @@ func TestDryRunNeverWritesAndReportsEligibleAndBlocked(t *testing.T) {
 	g.addEligible("a")
 	g.addNoTwin("b")
 	w := &recordingWriter{}
-	resp, err := newRunner(g, w).Run(context.Background(), Request{DryRun: true})
+	resp, err := newRunner(g, w).Run(context.Background(), legacyworkload.RetireRequest{DryRun: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestExecuteDeletesOnlyEligibleIDsThroughTheGateStatement(t *testing.T) {
 	g.addNoTwin("b")
 	g.addEligible("c")
 	w := &recordingWriter{deleted: 2}
-	resp, err := newRunner(g, w).Run(context.Background(), Request{Reason: "post-cutover cleanup"})
+	resp, err := newRunner(g, w).Run(context.Background(), legacyworkload.RetireRequest{Reason: "post-cutover cleanup"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestExecuteRespectsLimitAndKeepsLookingPastBlockedHead(t *testing.T) {
 		g.addEligible(fmt.Sprintf("z%02d", i))
 	}
 	w := &recordingWriter{deleted: 3}
-	resp, err := newRunner(g, w).Run(context.Background(), Request{Reason: "r", Limit: 3})
+	resp, err := newRunner(g, w).Run(context.Background(), legacyworkload.RetireRequest{Reason: "r", Limit: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,14 +192,14 @@ func TestExecuteWithNothingEligibleSendsNoWrite(t *testing.T) {
 	g := &stubGraph{}
 	g.addNoTwin("a")
 	w := &recordingWriter{}
-	resp, err := newRunner(g, w).Run(context.Background(), Request{Reason: "r"})
+	resp, err := newRunner(g, w).Run(context.Background(), legacyworkload.RetireRequest{Reason: "r"})
 	if err != nil || len(w.calls) != 0 || resp.Deleted != 0 {
 		t.Fatalf("resp=%+v err=%v calls=%v", resp, err, w.calls)
 	}
 }
 
 func TestCleanGraphDryRunReportsZeroCandidates(t *testing.T) {
-	resp, err := newRunner(&stubGraph{}, &recordingWriter{}).Run(context.Background(), Request{DryRun: true})
+	resp, err := newRunner(&stubGraph{}, &recordingWriter{}).Run(context.Background(), legacyworkload.RetireRequest{DryRun: true})
 	if err != nil || len(resp.Candidates) != 0 || resp.Eligible != 0 || resp.Blocked != 0 || resp.Truncated {
 		t.Fatalf("resp=%+v err=%v", resp, err)
 	}
@@ -210,7 +210,7 @@ func TestCleanGraphDryRunReportsZeroCandidates(t *testing.T) {
 
 func TestRequestValidation(t *testing.T) {
 	r := newRunner(&stubGraph{}, &recordingWriter{})
-	cases := map[string]Request{
+	cases := map[string]legacyworkload.RetireRequest{
 		"execute without reason":   {},
 		"blank reason":             {Reason: "   "},
 		"limit above max":          {DryRun: true, Limit: MaxLimit + 1},
@@ -220,8 +220,8 @@ func TestRequestValidation(t *testing.T) {
 		"execute reason is blank2": {Reason: "\t"},
 	}
 	for name, req := range cases {
-		if _, err := r.Run(context.Background(), req); !errors.Is(err, ErrInvalidRequest) {
-			t.Errorf("%s: err = %v, want ErrInvalidRequest", name, err)
+		if _, err := r.Run(context.Background(), req); !errors.Is(err, legacyworkload.ErrInvalidRequest) {
+			t.Errorf("%s: err = %v, want legacyworkload.ErrInvalidRequest", name, err)
 		}
 	}
 }
@@ -234,9 +234,9 @@ func TestUnvalidatedBackendRefusesDryRunAndExecute(t *testing.T) {
 	g.addEligible("a")
 	r := newRunner(g, &recordingWriter{})
 	r.BackendValidated = false
-	for _, req := range []Request{{Reason: "r"}, {DryRun: true}} {
-		if _, err := r.Run(context.Background(), req); !errors.Is(err, ErrBackendUnvalidated) {
-			t.Fatalf("dry_run=%v: err = %v, want ErrBackendUnvalidated", req.DryRun, err)
+	for _, req := range []legacyworkload.RetireRequest{{Reason: "r"}, {DryRun: true}} {
+		if _, err := r.Run(context.Background(), req); !errors.Is(err, legacyworkload.ErrBackendUnvalidated) {
+			t.Fatalf("dry_run=%v: err = %v, want legacyworkload.ErrBackendUnvalidated", req.DryRun, err)
 		}
 	}
 	if g.reads != 0 {
@@ -250,7 +250,7 @@ func TestWriteFailureSurfacesAndAuditsUnavailable(t *testing.T) {
 	audit := &recordingAudit{}
 	r := newRunner(g, &recordingWriter{err: errors.New("graph exploded")})
 	r.Audit = audit
-	if _, err := r.Run(context.Background(), Request{Reason: "r"}); err == nil {
+	if _, err := r.Run(context.Background(), legacyworkload.RetireRequest{Reason: "r"}); err == nil {
 		t.Fatal("want the write failure")
 	}
 	if len(audit.events) != 1 || audit.events[0].Decision != governanceaudit.DecisionUnavailable {
@@ -265,14 +265,14 @@ func TestAuditRecordsExecuteAndRefusalsButNotDryRun(t *testing.T) {
 	r := newRunner(g, &recordingWriter{deleted: 1})
 	r.Audit = audit
 
-	if _, err := r.Run(context.Background(), Request{DryRun: true}); err != nil {
+	if _, err := r.Run(context.Background(), legacyworkload.RetireRequest{DryRun: true}); err != nil {
 		t.Fatal(err)
 	}
 	if len(audit.events) != 0 {
 		t.Fatalf("dry run audited: %+v", audit.events)
 	}
-	_, _ = r.Run(context.Background(), Request{})
-	_, _ = r.Run(context.Background(), Request{Reason: "r"})
+	_, _ = r.Run(context.Background(), legacyworkload.RetireRequest{})
+	_, _ = r.Run(context.Background(), legacyworkload.RetireRequest{Reason: "r"})
 	if len(audit.events) != 2 {
 		t.Fatalf("events = %+v, want a refusal and an execute", audit.events)
 	}
@@ -305,7 +305,7 @@ func TestExecuteEmitsOutcomeCountersLogsAndWarnsPerBlockedNode(t *testing.T) {
 	r := newRunner(g, &recordingWriter{deleted: 1})
 	r.Instruments = inst
 	r.Logger = slog.New(slog.NewTextHandler(&logs, nil))
-	if _, err := r.Run(context.Background(), Request{Reason: "post-cutover cleanup"}); err != nil {
+	if _, err := r.Run(context.Background(), legacyworkload.RetireRequest{Reason: "post-cutover cleanup"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -349,7 +349,7 @@ func TestDryRunRecordsNoCounter(t *testing.T) {
 	g.addEligible("a")
 	r := newRunner(g, &recordingWriter{})
 	r.Instruments = inst
-	if _, err := r.Run(context.Background(), Request{DryRun: true}); err != nil {
+	if _, err := r.Run(context.Background(), legacyworkload.RetireRequest{DryRun: true}); err != nil {
 		t.Fatal(err)
 	}
 	var rm metricdata.ResourceMetrics
@@ -373,7 +373,7 @@ func TestConcurrentRequestsSerializeWithoutOverlappingWrites(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _ = r.Run(context.Background(), Request{Reason: "r"})
+			_, _ = r.Run(context.Background(), legacyworkload.RetireRequest{Reason: "r"})
 		}()
 	}
 	wg.Wait()

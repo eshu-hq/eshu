@@ -13,17 +13,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/workload/legacy/retire"
+	legacyworkload "github.com/eshu-hq/eshu/go/internal/graph/legacy/workload"
 )
 
 type fakeRetirer struct {
-	req  retire.Request
-	resp retire.Response
+	req  legacyworkload.RetireRequest
+	resp legacyworkload.RetireResponse
 	err  error
 	n    int
 }
 
-func (f *fakeRetirer) Run(_ context.Context, req retire.Request) (retire.Response, error) {
+func (f *fakeRetirer) Run(_ context.Context, req legacyworkload.RetireRequest) (legacyworkload.RetireResponse, error) {
 	f.n++
 	f.req = req
 	return f.resp, f.err
@@ -49,9 +49,9 @@ func TestLegacyWorkloadRetirementRequiresARunner(t *testing.T) {
 }
 
 func TestLegacyWorkloadRetirementDryRunReturnsTheContractBody(t *testing.T) {
-	f := &fakeRetirer{resp: retire.Response{
+	f := &fakeRetirer{resp: legacyworkload.RetireResponse{
 		DryRun: true, Eligible: 1, Blocked: 1,
-		Candidates: []retire.Candidate{
+		Candidates: []legacyworkload.RetireCandidate{
 			{ID: "workload:checkout-service", TwinID: "workload:repository:r:checkout-service", RepoID: "repository:r", Name: "checkout-service", Relationships: map[string]int{}, Eligible: true},
 			{ID: "workload:x", Name: "x", RepoID: "repository:r", Relationships: map[string]int{"DOCUMENTS": 1}, BlockedReason: "relationships"},
 		},
@@ -118,8 +118,9 @@ func TestLegacyWorkloadRetirementMapsRunnerErrors(t *testing.T) {
 		code int
 		body string
 	}{
-		{"invalid request keeps its text", fmt.Errorf("%w: reason is required when dry_run is false", retire.ErrInvalidRequest), http.StatusUnprocessableEntity, "reason is required"},
-		{"unsupported backend", retire.ErrBackendUnvalidated, http.StatusNotImplemented, "Neo4j only"},
+		{"invalid request keeps its text", fmt.Errorf("%w: reason is required when dry_run is false", legacyworkload.ErrInvalidRequest), http.StatusUnprocessableEntity, "reason is required"},
+		{"unsupported backend", legacyworkload.ErrBackendUnvalidated, http.StatusNotImplemented, "Neo4j only"},
+		{"no graph writer wired", legacyworkload.ErrWriterUnavailable, http.StatusServiceUnavailable, "no graph writer"},
 	}
 	for _, c := range cases {
 		rec := postRetire(t, &fakeRetirer{err: c.err}, `{"dry_run": false, "reason": "r"}`)
@@ -156,7 +157,7 @@ func TestLegacyWorkloadRetirementOnlyAcceptsPost(t *testing.T) {
 }
 
 func TestLegacyWorkloadRetirementMountsOnTheAdminMux(t *testing.T) {
-	f := &fakeRetirer{resp: retire.Response{DryRun: true, Candidates: []retire.Candidate{}}}
+	f := &fakeRetirer{resp: legacyworkload.RetireResponse{DryRun: true, Candidates: []legacyworkload.RetireCandidate{}}}
 	h, _ := NewLegacyWorkloadRetirementHandler(f)
 	mux, err := NewAdminMux(AdminMuxConfig{ServiceName: "reducer", LegacyWorkloadRetirement: h})
 	if err != nil {

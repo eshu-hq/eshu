@@ -11,7 +11,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/workload/legacy/retire"
+	legacyworkload "github.com/eshu-hq/eshu/go/internal/graph/legacy/workload"
 )
 
 // legacyWorkloadRetirementFailedMessage answers a failed retirement request
@@ -23,10 +23,11 @@ const legacyWorkloadRetirementFailedMessage = "legacy workload retirement failed
 // ids, and a reason.
 const maxLegacyWorkloadRetirementBody = 64 << 10
 
-// LegacyWorkloadRetirer runs one retirement request. *retire.Runner satisfies
-// it.
+// LegacyWorkloadRetirer runs one retirement request. The reducer's
+// *retire.Runner satisfies it; this package imports only the contract types
+// in graph/legacy/workload, never the reducer.
 type LegacyWorkloadRetirer interface {
-	Run(ctx context.Context, req retire.Request) (retire.Response, error)
+	Run(ctx context.Context, req legacyworkload.RetireRequest) (legacyworkload.RetireResponse, error)
 }
 
 // LegacyWorkloadRetirementHandler serves POST /admin/retire-legacy-workloads
@@ -82,7 +83,7 @@ func (h *LegacyWorkloadRetirementHandler) handle(w http.ResponseWriter, r *http.
 		return
 	}
 
-	resp, err := h.retirer.Run(r.Context(), retire.Request{
+	resp, err := h.retirer.Run(r.Context(), legacyworkload.RetireRequest{
 		DryRun: *body.DryRun,
 		Limit:  body.Limit,
 		IDs:    body.IDs,
@@ -91,10 +92,12 @@ func (h *LegacyWorkloadRetirementHandler) handle(w http.ResponseWriter, r *http.
 	switch {
 	case err == nil:
 		writeJSON(w, http.StatusOK, resp)
-	case errors.Is(err, retire.ErrInvalidRequest):
+	case errors.Is(err, legacyworkload.ErrInvalidRequest):
 		writeJSONError(w, http.StatusUnprocessableEntity, err.Error())
-	case errors.Is(err, retire.ErrBackendUnvalidated):
-		writeJSONError(w, http.StatusNotImplemented, retire.ErrBackendUnvalidated.Error())
+	case errors.Is(err, legacyworkload.ErrBackendUnvalidated):
+		writeJSONError(w, http.StatusNotImplemented, legacyworkload.ErrBackendUnvalidated.Error())
+	case errors.Is(err, legacyworkload.ErrWriterUnavailable):
+		writeJSONError(w, http.StatusServiceUnavailable, legacyworkload.ErrWriterUnavailable.Error())
 	default:
 		writeRecoveryFailure(w, r, err, legacyWorkloadRetirementFailedMessage)
 	}

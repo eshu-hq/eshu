@@ -36,6 +36,13 @@
   `/admin/retire-legacy-workloads` without authentication. These must be served only on the admin/metrics port, never on
   the public API port.
 
+- **No reducer imports** — the API, MCP server, and ingester link this
+  package, so it must not import `internal/reducer/...`. The legacy workload
+  retirement handler takes its request, response, and error types from
+  `internal/graph/legacy/workload`; the reducer's `retire.Runner` satisfies
+  `LegacyWorkloadRetirer` structurally. Check with
+  `go list -deps ./internal/runtime | rg internal/reducer` (must be empty).
+
 - **Retry defaults are positive** — `LoadRetryPolicyConfig` rejects
   `MaxAttempts ≤ 0` or `RetryDelay ≤ 0`. Do not set either to zero or
   negative, even for tests; use a short positive duration instead.
