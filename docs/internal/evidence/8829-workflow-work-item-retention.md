@@ -96,11 +96,11 @@ same PostgreSQL 18.6:
 
 - `TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle`: four workers
   claim, heartbeat and complete or terminally fail 300 live items through
-  `WorkflowControlStore` while retention loops; 25 retention batches
-  committed during the work; slowest lifecycle operation 6.8 to 13.9 ms
-  across three runs, one under `-race` (budget 2 s); slowest retention batch
-  46 ms; 2,940 history
-  rows deleted; no orphan claims.
+  `WorkflowControlStore` while retention loops. Across five local runs (two
+  under `-race`): 25 to 35 retention batches committed during the work, the
+  slowest lifecycle operation took 6.8 to 15.5 ms (budget 2 s), the slowest
+  retention batch took 45 to 47 ms, and each run deleted 2,940 history
+  rows and left no orphan claims.
 - `TestPruneWorkItemsLiveSkipsLockedRowsWithoutWaiting`: a held row lock is
   skipped, not waited on, and the row goes on the next walk. Removing
   `SKIP LOCKED` fails it with SQLSTATE 55P03.
