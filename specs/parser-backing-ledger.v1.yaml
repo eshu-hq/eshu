@@ -35,11 +35,13 @@ parser_backing:
     why_not_tree_sitter: Dockerfiles are build manifests. Eshu extracts bounded FROM, COPY, ARG, ENV, LABEL, EXPOSE, ENTRYPOINT, CMD, WORKDIR, USER, and HEALTHCHECK evidence from instruction tokens, while unsupported instructions remain intentionally unclaimed.
     source_files:
       - go/internal/parser/dockerfile/base_ref.go
+      - go/internal/parser/dockerfile/base_ref_expand.go
       - go/internal/parser/dockerfile/metadata.go
       - go/internal/parser/dockerfile/tokens.go
       - go/internal/parser/dockerfile_language.go
     test_files:
       - go/internal/parser/dockerfile/base_ref_test.go
+      - go/internal/parser/dockerfile/base_ref_nested_cost_test.go
       - go/internal/parser/dockerfile/metadata_test.go
     downstream_relevance:
       - dockerfile_stages -> parser metadata and runtime evidence

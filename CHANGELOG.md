@@ -94,10 +94,13 @@ recent shipped work grouped by feature area.
   `FROM` into the base image and tag** ([#8810](https://github.com/eshu-hq/eshu/issues/8810)).
   `ARG NODE_VERSION=24.1.0` with `FROM node:${NODE_VERSION}-slim` now reports
   tag `24.1.0-slim` instead of the literal placeholder. A stage-local `ARG`,
-  an `ARG` with no default, and expressions such as `${V%%.*}` stay
-  unresolved: the stage keeps the placeholder and the repository runtime
-  artifacts read model marks it with `base_ref_unresolved` and the defaults
-  seen as `base_ref_arg_defaults`. An unaliased stage that used a variable is
+  an `ARG` with no default, and expressions such as `${V%%.*}` or
+  `${V:?msg}` stay unresolved: the stage keeps the placeholder, lists the
+  variable name in `base_ref_unresolved_args`, and the repository runtime
+  artifacts read model marks it with `base_ref_unresolved` and carries the
+  declared default as `base_ref_arg_defaults`. A construct with no variable
+  name (`$(cmd)`, a bare `$`, an unterminated `${`, or a reference over the
+  bounds) lists a fixed marker instead of the expression text. An unaliased stage that used a variable is
   now named after its expanded image. The container image base-ref helper now
   also skips a base whose tag still holds a placeholder. A resolved value is
   the Dockerfile's own default: a CI `--build-arg` can override it at build

@@ -17,8 +17,8 @@ and the exported compatibility wrapper used by query and relationship code.
 
 The godoc contract is in doc.go. Current exports are Metadata, Stage, Arg, Env,
 Port, Label, RuntimeMetadata, and Metadata.Map. The Stage type carries
-BaseRefTemplate, UnresolvedArgs, and ArgDefaults for the FROM substitution
-evidence above.
+BaseRefTemplate, UnresolvedArgs, ArgDefaults, ArgDefaultsTruncated, and
+ArgDefaultsOmitted for the FROM substitution evidence above.
 
 ## Dependencies
 
@@ -72,13 +72,23 @@ Dockerfile rule for how `ARG` and `FROM` interact:
 - When resolved, `base_image` and `base_tag` hold the expanded value, and
   `base_ref_template` holds the reference as written. When unresolved,
   `base_image` and `base_tag` keep the reference as written (placeholder
-  included), `base_ref_unresolved_args` lists the variable names, and
+  included), `base_ref_unresolved_args` lists the variable names (an
+  expression such as `${V:?msg}` or `${V%%.*}` lists `V`, never the expression
+  text, so `V`'s declared default still attaches as evidence), and
   `base_ref_arg_defaults` holds any default seen for them as evidence only
   (for example a stage-local ARG default the `FROM` could not see). All three
   keys are omitted for a `FROM` with no variable, so existing payloads are
   byte-identical. They ride in the open attributes of the typed stage contract.
   The default evidence is bounded (see the next bullets); the stored text is
   never used to resolve a reference.
+- A construct with no variable name cannot be listed by name, and its text is
+  never copied into `base_ref_unresolved_args` (it is repository-controlled and
+  can be 4096 bytes). The list holds one fixed marker instead: `$(` for a
+  command substitution, `${` for `${}`, `${1}` or an unterminated `${`, `$` for
+  a bare dollar, and `<over-bound>` for a reference rejected for length or
+  nesting depth. Each marker holds a character a variable name cannot, so a
+  marker never collides with a name. A reader that wants variable names skips
+  entries that do not start with a letter or underscore.
 - An unaliased stage is named after its expanded image.
 - A resolved value is the Dockerfile's own default. A CI `--build-arg` can
   override it at build time, and the parser cannot see that.
@@ -93,6 +103,10 @@ Dockerfile rule for how `ARG` and `FROM` interact:
   text, both hit the cap. The cap is checked on the finished output, so an ARG
   default that expands past it is never stored as a known value and later
   `FROM` lines cannot read it. In every case the reference stays unresolved.
+  All nesting levels of one reference write into a single output buffer and the
+  length is checked before each write, so a write never passes the cap and no
+  level copies an inner level's result outward. The work and allocation of one
+  reference are bounded by its length, whatever it nests.
   Not retaining the value of an unknown default is hygiene: `lookup` already
   ignores a global that is not known, so correctness does not depend on it.
 - The ARG default evidence is bounded too. A raw default is repeated on every
@@ -117,10 +131,15 @@ load, with old and new within noise of each other in every pair, and 33
 allocs/op both times (5472 B/op old, 5504 B/op new: the three added `Stage`
 fields). That is no measurable change. Differential: `RuntimeMetadata(...).Map()`
 JSON for the 23 tracked Dockerfiles is byte-identical before and after.
-Hostile input, `-benchtime=3x`: a balanced 60 KB line of nested `${A:-`
-blocks took 461-887 ms/op and 835.7 MB/op with the reference bound disabled and
-0.54 ms/op and 0.54 MB/op with it. 200 such lines in one Dockerfile took 59.8 s
-with the bound disabled and 0.10 s with it. A padded ARG chain (100 ARGs of
+Hostile input, re-measured together on one host for the review that found the
+figures disagreed (`-benchtime=3x -count=5` for one line, one run for 200
+lines; a scratch copy of the pre-shared-buffer code with `exceedsExpansionBounds`
+forced to `false`): a balanced 60 KB line of nested `${A:-` blocks took 442-454
+ms/op and 835.8 MB/op with the reference bound disabled and 0.39 ms/op and 0.54
+MB/op with it. 200 such lines in one Dockerfile took 48.8 s and 167 GB
+allocated with the bound disabled and 0.09-0.11 s with it. Earlier figures in
+other notes (366 ms, 461-887 ms, 59.8 s, 68.4 s) came from different load
+levels and are superseded by this set. A padded ARG chain (100 ARGs of
 about 4000 literal bytes each repeating the previous one, then 1000
 `FROM i:${A100}` lines, 416 KB of input) took 563-576 ms/op and 426.6 MB/op
 before the output cap, and left 400 MB of base tags across the 1000 stages. It
@@ -145,6 +164,31 @@ through: every ARG row holds its default once, and each stage row holds its own
 `TestBaseRefManyNestedReferencesStayBounded`,
 `TestBaseRefPaddedArgChainIsUnresolved`, and
 `TestBaseRefPaddedArgChainDoesNotAmplifyAcrossStages` pin the expansion cases.
+
+No-Regression Evidence: #8810, shared-buffer expansion (review round four).
+A reference inside both caps could still cost O(depth^2 x 4096) bytes: each
+nesting level built its own output and the whole result was copied outward at
+every level. `TestBaseRefNestedPaddedReferenceAllocationIsBounded` pins the
+shape the review measured (`ARG K` of 4000 bytes, then 1000 lines of
+`FROM img:${U:-${K}${U:-${K}...x}}}` 63 deep, 631 bytes per line, 645,007
+bytes of input) with a 50 MB ceiling on `runtime.MemStats` `TotalAlloc`. It
+failed before the fix (8,870,755,872 bytes allocated) and passes after; with
+the nested-copy behavior put back it fails again (341,547,928 bytes).
+`go test -run xxx -bench 'BaseRef' -benchmem -count=5`, same quiet-as-possible
+host both times (the host was loaded, load average 12-20 on 16 cores, so read
+ns/op as an upper bound; B/op and allocs/op are stable):
+
+| Benchmark | Before ns/op | Before B/op | After ns/op | After B/op |
+| --- | --- | --- | --- | --- |
+| `BaseRefNestedPadded` (1000 lines, 63 deep) | 1.26-1.38 s | 8.874 GB (332,201-332,328 allocs) | 7.4-12.5 ms | 9.11 MB (21,060 allocs) |
+| `BaseRefExpansion/hostile_60KB` | 0.88-1.08 ms | 543,977-543,990 | 0.39 ms | 544,034-544,036 |
+| `BaseRefExpansion/padded_chain_100_args_1000_froms` | 4.8-9.5 ms | 5,154,162-5,154,374 | 5.1-5.5 ms | 5,145,311-5,145,334 |
+| `BaseRefExpansion/ordinary` | 2.4-4.8 us | 5504 (33 allocs) | 2.3-2.5 us | 6136 (36 allocs) |
+
+The ordinary Dockerfile gains three allocations and 632 bytes for the
+expander state; its time is unchanged. `RuntimeMetadata` also runs at read time
+(repository runtime artifacts and the Dockerfile relationship read), so this
+bound is paid on reads, not only at ingest.
 
 No-Observability-Change: the parser emits no telemetry of its own. Parse
 timing stays on the parent parser engine's existing per-file duration. A
