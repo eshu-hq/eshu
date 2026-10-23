@@ -262,6 +262,24 @@ derived_from_expected_edges="${repo_root}/go/internal/ifa/testdata/derivedfrom/i
 # metadata (the projector keys content materialization off it).
 code_interproc_evidence_cassette="${repo_root}/testdata/cassettes/codeinterproc/ifa-code-interproc-evidence-family.json"
 code_interproc_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/codeinterproc/ifa-code-interproc-evidence-family-expected-edges.json"
+# code_taint_evidence (#6228 code_taint_evidence live leaf): a
+# projection of the compiled CodeTaintEvidenceFamilyOdu by construction
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- one
+# repository fact, two typed file facts (one per referenced path) and two
+# content_entity facts (the Function endpoints of the two live findings,
+# carrying the CanonicalEntityID uids the entities phase stamps for
+# Function labels). The repo/file facts are load-bearing, not padding: the
+# entities phase writes nodes with containment (MATCH File first, and File
+# hangs off Repository), and the edge writer MATCHes the Function node, so
+# without them every statement completes having written nothing. Two
+# edge-producing findings name their CanonicalEntityID-resolved Function
+# uids (http-request to sql-exec in handlePayment, queue-message to
+# command-exec in refundPayment); the tombstoned voidPayment finding
+# resolves to nothing. The single git scope owns its generation and
+# carries repo_id in scope metadata (the projector keys content
+# materialization off it).
+code_taint_evidence_cassette="${repo_root}/testdata/cassettes/codetaint/ifa-code-taint-evidence-family.json"
+code_taint_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/codetaint/ifa-code-taint-evidence-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -338,6 +356,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${derived_from_expected_edges}" ]] || { echo "${gate}: derived-from expected-edge set not found: ${derived_from_expected_edges}" >&2; exit 1; }
 	[[ -f "${code_interproc_evidence_cassette}" ]] || { echo "${gate}: code-interproc-evidence cassette not found: ${code_interproc_evidence_cassette}" >&2; exit 1; }
 	[[ -f "${code_interproc_evidence_expected_edges}" ]] || { echo "${gate}: code-interproc-evidence expected-edge set not found: ${code_interproc_evidence_expected_edges}" >&2; exit 1; }
+	[[ -f "${code_taint_evidence_cassette}" ]] || { echo "${gate}: code-taint-evidence cassette not found: ${code_taint_evidence_cassette}" >&2; exit 1; }
+	[[ -f "${code_taint_evidence_expected_edges}" ]] || { echo "${gate}: code-taint-evidence expected-edge set not found: ${code_taint_evidence_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
 	# stamps fact.source_system from the scope, and the
 	# container-image-identity loader the handler reads only accepts OCI

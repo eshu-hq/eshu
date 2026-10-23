@@ -435,6 +435,11 @@ ifa_fault_shard_run cell_failgraphwrite_derived_from
 ifa_fault_shard_run cell_baseline_code_interproc_evidence
 ifa_fault_shard_run cell_killworker_code_interproc_evidence
 ifa_fault_shard_run cell_failgraphwrite_code_interproc_evidence
+# code_taint_evidence (#6228 code_taint_evidence live leaf):
+# fifteenth direct family, baseline first, same trio shape as above.
+ifa_fault_shard_run cell_baseline_code_taint_evidence
+ifa_fault_shard_run cell_killworker_code_taint_evidence
+ifa_fault_shard_run cell_failgraphwrite_code_taint_evidence
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,

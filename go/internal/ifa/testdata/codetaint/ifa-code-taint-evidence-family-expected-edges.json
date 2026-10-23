@@ -1,11 +1,11 @@
 {
   "odu": "odu:ifa-code-taint-evidence-family",
-  "note": "Hand-derived from CodeTaintEvidenceUpsertCypher (go/internal/storage/cypher/edge/writer/code_taint_evidence.go): `UNWIND $rows AS row MATCH (f:Function {uid: row.function_uid}) MERGE (ev:CodeTaintEvidence {uid: row.uid}) ... MERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(ev) SET ...`, NOT from the port or family name. HAS_TAINT_EVIDENCE is the only type this writer can emit (static token in the template, kept out of any per-row substitution). Each endpoint is the extractor's row identity: source the Function uid the collector resolved, target the row uid taint.codeTaintEvidenceUID derives as facts.StableID over function_uid, source_line, sink_line, sink_kind, source_kind, and binding. Exactly two edges: the http-request to sql-exec flow in handlePayment (source_line 12, sink_line 18) and the queue-message to command-exec flow in refundPayment (source_line 31, sink_line 40). The tombstoned voidPayment finding contributes nothing on purpose -- the extractor skips tombstones before decoding, so a deleted flow reaches neither the rows nor the quarantine count. kind, sink_kind, and source_kind ride as Properties pins (the template SETs them as plain strings from the row); scope_id, generation_id, and evidence_source are writer-stamped per run and cannot be pinned statically.",
+  "note": "Hand-derived from CodeTaintEvidenceUpsertCypher (go/internal/storage/cypher/edge/writer/code_taint_evidence.go): `UNWIND $rows AS row MATCH (f:Function {uid: row.function_uid}) MERGE (ev:CodeTaintEvidence {uid: row.uid}) ... MERGE (f)-[rel:HAS_TAINT_EVIDENCE]->(ev) SET ...`, NOT from the port or family name. HAS_TAINT_EVIDENCE is the only type this writer can emit (static token in the template, kept out of any per-row substitution). Each endpoint is the extractor's row identity: source the CanonicalEntityID Function uid the collector resolved and the entities phase stamps (content.CanonicalEntityID over repo, path, Function, name, and start line), target the row uid taint.codeTaintEvidenceUID derives as facts.StableID over function_uid, source_line, sink_line, sink_kind, source_kind, and binding. Exactly two edges: the http-request to sql-exec flow in handlePayment (function start line 8, source_line 12, sink_line 18) and the queue-message to command-exec flow in refundPayment (function start line 28, source_line 31, sink_line 40). The tombstoned voidPayment finding contributes nothing on purpose -- the extractor skips tombstones before decoding, so a deleted flow reaches neither the rows nor the quarantine count. kind, sink_kind, and source_kind ride as Properties pins (the template SETs them as plain strings from the row); scope_id, generation_id, and evidence_source are writer-stamped per run and cannot be pinned statically.",
   "edges": [
     {
       "relationship_type": "HAS_TAINT_EVIDENCE",
-      "source_entity_id": "func:payments:handlePayment",
-      "target_entity_id": "3de46127a2641bd650e15062e8eb51357f126d4d315006b042035e416c447d45",
+      "source_entity_id": "content-entity:e_ea9c6456e621",
+      "target_entity_id": "ab276064bdc6a658ed988d8c7e851eb8ddd72675ab77cbb880278c7d066d73fc",
       "properties": {
         "kind": "sql_injection",
         "sink_kind": "sql_exec",
@@ -14,8 +14,8 @@
     },
     {
       "relationship_type": "HAS_TAINT_EVIDENCE",
-      "source_entity_id": "func:payments:refundPayment",
-      "target_entity_id": "365bd26109e284adbe4775b4460c32e46577c925607eb1c704b662c22e21e93a",
+      "source_entity_id": "content-entity:e_749ffae511fc",
+      "target_entity_id": "9990da3fae9bc80643c1f44d63627ff614b9aefa9779775ecdf96262b156bfac",
       "properties": {
         "kind": "command_injection",
         "sink_kind": "command_exec",

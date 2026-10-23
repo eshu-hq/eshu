@@ -48,11 +48,12 @@
 # mistake commit 42e188ba1 made for documentation_edges and had to withdraw; it
 # is not repeated here.
 #
-# FOURTEEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
+# FIFTEEN OF THEM NOW HAVE ALL FOUR. kubernetes_namespace_environment,
 # iam_instance_profile_role, iam_can_assume, iam_can_perform,
 # ec2_uses_profile, s3_logs_to, iam_escalation, authenticates_vault_role,
 # uses_vault_policy, built_from, cloud_resource_container_image,
-# crossplane_satisfied_by, derived_from, and code_interproc_evidence
+# crossplane_satisfied_by, derived_from, code_interproc_evidence,
+# and code_taint_evidence
 # each carry a cataloged Odù, a registered
 # edge-type set, a vacuity guard dispatched from MaterializedEdgeOduResolver,
 # a hand-derived expected-edge-set fixture their guard reproduces exactly,
@@ -60,7 +61,8 @@
 # slice A for seven, slice C for built_from, slice D for
 # cloud_resource_container_image, the crossplane live leaf for
 # crossplane_satisfied_by, the derived_from live leaf for
-# derived_from, and the code_interproc_evidence live leaf -- live
+# derived_from, the code_interproc_evidence live leaf for
+# code_interproc_evidence, and the code_taint_evidence live leaf -- live
 # ifa-determinism AND
 # ifa-fault-injection
 # matrices driving the family
@@ -352,6 +354,23 @@ coverage:
     scenario_type: fault
     ref: "odu:ifa-code-interproc-evidence-family"
     proof_gate: ifa-fault-injection
+  # code_taint_evidence: fault-free baseline plus fault-injection
+  # recovery, all asserting the two-edge HAS_TAINT_EVIDENCE exact set with
+  # identical graph digests (#6228 code_taint_evidence live leaf). The
+  # http-request to sql-exec flow in handlePayment and the queue-message to
+  # command-exec flow in refundPayment each resolve their endpoint to the
+  # CanonicalEntityID Function uid the entities phase stamps; the
+  # tombstoned voidPayment finding resolves to nothing.
+  - surface: "materialized_edges:code_taint_evidence"
+    scenario: odu
+    scenario_type: baseline
+    ref: "odu:ifa-code-taint-evidence-family"
+    proof_gate: ifa-determinism
+  - surface: "materialized_edges:code_taint_evidence"
+    scenario: odu
+    scenario_type: fault
+    ref: "odu:ifa-code-taint-evidence-family"
+    proof_gate: ifa-fault-injection
 
 waivers:
   - surface: "materialized_edges:assumes_iam_role"
@@ -374,16 +393,6 @@ waivers:
     issue: "#6228"
     waived: "2026-08-23"
     reason: "WriteCloudResourceEdges -> cypher/cloud/{resource/edge_writer,azure/relationship/azure_cloud_resource_edge_writer,gcp/relationship/gcp_cloud_resource_edge_writer}.go merges a per-row <PREFIX>_<relationship_type> from an OPEN per-provider vocabulary; split verdict D: UNCOVERED by design as the sole genuinely open family (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Route 2 (#8358) landed the predicate-scoped scan, Odu, expected-edge-set fixture, predicate registration, and matrix wiring; registering an observed-type list is rejected. Stays waived: no live matrix has driven it yet"
-  - surface: "materialized_edges:code_taint_evidence"
-    proof_gate: ifa-determinism
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteCodeTaintEvidence -> cypher/edge/writer/code_taint_evidence.go merges HAS_TAINT_EVIDENCE; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the single-type table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (offline guard reproduces the exact 2-edge set). Stays waived: no live matrix drives it yet (live leaf owns coverage rows + roster LiveProven flag)"
-  - surface: "materialized_edges:code_taint_evidence"
-    proof_gate: ifa-fault-injection
-    issue: "#6228"
-    waived: "2026-08-23"
-    reason: "WriteCodeTaintEvidence -> cypher/edge/writer/code_taint_evidence.go merges HAS_TAINT_EVIDENCE; split verdict D kind A (node-scoped DETACH DELETE retract): edge types registered in the single-type table with sole-creator census + seeded live-test proof (ADR docs/internal/design/6228-materialized-edge-retract-registry-contract.md). Offline Odu + vacuity guard + expected-edge-set fixture landed in the #6228 slice-D change (family stays waived: neither live matrix drives it yet)"
   - surface: "materialized_edges:grants_secret_read"
     proof_gate: ifa-determinism
     issue: "#6228"

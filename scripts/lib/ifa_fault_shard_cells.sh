@@ -162,6 +162,12 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_code_interproc_evidence
 	cell_killworker_code_interproc_evidence
 	cell_failgraphwrite_code_interproc_evidence
+	# code_taint_evidence (#6228 code_taint_evidence live leaf):
+	# fifteenth direct-materialization family, same trio shape (atomic
+	# group below).
+	cell_baseline_code_taint_evidence
+	cell_killworker_code_taint_evidence
+	cell_failgraphwrite_code_taint_evidence
 	cell_baseline_inheritance
 	cell_killworker_inheritance
 	cell_failgraphwrite_inheritance
@@ -228,6 +234,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_crossplane_satisfied_by cell_killworker_crossplane_satisfied_by cell_failgraphwrite_crossplane_satisfied_by"
 	"cell_baseline_derived_from cell_killworker_derived_from cell_failgraphwrite_derived_from"
 	"cell_baseline_code_interproc_evidence cell_killworker_code_interproc_evidence cell_failgraphwrite_code_interproc_evidence"
+	"cell_baseline_code_taint_evidence cell_killworker_code_taint_evidence cell_failgraphwrite_code_taint_evidence"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
 	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"

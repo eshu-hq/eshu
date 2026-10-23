@@ -44,8 +44,9 @@ ifa_live_gate_common_seams+=(
 	'go/internal/ifa/testdata/crossplanesatisfiedby/**|go/internal/ifa/testdata/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_crossplane_satisfied_by_cells.sh|scripts/lib/ifa_fault_injection_crossplane_satisfied_by_cells.sh'
 )
-# derived_from + code_interproc_evidence (#6228 derived_from and
-# code_interproc_evidence live leaves): writer,
+# derived_from + code_interproc_evidence + code_taint_evidence (#6228
+# derived_from, code_interproc_evidence, and code_taint_evidence live
+# leaves): writer,
 # cassette, expected-edge set, and cells are new common seams beside the
 # siblings; the Odù stays in the determinism-only table (the fault cells
 # drive the committed cassette JSON, never the Odù source).
@@ -60,4 +61,10 @@ ifa_live_gate_common_seams+=(
 	'testdata/cassettes/codeinterproc/**|testdata/cassettes/codeinterproc/ifa-code-interproc-evidence-family.json'
 	'go/internal/ifa/testdata/codeinterproc/**|go/internal/ifa/testdata/codeinterproc/ifa-code-interproc-evidence-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_code_interproc_evidence_cells.sh|scripts/lib/ifa_fault_injection_code_interproc_evidence_cells.sh'
+)
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/edge/writer/code_taint_evidence.go|go/internal/storage/cypher/edge/writer/code_taint_evidence.go'
+	'testdata/cassettes/codetaint/**|testdata/cassettes/codetaint/ifa-code-taint-evidence-family.json'
+	'go/internal/ifa/testdata/codetaint/**|go/internal/ifa/testdata/codetaint/ifa-code-taint-evidence-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_code_taint_evidence_cells.sh|scripts/lib/ifa_fault_injection_code_taint_evidence_cells.sh'
 )
