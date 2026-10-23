@@ -117,6 +117,11 @@ This package emits no metrics, spans, or logs.
   generation row.
 - `ScopeGeneration.IngestedAt` must not precede `ObservedAt`. `Validate`
   rejects this ordering.
+- `ScopeGeneration.DeltaUnionBaseGenerationID` is projection-time only and
+  never persisted (`json:"-"`). The projector sets it from the fact load that
+  built a delta's #7797 union, just before `Project`, and the fact boundary
+  accepts that base's rows (#8779). `ValidateForScope` rejects it on a
+  non-delta generation or when it names the generation itself.
 - `TransitionTo` validates the generation before checking the transition table.
   A generation with blank identifiers or a zero timestamp returns an error from
   `Validate` before the transition check runs.

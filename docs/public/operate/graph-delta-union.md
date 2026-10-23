@@ -23,6 +23,37 @@ routes the next selection to the forced-full path, which restores the base.
 The watermark write retries on the next sync's refusal, so a transient
 failure self-heals.
 
+## Projection boundary (#8779)
+
+Base rows in a union keep the base generation's id. The fact load that built
+the overlay also returns that base id and the union outcome
+(`FactStore.LoadProjectionFacts`), and both projection loops, the projector
+service and the bootstrap-index projector, set it on the generation they hand
+to `Project` as `DeltaUnionBaseGenerationID`. Nothing resolves the base a
+second time, so the check always uses the base the facts came from.
+
+- The fact boundary accepts a fact when it belongs to the projected scope and
+  either to the delta or to the named base. A fact from any other generation
+  or scope still fails the whole projection before any write, and a base id on
+  a non-delta generation, or one that names the delta itself, is an error.
+- Canonical and content materialization read the full union, stamped with the
+  delta generation, with file-scoped retracts.
+- Reducer intents, per-fact and scope-generation, derive only from the delta's
+  own facts. The git collector withholds the whole-repository follow-ups and
+  the value-flow marker on a delta. A base row would fire those domains under
+  the delta against handlers that load only the delta's facts and retract the
+  whole scope.
+- A union whose outcome is `union_scope_mismatch` (the delta carries no
+  `delta_generation` repository fact, so the overlay ran additively) is
+  refused before any write and fails through the generic path.
+- The `build_projection` stage log carries `generation_fact_count`,
+  `union_base_fact_count`, and `reducer_intent_count`.
+
+A delta whose baseline is another delta's commit has no full generation at
+that commit, so it refuses as `refused_base_missing` and the reindex
+watermark forces a full re-parse: a fresh delta projects once per full
+generation (#8780).
+
 ## Successor guard anchor (#8750)
 
 The ingestion commit's destructive-successor guard (#7926) sizes a git delta
@@ -51,8 +82,9 @@ sync recollects. The sizing evidence is in
   (`union_base_found`, `union_base_missing_refused`, `union_resolve_failed`,
   `union_scope_mismatch`). A non-refusal lookup error counts
   `union_resolve_failed` and retries through the generic fail path; a
-  resolved union whose delta carries no `delta_generation` fact loads
-  additively with a WARN and counts `union_scope_mismatch`.
+  resolved union whose delta carries no `delta_generation` fact counts
+  `union_scope_mismatch` with a WARN, and the projector refuses it before any
+  write (#8779).
 - `eshu_dp_projector_delta_union_facts` histogram of base/delta/union fact
   counts by `outcome` and `kind`. Counts are values, never labels; commit
   SHAs, scope ids, and generation ids never become labels.

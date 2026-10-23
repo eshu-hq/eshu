@@ -322,6 +322,14 @@ type ScopeGeneration struct {
 	// is never persisted to scope_generations, and travels only in memory
 	// from the collector to the commit that evaluates it.
 	TrustedDeletion bool
+	// DeltaUnionBaseGenerationID names the base full generation a delta's
+	// projection input was overlaid on by the #7797 delta-base union. The
+	// projector sets it from the same fact load that built the overlay,
+	// just before Project, so the fact boundary accepts exactly the delta's
+	// own facts and that base's facts (#8779). It is never persisted or
+	// serialized, is set only on a delta, and never names the generation
+	// itself; ValidateForScope rejects either misuse.
+	DeltaUnionBaseGenerationID string `json:"-"`
 	// PreparseIdentity is the pre-parse identity of the snapshot this
 	// generation came from (#7978 follow-up, ruling a9-143): the content
 	// version, commit, default branch, and configuration that determine its
@@ -381,6 +389,14 @@ func (g ScopeGeneration) ValidateForScope(scope IngestionScope) error {
 	}
 	if g.ScopeID != scope.ScopeID {
 		return fmt.Errorf("generation scope_id %q does not match scope scope_id %q", g.ScopeID, scope.ScopeID)
+	}
+	if base := g.DeltaUnionBaseGenerationID; base != "" {
+		if !g.IsDelta {
+			return fmt.Errorf("delta_union_base_generation_id %q is set on non-delta generation %q", base, g.GenerationID)
+		}
+		if base == g.GenerationID {
+			return fmt.Errorf("delta_union_base_generation_id %q names the generation itself", base)
+		}
 	}
 	return nil
 }

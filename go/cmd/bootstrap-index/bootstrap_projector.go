@@ -20,6 +20,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -247,8 +248,14 @@ func drainProjectorWorkItem(
 		_ = stopHeartbeat()
 	}()
 
-	// Load facts
-	factsForGeneration, loadErr := factStore.LoadFacts(heartbeatCtx, work)
+	// Load facts. A delta loads over its #7797 union base, and the base id
+	// from that same load widens the fact boundary in Project (#8779).
+	loaded, loadErr := factStore.LoadProjectionFacts(heartbeatCtx, work)
+	var projectGeneration scope.ScopeGeneration
+	if loadErr == nil {
+		projectGeneration, loadErr = loaded.ProjectionGeneration(work.Generation)
+	}
+	factsForGeneration := loaded.Facts
 	if loadErr != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", span, logger) {
@@ -259,6 +266,10 @@ func drainProjectorWorkItem(
 				return nil
 			}
 			loadErr = errors.Join(loadErr, heartbeatErr)
+		} else if handled, err := refuseBootstrapDeltaUnionBaseMissing(
+			itemCtx, baselineFence, workSink, work, workerID, itemStart, loadErr, span, instruments, logger,
+		); handled {
+			return err
 		}
 		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, loadErr, span, logger, func() {
 			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", 0, loadErr, span, instruments, logger)
@@ -271,7 +282,7 @@ func drainProjectorWorkItem(
 	}
 
 	// Project
-	result, projectErr := runner.Project(heartbeatCtx, work.Scope, work.Generation, factsForGeneration)
+	result, projectErr := runner.Project(heartbeatCtx, work.Scope, projectGeneration, factsForGeneration)
 	if projectErr != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", span, logger) {

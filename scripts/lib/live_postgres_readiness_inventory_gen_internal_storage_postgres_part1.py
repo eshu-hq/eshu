@@ -71,6 +71,9 @@ TABLE = {
             "TestFactStoreReadDeltaUnionActiveLive",
             "TestFactStoreListFactsPrunedBaseRefusesLive",
         ),
+        "go/internal/storage/postgres/delta_union_projection_live_test.go": (
+            "TestDeltaGenerationProjectsOverUnionBaseLive",
+        ),
         "go/internal/storage/postgres/drifted_bucket_skip_live_test.go": (
             "TestDriftedPathologicalBucketSkippedLive",
         ),
@@ -480,12 +483,6 @@ TABLE = {
             "TestActivationWaitsForAnInflightFinalFailLive",
             "TestFinalFailAfterTheActivationLockIsWokenLive",
             "TestActivationLockTimeoutFailsRetryablyLive",
-        ),
-        "go/internal/storage/postgres/relationship_store_completion_wake_contention_live_test.go": (
-            "TestCompletionWakeLockTimeoutClassifiedLive",
-            "TestCompletionWakeEvalPlanQualDropsReopenedRowLive",
-            "TestCompletionWakeConcurrentWithMaintenanceAndClaimLive",
-            "TestCompletionWakeMetricsLive",
         ),
     },
 }

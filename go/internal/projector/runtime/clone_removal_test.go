@@ -198,7 +198,11 @@ func buildProjectionClonePathForEquivalenceTest(scopeValue scope.IngestionScope,
 		contentMaterialization.RetainedPaths = snapshotFilePaths(inputFacts)
 	}
 
-	intents := make([]ReducerIntent, 0, len(inputFacts))
+	owned := generationOwnedFacts(generation, inputFacts)
+	if err := validateUnionScope(generation, owned); err != nil {
+		return projection{}, err
+	}
+	intents := make([]ReducerIntent, 0, len(owned))
 	for i := range inputFacts {
 		fact := inputFacts[i].Clone()
 		if err := validateFactBoundary(scopeValue, generation, fact); err != nil {
@@ -219,6 +223,9 @@ func buildProjectionClonePathForEquivalenceTest(scopeValue scope.IngestionScope,
 				contentMaterialization.RepositoryRefs = append(contentMaterialization.RepositoryRefs, refs...)
 			}
 		}
+		if fact.GenerationID != generation.GenerationID {
+			continue
+		}
 		if intent, ok := projectorentity.BuildSemanticEntityReducerIntent(fact); ok {
 			intents = append(intents, intent)
 		}
@@ -226,7 +233,7 @@ func buildProjectionClonePathForEquivalenceTest(scopeValue scope.IngestionScope,
 			intents = append(intents, intent)
 		}
 	}
-	intents = appendScopeGenerationReducerIntents(intents, scopeValue, generation, inputFacts)
+	intents = appendScopeGenerationReducerIntents(intents, scopeValue, generation, owned)
 
 	sort.SliceStable(intents, func(i, j int) bool {
 		left := intents[i]
@@ -247,6 +254,7 @@ func buildProjectionClonePathForEquivalenceTest(scopeValue scope.IngestionScope,
 		contentMaterialization: contentMaterialization,
 		reducerIntents:         intents,
 		quarantinedFacts:       quarantined,
+		ownedFactCount:         len(owned),
 	}, nil
 }
 

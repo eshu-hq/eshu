@@ -38,7 +38,12 @@ the original source bytes, including blank source and trailing newlines.
 projector does not support, or whose `generation_id` does not match the
 generation under projection, fails the whole projection. It is never written
 partially: a half-written generation is wrong graph truth, which the
-repository's accuracy rule ranks above throughput.
+repository's accuracy rule ranks above throughput. The one widening is a delta
+projected over its #7797 union base (#8779): when the generation names
+`DeltaUnionBaseGenerationID`, that base's rows are admitted too. They feed
+canonical and content materialization, but reducer intents (per-fact and
+scope-generation) derive only from the delta's own facts, and a union whose
+own facts carry no `delta_generation` repository fact is refused.
 
 **Payloads are borrowed, not cloned.** Projection reads the caller's fact
 payloads in place. Mutating one corrupts the caller's facts and the replay

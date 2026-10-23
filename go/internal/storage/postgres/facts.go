@@ -220,7 +220,9 @@ func (s FactStore) UpsertFacts(ctx context.Context, envelopes []facts.Envelope) 
 	return upsertFacts(ctx, s.database, envelopes)
 }
 
-// LoadFacts satisfies the projector fact-store contract.
+// LoadFacts loads one claimed generation's facts, overlaid on its union base
+// for a delta (see ListFacts). The gate and replay loaders use it; the
+// projector uses LoadProjectionFacts, which also names the base.
 func (s FactStore) LoadFacts(
 	ctx context.Context,
 	work projector.ScopeGenerationWork,
@@ -228,27 +230,55 @@ func (s FactStore) LoadFacts(
 	return s.ListFacts(ctx, work.Scope.ScopeID, work.Generation.GenerationID)
 }
 
+// LoadProjectionFacts satisfies the projector fact-store contract. It loads
+// exactly what LoadFacts loads and also names the union base generation and
+// the union outcome from the same read, so the projector checks the fact
+// boundary against the base the overlay was built from, never a second
+// resolve that could race a supersede or a retention prune (#8779).
+func (s FactStore) LoadProjectionFacts(
+	ctx context.Context,
+	work projector.ScopeGenerationWork,
+) (projector.ProjectionFacts, error) {
+	return s.loadUnion(ctx, work.Scope.ScopeID, work.Generation.GenerationID)
+}
+
 // ListFacts loads fact envelopes for one scope generation.
 //
 // When the generation is a delta with a projected base full generation at
 // its baseline commit, the load returns the delta-base union (#7797): the
 // delta's facts overlaid on the base generation's facts, so a from-empty
-// projection of the delta writes the full repository tree. A delta whose
-// base is missing fails closed with projector.DeltaBaseMissingError and
-// loads nothing. The kind-filtered ListFactsByKind paths keep
-// single-generation behavior: reducer handlers are delta-aware by design.
+// projection of the delta writes the full repository tree. Base rows keep the
+// base generation id. A delta whose base is missing fails closed with
+// projector.DeltaBaseMissingError and loads nothing. The kind-filtered
+// ListFactsByKind paths keep single-generation behavior: reducer handlers are
+// delta-aware by design.
 func (s FactStore) ListFacts(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
+	loaded, err := s.loadUnion(ctx, scopeID, generationID)
+	if err != nil {
+		return nil, err
+	}
+	return loaded.Facts, nil
+}
+
+// loadUnion is the one read behind ListFacts and LoadProjectionFacts: the
+// generation's own rows, then, for a delta with a recorded baseline, the
+// union over the resolved base.
+func (s FactStore) loadUnion(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+) (projector.ProjectionFacts, error) {
 	if s.database == nil {
-		return nil, fmt.Errorf("fact store database is required")
+		return projector.ProjectionFacts{}, fmt.Errorf("fact store database is required")
 	}
 
 	loaded, err := s.listFactsGeneration(ctx, scopeID, generationID)
 	if err != nil {
-		return nil, err
+		return projector.ProjectionFacts{}, err
 	}
 	baseGenerationID, baselineSHA, wantUnion, err := s.resolveDeltaUnionBase(ctx, scopeID, generationID)
 	if err != nil {
@@ -261,12 +291,20 @@ func (s FactStore) ListFacts(
 		} else {
 			s.recordDeltaUnion(ctx, scopeID, generationID, projector.DeltaUnionResolveFailed, 0, len(loaded), 0)
 		}
-		return nil, err
+		return projector.ProjectionFacts{}, err
 	}
 	if !wantUnion {
-		return loaded, nil
+		return projector.ProjectionFacts{Facts: loaded}, nil
 	}
-	return s.listFactsUnion(ctx, scopeID, generationID, baseGenerationID, baselineSHA, loaded)
+	merged, outcome, err := s.listFactsUnion(ctx, scopeID, generationID, baseGenerationID, baselineSHA, loaded)
+	if err != nil {
+		return projector.ProjectionFacts{}, err
+	}
+	return projector.ProjectionFacts{
+		Facts:                 merged,
+		UnionBaseGenerationID: baseGenerationID,
+		UnionOutcome:          outcome,
+	}, nil
 }
 
 // backfill.ScanFactEnvelope lives in the backfill package as ScanFactEnvelope: the
