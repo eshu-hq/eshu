@@ -73,8 +73,8 @@ The forced full's cost is the full parse before store (468-523 s stored to
 active on repo B, against about 120 s for a delta). A cumulative delta adds
 only the parse of its touched set (at most 326 files, 5.6 percent, at 72 h) to
 the delta band. Bar: the largest cumulative delta under half the forced-full
-wall (about 261 s on repo B). PASS by estimate; the after-measurement below
-confirms it.
+wall (about 261 s on repo B). PASS by estimate. The after-measurement below
+is not run by this change; it confirms or refutes the estimate after deploy.
 
 Decision: Option B proceeds; the growth valve ships at 0.5 (the #7926 half
 rule) as a bound, as a constant, not a tuning knob.
