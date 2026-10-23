@@ -2,13 +2,15 @@
 """Verify the exact delta union source, hosted route, and Go event accounting."""
 
 import argparse
+import hashlib
 from pathlib import Path
 import re
 import sys
 
-from reducer_contention_events import verify_events
+from reducer_contention_events import canonical_keys, verify_events
 
 WORKFLOW = Path(".github/workflows/delta-union-scheduled.yml")
+WORKFLOW_SHA256 = "f710c539ff8b6d164eab98359bc7bd28f203dbd41318f392fe33c59ae0057c76"
 SOURCE = Path("go/cmd/projector/delta_union_live_test.go")
 PACKAGE = "github.com/eshu-hq/eshu/go/cmd/projector"
 TESTS = (
@@ -45,6 +47,14 @@ def verify(root: Path, workflow: str | None = None) -> None:
         raise ValueError("delta union owner job missing")
     if re.search(r"(?m)^  [a-z][\w-]*:", jobs[2:]):
         raise ValueError("extra or inactive owner job")
+    root_keys = canonical_keys(prefix + "\njobs:\n", 0,
+                               frozenset({"name", "on", "concurrency", "permissions", "jobs"}))
+    if set(root_keys) != {"name", "on", "concurrency", "permissions", "jobs"}:
+        raise ValueError("noncanonical delta union workflow root")
+    job_keys = canonical_keys(jobs, 4,
+                              frozenset({"name", "runs-on", "timeout-minutes", "services", "steps"}))
+    if set(job_keys) != {"name", "runs-on", "timeout-minutes", "services", "steps"}:
+        raise ValueError("noncanonical delta union owner job")
     if re.search(r"(?m)^\s+(?:continue-on-error|if):", jobs.split("    steps:\n", 1)[0]):
         raise ValueError("disabled owner job")
     if re.search(r"(?m)^        (?:continue-on-error|if):", jobs):
@@ -98,6 +108,24 @@ def verify(root: Path, workflow: str | None = None) -> None:
         if index + 1 < len(headers) else jobs[match.end():]
         for index, match in enumerate(headers)
     }
+    step_keys = {
+        "Checkout repository": {"uses", "with"},
+        "Verify delta union contract": {"run"},
+        "Set up Go": {"uses", "with"},
+        "Pre-warm Go modules": {"run"},
+        "Record backend and checkout metadata": {"run"},
+        "Run delta union proofs": {"working-directory", "env", "run"},
+        "Upload delta union events": {"if", "uses", "with"},
+    }
+    for name, allowed in step_keys.items():
+        keys = canonical_keys(sections[name], 8, frozenset(allowed))
+        if set(keys) != allowed:
+            raise ValueError(f"noncanonical delta union step properties: {name}")
+    checkout = sections["Checkout repository"]
+    if (checkout.count("        with:\n") != 1
+            or checkout.split("        with:\n", 1)[1]
+            != "          persist-credentials: false\n"):
+        raise ValueError("checkout must use the workflow revision without overrides")
     # These blocks are the active proof route. Require their complete command
     # body so an early successful exit cannot leave expected tokens inert.
     expected_runs = {
@@ -136,6 +164,10 @@ def verify(root: Path, workflow: str | None = None) -> None:
         section = sections[name]
         if section.count("        run: |\n") != 1 or section.split("        run: |\n", 1)[1] != expected:
             raise ValueError(f"non-fail-closed delta union step command body: {name}")
+    # Reviewed workflow bytes close YAML surfaces outside the narrow semantic
+    # checks above, including service options and nested action inputs.
+    if hashlib.sha256(workflow.encode("utf-8")).hexdigest() != WORKFLOW_SHA256:
+        raise ValueError("delta union reviewed workflow bytes changed")
 
 
 def main() -> int:

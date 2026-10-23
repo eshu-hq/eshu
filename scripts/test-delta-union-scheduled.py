@@ -33,6 +33,18 @@ class DeltaUnionScheduledTest(unittest.TestCase):
         changes = {
             "missing_root": workflow.replace("  schedule:\n", "  inactive_schedule:\n", 1),
             "disabled_job": workflow.replace("    runs-on: ubuntu-latest", "    if: false\n    runs-on: ubuntu-latest", 1),
+            "root_shell_override": workflow.replace(
+                "\npermissions:\n", "\ndefaults:\n  run:\n    shell: echo {0}\n\npermissions:\n", 1),
+            "job_shell_override": workflow.replace(
+                "    services:\n", "    defaults:\n      run:\n        shell: echo {0}\n    services:\n", 1),
+            "step_shell_override": workflow.replace(
+                "        working-directory: go\n", "        shell: echo {0}\n        working-directory: go\n", 1),
+            "checkout_ref_override": workflow.replace(
+                "          persist-credentials: false\n",
+                "          persist-credentials: false\n          ref: main\n", 1),
+            "unknown_service_environment": workflow.replace(
+                "          NEO4J_AUTH: none\n",
+                "          NEO4J_AUTH: none\n          NEO4J_dbms_security_auth__enabled: false\n", 1),
             "disabled_step": workflow.replace("      - name: Run delta union proofs", "      - name: Run delta union proofs\n        if: false", 1),
             "suppressed_failure": workflow.replace("      - name: Run delta union proofs", "      - name: Run delta union proofs\n        continue-on-error: true", 1),
             "early_exit": workflow.replace("          set -euo pipefail\n", "          set -euo pipefail\n          exit 0\n", 1),
@@ -50,9 +62,19 @@ class DeltaUnionScheduledTest(unittest.TestCase):
             "missing_selector": workflow.replace("TestDeltaUnionBaseMissingRefusesWithoutPartialLive", "TestUnrelatedProof", 1),
             "missing_event_verifier": workflow.replace("--events \"${RUNNER_TEMP}/delta-union.jsonl\"", "--events wrong.jsonl", 1),
         }
+        expected_errors = {
+            "root_shell_override": "non-fail-closed workflow key",
+            "job_shell_override": "non-fail-closed workflow key",
+            "step_shell_override": "non-fail-closed workflow key",
+            "early_exit": "non-fail-closed delta union step command body",
+            "contract_early_exit": "non-fail-closed delta union step command body",
+            "metadata_early_exit": "non-fail-closed delta union step command body",
+            "checkout_ref_override": "checkout must use the workflow revision",
+            "unknown_service_environment": "reviewed workflow bytes changed",
+        }
         for name, changed in changes.items():
             with self.subTest(name=name):
-                with self.assertRaises(ValueError):
+                with self.assertRaisesRegex(ValueError, expected_errors.get(name, ".")):
                     self.guard.verify(ROOT, changed)
 
     def test_ledger_demotion_and_false_overlay_enrollment(self) -> None:
