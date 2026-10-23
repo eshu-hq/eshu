@@ -25,7 +25,7 @@ type divergenceClass struct {
 	name     string
 	evidence string
 	// divergence is true when a direct tools/call can succeed where call_tool
-	// refuses (classes A, B, D, E, F, G). Class C is refused by the handler
+	// refuses (classes A, B, D, E, F). Class C is refused by the handler
 	// too, or 404s.
 	divergence bool
 	match      func(tool string, schema any, args map[string]any, errs []router.FieldError) bool
@@ -80,14 +80,6 @@ var validatorDivergenceClasses = []divergenceClass{
 		evidence: "handlerOptionalRequired rows: dispatch defaults the field or the handler serves without it",
 		match: func(tool string, _ any, _ map[string]any, errs []router.FieldError) bool {
 			return allKeyword(errs, "required") && requiredRowMatches(handlerOptionalRequired, tool, errs)
-		},
-	},
-	{
-		id: "G", name: "empty path segment completes directly", divergence: true,
-		evidence: "emptyPathRedirect rows: the mux answers 307 and dispatch reports it as a completed call with no data; " +
-			"issue #8772 removes this class",
-		match: func(tool string, _ any, _ map[string]any, errs []router.FieldError) bool {
-			return allKeyword(errs, "required") && requiredRowMatches(emptyPathRedirect, tool, errs)
 		},
 	},
 	{
@@ -268,11 +260,6 @@ func TestDivergenceClassWitnesses(t *testing.T) {
 		{"F", "analyze_code_relationships", map[string]any{"target": "handler"}},
 		{"F", "build_evidence_citation_packet", map[string]any{}},
 		{"F", "list_package_registry_packages", map[string]any{"ecosystem": "npm"}},
-		{"G", "get_entity_context", map[string]any{}},
-		{"G", "get_incident_context", map[string]any{}},
-		{"G", "get_repository_coverage", map[string]any{}},
-		{"G", "get_workload_context", map[string]any{}},
-		{"G", "get_workload_story", map[string]any{}},
 		{"D", "list_secrets_iam_posture_gaps", map[string]any{"scope_id": "scope-1", "state": "active", "limit": 25}},
 		{"E", "list_indexed_repositories", map[string]any{"limit": "25"}},
 	}
@@ -332,15 +319,21 @@ func TestDifferentialRefusesUnlistedRejections(t *testing.T) {
 	}
 }
 
-// TestDivergenceClassGDirectCallCompletes is class G's live evidence: each
-// row's direct dispatch with the path field missing hits the mux's 307, runs
-// no handler, and comes back as a completed, non-error result. When #8772
-// makes dispatch treat 3xx as an error, this test fails and class G should be
-// folded into class C.
-func TestDivergenceClassGDirectCallCompletes(t *testing.T) {
+// TestDirectCallRefusesEmptyPathSegmentRows holds the class C rows that name a
+// path id ("direct dispatch:" evidence) to what they say: resolveRoute refuses
+// the empty-argument call with "<field> is required" before any request is
+// built, so a direct tools/call is an error and no handler runs (#8772). The
+// router refuses the same call with a typed field error, so these are not a
+// divergence.
+func TestDirectCallRefusesEmptyPathSegmentRows(t *testing.T) {
 	t.Parallel()
 
-	for _, row := range emptyPathRedirect {
+	checked := 0
+	for _, row := range handlerRejectedRequired {
+		if !strings.HasPrefix(row.evidence, "direct dispatch:") {
+			continue
+		}
+		checked++
 		ran := false
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
@@ -348,12 +341,18 @@ func TestDivergenceClassGDirectCallCompletes(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 		result, err := dispatchTool(context.Background(), mux, row.tool, map[string]any{}, "", slog.New(slog.NewTextHandler(io.Discard, nil)))
-		if err != nil || result == nil || result.IsError {
-			t.Errorf("%s: direct dispatch = (%+v, %v), want a completed non-error result while #8772 is open", row.tool, result, err)
+		if err == nil || result != nil {
+			t.Errorf("%s: direct dispatch = (%+v, %v), want an error and no result", row.tool, result, err)
 			continue
 		}
-		if ran {
-			t.Errorf("%s: a handler ran; the empty path segment should be redirected before routing", row.tool)
+		if want := row.missing[0] + " is required"; !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: error = %q, want it to contain %q", row.tool, err, want)
 		}
+		if ran {
+			t.Errorf("%s: a handler ran for an empty path id", row.tool)
+		}
+	}
+	if checked != 5 {
+		t.Errorf("checked %d direct-dispatch rows, want the 5 path-id tools", checked)
 	}
 }

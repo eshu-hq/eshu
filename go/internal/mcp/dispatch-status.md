@@ -46,11 +46,12 @@ benchmark caught. Response budget, timeout, and envelope handling are
 unchanged. `TestDirectCallWithPathIDStillSucceeds` pins that a call with its id
 set still succeeds.
 
-Observability Evidence: a handler status of 3xx, with an empty, plain, or envelope body, logs `mcp tool dispatch got a
+Observability Evidence: a handler status of 3xx logs `mcp tool dispatch got a
 redirect, not a handler answer` at warn level with the fields `tool`, `status`,
-`path`, and `location`; grep for that message to find the route builder that
-produced it. The caller sees `isError: true` with the text `HTTP 307: ...`. A
-call that leaves a required path id empty is refused before dispatch: the caller
-sees `isError: true` with text such as `workload_id is required`, and no log
-line or metric is emitted for it, the same as the other `<field> is required`
-route errors. No new metric or span.
+`path`, and `location`, for an empty, plain, or envelope-shaped body; grep for
+that message to find the route builder that produced it. The caller sees
+`isError: true`, with the text `HTTP 307: ...` for a plain body or the envelope
+summary for an envelope-shaped body. A call that leaves a required path id empty
+is refused before dispatch: the caller sees `isError: true` with text such as
+`workload_id is required`, and no log line or metric is emitted for it, the same
+as the other `<field> is required` route errors. No new metric or span.
