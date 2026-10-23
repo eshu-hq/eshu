@@ -30,6 +30,7 @@ func syncExistingRepository(
 	logger *slog.Logger,
 	event gitSyncLogEvent,
 	baseline gitDeltaBaseline,
+	reconcile reconcileDecision,
 	forceReconcile bool, holdIfHead string,
 ) (bool, GitSyncDelta, string, error) {
 	if forceReconcile {
@@ -40,7 +41,7 @@ func syncExistingRepository(
 		// forced sync actually produced a generation.
 		return updateRepository(ctx, config, repoPath, token, logger, event, scope.DeltaSyncBaseline{}, nil, holdIfHead)
 	}
-	syncBaseline, err := baseline.resolveScopeBaseline(ctx, config, repoPath)
+	syncBaseline, err := baseline.resolveScopeBaseline(ctx, config, repoPath, reconcile)
 	if err != nil {
 		logBaselineLookupFailed(ctx, logger, repoPath, err)
 		// Classify the fallback here as a lookup error so a Postgres outage is
@@ -51,7 +52,9 @@ func syncExistingRepository(
 		return updateRepository(ctx, config, repoPath, token, logger, event, scope.DeltaSyncBaseline{}, nil, "")
 	}
 	onFallback := func(reason string) { baseline.recordFallback(ctx, reason) }
-	return updateRepository(ctx, config, repoPath, token, logger, event, syncBaseline, onFallback, "")
+	updated, delta, sourceSHA, err := updateRepository(ctx, config, repoPath, token, logger, event, syncBaseline, onFallback, "")
+	baseline.recordTouchedRatio(ctx, delta)
+	return updated, delta, sourceSHA, err
 }
 
 // DeltaBaselineResolver resolves the durable incremental-sync baseline for a
@@ -190,6 +193,9 @@ type reconcileDecision struct {
 	Reason  string
 	ScopeID string
 	State   scope.FullReconcileState
+	// StateRead reports that State was read successfully this cycle, so the
+	// delta-sync baseline can reuse it (#8780).
+	StateRead bool
 	// Writers are the uncovered projection writers behind a graph_dirty
 	// decision (#7389), carried to the git_delta_baseline_graph_dirty log.
 	Writers []scope.UncoveredProjectionWriter
@@ -234,7 +240,7 @@ func (b gitDeltaBaseline) decideForScope(ctx context.Context, scopeID string, lo
 		return reconcileDecision{ScopeID: scopeID}
 	}
 	now := b.now()
-	decision := reconcileDecision{ScopeID: scopeID, State: state, Reason: reconcileReasonFresh}
+	decision := reconcileDecision{ScopeID: scopeID, State: state, StateRead: true, Reason: reconcileReasonFresh}
 	// A pending reindex watermark is decided first (ruling a9-125, review r2
 	// N1): its forced full must carry the reindex reason so the store stores
 	// the re-parse; under interval_elapsed or graph_dirty it would only
@@ -275,16 +281,24 @@ func (b gitDeltaBaseline) recordSuppressedDecision(ctx context.Context, reason s
 	}
 }
 
-// resolveScopeBaseline returns the delta-sync baseline for the managed
+// resolveScopeBaseline returns the delta-sync baseline (#8780) for the managed
 // repository checkout at repoPath, or a zero baseline when no resolver is
-// configured or the scope identity cannot be derived. A non-nil resolver error
-// is returned so the caller can record it and fall back to a full snapshot
-// rather than trusting a stale baseline.
+// configured or the scope identity cannot be derived. When this cycle's
+// reconcile decision already read the scope's FullReconcileState, the
+// baseline comes from that read (syncBaselineFromState) and no statement
+// runs; otherwise, with the sweep off or the state read failed, it is one
+// DeltaSyncBaseline read. A non-nil resolver error is returned so the caller
+// can record it and fall back to a full snapshot rather than trusting a stale
+// baseline.
 func (b gitDeltaBaseline) resolveScopeBaseline(
 	ctx context.Context,
 	config RepoSyncConfig,
 	repoPath string,
+	reconcile reconcileDecision,
 ) (scope.DeltaSyncBaseline, error) {
+	if reconcile.StateRead {
+		return syncBaselineFromState(reconcile.State), nil
+	}
 	if b.Resolver == nil {
 		return scope.DeltaSyncBaseline{}, nil
 	}

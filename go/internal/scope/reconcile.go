@@ -22,6 +22,10 @@ type FullReconcileState struct {
 	// generation, or the time its last #7978 re-projection was acknowledged
 	// when that is later. It is zero when HasProjectedFull is false.
 	LastProjectedFullAt time.Time
+	// LastProjectedFullCommitSHA is the source commit of that newest
+	// activated full generation, the union base a delta sync diffs from when
+	// it reuses this read (#8780). Empty when HasProjectedFull is false.
+	LastProjectedFullCommitSHA string
 	// LastStoredFullAt is the ingest time of the newest activated full
 	// generation itself, without any re-projection Ack. A reindex watermark is
 	// satisfied only by it (ruling a9-125, review r2 N1): a re-projection does

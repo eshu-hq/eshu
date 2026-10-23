@@ -155,6 +155,7 @@ func (s NativeRepositorySnapshotter) SnapshotRepository(
 		DeltaRelativePaths:       deltaRelativePaths,
 		DeletedRelativePaths:     deltaDeletedRelativePaths,
 		DeltaBaselineCommitSHA:   repository.DeltaBaselineCommitSHA,
+		DeltaUnionBaseCommitSHA:  repository.DeltaUnionBaseCommitSHA,
 		Reconcile:                repository.Reconcile,
 		ReconcileReason:          repository.ReconcileReason,
 		DefaultBranchChanged:     repository.DefaultBranchChanged,

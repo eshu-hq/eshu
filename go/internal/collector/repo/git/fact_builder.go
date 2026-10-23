@@ -92,7 +92,7 @@ func buildStreamingGenerationWithContext(
 		generation.PreparseIdentity = snapshot.PreparseIdentity
 	}
 	if snapshot.Delta {
-		generation.DeltaBaselineCommitSHA = snapshot.DeltaBaselineCommitSHA
+		generation.DeltaBaselineCommitSHA, generation.DeltaUnionBaseCommitSHA = snapshot.DeltaBaselineCommitSHA, snapshot.DeltaUnionBaseCommitSHA
 	}
 	contentFileCount := len(snapshot.ContentFiles)
 	if len(snapshot.ContentFileMetas) > 0 {

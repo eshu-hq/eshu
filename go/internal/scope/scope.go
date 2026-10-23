@@ -382,6 +382,9 @@ func (g ScopeGeneration) Validate() error {
 	if err := validateIdentifier("trigger_kind", string(g.TriggerKind)); err != nil {
 		return err
 	}
+	if g.DeltaUnionBaseCommitSHA != "" && !g.IsDelta {
+		return fmt.Errorf("delta_union_base_commit_sha is set on non-delta generation %q", g.GenerationID)
+	}
 	return nil
 }
 

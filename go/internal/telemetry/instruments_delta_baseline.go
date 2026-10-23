@@ -25,6 +25,29 @@ func registerProjectorDeltaBaselineFence(meter metric.Meter, inst *Instruments) 
 	return nil
 }
 
+// deltaTouchedRatioBuckets bounds the cumulative-delta touched ratio: the
+// #8780 shim measured p95 0.126 on the busiest repositories, and the growth
+// valve fires at 0.5. A ratio above 1 means more touched paths than base
+// files (a mostly added tree).
+var deltaTouchedRatioBuckets = []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2}
+
+// registerCollectorDeltaTouchedRatio registers the #8780 cumulative-delta
+// growth histogram on inst. The outcome label is the closed set delta (the
+// cumulative delta was used) or delta_exceeds_base_half (the growth valve took
+// a full snapshot instead).
+func registerCollectorDeltaTouchedRatio(meter metric.Meter, inst *Instruments) error {
+	var err error
+	if inst.DeltaTouchedRatio, err = meter.Float64Histogram(
+		"eshu_dp_collector_delta_touched_ratio",
+		metric.WithDescription("Cumulative git delta touched paths over the union base's tracked files per delta sync (#8780), "+
+			"by outcome: delta (used) or delta_exceeds_base_half (the growth valve took a full snapshot)"),
+		metric.WithExplicitBucketBoundaries(deltaTouchedRatioBuckets...),
+	); err != nil {
+		return fmt.Errorf("register DeltaTouchedRatio histogram: %w", err)
+	}
+	return nil
+}
+
 // AttrPhase returns a phase attribute naming the closed fence phase that
 // recorded a delta-baseline decision (preflight or ack).
 func AttrPhase(v string) attribute.KeyValue {

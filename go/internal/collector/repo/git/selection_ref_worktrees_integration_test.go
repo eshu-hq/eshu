@@ -192,6 +192,7 @@ func (r staticBaselineResolver) FullReconcileState(_ context.Context, _ string) 
 		HasProjectedFull: true, LastProjectedFullAt: now,
 		HasLatestFull: true, LatestFullAt: now,
 		LatestFullStatus: scope.GenerationStatusActive, LatestFullProjected: true,
+		ActiveCommitSHA: r.sha, LastProjectedFullCommitSHA: r.sha,
 	}, nil
 }
 

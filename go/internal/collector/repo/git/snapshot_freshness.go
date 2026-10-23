@@ -95,9 +95,11 @@ func snapshotFreshnessHintForVersion(snapshot RepositorySnapshot, contentVersion
 	writeFreshnessHashf(h, "file_count=%d\n", snapshot.FileCount)
 	writeFreshnessHashf(h, "delta=%t\n", snapshot.Delta)
 	if snapshot.Delta {
-		// A delta is a diff from its baseline (#7319); the same head and paths
-		// from another baseline is a different observation (ruling a9-120).
+		// A delta is a diff from its baseline (#7319) and, since #8780, from
+		// its union base; the same head and paths from another commit on
+		// either side is a different observation (ruling a9-120).
 		writeFreshnessHashf(h, "delta_baseline=%s\n", snapshot.DeltaBaselineCommitSHA)
+		writeFreshnessHashf(h, "delta_union_base=%s\n", snapshot.DeltaUnionBaseCommitSHA)
 	}
 	for _, relativePath := range snapshot.DeltaRelativePaths {
 		writeFreshnessHashf(h, "delta_path:%s\n", relativePath)

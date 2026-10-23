@@ -321,8 +321,8 @@ func TestDeltaBaselineMarkStatementShape(t *testing.T) {
 // cannot drift apart.
 func TestDeltaBaselineFenceSharesActivePredicate(t *testing.T) {
 	t.Parallel()
-	if !strings.Contains(lastProjectedCommitSHAQuery, "AND "+activeGenerationPredicate) {
-		t.Fatalf("baseline read does not use the shared predicate:\n%s", lastProjectedCommitSHAQuery)
+	if !strings.Contains(deltaSyncBaselineQuery, "AND "+activeGenerationPredicate) {
+		t.Fatalf("baseline read does not use the shared predicate:\n%s", deltaSyncBaselineQuery)
 	}
 	if !strings.Contains(deltaBaselineFenceQuery, "AND "+activeGenerationPredicate) {
 		t.Fatalf("fence read does not use the shared predicate:\n%s", deltaBaselineFenceQuery)

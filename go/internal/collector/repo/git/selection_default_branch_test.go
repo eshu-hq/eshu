@@ -45,7 +45,11 @@ func newDefaultBranchFixture(t *testing.T) defaultBranchFixture {
 	}
 	runGit(t, root, "init", "-q", "-b", "old", f.src)
 	writeFixtureFile(t, filepath.Join(f.src, "app.js"), "old\n")
-	runGit(t, f.src, "add", "app.js")
+	// Untouched fillers keep a one-file delta under the #8780 growth valve.
+	for _, name := range []string{"lib.js", "util.js", "README.md"} {
+		writeFixtureFile(t, filepath.Join(f.src, name), name+"\n")
+	}
+	runGit(t, f.src, "add", "-A")
 	runGit(t, f.src, "commit", "-qm", "old")
 	f.oldTip = runGit(t, f.src, "rev-parse", "HEAD")
 	runGit(t, root, "clone", "-q", "--bare", f.src, f.remote)

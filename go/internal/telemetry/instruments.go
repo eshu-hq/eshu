@@ -506,6 +506,11 @@ type Instruments struct {
 	// in the paired git_sync_failure log line.
 	GitRepoSyncFailures    metric.Int64Counter
 	DeltaBaselineFallbacks metric.Int64Counter
+	// DeltaTouchedRatio records, per cumulative git delta sync (#8780), the
+	// touched paths over the union base's tracked files. Labels: outcome
+	// (bounded: delta, delta_exceeds_base_half). Repository identity and
+	// commit SHAs never become labels.
+	DeltaTouchedRatio metric.Float64Histogram
 	// GitCommandDeadlineExceeded counts git commands the sync loop killed
 	// because they ran past their per-command deadline (#8052). Labels:
 	// operation (bounded: clone, fetch, ls_remote, resolve). One increment per
@@ -5898,6 +5903,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerProjectorDeltaBaselineFence(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCollectorDeltaTouchedRatio(meter, inst); err != nil {
 		return nil, err
 	}
 

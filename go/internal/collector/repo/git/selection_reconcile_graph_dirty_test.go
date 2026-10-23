@@ -101,6 +101,7 @@ func (d *dirtyScopes) FullReconcileState(context.Context, string) (scope.FullRec
 	return scope.FullReconcileState{
 		HasProjectedFull: true, LastProjectedFullAt: at, LastStoredFullAt: at, HasLatestFull: true, LatestFullAt: at,
 		LatestFullStatus: scope.GenerationStatusActive, LatestFullProjected: true,
+		ActiveCommitSHA: "samesha", LastProjectedFullCommitSHA: "samesha",
 	}, nil
 }
 

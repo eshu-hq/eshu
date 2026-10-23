@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -210,12 +211,10 @@ func TestUpdateRepositoryCumulativeDeltaValveTakesFull(t *testing.T) {
 	}
 }
 
-// TestSyncGitRepositoriesDiffsChainedDeltaFromResolver drives the chained
-// baseline end to end from the resolver through the sync loop and the
-// selection builder into the snapshot's union base.
-func TestSyncGitRepositoriesDiffsChainedDeltaFromResolver(t *testing.T) {
-	f := newCumulativeFixture(t)
-	reposDir := t.TempDir()
+// moveIntoReposDir moves the fixture checkout to the managed path of
+// github/org/repo and returns that path.
+func (f cumulativeFixture) moveIntoReposDir(t *testing.T, reposDir string) string {
+	t.Helper()
 	repoPath := filepath.Join(reposDir, "github", "org", "repo")
 	if err := os.MkdirAll(filepath.Dir(repoPath), 0o755); err != nil {
 		t.Fatalf("create repos dir: %v", err)
@@ -223,6 +222,48 @@ func TestSyncGitRepositoriesDiffsChainedDeltaFromResolver(t *testing.T) {
 	if err := os.Rename(f.checkout, repoPath); err != nil {
 		t.Fatalf("move checkout: %v", err)
 	}
+	return repoPath
+}
+
+// TestSweepPathReusesReconcileStateForDeltaBaseline proves the ruling's
+// statement budget (#8780): with the sweep on, the reconcile decision's
+// FullReconcileState read carries the active and union-base commits, so the
+// sync diffs the chained delta without a DeltaSyncBaseline statement.
+func TestSweepPathReusesReconcileStateForDeltaBaseline(t *testing.T) {
+	f := newCumulativeFixture(t)
+	reposDir := t.TempDir()
+	repoPath := f.moveIntoReposDir(t, reposDir)
+	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	resolver := &stubBaselineResolver{state: scope.FullReconcileState{
+		HasProjectedFull: true, LastProjectedFullAt: now.Add(-time.Hour), LastStoredFullAt: now.Add(-time.Hour),
+		LastProjectedFullCommitSHA: f.full, HasLatestFull: true, LatestFullAt: now.Add(-time.Hour),
+		LatestFullStatus: scope.GenerationStatusSuperseded, LatestFullProjected: true,
+		ActiveCommitSHA: f.active, ActiveIsDelta: true,
+	}}
+	config := reconcileTestConfig(reposDir)
+	config.CloneDepth = 50
+	synced, err := syncGitRepositoriesWithLogger(context.Background(), config, []string{"github/org/repo"}, discardLogger(),
+		gitDeltaBaseline{Resolver: resolver, Reconcile: reconcilePolicyFromConfig(config), Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatalf("syncGitRepositoriesWithLogger() error = %v", err)
+	}
+	delta := synced.DeltaByRepoPath[repoPath]
+	if delta.UnionBaseCommitSHA != f.full || delta.BaselineCommitSHA != f.active || len(delta.DeletedRelativePaths) != 1 {
+		t.Fatalf("delta = %+v, want the chained delta from union base %q with fence %q", delta, f.full, f.active)
+	}
+	if len(resolver.scopeIDs) != 0 || len(resolver.fullScopeIDs) != 1 {
+		t.Fatalf("baseline reads = %d, state reads = %d; want 0 and 1 (the sweep path reuses its state read)",
+			len(resolver.scopeIDs), len(resolver.fullScopeIDs))
+	}
+}
+
+// TestSyncGitRepositoriesDiffsChainedDeltaFromResolver drives the chained
+// baseline end to end from the resolver through the sync loop and the
+// selection builder into the snapshot's union base.
+func TestSyncGitRepositoriesDiffsChainedDeltaFromResolver(t *testing.T) {
+	f := newCumulativeFixture(t)
+	reposDir := t.TempDir()
+	repoPath := f.moveIntoReposDir(t, reposDir)
 	baseline := f.chainBaseline()
 	resolver := &stubBaselineResolver{baseline: &baseline}
 	config := RepoSyncConfig{SourceMode: "explicit", ReposDir: reposDir, GitAuthMethod: "none", CloneDepth: 50}
@@ -241,5 +282,8 @@ func TestSyncGitRepositoriesDiffsChainedDeltaFromResolver(t *testing.T) {
 	selected := buildSelectedRepositories(config, synced.SelectedRepoPaths, synced.DeltaByRepoPath, nil, nil, nil, nil, nil)
 	if len(selected) != 1 || selected[0].DeltaUnionBaseCommitSHA != f.full || selected[0].DeltaBaselineCommitSHA != f.active {
 		t.Fatalf("selected = %+v, want one delta selection with union base %q and baseline %q", selected, f.full, f.active)
+	}
+	if len(resolver.scopeIDs) != 1 {
+		t.Fatalf("baseline reads = %d, want 1 (sweep off: one DeltaSyncBaseline statement)", len(resolver.scopeIDs))
 	}
 }

@@ -24,7 +24,7 @@ case "$*" in
 		;;
 	*"fetch --progress"*)
 		;;
-	*"rev-parse HEAD"*)
+`+fakeGitLsTreeArm+`	*"rev-parse HEAD"*)
 		printf "oldsha\n"
 		;;
 	*"rev-parse refs/remotes/origin/main"*)

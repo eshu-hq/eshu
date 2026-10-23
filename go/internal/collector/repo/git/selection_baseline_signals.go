@@ -78,6 +78,24 @@ func (b gitDeltaBaseline) recordFallback(ctx context.Context, reason string) {
 	))
 }
 
+// recordTouchedRatio records the #8780 cumulative delta's touched/base-file
+// ratio on eshu_dp_collector_delta_touched_ratio, labeled delta when the
+// delta was used and delta_exceeds_base_half when the growth valve took a
+// full instead. A sync that ran no cumulative diff records nothing.
+// Best-effort: a nil Instruments is a no-op.
+func (b gitDeltaBaseline) recordTouchedRatio(ctx context.Context, delta GitSyncDelta) {
+	if delta.BaseTouchedRatio <= 0 || b.Instruments == nil || b.Instruments.DeltaTouchedRatio == nil {
+		return
+	}
+	outcome := deltaTouchedRatioOutcomeDelta
+	if delta.IsEmpty() {
+		outcome = deltaFallbackDeltaExceedsBaseHalf
+	}
+	b.Instruments.DeltaTouchedRatio.Record(ctx, delta.BaseTouchedRatio, metric.WithAttributes(
+		telemetry.AttrOutcome(outcome),
+	))
+}
+
 // recordReconciliation emits the bounded reconciliation counter, labeled by the
 // decision reason, and the git_reconcile_forced log so operators can see how
 // often the periodic sweep forces a full re-observation, why, and for which

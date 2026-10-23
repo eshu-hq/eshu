@@ -83,6 +83,9 @@ func (w *reconcileWorld) FullReconcileState(_ context.Context, _ string) (scope.
 			state.LastStoredFullAt = generation.ingestedAt
 		}
 	}
+	baseline, _ := w.DeltaSyncBaseline(context.Background(), "")
+	state.ActiveCommitSHA, state.ActiveIsDelta = baseline.ActiveCommitSHA, baseline.ActiveIsDelta
+	state.LastProjectedFullCommitSHA = baseline.NewestActivatedFullCommitSHA
 	return state, nil
 }
 

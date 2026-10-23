@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -39,72 +40,68 @@ func TestUpsertScopeGenerationQueryPersistsSourceCommitSHA(t *testing.T) {
 	}
 }
 
-func TestLastProjectedCommitSHAReturnsLatestProjectedSHA(t *testing.T) {
+func TestDeltaSyncBaselineReadsActiveAndNewestFull(t *testing.T) {
 	t.Parallel()
 
-	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{"c0ffee"}}}}}
+	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{"c0ffee", true, "f00d"}}}}}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
-	sha, err := store.LastProjectedCommitSHA(context.Background(), "git-repository-scope:acme/app")
+	got, err := store.DeltaSyncBaseline(context.Background(), "git-repository-scope:acme/app")
 	if err != nil {
-		t.Fatalf("LastProjectedCommitSHA() error = %v", err)
+		t.Fatalf("DeltaSyncBaseline() error = %v", err)
 	}
-	if sha != "c0ffee" {
-		t.Fatalf("sha = %q, want %q", sha, "c0ffee")
+	want := scope.DeltaSyncBaseline{ActiveCommitSHA: "c0ffee", ActiveIsDelta: true, NewestActivatedFullCommitSHA: "f00d"}
+	if got != want {
+		t.Fatalf("DeltaSyncBaseline() = %+v, want %+v", got, want)
 	}
-
 	if len(queryer.queries) != 1 {
-		t.Fatalf("queries = %d, want 1", len(queryer.queries))
+		t.Fatalf("queries = %d, want 1 (one statement, one snapshot)", len(queryer.queries))
 	}
 	q := queryer.queries[0]
+	// The fence commit is the active generation only (#7317): the same
+	// predicate the #7319 fence reads, never a superseded, pending, or failed
+	// row. The union base is the newest activated full (#8780), the same rule
+	// as fullReconcileStateQuery's projected_full and retention's delta_base.
 	for _, want := range []string{
-		"source_commit_sha",
-		"scope_id = $1",
-		"status = 'active'",
-		"activated_at IS NOT NULL",
-		"LIMIT 1",
+		activeGenerationPredicate,
+		"projected.is_delta = false",
+		"projected.activated_at IS NOT NULL",
+		"projected.status IN ('active', 'completed', 'superseded')",
+		"ORDER BY projected.ingested_at DESC, projected.generation_id DESC",
 	} {
 		if !strings.Contains(q, want) {
-			t.Fatalf("lastProjectedCommitSHAQuery missing %q:\n%s", want, q)
-		}
-	}
-	// The baseline is the active generation only (#7317). A superseded
-	// generation may never have activated, and a pending or failed one never
-	// projected, so none of them may become the delta baseline.
-	for _, forbidden := range []string{"'superseded'", "'pending'", "'failed'", "'completed'"} {
-		if strings.Contains(q, forbidden) {
-			t.Fatalf("lastProjectedCommitSHAQuery must read only the active generation, found %s:\n%s", forbidden, q)
+			t.Fatalf("deltaSyncBaselineQuery missing %q:\n%s", want, q)
 		}
 	}
 }
 
-func TestLastProjectedCommitSHAEmptyWhenNoProjectedGeneration(t *testing.T) {
+func TestDeltaSyncBaselineEmptyWhenNoGeneration(t *testing.T) {
 	t.Parallel()
 
-	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}}}
+	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{"", false, ""}}}}}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
-	sha, err := store.LastProjectedCommitSHA(context.Background(), "git-repository-scope:acme/app")
+	got, err := store.DeltaSyncBaseline(context.Background(), "git-repository-scope:acme/app")
 	if err != nil {
-		t.Fatalf("LastProjectedCommitSHA() error = %v", err)
+		t.Fatalf("DeltaSyncBaseline() error = %v", err)
 	}
-	if sha != "" {
-		t.Fatalf("sha = %q, want empty", sha)
+	if got != (scope.DeltaSyncBaseline{}) {
+		t.Fatalf("DeltaSyncBaseline() = %+v, want zero", got)
 	}
 }
 
-func TestLastProjectedCommitSHABlankScopeReturnsEmpty(t *testing.T) {
+func TestDeltaSyncBaselineBlankScopeReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
 	queryer := &fakeQueryer{}
 	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
-	sha, err := store.LastProjectedCommitSHA(context.Background(), "  ")
+	got, err := store.DeltaSyncBaseline(context.Background(), "  ")
 	if err != nil {
-		t.Fatalf("LastProjectedCommitSHA() error = %v", err)
+		t.Fatalf("DeltaSyncBaseline() error = %v", err)
 	}
-	if sha != "" {
-		t.Fatalf("sha = %q, want empty", sha)
+	if got != (scope.DeltaSyncBaseline{}) {
+		t.Fatalf("DeltaSyncBaseline() = %+v, want zero", got)
 	}
 	if len(queryer.queries) != 0 {
 		t.Fatalf("blank scope must not query, got %d queries", len(queryer.queries))
