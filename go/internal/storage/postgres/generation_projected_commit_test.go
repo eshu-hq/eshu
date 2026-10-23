@@ -61,7 +61,9 @@ func TestDeltaSyncBaselineReadsActiveAndNewestFull(t *testing.T) {
 	// The fence commit is the active generation only (#7317): the same
 	// predicate the #7319 fence reads, never a superseded, pending, or failed
 	// row. The union base is the newest activated full (#8780), the same rule
-	// as fullReconcileStateQuery's projected_full and retention's delta_base.
+	// as fullReconcileStateQuery's projected_full. Retention's delta_base has
+	// no status filter, so it agrees only under the lifecycle invariant the
+	// query's doc comment names; a mismatch fails closed to a forced full.
 	for _, want := range []string{
 		activeGenerationPredicate,
 		"projected.is_delta = false",

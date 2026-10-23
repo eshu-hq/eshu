@@ -62,9 +62,11 @@ keeps its meaning), and records F's commit as `delta_union_base_commit_sha`.
 The second deleted term matters: a file the active chain added that the head
 no longer has is in neither F nor `F..head`, and without it no retract would
 name it. A cumulative delta that touches at least half of F's tracked files
-takes a full instead (`delta_exceeds_base_half`). F is the row retention keeps
-for a delta-active scope (#7802), so the collector's base and retention's
-guarantee are the same row.
+takes a full instead (`delta_exceeds_base_half`). Retention keeps the same F
+for a delta-active scope (#7802), provided no activated full carries a status
+outside active, completed, or superseded. Retention's `delta_base` has no
+status filter and the collector's read has one, so if the two ever disagreed
+the union read would refuse base-missing and force a full.
 
 A legacy delta whose baseline is another delta's commit and that records no
 union base still resolves at that commit, finds no full, and refuses as

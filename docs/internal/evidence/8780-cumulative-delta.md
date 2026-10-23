@@ -13,7 +13,9 @@ repository) instead of the two-minute delta band.
 ## Design (ruling Option B)
 
 Every delta is cumulative from the scope's newest activated full generation
-F (the row retention keeps for a delta-active scope, #7802):
+F (retention keeps the same row for a delta-active scope, #7802, provided no
+activated full carries a status outside active, completed, or superseded; a
+mismatch fails closed to a forced full):
 
 - changed = added, modified, and renamed-to paths of `F..head`;
 - deleted = `D(F..head) ∪ D(active..head)`; the second term names a file the

@@ -31,9 +31,11 @@ import (
 //     scope_generations_active_scope_idx as a single-row lookup.
 //   - newest_full_commit_sha: the newest activated full generation's commit,
 //     the union base the delta's changed set is diffed from. It uses the
-//     projected_full rule of fullReconcileStateQuery, which is also the row
-//     generation retention's delta_base CTE keeps for a delta-active scope
-//     (#7802), so the base the collector picks is the base retention keeps.
+//     projected_full rule of fullReconcileStateQuery. Generation retention's
+//     delta_base CTE keeps the same row for a delta-active scope (#7802)
+//     provided no activated full carries a status outside
+//     (active,completed,superseded); a mismatch refuses fail-closed
+//     to a forced full.
 //     An ordered LIMIT 1 read on scope_generations_scope_latest_lookup_idx.
 const deltaSyncBaselineQuery = `
 SELECT COALESCE(active.source_commit_sha, ''),
