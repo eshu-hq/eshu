@@ -391,6 +391,15 @@ func TestLogKeys(t *testing.T) {
 		"quota.quota_kind",
 		"quota.limit",
 		"quota.scope_id",
+		"extension_status.origin",
+		"extension_status.state",
+		"extension_status.status_count",
+		"extension_status.fact_count",
+		"extension_status.warning_count",
+		"extension_status.source_latency_ms",
+		"extension_status.partial",
+		"extension_status.retry_after_seconds",
+		"extension_status.retry_after_requested_seconds",
 	}
 
 	got := LogKeys()

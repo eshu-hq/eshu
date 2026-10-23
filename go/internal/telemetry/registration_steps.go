@@ -382,3 +382,23 @@ func registerProducerGrant() {
 		contract.LogKeyProducerGrantFactKind,
 	)
 }
+
+// registerComponentExtensionStatus appends the component-extension result log
+// keys (#8908). It adds no metric dimension keys (collector_kind, state,
+// status_class, and failure_class are already registered) and no span names,
+// so it only extends logKeys, unconditionally at the end and independent of
+// every earlier step.
+func registerComponentExtensionStatus() {
+	logKeys = append(
+		logKeys,
+		contract.LogKeyExtensionStatusOrigin,
+		contract.LogKeyExtensionStatusState,
+		contract.LogKeyExtensionStatusCount,
+		contract.LogKeyExtensionStatusFactCount,
+		contract.LogKeyExtensionStatusWarningCount,
+		contract.LogKeyExtensionStatusSourceLatencyMS,
+		contract.LogKeyExtensionStatusPartial,
+		contract.LogKeyExtensionStatusRetryAfterSeconds,
+		contract.LogKeyExtensionStatusRetryAfterRequestedSeconds,
+	)
+}
