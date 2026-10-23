@@ -9,9 +9,8 @@ import (
 )
 
 // predefinedBuildArgs are the platform ARGs the builder supplies to every
-// build. Their value depends on the build host and --platform. A real build
-// with no --build-arg would use the declared default, but the parser cannot
-// know which platform the build targets, so it reports these as unresolved on
+// build. Their value depends on the build host and --platform. The parser
+// cannot know the target platform, so it reports these as unresolved on
 // purpose rather than guess.
 var predefinedBuildArgs = map[string]bool{
 	"TARGETPLATFORM": true, "TARGETOS": true, "TARGETARCH": true, "TARGETVARIANT": true,
@@ -20,10 +19,14 @@ var predefinedBuildArgs = map[string]bool{
 
 // maxExpandedLen bounds one expansion. A Dockerfile is untrusted repository
 // content, and ARG values that each repeat the previous one would otherwise
-// grow exponentially. A value past the bound is treated as not knowable.
+// grow exponentially or, when each default pads the previous value with
+// literal text, linearly per ARG line. An expansion that produces more than
+// this many bytes is not knowable: it is reported as unresolved, and an ARG
+// default that expands past it is never stored as a known value.
 const maxExpandedLen = 4096
 
-// maxReferenceLen bounds the reference text handed to expansion, and
+// maxReferenceLen bounds the reference text handed to expansion (a reference
+// over this many bytes is unresolved), and
 // maxBraceDepth bounds how deeply "${" may nest inside it. maxExpandedLen only
 // bounds the output, so without these a hostile line of nested "${A:-" openers
 // costs quadratic scan work before any output is produced.
@@ -71,12 +74,13 @@ func (r *baseRefResolver) declare(decl argDecl) {
 		return
 	}
 	expanded := r.expand(decl.value)
-	r.globals[decl.name] = globalArg{
-		value:      expanded.out,
-		known:      len(expanded.unresolved) == 0 && !expanded.truncated && !predefinedBuildArgs[decl.name],
-		rawDefault: decl.value,
-		hasDefault: true,
+	known := len(expanded.unresolved) == 0 && !expanded.truncated && !predefinedBuildArgs[decl.name]
+	global := globalArg{known: known, rawDefault: decl.value, hasDefault: true}
+	if known {
+		// An unknown value is never read, so only a known one is kept.
+		global.value = expanded.out
 	}
+	r.globals[decl.name] = global
 }
 
 // baseRef is the outcome of resolving one FROM image reference.
@@ -142,7 +146,8 @@ func noteStageArgDefaults(stage *Stage, decls []argDecl) {
 
 type expansion struct {
 	out string
-	// truncated is set when the expansion passed maxExpandedLen and stopped.
+	// truncated is set when the expansion produced more than maxExpandedLen
+	// bytes, whether it stopped early or the last write passed the cap.
 	truncated  bool
 	unresolved []string
 	referenced []string
@@ -218,6 +223,13 @@ func (r *baseRefResolver) expandWithin(s string) expansion {
 			continue
 		}
 		i += r.expandVariable(s[i:], &result, &out) - 1
+	}
+	// The check at the top of the loop never sees the last write, so a final
+	// append of a long value could leave out past the cap. Check the finished
+	// output too: an expansion that produces more than maxExpandedLen bytes is
+	// not knowable, however the bytes were split between literals and values.
+	if out.Len() > maxExpandedLen {
+		result.truncated = true
 	}
 	result.out = out.String()
 	return result

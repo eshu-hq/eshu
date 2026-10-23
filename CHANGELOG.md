@@ -101,8 +101,8 @@ recent shipped work grouped by feature area.
   now named after its expanded image. The container image base-ref helper now
   also skips a base whose tag still holds a placeholder. A resolved value is
   the Dockerfile's own default: a CI `--build-arg` can override it at build
-  time, and the parser cannot see that. A reference over 4096 bytes or nested
-  deeper than 64 `${` levels stays unresolved without being expanded.
+  time, and the parser cannot see that. A reference over 4096 bytes, nested deeper
+  than 64 `${` levels, or expanding to more than 4096 bytes stays unresolved.
 
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 

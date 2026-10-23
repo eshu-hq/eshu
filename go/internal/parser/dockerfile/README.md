@@ -63,8 +63,8 @@ Dockerfile rule for how `ARG` and `FROM` interact:
 - A reference stays unresolved when any variable has no value known at parse
   time: an ARG without a default, an undeclared variable used without an
   operator, an ARG whose default is itself unresolved, a predefined platform
-  ARG such as `TARGETARCH` (the build platform decides its value, so the
-  parser treats it as unresolved on purpose even when a default is declared),
+  ARG such as `TARGETARCH` (the parser cannot know the target platform, so it
+  reports these as unresolved on purpose, even when a default is declared),
   or an expression such as `${V%%.*}`, `${V:?msg}`, or `$(cmd)`. An ARG
   declared without a default is treated as a possible build argument, so `${V:-lts}` stays
   unresolved when `ARG V` is declared and resolves to `lts` only when `V` is
@@ -84,22 +84,36 @@ Dockerfile rule for how `ARG` and `FROM` interact:
   `Name`, so ports and env matched by stage name attribute to both. This
   already happened for `FROM node` written twice; ARG expansion widens it.
 - Expansion is bounded. A Dockerfile is untrusted repository content. A
-  reference over 4096 bytes or nested deeper than 64 `${` levels is rejected
-  in one linear pass before any expansion, and ARGs that each repeat the
-  previous one are cut off once the output passes 4096 bytes. Either case is
-  treated as not knowable, so the reference stays unresolved.
+  reference over 4096 bytes, or nested deeper than 64 `${` levels, is rejected
+  in one linear pass before any expansion. An expansion that produces more than
+  4096 bytes is unresolved, however the bytes are built up: ARGs that each
+  repeat the previous one, or that each pad the previous value with literal
+  text, both hit the cap. The cap is checked on the finished output, so an ARG
+  default that expands past it is never stored as a known value and later
+  `FROM` lines cannot read it. In every case the reference stays unresolved.
 
-No-Regression Evidence: #8810 review fix. The expansion bound adds one linear
-pass over each reference that contains `$`, so cost stays linear in the line.
-`go test ./internal/parser/dockerfile/ -run '^$' -bench BaseRefExpansion
--benchmem -count=3` on the same host, guard disabled then enabled: an ordinary
-`ARG` plus `FROM` Dockerfile took 5.0-12.2 us/op (3 iterations, noisy) before
-and 3.9-4.5 us/op (20 iterations) after, 33 allocs/op both times. A balanced
-60 KB line of nested `${A:-` blocks took 564-810 ms/op and 835 MB/op before
-and 0.42-0.45 ms/op and 0.54 MB/op after. 200 such lines in one Dockerfile
-took 68.4 s before and 0.10 s after.
-`TestBaseRefOversizedNestedReferenceIsUnresolvedAndFast` and
-`TestBaseRefManyNestedReferencesStayBounded` pin both cases.
+No-Regression Evidence: #8810 review fixes. The reference bound adds one
+linear pass over each reference that contains `$`. The output cap adds one
+length compare after each expansion.
+`go test -run xxx -bench BaseRefExpansion -benchmem -benchtime=500000x -count 2`,
+old and new interleaved on one loaded host: the ordinary `ARG` plus `FROM`
+Dockerfile took 2.3-2.9 us/op when the host was quiet and 5.4-6.0 us/op when it
+was busy, with old and new within noise of each other in every pair, and 33 allocs/op
+and 5472 B/op both times. That is no measurable change, about 2.3 us. The
+earlier 5.0-12.2 us to 3.1-4.5 us improvement noted for this guard was
+cold-start noise from a short run and is withdrawn.
+Hostile input, `-benchtime=3x`: a balanced 60 KB line of nested `${A:-`
+blocks took 461-887 ms/op and 835.7 MB/op with the reference bound disabled and
+0.54 ms/op and 0.54 MB/op with it. 200 such lines in one Dockerfile took 59.8 s
+with the bound disabled and 0.10 s with it. A padded ARG chain (100 ARGs of
+about 4000 literal bytes each repeating the previous one, then 1000
+`FROM i:${A100}` lines, 416 KB of input) took 563-576 ms/op and 426.6 MB/op
+before the output cap, and left 400 MB of base tags across the 1000 stages. It
+takes 7.8-13.1 ms/op and 5.0 MB/op after, and every stage stays unresolved with
+a 7-byte tag (`${A100}`). `TestBaseRefOversizedNestedReferenceIsUnresolvedAndFast`,
+`TestBaseRefManyNestedReferencesStayBounded`,
+`TestBaseRefPaddedArgChainIsUnresolved`, and
+`TestBaseRefPaddedArgChainDoesNotAmplifyAcrossStages` pin these cases.
 
 No-Observability-Change: the parser emits no telemetry of its own. Parse
 timing stays on the parent parser engine's existing per-file duration. A

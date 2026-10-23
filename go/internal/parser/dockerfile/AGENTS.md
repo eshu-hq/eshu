@@ -9,8 +9,9 @@
    rule, supported operators, unresolved evidence)
 5. tokens.go - Dockerfile escape directive detection and command-line token
    splitting for quoted and escaped metadata values
-6. metadata_test.go, base_ref_test.go and base_ref_bound_test.go - behavior and
-   expansion-bound coverage for runtime metadata and map shape
+6. metadata_test.go, base_ref_test.go, base_ref_bound_test.go and
+   base_ref_cap_test.go - behavior and expansion-bound coverage for runtime
+   metadata and map shape
 
 ## Invariants this package enforces
 
@@ -21,6 +22,8 @@
 - A FROM line sees only ARGs declared before the first FROM. Never widen that
   scope, and never fill an unresolved value with a guess: keep the placeholder
   and report it in UnresolvedArgs.
+- An expansion that produces more than 4096 bytes is unresolved, checked on the
+  finished output. An ARG default past the cap is never stored as known.
 - Row ordering must stay deterministic because parser payloads are fact inputs.
 
 ## Common changes and how to scope them

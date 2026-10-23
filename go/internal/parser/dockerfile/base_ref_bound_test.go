@@ -81,13 +81,20 @@ func TestBaseRefOrdinaryNestingStillResolves(t *testing.T) {
 }
 
 // BenchmarkBaseRefExpansion measures a typical FROM against the hostile
-// 60 KB nested line so the guard's cost on ordinary input stays visible.
+// 60 KB nested line and the padded ARG chain so the guard's cost on ordinary
+// input stays visible.
 func BenchmarkBaseRefExpansion(b *testing.B) {
 	ordinary := "ARG NODE_VERSION=24.1.0\nFROM node:${NODE_VERSION}-slim AS app\nRUN true\n"
 	hostile := hostileNestedFrom(60_000) + "\n"
 	b.Run("ordinary", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			RuntimeMetadata(ordinary)
+		}
+	})
+	padded := paddedArgChain(100, 4000) + strings.Repeat("FROM i:${A100}\n", 1000)
+	b.Run("padded_chain_100_args_1000_froms", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			RuntimeMetadata(padded)
 		}
 	})
 	b.Run("hostile_60KB", func(b *testing.B) {
