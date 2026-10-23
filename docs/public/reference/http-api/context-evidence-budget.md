@@ -91,18 +91,18 @@ Each total follows the shared sentence above. The flags the table names:
 | --- | --- | --- |
 | `deployment_evidence.artifacts` | `deployment_evidence.artifact_count`, the artifact rows read | a deployment artifact bound |
 | `deployment_evidence.deployment_artifacts`, `shared_config_paths`, `delivery_paths`, `delivery_family_paths`, `delivery_family_story`, `delivery_workflows`, `topology_story`, `relationship_overview` | rows held, or the `raw_limits` count when the story cut the list | a deployment artifact bound |
-| `api_surface.endpoints` | `api_surface.endpoint_count`, a count query | never: not cut by the story's cap |
+| `api_surface.endpoints` | `api_surface.endpoint_count`: the graph count query, or, when the graph read returned nothing and the content fallback built the surface, the endpoint total of the specs found in the first 5,000 files (framework routes are not in that count) | graph count query: not cut by the story's cap; content fallback, a lower bound when `consumer_repositories_truncated` |
 | `upstream_dependencies` | `result_limits.upstream_count`: artifact, dependency, and provisioning chain rows | a deployment artifact bound, or `provisioning_source_chains_truncated` |
 | `dependents`, `downstream_consumers.graph_dependents` | rows read | `dependents_truncated` |
 | `consumer_repositories`, `downstream_consumers.content_consumers` | rows read | `consumer_repositories_truncated` |
 | `provisioning_source_chains` | rows read | `provisioning_source_chains_truncated` |
 | `hostnames`, `entrypoints`, `entrypoint_candidates`, `network_paths` | rows the service evidence file read produced | `consumer_repositories_truncated` |
 | `cloud_resources` | rows read, at most 50 | the read stops at 50 rows with no flag |
-| `uncorrelated_cloud_resources` | rows read (one past 50) | `uncorrelated_cloud_resources_truncated` |
+| `uncorrelated_cloud_resources` | rows read, at most 50 | `uncorrelated_cloud_resources_truncated` |
 | `code_to_runtime_trace.service_identity.evidence` | the single identity row | never |
 | `code_to_runtime_trace.code_entrypoints.evidence` | endpoint rows read plus entrypoint rows | `api_surface.detail_truncated` or `consumer_repositories_truncated` |
 | `code_to_runtime_trace.ci_cd.evidence` | one `ci_cd_evidence` summary row, or the `delivery_workflows` rows | a deployment artifact bound, for the `delivery_workflows` rows only |
-| `code_to_runtime_trace.image_package.evidence` | SBOM attachment rows for at most 50 image references | `image_refs_truncated` on the segment, or a deployment artifact bound |
+| `code_to_runtime_trace.image_package.evidence` | SBOM attachment rows for at most 50 image references or, with no supply-chain reader, the image and package refs in the deployment evidence rows | `image_refs_truncated` on the segment, or a deployment artifact bound |
 | `code_to_runtime_trace.deployment_config.evidence` | `artifacts`, `delivery_paths`, and `shared_config_paths` rows | a deployment artifact bound |
 | `code_to_runtime_trace.runtime.evidence` | runtime instances read, at most 50 | the read stops at 50 rows with no flag |
 | `code_to_runtime_trace.cloud_dependencies.evidence` | the `cloud_resources` rows, or the uncorrelated candidates when none attached | as `cloud_resources`, or as `uncorrelated_cloud_resources` |
