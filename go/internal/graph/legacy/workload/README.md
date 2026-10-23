@@ -33,9 +33,9 @@ the reducer's handle ladder skips edges as `workload_handle_ambiguous`.
   reported `no_twin`, and `WithScopedTwin` does not count it, so readiness can
   pass while it is still there. A padded repository id leaves the name clean, so
   the node still matches a by-name selector and makes the name ambiguous. A
-  leading-padded name matches only its exact handle (`workload: svc`); a
-  trailing-padded name matches no selector, because selectors are trimmed on
-  entry. Known limit, tracked in #8903: fixing the source writes a clean node
+  name padded only at the start matches only its exact handle
+  (`workload: svc`); a name padded at the end, or at both ends, matches no
+  selector, because selectors are trimmed on entry. Known limit, tracked in #8903: fixing the source writes a clean node
   but leaves the padded one `no_twin`, so it needs a manual, reviewed removal.
 - The negative clauses are decided in Go on purpose, so one code path serves
   readiness, the dry run, and the pre-delete verification, and the reads avoid
