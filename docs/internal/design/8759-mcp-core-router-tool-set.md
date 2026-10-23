@@ -253,17 +253,22 @@ Error responses that carry a canonical envelope are counted:
 Direction of the bias (a theory, not measured): agents that pick the wrong tool
 tend to hit unknown-name or timeout paths, so the counts under-state
 misrouted traffic, and a tool that often times out looks less used than it is.
-The gap cannot be sized from metrics today, because no counter exists at
-dispatch entry. The dispatch-entry bias is not sized: NOT_CHECKED.
+The gap could not be sized from these series, because no counter existed at
+dispatch entry; `eshu_dp_mcp_tool_calls_total` now counts every dispatch
+(`docs/public/reference/telemetry/mcp-tool-calls.md`). The dispatch-entry bias is not sized: NOT_CHECKED.
 
 The gap between ranks 10, 11, 12 and 13 (2.5, 2.4, 2.2, 2.2) is small enough
-that the unsized bias could change the list. The counter is deferred to the
-next refresh. The merge review of this record is asked to rule on that.
+that the unsized bias could change the list. The entry counter now exists
+(`eshu_dp_mcp_tool_calls_total`, documented in the telemetry reference); the
+production-class refresh and a refresh on the new counter are tracked in #8799.
+The unsized dispatch-entry bias was accepted as a deferral, not a blocker,
+because the list is advertised only on the opt-in `core_router` surface and the
+default stays `full`; tracked in #8799.
 
-Rule for the next refresh: if the missing paths could change which ten tools
-make the list (for example a high-timeout tool sits near the cut line), add a
-counter at dispatch entry first, collect, and only then choose. That counter is
-a separate telemetry change and needs its own review.
+Rule for the next refresh: the dispatch-entry counter exists
+(`eshu_dp_mcp_tool_calls_total`). Rank the list from it, not from
+`eshu_dp_mcp_response_bytes`, so timeouts and refusals are counted. Its series
+also include ask-engine tool runs; see its reference page before choosing.
 
 ## Caveats
 

@@ -12,6 +12,8 @@
    Understand the message dispatch switch and the transport-auth wrap before
    touching protocol handling
 3. `go/internal/mcp/dispatch.go`, `go/internal/mcp/dispatch_timeout.go`,
+   `go/internal/mcp/dispatch_calls.go` (the dispatch-entry call counter; keep
+   its closed outcome set in step with `docs/public/reference/telemetry/mcp-tool-calls.md`),
    `go/internal/mcp/dispatch_args.go`,
    `go/internal/mcp/dispatch_service_selector.go`,
    `go/internal/mcp/dispatch_package_registry.go`,
