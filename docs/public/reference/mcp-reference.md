@@ -303,6 +303,12 @@ where it ran:
   `scripts/run-remote-e2e-component-extension.sh`. They run on `dual` today, so
   they are unaffected until a deployment or the default selects `structured`.
   Teach each one to read `structuredContent` first, then flip.
+- A body that is a JSON array or not JSON at all. `structuredContent` then
+  holds that array or a JSON string, but the MCP specification types
+  `structuredContent` as an object. Under `dual` the JSON resource still
+  carries the payload; under `structured` that non-object `structuredContent`
+  is the only machine copy. Decide how a strict client receives these results
+  before the default flips.
 
 When an HTTP route still returns plain JSON instead of the canonical envelope,
 MCP preserves the plain JSON payload in `structuredContent` and in an
@@ -339,8 +345,9 @@ included. A call that leaves a required path id empty, for example
 The serialized MCP result object has a 256 KiB budget in both shapes; the
 enclosing JSON-RPC wrapper and transport newline are outside that count, and the
 count is the result as sent in the connection's shape. Under `structured` there
-is one copy, so a result of 130 to 256 KiB passes untouched, and one over
-256 KiB goes straight to a page or the `mcp_response_over_budget` error
+is one copy, so any result up to 256 KiB passes untouched, including the
+results of about 128 KiB and up that `dual` would rewrite to a resource. One
+over 256 KiB goes straight to a page or the `mcp_response_over_budget` error
 described below.
 
 Under `dual`, if the two-copy result exceeds that budget but the complete

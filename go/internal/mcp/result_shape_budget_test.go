@@ -30,8 +30,9 @@ func dispatchShaped(t *testing.T, mode resultshape.Mode, rows, rowBytes, budget 
 
 // TestStructuredSingleCopyBetween130And256KiBPassesUntouched is the inverse of
 // TestDispatchToolResponseDoubledWireUsesFullResource: with one copy on the
-// wire, a 130 to 256 KiB envelope fits, so neither the resource fallback nor
-// a page applies and structuredContent stays.
+// wire, an envelope between 130 KiB and the 256 KiB limit fits (dual starts
+// falling back at about 128 KiB of payload, and smaller results pass too), so
+// neither the resource fallback nor a page applies and structuredContent stays.
 func TestStructuredSingleCopyBetween130And256KiBPassesUntouched(t *testing.T) {
 	t.Parallel()
 	const budget = defaultToolResponseByteBudget

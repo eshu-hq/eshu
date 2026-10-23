@@ -93,10 +93,10 @@ func TestStructuredShapeSuccessSendsOneTextAndStructuredContent(t *testing.T) {
 	}
 }
 
-// TestStructuredShapeErrorResultsSendOneTextAndStructuredContent covers the
-// isError envelope, a plain (non-envelope) payload, and the dispatch error
-// result, none of which may carry the eshu://tool-error/dispatch resource.
-func TestStructuredShapeErrorResultsSendOneTextAndStructuredContent(t *testing.T) {
+// TestStructuredShapeSendsOneTextAndStructuredContent covers the isError
+// envelope, a plain (non-envelope) 200 payload, and the dispatch error result.
+// None may carry a resource block, including eshu://tool-error/dispatch.
+func TestStructuredShapeSendsOneTextAndStructuredContent(t *testing.T) {
 	t.Parallel()
 
 	t.Run("error envelope", func(t *testing.T) {

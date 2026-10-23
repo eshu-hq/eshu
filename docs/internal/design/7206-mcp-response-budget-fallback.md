@@ -84,8 +84,9 @@ resource. This note records how that interacts with the budget.
   move, and no tool default is loosened. Defaults calibrated to two-copy
   accounting stay as they are; under `structured` they simply have more room.
 - Under `structured` there is no second copy to drop, so the resource-only
-  fallback does not apply and `ResourceOnly` is never set. A result of 130 to
-  256 KiB passes untouched. A result over 256 KiB goes to a page for
+  fallback does not apply and `ResourceOnly` is never set. Any result up to
+  256 KiB passes untouched, including the results of about 128 KiB and up that
+  `dual` would rewrite to a resource. A result over 256 KiB goes to a page for
   `find_code` and `search_entity_content` (the page fits by construction,
   because `trimToBudgetPage` measures the same rendering) and to
   `mcp_response_over_budget` for every other tool.
@@ -106,8 +107,8 @@ resource. This note records how that interacts with the budget.
   (it needs a two-client re-measurement within 1.1 times the one-copy rate, a
   scoring run that is not worse, a manual run on the other documented clients,
   a week of no over-budget increase on a hosted deployment, the golden-corpus
-  gate run once in `structured`, and four scripts taught to read
-  `structuredContent`), and an
+  gate run once in `structured`, four scripts taught to read
+  `structuredContent`, and a decision on non-object bodies), and an
   `initialize` reply that echoes a requested protocol version.
 - The token saving was measured only on the pre-change doubling. The
   post-change two-client re-measurement is pending, so no saving is claimed for
@@ -122,6 +123,12 @@ resource. This note records how that interacts with the budget.
   `scripts/run-remote-e2e-component-extension.sh`. They run on `dual` today.
   Each must read `structuredContent` first before the default flips or a
   deployment sets `ESHU_MCP_RESULT_SHAPE=structured`.
+- A JSON array body or a non-JSON 2xx body becomes a non-object
+  `structuredContent` (an array or a JSON string), while the MCP specification
+  types `structuredContent` as an object. Under `dual` the resource still
+  carries the payload. Under `structured` the non-object `structuredContent` is
+  the only machine copy. Behavior is unchanged here; a decision is needed
+  before the default flips.
 - `find_tool` results and router error results come from the router, not tool
   dispatch, and carry the payload as text and as `structuredContent` in both
   shapes. "Once on the wire" describes tool results only.
