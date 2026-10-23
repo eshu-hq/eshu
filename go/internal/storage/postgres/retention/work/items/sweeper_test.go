@@ -296,14 +296,14 @@ func TestPruneBatchQueryKeepsItsSafetyClauses(t *testing.T) {
 		"item.updated_at < $3",
 		"run.status IN ('complete', 'failed')",
 		"scope.active_generation_id = item.generation_id",
-		"newer_failure.status = 'failed_terminal'",
+		"newer.status = item.status",
 		"FOR UPDATE OF item SKIP LOCKED",
 	} {
 		if !strings.Contains(pruneBatchQuery, clause) {
 			t.Fatalf("pruneBatchQuery lost clause %q", clause)
 		}
 	}
-	if got := strings.Count(pruneBatchQuery, "OFFSET 0"); got != 2 {
-		t.Fatalf("pruneBatchQuery has %d OFFSET 0 fences, want 2 (they keep the newest-row probes per row)", got)
+	if got := strings.Count(pruneBatchQuery, "OFFSET 0"); got != 1 {
+		t.Fatalf("pruneBatchQuery has %d OFFSET 0 fences, want 1 (it keeps the newer-row probe per row)", got)
 	}
 }

@@ -4,7 +4,7 @@
 package items
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8829 disposable PostgreSQL 18 proofs that workflow_work_items retention keeps the newest unresolved terminal failure, the newest row and the active-generation row per target, never touches claimed, pending, retrying, expired, open-run or young rows, respects its batch bound and deletes nothing on a second walk; each proof creates and drops its own database from the bootstrap schema; about 1 to 2 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated
+//eshu:readiness:reason #8829 disposable PostgreSQL 18 proofs that workflow_work_items retention keeps the newest unresolved terminal failure, the newest completed row, the newest row and the active-generation row per target, never touches claimed, pending, retrying, expired, open-run or young rows, respects its batch bound and deletes nothing on a second walk; each proof creates and drops its own database from the bootstrap schema; about 1 to 2 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -16,8 +16,9 @@ import (
 
 // TestPruneWorkItemsLiveKeepsRowsNeededForFailureReporting proves the
 // retention pass never deletes the newest terminal failure of a scope, the
-// newest row of a scope, or the row of a scope's active generation, while it
-// does delete the superseded rows around them.
+// newest completed row of a scope, the newest row of a scope, or the row of a
+// scope's active generation, while it does delete the superseded rows around
+// them.
 func TestPruneWorkItemsLiveKeepsRowsNeededForFailureReporting(t *testing.T) {
 	database, ctx := isolatedLiveDB(t)
 	seedRun(t, ctx, database, "run-closed", "failed")
@@ -41,21 +42,33 @@ func TestPruneWorkItemsLiveKeepsRowsNeededForFailureReporting(t *testing.T) {
 		seedRow{id: "heal-5", runID: "run-closed", scopeID: "scope-heal", status: "completed", ageCycles: 5},
 	)
 	seedActiveGeneration(t, ctx, database, "scope-heal", "gen-heal-3")
+	// A scope that completed and then lapsed into terminal failures. Its
+	// newest completed row is older than its newest row, and the status
+	// registry's last_completed_at reads the newest completed row per
+	// collector kind, so that row must stay.
+	seedRows(t, ctx, database,
+		seedRow{id: "lapse-0", runID: "run-closed", scopeID: "scope-lapse", status: "completed", ageCycles: 0},
+		seedRow{id: "lapse-1", runID: "run-closed", scopeID: "scope-lapse", status: "completed", ageCycles: 1},
+		seedRow{id: "lapse-2", runID: "run-closed", scopeID: "scope-lapse", status: "failed_terminal", ageCycles: 2},
+		seedRow{id: "lapse-3", runID: "run-closed", scopeID: "scope-lapse", status: "failed_terminal", ageCycles: 3},
+	)
 
 	sweeper := NewSweeper(postgres.SQLDB{DB: database})
 	deleted := drainToWrap(t, ctx, sweeper, 1000)
 
 	want := []string{
-		"heal-2", // newest terminal failure of scope-heal
-		"heal-3", // scope-heal's active generation
-		"heal-5", // newest row of scope-heal
-		"perm-3", // newest (unresolved) terminal failure and newest row of scope-perm
+		"heal-2",  // newest terminal failure of scope-heal
+		"heal-3",  // scope-heal's active generation
+		"heal-5",  // newest row and newest completed row of scope-heal
+		"lapse-1", // newest completed row of scope-lapse, older than its failures
+		"lapse-3", // newest terminal failure and newest row of scope-lapse
+		"perm-3",  // newest (unresolved) terminal failure and newest row of scope-perm
 	}
 	if got := remainingIDs(t, ctx, database); !slices.Equal(got, want) {
 		t.Fatalf("remaining work items = %v, want %v", got, want)
 	}
-	if deleted != 6 {
-		t.Fatalf("deleted = %d, want 6", deleted)
+	if deleted != 8 {
+		t.Fatalf("deleted = %d, want 8", deleted)
 	}
 	if orphans := orphanClaims(t, ctx, database); orphans != 0 {
 		t.Fatalf("orphan claims = %d, want 0 (claims cascade with their work item)", orphans)

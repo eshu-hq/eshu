@@ -245,7 +245,8 @@ func TestPruneWorkItemsLiveDoesNotContendWithClaimLifecycle(t *testing.T) {
 	).Scan(&liveOpen); err != nil {
 		t.Fatalf("count open live work: %v", err)
 	}
-	// Each old scope keeps its newest row and its newest terminal failure.
+	// Each old scope keeps its newest row, which is also its newest completed
+	// row, and its newest terminal failure.
 	if want := concurrencyOldScopes * 2; oldRemaining != want {
 		t.Fatalf("old history remaining = %d, want %d", oldRemaining, want)
 	}

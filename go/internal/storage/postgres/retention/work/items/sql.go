@@ -21,21 +21,28 @@ package items
 //     items of open runs, and removing one would change the derived status;
 //   - not the scope's active generation: collector readiness evidence joins
 //     ingestion_scopes.active_generation_id to the work item;
-//   - a newer row exists for the same (collector_kind, collector_instance_id,
-//     scope_id): the latest-row reads keep their answer;
-//   - for failed_terminal, a newer failed_terminal row exists for the same
-//     target: failure reporting keeps the newest terminal failure.
+//   - a newer row with the same status exists for the same (collector_kind,
+//     collector_instance_id, scope_id). That one probe keeps three rows per
+//     target: the newest completed row, which the status registry's
+//     last_completed_at reads; the newest failed_terminal row, which failure
+//     reporting reads; and the newest row of any status, because it is the
+//     newest of its own status, so the latest-row reads keep their answer.
 //
 // "Newer" is the strict order (updated_at, work_item_id), so exactly one row
-// per target is newest even when timestamps tie.
+// per target and status is newest even when timestamps tie.
 //
-// Plan shape (#8829 EXPLAIN on 300k rows, 50 scopes x 6,000 cycles): the
-// window is an index-only primary-key range scan; each windowed row is a
-// primary-key probe whose two newest-row checks probe
-// workflow_work_items_collector_scope_generation_updated_idx once per row.
-// The OFFSET 0 fences keep those checks per-row: without them the planner
-// turned the first check into a hash semi-join over a full sequential scan
-// (457 ms with a temp spill, against 54 ms fenced).
+// Plan shape (#8829 EXPLAIN on 300k rows, 50 scopes x 6,000 cycles, PG 18.6):
+// the window is an index-only primary-key range scan; each windowed row is a
+// primary-key probe whose newer-row check probes
+// workflow_work_items_collector_scope_generation_updated_idx once per row,
+// with the (updated_at, work_item_id) comparison as an index condition and the
+// status as a heap filter. 14 to 16 ms and 14.1k to 14.7k shared buffers per
+// 1,000-row batch. The OFFSET 0 fence keeps that check per-row: without it the
+// planner turned it into a hash semi-join over a full sequential scan
+// (127 ms with a temp spill). The worst case is a target whose newest
+// completed row is older than the cutoff and followed by many failures: its
+// probe heap-checks every newer row of the target, so it costs at most the
+// target's row count once per walk.
 //
 // Locking: FOR UPDATE OF item SKIP LOCKED. Lifecycle writers (claim,
 // heartbeat, complete, fail, release, reap) only lock rows in status claimed
@@ -78,21 +85,9 @@ candidates AS (
           WHERE newer.collector_kind = item.collector_kind
             AND newer.scope_id = item.scope_id
             AND newer.collector_instance_id = item.collector_instance_id
+            AND newer.status = item.status
             AND (newer.updated_at, newer.work_item_id) > (item.updated_at, item.work_item_id)
           OFFSET 0
-      )
-      AND (
-          item.status = 'completed'
-          OR EXISTS (
-              SELECT 1
-              FROM workflow_work_items AS newer_failure
-              WHERE newer_failure.collector_kind = item.collector_kind
-                AND newer_failure.scope_id = item.scope_id
-                AND newer_failure.collector_instance_id = item.collector_instance_id
-                AND newer_failure.status = 'failed_terminal'
-                AND (newer_failure.updated_at, newer_failure.work_item_id) > (item.updated_at, item.work_item_id)
-              OFFSET 0
-          )
       )
     FOR UPDATE OF item SKIP LOCKED
 ),
