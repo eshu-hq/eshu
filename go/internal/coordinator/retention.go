@@ -31,12 +31,13 @@ type WorkItemRetentionStore interface {
 }
 
 // WorkItemRetentionConfig controls the workflow_work_items retention loop
-// (#8829). It is off by default: turning it on deletes history on the next
-// pass, which cannot be undone, so an operator opts in per deployment by
-// setting ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE.
+// (#8829). LoadConfig turns it on by default at a 720h age; setting
+// ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE=0 turns it off. Deleted
+// history cannot be restored. The zero value, which tests and callers that
+// build Config by hand get, is off.
 type WorkItemRetentionConfig struct {
 	// Enabled turns the loop on. It runs only in active deployment mode.
-	// LoadConfig sets it when the retention age is configured.
+	// LoadConfig sets it unless the retention age is explicitly 0.
 	Enabled bool
 	// Interval is the time between passes.
 	Interval time.Duration
@@ -63,13 +64,13 @@ type WorkItemRetentionMetrics interface {
 }
 
 // loadWorkItemRetentionConfig reads the two work item retention settings.
-// Setting the age turns retention on; leaving it unset (or 0) keeps it off.
-// Both are validated whether or not retention is on, so a bad value fails
-// startup before an operator relies on it. The pass interval, batches per
-// pass and lock timeout use the documented defaults.
+// Retention is on by default at the documented 720h policy; an explicit age
+// of 0 turns it off. Both settings are validated whether or not retention is
+// on, so a bad value fails startup before an operator relies on it. The pass
+// interval, batches per pass and lock timeout use the documented defaults.
 func loadWorkItemRetentionConfig(getenv func(string) string) (WorkItemRetentionConfig, error) {
 	policy := workflow.DefaultWorkItemRetentionPolicy()
-	age, err := environment.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE", 0)
+	age, err := environment.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE", policy.Age)
 	if err != nil {
 		return WorkItemRetentionConfig{}, err
 	}

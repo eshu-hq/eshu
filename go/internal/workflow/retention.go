@@ -14,12 +14,14 @@ const (
 	// recent-failure window and the registry status 24-hour window) and every
 	// collector schedule interval, so no planner re-enqueues a deleted id.
 	defaultWorkItemRetentionAge = 30 * 24 * time.Hour
-	// minWorkItemRetentionAge is the shortest age Validate accepts. A shorter
-	// age would delete rows the 24-hour registry status window still counts.
-	minWorkItemRetentionAge = 24 * time.Hour
+	// minWorkItemRetentionAge is the shortest age Validate accepts. Two days
+	// keeps every row the 24-hour registry status window counts, with a full
+	// day of margin for a coordinator clock that runs ahead of the database
+	// or a status read that lags its pass.
+	minWorkItemRetentionAge = 48 * time.Hour
 	// defaultWorkItemRetentionBatchSize is the rows one batch transaction
 	// examines and may delete. The #8829 EXPLAIN on a 300k-row seed measured
-	// about 54 ms and 39k shared buffers per 1,000-row batch.
+	// 14 to 16 ms and 14.1k to 14.7k shared buffers per 1,000-row batch.
 	defaultWorkItemRetentionBatchSize = 1000
 	// maxWorkItemRetentionBatchSize caps one batch transaction so its row
 	// locks stay short-lived.
@@ -40,9 +42,10 @@ const (
 // (status complete or failed) whose updated_at is older than Cutoff. It never
 // deletes claimed, pending, failed_retryable, or expired rows; the newest row
 // of a (collector_kind, collector_instance_id, scope_id) target; the newest
-// failed_terminal row of that target, which failure reporting reads; or the
-// row of a scope's active generation, which collector readiness evidence
-// joins.
+// completed row of that target, which the status registry's last_completed_at
+// reads; the newest failed_terminal row of that target, which failure
+// reporting reads; or the row of a scope's active generation, which collector
+// readiness evidence joins.
 type WorkItemRetentionPolicy struct {
 	// Age is how long a terminal row is kept after its last update.
 	Age time.Duration

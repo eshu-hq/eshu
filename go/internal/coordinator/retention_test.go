@@ -63,21 +63,42 @@ func retentionEnv(overrides map[string]string) func(string) string {
 	}
 }
 
-func TestLoadConfigWorkItemRetentionIsOffByDefault(t *testing.T) {
+func TestLoadConfigWorkItemRetentionIsOnByDefault(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := LoadConfig(retentionEnv(nil))
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v, want nil", err)
 	}
-	if cfg.WorkItemRetention.Enabled {
-		t.Fatal("WorkItemRetention.Enabled = true, want off by default")
+	want := WorkItemRetentionConfig{
+		Enabled:  true,
+		Interval: 5 * time.Minute,
+		Policy:   workflow.DefaultWorkItemRetentionPolicy(),
 	}
-	if got, want := cfg.WorkItemRetention.Policy, workflow.DefaultWorkItemRetentionPolicy(); got != want {
-		t.Fatalf("WorkItemRetention.Policy = %+v, want %+v", got, want)
+	if cfg.WorkItemRetention != want {
+		t.Fatalf("WorkItemRetention = %+v, want %+v (on by default at 720h)", cfg.WorkItemRetention, want)
 	}
-	if got, want := cfg.WorkItemRetention.Interval, 5*time.Minute; got != want {
-		t.Fatalf("WorkItemRetention.Interval = %s, want %s", got, want)
+	if got := cfg.WorkItemRetention.Policy.Age; got != 720*time.Hour {
+		t.Fatalf("default retention age = %s, want 720h", got)
+	}
+}
+
+func TestLoadConfigWorkItemRetentionExplicitZeroAgeTurnsItOff(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"0", "0s", "0h"} {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+			cfg, err := LoadConfig(retentionEnv(map[string]string{
+				"ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE": value,
+			}))
+			if err != nil {
+				t.Fatalf("LoadConfig(age %s) error = %v, want nil", value, err)
+			}
+			if cfg.WorkItemRetention.Enabled {
+				t.Fatalf("WorkItemRetention.Enabled = true for age %s, want off", value)
+			}
+		})
 	}
 }
 
@@ -104,15 +125,6 @@ func TestLoadConfigWorkItemRetentionParsesEnvironment(t *testing.T) {
 	if cfg.WorkItemRetention != want {
 		t.Fatalf("WorkItemRetention = %+v, want %+v", cfg.WorkItemRetention, want)
 	}
-
-	// An explicit zero age keeps retention off, like leaving it unset.
-	off, err := LoadConfig(retentionEnv(map[string]string{"ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE": "0s"}))
-	if err != nil {
-		t.Fatalf("LoadConfig(age 0s) error = %v, want nil", err)
-	}
-	if off.WorkItemRetention.Enabled {
-		t.Fatal("WorkItemRetention.Enabled = true for age 0s, want off")
-	}
 }
 
 func TestLoadConfigWorkItemRetentionRejectsUnsafeSettings(t *testing.T) {
@@ -120,6 +132,8 @@ func TestLoadConfigWorkItemRetentionRejectsUnsafeSettings(t *testing.T) {
 
 	for name, env := range map[string]map[string]string{
 		"age under a day":           {"ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE": "1h"},
+		"age of one day":            {"ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE": "24h"},
+		"age just under two days":   {"ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE": "47h59m"},
 		"negative age":              {"ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE": "-720h"},
 		"unparsable age":            {"ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE": "a month"},
 		"oversized batch":           {"ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_BATCH_SIZE": "50000"},
@@ -220,6 +234,32 @@ func TestServiceRunActiveModeRunsWorkItemRetentionWhenEnabled(t *testing.T) {
 	}
 }
 
+// TestServiceRunActiveModeRunsDefaultRetentionWithNoEnvironment proves the
+// shipped default: an active coordinator whose environment never mentions
+// retention runs a startup pass at the 720h policy.
+func TestServiceRunActiveModeRunsDefaultRetentionWithNoEnvironment(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadConfig(retentionEnv(nil))
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
+	}
+	now := time.Date(2026, time.October, 23, 12, 0, 0, 0, time.UTC)
+	service, _ := activeRetentionService(now, cfg.WorkItemRetention)
+	retention := &fakeWorkItemRetention{}
+	service.WorkItemRetention = retention
+
+	if err := service.Run(cancelledContext()); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if len(retention.policies) != 1 {
+		t.Fatalf("retention passes = %d, want one startup pass with no environment set", len(retention.policies))
+	}
+	if got := retention.policies[0].Age; got != 720*time.Hour {
+		t.Fatalf("startup pass age = %s, want 720h", got)
+	}
+}
+
 func TestServiceRunSkipsWorkItemRetentionWhenDisabledOrDark(t *testing.T) {
 	t.Parallel()
 
@@ -232,6 +272,28 @@ func TestServiceRunSkipsWorkItemRetentionWhenDisabledOrDark(t *testing.T) {
 	}
 	if len(disabledRetention.asOf) != 0 {
 		t.Fatalf("disabled retention ran %d passes, want 0", len(disabledRetention.asOf))
+	}
+
+	// An explicit ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE=0 is the
+	// operator's off switch: active mode then schedules no pass, and Run does
+	// not require a retention store.
+	zeroAge, err := LoadConfig(retentionEnv(map[string]string{
+		"ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_AGE": "0",
+	}))
+	if err != nil {
+		t.Fatalf("LoadConfig(age 0) error = %v, want nil", err)
+	}
+	zeroAgeService, _ := activeRetentionService(now, zeroAge.WorkItemRetention)
+	if err := zeroAgeService.Run(cancelledContext()); err != nil {
+		t.Fatalf("Run(age 0, no retention store) error = %v, want nil", err)
+	}
+	zeroAgeRetention := &fakeWorkItemRetention{}
+	zeroAgeService.WorkItemRetention = zeroAgeRetention
+	if err := zeroAgeService.Run(cancelledContext()); err != nil {
+		t.Fatalf("Run(age 0) error = %v, want nil", err)
+	}
+	if len(zeroAgeRetention.asOf) != 0 {
+		t.Fatalf("age 0 retention ran %d passes, want 0", len(zeroAgeRetention.asOf))
 	}
 
 	dark := Service{

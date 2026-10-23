@@ -38,8 +38,12 @@ func TestWorkItemRetentionPolicyValidateRejectsUnsafeBounds(t *testing.T) {
 		mutate func(*WorkItemRetentionPolicy)
 		want   string
 	}{
-		"age below one day": {
-			mutate: func(p *WorkItemRetentionPolicy) { p.Age = 23 * time.Hour },
+		"age below two days": {
+			mutate: func(p *WorkItemRetentionPolicy) { p.Age = 47 * time.Hour },
+			want:   "age",
+		},
+		"age of one day": {
+			mutate: func(p *WorkItemRetentionPolicy) { p.Age = 24 * time.Hour },
 			want:   "age",
 		},
 		"zero batch": {
@@ -76,6 +80,16 @@ func TestWorkItemRetentionPolicyValidateRejectsUnsafeBounds(t *testing.T) {
 				t.Fatalf("Validate() error = %q, want it to mention %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestWorkItemRetentionPolicyValidateAcceptsTheTwoDayFloor(t *testing.T) {
+	t.Parallel()
+
+	policy := DefaultWorkItemRetentionPolicy()
+	policy.Age = 48 * time.Hour
+	if err := policy.Validate(); err != nil {
+		t.Fatalf("Validate(age 48h) error = %v, want nil", err)
 	}
 }
 
