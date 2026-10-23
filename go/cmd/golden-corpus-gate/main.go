@@ -117,9 +117,16 @@ func parseFlags(args []string) (options, error) {
 	// The server trims the shape before parsing, so a padded env value (the
 	// driver script forwards GATE_MCP_RESULT_SHAPE verbatim) must pass here too,
 	// and the trimmed value is what goes on the request URL.
+	// A non-empty value is canonicalized to the shape name Parse returns. An
+	// empty value stays empty: Parse("") is Dual, but "no shape asked" must
+	// leave the URL bare so the server default applies.
 	o.mcpResultShape = strings.TrimSpace(o.mcpResultShape)
-	if _, err := resultshape.Parse(o.mcpResultShape); err != nil {
+	mode, err := resultshape.Parse(o.mcpResultShape)
+	if err != nil {
 		return options{}, fmt.Errorf("-mcp-result-shape: %w", err)
+	}
+	if o.mcpResultShape != "" {
+		o.mcpResultShape = string(mode)
 	}
 	if o.diffExecutionsAdvisoryMax < 0 {
 		return options{}, fmt.Errorf("-diff-executions-advisory-max must be >= 0 (0 disables the ceiling), got %d", o.diffExecutionsAdvisoryMax)

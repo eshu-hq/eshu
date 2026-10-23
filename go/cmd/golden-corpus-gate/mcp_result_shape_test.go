@@ -119,14 +119,17 @@ func TestParseFlagsMCPResultShape(t *testing.T) {
 
 // TestParseFlagsMCPResultShapeTrimsPadding proves a padded value (a quoted
 // env var forwarded by the shell driver) matches the server, which trims
-// before parsing: the gate accepts it, stores the trimmed value, and sends it
-// to the server without the padding. Whitespace only means absent, and a
-// genuinely unknown value is still rejected.
+// before parsing: the gate accepts it, stores the canonical lower-case value,
+// and sends it to the server without the padding or the original case.
+// Whitespace only means absent, and a genuinely unknown value is still
+// rejected.
 func TestParseFlagsMCPResultShapeTrimsPadding(t *testing.T) {
 	t.Parallel()
 	for value, want := range map[string]string{
 		" structured ": "structured",
 		"\tdual\n":     "dual",
+		"Structured":   "structured",
+		" DUAL ":       "dual",
 		"  ":           "",
 	} {
 		o, err := parseFlags([]string{"-mcp-result-shape=" + value})
