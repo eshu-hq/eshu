@@ -67,6 +67,31 @@ func IsRetryable(err error) bool {
 	return retryable.Retryable()
 }
 
+// ExpectedWaitError marks a retryable reducer failure that is a designed wait
+// for upstream evidence rather than a defect (security_alert_reconciliation
+// waiting for package impact findings). The queue still counts it toward the
+// retry budget; the Service only uses the marker to record the attempt as
+// deferred at WARN instead of failed at ERROR while the budget has attempts
+// left (#8826).
+type ExpectedWaitError interface {
+	error
+	ExpectedWait() bool
+}
+
+// IsExpectedWait reports whether an error is both retryable and declares itself
+// an expected wait. A non-retryable error never qualifies, so a terminal
+// failure cannot hide behind the marker.
+func IsExpectedWait(err error) bool {
+	if !IsRetryable(err) {
+		return false
+	}
+	var wait ExpectedWaitError
+	if !errors.As(err, &wait) {
+		return false
+	}
+	return wait.ExpectedWait()
+}
+
 // Intent describes one durable reducer follow-up action keyed by scope generation.
 type Intent struct {
 	IntentID     string

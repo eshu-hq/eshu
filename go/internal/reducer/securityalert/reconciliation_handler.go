@@ -340,6 +340,14 @@ func (retryableSecurityAlertReconciliationEvidenceError) Retryable() bool {
 	return true
 }
 
+// ExpectedWait marks the pending-impact defer as a designed wait, so the
+// reducer records an attempt with budget left as deferred at WARN, not failed
+// at ERROR (#8826). It does not change the retry budget: the queue still counts
+// every attempt.
+func (retryableSecurityAlertReconciliationEvidenceError) ExpectedWait() bool {
+	return true
+}
+
 func (retryableSecurityAlertReconciliationEvidenceError) FailureClass() string {
 	return "security_alert_reconciliation_waiting_for_impact"
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 501 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap.
+package reducer //nolint:filelength // 507 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs.
 
 import (
 	"context"
@@ -199,6 +199,12 @@ type Service struct {
 	// postgres.IsNonCountingReducerRetryFailureClass; nil keeps every failure
 	// "failed". Injected so this package never restates the class list.
 	IsDeferredFailureClass func(failureClass string) bool
+
+	// RetryMaxAttempts is the queue's attempt budget (ESHU_REDUCER_MAX_ATTEMPTS).
+	// An expected-wait error (reducercontract.IsExpectedWait) records "deferred"
+	// only while intent.AttemptCount is below it; the final attempt dead-letters
+	// and stays "failed"/ERROR (#8826). Zero mirrors the queue default of 3.
+	RetryMaxAttempts int
 
 	// Telemetry fields (optional)
 	Tracer         trace.Tracer
