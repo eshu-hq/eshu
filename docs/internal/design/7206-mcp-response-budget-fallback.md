@@ -70,3 +70,43 @@ A local three-run, 250 ms microbenchmark on a synthetic 25-row envelope
 measured the former estimator at 376.8–384.5 µs/op and exact rendering at
 570.3–570.6 µs/op. The added per-call cost was about 0.19 ms. This measures
 serialization overhead only; it is not a full-corpus latency result.
+
+## Decision note, 2026-10-23: a one-copy result shape (#8800)
+
+The decision above stands for the default `dual` shape. Issue #8796 measured
+that Claude Code and Codex both put the two copies of a result into the model's
+input, and the arbiter ruled that a connection may choose a one-copy
+`structured` shape: one text summary plus `structuredContent`, with no embedded
+resource. This note records how that interacts with the budget.
+
+- The budget keeps counting `len(json.Marshal(renderToolResult(...)))`, the
+  exact bytes sent in the connection's shape. The 262,144-byte limit does not
+  move, and no tool default is loosened. Defaults calibrated to two-copy
+  accounting stay as they are; under `structured` they simply have more room.
+- Under `structured` there is no second copy to drop, so the resource-only
+  fallback does not apply and `ResourceOnly` is never set. A result of 130 to
+  256 KiB passes untouched. A result over 256 KiB goes to a page for
+  `find_code` and `search_entity_content` (the page fits by construction,
+  because `trimToBudgetPage` measures the same rendering) and to
+  `mcp_response_over_budget` for every other tool.
+- Error results follow the shape: a text item and `structuredContent`, with no
+  `eshu://tool-error/dispatch` resource.
+- The four budget instruments and three budget log lines gain a bounded `shape`
+  attribute (`dual`, `structured`). Metric names are unchanged so dashboards
+  keep working; samples recorded before this change are all `dual`.
+  `eshu_dp_mcp_response_resource_fallback_total` keeps its meaning and records
+  only under `dual`; it is zero by construction under `structured`. The
+  `eshu_dp_mcp_response_bytes` description now reads "as sent for the
+  connection's result shape" instead of "including both wire copies".
+- Rollout is opt-in: `?shape=` on `/sse` and `/mcp/message`,
+  `ESHU_MCP_RESULT_SHAPE` for the process default, default `dual`.
+  `eshu mcp setup` opts the `claude` and `codex` platforms in. Rollback is
+  switching the connection or the process default back to `dual`.
+- Not decided here, and not implemented: flipping the default to `structured`
+  (it needs a two-client re-measurement within 1.1 times the one-copy rate, a
+  scoring run that is not worse, a manual run on the other documented clients,
+  and a week of no over-budget increase on a hosted deployment), and an
+  `initialize` reply that echoes a requested protocol version.
+- The token saving was measured only on the pre-change doubling. The
+  post-change two-client re-measurement is pending, so no saving is claimed for
+  the `structured` shape.

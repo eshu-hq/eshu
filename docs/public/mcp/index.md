@@ -74,6 +74,14 @@ The command prints a config snippet; it does not edit client files for you.
 After updating your MCP client config, restart the client so it reloads the
 server entry.
 
+For Claude Code and Codex the snippet asks for the one-copy `structured` result
+shape: `?shape=structured` on a hosted URL, or an `ESHU_MCP_RESULT_SHAPE`
+environment entry on the local stdio server. Without it, each tool result
+carries its payload twice (the default `dual` shape), which costs those clients
+extra context. Cursor, VS Code, and generic clients stay on `dual`. Remove the
+parameter or the environment entry to go back. See
+[MCP Result Shape](../reference/mcp-reference.md#mcp-result-shape).
+
 For a deployed HTTP endpoint, keep the bearer token out of committed docs and
 shell history when possible. Set `ESHU_MCP_URL` to the deployed `mcp-server`
 URL and `ESHU_MCP_TOKEN` to the token issued for that endpoint.
@@ -100,6 +108,9 @@ that call `claude mcp add` / `codex mcp add` directly.
     [Service Runtimes](../deployment/service-runtimes.md#mcp-http-transport-auth-breaking-change)
     for the exact contract, the shipped headerless enforcement (with its
     pre-companion history), the escape hatch, and the local `stdio` exception.
+
+To use the one-copy shape with the manual commands below, end `ESHU_MCP_URL`
+with `?shape=structured`.
 
 Claude Code can add the deployed Eshu MCP server with:
 

@@ -96,11 +96,15 @@
 // must honor r.Context rather than starting unbounded work; dispatch timeout
 // and cancellation failures are returned as MCP error results with structured
 // content. Dispatch also enforces a response-size budget
-// (defaultToolResponseByteBudget) on the serialized MCP result. It normally
-// includes both structuredContent and a complete embedded resource. If those
-// copies exceed the budget together but the resource-only result fits, dispatch
-// omits structuredContent and returns success with the full payload in the
-// resource. If the resource-only result also exceeds the budget, find_code and
+// (defaultToolResponseByteBudget) on the serialized MCP result as sent in the
+// connection's result shape (internal/mcp/result/shape; ?shape= on /sse and
+// /mcp/message, ESHU_MCP_RESULT_SHAPE for the process default). The default
+// dual shape includes both structuredContent and a complete embedded resource.
+// If those copies exceed the budget together but the resource-only result
+// fits, dispatch omits structuredContent and returns success with the full
+// payload in the resource. The structured shape sends one text summary and
+// structuredContent only, so it has no such fallback. If the resource-only
+// (dual) or single-copy (structured) result exceeds the budget, find_code and
 // search_entity_content return the largest first run of whole rows that fits,
 // with truncated=true, truth.truncated=true, and next_offset (trimToBudgetPage,
 // #7725); any other

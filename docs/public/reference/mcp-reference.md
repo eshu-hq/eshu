@@ -192,10 +192,23 @@ those are the answering backend.
 
 ## MCP Result Shape
 
-MCP responses include a short text summary for humans and a resource content
-block containing the complete result. By default, they also include
-`structuredContent` with the same data. When the underlying HTTP route returns
-the canonical Eshu envelope, both machine-readable copies contain that envelope:
+A `tools/call` result comes in one of two shapes. A connection picks one, and
+`dual` is the default.
+
+- **`dual`**: a short text summary for humans, a resource content block with
+  the complete result, and `structuredContent` with the same data. The payload
+  is on the wire twice.
+- **`structured`**: one text summary and `structuredContent`. There is no
+  embedded resource, so the payload is on the wire once. Error results follow
+  the same rule: a text item and `structuredContent`, with no
+  `eshu://tool-error/dispatch` resource.
+
+`structuredContent` carries the same data in both shapes, byte for byte. A
+client that reads `structuredContent` works unchanged on either shape.
+
+When the underlying HTTP route returns the canonical Eshu envelope, the
+machine-readable copies contain that envelope. The `dual` shape looks like
+this:
 
 ```json
 {
@@ -220,6 +233,46 @@ the canonical Eshu envelope, both machine-readable copies contain that envelope:
   ]
 }
 ```
+
+The `structured` shape drops the resource:
+
+```json
+{
+  "structuredContent": {
+    "data": {},
+    "truth": {},
+    "error": null
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "Eshu query completed."
+    }
+  ]
+}
+```
+
+### Choosing the shape
+
+Pass `?shape=dual` or `?shape=structured` on `GET /sse` (the whole SSE session;
+the `endpoint` event carries it into every POST) or on `POST /mcp/message`
+(that request). Surrounding whitespace is trimmed and the value is
+case-insensitive; an unknown value gets a `400` that names the allowed values.
+A request parameter beats its session's parameter, which beats the process
+default. `ESHU_MCP_RESULT_SHAPE` sets the process default, stdio included, and
+defaults to `dual`; an unknown value refuses to start. Switch the connection or
+the process default back to `dual` to roll back.
+
+`eshu mcp setup --platform claude` and `--platform codex` emit the
+`structured` choice (`?shape=structured` on a hosted URL, an
+`ESHU_MCP_RESULT_SHAPE` environment entry for a stdio server). `cursor`,
+`vscode`, and `generic` stay on `dual`. The `initialize` reply does not change
+with the shape, and a client cannot ask for one through `initialize`.
+
+The `structured` shape is opt-in. Its purpose is to stop sending the same
+payload twice to clients that put both copies in the model's context. That
+saving was measured only on the `dual` doubling (#8796); the re-measurement on
+the `structured` shape is pending, so this page claims no token figure for it.
 
 When an HTTP route still returns plain JSON instead of the canonical envelope,
 MCP preserves the plain JSON payload in `structuredContent` and in an
@@ -253,12 +306,18 @@ included. A call that leaves a required path id empty, for example
 `get_workload_context` with `{}`, returns a text error such as
 `workload_id is required` and does not reach the handler.
 
-The serialized MCP result object has a 256 KiB budget; the enclosing JSON-RPC
-wrapper and transport newline are outside that count. If the two-copy result exceeds
-that budget but the complete embedded resource fits, MCP omits
-`structuredContent` and returns the resource with `isError: false`. The resource
-still contains the full canonical envelope (or full plain JSON payload), with
-no rows removed. For example, a large canonical result has this shape:
+The serialized MCP result object has a 256 KiB budget in both shapes; the
+enclosing JSON-RPC wrapper and transport newline are outside that count, and the
+count is the result as sent in the connection's shape. Under `structured` there
+is one copy, so a result of 130 to 256 KiB passes untouched, and one over
+256 KiB goes straight to a page or the `mcp_response_over_budget` error
+described below.
+
+Under `dual`, if the two-copy result exceeds that budget but the complete
+embedded resource fits, MCP omits `structuredContent` and returns the resource
+with `isError: false`. The resource still contains the full canonical envelope
+(or full plain JSON payload), with no rows removed. For example, a large
+canonical result has this shape:
 
 ```json
 {
@@ -276,7 +335,8 @@ no rows removed. For example, a large canonical result has this shape:
 }
 ```
 
-If even the resource-only result exceeds 256 KiB, two row-list tools, `find_code`
+If even the resource-only result (`dual`) or the single-copy result
+(`structured`) exceeds 256 KiB, two row-list tools, `find_code`
 and `search_entity_content`, return a page instead: the first whole rows that
 fit the budget, never a split row. The page sets `data.truncated=true`,
 `data.next_offset` (pass it back as `offset` to read the remainder),
@@ -308,8 +368,8 @@ resumes at the first dropped row, and never `next_offset`
 ([Relevance walk](http-api/rank-walk.md)). Every other
 tool, and a request whose first row alone exceeds the budget, returns the
 `mcp_response_over_budget` error envelope with narrowing guidance. Programmatic
-clients should read `structuredContent` when present, then fall back to the
-embedded resource's JSON `text`. The human text block is only a summary and
+clients should read `structuredContent` when present, then, under `dual`, fall
+back to the embedded resource's JSON `text`. The human text block is only a summary and
 should not be treated as the evidence-bearing response.
 
 ### Text summaries are a convenience layer, not the canonical contract

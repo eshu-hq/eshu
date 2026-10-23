@@ -101,8 +101,17 @@
   context ends before response parsing. Query handlers must honor
   `r.Context()` cancellation instead of starting unbounded work.
 
+- **Result shape** — a connection is `dual` (default, byte-for-byte what Eshu
+  always sent) or `structured` (one text item plus `structuredContent`, no
+  resource, error results included). `renderToolResult` and `mcpToolErrorResult`
+  in `dispatch_envelope.go` are the only renderers, `dispatchResult.Shape` is set
+  from the request context in `dispatchToolWithOptions`, and the budget counts
+  `json.Marshal(renderToolResult(...))` so it measures the bytes sent. Never set
+  `ResourceOnly` under `structured`, never move the 262144-byte limit for a shape,
+  and keep every budget metric and log line labeled with `shape`.
+
 - **Envelope MIME type constant** — `EnvelopeMIMEType` is written as the
-  resource MIME type at `server.go:288`. Do not replace with a string literal;
+  resource MIME type in `renderToolResult`. Do not replace with a string literal;
   the constant is the public contract between this package and `internal/query`.
 
 - **Authorization passthrough** — `dispatchTool` forwards the `Authorization`

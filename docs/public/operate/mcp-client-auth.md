@@ -64,7 +64,11 @@ snippet.
 No posture ever prints a raw secret: every shape above is an environment
 variable *reference*, never an inlined value. In every hosted posture the
 emitted URL is the service base plus the fixed MCP endpoint path,
-`/mcp/message` — only the credential wiring changes between postures.
+`/mcp/message` — only the credential wiring changes between postures. The
+Claude Code and Codex shapes also append `?shape=structured` (a stdio entry
+carries `ESHU_MCP_RESULT_SHAPE=structured` instead), which asks for the
+one-copy result shape and has no effect on credentials; see
+[MCP Result Shape](../reference/mcp-reference.md#mcp-result-shape).
 
 ## Token-only org: first five minutes
 

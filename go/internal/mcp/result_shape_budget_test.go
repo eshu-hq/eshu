@@ -5,6 +5,7 @@ package mcp
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
@@ -183,4 +184,29 @@ func equalShapeCounts(got, want map[string]int64) bool {
 		}
 	}
 	return true
+}
+
+// TestResponseBytesDescriptionNamesTheShape pins the operator-facing metric
+// text: the histogram no longer claims it counts both wire copies, because
+// under the structured shape there is one.
+func TestResponseBytesDescriptionNamesTheShape(t *testing.T) {
+	// Not parallel: installs a process-global meter provider.
+	reader := budgetMetricsForTest(t)
+	dispatchShaped(t, resultshape.Structured, 2, 16, defaultToolResponseByteBudget)
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_mcp_response_bytes" {
+				continue
+			}
+			if strings.Contains(m.Description, "both wire copies") || !strings.Contains(m.Description, "shape") {
+				t.Fatalf("description = %q, want one naming the result shape and not claiming both wire copies", m.Description)
+			}
+			return
+		}
+	}
+	t.Fatal("eshu_dp_mcp_response_bytes was not recorded")
 }
