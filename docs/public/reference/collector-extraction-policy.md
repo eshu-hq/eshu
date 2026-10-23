@@ -162,6 +162,11 @@ Rollback reverses the authority transition, restores the last supported
 producer, replays from the last committed generation, and verifies exact fact,
 projection, graph, and read truth.
 
+The [collector cutover rollback runbook](../operate/collector-cutover-rollback.md)
+turns those steps into a script with a gate between each step. It lists the
+read-truth queries to compare per fact family and how to confirm that no two
+producers hold authority.
+
 ## Extraction Readiness Diagnostics
 
 The existing component diagnostic is advisory. It never moves code, changes
