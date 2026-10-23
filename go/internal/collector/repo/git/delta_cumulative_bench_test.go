@@ -20,10 +20,8 @@ import (
 func benchGit(b *testing.B, dir string, args ...string) string {
 	b.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...) // #nosec G204 -- benchmark fixture, controlled args
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null",
-		"GIT_AUTHOR_NAME=eshu", "GIT_AUTHOR_EMAIL=eshu@example.com", "GIT_COMMITTER_NAME=eshu", "GIT_COMMITTER_EMAIL=eshu@example.com",
-		"GIT_CONFIG_COUNT=2", "GIT_CONFIG_KEY_0=maintenance.auto", "GIT_CONFIG_VALUE_0=false",
-		"GIT_CONFIG_KEY_1=gc.auto", "GIT_CONFIG_VALUE_1=0")
+	cmd.Env = append(append(os.Environ(), scratchGitEnv...),
+		"GIT_AUTHOR_NAME=eshu", "GIT_AUTHOR_EMAIL=eshu@example.com", "GIT_COMMITTER_NAME=eshu", "GIT_COMMITTER_EMAIL=eshu@example.com")
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

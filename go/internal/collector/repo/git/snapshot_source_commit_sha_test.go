@@ -427,14 +427,25 @@ func TestSnapshotHeadCommitSubprocessCount(t *testing.T) {
 	}
 }
 
+// scratchGitEnv isolates scratch repositories from the operator's git
+// config (#6845) and turns off auto maintenance and auto gc (#8780).
+var scratchGitEnv = []string{
+	"GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null",
+	"GIT_CONFIG_COUNT=2", "GIT_CONFIG_KEY_0=maintenance.auto", "GIT_CONFIG_VALUE_0=false",
+	"GIT_CONFIG_KEY_1=gc.auto", "GIT_CONFIG_VALUE_1=0",
+}
+
 func runGit(t *testing.T, repoPath string, args ...string) string {
 	t.Helper()
 	cmdArgs := append([]string{"-C", repoPath}, args...)
 	cmd := exec.Command("git", cmdArgs...) // #nosec G204 -- test helper with controlled args
 	// #6845: isolate scratch repos from the operator's global/system git
 	// config. GIT_CONFIG_NOGLOBAL is not a real git knob (verified: the
-	// global file still leaks with it set); GLOBAL=/dev/null is.
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null")
+	// global file still leaks with it set); GLOBAL=/dev/null is. Auto
+	// maintenance and auto gc are off so a fetch's detached maintenance run
+	// cannot keep writing into a scratch repo after the command returns
+	// (#8780).
+	cmd.Env = append(os.Environ(), scratchGitEnv...)
 	output, err := cmd.Output()
 	if err != nil {
 		var stderr string
