@@ -5,9 +5,11 @@
 1. README.md - package boundary, metadata fields, and invariants
 2. doc.go - godoc contract for the Dockerfile helper package
 3. metadata.go - Dockerfile instruction parsing and payload compatibility map
-4. tokens.go - Dockerfile escape directive detection and command-line token
+4. base_ref.go - ARG substitution into FROM image references (global-scope
+   rule, supported operators, unresolved evidence)
+5. tokens.go - Dockerfile escape directive detection and command-line token
    splitting for quoted and escaped metadata values
-5. metadata_test.go - behavior coverage for runtime metadata and map shape
+6. metadata_test.go and base_ref_test.go - behavior coverage for runtime metadata and map shape
 
 ## Invariants this package enforces
 
@@ -15,6 +17,9 @@
   package, but this package must not import internal/parser.
 - RuntimeMetadata returns typed evidence; Metadata.Map is the compatibility
   bridge for existing payload consumers.
+- A FROM line sees only ARGs declared before the first FROM. Never widen that
+  scope, and never fill an unresolved value with a guess: keep the placeholder
+  and report it in UnresolvedArgs.
 - Row ordering must stay deterministic because parser payloads are fact inputs.
 
 ## Common changes and how to scope them

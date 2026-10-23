@@ -88,6 +88,19 @@ recent shipped work grouped by feature area.
   surfaced as a later, unrelated error, or none. The snapshot now returns the
   discovery error itself.
 
+### Dockerfile base images read ARG defaults
+
+- **The Dockerfile parser now expands `ARG` defaults declared before the first
+  `FROM` into the base image and tag** ([#8810](https://github.com/eshu-hq/eshu/issues/8810)).
+  `ARG NODE_VERSION=24.1.0` with `FROM node:${NODE_VERSION}-slim` now reports
+  tag `24.1.0-slim` instead of the literal placeholder. A stage-local `ARG`,
+  an `ARG` with no default, and expressions such as `${V%%.*}` stay
+  unresolved: the stage keeps the placeholder and the repository runtime
+  artifacts read model marks it with `base_ref_unresolved` and the defaults
+  seen as `base_ref_arg_defaults`. An unaliased stage that used a variable is
+  now named after its expanded image. The container image base-ref helper now
+  also skips a base whose tag still holds a placeholder.
+
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 
 - **Code-topic shared-snapshot reads now refuse an unqualified PostgreSQL

@@ -19,6 +19,14 @@ and not graph reads. It imports only the standard library, `querycontract`,
 handful of staying root stayers consume its exported loaders and
 predicates.
 
+Dockerfile runtime artifact rows report each stage's base image and tag after
+the parser expanded ARG defaults declared before the first `FROM`. A row adds
+`base_ref_template` (the `FROM` reference as written) when it held a variable.
+When a value is only known at build time the row keeps the placeholder in
+`base_tag`, sets `base_ref_unresolved: true`, lists `base_ref_unresolved_args`,
+and carries `base_ref_arg_defaults` as evidence. A consumer must not treat a
+`base_ref_unresolved` tag as a real version.
+
 ## Exported surface
 
 The exported surface is described in [doc.go](doc.go). Loaders and
