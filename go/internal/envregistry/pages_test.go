@@ -160,63 +160,102 @@ func layoutCoveringEntries() []Entry {
 	return entries
 }
 
-// TestRenderPagesSeededOverCapFails is the seeded violation: enough entries in
-// one subsystem push its page past the real 500-line cap, and the generator
-// names the page and says what to do instead of writing it.
-func TestRenderPagesSeededOverCapFails(t *testing.T) {
-	t.Parallel()
-	entries := layoutCoveringEntries()
+// renderFailureCase is one way the generator must refuse to render.
+type renderFailureCase struct {
+	name    string
+	reg     *Registry
+	layout  []pageSpec
+	lineCap int
+	wantErr []string
+}
+
+// renderFailureCases covers every refusal class once, each on a registry or
+// layout that is otherwise valid so a case isolates exactly one defect.
+func renderFailureCases(t *testing.T) []renderFailureCase {
+	t.Helper()
+	must := func(entries []Entry) *Registry {
+		r, err := New(entries)
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		return r
+	}
+	base := must(layoutCoveringEntries())
+	oversize := layoutCoveringEntries()
 	for i := range 500 {
-		entries = append(entries, Entry{
+		oversize = append(oversize, Entry{
 			Name: fmt.Sprintf("ESHU_SEEDED_%03d", i), Type: VarString,
 			Subsystem: "api", Description: "seeded entry",
 		})
 	}
-	r, err := New(entries)
-	if err != nil {
-		t.Fatalf("New: %v", err)
+	withSub := func(subsystem string) *Registry {
+		return must(append(layoutCoveringEntries(),
+			Entry{Name: "ESHU_EXTRA", Type: VarString, Subsystem: subsystem, Description: "x"}))
 	}
-	_, err = r.RenderPages()
-	if err == nil {
-		t.Fatal("RenderPages must fail when a page exceeds the line cap")
+	oneSpec := func(spec pageSpec) []pageSpec { return append(append([]pageSpec(nil), pageLayout...), spec) }
+
+	return []renderFailureCase{
+		{
+			"over the line cap", must(oversize), pageLayout, PageLineCap,
+			[]string{"env-registry/api-and-auth.md", "500", "pageLayout"},
+		},
+		{"unassigned subsystem", withSub("brand-new"), pageLayout, PageLineCap, []string{"brand-new"}},
+		{"empty subsystem", withSub(""), pageLayout, PageLineCap, []string{"empty subsystem"}},
+		{"subsystem with an unsafe anchor name", withSub("Foo Bar"), oneSpec(
+			pageSpec{Slug: "odd", Title: "Odd", Subsystems: []string{"Foo Bar"}}), PageLineCap, []string{"Foo Bar"}},
+		{"subsystem on two pages", base, []pageSpec{
+			{Slug: "a", Title: "A", Subsystems: []string{"api"}},
+			{Slug: "b", Title: "B", Subsystems: []string{"api"}},
+		}, PageLineCap, []string{"api", "both"}},
+		{
+			"layout subsystem with no entries", base, oneSpec(
+				pageSpec{Slug: "gone", Title: "Gone", Subsystems: []string{"no-such-subsystem"}}), PageLineCap,
+			[]string{"no-such-subsystem"},
+		},
+		{"duplicate slug", base, oneSpec(
+			pageSpec{Slug: pageLayout[0].Slug, Title: "Dup"}), PageLineCap, []string{pageLayout[0].Slug}},
+		{"empty slug", base, oneSpec(pageSpec{Slug: "", Title: "No slug"}), PageLineCap, []string{"slug"}},
+		{"index slug", base, oneSpec(pageSpec{Slug: "index", Title: "Index"}), PageLineCap, []string{"index"}},
+		{
+			"slug that is not a URL-safe name", base, oneSpec(pageSpec{Slug: "Bad Slug", Title: "Bad"}), PageLineCap,
+			[]string{"Bad Slug"},
+		},
+		{"empty title", base, oneSpec(pageSpec{Slug: "untitled"}), PageLineCap, []string{"untitled", "title"}},
 	}
-	for _, want := range []string{"env-registry/api-and-auth.md", "500", "pageLayout"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error %q must mention %q", err, want)
+}
+
+// TestRenderPagesRefusesEveryFailureClass proves each refusal returns an error
+// naming the defect and returns no pages at all, never a partial set.
+func TestRenderPagesRefusesEveryFailureClass(t *testing.T) {
+	t.Parallel()
+	for _, tc := range renderFailureCases(t) {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pages, err := tc.reg.renderPages(tc.layout, tc.lineCap)
+			if err == nil {
+				t.Fatal("renderPages must fail")
+			}
+			if pages != nil {
+				t.Fatalf("renderPages returned %d page(s) alongside an error, want none", len(pages))
+			}
+			for _, want := range tc.wantErr {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error %q must mention %q", err, want)
+				}
+			}
+		})
+	}
+}
+
+// TestIndexExplainsMovedSubsystemAnchors: links like env-registry.md#api that
+// predate the split now land at the top of the index, which has no subsystem
+// headings. The index must say so and point at the table that finds each one.
+func TestIndexExplainsMovedSubsystemAnchors(t *testing.T) {
+	t.Parallel()
+	index := mustRenderPages(t, Default())[0].Content
+	for _, want := range []string{"`#api`", "moved to the family pages", "## Subsystems"} {
+		if !strings.Contains(index, want) {
+			t.Errorf("index must contain %q", want)
 		}
-	}
-}
-
-// TestRenderPagesUnassignedSubsystemFails: a subsystem the layout does not
-// name must fail loudly rather than vanish from the published reference.
-func TestRenderPagesUnassignedSubsystemFails(t *testing.T) {
-	t.Parallel()
-	r, err := New(append(layoutCoveringEntries(),
-		Entry{Name: "ESHU_ORPHAN", Type: VarString, Subsystem: "brand-new", Description: "x"}))
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	_, err = r.RenderPages()
-	if err == nil || !strings.Contains(err.Error(), "brand-new") {
-		t.Fatalf("RenderPages error = %v, want one naming subsystem brand-new", err)
-	}
-}
-
-// TestRenderPagesLayoutRejectsDuplicateAndStaleSubsystems guards the layout
-// itself: a subsystem on two pages would publish its rows twice, and a layout
-// subsystem with no entries is a stale mapping.
-func TestRenderPagesLayoutRejectsDuplicateAndStaleSubsystems(t *testing.T) {
-	t.Parallel()
-	r := Default()
-	dup := []pageSpec{
-		{Slug: "a", Title: "A", Subsystems: []string{"api"}},
-		{Slug: "b", Title: "B", Subsystems: []string{"api"}},
-	}
-	if _, err := r.renderPages(dup, PageLineCap); err == nil {
-		t.Error("a subsystem on two pages must be rejected")
-	}
-	stale := append([]pageSpec{{Slug: "gone", Title: "Gone", Subsystems: []string{"no-such-subsystem"}}}, pageLayout...)
-	if _, err := r.renderPages(stale, PageLineCap); err == nil {
-		t.Error("a layout subsystem with no registry entries must be rejected")
 	}
 }

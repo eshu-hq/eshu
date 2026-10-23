@@ -5,9 +5,16 @@ package envregistry
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+// safeName matches a name that is both a legal URL path segment and equal to
+// its own mkdocs heading slug: lowercase letters and digits joined by single
+// hyphens. Page slugs and subsystem names must match it, so the "#subsystem"
+// anchors and "<slug>.md" paths the index emits are the ones mkdocs serves.
+var safeName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 const (
 	// PageLineCap is the repository's Markdown file cap
@@ -136,9 +143,33 @@ func (r *Registry) renderPages(layout []pageSpec, lineCap int) ([]Page, error) {
 // assignSubsystems validates layout against the registry's subsystems and
 // returns the page spec index owning each subsystem.
 func assignSubsystems(layout []pageSpec, bySubsystem map[string][]Entry) (map[string]int, error) {
+	registrySubsystems := make([]string, 0, len(bySubsystem))
+	for subsystem := range bySubsystem {
+		registrySubsystems = append(registrySubsystems, subsystem)
+	}
+	sort.Strings(registrySubsystems)
+	for _, subsystem := range registrySubsystems {
+		if subsystem == "" {
+			return nil, fmt.Errorf("envregistry: registry has an entry with an empty subsystem; set Entry.Subsystem")
+		}
+		if !safeName.MatchString(subsystem) {
+			return nil, fmt.Errorf("envregistry: subsystem %q is not a lowercase hyphenated name, so its "+
+				"heading anchor would differ from the one the index links", subsystem)
+		}
+	}
 	pageOf := map[string]int{}
 	slugs := map[string]struct{}{}
 	for i, spec := range layout {
+		if !safeName.MatchString(spec.Slug) || spec.Slug == "index" {
+			return nil, fmt.Errorf("envregistry: pageLayout slug %q must be a lowercase hyphenated name other than "+
+				"\"index\" (index.md would collide with the env-registry.md index URL)", spec.Slug)
+		}
+		if strings.TrimSpace(spec.Title) == "" {
+			return nil, fmt.Errorf("envregistry: pageLayout page %q has an empty title", spec.Slug)
+		}
+		if len(spec.Subsystems) == 0 {
+			return nil, fmt.Errorf("envregistry: pageLayout page %q lists no subsystems", spec.Slug)
+		}
 		if _, dup := slugs[spec.Slug]; dup {
 			return nil, fmt.Errorf("envregistry: page slug %q appears twice in pageLayout", spec.Slug)
 		}
@@ -191,6 +222,9 @@ func renderIndex(layout []pageSpec, bySubsystem map[string][]Entry, pageOf map[s
 	b.WriteString("`go/internal/envregistry`. It covers the core platform subsystems and the hosted collectors. ")
 	b.WriteString("It is split into one page per subsystem family so each page stays under the repository's ")
 	b.WriteString("Markdown line cap. Run `eshu config validate` to check the current environment against it.\n\n")
+	b.WriteString("Subsystem anchors such as `#api` and `#auth` moved to the family pages when this reference was split, ")
+	b.WriteString("so a link to `env-registry.md#api` lands at the top of this index. ")
+	b.WriteString("The Subsystems table below links every subsystem section on its family page.\n\n")
 
 	b.WriteString("## Pages\n\n")
 	b.WriteString("| Page | Covers | Variables |\n| --- | --- | --- |\n")

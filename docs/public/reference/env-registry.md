@@ -4,6 +4,8 @@
 
 This reference is generated from the code-owned registry in `go/internal/envregistry`. It covers the core platform subsystems and the hosted collectors. It is split into one page per subsystem family so each page stays under the repository's Markdown line cap. Run `eshu config validate` to check the current environment against it.
 
+Subsystem anchors such as `#api` and `#auth` moved to the family pages when this reference was split, so a link to `env-registry.md#api` lands at the top of this index. The Subsystems table below links every subsystem section on its family page.
+
 ## Pages
 
 | Page | Covers | Variables |

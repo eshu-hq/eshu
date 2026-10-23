@@ -24,7 +24,9 @@
 - **Every generated page stays under the 500-line Markdown cap.** `RenderPages`
   fails loudly instead of writing an oversized page. `pageLayout` in `pages.go`
   assigns subsystems to pages; a new subsystem needs a `pageLayout` entry, and a
-  page nearing the cap is rebalanced by moving whole subsystems.
+  page nearing the cap is rebalanced by moving whole subsystems. The mkdocs nav
+  section "Environment Variable Registry (generated)" in `docs/mkdocs.yml` is
+  edited by hand to match `pageLayout` titles and order; a test enforces it.
 
 ## Common changes and how to scope them
 

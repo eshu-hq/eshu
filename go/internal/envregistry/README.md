@@ -99,7 +99,17 @@ two pages, is listed without entries, or when a page would pass the cap. A new
 `ESHU_*` variable in an existing subsystem never needs a layout change. A new
 subsystem needs one line in `pageLayout`. If a page nears the cap, move whole
 subsystems between pages; keep each page at 350 lines or fewer so a later
-variable does not trigger the cap. The pages directory is
+variable does not trigger the cap. Slugs and subsystem names must be lowercase
+hyphenated names, and the slug `index` is refused, so the `#subsystem` anchors
+and `<slug>.md` paths the index emits are the ones mkdocs serves.
+
+Per-subsystem anchors such as `env-registry.md#api` moved to the family pages
+with the split: an old deep link now lands at the top of the index, which says
+so and lists every subsystem with a link to its section. Links written since
+point at `env-registry/<slug>.md#<subsystem>`. The mkdocs nav section
+"Environment Variable Registry (generated)" is hand-written; a test
+(`TestMkdocsNavListsEveryGeneratedPage`) fails when it omits a page or titles
+one differently from `pageLayout`. The pages directory is
 `docs/public/reference/env-registry/`, not `generated/`, because the line-cap
 gate skips any path segment named `generated`.
 
