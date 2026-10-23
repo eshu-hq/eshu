@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8834 real PostgreSQL quota partition proof: an exhausted component and scope pair does not block a different scope, and each scope grants its own limit; enrolled in the live-postgres-readiness runner
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"context"
 	"database/sql"

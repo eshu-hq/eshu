@@ -73,5 +73,17 @@ TABLE = {
             "TestWorkflowFairnessKeyDepthsReportsTopKeysAndDistinctCount",
             "TestWorkflowClaimDepthStaggeredStartHoldsGates",
         ),
+        "go/internal/storage/postgres/workflow_control_quota_live_test.go": (
+            "TestClaimQuotaOverBudgetThrottlesOnIdleSystem",
+            "TestClaimQuotaRacingReplicasCannotOvershoot",
+            "TestClaimQuotaStateSurvivesCoordinatorRestart",
+            "TestClaimQuotaUnreadableFallsBackToFloorRate",
+        ),
+        "go/internal/storage/postgres/workflow_control_quota_partition_live_test.go": (
+            "TestClaimQuotaScopesPartitionBudget",
+        ),
+        "go/internal/storage/postgres/workflow_control_quota_plan_live_test.go": (
+            "TestClaimQuotaGatedPlanStaysIndexServed",
+        ),
     },
 }
