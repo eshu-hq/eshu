@@ -221,7 +221,16 @@ carries `coverage_state`, `coverage_reason`, and `collector_state`, and it
 increments `eshu_dp_query_security_alert_empty_answers_total`. Pages with rows
 never run it. The whole probe runs under `securityAlertCollectionStateTimeout`
 (1 s); a store error or an expired deadline serves `collector_state_unavailable`
-with fallback truth and a `readiness_unavailable` envelope instead of a `500`. The state table is in
+with fallback truth and a `readiness_unavailable` envelope instead of a `500`,
+and the stage log names the cause in `error_class` (`deadline_exceeded`,
+`bound_exceeded`, or `query_failed` at WARN; `canceled` at INFO, not counted).
+The store wraps its read bounds in `ErrSecurityAlertCollectionStateBound`. A
+scoped token with no grants never reaches the probe: the empty-grant writers
+answer `not_configured` with reason `no_authorized_repositories` and no
+readiness envelope. An unanchored `complete` is configured-target health only,
+and a zero-row answer is clean only when coverage.state is complete and the
+reducer's security_alert_reconciliation domain has no pending or dead-lettered
+work for the scope (`get_freshness_causality`). The state table is in
 [Provider Alert Parity](../../../../../docs/public/reference/security-intelligence-provider-alert-parity.md#empty-answers).
 
 When the catalog has no match and the selector is not canonical, the exact

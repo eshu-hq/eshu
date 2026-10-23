@@ -55,10 +55,15 @@ reported `truth.freshness.state = stale`.
   `repository_outside_target_set` are configuration: add an enabled
   `security_alert` instance or a target that covers the repository.
   `no_committed_generation` is still collecting. `collector_state_unavailable`
-  means the state read failed or hit its 1 s deadline (`deadline_exceeded` on
-  the stage log). `terminal_fetch_failure:<class>`
+  means the state read failed: the stage log's `error_class` is
+  `deadline_exceeded` (the 1 s deadline), `bound_exceeded` (more than 64
+  instances or 1,024 covering targets; reduce the configured targets),
+  `query_failed` (a store error), or `canceled` (the caller left; not
+  counted). `no_authorized_repositories` is a scoped token with no grants; fix
+  its grants. `terminal_fetch_failure:<class>`
   is a provider failure (`auth_denied` means the provider refused the target's
-  credential); follow
+  credential; `retryable` or `attempt_budget_exhausted` means the retry budget
+  ran out); follow
   [collector failure](#symptom-collector-failure). The
   `supply chain query stage completed` log for stage
   `security_alert_collection_state` carries `coverage_state`, `coverage_reason`,
