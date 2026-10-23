@@ -10,7 +10,7 @@ jobs:
   refresh:
     name: Bounded lint cache proof; no baseline publication
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
     env:
       GOCACHE: /tmp/eshu-ci/go-build
     steps:
@@ -65,6 +65,12 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: 8617-lint-cache-proof
-        path: /tmp/eshu-lint-proof
+        path: '/tmp/eshu-lint-proof/*.log
+
+          /tmp/eshu-lint-proof/*.time
+
+          /tmp/eshu-lint-proof/*.txt
+
+          /tmp/eshu-lint-proof/*.load-*'
         retention-days: 7
         if-no-files-found: error

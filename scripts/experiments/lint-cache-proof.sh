@@ -13,9 +13,9 @@ case "$phase" in
     go version > "$proof_dir/versions.txt"
     golangci-lint version >> "$proof_dir/versions.txt"
     nproc > "$proof_dir/cpus.txt"
-    for sample in seed cold-control; do
+    for sample in seed cold-control warm cold-control2 warm2; do
       cache="$proof_dir/seed"
-      if [[ "$sample" = cold-control ]]; then cache="$proof_dir/control"; fi
+      if [[ "$sample" == cold-control* ]]; then cache="$proof_dir/$sample"; fi
       cat /proc/loadavg > "$proof_dir/$sample.load-start"
       GOLANGCI_LINT_CACHE="$cache" /usr/bin/time -v -o "$proof_dir/$sample.time" \
         golangci-lint run -v ./... > "$proof_dir/$sample.log" 2>&1
