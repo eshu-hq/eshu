@@ -89,8 +89,11 @@ startup on every surface (#8771), and refuses to start on `router` or
 same tools as before but also builds the ranker at startup, about 9 to 16 ms
 once and about 1.1 MB of heap, because `find_tool` stays callable there and a
 `?surface=router` override can select the router surface.
-Until the core tool set (#8759) lands, `core_router` advertises only
-`find_tool` and `call_tool`.
+`core_router` advertises `find_tool`, `call_tool`, and the 10 core tools listed
+in `go/internal/mcp/router/core.go` (#8759). They are the 10 tools with the
+largest share of measured calls on a QA deployment; the
+[decision record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8759-mcp-core-router-tool-set.md)
+holds the shares and the checks.
 
 At startup the server logs `mcp tool surface` with the `surface`, the
 `tool_count`, and the `tools_list_bytes` size of the `tools/list` result, plus

@@ -125,7 +125,7 @@ every lane codes against them.
 | #8756 | Eval corpus and report-only gate | eval corpus and gate, written blind to the intents |
 | #8757 | `find_tool` and `call_tool` dispatch, validation, telemetry | `handleMessage` intercept, validator, router telemetry |
 | #8758 | `ESHU_MCP_TOOL_SURFACE` switch | env registry entry, `ServerOption`, `/mcp/message` `surface` override |
-| #8759 | Core tool set from hosted call counts | `core.go` `coreToolNames` |
+| #8759 | Core tool set from hosted call counts (QA sample, 10 tools) | `core.go` `coreToolNames` |
 | #8760 | Hosted validation, assistant docs, default decision | docs and measurement |
 
 ## Telemetry
@@ -268,8 +268,10 @@ rejected ones with `classifyRejection` from a `TestMain`, through
   call.
 - `ParseSurface("")` is `full`. An unknown value is an error, never a silent
   fallback to `full`.
-- `CoreToolNames` is empty until #8759. `core_router` advertises only the two
-  router tools until then.
+- `CoreToolNames` holds the 10 measured core tools (#8759). `core_router`
+  advertises `find_tool`, `call_tool`, and those tools. Change the list only
+  with a new measurement, the decision record, and `measuredCoreToolNames` in
+  `go/internal/mcp/core_tool_set_test.go`.
 - `find_tool` needs a `Ranker`. `cmd/mcp-server` wires the lexical ranker
   (`router/rank`, #8755) through `mcp.WithRouterRanker` (#8771): `NewServer`
   calls `Host.Prepare` after every option, which loads the catalog entries once

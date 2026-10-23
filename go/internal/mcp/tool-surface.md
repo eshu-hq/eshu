@@ -31,8 +31,8 @@ still dispatches.
 ## The find_tool ranker
 
 `router` and `core_router` lead with `find_tool`, which needs a ranker.
-Until the core tool set (#8759) lands, `core_router` advertises only
-`find_tool` and `call_tool`.
+`core_router` advertises `find_tool`, `call_tool`, and the 10 core tools listed
+in `router/core.go` (#8759).
 `cmd/mcp-server` passes `WithRouterRanker` with the lexical ranker
 (`router/rank`) on every surface (#8771): `find_tool` stays callable on `full`,
 and a `?surface=router` override can select it per request.
