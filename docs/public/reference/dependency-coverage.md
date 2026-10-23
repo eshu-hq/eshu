@@ -144,7 +144,10 @@ absence of evidence look like absence of risk. Guard tests:
   audit-only evidence. `go.sum` stays a gap because it records every
   module version any tool has verified rather than the currently selected
   version, so checksum-only ambiguity must remain explicit until paired
-  with a go.mod require.
+  with a go.mod require. `go.work` is parsed for its member directories
+  (`config_kind=workspace_use`) and workspace replaces
+  (`config_kind=dependency_replace`); it declares no requirements, so it adds
+  no consumption rows and no coverage-matrix entry.
 - Pub `pubspec.lock` rows preserve exact hosted `pub.dev` versions with
   direct/transitive and runtime/dev scope evidence. `pubspec.yaml` rows preserve
   hosted dependency ranges only. Git/path/private-hosted rows, mismatched

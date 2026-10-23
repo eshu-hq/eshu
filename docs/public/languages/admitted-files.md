@@ -33,7 +33,7 @@ checklist.
 | `dart` | dart | L2 structured fact | `.dart` |  |  |
 | `elixir` | elixir | L2 structured fact | `.ex`, `.exs` | `mix.lock` |  |
 | `go` | go | L2 structured fact | `.go` |  |  |
-| `gomod` | go | L2 structured fact |  | `go.mod`, `go.sum` |  |
+| `gomod` | go | L2 structured fact |  | `go.mod`, `go.sum`, `go.work` |  |
 | `gradle` | java | L2 structured fact |  | `build.gradle`, `build.gradle.kts` |  |
 | `groovy` | groovy | L2 structured fact | `.groovy` |  |  |
 | `haskell` | haskell | L2 structured fact | `.hs` |  |  |

@@ -301,7 +301,7 @@ parser path.
 | Dockerfile | `__dockerfile__` | `Dockerfile`, `Dockerfile.*` | — |
 | Elixir | `elixir` | `.ex`, `.exs`, `mix.lock` | yes |
 | Go | `go` | `.go` | yes |
-| Go modules | `gomod` | `go.mod`, `go.sum` (exact filenames) | — |
+| Go modules | `gomod` | `go.mod`, `go.sum`, `go.work` (exact filenames) | — |
 | Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | yes (metadata scanners remain bounded) |
 | Haskell | `haskell` | `.hs` (`.lhs` stays unclaimed: the grammar has no literate mode) | yes |
 | HCL/Terraform | `hcl` | `.hcl`, `.tf`, `.tfvars`, `.tfvars.json` | — |

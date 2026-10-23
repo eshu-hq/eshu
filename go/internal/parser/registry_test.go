@@ -155,6 +155,26 @@ func TestDefaultRegistryLookupByExtensionAndPath(t *testing.T) {
 		}
 	})
 
+	t.Run("go.work exact name", func(t *testing.T) {
+		t.Parallel()
+
+		definition, ok := registry.LookupByPath(filepath.Join("repo", "go.work"))
+		if !ok {
+			t.Fatalf("expected go.work to resolve")
+		}
+		if definition.ParserKey != "gomod" || definition.Language != "gomod" {
+			t.Fatalf("go.work = %q/%q, want gomod/gomod", definition.ParserKey, definition.Language)
+		}
+	})
+
+	t.Run("go.work.sum is not a workspace file", func(t *testing.T) {
+		t.Parallel()
+
+		if definition, ok := registry.LookupByPath(filepath.Join("repo", "go.work.sum")); ok {
+			t.Fatalf("go.work.sum resolved to %q, want no parser: it is a checksum file, not a go.work", definition.ParserKey)
+		}
+	})
+
 	t.Run("jsonc extension", func(t *testing.T) {
 		t.Parallel()
 

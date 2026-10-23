@@ -15,9 +15,9 @@ import (
 
 // TestGomodStateRoundTripThroughTypedContract proves the factschema
 // codegraphv1.GomodState struct + DecodeParsedFileDataGomodState accessor
-// faithfully model the Go module parser's real gomod_state output for BOTH
-// producers (go.mod carries module_path, go.sum does not), recovering the
-// state/module_path read-set the reducer joins on and preserving every other
+// faithfully model the Go module parser's real gomod_state output for every
+// producer (go.mod carries module_path; go.sum and go.work do not), recovering
+// the state/module_path read-set the reducer joins on and preserving every other
 // producer field in the open Attributes pass-through. It binds the typed
 // contract to the producer without changing the emitted bytes (issue #4750 S1).
 func TestGomodStateRoundTripThroughTypedContract(t *testing.T) {
@@ -47,6 +47,18 @@ require golang.org/x/mod v0.17.0
 			filename: "go.sum",
 			source: `golang.org/x/mod v0.17.0 h1:aaa=
 golang.org/x/mod v0.17.0/go.mod h1:bbb=
+`,
+			wantState:      "parsed",
+			wantModulePath: "",
+		},
+		{
+			name:     "go_work_has_no_module_path",
+			filename: "go.work",
+			source: `go 1.23
+
+use ./svc
+
+replace golang.org/x/mod v0.17.0 => ../mod
 `,
 			wantState:      "parsed",
 			wantModulePath: "",

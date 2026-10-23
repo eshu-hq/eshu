@@ -1,0 +1,5 @@
+go 1.21
+
+use ./deps/gomod
+
+replace github.com/acme/shared => ./deps/shared

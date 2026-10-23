@@ -13,13 +13,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// registryFingerprintBeforeAdmission is the DefaultRegistry fingerprint
-// recorded at the base commit, before Ecosystem and Admission existed. Labels
-// are documentation metadata: they must not move the fingerprint, because that
-// would invalidate every repository's freshness hint (#7986) for no change in
-// what discovery admits.
-const registryFingerprintBeforeAdmission = "fd09062e4ea068c41a482db1daa19b27924a9461946391f41516e5269a0dd327"
-
 // ecosystemsWithoutLedgerRow are registry ecosystems that span languages or
 // have no row in specs/language-feature-parity-ledger.v1.yaml. Every other
 // ecosystem must be a ledger language key.
@@ -98,12 +91,43 @@ func TestLookupsPreserveAdmissionLabels(t *testing.T) {
 	}
 }
 
+// TestAdmissionLabelsDoNotMoveRegistryFingerprint proves Ecosystem and
+// Admission stay out of the parser-set identity. Labels are documentation
+// metadata: if they moved the fingerprint, every relabel would invalidate
+// every repository's freshness hint (#7986) for no change in what discovery
+// admits. The test compares the default registry against the same
+// definitions with the labels cleared and with the labels rewritten, so a
+// registration change (a new parser or file name, such as go.work in #8823)
+// still moves the digest on its own with no hand-edited pin.
 func TestAdmissionLabelsDoNotMoveRegistryFingerprint(t *testing.T) {
 	t.Parallel()
 
-	if got := DefaultRegistry().Fingerprint(); got != registryFingerprintBeforeAdmission {
-		t.Fatalf("Fingerprint() = %s, want %s: admission labels must not change discovery identity",
-			got, registryFingerprintBeforeAdmission)
+	want := DefaultRegistry().Fingerprint()
+	relabel := map[string]func(Definition) Definition{
+		"cleared": func(definition Definition) Definition {
+			definition.Ecosystem = ""
+			definition.Admission = ""
+			return definition
+		},
+		"rewritten": func(definition Definition) Definition {
+			definition.Ecosystem = "relabelled-" + definition.Ecosystem
+			definition.Admission = AdmissionContentText
+			return definition
+		},
+	}
+	for name, change := range relabel {
+		definitions := defaultDefinitions()
+		for i := range definitions {
+			definitions[i] = change(definitions[i])
+		}
+		registry, err := NewRegistry(definitions)
+		if err != nil {
+			t.Fatalf("%s: NewRegistry() error = %v", name, err)
+		}
+		if got := registry.Fingerprint(); got != want {
+			t.Fatalf("%s labels: Fingerprint() = %s, want %s: admission labels must not change discovery identity",
+				name, got, want)
+		}
 	}
 }
 
