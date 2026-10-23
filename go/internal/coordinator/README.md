@@ -169,8 +169,8 @@ one enabled bounded scope; invalid configurations fail validation.
 - `PagerDutyPlanner` — implemented by `pagerduty.WorkPlanner`; child owns
   validated target membership and private planning. Root retains authorization,
   scheduling, admission, trigger transitions, retries, and telemetry.
-- `JiraPlanner` — implemented by `jira.WorkPlanner`; child owns private
-  planning and validated membership, while root keeps scheduling and admission.
+- `JiraPlanner` — implemented by `jira.WorkPlanner`; child owns planning and
+  membership; root schedules, admits, and skips component-configured instances.
 - `PrometheusMimirPlanner` — the root interface implemented by
   `prometheus.WorkPlanner`. The child plans Prometheus/Grafana Mimir
   metric-metadata work from `configuration.targets[]`; each enabled target is
