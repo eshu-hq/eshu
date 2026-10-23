@@ -215,9 +215,12 @@ mcpServer:
   #
   # A client can override the value with ?surface=<value>: on POST /mcp/message
   # it applies to that request, and on GET /sse it applies to the whole SSE
-  # session. router and core_router are not usable until the find_tool and
-  # call_tool handlers (#8757) and the core set (#8759) land; the default full
-  # is unaffected. Example:
+  # session. router and core_router serve find_tool with the lexical ranker,
+  # built once at startup on every surface (#8771); the server refuses to start
+  # on them without one. Until the core set (#8759) lands, core_router lists
+  # only find_tool and call_tool. full lists the same tools as before but also
+  # builds the ranker at startup (about 9 to 16 ms once, about 1.1 MB of heap).
+  # Example:
   #   env:
   #     ESHU_MCP_TOOL_SURFACE: router
   env: {}
