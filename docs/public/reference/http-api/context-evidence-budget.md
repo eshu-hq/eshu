@@ -157,15 +157,37 @@ truth, and freshness field is computed from the full rows.
     `graph_dependents_shipped_at` and `content_consumers_shipped_at` name them.
 - Under `handles` the response sets `evidence_detail` and
   `evidence_detail_drilldown`, and lists each reduced family in `truth.omissions`
-  with its true total, the count the story recorded before it capped the list
-  (`detail` is `handles` for projected rows and `omitted` for a dropped list).
-  `investigation.repositories_considered` reports the packet's true repository
+  with its total, the count the story held before its own 50-row cap (`detail`
+  is `handles` for projected rows and `omitted` for a dropped list). The total
+  is exact only when the read behind the family was not itself cut, because
+  several reads are bounded before the story sees their rows:
+  - `dependents`, `consumer_repositories`, and `provisioning_source_chains`
+    stop at `result_limits.downstream_read_limit` and set `dependents_truncated`,
+    `consumer_repositories_truncated`, and
+    `provisioning_source_chains_truncated`. Their totals are lower bounds when
+    the matching flag is set.
+  - `uncorrelated_cloud_resources` reads one row past 50 and sets
+    `uncorrelated_cloud_resources_truncated`. Its total is a lower bound when
+    that flag is set.
+  - `cloud_resources` is read at most 50 rows with no truncation flag, so its
+    total never passes 50 and cannot tell you more exist.
+  - `upstream_dependencies` is built from deployment artifacts, dependencies,
+    and the provisioning chains, so it is a lower bound when
+    `provisioning_source_chains_truncated` or a deployment artifact bound is
+    set.
+  - `hostnames`, `entrypoints`, `entrypoint_candidates`, and `network_paths`
+    come from the service evidence file read, so they are lower bounds when that
+    read hit the `result_limits.evidence_file_read_limit` file bound (the story
+    then sets `consumer_repositories_truncated`).
+
+  `investigation.repositories_considered` reports the packet's repository
   count, `investigation.coverage_summary.repository_count`, which is taken
   before the 50-row cap and never counts the marker row. The packet records no
   such count for `investigation.repositories_with_evidence`
   (`repositories_with_evidence_count` counts only the rows returned), so that
-  total is a lower bound, the 50 rows it shipped. The `__truncated__` marker row
-  says more repositories exist. `truth.level`,
+  total is the rows it shipped, at most 50 and often fewer. It never ships the
+  marker row. It is a lower bound when `repositories_considered` ends with the
+  `__truncated__` marker row, and exact otherwise. `truth.level`,
   `truth.freshness`, and `answer_metadata` are unchanged. `answer_packet.truth`
   copies the truth envelope, so it carries the same `omissions`.
 - To reach the rows under `handles`, repeat the call with `evidence_detail: full`,
@@ -184,15 +206,18 @@ answers it as the resource copy alone and records
 `eshu_dp_mcp_response_resource_fallback_total` until #8800 sends the result
 once. A story with no attached cloud resources and
 60 uncorrelated cloud-resource candidates (the enrichment loads candidates only
-when no cloud resource attached, so the two lists never ship together) is
+when no cloud resource attached, so the two lists never ship together; the 60
+rows are a conservative synthetic size, because the production read returns at
+most 50) is
 366,502 bytes under `full`, 125,578 under `handles`, and 284,854 in the dual
 shape, and
 also falls back: 135,320 bytes as the structured copy, 149,534 as the escaped
 text copy.
 
 The standard fixture leaves out `entrypoint_candidates` and `network_paths`,
-which also cap at 50 rows. With 60 rows of each added (every family at its cap),
-the story is 385,793 bytes under `full` and 146,879 under `handles`
+which also cap at 50 rows. With 60 rows of each added (every family past its cap;
+the 60 is a conservative synthetic size, and production ships at most 50 of
+any family), the story is 385,793 bytes under `full` and 146,879 under `handles`
 (`entrypoint_candidates` 10,837 to 7,487 bytes, `network_paths` 14,301 to
 10,551). That shape is 330,200 bytes in the dual MCP shape, so dispatch falls
 back to the resource copy alone (156,843 bytes structured, 173,357 escaped).
@@ -212,7 +237,8 @@ in the handler after `BuildServiceStoryEnvelope` returns, and the in-process
 service intelligence report calls the builder directly and is not shaped. The
 only builder change drops the endpoint rows from the overview's copy of
 `api_surface`, which removes about 12 KB of serialization work on this fixture.
-Input shape: a fixture with every row list past its 50-row cap (60 rows each)
+Input shape: a fixture with every row list past its 50-row cap (60 rows each,
+a conservative synthetic size; production ships at most 50 rows per list)
 and the production row keys, plus CI/CD and supply-chain evidence. Under `full`:
 360,361 bytes. Under `handles`: 128,547 bytes (35.7 percent of `full`); the
 escaped single copy is 152,707 bytes against the unchanged 262,144-byte budget
@@ -220,8 +246,8 @@ escaped single copy is 152,707 bytes against the unchanged 262,144-byte budget
 the resource-copy fallback until #8800.
 `go test ./internal/query/service -run 'OversizedServiceStory|StoryHandles'
 -count=1` pins the budget on the escaped size, the unchanged truth and count
-fields, the preview and node-cut markers and the ship-once pointers, no empty handle row, the true omission total of
-every reduced family, and the per-row truth labels.
+fields, the preview and node-cut markers and the ship-once pointers, no empty handle row, the omission total of
+every reduced family (the story's own pre-cap count), and the per-row truth labels.
 `TestStoryHandlesKeepProductionRowTruthLabels` builds the rows with the
 production builders and fails on a row key with no kept or dropped decision.
 

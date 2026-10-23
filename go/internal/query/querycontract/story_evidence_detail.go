@@ -102,7 +102,7 @@ var storyDownstreamShippedAt = []struct{ rowsKey, countKey, shippedAt string }{
 
 // storyTracePreviewLimit is how many evidence handles a trace segment keeps
 // when its rows also ship in a top-level section of the story. evidence_count
-// stays the true total.
+// stays the full count.
 const storyTracePreviewLimit = 10
 
 // storyTraceDuplicatedSegments are the code_to_runtime_trace segments whose
@@ -245,16 +245,23 @@ func projectStoryList(data map[string]any, parentKey string, key string, keys []
 // packet appends when it cut its repository list.
 const storyTruncationMarkerRepoID = "__truncated__"
 
-// storyListTotal returns the true total of a story list: the larger of the
-// shipped row count and the count the story recorded before it capped the list.
-// The story records that count in a different place per family: upstream
+// storyListTotal returns the total a story list reports in truth.omissions: the
+// larger of the shipped row count and the count the story held before its own
+// 50-row cap. It is exact only when the read behind the list was not itself
+// cut. The story records the count in a different place per family: upstream
 // dependencies in result_limits.upstream_count, the investigation
 // repositories_considered list in investigation.coverage_summary.repository_count
 // (taken before its 50-row cap, #8802), and the other top-level lists in
-// raw_context_limits.<key>.count. investigation.repositories_with_evidence has
-// no count past the cap, because coverage_summary.repositories_with_evidence_count
-// counts only the rows returned, so its total is the shipped (non-marker) row
-// count and a lower bound.
+// raw_context_limits.<key>.count, which is the length of what the story
+// received. Several reads are bounded before the story sees them, so for those
+// the total is a lower bound when the matching *_truncated flag is set:
+// dependents, consumer_repositories, provisioning_source_chains, and
+// uncorrelated_cloud_resources. cloud_resources is read at most 50 rows with no
+// flag, so its total never passes 50. investigation.repositories_with_evidence
+// has no count past the cap, because
+// coverage_summary.repositories_with_evidence_count counts only the rows
+// returned, so its total is the shipped (non-marker) row count: a lower bound
+// when repositories_considered ends with the marker row, exact otherwise.
 func storyListTotal(data map[string]any, parentKey string, key string, shipped int) int {
 	switch {
 	case parentKey == "investigation" && key == "repositories_considered":

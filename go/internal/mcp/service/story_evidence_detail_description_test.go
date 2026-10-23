@@ -13,6 +13,10 @@ import (
 // confidence is not one of the labels an artifact row keeps (#8798).
 const storyArtifactException = "deployment artifact rows keep id, relationship_type, and resolved_id; get_relationship_evidence by resolved_id returns the rest, including confidence"
 
+// storyOmissionTotalCaveat is the sentence that keeps a truth.omissions total
+// from reading as exact for the families whose own read is bounded (#8798).
+const storyOmissionTotalCaveat = "for dependents, consumer_repositories, provisioning_source_chains, and uncorrelated_cloud_resources it is a lower bound when the matching *_truncated flag is set, and cloud_resources never reports past 50"
+
 // TestGetServiceStoryEvidenceDetailNamesArtifactException pins that the schema
 // description of evidence_detail does not read as if deployment artifact rows
 // keep their row-level truth labels. The artifact rows use the shared context
@@ -37,8 +41,13 @@ func TestGetServiceStoryEvidenceDetailNamesArtifactException(t *testing.T) {
 			t.Fatalf("get_service_story evidence_detail type = %T, want map[string]any", properties["evidence_detail"])
 		}
 		description, _ := detail["description"].(string)
-		if !strings.Contains(description, storyArtifactException) {
-			t.Fatalf("evidence_detail description = %q, want it to contain %q", description, storyArtifactException)
+		for _, want := range []string{storyArtifactException, storyOmissionTotalCaveat} {
+			if !strings.Contains(description, want) {
+				t.Fatalf("evidence_detail description = %q, want it to contain %q", description, want)
+			}
+		}
+		if strings.Contains(description, "true total") {
+			t.Fatalf("evidence_detail description = %q, must not call an omission total true", description)
 		}
 		return
 	}
