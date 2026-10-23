@@ -177,14 +177,16 @@ under `full` and 128,547 bytes under `handles` (35.7 percent). The MCP result
 carries the envelope twice, once structured and once as an escaped JSON string.
 Under `full` even one copy is over the 262,144-byte budget (366,409 bytes
 structured, 405,267 escaped), so the resource-copy fallback cannot help and the
-dispatch returns `mcp_response_over_budget`, the #8798 failure. Under `handles` one copy fits
-(138,263 bytes structured, 152,707 escaped). The dual result is 290,970 bytes,
-over the budget, so the dispatch falls back to the resource copy alone and
-counts it in `eshu_dp_mcp_response_resource_fallback_total`. Sending the result
-once (#8800) removes the fallback. A story with no attached cloud resources and
+dispatch returns `mcp_response_over_budget`, the #8798 failure. Under `handles`
+the single copy fits the budget (138,263 bytes structured, 152,707 escaped). The
+MCP result still carries the payload twice (290,970 bytes), so the dispatch
+answers it as the resource copy alone and records
+`eshu_dp_mcp_response_resource_fallback_total` until #8800 sends the result
+once. A story with no attached cloud resources and
 60 uncorrelated cloud-resource candidates (the enrichment loads candidates only
 when no cloud resource attached, so the two lists never ship together) is
-125,578 bytes of data under `handles` and 284,854 bytes in the dual shape, and
+366,502 bytes under `full`, 125,578 under `handles`, and 284,854 in the dual
+shape, and
 also falls back: 135,320 bytes as the structured copy, 149,534 as the escaped
 text copy.
 
@@ -194,10 +196,13 @@ the story is 385,793 bytes under `full` and 146,879 under `handles`
 (`entrypoint_candidates` 10,837 to 7,487 bytes, `network_paths` 14,301 to
 10,551). That shape is 330,200 bytes in the dual MCP shape, so dispatch falls
 back to the resource copy alone (156,843 bytes structured, 173,357 escaped).
-`TestOversizedServiceStoryHandlesFitMCPBudget`,
+`TestOversizedServiceStoryHandlesSingleCopyFitsMCPBudget`,
 `TestCandidateHeavyServiceStoryHandlesMCPSize`, and
 `TestEntrypointFamiliesStoryHandlesMCPSize` gate the escaped single copy of
-each shape and log these figures.
+each shape and log these figures. `TestServiceStoryHandlesAnsweredAsOneCopy` in
+`go/internal/mcp` drives the standard fixture through the dispatch: under
+`handles` it is answered as the resource copy and counted as a fallback, and
+under `full` it returns `mcp_response_over_budget`.
 
 ### Service story evidence
 
@@ -220,10 +225,9 @@ every reduced family, and the per-row truth labels.
 `TestStoryHandlesKeepProductionRowTruthLabels` builds the rows with the
 production builders and fails on a row key with no kept or dropped decision.
 
-Observability Evidence: `eshu_dp_mcp_response_bytes` and
-`eshu_dp_mcp_response_over_budget_total`, both labeled by tool, show the
-`get_service_story` size falling under the budget and the over-budget count
-stopping; `eshu_dp_mcp_response_resource_fallback_total` counts the dual
-results that fall back to the resource copy until #8800. Each response names its
+Observability Evidence: `eshu_dp_mcp_response_over_budget_total` stops rising
+for `get_service_story` and `eshu_dp_mcp_response_resource_fallback_total`
+counts the stories answered as one copy; both are labeled by tool, and
+`eshu_dp_mcp_response_bytes` records each response size. Each response names its
 level in `evidence_detail` and every reduced family, with its total, in
 `truth.omissions`. No metric, span, or log field is added.

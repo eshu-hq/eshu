@@ -9,7 +9,7 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
-### Service story fits the MCP response budget as one copy
+### Service story defaults to a bounded handles view over MCP
 
 - **`get_service_story` defaults to a bounded `handles` view** ([#8798](https://github.com/eshu-hq/eshu/issues/8798)).
   A large service's story measured 266 KB and failed `mcp_response_over_budget`.
@@ -25,14 +25,17 @@ recent shipped work grouped by feature area.
   `nodes_omitted`, and a dropped list is named by a `*_shipped_at` pointer or
   only in `truth.omissions`; `investigation.repositories_considered` reports the packet's true
   repository count, `investigation.repositories_with_evidence` the 50 rows
-  shipped, a lower bound, and the `__truncated__` marker row says more exist. On
-  the standard large fixture one copy of the result now fits (152,707 of
-  262,144 bytes escaped), where under `full` even one copy is over (405,267).
-  The dual result (290,970 bytes on that fixture, 284,854 with a full list of
-  uncorrelated cloud-resource candidates, 330,200 with `entrypoint_candidates`
-  and `network_paths` also at their 50-row cap) still exceeds the budget, so
-  the dispatch sends the resource copy alone until the result is sent once
-  (#8800). `handles` projects those two lists to identity rows too. In both modes the
+  shipped, a lower bound, and the `__truncated__` marker row says more exist. A
+  large service's story is answered instead of refused: `handles` projects the
+  bulky lists to identity rows that keep their row truth labels and is 128,547
+  bytes on the every-list-at-cap fixture (35.7 percent of full). That single
+  copy fits the 262,144-byte budget; the MCP result still carries the payload
+  twice (290,970 bytes), so dispatch answers it as the resource copy alone and
+  records `eshu_dp_mcp_response_resource_fallback_total` until #8800 sends the
+  result once. A full list of uncorrelated cloud-resource candidates (284,854
+  bytes dual) and `entrypoint_candidates` and `network_paths` also at their
+  50-row cap (330,200 bytes dual) take the same path; `handles` projects those
+  two lists to identity rows too. In both modes the
   endpoint rows now ship once, at `api_surface.endpoints`;
   `deployment_overview.api_surface` keeps its counts and points there with
   `endpoints_shipped_at`. Pass `evidence_detail: full` for every row.

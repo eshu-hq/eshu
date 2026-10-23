@@ -94,7 +94,8 @@ func TestRouteGetServiceContextEvidenceDetail(t *testing.T) {
 }
 
 // TestRouteGetServiceStoryEvidenceDetail proves the story route defaults to
-// handles over MCP so a large service fits the response budget (#8798), an
+// handles over MCP so a large service's story is answered instead of refused
+// for the response budget (#8798), an
 // explicit value wins, and a bad value travels verbatim so the handler, not
 // this adapter, rejects it with a 400.
 func TestRouteGetServiceStoryEvidenceDetail(t *testing.T) {

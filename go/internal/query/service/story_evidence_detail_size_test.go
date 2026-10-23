@@ -76,7 +76,7 @@ func marshalStory(t *testing.T, data map[string]any) int {
 	return len(raw)
 }
 
-// TestOversizedServiceStoryHandlesFitMCPBudget pins the #8798 failure: the
+// TestOversizedServiceStoryHandlesSingleCopyFitsMCPBudget pins the #8798 failure: the
 // story of a large service serializes past the whole MCP response budget even
 // as a single copy, so the dispatch has no fallback and returns
 // mcp_response_over_budget. Under handles the single copy fits, so the story
@@ -85,7 +85,7 @@ func marshalStory(t *testing.T, data map[string]any) int {
 // the dispatch falls back to the resource copy alone until the result is sent
 // once (#8800). The test gates the escaped single copy, the larger of the two
 // copies, and logs the dual size.
-func TestOversizedServiceStoryHandlesFitMCPBudget(t *testing.T) {
+func TestOversizedServiceStoryHandlesSingleCopyFitsMCPBudget(t *testing.T) {
 	t.Parallel()
 
 	full := BuildServiceStoryResponse("checkout-service", testutil.OversizedServiceDossierContext())
@@ -107,6 +107,9 @@ func TestOversizedServiceStoryHandlesFitMCPBudget(t *testing.T) {
 		handlesMCP-handlesText, handlesText, fullText, storyMCPResponseBudget)
 	logStoryKeyBytes(t, "full", full)
 	logStoryKeyBytes(t, "handles", handles)
+	if fullMCP <= storyMCPResponseBudget {
+		t.Fatalf("full MCP result = %d bytes, want past the %d-byte budget so the test proves the bound", fullMCP, storyMCPResponseBudget)
+	}
 	if fullMCP-fullText <= storyMCPResponseBudget {
 		t.Fatalf("full structured copy = %d bytes, want past the %d-byte budget so even the resource fallback fails, as in #8798",
 			fullMCP-fullText, storyMCPResponseBudget)
@@ -131,13 +134,14 @@ func TestOversizedServiceStoryHandlesFitMCPBudget(t *testing.T) {
 func TestCandidateHeavyServiceStoryHandlesMCPSize(t *testing.T) {
 	t.Parallel()
 
+	full := BuildServiceStoryResponse("checkout-service", testutil.OversizedServiceDossierCandidatesOnly())
 	handles := BuildServiceStoryResponse("checkout-service", testutil.OversizedServiceDossierCandidatesOnly())
 	omissions := querycontract.ApplyStoryEvidenceDetail(handles, querycontract.ContextEvidenceDetailHandles)
 	dual := mcpResultBytes(t, handles, omissions)
 	textCopy := marshalStoryText(t, handles, omissions)
 	structuredCopy := dual - textCopy
-	t.Logf("candidate-heavy story: handles data=%d bytes, MCP result=%d bytes (dual shape), structured copy=%d bytes, escaped text copy=%d bytes, budget=%d",
-		marshalStory(t, handles), dual, structuredCopy, textCopy, storyMCPResponseBudget)
+	t.Logf("candidate-heavy story: full data=%d bytes, handles data=%d bytes, MCP result=%d bytes (dual shape), structured copy=%d bytes, escaped text copy=%d bytes, budget=%d",
+		marshalStory(t, full), marshalStory(t, handles), dual, structuredCopy, textCopy, storyMCPResponseBudget)
 	// The escaped text copy is the larger of the two, so it bounds either
 	// choice a single-copy shape makes.
 	single := textCopy
