@@ -72,7 +72,11 @@ recent shipped work grouped by feature area.
   hidden directory, ignored extension, or ignored path glob). So
   `.nvmrc -> .env` or a link into `.git/config` no longer stores the target's
   text. `.gitignore` and `.eshuignore` are not re-applied to the target.
-  Dangling links, cycles, and directory links are dropped too. Each
+  Dangling links, cycles, and directory links are dropped too. In a delta
+  sync, an in-repository link whose target leaves the repository is now
+  dropped and counted instead of failing the whole delta with "outside
+  repository root"; a target path that is itself outside the repository still
+  fails. Each
   dropped link is counted as `skip_reason=content:symlink_target` on
   `eshu_dp_discovery_files_skipped_total` and logged in the `discovery stats`
   line as `files_skipped.content.symlink_target`; a repository that relied on

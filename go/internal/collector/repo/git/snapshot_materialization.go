@@ -114,15 +114,21 @@ func resolveNativeSnapshotFileSetForTargets(
 
 // admitTargetSymlink applies the full-discovery symlink rule to one file
 // target. A target that is not a symlink, or cannot be read, passes so the
-// existing target checks below decide it. Only the leaf is examined: the
-// target's directory is resolved first, the same way full discovery walks
-// under a resolved root. A symlink whose own name is not admitted is dropped
+// existing target checks below decide it, and so does a target whose own path
+// lies outside the root, which those checks reject as a caller error. Only the
+// leaf is examined: the target's directory is resolved first, the same way full
+// discovery walks under a resolved root. An in-root link whose target leaves
+// the root is dropped and counted, as full discovery drops it, rather than
+// failing the whole delta. A symlink whose own name is not admitted is dropped
 // without counting, as full discovery's matcher drops it; one whose resolved
 // target fails the rule is dropped and reported through linkDropped.
 func admitTargetSymlink(admission symlinkAdmission, absoluteTarget string) (admitted bool, linkDropped bool) {
 	linkPath := absoluteTarget
 	if resolvedDir, err := filepath.EvalSymlinks(filepath.Dir(absoluteTarget)); err == nil {
 		linkPath = filepath.Join(resolvedDir, filepath.Base(absoluteTarget))
+	}
+	if rel, err := filepath.Rel(admission.repoPath, linkPath); err != nil || strings.HasPrefix(filepath.ToSlash(rel), "../") {
+		return true, false
 	}
 	info, err := os.Lstat(linkPath)
 	if err != nil || info.Mode()&os.ModeSymlink == 0 {

@@ -5,6 +5,7 @@ package git
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
@@ -157,5 +158,48 @@ func TestSymlinkTargetAdmissionAgreesAcrossSyncModes(t *testing.T) {
 				t.Fatalf("delta FilesSkippedByContent[%q] = %d, want %d", symlinkTargetSkipReason, got, wantDrops)
 			}
 		})
+	}
+}
+
+// TestResolveNativeSnapshotFileSetForTargetsOutOfRoot pins both sides of the
+// out-of-root rule (#8809). An in-root link whose target leaves the repository
+// is dropped and counted, as full discovery drops it. A target whose own path
+// is outside the repository is still a caller error, link or not.
+func TestResolveNativeSnapshotFileSetForTargetsOutOfRoot(t *testing.T) {
+	t.Parallel()
+
+	base := t.TempDir()
+	if resolved, err := filepath.EvalSymlinks(base); err == nil {
+		base = resolved
+	}
+	root := filepath.Join(base, "repo")
+	outside := filepath.Join(base, "outside")
+	writeCollectorTestFile(t, filepath.Join(root, ".git", "HEAD"), "ref: refs/heads/main\n")
+	writeCollectorTestFile(t, filepath.Join(root, ".python-version"), "3.12.2\n")
+	writeCollectorTestFile(t, filepath.Join(outside, "app.conf"), "token=not-a-real-token\n")
+	mustSymlink(t, "../outside/app.conf", filepath.Join(root, "app.conf"))
+	mustSymlink(t, "app.conf", filepath.Join(outside, "alias.conf"))
+	opts := NativeRepositorySnapshotter{}.discoveryOptions()
+	registry := parser.DefaultRegistry()
+
+	var stats discovery.DiscoveryStats
+	fileSet, err := resolveNativeSnapshotFileSetForTargets(root,
+		[]string{filepath.Join(root, "app.conf"), filepath.Join(root, ".python-version")}, registry, opts, &stats)
+	if err != nil {
+		t.Fatalf("in-root link leaving the root: error = %v, want drop", err)
+	}
+	if len(fileSet.Files) != 1 || filepath.Base(fileSet.Files[0].Path) != ".python-version" {
+		t.Fatalf("file targets admitted %+v, want only .python-version", fileSet.Files)
+	}
+	if got := stats.FilesSkippedByContent[symlinkTargetSkipReason]; got != 1 {
+		t.Fatalf("FilesSkippedByContent[%q] = %d, want 1", symlinkTargetSkipReason, got)
+	}
+
+	for _, target := range []string{filepath.Join(outside, "app.conf"), filepath.Join(outside, "alias.conf")} {
+		var outsideStats discovery.DiscoveryStats
+		if _, err := resolveNativeSnapshotFileSetForTargets(root, []string{target}, registry, opts, &outsideStats); err == nil ||
+			!strings.Contains(err.Error(), "outside repository root") {
+			t.Fatalf("target %q outside the root: error = %v, want outside repository root", target, err)
+		}
 	}
 }

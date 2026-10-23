@@ -259,6 +259,12 @@ file inside the root, in the link's admission category, and not excluded by
 `discovery.PathRules` built from the repo-merged options. The delta path still
 records an admitted link under its resolved target path, as before.
 
+Behavior change in the delta path: an in-root link whose target leaves the
+repository is dropped and counted, the way full discovery drops it, where it
+used to fail the whole delta with "outside repository root". A target whose own
+path is outside the repository, link or regular file, still returns that error
+(`TestResolveNativeSnapshotFileSetForTargetsOutOfRoot` pins both).
+
 Both callers resolve `repoPath` with `EvalSymlinks` once at the top, and
 `newSymlinkAdmission` requires that resolved root: the containment check does
 not resolve it again. CODEOWNERS and `.gitmodules` detection, containment, and
