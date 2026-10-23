@@ -5,6 +5,7 @@ package gomod
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -69,21 +70,26 @@ func parseGoWork(path string, isDependency bool, options shared.Options) (map[st
 }
 
 // goWorkUseRow builds one workspace member row. The use path stays verbatim
-// (for example "./api" or "../shared"): the parser does not resolve it
-// against the workspace directory, because that would read repository state
-// beyond the single file Parse was given.
+// (for example "./api", "../shared", or a quoted " ./a " with its spaces):
+// the parser does not trim it or resolve it against the workspace directory,
+// because that would read repository state beyond the single file Parse was
+// given. value is always the raw path. name is the raw path too, except when
+// the path is blank after trimming: `use ""` is legal and the go command
+// resolves it to the workspace root, but the content writers reject a blank
+// entity name, so a blank path is named by its Go-quoted spelling (`""`),
+// the way the file writes it. Every use entry yields a row.
 func goWorkUseRow(use *modfile.Use) map[string]any {
 	if use == nil {
 		return nil
 	}
-	usePath := strings.TrimSpace(use.Path)
-	if usePath == "" {
-		return nil
+	name := use.Path
+	if strings.TrimSpace(name) == "" {
+		name = strconv.Quote(use.Path)
 	}
 	return map[string]any{
-		"name":            usePath,
+		"name":            name,
 		"line_number":     lineNumberFromSyntax(use.Syntax),
-		"value":           usePath,
+		"value":           use.Path,
 		"section":         "use",
 		"config_kind":     "workspace_use",
 		"package_manager": PackageManager,

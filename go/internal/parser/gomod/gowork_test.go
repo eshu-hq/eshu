@@ -5,6 +5,7 @@ package gomod
 
 import (
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -149,10 +150,29 @@ func TestParseGoWorkEdgeShapes(t *testing.T) {
 			wantUses:  []string{},
 		},
 		{
-			name:          "unknown_directive",
+			name:          "godebug_line_and_block_are_accepted",
+			source:        "go 1.23\ngodebug default=go1.21\ngodebug (\n\tpanicnil=1\n)\nuse ./a\n",
+			wantState:     "parsed",
+			wantGoVersion: "1.23",
+			wantUses:      []string{"./a"},
+		},
+		{
+			name:          "require_is_not_a_workspace_directive",
 			source:        "go 1.22\nrequire example.com/x v1.0.0\nuse ./a\n",
 			wantState:     "malformed",
 			wantErrorPart: "unknown directive: require",
+		},
+		{
+			name:          "unknown_verb",
+			source:        "go 1.22\nfoo bar\nuse ./a\n",
+			wantState:     "malformed",
+			wantErrorPart: "unknown directive: foo",
+		},
+		{
+			name:          "ignore_is_not_a_workspace_directive",
+			source:        "go 1.22\nignore ./a\nuse ./a\n",
+			wantState:     "malformed",
+			wantErrorPart: "unknown directive: ignore",
 		},
 		{
 			name:          "use_with_too_many_arguments",
@@ -201,6 +221,7 @@ func TestParseGoWorkEdgeShapes(t *testing.T) {
 			if got := state["go_version"]; got != tc.wantGoVersion {
 				t.Fatalf("go_version = %#v, want %q", got, tc.wantGoVersion)
 			}
+			assertGoWorkStateKeys(t, state)
 			got := make([]string, 0, len(rows))
 			for _, row := range rowsWithSection(rows, "use") {
 				got = append(got, row["name"].(string))
@@ -209,6 +230,59 @@ func TestParseGoWorkEdgeShapes(t *testing.T) {
 				t.Fatalf("use rows = %#v, want %#v", got, tc.wantUses)
 			}
 		})
+	}
+}
+
+// TestParseGoWorkKeepsUsePathsVerbatim pins the verbatim use-path contract
+// (review F1 on #8823). ParseWork unquotes a use path but keeps its spaces,
+// and the go command joins it to the workspace directory, so `use ""` names
+// the workspace root. Every use entry becomes a row and counts in use_count.
+// value is always the raw path. name is the raw path too, except when the
+// path is blank after trimming: the content writers reject a blank entity
+// name (storage/postgres content_writer.go and content_store_writes.go), so
+// a blank path is named by its Go-quoted spelling, the way the file writes it.
+func TestParseGoWorkKeepsUsePathsVerbatim(t *testing.T) {
+	t.Parallel()
+
+	path := writeGoTestFile(t, "go.work", `go 1.23
+
+use ""
+use " ./a "
+use "./with space"
+use "  "
+use ./b
+`)
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	want := []struct {
+		name  string
+		value string
+		line  int
+	}{
+		{`""`, "", 3},
+		{" ./a ", " ./a ", 4},
+		{"./with space", "./with space", 5},
+		{`"  "`, "  ", 6},
+		{"./b", "./b", 7},
+	}
+	uses := rowsWithSection(variableRows(t, payload), "use")
+	if len(uses) != len(want) {
+		t.Fatalf("use rows = %#v, want %d rows", uses, len(want))
+	}
+	for i, w := range want {
+		row := uses[i]
+		if row["name"] != w.name || row["value"] != w.value || row["line_number"] != w.line {
+			t.Fatalf("use row %d = name %#v value %#v line %#v, want %#v %#v %d",
+				i, row["name"], row["value"], row["line_number"], w.name, w.value, w.line)
+		}
+		if name, _ := row["name"].(string); strings.TrimSpace(name) == "" {
+			t.Fatalf("use row %d has a blank name %#v; the content writers reject blank entity names", i, name)
+		}
+	}
+	if got := gomodState(t, payload)["use_count"]; got != len(want) {
+		t.Fatalf("use_count = %#v, want %d", got, len(want))
 	}
 }
 
@@ -239,6 +313,21 @@ func TestGoWorkStateHasNoModulePath(t *testing.T) {
 		if row["config_kind"] == "module_declaration" {
 			t.Fatalf("go.work emitted a module_declaration row %#v", row)
 		}
+	}
+}
+
+// assertGoWorkStateKeys pins the parsed go.work gomod_state key set. godebug
+// directives are accepted by ParseWork but not recorded, matching go.mod.
+func assertGoWorkStateKeys(t *testing.T, state map[string]any) {
+	t.Helper()
+	want := []string{"go_version", "replace_count", "replaced_modules", "state", "toolchain", "use_count"}
+	got := make([]string, 0, len(state))
+	for key := range state {
+		got = append(got, key)
+	}
+	sort.Strings(got)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("gomod_state keys = %v, want %v", got, want)
 	}
 }
 

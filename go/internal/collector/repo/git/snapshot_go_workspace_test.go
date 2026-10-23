@@ -6,7 +6,9 @@ package git
 import (
 	"context"
 	"path/filepath"
+	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,7 +25,7 @@ func TestNativeRepositorySnapshotterParsesGoWorkUnderDiscoveryRules(t *testing.T
 
 	repoRoot := t.TempDir()
 	workspace := "go 1.23\n\nuse (\n\t./api\n\t./worker\n)\n"
-	writeCollectorTestFile(t, filepath.Join(repoRoot, "go.work"), workspace)
+	writeCollectorTestFile(t, filepath.Join(repoRoot, "go.work"), workspace+"use \"\"\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "go.work.sum"), "golang.org/x/text v0.14.0 h1:abc=\n")
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "vendor", "example.com", "dep", "go.work"), workspace)
 	writeCollectorTestFile(t, filepath.Join(repoRoot, "vendor", "example.com", "dep", "go.mod"), "module example.com/dep\n")
@@ -76,7 +78,25 @@ func TestNativeRepositorySnapshotterParsesGoWorkUnderDiscoveryRules(t *testing.T
 		t.Fatalf("go.work lang = %#v, want gomod", got)
 	}
 	state, _ := root["gomod_state"].(map[string]any)
-	if state["state"] != "parsed" || state["go_version"] != "1.23" || state["use_count"] != 2 {
-		t.Fatalf("go.work gomod_state = %#v, want parsed go 1.23 with 2 use paths", state)
+	if state["state"] != "parsed" || state["go_version"] != "1.23" || state["use_count"] != 3 {
+		t.Fatalf("go.work gomod_state = %#v, want parsed go 1.23 with 3 use paths", state)
+	}
+
+	// Every use path, including the empty one that names the workspace root,
+	// becomes a Variable content entity with a non-blank name: the content
+	// writers reject a blank entity name and would fail the whole write.
+	uses := map[string]int{}
+	for _, entity := range got.ContentEntities {
+		if entity.RelativePath != "go.work" || entity.EntityType != "Variable" {
+			continue
+		}
+		if strings.TrimSpace(entity.EntityName) == "" {
+			t.Fatalf("go.work entity at line %d has a blank name", entity.StartLine)
+		}
+		uses[entity.EntityName] = entity.StartLine
+	}
+	wantUses := map[string]int{"./api": 4, "./worker": 5, `""`: 7}
+	if !reflect.DeepEqual(uses, wantUses) {
+		t.Fatalf("go.work Variable entities = %v, want %v", uses, wantUses)
 	}
 }
