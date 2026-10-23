@@ -67,8 +67,8 @@ var preservedHiddenFilesystemFileNames = map[string]struct{}{
 
 // preserveFilesystemHiddenPath reports whether the managed-workspace copy keeps
 // the dot-prefixed entry at rel. The .mvn directory is kept so its
-// extensions.xml reaches discovery; skipFilesystemMavenEntry then prunes every
-// other .mvn entry.
+// extensions.xml reaches discovery; discovery itself refuses the other .mvn
+// files, so the copy does not filter them.
 func preserveFilesystemHiddenPath(rel string) bool {
 	normalized := path.Clean(filepath.ToSlash(rel))
 	if normalized == "." {
@@ -85,19 +85,4 @@ func preserveFilesystemHiddenPath(rel string) bool {
 	return normalized == ".github" ||
 		normalized == ".github/workflows" ||
 		strings.HasPrefix(normalized, ".github/workflows/")
-}
-
-// skipFilesystemMavenEntry reports whether rel is a descendant of a .mvn
-// directory other than .mvn/extensions.xml. Discovery admits only that one
-// .mvn file; the rest (wrapper jars, jvm.config, maven.config) either are
-// unadmitted or can carry credential properties, so the copy never takes them.
-func skipFilesystemMavenEntry(rel string) bool {
-	segments := strings.Split(path.Clean(filepath.ToSlash(rel)), "/")
-	for i, segment := range segments {
-		if segment != ".mvn" || i == len(segments)-1 {
-			continue
-		}
-		return i != len(segments)-2 || segments[i+1] != "extensions.xml"
-	}
-	return false
 }

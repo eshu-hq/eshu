@@ -134,8 +134,8 @@ func TestResolveNativeSnapshotFileSetAdmitsUniversalConfigNames(t *testing.T) {
 // selector copies the admitted dot-prefixed names into the managed workspace.
 // The copy drops dot-prefixed entries unless preserveFilesystemHiddenPath
 // allows them, so a registry-admitted dotfile would otherwise never reach
-// discovery in filesystem mode (#8814). Credential-bearing dotfiles, .gitignore
-// and every .mvn file except extensions.xml stay out.
+// discovery in filesystem mode (#8814). Credential-bearing dotfiles and
+// .gitignore stay out.
 func TestFilesystemSelectorPreservesUniversalConfigDotfiles(t *testing.T) {
 	t.Parallel()
 
@@ -152,13 +152,9 @@ func TestFilesystemSelectorPreservesUniversalConfigDotfiles(t *testing.T) {
 	}
 	// .gitignore stays uncopied: the copy applies the source ignore rules
 	// itself, and a copied file would let discovery filter a second time. The
-	// other .mvn files are unadmitted or can carry -D credential properties.
-	dropped := []string{
-		".env", ".npmrc", ".pypirc", ".netrc", ".secret-config", ".gitignore",
-		filepath.Join(".mvn", "jvm.config"),
-		filepath.Join(".mvn", "maven.config"),
-		filepath.Join(".mvn", "wrapper", "maven-wrapper.properties"),
-	}
+	// other .mvn files may be copied; discovery refuses them (see
+	// TestResolveNativeSnapshotFileSetAdmitsUniversalConfigNames).
+	dropped := []string{".env", ".npmrc", ".pypirc", ".netrc", ".secret-config", ".gitignore"}
 	for _, rel := range append(append([]string{}, kept...), dropped...) {
 		writeSelectionTestFile(t, filepath.Join(sourceRepo, rel), "x = 1\n")
 	}

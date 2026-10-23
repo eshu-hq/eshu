@@ -399,9 +399,6 @@ func shouldSkipFilesystemEntry(
 	if strings.HasPrefix(name, ".") && !preserveFilesystemHiddenPath(rel) {
 		return true
 	}
-	if skipFilesystemMavenEntry(rel) {
-		return true
-	}
 	// .eshuignore is the operator's own opt-out and applies unconditionally,
 	// tracked or not. Check it first and independently of the gitignore
 	// check below.

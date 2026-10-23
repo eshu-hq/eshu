@@ -130,8 +130,8 @@ the parser registry admits a new dot-prefixed name (#8814), add its basename
 there, or filesystem mode never sees it. Never add a credential-bearing dotfile
 (`.env`, `.npmrc`, `.pypirc`, `.netrc`), and keep `.gitignore` out: the copy
 applies the source ignore rules itself, and copying the file would make
-discovery filter a second time. `skipFilesystemMavenEntry` keeps every `.mvn`
-file except `extensions.xml` out of the copy.
+discovery filter a second time. The copy keeps the whole `.mvn` directory;
+discovery admits only `.mvn/extensions.xml` and refuses the other `.mvn` files.
 
 No-Regression Evidence (#8814): `LookupByPath` over 29,083 repository paths
 averaged 14.94 ms before and 15.29 ms after the new names and the
@@ -139,9 +139,9 @@ averaged 14.94 ms before and 15.29 ms after the new names and the
 benchmark, +12 ns per path), and `resolveNativeSnapshotFileSet` over the staged
 35-repository golden corpus (192 files, none of the admitted names) averaged
 3.22 ms before and 3.20 ms after. Every lookup pays one base-name compare for
-the new rule, and the copy gains one `skipFilesystemMavenEntry` split per
-walked entry. Input shape: the golden-corpus fixtures and the repo's
-own path list; no Postgres, graph, queue or lease path is touched.
+the new rule. The copy path gains one extra base-name compare per
+dot-prefixed entry. Input shape: the golden-corpus fixtures and the repo's own
+path list; no Postgres, graph, queue or lease path is touched.
 
 No-Observability-Change: discovery reports the same skip and admit counters. A
 newly admitted file is counted as an ordinary admitted file, and an unadmitted
