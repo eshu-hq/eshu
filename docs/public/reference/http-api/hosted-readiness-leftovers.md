@@ -25,7 +25,10 @@ Fields on the check:
 
 The count is a lower bound (`N+`) if the read hit its examined cap of 5,000
 candidates. The read is the same detection the retirement dry run uses, so the
-two cannot disagree.
+two share one classification of each node. The numbers can still differ: this
+count includes nodes a relationship blocks from retirement, and a dry run
+examines at most 1,000 nodes and reports only the eligible ones as
+`eligible`.
 
 - **Read failure.** The check runs only after `query_readback` passed, so a
   failed detection read is its own condition. The check fails closed with
