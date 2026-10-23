@@ -10,7 +10,8 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
 - Keep the read statements single-clause and identity-anchored with a bound
   relationship variable. Do not add `EXISTS {}`, `OPTIONAL MATCH` with an
   aggregate, a pattern comprehension, or `w.id = <expression of w>` to a read:
-  NornicDB answers them wrongly without an error. Put the negative logic in
+  `docs/public/reference/nornicdb-pitfalls.md` records them as unreliable on
+  NornicDB. Put the negative logic in
   `Evaluate`.
 - Every list parameter must be bound as a non-nil list. `x IN null` is null
   and silently matches nothing.

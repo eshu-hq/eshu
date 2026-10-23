@@ -260,7 +260,7 @@ when it is false. A dry run only reads. The response carries `dry_run`,
 `eligible`, `blocked`, `deleted`, and `truncated`. Execute deletes at most
 `limit` eligible nodes in one transaction whose statement re-checks every
 retirement clause, so it never trusts the dry run. A bad body answers `400`, a
-rejected request `422`, and an execute on NornicDB `501`; a server fault answers
+rejected request `422`, and an execute on a graph backend other than Neo4j `501`; a server fault answers
 `500` with a fixed message. The route is unauthenticated like the rest of this
 surface. See the
 [leftover retirement runbook](../operate/legacy-workload-retirement-runbook.md).

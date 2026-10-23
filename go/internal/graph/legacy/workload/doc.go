@@ -16,7 +16,7 @@
 // [Detect] reads the candidates and the facts about them with single-clause,
 // identity-anchored statements and [Evaluate] decides in Go, so the readiness
 // check, the admin dry run, and the pre-delete verification share one code
-// path and one answer on Neo4j and NornicDB. [DeleteNeo4jCypher] is the Neo4j
+// path and one answer. [DeleteNeo4jCypher] is the Neo4j
 // delete statement; it re-evaluates every clause itself.
 //
 // The package depends only on the standard library and workloadid. It runs no

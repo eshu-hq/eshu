@@ -13,7 +13,7 @@ import (
 )
 
 // TestLiveDetectClassifiesSeededCases is the #8795 positive/negative/ambiguous
-// proof of the shared detection path on whichever backend the DSN points at.
+// proof of the shared detection path on the Neo4j the DSN points at.
 // It seeds one fixture per retirement case (nonce-scoped, so it is safe on a
 // shared backend) and asserts the verdict of each through the same Detect call
 // the readiness check, the dry run and the execute verification use.

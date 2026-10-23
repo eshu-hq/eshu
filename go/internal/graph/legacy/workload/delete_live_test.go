@@ -7,6 +7,7 @@ package workload_test
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -19,9 +20,8 @@ import (
 // the statement itself re-evaluates every retirement clause, so a node that
 // gained an instance, lost its twin's DEFINES, or gained an unsafe edge after
 // a dry run is not deleted; the one eligible node is deleted with its twin and
-// the twin's edges untouched; and a second run deletes nothing. NornicDB is
-// excluded: it mis-evaluates the EXISTS clauses this statement relies on, and
-// the route refuses execute there.
+// the twin's edges untouched; and a second run deletes nothing. Only
+// Neo4j is tested, by owner direction; the route refuses execute elsewhere.
 func TestLiveDeleteNeo4jIsTheGate(t *testing.T) {
 	db := openLiveDB(t)
 	f := seedFixture(t, db)
@@ -159,5 +159,77 @@ func TestLiveDeleteNeo4jPlanSeeksTheIDConstraint(t *testing.T) {
 		if strings.Contains(joined, bad) {
 			t.Errorf("plan = %s: contains %s, the delete must anchor on id seeks", joined, bad)
 		}
+	}
+}
+
+// TestLiveDetectionAndDeleteStatementSelectTheSameIDs proves the Go detection
+// path and the in-statement Neo4j predicate cannot disagree: on the nine-case
+// fixture, and after each late change a dry run could miss, the ids Detect
+// marks eligible equal the ids the delete statement's own MATCH/WHERE selects
+// (the statement run as a read). Readiness, the dry run, and the delete gate
+// therefore answer alike.
+func TestLiveDetectionAndDeleteStatementSelectTheSameIDs(t *testing.T) {
+	db := openLiveDB(t)
+	f := seedFixture(t, db)
+	ctx := context.Background()
+	allIDs := f.legacyIDs()
+	p1, twin := f.legacy("p1"), f.scoped("a", "p1")
+
+	readForm := strings.TrimSuffix(legacyworkload.DeleteNeo4jCypher, "DETACH DELETE w") + "RETURN w.id AS id"
+	if readForm == legacyworkload.DeleteNeo4jCypher {
+		t.Fatal("DeleteNeo4jCypher no longer ends with DETACH DELETE w; update the equivalence read")
+	}
+	assertSame := func(label string) {
+		t.Helper()
+		report, err := legacyworkload.Detect(ctx, db, legacyworkload.Options{IDs: allIDs})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var goIDs []string
+		for _, v := range report.Verdicts {
+			if v.Eligible {
+				goIDs = append(goIDs, v.ID)
+			}
+		}
+		rows, err := db.Run(ctx, readForm, map[string]any{"ids": allIDs})
+		if err != nil {
+			t.Fatalf("%s: statement predicate read: %v", label, err)
+		}
+		var stmtIDs []string
+		for _, row := range rows {
+			stmtIDs = append(stmtIDs, row["id"].(string))
+		}
+		slices.Sort(goIDs)
+		slices.Sort(stmtIDs)
+		if !slices.Equal(goIDs, stmtIDs) {
+			t.Fatalf("%s: Detect selects %v but the delete statement selects %v", label, goIDs, stmtIDs)
+		}
+	}
+
+	assertSame("base fixture")
+	rows, _ := db.Run(ctx, readForm, map[string]any{"ids": allIDs})
+	if len(rows) != 1 || rows[0]["id"] != p1 {
+		t.Fatalf("base fixture: statement selects %v, want exactly p1", rows)
+	}
+
+	db.mustWrite(t, `CREATE (:WorkloadInstance {id: $id, workload_id: $w})`, map[string]any{"id": "inst:late-" + f.nonce, "w": p1})
+	assertSame("late instance by property")
+	db.mustWrite(t, `MATCH (i:WorkloadInstance {id: $id}) DETACH DELETE i`, map[string]any{"id": "inst:late-" + f.nonce})
+
+	db.mustWrite(t, `MATCH (a:Repository {id: $a}), (b:Workload {id: $b}) CREATE (a)-[:DOCUMENTS]->(b)`, map[string]any{"a": f.repo("doc"), "b": p1})
+	assertSame("late DOCUMENTS edge")
+	db.mustWrite(t, `MATCH (:Repository {id: $a})-[r:DOCUMENTS]->(:Workload {id: $b}) DELETE r`, map[string]any{"a": f.repo("doc"), "b": p1})
+
+	db.mustWrite(t, `MATCH (:Repository {id: $a})-[r:DEFINES]->(:Workload {id: $b}) DELETE r`, map[string]any{"a": f.repo("a"), "b": twin})
+	assertSame("twin loses its DEFINES")
+	db.mustWrite(t, `MATCH (r:Repository {id: $a}), (w:Workload {id: $b}) CREATE (r)-[:DEFINES]->(w)`, map[string]any{"a": f.repo("a"), "b": twin})
+
+	db.mustWrite(t, `MATCH (a:Workload {id: $a}), (b:Workload {id: $b}) CREATE (a)-[:SAME_NAME]->(b)`, map[string]any{"a": p1, "b": f.scoped("e", "n4")})
+	assertSame("extra SAME_NAME to another workload stays eligible")
+	db.mustWrite(t, `MATCH (a:Repository {id: $a}), (b:Workload {id: $b}) CREATE (a)-[:SAME_NAME]->(b)`, map[string]any{"a": f.repo("doc"), "b": p1})
+	assertSame("SAME_NAME from a non-Workload blocks")
+	rows, _ = db.Run(ctx, readForm, map[string]any{"ids": allIDs})
+	if len(rows) != 0 {
+		t.Fatalf("SAME_NAME from a Repository must block, statement selects %v", rows)
 	}
 }

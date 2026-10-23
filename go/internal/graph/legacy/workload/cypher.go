@@ -4,14 +4,13 @@
 package workload
 
 // The reads below are deliberately single-clause, identity-anchored matches
-// with a bound relationship variable, and they compare the legacy shape as
-// `'workload:' + w.name = w.id` (expression on the left). On the pinned
-// NornicDB build `w.id = 'workload:' + w.name`, every `EXISTS {}` subquery,
-// and every `OPTIONAL MATCH ... WITH count(...)` composition return wrong
-// answers without an error (docs/public/reference/nornicdb-pitfalls.md and
-// docs/internal/evidence/8795-legacy-workload-retirement.md), so the negative
-// clauses (no instance, a scoped twin, only safe relationships) are decided in
-// Go by [Evaluate] over these reads. Neo4j answers all shapes identically.
+// with a bound relationship variable. The negative clauses (no instance, a
+// scoped twin, only safe relationships) are decided in Go by [Evaluate] over
+// these reads, so the readiness check, the dry run, and the pre-delete
+// verification share one code path. That also keeps the reads clear of the
+// shapes docs/public/reference/nornicdb-pitfalls.md records as unreliable on
+// NornicDB (relationship-existence predicates, `EXISTS {}`, `OPTIONAL MATCH`
+// with an aggregate); NornicDB was not tested here, by owner direction.
 
 // candidatePageCypher pages the name-only Workload nodes without a
 // generation_id, keyset-ordered by id. Both parameters are always bound:
@@ -57,8 +56,8 @@ RETURN w.id AS id, type(r) AS type, startNode(r) = w AS outgoing, o.id AS other_
 // DeleteNeo4jCypher retires the named legacy nodes and is itself the gate:
 // every retirement clause is evaluated inside the statement, so a node that
 // gained an instance, lost its twin, or gained an unsafe relationship after
-// the dry run is simply not matched. It is Neo4j-only (the clauses it uses
-// are the ones NornicDB mis-evaluates) and runs as one auto-commit
+// the dry run is simply not matched. It is Neo4j-only (the only backend
+// tested; see the evidence note) and runs as one auto-commit
 // transaction over at most MaxBatch ids, anchored on the Workload id
 // constraint (`w.id IN $ids`). It does not UNWIND the delete.
 //

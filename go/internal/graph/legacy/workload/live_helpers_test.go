@@ -141,8 +141,7 @@ func (f fixture) scoped(repo, name string) string {
 	return "workload:" + f.repo(repo) + ":" + name + "-" + f.nonce
 }
 
-// seed writes the fixture with one statement per node or edge: NornicDB
-// rejects a multi-clause CREATE chain.
+// seed writes the fixture with one statement per node or edge.
 func seedFixture(t *testing.T, db *liveDB) fixture {
 	t.Helper()
 	nonce := fmt.Sprintf("p8795-%d", time.Now().UnixNano())

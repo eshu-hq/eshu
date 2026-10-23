@@ -6,33 +6,32 @@ dry-run-first admin route on the reducer (`POST /admin/retire-legacy-workloads`,
 (`workload_identity_leftovers`). Retirement never runs unless an operator calls
 the route with `dry_run: false`.
 
-## Theory proof: which Cypher shapes each backend evaluates correctly
+## Backend scope: Neo4j only
 
-Probed before any route code, on the pinned Neo4j 2026.08.1 and the pinned
-NornicDB image, each in its own container, with a nine-case fixture (a leftover
-with an own-repository twin; a scoped node with a null `generation_id`; a
-leftover with an instance by edge; one with an instance by `workload_id`
-property only; one with no twin; one whose twin is in another repository; one
-with a `DOCUMENTS` edge; one with a `DEPENDS_ON` edge; one whose twin the
-repository does not define). The expected eligible set is the one leftover.
+Neo4j 2026.08.1 is the supported canonical graph backend and the only one this
+change was tested on. NornicDB was intentionally not tested, by owner direction.
 
-| shape | Neo4j | NornicDB |
-| --- | --- | --- |
-| `WHERE w.id = 'workload:' + w.name` | correct | matches 0 rows, no error |
-| `WHERE 'workload:' + w.name = w.id` | correct | correct |
-| `NOT EXISTS { MATCH ... }` and `EXISTS { MATCH ... }` clauses | correct | wrong: instance, twin, and relationship clauses each answered 0 matches |
-| `OPTIONAL MATCH ... WITH w, count(x)` stages | correct | wrong: instance-by-edge, instance-by-property, and twin counts all 0; safe edges counted unsafe |
-| single-clause `MATCH ... WHERE id IN $ids` reads with a bound relationship variable | correct | identical to Neo4j |
-| plain `DELETE w` on a node that still has relationships | refuses | refuses |
+The detection is still written so it does not depend on the Cypher shapes
+`docs/public/reference/nornicdb-pitfalls.md` records as unreliable
+(relationship-existence predicates, `EXISTS {}`, `OPTIONAL MATCH` plus an
+aggregate): the negative clauses (no instance, a scoped twin, only safe
+relationships) are decided in Go over single-clause, identity-anchored reads
+(`legacyworkload.Detect` and `Evaluate`), and one code path serves the readiness
+check, the dry run, and the pre-delete verification. The delete statement
+`DeleteNeo4jCypher` re-evaluates every clause itself and is offered on Neo4j
+only; the route answers `501` to an execute on any other backend. No NornicDB
+behavior is claimed.
 
-So the negative clauses (no instance, a scoped twin, only safe relationships) are
-decided in Go over single-clause identity-anchored reads
-(`legacyworkload.Detect` and `Evaluate`). One code path serves the readiness
-check, the dry run, and the pre-delete verification on both backends. The delete
-statement `DeleteNeo4jCypher` re-evaluates every clause itself and is offered on
-Neo4j only; on NornicDB the route answers `501` to an execute. This follows
-`docs/public/reference/nornicdb-pitfalls.md` (relationship-existence
-predicates, `EXISTS {}`, `OPTIONAL MATCH` plus aggregate).
+On the pinned Neo4j, the nine-case fixture (a leftover with an own-repository
+twin; a scoped node with a null `generation_id`; a leftover with an instance by
+edge; one with an instance by `workload_id` property only; one with no twin; one
+whose twin is in another repository; one with a `DOCUMENTS` edge; one with a
+`DEPENDS_ON` edge; one whose twin the repository does not define) gives one
+eligible leftover from both the Go detection and the delete statement's own
+predicate, and `TestLiveDetectionAndDeleteStatementSelectTheSameIDs` pins that
+the two select identical ids on the fixture and after each late change a dry run
+could miss. Plain `DELETE w` on a node that still has relationships is refused by
+Neo4j.
 
 ## Query plans (Neo4j 2026.08.1, community, constraints `workload_id` and
 `repository_id` unique, index `workload_instance_workload_id` present)
@@ -102,7 +101,7 @@ route. Dry runs record no counter and no audit event.
 | proof | backend | where |
 | --- | --- | --- |
 | unit tests for `Evaluate`, `Detect`, the runner, the route, the readiness check, the counting executor | none | local, `-race` |
-| detection live proof (every case) | Neo4j and NornicDB | local containers; registered for the live-backend CI job |
+| detection live proof (every case) and the Go-vs-statement equivalence | Neo4j | local container; registered for the live-backend CI job |
 | delete gate and plan pin | Neo4j | local container; registered for the live-backend CI job |
 | retire, idempotency, race with a materialization pass | Neo4j | local container; registered for the live-backend CI job |
-| golden-corpus gate (B-7, B-12) | Neo4j and NornicDB | not run locally by this change; see the report |
+| golden-corpus gate (B-7, B-12) | Neo4j | not run locally by this change; see the report |

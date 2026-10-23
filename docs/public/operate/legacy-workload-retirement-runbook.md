@@ -37,9 +37,8 @@ this procedure never touches them.
 - Reach the reducer admin port from inside the network (for example by port
   forward). The admin routes are unauthenticated by design and must never be
   exposed outside it. Use `<reducer-admin>` below for that address.
-- Execute works on Neo4j. On NornicDB the route serves dry runs and answers
-  `501` to an execute, because the delete statement relies on clauses that
-  backend evaluates wrongly.
+- Execute is supported on Neo4j only. On any other graph backend the route
+  answers `501` to an execute with a fixed message.
 - Do not run this during the #5385 cutover or a rollback to a pre-cutover
   binary. The old binary writes name-only nodes again; retire only after the
   deployment settles on the new one.

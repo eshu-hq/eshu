@@ -79,12 +79,13 @@ tests:
   - file: go/internal/graph/legacy/workload/delete_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: "deterministic nonce-scoped #8795 proof of the Neo4j legacy Workload retirement statement: after a dry run a node that gains an instance by workload_id property, a DOCUMENTS edge, or loses its twin's DEFINES is not deleted (the statement is the gate), the one eligible leftover is deleted with its twin and the twin's DEFINES and SAME_NAME counts unchanged, an empty id list and a second run delete nothing, and the PROFILE plan seeks the Workload id constraint for the batch anchor and the twin lookup; Neo4j-only because NornicDB mis-evaluates the EXISTS clauses the statement uses; local neo4j 2026.08.1 run took 0.2 s"
+    reason: "deterministic nonce-scoped #8795 proof of the Neo4j legacy Workload retirement statement: after a dry run a node that gains an instance by workload_id property, a DOCUMENTS edge, or loses its twin's DEFINES is not deleted (the statement is the gate), the one eligible leftover is deleted with its twin and the twin's DEFINES and SAME_NAME counts unchanged, an empty id list and a second run delete nothing, and the PROFILE plan seeks the Workload id constraint for the batch anchor and the twin lookup; and a Go-detection versus in-statement-predicate equivalence proof (the same ids on the nine-case fixture and after each late change); Neo4j only; local neo4j 2026.08.1 run took 0.7 s"
     backends: neo4j
   - file: go/internal/graph/legacy/workload/detect_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: "deterministic nonce-scoped #8795 proof of the shared legacy Workload detection on both backends: the leftover with an own-repository twin is eligible, instance by edge and by workload_id property, no twin, a twin in another repository, a twin the repository does not define, DOCUMENTS and DEPENDS_ON edges are blocked with the right reason and per-type counts, a scoped node with a null generation_id and two scoped same-name nodes are never candidates, and the label-wide scan agrees with the id-anchored read; local runs took 6 s on neo4j 2026.08.1 and under 1 s on NornicDB"
+    reason: "deterministic nonce-scoped #8795 proof of the shared legacy Workload detection on Neo4j: the leftover with an own-repository twin is eligible, instance by edge and by workload_id property, no twin, a twin in another repository, a twin the repository does not define, DOCUMENTS and DEPENDS_ON edges are blocked with the right reason and per-type counts, a scoped node with a null generation_id and two scoped same-name nodes are never candidates, and the label-wide scan agrees with the id-anchored read; local run took 6 s on neo4j 2026.08.1; Neo4j is the only backend tested by owner direction"
+    backends: neo4j
   - file: go/internal/query/entity/context_anchor_census_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
