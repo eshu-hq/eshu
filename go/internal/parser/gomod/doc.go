@@ -22,15 +22,18 @@
 // of `"module"` or `"gomod"` for cross-file corroboration.
 //
 // A `go.work` file emits one `config_kind: "workspace_use"` row per `use`
-// directory, with the path kept verbatim, and reuses the go.mod
-// `config_kind: "dependency_replace"` row for each workspace `replace`. A
-// workspace declares no requirements, so it emits no `dependency` rows, and
-// its `gomod_state` carries `go_version`, `toolchain`, `use_count`,
-// `replace_count`, and `replaced_modules` but no `module_path`: a workspace is
-// not a module declaration. `go.work.sum` is not parsed.
+// entry. The row `value` is the raw path, untrimmed; the `name` is the raw
+// path too, except that a path blank after trimming (`use ""`, the workspace
+// root) is named by its Go-quoted spelling because the content writers reject
+// a blank entity name. `godebug` directives are accepted and not recorded. A
+// go.work reuses the go.mod `config_kind: "dependency_replace"` row for each
+// workspace `replace`. A workspace declares no requirements, so it emits no
+// `dependency` rows, and its `gomod_state` carries `go_version`, `toolchain`,
+// `use_count`, `replace_count`, and `replaced_modules` but no `module_path`: a
+// workspace is not a module declaration. `go.work.sum` is not parsed.
 //
-// Malformed go.mod and go.work files produce a `gomod_state` envelope with the upstream
-// modfile parser error and zero dependency rows; missing or ambiguous
+// Malformed go.mod and go.work files produce a `gomod_state` envelope with the
+// upstream modfile parser error and zero dependency rows; missing or ambiguous
 // module evidence stays missing rather than degrading to silently affected
 // or silently safe.
 package gomod

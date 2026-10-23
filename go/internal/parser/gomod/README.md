@@ -29,9 +29,14 @@ This package owns:
   currently selected version.
 - `go.work` parsing via `modfile.ParseWork` (issue
   [#8823](https://github.com/eshu-hq/eshu/issues/8823)): one
-  `config_kind=workspace_use` row per `use` directory (path kept verbatim,
-  section `use`) and one `config_kind=dependency_replace` row per workspace
-  `replace`, the same shape go.mod uses. `gomod_state` carries `go_version`,
+  `config_kind=workspace_use` row per `use` entry, section `use`. `value` is
+  the raw path, untrimmed. `name` is the raw path too, except that a path
+  blank after trimming (`use ""`, which the go command resolves to the
+  workspace root) is named by its Go-quoted spelling, because the content
+  writers reject a blank entity name. Every entry counts in `use_count`.
+  `godebug` directives are accepted and not recorded, as in go.mod.
+  Each workspace `replace` becomes one `config_kind=dependency_replace` row,
+  the same shape go.mod uses. `gomod_state` carries `go_version`,
   `toolchain`, `use_count`, `replace_count`, and `replaced_modules`, and no
   `module_path`, so the code-call reducer never treats a workspace root as a
   module root. A workspace emits no `config_kind=dependency` rows.
@@ -77,8 +82,15 @@ No-Regression Evidence: `go.work` support (#8823) adds one exact file name to
 the registry map, so discovery and `LookupByPath` keep the same O(1) exact-name
 lookup. Parsing runs only for files named `go.work`, reads that one file, and
 does one `modfile.ParseWork` pass linear in the file size, with no shared state
-or locks. No tracked fixture or corpus contains a `go.work`, so existing
-repositories emit the same facts. `go test -race ./internal/parser/...
+or locks. Before this change no tracked fixture or golden-corpus repository
+contained a `go.work`, so their facts do not move; the one `go.work` added to
+the git collector's content-version fixture moves its pinned digest
+(`go/internal/collector/repo/git/testdata/content_version_pin.json`) to
+`git-collector.v9`. A real repository that has a `go.work` gains a
+file fact plus its `workspace_use` and `dependency_replace` Variable entities.
+The parser registry fingerprint hashes exact file names, and the git
+freshness hint folds it in (#7986), so every repository stores one new
+generation on its next sync. `go test -race ./internal/parser/...
 ./internal/collector/repo/...` passes.
 
 No-Observability-Change: this adds no metric, span, or log. The

@@ -26,8 +26,12 @@
   `ambiguous=true`. The reducer must treat these as missing evidence
   until paired with a `go.mod` require, because `go.sum` records every
   version any tool has verified, not the currently selected version.
-- `go.work` `use` rows MUST use `config_kind=workspace_use` with the use
-  path verbatim, and workspace `replace` rows MUST reuse the go.mod
+- `go.work` `use` rows MUST use `config_kind=workspace_use`, one row per
+  `use` entry, with `value` set to the raw, untrimmed path. `name` is the
+  raw path, except a path blank after trimming is named by its Go-quoted
+  spelling (`""`): `use ""` is the workspace root, and the content writers
+  reject a blank entity name, so a blank `name` fails the whole write.
+  Never drop a use entry; `use_count` counts every one. Workspace `replace` rows MUST reuse the go.mod
   `dependency_replace` shape. A `go.work` MUST NOT emit
   `config_kind=dependency` or `module_declaration` rows, and its
   `gomod_state` MUST NOT carry `module_path`: the code-call reducer reads
