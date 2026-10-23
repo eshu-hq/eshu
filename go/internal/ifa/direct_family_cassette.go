@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package ifa //nolint:filelength // Per-family cassette registry at natural capacity (504 lines): each live family appends one FullPath+Load pair the lockstep test and callers reference by name, and no seam splits those pairs without scattering the registry -- a table-driven restructure is the real fix when the owner schedules it.
 
 import (
 	"bytes"
@@ -46,8 +46,9 @@ const (
 	// observabilityCoverageFamilyCassettePath,
 	// codeInterprocEvidenceFamilyCassettePath,
 	// builtFromFamilyCassettePath,
-	// cloudResourceContainerImageFamilyCassettePath, and
-	// crossplaneSatisfiedByFamilyCassettePath are repo-root-relative so the
+	// cloudResourceContainerImageFamilyCassettePath,
+	// crossplaneSatisfiedByFamilyCassettePath, and
+	// derivedFromFamilyCassettePath are repo-root-relative so the
 	// constants stay machine-independent; callers join a repo root onto
 	// them through the exported helpers below.
 	kubernetesNamespaceEnvironmentFamilyCassettePath = "testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json"
@@ -69,6 +70,7 @@ const (
 	observabilityCoverageFamilyCassettePath          = "testdata/cassettes/obscoverage/ifa-observability-coverage-family.json"
 	codeInterprocEvidenceFamilyCassettePath          = "testdata/cassettes/codeinterproc/ifa-code-interproc-evidence-family.json"
 	crossplaneSatisfiedByFamilyCassettePath          = "testdata/cassettes/crossplanesatisfiedby/ifa-crossplane-satisfied-by-family.json"
+	derivedFromFamilyCassettePath                    = "testdata/cassettes/derivedfrom/ifa-derived-from-family.json"
 )
 
 // KubernetesNamespaceEnvironmentFamilyCassetteFullPath joins repoRoot onto the
@@ -414,6 +416,20 @@ func LoadCrossplaneSatisfiedByFamilyOdu(cassettePath string) (familyodu.Odu, err
 		envelopes = append(envelopes, projectDirectFamilyScopeFacts(scope)...)
 	}
 	return familyodu.Odu{Name: CrossplaneSatisfiedByFamilyOduName, Facts: envelopes}, nil
+}
+
+// DerivedFromFamilyCassetteFullPath joins repoRoot onto the committed
+// derived_from family cassette path.
+func DerivedFromFamilyCassetteFullPath(repoRoot string) string {
+	return filepath.Join(repoRoot, derivedFromFamilyCassettePath)
+}
+
+// LoadDerivedFromFamilyOdu is the derived_from counterpart to
+// LoadBuiltFromFamilyOdu: the family's single scope holds the owning
+// repository, its single-base Dockerfile, the OCI manifests, and the
+// deploy-only Kubernetes reference, mirroring the handler's own-scope load.
+func LoadDerivedFromFamilyOdu(cassettePath string) (familyodu.Odu, error) {
+	return loadDirectFamilyOdu(cassettePath, DerivedFromFamilyOduName)
 }
 
 // parseDirectFamilyCassette is the shared strict decode behind the loaders.

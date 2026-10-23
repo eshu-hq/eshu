@@ -98,6 +98,7 @@ IFA_FAMILY_PINS_NAMES=(
 	built_from
 	cloud_resource_container_image
 	crossplane_satisfied_by
+	derived_from
 	code_interproc_evidence
 )
 

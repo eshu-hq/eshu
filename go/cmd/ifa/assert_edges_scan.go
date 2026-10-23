@@ -52,21 +52,23 @@ func scanMaterializedEdges(
 ) (materializedEdgeScan, error) {
 	scan := materializedEdgeScan{counts: make(map[string]int), pairs: make(map[string]*endpointPairCount)}
 	err := reader.StreamEdges(ctx, func(edge graphdump.Edge) error {
+		// Cassette scoping (#8358, generalized past the predicate-only
+		// gate for shared-handler families): the shared cell graph holds
+		// ambient edges with the same (prefix, stamp, endpoints) shape --
+		// ambient GCP edges for the cloud_resource predicate scan, the
+		// sibling container-image scope's BUILT_FROM edges for the
+		// built_from type scan -- so a scoped assert narrows to the
+		// cassette's scope_ids. Empty preserves current behavior.
+		if len(scopeIDs) > 0 {
+			scope, _ := edge.Props["scope_id"].(string)
+			if _, ok := scopeIDs[scope]; !ok {
+				return nil
+			}
+		}
 		if predicate != nil {
 			stamp, _ := edge.Props["evidence_source"].(string)
 			if !predicate.Matches(edge.Type, stamp, edge.FromLabels, edge.ToLabels) {
 				return nil
-			}
-			// Cassette scoping (#8358): the shared cell graph holds ambient
-			// edges with the same (prefix, stamp, endpoints) shape, so a
-			// predicate-scoped assert narrows to the cassette's scope_ids.
-			// Empty preserves current behavior; non-predicate families
-			// ignore the set entirely.
-			if len(scopeIDs) > 0 {
-				scope, _ := edge.Props["scope_id"].(string)
-				if _, ok := scopeIDs[scope]; !ok {
-					return nil
-				}
 			}
 		} else if _, ok := edgeTypes[edge.Type]; !ok {
 			return nil

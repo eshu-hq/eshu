@@ -41,7 +41,7 @@ func parseAssertEdgesFlags(args []string, stderr io.Writer) (assertEdgesOptions,
 	var o assertEdgesOptions
 	fs.StringVar(&o.domain, "domain", "", "materialized-edge family to assert (e.g. sql_relationships)")
 	fs.StringVar(&o.expected, "expected", "", "path to the hand-derived expected-edge-set JSON fixture")
-	fs.StringVar(&o.scopes, "scopes", "", "comma-separated scope_id set; predicate-scoped families only count edges whose scope_id is listed (empty preserves current behavior)")
+	fs.StringVar(&o.scopes, "scopes", "", "comma-separated scope_id set; a scoped assert only counts edges whose scope_id is listed (empty preserves current behavior)")
 	if err := fs.Parse(args); err != nil {
 		return assertEdgesOptions{}, err //nolint:wrapcheck // flag errors are self-describing.
 	}

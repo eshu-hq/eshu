@@ -46,7 +46,15 @@ ifa_built_from_drive() {
 ifa_built_from_assert() {
 	local label="$1" bin_dir="$2" expected_edges="$3"
 	printf '\n=== %s: assert built_from materialized edges (two-edge exact set) ===\n' "${label}"
+	# Scoped to the cassette's scope id (the cloud_resource -scopes
+	# precedent): the shared cell graph also holds the derived_from
+	# scope's BUILT_FROM edges with the same (prefix, stamp, endpoints)
+	# shape -- the container-image handler emits BUILT_FROM for every
+	# exact digest with build evidence in every scope while DERIVED_FROM
+	# attribution needs the same signal -- which the unscoped scan counts
+	# as extras. The fixture stays the family's own two edges.
 	"${bin_dir}/eshu-ifa" assert-edges \
 		-domain built_from \
-		-expected "${expected_edges}"
+		-expected "${expected_edges}" \
+		-scopes "git-repository-scope:repository:eshu-fixture-orders-api"
 }

@@ -95,6 +95,8 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_built_from.
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_cloud_resource_container_image.sh"
 # shellcheck source=scripts/lib/ifa_direct_family_live_crossplane_satisfied_by.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_crossplane_satisfied_by.sh"
+# shellcheck source=scripts/lib/ifa_direct_family_live_derived_from.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_derived_from.sh"
 # shellcheck source=scripts/lib/ifa_direct_family_live_code_interproc_evidence.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_code_interproc_evidence.sh"
 # Vault families (#6228 slice A): split drive/assert lib under the tooling line cap.
@@ -112,6 +114,10 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_escalation
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_authenticates_vault_role_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh"
+# Trust-chain commit wait for the uses_vault_policy stage function: split
+# from the cells file above under the 500-line cap.
+# shellcheck source=scripts/lib/ifa_fault_injection_uses_vault_policy_trust_chain.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_uses_vault_policy_trust_chain.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_iam_can_perform_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_ec2_uses_profile_cells.sh
@@ -124,6 +130,8 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_built_from_cel
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_cloud_resource_container_image_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_crossplane_satisfied_by_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_crossplane_satisfied_by_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_derived_from_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_derived_from_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_code_interproc_evidence_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_code_interproc_evidence_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_cloud_resource_cells.sh

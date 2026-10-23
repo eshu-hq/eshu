@@ -19,8 +19,11 @@
 # recover a real graph, which only the live fault matrix can show.
 
 uses_vault_policy_cells_lib="${repo_root}/scripts/lib/ifa_fault_injection_uses_vault_policy_cells.sh"
+uses_vault_policy_trust_chain_lib="${repo_root}/scripts/lib/ifa_fault_injection_uses_vault_policy_trust_chain.sh"
 [[ -f "${uses_vault_policy_cells_lib}" ]] || fail "missing ${uses_vault_policy_cells_lib}"
 bash -n "${uses_vault_policy_cells_lib}" || fail "ifa_fault_injection_uses_vault_policy_cells.sh has a syntax error"
+[[ -f "${uses_vault_policy_trust_chain_lib}" ]] || fail "missing ${uses_vault_policy_trust_chain_lib}"
+bash -n "${uses_vault_policy_trust_chain_lib}" || fail "ifa_fault_injection_uses_vault_policy_trust_chain.sh has a syntax error"
 
 # ifa_uses_vault_policy_wait_for_read_models banks the projection
 # stage's INPUT before the fact_records lock is taken: the projection handler
@@ -298,11 +301,146 @@ aws_resource_materialization|dead_letter|1")
 
 run_ifa_fault_injection_uses_vault_policy_cases() {
 	test_ifa_uses_vault_policy_wait_for_read_models_cases
+	test_ifa_uses_vault_policy_wait_for_trust_chain_succeeded_cases
 	test_ifa_uses_vault_policy_wait_for_endpoint_domains_cases
 	test_ifa_uses_vault_policy_wait_for_endpoint_domains_multi_cases
 	test_ifa_uses_vault_policy_wait_for_hold_marker_cases
 	test_ifa_uses_vault_policy_kill_cell_is_defined
 }
+
+# ifa_uses_vault_policy_wait_for_trust_chain_succeeded waits for the
+# trust-chain stage's own queue row to reach `succeeded` BEFORE the stage
+# function SIGTERMs its reducer: banked read models do not mean the row
+# acked, and a SIGTERM mid-ack strands it short of succeeded for a later
+# pass to re-drive. Bounded and fail-closed: a bad budget fails before
+# any poll; a failed query, a failed/dead_letter row, an unknown status,
+# or a non-numeric count all fail fast; exhaustion fails loudly and never
+# proceeds to the kill. Classification mirrors the endpoint-domains wait
+# (succeeded done, pending/claimed/running/retrying open, superseded
+# ignored benign-terminal); zero succeeded rows never passes. The
+# ordering pin at the end proves the stage calls this wait before its
+# SIGTERM -- kill-first-wait-after races the ack it just proved.
+test_ifa_uses_vault_policy_wait_for_trust_chain_succeeded_cases() (
+	source "${det_lib}"
+	source "${uses_vault_policy_trust_chain_lib}"
+
+	local rc stage_body
+	psql() { :; }
+	sleep() { :; }
+	# Command substitution runs the stub in a subshell, so the poll
+	# sequence advances through a counter file, not a variable.
+	ifa_det_pg() {
+		local idx
+		idx="$(cat "${poll_index_file}")"
+		printf '%s' "$((idx + 1))" >"${poll_index_file}"
+		printf '%s\n' "${trust_poll_outputs[${idx}]}"
+	}
+
+	use_compose=0
+	ESHU_POSTGRES_DSN="postgresql://unused"
+	compose_file="docker-compose.yaml"
+	FAULT_COMPOSE_PROJECT="test"
+	log_dir="$(mktemp -d -t ifa-uses-vault-policy-trustchain.XXXXXX)"
+	poll_index_file="$(mktemp -t ifa-uses-vault-policy-pollidx-trust.XXXXXX)"
+	trap 'rm -rf "${log_dir}" "${poll_index_file}"' EXIT
+
+	# Trust-chain row already succeeded: one poll, success, no waiting.
+	trust_poll_outputs=("succeeded|1")
+	printf '%s' 0 >"${poll_index_file}"
+	rc=0
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded readycell 5 || rc=$?
+	[[ "${rc}" -eq 0 && "$(cat "${poll_index_file}")" -eq 1 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_trust_chain_succeeded failed while the trust-chain row already succeeded (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# A claimed row drains to succeeded: first poll open, second drained.
+	trust_poll_outputs=("claimed|1" "succeeded|1")
+	printf '%s' 0 >"${poll_index_file}"
+	rc=0
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded draincell 5 || rc=$?
+	[[ "${rc}" -eq 0 && "$(cat "${poll_index_file}")" -eq 2 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_trust_chain_succeeded failed while the trust-chain row drained to succeeded (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# A retrying row is waited on, not failed: first poll open, second
+	# poll drained. Retrying is transient -- the reclaim path re-drives
+	# stale rows through it -- so failing fast would false-red the stage
+	# the first time the trust-chain row retries.
+	trust_poll_outputs=("retrying|1" "succeeded|1")
+	printf '%s' 0 >"${poll_index_file}"
+	rc=0
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded retrycell 5 || rc=$?
+	[[ "${rc}" -eq 0 && "$(cat "${poll_index_file}")" -eq 2 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_trust_chain_succeeded failed fast on a retrying trust-chain row instead of waiting for it (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# Superseded beside succeeded is ignored, not blocking and not bad.
+	trust_poll_outputs=("superseded|1
+succeeded|1")
+	printf '%s' 0 >"${poll_index_file}"
+	rc=0
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded mixedcell 5 || rc=$?
+	[[ "${rc}" -eq 0 && "$(cat "${poll_index_file}")" -eq 1 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_trust_chain_succeeded blocked or failed on a superseded row beside a succeeded one (rc=${rc})"
+
+	# A superseded row alone never passes: exhausts the budget and fails
+	# instead of blessing a stage whose row nobody committed (both polls
+	# stubbed, so this is genuine budget exhaustion, not stub-array end).
+	trust_poll_outputs=("superseded|1" "superseded|1")
+	printf '%s' 0 >"${poll_index_file}"
+	rc=0
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded supersededcell 2 || rc=$?
+	[[ "${rc}" -ne 0 && "$(cat "${poll_index_file}")" -eq 2 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_trust_chain_succeeded passed on superseded rows alone, or failed without exhausting the budget (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# A dead-letter row fails fast: one poll, no budget burn.
+	trust_poll_outputs=("dead_letter|1")
+	printf '%s' 0 >"${poll_index_file}"
+	rc=0
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded deadcell 5 || rc=$?
+	[[ "${rc}" -ne 0 && "$(cat "${poll_index_file}")" -eq 1 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_trust_chain_succeeded did not fail fast on a dead-letter trust-chain row (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# An unknown future status fails fast in the safe direction.
+	trust_poll_outputs=("bogus|1")
+	printf '%s' 0 >"${poll_index_file}"
+	rc=0
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded unknowncell 5 || rc=$?
+	[[ "${rc}" -ne 0 && "$(cat "${poll_index_file}")" -eq 1 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_trust_chain_succeeded did not fail fast on an unknown trust-chain row status (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# A claimed row that never drains: exhausts the budget and fails
+	# instead of SIGTERMing a live worker -- the timeout path the stage
+	# must take before its kill, never after (both polls stubbed, so this
+	# is genuine budget exhaustion, not stub-array end).
+	trust_poll_outputs=("claimed|1" "claimed|1")
+	printf '%s' 0 >"${poll_index_file}"
+	rc=0
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded unready 2 || rc=$?
+	[[ "${rc}" -ne 0 && "$(cat "${poll_index_file}")" -eq 2 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_trust_chain_succeeded returned success with the trust-chain row still claimed (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# A non-numeric count fails instead of classifying garbage.
+	trust_poll_outputs=("succeeded|lots")
+	printf '%s' 0 >"${poll_index_file}"
+	rc=0
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded nonnumeric 2 || rc=$?
+	[[ "${rc}" -ne 0 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_trust_chain_succeeded returned success on a non-numeric trust-chain count"
+
+	# A bad budget fails before any poll.
+	trust_poll_outputs=("succeeded|1")
+	printf '%s' 0 >"${poll_index_file}"
+	rc=0
+	ifa_uses_vault_policy_wait_for_trust_chain_succeeded badbudget 0 || rc=$?
+	[[ "${rc}" -ne 0 && "$(cat "${poll_index_file}")" -eq 0 ]] \
+		|| fail "ifa_uses_vault_policy_wait_for_trust_chain_succeeded polled on a bad budget (rc=${rc} calls=$(cat "${poll_index_file}"))"
+
+	# Ordering: the stage function waits for succeeded BEFORE its SIGTERM.
+	stage_body="$(awk '/^ifa_uses_vault_policy_run_trust_chain_stage\(\)/,/^}/' "${uses_vault_policy_cells_lib}")"
+	printf '%s\n' "${stage_body}" | rg -U --pcre2 -- 'ifa_uses_vault_policy_wait_for_trust_chain_succeeded[\s\S]*kill "\$\{trust_reducer_pid\}"' >/dev/null \
+		|| fail "ifa_uses_vault_policy_run_trust_chain_stage must wait for the trust-chain row to reach succeeded BEFORE its SIGTERM"
+	if printf '%s\n' "${stage_body}" | rg -U --pcre2 -- 'kill "\$\{trust_reducer_pid\}"[\s\S]*ifa_uses_vault_policy_wait_for_trust_chain_succeeded' >/dev/null; then
+		fail "kill-before-wait mutation passed: the SIGTERM must not precede the succeeded wait"
+	fi
+)
 
 # ifa_uses_vault_policy_wait_for_hold_marker is the kill cell's rendezvous:
 # kill -9 lands only once the hold decorator's marker proves the worker is

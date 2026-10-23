@@ -5,7 +5,7 @@
 # scripts/lib/test-ifa-determinism-family-cases.sh to keep that file below
 # the repository's 500-line cap (mirroring that file's own extraction of
 # test-ifa-determinism-maintenance-family-cases.sh). Covers the #6228 slice
-# C/D/crossplane/code-interproc live leaves -- built_from, cloud_resource_container_image, crossplane_satisfied_by and code_interproc_evidence -- whose
+# C/D/crossplane/derived_from/code-interproc live leaves -- built_from, cloud_resource_container_image, crossplane_satisfied_by, derived_from and code_interproc_evidence -- whose
 # drive/assert callbacks live in their own split live libs under the tooling
 # line cap. run_ifa_determinism_direct_leaf_cases is called from inside
 # run_ifa_determinism_family_cases's body, in the same position this code
@@ -20,5 +20,7 @@ require_direct_family_lib "crossplane-satisfied-by assert-edges domain" "-domain
 require_direct_family_lib "code-interproc-evidence assert-edges domain" "-domain code_interproc_evidence"
 require_direct_family_lib "cloud-resource-container-image drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "crossplane-satisfied-by drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
+require_direct_family_lib "derived-from assert-edges domain" "-domain derived_from"
+require_direct_family_lib "derived-from drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 require_direct_family_lib "code-interproc-evidence drive takes the labeled signature" 'local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"'
 }

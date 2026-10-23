@@ -151,8 +151,13 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_crossplane_satisfied_by
 	cell_killworker_crossplane_satisfied_by
 	cell_failgraphwrite_crossplane_satisfied_by
+	# derived_from (#6228 derived_from live leaf): thirteenth
+	# direct-materialization family, same trio shape (atomic group below).
+	cell_baseline_derived_from
+	cell_killworker_derived_from
+	cell_failgraphwrite_derived_from
 	# code_interproc_evidence (#6228 code_interproc_evidence live leaf):
-	# thirteenth direct-materialization family, same trio shape (atomic
+	# fourteenth direct-materialization family, same trio shape (atomic
 	# group below).
 	cell_baseline_code_interproc_evidence
 	cell_killworker_code_interproc_evidence
@@ -221,6 +226,7 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_built_from cell_killworker_built_from cell_failgraphwrite_built_from"
 	"cell_baseline_cloud_resource_container_image cell_killworker_cloud_resource_container_image cell_failgraphwrite_cloud_resource_container_image"
 	"cell_baseline_crossplane_satisfied_by cell_killworker_crossplane_satisfied_by cell_failgraphwrite_crossplane_satisfied_by"
+	"cell_baseline_derived_from cell_killworker_derived_from cell_failgraphwrite_derived_from"
 	"cell_baseline_code_interproc_evidence cell_killworker_code_interproc_evidence cell_failgraphwrite_code_interproc_evidence"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"

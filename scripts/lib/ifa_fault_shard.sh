@@ -34,8 +34,9 @@
 #
 # INPUT DATA VS. PARTITION ALGORITHM
 #
-# IFA_FAULT_ALL_CELLS and IFA_FAULT_ATOMIC_GROUPS below are the only two
-# places a cell name appears in this file -- every function past them is
+# IFA_FAULT_ALL_CELLS and IFA_FAULT_ATOMIC_GROUPS (both owned by
+# scripts/lib/ifa_fault_shard_cells.sh, sourced below) are the only two
+# places a cell name appears -- every function past them is
 # name-agnostic and iterates whatever those two arrays currently hold.
 #
 # - IFA_FAULT_ALL_CELLS is the flat, ordered list of every non-baseline cell

@@ -196,9 +196,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		LiveProven: true,
 	},
 	{
-		Family:    derivedFromFamily,
-		OduName:   ifa.DerivedFromFamilyOduName,
-		EdgeTypes: []string{"DERIVED_FROM"},
+		Family:     derivedFromFamily,
+		OduName:    ifa.DerivedFromFamilyOduName,
+		EdgeTypes:  []string{"DERIVED_FROM"},
+		LiveProven: true,
 	},
 	{
 		Family:    publishesFamily,

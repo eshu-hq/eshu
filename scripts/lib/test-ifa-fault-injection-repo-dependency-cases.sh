@@ -370,7 +370,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	run_ifa_repo_dependency_graph_terminal_owner_controls || return 1
 	run_ifa_repo_dependency_quarantine_telemetry_controls || return 1
 	# 85 = 1 shared cell_baseline + 84 IFA_FAULT_ALL_CELLS entries
-	# (scripts/lib/ifa_fault_shard.sh). #5995/#6000/#5997 added the shared
+	# (scripts/lib/ifa_fault_shard_cells.sh). #5995/#6000/#5997 added the shared
 	# symbol-runtime baseline and three graph-write cells; #6208 adds the
 	# trio's three runner-lease kill/reclaim cells; #6309 adds the two
 	# direct-family trios (kubernetes_namespace_environment,
@@ -382,6 +382,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	# cloud_resource trio; #6228 slice C live leaf adds the built_from trio;
 	# #6228 slice D live leaf adds the cloud_resource_container_image trio;
 	# #6228 crossplane live leaf adds the crossplane_satisfied_by trio;
-	# #6228 code_interproc_evidence live leaf adds the code_interproc_evidence trio.
-	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 85 ]] || return 1
+	# #6228 derived_from live leaf adds the derived_from trio, and the
+	# code_interproc_evidence live leaf adds the code_interproc_evidence trio.
+	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 88 ]] || return 1
 }

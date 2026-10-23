@@ -99,6 +99,7 @@ ifa_live_gate_determinism_only_seams=(
 	'go/internal/ifa/familyodu/built_from_family_odu.go|go/internal/ifa/familyodu/built_from_family_odu.go'
 	'go/internal/ifa/familyodu/cloud_resource_container_image_family_odu.go|go/internal/ifa/familyodu/cloud_resource_container_image_family_odu.go'
 	'go/internal/ifa/familyodu/crossplane_satisfied_by_family_odu.go|go/internal/ifa/familyodu/crossplane_satisfied_by_family_odu.go'
+	'go/internal/ifa/familyodu/derived_from_family_odu.go|go/internal/ifa/familyodu/derived_from_family_odu.go'
 	'go/internal/ifa/familyodu/code_interproc_evidence_family_odu.go|go/internal/ifa/familyodu/code_interproc_evidence_family_odu.go'
 	'go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go|go/internal/ifa/familyodu/ec2_uses_profile_family_odu.go'
 	'go/internal/ifa/familyodu/s3_logs_to_family_odu.go|go/internal/ifa/familyodu/s3_logs_to_family_odu.go'

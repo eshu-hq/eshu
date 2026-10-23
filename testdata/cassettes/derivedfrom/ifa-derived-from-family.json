@@ -1,0 +1,138 @@
+{
+  "collector": "git",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "git-repository-scope:repository:eshu-fixture-lineage-app",
+      "source_system": "git",
+      "scope_kind": "repo",
+      "collector_kind": "git",
+      "partition_key": "git-repository-scope:repository:eshu-fixture-lineage-app",
+      "metadata": {
+        "fixture": "ifa-derived-from-family"
+      },
+      "generation_id": "gen-ifa-derived-from-family-1",
+      "observed_at": "2026-10-22T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "repository",
+          "stable_fact_key": "repository:repository:eshu-fixture-lineage-app",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "graph_id": "repository:eshu-fixture-lineage-app",
+            "graph_kind": "repository",
+            "repo_id": "repository:eshu-fixture-lineage-app",
+            "name": "lineage-app",
+            "remote_url": "https://github.com/acme/lineage-app",
+            "local_path": "/repo-lineage-app",
+            "source_run_id": "run-ifa-derived-from-family-1"
+          }
+        },
+        {
+          "fact_kind": "file",
+          "stable_fact_key": "file:repository:eshu-fixture-lineage-app:Dockerfile",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "reported",
+          "payload": {
+            "repo_id": "repository:eshu-fixture-lineage-app",
+            "language": "dockerfile",
+            "relative_path": "Dockerfile",
+            "parsed_file_data": {
+              "dockerfile_stages": [
+                {
+                  "stage_index": 0,
+                  "base_image": "registry.example.com/acme/base@sha256:b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+                  "base_tag": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:k8s-ref-thirdparty-tool",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "repo_id": "repository:eshu-fixture-lineage-app",
+            "entity_type": "K8sResource",
+            "entity_metadata": {
+              "container_images": [
+                "registry.example.com/thirdparty/tool@sha256:e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+              ]
+            }
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:sha256:b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "config_labels": {
+              "org.opencontainers.image.source": "https://github.com/acme/lineage-app"
+            },
+            "digest": "sha256:b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "repository_id": "oci-registry://registry.example.com/acme/base"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "config_labels": {
+              "org.opencontainers.image.source": "https://github.com/acme/lineage-app"
+            },
+            "digest": "sha256:c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "repository_id": "oci-registry://registry.example.com/acme/lineage-app"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:sha256:c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "config_labels": {
+              "org.opencontainers.image.source": "https://github.com/acme/lineage-app"
+            },
+            "digest": "sha256:c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "repository_id": "oci-registry://registry.example.com/acme/lineage-app"
+          }
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-manifest:sha256:e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "digest": "sha256:e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "repository_id": "oci-registry://registry.example.com/thirdparty/tool"
+          }
+        }
+      ]
+    }
+  ]
+}
