@@ -8,4 +8,9 @@
 // root-anchored gitignore patterns, operator overlays, hidden/generated/vendor
 // skip rules, nested Git repository preference, and deterministic sorting
 // before the collector snapshots files.
+//
+// PathRules compiles the location-only rules in Options. The walk applies them,
+// and PathRules.ExcludesFile applies the same decision to a repo-relative path
+// the walk never visited, so a caller cannot drift from the walk by copying the
+// matchers. Repo-local .gitignore and .eshuignore rules are not part of it.
 package discovery

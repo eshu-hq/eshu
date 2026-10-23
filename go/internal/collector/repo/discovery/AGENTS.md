@@ -38,10 +38,17 @@
   resolve outside the scan root. This prevents traversal of system paths through
   symlinked directories inside a repo. Do not remove this check.
 
+- **One location rule set** — `PathRules` owns every location-only skip:
+  `collectSupportedFiles` calls its `dirSkip`, `fileSkipBeforeMatch`, and
+  `fileSkipByGlob`, and `ExcludesFile` combines them for a path the walk never
+  visited. Change a location rule there, never as a second copy in the walk.
+  `TestPathRulesExcludesFileAgreesWithWalk` fails when the two disagree.
+
 ## Common changes and how to scope them
 
 - **Add a new skip reason to Options** → add the field to `Options`, handle it
-  in `collectSupportedFiles`, add the corresponding counter to `DiscoveryStats`,
+  in `PathRules` when it judges location alone (else in `collectSupportedFiles`),
+  extend the agreement test's fixture, add the corresponding counter to `DiscoveryStats`,
   and populate it. Add a test in `discovery_test.go`. Update
   `collector.LoadDiscoveryOptionsFromEnv` if the new option is env-driven.
 
