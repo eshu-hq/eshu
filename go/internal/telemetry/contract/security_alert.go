@@ -32,6 +32,10 @@ const (
 	// AttrSecurityAlertFanoutRateLimited is the span attribute key recording
 	// whether the provider rate limited the fan-out and stopped it (#8805).
 	AttrSecurityAlertFanoutRateLimited = "eshu.security_alert.org_fanout.rate_limited"
+	// AttrSecurityAlertFanoutStopped is the span attribute key recording
+	// whether a read failure other than not_found stopped the fan-out early,
+	// a rate limit included (#8805).
+	AttrSecurityAlertFanoutStopped = "eshu.security_alert.org_fanout.stopped"
 )
 
 // Org-scope security-alert fan-out outcomes (#8805), recorded on the existing
@@ -45,8 +49,9 @@ const (
 	// SecurityAlertFanoutOutcomeTruncated means the repository's own bounded
 	// read still hit max_pages, so its facts stay incomplete.
 	SecurityAlertFanoutOutcomeTruncated = "truncated"
-	// SecurityAlertFanoutOutcomeFailed means the repository read failed with a
-	// non-rate-limit provider failure; the fan-out continued.
+	// SecurityAlertFanoutOutcomeFailed means the repository's own read failed
+	// with a non-rate-limit provider failure. The fan-out continues only after
+	// not_found; any other class stops it.
 	SecurityAlertFanoutOutcomeFailed = "failed"
 	// SecurityAlertFanoutOutcomeRateLimited means the provider rate limited
 	// this or an earlier repository read, so the fan-out stopped and the
@@ -55,4 +60,9 @@ const (
 	// SecurityAlertFanoutOutcomeSkippedCap means the repository sat past the
 	// per-claim fan-out repository cap and was not read.
 	SecurityAlertFanoutOutcomeSkippedCap = "skipped_cap"
+	// SecurityAlertFanoutOutcomeStopped means an earlier repository read
+	// failed with a class other than not_found or rate_limited (auth denied,
+	// retryable, terminal), so the fan-out stopped and this repository was not
+	// read.
+	SecurityAlertFanoutOutcomeStopped = "stopped"
 )

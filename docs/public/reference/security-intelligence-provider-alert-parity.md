@@ -54,8 +54,13 @@ repository of that organization through
   the fan-out; that repository and every later one keep only their org-window
   facts with `org_repository_read_rate_limited`. The claim still commits, and
   the next scheduled claim reads again. Nothing retries inside the claim.
-- A read that fails for another reason (for example `not_found`) marks that
-  repository `org_repository_read_failed` and the fan-out continues.
+- A `not_found` read marks that repository `org_repository_read_failed` and the
+  fan-out continues. Any other failure (`auth_denied`, including a 403 without
+  rate-limit headers, a 5xx or transport error, or a terminal 4xx) marks that
+  repository `org_repository_read_failed` and stops the fan-out: later
+  repositories keep their org-window facts with `org_repository_fanout_stopped`.
+  GitHub warns that continuing to call while limited can get an integration
+  banned, and the next read would use the same credential.
 - At most 100 repositories are read per claim. Later allowlisted repositories
   keep their org-window facts with `org_repository_fanout_cap_reached`.
 
@@ -63,6 +68,10 @@ One claim sends at most `max_pages` x (1 + min(allowlisted repositories in the
 organization, 100)) alert-page requests. Under `github_app` auth each listing
 call also mints one installation token. Allowlisted repositories owned by
 another account are never read through an org target.
+
+Facts from a per-repository read carry a lowercase `repository_name`, because
+that endpoint returns no repository object; org-window facts keep the
+provider's casing. `repository_id` is lowercase on both paths.
 
 A repository that the fan-out could not read and that has no alert in the org
 window emits no fact, so no fact carries its reason. The

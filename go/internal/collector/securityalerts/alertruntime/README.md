@@ -44,11 +44,15 @@ alerts, and duplicates collapse on (repository, alert number). Fan-out alerts
 are stamped with the requested repository, so their `repository_id` and stable
 fact key match the org path. Per-repository coverage (`coverage.go`) stamps each
 fact: a still-truncated read keeps `provider_open_alert_page_limit_reached`;
-a failed, rate-limited, or capped repository adds
-`org_repository_read_failed`, `org_repository_read_rate_limited`, or
-`org_repository_fanout_cap_reached`. The first rate-limited read stops the
-fan-out; the claim still commits what it read and never loops. Only a cancelled
-claim context fails the claim. The freshness digest includes each alert's
+a failed, rate-limited, stopped, or capped repository adds
+`org_repository_read_failed`, `org_repository_read_rate_limited`,
+`org_repository_fanout_stopped`, or `org_repository_fanout_cap_reached`. Only a
+`not_found` read lets the fan-out continue; the first read that fails any other
+way (rate limit, auth denied, 5xx, transport, terminal) stops it
+(`fanoutFailureOutcome`). The claim still commits what it read and never loops.
+Only a cancelled claim context fails the claim, with no partial generation.
+Fan-out facts carry a lowercase `repository_name`, because the per-repository
+endpoint returns no repository object. The freshness digest includes each alert's
 repository and the fan-out outcomes, so a changed outcome is a new refresh
 boundary.
 
@@ -61,7 +65,13 @@ org read is not truncated sends exactly the requests it sent before.
 and pins the request count: 5 requests for a truncated two-page org read with
 one complete and one two-page-truncated repository, and 3 requests when the
 second repository read is rate limited (the third allowlisted repository is
-never requested). `TestClaimedSourceBoundsFanoutRepositories` pins the
+never requested), and 2 requests when the first repository read is a 403
+without rate-limit headers. The cassette is synthetic and GitHub-shaped, written
+from GitHub's documented REST shape, not captured from GitHub.
+`TestClaimedSourceStopsFanoutOnNonNotFoundFailure` pins the stop for
+auth_denied, 5xx, terminal, and transport failures, and
+`TestClaimedSourceFailsClaimWhenContextCancelledDuringFanout` pins the
+cancelled-claim path. `TestClaimedSourceBoundsFanoutRepositories` pins the
 100-repository cap.
 
 Observability Evidence: `eshu_dp_security_alert_truncated_reads_total`
@@ -70,8 +80,8 @@ Observability Evidence: `eshu_dp_security_alert_truncated_reads_total`
 counts each fan-out repository outcome. Each fan-out read also records the
 existing provider request, fetch-duration, and rate-limit instruments under its
 own `security_alert.fetch` span, and the `security_alert.observe` span carries
-`eshu.security_alert.org_fanout.repositories`, `.requested`, `.incomplete`, and
-`.rate_limited`. No label or attribute carries a repository or organization.
+`eshu.security_alert.org_fanout.repositories`, `.requested`, `.incomplete`,
+`.rate_limited`, and `.stopped`. No label or attribute carries a repository or organization.
 `TestClaimedSourceReportsRepositoryStillTruncatedAfterFanout` and
 `TestClaimedSourceStopsFanoutOnRateLimit` assert the counters.
 

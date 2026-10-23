@@ -175,7 +175,6 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `SecurityAlertProviderRequests` | `eshu_dp_security_alert_provider_requests_total` |
 | `SecurityAlertFactsEmitted` | `eshu_dp_security_alert_facts_emitted_total` |
 | `SecurityAlertRateLimited` | `eshu_dp_security_alert_rate_limited_total` |
-| `SecurityAlertTruncatedReads`, `SecurityAlertOrgFanoutRepositories` | `eshu_dp_security_alert_truncated_reads_total` (labels: `provider`, `operation` = `list_repo_alerts` \| `list_org_alerts`) and `eshu_dp_security_alert_org_fanout_repositories_total` (labels: `provider`, `outcome` = `complete` \| `truncated` \| `failed` \| `rate_limited` \| `skipped_cap`); #8805, emitted by `alertruntime` |
 | `CICDRunProviderRequests` | `eshu_dp_ci_cd_run_provider_requests_total` |
 | `CICDRunFactsEmitted` | `eshu_dp_ci_cd_run_facts_emitted_total` |
 | `CICDRunRateLimited` | `eshu_dp_ci_cd_run_rate_limited_total` |
@@ -497,4 +496,5 @@ Pipeline phase constants (defined in `logging.go`): `PhaseDiscovery`,
 `PhaseParsing`, `PhaseEmission`, `PhaseProjection`, `PhaseReduction`,
 `PhaseShared`, `PhaseQuery`, `PhaseServe`.
 
-See [operational helpers and invariants](operations.md) for logger setup, attribute helpers, and runtime gotchas.
+See [operational helpers and invariants](operations.md) for logger setup,
+attribute helpers, and runtime gotchas.

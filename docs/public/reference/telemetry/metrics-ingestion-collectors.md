@@ -217,7 +217,7 @@ failure-class attributes.
 | `eshu_dp_security_alert_rate_limited_total` | `provider` | GitHub rate-limit pressure surfaced to workflow retry handling. |
 | `eshu_dp_security_alert_fetch_duration_seconds` | `provider`, `status_class` | Bounded provider fetch duration for one claimed target. |
 | `eshu_dp_security_alert_truncated_reads_total` | `provider`, `operation` | Provider reads that hit `max_pages` before the alert stream ended. `operation=list_org_alerts` is a truncated org read (it triggers the per-repository fan-out); `operation=list_repo_alerts` is a repository read, including a fan-out read, that still truncated. |
-| `eshu_dp_security_alert_org_fanout_repositories_total` | `provider`, `outcome` | Allowlisted repositories handled by the org fan-out after a truncated org read. `outcome` is `complete`, `truncated`, `failed`, `rate_limited` (the fan-out stopped at a rate limit), or `skipped_cap` (past the 100-repository per-claim cap). |
+| `eshu_dp_security_alert_org_fanout_repositories_total` | `provider`, `outcome` | Allowlisted repositories handled by the org fan-out after a truncated org read. `outcome` is `complete`, `truncated`, `failed`, `rate_limited` (the fan-out stopped at a rate limit), `stopped` (an earlier read failed with a class other than `not_found` or `rate_limited`, so the fan-out stopped), or `skipped_cap` (past the 100-repository per-claim cap). |
 
 Repository names, package names, alert URLs, token environment names, token
 values, and provider response bodies stay out of metric labels. Use

@@ -17,7 +17,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// providerCassette is a recorded GitHub Dependabot request/response exchange.
+// providerCassette is a synthetic, GitHub-shaped Dependabot request/response
+// cassette: written by hand from GitHub's documented REST shape (paths, cursor
+// Link headers, X-RateLimit headers, 403 bodies), not captured from GitHub.
 // Each scenario replays its interactions strictly in order against the real
 // GitHubDependabotClient, so the test proves the exact provider request count
 // and sequence a claim sends, not a fake client's view of it.
@@ -63,9 +65,10 @@ type providerCassetteExpect struct {
 }
 
 // TestClaimedSourceOrgFanoutReplaysProviderCassette is the #8805 cassette
-// proof: a truncated org read fans out with the recorded request count, and a
-// rate-limited per-repository read stops the fan-out after exactly one failed
-// request instead of retrying or reading the remaining repositories.
+// proof: a truncated org read fans out with the expected request count, and a
+// rate-limited or auth-denied (403 without rate-limit headers)
+// per-repository read stops the fan-out after exactly one failed request
+// instead of retrying or reading the remaining repositories.
 func TestClaimedSourceOrgFanoutReplaysProviderCassette(t *testing.T) {
 	t.Parallel()
 
@@ -99,24 +102,24 @@ func replayProviderCassetteScenario(t *testing.T, scenario providerCassetteScena
 		next++
 		mu.Unlock()
 		if index >= len(scenario.Interactions) {
-			t.Errorf("unexpected request %d %s %s beyond the %d recorded", index+1, r.Method, r.URL.String(), len(scenario.Interactions))
+			t.Errorf("unexpected request %d %s %s beyond the %d in the cassette", index+1, r.Method, r.URL.String(), len(scenario.Interactions))
 			http.Error(w, "{}", http.StatusInternalServerError)
 			return
 		}
-		recorded := scenario.Interactions[index]
+		interaction := scenario.Interactions[index]
 		if got := r.Header.Get("Authorization"); got != "Bearer github-token" {
 			t.Errorf("request %d Authorization = %q, want the configured bearer token", index+1, got)
 		}
-		if r.Method != recorded.Request.Method || r.URL.Path != recorded.Request.Path || !queryMatches(r, recorded.Request.Query) {
+		if r.Method != interaction.Request.Method || r.URL.Path != interaction.Request.Path || !queryMatches(r, interaction.Request.Query) {
 			t.Errorf("request %d = %s %s, want %s %s %v", index+1, r.Method, r.URL.String(),
-				recorded.Request.Method, recorded.Request.Path, recorded.Request.Query)
+				interaction.Request.Method, interaction.Request.Path, interaction.Request.Query)
 		}
-		for key, value := range recorded.Response.Headers {
+		for key, value := range interaction.Response.Headers {
 			w.Header().Set(key, strings.ReplaceAll(value, "{{base_url}}", server.URL))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(recorded.Response.Status)
-		_, _ = w.Write(recorded.Response.Body)
+		w.WriteHeader(interaction.Response.Status)
+		_, _ = w.Write(interaction.Response.Body)
 	}))
 	t.Cleanup(server.Close)
 
@@ -146,7 +149,7 @@ func replayProviderCassetteScenario(t *testing.T, scenario providerCassetteScena
 	requests := next
 	mu.Unlock()
 	if requests != scenario.Expect.Requests {
-		t.Fatalf("provider requests = %d, want the recorded %d", requests, scenario.Expect.Requests)
+		t.Fatalf("provider requests = %d, want the cassette's %d", requests, scenario.Expect.Requests)
 	}
 	if got, want := len(envs), len(scenario.Expect.Facts); got != want {
 		t.Fatalf("len(facts) = %d, want %d", got, want)

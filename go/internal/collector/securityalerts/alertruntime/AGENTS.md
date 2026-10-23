@@ -18,7 +18,7 @@ to `collector.ClaimedService`.
 - Add or update `ClaimedSource.NextClaimed` tests for new provider behavior.
 - Keep the org fan-out (`org_fanout.go`) bounded: sequential reads, each capped
   by `max_pages`, at most `maxOrganizationFanoutRepositories` per claim, and a
-  stop at the first rate limit. Report unread repositories through
+  stop at the first read failure other than `not_found`. Report unread repositories through
   `collection_incomplete_reasons` and the fan-out counter; never retry inside a
   claim. Update `testdata/org_fanout_cassette.json` when the request sequence
   changes.

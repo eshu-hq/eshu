@@ -27,8 +27,8 @@ const (
 	maxOrganizationFanoutRepositories = 100
 
 	// collectionOrgRepositoryReadFailedReason marks org-window facts of a
-	// repository whose per-repository read failed (not found, auth denied,
-	// transient provider error).
+	// repository whose own per-repository read failed (not found, auth
+	// denied, transient or terminal provider error).
 	collectionOrgRepositoryReadFailedReason = "org_repository_read_failed"
 	// collectionOrgRepositoryRateLimitedReason marks org-window facts of a
 	// repository the fan-out did not read because the provider rate limited
@@ -37,6 +37,10 @@ const (
 	// collectionOrgFanoutCapReachedReason marks org-window facts of a
 	// repository past maxOrganizationFanoutRepositories.
 	collectionOrgFanoutCapReachedReason = "org_repository_fanout_cap_reached"
+	// collectionOrgFanoutStoppedReason marks org-window facts of a repository
+	// the fan-out did not read because an earlier read failed with a class
+	// other than not_found or rate_limited.
+	collectionOrgFanoutStoppedReason = "org_repository_fanout_stopped"
 )
 
 // collectTarget turns the target's first provider read into the merged
@@ -60,10 +64,10 @@ func (s *ClaimedSource) collectTarget(
 // fanOutOrganization issues one bounded per-repository read, in allowlist
 // order, for each allowlisted repository of the target organization, up to
 // maxOrganizationFanoutRepositories. Reads run sequentially on purpose: they
-// share one provider rate-limit budget, and the first rate-limited read stops
-// the fan-out instead of spending more of it. A repository read that fails for
-// any other reason is reported and the fan-out continues. Only a cancelled
-// claim context fails the whole claim.
+// share one credential and one provider rate-limit budget. A not_found read is
+// reported and the fan-out continues; the first read that fails any other way
+// stops it (see fanoutFailureOutcome) instead of spending more of the budget.
+// Only a cancelled claim context fails the whole claim.
 func (s *ClaimedSource) fanOutOrganization(
 	ctx context.Context,
 	observeSpan trace.Span,
@@ -80,26 +84,26 @@ func (s *ClaimedSource) fanOutOrganization(
 		fanoutOutcomes:     make(map[string]string, len(repositories)),
 	}
 	reads := make(map[string]securityalerts.GitHubDependabotAlertResult, len(repositories))
-	requested, incomplete, rateLimited := 0, 0, false
+	requested, incomplete := 0, 0
+	// stopOutcome is set by the first read failure that is not not_found: it
+	// is the outcome every later repository records instead of being read.
+	stopOutcome := ""
 	for i, repository := range repositories {
 		var outcome string
 		var coverage repositoryAlertCollectionCoverage
 		switch {
 		case i >= maxOrganizationFanoutRepositories:
 			outcome = contract.SecurityAlertFanoutOutcomeSkippedCap
-		case rateLimited:
-			outcome = contract.SecurityAlertFanoutOutcomeRateLimited
+		case stopOutcome != "":
+			outcome = stopOutcome
 		default:
 			requested++
 			result, err := s.fetchFanoutRepository(ctx, target, repository)
 			switch {
 			case err != nil && ctx.Err() != nil:
 				return alertCollection{}, err
-			case err != nil && classifiedProviderFailure(err).FailureClass() == FailureRateLimited:
-				rateLimited = true
-				outcome = contract.SecurityAlertFanoutOutcomeRateLimited
 			case err != nil:
-				outcome = contract.SecurityAlertFanoutOutcomeFailed
+				outcome, stopOutcome = fanoutFailureOutcome(classifiedProviderFailure(err).FailureClass())
 			default:
 				reads[repository] = result
 				coverage = repositoryAlertCollectionCoverageFromResult(result)
@@ -129,7 +133,8 @@ func (s *ClaimedSource) fanOutOrganization(
 			attribute.Int(contract.AttrSecurityAlertFanoutRepositories, len(repositories)),
 			attribute.Int(contract.AttrSecurityAlertFanoutRequested, requested),
 			attribute.Int(contract.AttrSecurityAlertFanoutIncomplete, incomplete),
-			attribute.Bool(contract.AttrSecurityAlertFanoutRateLimited, rateLimited),
+			attribute.Bool(contract.AttrSecurityAlertFanoutRateLimited, stopOutcome == contract.SecurityAlertFanoutOutcomeRateLimited),
+			attribute.Bool(contract.AttrSecurityAlertFanoutStopped, stopOutcome != ""),
 		)
 	}
 	return collection, nil
@@ -227,12 +232,37 @@ func organizationFanoutRepositories(target TargetConfig) []string {
 	return repositories
 }
 
+// fanoutRepositoryObject builds the repository object stamped onto a
+// per-repository fan-out alert from the normalized (lowercase) allowlist
+// entry, because the per-repository endpoint returns no repository object.
+// repository_id is lowercase on both paths, so stable keys match; the
+// repository_name payload field is lowercase on this path, while the org path
+// copies the provider's casing.
 func fanoutRepositoryObject(repository string) securityalerts.GitHubDependabotRepository {
 	owner, name, _ := strings.Cut(repository, "/")
 	return securityalerts.GitHubDependabotRepository{
 		FullName: repository,
 		Name:     name,
 		Owner:    securityalerts.GitHubDependabotRepositoryOwner{Login: owner},
+	}
+}
+
+// fanoutFailureOutcome maps a failed per-repository read to its outcome and
+// to the outcome later repositories record. Only not_found, which is specific
+// to one repository, lets the fan-out continue (stop is ""). A rate limit
+// stops it as rate_limited. Any other class (auth_denied, including a 403
+// without rate-limit headers, retryable 5xx or transport, terminal) stops it
+// as stopped, because the next read against the same credential and provider
+// would most likely fail the same way, and GitHub warns that continuing to
+// call while limited risks the integration being banned.
+func fanoutFailureOutcome(failureClass string) (outcome string, stop string) {
+	switch failureClass {
+	case FailureNotFound:
+		return contract.SecurityAlertFanoutOutcomeFailed, ""
+	case FailureRateLimited:
+		return contract.SecurityAlertFanoutOutcomeRateLimited, contract.SecurityAlertFanoutOutcomeRateLimited
+	default:
+		return contract.SecurityAlertFanoutOutcomeFailed, contract.SecurityAlertFanoutOutcomeStopped
 	}
 }
 
@@ -246,6 +276,8 @@ func fanoutOutcomeReason(outcome string) string {
 		return collectionOrgRepositoryRateLimitedReason
 	case contract.SecurityAlertFanoutOutcomeSkippedCap:
 		return collectionOrgFanoutCapReachedReason
+	case contract.SecurityAlertFanoutOutcomeStopped:
+		return collectionOrgFanoutStoppedReason
 	default:
 		return ""
 	}
