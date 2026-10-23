@@ -280,23 +280,23 @@ func (s FactStore) loadUnion(
 	if err != nil {
 		return projector.ProjectionFacts{}, err
 	}
-	baseGenerationID, baselineSHA, wantUnion, err := s.resolveDeltaUnionBase(ctx, scopeID, generationID)
+	baseGenerationID, commits, wantUnion, err := s.resolveDeltaUnionBase(ctx, scopeID, generationID)
 	if err != nil {
 		// Only a missing base refuses downstream: any other resolve
 		// error retries through the generic fail path, so it counts a
 		// distinct resolve-failed outcome instead of the refused one.
 		var baseMissing *projector.DeltaBaseMissingError
 		if errors.As(err, &baseMissing) {
-			s.recordDeltaUnionRefused(ctx, scopeID, generationID, len(loaded))
+			s.recordDeltaUnionRefused(ctx, scopeID, generationID, commits, len(loaded))
 		} else {
-			s.recordDeltaUnion(ctx, scopeID, generationID, projector.DeltaUnionResolveFailed, 0, len(loaded), 0)
+			s.recordDeltaUnion(ctx, scopeID, generationID, commits, projector.DeltaUnionResolveFailed, 0, len(loaded), 0)
 		}
 		return projector.ProjectionFacts{}, err
 	}
 	if !wantUnion {
 		return projector.ProjectionFacts{Facts: loaded}, nil
 	}
-	merged, outcome, err := s.listFactsUnion(ctx, scopeID, generationID, baseGenerationID, baselineSHA, loaded)
+	merged, outcome, err := s.listFactsUnion(ctx, scopeID, generationID, baseGenerationID, commits, loaded)
 	if err != nil {
 		return projector.ProjectionFacts{}, err
 	}

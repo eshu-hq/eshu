@@ -48,6 +48,7 @@ CREATE TABLE scope_generations (
     status TEXT NOT NULL,
     activated_at TIMESTAMPTZ NULL,
     delta_baseline_commit_sha TEXT NULL,
+    delta_union_base_commit_sha TEXT NULL,
     payload JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE TABLE fact_records (

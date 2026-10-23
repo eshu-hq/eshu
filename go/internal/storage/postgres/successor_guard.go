@@ -163,8 +163,11 @@ func (s IngestionStore) successorPriorForGuard(
 	if !generation.IsDelta {
 		return prior, nil
 	}
+	// The anchor is the successor delta's union base (#8780): the full its
+	// changed set was diffed from, COALESCEd to the baseline for a delta
+	// without a recorded union base, exactly as the projector resolves it.
 	anchorID, err := store.resolveDeltaBaseAtCommit(ctx, scopeValue.ScopeID, generation.GenerationID,
-		strings.TrimSpace(generation.DeltaBaselineCommitSHA))
+		deltaUnionCommitsFor(generation.DeltaBaselineCommitSHA, generation.DeltaUnionBaseCommitSHA))
 	if err != nil {
 		if isDeltaBaseMissing(err) {
 			prior.anchorMissing = true

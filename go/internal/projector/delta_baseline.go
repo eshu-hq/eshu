@@ -53,10 +53,14 @@ type DeltaBaseMissingError struct {
 	ScopeID string
 	// GenerationID is the delta generation that cannot project.
 	GenerationID string
-	// BaselineCommitSHA is the commit the delta was diffed from, whose base
-	// full generation is missing. It travels in logs and failure details,
-	// never in metric labels.
+	// BaselineCommitSHA is the delta's #7319 fence commit
+	// (delta_baseline_commit_sha): the active commit when it was diffed. It
+	// travels in logs and failure details, never in metric labels.
 	BaselineCommitSHA string
+	// UnionBaseCommitSHA is the commit the missing base was looked up at
+	// (#8780): the delta's recorded union-base commit, or its baseline for a
+	// delta stored before that column existed.
+	UnionBaseCommitSHA string
 }
 
 // Error reports the missing base without embedding the commit SHA: SHAs stay
@@ -165,9 +169,15 @@ type DeltaBaselineState struct {
 	TargetStatus scope.GenerationStatus
 	// IsDelta marks a delta generation.
 	IsDelta bool
-	// BaselineCommitSHA is the commit the delta was diffed from. Empty for a
-	// full generation or a delta written before #7319.
+	// BaselineCommitSHA is the commit the delta was diffed from: the active
+	// commit when the collector read its baseline. Empty for a full
+	// generation or a delta written before #7319.
 	BaselineCommitSHA string
+	// UnionBaseCommitSHA is the delta's #8780 union-base commit, read with the
+	// target row for logs and failure details only: DecideDeltaBaseline
+	// never reads it. Empty for a full generation or a delta written before
+	// #8780.
+	UnionBaseCommitSHA string
 	// ActiveGenerationID is the scope's active generation, empty when none.
 	ActiveGenerationID string
 	// ActiveCommitSHA is the active generation's source commit.

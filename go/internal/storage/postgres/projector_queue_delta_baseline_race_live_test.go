@@ -36,6 +36,7 @@ func TestProjectorAckFencesDeltaAgainstActivationWhileWaiting(t *testing.T) {
 	projectorDB := openLivenessProofDB(t, dsn)
 	provisionLivenessSchema(t, projectorDB, `
 ALTER TABLE scope_generations ADD COLUMN IF NOT EXISTS delta_baseline_commit_sha TEXT NULL;
+ALTER TABLE scope_generations ADD COLUMN IF NOT EXISTS delta_union_base_commit_sha TEXT NULL;
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, collector_kind,
     partition_key, observed_at, ingested_at, status, active_generation_id

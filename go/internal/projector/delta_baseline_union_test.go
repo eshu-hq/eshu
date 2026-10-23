@@ -57,9 +57,10 @@ type baseMissingFactStore struct{}
 
 func (baseMissingFactStore) LoadProjectionFacts(context.Context, ScopeGenerationWork) (ProjectionFacts, error) {
 	return ProjectionFacts{}, &DeltaBaseMissingError{
-		ScopeID:           "scope-7797",
-		GenerationID:      "gen-delta-1",
-		BaselineCommitSHA: "baseline-commit",
+		ScopeID:            "scope-7797",
+		GenerationID:       "gen-delta-1",
+		BaselineCommitSHA:  "baseline-commit",
+		UnionBaseCommitSHA: "union-base-commit",
 	}
 }
 
@@ -102,7 +103,11 @@ func TestProcessWorkRefusesDeltaBaseMissingThroughFence(t *testing.T) {
 		t.Fatalf("refusal phase = %q, want preflight", refusal.Phase)
 	}
 	if refusal.State.BaselineCommitSHA != "baseline-commit" {
-		t.Fatalf("refusal baseline = %q, want the union baseline", refusal.State.BaselineCommitSHA)
+		t.Fatalf("refusal baseline = %q, want the delta's fence commit", refusal.State.BaselineCommitSHA)
+	}
+	// #8780: the refusal names the commit the missing base was looked up at.
+	if refusal.State.UnionBaseCommitSHA != "union-base-commit" {
+		t.Fatalf("refusal union base = %q, want the union-base commit", refusal.State.UnionBaseCommitSHA)
 	}
 	if runner.runCalls != 0 {
 		t.Fatalf("project calls = %d, want 0 (nothing projected)", runner.runCalls)

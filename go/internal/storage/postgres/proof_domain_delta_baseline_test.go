@@ -15,9 +15,12 @@ func proofDeltaBaselineFenceRows(state proofState, args []any) [][]any {
 	if !ok || target.ScopeID != scopeID {
 		return nil
 	}
-	var baseline, activeID, activeCommit any
+	var baseline, unionBase, activeID, activeCommit any
 	if target.DeltaBaselineCommitSHA != "" {
 		baseline = target.DeltaBaselineCommitSHA
+	}
+	if target.DeltaUnionBaseCommitSHA != "" {
+		unionBase = target.DeltaUnionBaseCommitSHA
 	}
 	if id := state.activeGenerations[scopeID]; id != "" {
 		activeID = id
@@ -25,7 +28,7 @@ func proofDeltaBaselineFenceRows(state proofState, args []any) [][]any {
 			activeCommit = active.SourceCommitSHA
 		}
 	}
-	return [][]any{{string(target.Status), target.IsDelta, baseline, activeID, activeCommit}}
+	return [][]any{{string(target.Status), target.IsDelta, baseline, unionBase, activeID, activeCommit}}
 }
 
 // proofMarkProjectionWriteStartedRows answers markProjectionWriteStartedQuery

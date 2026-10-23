@@ -25,7 +25,7 @@ func TestFactStoreLoadProjectionFactsNamesUnionBase(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
@@ -55,7 +55,7 @@ func TestFactStoreLoadProjectionFactsFullGenerationNamesNoBase(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{false, ""}}},
+			{rows: [][]any{{false, "", ""}}},
 		},
 	}
 	loaded, err := NewFactStore(db).LoadProjectionFacts(context.Background(), deltaUnionLoadWork("gen-full-1"))
@@ -75,7 +75,7 @@ func TestFactStoreLoadProjectionFactsReportsScopeMismatch(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionNonDeltaScopeRows()},
-			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},

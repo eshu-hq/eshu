@@ -233,7 +233,7 @@ func TestCommitStoresGenerationWhenIdentityDiffers(t *testing.T) {
 					{rows: [][]any{{"generation-active", "hint-same", "sha-same", "active", false, true}}},
 					// The delta-union base probe (#8189) CountFacts issues
 					// before the count: not a delta here, so no union.
-					{rows: [][]any{{false, ""}}},
+					{rows: [][]any{{false, "", ""}}},
 					// The destructive-successor guard's prior fact count:
 					// three streamed facts over three prior collector facts
 					// stores (collector rows, all rows, file rows; #8750).

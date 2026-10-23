@@ -79,7 +79,7 @@ func TestFactStoreListFactsFullGenerationSkipsUnion(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{false, ""}}},
+			{rows: [][]any{{false, "", ""}}},
 		},
 	}
 	store := NewFactStore(db)
@@ -102,7 +102,7 @@ func TestFactStoreListFactsDeltaOverlaysBase(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
@@ -151,7 +151,7 @@ func TestFactStoreListFactsDeltaBaseMissingRefuses(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{true, "commit-pruned"}}},
+			{rows: [][]any{{true, "commit-pruned", ""}}},
 			{rows: nil},
 		},
 	}
@@ -176,7 +176,7 @@ func TestFactStoreListFactsLegacyDeltaLoadsSingleGeneration(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{true, ""}}},
+			{rows: [][]any{{true, "", ""}}},
 		},
 	}
 	store := NewFactStore(db)
@@ -198,7 +198,7 @@ func TestFactStoreCountFactsDeltaReturnsUnionBound(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"gen-base-1", "active"}}},
 			{rows: [][]any{{90}}},
 			{rows: [][]any{{5}}},
@@ -223,7 +223,7 @@ func TestFactStoreCountFactsBaseMissingRefuses(t *testing.T) {
 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
-			{rows: [][]any{{true, "commit-pruned"}}},
+			{rows: [][]any{{true, "commit-pruned", ""}}},
 			{rows: nil},
 		},
 	}
@@ -285,7 +285,7 @@ func TestFactStoreListFactsActiveBaseSkipsPruneProbe(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
@@ -308,7 +308,7 @@ func TestFactStoreListFactsSupersededBaseWithoutPruneEventOverlays(t *testing.T)
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"gen-base-1", "superseded"}}},
 			{rows: nil},
 			{rows: deltaUnionBaseRows()},
@@ -340,7 +340,7 @@ func TestFactStoreListFactsPrunedSupersededBaseRefuses(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"gen-base-1", "superseded"}}},
 			{rows: [][]any{{1}}},
 		},
@@ -372,7 +372,7 @@ func TestFactStoreListFactsProbeErrorOnSupersededBaseRefuses(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"gen-base-1", "superseded"}}},
 			{rows: nil, err: errors.New("retention probe outage")},
 			{rows: deltaUnionBaseRows()},
@@ -493,7 +493,7 @@ func TestFactStoreListFactsBaseMissingRecordsRefusedOutcome(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{true, "commit-pruned"}}},
+			{rows: [][]any{{true, "commit-pruned", ""}}},
 			{rows: nil},
 		},
 	}
@@ -541,7 +541,7 @@ func TestFactStoreListFactsNonDeltaScopeWarnsAndCountsMismatch(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionNonDeltaScopeRows()},
-			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"gen-base-1", "active"}}},
 			{rows: deltaUnionBaseRows()},
 		},
@@ -576,7 +576,7 @@ func TestFactStoreListFactsEmptyBaseRefuses(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: deltaUnionDeltaRows()},
-			{rows: [][]any{{true, "commit-base"}}},
+			{rows: [][]any{{true, "commit-base", ""}}},
 			{rows: [][]any{{"gen-base-1", "active"}}},
 			{rows: nil},
 		},

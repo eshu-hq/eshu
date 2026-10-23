@@ -92,3 +92,35 @@ func TestUpsertScopeGenerationWritesDeltaBaseline(t *testing.T) {
 		}
 	}
 }
+
+// TestUpsertScopeGenerationWritesDeltaUnionBase proves the #8780 union-base
+// commit reaches the row on insert and on the pending-row conflict update,
+// and a full generation writes NULL.
+func TestUpsertScopeGenerationWritesDeltaUnionBase(t *testing.T) {
+	t.Parallel()
+	for _, want := range []string{"delta_union_base_commit_sha", "delta_union_base_commit_sha = EXCLUDED.delta_union_base_commit_sha"} {
+		if !strings.Contains(upsertScopeGenerationQuery, want) {
+			t.Fatalf("upsertScopeGenerationQuery missing %q:\n%s", want, upsertScopeGenerationQuery)
+		}
+	}
+	delta := deltaBaselineInputGeneration(true, "A")
+	delta.DeltaUnionBaseCommitSHA = "F"
+	for _, tc := range []struct {
+		name       string
+		generation scope.ScopeGeneration
+		want       any
+	}{
+		{name: "delta", generation: delta, want: "F"},
+		{name: "legacy delta", generation: deltaBaselineInputGeneration(true, "A"), want: nil},
+		{name: "full", generation: deltaBaselineInputGeneration(false, ""), want: nil},
+	} {
+		fake := &recordingExecQueryer{result: projectorRowsAffectedResult{rowsAffected: 1}}
+		if err := upsertScopeGeneration(context.Background(), fake, tc.generation); err != nil {
+			t.Fatalf("%s: upsertScopeGeneration() = %v", tc.name, err)
+		}
+		// $13 is delta_union_base_commit_sha.
+		if args := fake.execs[0].args; len(args) < 13 || args[12] != tc.want {
+			t.Fatalf("%s: union base arg = %#v, want %#v", tc.name, args, tc.want)
+		}
+	}
+}
