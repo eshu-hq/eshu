@@ -6,9 +6,13 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"log/slog"
+	"math"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 
@@ -28,7 +32,8 @@ SELECT
     COALESCE(display_name, ''),
     last_observed_at,
     updated_at,
-    deactivated_at
+    deactivated_at,
+    (configuration->'scan_interval')::text
 FROM collector_instances
 ORDER BY collector_kind ASC, instance_id ASC
 `
@@ -96,17 +101,22 @@ SELECT
        AND updated_at >= $1) AS recent_terminal_work_items
 `
 
-	// workflowCollectorTerminalFailuresQuery returns, per enabled collector
-	// instance, the newest terminal work-item failure that no later completed
-	// work item for the same scope has superseded (#8803). The inner query
-	// takes the 20 newest failed_terminal rows of the instance from
-	// workflow_work_items_claimable_idx (kind, instance, status), so the cost
-	// follows the instance's terminal-row history, not the table size. The
-	// anti-join probes workflow_work_items_collector_scope_generation_updated_idx
-	// per candidate. A terminal failure followed by a later success on the same
-	// scope therefore drops out. Only the bounded class and operation tokens are
-	// selected; last_failure_message and last_failure_status_code can carry
-	// provider text and are never read.
+	// workflowCollectorTerminalFailuresQuery returns, per eligible collector
+	// instance, the newest unresolved terminal work-item failure inside that
+	// instance's window (#8803). Go binds one row per enabled, non-deactivated
+	// instance as ($1 kind, $2 instance_id, $3 cutoff), cutoff = asOf -
+	// GREATEST(3 x scan_interval, 30 min), so no Go duration string is parsed
+	// in SQL. A failed_terminal row counts only while updated_at >= cutoff and
+	// no later completed row of the same kind, instance, and scope exists:
+	// only a completed row proves recovery, so a pending, claimed, or retrying
+	// replan does not flap the signal, and another instance's success on a
+	// shared scope_id does not clear this one. The inner read seeks
+	// workflow_work_items_failed_terminal_instance_updated_idx (migration 210)
+	// newest first with work_item_id as the index's tiebreak, so it stops at
+	// the first unresolved row without a sort; the anti-join probes the
+	// (kind, scope) index per candidate. Only the bounded class and operation
+	// tokens are selected; last_failure_message and last_failure_status_code
+	// can carry provider text and are never read.
 	workflowCollectorTerminalFailuresQuery = `
 SELECT
     i.collector_kind,
@@ -115,40 +125,30 @@ SELECT
     COALESCE(f.last_failure_operation, ''),
     COALESCE(f.last_failure_terminal, TRUE),
     f.updated_at
-FROM collector_instances AS i
+FROM unnest($1::text[], $2::text[], $3::timestamptz[]) AS i(collector_kind, instance_id, cutoff)
 CROSS JOIN LATERAL (
     SELECT
-        c.last_failure_class,
-        c.last_failure_operation,
-        c.last_failure_terminal,
-        c.updated_at
-    FROM (
-        SELECT
-            t.scope_id,
-            t.last_failure_class,
-            t.last_failure_operation,
-            t.last_failure_terminal,
-            t.updated_at
-        FROM workflow_work_items AS t
-        WHERE t.collector_kind = i.collector_kind
-          AND t.collector_instance_id = i.instance_id
-          AND t.status = 'failed_terminal'
-        ORDER BY t.updated_at DESC
-        LIMIT 20
-    ) AS c
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM workflow_work_items AS s
-        WHERE s.collector_kind = i.collector_kind
-          AND s.scope_id = c.scope_id
-          AND s.status = 'completed'
-          AND s.updated_at > c.updated_at
-    )
-    ORDER BY c.updated_at DESC
+        t.last_failure_class,
+        t.last_failure_operation,
+        t.last_failure_terminal,
+        t.updated_at
+    FROM workflow_work_items AS t
+    WHERE t.collector_kind = i.collector_kind
+      AND t.collector_instance_id = i.instance_id
+      AND t.status = 'failed_terminal'
+      AND t.updated_at >= i.cutoff
+      AND NOT EXISTS (
+          SELECT 1
+          FROM workflow_work_items AS s
+          WHERE s.collector_kind = t.collector_kind
+            AND s.collector_instance_id = t.collector_instance_id
+            AND s.scope_id = t.scope_id
+            AND s.status = 'completed'
+            AND s.updated_at > t.updated_at
+      )
+    ORDER BY t.updated_at DESC, t.work_item_id ASC
     LIMIT 1
 ) AS f
-WHERE i.enabled
-  AND i.deactivated_at IS NULL
 ORDER BY i.collector_kind ASC, i.instance_id ASC
 `
 )
@@ -157,6 +157,31 @@ ORDER BY i.collector_kind ASC, i.instance_id ASC
 // counts toward the degraded health state. Failures older than this window are
 // treated as aged history and surfaced only as cumulative detail.
 const defaultCoordinatorRecentFailureWindow = 30 * time.Minute
+
+// terminalFailureWindowCycles is how many of an instance's scan intervals a
+// terminal failure keeps counting without a later completed item for its
+// scope (#8803). One interval covers the coordinator's replan, one covers
+// claim and execution lag, and one is spare, so a permanently failing
+// instance re-fails inside the window every cycle and stays reported, while
+// an orphaned target ages out. The window never drops below
+// defaultCoordinatorRecentFailureWindow.
+const terminalFailureWindowCycles = 3
+
+// terminalFailureCutoff returns the oldest updated_at a terminal failure may
+// carry and still count: asOf minus GREATEST(terminalFailureWindowCycles x
+// scanInterval, defaultCoordinatorRecentFailureWindow). A non-positive
+// interval uses schedule.DefaultReconcileInterval, which the floor covers.
+func terminalFailureCutoff(asOf time.Time, scanInterval time.Duration) time.Time {
+	if scanInterval <= 0 {
+		scanInterval = schedule.DefaultReconcileInterval
+	}
+	window := time.Duration(math.MaxInt64)
+	if scanInterval <= window/terminalFailureWindowCycles {
+		window = terminalFailureWindowCycles * scanInterval
+	}
+	window = max(window, defaultCoordinatorRecentFailureWindow)
+	return asOf.UTC().Add(-window)
+}
 
 func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.Time) (*statuspkg.CoordinatorSnapshot, error) {
 	instances, err := listCoordinatorCollectorInstances(ctx, queryer)
@@ -187,7 +212,7 @@ func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.
 	if err != nil {
 		return nil, err
 	}
-	terminalFailures, err := readWorkflowCollectorTerminalFailures(ctx, queryer)
+	terminalFailures, err := readWorkflowCollectorTerminalFailures(ctx, queryer, instances, asOf)
 	if err != nil {
 		return nil, err
 	}
@@ -252,14 +277,33 @@ func readWorkflowCoordinatorRecentFailures(
 }
 
 // readWorkflowCollectorTerminalFailures reads the newest unresolved terminal
-// work-item failure per enabled collector instance. The result carries only
-// bounded class and operation tokens; the status layer re-validates them
-// before they reach a payload.
+// work-item failure inside each enabled, non-deactivated instance's window.
+// The cutoffs derive from the same asOf as the rest of the snapshot, so the
+// instance list and the failure read agree on one clock. No statement runs
+// when no instance is eligible. The result carries only bounded class and
+// operation tokens; the status layer re-validates them before they reach a
+// payload.
 func readWorkflowCollectorTerminalFailures(
 	ctx context.Context,
 	queryer db.Queryer,
+	instances []collector.InstanceSummary,
+	asOf time.Time,
 ) ([]collector.TerminalFailure, error) {
-	rows, err := queryer.QueryContext(ctx, workflowCollectorTerminalFailuresQuery)
+	kinds := make([]string, 0, len(instances))
+	ids := make([]string, 0, len(instances))
+	cutoffs := make([]time.Time, 0, len(instances))
+	for _, instance := range instances {
+		if !instance.Enabled || !instance.DeactivatedAt.IsZero() {
+			continue
+		}
+		kinds = append(kinds, instance.CollectorKind)
+		ids = append(ids, instance.InstanceID)
+		cutoffs = append(cutoffs, terminalFailureCutoff(asOf, instance.ScanInterval))
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := queryer.QueryContext(ctx, workflowCollectorTerminalFailuresQuery, kinds, ids, cutoffs)
 	if err != nil {
 		return nil, fmt.Errorf("read workflow collector terminal failures: %w", err)
 	}
@@ -295,9 +339,11 @@ func listCoordinatorCollectorInstances(ctx context.Context, queryer db.Queryer) 
 	defer func() { _ = rows.Close() }()
 
 	instances := make([]collector.InstanceSummary, 0)
+	var malformedScanIntervals []string
 	for rows.Next() {
 		var instance collector.InstanceSummary
 		var deactivatedAt sql.NullTime
+		var scanInterval sql.NullString
 		if err := rows.Scan(
 			&instance.InstanceID,
 			&instance.CollectorKind,
@@ -309,16 +355,34 @@ func listCoordinatorCollectorInstances(ctx context.Context, queryer db.Queryer) 
 			&instance.LastObservedAt,
 			&instance.UpdatedAt,
 			&deactivatedAt,
+			&scanInterval,
 		); err != nil {
 			return nil, fmt.Errorf("list coordinator collector instances: %w", err)
 		}
 		if deactivatedAt.Valid {
 			instance.DeactivatedAt = deactivatedAt.Time.UTC()
 		}
+		if scanInterval.Valid {
+			// The coordinator rejects a malformed value at startup; here it
+			// only sizes a status window, so it falls back to the floor.
+			interval, set, err := schedule.ParseScanIntervalValue(json.RawMessage(scanInterval.String))
+			switch {
+			case err != nil:
+				malformedScanIntervals = append(malformedScanIntervals, instance.InstanceID)
+			case set:
+				instance.ScanInterval = interval
+			}
+		}
 		instances = append(instances, instance)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list coordinator collector instances: %w", err)
+	}
+	if len(malformedScanIntervals) > 0 {
+		slog.DebugContext(ctx, "collector scan_interval unreadable; terminal failure window uses the floor",
+			slog.Int("malformed_scan_interval_instances", len(malformedScanIntervals)),
+			slog.Any("collector_instance_ids", malformedScanIntervals),
+			slog.Duration("window_floor", defaultCoordinatorRecentFailureWindow))
 	}
 	return instances, nil
 }

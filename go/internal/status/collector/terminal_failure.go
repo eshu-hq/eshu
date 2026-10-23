@@ -18,9 +18,12 @@ const UnknownFailureToken = "unknown"
 const maxFailureOperationLength = 48
 
 // TerminalFailure is the newest unresolved terminal work-item failure for one
-// collector instance. The reader supplies only rows whose work item reached
-// failed_terminal and has no later completed work item for the same scope, so
-// a terminal failure followed by a later success never appears here.
+// collector instance. The reader supplies only rows for enabled,
+// non-deactivated instances whose work item reached failed_terminal inside the
+// instance's window (3 x scan_interval, 30 minute floor) and has no later
+// completed work item of the same instance for the same scope, so a terminal
+// failure followed by a later success never appears here, and an orphaned one
+// ages out after the window.
 //
 // FailureClass and FailureOperation are the bounded tokens the claim runner
 // persisted. The failure message and provider status code are deliberately
@@ -86,8 +89,9 @@ func terminalFailureDetail(class string, operation string) string {
 // applyTerminalFailures stamps the newest unresolved terminal failure onto the
 // coordinator-registered runtime row it belongs to. A failure without a
 // matching registered row is ignored: failure evidence never creates a
-// collector identity. A disabled row keeps its disabled health but still shows
-// the failure fields so an operator sees why it stopped.
+// collector identity. The reader never returns a failure for a disabled or
+// deactivated instance, so the disabled guard below is defense in depth for
+// other callers: it keeps a disabled row's health and detail unchanged.
 func (b *runtimeStatusBuilder) applyTerminalFailures(failures []TerminalFailure) {
 	for _, failure := range failures {
 		if !failure.Terminal {

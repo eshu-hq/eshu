@@ -120,17 +120,21 @@ func TestCollectorReadinessNamesTerminalFailureClass(t *testing.T) {
 	}
 }
 
-func TestCollectorReadinessTerminalFailureThenSuccessFlipsBack(t *testing.T) {
+// TestCollectorReadinessWithoutFailureRowCarriesNoFailureFields checks the
+// query layer only: a snapshot with no failure row yields no failure fields
+// and no failed promotion. That the reader stops returning the row after a
+// later completed item is proven against PostgreSQL in
+// storage/postgres/workflow_terminal_failure_status_live_test.go.
+func TestCollectorReadinessWithoutFailureRowCarriesNoFailureFields(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
-	// After a later completed work item the reader returns no failure row.
 	payload, _ := getStatusJSON(t, terminalFailureStatusHandler(now), "/api/v0/status/collector-readiness")
 	entry := findReadinessEntry(t, payload, "security-alert-example")
 	if entry["promotion_state"] == collector.PromotionFailed {
-		t.Fatalf("promotion_state = failed after recovery: %v", entry)
+		t.Fatalf("promotion_state = failed without a failure row: %v", entry)
 	}
 	if _, ok := entry["last_failure_class"]; ok {
-		t.Fatalf("recovered entry still carries last_failure_class: %v", entry)
+		t.Fatalf("entry without a failure row carries last_failure_class: %v", entry)
 	}
 }
 

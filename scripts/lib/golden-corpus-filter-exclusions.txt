@@ -57,6 +57,7 @@ go/internal/webhook			outbound webhook delivery; not on the fact/graph/query rea
 go/internal/app				service bootstrap/admin HTTP wiring (health/readiness server); not a fact or query producer
 go/internal/payloadusage	payload-size usage accounting/metrics; not projected truth
 go/internal/recovery		panic-recovery HTTP middleware; not projected truth
+go/internal/coordinator	only coordinator/schedule is linked, through storage/postgres's status reader (#8803), to parse scan_interval for the collector terminal-failure window; the read runs only for a registered collector instance and none exists in this corpus, so no projected graph or asserted query/MCP value changes
 go/internal/workflow		coordinator run/work-item scheduling types used for dynamic collector-instance and component-extension planning outside the gate's fixed cassette/fixture corpus; no such live instance exists in this corpus
 
 # --- search/semantic packages not reachable from the six gate binaries -----
