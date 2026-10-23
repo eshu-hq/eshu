@@ -44,6 +44,20 @@ class TestRequiredGreen(unittest.TestCase):
         self.assertEqual(result["kind"], "reuse")
         self.assertEqual(result["minutes"], 9.5)
 
+    def test_unknown_success_description_is_not_reported_as_ordinary(self) -> None:
+        pr = {"number": 1, "merged_at": "2026-10-23T12:10:00Z"}
+        checks = [{"name": name, "conclusion": "success",
+                   "started_at": "2026-10-23T12:01:00Z",
+                   "completed_at": "2026-10-23T12:04:00Z"}
+                  for name in ("go-core-complete", "go-race-complete")]
+        statuses = [{"context": "required-gates-complete", "state": "success",
+                     "description": "Unrecognized manual verdict",
+                     "created_at": "2026-10-23T12:05:00Z"}]
+        result = measure_head(pr, [{"created_at": "2026-10-23T12:00:00Z"}],
+                              checks, statuses)
+        self.assertEqual(result["outcome"], "success")
+        self.assertEqual(result["kind"], "unknown")
+
     def test_retry_still_running_at_merge_censors_older_green(self):
         pr = {"number": 1, "merged_at": "2026-10-23T12:10:00Z"}
         runs = [{"created_at": "2026-10-23T12:00:00Z"}]

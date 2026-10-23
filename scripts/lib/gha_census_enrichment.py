@@ -95,8 +95,8 @@ def measure_head(pr: Json, runs: list[Json], checks: list[Json],
     description = latest_status.get("description") if latest_status else ""
     kind = ("reuse" if description and "Tree-identical reuse" in description
             else "smoke" if description and "Smoke subset" in description
-            else "ordinary" if latest_status and
-            latest_status.get("state") == "success" else "unknown")
+            else "ordinary" if description ==
+            "All path-selected blocking gates passed" else "unknown")
     green_times = ([timestamp(selected[name].get("completed_at"))
                     for name in REQUIRED_CHECKS] +
                    [timestamp(latest_status.get("created_at"))]) \
