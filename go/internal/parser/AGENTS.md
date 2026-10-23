@@ -57,7 +57,8 @@
   (a fingerprint move invalidates every freshness hint). After editing
   `registry_definitions.go`, run `scripts/generate-parser-admission-doc.sh`;
   `TestAdmissionTableDocIsCurrent` fails on a stale table. A new hardcoded
-  path rule in `LookupByPath` must also join `PathDispatches` in `registry.go`.
+  path rule in `LookupByPath` must also join `PathDispatches` in `registry.go`;
+  `TestPathDispatchesKeysMatchLookupByPath` fails on a bound key it omits.
 
 - **No duplicate keys or extensions** — `NewRegistry` rejects duplicate
   `ParserKey`, extension, and exact filename entries with an error.

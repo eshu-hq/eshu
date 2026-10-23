@@ -62,7 +62,8 @@ checklist.
 | `yaml` | yaml | L2 structured fact | `.yaml`, `.yml` | `pubspec.lock` |  |
 
 Path-dispatched bindings admit these paths through `Registry.LookupByPath` rules
-that the columns above do not list. A row can look empty and still admit files:
+that the columns above do not list. A row can look empty and still admit files.
+Paths are matched case-insensitively:
 
 - `META-INF/services/<service>`, `META-INF/spring.factories`, `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` bind to `java_metadata`.
 - `conf/routes`, `*.routes` bind to `scala`.

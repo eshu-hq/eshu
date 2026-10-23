@@ -381,8 +381,9 @@ const (
 // PathDispatch describes one binding that LookupByPath resolves by hardcoded
 // path logic instead of an Extensions, ExactNames, or PrefixNames entry.
 // AdmissionTableMarkdown renders these beside the table so the generated page
-// shows every path the registry admits, and a test resolves each example
-// through LookupByPath so the list cannot drift from the code.
+// shows every path the registry admits. A test resolves each example through
+// LookupByPath, and an AST test requires the parser keys listed here to equal
+// the keys LookupByPath binds through a literal r.byKey["<key>"] lookup.
 type PathDispatch struct {
 	// Patterns are the human-readable path rules, each rendered as code.
 	Patterns []string
@@ -393,8 +394,9 @@ type PathDispatch struct {
 }
 
 // PathDispatches returns the hardcoded path-dispatch bindings of LookupByPath,
-// in a fixed order. Keep it in step with LookupByPath: a new hardcoded rule
-// there must be listed here.
+// in a fixed order. A new hardcoded rule in LookupByPath must be listed here;
+// the AST test fails when a bound key is missing, but it does not check the
+// path patterns, so edit Patterns and Examples with the rule.
 func PathDispatches() []PathDispatch {
 	return []PathDispatch{
 		{
@@ -439,7 +441,8 @@ func AdmissionTableMarkdown(registry Registry) string {
 		)
 	}
 	b.WriteString("\nPath-dispatched bindings admit these paths through `Registry.LookupByPath` rules\n")
-	b.WriteString("that the columns above do not list. A row can look empty and still admit files:\n\n")
+	b.WriteString("that the columns above do not list. A row can look empty and still admit files.\n")
+	b.WriteString("Paths are matched case-insensitively:\n\n")
 	for _, dispatch := range PathDispatches() {
 		fmt.Fprintf(&b, "- %s bind to `%s`.\n", codeList(dispatch.Patterns), dispatch.ParserKey)
 	}
