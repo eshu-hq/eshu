@@ -27,7 +27,9 @@ A node whose name or repository id has leading or trailing whitespace has no
 twin the delete could match. It is reported `no_twin` and is not counted, so the
 check can pass while it is still there. A padded repository id leaves the name
 clean, so that node still matches a by-name selector and makes the name
-ambiguous; a padded name matches only its exact handle, such as `workload: svc`.
+ambiguous. A leading-padded name matches only its exact handle (`workload: svc`);
+a trailing-padded name matches no selector, because selectors are trimmed on
+entry.
 
 This is a known limit, tracked in #8903. Fixing the value at the source writes a
 clean scoped node but does not remove the old one, and retirement cannot delete

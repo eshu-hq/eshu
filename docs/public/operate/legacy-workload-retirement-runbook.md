@@ -71,7 +71,9 @@ reported `no_twin`, and the readiness check does not count it, so readiness can
 pass while it is still there. A padded repository id leaves the name clean, so
 that node still matches a by-name selector and makes the service name
 ambiguous. A padded name does not match the bare name (`svc`), because the name
-probe is exact; it answers only to its exact handle, such as `workload: svc`.
+probe is exact. A leading-padded name matches only its exact handle
+(`workload: svc`). A trailing-padded name matches no selector at all, because
+selectors are trimmed on entry.
 
 This is a known limit, tracked in #8903. Fixing the value at the source writes a
 clean scoped node but does not remove the old one: the padded node has no twin,
