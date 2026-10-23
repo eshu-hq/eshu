@@ -1,20 +1,24 @@
-# Redact `.yarnrc.yml` and store no body for `*.tfvars` (#8813)
+# Redact `.yarnrc.yml` and `*.tfvars`, never store them verbatim (#8813)
 
-Status: Accepted for the file rules (arbiter ruling relayed by the coordinator,
-2026-10-23). Two items still need a ruling (see "Decisions for the arbiter").
-This record approves no code, schema change, or deployment action. Part of
-#8807. The implementation depends on the per-definition `ContentStore` policy
-in #8812. Citations are at commit `238b4015a9` and name the function, so they
-survive small line drift.
+Status: Accepted (arbiter rulings relayed by the coordinator, 2026-10-23, two
+rounds). This record approves no code, schema change, or deployment action.
+Part of #8807. The work splits across #8812 (policy enum, marker-mode
+redactor, digest rule, fingerprint) and #8833 (skeleton mode, the tfvars
+binding, the detector migration, the differential). Citations are at commit
+`238b4015a9` and name the function, so they survive small line drift.
 
-**Decision.** `.yarnrc.yml` gets the `redact` policy from #8812: credential
-values are replaced at the collector write boundary. `*.tfvars` and
-`*.tfvars.json` (which the registry already routes to the `hcl` parser) store
-no body. A key denylist is complete only against a closed schema, and tfvars is
-an open schema: whether a variable is secret is declared in `variables.tf`
-(`sensitive = true`), not in the name, so a redacted tfvars body can still hold
-a credential. Rows already stored are fixed by the one-time re-collect that the
-policy-aware registry fingerprint triggers, not by a rewrite loop.
+**Decision.** Both files use the `redact` policy from #8812, in two modes.
+`.yarnrc.yml` is closed-schema and uses **marker mode**: credential values are
+replaced in place. `*.tfvars` and `*.tfvars.json` (which the registry already
+routes to the `hcl` parser) are open-schema, so a key denylist cannot make them
+safe: whether a variable is secret is declared in `variables.tf`
+(`sensitive = true`), not in its name. They use **allowlist-skeleton mode**: a
+value survives only if its shape is provably safe, and every other value is
+replaced. Rows already stored are fixed by the one-time re-collect that the
+policy-aware registry fingerprint triggers, not by a rewrite loop. The `metadata`
+policy (empty body, row kept) exists in the enum and is the floor for the
+operator SQL, but neither file uses it, because it would silently drop the
+committed-tfvars-secret finding and the raw-Terraform evidence class.
 
 ## Context
 
@@ -99,9 +103,10 @@ Three findings from the code. Each one defeats a "just stop storing it" fix.
    `RetainedPaths` (`projection.go`, `snapshotFilePaths` in
    `repository_refs.go`). The reap (`staleContentFilePaths` in
    `content_writer_reap.go`) treats a retained path as present and keeps its
-   stored content. A `store nothing` policy that only omits the content fact
-   leaves the old body in place, and #8812's "zero rows" test, run against a
-   fresh database, would still pass.
+   stored content. A policy that only omits the content fact leaves the old
+   body in place, and a "zero rows" test run against a fresh database would
+   still pass. The fix is to keep emitting the record, so the upsert
+   overwrites the body (see "Rows already stored").
 2. **The parser fingerprint does not see a policy.** `Registry.Fingerprint`
    hashes key, language, extensions, exact names, and prefix names only
    (`registry.go`). The freshness hint in `snapshot_freshness.go` folds that
@@ -110,24 +115,28 @@ Three findings from the code. Each one defeats a "just stop storing it" fix.
    stored bodies until the file next changes.
 3. **Delta generations never reap.** `FullSnapshot` is set only for a
    repository-scoped, non-delta generation (`content/writer.go`). Editing
-   `RetainedPaths` therefore cannot be the fix: a delta never consults it.
+   `RetainedPaths` therefore cannot be the fix: a delta never consults it. The
+   upsert overwrites on delta and full generations alike.
 
-### What reads `content_files` or the content fact besides the file tools
+### What depends on the stored body
 
-These decide what "store no body" costs for `*.tfvars`.
+These decide what each policy costs for `*.tfvars`.
 
 - **Repository tree, file counts, language inventory, and coverage** are read
   from `content_files` rows (`go/internal/query/repository/tree.go`,
   `stats.go`, `language_inventory.go`, `coverage.go`). A deleted row removes the
-  path from all four.
+  path from all four, so the design never deletes a row.
 - **Relationship evidence** is discovered by the reducer from the `content`
-  fact bodies (`relationships.DiscoverEvidence`,
-  `envelopeContentIdentity` in `evidence_content_index.go`).
-  `isTerraformArtifact` in `terraform_evidence.go` and the catalog matcher in
-  `catalog_matcher.go` explicitly accept `.tfvars` and `.tfvars.json`. If the
-  collector stops putting the body in the fact, this evidence disappears for
-  tfvars. Whether real tfvars files yield any is unmeasured.
-- **`content_file_references`** rows are derived from the file body
+  fact bodies (`relationships.DiscoverEvidence`, `envelopeContentIdentity` in
+  `evidence_content_index.go`). `isTerraformArtifact` in
+  `terraform_evidence.go` accepts `.tfvars` and `.tfvars.json`. Its five raw
+  patterns (lines 24-55) read the body: `app_repo = "..."`, `app_name = "..."`,
+  a `github.com` URL, `repo:org/name:`, and a `/configd/<name>/` or
+  `/api/<name>/` path. Structured module evidence comes from the file fact's
+  `parsed_file_data`, which any policy leaves intact.
+- **The committed-secret finding** for tfvars comes from
+  `content_file_secret_lines`, derived from the stored body.
+- **`content_file_references`** rows are derived from the stored body
   (`contentReferencesForFiles` in `content_writer_references.go`).
 - **Parser facts and config-artifact rows** come from the original file before
   any store policy applies (`content/artifacts/hcl.go`: the tfvars row is built
@@ -138,25 +147,52 @@ These decide what "store no body" costs for `*.tfvars`.
 | Option | Cost | Verdict |
 | --- | --- | --- |
 | A. Keep both verbatim (status quo) | Zero work. Credentials stay searchable and returnable. | Rejected as the end state. |
-| B. Redact both | Keeps tfvars shape. A denylist cannot cover an open schema, so a credential can still be stored. | Rejected for tfvars. Chosen for `.yarnrc.yml`, whose key set is closed and small. |
-| C. `.yarnrc.yml` redacted, tfvars no body | Cannot leak a tfvars value. Loses readable tfvars shape and, unless handled, three dependents (see above). | Chosen. |
-| D. Operator `.eshuignore` for either file | Works today (`docs/public/reference/eshuignore.md` shows `*.tfvars`). Per repository, opt-in, and drops the file's parser facts too. | Stays the override. Not a policy. |
+| B. Marker-redact both with a key denylist | Complete only for a closed schema. A tfvars value under an unlisted name is stored. | Chosen for `.yarnrc.yml` only. |
+| C. `metadata` for tfvars (empty body) | Cannot leak. Silently drops the committed-secret finding and the raw-Terraform evidence class. | Rejected for the two files. Kept as the operator-SQL floor. |
+| D. Allowlist-skeleton `redact` for tfvars | Keeps structure, keys, and provably safe values. Stored body is not parseable. Needs a differential before the binding ships. | Chosen. |
+| E. Operator `.eshuignore` for either file | Works today (`docs/public/reference/eshuignore.md` shows `*.tfvars`). Per repository, opt-in, and drops the file's parser facts too. | Stays the override. Not a policy. |
 
 ## Decision
 
 ### Rule per file
 
-| File | Policy | Notes |
-| --- | --- | --- |
-| `.yarnrc.yml` | `redact` | Detector extras below, then collector redactor bound to the same constant. |
-| `*.tfvars`, `*.tfvars.json` | no body (`store nothing`) | Parser facts and config-artifact rows keep coming from the original file. `.eshuignore` stays the override. |
+| File | Policy | Mode | Ships in |
+| --- | --- | --- | --- |
+| `.yarnrc.yml` | `redact` | marker | #8812 redactor, detector extras from #8833 |
+| `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton | #8833 |
 
-A future `redact` for tfvars is allowed only with an **allowlist-shaped value
-redactor**: keep booleans, numbers, `var.`, `local.`, and `module.` references,
-and version strings; redact every other string literal. A denylist, including a
-longer one, never qualifies.
+`.eshuignore` stays the override. A future change to a looser tfvars rule needs
+a new record.
 
-### `.yarnrc.yml` redaction contract (for #8812 and the follow-up)
+### Policy enum and row shape (#8812)
+
+The enum is `store`, `metadata`, `redact`. `metadata` writes a `content_files`
+row with these values and never a tombstone:
+
+| Column | Value |
+| --- | --- |
+| `content` | `''` (`content_lower` follows, it is generated) |
+| `line_count` | `0`; it describes the stored body, and `get_file_lines` range checks read it |
+| `content_hash` | digest of the **source** bytes, computed before the policy applies |
+| `repo_id`, `relative_path`, `commit_sha`, `language`, `artifact_type`, `template_dialect`, `iac_relevant`, `generation_id`, `indexed_at` | unchanged |
+
+`content_hash` is the digest of the source file, not of the stored body; the
+docs must say so. The writer already works this way: `fileContentHash` returns
+`record.Digest` when the collector set it (`content_writer_upserts.go`), and the
+collector passes `meta.Digest` today. #8812 must keep computing that digest from
+the source bytes before the policy applies. An unchanged file therefore keeps the same
+freshness hint across cycles, and the fingerprint, not the digest, invalidates
+on a policy change.
+
+Why this shape is safe on every generation: the upsert
+(`ON CONFLICT ... DO UPDATE` in `content_writer_sql.go`) overwrites an old body
+on full and delta generations; references are deleted per batch before they are
+re-derived from the stored body (`content_writer_upserts.go`,
+`deleteContentReferenceBatch`); and the migration 138 trigger derives no secret
+line from an empty body. There is no `RetainedPaths` edit and no dependency on
+the order of entity deletes and upserts.
+
+### Marker mode, `.yarnrc.yml` (#8812)
 
 1. **Marker.** Replace the value with `REDACTED_<finding_kind>`, for example
    `npmAuthToken: REDACTED_api_token`. Measured against the migration 138
@@ -166,17 +202,48 @@ longer one, never qualifies.
    redacting a redacted line returns the same line.
 2. **One pattern constant.** The collector redactor binds to the same Go
    constant as the SQL detector (`hardcodedSecretSQLPattern` in
-   `go/internal/query`), not to a copy.
+   `go/internal/query/content_reader_security_secrets.go`), not to a copy.
 3. **Fail closed.** If the redactor errors, or the file is not valid UTF-8 text,
-   store nothing for that path and count it. Never fall back to the raw body.
+   store the `metadata` row for that path and count it. Never fall back to the
+   raw body.
 4. **Scope.** Blank `content_entities.source_cache` for a redact-policy path.
    The entity builder slices `file.Body`, so the entity rows are the second
-   copy. This is mandatory in #8812 (ruling 3). `content_lower` and
-   `content_file_secret_lines` derive from the stored body by trigger and
-   generated column, so they follow with no code; the follow-up adds a negative
-   test only.
+   copy. `content_lower` and `content_file_secret_lines` derive from the stored
+   body by generated column and trigger, so they follow with no code; the
+   follow-up adds a negative test only.
 
-### One new detector migration
+### Allowlist-skeleton mode, `*.tfvars` and `*.tfvars.json` (#8833)
+
+The redactor is line-wise. Line count and line positions are preserved.
+
+| Line kind | Stored as |
+| --- | --- |
+| Structural: `{`, `}`, `[`, `]`, `key = {`, `key = [`, heredoc opener and closer | kept |
+| `key = value`, value is a boolean, a number, a `var.`, `local.`, `module.`, or `data.` reference, or a version string | kept |
+| `key = value`, key flagged by the detector | value becomes `REDACTED_<finding_kind>` |
+| `key = value`, any other value | value becomes `REDACTED_value` |
+| Comment, bare list element, heredoc body line, any line the classifier cannot place | whole line becomes `REDACTED_value` |
+
+`.tfvars.json` follows the same rule on `"key": value`. The stored body is
+documented as not parseable HCL or JSON. Evidence shapes may join the allowlist
+only if the differential shows they are needed and the shape cannot carry a
+credential: the `app_repo` and `app_name` values, the path of a code-host URL
+with userinfo and query stripped, and `repo:org/name:`. The fifth raw pattern,
+`/configd/<name>/` or `/api/<name>/`, matches inside arbitrary strings, so it is
+the likeliest to differ. List it in the differential explicitly.
+
+**The differential gates #8833's tfvars binding**, before the fingerprint flip,
+and does not gate #8812. On a representative corpus:
+
+1. `relationships.DiscoverEvidence` over tfvars content facts returns the same
+   evidence set from the skeleton body as from the raw body.
+2. `eshu_secret_line_findings` returns the same `(line_number, finding_kind)`
+   set from the skeleton body as from the raw body.
+
+Every difference is listed, then closed (by an allowlist addition that passes
+the credential test above) or accepted in writing on #8833.
+
+### One new detector migration (#8833)
 
 Migration 138 never gets edited. One new migration replaces
 `eshu_secret_line_findings` with an extended `CASE`, re-derives
@@ -189,13 +256,12 @@ Migration 138 never gets edited. One new migration replaces
 | `"password": "<literal>"` (JSON-quoted key) | not detected | quoted key form |
 | `app_secrets = {` (secret-named block opener) | not detected | opener form |
 
-Values under six characters stay out. Moving to the new migration number
-bumps `hardcodedSecretSQLPattern`,
-`hardcoded_secret_migration_binding_test.go`, and the collector redactor in one
-change. The sync test is an engine-parity test: the Go RE2 patterns and the
-Postgres ARE patterns classify the same corpus (the gap table in the
-`<details>` block) identically. A subset check is not enough, because the two
-engines case-fold and match differently.
+Values under six characters stay out. The new migration number bumps
+`hardcodedSecretSQLPattern`, `hardcoded_secret_migration_binding_test.go`, and
+the collector redactor in one change. The sync test is an engine-parity test:
+the Go RE2 patterns and the Postgres ARE patterns classify the same corpus
+(the gap table in the `<details>` block) identically. A subset check is not
+enough, because the two engines case-fold and match differently.
 
 Prove the theory before the migration ships (repository rule): measure the
 finding-count delta on a representative corpus, and measure the re-derive lock
@@ -203,32 +269,21 @@ window. Migration 138 recorded about 0.27 ms per file under a share-row-exclusiv
 lock that blocks content writes (38 s at 145k files); this one re-derives the
 same table and needs its own number.
 
-The extras lose their tfvars use once tfvars stores no body, but they still
-apply to every other stored file type, which is why they belong in the detector
-and not in a yarnrc-only list.
-
 ### Rows already stored
 
-No rewrite loop. Two existing mechanisms do the work once #8812 adds the policy
-to `Registry.Fingerprint` (ruling: the fleet-wide re-collect is the accepted
-effect):
-
-- **`.yarnrc.yml`:** the new generation re-emits the content record, redacted.
-  The upsert overwrites the stored body (`ON CONFLICT DO UPDATE` in
-  `content_writer_sql.go`).
-- **`*.tfvars`:** the collector emits a content tombstone (a `Deleted` record)
-  for the path, not an edit to `RetainedPaths`. The writer then deletes the
-  `content_files`, `content_entities`, and `content_file_references` rows for
-  it. `content_file_secret_lines` goes by foreign-key cascade. Entity deletes
-  run before entity upserts in `ContentWriter.Write`, so parser-derived entities
-  in the same write are written back (inferred; the follow-up proves it).
+No rewrite loop, no tombstone. The policy-aware `Registry.Fingerprint` (#8812;
+the fleet-wide re-collect is the accepted effect) makes each repository mint a
+new generation. The collector re-emits the content record under the new policy,
+and the upsert overwrites the stored body: marker-redacted for `.yarnrc.yml`,
+skeleton for tfvars.
 
 Gaps the follow-up closes:
 
-1. **Repositories not scheduled for collection** keep their bodies. Ship a
-   one-shot operator SQL: repo-scoped, bounded to 500 rows per statement,
-   idempotent, deleting the path-matched rows and the entity and reference rows
-   with them. It is run by an operator, not by a loop.
+1. **Repositories not scheduled for collection** keep their bodies. #8833 ships
+   a one-shot operator SQL that applies the `metadata` floor: set `content = ''`
+   on matched rows, delete their `content_file_references`, and blank
+   `content_entities.source_cache`. It is repo-scoped, 500 rows per statement,
+   and idempotent. An operator runs it; no loop does.
 2. **Residue.** Dead tuples, WAL, and backups keep the old bytes until vacuum
    and backup expiry. The operator note says so.
 3. **Fact payloads.** Superseded `content` facts keep `content_body` until
@@ -240,7 +295,7 @@ Gaps the follow-up closes:
    default policy. If they are exempt, this decision reopens.
 
 Operator signals (3 AM): a gauge of rows whose path matches the policy predicate
-and still hold a body; counters for `redacted`, `tombstoned`, and
+and still hold a raw body; counters for `redacted`, `metadata_fallback`, and
 `redactor_failed` by policy; a structured log per collection with the same
 counts. Before and after census numbers go in the follow-up's PR.
 
@@ -248,95 +303,82 @@ counts. Before and after census numbers go in the follow-up's PR.
 
 Good:
 
-- A tfvars value cannot be stored or searched, whatever its name.
+- A tfvars value cannot be stored or searched unless its shape is allowlisted.
 - `.yarnrc.yml` keeps its registry URLs and scopes readable, and
-  `investigate_hardcoded_secrets` keeps working on the redacted rows.
+  `investigate_hardcoded_secrets` keeps working on both files.
 - The substring oracle closes for both files, because `content_lower` derives
   from what is stored.
+- Tree, counts, language inventory, and coverage are unchanged: no row is
+  deleted.
 - Surfaces defects in #8812's plan (RetainedPaths, fingerprint, derived copies).
 - No new background job.
 
 Bad:
 
 - One fleet-wide re-collect when the fingerprint changes.
+- A stored tfvars body is not parseable and reads poorly in `get_file_content`.
 - Old bytes persist in superseded fact payloads, dead tuples, and backups for a
   bounded time.
-- tfvars loses its readable body. The three dependents above (tree and counts,
-  relationship evidence, references) must be handled or accepted. See the open
-  decisions.
-- `investigate_hardcoded_secrets` can no longer report a committed tfvars secret,
-  because the derived table has nothing to scan.
+- The skeleton may lose some evidence; the differential measures it before the
+  binding ships.
 
-Follow-up issue: to be filed by the coordinator (draft in the handoff report),
-depends on #8812, part of #8807.
+Follow-up issues: #8833 carries the tfvars and detector work; the coordinator
+files any other item. Both depend on #8812 and are part of #8807.
 
 ## Implementation plan
 
-Paths (verify before editing): `go/internal/parser/registry*.go` (policy field
-and fingerprint, #8812), `go/internal/collector/git/content/` (redactor, emit,
-tombstone), `go/internal/collector/repo/git/fact_builder.go` (call site),
+Paths (verify before editing): `go/internal/parser/registry*.go` (enum, field,
+fingerprint; #8812), `go/internal/collector/git/content/` (redactors, emit),
+`go/internal/collector/repo/git/fact_builder.go` (call site),
 `go/internal/storage/postgres/migrations/` (detector migration),
 `go/internal/query/hardcoded_secret_migration_binding_test.go` and
 `content_reader_security_secrets.go` (constant and binding), docs under
 `docs/public/`.
 
-Prove first: the finding-count delta and lock window for the migration; the
-retention check on a `content` fact; the tombstone test showing parser-derived
-entities survive the same write.
+Prove first: the differential (tfvars binding); the finding-count delta and lock
+window (migration); the retention check on a `content` fact; `get_file_lines`
+behaviour at `line_count = 0`.
 
 Avoid: query-layer redaction (search and exports bypass it), `[redacted]` or
-`***` markers, any raw-body fallback, editing `RetainedPaths`, and a denylist
-for tfvars.
+`***` markers, any raw-body fallback, tombstones for these paths, editing
+`RetainedPaths`, and a key denylist for tfvars.
 
 ## Acceptance criteria
 
-- [ ] Seeded `.yarnrc.yml` with a literal `npmAuthToken`, an `npmAuthIdent`, and
-  a `user:pass@` registry URL: stored body has none of the values and keeps the
-  registry host; `investigate_hardcoded_secrets` still reports the token line.
-- [ ] Seeded `terraform.tfvars` and `.tfvars.json` with literal values: zero
-  `content_files`, `source_cache`, and `content_lower` bytes of any value.
-- [ ] Upgraded database: after one collection cycle, zero rows hold a body for a
-  policy path (the exposure gauge reads 0).
-- [ ] Parser-derived entities and config-artifact rows for the tfvars path
-  survive the tombstone write.
-- [ ] Engine-parity test: Go RE2 and Postgres ARE classify the gap corpus alike.
-- [ ] Redactor error produces no row and increments `redactor_failed`.
-- [ ] Retention check recorded for a `content` fact.
-- [ ] One-shot operator SQL is bounded, idempotent, and tested on a seeded copy.
+- [ ] #8812: seeded `.yarnrc.yml` with a literal `npmAuthToken` and a
+  `user:pass@` registry URL: stored body has neither value and keeps the host;
+  `investigate_hardcoded_secrets` still reports the token line.
+- [ ] #8812: a `metadata` definition never writes a body, and a test fails if it
+  does; its row has `content = ''`, `line_count = 0`, and the source digest.
+- [ ] #8812: an unchanged file keeps the same `content_hash` across a policy
+  change; the fingerprint changes.
+- [ ] #8833: seeded `terraform.tfvars` and `.tfvars.json` with literal values:
+  zero value bytes in `content_files`, `source_cache`, or `content_lower`.
+- [ ] #8833: differential report lists every evidence and finding difference,
+  each closed or accepted in writing, before the fingerprint flip.
+- [ ] #8833: engine-parity test passes; a redactor error stores the `metadata`
+  row and increments `redactor_failed`.
+- [ ] Upgraded database: after one collection cycle the exposure gauge reads 0.
+- [ ] Retention path executed against a `content` fact; result recorded.
+- [ ] Operator SQL is bounded, idempotent, and tested on a seeded copy.
 - [ ] Census before and after recorded as counts.
 
 ## Decisions for the arbiter
 
-Resolved by the 2026-10-23 ruling:
+All decided. None open.
 
-1. `.yarnrc.yml` redacts; tfvars and tfvars.json store no body; a future tfvars
-   redact needs an allowlist-shaped value redactor.
+1. `.yarnrc.yml` is marker-mode `redact`. tfvars and tfvars.json are
+   allowlist-skeleton `redact`, not `metadata` (ruling 2).
 2. Superseded fact payloads are not scrubbed; the retention window is accepted,
    conditional on the retention check.
 3. The `content_entities` census is not a gate; `source_cache` blanking is
    mandatory in #8812.
 4. Detector extras ship in one new migration with an engine-parity test; short
    values stay out.
-
-Open, found while applying the ruling:
-
-5. **What does "store no body" mean for the `content_files` row of a tfvars
-   path?** Deleting the row (tombstone) removes the path from the repository
-   tree, file counts, language inventory, and coverage, and drops the derived
-   references. Keeping a row with empty `content` keeps all of those, and the
-   upsert overwrites an old body with no tombstone and no `RetainedPaths`
-   concern. Recommendation: the empty-content row. The cost is that #8812 must
-   define `store nothing` as "metadata row, no body" and not "no row".
-6. **tfvars-derived relationship evidence and the secret signal.** The reducer
-   discovers relationship evidence from the `content` fact body, and tfvars is
-   an accepted input. Dropping the body from the fact drops that evidence, and
-   drops the committed-secret finding for tfvars. Options: (a) the collector
-   emits the evidence and the per-line finding facts (kind and line number, no
-   value) from the original body before the body is dropped; (b) accept the
-   loss after measuring it on a representative corpus. Recommendation: measure
-   first (the count is unknown), then choose (a) if it is non-zero. The side
-   table cannot take (a) directly: Go code must not write
-   `content_file_secret_lines`.
+5. `store nothing` is renamed `metadata`: a row with `content = ''`,
+   `line_count = 0`, and the source digest. Never a tombstone.
+6. tfvars are not `metadata`. The skeleton differential, not an assumption,
+   decides which evidence shapes join the allowlist.
 
 <details>
 <summary>Evidence and measurements</summary>
@@ -411,17 +453,21 @@ WHERE relative_path ~* '\.tfvars(\.json)?$' OR relative_path ~* '(^|/)\.yarnrc\.
   content fact is skipped; `Registry.Fingerprint` omits any policy field;
   `FullSnapshot` is non-delta only; tree, counts, language inventory, and
   coverage read `content_files`; relationship evidence reads `content_body` from
-  the fact and accepts tfvars; references derive from the file body.
+  the fact and accepts tfvars; references derive from the stored body;
+  `fileContentHash` returns the collector's source digest when set; the upsert
+  overwrites `content`, `content_hash`, and `line_count`.
 - Proven (run): detector gap table, marker behavior, syntax of the first census
   query, local count of 0.
 - Inferred: that `content` facts persist `content_body` in `fact_records` for
   every retained generation (the projector reads them back, but the retention
-  statement was not executed); that parser-derived entities survive a tombstone
-  in the same write (delete runs before upsert in `ContentWriter.Write`); that
-  real tfvars files yield relationship evidence.
+  statement was not executed); that real tfvars files yield relationship
+  evidence the skeleton would lose.
 - NOT_CHECKED: deployment file and credential counts; whether
   `content_entities` rows exist for these paths; the finding-count delta and
   lock window of the new migration; retention interaction with the `content`
-  fact kind; the measured volume of tfvars-derived relationship evidence.
+  fact kind; deployment tfvars evidence and finding counts; the delta
+  file-set selection code (which paths a delta re-emits, so whether every
+  overwrite lands on a delta as designed); `get_file_lines` behavior at
+  `line_count = 0`.
 
 </details>
