@@ -55,6 +55,8 @@ class TestGhaCensus(unittest.TestCase):
         self.assertEqual(build["failures"], 1)
         # durations 30, 90, 10 minutes -> median 30, max 90
         self.assertEqual(build["median_minutes"], 30.0)
+        self.assertEqual(build["p50_minutes"], 30.0)
+        self.assertEqual(build["p95_minutes"], 90.0)
         self.assertEqual(build["max_minutes"], 90.0)
 
     def test_render_names_the_numbers(self):
@@ -63,6 +65,7 @@ class TestGhaCensus(unittest.TestCase):
         self.assertIn("6 runs", text)
         self.assertIn("Build Test", text)
         self.assertIn("40.0%", text)
+        self.assertIn("P95 min", text)
 
 
 class TestMalformedRows(unittest.TestCase):
