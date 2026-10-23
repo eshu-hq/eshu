@@ -344,7 +344,7 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"inventory_environment_high_cardinality",
-		impact.InventoryQuery("COALESCE(fact.payload->>'impact_status', 'unknown')"),
+		impact.InventoryQuery("COALESCE(NULLIF(fact.impact_status, ''), 'unknown')"),
 		highCardinalityInventoryArgs...,
 	)
 	if !strings.Contains(
@@ -472,6 +472,7 @@ func supplyChainRuntimeFilterAggregateArgs(filter impact.AggregateFilter) []any 
 		filter.ImageRef,
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),
+		impact.SuppressionReadAt(nil),
 	}
 }
 
@@ -489,5 +490,6 @@ func supplyChainRuntimeFilterExplainArgs(filter impact.ExplanationFilter) []any 
 		filter.ImageRef,
 		array.Of(filter.AllowedRepositoryIDs),
 		array.Of(filter.AllowedScopeIDs),
+		impact.SuppressionReadAt(nil),
 	}
 }
