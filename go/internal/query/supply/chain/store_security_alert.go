@@ -5,6 +5,7 @@ package chain
 
 import (
 	"context"
+	"errors"
 )
 
 // SecurityAlertReconciliationStore reads reducer-owned provider alert
@@ -227,6 +228,13 @@ type SecurityAlertCollectionStateStore interface {
 	// item and no generation may be omitted from the result.
 	SecurityAlertTargetStates(context.Context, []string) ([]SecurityAlertTargetState, error)
 }
+
+// ErrSecurityAlertCollectionStateBound reports that a collection-state read
+// stopped at one of its fixed read bounds (enabled instances or covering target
+// scope ids) instead of reading every row. A store wraps it with %w; the empty
+// answer classifier reports it as error_class=bound_exceeded, a permanent
+// condition an operator fixes by reducing configured targets, not by retrying.
+var ErrSecurityAlertCollectionStateBound = errors.New("security alert collection-state read bound exceeded")
 
 // SecurityAlertTargetState is the collection state of one configured target
 // scope: its latest workflow work item and whether any committed generation

@@ -14,8 +14,8 @@ import (
 
 // securityAlertCollectionStateMaxInstances bounds the configuration read. A
 // deployment runs a handful of security_alert instances; a read past the bound
-// fails rather than silently dropping targets, which would misreport target
-// membership.
+// fails with supplychain.ErrSecurityAlertCollectionStateBound rather than
+// silently dropping targets, which would misreport target membership.
 const securityAlertCollectionStateMaxInstances = 64
 
 // securityAlertCollectionStateMaxTargets bounds the target-state read for the
@@ -116,7 +116,8 @@ func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertCollectorConfigu
 		return nil, fmt.Errorf("read security alert collector configuration rows: %w", err)
 	}
 	if len(configs) > securityAlertCollectionStateMaxInstances {
-		return nil, fmt.Errorf("security alert collector instances exceed the %d-instance read bound", securityAlertCollectionStateMaxInstances)
+		return nil, fmt.Errorf("security alert collector instances exceed the %d-instance read bound: %w",
+			securityAlertCollectionStateMaxInstances, supplychain.ErrSecurityAlertCollectionStateBound)
 	}
 	return configs, nil
 }
@@ -134,7 +135,8 @@ func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertTargetStates(
 		return nil, nil
 	}
 	if len(scopeIDs) > securityAlertCollectionStateMaxTargets {
-		return nil, fmt.Errorf("security alert targets exceed the %d-target read bound", securityAlertCollectionStateMaxTargets)
+		return nil, fmt.Errorf("security alert targets exceed the %d-target read bound: %w",
+			securityAlertCollectionStateMaxTargets, supplychain.ErrSecurityAlertCollectionStateBound)
 	}
 	rows, err := s.reader.QueryContext(ctx, securityAlertTargetStatesQuery, array.Of(scopeIDs))
 	if err != nil {

@@ -100,8 +100,9 @@ func TestPostgresSecurityAlertCollectionStateConfigurationsBound(t *testing.T) {
 		rows = append(rows, []any{`{}`})
 	}
 	store := NewPostgresSecurityAlertCollectionStateStoreWithReadStore(&recordingCollectionStateQueryer{rows: rows})
-	if _, err := store.SecurityAlertCollectorConfigurations(context.Background()); err == nil {
-		t.Fatal("SecurityAlertCollectorConfigurations() error = nil past the instance bound")
+	_, err := store.SecurityAlertCollectorConfigurations(context.Background())
+	if !errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
+		t.Fatalf("SecurityAlertCollectorConfigurations() error = %v past the instance bound, want ErrSecurityAlertCollectionStateBound", err)
 	}
 }
 
@@ -161,14 +162,14 @@ func TestPostgresSecurityAlertCollectionStateTargetStatesBounds(t *testing.T) {
 		t.Fatalf("empty input: states=%v err=%v queries=%d, want no read", states, err, len(queryer.queries))
 	}
 	tooMany := make([]string, securityAlertCollectionStateMaxTargets+1)
-	if _, err := store.SecurityAlertTargetStates(context.Background(), tooMany); err == nil {
-		t.Fatal("SecurityAlertTargetStates() error = nil past the target bound")
+	if _, err := store.SecurityAlertTargetStates(context.Background(), tooMany); !errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
+		t.Fatalf("SecurityAlertTargetStates() error = %v past the target bound, want ErrSecurityAlertCollectionStateBound", err)
 	}
 	if _, err := (PostgresSecurityAlertCollectionStateStore{}).SecurityAlertCollectorConfigurations(context.Background()); err == nil {
 		t.Fatal("nil reader: error = nil")
 	}
 	failing := NewPostgresSecurityAlertCollectionStateStoreWithReadStore(&recordingCollectionStateQueryer{err: errors.New("boom")})
-	if _, err := failing.SecurityAlertTargetStates(context.Background(), []string{"sa-target-a"}); err == nil {
-		t.Fatal("query error not returned")
+	if _, err := failing.SecurityAlertTargetStates(context.Background(), []string{"sa-target-a"}); err == nil || errors.Is(err, supplychain.ErrSecurityAlertCollectionStateBound) {
+		t.Fatalf("query error = %v, want a non-bound error", err)
 	}
 }

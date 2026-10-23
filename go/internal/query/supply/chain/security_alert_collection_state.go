@@ -37,6 +37,10 @@ const (
 	securityAlertReasonNoCommittedGeneration      = "no_committed_generation"
 	securityAlertReasonTerminalFetchFailurePrefix = "terminal_fetch_failure:"
 	securityAlertReasonCollectorStateUnavailable  = "collector_state_unavailable"
+	// securityAlertReasonNoAuthorizedRepositories marks the empty answer a
+	// scoped token with no grants gets: it authorizes no repository, so no
+	// enabled target covers the requested scope for that caller.
+	securityAlertReasonNoAuthorizedRepositories = "no_authorized_repositories"
 )
 
 // Seam for a truncated generation (#8803 PR C). A target whose committed
@@ -50,11 +54,30 @@ const (
 // and securityAlertCoverageReasons plus the OpenAPI enum gain the value in the
 // same change.
 
-// securityAlertTerminalFailureClasses is the bounded failure-class set the
-// security-alert claim runner persists (collector sdk failure classes). Any
-// other stored value maps to "unclassified" so free text never reaches a
-// payload, label, or log.
-var securityAlertTerminalFailureClasses = []string{"auth_denied", "not_found", "rate_limited", "terminal"}
+// securityAlertTerminalFailureClasses is every failure class the security-alert
+// claim runner can persist on a terminal work item. Any other stored value
+// maps to "unclassified" so free text never reaches a payload, label, or log.
+// The literals are pinned here, not imported, because query must not depend
+// on the collector packages. Sources:
+//
+//   - auth_denied, not_found, rate_limited, terminal, retryable: the provider
+//     classes (go/internal/collector/sdk/failure.go, mapped by
+//     collector/securityalerts/alertruntime/failure.go). failTerminal takes
+//     the class from the error chain first
+//     (collector/claimed_service_validation.go), and budgetExhaustedError
+//     wraps the cause with %w (collector/claimed_service.go), so a retry
+//     budget exhausted on a transient provider failure persists retryable on
+//     a terminal row.
+//   - attempt_budget_exhausted: the budget class when the cause carries no
+//     class (FailureClassAttemptBudgetExhausted, collector/claimed_service.go).
+//   - identity_mismatch: a claim whose collected identity does not match
+//     (collector/claimed_service.go, the FailClaimTerminal calls).
+//   - collect_failure, commit_failure: the claim-stage fallbacks for a
+//     non-retryable collect or commit error (collector/claimed_service.go).
+var securityAlertTerminalFailureClasses = []string{
+	"auth_denied", "not_found", "rate_limited", "terminal", "retryable",
+	"attempt_budget_exhausted", "identity_mismatch", "collect_failure", "commit_failure",
+}
 
 // securityAlertCoverageReasons is every reason token a response may carry. The
 // OpenAPI enum test compares the published enum to this list.
@@ -64,6 +87,7 @@ func securityAlertCoverageReasons() []string {
 		securityAlertReasonRepositoryOutsideTargets,
 		securityAlertReasonNoCommittedGeneration,
 		securityAlertReasonCollectorStateUnavailable,
+		securityAlertReasonNoAuthorizedRepositories,
 	}
 	for _, class := range securityAlertTerminalFailureClasses {
 		out = append(out, securityAlertReasonTerminalFetchFailurePrefix+class)
@@ -235,6 +259,21 @@ func securityAlertNotConfiguredVerdict(reason, collectorState string) securityAl
 		collectorState: collectorState,
 		readiness:      querycontract.CollectorListReadinessStateNotConfigured,
 		cause:          true,
+	}
+}
+
+// securityAlertNoAuthorizedRepositoriesVerdict is the verdict for a scoped
+// token with no grants (#8803 F1). It is computed without a collector read and
+// says nothing about collector health, so it carries no readiness envelope and
+// no freshness cause; it only keeps the zero-row answer from reading as a
+// vacuous complete over zero repositories.
+func securityAlertNoAuthorizedRepositoriesVerdict() securityAlertCoverageVerdict {
+	return securityAlertCoverageVerdict{
+		coverageState:  securityAlertCoverageNotConfigured,
+		reasons:        []string{securityAlertReasonNoAuthorizedRepositories},
+		level:          querycontract.TruthLevelFallback,
+		freshness:      querycontract.FreshnessUnavailable,
+		collectorState: securityAlertCollectorStateNotConfigured,
 	}
 }
 

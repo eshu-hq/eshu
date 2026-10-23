@@ -29,6 +29,22 @@ const securityAlertCollectionStateStage = "security_alert_collection_state"
 // than holding the request.
 const securityAlertCollectionStateTimeout = time.Second
 
+// Probe error classes on the security_alert_collection_state stage event
+// (#8803 F4). The set is closed.
+const (
+	// securityAlertProbeErrorDeadline is the probe's own deadline expiring
+	// while the caller's request is still live.
+	securityAlertProbeErrorDeadline = "deadline_exceeded"
+	// securityAlertProbeErrorCanceled is the caller's request context ending
+	// (a client cancel or the caller's own deadline) during the probe.
+	securityAlertProbeErrorCanceled = "canceled"
+	// securityAlertProbeErrorBound is a read that stopped at a fixed read
+	// bound (ErrSecurityAlertCollectionStateBound): a permanent condition.
+	securityAlertProbeErrorBound = "bound_exceeded"
+	// securityAlertProbeErrorQuery is any other store or SQL failure.
+	securityAlertProbeErrorQuery = "query_failed"
+)
+
 // securityAlertEmptyAnswerVerdict classifies an empty security-alert answer
 // from the collector's configuration and per-target state (#8803). It runs only
 // for an empty answer and only when the collection-state store is wired; the
@@ -39,9 +55,13 @@ const securityAlertCollectionStateTimeout = time.Second
 // error or an expired deadline does not fail the request: it fails closed to a
 // collector_state_unavailable reason, fallback truth, unavailable freshness,
 // and a readiness_unavailable envelope, so the empty answer can never read as
-// complete or fresh and a valid read never answers 5xx. The stage completion event carries coverage_state,
-// coverage_reason, and collector_state (all bounded tokens), and the empty
-// answer counter records one observation per classified answer.
+// complete or fresh and a valid read never answers 5xx. The stage completion
+// event carries coverage_state, coverage_reason, and collector_state (all
+// bounded tokens); a failed probe adds error_class (deadline_exceeded,
+// canceled, bound_exceeded, or query_failed). The three store-side classes log
+// at WARN and count the answer; a caller cancel logs at INFO and is not
+// counted, because the caller walked away and the answer says nothing about
+// collector state. Every other classified answer is counted once.
 //
 // repositoryScopeIDs are the provider scope ids the repository selector
 // resolved. A scoped caller reaches here only for a repository inside its
@@ -61,26 +81,74 @@ func (h *Handler) securityAlertEmptyAnswerVerdict(
 	timer := startSupplyChainQueryStage(ctx, h.Logger, operation, repositoryID, securityAlertCollectionStateStage)
 	probeCtx, cancel := context.WithTimeout(ctx, securityAlertCollectionStateTimeout)
 	verdict, err := h.readSecurityAlertCollectionVerdict(probeCtx, repositoryID != "", repositoryScopeIDs)
+	errorClass := securityAlertProbeErrorClass(ctx, probeCtx, err)
 	cancel()
 	if err != nil {
 		verdict = securityAlertUnavailableVerdict()
 	}
-	reason := securityAlertCoverageReasonLabel(verdict)
-	timer.Done(
-		ctx,
+	attrs := []slog.Attr{
 		slog.Bool("error", err != nil),
-		slog.Bool("deadline_exceeded", errors.Is(err, context.DeadlineExceeded)),
 		slog.String("coverage_state", verdict.coverageState),
-		slog.String("coverage_reason", reason),
+		slog.String("coverage_reason", securityAlertCoverageReasonLabel(verdict)),
 		slog.String("collector_state", verdict.collectorState),
-	)
-	if h.Instruments != nil && h.Instruments.QuerySecurityAlertEmptyAnswers != nil {
-		h.Instruments.QuerySecurityAlertEmptyAnswers.Add(ctx, 1, metric.WithAttributes(
-			telemetry.AttrCoverageState(verdict.coverageState),
-			telemetry.AttrReason(reason),
-		))
+	}
+	level := slog.LevelInfo
+	if errorClass != "" {
+		attrs = append(attrs, slog.String("error_class", errorClass))
+		if errorClass != securityAlertProbeErrorCanceled {
+			level = slog.LevelWarn
+		}
+	}
+	timer.DoneAt(ctx, level, attrs...)
+	if errorClass != securityAlertProbeErrorCanceled {
+		h.recordSecurityAlertEmptyAnswer(ctx, verdict)
 	}
 	return verdict, true
+}
+
+// securityAlertProbeErrorClass names why the probe failed, or "" when it did
+// not. The caller's context is checked first, so a cancel never reads as a
+// collector fault; the probe deadline is checked on the probe context too,
+// because a driver may surface it as its own error.
+func securityAlertProbeErrorClass(parent, probe context.Context, err error) string {
+	switch {
+	case err == nil:
+		return ""
+	case parent.Err() != nil:
+		return securityAlertProbeErrorCanceled
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(probe.Err(), context.DeadlineExceeded):
+		return securityAlertProbeErrorDeadline
+	case errors.Is(err, ErrSecurityAlertCollectionStateBound):
+		return securityAlertProbeErrorBound
+	default:
+		return securityAlertProbeErrorQuery
+	}
+}
+
+// recordSecurityAlertEmptyAnswer counts one classified empty answer by its
+// coverage state and first reason.
+func (h *Handler) recordSecurityAlertEmptyAnswer(ctx context.Context, verdict securityAlertCoverageVerdict) {
+	if h == nil || h.Instruments == nil || h.Instruments.QuerySecurityAlertEmptyAnswers == nil {
+		return
+	}
+	h.Instruments.QuerySecurityAlertEmptyAnswers.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrCoverageState(verdict.coverageState),
+		telemetry.AttrReason(securityAlertCoverageReasonLabel(verdict)),
+	))
+}
+
+// applySecurityAlertGrantlessCoverage folds the no_authorized_repositories
+// verdict into the empty answer a scoped token with no grants gets (#8803 F1)
+// and counts it. It reads no store and emits no stage event.
+func (h *Handler) applySecurityAlertGrantlessCoverage(
+	r *http.Request,
+	body map[string]any,
+	coverage securityAlertReconciliationCoverageSummary,
+	truth *querycontract.TruthEnvelope,
+) {
+	verdict := securityAlertNoAuthorizedRepositoriesVerdict()
+	applySecurityAlertCoverageVerdict(body, coverage, truth, verdict)
+	h.recordSecurityAlertEmptyAnswer(r.Context(), verdict)
 }
 
 // securityAlertCoverageReasonLabel is the single bounded reason used for the

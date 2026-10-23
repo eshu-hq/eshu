@@ -66,6 +66,11 @@ TABLE = {
             "TestWideWindowChunkPlansUseAnIndexLive",
             "TestWideWindowReadsMatchSingleReadsLive",
         ),
+        "go/internal/query/security_alert_collection_state_postgres_live_test.go": (
+            "TestSecurityAlertCollectionStateSemanticsLive",
+            "TestSecurityAlertCollectionStateBoundsLive",
+            "TestSecurityAlertCollectionStatePlanLive",
+        ),
         "go/internal/query/status_terraform_selection_live_test.go": (
             "TestStatusRoutesTerraformSelectionLive",
         ),

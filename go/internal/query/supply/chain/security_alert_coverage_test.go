@@ -274,6 +274,25 @@ func TestSecurityAlertEmptyAnswerCoverageInvariant(t *testing.T) {
 			want:    coverageWant{"target_incomplete", []string{"terminal_fetch_failure:unclassified"}, "fallback", "unavailable", cause, ""},
 		},
 		{
+			// A row written before migration 185 has last_failure_terminal
+			// NULL, which the store reads as false: the failed_terminal
+			// status alone must still mark the target terminal.
+			name:    "failed_terminal status without the terminal flag, never collected",
+			configs: []string{coverageTestRepoTarget},
+			states: map[string]SecurityAlertTargetState{"sa-target-repo": {
+				LatestWorkItemStatus: "failed_terminal", LatestFailureClass: "auth_denied",
+			}},
+			want: coverageWant{"target_incomplete", []string{"terminal_fetch_failure:auth_denied"}, "fallback", "unavailable", cause, ""},
+		},
+		{
+			name:    "failed_terminal status without the terminal flag after a committed generation",
+			configs: []string{coverageTestRepoTarget},
+			states: map[string]SecurityAlertTargetState{"sa-target-repo": {
+				LatestWorkItemStatus: "failed_terminal", LatestFailureClass: "not_found", CommittedGeneration: true,
+			}},
+			want: coverageWant{"target_incomplete", []string{"terminal_fetch_failure:not_found"}, "derived", "stale", cause, ""},
+		},
+		{
 			name:    "terminal failure followed by a later success",
 			configs: []string{coverageTestRepoTarget},
 			states:  map[string]SecurityAlertTargetState{"sa-target-repo": healthy},
