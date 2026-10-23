@@ -39,14 +39,16 @@ LIMIT $1`
 // securityAlertTargetStatesQuery reads, per target scope id, the latest
 // security_alert work item and whether any committed generation exists.
 //
-// The latest work item is found by an index-only scan of
+// The latest work item is found by a scan of
 // workflow_work_items_collector_scope_generation_updated_idx
 // (collector_kind, scope_id, generation_id, updated_at DESC, work_item_id)
 // with a top-1 sort on updated_at, then a primary-key fetch of that one row.
 // The scan reads the target's whole work-item history as index tuples (work
 // items carry no retention, and generation_id is a hash, so no index orders a
-// scope by updated_at); it never reads those rows from the heap. The committed
-// generation check is an index-only EXISTS on scope_generations_scope_idx.
+// scope by updated_at). It is index-only when the visibility map is set;
+// otherwise it reads the heap, as a bitmap heap scan before VACUUM (see the
+// evidence note). The committed generation check is an index-only EXISTS on
+// scope_generations_scope_idx.
 // Evidence: docs/internal/evidence/8803-security-alert-empty-answer-truth.md.
 const securityAlertTargetStatesQuery = `
 SELECT t.scope_id,
