@@ -25,6 +25,19 @@ var storyListHandleKeys = []struct {
 	{"network_paths", storyNetworkPathHandleKeys},
 }
 
+// StoryHandleListFamilies returns the top-level story list keys the handles
+// view projects to identity rows, in projection order. The OpenAPI
+// evidence_detail text and the MCP get_service_story tool text name these
+// families; their tests range over this list so a family added to
+// storyListHandleKeys cannot ship undescribed.
+func StoryHandleListFamilies() []string {
+	families := make([]string, 0, len(storyListHandleKeys))
+	for _, list := range storyListHandleKeys {
+		families = append(families, list.key)
+	}
+	return families
+}
+
 // storyEntrypointCandidateHandleKeys keep an entrypoint candidate to the token,
 // its classification, and its reason: the reason is the only statement of why
 // the token is not an entrypoint, so dropping it would leave a bare hostname-
