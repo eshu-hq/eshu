@@ -112,6 +112,20 @@ recent shipped work grouped by feature area.
   what was left out, so a Dockerfile with many long `ARG` defaults and many
   `FROM` lines cannot multiply into a huge payload.
 
+### Build and tool configuration files indexed as text
+
+- **Discovery now admits small build and tool configuration files as plain
+  text** ([#8814](https://github.com/eshu-hq/eshu/issues/8814)): `Makefile`,
+  `GNUmakefile`, `justfile`, `.editorconfig`, `.gitattributes`, `.dockerignore`,
+  `.gitignore`, `.eslintrc`, `.prettierrc`, `.babelrc`, `.npmignore`, `tox.ini`,
+  `mypy.ini`, `pytest.ini`, `.flake8`, `rustfmt.toml`, `clippy.toml`,
+  `renovate.json5` and `.mvn/extensions.xml`. They reach the content store as
+  searchable text with no entities or facts. Credential-bearing names (`.env`,
+  `.npmrc`, `settings.xml`, `phpunit.xml`, `.mvn/jvm.config`,
+  `.mvn/maven.config`) stay unadmitted. The registry fingerprint and
+  `git-collector` content version move, so the next sweep re-collects every
+  repository once.
+
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 
 - **Code-topic shared-snapshot reads now refuse an unqualified PostgreSQL

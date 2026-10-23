@@ -3,6 +3,11 @@
 
 package parser
 
+import (
+	"path/filepath"
+	"strings"
+)
+
 // defaultDefinitions returns the built-in parser metadata catalog for this wave.
 // It is the source-of-truth literal consumed by DefaultRegistry; keep new parser
 // registrations here so registry.go stays focused on registry construction and
@@ -212,11 +217,26 @@ func defaultDefinitions() []Definition {
 			// admitted name is reviewed. Files that can carry credentials or
 			// literal environment values (.npmrc, .pypirc, .netrc, .env*,
 			// mise.toml) stay out: the content store has no write-time redaction.
+			//
+			// The universal build and tool configuration names (#8814) are
+			// likewise an explicit list, never an extension rule: .ini, .toml, .xml and
+			// .properties stay unadmitted. Taskfile.yml is not listed because the
+			// .yml extension already admits it as structured YAML, and an exact
+			// name would downgrade it to plain text. phpunit.xml, .mvn/jvm.config
+			// and .mvn/maven.config are not listed because they carry
+			// environment values and -D properties, and the content store has
+			// no write-time redaction. .mvn/extensions.xml is admitted by the
+			// path rule in LookupByPath, since its base name is too generic.
 			ExactNames: []string{
 				"Puppetfile", "Berksfile",
 				".nvmrc", ".node-version", ".tool-versions", ".python-version",
 				".ruby-version", ".java-version", ".go-version", ".sdkmanrc",
 				".terraform-version", "rust-toolchain", "rust-toolchain.toml",
+				"Makefile", "GNUmakefile", "justfile",
+				".editorconfig", ".gitattributes", ".dockerignore", ".gitignore",
+				".eslintrc", ".prettierrc", ".babelrc", ".npmignore",
+				"tox.ini", "mypy.ini", "pytest.ini", ".flake8",
+				"rustfmt.toml", "clippy.toml", "renovate.json5",
 			},
 		},
 		{
@@ -286,4 +306,93 @@ func defaultDefinitions() []Definition {
 			ExactNames: []string{"pubspec.lock"},
 		},
 	}
+}
+
+// Hardcoded path-dispatch rules. LookupByPath resolves these before the
+// Extensions, ExactNames and PrefixNames indexes; they live beside the
+// definitions so registry.go stays focused on construction and lookup.
+
+// PathDispatch describes one binding that LookupByPath resolves by hardcoded
+// path logic instead of an Extensions, ExactNames, or PrefixNames entry.
+// AdmissionTableMarkdown renders these beside the table so the generated page
+// shows every path the registry admits. A test resolves each example through
+// LookupByPath, and an AST test requires the parser keys listed here to equal
+// the keys LookupByPath binds through a literal r.byKey["<key>"] lookup.
+type PathDispatch struct {
+	// Patterns are the human-readable path rules, each rendered as code.
+	Patterns []string
+	// ParserKey is the definition the rule resolves to.
+	ParserKey string
+	// Examples are concrete paths that LookupByPath resolves to ParserKey.
+	Examples []string
+}
+
+// PathDispatches returns the hardcoded path-dispatch bindings of LookupByPath,
+// in a fixed order. A new hardcoded rule in LookupByPath must be listed here.
+// The AST test fails only when LookupByPath binds a key through a literal
+// r.byKey["<key>"] lookup that the list omits. It does not check other ways of
+// selecting a definition or new patterns for an already-listed key, so a
+// reviewer of a LookupByPath change must edit this list, Patterns and Examples
+// by hand.
+func PathDispatches() []PathDispatch {
+	return []PathDispatch{
+		{
+			Patterns:  []string{"META-INF/services/<service>", "META-INF/spring.factories", "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports"},
+			ParserKey: "java_metadata",
+			Examples: []string{
+				"src/main/resources/META-INF/services/com.example.Plugin",
+				"src/main/resources/META-INF/spring.factories",
+				"src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
+			},
+		},
+		{
+			Patterns:  []string{"conf/routes", "*.routes"},
+			ParserKey: "scala",
+			Examples:  []string{"conf/routes", "app/conf/routes", "conf/api.routes"},
+		},
+		{
+			Patterns:  []string{".mvn/extensions.xml"},
+			ParserKey: "raw_text",
+			Examples:  []string{".mvn/extensions.xml", "module/.mvn/extensions.xml"},
+		},
+		{
+			Patterns:  []string{"*.tfvars.json"},
+			ParserKey: "hcl",
+			Examples:  []string{"prod.tfvars.json", "env/stage.auto.tfvars.json"},
+		},
+	}
+}
+
+func isScalaPlayRoutesPath(path string) bool {
+	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
+	return normalized == "conf/routes" ||
+		strings.HasSuffix(normalized, "/conf/routes") ||
+		strings.HasSuffix(normalized, ".routes")
+}
+
+// isMavenExtensionsPath reports whether path is a Maven core extensions file,
+// .mvn/extensions.xml, at any depth. The base name extensions.xml is too
+// generic to bind by name, so the parent directory is part of the rule.
+func isMavenExtensionsPath(path string) bool {
+	// Cheap base-name test first: LookupByPath runs once per walked file, and
+	// only an extensions.xml needs the allocating normalization below.
+	if !strings.EqualFold(filepath.Base(path), "extensions.xml") {
+		return false
+	}
+	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
+	return normalized == ".mvn/extensions.xml" ||
+		strings.HasSuffix(normalized, "/.mvn/extensions.xml")
+}
+
+func isJavaMetadataPath(path string) bool {
+	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
+	if strings.HasPrefix(normalized, "meta-inf/services/") ||
+		strings.Contains(normalized, "/meta-inf/services/") {
+		_, serviceName, ok := strings.Cut(normalized, "meta-inf/services/")
+		return ok && strings.TrimSpace(serviceName) != ""
+	}
+	return normalized == "meta-inf/spring/org.springframework.boot.autoconfigure.autoconfiguration.imports" ||
+		strings.HasSuffix(normalized, "/meta-inf/spring/org.springframework.boot.autoconfigure.autoconfiguration.imports") ||
+		normalized == "meta-inf/spring.factories" ||
+		strings.HasSuffix(normalized, "/meta-inf/spring.factories")
 }

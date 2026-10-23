@@ -153,6 +153,11 @@ func (r Registry) LookupByPath(path string) (Definition, bool) {
 		return cloneDefinition(definition), ok
 	}
 
+	if isMavenExtensionsPath(path) {
+		definition, ok := r.byKey["raw_text"]
+		return cloneDefinition(definition), ok
+	}
+
 	base := strings.ToLower(filepath.Base(path))
 	if strings.HasSuffix(base, ".tfvars.json") {
 		if definition, ok := r.byKey["hcl"]; ok {
@@ -173,26 +178,6 @@ func (r Registry) LookupByPath(path string) (Definition, bool) {
 	}
 	definition, ok := r.byExtension[extension]
 	return cloneDefinition(definition), ok
-}
-
-func isScalaPlayRoutesPath(path string) bool {
-	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
-	return normalized == "conf/routes" ||
-		strings.HasSuffix(normalized, "/conf/routes") ||
-		strings.HasSuffix(normalized, ".routes")
-}
-
-func isJavaMetadataPath(path string) bool {
-	normalized := strings.ToLower(filepath.ToSlash(filepath.Clean(path)))
-	if strings.HasPrefix(normalized, "meta-inf/services/") ||
-		strings.Contains(normalized, "/meta-inf/services/") {
-		_, serviceName, ok := strings.Cut(normalized, "meta-inf/services/")
-		return ok && strings.TrimSpace(serviceName) != ""
-	}
-	return normalized == "meta-inf/spring/org.springframework.boot.autoconfigure.autoconfiguration.imports" ||
-		strings.HasSuffix(normalized, "/meta-inf/spring/org.springframework.boot.autoconfigure.autoconfiguration.imports") ||
-		normalized == "meta-inf/spring.factories" ||
-		strings.HasSuffix(normalized, "/meta-inf/spring.factories")
 }
 
 // LookupByParserKey returns the definition registered for one parser key.
@@ -220,8 +205,8 @@ func (r Registry) Definitions() []Definition {
 // bindings only, not parser logic: a behavior change with identical bindings
 // still needs a hand-bumped content version (see the git collector's pin test).
 // The hardcoded path-dispatch rules in LookupByPath (java metadata, Scala
-// routes, .tfvars.json) also live outside the bindings: adding or changing one
-// needs a hand bump too.
+// routes, .mvn/extensions.xml, .tfvars.json) also live outside the bindings:
+// adding or changing one needs a hand bump too.
 func (r Registry) Fingerprint() string {
 	h := sha256.New()
 	for _, definition := range r.definitions {
@@ -377,52 +362,6 @@ const (
 	// AdmissionTableEnd closes the generated region of the documentation page.
 	AdmissionTableEnd = "<!-- parser-admission-table:end -->"
 )
-
-// PathDispatch describes one binding that LookupByPath resolves by hardcoded
-// path logic instead of an Extensions, ExactNames, or PrefixNames entry.
-// AdmissionTableMarkdown renders these beside the table so the generated page
-// shows every path the registry admits. A test resolves each example through
-// LookupByPath, and an AST test requires the parser keys listed here to equal
-// the keys LookupByPath binds through a literal r.byKey["<key>"] lookup.
-type PathDispatch struct {
-	// Patterns are the human-readable path rules, each rendered as code.
-	Patterns []string
-	// ParserKey is the definition the rule resolves to.
-	ParserKey string
-	// Examples are concrete paths that LookupByPath resolves to ParserKey.
-	Examples []string
-}
-
-// PathDispatches returns the hardcoded path-dispatch bindings of LookupByPath,
-// in a fixed order. A new hardcoded rule in LookupByPath must be listed here.
-// The AST test fails only when LookupByPath binds a key through a literal
-// r.byKey["<key>"] lookup that the list omits. It does not check other ways of
-// selecting a definition or new patterns for an already-listed key, so a
-// reviewer of a LookupByPath change must edit this list, Patterns and Examples
-// by hand.
-func PathDispatches() []PathDispatch {
-	return []PathDispatch{
-		{
-			Patterns:  []string{"META-INF/services/<service>", "META-INF/spring.factories", "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports"},
-			ParserKey: "java_metadata",
-			Examples: []string{
-				"src/main/resources/META-INF/services/com.example.Plugin",
-				"src/main/resources/META-INF/spring.factories",
-				"src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
-			},
-		},
-		{
-			Patterns:  []string{"conf/routes", "*.routes"},
-			ParserKey: "scala",
-			Examples:  []string{"conf/routes", "app/conf/routes", "conf/api.routes"},
-		},
-		{
-			Patterns:  []string{"*.tfvars.json"},
-			ParserKey: "hcl",
-			Examples:  []string{"prod.tfvars.json", "env/stage.auto.tfvars.json"},
-		},
-	}
-}
 
 // AdmissionTableMarkdown renders one Markdown table row per registered
 // definition, in parser-key order, followed by a footnote naming the

@@ -51,7 +51,7 @@ checklist.
 | `python` | python | L2 structured fact | `.ipynb`, `.py`, `.pyi`, `.pyw` |  |  |
 | `python_requirements` | python | L2 structured fact |  | `requirements.txt` | `requirements-`, `requirements_` |
 | `python_toml` | python | L2 structured fact |  | `Pipfile`, `poetry.lock`, `pyproject.toml` |  |
-| `raw_text` | raw_text | L1 content text | `.cfg`, `.cnf`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tftpl`, `.tpl` | `.go-version`, `.java-version`, `.node-version`, `.nvmrc`, `.python-version`, `.ruby-version`, `.sdkmanrc`, `.terraform-version`, `.tool-versions`, `Berksfile`, `Puppetfile`, `rust-toolchain`, `rust-toolchain.toml` |  |
+| `raw_text` | raw_text | L1 content text | `.cfg`, `.cnf`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tftpl`, `.tpl` | `.babelrc`, `.dockerignore`, `.editorconfig`, `.eslintrc`, `.flake8`, `.gitattributes`, `.gitignore`, `.go-version`, `.java-version`, `.node-version`, `.npmignore`, `.nvmrc`, `.prettierrc`, `.python-version`, `.ruby-version`, `.sdkmanrc`, `.terraform-version`, `.tool-versions`, `Berksfile`, `clippy.toml`, `GNUmakefile`, `justfile`, `Makefile`, `mypy.ini`, `Puppetfile`, `pytest.ini`, `renovate.json5`, `rust-toolchain`, `rust-toolchain.toml`, `rustfmt.toml`, `tox.ini` |  |
 | `ruby` | ruby | L2 structured fact | `.rb` | `Gemfile`, `Gemfile.lock` |  |
 | `rust` | rust | L2 structured fact | `.rs` | `Cargo.lock`, `Cargo.toml` |  |
 | `scala` | scala | L2 structured fact | `.routes`, `.sc`, `.scala` |  |  |
@@ -67,5 +67,32 @@ Paths are matched case-insensitively:
 
 - `META-INF/services/<service>`, `META-INF/spring.factories`, `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` bind to `java_metadata`.
 - `conf/routes`, `*.routes` bind to `scala`.
+- `.mvn/extensions.xml` bind to `raw_text`.
 - `*.tfvars.json` bind to `hcl`.
 <!-- parser-admission-table:end -->
+
+## Build and tool configuration files
+
+The `raw_text` row also admits small build and tool configuration files by exact
+name, as searchable text only: `Makefile`, `GNUmakefile`, `justfile`,
+`.editorconfig`, `.gitattributes`, `.dockerignore`, `.gitignore`, `.eslintrc`,
+`.prettierrc`, `.babelrc`, `.npmignore`, `tox.ini`, `mypy.ini`, `pytest.ini`,
+`.flake8`, `rustfmt.toml`, `clippy.toml`, `renovate.json5`, and
+`.mvn/extensions.xml`. Admission is by name, never by extension, so other
+`.ini`, `.toml`, `.xml` and `.properties` files stay unadmitted. A name that
+matches in any directory is admitted at any depth.
+
+Some names are left out on purpose:
+
+- `Taskfile.yml` and `Taskfile.yaml` are already admitted as structured YAML
+  through the `.yml` and `.yaml` extensions, so they are not re-listed.
+- `.env`, `.npmrc`, `.pypirc`, `.netrc` and `settings.xml` hold credentials or
+  environment values. `phpunit.xml`, `phpunit.xml.dist`, `.mvn/jvm.config` and
+  `.mvn/maven.config` can hold environment values or `-D` credential properties
+  too. The content store does not redact text on write, so none of them is
+  admitted.
+
+In filesystem source mode, the managed-workspace copy keeps the admitted
+dot-prefixed names and `.mvn/extensions.xml`, but not `.gitignore`: the copy
+already applies the source repository's ignore rules, so `.gitignore` is not
+indexed in that mode.
