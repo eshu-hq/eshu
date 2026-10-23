@@ -85,8 +85,10 @@ does one `modfile.ParseWork` pass linear in the file size, with no shared state
 or locks. Before this change no tracked fixture or golden-corpus repository
 contained a `go.work`, so their facts do not move; the one `go.work` added to
 the git collector's content-version fixture moves its pinned digest
-(`go/internal/collector/repo/git/testdata/content_version_pin.json`) to
-`git-collector.v9`. A real repository that has a `go.work` gains a
+(`go/internal/collector/repo/git/testdata/content_version_pin.json`) and is
+re-pinned at the same `gitGenerationContentVersion`: the new output comes
+from a parser registration change, which the folded registry fingerprint
+already covers, so no hand bump is needed. A real repository that has a `go.work` gains a
 file fact plus its `workspace_use` and `dependency_replace` Variable entities.
 The parser registry fingerprint hashes exact file names, and the git
 freshness hint folds it in (#7986), so every repository stores one new
