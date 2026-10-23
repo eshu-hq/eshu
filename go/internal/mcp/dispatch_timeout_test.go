@@ -13,6 +13,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 )
 
 func markedDeadlinePartialRecorder() *httptest.ResponseRecorder {
@@ -25,7 +27,7 @@ func markedDeadlinePartialRecorder() *httptest.ResponseRecorder {
 func TestDeadlinePartialDispatchResultHonorsMarkerOnCapableTool(t *testing.T) {
 	t.Parallel()
 
-	result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "investigate_code_topic", 1<<20, nil)
+	result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "investigate_code_topic", resultshape.Dual, 1<<20, nil)
 	if !ok || result == nil {
 		t.Fatalf("deadlinePartialDispatchResult(marked, investigate_code_topic) = (%v, %v), want partial result, true", result, ok)
 	}
@@ -34,7 +36,7 @@ func TestDeadlinePartialDispatchResultHonorsMarkerOnCapableTool(t *testing.T) {
 func TestDeadlinePartialDispatchResultIgnoresMarkerOnOtherTool(t *testing.T) {
 	t.Parallel()
 
-	result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "list_indexed_repositories", 1<<20, nil)
+	result, ok := deadlinePartialDispatchResult(markedDeadlinePartialRecorder(), "list_indexed_repositories", resultshape.Dual, 1<<20, nil)
 	if ok || result != nil {
 		t.Fatalf("deadlinePartialDispatchResult(marked, other tool) = (%v, %v), want (nil, false): only the partial-capable tool may surface a marked envelope", result, ok)
 	}
@@ -148,7 +150,7 @@ func TestMCPToolErrorResultIncludesStructuredDispatchTimeout(t *testing.T) {
 		discardDispatchLogger(),
 	)
 
-	result := mcpToolErrorResult(err)
+	result := mcpToolErrorResult(resultshape.Dual, err)
 	if !result.IsError {
 		t.Fatal("mcpToolErrorResult() IsError = false, want true")
 	}

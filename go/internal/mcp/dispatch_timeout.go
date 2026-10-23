@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net/http/httptest"
 	"time"
+
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 )
 
 const defaultToolDispatchTimeout = 30 * time.Second
@@ -65,7 +67,7 @@ const partialCapableToolName = "investigate_code_topic"
 // data-nil timeout verdict. A parent cancellation
 // (not a deadline) never takes this path: the client is gone, so there is no
 // one to read the partial.
-func deadlinePartialDispatchResult(rec *httptest.ResponseRecorder, toolName string, responseByteBudget int, logger *slog.Logger) (*dispatchResult, bool) {
+func deadlinePartialDispatchResult(rec *httptest.ResponseRecorder, toolName string, mode resultshape.Mode, responseByteBudget int, logger *slog.Logger) (*dispatchResult, bool) {
 	if rec == nil {
 		return nil, false
 	}
@@ -91,6 +93,7 @@ func deadlinePartialDispatchResult(rec *httptest.ResponseRecorder, toolName stri
 		Value:    envelope,
 		Envelope: envelope,
 		IsError:  rec.Code >= 400,
+		Shape:    mode,
 	}, toolName, responseByteBudget, logger), true
 }
 

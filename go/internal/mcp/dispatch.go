@@ -23,6 +23,7 @@ import (
 	routecontract "github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entity/resolution"
 	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iac/management"
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 )
 
 // dispatchTool routes an MCP tool call to the appropriate internal HTTP endpoint.
@@ -68,6 +69,9 @@ func runDispatch(
 		call.routeRejected(err)
 		return nil, err
 	}
+
+	mode, _ := resultshape.FromContext(ctx)
+	mode = resultshape.OrDual(mode)
 
 	timeout := options.timeout
 	if timeout <= 0 {
@@ -118,7 +122,7 @@ func runDispatch(
 		// truth into the recorder; surface it instead of the data-nil
 		// timeout error. Anything else keeps the error-only verdict.
 		if errors.Is(err, context.DeadlineExceeded) {
-			if partial, ok := deadlinePartialDispatchResult(rec, toolName, options.responseByteBudget, logger); ok {
+			if partial, ok := deadlinePartialDispatchResult(rec, toolName, mode, options.responseByteBudget, logger); ok {
 				call.partialAnswer()
 				return partial, nil
 			}
@@ -141,6 +145,7 @@ func runDispatch(
 			Value:    envelope,
 			Envelope: envelope,
 			IsError:  !dispatchStatusSucceeded(rec.Code),
+			Shape:    mode,
 		}, toolName, options.responseByteBudget, logger), nil
 	}
 
@@ -150,9 +155,9 @@ func runDispatch(
 
 	var result any
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
-		return applyResponseBudget(&dispatchResult{Value: rec.Body.String()}, toolName, options.responseByteBudget, logger), nil
+		return applyResponseBudget(&dispatchResult{Value: rec.Body.String(), Shape: mode}, toolName, options.responseByteBudget, logger), nil
 	}
-	return applyResponseBudget(&dispatchResult{Value: result}, toolName, options.responseByteBudget, logger), nil
+	return applyResponseBudget(&dispatchResult{Value: result, Shape: mode}, toolName, options.responseByteBudget, logger), nil
 }
 
 // resolveRoute maps a tool name and its arguments to an internal HTTP route.

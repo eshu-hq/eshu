@@ -17,8 +17,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	codedivergencetools "github.com/eshu-hq/eshu/go/internal/mcp/code/divergence"
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
-	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -99,8 +99,11 @@ type Server struct {
 	// surface selects what tools/list advertises from tools; the zero value
 	// is router.SurfaceFull (see WithToolSurface).
 	surface router.Surface
-	logger  *slog.Logger
-	mu      sync.Mutex
+	// shape is the process default tools/call result shape; the zero value is
+	// resultshape.Dual (see WithResultShape).
+	shape  resultshape.Mode
+	logger *slog.Logger
+	mu     sync.Mutex
 
 	// SSE session registry: sessionID -> session
 	sessMu   sync.RWMutex
@@ -299,10 +302,12 @@ func (s *Server) handleMessage(ctx context.Context, req *jsonrpcRequest, authHea
 // (#8757), which runs a call_tool target through the same run as a direct
 // call, so a routed result is byte-identical to a direct one.
 func (s *Server) callTool(ctx context.Context, params mcpToolCallParams, authHeader string) any {
+	mode := s.shapeFor(ctx)
+	ctx = resultshape.WithOverride(ctx, mode)
 	run := func(ctx context.Context, name string, args map[string]any) (any, error) {
 		result, err := dispatchTool(ctx, s.handler, name, args, authHeader, s.logger)
 		if err != nil {
-			return mcpToolErrorResult(err), nil
+			return mcpToolErrorResult(mode, err), nil
 		}
 		return renderToolResult(name, result), nil
 	}
@@ -315,64 +320,6 @@ func (s *Server) callTool(ctx context.Context, params mcpToolCallParams, authHea
 	}
 	req := router.Request{Visible: s.tools, Session: authPrincipalKey(ctx), Dispatch: run}
 	return s.router.Serve(ctx, newConfig, req, params.Name, params.Arguments)
-}
-
-// renderToolResult keeps MCP response construction shared by the byte guard
-// and the transport, so the measured shape is the one sent to clients.
-func renderToolResult(toolName string, result *dispatchResult) mcpToolResult {
-	var structuredContent any
-	if result.Envelope != nil {
-		resourceText, _ := json.Marshal(result.Envelope)
-		if !result.ResourceOnly {
-			structuredContent = result.Envelope
-		}
-		return mcpToolResult{
-			Content: []mcpContent{
-				{Type: "text", Text: summarizeToolText(toolName, result.Envelope)},
-				{Type: "resource", Resource: &mcpResource{
-					URI: "eshu://tool-result/envelope", MimeType: query.EnvelopeMIMEType,
-					Text: string(resourceText),
-				}},
-			},
-			StructuredContent: structuredContent,
-			IsError:           result.IsError,
-		}
-	}
-	resourceText, _ := json.Marshal(result.Value)
-	if !result.ResourceOnly {
-		structuredContent = result.Value
-	}
-	return mcpToolResult{
-		Content: []mcpContent{
-			{Type: "text", Text: summarizePlainToolText(toolName, result.Value)},
-			{Type: "resource", Resource: &mcpResource{
-				URI: "eshu://tool-result/payload", MimeType: "application/json",
-				Text: string(resourceText),
-			}},
-		},
-		StructuredContent: structuredContent,
-		IsError:           result.IsError,
-	}
-}
-
-func mcpToolErrorResult(err error) mcpToolResult {
-	result := mcpToolResult{
-		Content: []mcpContent{{Type: "text", Text: err.Error()}},
-		IsError: true,
-	}
-	if structured, ok := dispatchErrorStructuredContent(err); ok {
-		structuredJSON, _ := json.Marshal(structured)
-		result.StructuredContent = structured
-		result.Content = append(result.Content, mcpContent{
-			Type: "resource",
-			Resource: &mcpResource{
-				URI:      "eshu://tool-error/dispatch",
-				MimeType: "application/json",
-				Text:     string(structuredJSON),
-			},
-		})
-	}
-	return result
 }
 
 func (s *Server) errorResponse(id any, code int, msg string) *jsonrpcResponse {

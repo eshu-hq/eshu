@@ -1,0 +1,26 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "error internal: boom"
+    },
+    {
+      "type": "resource",
+      "resource": {
+        "uri": "eshu://tool-result/envelope",
+        "mimeType": "application/eshu.envelope+json",
+        "text": "{\"data\":null,\"truth\":null,\"error\":{\"code\":\"internal\",\"message\":\"boom\",\"capability\":\"x\"}}"
+      }
+    }
+  ],
+  "structuredContent": {
+    "data": null,
+    "truth": null,
+    "error": {
+      "code": "internal",
+      "message": "boom",
+      "capability": "x"
+    }
+  },
+  "isError": true
+}
