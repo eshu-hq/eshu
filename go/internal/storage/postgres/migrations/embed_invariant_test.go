@@ -120,7 +120,9 @@ import (
 // 209_partition_lease_claimed_at.sql (claim epoch for the 2b' barrier).
 // #8780 adds 210_scope_generations_delta_union_base_commit_sha.sql (the
 // union-base commit a cumulative delta was diffed from; catalog-only column).
-const goldenBootstrapDefinitionsDigest = "7925d61ad6a42fa1e7fd97813c515a6fb0136c0ce28a42df9c8d75a8de6b9bf5"
+// #8803 adds 211_workflow_work_items_failed_terminal_instance_idx.sql (the
+// partial failed_terminal index for the collector terminal-failure read).
+const goldenBootstrapDefinitionsDigest = "bfea780b03fe21035410b3f75bebf639952d32c0b4e2f28bfd3f897f4568d8b7"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
