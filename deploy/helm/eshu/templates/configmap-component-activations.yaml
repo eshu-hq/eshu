@@ -1,0 +1,11 @@
+{{- if include "eshu.componentActivationsMode" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "eshu.componentActivationConfigMapName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: component-extension-collector
+data:
+  {{- include "eshu.componentActivationsConfigData" . | nindent 2 }}
+{{- end }}

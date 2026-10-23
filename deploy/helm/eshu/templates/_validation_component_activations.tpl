@@ -80,8 +80,8 @@ interpolates anything that could carry shell syntax.
 {{- fail (printf "%s.instanceId %q must be at most 30 characters" $at $id) -}}
 {{- end -}}
 {{- $name := include "eshu.componentActivationFullname" (dict "root" $root "activation" $activation) -}}
-{{- if gt (len $name) 63 -}}
-{{- fail (printf "%s.instanceId %q makes the Deployment name %q longer than 63 characters; shorten the instance ID or the release name" $at $id $name) -}}
+{{- if gt (len $name) 55 -}}
+{{- fail (printf "%s.instanceId %q makes the resource name %q longer than 55 characters (the metrics Service adds -metrics); shorten the instance ID or the release name" $at $id $name) -}}
 {{- end -}}
 {{- $componentId := toString (default "" $activation.componentId) -}}
 {{- if not (regexMatch "^[a-z0-9][a-z0-9._-]*$" $componentId) -}}
@@ -159,6 +159,9 @@ interpolates anything that could carry shell syntax.
 {{- end -}}
 {{- if or .Values.componentExtensionCollector.extraVolumes .Values.componentExtensionCollector.extraVolumeMounts -}}
 {{- fail "componentExtensionCollector.extraVolumes and extraVolumeMounts cannot be set together with componentExtensionCollector.activations; the chart owns the registry volume, and each activation takes its own extraVolumes" -}}
+{{- end -}}
+{{- if .Values.componentExtensionCollector.extraEnv -}}
+{{- fail "componentExtensionCollector.extraEnv cannot be set together with componentExtensionCollector.activations; set extraEnv on the activation that needs the credential so one collector never sees another's secret" -}}
 {{- end -}}
 {{- $seenIDs := dict -}}
 {{- $versionByComponent := dict -}}

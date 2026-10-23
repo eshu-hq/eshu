@@ -1,4 +1,4 @@
-{{- if .Values.componentExtensionCollector.enabled }}
+{{- if and .Values.componentExtensionCollector.enabled (not (include "eshu.componentActivationsMode" .)) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
