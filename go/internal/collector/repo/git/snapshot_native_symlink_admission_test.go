@@ -62,6 +62,17 @@ func containsPath(paths []string, want string) bool {
 	return false
 }
 
+// absoluteRoot returns the absolute, symlink-resolved path of rel under root,
+// the form an absolute link target takes on disk.
+func absoluteRoot(t *testing.T, root, rel string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		resolved = root
+	}
+	return filepath.Join(resolved, filepath.FromSlash(rel))
+}
+
 // TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget proves
 // the #8809 review finding: an in-root symlink whose own name is admitted must
 // not smuggle in a target the registry would never admit, because content is
@@ -165,6 +176,51 @@ func TestResolveNativeSnapshotFileSetDropsInRootSymlinkToUnadmittedTarget(t *tes
 			},
 			link:   ".nvmrc",
 			admits: true,
+		},
+		{
+			name: "chain to env file",
+			setup: func(t *testing.T, root string) {
+				writeCollectorTestFile(t, filepath.Join(root, ".env"), "SECRET=not-a-real-secret\n")
+				mustSymlink(t, ".env", filepath.Join(root, ".node-version"))
+				mustSymlink(t, ".node-version", filepath.Join(root, ".nvmrc"))
+			},
+			link: ".nvmrc",
+		},
+		{
+			name: "chain to a pin",
+			setup: func(t *testing.T, root string) {
+				writeCollectorTestFile(t, filepath.Join(root, "real", ".nvmrc"), "20.11.1\n")
+				mustSymlink(t, "real/.nvmrc", filepath.Join(root, ".node-version"))
+				mustSymlink(t, ".node-version", filepath.Join(root, ".nvmrc"))
+			},
+			link:   ".nvmrc",
+			admits: true,
+		},
+		{
+			name: "absolute link to env file",
+			setup: func(t *testing.T, root string) {
+				writeCollectorTestFile(t, filepath.Join(root, ".env"), "SECRET=not-a-real-secret\n")
+				mustSymlink(t, absoluteRoot(t, root, ".env"), filepath.Join(root, ".nvmrc"))
+			},
+			link: ".nvmrc",
+		},
+		{
+			name: "absolute in-root link to a pin",
+			setup: func(t *testing.T, root string) {
+				writeCollectorTestFile(t, filepath.Join(root, "real", ".nvmrc"), "20.11.1\n")
+				mustSymlink(t, absoluteRoot(t, root, "real/.nvmrc"), filepath.Join(root, ".nvmrc"))
+			},
+			link:   ".nvmrc",
+			admits: true,
+		},
+		{
+			name: "absolute link outside the root",
+			setup: func(t *testing.T, root string) {
+				outside := t.TempDir()
+				writeCollectorTestFile(t, filepath.Join(outside, ".nvmrc"), "20.11.1\n")
+				mustSymlink(t, filepath.Join(outside, ".nvmrc"), filepath.Join(root, ".nvmrc"))
+			},
+			link: ".nvmrc",
 		},
 		{
 			name: "nested link to a parent pin",
