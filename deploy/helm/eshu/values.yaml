@@ -217,9 +217,10 @@ mcpServer:
   # it applies to that request, and on GET /sse it applies to the whole SSE
   # session. router and core_router serve find_tool with the lexical ranker,
   # built once at startup on every surface (#8771); the server refuses to start
-  # on them without one. Until the core set (#8759) lands, core_router lists
-  # only find_tool and call_tool. full lists the same tools as before but also
-  # builds the ranker at startup (about 9 to 16 ms once, about 1.1 MB of heap).
+  # on them without one. core_router advertises find_tool, call_tool, and the 10
+  # core tools listed in go/internal/mcp/router/core.go (#8759). full lists the
+  # same tools as before but also builds the ranker at startup (about 9 to 16 ms
+  # once, about 1.1 MB of heap).
   # Example:
   #   env:
   #     ESHU_MCP_TOOL_SURFACE: router

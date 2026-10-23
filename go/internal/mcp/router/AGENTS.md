@@ -30,7 +30,9 @@
 
 ## Common changes
 
-- Fill `coreToolNames` in `core.go` only from hosted call counts (#8759).
+- Change `coreToolNames` in `core.go` only from hosted call counts (#8759):
+  update the decision record table and `measuredCoreToolNames` in
+  `go/internal/mcp/core_tool_set_test.go` in the same change.
 - A tool-schema change needs `tools_test.go` updated in the same change.
 - `../tools_list_bytes_test.go` holds the default surface to the registry:
   `tools/list` must equal `ReadOnlyTools()` byte for byte. The surface switch
