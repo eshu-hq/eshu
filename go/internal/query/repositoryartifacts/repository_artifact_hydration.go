@@ -50,7 +50,9 @@ type repositoryArtifactFilePredicate func(querycontract.FileContent) bool
 // repositoryArtifactHydrationConcurrency chunk reads in flight (#7951
 // follow-up: no 50-candidate cap). A path with no stored row keeps its list
 // row. A failed chunk fails the pass and hydrated is left unchanged, so no
-// partial result is mistaken for success.
+// partial result is mistaken for success. A canceled ctx does the same: the
+// pass starts no read after it observes the cancel and returns ctx's error
+// with nil rows, unless a chunk failure came first, which wins (#8889).
 func HydrateRepositoryCandidateFiles(
 	ctx context.Context,
 	reader querycontract.ContentStore,
@@ -116,7 +118,10 @@ func selectHydrationIndexes(files []querycontract.FileContent, shouldHydrate rep
 // share a path read the row once and each receive it; rows are assigned by
 // RelativePath, never by position, and a path with no stored row keeps its
 // list row. The first error cancels the remaining reads and is returned;
-// hydrated is then unchanged and the caller must discard it.
+// hydrated is then unchanged and the caller must discard it. A canceled parent
+// context starts no further read and, when no chunk failed, returns the parent
+// context error once the in-flight reads drain (#8889), so a canceled request
+// never looks like a complete answer; a chunk failure still wins over it.
 func hydrateFileIndexes(
 	ctx context.Context,
 	reader querycontract.ContentStore,
@@ -142,7 +147,8 @@ func hydrateFileIndexes(
 		chunks = append(chunks, paths[start:min(start+anchorHydrationChunkSize, len(paths))])
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	parent := ctx
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 
 	jobs := make(chan int)
@@ -161,6 +167,11 @@ func hydrateFileIndexes(
 		go func() {
 			defer wg.Done()
 			for chunk := range jobs {
+				// A job can be received in the same instant the context is
+				// canceled; start no read once cancellation is observed.
+				if ctx.Err() != nil {
+					continue
+				}
 				rows, err := reader.GetFileContents(ctx, repoID, chunks[chunk])
 				mu.Lock()
 				if err != nil {
@@ -181,6 +192,12 @@ func hydrateFileIndexes(
 
 sendLoop:
 	for chunk := range chunks {
+		// With the context already canceled, both select cases can be ready
+		// (a waiting worker and a closed Done channel) and Go picks one at
+		// random, so check first: a canceled pass sends no chunk.
+		if ctx.Err() != nil {
+			break sendLoop
+		}
 		select {
 		case <-ctx.Done():
 			break sendLoop
@@ -191,6 +208,9 @@ sendLoop:
 	wg.Wait()
 	if firstErr != nil {
 		return firstErr
+	}
+	if err := parent.Err(); err != nil {
+		return err
 	}
 	for path, row := range byPath {
 		for _, index := range positions[path] {

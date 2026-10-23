@@ -75,7 +75,10 @@ importing a query package. This package keeps:
   clip: `listAnchorCandidateFiles` returns a truncated flag alongside the
   clipped list (#8157), and each anchor-only loader propagates it, so a
   direct nil caller can disclose the cut via `AnchorFileListTruncatedReason`
-  the same way production callers do;
+  the same way production callers do. A canceled context starts no read
+  after the pass observes it and returns the context error with nil rows
+  once the in-flight reads drain (#8889); a chunk failure still wins over
+  the context error, and neither case returns a partly hydrated slice;
 - `ConfigArtifactReadStats`, which sums the per-repository `ReadStats` of the
   neutral package with the stage's statement and byte counts;
 - the shadow compare (`shadow.go`, #8155 PR3c): after the live load, an
