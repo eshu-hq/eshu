@@ -194,6 +194,26 @@ The metric and log fields are in
 [Telemetry metrics](../../../../docs/public/reference/telemetry/metrics.md) and
 [Telemetry logs](../../../../docs/public/reference/telemetry/logs.md).
 
+### Canceled-context hydration (#8889)
+
+No-Regression Evidence (#8889): the pass now checks the context before each
+chunk send and before each chunk read, and returns the parent context error
+after the workers drain. `BenchmarkAnchorHydrationWholeWindow` (500
+candidates, 10 `GetFileContents` statements, go1.26.10 linux/arm64, Neoverse-V3,
+16 CPUs, `-benchtime=2s`, three alternating runs) measured 1.318, 1.342 and
+1.340 ms/op on `origin/main` and 1.311, 1.336 and 1.314 ms/op with the change,
+so the extra `ctx.Err()` loads are inside run-to-run noise. The statement
+count is unchanged, the concurrency bound stays 8, and a pre-canceled context
+now issues 0 statements. `go test -race -count=200 -cpu 1,16` over the three
+tests in `repository_artifact_hydration_cancel_test.go` (pre-canceled,
+mid-flight, worker-error-first) passed 600 of 600 runs at each `-cpu` setting
+with the change; without it the pre-canceled and mid-flight tests failed 200
+of 200 runs at each setting.
+
+No-Observability-Change: no new metric, span, log field, or stage-line field.
+A canceled request surfaces as the context error to the caller; no signal is
+added by this package.
+
 ### Hydration chunk width ten to fifty (#7009)
 
 Benchmark Evidence (#7009): the hydrate pass reads one `GetFileContents`
