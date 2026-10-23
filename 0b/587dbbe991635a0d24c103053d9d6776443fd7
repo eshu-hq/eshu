@@ -1,0 +1,47 @@
+go/internal/extensionconformance/core_context_bench_proof_test.go
+  s_ff8a600f1fc93e::t_1342a041f94ac7 1-75
+go/internal/extensionconformance/core_context_concurrent_proof_test.go
+  s_ff8a600f1fc93e::t_0719933c13ee8d 1-62
+go/internal/extensionconformance/core_context_fixture_proof_test.go
+  s_ff8a600f1fc93e::t_bdb9f2cc0002c2 1-91
+go/internal/extensionconformance/core_context_grant_proof_test.go
+  s_ff8a600f1fc93e::t_3778c441d0a27d 1-161
+go/internal/extensionconformance/core_context_negative_proof_test.go
+  s_ff8a600f1fc93e::t_584a9f5433583b 1-142
+go/internal/extensionconformance/core_context_proof_test.go
+  s_ff8a600f1fc93e::t_949f4f3fe33bff 1-87
+go/proofbaseline/conformance/AGENTS.md
+  s_ff8a600f1fc93e::t_dbd3c0a8f4d0bc 1-4
+go/proofbaseline/conformance/README.md
+  s_ff8a600f1fc93e::t_cf0eb6dc67d2fd 1-4
+go/proofbaseline/conformance/conformance.go
+  s_ff8a600f1fc93e::t_f171e01b5b2d05 1-375
+go/proofbaseline/conformance/doc.go
+  s_ff8a600f1fc93e::t_0df6e2b156b2c6 1-34
+go/proofbaseline/conformance/manifest.go
+  s_ff8a600f1fc93e::t_a866f63bd8b7ef 1-322
+go/proofbaseline/conformance/payload_schema.go
+  s_ff8a600f1fc93e::t_1b03f2b9a4f3fc 1-446
+go/proofbaseline/conformance/payload_validate.go
+  s_ff8a600f1fc93e::t_46c1bee7ce3f61 1-251
+sdk/go/collector/conformance/conformance.go
+  s_ff8a600f1fc93e::t_d713d743f6ddb0 77,98,166-179,184-190,195-199,206-209,226-232
+sdk/go/collector/conformance/core_context_proof.go
+  s_ff8a600f1fc93e::t_19ed153f5e6e62 1-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b587dbbe991635a0d24c103053d9d6776443fd7",
+  "prompts": {},
+  "sessions": {
+    "s_ff8a600f1fc93e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16a06-8788-7df0-b732-4e9dcaee59ce",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
