@@ -45,7 +45,8 @@ class FanInTest(unittest.TestCase):
                     "scripts/test-ifa-scheduled-events.py",
                     "scripts/test-ifa-scheduled-manifest.py",
                     "scripts/test-ifa-scheduled-bundle.py",
-                    "scripts/test-ifa-scheduled-ledger-policy.py"]
+                    "scripts/test-ifa-scheduled-ledger-policy.py",
+                    "scripts/test-delta-union-scheduled.py"]
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             calls = root / "calls"
