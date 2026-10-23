@@ -21,4 +21,16 @@ run_case fail env MODE=full
 run_case pass env MODE=smoke
 run_case fail env MODE=smoke SELECTED=true
 run_case pass env MODE=smoke SELECTED=true LANE_RESULT=success
+for lane in go-core go-race; do
+  run_case fail env MODE=full LANE="$lane" SELECTED=true CHANGES_RESULT=success CODE_CHANGED=true LANE_RESULT=skipped
+  run_case pass env MODE=full LANE="$lane" SELECTED=true CHANGES_RESULT=success CODE_CHANGED=true LANE_RESULT=success
+  run_case pass env MODE=full LANE="$lane" SELECTED=true CHANGES_RESULT=success CODE_CHANGED=false LANE_RESULT=skipped
+done
+run_case fail env MODE=full SELECTED=true CHANGES_RESULT=success CODE_CHANGED= LANE_RESULT=skipped
+run_case fail env MODE=full SELECTED=true CHANGES_RESULT=success CODE_CHANGED=unknown LANE_RESULT=skipped
+run_case fail env MODE=full SELECTED=true CHANGES_RESULT=skipped CODE_CHANGED=false LANE_RESULT=skipped
+run_case fail env MODE=full SELECTED=false CHANGES_RESULT=success CODE_CHANGED=false LANE_RESULT=skipped
+run_case pass env GITHUB_EVENT_NAME=push MODE=full CHANGES_RESULT=success LANE_RESULT=success
+run_case pass env GITHUB_EVENT_NAME=merge_group MODE=full CHANGES_RESULT=success LANE_RESULT=skipped
+run_case fail env GITHUB_EVENT_NAME=push MODE=full CHANGES_RESULT=skipped LANE_RESULT=skipped
 printf 'assert-go-complete contract PASS\n'
