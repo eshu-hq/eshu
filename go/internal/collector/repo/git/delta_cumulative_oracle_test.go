@@ -205,6 +205,14 @@ func TestCumulativeDeltaUnionMatchesFullAtHead(t *testing.T) {
 
 	union := facts.OverlayDeltaBase(base.facts, d2.facts, facts.ParseDeltaScope(d2.facts))
 	got, want := viewOf(union), viewOf(reference.facts)
+	// The full at C has 16 files (a-d, f, ten fillers, the dashboard), each
+	// with content entities, the dashboard's observability rows, and
+	// repository-scoped follow-ups; an empty side would make every
+	// comparison below vacuous.
+	if len(want.files) != 16 || len(want.entityKeys) != 16 || len(want.observability) == 0 || len(want.other) == 0 {
+		t.Fatalf("full at C view = %d files, %d entity paths, %d observability, %d other keys; want 16, 16, >0, >0",
+			len(want.files), len(want.entityKeys), len(want.observability), len(want.other))
+	}
 	if !slices.Equal(got.files, want.files) {
 		t.Fatalf("union files = %v, full at C = %v", got.files, want.files)
 	}
