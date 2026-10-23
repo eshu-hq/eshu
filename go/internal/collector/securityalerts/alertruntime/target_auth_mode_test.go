@@ -290,8 +290,6 @@ func TestAppModeMintDenialIsSanitized(t *testing.T) {
 		if !strings.HasPrefix(seen, "/app/installations/") {
 			continue
 		}
-		jwtValue, _, _ := strings.Cut(strings.TrimPrefix(seen, "/app/installations/777/access_tokens|Bearer "), " ")
-		_ = jwtValue
 		header := strings.SplitN(seen, "|", 2)
 		if len(header) == 2 && strings.Contains(text, strings.TrimPrefix(header[1], "Bearer ")) {
 			t.Fatal("failure carries the signed JWT")

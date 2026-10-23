@@ -28,7 +28,12 @@ persisted, logged, or emitted in facts. Credential values are read only
 inside this process and are never copied into workflow run metadata. Run
 `--preflight-provider-access` against a real installation before relying on a
 new App credential: only a live pass proves the installation can reach the
-Dependabot endpoints.
+Dependabot endpoints. Operator watch: App-mode 401 stays retryable by design
+(the token was minted seconds earlier, so expiry is the likely cause), which
+means a persistently unauthorized App — e.g. a missing Dependabot alerts
+permission — retries every claim, minting a fresh token per attempt. Repeated
+mint+401 pairs in the logs point at scope/permission, not expiry; the static
+path denies terminally instead, so only App mode needs this watch.
 
 `--preflight-provider-access` runs a one-shot provider access check using the
 same collector instance JSON, token env resolution, allowlist validation, and
