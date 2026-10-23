@@ -78,6 +78,12 @@ func attributeFailedGatesToNewestRun(
 		return verdict
 	}
 	for _, finding := range failed {
+		if finding.Called {
+			// The caller job was fetched from the exact current run attempt.
+			// A direct workflow re-read cannot supersede its failure.
+			verdict.Confirmed = append(verdict.Confirmed, finding)
+			continue
+		}
 		gate := resolvedRequiredGate{
 			WorkflowName: finding.WorkflowName,
 			Job:          finding.Job,

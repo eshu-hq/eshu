@@ -190,6 +190,9 @@ type requiredCheckFinding struct {
 	Job          string
 	GateIDs      []string
 	State        string
+	// Called marks a current-attempt Build Test job whose verdict was already
+	// attributed by the jobs API and must not be overridden by a direct run.
+	Called bool
 	// RunID names the workflow run whose check run was judged (#8053), so the
 	// await log says which event's verdict a failure came from. Zero means
 	// the source row carried no attribution and is omitted from the log.
@@ -365,11 +368,13 @@ func matchingChecks(gate resolvedRequiredGate, checks []checkRollup) []checkRoll
 		wantEvent = eventPullRequest
 	}
 	var exact []checkRollup
+	calledName := calledCheckName(gate.WorkflowFile, gate.Job)
 	for _, check := range checks {
-		if check.Workflow != gate.WorkflowName || check.Event != wantEvent {
+		if check.Event != wantEvent {
 			continue
 		}
-		if check.Name == gate.Job {
+		if check.Workflow == gate.WorkflowName && check.Name == gate.Job ||
+			calledName != "" && check.Workflow == "Build Test" && check.Name == calledName {
 			exact = append(exact, check)
 		}
 	}

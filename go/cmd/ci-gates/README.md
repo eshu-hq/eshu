@@ -186,6 +186,15 @@ smoke result and historical generic reuse cannot start another smoke
 transfer. The recursive trees are fetched only after that prior verdict
 has been verified.
 
+### pr-plan
+
+`ci-gates pr-plan --registry specs/ci-gates.v1.yaml --repo-root . --repo eshu-hq/eshu --pr 42 --head-sha <sha>` emits JSON schema v1 (`mode`, `head_sha`, `source_sha`, `tree`, `workflows`, `jobs`, `reason`).
+Use a trusted default-branch checkout for the registry and workflow definitions.
+`full` selects every applicable synchronize workflow and local job ID, including non-gate jobs; opened-only and labeled-only workflows stay outside it.
+`reuse` selects zero jobs only after full-backed v2 proof. `smoke` selects explicit fast jobs; uncertain ownership, changed definitions, and truncated paths fall back to `full`.
+Missing or malformed output fails; the command reports a plan but does not dispatch it.
+The awaiter accepts direct checks and the fixed `Build Test / call-<workflow filename stem> / <check>` alias, requiring both green if both ran and binding caller results to the current run attempt.
+
 ### await
 
 ```bash

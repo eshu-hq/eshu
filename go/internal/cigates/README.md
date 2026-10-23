@@ -256,3 +256,12 @@ Checks 4, 5 and 6 skip rather than false-error when they cannot resolve an unamb
 ```bash
 cd go && go test ./internal/cigates/ -count=1
 ```
+
+## Trusted PR workflow planning
+
+`ParsePRWorkflowDefinition` reads the event types, path filters, and local job
+IDs from one trusted workflow file. `PlanPRWorkflows` is pure: it selects the
+synchronize jobs for changed PR paths, retaining non-gate workflows and ordered
+positive and negative `paths:` rules. The CLI owns filesystem and GitHub reads,
+including the full-backed reuse and smoke probes. A smoke plan must name known
+local job IDs; unknown IDs and an empty smoke set are rejected.

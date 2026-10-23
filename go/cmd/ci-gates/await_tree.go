@@ -70,6 +70,7 @@ func findingFor(gate resolvedRequiredGate, state string, runID int64) requiredCh
 // owning run's tree so the verdict names what it evaluated.
 func findingForCheck(gate resolvedRequiredGate, check checkRollup, state string) requiredCheckFinding {
 	finding := findingFor(gate, state, check.RunID)
+	finding.Called = check.Workflow == "Build Test" && strings.HasPrefix(check.Name, "call-")
 	if check.Event != "" {
 		finding.Event = check.Event
 	}
@@ -140,7 +141,7 @@ func awaitPRRequiredChecks(
 ) error {
 	printAwaitHeader(out, eventPullRequest, pullRequestMergeRef(pr), headSHA)
 	readChecks := func(ctx context.Context) ([]checkRollup, error) {
-		return readPRChecks(ctx, runner, repo, pr)
+		return readPRChecksWithCalled(ctx, runner, repo, pr, headSHA, required)
 	}
 	return awaitRequiredChecks(ctx, runner, repo, headSHA, eventPullRequest, readChecks, required, pollInterval, out)
 }
