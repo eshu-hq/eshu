@@ -127,8 +127,8 @@ Dockerfile rule for how `ARG` and `FROM` interact:
   their own, but they come from one reference of at most 4096 bytes, so the
   `base_ref_arg_defaults` evidence of a stage is at most about 8 KB. The
   stage row also carries `base_ref_arg_defaults_truncated` (at most 16 names)
-  and `base_ref_unresolved_args` (names from one reference), which are small
-  next to it.
+  and `base_ref_unresolved_args` (at most the name bytes of one 4096-byte
+  reference), which ride on the row on top of that figure.
 
 No-Regression Evidence: #8810. The reference bound adds one linear pass over
 each reference that contains `$`. The output cap adds one length compare after
@@ -138,7 +138,8 @@ old and new interleaved on one loaded host (load average about 32): the ordinary
 `ARG` plus `FROM` Dockerfile took 2.3 to 6.3 us per Dockerfile depending on host
 load, with old and new within noise of each other in every pair, and 33
 allocs/op old, 36 new (5504 B/op old, 6136 B/op new: the expander state and
-the three added `Stage` fields). That is no measurable change in time. Differential: `RuntimeMetadata(...).Map()`
+the three added `Stage` fields). That is no measurable change in time.
+Differential: `RuntimeMetadata(...).Map()`
 JSON for the 23 tracked Dockerfile inputs (22 files named `Dockerfile`,
 `Dockerfile.<ext>` or `*.Dockerfile`, plus the `Dockerfile.j2` template) is
 byte-identical between the unbounded and the bounded expander. Against main, 5
@@ -150,8 +151,9 @@ of them change by design because they have an ARG in `FROM` (`Dockerfile`,
 base.
 Hostile input, re-measured together on one host for the review that found the
 figures disagreed (`-benchtime=3x -count=5` for one line; one run for the 200
-lines with the bound disabled; a scratch copy of the pre-shared-buffer code with `exceedsExpansionBounds`
-forced to `false`): a balanced 60 KB line of nested `${A:-` blocks took 442-454
+lines with the bound disabled; a scratch copy of the pre-shared-buffer code
+with `exceedsExpansionBounds` forced to `false`): a balanced 60 KB line of
+nested `${A:-` blocks took 442-454
 ms/op and 835.8 MB/op with the reference bound disabled and 0.39 ms/op and 0.54
 MB/op with it. 200 such lines in one Dockerfile took 48.8 s and 167 GB
 allocated with the bound disabled. With the bound, the same 200 lines
@@ -178,10 +180,12 @@ stage):
 | 1000 ARGs, 800 refs per FROM, 1000 FROM lines | 7,920,890 B | 3,235,828,818 B | 21,967,818 B |
 
 Wall time to parse and marshal the second row: 1.53 s before, 0.08-0.12 s after;
-the third: 5.56 s before, 0.27-0.32 s after (a loaded host, two runs). The remaining payload is the input carried
-through: every ARG row holds its default once, and each stage row holds its own
+the third: 5.56 s before, 0.27-0.32 s after (a loaded host, two runs). The
+remaining payload is the input carried through: every ARG row holds its
+default once, and each stage row holds its own
 `FROM` text and name list. The evidence a stage adds is at most 16 values of
-256 bytes plus their names, about 8 KB (4251 B measured with short names). `TestBaseRefOversizedNestedReferenceIsUnresolvedAndFast`,
+256 bytes plus their names, about 8 KB (4251 B measured with short names).
+`TestBaseRefOversizedNestedReferenceIsUnresolvedAndFast`,
 `TestBaseRefManyNestedReferencesStayBounded`,
 `TestBaseRefPaddedArgChainIsUnresolved`, and
 `TestBaseRefPaddedArgChainDoesNotAmplifyAcrossStages` pin the expansion cases.
