@@ -28,8 +28,8 @@ func TestReadWorkflowCollectorTerminalFailuresScansBoundedColumns(t *testing.T) 
 	asOf := time.Date(2026, 10, 23, 12, 30, 0, 0, time.UTC)
 	failedAt := asOf.Add(-10 * time.Minute)
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{
-		{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", true, failedAt},
-		{"git", "git-example", "", "", true, failedAt.Add(-time.Minute)},
+		{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt},
+		{"git", "git-example", "", "", failedAt.Add(-time.Minute)},
 	}}}}
 
 	got, err := readWorkflowCollectorTerminalFailures(context.Background(), queryer, []collector.InstanceSummary{
@@ -45,7 +45,7 @@ func TestReadWorkflowCollectorTerminalFailuresScansBoundedColumns(t *testing.T) 
 	first := got[0]
 	if first.CollectorKind != "security_alert" || first.InstanceID != "security-alert-example" ||
 		first.FailureClass != "auth_denied" || first.FailureOperation != "list_org_alerts" ||
-		!first.Terminal || !first.ObservedAt.Equal(failedAt) {
+		!first.ObservedAt.Equal(failedAt) {
 		t.Fatalf("first = %#v, want security_alert/auth_denied/list_org_alerts/terminal", first)
 	}
 }
@@ -170,7 +170,7 @@ func TestWorkflowCollectorTerminalFailuresQueryShape(t *testing.T) {
 	t.Parallel()
 
 	query := workflowCollectorTerminalFailuresQuery
-	for _, forbidden := range []string{"last_failure_message", "last_failure_status_code", "failure_message", "LIMIT 20"} {
+	for _, forbidden := range []string{"last_failure_message", "last_failure_status_code", "failure_message", "last_failure_terminal", "LIMIT 20"} {
 		if strings.Contains(query, forbidden) {
 			t.Fatalf("query contains %q:\n%s", forbidden, query)
 		}
@@ -208,7 +208,7 @@ func TestReadCoordinatorSnapshotIncludesTerminalFailures(t *testing.T) {
 			{rows: [][]any{{int64(0), int64(0), int64(0)}}},
 			{rows: [][]any{}},
 			{rows: [][]any{}},
-			{rows: [][]any{{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", true, failedAt}}},
+			{rows: [][]any{{"security_alert", "security-alert-example", "auth_denied", "list_org_alerts", failedAt}}},
 		},
 	}
 

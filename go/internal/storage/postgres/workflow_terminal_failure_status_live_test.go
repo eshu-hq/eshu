@@ -171,7 +171,7 @@ func TestCollectorTerminalFailureWindowSemanticsLive(t *testing.T) {
 			t.Errorf("instance %q: no terminal failure reported, want class %q", id, class)
 			continue
 		}
-		if failure.FailureClass != class || !failure.Terminal {
+		if failure.FailureClass != class {
 			t.Errorf("instance %q: failure = %+v, want terminal class %q", id, failure, class)
 		}
 	}

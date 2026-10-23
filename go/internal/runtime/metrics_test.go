@@ -297,9 +297,9 @@ func TestStatusMetricsHandlerReportsCollectorTerminalFailureGauge(t *testing.T) 
 					{InstanceID: "git-a", CollectorKind: "git", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
 				},
 				CollectorTerminalFailures: []collector.TerminalFailure{
-					{CollectorKind: "security_alert", InstanceID: "alerts-a", FailureClass: "auth_denied", FailureOperation: "list_org_alerts", Terminal: true},
-					{CollectorKind: "security_alert", InstanceID: "alerts-b", FailureClass: "auth_denied", FailureOperation: "list_org_alerts", Terminal: true},
-					{CollectorKind: "security_alert", InstanceID: "ghost", FailureClass: "token_ghp_secret", Terminal: true},
+					{CollectorKind: "security_alert", InstanceID: "alerts-a", FailureClass: "auth_denied", FailureOperation: "list_org_alerts"},
+					{CollectorKind: "security_alert", InstanceID: "alerts-b", FailureClass: "auth_denied", FailureOperation: "list_org_alerts"},
+					{CollectorKind: "security_alert", InstanceID: "ghost", FailureClass: "token_ghp_secret"},
 				},
 			},
 		},

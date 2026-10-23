@@ -86,7 +86,6 @@ func TestCollectorRuntimeTerminalFailureDegradesAndFailsPromotion(t *testing.T) 
 		InstanceID:       "security-alert-example",
 		FailureClass:     "auth_denied",
 		FailureOperation: "list_org_alerts",
-		Terminal:         true,
 		ObservedAt:       failedAt,
 	})
 
@@ -109,23 +108,6 @@ func TestCollectorRuntimeTerminalFailureDegradesAndFailsPromotion(t *testing.T) 
 	}
 }
 
-func TestCollectorRuntimeNonTerminalFailureIsNotDegraded(t *testing.T) {
-	t.Parallel()
-	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
-	report := terminalFailureReport(now, securityAlertInstance(now), collector.TerminalFailure{
-		CollectorKind: "security_alert",
-		InstanceID:    "security-alert-example",
-		FailureClass:  "retryable",
-		Terminal:      false,
-		ObservedAt:    now,
-	})
-
-	row := runtimeFor(t, report, "security-alert-example")
-	if row.Health != "registered" || row.LastFailureClass != "" {
-		t.Fatalf("retryable row = %+v, want registered with no failure fields", row)
-	}
-}
-
 func TestCollectorRuntimeBoundsUnknownFailureClassAndOperation(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
@@ -134,7 +116,6 @@ func TestCollectorRuntimeBoundsUnknownFailureClassAndOperation(t *testing.T) {
 		InstanceID:       "security-alert-example",
 		FailureClass:     "ghp_exampleSecretToken123",
 		FailureOperation: "GET https://example.invalid/orgs/example-org?token=abc",
-		Terminal:         true,
 		ObservedAt:       now,
 	})
 
@@ -156,7 +137,6 @@ func TestCollectorTerminalFailureNeverLeaksSecretsIntoPayloads(t *testing.T) {
 		InstanceID:       "security-alert-example",
 		FailureClass:     "ghp_exampleSecretToken123",
 		FailureOperation: "Bearer ghp_exampleSecretToken123",
-		Terminal:         true,
 		ObservedAt:       now,
 	})
 
@@ -184,7 +164,6 @@ func TestCollectorTerminalFailureKeepsDisabledInstanceDisabled(t *testing.T) {
 		CollectorKind: "security_alert",
 		InstanceID:    "security-alert-example",
 		FailureClass:  "terminal",
-		Terminal:      true,
 		ObservedAt:    now,
 	})
 
@@ -204,7 +183,6 @@ func TestCollectorTerminalFailureWithoutRegisteredInstanceIsIgnored(t *testing.T
 		CollectorKind: "security_alert",
 		InstanceID:    "some-other-instance",
 		FailureClass:  "terminal",
-		Terminal:      true,
 		ObservedAt:    now,
 	})
 

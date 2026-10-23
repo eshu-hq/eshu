@@ -25,6 +25,11 @@ const maxFailureOperationLength = 48
 // failure followed by a later success never appears here, and an orphaned one
 // ages out after the window.
 //
+// Every TerminalFailure is terminal by construction: the reader selects rows
+// by the failed_terminal status, not by the last_failure_terminal flag, which
+// the scanner worker leaves false when it dead-letters a claim. There is no
+// per-row terminal flag to consult.
+//
 // FailureClass and FailureOperation are the bounded tokens the claim runner
 // persisted. The failure message and provider status code are deliberately
 // absent: they can carry provider response text and must not reach a status
@@ -34,10 +39,7 @@ type TerminalFailure struct {
 	InstanceID       string
 	FailureClass     string
 	FailureOperation string
-	// Terminal mirrors the persisted last_failure_terminal flag. A row with
-	// Terminal=false is a retryable failure and never degrades health.
-	Terminal   bool
-	ObservedAt time.Time
+	ObservedAt       time.Time
 }
 
 // boundedFailureClasses is the closed set of failure classes the claim runner
@@ -94,9 +96,6 @@ func terminalFailureDetail(class string, operation string) string {
 // other callers: it keeps a disabled row's health and detail unchanged.
 func (b *runtimeStatusBuilder) applyTerminalFailures(failures []TerminalFailure) {
 	for _, failure := range failures {
-		if !failure.Terminal {
-			continue
-		}
 		key := runtimeStatusKey(strings.TrimSpace(failure.CollectorKind), strings.TrimSpace(failure.InstanceID))
 		index, ok := b.byKey[key]
 		if !ok || !b.statuses[index].CoordinatorRegistered {

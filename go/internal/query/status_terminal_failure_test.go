@@ -62,7 +62,6 @@ func TestListCollectorsExposesBoundedTerminalFailure(t *testing.T) {
 		InstanceID:       "security-alert-example",
 		FailureClass:     "auth_denied",
 		FailureOperation: "list_org_alerts",
-		Terminal:         true,
 		ObservedAt:       failedAt,
 	})
 
@@ -99,7 +98,6 @@ func TestCollectorReadinessNamesTerminalFailureClass(t *testing.T) {
 		InstanceID:       "security-alert-example",
 		FailureClass:     "auth_denied",
 		FailureOperation: "list_org_alerts",
-		Terminal:         true,
 		ObservedAt:       now.Add(-time.Minute),
 	})
 

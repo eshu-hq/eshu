@@ -116,21 +116,22 @@ SELECT
 	// the first unresolved row without a sort; the anti-join probes the
 	// (kind, scope) index per candidate. Only the bounded class and operation
 	// tokens are selected; last_failure_message and last_failure_status_code
-	// can carry provider text and are never read.
+	// can carry provider text and are never read. last_failure_terminal is not
+	// read either: the failed_terminal status is the terminal truth, and the
+	// scanner worker dead-letters to failed_terminal without setting that
+	// flag, so gating on it would read a terminal failure as healthy.
 	workflowCollectorTerminalFailuresQuery = `
 SELECT
     i.collector_kind,
     i.instance_id,
     COALESCE(f.last_failure_class, ''),
     COALESCE(f.last_failure_operation, ''),
-    COALESCE(f.last_failure_terminal, TRUE),
     f.updated_at
 FROM unnest($1::text[], $2::text[], $3::timestamptz[]) AS i(collector_kind, instance_id, cutoff)
 CROSS JOIN LATERAL (
     SELECT
         t.last_failure_class,
         t.last_failure_operation,
-        t.last_failure_terminal,
         t.updated_at
     FROM workflow_work_items AS t
     WHERE t.collector_kind = i.collector_kind
@@ -317,7 +318,6 @@ func readWorkflowCollectorTerminalFailures(
 			&failure.InstanceID,
 			&failure.FailureClass,
 			&failure.FailureOperation,
-			&failure.Terminal,
 			&failure.ObservedAt,
 		); err != nil {
 			return nil, fmt.Errorf("read workflow collector terminal failures: %w", err)
