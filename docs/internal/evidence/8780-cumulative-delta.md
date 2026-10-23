@@ -102,8 +102,9 @@ cost.
 
 ## Performance Evidence
 
-Benchmark Evidence: the benchmark table below compares the union read and the
-collector baseline path on the touched code at the base and at this change.
+Benchmark Evidence: the benchmark table at the end of this section compares
+the union read and the collector baseline path on the touched code at the
+base and at this change.
 
 The collector baseline read is one statement on the standalone path (the
 active row on `scope_generations_active_scope_idx` plus one ordered LIMIT 1
@@ -115,6 +116,32 @@ full's) and one `git ls-tree` per delta sync. The union read keeps the #7797
 shape: one target primary-key row (one more column), one base bitmap probe,
 one prune probe for a superseded base, and the base fact pages; it never
 depends on chain length.
+
+Benchmarks, base `c5f784d73c` against this change, same benchmark code (only
+the version adapters differ: the base's two-column target row and the base's
+active-commit baseline), run base, head, head, base with `-count=4` each
+(n=8), `benchstat`, Apple M1 Max. The host was shared and loaded (load
+average 53-62 during the run), so absolute numbers are noisy; the comparisons
+are paired.
+
+| benchmark | base | head | delta |
+|---|---|---|---|
+| `BenchmarkFactStoreLoadProjectionFactsUnion` (200-row delta over a 2,000-file base, fake queryer) | 2.982 ms ± 1% | 2.988 ms ± 2% | ~ (p=0.721) |
+| same, B/op and allocs/op | 5.756 MiB, 67.94k | 5.757 MiB, 67.94k | +0.01%, +0.00% |
+| `BenchmarkOverlayDeltaBaseUnion` (2,000-file base with observability rows, 200-file delta) | 3.136 ms ± 3% | 2.827 ms ± 1% | -9.83% (p=0.000) |
+| same, B/op and allocs/op | 3.412 MiB, 5.711k | 3.372 MiB, 5.911k | -1.19%, +3.50% |
+| `BenchmarkUpdateRepositoryChainedDelta` (500-file repo, fetch, decide, diff, checkout) | 89.95 ms ± 2% | 112.07 ms ± 2% | +24.59% (p=0.000) |
+
+The union read does not regress. The overlay gets faster because it now drops
+the base's observability rows under touched paths instead of carrying them.
+The chained delta sync costs about 22 ms more: the cumulative diff runs one
+extra `git diff` and one `git ls-tree` process. That is the designed cost of
+Option B, paid per chained delta sync, and it replaces the refused delta plus
+forced full (about 470-520 s stored to active on busiest repo B) that the base
+path led to. Commands: `go test ./internal/facts ./internal/storage/postgres
+-run '^$' -bench 'BenchmarkOverlayDeltaBaseUnion|BenchmarkFactStoreLoadProjectionFactsUnion'
+-benchmem -count=4` and `go test ./internal/collector/repo/git -run '^$'
+-bench BenchmarkUpdateRepositoryChainedDelta -benchtime=20x -count=4`.
 
 ## Observability Evidence
 
