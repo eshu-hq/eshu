@@ -169,11 +169,13 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 	// aws_resource nodes. The source endpoint of ec2_instance_uses_ami is not
 	// one of those: the EC2 instance is excluded from generic resource
 	// materialization (#5448) and committed by DomainEC2InstanceNodeMaterialization
-	// under a different acceptance unit. Without this, relationship work that
+	// under a different acceptance unit, and the same holds for any other
+	// relationship endpoint that names an instance node (an alarm observing an
+	// EC2 metric is the #6228 case). Without this, relationship work that
 	// wins the race writes a sourceless edge -- MATCH finds nothing, MERGE never
 	// runs, no error is raised, the work item succeeds, and the later
 	// instance-node commit does not reopen it (#5717).
-	if batchNeedsEC2InstanceNodes(relationshipEnvelopes) && !h.ec2InstanceNodesReady(intent) {
+	if batchNeedsEC2InstanceNodes(resourceEnvelopes, relationshipEnvelopes) && !h.ec2InstanceNodesReady(intent) {
 		return reducercontract.Result{}, awsRelationshipEC2InstanceNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
