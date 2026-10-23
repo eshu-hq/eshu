@@ -14,6 +14,8 @@ import (
 	"syscall"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/mcp"
+	resultshape "github.com/eshu-hq/eshu/go/internal/mcp/result/shape"
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -83,6 +85,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Refuse a bad ESHU_MCP_RESULT_SHAPE for the same reason.
+	resultShape, err := loadResultShape(os.Getenv)
+	if err != nil {
+		logger.Error("mcp server refused to start: invalid ESHU_MCP_RESULT_SHAPE",
+			telemetry.EventAttr("runtime.startup.failed"),
+			"error", err,
+			"allowed", []string{string(resultshape.Dual), string(resultshape.Structured)},
+		)
+		os.Exit(1)
+	}
+
 	queryMux, adminMux, cleanup, authWiring, err := wireAPI(ctx, os.Getenv, logger, providers.PrometheusHandler)
 	if err != nil {
 		logger.Error("wire api failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
@@ -128,7 +141,7 @@ func main() {
 	// The find_tool ranker is built once here, over the profile-filtered
 	// tool list (#8771); router and core_router refuse to start without one.
 	server, rankerBuild, err := newMCPServer(queryMux, logger, authWiring.transportAuth,
-		queryProfile, toolSurface, newLexicalRanker)
+		queryProfile, toolSurface, newLexicalRanker, mcp.WithResultShape(resultShape))
 	if err != nil {
 		logger.Error("mcp server refused to start: no find_tool ranker",
 			telemetry.EventAttr("runtime.startup.failed"), "error", err)

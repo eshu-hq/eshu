@@ -48,6 +48,7 @@ func newMCPServer(
 	profile query.QueryProfile,
 	surface router.Surface,
 	newRanker router.RankerBuilder,
+	extra ...mcp.ServerOption,
 ) (*mcp.Server, rankerBuild, error) {
 	var build rankerBuild
 	opts := []mcp.ServerOption{
@@ -63,6 +64,7 @@ func newMCPServer(
 			return ranker
 		}))
 	}
+	opts = append(opts, extra...)
 	server := mcp.NewServer(handler, logger, opts...)
 	if !build.built && (surface == router.SurfaceRouter || surface == router.SurfaceCoreRouter) {
 		return nil, build, fmt.Errorf("tool surface %q serves find_tool, but no find_tool ranker was built", surface)
@@ -80,6 +82,7 @@ func logToolSurface(logger *slog.Logger, server *mcp.Server, build rankerBuild) 
 	logger.Info("mcp tool surface",
 		telemetry.EventAttr("mcp.tool_surface.configured"),
 		"surface", string(surface),
+		"result_shape", string(server.ResultShape()),
 		"tool_count", advertised,
 		"tools_list_bytes", listBytes,
 		"router_ranker", build.built,

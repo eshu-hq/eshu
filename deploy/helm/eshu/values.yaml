@@ -224,6 +224,16 @@ mcpServer:
   # Example:
   #   env:
   #     ESHU_MCP_TOOL_SURFACE: router
+  #
+  # To choose how a tools/call result is laid out, set ESHU_MCP_RESULT_SHAPE
+  # (issue #8800). Unset means dual, today's result: a text summary, the
+  # envelope again as an embedded resource, and structuredContent. structured
+  # sends one text summary and structuredContent only. A client can override it
+  # with ?shape=<value>: on POST /mcp/message for that request, on GET /sse for
+  # the whole SSE session. An unknown value makes the pod refuse to start.
+  # Switch back to dual to roll back.
+  #   env:
+  #     ESHU_MCP_RESULT_SHAPE: structured
   env: {}
   # MCP-only Kubernetes EnvVar entries; use valueFrom.secretKeyRef for ESHU_POSTGRES_READ_DSN.
   extraEnv: []

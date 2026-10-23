@@ -41,6 +41,13 @@ func (s *Server) processShape() resultshape.Mode {
 	return resultshape.OrDual(s.shape)
 }
 
+// ResultShape reports the process default tools/call result shape, which a
+// connection can override with the shape query parameter. cmd/mcp-server logs
+// it once at startup beside the tool surface.
+func (s *Server) ResultShape() resultshape.Mode {
+	return s.processShape()
+}
+
 // shapeFor returns the result shape for the request ctx serves: the
 // connection's override when ctx carries one, otherwise the process default.
 // A context with no override is the stdio path.
