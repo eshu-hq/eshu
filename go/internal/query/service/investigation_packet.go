@@ -48,11 +48,11 @@ func buildServiceInvestigationPacketWithContext(
 	workloadContext := buildCtx.workloadContext
 	serviceName = canonicalServiceName(serviceName, workloadContext)
 	evidenceFamilies := serviceInvestigationEvidenceFamiliesWithContext(buildCtx)
-	repositories := serviceInvestigationRepositories(workloadContext, evidenceFamilies)
+	repositories, repositoryCount := serviceInvestigationRepositories(workloadContext, evidenceFamilies)
 	withEvidence := repositoriesWithEvidence(repositories)
 	findings := serviceInvestigationFindingsWithContext(buildCtx, evidenceFamilies)
 	nextCalls := serviceInvestigationNextCalls(serviceName, workloadContext)
-	coverage := serviceInvestigationCoverage(workloadContext, repositories, withEvidence, evidenceFamilies)
+	coverage := serviceInvestigationCoverage(workloadContext, repositories, repositoryCount, withEvidence, evidenceFamilies)
 
 	packet := map[string]any{
 		"service_name":               serviceName,
@@ -107,7 +107,12 @@ func serviceInvestigationEvidenceFamiliesWithContext(buildCtx serviceStoryBuildC
 	return families
 }
 
-func serviceInvestigationRepositories(workloadContext map[string]any, evidenceFamilies []string) []map[string]any {
+// serviceInvestigationRepositories merges every repository the workload
+// context names and returns the rows capped at serviceStoryItemLimit, plus the
+// true repository count taken before the cap. When the list is cut it appends
+// one "__truncated__" marker row after the capped rows; that marker is not a
+// repository and is never part of the returned count (#8802).
+func serviceInvestigationRepositories(workloadContext map[string]any, evidenceFamilies []string) ([]map[string]any, int) {
 	repos := map[string]map[string]any{}
 	serviceRepoID := querycontract.SafeStr(workloadContext, "repo_id")
 	addInvestigationRepo(repos, serviceRepoID, querycontract.SafeStr(workloadContext, "repo_name"), "service_owner", evidenceFamilies...)
@@ -146,6 +151,7 @@ func serviceInvestigationRepositories(workloadContext map[string]any, evidenceFa
 	sort.Slice(rows, func(i, j int) bool {
 		return querycontract.StringVal(rows[i], "repo_id") < querycontract.StringVal(rows[j], "repo_id")
 	})
+	total := len(rows)
 	capped, truncated := CapMapRows(rows, serviceStoryItemLimit)
 	if truncated {
 		capped = append(capped, map[string]any{
@@ -153,7 +159,7 @@ func serviceInvestigationRepositories(workloadContext map[string]any, evidenceFa
 			"note":    fmt.Sprintf("repository list truncated at %d rows", serviceStoryItemLimit),
 		})
 	}
-	return capped
+	return capped, total
 }
 
 const serviceInvestigationTruncationMarkerID = "__truncated__"
@@ -317,6 +323,7 @@ func serviceInvestigationNextCalls(serviceName string, workloadContext map[strin
 func serviceInvestigationCoverage(
 	workloadContext map[string]any,
 	repositories []map[string]any,
+	repositoryCount int,
 	withEvidence []map[string]any,
 	evidenceFamilies []string,
 ) map[string]any {
@@ -344,10 +351,17 @@ func serviceInvestigationCoverage(
 	upstreamTruncated := querycontract.BoolVal(workloadContext, "dependents_truncated") ||
 		querycontract.BoolVal(workloadContext, "consumer_repositories_truncated") ||
 		querycontract.BoolVal(workloadContext, "provisioning_source_chains_truncated")
+	repositoriesTruncated := serviceInvestigationRepositoriesTruncated(repositories)
 	return map[string]any{
-		"state":                            state,
-		"reason":                           reason,
-		"repository_count":                 len(repositories),
+		"state":  state,
+		"reason": reason,
+		// repository_count is the true number of repositories before the
+		// result_limit cap; it never counts the "__truncated__" marker row.
+		// repositories_truncated says the repositories_considered list was cut,
+		// so a caller needs no row scan to know the count exceeds the rows
+		// returned (#8802).
+		"repository_count":                 repositoryCount,
+		"repositories_truncated":           repositoriesTruncated,
 		"repositories_with_evidence_count": len(withEvidence),
 		"evidence_family_count":            len(evidenceFamilies),
 		"result_limit":                     serviceStoryItemLimit,
@@ -361,7 +375,7 @@ func serviceInvestigationCoverage(
 		// summary honest about which bound fired, matching
 		// buildServiceResultLimitsWithContext's evidence_file_read_limit.
 		"evidence_file_read_limit": serviceEvidenceFileLimit,
-		"truncated":                serviceInvestigationRepositoriesTruncated(repositories) || upstreamTruncated,
+		"truncated":                repositoriesTruncated || upstreamTruncated,
 	}
 }
 
