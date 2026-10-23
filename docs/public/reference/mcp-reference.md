@@ -85,7 +85,10 @@ the process setting or another client's requests. In Helm, set
 `router` and `core_router` need the `find_tool` and `call_tool` handlers
 (#8757) and a `find_tool` ranker. The server builds the lexical ranker once at
 startup on every surface (#8771), and refuses to start on `router` or
-`core_router` when no ranker was built. The default `full` is unaffected.
+`core_router` when no ranker was built. The default `full` advertises the
+same tools as before but also builds the ranker at startup, about 9 to 16 ms
+once and about 1.1 MB of heap, because `find_tool` stays callable there and a
+`?surface=router` override can select the router surface.
 Until the core tool set (#8759) lands, `core_router` advertises only
 `find_tool` and `call_tool`.
 
