@@ -49,6 +49,19 @@ reported `truth.freshness.state = stale`.
   `state = building` and let it drain. If the cause is `dead_lettered_domain`,
   follow [deadletter growth](#symptom-deadletter-growth). Do not force a replay
   for a building scope.
+- **Empty security-alert answer:** a zero-row security-alert reconciliation
+  read with `coverage.state` other than `complete` names its cause in
+  `coverage.reasons`. `collector_not_configured` and
+  `repository_outside_target_set` are configuration: add an enabled
+  `security_alert` instance or a target that covers the repository.
+  `no_committed_generation` is still collecting. `terminal_fetch_failure:<class>`
+  is a provider failure (`auth_denied` means the provider refused the target's
+  credential); follow
+  [collector failure](#symptom-collector-failure). The
+  `supply chain query stage completed` log for stage
+  `security_alert_collection_state` carries `coverage_state`, `coverage_reason`,
+  and `collector_state`, and `eshu_dp_query_security_alert_empty_answers_total`
+  counts these answers by `coverage_state` and `reason`.
 
 ## Symptom: stuck reducer
 

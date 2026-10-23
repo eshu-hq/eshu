@@ -56,6 +56,48 @@ List and count responses include a `coverage` object. `state=target_incomplete`
 means at least one returned or counted reconciliation came from a truncated
 open-alert provider read, so callers must not treat the count as complete.
 
+### Empty answers
+
+A zero-row answer is only as good as the collection behind it. When a list,
+count, or first inventory page comes back empty, the API reads the
+security-alert collector's state before it answers (#8803). Pages with rows
+skip this read, because the rows already prove the collector ran.
+
+| Collector state | `coverage.state` | `coverage.reasons` | `truth.level` | `truth.freshness.state` |
+| --- | --- | --- | --- | --- |
+| No enabled `security_alert` instance | `not_configured` | `collector_not_configured` | `fallback` | `unavailable` |
+| No enabled target covers the repository | `not_configured` | `repository_outside_target_set` | `fallback` | `unavailable` |
+| Covering target has no projected generation yet | `target_incomplete` | `no_committed_generation` | `derived` | `building` |
+| Latest fetch failed terminally, nothing projected before | `target_incomplete` | `terminal_fetch_failure:<class>` | `fallback` | `unavailable` |
+| Latest fetch failed terminally after an earlier projected generation | `target_incomplete` | `terminal_fetch_failure:<class>` | `derived` | `stale` |
+| Projected generation and no later terminal failure | `complete` | (absent) | `exact` | `fresh` |
+
+Every non-complete row sets `truth.freshness.cause=missing_collector_completion`,
+whose next check is `list_collectors`. `<class>` is one of `auth_denied`,
+`not_found`, `rate_limited`, `terminal`, or `unclassified`. The not-configured
+rows and the healthy row also carry `collector_readiness`
+(`not_configured` or `ready_zero_results`). If the collection-state read itself
+fails, the page is still served with reason `collection_state_unavailable`,
+`readiness_unavailable`, `derived` truth, and `unavailable` freshness.
+
+A repository counts as covered when a repository-scope target names it, or when
+an organization-scope target's `allowed_repositories` lists it under the same
+owner. When several targets cover it, the healthiest one decides. A read with
+no repository anchor needs every configured target to be healthy, and its
+reasons list each distinct failing state. A later success clears a terminal
+failure: freshness flips back to `fresh` once the newest work item completes.
+
+The answer never names a target, another repository, an allowlist, or a failure
+message. A scoped token reaches the collector read only for a repository inside
+its grants; a selector outside them answers `404` first.
+
+One gap remains. An organization target reads at most `max_pages` pages of the
+org-wide open-alert stream, and the allowlist filters that window. If the
+window holds no alert for the repository, no fact records the truncation, so
+the empty answer still reads `complete`. #8803 tracks the collector-side
+carrier that closes this case with reason
+`provider_open_alert_page_limit_reached`.
+
 Eshu should match provider alert counts when it has equivalent owned target
 evidence and advisory data. Eshu may exceed provider alert output when it can
 add code-to-cloud context, image/runtime impact, or additional advisory sources.

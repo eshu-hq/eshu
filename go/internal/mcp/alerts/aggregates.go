@@ -15,7 +15,7 @@ func ReconciliationAggregateTools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		{
 			Name:        "count_security_alert_reconciliations",
-			Description: "Return reducer-owned provider security alert reconciliation totals for one optional scope without paging through individual reconciliation rows. Provides total reconciliations, rollups by reconciliation_status, provider, provider_state, source_freshness, and provider-source coverage. Use before list_security_alert_reconciliations when the question is a count, not a list.",
+			Description: "Return reducer-owned provider security alert reconciliation totals for one optional scope without paging through individual reconciliation rows. Provides total reconciliations, rollups by reconciliation_status, provider, provider_state, source_freshness, and provider-source coverage. Use before list_security_alert_reconciliations when the question is a count, not a list. A zero total that is not proven complete is empty for a named reason: coverage.reasons lists it, and truth freshness is not fresh.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

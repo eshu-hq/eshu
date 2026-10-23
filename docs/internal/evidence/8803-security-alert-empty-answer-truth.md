@@ -10,9 +10,12 @@ new statements, and the observability that reaches an operator.
 
 Each row is a case in `TestSecurityAlertEmptyAnswerCoverageInvariant`
 (`go/internal/query/supply/chain/security_alert_coverage_test.go`), run against
-the list, count, and inventory routes. Before the fix every non-healthy row
-answered `complete`, `exact`, `fresh` (34 failing subtests on the unmodified
-handlers). After the fix all cases pass.
+the list, count, and inventory routes. With the classification disabled
+(`securityAlertEmptyAnswerVerdict` forced to return no verdict, which is the
+pre-fix behavior), all 36 subtests (12 cases on 3 routes) fail: every
+non-healthy case answers `complete`, `exact`, `fresh`, and the healthy cases
+lack the readiness envelope (the inventory route lacks `coverage` entirely).
+With the classification on, all 36 pass.
 
 | Case | `coverage.state` | `coverage.reasons` | level | freshness | readiness |
 | --- | --- | --- | --- | --- | --- |

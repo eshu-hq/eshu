@@ -1412,7 +1412,7 @@ resolution before reading reducer-owned aggregate facts.
 
 `provider_state` and `reconciliation_status` may narrow an anchored request,
 but they are filters only and are rejected when sent without one of the anchors
-above.
+above. An empty list, count, or first inventory page is classified from the security-alert collector's state (#8803): `coverage.state` is `complete`, `target_incomplete`, or `not_configured`, and a non-complete answer carries `coverage.reasons`, a `derived` or `fallback` truth level, non-fresh freshness, and the `missing_collector_completion` cause ([state table](../security-intelligence-provider-alert-parity.md#empty-answers)).
 
 Rows keep `provider_alert`, `eshu_package`, and `eshu_impact` as separate
 objects. Provider alert fields preserve reported alert ID/number, state,
