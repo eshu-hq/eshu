@@ -19,11 +19,19 @@ in `go/cmd/workflow-coordinator/main.go` as `Service.WorkItemRetention`.
   `WorkItemRetentionStore` is wired. Because `LoadConfig` enables it, every
   active-mode `Service` built from `LoadConfig` needs the store;
   `go/cmd/workflow-coordinator/main.go` always wires it.
-- The first pass runs at startup, after the initial run reconciliation, so
-  runs that just finished are already closed. Later passes run on their own
-  ticker.
+- `startWorkItemRetention` runs passes on one goroutine, started after the
+  initial run reconciliation so runs that just finished are already closed:
+  a pass at start, then one per interval. At most one pass is in flight and
+  ticks during a long pass are dropped. It runs apart from `Run`'s select
+  loop, so a pass never delays reconcile, reap, or run reconciliation.
+  `Run`'s deferred stop cancels an in-flight pass and waits for it.
 - A failed pass logs at ERROR and counts `outcome="error"` but does not stop
-  the coordinator; the sweeper retries the same window next tick.
+  the coordinator; the sweeper retries the same window next tick. A pass
+  stopped by shutdown logs at INFO (`workflow work item retention pass
+  canceled`), counts `outcome="canceled"`, and skips the table size read.
+- The table size gauges export nothing until a pass reads the catalog size,
+  so dark mode, retention off, and the time before the first pass never
+  read as an empty table.
 - Metrics use the optional `WorkItemRetentionMetrics` interface, so existing
   `Metrics` fakes need no change.
 
@@ -40,8 +48,9 @@ in `go/cmd/workflow-coordinator/main.go` as `Service.WorkItemRetention`.
 
 The names are literal strings, not `MetricPrefix + ...`, so the telemetry
 coverage gate can see their registration. One log line per pass:
-`workflow work item retention pass` (INFO) or
-`workflow work item retention pass failed` (ERROR).
+`workflow work item retention pass` (INFO),
+`workflow work item retention pass failed` (ERROR), or
+`workflow work item retention pass canceled` (INFO).
 
 Operator page and runbook:
 `docs/public/reference/telemetry/workflow-work-item-retention.md`. Evidence:
@@ -49,5 +58,7 @@ Operator page and runbook:
 
 ## Tests
 
-`retention_test.go` (config, Run gating, failure handling) and
-`retention_metrics_test.go` (instrument emission).
+`retention_test.go` (config, Run gating, failure handling),
+`retention_loop_test.go` (a blocked pass does not stall run reconciliation;
+shutdown is `canceled`), and `retention_metrics_test.go` (instrument
+emission, empty gauges without a reading).

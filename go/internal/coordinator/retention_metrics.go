@@ -15,7 +15,7 @@ import (
 )
 
 // workItemRetentionBatchBuckets span one batch transaction's wall time, which
-// is also its row-lock hold. The #8829 EXPLAIN measured 14 to 16 ms per
+// is also its row-lock hold. The #8829 EXPLAIN measured 11 to 63 ms per
 // 1,000-row batch; a batch near the 30 s statement timeout is a regressed plan.
 var workItemRetentionBatchBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
 

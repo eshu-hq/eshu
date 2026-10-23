@@ -43,11 +43,13 @@ each target keeps its newest row, its newest `completed` row and its newest
 
 ## Evidence
 
-`EXPLAIN (ANALYZE, BUFFERS)` on 300,000 rows (50 scopes of 6,000 cycles): 14 to
-16 ms and 14.1k to 14.7k shared buffers per 1,000-row batch; a full walk
-deleted 156,010 rows in 301 batches; a second walk deleted 0. Without the
-`OFFSET 0` fence the planner chose a hash semi-join over a full sequential
-scan (127 ms with a temp spill). Details: `docs/internal/evidence/8829-workflow-work-item-retention.md`.
+`EXPLAIN (ANALYZE, BUFFERS)` on 300,000 rows (50 scopes of 6,000 cycles, two id
+layouts): 11 to 63 ms and 10k to 45k shared buffers per 1,000-row batch, no
+slower than the earlier two-probe statement in any measured window (median
+of three runs). A full walk deleted about 156,000 rows in about 300 batches;
+a second walk deleted 0. Without the `OFFSET 0` fence the planner chose a
+hash semi-join over a full sequential scan (127 ms with a temp spill).
+Details: `docs/internal/evidence/8829-workflow-work-item-retention.md`.
 
 ## Tests
 

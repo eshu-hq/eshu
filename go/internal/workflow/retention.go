@@ -20,8 +20,8 @@ const (
 	// or a status read that lags its pass.
 	minWorkItemRetentionAge = 48 * time.Hour
 	// defaultWorkItemRetentionBatchSize is the rows one batch transaction
-	// examines and may delete. The #8829 EXPLAIN on a 300k-row seed measured
-	// 14 to 16 ms and 14.1k to 14.7k shared buffers per 1,000-row batch.
+	// examines and may delete. The #8829 EXPLAIN on 300k-row seeds measured
+	// 11 to 63 ms and 10k to 45k shared buffers per 1,000-row batch.
 	defaultWorkItemRetentionBatchSize = 1000
 	// maxWorkItemRetentionBatchSize caps one batch transaction so its row
 	// locks stay short-lived.

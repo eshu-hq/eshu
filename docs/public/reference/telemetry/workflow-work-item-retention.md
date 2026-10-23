@@ -41,18 +41,25 @@ Each pass examines at most 100 times the batch size rows (100,000 at the
 default), so a large backlog drains over several passes. A 268,800-row
 backlog takes three passes: at startup, then 5 and 10 minutes later, so it
 is done within about 15 minutes. The batch work itself is short: a full walk
-of a 300,000-row table took 301 batches and 12.9 seconds in the #8829
-measurement.
+of a 300,000-row table took about 300 batches and 13 to 18 seconds in the
+#8829 measurements.
 
 Cumulative counts drop at upgrade, when the backlog goes, and from then on
 count only retained rows (terminal rows newer than the age, plus the rows
 retention keeps). This applies to:
 
-- `terminal_failed_count` in collector back-pressure status;
+- collector back-pressure status: `terminal_failed_count` and the
+  `failure_classes` counts;
 - the coordinator snapshot's work-item status counts;
-- the registry collector status `terminal_failures` count;
-- the package-registry metadata `planned`, `completed`, and `failed` counts
-  per ecosystem, and the registry failure-class counts.
+- registry collector status: `terminal_failures` (all-time, no window) and
+  the `failure_classes` counts;
+- registry collector status `metadata_targets`: the `planned`, `completed`,
+  `failed`, and `rate_limited` counts per package ecosystem.
+
+Latest-value reads keep their answer: each target keeps its newest row, its
+newest `completed` row, and its newest `failed_terminal` row, so the
+registry `last_completed_at` and the newest failure per target do not
+change.
 
 Windowed reads are untouched at any allowed age: the 30-minute recent-failure
 window and the 24-hour registry status window only count rows far younger
@@ -89,16 +96,26 @@ which no other writer locks. Each batch runs under a local `lock_timeout`
 and a 30-second `statement_timeout`. Several coordinators can run retention
 at once: their batches skip each other's locked rows.
 
+Inside the coordinator, retention runs on its own loop, apart from collector
+reconciliation, claim reaping, and run reconciliation, so a slow pass never
+delays them. At most one pass is in flight; ticks that arrive during a long
+pass are dropped. Shutdown cancels an in-flight pass and waits for it to
+stop; the batches it already committed stay committed.
+
 ## Metrics
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `eshu_dp_workflow_coordinator_work_item_retention_passes_total` | counter | `outcome` | Retention passes, `success` or `error`. |
+| `eshu_dp_workflow_coordinator_work_item_retention_passes_total` | counter | `outcome` | Retention passes: `success`, `error`, or `canceled` (stopped by coordinator shutdown). |
 | `eshu_dp_workflow_coordinator_work_item_retention_pass_duration_seconds` | histogram | `outcome` | Wall time of one pass. |
-| `eshu_dp_workflow_coordinator_work_item_retention_deleted_total` | counter | `status` | Rows deleted, by `completed` or `failed_terminal`. A failed pass still counts the batches it committed. |
+| `eshu_dp_workflow_coordinator_work_item_retention_deleted_total` | counter | `status` | Rows deleted, by `completed` or `failed_terminal`. A failed or canceled pass still counts the batches it committed. |
 | `eshu_dp_workflow_coordinator_work_item_retention_batch_duration_seconds` | histogram | none | One batch transaction's wall time, which is also its row-lock hold. |
-| `eshu_dp_workflow_coordinator_work_items_table_bytes` | gauge | none | `pg_total_relation_size` of `workflow_work_items` (heap, indexes, TOAST) after the last pass. |
-| `eshu_dp_workflow_coordinator_work_items_estimated_rows` | gauge | none | The planner's live-row estimate (`pg_class.reltuples`) after the last pass. |
+| `eshu_dp_workflow_coordinator_work_items_table_bytes` | gauge | none | `pg_total_relation_size` of `workflow_work_items` (heap, indexes, TOAST) after the last pass that read it. |
+| `eshu_dp_workflow_coordinator_work_items_estimated_rows` | gauge | none | The planner's live-row estimate (`pg_class.reltuples`) after the last pass that read it. |
+
+The two table gauges export no data point until a pass has read the catalog
+size: in dark mode, with retention turned off, and before the first pass
+they are absent, not 0.
 
 Each batch statement also carries the shared Postgres store span and query
 metrics under store name `workflow_work_item_retention`.
@@ -107,8 +124,9 @@ metrics under store name `workflow_work_item_retention`.
 
 Each pass writes one line. A successful pass logs at INFO with the message
 `workflow work item retention pass`. A failed pass logs at ERROR with the
-message `workflow work item retention pass failed` and an `error` field.
-Both carry `outcome`, `deleted_completed`, `deleted_failed_terminal`,
+message `workflow work item retention pass failed` and an `error` field. A
+pass stopped by coordinator shutdown logs at INFO with the message
+`workflow work item retention pass canceled`. All three carry `outcome`, `deleted_completed`, `deleted_failed_terminal`,
 `scanned_rows`, `batches`, `wrapped`, `longest_batch_ms`, `duration_ms`,
 `retention_age`, `batch_size`, `max_batches`, and `table_bytes` with
 `table_estimated_rows` (or `table_size_error`).
@@ -116,9 +134,14 @@ Both carry `outcome`, `deleted_completed`, `deleted_failed_terminal`,
 ## Runbook
 
 **`passes_total{outcome="error"}` is rising.** Read the ERROR log's `error`
-field. A `lock timeout` (SQLSTATE 55P03) means something else holds a
-finished claim row of a terminal item, which no shipped writer does: find
-the holder with `pg_blocking_pids` before changing any setting. A
+field. A `lock timeout` (SQLSTATE 55P03) means a batch waited more than
+2 seconds for a lock. Item rows are taken with `SKIP LOCKED`, so the wait is
+on something else: a relation lock on `workflow_work_items` or
+`workflow_claims` (a non-concurrent `CREATE INDEX`, an `ALTER TABLE` from a
+schema migration or `EnsureSchema`, a manual `LOCK TABLE`), or a session
+holding a finished claim row of a terminal item, which no shipped writer
+does. Find the holder with `pg_blocking_pids` and `pg_locks` before
+changing any setting. A
 `statement timeout` means a batch plan regressed: capture
 `EXPLAIN (ANALYZE, BUFFERS)` of the batch statement in
 `go/internal/storage/postgres/retention/work/items/sql.go` against a copy of
@@ -132,7 +155,9 @@ flat, the remaining rows are protected: open runs that never closed, or one
 newest row per target. Check run status counts for runs stuck open.
 
 **`batch_duration_seconds` p99 above about 1 s.** Batches are measured at
-about 15 ms per 1,000 rows, and 72 ms at the slowest in a full walk. A slow batch holds its row locks longer; lower
+11 to 63 ms per 1,000 rows on a 300,000-row table, depending on how the
+windows fall across targets, and 110 ms at the slowest in a full walk. A
+slow batch holds its row locks longer; lower
 `ESHU_WORKFLOW_COORDINATOR_WORK_ITEM_RETENTION_BATCH_SIZE` while the plan is
 investigated, then restore it.
 

@@ -57,6 +57,29 @@ holds its newest completion: C 15.0 to 15.2 ms and 15.7k buffers, A 15.1 to
 count, once per walk, and here the lapsed rows sat on adjacent heap pages;
 scattered rows cost up to one buffer per newer row.
 
+Second seed, the review recipe: the same 50 x 6,000 shape, but with
+`aws:inst-1:gen-sNN-cNNNNN` ids, so each 1,000-row window is one scope's
+consecutive cycles (174 MB). Same method, cutoff `2026-09-23`, three runs
+per window, warm cache:
+
+| Window | Previous two-probe statement | Shipped same-status probe |
+| --- | --- | --- |
+| head (scope 00, always failing) | 61.0 to 68.7 ms, 36.7k buffers | 35.9 to 36.2 ms, 27.4k buffers |
+| scope 05, cycle 3,000 | 19.5 to 25.1 ms, 15.2k buffers | 11.4 ms, 10.4k buffers |
+| scope 20 head | 32.5 to 32.6 ms, 28.2k buffers | 31.7 to 31.8 ms, 27.8k buffers |
+| scope 20, cycle 1,500 | 65.1 to 68.1 ms, 46.5k buffers | 62.6 to 62.8 ms, 45.2k buffers |
+| scope 45, cycle 1,000 | 51.7 to 56.0 ms, 40.9k buffers | 49.5 to 49.7 ms, 39.6k buffers |
+| adversarial: 1 completed row then 5,996 failures, heap order shuffled | 42.0 to 42.4 ms, 42.4k buffers, deletes the completed row | 28.0 to 28.1 ms, 36.7k buffers, keeps it |
+
+The 61 ms the review reproduced for the previous statement is the first row
+of this table. Full walk on this seed plus the adversarial scope (305,997
+rows), one `psql` per batch: 306 batches, 118,670 completed and 40,449
+failed_terminal deleted, slowest batch 110 ms, 17.7 s; a second walk took
+147 batches, deleted 0 and took 4.1 s. The review's walk of the previous
+statement on this seed took 21.1 s. After the walk the adversarial scope
+kept its one completed row, and every scope's newest `completed` and newest
+`failed_terminal` `updated_at` matched an untouched copy.
+
 Shipped plan, abridged:
 
 ```text
@@ -136,12 +159,43 @@ same PostgreSQL 18.6:
   `SKIP LOCKED` fails it with SQLSTATE 55P03.
 - `TestPruneWorkItemsLiveOpenBatchDoesNotBlockLifecycle`: lifecycle work
   completes while an uncommitted batch holds its locks.
+- `TestPruneWorkItemsLiveKeepsRegistryLastCompletedAt`: the review
+  counterexample through `StatusStore.ReadStatusSnapshot`. A
+  `package_registry` target completed 40 days ago and failed terminally
+  from 39 to 31 days ago and 1 day ago. On the previous statement
+  `last_completed_at` went from 2001-11-22 to absent; on the shipped one it
+  keeps its date and only the nine superseded failures go.
 - `TestPruneWorkItemsLiveKeepsRowsNeededForFailureReporting`: keeps the
   newest unresolved terminal failure, the newest completed row of a scope
   that lapsed into failures, the newest row and the active generation.
   Mutation checks on the shipped statement: dropping only the completed
   guard fails it (`lapse-1` deleted); dropping only the failed guard fails
   it (`heal-2` deleted); dropping both fails it on both.
+
+## Coordinator Loop Evidence
+
+The review found that a pass ran inline in `Service.Run`'s select loop, so a
+100-batch pass (about 1.5 to 7 s measured, at worst 100 x the 30 s statement
+timeout) delayed claim reaping and run reconciliation by its whole duration.
+Retention now runs on one goroutine (`startWorkItemRetention`): a pass at
+start, after the initial run reconciliation, then one per interval. At most
+one pass is in flight; `time.Ticker` drops ticks during a long pass. `Run`'s
+deferred stop cancels an in-flight pass and waits for the goroutine, so no
+pass outlives `Run`.
+
+The database overlap is not new. The same reap and reconcile statements
+already ran beside retention from other coordinator replicas and from
+collectors, which the live concurrency proofs above cover. Retention reads
+`workflow_runs` without a lock, and run status only moves from open to
+closed, so a pass that sees a run still open skips its rows until the next
+pass. In-process shared state is the sweeper cursor (mutex-guarded), the
+OpenTelemetry instruments, and the logger, all safe for concurrent use.
+
+Proof: `TestServiceRunRetentionPassDoesNotDelayRunReconciliation` blocks a
+pass until shutdown while run reconciliation ticks every 5 ms. Before the
+change it timed out, because the startup pass held the loop. After it, two
+reconciliation ticks land during the blocked pass, shutdown cancels it, and
+`Run` returns after the pass reports. 30 runs under `-race` passed.
 
 ## Observability Evidence
 
@@ -156,7 +210,14 @@ log line per pass, and Postgres store spans under
 `TestNewMetricsPublishesWorkItemRetentionSignals` and
 `TestServiceRunActiveModeRunsWorkItemRetentionWhenEnabled`; the default-on
 startup pass with no environment set is proven by
-`TestServiceRunActiveModeRunsDefaultRetentionWithNoEnvironment`. Operator page:
+`TestServiceRunActiveModeRunsDefaultRetentionWithNoEnvironment`. A pass
+stopped by shutdown counts `outcome="canceled"` and logs INFO
+`workflow work item retention pass canceled`
+(`TestRunWorkItemRetentionTreatsShutdownAsCanceled`,
+`TestRecordWorkItemRetentionCountsCanceledPassesApart`). The table size
+gauges export no data point until a pass reads the catalog size, so dark
+mode, retention off and the time before the first pass are absent, not 0
+(`TestWorkItemTableSizeGaugesStayEmptyWithoutAKnownReading`). Operator page:
 `docs/public/reference/telemetry/workflow-work-item-retention.md`.
 
 ## Default

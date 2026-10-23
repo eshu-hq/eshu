@@ -36,8 +36,9 @@ package items
 // primary-key probe whose newer-row check probes
 // workflow_work_items_collector_scope_generation_updated_idx once per row,
 // with the (updated_at, work_item_id) comparison as an index condition and the
-// status as a heap filter. 14 to 16 ms and 14.1k to 14.7k shared buffers per
-// 1,000-row batch. The OFFSET 0 fence keeps that check per-row: without it the
+// status as a heap filter. 11 to 63 ms and 10k to 45k shared buffers per
+// 1,000-row batch across two id layouts, no slower than the earlier two-probe
+// statement in any measured window (median of three runs). The OFFSET 0 fence keeps that check per-row: without it the
 // planner turned it into a hash semi-join over a full sequential scan
 // (127 ms with a temp spill). The worst case is a target whose newest
 // completed row is older than the cutoff and followed by many failures: its

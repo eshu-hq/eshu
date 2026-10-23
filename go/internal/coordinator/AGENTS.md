@@ -187,8 +187,10 @@ Two rules the split had to obey, and both will apply to the next family move:
   `Run` fails when it is on with no `WorkItemRetention` store, so any
   active-mode `Service` built from `LoadConfig` must wire one. A failed
   pass logs ERROR and counts `outcome="error"` but never returns from `Run`.
-  Keep the startup pass after the initial run reconciliation. Its metric names
-  stay literal strings. See `work-item-retention.md`.
+  Keep the loop started after the initial run reconciliation, on its own
+  goroutine (`startWorkItemRetention`); never move a pass back into `Run`'s
+  select loop, where it delays reap and reconciliation. Shutdown is outcome
+  `canceled`, not `error`. Its metric names stay literal strings. See `work-item-retention.md`.
 - **Shared plan-key validation stays dependency-neutral** — schedulers and
   extension egress parsing call `contract.ValidateSafePlanKey` directly.
   Terraform-state keeps its separate, stricter validator, which moved with the
