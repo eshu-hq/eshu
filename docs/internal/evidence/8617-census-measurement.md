@@ -22,3 +22,9 @@ The follow-up classification fix refuses to label an unrecognized successful
 publisher description as an ordinary full run. It does not change the recognized
 publisher descriptions in this snapshot. Full-day reporting and live positive
 reuse/smoke proof remain required on #8617.
+
+Independent review subsequently tightened at-merge history to request all check
+attempts and reject incomplete REST pages or job counts below the observed
+check-suite count. The retained snapshot is historical validation, not final
+post-review or full-day acceptance evidence. Boundary regressions exercise the
+production API path for both corrections.

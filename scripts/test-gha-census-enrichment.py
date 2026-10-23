@@ -112,6 +112,45 @@ class TestPagination(unittest.TestCase):
                 gha_census_enrichment._pages("runs", "workflow_runs")
 
 
+class TestIncompletePages(unittest.TestCase):
+    def test_short_rest_page_cannot_override_reported_total(self) -> None:
+        with mock.patch.object(gha_census_enrichment, "_api",
+                               return_value={"total_count": 2, "jobs": [{"id": 1}]}):
+            with self.assertRaisesRegex(RuntimeError, "incomplete"):
+                gha_census_enrichment._pages("jobs", "jobs")
+
+
+class TestApiHistory(unittest.TestCase):
+    def test_required_green_requests_all_attempts_for_historical_merge(self) -> None:
+        end = datetime(2026, 10, 23, 12, 30, tzinfo=timezone.utc)
+        pr = {"number": 1, "head": {"sha": "head"},
+              "merged_at": "2026-10-23T12:10:00Z"}
+        checks = [{"name": name, "conclusion": "success",
+                   "started_at": "2026-10-23T12:01:00Z",
+                   "completed_at": "2026-10-23T12:04:00Z"}
+                  for name in ("go-core-complete", "go-race-complete")]
+        later_retry = {"name": "go-core-complete", "conclusion": "failure",
+                       "started_at": "2026-10-23T12:20:00Z",
+                       "completed_at": "2026-10-23T12:21:00Z"}
+
+        def api(path: str):
+            if "/actions/runs?" in path:
+                return {"total_count": 1, "workflow_runs": [
+                    {"created_at": "2026-10-23T12:00:00Z"}]}
+            if "/check-runs" in path:
+                rows = checks + [later_retry] if "filter=all" in path else [later_retry]
+                return {"total_count": len(rows), "check_runs": rows}
+            return [{"context": "required-gates-complete", "state": "success",
+                     "description": "All path-selected blocking gates passed",
+                     "created_at": "2026-10-23T12:05:00Z"}]
+
+        with mock.patch.object(gha_census_enrichment, "_merged_prs", return_value=[pr]), \
+                mock.patch.object(gha_census_enrichment, "_api", side_effect=api):
+            result = gha_census_enrichment.required_green(end-timedelta(hours=1), end)
+        self.assertEqual(result["outcomes"], {"success": 1})
+        self.assertEqual(result["heads"][0]["minutes"], 5.0)
+
+
 class TestOverallRequiredGreen(unittest.TestCase):
     def test_overall_success_percentiles_exclude_censored_heads(self):
         end = datetime(2026, 10, 23, tzinfo=timezone.utc)
@@ -198,6 +237,25 @@ class TestCancellation(unittest.TestCase):
         self.assertEqual(pages.call_count, 1)
         self.assertEqual(result["categories"], {"executed": 1})
         self.assertEqual(result["evidenced_runner_minutes"], 1.0)
+
+    def test_production_accounting_rejects_fewer_rest_jobs_than_suite(self) -> None:
+        end = datetime(2026, 10, 23, tzinfo=timezone.utc)
+        job = {"runner_id": 1, "started_at": "2026-10-23T12:00:00Z",
+               "completed_at": "2026-10-23T12:01:00Z"}
+        for attempt in (1, 2):
+            with self.subTest(attempt=attempt), \
+                    mock.patch.object(gha_census_enrichment, "_cancelled_runs",
+                                      return_value=[{"id": 1, "run_attempt": attempt,
+                                                     "check_suite_node_id": "suite"}]), \
+                    mock.patch.object(gha_census_enrichment, "_suite_counts",
+                                      return_value={"suite": 2}), \
+                    mock.patch.object(gha_census_enrichment, "_api",
+                                      return_value={"total_count": 1, "jobs": [job]}):
+                result = gha_census_enrichment.cancellation_cost(
+                    end-timedelta(hours=1), end,
+                    [{"databaseId": 1, "conclusion": "cancelled"}])
+            self.assertEqual(result["categories"], {"unknown": 1})
+            self.assertEqual(result["evidenced_runner_minutes"], 0.0)
 
     def test_zero_jobs_and_runner_time_are_distinct(self):
         self.assertEqual(classify_cancellation(0, []), ("zero_job", 0.0))

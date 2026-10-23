@@ -151,7 +151,12 @@ def _pages(path: str, array_key: str | None = None,
         batch = payload[array_key] if array_key else payload
         rows.extend(batch)
         total = payload.get("total_count") if array_key else None
-        if len(batch) < PAGE_SIZE or (total is not None and len(rows) >= total):
+        if total is not None:
+            if len(rows) >= total:
+                return rows
+            if len(batch) < PAGE_SIZE:
+                raise RuntimeError(f"GitHub API incomplete page for {path}")
+        elif len(batch) < PAGE_SIZE:
             return rows
     raise RuntimeError(f"GitHub API page bound reached for {path}")
 
@@ -179,7 +184,7 @@ def required_green(start: datetime, end: datetime) -> Json:
         sha = pr["head"]["sha"]
         runs = _pages(f"{REPOSITORY}/actions/runs?head_sha={sha}&event=pull_request",
                       "workflow_runs")
-        checks = _pages(f"{REPOSITORY}/commits/{sha}/check-runs", "check_runs")
+        checks = _pages(f"{REPOSITORY}/commits/{sha}/check-runs?filter=all", "check_runs")
         statuses = _pages(f"{REPOSITORY}/commits/{sha}/statuses")
         heads.append(measure_head(pr, runs, checks, statuses))
     groups = {}
@@ -269,10 +274,15 @@ def cancellation_cost(start: datetime, end: datetime,
             job_enrichments += 1
         else:
             jobs = [] if count == 0 else None
-        authoritative_count = len(jobs) if needs_jobs and jobs is not None else count
+        # A retry suite can describe only its current attempt, while REST
+        # filter=all includes earlier attempts. Its complete count may grow,
+        # but it must never be smaller than the independently observed suite.
+        retry = run.get("run_attempt", 1) > 1
+        if retry and jobs is not None and (count is None or len(jobs) >= count):
+            authoritative_count = len(jobs)
+        else:
+            authoritative_count = count
         category, minutes = classify_cancellation(authoritative_count, jobs)
-        if count and jobs == []:
-            category, minutes = "unknown", None
         categories[category] += 1
         if minutes is not None:
             runner_minutes += minutes
