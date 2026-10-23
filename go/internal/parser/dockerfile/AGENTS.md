@@ -9,7 +9,8 @@
    rule, supported operators, unresolved evidence)
 5. tokens.go - Dockerfile escape directive detection and command-line token
    splitting for quoted and escaped metadata values
-6. metadata_test.go and base_ref_test.go - behavior coverage for runtime metadata and map shape
+6. metadata_test.go, base_ref_test.go and base_ref_bound_test.go - behavior and
+   expansion-bound coverage for runtime metadata and map shape
 
 ## Invariants this package enforces
 

@@ -63,9 +63,10 @@ Dockerfile rule for how `ARG` and `FROM` interact:
 - A reference stays unresolved when any variable has no value known at parse
   time: an ARG without a default, an undeclared variable used without an
   operator, an ARG whose default is itself unresolved, a predefined platform
-  ARG such as `TARGETARCH` (its default is only a default), or an expression
-  such as `${V%%.*}`, `${V:?msg}`, or `$(cmd)`. An ARG declared without a
-  default is treated as a possible build argument, so `${V:-lts}` stays
+  ARG such as `TARGETARCH` (the build platform decides its value, so the
+  parser treats it as unresolved on purpose even when a default is declared),
+  or an expression such as `${V%%.*}`, `${V:?msg}`, or `$(cmd)`. An ARG
+  declared without a default is treated as a possible build argument, so `${V:-lts}` stays
   unresolved when `ARG V` is declared and resolves to `lts` only when `V` is
   never declared.
 - When resolved, `base_image` and `base_tag` hold the expanded value, and
@@ -77,10 +78,32 @@ Dockerfile rule for how `ARG` and `FROM` interact:
   keys are omitted for a `FROM` with no variable, so existing payloads are
   byte-identical. They ride in the open attributes of the typed stage contract.
 - An unaliased stage is named after its expanded image.
-- Expansion is bounded to 4096 bytes. A Dockerfile is untrusted repository
-  content, and ARGs that each repeat the previous one would otherwise grow
-  exponentially. A value past the bound is treated as not knowable, so the
-  reference stays unresolved.
+- A resolved value is the Dockerfile's own default. A CI `--build-arg` can
+  override it at build time, and the parser cannot see that.
+- Two unaliased stages whose bases expand to the same image share a stage
+  `Name`, so ports and env matched by stage name attribute to both. This
+  already happened for `FROM node` written twice; ARG expansion widens it.
+- Expansion is bounded. A Dockerfile is untrusted repository content. A
+  reference over 4096 bytes or nested deeper than 64 `${` levels is rejected
+  in one linear pass before any expansion, and ARGs that each repeat the
+  previous one are cut off once the output passes 4096 bytes. Either case is
+  treated as not knowable, so the reference stays unresolved.
+
+No-Regression Evidence: #8810 review fix. The expansion bound adds one linear
+pass over each reference that contains `$`, so cost stays linear in the line.
+`go test ./internal/parser/dockerfile/ -run '^$' -bench BaseRefExpansion
+-benchmem -count=3` on the same host, guard disabled then enabled: an ordinary
+`ARG` plus `FROM` Dockerfile took 5.0-12.2 us/op (3 iterations, noisy) before
+and 3.9-4.5 us/op (20 iterations) after, 33 allocs/op both times. A balanced
+60 KB line of nested `${A:-` blocks took 564-810 ms/op and 835 MB/op before
+and 0.42-0.45 ms/op and 0.54 MB/op after. 200 such lines in one Dockerfile
+took 68.4 s before and 0.10 s after.
+`TestBaseRefOversizedNestedReferenceIsUnresolvedAndFast` and
+`TestBaseRefManyNestedReferencesStayBounded` pin both cases.
+
+No-Observability-Change: the parser emits no telemetry of its own. Parse
+timing stays on the parent parser engine's existing per-file duration. A
+rejected reference shows up as `base_ref_unresolved_args` on the stage.
 
 Known limit: the tokenizer drops backslash escapes and quotes before
 expansion, so an escaped `\$` or single-quoted `$` is treated as a variable.

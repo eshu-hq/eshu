@@ -99,7 +99,10 @@ recent shipped work grouped by feature area.
   artifacts read model marks it with `base_ref_unresolved` and the defaults
   seen as `base_ref_arg_defaults`. An unaliased stage that used a variable is
   now named after its expanded image. The container image base-ref helper now
-  also skips a base whose tag still holds a placeholder.
+  also skips a base whose tag still holds a placeholder. A resolved value is
+  the Dockerfile's own default: a CI `--build-arg` can override it at build
+  time, and the parser cannot see that. A reference over 4096 bytes or nested
+  deeper than 64 `${` levels stays unresolved without being expanded.
 
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 

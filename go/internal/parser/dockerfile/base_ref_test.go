@@ -160,7 +160,7 @@ func TestBaseRefUnresolvedWhenValueIsNotKnowable(t *testing.T) {
 		{"unterminated brace", "ARG V=1\nFROM node:${V\n", "${V", []string{"${V"}, nil},
 		{"default that is itself unresolved", "ARG A\nARG B=${A}-x\nFROM node:${B}\n", "${B}", []string{"B"}, map[string]string{"B": "${A}-x"}},
 		{"predefined platform arg", "FROM node:${TARGETARCH}\n", "${TARGETARCH}", []string{"TARGETARCH"}, nil},
-		{"predefined platform arg default is only a default", "ARG TARGETARCH=amd64\nFROM node:${TARGETARCH}\n", "${TARGETARCH}", []string{"TARGETARCH"}, map[string]string{"TARGETARCH": "amd64"}},
+		{"predefined platform arg stays unresolved because the build platform decides it", "ARG TARGETARCH=amd64\nFROM node:${TARGETARCH}\n", "${TARGETARCH}", []string{"TARGETARCH"}, map[string]string{"TARGETARCH": "amd64"}},
 		{"empty result", "ARG V=\nFROM ${V}\n", "", []string{"V"}, map[string]string{"V": ""}},
 	}
 	for _, tc := range cases {

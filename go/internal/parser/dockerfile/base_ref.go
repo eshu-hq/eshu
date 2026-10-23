@@ -9,8 +9,10 @@ import (
 )
 
 // predefinedBuildArgs are the platform ARGs the builder supplies to every
-// build. Their value depends on the build host and --platform, so a Dockerfile
-// default for one of them is only a default, never the effective value.
+// build. Their value depends on the build host and --platform. A real build
+// with no --build-arg would use the declared default, but the parser cannot
+// know which platform the build targets, so it reports these as unresolved on
+// purpose rather than guess.
 var predefinedBuildArgs = map[string]bool{
 	"TARGETPLATFORM": true, "TARGETOS": true, "TARGETARCH": true, "TARGETVARIANT": true,
 	"BUILDPLATFORM": true, "BUILDOS": true, "BUILDARCH": true, "BUILDVARIANT": true,
@@ -20,6 +22,15 @@ var predefinedBuildArgs = map[string]bool{
 // content, and ARG values that each repeat the previous one would otherwise
 // grow exponentially. A value past the bound is treated as not knowable.
 const maxExpandedLen = 4096
+
+// maxReferenceLen bounds the reference text handed to expansion, and
+// maxBraceDepth bounds how deeply "${" may nest inside it. maxExpandedLen only
+// bounds the output, so without these a hostile line of nested "${A:-" openers
+// costs quadratic scan work before any output is produced.
+const (
+	maxReferenceLen = maxExpandedLen
+	maxBraceDepth   = 64
+)
 
 // argDecl is one name[=default] pair of an ARG instruction.
 type argDecl struct {
@@ -162,6 +173,39 @@ func (r *baseRefResolver) lookup(name string) (string, varState) {
 // ${VAR+word}. Every other form (pattern, replace or required expressions,
 // command substitution, an unterminated brace) is reported as unresolved.
 func (r *baseRefResolver) expand(s string) expansion {
+	if exceedsExpansionBounds(s) {
+		return expansion{out: s, truncated: true}
+	}
+	return r.expandWithin(s)
+}
+
+// exceedsExpansionBounds reports whether s is too long, or nests "${" too
+// deeply, to expand in bounded time. It is one linear pass, so a hostile line
+// is rejected for the price of reading it once.
+func exceedsExpansionBounds(s string) bool {
+	if len(s) > maxReferenceLen {
+		return true
+	}
+	depth := 0
+	for i := 0; i+1 < len(s); i++ {
+		switch {
+		case s[i] == '$' && s[i+1] == '{':
+			depth++
+			if depth > maxBraceDepth {
+				return true
+			}
+			i++
+		case s[i] == '}' && depth > 0:
+			depth--
+		}
+	}
+	return false
+}
+
+// expandWithin expands text that already passed exceedsExpansionBounds.
+// Nested words recurse here, not through expand, so the bound check runs once
+// per reference.
+func (r *baseRefResolver) expandWithin(s string) expansion {
 	var result expansion
 	var out strings.Builder
 	for i := 0; i < len(s); i++ {
@@ -243,7 +287,7 @@ func (r *baseRefResolver) expandNamed(name, op, word, whole string, result *expa
 	set := state == varKnown
 	nonEmpty := set && value != ""
 	useWord := func() {
-		inner := r.expand(word)
+		inner := r.expandWithin(word)
 		out.WriteString(inner.out)
 		result.truncated = result.truncated || inner.truncated
 		result.unresolved = append(result.unresolved, inner.unresolved...)
