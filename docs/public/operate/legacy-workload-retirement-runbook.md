@@ -132,7 +132,10 @@ audit event.
 Graph reads right after a write can lag. Re-run the dry run until it lists no
 eligible candidates, and re-check readiness. Do not stop at the first empty read.
 
-- `workload_identity_leftovers` turns to `pass`.
+- `workload_identity_leftovers` turns to `pass` once no candidate with a scoped
+  twin remains. A node you deliberately keep because of `relationships` still
+  counts and keeps the check failing; a node blocked by `has_instances` or
+  `no_twin` does not count.
 - A by-name story lookup for an affected service resolves to the scoped node.
 
 ## If a leftover comes back

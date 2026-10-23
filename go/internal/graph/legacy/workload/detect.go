@@ -73,8 +73,8 @@ func (r Report) WithScopedTwin() int {
 // Detect reads the legacy-shaped nodes and everything Evaluate needs about
 // them, then evaluates them. Every graph read is a bounded, identity-anchored
 // statement; the verdict logic runs in Go so one code path serves the
-// readiness check, the dry run, and the pre-delete verification on both
-// graph backends.
+// readiness check, the dry run, and the pre-delete verification. Those reads
+// are offered on Neo4j only, the backend this was tested on.
 func Detect(ctx context.Context, reader Reader, opts Options) (Report, error) {
 	if reader == nil {
 		return Report{}, errors.New("legacy workload detection requires a graph reader")

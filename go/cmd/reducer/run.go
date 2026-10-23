@@ -210,10 +210,10 @@ func idAnchorCensusReader(raw node.CypherReader, decorated query.GraphQuery) anc
 //
 // Reads go through the raw session runner when it can serve rows: like the
 // id-anchor census this is an operator probe, and a recorded copy of it would
-// appear as a graph-specific statement in a differential capture. Execute is
-// Dry runs and execute are served only on Neo4j, the one backend the detection
-// and the retirement statement were tested on; on any other backend the route
-// answers 501 to both.
+// appear as a graph-specific statement in a differential capture. Dry runs
+// and execute are served only on Neo4j, the one backend the detection and the
+// retirement statement were tested on; on any other backend the route answers
+// 501 to both.
 func legacyWorkloadRetirementHandler(
 	cypherExec reducer.CypherExecutor,
 	rawReader node.CypherReader,

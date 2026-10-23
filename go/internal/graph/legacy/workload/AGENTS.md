@@ -6,7 +6,7 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
   standard library only. `go/internal/query` and the reducer both import it,
   so it must never import either, nor `storage/cypher`.
 - It performs no writes and emits no telemetry. Keep it that way: the writer
-  and its counters live in `go/internal/reducer/workload/legacyretire`.
+  and its counters live in `go/internal/reducer/workload/legacy/retire`.
 - Keep the read statements single-clause and identity-anchored with a bound
   relationship variable. Do not add `EXISTS {}`, `OPTIONAL MATCH` with an
   aggregate, a pattern comprehension, or `w.id = <expression of w>` to a read:

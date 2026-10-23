@@ -54,4 +54,4 @@ import it and neither imports the other.
 ## Used by
 
 - `go/internal/query` hosted readiness (`workload_identity_leftovers`).
-- `go/internal/reducer/workload/legacyretire` (dry run and execute).
+- `go/internal/reducer/workload/legacy/retire` (dry run and execute).

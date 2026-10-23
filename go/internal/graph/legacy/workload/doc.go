@@ -22,6 +22,6 @@
 // cover.
 //
 // The package depends only on the standard library and workloadid. It runs no
-// writes and emits no telemetry; the reducer's legacyretire package owns the
-// execution, counters, and logs.
+// writes and emits no telemetry; the reducer's workload/legacy/retire package
+// owns the execution, counters, and logs.
 package workload
