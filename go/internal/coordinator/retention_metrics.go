@@ -15,7 +15,7 @@ import (
 )
 
 // workItemRetentionBatchBuckets span one batch transaction's wall time, which
-// is also its row-lock hold. The #8829 EXPLAIN measured about 54 ms per
+// is also its row-lock hold. The #8829 EXPLAIN measured 14 to 16 ms per
 // 1,000-row batch; a batch near the 30 s statement timeout is a regressed plan.
 var workItemRetentionBatchBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}
 
@@ -31,6 +31,11 @@ type workItemRetentionInstruments struct {
 	deleted       metric.Int64Counter
 	batchDuration metric.Float64Histogram
 
+	// tableSizeKnown is set by the first pass whose catalog read succeeded.
+	// Until then the gauges export no data point: dark mode, retention
+	// turned off, and the time before the first pass must not read as an
+	// empty table.
+	tableSizeKnown     atomic.Bool
 	tableBytes         atomic.Int64
 	tableEstimatedRows atomic.Int64
 }
@@ -86,6 +91,9 @@ func newWorkItemRetentionInstruments(meter metric.Meter) (*workItemRetentionInst
 		return nil, fmt.Errorf("register work items estimated rows gauge: %w", err)
 	}
 	if _, err := meter.RegisterCallback(func(_ context.Context, observer metric.Observer) error {
+		if !inst.tableSizeKnown.Load() {
+			return nil
+		}
 		observer.ObserveInt64(tableBytes, inst.tableBytes.Load())
 		observer.ObserveInt64(tableRows, inst.tableEstimatedRows.Load())
 		return nil
@@ -103,7 +111,7 @@ func (m *otelMetrics) RecordWorkItemRetention(ctx context.Context, observation W
 	}
 	inst := m.workItemRetention
 	outcome := observation.Outcome
-	if outcome != workItemRetentionOutcomeSuccess {
+	if outcome != workItemRetentionOutcomeSuccess && outcome != workItemRetentionOutcomeCanceled {
 		outcome = workItemRetentionOutcomeError
 	}
 	outcomeAttrs := metric.WithAttributes(attribute.String(telemetry.MetricDimensionOutcome, outcome))
@@ -123,5 +131,6 @@ func (m *otelMetrics) RecordWorkItemRetention(ctx context.Context, observation W
 	if observation.TableSizeKnown {
 		inst.tableBytes.Store(observation.TableSize.Bytes)
 		inst.tableEstimatedRows.Store(observation.TableSize.EstimatedRows)
+		inst.tableSizeKnown.Store(true)
 	}
 }

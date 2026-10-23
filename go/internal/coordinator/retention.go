@@ -20,6 +20,9 @@ const (
 
 	workItemRetentionOutcomeSuccess = "success"
 	workItemRetentionOutcomeError   = "error"
+	// workItemRetentionOutcomeCanceled marks a pass stopped by coordinator
+	// shutdown. Its committed batches stay committed; it is not a failure.
+	workItemRetentionOutcomeCanceled = "canceled"
 )
 
 // WorkItemRetentionStore deletes retention-eligible workflow_work_items rows
@@ -118,29 +121,72 @@ func (s Service) checkWorkItemRetention() error {
 	return s.Config.WorkItemRetention.validate()
 }
 
+// startWorkItemRetention starts the retention loop when retention is active
+// and returns a function that stops it. The loop is one goroutine that runs a
+// pass at start and then one per interval, so at most one pass is ever in
+// flight; ticks that arrive during a long pass are dropped, not queued. It
+// runs apart from Run's select loop so a slow pass (up to 100 batches, each
+// bounded by a 30 s statement timeout) cannot delay reaping or run
+// reconciliation. The returned function cancels an in-flight pass and waits
+// for the loop to exit, so Run never returns with a pass still running.
+func (s Service) startWorkItemRetention(parent context.Context) func() {
+	if !s.workItemRetentionActive() {
+		return func() {}
+	}
+	ctx, cancel := context.WithCancel(parent)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(s.Config.WorkItemRetention.Interval)
+		defer ticker.Stop()
+		s.runWorkItemRetention(ctx)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.runWorkItemRetention(ctx)
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
 // runWorkItemRetention runs one bounded pass, then reads the table size, and
 // reports both through metrics and one structured log line. A failure is
 // logged at ERROR and counted with outcome=error but does not stop the
 // coordinator: retention is maintenance, and the claim lifecycle, reaping and
 // run reconciliation must keep running. The next tick retries the failed
-// window, because the sweeper keeps its cursor before it.
+// window, because the sweeper keeps its cursor before it. A pass stopped by
+// coordinator shutdown is not a failure: it logs at INFO and counts
+// outcome=canceled, and its committed batches stay committed.
 func (s Service) runWorkItemRetention(ctx context.Context) {
 	policy := s.Config.WorkItemRetention.Policy
 	asOf := s.now().UTC()
 	startedAt := time.Now()
 	result, pruneErr := s.WorkItemRetention.PruneWorkItems(ctx, asOf, policy)
 	duration := time.Since(startedAt)
-	size, sizeErr := s.WorkItemRetention.WorkItemTableSize(ctx)
+	canceled := pruneErr != nil && ctx.Err() != nil
 
 	observation := WorkItemRetentionObservation{
-		Outcome:        workItemRetentionOutcomeSuccess,
-		Duration:       duration,
-		Result:         result,
-		TableSize:      size,
-		TableSizeKnown: sizeErr == nil,
+		Outcome:  workItemRetentionOutcomeSuccess,
+		Duration: duration,
+		Result:   result,
 	}
-	if pruneErr != nil {
-		observation.Outcome = workItemRetentionOutcomeError
+	var sizeErr error
+	if canceled {
+		observation.Outcome = workItemRetentionOutcomeCanceled
+	} else {
+		var size workflow.WorkItemTableSize
+		size, sizeErr = s.WorkItemRetention.WorkItemTableSize(ctx)
+		observation.TableSize = size
+		observation.TableSizeKnown = sizeErr == nil
+		if pruneErr != nil {
+			observation.Outcome = workItemRetentionOutcomeError
+		}
 	}
 	if recorder, ok := s.Metrics.(WorkItemRetentionMetrics); ok {
 		recorder.RecordWorkItemRetention(ctx, observation)
@@ -167,10 +213,16 @@ func (s Service) runWorkItemRetention(ctx context.Context) {
 		"batch_size", policy.BatchSize,
 		"max_batches", policy.MaxBatches,
 	}
-	if sizeErr == nil {
-		attrs = append(attrs, "table_bytes", size.Bytes, "table_estimated_rows", size.EstimatedRows)
-	} else {
+	switch {
+	case observation.TableSizeKnown:
+		attrs = append(attrs, "table_bytes", observation.TableSize.Bytes,
+			"table_estimated_rows", observation.TableSize.EstimatedRows)
+	case sizeErr != nil:
 		attrs = append(attrs, "table_size_error", sizeErr.Error())
+	}
+	if canceled {
+		s.Logger.Info("workflow work item retention pass canceled", attrs...)
+		return
 	}
 	if pruneErr != nil {
 		s.Logger.Error("workflow work item retention pass failed", append(attrs, "error", pruneErr.Error())...)

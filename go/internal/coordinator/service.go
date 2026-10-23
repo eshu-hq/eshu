@@ -166,12 +166,13 @@ func (s Service) Run(ctx context.Context) error {
 		if err := s.runWorkflowReconciliation(ctx); err != nil {
 			return fmt.Errorf("initial workflow run reconciliation: %w", err)
 		}
-		// Retention runs after run reconciliation so runs that just finished
-		// are already closed when the pass checks run status.
-		if s.workItemRetentionActive() {
-			s.runWorkItemRetention(ctx)
-		}
 	}
+	// Retention starts after the initial run reconciliation, so runs that
+	// just finished are already closed when its first pass checks run status.
+	// It runs on its own loop so a pass never delays reap or reconciliation;
+	// stopping it cancels an in-flight pass and waits for it.
+	stopWorkItemRetention := s.startWorkItemRetention(ctx)
+	defer stopWorkItemRetention()
 	if s.Logger != nil {
 		message := "workflow coordinator running in dark mode"
 		if s.Config.DeploymentMode == deploymentModeActive {
@@ -198,11 +199,6 @@ func (s Service) Run(ctx context.Context) error {
 		runReconcileTicker = time.NewTicker(s.Config.RunReconcileInterval)
 		defer runReconcileTicker.Stop()
 	}
-	var retentionTicker *time.Ticker
-	if s.workItemRetentionActive() {
-		retentionTicker = time.NewTicker(s.Config.WorkItemRetention.Interval)
-		defer retentionTicker.Stop()
-	}
 
 	for {
 		select {
@@ -220,8 +216,6 @@ func (s Service) Run(ctx context.Context) error {
 			if err := s.runWorkflowReconciliation(ctx); err != nil {
 				return fmt.Errorf("reconcile workflow runs: %w", err)
 			}
-		case <-tickerChan(retentionTicker):
-			s.runWorkItemRetention(ctx)
 		}
 	}
 }
