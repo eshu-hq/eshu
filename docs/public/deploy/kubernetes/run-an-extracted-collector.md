@@ -75,7 +75,7 @@ componentExtensionCollector:
           kind: pagerduty_account
       process:
         args: ["--sdk-stdio"]
-        stdoutLimitBytes: 33554432   # raise only if the collector emits large results
+        stdoutLimitBytes: 33554432   # 32 MiB; raise only if the collector emits large results
       config:
         api_token_env: PAGERDUTY_API_TOKEN
       grants:
@@ -105,7 +105,7 @@ Every entry needs its own `instanceId`.
 | `seed.image` | yes | Release image pinned by digest. |
 | `seed.pullPolicy`, `seed.command` | no | Pull policy (default `IfNotPresent`) and seed entrypoint (default `["/collector", "seed"]`). |
 | `host.sourceSystem`, `host.scope.id`, `host.scope.kind` | yes | Claim identity the coordinator copies into planned work. |
-| `process.args`, `process.env`, `process.stdoutLimitBytes`, `process.stderrLimitBytes` | no | How the worker starts the binary. The chart sets the command itself. The worker reads 4 MiB of collector output by default; raise `stdoutLimitBytes` for a collector that emits more. |
+| `process.args`, `process.env`, `process.stdoutLimitBytes`, `process.stderrLimitBytes` | no | How the worker starts the binary. The chart sets the command itself. The worker reads 4 MiB of collector output by default; raise `stdoutLimitBytes` for a collector that emits more (for example 33554432 for 32 MiB, 67108864 for 64 MiB). |
 | `claimLeaseTTL`, `heartbeatInterval`, `pollInterval` | no | Per-worker claim timing. Each overrides the value of the same name under `componentExtensionCollector`. Durations use `h`, `m` and `s` (`pollInterval` also accepts `ms`). The heartbeat must be less than the lease. See "Set The Claim Lease". |
 | `config` | no | Non-secret collector settings, passed to the collector as its config block. |
 | `grants` | no | Producer grants for core-owned fact kinds: `kind`, `schemaVersions`, `scope`, and `expiresIn` (default `720h`). The scope is the collector kind (for example `jira` or `documentation`), and a grant is needed for each core fact kind and schema version the manifest declares before install succeeds. |
@@ -182,15 +182,21 @@ inherits another's secret.
   Deployment, Service and PodDisruptionBudget, and the coordinator pod restarts
   without it.
 - **Revoke a component:** add its ID to `revokeIds` (or its publisher to
-  `revokePublishers`). Install then refuses it, the pod does not start, and no
-  worker runs for it.
+  `revokePublishers`). Install then refuses it, so the `reconcile-<instanceId>`
+  init container fails and the pod stays in `Init:Error`. That is the expected
+  rollback signal: the system fails closed and no worker runs for the revoked
+  component. Remove the activation entry to clear the failed pod.
 
 ## Limits To Know
 
 - The registry lives in the pod, so grants are issued again on every pod start
-  and `expiresIn` counts from that start.
-- The coordinator pulls every seed image, because it needs each manifest. Pull
-  access for the collector registry must cover the coordinator's nodes too.
+  and `expiresIn` counts from that start. Keep `expiresIn` longer than the
+  longest time a pod is expected to run; the default is `720h`. A grant that
+  expires inside a long-lived pod fails the next emission closed.
+- The coordinator runs every seed container, because it needs each manifest, so
+  it copies each binary as well. Pull access for the collector registry must
+  cover the coordinator's nodes too. A manifest-only seed mode could remove the
+  copy later.
 - One NetworkPolicy covers every worker, so all activations share the same
   egress classes.
 - Strict trust mode is not charted. Use `trustMode: allowlist`.
