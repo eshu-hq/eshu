@@ -7,7 +7,7 @@ func runtimeTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "list_collectors",
-			Description: "Return collector runtime status including coordinator-managed, direct-mode, disabled, and unregistered evidence categories. An instance whose newest work item for a scope failed terminally, with no later completed work item for that scope, reports health degraded plus last_failure_class (auth_denied, not_found, rate_limited, terminal, retryable, or unknown), last_failure_operation, last_failure_terminal, and last_failure_at; a later success clears it. Failure messages and provider status codes are never returned.",
+			Description: "Return collector runtime status including coordinator-managed, direct-mode, disabled, and unregistered evidence categories. An instance with a failed_terminal work item updated inside its window (3 x scan_interval, 30 minute floor) and no later completed work item of the same instance for that scope reports health degraded plus last_failure_class (auth_denied, not_found, rate_limited, terminal, retryable, or unknown), last_failure_operation, last_failure_terminal, and last_failure_at. Only a later completed work item of the same instance for that scope clears it; a later pending or retrying item does not, and a failure no later run revisits ages out after the window. Failure messages and provider status codes are never returned.",
 			InputSchema: map[string]any{
 				"type":       "object",
 				"properties": map[string]any{},
@@ -58,7 +58,7 @@ func runtimeTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_collector_readiness",
-			Description: "Return per-collector-family promotion readiness: promotion state (implemented, partial, failed, stale, gated, disabled, permission_hidden, unsupported), reducer readback status, evidence counts, last proof time, blockers, and a recommended next action. A terminal provider failure that no later success has cleared makes the instance promotion_state failed with the blocker \"terminal provider failure: <class> (<operation>)\" and adds last_failure_class, last_failure_operation, and last_failure_at. Redacts credentials and raw provider payloads.",
+			Description: "Return per-collector-family promotion readiness: promotion state (implemented, partial, failed, stale, gated, disabled, permission_hidden, unsupported), reducer readback status, evidence counts, last proof time, blockers, and a recommended next action. An instance with a failed_terminal work item updated inside its window (3 x scan_interval, 30 minute floor) and no later completed work item of the same instance for that scope makes the instance promotion_state failed with the blocker \"terminal provider failure: <class> (<operation>)\" and adds last_failure_class, last_failure_operation, and last_failure_at. Only a later completed work item of the same instance for that scope clears it; a later pending or retrying item does not, and a failure no later run revisits ages out after the window. Redacts credentials and raw provider payloads.",
 			InputSchema: map[string]any{
 				"type":       "object",
 				"properties": map[string]any{},
