@@ -97,6 +97,8 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_cloud_resou
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_crossplane_satisfied_by.sh"
 # shellcheck source=scripts/lib/ifa_direct_family_live_derived_from.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_derived_from.sh"
+# shellcheck source=scripts/lib/ifa_direct_family_live_observability_coverage.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_observability_coverage.sh"
 # shellcheck source=scripts/lib/ifa_direct_family_live_code_interproc_evidence.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_direct_family_live_code_interproc_evidence.sh"
 # shellcheck source=scripts/lib/ifa_direct_family_live_code_taint_evidence.sh
@@ -134,6 +136,8 @@ source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_cloud_resource
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_crossplane_satisfied_by_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_derived_from_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_derived_from_cells.sh"
+# shellcheck source=scripts/lib/ifa_fault_injection_observability_coverage_cells.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_observability_coverage_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_code_interproc_evidence_cells.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_code_interproc_evidence_cells.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_code_taint_evidence_cells.sh

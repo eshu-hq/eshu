@@ -56,6 +56,16 @@ ifa_live_gate_common_seams+=(
 	'go/internal/ifa/testdata/derivedfrom/**|go/internal/ifa/testdata/derivedfrom/ifa-derived-from-family-expected-edges.json'
 	'scripts/lib/ifa_fault_injection_derived_from_cells.sh|scripts/lib/ifa_fault_injection_derived_from_cells.sh'
 )
+# observability_coverage (#6228 observability_coverage live leaf): writer,
+# cassette, expected-edge set, and cells are new common seams beside the
+# siblings; the Odù stays in the determinism-only table (the fault cells
+# drive the committed cassette JSON, never the Odù source).
+ifa_live_gate_common_seams+=(
+	'go/internal/storage/cypher/edge/writer/observability_coverage.go|go/internal/storage/cypher/edge/writer/observability_coverage.go'
+	'testdata/cassettes/obscoverage/**|testdata/cassettes/obscoverage/ifa-observability-coverage-family.json'
+	'go/internal/ifa/testdata/obscoverage/**|go/internal/ifa/testdata/obscoverage/ifa-observability-coverage-family-expected-edges.json'
+	'scripts/lib/ifa_fault_injection_observability_coverage_cells.sh|scripts/lib/ifa_fault_injection_observability_coverage_cells.sh'
+)
 ifa_live_gate_common_seams+=(
 	'go/internal/storage/cypher/edge/writer/code_interproc_evidence.go|go/internal/storage/cypher/edge/writer/code_interproc_evidence.go'
 	'testdata/cassettes/codeinterproc/**|testdata/cassettes/codeinterproc/ifa-code-interproc-evidence-family.json'

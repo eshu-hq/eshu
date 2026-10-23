@@ -206,6 +206,7 @@ ifa:
   - 'testdata/cassettes/codetaint/**'
   - 'testdata/cassettes/crossplanesatisfiedby/**'
   - 'testdata/cassettes/derivedfrom/**'
+  - 'testdata/cassettes/obscoverage/**'
   - 'testdata/cassettes/shellexec/**'
   - 'testdata/cassettes/submodulepin/**'
   - 'testdata/cassettes/workloaddependency/**'

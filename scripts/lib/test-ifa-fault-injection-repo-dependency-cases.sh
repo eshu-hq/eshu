@@ -384,7 +384,9 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	# #6228 crossplane live leaf adds the crossplane_satisfied_by trio;
 	# #6228 derived_from live leaf adds the derived_from trio, the
 	# code_interproc_evidence live leaf adds the code_interproc_evidence
-	# trio, and the code_taint_evidence live leaf adds the
-	# code_taint_evidence trio.
-	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 91 ]] || return 1
+	# trio, the code_taint_evidence live leaf adds the
+	# code_taint_evidence trio, and the observability_coverage live leaf
+	# adds the observability_coverage
+	# trio.
+	[[ "$("${script}" --list-cells | wc -l | tr -d '[:space:]')" == 94 ]] || return 1
 }

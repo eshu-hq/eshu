@@ -344,10 +344,8 @@ rg --fixed-strings --quiet -- '"environment": "prod"' "${workload_cassette_path}
 rg --fixed-strings --quiet -- '"source_entity_id": "workload-instance:repo-orders:orders-api:prod"' "${workload_live_expected_path}" \
 	|| fail "workload-cloud-relationship seed keys workload:repo-orders:orders-api but the live expected-edge set carries no such scoped source -- seed and live expectation have drifted"
 
-# handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997): all three
-# share ONE lib file (scripts/lib/ifa_symbol_runtime_live.sh) and one drive
-# function, since they come from the same production entry point
-# (reducer.ExtractSymbolRuntimeIntentRows). Each still asserts its OWN
+# handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997) share ONE lib
+# file and drive fn (same production entry point); each still asserts its OWN
 # exact-set -- three relationship types, three assertions.
 require_symbol_runtime_lib "handles_route assert-edges domain" "-domain handles_route"
 require_symbol_runtime_lib "runs_in assert-edges domain" "-domain runs_in"
@@ -382,6 +380,7 @@ declare -A ifa_det_family_cases_hand_authored=(
 	[derived_from]="-domain derived_from"
 	[code_interproc_evidence]="-domain code_interproc_evidence"
 	[code_taint_evidence]="-domain code_taint_evidence"
+	[observability_coverage]="-domain observability_coverage"
 	[authenticates_vault_role]="-domain authenticates_vault_role"
 	[uses_vault_policy]="-domain uses_vault_policy"
 	[kubernetes_correlation]="-domain kubernetes_correlation"
@@ -412,7 +411,7 @@ for family in "${!ifa_det_family_cases_hand_authored[@]}"; do
 	rg --fixed-strings --quiet -- "${domain_needle}" \
 		"${delta_lib}" "${code_call_lib}" "${documentation_lib}" "${rationale_lib}" "${codeowners_lib}" \
 		"${submodule_pin_lib}" "${inheritance_lib}" "${shell_exec_lib}" "${symbol_runtime_lib}" \
-		 "${direct_family_lib}" "${direct_family_cloud_lib}" "${direct_family_built_from_lib}" "${direct_family_crc_image_lib}" "${direct_family_xplane_lib}" "${direct_family_derived_from_lib}" "${direct_family_ciproc_lib}" "${direct_family_ctaint_lib}" "${vault_family_lib}" \
+		 "${direct_family_lib}" "${direct_family_cloud_lib}" "${direct_family_built_from_lib}" "${direct_family_crc_image_lib}" "${direct_family_xplane_lib}" "${direct_family_derived_from_lib}" "${direct_family_ciproc_lib}" "${direct_family_ctaint_lib}" "${direct_family_obscov_lib}" "${vault_family_lib}" \
 		|| fail "family registry totality: '${family}' is hand-authored in ifa_det_family_cases_hand_authored with expected needle '${domain_needle}' but it does not appear in any of this module's target lib files -- add fixtures + a require_*_lib drive/assert-shape needle for it, a bare map-key acknowledgement is not acceptable"
 done
 # shellcheck source=scripts/lib/ifa_family_registry.sh

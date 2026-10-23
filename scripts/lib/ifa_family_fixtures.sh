@@ -246,6 +246,17 @@ crossplane_satisfied_by_expected_edges="${repo_root}/go/internal/ifa/testdata/cr
 # its own ACTIVE generation, like every sibling above.
 derived_from_cassette="${repo_root}/testdata/cassettes/derivedfrom/ifa-derived-from-family.json"
 derived_from_expected_edges="${repo_root}/go/internal/ifa/testdata/derivedfrom/ifa-derived-from-family-expected-edges.json"
+# observability_coverage (#6228 observability_coverage live leaf): a projection
+# of the compiled ObservabilityCoverageFamilyOdu by construction
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- five
+# edge-producing observability objects (one alarm, one composite alarm, one
+# dashboard, one log group, one X-Ray sampling rule, one per coverage
+# signal), five scanned CloudResource targets resolved by ARN dimension, and
+# three deliberate non-producers (metric-name-only alarm, service-name X-Ray
+# rule, alarm naming an unscanned target). The single aws account scope owns
+# its own ACTIVE generation, like every sibling above.
+observability_coverage_cassette="${repo_root}/testdata/cassettes/obscoverage/ifa-observability-coverage-family.json"
+observability_coverage_expected_edges="${repo_root}/go/internal/ifa/testdata/obscoverage/ifa-observability-coverage-family-expected-edges.json"
 # code_interproc_evidence (#6228 code_interproc_evidence live leaf): a
 # projection of the compiled CodeInterprocEvidenceFamilyOdu by construction
 # (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- one
@@ -354,6 +365,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${crossplane_satisfied_by_expected_edges}" ]] || { echo "${gate}: crossplane-satisfied-by expected-edge set not found: ${crossplane_satisfied_by_expected_edges}" >&2; exit 1; }
 	[[ -f "${derived_from_cassette}" ]] || { echo "${gate}: derived-from cassette not found: ${derived_from_cassette}" >&2; exit 1; }
 	[[ -f "${derived_from_expected_edges}" ]] || { echo "${gate}: derived-from expected-edge set not found: ${derived_from_expected_edges}" >&2; exit 1; }
+	[[ -f "${observability_coverage_cassette}" ]] || { echo "${gate}: observability-coverage cassette not found: ${observability_coverage_cassette}" >&2; exit 1; }
+	[[ -f "${observability_coverage_expected_edges}" ]] || { echo "${gate}: observability-coverage expected-edge set not found: ${observability_coverage_expected_edges}" >&2; exit 1; }
 	[[ -f "${code_interproc_evidence_cassette}" ]] || { echo "${gate}: code-interproc-evidence cassette not found: ${code_interproc_evidence_cassette}" >&2; exit 1; }
 	[[ -f "${code_interproc_evidence_expected_edges}" ]] || { echo "${gate}: code-interproc-evidence expected-edge set not found: ${code_interproc_evidence_expected_edges}" >&2; exit 1; }
 	[[ -f "${code_taint_evidence_cassette}" ]] || { echo "${gate}: code-taint-evidence cassette not found: ${code_taint_evidence_cassette}" >&2; exit 1; }
