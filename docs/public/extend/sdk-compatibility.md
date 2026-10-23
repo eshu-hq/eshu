@@ -61,13 +61,27 @@ use `@latest` as migration evidence.
 | Qualified consumer/core pair | Exact new module pins, contract and runtime proof against a named core version, including grant-aware conformance for reserved fact kinds | No pair qualified or core range assigned |
 | Deployed accepted pair | Matching deployment, reducer, graph, API/MCP, retry, operator, and rollback proof | No deployment accepted |
 
-The SDK candidate includes current collector tooling and `TrustedDeletion`,
-and excludes the unimplemented CoreFacts API. Core keeps grant, admission,
-graph, queue, lease, and durable-state ownership. The original modules retain
-their support and security policy until consumer and deployed acceptance
-authorize a cutover. See the
-[new repository compatibility policy](https://github.com/eshu-hq/eshu-sdk/blob/d6ce994d6709a13b6f2dc797f7b988b7b64a68fc/docs/compatibility.md)
-for the candidate scope and schema comparison.
+The expanded first candidate preparation includes current collector tooling,
+`TrustedDeletion`, and the optional trusted `conformance.Request.CoreFacts`
+API merged in [SDK PR #8](https://github.com/eshu-hq/eshu-sdk/pull/8).
+Its exact source still needs reviewed versioned preparation, green CI and
+separate tag approval. This supersedes the earlier limited source preparation;
+it does not retarget a published tag or qualify a consumer.
+
+`CoreFacts` validates a caller-supplied authorization snapshot; it does not
+load grants or determine authority. The caller must validate live grants,
+expiry/revocation, scope, component and schema versions, and authoritative
+payload schemas and reducer phases. Adding the exported `Request` field can
+break external unkeyed composite literals; use keyed literals. Wire protocols
+and conformance report shapes are unchanged. See the
+[trusted context contract](https://github.com/eshu-hq/eshu-sdk/blob/49ccbd54ee45b0cbfa23b8092d8f85ed2729dce7/docs/conformance-grants.md).
+
+Core keeps grant, admission, graph, queue, lease, and durable-state ownership.
+The original modules retain their support and security policy until consumer
+and deployed acceptance authorize a cutover. The
+[initial compatibility policy](https://github.com/eshu-hq/eshu-sdk/blob/d6ce994d6709a13b6f2dc797f7b988b7b64a68fc/docs/compatibility.md)
+records the earlier limited preparation and schema comparison; it does not
+include the later trusted context API.
 
 ## Release ownership
 
