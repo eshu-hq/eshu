@@ -133,6 +133,20 @@ applies the source ignore rules itself, and copying the file would make
 discovery filter a second time. `skipFilesystemMavenEntry` keeps every `.mvn`
 file except `extensions.xml` out of the copy.
 
+No-Regression Evidence (#8814): `LookupByPath` over 29,083 repository paths
+averaged 14.94 ms before and 15.29 ms after the new names and the
+`.mvn/extensions.xml` rule (six alternating single-CPU runs of a throwaway
+benchmark, +12 ns per path), and `resolveNativeSnapshotFileSet` over the staged
+35-repository golden corpus (192 files, none of the admitted names) averaged
+3.22 ms before and 3.20 ms after. Every lookup pays one base-name compare for
+the new rule, and the copy gains one `skipFilesystemMavenEntry` split per
+walked entry. Input shape: the golden-corpus fixtures and the repo's
+own path list; no Postgres, graph, queue or lease path is touched.
+
+No-Observability-Change: discovery reports the same skip and admit counters. A
+newly admitted file is counted as an ordinary admitted file, and an unadmitted
+dotfile is still pruned silently by the copy, as before.
+
 ## Directory size
 
 This directory is grandfathered over the 40-file cap. The ledger row is a
