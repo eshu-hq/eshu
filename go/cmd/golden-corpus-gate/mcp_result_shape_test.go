@@ -30,12 +30,39 @@ func structuredShapeResponse(t *testing.T, payload string) string {
 
 // TestMCPCallToolReadsTheStructuredShape proves the structured-first reader
 // path: with no resource block to fall back on, callTool returns the
-// structuredContent payload, and a result with neither structuredContent nor a
-// resource still reads its text rather than passing as empty.
+// structuredContent payload. The text fallback has its own test below.
 func TestMCPCallToolReadsTheStructuredShape(t *testing.T) {
 	t.Parallel()
 	payload := `{"data":{"count":1},"truth":{"level":"exact"},"error":null}`
 	doer := &fakeMCPDoer{byTool: map[string]string{"list_indexed_repositories": structuredShapeResponse(t, payload)}}
+	got, err := mcpClientWithDoer(doer).callTool(context.Background(), "list_indexed_repositories", nil, true)
+	if err != nil {
+		t.Fatalf("callTool error = %v", err)
+	}
+	var want, have any
+	if json.Unmarshal([]byte(payload), &want) != nil || json.Unmarshal(got, &have) != nil || !jsonEqual(want, have) {
+		t.Fatalf("callTool = %s, want %s", got, payload)
+	}
+}
+
+// TestMCPCallToolReadsTextWhenNoStructuredContentOrResource proves the last
+// fallback: a result that carries neither structuredContent nor a resource
+// block still yields the JSON payload held in its text block, rather than
+// passing as empty or failing.
+func TestMCPCallToolReadsTextWhenNoStructuredContentOrResource(t *testing.T) {
+	t.Parallel()
+	payload := `{"data":{"count":1},"truth":{"level":"exact"},"error":null}`
+	response, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"result": map[string]any{
+			"content": []any{map[string]any{"type": "text", "text": payload}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doer := &fakeMCPDoer{byTool: map[string]string{"list_indexed_repositories": string(response)}}
 	got, err := mcpClientWithDoer(doer).callTool(context.Background(), "list_indexed_repositories", nil, true)
 	if err != nil {
 		t.Fatalf("callTool error = %v", err)
