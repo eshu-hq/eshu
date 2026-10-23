@@ -2815,6 +2815,11 @@ type Instruments struct {
 	// row in another repository.
 	// Registered by registerLanguageQueryMetadataInstruments.
 	LanguageQueryMetadataRows metric.Int64Counter
+	// QuerySecurityAlertEmptyAnswers counts empty security-alert
+	// reconciliation answers classified from collector state, by
+	// coverage_state and reason (#8803). Registered by
+	// registerSecurityAlertQueryInstruments.
+	QuerySecurityAlertEmptyAnswers metric.Int64Counter
 	// InfraSearchPath counts infra resource searches by the statement that
 	// served them (search_path: fulltext, legacy) and reason (#7245). Registered
 	// by registerInfraSearchKeyInstruments.
@@ -5882,6 +5887,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 
 	if err := registerLanguageQueryMetadataInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSecurityAlertQueryInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerInfraSearchKeyInstruments(meter, inst); err != nil {
