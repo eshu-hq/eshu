@@ -172,8 +172,9 @@ completeness. `eshu_runtime_coordinator_collector_terminal_failure_instances`
 registered instances with a terminal work-item failure inside 3 x their
 `scan_interval` (30 minute floor) and no later completed work item for the same
 instance and scope; `failure_class` is one of `auth_denied`, `not_found`,
-`rate_limited`, `terminal`, `retryable`, or `unknown`. It is a gauge, not a
-counter, so a recovered or aged-out instance drops out. Every runtime that
+`rate_limited`, `terminal`, `retryable`, `attempt_budget_exhausted`,
+`identity_mismatch`, `collect_failure`, `commit_failure`, or `unknown`. It is
+a gauge, not a counter, so a recovered or aged-out instance drops out. Every runtime that
 scrapes status exports the same value with its own `service_name`, so read it
 with `max by (collector_kind, failure_class)`, never summed.
 

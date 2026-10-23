@@ -36,7 +36,13 @@ fails its promotion proof with the blocker
 `terminal fetch failure: <class> (<operation>)`. Keep it bounded: the class
 must pass `BoundedFailureClass` (a local allowlist, deliberately not an import
 of any collector runtime package) and the operation must pass
-`BoundedFailureOperation`; anything else reads as `unknown`. Never add the
+`BoundedFailureOperation`; anything else reads as `unknown`. The allowlist
+holds every class a claim runner persists on a terminal row: the five provider
+classes plus the runner's own `attempt_budget_exhausted`, `identity_mismatch`,
+`collect_failure`, and `commit_failure`. A class added there must also land in
+both OpenAPI `last_failure_class` enums
+(`TestOpenAPITerminalFailureFieldsMatchStatusContract` in `query` fails
+otherwise) and stay aligned with the security-alert read's class set. Never add the
 failure message or provider status code to `TerminalFailure`, `RuntimeStatus`,
 `PromotionProof`, or their JSON. The reader (`storage/postgres`) supplies only
 failures of enabled, non-deactivated instances inside the instance's window

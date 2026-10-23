@@ -14,19 +14,34 @@ each enabled, coordinator-registered instance (see [When it clears](#when-it-cle
   `last_failure_terminal`, and `last_failure_at` to the instance row.
 - `GET /api/v0/status/collector-readiness` (alias
   `/api/v0/collector-readiness`) reports `promotion_state=failed`, the blocker
-  `terminal provider failure: <class> (<operation>)`, and
+  `terminal fetch failure: <class> (<operation>)`, and
   `last_failure_class`, `last_failure_operation`, and `last_failure_at`.
 
 The MCP tools `list_collectors` and `get_collector_readiness` return the same
-fields. The status JSON and the plain-text status render carry them too. A
-healthy instance omits all four fields.
+fields. The status JSON and the plain-text status render carry them too. The
+operator control plane (`get_operator_control_plane`) rolls the failed instance
+up, so its collector family reads `promotion_state=failed` with the same
+blocker. A healthy instance omits the failure fields on both routes.
 
 ## Values
 
-`last_failure_class` is one of `auth_denied`, `not_found`, `rate_limited`,
-`terminal`, `retryable`, or `unknown`. Any persisted value outside that set
-reads as `unknown`. `last_failure_operation` is a short lowercase token such as
-`list_org_alerts`, or `unknown`.
+`last_failure_class` is one of these, or `unknown` for any persisted value
+outside the set:
+
+| Class | Written by | Meaning |
+| --- | --- | --- |
+| `auth_denied` | provider | The credential was refused or lacks the grant. |
+| `not_found` | provider | The target is missing or the credential cannot see it. |
+| `rate_limited` | provider | The provider throttled the run. |
+| `terminal` | provider | The provider returned another non-retryable error. |
+| `retryable` | provider | A transient provider failure used up the attempt budget. |
+| `attempt_budget_exhausted` | claim runner | The attempt budget ran out on a cause that carried no class. |
+| `identity_mismatch` | claim runner | The collected generation's identity did not match the claim. |
+| `collect_failure` | claim runner | A non-retryable collect error carried no class. |
+| `commit_failure` | claim runner | A non-retryable commit error carried no class. |
+
+`last_failure_operation` is a short lowercase token such as `list_org_alerts`,
+`collect_failure`, or `commit_failure`, or `unknown`.
 
 The failure message and the provider status code are never returned. A caller
 that needs the cause reads the collector log line carrying `failure_class`.
@@ -47,7 +62,10 @@ A terminal failure counts while both of these hold:
 
 An instance that keeps failing fails again every cycle, so it stays reported.
 A failure on a target that was removed from the configuration (an orphan) ages
-out after the window. A retryable failure never sets the fields. The
+out after the window. A failure that is still being retried never sets the
+fields: only a `failed_terminal` work item counts. A transient failure that used
+up the attempt budget does land as `failed_terminal`, and then keeps the class
+`retryable` its error carried. The
 `failed_terminal` status decides what counts: a dead-lettered item counts even
 when its collector did not mark the failure terminal, as the scanner worker
 does not.
