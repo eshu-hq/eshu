@@ -115,9 +115,11 @@ it does not trust the dry run. What that covers, measured on Neo4j 2026.08.1:
   naming the node, or the twin losing its `DEFINES`, while the statement runs.
   Neither touches the node, so the statement does not see it.
 
-So run execute in a quiet window, and send it to one reducer pod. The
-per-process lock does not span replicas: two pods executing the same ids at once
-can both count the same deleted node in `deleted`. A second run deletes nothing.
+So run execute in a quiet window, and send it to one reducer pod: the reducer's
+request lock is per process and does not span replicas. (Two delete statements
+on the same id at once were probed on Neo4j: in five of five rounds exactly one
+deleted the node; that is not a reason to run two pods.) A second run deletes
+nothing.
 
 The reducer records the `eshu_dp_workload_legacy_retirements_total{outcome}`
 counter, an INFO line per request, a WARN line per node it kept, and a governance
