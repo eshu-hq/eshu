@@ -109,7 +109,7 @@ func serviceInvestigationEvidenceFamiliesWithContext(buildCtx serviceStoryBuildC
 
 // serviceInvestigationRepositories merges every repository the workload
 // context names and returns the rows capped at serviceStoryItemLimit, plus the
-// true repository count taken before the cap. When the list is cut it appends
+// repository count taken before the cap. When the list is cut it appends
 // one "__truncated__" marker row after the capped rows; that marker is not a
 // repository and is never part of the returned count (#8802).
 func serviceInvestigationRepositories(workloadContext map[string]any, evidenceFamilies []string) ([]map[string]any, int) {

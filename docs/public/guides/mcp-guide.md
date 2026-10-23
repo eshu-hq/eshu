@@ -56,12 +56,14 @@ cut. To read a family in full, call the tool again with the entry's
 the `direct_only`, `max_depth`, and `include_related_module_usage` of the
 original call, so the drilldown returns the rows the first call held).
 
-`get_workload_context` and `get_service_context` also default to
-`evidence_detail: handles` on MCP: artifact and API endpoint rows come back as
-identity rows (`resolved_id` for an artifact), the content-derived evidence
-lists are dropped, every count stays, and `truth.omissions` names each reduced
-family with its total. Lists are capped at 50 rows and each cut is named in
-`partial_reasons`. Call again with `evidence_detail: "full"` for the rows. See
+`get_workload_context`, `get_service_context`, and `get_service_story` also
+default to `evidence_detail: handles` on MCP: artifact and API endpoint rows
+come back as identity rows (`resolved_id` for an artifact), the content-derived
+evidence lists are dropped, every count stays, and `truth.omissions` names each
+reduced family with its total. On the two context tools, lists are capped at 50
+rows and each cut is named in `partial_reasons`. The story has no top-level
+`partial_reasons`; its limitations are in `answer_metadata.partial_reasons`, and
+each reduced family is named in `truth.omissions`. Call again with `evidence_detail: "full"` for the rows. See
 [Context Evidence Budget](../reference/http-api/context-evidence-budget.md).
 
 `find_cross_repo_dead_code` defaults to `evidence_detail: handles` too: each

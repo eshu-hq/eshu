@@ -28,7 +28,7 @@ func TestRouteGetServiceStoryAcceptsServiceIDAlone(t *testing.T) {
 			want: routecontract.Request{
 				Method: "GET",
 				Path:   "/api/v0/services/" + fullID + "/story",
-				Query:  map[string]string{"service_id": fullID},
+				Query:  map[string]string{"service_id": fullID, "evidence_detail": "handles"},
 			},
 		},
 		{
@@ -37,7 +37,7 @@ func TestRouteGetServiceStoryAcceptsServiceIDAlone(t *testing.T) {
 			want: routecontract.Request{
 				Method: "GET",
 				Path:   "/api/v0/services/workload:checkout-service/story",
-				Query:  map[string]string{"service_id": "workload:checkout-service"},
+				Query:  map[string]string{"service_id": "workload:checkout-service", "evidence_detail": "handles"},
 			},
 		},
 		{
@@ -46,7 +46,7 @@ func TestRouteGetServiceStoryAcceptsServiceIDAlone(t *testing.T) {
 			want: routecontract.Request{
 				Method: "GET",
 				Path:   "/api/v0/services/" + fullID + "/story",
-				Query:  map[string]string{"service_id": fullID},
+				Query:  map[string]string{"service_id": fullID, "evidence_detail": "handles"},
 			},
 		},
 		{
@@ -55,7 +55,7 @@ func TestRouteGetServiceStoryAcceptsServiceIDAlone(t *testing.T) {
 			want: routecontract.Request{
 				Method: "GET",
 				Path:   "/api/v0/services/" + fullID + "/story",
-				Query:  map[string]string{"service_id": fullID, "environment": "staging", "repo": "repository:r_sample"},
+				Query:  map[string]string{"service_id": fullID, "environment": "staging", "repo": "repository:r_sample", "evidence_detail": "handles"},
 			},
 		},
 	}

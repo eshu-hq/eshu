@@ -104,6 +104,13 @@ func serviceSelectorRoute(args routecontract.Arguments, toolName string, suffix 
 		}
 	}
 	if suffix == "story" {
+		// #8798: the story defaults to handles over MCP for the same reason
+		// the context route does (#7129): a large service's full dossier
+		// exceeds the response budget. An explicit value wins.
+		q["evidence_detail"] = "handles"
+		if detail := args.String("evidence_detail"); detail != "" {
+			q["evidence_detail"] = detail
+		}
 		if serviceID := canonicalWorkloadIdentifier(selector); serviceID != "" {
 			q["service_id"] = serviceID
 		}

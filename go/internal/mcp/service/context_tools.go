@@ -66,6 +66,11 @@ func ContextTools() []toolcontract.ToolDefinition {
 						"type":        "string",
 						"description": "Optional environment context",
 					},
+					"evidence_detail": map[string]any{
+						"type":        "string",
+						"enum":        []string{"full", "handles"},
+						"description": "Row detail for the story's evidence lists. handles (the default for this tool) keeps every section, count, and top-level status, truth, and freshness field, and projects the bulky lists to identity rows that keep their row-level truth labels (including confidence, relationship_types, consumer_kinds, evidence_kinds, relationship_basis, resolution_mode, candidate_status, missing_relationship, service_anchor_status, and service_anchor_reason): API endpoints, code_to_runtime_trace segment evidence (a preview of 10 where the rows also ship in another section), upstream_dependencies, hostnames, entrypoints, entrypoint_candidates, network_paths, dependents, consumer_repositories, provisioning_source_chains, cloud_resources, uncorrelated_cloud_resources, evidence_graph edges and touched nodes, and investigation repositories. Exception: deployment artifact rows keep id, relationship_type, and resolved_id; get_relationship_evidence by resolved_id returns the rest, including confidence. It ships api_surface and the dependents and consumer_repositories rows once, drops the content-derived deployment evidence lists, and names each reduced family with its total in truth.omissions. Each total is the story's own pre-cap count and may be a lower bound, because the story carries a flag for only some of the bounds its reads apply; treat a total as exact only for the families the Context evidence budget reference lists as exact. Repeat the call with full for every field of every row; full can exceed the response budget on a populated service.",
+					},
 				},
 			},
 		},

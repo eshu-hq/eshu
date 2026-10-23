@@ -24,7 +24,7 @@ func BuildServiceStoryResponse(serviceName string, workloadContext map[string]an
 	response["service_name"] = serviceName
 	response["story"] = querycontract.BuildWorkloadStoryWithAPISurface(workloadContext, buildCtx.apiSurface, buildCtx.hasAPISurface)
 	response["story_sections"] = buildServiceStorySectionsWithContext(buildCtx)
-	response["deployment_overview"] = buildServiceDeploymentOverviewWithContext(buildCtx)
+	response["deployment_overview"] = dropStoryOverviewEndpoints(buildServiceDeploymentOverviewWithContext(buildCtx))
 	response["code_to_runtime_trace"] = buildServiceCodeToRuntimeTrace(workloadContext)
 	for _, key := range []string{"documentation_overview", "support_overview"} {
 		if value, ok := workloadContext[key]; ok && value != nil {
@@ -38,6 +38,25 @@ func BuildServiceStoryResponse(serviceName string, workloadContext map[string]an
 	response["investigation"] = buildServiceInvestigationPacketWithContext(serviceName, buildCtx, InvestigationOptions{})
 	evidence.AttachEvidenceBoundaries(response, "get_service_story")
 	return answer.AttachAnswerMetadata(response)
+}
+
+// dropStoryOverviewEndpoints returns the deployment overview with the endpoint
+// rows removed from its api_surface copy. The story ships those rows once, at
+// the top-level api_surface.endpoints; the overview keeps the counts and
+// endpoints_shipped_at names where the rows are (#8798). The service and
+// workload context routes shape their overview the same way. The shared
+// apiSurface map is never mutated: it is copied first, and the shaped copy is
+// installed on the caller's overview, which every story call builds fresh.
+func dropStoryOverviewEndpoints(overview map[string]any) map[string]any {
+	surface := querycontract.MapValue(overview, "api_surface")
+	if _, has := surface["endpoints"]; !has {
+		return overview
+	}
+	shapedSurface := copyMap(surface)
+	delete(shapedSurface, "endpoints")
+	shapedSurface["endpoints_shipped_at"] = "api_surface.endpoints"
+	overview["api_surface"] = shapedSurface
+	return overview
 }
 
 type serviceStoryBuildContext struct {

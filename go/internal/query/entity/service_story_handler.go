@@ -16,7 +16,16 @@ import (
 // error/ambiguity classification live in the reusable seam, so the HTTP route and
 // in-process composers (the service intelligence report) share one truth path.
 // GetServiceStory serves the service-story route. Exported so the staying service-context authz test keeps driving the handler; see #6060.
+//
+// The evidence_detail query parameter (full or handles) shapes the body after
+// the build, through the same projection the context routes use (#8798). It is
+// validated before any read runs; absent means full, so HTTP callers keep the
+// complete dossier and the MCP tool opts into handles.
 func (h *Handler) GetServiceStory(w http.ResponseWriter, r *http.Request) {
+	evidenceDetail, ok := readContextEvidenceDetail(w, r)
+	if !ok {
+		return
+	}
 	serviceName := querycontract.PathParam(r, "service_name")
 	data, truth, status, errEnv := h.BuildServiceStoryEnvelope(r.Context(), service.WorkloadSelector{
 		ServiceName: serviceName,
@@ -28,6 +37,9 @@ func (h *Handler) GetServiceStory(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteErrorEnvelope(w, r, status, errEnv)
 		return
 	}
+	// Shaping runs on the built body, after every count and the answer metadata
+	// were computed from the full rows, and before the answer packet companion.
+	truth.Omissions = append(truth.Omissions, querycontract.ApplyStoryEvidenceDetail(data, evidenceDetail)...)
 	querycontract.WriteSuccess(w, r, status, answer.ServiceStoryAnswerData(serviceName, data, truth), truth)
 }
 
