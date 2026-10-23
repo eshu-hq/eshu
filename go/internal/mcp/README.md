@@ -456,7 +456,7 @@ membership as trust.
 | Identifier | File | Notes |
 |---|---|---|
 | `Server` | `server.go:93` | MCP server struct; fields `handler`, `tools`, `surface`, `logger`, `sessions`, `transportAuth`. `tools` stays the profile-filtered registry; `surface` is applied only when `tools/list` is built |
-| `NewServer` | `server.go:112` | constructs `Server`; calls `ReadOnlyTools()`; accepts `...ServerOption` (e.g. `WithTransportAuth`, `WithQueryProfile`, `WithToolSurface`); `WithToolSurface` sets the process tool surface (advertisement only) and `Server.ToolSurfaceSummary` reports surface, tool count, and `tools/list` bytes for the startup log (see [tool-surface.md](tool-surface.md)) |
+| `NewServer` | `server.go:112` | constructs `Server`; calls `ReadOnlyTools()`; accepts `...ServerOption` (e.g. `WithTransportAuth`, `WithQueryProfile`, `WithToolSurface`, `WithRouterRanker`); `WithRouterRanker` (#8771, in `transport_auth.go`) sets the `find_tool` ranker builder, which `NewServer` runs once after every option over the profile-filtered tool list; `WithToolSurface` sets the process tool surface (advertisement only) and `Server.ToolSurfaceSummary` reports surface, tool count, and `tools/list` bytes for the startup log (see [tool-surface.md](tool-surface.md)) |
 | `ServerOption` / `WithTransportAuth` | `transport_auth.go:24,28` | option that wraps the HTTP transport (`GET /sse`, `POST /mcp/message`) with a credential chain (#5168) |
 | `Server.Run` (`Run`) | `server.go:190` | stdio transport; reads stdin, writes stdout; never authenticated (process/filesystem trust boundary) |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:137` | HTTP+SSE transport; listens on `addr` |

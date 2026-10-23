@@ -14,7 +14,6 @@ import (
 	"syscall"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
-	"github.com/eshu-hq/eshu/go/internal/mcp"
 	"github.com/eshu-hq/eshu/go/internal/mcp/router"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -126,18 +125,16 @@ func main() {
 		logger.Error("load query profile failed", telemetry.EventAttr("runtime.startup.failed"), "error", err)
 		os.Exit(1)
 	}
-	server := mcp.NewServer(queryMux, logger,
-		mcp.WithTransportAuth(authWiring.transportAuth),
-		mcp.WithQueryProfile(queryProfile),
-		mcp.WithToolSurface(toolSurface),
-	)
-	surface, advertised, listBytes := server.ToolSurfaceSummary()
-	logger.Info("mcp tool surface",
-		telemetry.EventAttr("mcp.tool_surface.configured"),
-		"surface", string(surface),
-		"tool_count", advertised,
-		"tools_list_bytes", listBytes,
-	)
+	// The find_tool ranker is built once here, over the profile-filtered
+	// tool list (#8771); router and core_router refuse to start without one.
+	server, rankerBuild, err := newMCPServer(queryMux, logger, authWiring.transportAuth,
+		queryProfile, toolSurface, newLexicalRanker)
+	if err != nil {
+		logger.Error("mcp server refused to start: no find_tool ranker",
+			telemetry.EventAttr("runtime.startup.failed"), "error", err)
+		os.Exit(1)
+	}
+	logToolSurface(logger, server, rankerBuild)
 
 	switch transport {
 	case "stdio":

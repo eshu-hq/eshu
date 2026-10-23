@@ -10,7 +10,7 @@ how often do their arguments fail the target's schema.
 
 | Metric | Type | Labels | Meaning |
 | --- | --- | --- | --- |
-| `eshu_dp_mcp_router_find_total` | counter | `outcome` | `find_tool` requests. `candidates`: at least one tool returned. `empty`: the ranker matched nothing the caller may call. `error`: invalid request, no ranker configured, or a ranker failure. |
+| `eshu_dp_mcp_router_find_total` | counter | `outcome` | `find_tool` requests. `candidates`: at least one tool returned. `empty`: the ranker matched nothing the caller may call. `error`: invalid request, no ranker configured (a `router` or `core_router` server refuses to start without one, #8771), or a ranker failure. |
 | `eshu_dp_mcp_router_call_total` | counter | `tool`, `outcome` | `call_tool` requests. `dispatched`: the target ran through the same dispatch as a direct `tools/call` (its own errors are in the result, not here). `invalid_arguments`: the arguments failed the target's input schema, or the `call_tool` request itself was malformed. `unknown_tool`: no registered tool has that name. `refused`: the target was `find_tool`, `call_tool`, or `ask`, or the credential can never call it. |
 | `eshu_dp_mcp_router_target_rank` | histogram | none | Where a dispatched `call_tool` target sat in the same session's last `find_tool` result, 1-based. `0` means it was not offered, or the session had no `find_tool` result. Refused, unknown-tool, and invalid-argument calls record nothing, so the distribution reflects only calls that ran. Buckets 0 through 10 give every position its own bucket. |
 

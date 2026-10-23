@@ -112,8 +112,7 @@ type Server struct {
 	// since Run() (stdio) never touches httpMux.
 	transportAuth func(http.Handler) http.Handler
 
-	// router serves find_tool and call_tool (#8757).
-	router router.Host
+	router router.Host // serves find_tool and call_tool (#8757); ranker set by WithRouterRanker (#8771)
 }
 
 // NewServer creates an MCP server backed by the given HTTP handler.
@@ -131,6 +130,7 @@ func NewServer(handler http.Handler, logger *slog.Logger, opts ...ServerOption) 
 	for _, opt := range opts {
 		opt(s)
 	}
+	s.router.Prepare(s.tools, s.logger) // after every option: the ranker indexes the final list (#8771)
 	return s
 }
 

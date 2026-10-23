@@ -127,6 +127,11 @@
 // an unknown value gets a 400. The value is trimmed and case-folded, as the
 // ESHU_MCP_TOOL_SURFACE setting is, and a whitespace-only value means "absent".
 //
+// WithRouterRanker (#8771) sets the builder for the find_tool ranker.
+// NewServer runs it once, after every option, over the profile-filtered tool
+// list and the catalog entries it loads, and find_tool hands the ranker that
+// same slice and map on every call, so the ranker's index is never rebuilt.
+//
 // The two filters fail differently. A tool the query profile hides still fails
 // closed on tools/call. A tool only the surface hides still dispatches,
 // because the surface changes advertisement and never what tools/call accepts.
