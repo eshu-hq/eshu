@@ -212,9 +212,13 @@ Where `structuredContent` is present it carries the same data in both shapes.
 Under `dual` it can be absent: when a result is too large to send both copies,
 the response budget drops `structuredContent` and keeps the resource (see the
 [response budget](telemetry/mcp-response-budget.md)). A client that reads
-`structuredContent` works unchanged on `structured`, where it is always sent.
-Under `dual`, such a client must fall back to the resource's JSON `text` when
-`structuredContent` is missing.
+`structuredContent` works unchanged on `structured`, where the budget never
+drops it. Two cases carry none under either shape: a tool whose route answers
+with a JSON `null` body, and an error that has only a text item (a non-2xx
+answer that is not an Eshu envelope, an unknown tool, or a route that cannot
+be built). Timeouts and cancellations still carry structured detail. Under
+`dual`, a client must also fall back to the resource's JSON `text` when the
+budget drops `structuredContent`.
 
 When the underlying HTTP route returns the canonical Eshu envelope, the
 machine-readable copies contain that envelope. The `dual` shape looks like
