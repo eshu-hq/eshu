@@ -202,6 +202,14 @@ with a row. This directory is over the dirgate cap, so a new file needs a
 growth trailer. The code lives in `selection_reconcile_config.go` and
 `selection_baseline.go`, not a new file.
 
+Deltas are cumulative (#8780, `selection_cumulative_delta.go`). The resolver's
+`DeltaSyncBaseline` (or the same cycle's `FullReconcileState`) gives the
+active commit and the newest activated full's commit F. `updateRepository`
+diffs the changed set from F, deletes `D(F..head) ∪ D(active..head)`, and
+takes a full on `no_projected_full`, an unreachable commit, or the growth
+valve (`delta_exceeds_base_half` at half of F's `git ls-tree` count).
+Evidence: `docs/internal/evidence/8780-cumulative-delta.md`.
+
 An unchanged forced reconcile can skip the parse (#7978 follow-up, ruling
 a9-143). After the fetch, `skipParse` (`selection_cli.go`) compares the
 pre-parse identity (`preparse.Identity`, built from `PreparseConfigFor`) with the

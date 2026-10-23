@@ -117,6 +117,10 @@ per repository:
 
 `buildStreamingGeneration` launches a background goroutine that streams
 `facts.Envelope` values through a buffered channel (`factStreamBuffer = 500`).
+A delta is cumulative (#8780): its changed set is diffed from the newest
+activated full generation's commit, its deleted set is everything deleted
+since that commit or the active commit, and it records both commits
+(`delta_union_base_commit_sha`, `delta_baseline_commit_sha`).
 Delta snapshots add repository fact metadata (`delta_generation`,
 `delta_relative_paths`, and `delta_deleted_relative_paths`), emit file and
 content tombstones for deleted paths, and skip repo-wide reducer follow-up facts

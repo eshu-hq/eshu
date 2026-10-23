@@ -99,39 +99,39 @@ The baseline is therefore the source commit of the most recent generation that
 reached a projected state, not the local HEAD. Each generation records the commit
 it was observed from on `scope_generations.source_commit_sha`
 (`scope.ScopeGeneration.SourceCommitSHA`), set by the snapshotter from the
-checked-out HEAD. At sync time the collector resolves the baseline through
-`LastProjectedCommitSHA` (`go/internal/storage/postgres/generation_projected_commit.go`):
+checked-out HEAD. At sync time the collector reads one baseline,
+`DeltaSyncBaseline` (`go/internal/storage/postgres/generation_projected_commit.go`):
+the scope's **active** generation (`status = 'active' AND activated_at IS NOT
+NULL`, served by `scope_generations_active_scope_idx`) and the commit of its
+newest activated full generation. With the reconciliation sweep on, the same
+cycle's `FullReconcileState` read carries both and no second statement runs.
 
-```sql
-SELECT source_commit_sha
-FROM scope_generations
-WHERE scope_id = $1
-  AND status = 'active'
-  AND activated_at IS NOT NULL
-LIMIT 1
-```
+The active generation is the one whose content the graph holds; Ack swaps it
+in one transaction, so a reader sees exactly one. A `pending`, `failed`, or
+`superseded` generation is never the active baseline, even if it wrote part of
+the graph (#7389, #7317). With no active generation the sync takes a full.
 
-The baseline is the commit of the scope's **active** generation, the one whose
-content the graph holds. Projector Ack supersedes the old active generation and
-activates the new one in a single transaction, so a reader always sees exactly
-one of them. A `pending`, `failed`, or `superseded` generation is not the
-graph's baseline, even if it wrote part of the graph (#7389): a generation that
-is superseded while still pending has `activated_at` NULL. Before #7317 such a
-generation could become the baseline, and the next delta then skipped every
-change between the active commit and it until the next full reconciliation. When
-no generation is active (a failed projection can clear the active pointer), the
-graph content is unknown, so the read returns nothing and the sync takes a full
-snapshot. The partial unique index `scope_generations_active_scope_idx` serves
-the read as a single-row lookup.
+A delta is cumulative (#8780): its changed set is diffed from the newest
+activated full's commit F (the union base the projector overlays, recorded as
+`delta_union_base_commit_sha`), its deleted set is `D(F..head) ∪ D(active..head)`,
+and it records the active commit as `delta_baseline_commit_sha`, the commit the
+#7319 fence compares at Ack. A sync whose remote head equals the active commit
+stores nothing, so a quiet delta-active scope does not re-parse its cumulative
+set. See [Delta-base union](../operate/graph-delta-union.md#cumulative-deltas-8780).
 
 The sync falls back to a full snapshot — re-observing the whole repository — when
 no trustworthy baseline exists or a delta would be wrong:
 
 - **First sync** for a scope, or no active generation: there is no baseline,
-  so the full repository is observed.
-- **Divergence / shallow-clone prune**: the recorded baseline is not reachable in
-  the local checkout (`git cat-file -e <sha>^{commit}` fails), so a delta diff
-  would be incorrect and a full snapshot is taken instead.
+  so the full repository is observed (`no_projected_baseline`). An active
+  generation with no activated full has no union base (`no_projected_full`).
+- **Divergence / shallow-clone prune**: the active or the union-base commit is
+  not reachable in the local checkout (`git cat-file -e <sha>^{commit}` fails),
+  so a delta diff would be incorrect and a full snapshot is taken instead.
+- **Growth valve**: the cumulative delta touches at least half of the union
+  base's tracked files (`git ls-tree`), so a full is cheaper
+  (`delta_exceeds_base_half`, #8780). `eshu_dp_collector_delta_touched_ratio`
+  records the ratio for every cumulative diff.
 - **Baseline lookup error**: the resolver read against Postgres failed; rather
   than trust the local HEAD as a delta base, the sync logs
   `git_delta_baseline_lookup_failed` and takes a full snapshot.
@@ -148,8 +148,9 @@ no trustworthy baseline exists or a delta would be wrong:
   reconciliation lands on the same cycle. The scope keeps its ID, which
   derives from the remote URL.
 Each fallback increments `eshu_dp_collector_delta_baseline_fallback_total`,
-labeled by `skip_reason` (`no_projected_baseline`, `baseline_unreachable`,
-`baseline_lookup_error`, `default_branch_changed`), so operators can watch the
+labeled by `skip_reason` (`no_projected_baseline`, `no_projected_full`,
+`baseline_unreachable`, `delta_exceeds_base_half`, `baseline_lookup_error`,
+`default_branch_changed`), so operators can watch the
 delta-skip rate and tell a fleet of cold first syncs apart from a Postgres
 outage.
 

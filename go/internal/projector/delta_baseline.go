@@ -17,7 +17,10 @@ import (
 // activates only while the scope's active generation commit equals the commit
 // the delta was diffed from. It does not prove that the graph content equals
 // that commit; a generation that wrote the graph and never activated is a
-// separate hole (#7389).
+// separate hole (#7389). "The commit the delta was diffed from" is the active
+// commit when the collector read its baseline (the fence commit). Since #8780
+// a delta's changed set is diffed from the newest activated full instead; that
+// union base is a separate recorded commit the fence never decides on.
 
 // Closed fence phases. Preflight runs before a claimed generation loads facts
 // or writes the graph; Ack runs inside the Ack transaction and is

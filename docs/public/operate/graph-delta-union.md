@@ -9,10 +9,13 @@ writes carry the full set while retracts stay file-scoped.
 
 ## Base rule
 
-For a delta generation with baseline commit B, the base is the newest
-projected full generation in the scope at commit B: `is_delta = false`,
-`activated_at IS NOT NULL`, status active/completed/superseded, intact
-statuses first. A superseded base with any retention prune event refuses, as
+For a delta generation, the base is the newest projected full generation in
+the scope at its union-base commit,
+`COALESCE(delta_union_base_commit_sha, delta_baseline_commit_sha)`:
+`is_delta = false`, `activated_at IS NOT NULL`, status
+active/completed/superseded, intact statuses first. A delta stored before
+#8780 has no union-base column, so it resolves at its baseline, which was then
+always its base full's commit. A superseded base with any retention prune event refuses, as
 does a base row with no facts (a stored full always carries at least its
 repository fact) and a delta with no projected base at all.
 
@@ -49,18 +52,39 @@ second time, so the check always uses the base the facts came from.
 - The `build_projection` stage log carries `generation_fact_count`,
   `union_base_fact_count`, and `reducer_intent_count`.
 
-A delta whose baseline is another delta's commit has no full generation at
-that commit, so it refuses as `refused_base_missing` and the reindex
-watermark forces a full re-parse: a fresh delta projects once per full
-generation (#8780).
+## Cumulative deltas (#8780)
+
+A git delta is cumulative from the scope's newest activated full generation F,
+so a delta over an active delta still has a full base. The collector diffs the
+changed set from F's commit, deletes `D(F..head) ∪ D(active..head)`, records
+the active commit as `delta_baseline_commit_sha` (the #7319 fence commit, which
+keeps its meaning), and records F's commit as `delta_union_base_commit_sha`.
+The second deleted term matters: a file the active chain added that the head
+no longer has is in neither F nor `F..head`, and without it no retract would
+name it. A cumulative delta that touches at least half of F's tracked files
+takes a full instead (`delta_exceeds_base_half`). F is the row retention keeps
+for a delta-active scope (#7802), so the collector's base and retention's
+guarantee are the same row.
+
+A legacy delta whose baseline is another delta's commit and that records no
+union base still resolves at that commit, finds no full, and refuses as
+`refused_base_missing`. A burst delta diffed from a commit that is no longer
+active refuses at preflight (`refused_active_differs`, no watermark); the
+next sync re-diffs it as a cumulative delta fenced on the new active commit.
+The search-document and `changed-since` windows of a delta-active scope last
+longer under cumulative deltas; that gap is #8801. A delta-active scope never
+takes the reconcile parse skip (`delta_active`), so a churning repository pays
+one real full parse per reconcile interval, which re-roots the chain on the
+new full; quiet repositories still skip.
 
 ## Successor guard anchor (#8750)
 
 The ingestion commit's destructive-successor guard (#7926) sizes a git delta
 by the same union the projector will build, not by the delta's own stream. It
 finds the delta's anchor with the base rule above (the newest projected full
-generation at the delta's baseline commit), through the same resolver, so the
-guard and the projection agree about the base. A delta with no anchor stores;
+generation at the delta's union-base commit, COALESCEd to its baseline,
+#8780), through the same resolver, so the guard and the projection agree
+about the base. A delta with no anchor stores;
 the projector then refuses it as `refused_base_missing` and arms the reindex
 watermark, which a store-side refusal would not.
 
@@ -88,7 +112,14 @@ sync recollects. The sizing evidence is in
 - `eshu_dp_projector_delta_union_facts` histogram of base/delta/union fact
   counts by `outcome` and `kind`. Counts are values, never labels; commit
   SHAs, scope ids, and generation ids never become labels.
-- One `projector.delta_union` span event and one INFO log per union decision.
+- One `projector.delta_union` span event and one INFO log per union decision,
+  carrying `delta_baseline_commit_sha`, `delta_union_base_commit_sha`, and
+  `chained` (the delta was diffed over a prior delta: its fence commit is not
+  its union base's commit). The `build_projection` stage log carries `chained`
+  too. Chained deltas projecting show as `union_base_found` rising while
+  `eshu_dp_projector_delta_baseline_fence_total{outcome="refused_base_missing"}`
+  and `eshu_dp_collector_reconciliation_full_snapshots_total{reason="repository_reindex_requested"}`
+  stay flat.
 - `GET /api/v0/admin/delta-union/completeness` returns the read-only
   completeness report: per repository, the graph's file set against the
   ACTIVE set (base-full overlaid with the active delta), with per-path

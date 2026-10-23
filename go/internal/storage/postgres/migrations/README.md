@@ -65,7 +65,8 @@ the directory is the single source of truth root already documented it as.
 
 ## Catalog-only column and storage-parameter migrations
 
-Migrations 148 (`delta_baseline_commit_sha`, #7319) and 149
+Migrations 148 (`delta_baseline_commit_sha`, #7319), 210
+(`delta_union_base_commit_sha`, #8780), and 149
 (`projection_write_started_at`, #7389) each add one nullable
 `scope_generations` column with no default, backfill, CHECK, or index, so
 `ADD COLUMN` changes only the catalog and its ACCESS EXCLUSIVE lock is bounded

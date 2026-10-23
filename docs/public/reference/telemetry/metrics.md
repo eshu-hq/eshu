@@ -195,7 +195,8 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_facts_emitted_total` | Collector fact output volume. |
 | `eshu_dp_facts_committed_total` | Durable fact commit volume. |
 | `eshu_dp_generation_fact_count` | Fact volume per scope generation. |
-| `eshu_dp_collector_delta_baseline_fallback_total` | Git delta syncs that fell back to a full snapshot, by `skip_reason` (`no_projected_baseline`, `baseline_unreachable`, `baseline_lookup_error`, `default_branch_changed`). |
+| `eshu_dp_collector_delta_baseline_fallback_total` | Git delta syncs that fell back to a full snapshot, by `skip_reason` (`no_projected_baseline`, `no_projected_full`, `baseline_unreachable`, `delta_exceeds_base_half`, `baseline_lookup_error`, `default_branch_changed`). |
+| `eshu_dp_collector_delta_touched_ratio` | Cumulative git delta touched paths over the union base's tracked files per delta sync (#8780), by `outcome` (`delta`, `delta_exceeds_base_half`). |
 | `eshu_dp_collector_repository_selection_evaluations_total` | Repository selection evaluations on shard 0 (#7625), by `collector_kind`, `selector_kind` (`github_org`, `explicit`, `gitlab_group`), and `outcome` (`evaluated`, `listing_truncated`, `guard_tripped`, `store_error`). |
 | `eshu_dp_collector_repository_selection_scopes` | Gauge of the evaluating selector's known repository scopes by selection `state` (`selected`, `not_listed_pending`, `not_listed`, `archived_excluded`, `rule_excluded`) after the last `evaluated` cycle (#7625, #7765). |
 | `eshu_dp_collector_repository_listing_requests_total` | GitLab group listing requests (#7765), by `collector_kind`, `provider` (`gitlab`), and `outcome` (`success`, `retried`, `rate_limited`, `http_error`, `transport_error`, `decode_error`). |
