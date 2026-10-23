@@ -22,7 +22,7 @@ which the queue dead-letters, and every real handler error stay `failed` and
 ERROR. For this class that only happens when the budget is 1 or 2: with budget
 3 or more the handler resolves at attempt 3 and the attempt succeeds.
 
-No-Regression Evidence (#8826): baseline is the merge base of the branch with
+No-Regression Evidence (#8826, doc correction): baseline is the merge base of the branch with
 `origin/main` (`git merge-base origin/main HEAD`). No SQL, Cypher, queue claim,
 lease, retry delay, `MaxAttempts`, attempt counting, ordering, goroutine or
 batch-size change. The only runtime delta is one extra type assertion and an
@@ -36,7 +36,7 @@ error record `failed`/ERROR) and the handler assertions that the real
 pending-impact error is an expected wait and that the handler stops waiting at
 attempt 3, whatever the queue budget.
 
-Observability Evidence (#8826): no instrument, label name or log key was added.
+Observability Evidence (#8826, doc correction): no instrument, label name or log key was added.
 The existing `status` label on `eshu_dp_reducer_executions_total` and the log
 `status` field gain no new value; `deferred` now also applies to
 `domain="security_alert_reconciliation"`. A deferred attempt logs WARN
