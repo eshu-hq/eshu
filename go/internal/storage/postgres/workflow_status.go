@@ -111,7 +111,7 @@ SELECT
 	// only a completed row proves recovery, so a pending, claimed, or retrying
 	// replan does not flap the signal, and another instance's success on a
 	// shared scope_id does not clear this one. The inner read seeks
-	// workflow_work_items_failed_terminal_instance_updated_idx (migration 210)
+	// workflow_work_items_failed_terminal_instance_updated_idx (migration 211)
 	// newest first with work_item_id as the index's tiebreak, so it stops at
 	// the first unresolved row without a sort; the anti-join probes the
 	// (kind, scope) index per candidate. Only the bounded class and operation

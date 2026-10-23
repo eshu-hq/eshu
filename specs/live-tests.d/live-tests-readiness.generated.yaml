@@ -1192,7 +1192,7 @@ tests:
   - file: go/internal/storage/postgres/workflow_terminal_failure_index_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8803 disposable PostgreSQL 18 plan and lifecycle proof of migration 210: on a populated workflow_work_items (one instance with 24,000 failed_terminal rows plus completed history) EXPLAIN of the windowed terminal-failure read seeks workflow_work_items_failed_terminal_instance_updated_idx with no Sort node, and dropping the index then applying the migration twice leaves exactly one valid index (pg_index.indisvalid); isolated bootstrapped schema per test; wall time is logged, not gated"
+    reason: "#8803 disposable PostgreSQL 18 plan and lifecycle proof of migration 211: on a populated workflow_work_items (one instance with 24,000 failed_terminal rows plus completed history) EXPLAIN of the windowed terminal-failure read seeks workflow_work_items_failed_terminal_instance_updated_idx with no Sort node, and dropping the index then applying the migration twice leaves exactly one valid index (pg_index.indisvalid); isolated bootstrapped schema per test; wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/workflow_terminal_failure_status_live_test.go
     tag: ~

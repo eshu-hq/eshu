@@ -5,7 +5,7 @@ non-deactivated collector instance, the newest `failed_terminal` work item
 inside that instance's window that no later `completed` item of the same
 instance and scope superseded. The window is `3 x scan_interval` with a 30
 minute floor (`terminalFailureWindowCycles`, `defaultCoordinatorRecentFailureWindow`
-in `go/internal/storage/postgres/workflow_status.go`). Migration 210 adds the
+in `go/internal/storage/postgres/workflow_status.go`). Migration 211 adds the
 partial index the read seeks:
 `workflow_work_items_failed_terminal_instance_updated_idx ON workflow_work_items
 (collector_kind, collector_instance_id, updated_at DESC, work_item_id ASC)
@@ -35,10 +35,10 @@ WHERE status = 'failed_terminal'`, built `CONCURRENTLY` and migration-only.
 
 | Variant | Run | Execution time | Buffers | Temp blocks |
 | --- | --- | --- | --- | --- |
-| Before migration 210 | cold | not comparable (see below) | 51 hit, 2,708 read | 623 read, 623 written |
-| Before migration 210 | warm | 83.6 ms | 2,759 hit | 623 read, 623 written |
-| After migration 210 | cold | 3.0 ms | 498 hit, 296 read | none |
-| After migration 210 | warm | 1.9 ms | 794 hit | none |
+| Before migration 211 | cold | not comparable (see below) | 51 hit, 2,708 read | 623 read, 623 written |
+| Before migration 211 | warm | 83.6 ms | 2,759 hit | 623 read, 623 written |
+| After migration 211 | cold | 3.0 ms | 498 hit, 296 read | none |
+| After migration 211 | warm | 1.9 ms | 794 hit | none |
 
 Compare the warm rows only: 83.6 ms before, 1.9 ms after. The cold "before"
 run reported an Execution Time of 5,702.0 ms, but its plan nodes account for
@@ -116,7 +116,7 @@ not clear it; a `scanner_worker`
 `failed_terminal` row whose `last_failure_terminal` flag is false still degrades
 its instance through the status builder, including when an older row of the
 same instance has the flag true (the reader never reads the flag); `EXPLAIN`
-seeks the migration 210 index with no per-instance sort; re-applying migration 210 twice on a populated table leaves
+seeks the migration 211 index with no per-instance sort; re-applying migration 211 twice on a populated table leaves
 one valid index; a completion recorded under another `collector_kind` for the
 same `collector_instance_id` and scope does not clear the failure. Eight SQL
 mutations each fail at least one of these proofs: drop the same-instance probe,
@@ -145,7 +145,7 @@ Known limits:
 
 ## Plans
 
-Before migration 210, cold:
+Before migration 211, cold:
 
 ```text
  Sort (actual time=1441.643..1441.644 rows=1.00 loops=1)
@@ -191,7 +191,7 @@ Before migration 210, cold:
  Execution Time: 5702.041 ms
 ```
 
-Before migration 210, warm:
+Before migration 211, warm:
 
 ```text
  Sort (actual time=71.332..71.334 rows=1.00 loops=1)
@@ -237,7 +237,7 @@ Before migration 210, warm:
  Execution Time: 83.591 ms
 ```
 
-After migration 210, cold:
+After migration 211, cold:
 
 ```text
  Sort (actual time=2.912..2.913 rows=1.00 loops=1)
@@ -266,7 +266,7 @@ After migration 210, cold:
  Execution Time: 2.992 ms
 ```
 
-After migration 210, warm:
+After migration 211, warm:
 
 ```text
  Sort (actual time=1.813..1.813 rows=1.00 loops=1)

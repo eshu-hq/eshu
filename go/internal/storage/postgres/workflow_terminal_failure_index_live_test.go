@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8803 disposable PostgreSQL 18 plan and lifecycle proof of migration 210: on a populated workflow_work_items (one instance with 24,000 failed_terminal rows plus completed history) EXPLAIN of the windowed terminal-failure read seeks workflow_work_items_failed_terminal_instance_updated_idx with no Sort node, and dropping the index then applying the migration twice leaves exactly one valid index (pg_index.indisvalid); isolated bootstrapped schema per test; wall time is logged, not gated
+//eshu:readiness:reason #8803 disposable PostgreSQL 18 plan and lifecycle proof of migration 211: on a populated workflow_work_items (one instance with 24,000 failed_terminal rows plus completed history) EXPLAIN of the windowed terminal-failure read seeks workflow_work_items_failed_terminal_instance_updated_idx with no Sort node, and dropping the index then applying the migration twice leaves exactly one valid index (pg_index.indisvalid); isolated bootstrapped schema per test; wall time is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
@@ -92,9 +92,9 @@ func TestCollectorTerminalFailureIndexMigrationReappliesLive(t *testing.T) {
 	for attempt := 1; attempt <= 2; attempt++ {
 		began := time.Now()
 		if _, err := f.database.ExecContext(f.ctx, migration); err != nil {
-			t.Fatalf("apply migration 210 attempt %d: %v", attempt, err)
+			t.Fatalf("apply migration 211 attempt %d: %v", attempt, err)
 		}
-		t.Logf("migration 210 attempt %d on 48,000 rows: %s", attempt, time.Since(began))
+		t.Logf("migration 211 attempt %d on 48,000 rows: %s", attempt, time.Since(began))
 	}
 	var count, valid int
 	if err := f.database.QueryRowContext(f.ctx, `
