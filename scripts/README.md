@@ -31,6 +31,16 @@ API/MCP readback, and fails upgrade or rollback modes when durable-state,
 queue-state, Postgres restore, or graph rebuild assumptions are missing. The
 mocked harness is `test-verify-hosted-helm-rollout-proof.sh`.
 
+`collector-cutover-rollback.sh` rolls a collector back from an external
+component producer to the in-tree producer as a producer-authority transition
+(#8895). Its `plan`, `run`, and `verify` subcommands run the six steps in order
+from existing primitives (`eshu component disable` and `revoke-grant`, `kubectl`,
+`helm`, and read-only `psql`) and refuse to continue while the external producer
+still holds claims or a live grant. Read-only SQL lives in
+`lib/collector-cutover-rollback-*.sql`. The runbook is
+`docs/public/operate/collector-cutover-rollback.md`. The stubbed harness is
+`test-collector-cutover-rollback.sh`.
+
 `verify-compose-helm-runtime-parity.sh` is the static hosted deployability
 gate for Compose-to-Kubernetes runtime parity. It renders default Compose,
 remote E2E Compose, profile-expanded remote collectors, observability remote

@@ -92,10 +92,15 @@ wait_until() { # timeout-seconds fn
 # --- predicates (read-only) ----------------------------------------------------------
 
 # worker_pods_gone is true when no component-extension worker pod remains.
+POD_NOTE=""
 worker_pods_gone() {
 	build_worker_pods
 	quiet_cmd
-	[[ "$XRC" -eq 0 ]] || return 1
+	if [[ "$XRC" -ne 0 ]]; then
+		POD_NOTE="listing worker pods failed with exit ${XRC}: ${XOUT}"
+		return 1
+	fi
+	POD_NOTE=""
 	[[ -z "$(printf '%s\n' "$XOUT" | awk 'NF')" ]]
 }
 
@@ -173,7 +178,7 @@ confirm_step1() {
 	build_worker_pods
 	show_cmd
 	if ! wait_until "$step_timeout" worker_pods_gone; then
-		CONFIRM_NOTE="worker pods matching '${worker_selector}' still exist after ${step_timeout}s"
+		CONFIRM_NOTE="worker pods matching '${worker_selector}' are not confirmed gone after ${step_timeout}s${POD_NOTE:+ ($POD_NOTE)}"
 		return 1
 	fi
 	build_coordinator_status
