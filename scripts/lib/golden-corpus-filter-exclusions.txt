@@ -83,3 +83,4 @@ go/internal/searchdecaytelemetry	NOT REACHABLE: not reachable via go list -deps 
 go/internal/searchnornicdb			NOT REACHABLE: not reachable via go list -deps for any of the six gate binaries
 go/internal/searchpostgres			NOT REACHABLE: not reachable via go list -deps for any of the six gate binaries
 go/internal/semanticdocs			NOT REACHABLE: not reachable via go list -deps for any of the six gate binaries
+go/internal/github			GitHub App JWT mint + installation-token exchange extracted for collector auth; the B-7 gate replays recorded cassettes credential-free and never mints a token, so this is dead code for the gate (same class as the auth family above)

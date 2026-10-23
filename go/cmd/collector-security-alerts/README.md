@@ -59,3 +59,23 @@ runtime for one provider page, and returns an `auth_denied` failure without
 leaking token or repository values.
 `TestRunProviderAccessPreflightRecordsProviderTelemetry` proves the preflight
 path records the existing security-alert provider metric and spans.
+
+No-Regression Evidence (github_app auth_mode): baseline is the unchanged
+static `token_env` path (existing suites green unmodified); after measurement
+is the focused suites on this branch head (`internal/github/app`,
+`collector/securityalerts` + `alertruntime`, `internal/workflow`,
+`cmd/collector-security-alerts` all green, plus the full `repo/git` package
+green for the extraction consumer), backend go toolchain per go.mod on a linux/arm64 dev box,
+input shape fake-server mint tests (transient/401/403/404/rate-limit) plus
+the dual-mode 401 table plus live `--preflight-provider-access` for one
+repository-scope and one org-scope target (both exit 0), terminal state all
+suites pass with zero failures, telemetry via the existing provider metric
+and spans named above. The change is safe because it is additive (default
+`token_env` byte-identical), adds no Cypher, queue, lease, or concurrency
+surface, and issues one bounded 15s context-cancellable POST per claim at the
+existing claim cadence.
+
+No-Observability-Change (github_app auth_mode): no new metric family, span,
+or status field; mint outcomes reuse the existing failure taxonomy
+(`auth_denied` terminal, `rate_limited`/`retryable`) with the same redaction
+as the static path, so dashboards and alerts need no update.
