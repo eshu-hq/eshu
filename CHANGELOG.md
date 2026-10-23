@@ -125,7 +125,9 @@ recent shipped work grouped by feature area.
   `phpunit.xml`, `.mvn/jvm.config`, `.mvn/maven.config`) stay unadmitted.
   Filesystem source mode now keeps these dot-prefixed names, matched
   case-insensitively, and the whole `.mvn` directory in its managed copy, so it
-  treats them like clone mode; `.gitignore` is still not copied there. Because
+  treats them like clone mode. The copy's existing `.gitlab-ci.yml`,
+  `.gitlab-ci.yaml` and `.gitmodules` entries now match case-insensitively there
+  as well; `.gitignore` is still not copied there. Because
   the copy keeps `.mvn` whole, filesystem mode also now indexes other files the
   registry admits under it, such as `.mvn/wrapper/MavenWrapperDownloader.java`,
   as clone mode already did. The registry fingerprint and `git-collector`
