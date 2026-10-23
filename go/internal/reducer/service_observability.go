@@ -150,10 +150,11 @@ const defaultRetryMaxAttempts = 3
 // retries. Two shapes qualify. A non-counting readiness class (the injected
 // IsDeferredFailureClass) never spends the retry budget. An expected-wait error
 // (reducercontract.IsExpectedWait) does spend it, so it only counts as deferred
-// while the queue will still retry it: the final attempt dead-letters and stays
-// "failed" so the exhausted wait is the ERROR an operator should see. A
-// producer-terminal or any other counting class, and a non-retryable error,
-// stay "failed".
+// while the queue will still retry it: an attempt at the budget dead-letters and
+// stays "failed". security_alert_reconciliation's handler stops waiting at
+// attempt 3 and writes (the attempt succeeds), so its wait only ends in
+// "failed" when the queue budget is below 3. A producer-terminal or any other
+// counting class, and a non-retryable error, stay "failed".
 func (s Service) isDeferredFailure(execErr error, attempt int) bool {
 	if execErr == nil || !IsRetryable(execErr) {
 		return false

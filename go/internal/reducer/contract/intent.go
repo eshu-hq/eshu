@@ -71,8 +71,9 @@ func IsRetryable(err error) bool {
 // for upstream evidence rather than a defect (security_alert_reconciliation
 // waiting for package impact findings). The queue still counts it toward the
 // retry budget; the Service only uses the marker to record the attempt as
-// deferred at WARN instead of failed at ERROR while the budget has attempts
-// left (#8826).
+// deferred at WARN instead of failed at ERROR while the attempt is below the
+// budget (#8826). A handler may stop waiting before the budget ends; the
+// security alert reconciliation does at attempt 3 and writes instead.
 type ExpectedWaitError interface {
 	error
 	ExpectedWait() bool

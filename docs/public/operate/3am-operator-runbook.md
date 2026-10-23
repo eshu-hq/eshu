@@ -93,14 +93,18 @@ not `failed`.
 
 - **Do nothing** while the deferred count is small and the impact findings
   arrive on the next attempt. Do not page on `deferred` alone.
-- **Worry** when the same work item is still deferred after its attempt budget:
-  the smaller of `ESHU_REDUCER_MAX_ATTEMPTS` (default 3) and the handler's own
-  cap of 3 attempts. The last attempt logs ERROR
-  `reducer execution failed` with the same `failure_class` and records
-  `status="failed"`, and the item dead-letters. That means the package impact
-  evidence never arrived: check that `supply_chain_impact` ran for the
-  package's scope and generation, then replay the class from
-  [deadletter growth](#symptom-deadletter-growth).
+- **Worry** when reconciliations keep resolving at attempt 3 with `unmatched`
+  rows while `supply_chain_impact` is slow or backlogged. The handler waits for
+  impact evidence on attempts 1 and 2 only. At attempt 3 it stops waiting,
+  writes `unmatched` decisions, and the attempt records `succeeded`. At the
+  default budget (`ESHU_REDUCER_MAX_ATTEMPTS=3`) the wait therefore never fails
+  and nothing dead-letters. Check the `supply_chain_impact` queue age and
+  blockages for the package's scope and generation. #8827 tracks the
+  reconciliation burning attempts while it waits on its own producer.
+- A `failed` execution with this `failure_class` is not a normal end of the
+  wait. It means `ESHU_REDUCER_MAX_ATTEMPTS` is 1 or 2, so the queue
+  dead-letters before the handler's cap of 3, or the error is a real one. Replay
+  the class from [deadletter growth](#symptom-deadletter-growth).
 
 ## Symptom: collector failure
 

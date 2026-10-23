@@ -69,9 +69,9 @@
 // (#7597), and Service.IsDeferredFailureClass records non-counting failures as
 // status "deferred" rather than "failed".
 // A retryable expected-wait error (reducercontract.IsExpectedWait) records
-// "deferred" too while Service.RetryMaxAttempts has attempts left (#8826). The
-// security alert handler also caps its own wait at 3 attempts, so a larger
-// queue budget does not lengthen that wait.
+// "deferred" too while the attempt is below Service.RetryMaxAttempts (#8826).
+// The security alert handler stops waiting at attempt 3 and writes, so that
+// attempt succeeds; its wait only fails when the budget is below 3.
 // Repo-wide shared-projection refresh fences are generation-local: an exact
 // same-generation retry reuses completed deterministic intent IDs, while a
 // later generation must complete its own refresh before its edge rows write.
