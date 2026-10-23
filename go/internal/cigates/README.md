@@ -251,8 +251,26 @@ A hook exports more than that one variable, and dropping `GIT_DIR` is not a no-o
 
 Checks 4, 5 and 6 skip rather than false-error when they cannot resolve an unambiguous mapping — an unparseable workflow, a `ci.job` with no matching append_gate call, (check 5 only) a glob-form trigger, or (check 6 only) a verify script that no workflow runs (CI legitimately uses a different entrypoint than the local gate) or that several run (no single owner). Check 7 does not share that escape hatch: its only skip condition is none of the FOUR trivy artifacts (specs file, helper, local script, CI workflow) being present, which is the shape of this package's synthetic drift fixtures rather than a real tree. Any subset present, an unparseable `security-scan.yml`, a missing or ambiguous `trivy-fs` job or trivy-action step, a hard-coded or appended skip-dirs value, or a referenced step that does not both source and call the helper all fail loudly instead. It is exposed via `ci-gates validate --drift` and needs no network, Docker, or credentials.
 
+The central `call-<stem>` carrier in `test.yml` inherits a leaf's declared gate ownership or reasoned non-gate inventory decision only when its `uses:` target is that exact local callable workflow and a schema-v1 PR fragment matches the callable file's name and jobs. Other reusable workflow jobs still need their own owner or a covered dependency. The merge-group job guard parses indexed JSON lookups as unknown values, allowing an explicit true `merge_group` branch to prove the whole `if:`; malformed expressions still fail closed.
+
 ## Tests
 
 ```bash
 cd go && go test ./internal/cigates/ -count=1
 ```
+
+## Trusted PR workflow planning
+
+`ParsePRWorkflowDefinition` reads the event types, path filters, and local job
+IDs from one trusted workflow file. `PlanPRWorkflows` is pure: it selects the
+synchronize jobs for changed PR paths, retaining non-gate workflows and ordered
+positive and negative `paths:` rules. The CLI owns filesystem and GitHub reads,
+including the full-backed reuse and smoke probes. A smoke plan names known local job IDs and selected gate IDs, so
+matrix cells under one job remain distinct; unknown IDs and an empty smoke set are rejected.
+
+Callable leaves without direct PR triggers are inventoried in versioned
+`specs/ci-pr-workflows.d/*.yaml` fragments. Each row retains its former PR
+filters and job identities; the parser checks the callable file's name, jobs,
+and display names before planning. Smoke closes selected fast jobs over actual
+`needs` edges while keeping transfer-aware Go aggregate jobs separate from
+their intentionally skipped heavy dependencies.

@@ -69,12 +69,12 @@ func runAwait(args []string) error {
 	if verdict, probeErr := probeReuseForAwait(ctx, runner, reg, *repo, *pr, *headSHA); probeErr != nil {
 		_, _ = fmt.Fprintf(os.Stdout, "required-gates: reuse probe failed (%v); awaiting gates normally\n", probeErr)
 	} else if verdict.Reuse {
-		_, _ = fmt.Fprintf(os.Stdout, "required-gates: reuse source=%s tree=%s (%s)\n", verdict.SourceSHA, verdict.Tree, verdict.Reason)
-		if err := verifyPRHead(ctx, runner, *repo, *pr, *headSHA); err != nil {
+		transferred, err := transferProvenReuse(ctx, runner, root, *repo, *pr, *headSHA, *pollInterval, verdict)
+		if transferred || err != nil {
 			return err
 		}
-		return fmt.Errorf("%w: source %s tree %s", errReuseProven, verdict.SourceSHA, verdict.Tree)
 	}
+
 	paths, truncated, err := changedPathsForPR(ctx, runner, *repo, *pr)
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func runAwait(args []string) error {
 		if smokeErr != nil {
 			_, _ = fmt.Fprintf(os.Stdout, "required-gates: smoke probe failed (%v); awaiting full selection\n", smokeErr)
 		} else if applied {
-			if subset := smokeSubset(reg, resolved); len(subset) == 0 {
+			if subset := smokeSubset(reg, resolved); !smokeHasFastWork(subset) {
 				_, _ = fmt.Fprintln(os.Stdout, "required-gates: smoke subset empty (all-heavy selection); awaiting full selection")
 			} else {
 				smoke = true
@@ -140,6 +140,13 @@ func selectRequiredGates(reg *cigates.Registry, root string, paths []string, tru
 	resolved, err := resolveRequiredGateWorkflows(root, required)
 	if err != nil {
 		return nil, err
+	}
+	planner, active, err := requiredPlannerGate(root)
+	if err != nil {
+		return nil, err
+	}
+	if active {
+		resolved = append(resolved, planner)
 	}
 	_, _ = fmt.Fprintf(os.Stdout, "required-gates: selected %d blocking workflow job(s) for %d changed path(s) (truncated=%v)\n", len(resolved), len(paths), truncated)
 	return resolved, nil
@@ -190,6 +197,9 @@ type requiredCheckFinding struct {
 	Job          string
 	GateIDs      []string
 	State        string
+	// Called marks a current-attempt Build Test job whose verdict was already
+	// attributed by the jobs API and must not be overridden by a direct run.
+	Called bool
 	// RunID names the workflow run whose check run was judged (#8053), so the
 	// await log says which event's verdict a failure came from. Zero means
 	// the source row carried no attribution and is omitted from the log.
@@ -327,15 +337,12 @@ func evaluateRequiredChecks(
 		// Precedence within one gate is failure > pending > cancelled
 		// (#6189).
 		//
-		// Scope, stated honestly: with the reader this command actually has,
-		// `matches` holds at most one row, so no ordering here is observable
-		// today. `gh pr checks` de-duplicates check contexts on
-		// name/workflow/event (read in cli/cli v2.97.0
-		// pkg/cmd/pr/checks/aggregate.go, eliminateDuplicates -- the version
-		// installed here), which is the same triple matchingChecks keys on.
-		// The precedence that decides real verdicts is the one in
-		// awaitPRRequiredChecks, where a non-empty Failed wins over
-		// everything else.
+		// `gh pr checks` de-duplicates rows with the same name, workflow,
+		// and event. A gate can still match both its direct check and the
+		// Build Test caller alias. A failure in either must beat a pending or
+		// cancelled sibling; a pending sibling must beat cancellation. This
+		// prevents a direct green row from hiding a called failure, and the
+		// outer await gives any Failed finding priority over other gates.
 		//
 		// It is kept, and ordered deliberately, because this repository does
 		// not pin the runner's gh -- the same reason isCancelledCheck in
@@ -365,11 +372,13 @@ func matchingChecks(gate resolvedRequiredGate, checks []checkRollup) []checkRoll
 		wantEvent = eventPullRequest
 	}
 	var exact []checkRollup
+	calledName := calledCheckName(gate.WorkflowFile, gate.Job)
 	for _, check := range checks {
-		if check.Workflow != gate.WorkflowName || check.Event != wantEvent {
+		if check.Event != wantEvent {
 			continue
 		}
-		if check.Name == gate.Job {
+		if check.Workflow == gate.WorkflowName && check.Name == gate.Job ||
+			calledName != "" && check.Workflow == "Build Test" && check.Name == calledName {
 			exact = append(exact, check)
 		}
 	}

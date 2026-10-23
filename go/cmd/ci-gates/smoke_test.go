@@ -365,3 +365,40 @@ func smokeAllowedDescriptions(t *testing.T) map[string]bool {
 	}
 	return allowed
 }
+
+func TestProbeSmoke_PRPlanManifestDeltaRefuses(t *testing.T) {
+	t.Parallel()
+	runner := &mappedGHRunner{routes: smokeRoutes(compareJSON("specs/ci-pr-workflows.d/frontend.yaml"))}
+	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
+		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got {
+		t.Fatal("planner-manifest delta must refuse smoke transfer")
+	}
+}
+
+func TestProbeSmokeEvidenceBindsFullBackedSourceAndCurrentTree(t *testing.T) {
+	t.Parallel()
+	runner := &mappedGHRunner{routes: smokeRoutes(compareJSON("docs/x.md"))}
+	verdict, err := probeSmokeEvidence(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
+		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
+	if err != nil || !verdict.Applied || verdict.SourceSHA != reuseOldSHA || verdict.Tree != reuseOtherTree {
+		t.Fatalf("smoke provenance = %#v, err=%v", verdict, err)
+	}
+}
+
+func TestSmokeSubsetPlannerAloneDoesNotCountAsFastWork(t *testing.T) {
+	t.Parallel()
+	planner := resolvedRequiredGate{WorkflowFile: "test.yml", WorkflowName: "Build Test", Job: "pr-plan", GateIDs: []string{"central-pr-plan"}}
+	if smokeHasFastWork([]resolvedRequiredGate{planner}) {
+		t.Fatal("planner-only smoke would transfer heavy results without a fast gate")
+	}
+	fast := resolvedRequiredGate{WorkflowFile: "test.yml", WorkflowName: "Build Test", Job: "go-core", GateIDs: []string{"go-fmt"}}
+	if !smokeHasFastWork([]resolvedRequiredGate{planner, fast}) {
+		t.Fatal("real fast work was excluded")
+	}
+}

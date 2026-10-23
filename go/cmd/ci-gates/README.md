@@ -186,6 +186,16 @@ smoke result and historical generic reuse cannot start another smoke
 transfer. The recursive trees are fetched only after that prior verdict
 has been verified.
 
+### pr-plan
+
+`ci-gates pr-plan --registry specs/ci-gates.v1.yaml --repo-root . --repo eshu-hq/eshu --pr 42 --head-sha <sha>` emits JSON schema v1 (`mode`, `head_sha`, `source_sha`, `tree`, `workflows`, `jobs`, `gates`, `reason`).
+Use one trusted default-branch checkout for the registry, workflows, and optional `specs/ci-pr-workflows.d/*.{yml,yaml}` callable-leaf fragments; each fragment uses schema v1 and must match its callable file. Distinct workflow files cannot share a `call-<stem>` identity.
+`full` selects every applicable synchronize workflow and local job ID, including non-gate jobs; opened-only and labeled-only workflows stay outside it.
+`reuse` selects zero leaf jobs only after full-backed v2 proof. `smoke` emits the proved `source_sha` and current `tree`, fast gate IDs, dependency-closed fast jobs, and the two transfer-aware Go complete jobs; uncertain ownership, changed definitions, and truncated paths fall back to `full`.
+Missing or malformed output fails; the command reports a plan but does not dispatch it.
+The awaiter accepts direct checks and the fixed `Build Test / call-<workflow filename stem> / <check>` alias for `.yml` or `.yaml` leaves. Both identities must be green if both ran. Caller results bind to the current attempt of `.github/workflows/test.yml` for the requested PR and head; missing run ownership stays pending. Once fragments deploy, the awaiter requires `Build Test / pr-plan`, including before a reuse transfer, and rejects a trusted `test.yml` that cannot produce that check.
+For fork runs whose GitHub REST `pull_requests` field is explicitly empty, caller ownership requires every referenced workflow to be local and bound to the requested PR merge ref and one immutable merge commit whose second parent is the requested head. Missing or inconsistent evidence cannot satisfy a called check.
+
 ### await
 
 ```bash

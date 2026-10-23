@@ -4,11 +4,104 @@
 package cigates_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
+
+func TestJobOwnershipCallableCarrierRequiresTrustedLeaf(t *testing.T) {
+	t.Parallel()
+	root := buildDriftRepo(t, minimalPreCommit("root"), nil)
+	writeWorkflow(t, root, "test.yml", "name: Build Test\non: [pull_request]\njobs:\n"+
+		"  owned:\n    runs-on: ubuntu-latest\n    steps: []\n"+
+		"  call-build:\n    uses: ./.github/workflows/build.yml\n")
+	writeWorkflow(t, root, "build.yml", "name: Build\non: [workflow_call]\njobs:\n"+
+		"  build:\n    runs-on: ubuntu-latest\n    steps: []\n")
+	fragment := "schema_version: 1\nworkflows:\n- file: build.yml\n  name: Build\n" +
+		"  synchronize: true\n  jobs: [build]\n"
+	fragmentPath := filepath.Join(root, "specs", "ci-pr-workflows.d", "build.yml")
+	if err := os.MkdirAll(filepath.Dir(fragmentPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fragmentPath, []byte(fragment), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reg := minimalReg([]cigates.Gate{
+		ownershipGate("root", "test.yml", "owned"),
+		ownershipGate("leaf", "build.yml", "build"),
+	}, nil, nil)
+	if errs := ownershipErrors(t, root, reg); len(errs) != 0 {
+		t.Fatalf("trusted callable carrier should be covered: %v", errs)
+	}
+	altFragmentPath := filepath.Join(root, "specs", "ci-pr-workflows.d", "build.yaml")
+	if err := os.Rename(fragmentPath, altFragmentPath); err != nil {
+		t.Fatal(err)
+	}
+	if errs := ownershipErrors(t, root, reg); len(errs) != 0 {
+		t.Fatalf("yaml fragment for a yml callable should remain owned: %v", errs)
+	}
+	if err := os.Rename(altFragmentPath, fragmentPath); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Remove(fragmentPath); err != nil {
+		t.Fatal(err)
+	}
+	if errs := ownershipErrors(t, root, reg); len(errs) == 0 || !strings.Contains(errs[0], "call-build") {
+		t.Fatalf("missing trusted fragment must leave caller unowned: %v", errs)
+	}
+	if err := os.WriteFile(fragmentPath, []byte(fragment), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeWorkflow(t, root, "test.yml", "name: Build Test\non: [pull_request]\njobs:\n"+
+		"  owned:\n    runs-on: ubuntu-latest\n    steps: []\n"+
+		"  call-build:\n    uses: ./.github/workflows/other.yml\n")
+	if errs := ownershipErrors(t, root, reg); len(errs) == 0 || !strings.Contains(errs[0], "call-build") {
+		t.Fatalf("caller with mismatched target must stay unowned: %v", errs)
+	}
+	writeWorkflow(t, root, "test.yml", "name: Build Test\non: [pull_request]\njobs:\n"+
+		"  owned:\n    runs-on: ubuntu-latest\n    steps: []\n"+
+		"  call-build:\n    uses: ./.github/workflows/build.yml\n")
+	reg.Gates = reg.Gates[:1]
+	if errs := ownershipErrors(t, root, reg); len(errs) == 0 || !strings.Contains(errs[0], "call-build") {
+		t.Fatalf("caller without a leaf gate owner must stay unowned: %v", errs)
+	}
+	reg.NonGateWorkflows = []cigates.NonGateWorkflow{{File: "build.yml", Reason: "advisory release build"}}
+	if errs := ownershipErrors(t, root, reg); len(errs) != 0 {
+		t.Fatalf("a declared non-gate leaf should own its exact caller: %v", errs)
+	}
+	reg.NonGateWorkflows[0].Reason = ""
+	if errs := ownershipErrors(t, root, reg); len(errs) == 0 || !strings.Contains(errs[0], "call-build") {
+		t.Fatalf("non-gate leaf without a reason must leave caller unowned: %v", errs)
+	}
+}
+
+func TestJobOwnershipYAMLCallableLeaf(t *testing.T) {
+	t.Parallel()
+	root := buildDriftRepo(t, minimalPreCommit("root"), nil)
+	writeWorkflow(t, root, "test.yml", "name: Build Test\non: [pull_request]\njobs:\n"+
+		"  owned:\n    runs-on: ubuntu-latest\n    steps: []\n"+
+		"  call-build:\n    uses: ./.github/workflows/build.yaml\n")
+	writeWorkflow(t, root, "build.yaml", "name: Build\non: [workflow_call]\njobs:\n"+
+		"  build:\n    runs-on: ubuntu-latest\n    steps: []\n")
+	fragmentPath := filepath.Join(root, "specs", "ci-pr-workflows.d", "build.yml")
+	if err := os.MkdirAll(filepath.Dir(fragmentPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fragmentPath, []byte("schema_version: 1\nworkflows:\n- file: build.yaml\n  name: Build\n  synchronize: true\n  jobs: [build]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reg := minimalReg([]cigates.Gate{
+		ownershipGate("root", "test.yml", "owned"),
+		ownershipGate("leaf", "build.yaml", "build"),
+	}, nil, nil)
+	if errs := ownershipErrors(t, root, reg); len(errs) != 0 {
+		t.Fatalf("yaml callable leaf with yml fragment should be owned: %v", errs)
+	}
+}
 
 // ownershipErrors runs the full drift check on a hermetic repo and returns
 // only the findings the job-ownership check (drift check 13) produced, so a

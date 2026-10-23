@@ -8,6 +8,7 @@
 //
 //	ci-gates select  --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--explain] [--json]
 //	ci-gates run     --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--json]
+//	ci-gates pr-plan --registry <trusted-path> --repo-root <trusted-root> --repo <owner/name> --pr <number> --head-sha <sha>
 //	ci-gates queue-select --registry <path> --repo-root <path> --repo <owner/name> --base-ref <branch> --merge-group-branch <branch> --head-sha <sha> --workflow <file>
 //	ci-gates audit-scripts --registry <path> --repo-root <path> [--unreferenced-only] [--json]
 //	ci-gates validate --registry <path> --repo-root <path>
@@ -61,6 +62,8 @@ func main() {
 		err = runReviewAttest(args)
 	case "reuse":
 		err = runReuse(args)
+	case "pr-plan":
+		err = runPRPlan(args)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "ci-gates: unknown subcommand %q\n", sub)
 		usage(os.Stderr)

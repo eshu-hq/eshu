@@ -33,6 +33,8 @@ func TestMergeGroupIfIsTrue(t *testing.T) {
 		"!(github.event_name == 'pull_request')":                                                                                      true,
 		"github.event_name == 'pull_request' && always()":                                                                             false,
 		"github.event_name != 'merge_group' && needs.x.result == 'success'":                                                           false,
+		"${{ github.event_name == 'merge_group' || contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'go-core') }}":  true,
+		"${{ github.event_name == 'merge_group' || contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml' }}":               false,
 	}
 	for expr, want := range cases {
 		if got := mergeGroupIfIsTrue(expr); got != want {
