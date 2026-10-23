@@ -33,6 +33,9 @@ func dispatchTool(ctx context.Context, handler http.Handler, toolName string, ar
 	})
 }
 
+// dispatchToolWithOptions counts the call at entry and runs it. The counter is
+// written by a defer opened before any validation, so every ending counts,
+// including a timeout, a cancellation, an early refusal, and a panic.
 func dispatchToolWithOptions(
 	ctx context.Context,
 	handler http.Handler,
@@ -41,9 +44,28 @@ func dispatchToolWithOptions(
 	authHeader string,
 	logger *slog.Logger,
 	options dispatchOptions,
+) (result *dispatchResult, err error) {
+	call := startDispatchCall(toolName)
+	completed := false
+	defer func() { call.finish(ctx, result, err, completed) }()
+	result, err = runDispatch(ctx, handler, toolName, args, authHeader, logger, options, &call)
+	completed = true
+	return result, err
+}
+
+func runDispatch(
+	ctx context.Context,
+	handler http.Handler,
+	toolName string,
+	args map[string]any,
+	authHeader string,
+	logger *slog.Logger,
+	options dispatchOptions,
+	call *dispatchCall,
 ) (*dispatchResult, error) {
 	route, err := resolveRoute(toolName, args)
 	if err != nil {
+		call.routeRejected(err)
 		return nil, err
 	}
 
@@ -97,6 +119,7 @@ func dispatchToolWithOptions(
 		// timeout error. Anything else keeps the error-only verdict.
 		if errors.Is(err, context.DeadlineExceeded) {
 			if partial, ok := deadlinePartialDispatchResult(rec, toolName, options.responseByteBudget, logger); ok {
+				call.partialAnswer()
 				return partial, nil
 			}
 		}
@@ -337,7 +360,7 @@ func selectRoute(toolName string, args map[string]any) (*routecontract.Request, 
 		if r, ok := impactRoute(toolName, args); ok {
 			return r, nil
 		}
-		return nil, fmt.Errorf("unknown tool: %s", toolName)
+		return nil, fmt.Errorf("%w: %s", errUnknownTool, toolName)
 	}
 }
 
