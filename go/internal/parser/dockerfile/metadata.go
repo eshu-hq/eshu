@@ -22,11 +22,20 @@ type Metadata struct {
 
 // Stage records a Dockerfile FROM stage and the runtime fields attached to it.
 type Stage struct {
-	Name        string
-	LineNumber  int
-	StageIndex  int
-	BaseImage   string
-	BaseTag     string
+	Name       string
+	LineNumber int
+	StageIndex int
+	BaseImage  string
+	BaseTag    string
+	// BaseRefTemplate is the FROM image reference as written, set only when it
+	// holds an ARG reference. BaseImage and BaseTag hold the expanded value.
+	BaseRefTemplate string
+	// UnresolvedArgs names the ARG references in the FROM line whose value is
+	// not known at parse time. When set, BaseImage and BaseTag keep the
+	// placeholder text.
+	UnresolvedArgs []string
+	// ArgDefaults holds ARG defaults seen for UnresolvedArgs, as evidence only.
+	ArgDefaults map[string]string
 	Platform    string
 	Alias       string
 	Path        string
@@ -93,15 +102,24 @@ func RuntimeMetadata(sourceText string) Metadata {
 	instructions := instructionsFromSource(sourceText, escape)
 	var currentStage *Stage
 	stageIndex := 0
+	resolver := newBaseRefResolver()
 	for _, item := range instructions {
 		switch item.keyword {
 		case "FROM":
-			stage := parseStage(item, stageIndex, escape)
+			stage := parseStage(item, stageIndex, escape, resolver)
 			metadata.Stages = append(metadata.Stages, stage)
 			currentStage = &metadata.Stages[len(metadata.Stages)-1]
 			stageIndex++
 		case "ARG":
-			metadata.Args = append(metadata.Args, parseArgs(item, currentStage, escape)...)
+			decls := parseArgDecls(item, escape)
+			metadata.Args = append(metadata.Args, argRows(item, decls, currentStage)...)
+			if currentStage == nil {
+				for _, decl := range decls {
+					resolver.declare(decl)
+				}
+			} else {
+				noteStageArgDefaults(currentStage, decls)
+			}
 		case "ENV":
 			metadata.Envs = append(metadata.Envs, parseEnvs(item, currentStage, escape)...)
 		case "EXPOSE":
@@ -196,7 +214,7 @@ func instructionsFromSource(source string, escape rune) []instruction {
 	return instructions
 }
 
-func parseStage(item instruction, stageIndex int, escape rune) Stage {
+func parseStage(item instruction, stageIndex int, escape rune, resolver *baseRefResolver) Stage {
 	fields := splitDockerfileWords(item.value, escape)
 	platform := ""
 	for len(fields) > 0 && strings.HasPrefix(fields[0], "--") {
@@ -215,8 +233,10 @@ func parseStage(item instruction, stageIndex int, escape rune) Stage {
 	image := ""
 	tag := ""
 	alias := ""
+	var ref baseRef
 	if len(fields) > 0 {
-		image = fields[0]
+		ref = resolver.resolve(fields[0])
+		image = ref.ref
 	}
 	image, tag = splitImageTag(image)
 	for index := 1; index+1 < len(fields); index++ {
@@ -239,36 +259,37 @@ func parseStage(item instruction, stageIndex int, escape rune) Stage {
 		BaseImage:  image,
 		BaseTag:    tag,
 		Platform:   platform,
-		Alias:      alias,
-		Path:       filepath.Base(name),
+
+		BaseRefTemplate: ref.template,
+		UnresolvedArgs:  ref.unresolved,
+		ArgDefaults:     ref.defaults,
+		Alias:           alias,
+		Path:            filepath.Base(name),
 	}
 }
 
-func splitImageTag(image string) (string, string) {
-	if strings.Contains(image, "@") {
-		return image, ""
-	}
-	tagIndex := strings.LastIndex(image, ":")
-	slashIndex := strings.LastIndex(image, "/")
-	if tagIndex < 0 || tagIndex < slashIndex {
-		return image, ""
-	}
-	return image[:tagIndex], image[tagIndex+1:]
-}
-
-func parseArgs(item instruction, currentStage *Stage, escape rune) []Arg {
+// parseArgDecls splits an ARG instruction into its name[=default] pairs.
+func parseArgDecls(item instruction, escape rune) []argDecl {
 	tokens := splitDockerfileWords(item.value, escape)
-	rows := make([]Arg, 0, len(tokens))
+	decls := make([]argDecl, 0, len(tokens))
 	for _, token := range tokens {
-		name, value, _ := strings.Cut(token, "=")
+		name, value, hasDefault := strings.Cut(token, "=")
 		name = strings.TrimSpace(name)
 		if name == "" {
 			continue
 		}
+		decls = append(decls, argDecl{name: name, value: strings.TrimSpace(value), hasDefault: hasDefault})
+	}
+	return decls
+}
+
+func argRows(item instruction, decls []argDecl, currentStage *Stage) []Arg {
+	rows := make([]Arg, 0, len(decls))
+	for _, decl := range decls {
 		rows = append(rows, Arg{
-			Name:         name,
+			Name:         decl.name,
 			LineNumber:   item.line,
-			DefaultValue: strings.TrimSpace(value),
+			DefaultValue: decl.value,
 			Stage:        stageName(currentStage),
 		})
 	}
@@ -397,6 +418,7 @@ func stageMap(stage Stage) map[string]any {
 		"lang":        "dockerfile",
 	}
 	addOptional(row, "platform", stage.Platform)
+	addBaseRefEvidence(row, stage)
 	addOptional(row, "copies_from", stage.CopiesFrom)
 	addOptional(row, "workdir", stage.Workdir)
 	addOptional(row, "entrypoint", stage.Entrypoint)
