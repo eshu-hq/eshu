@@ -213,7 +213,7 @@ func (v ifValue) truth() tri {
 	return v.b
 }
 
-var ifTokenRE = regexp.MustCompile(`\s*('(?:[^']|'')*'|&&|\|\||==|!=|!|\(|\)|,|[A-Za-z_][A-Za-z0-9_.\-*]*|[0-9.]+)`)
+var ifTokenRE = regexp.MustCompile(`\s*('(?:[^']|'')*'|&&|\|\||==|!=|!|\(|\)|\[|\]|,|[A-Za-z_][A-Za-z0-9_.\-*]*|[0-9.]+)`)
 
 func tokenizeIf(expr string) []string {
 	var tokens []string
@@ -356,6 +356,18 @@ func (p *ifParser) primary() ifValue {
 			return boolValue(triTrue)
 		case "cancelled":
 			return boolValue(triFalse)
+		}
+	}
+	// A lookup such as fromJSON(... )['test.yml'] is still unknown on a
+	// merge-group run, but it is syntactically complete. Consume its index so
+	// a known-true disjunct can prove the whole expression without treating an
+	// unparsed tail as valid.
+	for p.peek() == "[" {
+		p.next()
+		p.or()
+		if p.next() != "]" {
+			p.pos = len(p.tokens) + 1
+			break
 		}
 	}
 	return ifValue{}

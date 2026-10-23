@@ -17,6 +17,7 @@ import (
 type ownershipJob struct {
 	Name  string    `yaml:"name"`
 	If    string    `yaml:"if"`
+	Uses  string    `yaml:"uses"`
 	Needs yaml.Node `yaml:"needs"`
 	// ContinueOnError is the raw job-level continue-on-error value ("" when
 	// absent). Anything but a literal false can keep the job's failure from
@@ -71,8 +72,10 @@ type ownershipJob struct {
 //
 // Not resolved: ownership is per job, not per matrix cell. A gate whose
 // check_names list covers only some cells of a matrix job owns the whole job
-// for this check, so an unlisted cell is not flagged. Reusable-workflow jobs
-// (`uses:`) are treated like any other job by key. A workflow no blocking gate
+// for this check, so an unlisted cell is not flagged. A central caller is
+// owned through its registered leaf only when the local uses target and
+// validated PR workflow fragment name the same callable file. Other reusable
+// workflow jobs are treated like any other job by key. A workflow no blocking gate
 // names is out of scope and is not read.
 func checkJobOwnership(repoRoot string, reg *Registry) []error {
 	scoped := make(map[string]struct{})
@@ -114,7 +117,7 @@ func checkWorkflowJobOwnership(repoRoot string, reg *Registry, workflow string) 
 	names := newNameResolver(jobs, declared)
 	cov := newCoverage(repoRoot, jobs)
 	for key, job := range jobs {
-		if names.owns(key, job) {
+		if names.owns(key, job) || callableCarrierOwned(repoRoot, reg, workflow, key, job) {
 			cov.own(key)
 		}
 	}
@@ -139,6 +142,46 @@ func checkWorkflowJobOwnership(repoRoot string, reg *Registry, workflow string) 
 		))
 	}
 	return errs
+}
+
+// callableCarrierOwned recognizes the central caller for a registered leaf.
+// The leaf's gate rows own its emitted checks; an exact local caller and a
+// validated fragment bind this carrier to that same workflow. An arbitrary
+// uses job, misspelled caller, or undeclared leaf stays unowned.
+func callableCarrierOwned(repoRoot string, reg *Registry, workflow, key string, job ownershipJob) bool {
+	if workflow != "test.yml" || !strings.HasPrefix(key, "call-") || job.Name != "" {
+		return false
+	}
+	file := strings.TrimPrefix(key, "call-") + ".yml"
+	if file != filepath.Base(file) || job.Uses != "./.github/workflows/"+file {
+		return false
+	}
+	ownedLeaf := false
+	for _, gate := range reg.Gates {
+		if gate.CI.Workflow == file {
+			ownedLeaf = true
+			break
+		}
+	}
+	if !ownedLeaf {
+		return false
+	}
+	fragmentPath := filepath.Join(repoRoot, "specs", "ci-pr-workflows.d", file)
+	fragment, err := os.ReadFile(fragmentPath) // #nosec G304 -- fixed repository root and caller-derived basename
+	if err != nil {
+		return false
+	}
+	defs, err := ParsePRPlanFragment(fragment)
+	if err != nil || len(defs) != 1 || defs[0].File != file {
+		return false
+	}
+	workflowPath := filepath.Join(repoRoot, ".github", "workflows", file)
+	raw, err := os.ReadFile(workflowPath) // #nosec G304 -- fixed repository root and caller-derived basename
+	if err != nil {
+		return false
+	}
+	_, err = ValidateCallablePRWorkflow(defs[0], raw)
+	return err == nil
 }
 
 // parseOwnershipJobs decodes the jobs of a workflow file. Each job is decoded
