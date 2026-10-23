@@ -53,7 +53,13 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
   Each `FactFamily` declares a namespaced, non-core fact kind, supported schema
   versions, the non-unknown source-confidence values the component emits, and
   optionally the core fixture-pack payload schema shape that validates it.
-- `LoadManifest(path)` loads and validates a manifest from disk.
+- `LoadManifest(path)` loads and validates a manifest from disk without
+  producer grants, so a core-owned fact kind is always rejected.
+- `Registry.LoadGrantedManifest(path)` is the read-only loader for inspect,
+  verify, and conformance: it resolves core-owned declarations against the
+  registry's durable producer grants and reads the registry only when the
+  manifest declares such a kind. It returns the grants it used so callers can
+  pass them to `Policy.VerifyWithGrants`.
 - `Policy`, `ProvenancePolicy`, `ProvenanceVerifier`, and
   `VerificationResult` implement local trust checks and expose stable failure
   classes for invalid manifests, incompatible core ranges, revoked packages,

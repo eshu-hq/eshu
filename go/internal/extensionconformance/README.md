@@ -26,7 +26,13 @@ See `doc.go` for the godoc contract. The exported `Mode`, `Status`,
 `FindingCode`, `Report`, `Finding`, and `Summary` types are aliases of the
 public `sdk/go/collector/conformance` types, so CLI and automation output stay
 byte-stable. Callers use `Run` with a `Request` (manifest path, fixture paths,
-mode) and receive the public `Report`. `FindingFixtureReadFailed` is the only
+mode, component home) and receive the public `Report`. `Run` loads the
+manifest against the producer grants in the component home, so a collector that
+declares granted core-owned fact kinds is judged like install judges it; the
+granted kinds alone are exempted from the harness's reserved core-kind list.
+The public harness still requires a `.` namespace prefix on every kind, which
+fails a granted kind without one until the SDK accepts host-granted kinds
+(#8851). `FindingFixtureReadFailed` is the only
 host-local finding code, because file I/O is the host's responsibility.
 
 ## Dependencies

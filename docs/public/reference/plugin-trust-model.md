@@ -125,6 +125,16 @@ Allowlist and revocation policy should be sourced from explicit operator
 configuration. Initial implementations may use a local configuration file before
 adding central policy distribution.
 
+The `eshu component` commands that apply a trust policy (`verify`, `install`,
+and `list`) read it from flags first. For each of `--trust-mode`, `--allow-id`,
+`--allow-publisher`, `--revoke-id`, and `--revoke-publisher` that is not passed,
+they fall back to `ESHU_COMPONENT_TRUST_MODE`, `ESHU_COMPONENT_ALLOW_IDS`,
+`ESHU_COMPONENT_ALLOW_PUBLISHERS`, `ESHU_COMPONENT_REVOKE_IDS`, and
+`ESHU_COMPONENT_REVOKE_PUBLISHERS`, the same variables the API, MCP server, and
+coordinator read. A passed flag wins. Provenance and Cosign settings stay
+flag-only on the CLI. With neither a flag nor a variable set, `list` skips
+policy re-verification and `verify` and `install` default to `disabled`.
+
 Publisher identity rotation must support an explicit trust-transfer procedure,
 not silent key replacement.
 

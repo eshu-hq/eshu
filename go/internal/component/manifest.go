@@ -120,7 +120,8 @@ type Telemetry struct {
 // LoadManifest loads and validates a component package manifest without
 // producer-grant context: core-owned fact kinds are always rejected here.
 // Registry flows that consult durable grants use loadManifest with state
-// grants instead.
+// grants instead, and read-only home-aware commands use
+// Registry.LoadGrantedManifest.
 func LoadManifest(path string) (Manifest, error) {
 	return loadManifest(path, nil)
 }
@@ -147,6 +148,22 @@ func loadManifest(path string, grants []ProducerGrant) (Manifest, error) {
 // grant allows, so a denial is observed even though the load then fails
 // closed. A nil observer costs nothing beyond a nil check.
 func loadManifestObserved(path string, grants []ProducerGrant, observer GrantObserver, stage GrantStage) (Manifest, error) {
+	manifest, err := decodeManifest(path)
+	if err != nil {
+		return Manifest{}, err
+	}
+	now := time.Now().UTC()
+	manifest.ObserveManifestGrants(context.Background(), observer, stage, grants, now)
+	if err := manifest.validateFactFamilies(grants, now); err != nil {
+		return Manifest{}, WrapError(ErrorCodeInvalidManifest, err.Error(), err)
+	}
+	return manifest, nil
+}
+
+// decodeManifest reads and decodes a manifest file and checks everything that
+// precedes producer-grant evaluation: identity, compatibility, runtime, and
+// artifacts. It never evaluates fact families, so it needs no grants.
+func decodeManifest(path string) (Manifest, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is supplied by the install flow from a locally staged manifest file, not from untrusted external input
 	if err != nil {
 		return Manifest{}, WrapError(ErrorCodeInvalidManifest, "read component manifest", err)
@@ -156,11 +173,6 @@ func loadManifestObserved(path string, grants []ProducerGrant, observer GrantObs
 		return Manifest{}, WrapError(ErrorCodeInvalidManifest, "decode component manifest", err)
 	}
 	if err := manifest.validateIdentity(); err != nil {
-		return Manifest{}, WrapError(ErrorCodeInvalidManifest, err.Error(), err)
-	}
-	now := time.Now().UTC()
-	manifest.ObserveManifestGrants(context.Background(), observer, stage, grants, now)
-	if err := manifest.validateFactFamilies(grants, now); err != nil {
 		return Manifest{}, WrapError(ErrorCodeInvalidManifest, err.Error(), err)
 	}
 	return manifest, nil

@@ -118,6 +118,8 @@ func init() {
 		RunE:  runComponentInitCollector,
 	}
 
+	addComponentHomeFlag(inspectCmd)
+	addComponentHomeFlag(verifyCmd)
 	addComponentHomeFlag(installCmd)
 	addComponentHomeFlag(listCmd)
 	addComponentHomeFlag(enableCmd)
@@ -200,11 +202,17 @@ func init() {
 }
 
 func runComponentInspect(cmd *cobra.Command, args []string) error {
-	return clicomponent.RunInspect(cmd.OutOrStdout(), componentJSONEnabled(cmd), args[0])
+	return clicomponent.RunInspect(cmd.OutOrStdout(), componentJSONEnabled(cmd), componentHomeFromFlags(cmd), args[0])
 }
 
 func runComponentVerify(cmd *cobra.Command, args []string) error {
-	return clicomponent.RunVerify(cmd.OutOrStdout(), componentJSONEnabled(cmd), componentPolicyFromFlags(cmd), args[0])
+	return clicomponent.RunVerify(
+		cmd.OutOrStdout(),
+		componentJSONEnabled(cmd),
+		componentHomeFromFlags(cmd),
+		componentPolicyFromFlags(cmd),
+		args[0],
+	)
 }
 
 func runComponentInstall(cmd *cobra.Command, args []string) error {
@@ -394,34 +402,6 @@ func componentDryRunEnabled(cmd *cobra.Command) bool {
 	}
 	enabled, _ := cmd.Flags().GetBool(componentDryRunFlag)
 	return enabled
-}
-
-func componentPolicyFromFlags(cmd *cobra.Command) component.Policy {
-	mode, _ := cmd.Flags().GetString(componentTrustModeFlag)
-	allowedIDs, _ := cmd.Flags().GetStringSlice(componentAllowIDFlag)
-	allowedPublishers, _ := cmd.Flags().GetStringSlice(componentAllowPublisherFlag)
-	revokedIDs, _ := cmd.Flags().GetStringSlice(componentRevokeIDFlag)
-	revokedPublishers, _ := cmd.Flags().GetStringSlice(componentRevokePublisherFlag)
-	cosignBinary, _ := cmd.Flags().GetString(componentCosignBinaryFlag)
-	provenanceIdentity, _ := cmd.Flags().GetString(componentProvenanceIdentityFlag)
-	provenanceIssuer, _ := cmd.Flags().GetString(componentProvenanceIssuerFlag)
-	provenancePredicateType, _ := cmd.Flags().GetString(componentProvenancePredicateTypeFlag)
-	policy := component.Policy{
-		Mode:              mode,
-		AllowedIDs:        allowedIDs,
-		AllowedPublishers: allowedPublishers,
-		RevokedIDs:        revokedIDs,
-		RevokedPublishers: revokedPublishers,
-		Provenance: component.ProvenancePolicy{
-			CertificateIdentity: provenanceIdentity,
-			OIDCIssuer:          provenanceIssuer,
-			PredicateType:       provenancePredicateType,
-		},
-	}
-	if mode == component.TrustModeStrict {
-		policy.ProvenanceVerifier = component.CosignProvenanceVerifier{Command: cosignBinary}
-	}
-	return policy
 }
 
 func componentHomeFromFlags(cmd *cobra.Command) string {

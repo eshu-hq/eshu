@@ -70,22 +70,27 @@ const (
 // Request describes one host-side conformance run that loads a manifest and
 // fixture files from disk before delegating to the public SDK harness.
 type Request struct {
-	ManifestPath  string
-	FixturePaths  []string
-	Mode          Mode
+	ManifestPath string
+	FixturePaths []string
+	Mode         Mode
+	// ComponentHome is the component registry home whose durable producer
+	// grants admit core-owned fact kinds the manifest declares. Empty means no
+	// grants, so a core-owned declaration fails closed.
 	ComponentHome string
 }
 
 // Run loads the manifest and fixtures from disk and delegates the verdict to
 // the public collector conformance harness. It is read-only: it does not
 // install components, claim workflow work, write graph truth, or run Compose
-// services.
+// services. The manifest loads against the producer grants in
+// Request.ComponentHome, so a first-party collector that declares granted
+// core-owned fact kinds is judged the way install and activation judge it.
 func Run(ctx context.Context, req Request) (Report, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	manifest, err := component.LoadManifest(req.ManifestPath)
+	manifest, _, err := component.NewRegistry(req.ComponentHome).LoadGrantedManifest(req.ManifestPath)
 	if err != nil {
 		report := Report{
 			SchemaVersion: conformance.SchemaVersion,
@@ -124,7 +129,7 @@ func Run(ctx context.Context, req Request) (Report, error) {
 		Manifest:          manifestToPublic(manifest),
 		Fixtures:          fixtures,
 		Mode:              req.Mode,
-		ReservedFactKinds: facts.CoreFactKinds(),
+		ReservedFactKinds: reservedFactKinds(manifest),
 		PayloadSchemas:    payloadSchemasForManifest(manifest),
 	})
 	if len(readFindings) > 0 {
@@ -136,6 +141,26 @@ func Run(ctx context.Context, req Request) (Report, error) {
 		return report, conformanceError(report)
 	}
 	return report, nil
+}
+
+// reservedFactKinds returns the core-owned fact kinds the public harness must
+// refuse a component to claim. The manifest already loaded against the
+// registry's producer grants, so every core-owned kind it still declares is a
+// kind a live grant covers for its declared schema versions; those are the
+// only kinds exempted. All other core-owned kinds stay reserved.
+func reservedFactKinds(manifest component.Manifest) []string {
+	granted := make(map[string]struct{}, len(manifest.Spec.EmittedFacts))
+	for _, fact := range manifest.Spec.EmittedFacts {
+		granted[strings.TrimSpace(fact.Kind)] = struct{}{}
+	}
+	reserved := facts.CoreFactKinds()
+	kept := reserved[:0]
+	for _, kind := range reserved {
+		if _, isGranted := granted[kind]; !isGranted {
+			kept = append(kept, kind)
+		}
+	}
+	return kept
 }
 
 func normalizeReportMode(mode Mode) Mode {
