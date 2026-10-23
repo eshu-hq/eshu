@@ -154,10 +154,10 @@ func TestBaseRefUnresolvedWhenValueIsNotKnowable(t *testing.T) {
 		{"undeclared variable", "FROM node:${V}\n", "${V}", []string{"V"}, nil},
 		{"default operator cannot hide a build argument", "ARG V\nFROM node:${V:-lts}\n", "${V:-lts}", []string{"V"}, nil},
 		{"partly resolvable keeps whole placeholder", "ARG A=24\nARG B\nFROM node:${A}-${B}\n", "${A}-${B}", []string{"B"}, nil},
-		{"pattern expression", "ARG V=24.1.0\nFROM node:${V%%.*}\n", "${V%%.*}", []string{"${V%%.*}"}, nil},
-		{"required expression", "ARG V=24\nFROM node:${V:?missing}\n", "${V:?missing}", []string{"${V:?missing}"}, nil},
-		{"command substitution is not an arg", "FROM node:$(VERSION)\n", "$(VERSION)", []string{"$(VERSION)"}, nil},
-		{"unterminated brace", "ARG V=1\nFROM node:${V\n", "${V", []string{"${V"}, nil},
+		{"pattern expression", "ARG V=24.1.0\nFROM node:${V%%.*}\n", "${V%%.*}", []string{"V"}, map[string]string{"V": "24.1.0"}},
+		{"required expression", "ARG V=24\nFROM node:${V:?missing}\n", "${V:?missing}", []string{"V"}, map[string]string{"V": "24"}},
+		{"command substitution is not an arg", "FROM node:$(VERSION)\n", "$(VERSION)", []string{unresolvedCommand}, nil},
+		{"unterminated brace", "ARG V=1\nFROM node:${V\n", "${V", []string{unresolvedMalformed}, nil},
 		{"default that is itself unresolved", "ARG A\nARG B=${A}-x\nFROM node:${B}\n", "${B}", []string{"B"}, map[string]string{"B": "${A}-x"}},
 		{"predefined platform arg", "FROM node:${TARGETARCH}\n", "${TARGETARCH}", []string{"TARGETARCH"}, nil},
 		{"predefined platform arg stays unresolved because the build platform decides it", "ARG TARGETARCH=amd64\nFROM node:${TARGETARCH}\n", "${TARGETARCH}", []string{"TARGETARCH"}, map[string]string{"TARGETARCH": "amd64"}},
@@ -264,5 +264,59 @@ func TestBaseRefBoundsExponentialArgExpansion(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("RuntimeMetadata did not finish: ARG expansion is unbounded")
+	}
+}
+
+// TestBaseRefUnresolvedArgsNeverCarryExpressionText pins the contract that
+// base_ref_unresolved_args holds variable names or one of the fixed markers,
+// never text copied from the Dockerfile. A reference can be 4096 bytes of
+// repository-controlled text, and a reader must not have to treat the list as
+// free text.
+func TestBaseRefUnresolvedArgsNeverCarryExpressionText(t *testing.T) {
+	t.Parallel()
+
+	oversized := "x:" + strings.Repeat("a", maxReferenceLen) + "${V}"
+	deep := "x:" + strings.Repeat("${A:-", maxBraceDepth+1) + "v" + strings.Repeat("}", maxBraceDepth+1)
+	cases := []struct {
+		name     string
+		source   string
+		wantArgs []string
+	}{
+		{"command substitution", "FROM n:$(cat /etc/v)\n", []string{unresolvedCommand}},
+		{"unterminated brace", "FROM n:${V:-" + strings.Repeat("z", 200) + "\n", []string{unresolvedMalformed}},
+		{"brace without a name", "FROM n:${}\n", []string{unresolvedMalformed}},
+		{"numeric brace", "FROM n:${1}\n", []string{unresolvedMalformed}},
+		{"bare dollar", "FROM n:v$\n", []string{unresolvedBare}},
+		{"oversized reference", "ARG V=1\nFROM " + oversized + "\n", []string{unresolvedOverBound}},
+		{"over-deep nesting", "FROM " + deep + "\n", []string{unresolvedOverBound}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			stages := RuntimeMetadata(tc.source).Stages
+			stage := stages[len(stages)-1]
+			if !reflect.DeepEqual(stage.UnresolvedArgs, tc.wantArgs) {
+				t.Fatalf("UnresolvedArgs = %q, want %q", stage.UnresolvedArgs, tc.wantArgs)
+			}
+		})
+	}
+}
+
+// TestBaseRefExpressionWithNameKeepsDefaultEvidence covers the issue's rule
+// that an expression whose value cannot be known is unresolved with the
+// declared default as evidence: the name is listed, not the expression.
+func TestBaseRefExpressionWithNameKeepsDefaultEvidence(t *testing.T) {
+	t.Parallel()
+
+	got := RuntimeMetadata("ARG V=24\nARG W\nFROM n:${V:?missing}-${W%%x}\n")
+	stage := stageAtLine(t, got, 3)
+	if !reflect.DeepEqual(stage.UnresolvedArgs, []string{"V", "W"}) {
+		t.Fatalf("UnresolvedArgs = %q, want the names V and W", stage.UnresolvedArgs)
+	}
+	if !reflect.DeepEqual(stage.ArgDefaults, map[string]string{"V": "24"}) {
+		t.Fatalf("ArgDefaults = %v, want V's default as evidence", stage.ArgDefaults)
+	}
+	if stage.BaseTag != "${V:?missing}-${W%%x}" {
+		t.Fatalf("BaseTag = %q, want the placeholder kept as written", stage.BaseTag)
 	}
 }
