@@ -127,12 +127,12 @@ func TestStoryHandlesNeverShipAnEmptyIdentityRow(t *testing.T) {
 	})
 }
 
-// TestStoryHandlesOmissionTotalsAreTrueTotals proves that for every family the
-// shaper reduces, truth.omissions carries the true total read from the full
+// TestStoryHandlesOmissionTotalsArePreCapTotals proves that for every family the
+// shaper reduces, truth.omissions carries the pre-cap total read from the full
 // story's own limits, never the capped row count (#8798 review P2-2). The
-// fixture's true totals sit above the 50-row cap, so a total read from the
+// fixture's pre-cap totals sit above the 50-row cap, so a total read from the
 // wrong source shows as 50.
-func TestStoryHandlesOmissionTotalsAreTrueTotals(t *testing.T) {
+func TestStoryHandlesOmissionTotalsArePreCapTotals(t *testing.T) {
 	t.Parallel()
 
 	forEachOversizedStoryShape(t, func(t *testing.T, shape oversizedStoryShape, full, _ map[string]any, omissions []querycontract.TruthOmission) {
@@ -156,7 +156,7 @@ func TestStoryHandlesOmissionTotalsAreTrueTotals(t *testing.T) {
 			"downstream_consumers.content_consumers":  querycontract.IntVal(downstream, "content_consumer_count"),
 			"evidence_graph.edges":                    querycontract.IntVal(querycontract.MapValue(full, "evidence_graph"), "edge_count"),
 			"evidence_graph.nodes":                    len(querycontract.MapSliceValue(querycontract.MapValue(full, "evidence_graph"), "nodes")),
-			// repositories_considered carries the packet's true repository count,
+			// repositories_considered carries the packet's pre-cap repository count,
 			// taken before its 50-row cap (#8802). repositories_with_evidence has
 			// no count past the cap: repositories_with_evidence_count counts only
 			// the rows returned, so its omission total is the 50 shipped rows.
@@ -191,15 +191,15 @@ func TestStoryHandlesOmissionTotalsAreTrueTotals(t *testing.T) {
 				t.Errorf("fixture repository_count = %d, want past the %d-row cap so a wrong source shows", expected, serviceStoryItemLimit)
 			}
 			if expected <= serviceStoryItemLimit && !strings.HasPrefix(section, "investigation.") && !strings.HasPrefix(section, "code_to_runtime_trace.") && section != "evidence_graph.nodes" && section != "evidence_graph.edges" {
-				t.Errorf("fixture true total for %s = %d, want past the %d-row cap so a wrong source shows", section, expected, serviceStoryItemLimit)
+				t.Errorf("fixture pre-cap total for %s = %d, want past the %d-row cap so a wrong source shows", section, expected, serviceStoryItemLimit)
 			}
 			if got[section] != expected {
-				t.Errorf("omission %s total = %d, want the true total %d", section, got[section], expected)
+				t.Errorf("omission %s total = %d, want the pre-cap total %d", section, got[section], expected)
 			}
 		}
 		for _, family := range shape.omitted {
 			if want[family] <= serviceStoryItemLimit {
-				t.Errorf("shape %s owns %s but its true total is %d, want past the %d-row cap", shape.name, family, want[family], serviceStoryItemLimit)
+				t.Errorf("shape %s owns %s but its pre-cap total is %d, want past the %d-row cap", shape.name, family, want[family], serviceStoryItemLimit)
 			}
 			if _, ok := got[family]; !ok {
 				t.Errorf("shape %s owns %s but truth.omissions has no entry for it", shape.name, family)

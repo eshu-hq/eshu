@@ -33,10 +33,10 @@ func TestToolsPreserveServiceRegistrationContract(t *testing.T) {
 
 	tools := combinedServiceTools()
 	encoded := marshalServiceDefinitions(t, tools)
-	if got, want := len(encoded), 9728; got != want {
+	if got, want := len(encoded), 9798; got != want {
 		t.Fatalf("serialized service definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "be8cb79fd186abeaf0ff9fc7c18625ea76a343954213e0357e10fbd854eabec4"
+	const wantDefinitionsHash = "5c3ab55ce43a7c5983dd26b8a5348b61e285c54c7aa0686f84e17dc78df06a56"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("service definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}

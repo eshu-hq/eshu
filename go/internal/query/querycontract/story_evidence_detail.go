@@ -247,21 +247,21 @@ const storyTruncationMarkerRepoID = "__truncated__"
 
 // storyListTotal returns the total a story list reports in truth.omissions: the
 // larger of the shipped row count and the count the story held before its own
-// 50-row cap. It is exact only when the read behind the list was not itself
-// cut. The story records the count in a different place per family: upstream
+// 50-row cap. Each total is the story's own pre-cap count: a lower bound
+// wherever the underlying read was itself bounded (a *_truncated flag or
+// deployment_artifacts_* limitation is set, or the read stops at 50 rows with no
+// flag), and not cut by the story's cap otherwise; the Context evidence budget
+// reference lists the rule for each family.
+//
+// The story records the count in a different place per family: upstream
 // dependencies in result_limits.upstream_count, the investigation
 // repositories_considered list in investigation.coverage_summary.repository_count
 // (taken before its 50-row cap, #8802), and the other top-level lists in
-// raw_context_limits.<key>.count, which is the length of what the story
-// received. Several reads are bounded before the story sees them, so for those
-// the total is a lower bound when the matching *_truncated flag is set:
-// dependents, consumer_repositories, provisioning_source_chains, and
-// uncorrelated_cloud_resources. cloud_resources is read at most 50 rows with no
-// flag, so its total never passes 50. investigation.repositories_with_evidence
-// has no count past the cap, because
+// raw_context_limits.<key>.count, the length of what the story received.
+// investigation.repositories_with_evidence has no count past the cap, because
 // coverage_summary.repositories_with_evidence_count counts only the rows
-// returned, so its total is the shipped (non-marker) row count: a lower bound
-// when repositories_considered ends with the marker row, exact otherwise.
+// returned, so its total is the shipped (non-marker) row count and it is also a
+// lower bound when repositories_considered ends with the marker row.
 func storyListTotal(data map[string]any, parentKey string, key string, shipped int) int {
 	switch {
 	case parentKey == "investigation" && key == "repositories_considered":

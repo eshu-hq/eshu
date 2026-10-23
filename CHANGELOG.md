@@ -11,38 +11,39 @@ recent shipped work grouped by feature area.
 
 ### Service story defaults to a bounded handles view over MCP
 
-- **`get_service_story` defaults to a bounded `handles` view** ([#8798](https://github.com/eshu-hq/eshu/issues/8798)).
-  A large service's story measured 266 KB and failed `mcp_response_over_budget`.
-  The route now takes `evidence_detail` (`full` or `handles`); the MCP tool
-  defaults to `handles` and the HTTP route stays `full`. A large service's
-  story is answered instead of refused: `handles` projects the bulky lists to
-  identity rows that keep their row truth labels and is 128,547 bytes on the
-  every-list-at-cap fixture (35.7 percent of full). That single copy fits the
-  262,144-byte budget; the MCP result still carries the payload twice (290,970
-  bytes), so dispatch answers it as the resource copy alone and records
+- **`get_service_story` defaults to a bounded `handles` view**
+  ([#8798](https://github.com/eshu-hq/eshu/issues/8798)). A large service's
+  story measured 266 KB and failed `mcp_response_over_budget`. The route now
+  takes `evidence_detail` (`full` or `handles`); the MCP tool defaults to
+  `handles` and the HTTP route stays `full`. A large service's story is answered
+  instead of refused: `handles` projects the bulky lists to identity rows that
+  keep their row truth labels and is 128,547 bytes on the every-list-at-cap
+  fixture (35.7 percent of full). That single copy fits the 262,144-byte budget;
+  the MCP result still carries the payload twice (290,970 bytes), so dispatch
+  answers it as the resource copy alone and records
   `eshu_dp_mcp_response_resource_fallback_total` until #8800 sends the result
   once. Deployment artifact rows keep `id`, `relationship_type`, and
   `resolved_id`; `get_relationship_evidence` by `resolved_id` returns the rest,
   including confidence. `handles` lists each reduced family in `truth.omissions`
-  with its total, the count the story held before its own 50-row cap. For
-  `dependents`, `consumer_repositories`, `provisioning_source_chains`, and
-  `uncorrelated_cloud_resources` the read behind the list is itself bounded, so
-  the total is a lower bound when the matching `*_truncated` flag is set; the
-  `cloud_resources` read stops at 50 rows with no flag. A trace preview also
-  carries `truncated`, `evidence_shipped`, and `evidence_omitted`, the evidence
-  graph carries `nodes_truncated` and `nodes_omitted`, and a dropped list is
-  named by a `*_shipped_at` pointer or only in `truth.omissions`.
-  `investigation.repositories_considered` reports the packet's repository count;
+  with its total. Each total is the story's own pre-cap count: a lower bound
+  wherever the underlying read was itself bounded (a `*_truncated` flag or
+  `deployment_artifacts_*` limitation is set, or the read stops at 50 rows with
+  no flag), and not cut by the story's cap otherwise; the Context evidence
+  budget reference lists the rule for each family. A trace preview also carries
+  `truncated`, `evidence_shipped`, and `evidence_omitted`, the evidence graph
+  carries `nodes_truncated` and `nodes_omitted`, and a dropped list is named by
+  a `*_shipped_at` pointer or only in `truth.omissions`.
   `investigation.repositories_with_evidence` reports the rows it shipped (at
-  most 50), a lower bound when `repositories_considered` ends with the
-  `__truncated__` marker. A synthetic fixture with 60 uncorrelated
-  cloud-resource candidates (284,854 bytes dual), and one with 60
-  `entrypoint_candidates` and `network_paths` rows (330,200 bytes dual), take the
-  same path; production ships at most 50 of each, so the 60-row shapes are
-  conservative. `handles` projects those two lists to identity rows too. In both
-  modes the endpoint rows now ship once, at `api_surface.endpoints`;
-  `deployment_overview.api_surface` keeps its counts and points there with
-  `endpoints_shipped_at`. Pass `evidence_detail: full` for every row.
+  most 50), so it is also a lower bound when `repositories_considered` ends with
+  the `__truncated__` marker. The size fixture holds 60 rows per family and the
+  story ships 50 (the cap); a fixture with 60 uncorrelated cloud-resource
+  candidates (284,854 bytes dual) and one with 60 `entrypoint_candidates` and
+  `network_paths` rows (330,200 bytes dual) take the same path, and the measured
+  bytes are the 50-row ship size, not a bound above it. `handles` projects those
+  two lists to identity rows too. In both modes the endpoint rows now ship once,
+  at `api_surface.endpoints`; `deployment_overview.api_surface` keeps its counts
+  and points there with `endpoints_shipped_at`. Pass `evidence_detail: full` for
+  every row.
 
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 

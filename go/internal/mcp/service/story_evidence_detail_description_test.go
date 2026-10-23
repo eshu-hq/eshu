@@ -13,9 +13,11 @@ import (
 // confidence is not one of the labels an artifact row keeps (#8798).
 const storyArtifactException = "deployment artifact rows keep id, relationship_type, and resolved_id; get_relationship_evidence by resolved_id returns the rest, including confidence"
 
-// storyOmissionTotalCaveat is the sentence that keeps a truth.omissions total
-// from reading as exact for the families whose own read is bounded (#8798).
-const storyOmissionTotalCaveat = "for dependents, consumer_repositories, provisioning_source_chains, and uncorrelated_cloud_resources it is a lower bound when the matching *_truncated flag is set, and cloud_resources never reports past 50"
+// storyOmissionTotalCaveat is the one sentence every statement of the handles
+// view uses for a truth.omissions total: the story's own pre-cap count, a lower
+// bound wherever the read behind the family was itself bounded. The per-family
+// list lives on the Context evidence budget reference (#8798).
+const storyOmissionTotalCaveat = "Each total is the story's own pre-cap count: a lower bound wherever the underlying read was itself bounded (a *_truncated flag or deployment_artifacts_* limitation is set, or the read stops at 50 rows with no flag), and not cut by the story's cap otherwise; the Context evidence budget reference lists the rule for each family"
 
 // TestGetServiceStoryEvidenceDetailNamesArtifactException pins that the schema
 // description of evidence_detail does not read as if deployment artifact rows
@@ -46,8 +48,10 @@ func TestGetServiceStoryEvidenceDetailNamesArtifactException(t *testing.T) {
 				t.Fatalf("evidence_detail description = %q, want it to contain %q", description, want)
 			}
 		}
-		if strings.Contains(description, "true total") {
-			t.Fatalf("evidence_detail description = %q, must not call an omission total true", description)
+		for _, banned := range []string{"true total", "exact only when", "exact otherwise"} {
+			if strings.Contains(description, banned) {
+				t.Fatalf("evidence_detail description = %q, must not say %q about an omission total", description, banned)
+			}
 		}
 		return
 	}

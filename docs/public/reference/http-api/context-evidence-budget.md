@@ -59,142 +59,64 @@ returns 400 `invalid_argument` before any read runs.
   `delivery_family_story`, `delivery_workflows`, `topology_story`, and
   `relationship_overview`. A value that holds no rows stays.
 - Under `handles` the response sets `evidence_detail` and
-  `evidence_detail_drilldown`, keeps every count, and lists each reduced family
-  in `truth.omissions` with the rows it held: `detail` is `handles` for
-  projected rows and `omitted` for a dropped value. A list the row cap had
-  already cut reports its pre-cut count.
-- The MCP `get_workload_context` and `get_service_context` tools default to
-  `handles`; an explicit `evidence_detail` wins.
-
-## Reaching the rows
-
-- Under `full`, `deployment_evidence.evidence_index.*.resolved_ids` names every
-  artifact row read, and `get_relationship_evidence` returns one by
-  `resolved_id`.
-- Under `handles` the index is dropped, so reaching an artifact row beyond the
-  50 shipped, or any dropped value, takes a call with `evidence_detail: full`.
-
-## Service investigation repository count
-
-`GET /api/v0/investigations/services/{service_name}` cuts `repositories_considered`
-to 50 rows and closes a cut list with one `__truncated__` marker row.
-`coverage_summary.repository_count` is the true number of repositories before
-that cut, and it never counts the marker. `coverage_summary.repositories_truncated`
-is `true` when the list was cut, so a caller reads one field instead of scanning
-rows for the marker: 120 repositories report `120` and `true`, exactly 50 report
-`50` and `false`, and 51 report `51` and `true`.
-`repositories_with_evidence_count` counts only the rows returned, so it can be
-lower than `repository_count` when the list was cut. `coverage_summary.truncated`
-stays the combined flag and is also `true` when `repositories_truncated` is.
-
-## Service story
-
-`GET /api/v0/services/{service_name}/story` and the MCP `get_service_story` tool
-take the same `evidence_detail` parameter, `full` or `handles`. An unknown value
-returns 400 `invalid_argument` before any read runs. The shaping runs on the
-built dossier, so no query is added and every count and every top-level status,
-truth, and freshness field is computed from the full rows.
-
-- `full` is the HTTP default and returns the dossier as before, with one change:
-  the endpoint rows ship once, at the top-level `api_surface.endpoints`.
-  `deployment_overview.api_surface` keeps its counts and
-  `endpoints_shipped_at` points at the top-level rows (#8798).
-- `handles` is the MCP default. A large service's full dossier measured 266 KB
-  and, because the MCP result carries the payload twice, failed the response
-  budget with `mcp_response_over_budget`. Under `handles` the dossier keeps
-  every section and projects the bulky lists to identity rows:
-  - `deployment_evidence.artifacts` and `api_surface.endpoints`, as on the
-    context routes, with the content-derived `deployment_evidence` values
-    dropped.
-  - `code_to_runtime_trace.segments[].evidence`, to the identity keys of that
-    segment. `service_identity`, `ci_cd`, `image_package`, and `runtime` hold the
-    only copy of their rows, so they keep every identity key: the
-    `image_package` rows keep the image reference, digest, and SBOM attachment
-    and document identity and status, and a `ci_cd` row that wraps the
-    top-level `ci_cd_evidence` summary becomes
-    `evidence_summary_shipped_at: ci_cd_evidence`. A segment
-    whose rows repeat another section (`code_entrypoints`, `deployment_config`,
-    `cloud_dependencies`) keeps a preview of 10 rows and sets `truncated`,
-    `evidence_shipped`, and `evidence_omitted`; `evidence_count` stays the total.
-  - `upstream_dependencies`, `hostnames`, `entrypoints`, `entrypoint_candidates`,
-    `network_paths`, `dependents`, `consumer_repositories`,
-    `provisioning_source_chains`, `cloud_resources`,
-    `uncorrelated_cloud_resources`, and the `investigation` repositories, to
-    identity keys plus the row truth labels, the fields that say how a row was
-    established. Each list keeps its length, and the provenance detail (paths,
-    reasons, matched values, source record ids) ships only under `full`. The
-    kept keys follow the rows the production builders emit:
-    - `upstream_dependencies`: `resolved_id`, `relationship_type`, `source`,
-      `source_repo_id`, `target`, `target_repo_id`, `target_id`, and
-      `confidence`.
-    - `dependents`: `repo_id`, `repository`, and `relationship_types`.
-    - `consumer_repositories`: `repo_id`, `repository`, `consumer_kinds`,
-      `graph_relationship_types`, and `evidence_kinds`.
-    - `provisioning_source_chains`: `repo_id`, `repository`,
-      `relationship_types`, and `evidence_kinds`, which already include the
-      relationship reasons.
-    - `hostnames`: `hostname` and `environment`. `entrypoints`: `type`,
-      `target`, `environment`, and `visibility`.
-    - `entrypoint_candidates`: `candidate`, `classification`, and `reason`, the
-      only statement of why the token is not an entrypoint.
-    - `network_paths`: `path_type`, `from_type`, `from`, `to`, `platform_kind`,
-      `environment`, and `visibility`; the constant `to_type` and the repeated
-      `reason` go.
-    - `cloud_resources`: `id`, `name`, `kind`, `resource_type`,
-      `relationship_basis`, `resolution_mode`, `evidence_source`,
-      `service_anchor_source`, and `service_anchor_reason`.
-    - `uncorrelated_cloud_resources`: `id`, `name`, `kind`, `resource_type`,
-      `candidate_status`, `missing_relationship`, `service_anchor_status`, and
-      `service_anchor_reason`.
-
-    The investigation truncation marker row keeps its `note`.
-  - `evidence_graph.edges`, to `id`, `source`, `target`, `relationship_type`,
-    `confidence`, and `resolved_id`. `evidence_graph.nodes` keeps the nodes a shipped edge touches
-    and the workload and its source repository; `node_count`, `nodes_truncated`,
-    and `nodes_omitted` report the cut.
-  - `downstream_consumers.graph_dependents` and `content_consumers` are dropped
-    because the same rows ship in `dependents` and `consumer_repositories`;
-    `graph_dependents_shipped_at` and `content_consumers_shipped_at` name them.
-- Under `handles` the response sets `evidence_detail` and
   `evidence_detail_drilldown`, and lists each reduced family in `truth.omissions`
-  with its total, the count the story held before its own 50-row cap (`detail`
-  is `handles` for projected rows and `omitted` for a dropped list). The total
-  is exact only when the read behind the family was not itself cut, because
-  several reads are bounded before the story sees their rows:
-  - `dependents`, `consumer_repositories`, and `provisioning_source_chains`
-    stop at `result_limits.downstream_read_limit` and set `dependents_truncated`,
-    `consumer_repositories_truncated`, and
-    `provisioning_source_chains_truncated`. Their totals are lower bounds when
-    the matching flag is set.
-  - `uncorrelated_cloud_resources` reads one row past 50 and sets
-    `uncorrelated_cloud_resources_truncated`. Its total is a lower bound when
-    that flag is set.
-  - `cloud_resources` is read at most 50 rows with no truncation flag, so its
-    total never passes 50 and cannot tell you more exist.
-  - `upstream_dependencies` is built from deployment artifacts, dependencies,
-    and the provisioning chains, so it is a lower bound when
-    `provisioning_source_chains_truncated` or a deployment artifact bound is
-    set.
-  - `hostnames`, `entrypoints`, `entrypoint_candidates`, and `network_paths`
-    come from the service evidence file read, so they are lower bounds when that
-    read hit the `result_limits.evidence_file_read_limit` file bound (the story
-    then sets `consumer_repositories_truncated`).
-
-  `investigation.repositories_considered` reports the packet's repository
-  count, `investigation.coverage_summary.repository_count`, which is taken
-  before the 50-row cap and never counts the marker row. The packet records no
-  such count for `investigation.repositories_with_evidence`
-  (`repositories_with_evidence_count` counts only the rows returned), so that
-  total is the rows it shipped, at most 50 and often fewer. It never ships the
-  marker row. It is a lower bound when `repositories_considered` ends with the
-  `__truncated__` marker row, and exact otherwise. `truth.level`,
-  `truth.freshness`, and `answer_metadata` are unchanged. `answer_packet.truth`
-  copies the truth envelope, so it carries the same `omissions`.
+  with its total (`detail` is `handles` for projected rows and `omitted` for a
+  dropped list). Each total is the story's own pre-cap count: a lower bound
+  wherever the underlying read was itself bounded (a `*_truncated` flag or
+  `deployment_artifacts_*` limitation is set, or the read stops at 50 rows with
+  no flag), and not cut by the story's cap otherwise; the table below lists the
+  rule for each family. `truth.level`, `truth.freshness`, and `answer_metadata`
+  are unchanged. `answer_packet.truth` copies the truth envelope, so it carries
+  the same `omissions`.
 - To reach the rows under `handles`, repeat the call with `evidence_detail: full`,
   or fetch one relationship by `resolved_id` with `get_relationship_evidence`.
 
-Measured on a synthetic large-service fixture with every list past its 50-row
-cap and the row keys the production builders emit, the dossier is 360,361 bytes
+### Omission total rules
+
+Each total follows the shared sentence above. The flags the table names:
+
+- A deployment artifact bound is `deployment_evidence.artifacts_truncated`, or
+  one of the limitations `deployment_artifacts_candidates_budget_reached`,
+  `deployment_artifacts_related_file_list_truncated_at_5000`, and
+  `deployment_artifacts_anchor_file_list_truncated_at_5000`.
+- `dependents_truncated`, `consumer_repositories_truncated`, and
+  `provisioning_source_chains_truncated` come from the bounded downstream read
+  (`result_limits.downstream_read_limit`). `consumer_repositories_truncated`
+  is also set when the service evidence file read hit
+  `result_limits.evidence_file_read_limit`.
+- A read of 50 rows with no flag is the `cloud_resources` read and the
+  runtime instance read: their totals never pass 50 and cannot say more exist.
+
+| `truth.omissions` section | Count the total reads | Lower bound when |
+| --- | --- | --- |
+| `deployment_evidence.artifacts` | `deployment_evidence.artifact_count`, the artifact rows read | a deployment artifact bound |
+| `deployment_evidence.deployment_artifacts`, `shared_config_paths`, `delivery_paths`, `delivery_family_paths`, `delivery_family_story`, `delivery_workflows`, `topology_story`, `relationship_overview` | rows held, or the `raw_limits` count when the story cut the list | a deployment artifact bound |
+| `api_surface.endpoints` | `api_surface.endpoint_count`, a count query | never: not cut by the story's cap |
+| `upstream_dependencies` | `result_limits.upstream_count`: artifact, dependency, and provisioning chain rows | a deployment artifact bound, or `provisioning_source_chains_truncated` |
+| `dependents`, `downstream_consumers.graph_dependents` | rows read | `dependents_truncated` |
+| `consumer_repositories`, `downstream_consumers.content_consumers` | rows read | `consumer_repositories_truncated` |
+| `provisioning_source_chains` | rows read | `provisioning_source_chains_truncated` |
+| `hostnames`, `entrypoints`, `entrypoint_candidates`, `network_paths` | rows the service evidence file read produced | `consumer_repositories_truncated` |
+| `cloud_resources` | rows read, at most 50 | the read stops at 50 rows with no flag |
+| `uncorrelated_cloud_resources` | rows read (one past 50) | `uncorrelated_cloud_resources_truncated` |
+| `code_to_runtime_trace.service_identity.evidence` | the single identity row | never |
+| `code_to_runtime_trace.code_entrypoints.evidence` | endpoint rows read plus entrypoint rows | `api_surface.detail_truncated` or `consumer_repositories_truncated` |
+| `code_to_runtime_trace.ci_cd.evidence` | one `ci_cd_evidence` summary row, or the `delivery_workflows` rows | a deployment artifact bound, for the `delivery_workflows` rows only |
+| `code_to_runtime_trace.image_package.evidence` | SBOM attachment rows for at most 50 image references | `image_refs_truncated` on the segment, or a deployment artifact bound |
+| `code_to_runtime_trace.deployment_config.evidence` | `artifacts`, `delivery_paths`, and `shared_config_paths` rows | a deployment artifact bound |
+| `code_to_runtime_trace.runtime.evidence` | runtime instances read, at most 50 | the read stops at 50 rows with no flag |
+| `code_to_runtime_trace.cloud_dependencies.evidence` | the `cloud_resources` rows, or the uncorrelated candidates when none attached | as `cloud_resources`, or as `uncorrelated_cloud_resources` |
+| `evidence_graph.edges` | `evidence_graph.edge_count`: artifact edges plus one edge per instance | a deployment artifact bound, or 50 instances read |
+| `evidence_graph.nodes` | nodes built from artifacts, instances, consumer repositories, and dependents | a deployment artifact bound, `dependents_truncated`, `consumer_repositories_truncated`, or 50 instances read |
+| `investigation.repositories_considered` | `investigation.coverage_summary.repository_count`, the repository set built from the artifacts, dependents, consumer repositories, and provisioning chains the story holds, taken before its 50-row cap; never counts the marker row | a deployment artifact bound, `dependents_truncated`, `consumer_repositories_truncated`, or `provisioning_source_chains_truncated` |
+| `investigation.repositories_with_evidence` | the non-marker rows it shipped, at most 50 (the packet records no count past the cap) | the `investigation.repositories_considered` conditions, or `repositories_considered` ends with the `__truncated__` marker row |
+
+Measured on a synthetic large-service fixture that holds 60 rows in every list
+and the row keys the production builders emit, the story ships 50 rows per list
+(the cap; `TestOversizedServiceStoryShipsFiftyOfSixtyRows` counts them), so the
+measured bytes are the 50-row ship size of a story with every list past its
+cap, not a bound above it. The 60 only drives the pre-cap totals in
+`raw_context_limits`. The dossier is 360,361 bytes
 under `full` and 128,547 bytes under `handles` (35.7 percent). The MCP result
 carries the envelope twice, once structured and once as an escaped JSON string.
 Under `full` even one copy is over the 262,144-byte budget (366,409 bytes
@@ -204,20 +126,16 @@ the single copy fits the budget (138,263 bytes structured, 152,707 escaped). The
 MCP result still carries the payload twice (290,970 bytes), so the dispatch
 answers it as the resource copy alone and records
 `eshu_dp_mcp_response_resource_fallback_total` until #8800 sends the result
-once. A story with no attached cloud resources and
-60 uncorrelated cloud-resource candidates (the enrichment loads candidates only
-when no cloud resource attached, so the two lists never ship together; the 60
-rows are a conservative synthetic size, because the production read returns at
-most 50) is
-366,502 bytes under `full`, 125,578 under `handles`, and 284,854 in the dual
-shape, and
-also falls back: 135,320 bytes as the structured copy, 149,534 as the escaped
-text copy.
+once. A story with no attached cloud resources and 60 uncorrelated
+cloud-resource candidates (the enrichment loads candidates only when no cloud
+resource attached, so the two lists never ship together; the fixture holds 60
+and the story ships 50) is 366,502 bytes under `full`, 125,578 under `handles`,
+and 284,854 in the dual shape, and also falls back: 135,320 bytes as the
+structured copy, 149,534 as the escaped text copy.
 
 The standard fixture leaves out `entrypoint_candidates` and `network_paths`,
-which also cap at 50 rows. With 60 rows of each added (every family past its cap;
-the 60 is a conservative synthetic size, and production ships at most 50 of
-any family), the story is 385,793 bytes under `full` and 146,879 under `handles`
+which also cap at 50 rows. With 60 rows of each added (the fixture holds 60 of
+every family and the story ships 50), the story is 385,793 bytes under `full` and 146,879 under `handles`
 (`entrypoint_candidates` 10,837 to 7,487 bytes, `network_paths` 14,301 to
 10,551). That shape is 330,200 bytes in the dual MCP shape, so dispatch falls
 back to the resource copy alone (156,843 bytes structured, 173,357 escaped).
@@ -237,9 +155,8 @@ in the handler after `BuildServiceStoryEnvelope` returns, and the in-process
 service intelligence report calls the builder directly and is not shaped. The
 only builder change drops the endpoint rows from the overview's copy of
 `api_surface`, which removes about 12 KB of serialization work on this fixture.
-Input shape: a fixture with every row list past its 50-row cap (60 rows each,
-a conservative synthetic size; production ships at most 50 rows per list)
-and the production row keys, plus CI/CD and supply-chain evidence. Under `full`:
+Input shape: a fixture that holds 60 rows in every row list, past the 50-row
+cap, so the story ships 50 per list, with the production row keys, plus CI/CD and supply-chain evidence. Under `full`:
 360,361 bytes. Under `handles`: 128,547 bytes (35.7 percent of `full`); the
 escaped single copy is 152,707 bytes against the unchanged 262,144-byte budget
 (`full`: 405,267), and the dual result, 290,970 bytes (`full`: 771,676), takes

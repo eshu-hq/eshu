@@ -191,7 +191,7 @@ func TestApplyStoryEvidenceDetailProjectsCandidatesAndNetworkPaths(t *testing.T)
 }
 
 // TestApplyStoryEvidenceDetailInvestigationTotals proves the investigation
-// repositories_considered omission reads the packet's true repository count
+// repositories_considered omission reads the packet's pre-cap repository count
 // (coverage_summary.repository_count, taken before the 50-row cap, #8802) and
 // not the shipped rows, that the closing marker row is neither projected nor
 // counted, and that repositories_with_evidence, which records no count past the
@@ -220,7 +220,7 @@ func TestApplyStoryEvidenceDetailInvestigationTotals(t *testing.T) {
 		bySection[omission.Section] = omission.Total
 	}
 	if got := bySection["investigation.repositories_considered"]; got != 241 {
-		t.Fatalf("repositories_considered omission total = %d, want the true repository_count 241", got)
+		t.Fatalf("repositories_considered omission total = %d, want the pre-cap repository_count 241", got)
 	}
 	if got := bySection["investigation.repositories_with_evidence"]; got != 50 {
 		t.Fatalf("repositories_with_evidence omission total = %d, want the 50 shipped rows", got)

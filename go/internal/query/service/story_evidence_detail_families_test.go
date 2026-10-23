@@ -16,7 +16,7 @@ import (
 // both lists at the 50-row cap with full-width rows, so before the projection
 // a service heavy in both shipped 100 unshaped rows under handles (#8798). The
 // lists keep their length, keep the labels that explain a row, and report the
-// true pre-cap total from raw_context_limits as the omission total.
+// pre-cap total from raw_context_limits as the omission total.
 func TestEntrypointFamiliesStoryHandlesProjectRows(t *testing.T) {
 	t.Parallel()
 
@@ -63,7 +63,7 @@ func TestEntrypointFamiliesStoryHandlesProjectRows(t *testing.T) {
 		}
 		omission, ok := bySection[family.key]
 		if !ok || omission.Detail != querycontract.ContextEvidenceDetailHandles || omission.Total != 60 {
-			t.Fatalf("omission for %s = %#v (present %v), want detail handles and the true total 60", family.key, omission, ok)
+			t.Fatalf("omission for %s = %#v (present %v), want detail handles and the pre-cap total 60", family.key, omission, ok)
 		}
 	}
 
