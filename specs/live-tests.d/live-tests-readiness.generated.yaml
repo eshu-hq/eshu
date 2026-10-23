@@ -494,6 +494,11 @@ tests:
     class: postgres_ci
     reason: "#7797 disposable PostgreSQL proof of the delta-base union read: delta over base with tombstone and deleted-path removal, base-missing refusal, pruned-base refusal, and the independent ACTIVE snapshot; each test runs in an isolated disposable schema (unique name, DROP SCHEMA cleanup) in 0.05-0.08s locally (package 0.324s); enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/delta_union_projection_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8779 disposable PostgreSQL proof that a git delta generation projects over its #7797 union base through the production projector service (ProjectorQueue claim, union FactStore load, runtime Project, content writer, reducer queue, Ack activation) without base facts tripping the fact boundary check or re-firing base-only reducer follow-ups under either generation; isolated bootstrapped schema per test; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/drifted_bucket_skip_live_test.go
     tag: ~
     class: postgres_ci
