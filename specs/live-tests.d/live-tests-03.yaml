@@ -63,7 +63,7 @@ tests:
   - file: go/internal/reducer/legacy_workload_retirement_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci
-    reason: "deterministic nonce-scoped #8795 proof through the real workload materializer on Neo4j: a seeded name-only leftover next to a materialized twin is detected, dry-run eligible, retired with the twin and its DEFINES untouched (P1), a second execute deletes nothing (C1), and four rounds of a retirement racing a materialization pass under -race leave the twin intact and the leftover deleted (C2); Neo4j-only because execute is refused on NornicDB; local neo4j 2026.08.1 runs took 0.6 s and 0.3 s"
+    reason: "deterministic nonce-scoped #8795 proof through the real workload materializer on Neo4j: a seeded name-only leftover next to a materialized twin is detected, dry-run eligible, retired with the twin and its DEFINES untouched (P1), a second execute deletes nothing (C1), and four rounds of a retirement racing a materialization pass under -race leave the twin intact and the leftover deleted (C2); Neo4j-only because the route serves Neo4j only; local neo4j 2026.08.1 runs took 0.6 s and 0.3 s"
     backends: neo4j
   - file: go/internal/reducer/cloud_resource_retract_live_test.go
     tag: ~
