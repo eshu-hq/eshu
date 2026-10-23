@@ -16,6 +16,11 @@ var predefinedBuildArgs = map[string]bool{
 	"BUILDPLATFORM": true, "BUILDOS": true, "BUILDARCH": true, "BUILDVARIANT": true,
 }
 
+// maxExpandedLen bounds one expansion. A Dockerfile is untrusted repository
+// content, and ARG values that each repeat the previous one would otherwise
+// grow exponentially. A value past the bound is treated as not knowable.
+const maxExpandedLen = 4096
+
 // argDecl is one name[=default] pair of an ARG instruction.
 type argDecl struct {
 	name       string
@@ -57,7 +62,7 @@ func (r *baseRefResolver) declare(decl argDecl) {
 	expanded := r.expand(decl.value)
 	r.globals[decl.name] = globalArg{
 		value:      expanded.out,
-		known:      len(expanded.unresolved) == 0 && !predefinedBuildArgs[decl.name],
+		known:      len(expanded.unresolved) == 0 && !expanded.truncated && !predefinedBuildArgs[decl.name],
 		rawDefault: decl.value,
 		hasDefault: true,
 	}
@@ -82,7 +87,7 @@ func (r *baseRefResolver) resolve(ref string) baseRef {
 	}
 	expanded := r.expand(ref)
 	unresolved := expanded.unresolved
-	if len(unresolved) == 0 && strings.TrimSpace(expanded.out) == "" {
+	if len(unresolved) == 0 && (expanded.truncated || strings.TrimSpace(expanded.out) == "") {
 		unresolved = expanded.referenced
 		if len(unresolved) == 0 {
 			unresolved = []string{ref}
@@ -125,7 +130,9 @@ func noteStageArgDefaults(stage *Stage, decls []argDecl) {
 }
 
 type expansion struct {
-	out        string
+	out string
+	// truncated is set when the expansion passed maxExpandedLen and stopped.
+	truncated  bool
 	unresolved []string
 	referenced []string
 }
@@ -158,6 +165,10 @@ func (r *baseRefResolver) expand(s string) expansion {
 	var result expansion
 	var out strings.Builder
 	for i := 0; i < len(s); i++ {
+		if out.Len() > maxExpandedLen {
+			result.truncated = true
+			break
+		}
 		if s[i] != '$' {
 			out.WriteByte(s[i])
 			continue
@@ -234,6 +245,7 @@ func (r *baseRefResolver) expandNamed(name, op, word, whole string, result *expa
 	useWord := func() {
 		inner := r.expand(word)
 		out.WriteString(inner.out)
+		result.truncated = result.truncated || inner.truncated
 		result.unresolved = append(result.unresolved, inner.unresolved...)
 		result.referenced = append(result.referenced, inner.referenced...)
 	}

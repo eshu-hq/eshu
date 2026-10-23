@@ -77,6 +77,10 @@ Dockerfile rule for how `ARG` and `FROM` interact:
   keys are omitted for a `FROM` with no variable, so existing payloads are
   byte-identical. They ride in the open attributes of the typed stage contract.
 - An unaliased stage is named after its expanded image.
+- Expansion is bounded to 4096 bytes. A Dockerfile is untrusted repository
+  content, and ARGs that each repeat the previous one would otherwise grow
+  exponentially. A value past the bound is treated as not knowable, so the
+  reference stays unresolved.
 
 Known limit: the tokenizer drops backslash escapes and quotes before
 expansion, so an escaped `\$` or single-quoted `$` is treated as a variable.

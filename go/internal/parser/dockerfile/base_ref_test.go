@@ -4,8 +4,11 @@
 package dockerfile
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 )
 
 // stageAtLine returns the stage declared on the given Dockerfile line.
@@ -233,5 +236,33 @@ func TestBaseRefMapEmitsEvidenceOnlyWhenAVariableWasInvolved(t *testing.T) {
 		!reflect.DeepEqual(unresolved["base_ref_unresolved_args"], []any{"V"}) ||
 		!reflect.DeepEqual(unresolved["base_ref_arg_defaults"], map[string]any{"V": "3.20"}) {
 		t.Fatalf("unresolved = %#v", unresolved)
+	}
+}
+
+func TestBaseRefBoundsExponentialArgExpansion(t *testing.T) {
+	t.Parallel()
+
+	// Each ARG doubles the previous one; unbounded expansion would build a
+	// 2^40 byte string from a few hundred bytes of Dockerfile.
+	source := "ARG A0=xxxxxxxxxxxxxxxx\n"
+	for i := 1; i <= 40; i++ {
+		source += fmt.Sprintf("ARG A%d=${A%d}${A%d}\n", i, i-1, i-1)
+	}
+	source += "FROM node:${A40}\nFROM node:${A3}\n"
+
+	done := make(chan Metadata, 1)
+	go func() { done <- RuntimeMetadata(source) }()
+	select {
+	case got := <-done:
+		huge := stageAtLine(t, got, 42)
+		if !reflect.DeepEqual(huge.UnresolvedArgs, []string{"A40"}) || huge.BaseTag != "${A40}" {
+			t.Fatalf("oversized expansion = %#v, want unresolved with the placeholder kept", huge)
+		}
+		small := stageAtLine(t, got, 43)
+		if small.BaseTag != strings.Repeat("xxxxxxxxxxxxxxxx", 8) || len(small.UnresolvedArgs) != 0 {
+			t.Fatalf("small expansion = %#v, want the 8-fold value", small)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("RuntimeMetadata did not finish: ARG expansion is unbounded")
 	}
 }
