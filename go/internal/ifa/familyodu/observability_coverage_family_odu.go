@@ -40,6 +40,13 @@ import (
 // resolvable dimension, rejected), an X-Ray rule matching by service name
 // (derived provenance-only, never an edge), and an alarm naming an unscanned
 // target (unresolved gap, never an edge).
+//
+// The orders EC2 target additionally carries its ec2_instance_posture fact:
+// the EC2 node commits ONLY from that fact kind (aws_ec2_instance
+// aws_resource facts never produce node rows, #5448 CRUX-1), so without it
+// the live alarm row resolves against no node (first fault-shard run: 4/5
+// edges). The real collector emits it from the same DescribeInstances pass,
+// so the fixture mirrors a real generation.
 
 const (
 	// ObservabilityCoverageFamilyOduName is this Odù's catalog name, the
@@ -226,6 +233,25 @@ var observabilityCoverageFamilyTargets = []observabilityCoverageFamilyTargetFixt
 	},
 }
 
+// observabilityCoverageFamilyPostureFixture is the one ec2_instance_posture
+// fact: the orders EC2 instance's posture observation, mirroring the
+// orders-ec2 target field for field so the committed node carries the exact
+// CloudResourceUID the alarm row binds.
+type observabilityCoverageFamilyPostureFixture struct {
+	InstanceID string
+	ARN        string
+	State      string
+}
+
+// observabilityCoverageFamilyPosture commits the EC2 node the alarm edge
+// resolves against (not posture classification, which belongs to the ec2
+// families' Odùs).
+var observabilityCoverageFamilyPosture = observabilityCoverageFamilyPostureFixture{
+	InstanceID: "i-0abc123def4567890",
+	ARN:        "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc123def4567890",
+	State:      "running",
+}
+
 // observabilityCoverageFamilyRelationshipFixture describes one
 // aws_relationship fact: either a cloudwatch_alarm_observes_metric
 // dimension edge from an object to a target identity, or an
@@ -325,7 +351,7 @@ func ObservabilityCoverageFamilyOdu() CatalogOdu {
 		[]facts.Envelope, 0,
 		len(observabilityCoverageFamilyObjects)+
 			len(observabilityCoverageFamilyTargets)+
-			len(observabilityCoverageFamilyRelationships),
+			len(observabilityCoverageFamilyRelationships)+1,
 	)
 	for _, fixture := range observabilityCoverageFamilyObjects {
 		arn := fixture.ARN
@@ -386,6 +412,35 @@ func ObservabilityCoverageFamilyOdu() CatalogOdu {
 			Payload:          payload,
 		})
 	}
+	instanceID := observabilityCoverageFamilyPosture.InstanceID
+	postureARN := observabilityCoverageFamilyPosture.ARN
+	postureState := observabilityCoverageFamilyPosture.State
+	postureResourceType := "aws_ec2_instance"
+	posture := awsv1.EC2InstancePosture{
+		AccountID:    observabilityCoverageFamilyAccountID,
+		Region:       observabilityCoverageFamilyRegion,
+		InstanceID:   &instanceID,
+		ARN:          &postureARN,
+		ResourceType: &postureResourceType,
+		State:        &postureState,
+	}
+	posturePayload, err := factschema.EncodeEC2InstancePosture(posture)
+	if err != nil {
+		panic(fmt.Sprintf(
+			"familyodu: catalog_seed %s: encode ec2_instance_posture payload for %q: %v",
+			ObservabilityCoverageFamilyOduName, instanceID, err,
+		))
+	}
+	factsForOdu = append(factsForOdu, facts.Envelope{
+		ScopeID:          observabilityCoverageFamilyScopeID,
+		GenerationID:     observabilityCoverageFamilyGenerationID,
+		FactKind:         cloud.EC2InstancePostureFactKind,
+		StableFactKey:    observabilityCoverageFamilyStableFactKey(cloud.EC2InstancePostureFactKind, "orders-ec2"),
+		SchemaVersion:    cloud.EC2InstancePostureSchemaVersionV1,
+		CollectorKind:    observabilityCoverageFamilyCollectorKind,
+		SourceConfidence: observabilityCoverageFamilySourceConfidence,
+		Payload:          posturePayload,
+	})
 	for _, fixture := range observabilityCoverageFamilyRelationships {
 		relationship := awsv1.Relationship{
 			AccountID:        observabilityCoverageFamilyAccountID,
@@ -438,6 +493,6 @@ func ObservabilityCoverageFamilyOdu() CatalogOdu {
 
 	return CatalogOdu{
 		Odu:    Odu{Name: ObservabilityCoverageFamilyOduName, Facts: factsForOdu},
-		Detail: "twenty-one facts for the direct-materialization observability_coverage family: eight aws_resource observability objects (five edge producers, one per coverage signal, plus a metric-name-only alarm, a service-name X-Ray rule, and an alarm naming an unscanned target), five scanned monitored targets, and eight aws_relationship facts (five exact dimension pairs, one dimensionless pair, one service-name match, and one ghost-dimension pair), so the AWS_COVERS_* expected set proves all five closed-vocabulary signals with arn and bare_id resolution modes and the classifier's no-fabrication restraint",
+		Detail: "twenty-two facts for the direct-materialization observability_coverage family: eight aws_resource observability objects (five edge producers, one per coverage signal, plus a metric-name-only alarm, a service-name X-Ray rule, and an alarm naming an unscanned target), five scanned monitored targets, one ec2_instance_posture fact committing the EC2 node the alarm edge resolves against, and eight aws_relationship facts (five exact dimension pairs, one dimensionless pair, one service-name match, and one ghost-dimension pair), so the AWS_COVERS_* expected set proves all five closed-vocabulary signals with arn and bare_id resolution modes and the classifier's no-fabrication restraint",
 	}
 }

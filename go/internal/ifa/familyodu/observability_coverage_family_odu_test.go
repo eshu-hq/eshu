@@ -22,8 +22,8 @@ import "testing"
 func TestObservabilityCoverageFamilyOduStableKeysAreUnique(t *testing.T) {
 	t.Parallel()
 	odu := ObservabilityCoverageFamilyOdu().Odu
-	if len(odu.Facts) != 21 {
-		t.Fatalf("observability_coverage Odù carries %d facts, want 21 (8 objects + 5 targets + 8 relationships)", len(odu.Facts))
+	if len(odu.Facts) != 22 {
+		t.Fatalf("observability_coverage Odù carries %d facts, want 22 (8 objects + 5 targets + 1 EC2 posture + 8 relationships)", len(odu.Facts))
 	}
 	seen := make(map[string]string, len(odu.Facts))
 	for _, env := range odu.Facts {

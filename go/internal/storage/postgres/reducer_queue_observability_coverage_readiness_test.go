@@ -20,7 +20,10 @@ import (
 // returns one pending observability_coverage_materialization intent only when
 // the canonical-nodes readiness gate is satisfied. It proves the durable SQL
 // gate (not just the in-handler ReadinessLookup) holds coverage edge work until
-// the #805 PR1 CloudResource nodes commit.
+// the #805 PR1 CloudResource nodes commit. The EC2 instance-node phase the
+// alarm edge needs is held in-handler (canonicalNodesReady), not here: the
+// shared summary query froze post-#7881, so no second claim-time row can gate
+// it without breaking the pinned render.
 type observabilityCoverageReadinessQueueDB struct {
 	now          time.Time
 	phaseReady   bool
