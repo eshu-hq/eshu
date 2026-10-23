@@ -23,6 +23,11 @@ operator control plane (`get_operator_control_plane`) rolls the failed instance
 up, so its collector family reads `promotion_state=failed` with the same
 blocker. A healthy instance omits the failure fields on both routes.
 
+Scoped callers receive only the per-kind health aggregate on the collectors
+route; `last_failure_*` fields are withheld from them. On the readiness route
+they keep the class, operation, and blocker, and only `instance_id` is
+withheld. Browser-session and all-scope callers get the full rows.
+
 ## Values
 
 `last_failure_class` is one of these, or `unknown` for any persisted value

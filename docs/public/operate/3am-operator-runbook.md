@@ -160,7 +160,7 @@ A source is not refreshing, or a collector family reports unhealthy.
   `identity_mismatch` (the collected generation did not match its claim; check
   the collector log for the scope), and `terminal`, `collect_failure`,
   `commit_failure`, or `unknown` (read the collector log line carrying
-  `failure_class` — a non-security-alert kind always reads `unknown` here). The
+  `failure_class`; a class only another collector kind writes reads `unknown`). The
   gauge `eshu_runtime_coordinator_collector_terminal_failure_instances` counts
   affected instances by `collector_kind` and `failure_class`; read it with
   `max by (collector_kind, failure_class)`, never summed, because every runtime

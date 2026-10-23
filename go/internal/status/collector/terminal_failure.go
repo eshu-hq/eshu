@@ -31,8 +31,9 @@ const maxFailureOperationLength = 48
 // the scanner worker leaves false when it dead-letters a claim. There is no
 // per-row terminal flag to consult.
 //
-// FailureClass and FailureOperation are the bounded tokens the claim runner
-// persisted. The failure message and provider status code are deliberately
+// FailureClass and FailureOperation are the persisted tokens;
+// BoundedFailureClass and BoundedFailureOperation bound them before any status
+// surface. The failure message and provider status code are deliberately
 // absent: they can carry provider response text and must not reach a status
 // payload.
 type TerminalFailure struct {
