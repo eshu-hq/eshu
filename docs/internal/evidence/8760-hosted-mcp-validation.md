@@ -88,7 +88,7 @@ are shares of domain calls. Cost is not reported by Codex.
 | codex | router | 78 | 11.01 | 54% | 4% | 87% | 90% | 22.9 | 202653 | n/a |
 | codex | core_router | 78 | 11.69 | 54% | 5% | 65% | 82% | 21.7 | 211549 | n/a |
 
-### A scoring correction that changed the Claude Code numbers
+### Method and corrections: the Claude Code scoring defect
 
 The first scoring pass missed the newer Claude Code notice for a large result,
 so 62 of the 234 Claude Code runs counted a result the agent could not open as a
@@ -105,6 +105,21 @@ picks, first call, and tokens did not change; only "expected tool answered" did.
 | `full`, without the service-story task | 99% | 91% |
 | `router`, without the service-story task | 99% | 85% |
 | `core_router`, without the service-story task | 88% | 76% |
+
+Claude Code runs that hit a saved preview, by surface (78 runs each):
+
+| Surface | Runs with at least one saved preview | Success flips |
+|---|---|---|
+| `full` | 26 | 6 |
+| `router` | 20 | 10 |
+| `core_router` | 16 | 9 |
+
+This is a finding in its own right. A result the model cannot read is a failed
+call on that client, whatever surface asked for it. It is the motivating case
+for the oversized story response (#8798) and the one-copy result shape (#8800):
+smaller results would have stayed inline. Codex logs show no such notice. Codex
+bounds large output by a different mechanism that this harness did not measure,
+so these counts say nothing about Codex.
 
 The 25 flips cluster on six tasks whose tools return large lists on every
 surface (code search, dead code, repository listing, one drift query). Of the
@@ -143,10 +158,14 @@ Without the service-story task (75 runs per row):
 | codex | router | 75 | 93% | 87% | 53% | 10.72 | 193,700 |
 | codex | core_router | 75 | 85% | 68% | 52% | 11.44 | 203,938 |
 
+Treat all of these as a proxy. In the 22-run manual check below, the scored
+success matched my reading of the answer in 13 runs (59%).
+
 What the numbers support:
 
-- Claude Code: `full` answered more often than `router` (91% against 85%
-  without the story task, a gap of about 4 runs in 75). `router` had the better
+- Claude Code: `full` has the best answered rate in this proxy and `router` is
+  not tied with it (91% against 85% without the story task, a gap of about
+  4 runs in 75). `router` had the better
   first call (99% against 95%) and used about 43,500 input tokens per run
   against about 328,000 for `full`.
 - Codex: `full` answered slightly more often than `router` (96% against 93%).
