@@ -37,7 +37,10 @@ from typing import Any, Iterable
 _SERVER_PREFIX = "mcp__eshu__"
 _WRAPPER = "call_tool"
 _DISCOVERY = "find_tool"
-_OVERFLOW_MARKER = "exceeds maximum allowed tokens"
+# Wording the client uses when it cannot show a tool result: the older error
+# text, and the newer notice that swaps the result for a short preview and a
+# file path the tool-less agent cannot open.
+_OVERFLOW_MARKERS = ("exceeds maximum allowed tokens", "<persisted-output>")
 
 # Lookups that resolve identifiers or give context for another tool. A call to
 # one of these is not counted as a wrong pick even when the corpus does not list
@@ -180,8 +183,9 @@ def parse_claude(stream: str) -> Run:
                     call = by_id.get(str(block.get("tool_use_id")))
                     if call is not None:
                         call.is_error = bool(block.get("is_error"))
-                        call.overflowed = _OVERFLOW_MARKER in _text_of(
-                            block.get("content"))
+                        text = _text_of(block.get("content"))
+                        call.overflowed = any(m in text
+                                              for m in _OVERFLOW_MARKERS)
         elif kind == "result":
             final_text = str(event.get("result") or "")
             wall = float(event.get("duration_ms") or 0) / 1000.0

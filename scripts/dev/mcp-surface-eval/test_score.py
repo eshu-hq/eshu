@@ -164,6 +164,18 @@ class OverflowTest(unittest.TestCase):
         run = score.parse_claude(stream)
         self.assertEqual([c.overflowed for c in run.calls], [True, False])
 
+    def test_parse_marks_a_result_the_client_saved_to_a_file(self) -> None:
+        # Claude Code 2.1.309 can replace a large result with a short preview
+        # and a path the tool-less agent cannot open. That is also an overflow.
+        persisted = ("<persisted-output>\nOutput too large (105.4KB). Full "
+                     "output saved to: /x/y.json\n\nPreview (first 2KB):\n[")
+        stream = _claude_stream(
+            _tool_use("mcp__eshu__find_symbol", {}, "a"),
+            _tool_result_text("a", persisted),
+            _result())
+        run = score.parse_claude(stream)
+        self.assertEqual([c.overflowed for c in run.calls], [True])
+
     def test_overflowed_expected_call_is_not_success(self) -> None:
         run = score.Run(
             calls=[score.Call("find_symbol", "find_symbol", overflowed=True)],
