@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Fake `eshu` for test-collector-cutover-rollback.sh. It models only the
 # `eshu component` subcommands the rollback script calls, against files in
-# $FAKE_STATE: activations (one instance ID per line) and grants
-# (producer|version|kind|scope|revoked).
+# $FAKE_STATE: activations (one instance ID per line, all for dev.example.jira)
+# and grants (producer|version|kind|scope|revoked).
 set -euo pipefail
 
 state="${FAKE_STATE:?FAKE_STATE is required}"
@@ -59,6 +59,17 @@ revoke-grant)
 		"${state}/grants" >"${state}/grants.new"
 	mv "${state}/grants.new" "${state}/grants"
 	printf 'revoked grant %s@%s kind %s scope %s\n' "${producer}" "${version}" "${kind}" "${scope}"
+	;;
+list)
+	# `eshu component list` prints one row per installed component version and
+	# only a count of its activations. Marker file fail_list makes it fail.
+	if [[ -e "${state}/fail_list" ]]; then
+		printf 'Error: registry unreadable\n' >&2
+		exit 1
+	fi
+	active="$(awk 'NF' "${state}/activations" | awk 'END { print NR + 0 }')"
+	printf 'dev.example.other\t0.1.0\tallowlist\tstates=installed,enabled\tactivations=2\n'
+	printf 'dev.example.jira\t1.2.3\tallowlist\tstates=installed,enabled\tactivations=%s\n' "${active}"
 	;;
 grants)
 	producer=""

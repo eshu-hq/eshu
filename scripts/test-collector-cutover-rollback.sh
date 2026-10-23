@@ -208,6 +208,28 @@ run_script run --yes --from-step 4 --baseline "${FAKE_STATE}/baseline" "${ARGS[@
 expect_rc "restore refuses while a grant is still live" 4
 expect_no_call "no helm while a grant is live" "helm"
 
+# --- a mistyped --external-instance must not pass any gate (F1) ----------------------
+
+# The registry still holds the real instance (ext-1): disabling the typo reports
+# "not enabled", which must not be read as "already disabled".
+new_state typo-enabled
+run_script run --yes --baseline "${FAKE_STATE}/baseline" "${ARGS[@]}" --external-instance ext-TYPO
+expect_rc "a mistyped external instance is refused while the real one is enabled" 4
+expect_out "the refusal names the still-enabled activation" "still has"
+expect_no_call "no revoke after a mistyped instance" "revoke-grant"
+expect_no_call "no helm after a mistyped instance" "helm"
+expect_no_call "no worker scale after a mistyped instance" "scale"
+
+# The real instance is already disabled but still holds a claimed item: the drain
+# gate counts the collector kind, not only the instance IDs the caller named.
+new_state typo-claims
+: >"${FAKE_STATE}/activations"
+rm -f "${FAKE_STATE}/drain_polls_left"
+run_script run --yes --drain-timeout 1 --baseline "${FAKE_STATE}/baseline" "${ARGS[@]}" --external-instance ext-TYPO
+expect_rc "a mistyped instance cannot hide a claim held by another instance of the kind" 5
+expect_no_call "no revoke while another instance holds a claim" "revoke-grant"
+expect_no_call "no helm while another instance holds a claim" "helm"
+
 # --- timeouts ---------------------------------------------------------------------
 
 new_state drain-timeout
