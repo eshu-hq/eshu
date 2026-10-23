@@ -191,6 +191,33 @@ gates:
     ci_only_reason: ""
     hook_id: ""
 
+  - id: collector-cutover-rollback
+    name: Collector cutover rollback script contract
+    category: exactness
+    layer: contract
+    purpose: "Checks the collector cutover rollback script keeps its step order, refusal gates, and idempotence against stubbed eshu, kubectl, helm, and psql."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "docs/public/operate/collector-cutover-rollback.md"
+      - "docs/public/operate/collector-cutover-truth-checks.md"
+      - "scripts/collector-cutover-rollback.sh"
+      - "scripts/test-collector-cutover-rollback.sh"
+      - "scripts/lib/collector-cutover-rollback-*"
+      - "scripts/lib/test-collector-cutover-rollback-fake-*.sh"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    local:
+      command: "bash scripts/test-collector-cutover-rollback.sh"
+      test_command: ""
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify collector-cutover-rollback gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""
+
   - id: tagged-builds
     name: Build-tag compile sweep
     category: exactness
