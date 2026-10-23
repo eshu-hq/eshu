@@ -122,7 +122,7 @@ import (
 // union-base commit a cumulative delta was diffed from; catalog-only column).
 // #8803 adds 211_workflow_work_items_failed_terminal_instance_idx.sql (the
 // partial failed_terminal index for the collector terminal-failure read).
-const goldenBootstrapDefinitionsDigest = "bfea780b03fe21035410b3f75bebf639952d32c0b4e2f28bfd3f897f4568d8b7"
+const goldenBootstrapDefinitionsDigest = "55815441c9d9ba21f2613b0f7ce3828b88642f31a519962dcd6dcd27862d9bb0"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

@@ -12,10 +12,9 @@
 -- the scope and run indexes lack the instance prefix. On PostgreSQL 18.6 with
 -- 542,880 work items, one instance holding 276,480 failed_terminal rows (40
 -- targets on a 15 minute cycle for 72 days), the windowed read took 83.6 ms
--- warm with a hash anti join that spilled 623 temp blocks, and 5.7 s on the
--- first run after a restart; with this index it took 1.9 ms warm and 3.0 ms
--- cold, 794 buffers, no sort and no spill. The concurrent build on that
--- table took 1.5 s. See
+-- warm with a hash anti join that spilled 623 temp blocks; with this index
+-- it took 1.9 ms warm, 794 buffers, no sort and no spill. The concurrent
+-- build on that table took 1.5 s. See
 -- docs/internal/evidence/8803-collector-terminal-failure-readiness.md.
 --
 -- Write tax: entries exist only for failed_terminal rows. Every work-item

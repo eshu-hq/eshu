@@ -257,7 +257,7 @@ var migrationShippedChecksums = map[string]string{
 	"208_repository_retirement_graph_capture.sql":                            "5a9c3a6479a5c9883b34c5bbd2991025b3f2a0d69d0e94e3095f4b315d9f2443",
 	"209_partition_lease_claimed_at.sql":                                     "cdab9f7fd61365dc94ae065fdf232ca342b66a1aa349c3b4c77eb4b47e2618cb",
 	"210_scope_generations_delta_union_base_commit_sha.sql":                  "a7cd14f10e5846168063b4d85ddb95b895dfc4214c63326c354963b5a3445af5",
-	"211_workflow_work_items_failed_terminal_instance_idx.sql":               "77109f3b8df3bbda506a533b0a863c6495811bcf27ef6a49a9d1bd4c7481d747",
+	"211_workflow_work_items_failed_terminal_instance_idx.sql":               "a34ba2f2d72d825fccfbf535c5e1b5174c32d6d2a75aff98827479fddb1ebe97",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

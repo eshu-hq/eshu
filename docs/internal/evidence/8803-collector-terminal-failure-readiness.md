@@ -28,16 +28,26 @@ WHERE status = 'failed_terminal'`, built `CONCURRENTLY` and migration-only.
   prepared statement bound with the 20 instances (two 45 minute cutoffs and
   eighteen 30 minute cutoffs), the way Go binds it.
 - Cold: the first execution after `docker restart` (empty `shared_buffers`; the
-  host page cache was not dropped). Warm: the third consecutive execution.
+  host page cache was not dropped); recorded but not used for comparison (see
+  Results). Warm: the third consecutive execution.
 
 ## Results
 
 | Variant | Run | Execution time | Buffers | Temp blocks |
 | --- | --- | --- | --- | --- |
-| Before migration 210 | cold | 5,702.0 ms | 51 hit, 2,708 read | 623 read, 623 written |
+| Before migration 210 | cold | not comparable (see below) | 51 hit, 2,708 read | 623 read, 623 written |
 | Before migration 210 | warm | 83.6 ms | 2,759 hit | 623 read, 623 written |
 | After migration 210 | cold | 3.0 ms | 498 hit, 296 read | none |
 | After migration 210 | warm | 1.9 ms | 794 hit | none |
+
+Compare the warm rows only: 83.6 ms before, 1.9 ms after. The cold "before"
+run reported an Execution Time of 5,702.0 ms, but its plan nodes account for
+about 1.44 s: the `Function Scan on i` over the bound arrays took 1,384 ms,
+the query nodes under it about 57 ms, and about 4.26 s fell outside every plan
+node. That run measured the first execution after `docker restart` (backend
+and catalog warm-up), not the query, so it is not a before figure. The cold
+"after" run (3.0 ms) shows no such gap, but one sample is not a cold baseline
+either; this evidence makes no cold claim.
 
 `CREATE INDEX CONCURRENTLY` on the populated table took 1,513.7 ms (1.5 s). The
 new index is 26 MB for 391,680 entries. `workflow_work_items_claimable_idx` is
@@ -102,14 +112,18 @@ orphan older than the window not reported while a row inside it is; 12h
 interval keeps 20 h and drops 40 h; no `scan_interval` keeps 25 min and drops
 35 min; a malformed `scan_interval` uses the floor; equal `updated_at` picks the
 lowest `work_item_id`; a completion at the failure's exact `updated_at` does
-not clear it (a `>` to `>=` mutation fails this proof); a `scanner_worker`
+not clear it; a `scanner_worker`
 `failed_terminal` row whose `last_failure_terminal` flag is false still degrades
 its instance through the status builder, including when an older row of the
 same instance has the flag true (the reader never reads the flag); `EXPLAIN`
 seeks the migration 210 index with no per-instance sort; re-applying migration 210 twice on a populated table leaves
-one valid index. Five SQL mutations (drop the same-instance probe, drop the
-window, flip the tiebreak, let pending or retrying rows clear, drop the floor)
-each fail at least one of these proofs.
+one valid index; a completion recorded under another `collector_kind` for the
+same `collector_instance_id` and scope does not clear the failure. Eight SQL
+mutations each fail at least one of these proofs: drop the same-instance probe,
+drop the window, flip the tiebreak, let pending or retrying rows clear, drop the
+floor, widen the read's status beyond `failed_terminal`, relax the strict
+`s.updated_at > t.updated_at` to `>=`, and replace the probe's
+`s.collector_kind = t.collector_kind` with `TRUE`.
 
 Known limits:
 
