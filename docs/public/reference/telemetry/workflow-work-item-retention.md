@@ -155,11 +155,13 @@ next tick.
 free space only after autovacuum. Check `n_dead_tup` and `last_autovacuum`
 for `workflow_work_items` in `pg_stat_user_tables`. If `deleted_total` is
 flat, the remaining rows are protected. Retention keeps every row of a run
-that is still open, every row younger than the age, and, for each
-`(collector_kind, collector_instance_id, scope_id)` target, up to three
-rows: its newest row, its newest `completed` row, and its newest
-`failed_terminal` row. It also keeps each scope's active-generation row.
-Check run status counts for runs stuck open.
+that is still open, every row younger than the age, and every `claimed`,
+`pending`, `failed_retryable` or `expired` row, even in a closed run (a run
+fails as soon as one item fails terminally). For each `(collector_kind,
+collector_instance_id, scope_id)` target it keeps up to three more rows: its
+newest row, its newest `completed` row, and its newest `failed_terminal`
+row. It also keeps each scope's active-generation row. Check run status
+counts for runs stuck open.
 
 **`batch_duration_seconds` p99 above about 1 s.** Batches are measured at
 11 to 63 ms per 1,000 rows on a 300,000-row table, depending on how the
