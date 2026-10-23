@@ -11,6 +11,8 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 FRAGMENTS = ROOT / "specs" / "ci-pr-workflows.d"
 POSTGRES_GROUP = "postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}"
 PR_CANCEL = "${{ github.event_name == 'pull_request' }}"
+FULL_MODE_IF = "${{ github.event_name == 'pull_request' && needs.pr-plan.outputs.mode == 'full' }}"
+FULL_MODE_RUN = 'test "${{ needs.pr-plan.outputs.mode }}" = full'
 
 
 def concurrency_fields(source: str) -> dict[str, str]:
@@ -48,6 +50,26 @@ def check_leaf(name: str, source: str) -> None:
             raise ValueError(f"{name}: distinct concurrency group missing")
 
 
+def check_full_mode_sentinel(source: str) -> None:
+    """Require a successful full-only step in the top-level Go core job."""
+    section = re.search(
+        r"^  go-core:\n(.*?)(?=^  [a-z0-9-]+:\n|\Z)",
+        source,
+        re.MULTILINE | re.DOTALL,
+    )
+    if section is None or section.group(1).count("- name: Record full plan mode") != 1:
+        raise ValueError("go-core full plan sentinel missing or duplicated")
+    step = re.search(
+        r"^      - name: Record full plan mode\n"
+        r"        if: (.+)\n"
+        r"        run: (.+)$",
+        section.group(1),
+        re.MULTILINE,
+    )
+    if step is None or step.groups() != (FULL_MODE_IF, FULL_MODE_RUN):
+        raise ValueError("go-core full plan sentinel admits smoke or hides failure")
+
+
 def main() -> None:
     """Verify the caller-to-leaf inventory and a seeded duplicate trigger."""
     fragments = sorted(FRAGMENTS.glob("*.yml"))
@@ -56,6 +78,7 @@ def main() -> None:
     central = (WORKFLOWS / "test.yml").read_text(encoding="utf-8")
     if "  pr-plan:\n" not in central or "ci-gates-bin\" pr-plan" not in central:
         raise ValueError("Build Test has no trusted PR planner")
+    check_full_mode_sentinel(central)
     if concurrency_fields(central).get("group") == POSTGRES_GROUP:
         raise ValueError("Postgres leaf concurrency group collides with Build Test")
     for lane in ("go-core", "go-race"):
@@ -87,6 +110,20 @@ def main() -> None:
         pass
     else:
         raise ValueError("seeded duplicate PR trigger was accepted")
+    full_if_line = f"        if: {FULL_MODE_IF}\n"
+    if central.count(full_if_line) != 1:
+        raise ValueError("full plan sentinel condition is not unique")
+    for wrong in (
+        "${{ github.event_name == 'pull_request' && needs.pr-plan.outputs.mode == 'smoke' }}",
+        "${{ github.event_name == 'pull_request' }}",
+    ):
+        broken = central.replace(full_if_line, f"        if: {wrong}\n", 1)
+        try:
+            check_full_mode_sentinel(broken)
+        except ValueError:
+            pass
+        else:
+            raise ValueError("go-core sentinel accepted a non-full PR mode")
     postgres = (WORKFLOWS / "postgres-scheduled-live.yml").read_text(encoding="utf-8")
     for invalid in ("false", "true"):
         broken = postgres.replace(f"cancel-in-progress: {PR_CANCEL}", f"cancel-in-progress: {invalid}", 1)

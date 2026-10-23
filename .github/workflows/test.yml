@@ -203,7 +203,6 @@ jobs:
     if: ${{ github.event_name == 'merge_group' || ((github.event_name != 'pull_request' || (needs.pr-plan.result == 'success' && contains(fromJSON(needs.pr-plan.outputs.jobs || '{}')['test.yml'], 'merge-group-slim'))) && (github.event_name != 'pull_request' || needs.changes.outputs.code == 'true')) }}
     needs: [queue-selection, changes, pr-plan]
     runs-on: ubuntu-latest
-    # #8665: 25m covers cold compile (~10.6m), vet (~3.6m), and parity; revisit at p95 >20m.
     timeout-minutes: 25
     steps:
       - name: Require queue selection to succeed
@@ -289,8 +288,6 @@ jobs:
     needs: [queue-selection, changes, pr-plan]
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    # Persist the Go build cache across fresh runners (#8735). Module
-    # downloads stay on setup-go's cache; only the compiler cache moves here.
     env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
       - name: Require queue selection to succeed
@@ -328,6 +325,9 @@ jobs:
         with:
           mode: ${{ needs.pr-plan.outputs.mode }}
           gates: ${{ needs.pr-plan.outputs.gates }}
+      - name: Record full plan mode
+        if: ${{ github.event_name == 'pull_request' && needs.pr-plan.outputs.mode == 'full' }}
+        run: test "${{ needs.pr-plan.outputs.mode }}" = full
   go-core-complete:
     needs: [queue-selection, changes, go-core, pr-plan]
     if: ${{ always() }}
