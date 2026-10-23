@@ -174,7 +174,7 @@ func TestHelmComponentActivationsInitContainersSeedThenReconcile(t *testing.T) {
 	if seed["image"] != wantImage {
 		t.Fatalf("seed image = %v, want %s", seed["image"], wantImage)
 	}
-	if got := helmStringSlice(seed["command"]); !stringSlicesEqual(got, []string{"/collector", "seed", "--dest", "/data/.eshu/components/runtime/pagerduty-a"}) {
+	if got := helmStringSlice(seed["command"]); !stringSlicesEqual(got, []string{"/collector", "seed", "--dest", "/data/.eshu/components/runtime/pagerduty-a", "--image-ref", wantImage}) {
 		t.Fatalf("seed command = %#v", got)
 	}
 	if image := helmString(reconcile["image"]); !strings.Contains(image, "eshu") || strings.Contains(image, "collector-pagerduty") {
@@ -310,5 +310,36 @@ func TestHelmComponentActivationsDisabledAndEmptyAreUnchanged(t *testing.T) {
 	output := renderHelmChartFailure(t, "-f", writeComponentActivationValues(t, empty))
 	if !strings.Contains(output, "workflowCoordinator.extraVolumes must mount the component registry") {
 		t.Fatalf("empty activations error = %q, want the legacy mount message", output)
+	}
+}
+
+func TestHelmComponentActivationsOverrideLeaseTimings(t *testing.T) {
+	t.Parallel()
+
+	values := componentActivationsValues(
+		strings.Replace(pagerDutyActivationValues, "      process:\n        args: [\"--sdk-stdio\"]\n",
+			"      claimLeaseTTL: 5m\n      heartbeatInterval: 30s\n      pollInterval: 7s\n"+
+				"      process:\n        args: [\"--sdk-stdio\"]\n        stdoutLimitBytes: 33554432\n", 1),
+		jiraActivationValues,
+	)
+	values = strings.Replace(values, "  pollInterval: 13s\n", "  pollInterval: 13s\n  claimLeaseTTL: 90s\n  heartbeatInterval: 45s\n", 1)
+	manifests := renderComponentActivations(t, values)
+
+	// The host kills the collector at the initial lease expiry, so each worker
+	// must carry its own lease: an activation value wins, the global one is the default.
+	for _, tc := range []struct {
+		deployment, lease, heartbeat, poll string
+	}{
+		{"eshu-cx-pagerduty-a", "5m", "30s", "7s"},
+		{"eshu-cx-jira-b", "90s", "45s", "13s"},
+	} {
+		env := helmEnvByName(requireHelmContainer(t, requireHelmManifest(t, manifests, "Deployment", tc.deployment), "component-extension-collector"))
+		assertHelmLiteralEnv(t, env, "ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL", tc.lease)
+		assertHelmLiteralEnv(t, env, "ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL", tc.heartbeat)
+		assertHelmLiteralEnv(t, env, "ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL", tc.poll)
+	}
+	config := helmString(helmMap(requireHelmManifest(t, manifests, "ConfigMap", "eshu-component-activations")["data"])["pagerduty-a.yaml"])
+	if !strings.Contains(config, "stdout_limit_bytes: 33554432") {
+		t.Fatalf("pagerduty-a activation config missing stdout_limit_bytes:\n%s", config)
 	}
 }

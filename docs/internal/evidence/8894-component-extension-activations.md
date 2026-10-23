@@ -49,8 +49,9 @@ code, query, queue, lease, claim, batch or graph-write path.
   volume.
 
 Verified by `go test ./internal/runtime -run TestHelmComponentActivations
--count=1` (7 tests covering render, ordering, credential isolation,
-coordinator wiring, parity, and 26 hostile-values validation cases).
+-count=1` (8 tests covering render, ordering, credential isolation,
+coordinator wiring, per-activation lease timing, parity, and 30 hostile-values
+validation cases).
 
 ## Observability evidence
 

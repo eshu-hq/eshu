@@ -24,17 +24,21 @@ the worker runs exactly one activation and one collector kind.
 
 ## The Seed Contract
 
-The collector image must run `collector seed --dest <dir>` and write two files
-into that directory:
+The collector image must run `collector seed --dest <dir> --image-ref <ref>` and
+write two files into that directory:
 
 | File | Mode | Meaning |
 | --- | --- | --- |
 | `collector` | `0755` | The static collector binary the worker starts as a child process. |
-| `manifest.yaml` | `0644` | The component manifest (`ComponentPackage`) for this release. |
+| `manifest.yaml` | `0644` | The component manifest (`ComponentPackage`) for this release, with `--image-ref` written in as its pinned artifact image. |
 
 The command must be safe to run again over an existing directory, replacing both
-files. It needs no shell and no network. If the image keeps the command
-elsewhere, set `seed.command` (the chart appends `--dest <dir>`).
+files. It needs no shell and no network. The chart passes the same digest-pinned
+`seed.image` it validated as `--image-ref`, so a manifest never carries a
+different image than the one that ran. If the image keeps the command
+elsewhere, set `seed.command` (the chart appends `--dest <dir> --image-ref
+<ref>`). Release images are `linux/amd64`, so the worker and coordinator nodes
+that pull them must be amd64 too.
 
 ## Example
 
@@ -55,6 +59,8 @@ componentExtensionCollector:
   extensionEgressPolicyJSON: >-
     {"mode":"restricted","extensions":[{"component_id":"dev.example.collector.pagerduty","decision":"allow"}]}
   pollInterval: 30s
+  claimLeaseTTL: 5m
+  heartbeatInterval: 30s
   activations:
     - instanceId: pagerduty-example
       componentId: dev.example.collector.pagerduty
@@ -69,6 +75,7 @@ componentExtensionCollector:
           kind: pagerduty_account
       process:
         args: ["--sdk-stdio"]
+        stdoutLimitBytes: 33554432   # raise only if the collector emits large results
       config:
         api_token_env: PAGERDUTY_API_TOKEN
       grants:
@@ -98,9 +105,10 @@ Every entry needs its own `instanceId`.
 | `seed.image` | yes | Release image pinned by digest. |
 | `seed.pullPolicy`, `seed.command` | no | Pull policy (default `IfNotPresent`) and seed entrypoint (default `["/collector", "seed"]`). |
 | `host.sourceSystem`, `host.scope.id`, `host.scope.kind` | yes | Claim identity the coordinator copies into planned work. |
-| `process.args`, `process.env`, `process.stdoutLimitBytes`, `process.stderrLimitBytes` | no | How the worker starts the binary. The chart sets the command itself. |
+| `process.args`, `process.env`, `process.stdoutLimitBytes`, `process.stderrLimitBytes` | no | How the worker starts the binary. The chart sets the command itself. The worker reads 4 MiB of collector output by default; raise `stdoutLimitBytes` for a collector that emits more. |
+| `claimLeaseTTL`, `heartbeatInterval`, `pollInterval` | no | Per-worker claim timing. Each overrides the value of the same name under `componentExtensionCollector`. Durations use `h`, `m` and `s` (`pollInterval` also accepts `ms`). The heartbeat must be less than the lease. See "Set The Claim Lease". |
 | `config` | no | Non-secret collector settings, passed to the collector as its config block. |
-| `grants` | no | Producer grants for core-owned fact kinds: `kind`, `schemaVersions`, `scope`, and `expiresIn` (default `720h`). |
+| `grants` | no | Producer grants for core-owned fact kinds: `kind`, `schemaVersions`, `scope`, and `expiresIn` (default `720h`). The scope is the collector kind (for example `jira` or `documentation`), and a grant is needed for each core fact kind and schema version the manifest declares before install succeeds. |
 | `replicas`, `resources`, `env`, `extraEnv`, `extraVolumes`, `extraVolumeMounts` | no | Per-worker overrides. `extraEnv` is where credentials go. |
 
 The schema (`values.schema.json`) rejects unknown keys, so a misspelled key
@@ -137,6 +145,17 @@ ConfigMap changes.
 A render with `componentExtensionCollector.enabled: false`, or with an empty
 `activations` list, is unchanged. An empty list keeps the older single worker,
 which still needs `instanceId` and hand-mounted `extraVolumes`.
+
+## Set The Claim Lease
+
+The extension host stops the collector process when the claim's first lease
+expires, and heartbeats do not extend that deadline. The worker's default lease
+is 60 seconds, which cuts a long crawl short. Set `claimLeaseTTL` on every
+activation (or once under `componentExtensionCollector`) to at least the
+in-tree collector's value. The reference deployment runs a 5 minute lease with a
+30 second heartbeat. The chart refuses a heartbeat that is not shorter than the
+lease, counting the worker defaults (60 seconds and 20 seconds) when a value is
+unset.
 
 ## Credentials
 

@@ -97,12 +97,12 @@ secret.
 - name: ESHU_COMPONENT_COLLECTOR_SCOPE_KIND
   value: {{ $activation.host.scope.kind | quote }}
 - name: ESHU_COMPONENT_COLLECTOR_POLL_INTERVAL
-  value: {{ $values.pollInterval | quote }}
-{{- with $values.claimLeaseTTL }}
+  value: {{ default $values.pollInterval $activation.pollInterval | quote }}
+{{- with default $values.claimLeaseTTL $activation.claimLeaseTTL }}
 - name: ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL
   value: {{ . | quote }}
 {{- end }}
-{{- with $values.heartbeatInterval }}
+{{- with default $values.heartbeatInterval $activation.heartbeatInterval }}
 - name: ESHU_COMPONENT_COLLECTOR_HEARTBEAT_INTERVAL
   value: {{ . | quote }}
 {{- end }}
@@ -193,6 +193,8 @@ image, then a reconcile container from the Eshu image, per activation.
     {{- end }}
     - --dest
     - {{ include "eshu.componentActivationRuntimeDir" $ctx | quote }}
+    - --image-ref
+    - {{ $seed.image | quote }}
   securityContext:
     {{- toYaml $root.Values.initContainerSecurityContext | nindent 4 }}
   volumeMounts:

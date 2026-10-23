@@ -853,7 +853,7 @@ componentExtensionCollector:
   #   seed:
   #     image: ghcr.io/example/collector-pagerduty@sha256:<64 hex>  # digest required
   #     pullPolicy: IfNotPresent
-  #     command: ["/collector", "seed"]      # image entrypoint; --dest is appended
+  #     command: ["/collector", "seed"]      # image entrypoint; --dest and --image-ref are appended
   #   host:
   #     sourceSystem: pagerduty
   #     scope: {id: pagerduty:account:example, kind: pagerduty_account}
@@ -865,6 +865,9 @@ componentExtensionCollector:
   #       schemaVersions: ["1.0.0"]
   #       scope: pagerduty
   #       expiresIn: 720h
+  #   pollInterval: 30s                      # optional, overrides pollInterval above
+  #   claimLeaseTTL: 5m                      # optional, overrides claimLeaseTTL above
+  #   heartbeatInterval: 30s                 # optional; must be less than claimLeaseTTL
   #   replicas: 1
   #   resources: {}
   #   env: {}

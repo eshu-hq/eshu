@@ -156,6 +156,30 @@ func TestHelmComponentActivationsValidation(t *testing.T) {
 			wantOutput: "holds a credential-shaped value",
 		},
 		{
+			name:       "heartbeat equal to lease",
+			old:        "      replicas: 2\n",
+			new:        "      replicas: 2\n      claimLeaseTTL: 5m\n      heartbeatInterval: 5m\n",
+			wantOutput: "heartbeatInterval 5m must be less than claimLeaseTTL 5m",
+		},
+		{
+			name:       "heartbeat above the default lease",
+			old:        "      replicas: 2\n",
+			new:        "      replicas: 2\n      heartbeatInterval: 2m\n",
+			wantOutput: "heartbeatInterval 2m must be less than claimLeaseTTL 60s",
+		},
+		{
+			name:       "global heartbeat above the default lease",
+			old:        "  pollInterval: 13s\n",
+			new:        "  pollInterval: 13s\n  heartbeatInterval: 90s\n",
+			wantOutput: "heartbeatInterval 90s must be less than claimLeaseTTL 60s",
+		},
+		{
+			name:       "lease in milliseconds",
+			old:        "      replicas: 2\n",
+			new:        "      replicas: 2\n      claimLeaseTTL: 500ms\n",
+			wantOutput: "does not match pattern",
+		},
+		{
 			name:       "unknown activation key",
 			old:        "      replicas: 2\n",
 			new:        "      replicas: 2\n      imageOverride: ghcr.io/example/x:latest\n",

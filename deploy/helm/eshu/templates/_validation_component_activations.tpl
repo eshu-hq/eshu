@@ -125,6 +125,7 @@ interpolates anything that could carry shell syntax.
 {{- fail (printf "%s.mode must be a lowercase identifier" $at) -}}
 {{- end -}}
 {{- $process := default (dict) $activation.process -}}
+{{- include "eshu.validate.componentActivationLease" (dict "root" $root "activation" $activation "at" $at) -}}
 {{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s.process" $at) "value" $process) -}}
 {{- range $entry := default (list) $process.env -}}
 {{- if regexMatch "(?i)(password|passwd|secret|token|api[-_]?key|credential|private[-_]?key|authorization|bearer)" (first (splitList "=" (toString $entry))) -}}
@@ -152,6 +153,50 @@ interpolates anything that could carry shell syntax.
 {{- if not (regexMatch "^([0-9]+(h|m|s))+$" (toString (default "720h" $grant.expiresIn))) -}}
 {{- fail (printf "%s.expiresIn must be a positive Go duration such as 720h" $gat) -}}
 {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Seconds in a Go duration written with h, m and s only (for example 5m or 1h30m).
+Returns 0 for anything else, which the caller reports as invalid.
+*/}}
+{{- define "eshu.validate.durationSeconds" -}}
+{{- $text := toString . -}}
+{{- $total := 0 -}}
+{{- if regexMatch "^([0-9]+(h|m|s))+$" $text -}}
+{{- range $part := regexFindAll "[0-9]+[hms]" $text -1 -}}
+{{- $number := int (trimSuffix "h" (trimSuffix "m" (trimSuffix "s" $part))) -}}
+{{- if hasSuffix "h" $part -}}{{- $total = add $total (mul $number 3600) -}}
+{{- else if hasSuffix "m" $part -}}{{- $total = add $total (mul $number 60) -}}
+{{- else -}}{{- $total = add $total $number -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $total -}}
+{{- end -}}
+
+{{/*
+The host kills the collector process at the INITIAL claim lease expiry and
+heartbeats do not extend it, so the lease must be explicit and the heartbeat
+must be shorter than it (claimed_service.go). Defaults when unset are the
+worker's own: 60s lease, 20s heartbeat.
+*/}}
+{{- define "eshu.validate.componentActivationLease" -}}
+{{- $at := .at -}}
+{{- $activation := .activation -}}
+{{- $global := .root.Values.componentExtensionCollector -}}
+{{- $ttl := toString (default "60s" (default $global.claimLeaseTTL $activation.claimLeaseTTL)) -}}
+{{- $heartbeat := toString (default "20s" (default $global.heartbeatInterval $activation.heartbeatInterval)) -}}
+{{- $ttlSeconds := int (include "eshu.validate.durationSeconds" $ttl) -}}
+{{- $heartbeatSeconds := int (include "eshu.validate.durationSeconds" $heartbeat) -}}
+{{- if eq $ttlSeconds 0 -}}
+{{- fail (printf "%s claimLeaseTTL %q must be a positive duration written with h, m and s (for example 5m)" $at $ttl) -}}
+{{- end -}}
+{{- if eq $heartbeatSeconds 0 -}}
+{{- fail (printf "%s heartbeatInterval %q must be a positive duration written with h, m and s (for example 30s)" $at $heartbeat) -}}
+{{- end -}}
+{{- if ge $heartbeatSeconds $ttlSeconds -}}
+{{- fail (printf "%s heartbeatInterval %s must be less than claimLeaseTTL %s" $at $heartbeat $ttl) -}}
 {{- end -}}
 {{- end -}}
 
