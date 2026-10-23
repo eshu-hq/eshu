@@ -15,7 +15,7 @@ func IntelligenceTools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		{
 			Name:        "get_service_intelligence_report",
-			Description: "Compose the one-call service intelligence report for a service: identity, code-to-runtime trace, deployment/config influence, supply-chain, and incidents, each with preserved truth labels, evidence handles, limitations, and bounded next calls, plus deterministic suggested investigations. Returns schema service_intelligence_report.v1. Select the service with one of service_id, workload_id, or service_name; the first one given wins in that order. repo separates only services that live in different repositories. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value.",
+			Description: "Compose the one-call service intelligence report for a service: identity, code-to-runtime trace, deployment/config influence, supply-chain, and incidents, each with preserved truth labels, evidence handles, limitations, and bounded next calls, plus deterministic suggested investigations. Returns schema service_intelligence_report.v1. Select the service with one of service_id, workload_id, or service_name; the first one given wins in that order. repo separates only services that live in different repositories. When the answer is ambiguous, call again with service_id set to a candidate's next_selector value; a candidate with legacy_id true is a leftover, and the scoped one is the live workload.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

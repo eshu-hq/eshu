@@ -313,3 +313,10 @@ node), which the route matches exactly. `GET /api/v0/investigations/services/{se
 `GET /api/v0/services/{service_name}/intelligence-report` return the same candidates. An unknown `service_id` still answers `404`. The MCP tool
 `get_service_story` accepts `service_id` on its own and checks it before
 `workload_id` and `service_name`.
+
+A candidate marked `legacy_id: true` is a leftover from the identity change:
+its id is the name-only handle `workload:<name>`, and the scoped candidate with
+the same name is the live workload. See the
+[retirement runbook](../../operate/legacy-workload-retirement-runbook.md). A
+scoped candidate carries no `legacy_id` field. The marker is information only:
+the route still answers `409` and does not pick either candidate (#8795).

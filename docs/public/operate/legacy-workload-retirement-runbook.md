@@ -5,7 +5,9 @@ After the workload identity change (#5385) a `Workload` node is keyed
 missed the cutover's delete step still holds the old node, keyed
 `workload:<name>`, next to the new one. A by-name service lookup then sees two
 candidates for one service and refuses to guess, and the reducer skips edges as
-`workload_handle_ambiguous`.
+`workload_handle_ambiguous`. The `409` answer marks the old candidate
+`legacy_id: true`. That marker checks only the id shape; the dry run below
+decides whether the node is safe to retire.
 
 Hosted readiness reports this as the failed check `workload_identity_leftovers`
 (failure class `legacy_workload_nodes`). This runbook retires exactly those

@@ -214,7 +214,7 @@ const Entities = `
       "get": {
         "tags": ["entities"],
         "summary": "Get service story",
-        "description": "Returns the one-call service dossier for the service. An ambiguous selector answers 409 with error.code ambiguous; each candidate in error.details.candidates carries next_selector, the argument (service_id) and value to pass next.",
+        "description": "Returns the one-call service dossier for the service. An ambiguous selector answers 409 with error.code ambiguous; each candidate in error.details.candidates carries next_selector, the argument (service_id) and value to pass next. A candidate with legacy_id true is a leftover name-only workload from the identity change; the scoped candidate is the live workload.",
         "operationId": "getServiceStory",
         "x-scoped-token-support": true,
         "parameters": [
