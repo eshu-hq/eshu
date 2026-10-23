@@ -459,3 +459,10 @@ New in #6054. The `dirgate` job.
       # whose dependency path it cannot resolve. `go test ./cmd/dirgate/` does fetch
       # gopkg.in/yaml.v3 for the workflow test, a few small modules, uncached.
 ```
+
+## Current timeout and cache notes
+
+The `merge-group-slim` timeout remains 25 minutes per #8665. Cold compilation
+and scoped vet consumed about 10.6 and 3.6 minutes in that proof; revisit the
+envelope if p95 exceeds 20 minutes. The `go-core` job persists its compiler
+cache across fresh runners per #8735. Module downloads stay on setup-go's cache.
