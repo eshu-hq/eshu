@@ -236,28 +236,34 @@ tests:
     reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/query/admin/replay_fence_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/query/admin/operator_note_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged live proof gated by env Skip (ESHU_POSTGRES_DSN, its own schema); #7388 an operator note keeps the failure it replaces under prior_failure for dead-letter and skip; about 2 s on Postgres 18 — promote to blocking with timing evidence"
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/query/admin/prior_failure_listing_live_test.go
     tag: ~
-    class: scheduled
-    reason: "untagged live proof gated by env Skip (ESHU_POSTGRES_DSN, its own schema); #7385 the admin work-item listing exposes prior_failure and operator_note from failure_details and returns neither for free text or NULL; about 10 s on Postgres 18 — promote to blocking with timing evidence"
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/query/admin/replay_superseded_live_test.go
     tag: ~
-    class: scheduled
-    reason: untagged live proof gated by env Skip; unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/query/admin/replay_failure_class_live_test.go
     tag: ~
-    class: scheduled
-    reason: replay event failure-class proof (#7387), untagged and gated by env Skip (ESHU_ADMIN_REPLAY_FENCE_LIVE with ESHU_POSTGRES_DSN); Postgres-only, no build tag, so it does not enter the graph-backend live-backend CI plan (scripts/run-live-backend-tests.sh schedules only class=ci rows); unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/query/admin/changedsincepoisonedlinks_live_test.go
     tag: ~
-    class: scheduled
-    reason: changed-since poisoned/retrying link admin read proof (#7290), untagged and gated by env Skip (ESHU_POSTGRES_DSN); Postgres-only, no build tag, so it does not enter the graph-backend live-backend CI plan (scripts/run-live-backend-tests.sh schedules only class=ci rows); unmeasured cost — promote to blocking with timing evidence
+    class: verified_scheduled
+    reason: "#8893 exact PostgreSQL race proof in the daily and PR-triggered postgres-scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/query/admin/store/changedsincepoisonedlinks_live_test.go
     tag: ~
     class: scheduled

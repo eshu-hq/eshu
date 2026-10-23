@@ -28,8 +28,8 @@ class ScheduledRunnerTest(unittest.TestCase):
     def test_ack_family_integration_requires_ack_stream(self) -> None:
         """The combined enrollment keeps ACK in the hosted proof bundle."""
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 120)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 243)
+        self.assertEqual(len(inventory), 133)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 269)
         self.assertIn("ack_family", MODULE.PACKAGES)
         self.assertEqual(
             sum(row["group"] == "ack_family" for row in inventory.values()), 22
@@ -38,12 +38,16 @@ class ScheduledRunnerTest(unittest.TestCase):
 
     def test_committed_inventory_and_workflow(self) -> None:
         inventory = MODULE.load_inventory()
-        self.assertEqual(len(inventory), 120)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 243)
+        self.assertEqual(len(inventory), 133)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 269)
         self.assertNotIn(
             "go/internal/query/code_topic_parallel_guarded_live_test.go", inventory
         )
         for group, files, tests in (
+            ("admin", 6, 8),
+            ("completion", 1, 1),
+            ("reachability", 1, 6),
+            ("secret_lines", 5, 11),
             ("crossplane", 5, 9),
             ("infra_inventory", 19, 32),
             ("disposable_gate", 1, 1),
@@ -319,27 +323,6 @@ class ScheduledRunnerTest(unittest.TestCase):
                 workflow.write_text(original.replace(old, new, 1))
                 with self.assertRaisesRegex(ValueError, error):
                     MODULE.verify_inventory(root, inventory)
-
-    def test_each_disposable_step_has_its_own_admin_env(self) -> None:
-        inventory = MODULE.load_inventory()
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            for target in inventory:
-                copy = root / target
-                copy.parent.mkdir(parents=True, exist_ok=True)
-                copy.write_text((ROOT / target).read_text())
-            workflow = root / MODULE.WORKFLOW
-            workflow.parent.mkdir(parents=True)
-            original = (ROOT / MODULE.WORKFLOW).read_text()
-            removed = (
-                "          ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: "
-                "postgres://eshu:change-me@localhost:15432/"
-                "postgres?sslmode=disable\n"
-            )
-            self.assertEqual(original.count(removed), 2)
-            workflow.write_text(original.replace(removed, "", 1))
-            with self.assertRaisesRegex(ValueError, "missing admin DSN"):
-                MODULE.verify_inventory(root, inventory)
 
     def test_events_require_each_run_and_pass(self) -> None:
         inventory = MODULE.load_inventory()

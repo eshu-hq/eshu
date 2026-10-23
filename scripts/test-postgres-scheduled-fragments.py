@@ -19,15 +19,17 @@ import postgres_scheduled_runner as runner  # noqa: E402
 class InventoryFragmentTest(unittest.TestCase):
     """The index and every listed fragment form one closed source contract."""
 
-    def test_committed_index_and_all_six_new_groups(self) -> None:
-        """The reviewed inventory contains all 243 tests in 120 files."""
+    def test_committed_index_and_enrolled_groups(self) -> None:
+        """The reviewed inventory contains all 269 tests in 133 files."""
         index = json.loads(runner.INVENTORY.read_text(encoding="utf-8"))
         self.assertEqual(index["version"], "postgres-scheduled-inventory/v1")
-        self.assertEqual(len(index["fragments"]), 15)
+        self.assertEqual(len(index["fragments"]), 19)
         inventory = runner.load_inventory()
-        self.assertEqual(len(inventory), 120)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 243)
+        self.assertEqual(len(inventory), 133)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 269)
         for group, files, tests in (
+            ("admin", 6, 8), ("secret_lines", 5, 11),
+            ("reachability", 1, 6), ("completion", 1, 1),
             ("claim", 13, 36), ("liveness", 7, 18), ("fanout", 3, 3),
             ("search", 5, 8), ("readiness", 4, 6),
         ):
@@ -190,9 +192,48 @@ class InventoryFragmentTest(unittest.TestCase):
                 with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
                     runner.verify_inventory(root, inventory)
 
+    def test_each_disposable_step_has_its_own_admin_env(self) -> None:
+        inventory = runner.load_inventory()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for target in inventory:
+                copy = root / target
+                copy.parent.mkdir(parents=True, exist_ok=True)
+                copy.write_text((ROOT / target).read_text())
+            workflow = root / runner.WORKFLOW
+            workflow.parent.mkdir(parents=True)
+            original = (ROOT / runner.WORKFLOW).read_text()
+            removed = (
+                "          ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN: "
+                "postgres://eshu:change-me@localhost:15432/"
+                "postgres?sslmode=disable\n"
+            )
+            self.assertEqual(original.count(removed), 3)
+            workflow.write_text(original.replace(removed, "", 1))
+            with self.assertRaisesRegex(ValueError, "missing admin DSN"):
+                runner.verify_inventory(root, inventory)
+
+    def test_admin_replay_fence_opt_in_is_required(self) -> None:
+        """The admin replay proof must run with its live fixture flag."""
+        inventory = runner.load_inventory()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for target in inventory:
+                copy = root / target
+                copy.parent.mkdir(parents=True, exist_ok=True)
+                copy.write_text((ROOT / target).read_text())
+            workflow = root / runner.WORKFLOW
+            workflow.parent.mkdir(parents=True)
+            original = (ROOT / runner.WORKFLOW).read_text()
+            flag = '          ESHU_ADMIN_REPLAY_FENCE_LIVE: "1"\n'
+            self.assertEqual(original.count(flag), 1)
+            workflow.write_text(original.replace(flag, "", 1))
+            with self.assertRaisesRegex(ValueError, "admin replay fence opt-in missing"):
+                runner.verify_inventory(root, inventory)
+
     @mock.patch.dict("os.environ", {"GITHUB_ACTIONS": "false"})
     def test_missing_new_stream_and_local_as_hosted_fail(self) -> None:
-        """The fifteen-stream bundle requires the new stream and hosted origin."""
+        """The complete stream bundle requires every group and hosted origin."""
         inventory = runner.load_inventory()
         manifest = runner.build_manifest(
             inventory, "pull_request", "123", "1",

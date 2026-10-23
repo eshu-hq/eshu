@@ -1,0 +1,9 @@
+{
+  "go/internal/storage/postgres/scope/completion/quiescence_live_test.go": {
+    "group": "completion",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion",
+    "tests": [
+      "TestProducerScopeQuiescenceLive"
+    ]
+  }
+}

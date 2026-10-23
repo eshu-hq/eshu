@@ -1,6 +1,10 @@
 """Exact package, fixture and path contracts for scheduled PostgreSQL proofs."""
 
 PACKAGES = {
+    "admin": "github.com/eshu-hq/eshu/go/internal/query/admin",
+    "completion": "github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion",
+    "reachability": "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability",
+    "secret_lines": "github.com/eshu-hq/eshu/go/internal/storage/postgres/secret/lines",
     "crossplane": "github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane",
     "infra_inventory": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
     "disposable_gate": "github.com/eshu-hq/eshu/go/cmd/golden-corpus-gate",
@@ -19,6 +23,9 @@ PACKAGES = {
 }
 
 DSNS = {
+    "admin": "ESHU_POSTGRES_DSN",
+    "completion": "ESHU_POSTGRES_DSN",
+    "reachability": "ESHU_POSTGRES_DSN",
     "crossplane": "ESHU_CROSSPLANE_REDRIVE_PROOF_DSN",
     "infra_inventory": "ESHU_POSTGRES_DSN",
     "ack_family": "ESHU_POSTGRES_TEST_DSN",
@@ -34,6 +41,9 @@ DSNS = {
 }
 
 DATABASES = {
+    "admin": "eshu_admin_scheduled",
+    "completion": "eshu_completion_scheduled",
+    "reachability": "eshu_reachability_scheduled",
     "crossplane": "eshu_crossplane_scheduled",
     "infra_inventory": "eshu_inventory_scheduled",
     "ack_family": "eshu_ack_scheduled",
@@ -49,6 +59,7 @@ DATABASES = {
 }
 
 ADMIN_ENVS = {
+    "secret_lines": ("ESHU_TEST_CONTENT_INDEX_POSTGRES",),
     "disposable_gate": (
         "ESHU_TEST_DRAIN_RESIDUAL_POSTGRES",
     ),

@@ -22,7 +22,7 @@ from postgres_scheduled_workflow import (
 
 INVENTORY = Path(__file__).with_name("postgres_scheduled_inventory.json")
 WORKFLOW = Path(".github/workflows/postgres-scheduled-live.yml")
-WORKFLOW_SHA256 = "a8b689fd62406cf3398179ea88883d9333320b41c74aa64dff4e74d1f6f06ffd"
+WORKFLOW_SHA256 = "1dcd2d2a9371b4f966bd707ab9fd81ab644d1c6acc9daf83b240e36164be0e74"
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
 GROUP_LABELS = {
     "crossplane": "Crossplane",
@@ -166,6 +166,8 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             for name in extras.get(group, ()):
                 if step.count(f"{name}: {dsn}") != 1:
                     raise ValueError(f"secondary DSN differs for {group}")
+            if group == "admin" and step.count('ESHU_ADMIN_REPLAY_FENCE_LIVE: "1"') != 1:
+                raise ValueError("admin replay fence opt-in missing")
             if group == "search" and step.count('ESHU_SEARCH_INDEX_PARTITION_LIVE: "1"') != 1:
                 raise ValueError("search partition opt-in missing")
             if group == "freshness_links_a":

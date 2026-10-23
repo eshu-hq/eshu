@@ -1,0 +1,14 @@
+{
+  "go/internal/storage/postgres/code/reachability/store_route_liveness_live_test.go": {
+    "group": "reachability",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/code/reachability",
+    "tests": [
+      "TestCodeReachabilityLoaderGateEachPredicateIsLoadBearing",
+      "TestCodeReachabilityLoaderGateMatchesLegacyOnCompleteRuns",
+      "TestCodeReachabilityLoaderGateSkipsIncompleteRuns",
+      "TestCodeReachabilityPendingInputsPlanAtEpochBump",
+      "TestCodeReachabilityRailsRouteFactsLoaderKeepsRootOnlyRoutedController",
+      "TestCodeReachabilityRailsRouteFactsLoaderRoundTrip"
+    ]
+  }
+}
