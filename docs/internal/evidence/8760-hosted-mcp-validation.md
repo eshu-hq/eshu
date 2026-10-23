@@ -1,9 +1,10 @@
 # Hosted MCP tool-surface validation with real agents (#8760)
 
 **On one hosted QA build, the `router` surface had the best first-call accuracy
-for both clients and used about one seventh of the input tokens for Claude Code,
-but it did not match `full` on answered questions for Claude Code. The refreshed
-`core_router` was the weakest surface on both clients.** This note holds the
+for both clients and used about one seventh of the input tokens for Claude Code (cost fell about
+40%, because input tokens include cache reads), but it did not match `full` on
+answered questions for Claude Code. The refreshed `core_router` was the weakest
+surface on accuracy for both clients.** This note holds the
 numbers, the scoring rules, a 22-run manual check of the scoring, and the gaps.
 It supports the default-surface decision in epic #8752. It does not make that
 decision.
@@ -13,7 +14,7 @@ decision.
 | Build | `c5f784d73c`, one deployed build for every run, zero run errors |
 | Clients | Claude Code 2.1.309 (model `sonnet`) and codex-cli 0.160.1 (model `gpt-6.1-sol`) |
 | Matrix | 2 clients x 3 surfaces x 26 tasks x 3 repeats = 234 runs per client |
-| Headline | `router`: best first call on both clients, lowest tokens; `full`: most answers; `core_router`: worst on both |
+| Headline | `router`: best first call on both clients, lowest tokens; `full`: most answers; `core_router`: weakest on accuracy |
 | Scoring check | In a 22-run manual sample, the scored success matched my reading of the answer in 13 runs (59%) |
 
 ## What was measured
@@ -29,6 +30,12 @@ The harness is `scripts/dev/mcp-surface-eval/`. `run_eval.py` drives the client,
 order is shuffled with seed 8760, and 4 runs execute at a time. Claude Code runs
 with its built-in tools off and only the Eshu server allowed, with a 15-turn
 cap. Codex runs in a read-only sandbox.
+
+The raw logs hold tool results with real entity names, so they stay out of the
+repository. Claude Code also saves large tool results it persists under
+`~/.claude/projects/-tmp-eshu-eval-*`, outside the `--out` directory. Delete
+those directories when a run finishes. The runner removes its own temporary
+directory at exit unless `--keep` is set.
 
 The 26 tasks are two per corpus family across all 13 families of the router
 eval corpus (`go/internal/mcp/router/eval/testdata/corpus.json`). The
@@ -91,8 +98,10 @@ are shares of domain calls. Cost is not reported by Codex.
 ### Method and corrections: the Claude Code scoring defect
 
 The first scoring pass missed the newer Claude Code notice for a large result,
-so 62 of the 234 Claude Code runs counted a result the agent could not open as a
-readable answer. The fix is in `score.py` with a regression test. Rescoring the
+so some Claude Code runs counted a result the agent could not open as a readable
+answer. Of the 234 Claude Code runs, 62 contained a result the agent could not
+open; in 25 the scored success depended on it. The fix is in `score.py` with a
+regression test. Rescoring the
 raw logs with it changed 62 rows and flipped the success of 25. The Codex logs
 rescore to identical rows, so the rescoring itself is faithful. Calls, wrong
 picks, first call, and tokens did not change; only "expected tool answered" did.
@@ -124,7 +133,7 @@ so these counts say nothing about Codex.
 The 25 flips cluster on six tasks whose tools return large lists on every
 surface (code search, dead code, repository listing, one drift query). Of the
 25, 10 were on `router`, 9 on `core_router`, and 6 on `full`. Claude Code's
-result limit, not the surface, caused them. The harness raises
+result limit, more than the surface, mostly caused them. The harness raises
 `MAX_MCP_OUTPUT_TOKENS`, which was not enough to keep these results inline.
 
 ### Headline with and without the service-story task
@@ -165,14 +174,20 @@ What the numbers support:
 
 - Claude Code: `full` has the best answered rate in this proxy and `router` is
   not tied with it (91% against 85% without the story task, a gap of about
-  4 runs in 75). `router` had the better
+  4 runs in 75). The gap is concentrated on two oversized-result tasks
+  (`dead-code-005` and `drift-replatforming-001`), which fits the known
+  limit that differences of a few runs may be noise. `router` had the better
   first call (99% against 95%) and used about 43,500 input tokens per run
   against about 328,000 for `full`.
 - Codex: `full` answered slightly more often than `router` (96% against 93%).
-  `router` used fewer input tokens (about 194,000 against 249,000) and needed
-  more calls (10.7 against 7.7).
-- `core_router` is the weakest surface for both clients on first call and on
-  answers. The 10-tool list from #8759 covers part of what these questions
+  Without the story task, `router` used 22% fewer input tokens (193,700 against
+  248,507) and 40% more calls (10.72 against 7.68). On all 26 tasks the figures
+  are 19% fewer tokens (202,653 against 250,997) and 44% more calls (11.01
+  against 7.65).
+- `core_router` is the weakest surface on accuracy for both clients: first
+  call, answered, and, on Claude Code, wrong-pick rate. It is not the weakest on
+  everything: on Claude Code it used fewer input tokens than `full` (85,966
+  against 330,584), and on Codex its wrong-pick rate ties `router` at 54%. The 10-tool list from #8759 covers part of what these questions
   need, so the agent often leaves it through `find_tool`.
 
 What they do not support: a claim about answer quality beyond the scored proxy
