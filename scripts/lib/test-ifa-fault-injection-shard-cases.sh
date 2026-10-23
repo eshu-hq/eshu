@@ -149,7 +149,7 @@ ${actual_full}"
 	# other way round -- that each known name is dispatched -- so a
 	# cell added to the gate's dispatch block but NOT to IFA_FAULT_ALL_CELLS
 	# is assigned to no shard and silently runs in NONE of them, while all
-	# four shards report green. Proven reachable: a dispatched-but-unlisted
+	# every shard reports green. Proven reachable: a dispatched-but-unlisted
 	# cell prints "skipped (not assigned to shard k/n)" for every k and the
 	# gate still exits 0.
 	#

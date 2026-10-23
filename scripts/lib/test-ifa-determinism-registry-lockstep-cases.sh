@@ -19,7 +19,7 @@
 # (the mirror's own sourced case modules, classified by where they execute,
 # not what they are about) selects ifa-determinism but never
 # ifa-fault-injection -- guarding against over-triggering the fault gate's
-# four-shard Docker matrix on an edit it cannot even observe. The self-check on
+# sharded Docker matrix on an edit it cannot even observe. The self-check on
 # `${BASH_SOURCE[0]}` below intentionally resolves to THIS file once sourced
 # into a function (proven empirically: inside a bash function, BASH_SOURCE[0]
 # is the file where the function is lexically defined, not the caller) --

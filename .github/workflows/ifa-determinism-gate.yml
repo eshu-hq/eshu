@@ -267,7 +267,7 @@ jobs:
         run: bash scripts/ci/compose.sh -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml -- down -v || true
   fault-injection:
     needs: queue-selection
-    name: fault-injection (shard ${{ matrix.shard }}/4)
+    name: fault-injection (shard ${{ matrix.shard }}/8)
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -275,7 +275,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - name: Require queue selection to succeed
         if: ${{ always() && github.event_name == 'merge_group' }}
@@ -308,7 +308,7 @@ jobs:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
           IFA_FAULT_SHARD: ${{ matrix.shard }}
-        run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/4"
+        run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/8"
       - name: Verify fault-injection diagnostic completeness
         if: ${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'fault-injection'))) && (failure() && steps.fault_matrix.outcome == 'failure') }}
         run: bash scripts/ci/verify-ifa-fault-diagnostics-complete.sh
