@@ -18,7 +18,7 @@ func TestOpenAPIStoryEvidenceDetailNamesArtifactException(t *testing.T) {
 
 	for _, fragment := range []string{
 		"an artifact row keeps resolved_id, the key get_relationship_evidence takes for the rest",
-		"truth.omissions lists each reduced family with its total. Each total is the story's own pre-cap count: a lower bound wherever the underlying read was itself bounded (a *_truncated flag or deployment_artifacts_* limitation is set, or the read stops at 50 rows with no flag), and not cut by the story's cap otherwise; the Context evidence budget reference lists the rule for each family",
+		"truth.omissions lists each reduced family with its total. Each total is the story's own pre-cap count and may be a lower bound, because the story carries a flag for only some of the bounds its reads apply; treat a total as exact only for the families the Context evidence budget reference lists as exact",
 		"investigation.repositories_with_evidence reports the rows it shipped (at most 50), so it is also a lower bound when repositories_considered ends with the __truncated__ marker",
 	} {
 		if !strings.Contains(OpenAPISpec(), fragment) {

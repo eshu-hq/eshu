@@ -61,11 +61,10 @@ returns 400 `invalid_argument` before any read runs.
 - Under `handles` the response sets `evidence_detail` and
   `evidence_detail_drilldown`, and lists each reduced family in `truth.omissions`
   with its total (`detail` is `handles` for projected rows and `omitted` for a
-  dropped list). Each total is the story's own pre-cap count: a lower bound
-  wherever the underlying read was itself bounded (a `*_truncated` flag or
-  `deployment_artifacts_*` limitation is set, or the read stops at 50 rows with
-  no flag), and not cut by the story's cap otherwise; the table below lists the
-  rule for each family. `truth.level`, `truth.freshness`, and `answer_metadata`
+  dropped list). Each total is the story's own pre-cap count and may be a lower
+  bound, because the story carries a flag for only some of the bounds its reads
+  apply; treat a total as exact only for the families under "Exact totals" below.
+  `truth.level`, `truth.freshness`, and `answer_metadata`
   are unchanged. `answer_packet.truth` copies the truth envelope, so it carries
   the same `omissions`.
 - To reach the rows under `handles`, repeat the call with `evidence_detail: full`,
@@ -73,7 +72,22 @@ returns 400 `invalid_argument` before any read runs.
 
 ### Omission total rules
 
-Each total follows the shared sentence above. The flags the table names:
+Every total is the story's pre-cap count and may be a lower bound: the story
+carries a flag for only some of the bounds its reads apply. Treat a total as
+exact only for the two entries under "Exact totals". For every other family the
+"Lower bound when" column names the known flags and limits and is not
+exhaustive, so a total can be low with none of them set.
+
+Exact totals, proven on every path that fills them:
+
+- `code_to_runtime_trace.service_identity.evidence`: the single identity row,
+  built from the workload and repository ids with no read behind it.
+- `api_surface.endpoints` when `api_surface.truth_basis` is `graph`: the total is
+  `endpoint_count`, `count(endpoint)` from the graph, which has no `LIMIT` (only
+  the row query does). Any other `api_surface` is the content fallback and a lower
+  bound.
+
+The flags the table names:
 
 - A deployment artifact bound is `deployment_evidence.artifacts_truncated`, or
   one of the limitations `deployment_artifacts_candidates_budget_reached`,
@@ -84,14 +98,17 @@ Each total follows the shared sentence above. The flags the table names:
   (`result_limits.downstream_read_limit`). `consumer_repositories_truncated`
   is also set when the service evidence file read hit
   `result_limits.evidence_file_read_limit`.
-- A read of 50 rows with no flag is the `cloud_resources` read and the
-  runtime instance read: their totals never pass 50 and cannot say more exist.
+- A read of 50 rows with no flag is the `cloud_resources` read, the runtime
+  instance read, and the framework route read (50 files): their totals cannot
+  say more exist.
+- `infrastructure_truncated` belongs to the infrastructure panel, which has no
+  omission section, and does not bound the content-built delivery lists.
 
 | `truth.omissions` section | Count the total reads | Lower bound when |
 | --- | --- | --- |
 | `deployment_evidence.artifacts` | `deployment_evidence.artifact_count`, the artifact rows read | a deployment artifact bound |
 | `deployment_evidence.deployment_artifacts`, `shared_config_paths`, `delivery_paths`, `delivery_family_paths`, `delivery_family_story`, `delivery_workflows`, `topology_story`, `relationship_overview` | rows held, or the `raw_limits` count when the story cut the list | a deployment artifact bound |
-| `api_surface.endpoints` | `api_surface.endpoint_count`: the graph count query, or, when the graph read returned nothing and the content fallback built the surface, the endpoint total of the specs found in the first 5,000 files (framework routes are not in that count) | graph count query: not cut by the story's cap; content fallback, a lower bound when `consumer_repositories_truncated` |
+| `api_surface.endpoints` | `api_surface.endpoint_count`: the graph count query (exact, see above), or, on the content fallback, the endpoint total of the specs found in the first 5,000 files; framework routes are not in that count | content fallback: `consumer_repositories_truncated`, and the framework route read (50 files, no flag), so 0 specs and 120 framework routes report 50 |
 | `upstream_dependencies` | `result_limits.upstream_count`: artifact, dependency, and provisioning chain rows | a deployment artifact bound, or `provisioning_source_chains_truncated` |
 | `dependents`, `downstream_consumers.graph_dependents` | rows read | `dependents_truncated` |
 | `consumer_repositories`, `downstream_consumers.content_consumers` | rows read | `consumer_repositories_truncated` |
@@ -99,9 +116,9 @@ Each total follows the shared sentence above. The flags the table names:
 | `hostnames`, `entrypoints`, `entrypoint_candidates`, `network_paths` | rows the service evidence file read produced | `consumer_repositories_truncated` |
 | `cloud_resources` | rows read, at most 50 | the read stops at 50 rows with no flag |
 | `uncorrelated_cloud_resources` | rows read, at most 50 | `uncorrelated_cloud_resources_truncated` |
-| `code_to_runtime_trace.service_identity.evidence` | the single identity row | never |
-| `code_to_runtime_trace.code_entrypoints.evidence` | endpoint rows read plus entrypoint rows | `api_surface.detail_truncated` or `consumer_repositories_truncated` |
-| `code_to_runtime_trace.ci_cd.evidence` | one `ci_cd_evidence` summary row, or the `delivery_workflows` rows | a deployment artifact bound, for the `delivery_workflows` rows only |
+| `code_to_runtime_trace.service_identity.evidence` | the single identity row | exact, see above |
+| `code_to_runtime_trace.code_entrypoints.evidence` | the endpoint rows the `api_surface` read returned plus entrypoint rows, not `endpoint_count`: graph rows stop at `api_surface.detail_limit`, content-fallback rows include the framework routes | `api_surface.detail_truncated` or `consumer_repositories_truncated`, and on the content fallback the framework route read (50 files, no flag) |
+| `code_to_runtime_trace.ci_cd.evidence` | one `ci_cd_evidence` summary row (a count of 1 whatever the summary holds), or the `delivery_workflows` rows | a deployment artifact bound, for the `delivery_workflows` rows only |
 | `code_to_runtime_trace.image_package.evidence` | SBOM attachment rows for at most 50 image references or, with no supply-chain reader, the image and package refs in the deployment evidence rows | `image_refs_truncated` on the segment, or a deployment artifact bound |
 | `code_to_runtime_trace.deployment_config.evidence` | `artifacts`, `delivery_paths`, and `shared_config_paths` rows | a deployment artifact bound |
 | `code_to_runtime_trace.runtime.evidence` | runtime instances read, at most 50 | the read stops at 50 rows with no flag |

@@ -25,11 +25,10 @@ recent shipped work grouped by feature area.
   once. Deployment artifact rows keep `id`, `relationship_type`, and
   `resolved_id`; `get_relationship_evidence` by `resolved_id` returns the rest,
   including confidence. `handles` lists each reduced family in `truth.omissions`
-  with its total. Each total is the story's own pre-cap count: a lower bound
-  wherever the underlying read was itself bounded (a `*_truncated` flag or
-  `deployment_artifacts_*` limitation is set, or the read stops at 50 rows with
-  no flag), and not cut by the story's cap otherwise; the Context evidence
-  budget reference lists the rule for each family. A trace preview also carries
+  with its total. Each total is the story's own pre-cap count and may be a
+  lower bound, because the story carries a flag for only some of the bounds its
+  reads apply; treat a total as exact only for the families the Context
+  evidence budget reference lists as exact. A trace preview also carries
   `truncated`, `evidence_shipped`, and `evidence_omitted`, the evidence graph
   carries `nodes_truncated` and `nodes_omitted`, and a dropped list is named by
   a `*_shipped_at` pointer or only in `truth.omissions`.

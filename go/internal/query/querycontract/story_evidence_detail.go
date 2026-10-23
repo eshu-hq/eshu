@@ -247,11 +247,11 @@ const storyTruncationMarkerRepoID = "__truncated__"
 
 // storyListTotal returns the total a story list reports in truth.omissions: the
 // larger of the shipped row count and the count the story held before its own
-// 50-row cap. Each total is the story's own pre-cap count: a lower bound
-// wherever the underlying read was itself bounded (a *_truncated flag or
-// deployment_artifacts_* limitation is set, or the read stops at 50 rows with no
-// flag), and not cut by the story's cap otherwise; the Context evidence budget
-// reference lists the rule for each family.
+// 50-row cap. Each total is the story's own pre-cap count and may be a lower
+// bound, because the story carries a flag for only some of the bounds its reads
+// apply (the framework route read, for one, stops at 50 files with none); treat
+// a total as exact only for the families the Context evidence budget reference
+// lists as exact.
 //
 // The story records the count in a different place per family: upstream
 // dependencies in result_limits.upstream_count, the investigation
