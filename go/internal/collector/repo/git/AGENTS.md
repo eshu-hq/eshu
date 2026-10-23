@@ -251,11 +251,25 @@ silent yield loss, and the existing sweep logs for the sweep period.
 ## Symlink admission evidence (#8809)
 
 `symlinkTargetAdmitted` runs once per file whose name discovery already
-admitted. No-Regression Evidence: on a 16-thread Linux dev host, 20,000
-iterations of the matcher cost 949 ns for a regular file (one `Lstat`) and
-15.5 µs for a symlink (`EvalSymlinks` plus `Stat`), against zero before; both
-are far below the parse and read cost of the file they guard, and no queue,
-graph, or SQL path changes. Observability Evidence: none added. A dropped link
-is not counted, so discovery stats and `git_snapshot` logs read the same as for
-a repository that never held the link. No-Observability-Change: the
-`symlink admission` tests pin the dropped paths instead.
+admitted. Performance Evidence: the figures below are matcher microbenchmarks,
+not an end-to-end discovery before/after. On a 16-thread Linux dev host,
+20,000 iterations cost 949 ns per regular file (one `Lstat`) and 15.5 µs per
+symlink (`EvalSymlinks` plus `Stat`), against zero before. Both are far below
+the parse and read cost of the file they guard, and no queue, graph, or SQL path
+changes. A repository-scale discovery comparison is NOT_CHECKED.
+
+Observability Evidence: each dropped link adds one to
+`DiscoveryStats.FilesSkippedByContent["symlink_target"]`. That map already
+feeds `eshu_dp_discovery_files_skipped_total` as
+`skip_reason=content:symlink_target`, the `discovery stats` log key
+`files_skipped.content.symlink_target`, and the discovery advisory report's
+content breakdown. No instrument, label set, span, or status field is added. The
+matcher runs once per file on one goroutine, so the counter needs no lock. The
+`symlink admission` tests pin the dropped paths and
+`TestResolveNativeSnapshotFileSetCountsDroppedSymlinks` pins the count.
+
+Known limit: `.gitignore` and `.eshuignore` rules are not re-applied to a link
+target, only the ignored-directory names are. An operator-excluded path can
+still surface through an in-root link whose own name is admitted. Every
+admitted name had the same hole before this check, which now narrows it to
+regular files in the link's own admission category.

@@ -144,7 +144,8 @@ parser-family extension.
    read surface. Parser rows alone are not enough.
 5. Update the affected language page under `docs/public/languages/`.
 6. Update [Language Query DSL](reference/language-query-dsl.md) when accepted
-   languages, entity types, backing-store behavior, errors, or truth ceilings change.
+   languages, entity types, backing-store behavior, errors, or truth ceilings
+   change.
 7. Update [Parser Feature Matrix](languages/feature-matrix.md),
    [Parser Support Matrix](languages/support-maturity.md), and
    [Dead Code Language Maturity](reference/dead-code-language-maturity.md) when
@@ -162,8 +163,6 @@ parser-family extension.
     file for the parser key to the git collector's content-version fixture (the
     registry fingerprint moves `GenerationContentVersion` on its own, #7986), then
     run `scripts/generate-parser-admission-doc.sh` ([table](languages/admitted-files.md)).
-    Any new registry name re-snapshots every git scope once. Do not add a name
-    that is conventionally a credential carrier (#8809, #8813).
 
 ### Import/symbol names: derived from parse for tree-sitter languages
 
@@ -270,7 +269,8 @@ Guardrails:
   loading, generated source, macro expansion, dependency injection, and
   framework discovery stay unsupported or exactness blockers until tested.
 - Framework roots need positive, negative, and ambiguous cases. A route,
-  callback, lifecycle hook, package export, or public API shape should be named in the test and the docs.
+  callback, lifecycle hook, package export, or public API shape should be named
+  in the test and the docs.
 - Generated code must not make source symbols cleanup-safe unless Eshu indexes
   the generated files or has a tested source-to-generated mapping.
 - Source-only parser metadata must not be used to claim graph, query, story, or
