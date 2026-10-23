@@ -22,7 +22,7 @@ func TestLiveDetectClassifiesSeededCases(t *testing.T) {
 	f := seedFixture(t, db)
 
 	report, err := legacyworkload.Detect(context.Background(), db, legacyworkload.Options{
-		IDs: append(f.legacyIDs(), f.scoped("b", "n1")), // N1 must never become a candidate
+		IDs: append(f.legacyIDs(), f.extraIDs()...), // none of the extras may become a candidate
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -31,8 +31,10 @@ func TestLiveDetectClassifiesSeededCases(t *testing.T) {
 	for _, v := range report.Verdicts {
 		got[v.ID] = v
 	}
-	if _, found := got[f.scoped("b", "n1")]; found {
-		t.Fatal("N1: a scoped node must never be a candidate, even with a null generation_id")
+	for _, id := range f.extraIDs() {
+		if _, found := got[id]; found {
+			t.Fatalf("%s: a node whose id is not the legacy handle must never be a candidate", id)
+		}
 	}
 	want := map[string]struct {
 		reason string
@@ -46,6 +48,8 @@ func TestLiveDetectClassifiesSeededCases(t *testing.T) {
 		"n5":  {legacyworkload.BlockedRelationships, map[string]int{"DOCUMENTS": 1}},
 		"n5b": {legacyworkload.BlockedRelationships, map[string]int{"DEPENDS_ON": 1}},
 		"n6":  {legacyworkload.BlockedNoTwin, map[string]int{}},
+		"n7":  {legacyworkload.BlockedNoTwin, map[string]int{}},
+		"n8":  {legacyworkload.BlockedRelationships, map[string]int{"DEFINES": 1}},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d verdicts, want %d: %+v", len(got), len(want), got)
@@ -84,8 +88,10 @@ func TestLiveDetectClassifiesSeededCases(t *testing.T) {
 			t.Errorf("full scan missed %s", name)
 		}
 	}
-	if seen[f.scoped("b", "n1")] {
-		t.Error("full scan returned the scoped null-generation node")
+	for _, id := range f.extraIDs() {
+		if seen[id] {
+			t.Errorf("full scan returned %s, which is not legacy-shaped", id)
+		}
 	}
 }
 

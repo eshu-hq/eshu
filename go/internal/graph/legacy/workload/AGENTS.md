@@ -20,3 +20,8 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
   the live test (`ESHU_CYPHER_BOLT_DSN`) against Neo4j.
 - Never add a delete path that ignores incident relationship types, or one
   that UNWIND-batches the delete.
+- Keep the lock-first shape of `DeleteNeo4jCypher`: the marker `SET`/`REMOVE`
+  must come before the retirement clauses, or a writer that commits while the
+  delete waits is deleted over. Run `TestLiveDeleteNeo4jRechecksAfterTheLockWait`
+  after any change to it, and write label checks as `'L' IN labels(o)` (the
+  label-predicate gate rejects `o:L` in a relationship `WHERE`).

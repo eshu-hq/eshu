@@ -130,7 +130,7 @@ type fixture struct {
 }
 
 // caseNames lists the legacy-shaped cases in a stable order.
-var caseNames = []string{"p1", "n2", "n2b", "n3", "n4", "n5", "n5b", "n6"}
+var caseNames = []string{"p1", "n2", "n2b", "n3", "n4", "n5", "n5b", "n6", "n7", "n8"}
 
 func (f fixture) repo(name string) string { return "repository:" + f.nonce + ":" + name }
 func (f fixture) legacy(name string) string {
@@ -139,6 +139,18 @@ func (f fixture) legacy(name string) string {
 
 func (f fixture) scoped(repo, name string) string {
 	return "workload:" + f.repo(repo) + ":" + name + "-" + f.nonce
+}
+
+// odd is a Workload whose id is not the legacy handle of its name, yet whose
+// name, repository and twin otherwise satisfy every retirement clause: only
+// the legacy-shape clause keeps it out.
+func (f fixture) odd() string { return "workload:odd-" + f.nonce }
+
+// extraIDs are ids that must never be deleted or become eligible when a
+// caller passes them explicitly: a non-legacy-shaped node (odd), a scoped
+// node with a null generation_id (N1), and N7's null-generation twin.
+func (f fixture) extraIDs() []string {
+	return []string{f.odd(), f.scoped("b", "n1"), f.scoped("k", "n7")}
 }
 
 // seed writes the fixture with one statement per node or edge.
@@ -155,7 +167,7 @@ func seedFixture(t *testing.T, db *liveDB) fixture {
 		}
 	})
 
-	repos := []string{"a", "b", "c", "c2", "d", "e", "f", "g", "h", "x", "doc"}
+	repos := []string{"a", "b", "c", "c2", "d", "e", "f", "g", "h", "k", "m", "x", "doc"}
 	for _, r := range repos {
 		db.mustWrite(t, `CREATE (:Repository {id: $id})`, map[string]any{"id": f.repo(r)})
 	}
@@ -236,6 +248,27 @@ func seedFixture(t *testing.T, db *liveDB) fixture {
 	workload(f.scoped("h", "n6"), "n6", "h", true)
 	workload(f.legacy("n6"), "n6", "h", false)
 	defines("h", f.legacy("n6"))
+
+	// N7: the same-repository twin has a null generation_id, so it is not a
+	// valid twin.
+	db.mustWrite(t, `CREATE (:Workload {id: $id, name: $name, repo_id: $repo})`,
+		map[string]any{"id": f.scoped("k", "n7"), "name": "n7-" + nonce, "repo": f.repo("k")})
+	workload(f.legacy("n7"), "n7", "k", false)
+	defines("k", f.scoped("k", "n7"))
+	defines("k", f.legacy("n7"))
+
+	// N8: a valid twin, but a foreign repository also DEFINES the leftover.
+	workload(f.scoped("m", "n8"), "n8", "m", true)
+	workload(f.legacy("n8"), "n8", "m", false)
+	defines("m", f.scoped("m", "n8"))
+	defines("m", f.legacy("n8"))
+	defines("x", f.legacy("n8"))
+
+	// Odd: P1's name, repository and twin, but an id that is not the legacy
+	// handle of its name.
+	db.mustWrite(t, `CREATE (:Workload {id: $id, name: $name, repo_id: $repo})`,
+		map[string]any{"id": f.odd(), "name": "p1-" + nonce, "repo": f.repo("a")})
+	defines("a", f.odd())
 
 	for _, name := range caseNames {
 		f.id[name] = f.legacy(name)

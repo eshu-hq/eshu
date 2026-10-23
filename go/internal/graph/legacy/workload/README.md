@@ -32,8 +32,15 @@ the reducer's handle ladder skips edges as `workload_handle_ambiguous`.
   the shapes `docs/public/reference/nornicdb-pitfalls.md` records as unreliable
   on NornicDB. Only Neo4j was tested, by owner direction. See
   `docs/internal/evidence/8795-legacy-workload-retirement.md`.
-- `DeleteNeo4jCypher` re-evaluates every clause inside the statement, so the
-  dry run is advisory and the delete is the gate. It is Neo4j only.
+- `DeleteNeo4jCypher` takes each named node's write lock first and then
+  re-evaluates every clause inside the statement, so the dry run is advisory
+  and the delete is the gate. A writer that changes the node or its
+  relationships while the delete runs either makes the delete wait and re-read
+  (a property write) or makes Neo4j abort one of the two transactions (a new
+  relationship); `TestLiveDeleteNeo4jRechecksAfterTheLockWait` proves both. A
+  writer that touches neither (a `WorkloadInstance` naming the node only by its
+  `workload_id` property, or the twin losing its `DEFINES`) is not seen, so
+  retirement runs in a quiet window against one reducer pod. It is Neo4j only.
 
 ## Why a separate leaf package
 

@@ -53,21 +53,51 @@ const relationshipsCypher = `MATCH (w:Workload)-[r]-(o)
 WHERE w.id IN $ids
 RETURN w.id AS id, type(r) AS type, startNode(r) = w AS outgoing, o.id AS other_id, labels(o) AS other_labels`
 
-// DeleteNeo4jCypher retires the named legacy nodes and is itself the gate:
-// every retirement clause is evaluated inside the statement, so a node that
-// gained an instance, lost its twin, or gained an unsafe relationship after
-// the dry run is simply not matched. It is Neo4j-only (the only backend
-// tested; see the evidence note) and runs as one auto-commit
+// DeleteNeo4jCypher retires the named legacy nodes. It is Neo4j-only (the
+// only backend tested; see the evidence note) and runs as one auto-commit
 // transaction over at most MaxBatch ids, anchored on the Workload id
 // constraint (`w.id IN $ids`). It does not UNWIND the delete.
+//
+// It takes the write lock on each named node first (a marker property set and
+// removed in the same statement, so nothing persists) and only then evaluates
+// the retirement clauses, so every clause is checked while this statement
+// holds the node's lock. What that guarantees on Neo4j 2026.08.1, from the
+// live race proof:
+//
+//   - A writer that changes the node itself (a property, a label) holds the
+//     node's lock until it commits; this statement waits and then reads the
+//     committed value, so the node is kept.
+//   - A writer that has created an INSTANCE_OF or any other relationship to the
+//     node but not yet committed does not hold the node's lock while it runs;
+//     both transactions then need the other's lock, and Neo4j aborts one of
+//     them with DeadlockDetected. Either outcome is safe: if this statement is
+//     aborted nothing is deleted and the transient error is retried, and the
+//     retry sees the relationship; if the writer is aborted its relationship
+//     never existed.
+//   - It does not protect against a writer that touches neither the node nor
+//     its relationships: a WorkloadInstance created with only a workload_id
+//     property naming the node, or a twin losing its DEFINES edge, can commit
+//     while this statement runs and is not seen. Run retirement in a quiet
+//     window, against one reducer pod.
 //
 // Null review: $ids is always a bound list; a null name, repo_id, or twin
 // makes its equality null and the node is not matched; the unsafe-relationship
 // subquery's predicate is wrapped in coalesce so a null other-end id counts
-// as unsafe instead of passing.
-const DeleteNeo4jCypher = `MATCH (w:Workload)
+// as unsafe instead of passing. Label checks use `'L' IN labels(o)`, the form
+// the repository's label-predicate gate requires.
+const DeleteNeo4jCypher = deleteLockClause + deleteGateClause + `DETACH DELETE w`
+
+// deleteLockClause matches the named nodes and takes their write locks before
+// any retirement clause is evaluated.
+const deleteLockClause = `MATCH (w:Workload)
 WHERE w.id IN $ids
-  AND 'workload:' + w.name = w.id
+SET w.__eshu_retire_lock = true
+REMOVE w.__eshu_retire_lock
+WITH w
+`
+
+// deleteGateClause is every retirement clause, evaluated after the lock.
+const deleteGateClause = `WHERE 'workload:' + w.name = w.id
   AND w.generation_id IS NULL
   AND NOT (w)<-[:INSTANCE_OF]-(:WorkloadInstance)
   AND NOT EXISTS { MATCH (i:WorkloadInstance) WHERE i.workload_id = w.id }
@@ -77,9 +107,9 @@ WHERE w.id IN $ids
   }
   AND NOT EXISTS {
     MATCH (w)-[r]-(o)
-    WHERE NOT ((type(r) = 'SAME_NAME' AND o:Workload) OR (type(r) = 'DEFINES' AND startNode(r) = o AND o:Repository AND coalesce(o.id = w.repo_id, false)))
+    WHERE NOT ((type(r) = 'SAME_NAME' AND 'Workload' IN labels(o)) OR (type(r) = 'DEFINES' AND startNode(r) = o AND 'Repository' IN labels(o) AND coalesce(o.id = w.repo_id, false)))
   }
-DETACH DELETE w`
+`
 
 // MaxBatch bounds the ids one detection page or delete statement carries.
 const MaxBatch = 100

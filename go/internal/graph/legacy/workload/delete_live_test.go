@@ -7,12 +7,15 @@ package workload_test
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	legacyworkload "github.com/eshu-hq/eshu/go/internal/graph/legacy/workload"
 )
 
@@ -37,7 +40,7 @@ func TestLiveDeleteNeo4jIsTheGate(t *testing.T) {
 		return counters.NodesDeleted(), counters.RelationshipsDeleted()
 	}
 	const exists = `MATCH (w:Workload {id: $id}) RETURN count(w) AS c`
-	allIDs := f.legacyIDs()
+	allIDs := append(f.legacyIDs(), f.extraIDs()...)
 
 	t.Run("gate: instance referenced by property after the dry run", func(t *testing.T) {
 		db.mustWrite(t, `CREATE (:WorkloadInstance {id: $id, workload_id: $w})`,
@@ -89,6 +92,9 @@ func TestLiveDeleteNeo4jIsTheGate(t *testing.T) {
 		for _, name := range caseNames[1:] {
 			db.settledCount(t, exists, map[string]any{"id": f.legacy(name)}, 1, name+" must survive")
 		}
+		for _, id := range f.extraIDs() {
+			db.settledCount(t, exists, map[string]any{"id": id}, 1, id+" must survive")
+		}
 		if got := twinEdges("DEFINES"); got != wantDefines {
 			t.Errorf("twin DEFINES = %d, want %d unchanged", got, wantDefines)
 		}
@@ -102,7 +108,7 @@ func TestLiveDeleteNeo4jIsTheGate(t *testing.T) {
 		}
 	})
 	t.Run("detection agrees after the delete", func(t *testing.T) {
-		report, err := legacyworkload.Detect(ctx, db, legacyworkload.Options{IDs: allIDs})
+		report, err := legacyworkload.Detect(ctx, db, legacyworkload.Options{IDs: f.legacyIDs()})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -114,27 +120,19 @@ func TestLiveDeleteNeo4jIsTheGate(t *testing.T) {
 
 // TestLiveDeleteNeo4jPlanSeeksTheIDConstraint pins the plan of the delete
 // statement on the pinned Neo4j: the batch anchor and the twin lookup are
-// unique-index seeks on the Workload id, and no operator scans the label.
+// unique-index seeks on the Workload id, and no operator scans a label. It
+// applies the production schema statements the plan depends on itself, so it
+// holds on a fresh database with no schema bootstrap (the live CI job).
 func TestLiveDeleteNeo4jPlanSeeksTheIDConstraint(t *testing.T) {
 	db := openLiveDB(t)
 	ctx := context.Background()
-	if _, err := db.write(ctx, `CREATE CONSTRAINT workload_id IF NOT EXISTS FOR (w:Workload) REQUIRE w.id IS UNIQUE`, nil); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.write(ctx, `CREATE CONSTRAINT repository_id IF NOT EXISTS FOR (r:Repository) REQUIRE r.id IS UNIQUE`, nil); err != nil {
-		t.Fatal(err)
-	}
-	session := db.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: db.database})
+	applyProductionSchema(t, db, "workload_id", "repository_id", "workload_instance_workload_id")
+	session := db.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: db.database})
 	defer func() { _ = session.Close(ctx) }()
-	// EXPLAIN through the driver drops the outer branch of the semi-apply
-	// operators, and a PROFILE of the DETACH DELETE would delete, so pin the
-	// PROFILE plan of the same MATCH/WHERE with the delete swapped for a
-	// read-only projection.
-	readForm := strings.TrimSuffix(legacyworkload.DeleteNeo4jCypher, "DETACH DELETE w") + "RETURN w.id AS id"
-	if readForm == legacyworkload.DeleteNeo4jCypher {
-		t.Fatal("DeleteNeo4jCypher no longer ends with DETACH DELETE w; update the plan pin")
-	}
-	result, err := session.Run(ctx, "PROFILE "+readForm, map[string]any{"ids": []string{"workload:x"}})
+	// PROFILE the real statement (EXPLAIN through the driver drops the outer
+	// branch of the semi-apply operators). The id names no node, so the
+	// profile deletes and sets nothing.
+	result, err := session.Run(ctx, "PROFILE "+legacyworkload.DeleteNeo4jCypher, map[string]any{"ids": []string{"workload:x-plan-pin-absent"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,13 +170,10 @@ func TestLiveDetectionAndDeleteStatementSelectTheSameIDs(t *testing.T) {
 	db := openLiveDB(t)
 	f := seedFixture(t, db)
 	ctx := context.Background()
-	allIDs := f.legacyIDs()
+	allIDs := append(f.legacyIDs(), f.extraIDs()...)
 	p1, twin := f.legacy("p1"), f.scoped("a", "p1")
 
-	readForm := strings.TrimSuffix(legacyworkload.DeleteNeo4jCypher, "DETACH DELETE w") + "RETURN w.id AS id"
-	if readForm == legacyworkload.DeleteNeo4jCypher {
-		t.Fatal("DeleteNeo4jCypher no longer ends with DETACH DELETE w; update the equivalence read")
-	}
+	readForm := gateReadForm(t)
 	assertSame := func(label string) {
 		t.Helper()
 		report, err := legacyworkload.Detect(ctx, db, legacyworkload.Options{IDs: allIDs})
@@ -231,5 +226,144 @@ func TestLiveDetectionAndDeleteStatementSelectTheSameIDs(t *testing.T) {
 	rows, _ = db.Run(ctx, readForm, map[string]any{"ids": allIDs})
 	if len(rows) != 0 {
 		t.Fatalf("SAME_NAME from a Repository must block, statement selects %v", rows)
+	}
+}
+
+// gateReadForm is DeleteNeo4jCypher with the lock markers and the delete
+// removed: the same MATCH and retirement clauses, run as a read.
+func gateReadForm(t *testing.T) string {
+	t.Helper()
+	const lock = "SET w.__eshu_retire_lock = true\nREMOVE w.__eshu_retire_lock\n"
+	stmt := legacyworkload.DeleteNeo4jCypher
+	if !strings.Contains(stmt, lock) || !strings.HasSuffix(stmt, "DETACH DELETE w") {
+		t.Fatal("DeleteNeo4jCypher no longer has the lock markers or no longer ends with DETACH DELETE w; update gateReadForm")
+	}
+	return strings.TrimSuffix(strings.Replace(stmt, lock, "", 1), "DETACH DELETE w") + "RETURN w.id AS id"
+}
+
+// applyProductionSchema applies the named production Neo4j schema statements
+// (from graph.SchemaStatementsForBackend, so the test cannot diverge from the
+// production DDL) and waits for the indexes to come online.
+func applyProductionSchema(t *testing.T, db *liveDB, names ...string) {
+	t.Helper()
+	statements, err := graph.SchemaStatementsForBackend(graph.SchemaBackendNeo4j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range names {
+		found := false
+		for _, stmt := range statements {
+			if strings.Contains(stmt, " "+name+" IF NOT EXISTS ") {
+				db.mustWrite(t, stmt, nil)
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("production schema has no statement named %s", name)
+		}
+	}
+	db.mustWrite(t, `CALL db.awaitIndexes(120)`, nil)
+}
+
+// TestLiveDeleteNeo4jRechecksAfterTheLockWait is the concurrent-writer proof
+// for DeleteNeo4jCypher. A writer transaction (T1) changes the eligible node
+// p1 and stays open while the delete runs; T1 then commits. The delete takes
+// p1's lock before it evaluates any clause, so:
+//
+//   - a property write on p1 holds p1's lock; the delete waits, then reads the
+//     committed value and keeps p1 (nothing deleted, no error);
+//   - an INSTANCE_OF edge created into p1 makes the two transactions wait on
+//     each other; Neo4j aborts one. Whichever it is, the graph never holds a
+//     WorkloadInstance whose INSTANCE_OF edge the delete removed, and a retry
+//     of the delete keeps p1.
+func TestLiveDeleteNeo4jRechecksAfterTheLockWait(t *testing.T) {
+	db := openLiveDB(t)
+	ctx := context.Background()
+	exists := `MATCH (w:Workload {id: $id}) RETURN count(w) AS c`
+
+	race := func(t *testing.T, f fixture, writer string, params map[string]any) (deleted int, delErr, commitErr error) {
+		t.Helper()
+		session := db.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: db.database})
+		defer func() { _ = session.Close(ctx) }()
+		tx, err := session.BeginTransaction(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := tx.Run(ctx, writer, params)
+		if err == nil {
+			_, err = res.Consume(ctx)
+		}
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			t.Fatalf("T1 write: %v", err)
+		}
+		type outcome struct {
+			nodes int
+			err   error
+		}
+		done := make(chan outcome, 1)
+		go func() {
+			counters, err := db.write(ctx, legacyworkload.DeleteNeo4jCypher, map[string]any{"ids": []string{f.legacy("p1")}})
+			if err != nil {
+				done <- outcome{err: err}
+				return
+			}
+			done <- outcome{nodes: counters.NodesDeleted()}
+		}()
+		select {
+		case o := <-done:
+			_ = tx.Rollback(ctx)
+			t.Fatalf("delete finished while T1 was open (nodes=%d err=%v); it must wait on T1", o.nodes, o.err)
+		case <-time.After(time.Second):
+		}
+		commitErr = tx.Commit(ctx)
+		o := <-done
+		return o.nodes, o.err, commitErr
+	}
+
+	t.Run("property write on the node is re-read after the lock", func(t *testing.T) {
+		f := seedFixture(t, db)
+		p1 := f.legacy("p1")
+		nodes, delErr, commitErr := race(t, f, `MATCH (w:Workload {id: $w}) SET w.generation_id = 'g-late'`, map[string]any{"w": p1})
+		if commitErr != nil || delErr != nil {
+			t.Fatalf("commit err=%v delete err=%v, want both nil: the delete must wait, not deadlock", commitErr, delErr)
+		}
+		if nodes != 0 {
+			t.Fatalf("deleted %d nodes, want 0: p1 gained a generation_id while the delete waited", nodes)
+		}
+		db.settledCount(t, exists, map[string]any{"id": p1}, 1, "p1 after the race")
+	})
+
+	for round := range 3 {
+		t.Run(fmt.Sprintf("instance edge created into the node, round %d", round), func(t *testing.T) {
+			f := seedFixture(t, db)
+			p1, inst := f.legacy("p1"), "inst:race-"+f.nonce
+			_, delErr, commitErr := race(t, f,
+				`MATCH (w:Workload {id: $w}) CREATE (:WorkloadInstance {id: $i, workload_id: 'none'})-[:INSTANCE_OF]->(w)`,
+				map[string]any{"w": p1, "i": inst})
+			for _, err := range []error{delErr, commitErr} {
+				if err != nil && !strings.Contains(err.Error(), "DeadlockDetected") {
+					t.Fatalf("unexpected error %v: only a deadlock abort is expected", err)
+				}
+			}
+			p1Left := db.count(t, exists, map[string]any{"id": p1})
+			instances := db.count(t, `MATCH (i:WorkloadInstance {id: $i}) RETURN count(i) AS c`, map[string]any{"i": inst})
+			attached := db.count(t, `MATCH (:WorkloadInstance {id: $i})-[:INSTANCE_OF]->(:Workload {id: $w}) RETURN count(*) AS c`, map[string]any{"i": inst, "w": p1})
+			switch {
+			case commitErr == nil && (p1Left != 1 || attached != 1):
+				t.Fatalf("T1 committed but p1=%d attached=%d: the delete removed a node that gained an instance", p1Left, attached)
+			case commitErr != nil && instances != 0:
+				t.Fatalf("T1 aborted but its instance exists (%d)", instances)
+			}
+			// The retry the executor performs after a transient abort must keep p1.
+			if commitErr == nil {
+				counters, err := db.write(ctx, legacyworkload.DeleteNeo4jCypher, map[string]any{"ids": []string{p1}})
+				if err != nil || counters.NodesDeleted() != 0 {
+					t.Fatalf("retry deleted %v (err %v), want 0", counters, err)
+				}
+			}
+			t.Logf("round %d: delete err=%v, T1 commit err=%v, p1=%d attached=%d", round, delErr != nil, commitErr != nil, p1Left, attached)
+		})
 	}
 }
