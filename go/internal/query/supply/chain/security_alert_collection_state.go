@@ -237,11 +237,13 @@ type securityAlertCoverageVerdict struct {
 	freshness      querycontract.FreshnessState
 	collectorState string
 	// readiness is the collector_readiness envelope state to attach, or ""
-	// to leave the envelope off: a target_incomplete answer or a repository
-	// outside every target, whose coverage already says why it is not a
-	// configured-but-empty result. An outside-target answer has an enabled
+	// to leave the envelope off. It is empty for a still-collecting or
+	// terminal-failure (target_incomplete) answer, a repository outside every
+	// target, and a grantless answer, whose coverage already says why it is not
+	// a configured-but-empty result. An outside-target answer has an enabled
 	// instance, so the envelope's not_configured ("no enabled instance")
-	// would be false for it.
+	// would be false for it. A failed state read is also target_incomplete but
+	// carries readiness_unavailable, because the read itself failed.
 	readiness querycontract.CollectorListReadinessState
 	// cause reports whether the freshness gap has the proven
 	// missing_collector_completion cause.

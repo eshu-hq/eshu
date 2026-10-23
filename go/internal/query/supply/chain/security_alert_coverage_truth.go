@@ -22,9 +22,11 @@ import (
 const securityAlertCollectionStateStage = "security_alert_collection_state"
 
 // securityAlertCollectionStateTimeout bounds the whole collection-state probe
-// behind one empty answer. The measured reads take about 1 ms for one target
-// and about 36 ms for 50 targets with 2,000 work items each
-// (docs/internal/evidence/8803-security-alert-empty-answer-truth.md); past
+// behind one empty answer. On a vacuumed table the reads take about 1 ms for
+// one target and about 36 ms for 50 targets with 2,000 work items each. On an
+// unvacuumed table the lateral read takes 102.7 ms warm and 523 ms on a first
+// run with JIT, reading 102,396 buffers
+// (docs/internal/evidence/8803-security-alert-empty-answer-truth.md). Past
 // this deadline the answer fails closed to collector_state_unavailable rather
 // than holding the request.
 const securityAlertCollectionStateTimeout = time.Second
@@ -221,8 +223,10 @@ func applySecurityAlertCoverageVerdict(
 		body["collector_readiness"] = querycontract.BuildCollectorListReadinessUnavailable(scope.CollectorSecurityAlert, 0, false)
 	case querycontract.CollectorListReadinessStateReadyWithResults:
 		// Unreachable: a verdict exists only for an empty answer. A
-		// target_incomplete or outside-target verdict leaves readiness empty
-		// and attaches no envelope, because its coverage already says why the
-		// page is not a configured-but-empty result.
+		// still-collecting or terminal-failure (target_incomplete) verdict, an
+		// outside-target verdict, and a grantless verdict leave readiness
+		// empty and attach no envelope, because their coverage already says
+		// why the page is not a configured-but-empty result. A failed state
+		// read is target_incomplete too but carries readiness_unavailable.
 	}
 }
