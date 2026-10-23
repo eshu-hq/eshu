@@ -36,24 +36,34 @@ INDEPENDENT_SUBJECTS = (
 WORKFLOW_CONTROL_LINES = """
 name: Replay Tier (offline NornicDB)
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   merge_group:
     types: [checks_requested]
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
-    paths:
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-verify-replay-tier-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
   queue-selection:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'queue-selection') }}
     uses: ./.github/workflows/queue-selection.yml
     with:
       workflow: verify-replay-tier.yml
   replay-tier:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'replay-tier') }}
     needs: queue-selection
     name: Offline replay tier vs real NornicDB
     runs-on: ubuntu-latest
@@ -141,11 +151,10 @@ def _control_lines_without_sequence(lines: list[tuple[int, str]],
 
 
 def verify_workflow_liveness(workflow: str) -> None:
-    """Require the existing CI job to execute every reviewed proof step."""
-    workflow_paths(workflow)
-    controls = _control_lines_without_sequence(
-        _active_lines(workflow, "workflow"), "paths", 4, "workflow"
-    )
+    """Require the callable replay job to execute every reviewed proof step."""
+    lines = _active_lines(workflow, "workflow")
+    _reject_quoted_workflow_keys(lines)
+    controls = [" " * depth + content for depth, content in lines]
     if controls != WORKFLOW_CONTROL_LINES:
         raise ValueError("workflow has unsupported active YAML controls")
 
@@ -200,16 +209,42 @@ def _paths(lines: list[tuple[int, str]], indent: int, quote: str,
     return paths
 
 
-def workflow_paths(workflow: str) -> set[str]:
-    """Read effective on.pull_request.paths in the supported workflow shape."""
-    lines = _active_lines(workflow, "workflow")
+def workflow_paths(fragment: str, filename: str) -> set[str]:
+    """Read frozen synchronize paths from one validated callable fragment."""
+    lines = _active_lines(fragment, "workflow fragment")
     _reject_quoted_workflow_keys(lines)
-    events = _only_block(lines, "on", 0, "workflow")
-    pull_request = _only_block(events, "pull_request", 2, "workflow")
-    if any(content.startswith("<<:") for _, content in pull_request):
-        raise ValueError("workflow pull_request uses unsupported YAML merge")
-    paths = _only_block(pull_request, "paths", 4, "workflow")
-    return _paths(paths, 6, "'", "workflow pull_request.paths")
+    starts = [index for index, line in enumerate(lines) if line == (2, "paths:")]
+    ends = [index for index, line in enumerate(lines) if line == (2, "jobs:")]
+    if len(starts) != 1 or len(ends) != 1 or ends[0] <= starts[0]:
+        raise ValueError("workflow fragment needs one paths sequence before jobs")
+    paths = lines[starts[0] + 1:ends[0]]
+    controls = [" " * depth + content for index, (depth, content) in enumerate(lines)
+                if not starts[0] < index < ends[0]]
+    name = ("Replay Tier (offline NornicDB)" if filename == "verify-replay-tier.yml"
+            else "Live Backend Tests")
+    jobs = (["queue-selection", "replay-tier"] if filename == "verify-replay-tier.yml"
+            else ["live-backend", "live-backend-shards", "queue-selection", "static-mirror"])
+    expected = ["schema_version: 1", "workflows:", f"- file: {filename}",
+                f"  name: {name}", "  synchronize: true", "  branches:",
+                "  - main", "  paths:", "  jobs:",
+                *(f"  - {job}" for job in jobs), "  job_names:"]
+    if filename == "verify-replay-tier.yml":
+        expected.append("    replay-tier: Offline replay tier vs real NornicDB")
+    else:
+        expected.extend(("    live-backend: live-backend (nornicdb and neo4j)",
+                         "    live-backend-shards: live-backend shard (${{ matrix.shard }}/4)",
+                         "    static-mirror: static-mirror (ledger and runner probes)"))
+    if controls != expected:
+        raise ValueError("workflow fragment has unsupported active YAML controls")
+    selected = set()
+    for depth, content in paths:
+        match = re.fullmatch(r"- ([A-Za-z0-9_./*?-]+)", content)
+        if depth != 2 or match is None or match.group(1) in selected:
+            raise ValueError("workflow fragment has an ambiguous path sequence")
+        selected.add(match.group(1))
+    if not selected:
+        raise ValueError("workflow fragment has no active paths")
+    return selected
 
 
 def replay_gate_triggers(registry: str) -> set[str]:
@@ -278,20 +313,39 @@ def _prepr_selector(prepr: str) -> re.Pattern[str]:
         raise ValueError("pre-pr replay-tier selector is invalid") from error
 
 
+def _require_caller(root: Path, filename: str) -> None:
+    """Require the trusted planner to route the callable workflow on PRs."""
+    stem = filename.removesuffix(".yml")
+    lines = _active_lines((root / ".github/workflows/test.yml").read_text(), "caller")
+    callers = [content for depth, content in lines
+               if depth == 2 and content.startswith(f"call-{stem}:")]
+    if len(callers) != 1:
+        raise ValueError(f"workflow caller missing or duplicated: {filename}")
+    expected = (
+        'call-verify-replay-tier: {needs: [queue-selection, pr-plan], if: "${{ github.event_name == \'pull_req'
+        "uest' && needs.pr-plan.result == 'success' && needs.pr-plan.outputs.mode != 'reuse' && contains(from"
+        'JSON(needs.pr-plan.outputs.workflows || \'[]\'), \'verify-replay-tier.yml\') }}", uses: ./.github/workfl'
+        'ows/verify-replay-tier.yml, permissions: {contents: read}, with: {plan_jobs: "${{ toJSON(fromJSON(ne'
+        'eds.pr-plan.outputs.jobs)[\'verify-replay-tier.yml\']) }}", plan_gates: "${{ needs.pr-plan.outputs.gat'
+        'es }}", plan_mode: "${{ needs.pr-plan.outputs.mode }}"}}'
+    ).replace("verify-replay-tier", stem)
+    if callers[0] != expected:
+        raise ValueError(f"workflow caller does not route validated plan: {filename}")
+
+
+
 def verify_independent_static_mirror(root: Path) -> None:
     """Require replay source edits to select an active independent ledger read."""
     workflow = (root / ".github/workflows/live-backend-tests.yml").read_text()
     lines = _active_lines(workflow, "independent workflow")
     _reject_quoted_workflow_keys(lines)
     events = _only_block(lines, "on", 0, "independent workflow")
-    pull_request = _only_block(events, "pull_request", 2, "independent workflow")
-    path_lines = _only_block(pull_request, "paths", 4, "independent workflow")
-    paths = set()
-    for depth, content in path_lines:
-        match = re.fullmatch(r"- '([^']+)'", content)
-        if depth != 6 or match is None:
-            raise ValueError("independent workflow has unsupported PR paths")
-        paths.add(match.group(1))
+    _only_block(events, "workflow_call", 2, "independent workflow")
+    if any(depth == 2 and content.startswith("pull_request:") for depth, content in events):
+        raise ValueError("independent workflow still has direct PR scheduling")
+    fragment = (root / "specs/ci-pr-workflows.d/live-backend-tests.yml").read_text()
+    paths = workflow_paths(fragment, "live-backend-tests.yml")
+    _require_caller(root, "live-backend-tests.yml")
     required = set(INDEPENDENT_SUBJECTS) | {
         ".github/workflows/live-backend-tests.yml", "specs/ci-gates.d/gates-09.yaml"
     }
@@ -301,9 +355,10 @@ def verify_independent_static_mirror(root: Path) -> None:
     jobs = _only_block(lines, "jobs", 0, "independent workflow")
     job = _only_block(jobs, "static-mirror", 2, "independent workflow")
     job_keys = [content.split(":", 1)[0] for depth, content in job if depth == 4]
-    if job_keys != ["needs", "name", "runs-on", "timeout-minutes", "steps"]:
+    if job_keys != ["if", "needs", "name", "runs-on", "timeout-minutes", "steps"]:
         raise ValueError("independent workflow static mirror is disabled or changed")
-    if (4, "needs: queue-selection") not in job or (
+    if (4, "if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'static-mirror') }}") not in job or (
+            4, "needs: queue-selection") not in job or (
             4, "name: static-mirror (ledger and runner probes)") not in job:
         raise ValueError("independent workflow static mirror is not selected")
     steps = _only_block(job, "steps", 4, "independent workflow")
@@ -365,7 +420,9 @@ def verify_routes(root: Path) -> None:
     verify_workflow_liveness(workflow)
     registry = (root / "specs/ci-gates.d/gates-15.yaml").read_text()
     prepr = (root / "scripts/dev/pre-pr.sh").read_text()
-    workflow_triggers = workflow_paths(workflow)
+    fragment = (root / "specs/ci-pr-workflows.d/verify-replay-tier.yml").read_text()
+    workflow_triggers = workflow_paths(fragment, "verify-replay-tier.yml")
+    _require_caller(root, "verify-replay-tier.yml")
     registry_triggers = replay_gate_triggers(registry)
     selector = _prepr_selector(prepr)
     if workflow_triggers != registry_triggers:

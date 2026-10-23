@@ -2,14 +2,14 @@
 # B-7 golden-corpus PR path filter EXHAUSTIVENESS gate (#5538 task 4, the
 # root-cause fix). Three successive review rounds (#5596, 6a6944fbad,
 # 1de212bd6e) each found MORE go/internal/* or go/cmd/* packages missing from
-# golden-corpus-gate.yml's on.pull_request.paths filter, because completeness
+# golden-corpus-gate.yml's frozen PR inventory filter, because completeness
 # was maintained by hand -- see scripts/lib/golden-corpus-mirror-workflow-
 # paths.sh's header for the incident history. This script makes it converge:
 # every package actually compiled into the six binaries
 # scripts/verify-golden-corpus-gate.sh builds (bootstrap-index, projector,
 # reducer, api, mcp-server, golden-corpus-gate) must be EITHER
 #
-#   1. covered by a path in the workflow's on.pull_request.paths filter, OR
+#   1. covered by a path in the validated PR inventory, OR
 #   2. listed with a one-line reason in
 #      scripts/lib/golden-corpus-filter-exclusions.txt
 #
@@ -30,7 +30,7 @@ module_prefix="github.com/eshu-hq/eshu/go"
 
 # Overridable for the test mirror's negative cases; production callers should
 # never set these.
-workflow="${GOLDEN_CORPUS_FILTER_WORKFLOW:-${repo_root}/.github/workflows/golden-corpus-gate.yml}"
+workflow="${GOLDEN_CORPUS_FILTER_WORKFLOW:-${repo_root}/specs/ci-pr-workflows.d/golden-corpus-gate.yml}"
 exclusions="${GOLDEN_CORPUS_FILTER_EXCLUSIONS:-${repo_root}/scripts/lib/golden-corpus-filter-exclusions.txt}"
 
 fail() { printf 'verify-golden-corpus-filter-exhaustive: %s\n' "$*" >&2; exit 1; }
@@ -67,8 +67,12 @@ compiled_pkgs="$(
 [[ -n "${compiled_pkgs}" ]] || fail "derived an empty compiled-package set; go list output looks wrong"
 
 # --- 2. load the workflow's path filter --------------------------------------
-workflow_paths="$(yq e '.on.pull_request.paths[]' "${workflow}")"
-[[ -n "${workflow_paths}" ]] || fail "workflow filter parsed to zero paths: ${workflow}"
+[[ "$(yq e '.schema_version' "${workflow}")" == 1 ]] || fail "unsupported PR inventory schema: ${workflow}"
+[[ "$(yq e '.workflows | length' "${workflow}")" == 1 ]] || fail "PR inventory must name one workflow: ${workflow}"
+[[ "$(yq e '.workflows[0].file' "${workflow}")" == golden-corpus-gate.yml ]] || fail "PR inventory names wrong workflow: ${workflow}"
+[[ "$(yq e '.workflows[0].synchronize' "${workflow}")" == true ]] || fail "PR inventory omits synchronize: ${workflow}"
+workflow_paths="$(yq e '.workflows[0].paths[]' "${workflow}")"
+[[ -n "${workflow_paths}" ]] || fail "PR inventory parsed to zero paths: ${workflow}"
 
 # path_covers: does one on.pull_request.paths glob cover a package path? Only
 # two glob shapes are actually used by this filter today:

@@ -63,7 +63,6 @@ jobs:
               - '!mkdocs.yml'
               - '!.github/**/*.md'
               - '!.agents/**'
-  # The existing trusted reuse runner now produces the single PR execution
   pr-plan:
     needs: queue-selection
     runs-on: ubuntu-latest
@@ -323,10 +322,10 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep
         env:
           GH_TOKEN: ${{ github.token }}
-      - {name: Pre-warm Go modules, if: "${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core') }}", run: scripts/ci/go-mod-download-retry.sh}
-      - {name: Install golangci-lint, if: "${{ (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) && (needs.pr-plan.outputs.mode != 'smoke' || contains(fromJSON(needs.pr-plan.outputs.gates || '[]'), 'go-lint') || contains(fromJSON(needs.pr-plan.outputs.gates || '[]'), 'go-fmt')) }}", run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2}
+      - {name: Pre-warm Go modules, if: "${{ !cancelled() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}", run: scripts/ci/go-mod-download-retry.sh}
+      - {name: Install golangci-lint, if: "${{ !cancelled() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) && (needs.pr-plan.outputs.mode != 'smoke' || contains(fromJSON(needs.pr-plan.outputs.gates || '[]'), 'go-lint') || contains(fromJSON(needs.pr-plan.outputs.gates || '[]'), 'go-fmt')) }}", run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2}
       - name: Run selected Go core checks
-        if: ${{ github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core') }}
+        if: ${{ !cancelled() && (github.event_name != 'merge_group' || contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'go-core')) }}
         uses: ./.github/actions/ci-go-core
         with:
           mode: ${{ needs.pr-plan.outputs.mode }}
