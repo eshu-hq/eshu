@@ -137,7 +137,7 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	if shape != "" {
 		endpoint += "&shape=" + string(shape) // closed enum from resultshape.Parse, URL-safe
 	}
-	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint) // #nosec G705 -- text/event-stream, not HTML; sessionID is server-generated and surface is a closed enum value from router.ParseSurface
+	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", endpoint) // #nosec G705 -- text/event-stream, not HTML; sessionID is server-generated, surface is a closed enum value from router.ParseSurface, and shape is a closed enum from resultshape.Parse
 	flusher.Flush()
 
 	s.logger.Info("sse session started", "session_id", sessionID)

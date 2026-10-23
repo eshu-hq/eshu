@@ -4,8 +4,10 @@
 
 1. `README.md` and `doc.go` in this directory.
 2. `../../AGENTS.md` for rendering, the response budget, and transport rules.
-3. `../../dispatch_envelope.go` for `renderToolResult`, the one place a shape
-   changes the wire result.
+3. `../../dispatch_envelope.go` for `renderToolResult` (success results) and
+   `mcpToolErrorResult` (error results). Each branches on the shape.
+   `applyResponseBudget` in `../../dispatch_budget.go` also reads the shape:
+   it skips `ResourceOnly` under `structured`.
 
 ## Invariants
 
@@ -18,8 +20,9 @@
 
 ## Failure modes
 
-- Trimming inside `Parse` would make the query parameter and the environment
-  variable disagree about padded input.
+- `Parse` is strict and does not trim. Every caller trims first
+  (`parseShapeParam`, `loadResultShape`, and the golden corpus gate's flag
+  parsing), so a new caller must trim too or padded input is rejected.
 - A new value that the budget code does not know would be counted as `Dual`.
 
 ## Verification
