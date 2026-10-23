@@ -77,7 +77,7 @@ func defaultDefinitions() []Definition {
 			Language:   "gomod",
 			Ecosystem:  "go",
 			Admission:  AdmissionStructuredFact,
-			ExactNames: []string{"go.mod", "go.sum"},
+			ExactNames: []string{"go.mod", "go.sum", "go.work"},
 		},
 		{
 			ParserKey:  "groovy",

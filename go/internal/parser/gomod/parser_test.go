@@ -305,17 +305,21 @@ func TestParseGoSumSurfacesScannerErrorAsMalformedState(t *testing.T) {
 	}
 }
 
+// TestParseRejectsUnknownFile pins the unsupported-file contract. go.work.sum
+// is the negative go.work fixture (#8823): it is the checksum file for
+// workspace-only modules, not a workspace, and must never parse as one.
 func TestParseRejectsUnknownFile(t *testing.T) {
 	t.Parallel()
 
-	path := writeGoTestFile(t, "go.work", `go 1.22
+	for _, name := range []string{"go.work.sum", "go.mod.orig", "Gopkg.lock"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-use ./module
-`)
-
-	_, err := Parse(path, false, shared.Options{})
-	if err == nil {
-		t.Fatalf("Parse() error = nil, want error for unsupported go-module file")
+			path := writeGoTestFile(t, name, "golang.org/x/text v0.14.0 h1:abc=\n")
+			if _, err := Parse(path, false, shared.Options{}); err == nil {
+				t.Fatalf("Parse(%s) error = nil, want error for unsupported go-module file", name)
+			}
+		})
 	}
 }
 

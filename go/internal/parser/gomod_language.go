@@ -8,7 +8,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
-// parseGoModule dispatches go.mod and go.sum parsing through the gomod
+// parseGoModule dispatches go.mod, go.sum, and go.work parsing through the gomod
 // sub-package. The wrapper exists so the parent engine keeps the same
 // per-language entrypoint shape used by every other parser and so the gomod
 // package can stay free of parent-engine imports.

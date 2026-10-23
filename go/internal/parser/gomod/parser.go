@@ -24,16 +24,20 @@ const LanguageName = "gomod"
 // matching repository manifest evidence to package-registry identity.
 const PackageManager = "go"
 
-// Parse decodes one go.mod or go.sum file and returns the parser payload the
-// parent engine expects. The returned payload always has the standard parser
-// buckets present so callers do not branch on `nil` slices.
+// Parse decodes one go.mod, go.sum, or go.work file and returns the parser
+// payload the parent engine expects. The returned payload always has the
+// standard parser buckets present so callers do not branch on `nil` slices.
 //
 // Parse never invents installed-version evidence: go.mod rows carry the
 // source-truth require version; replace targets surface separately as both
 // metadata on the require row and a standalone replace row; go.sum rows are
 // emitted with `ambiguous: true` so the consumption reducer leaves them out
-// of admitted decisions. A malformed go.mod returns a payload with no
-// dependency rows and a `gomod_state` envelope describing the parse error.
+// of admitted decisions. A go.work emits one `workspace_use` row per member
+// directory and reuses the go.mod `dependency_replace` row for its replace
+// directives; it emits no consumption rows and no module_path. A malformed
+// go.mod or go.work returns a payload with no rows and a `gomod_state`
+// envelope describing the parse error. Any other file name, including
+// go.work.sum, returns an error.
 func Parse(path string, isDependency bool, options shared.Options) (map[string]any, error) {
 	filename := strings.ToLower(filepath.Base(path))
 	switch filename {
@@ -41,8 +45,10 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 		return parseGoMod(path, isDependency, options)
 	case "go.sum":
 		return parseGoSum(path, isDependency, options)
+	case "go.work":
+		return parseGoWork(path, isDependency, options)
 	}
-	return nil, fmt.Errorf("gomod parser cannot parse %q: only go.mod and go.sum are supported", filepath.Base(path))
+	return nil, fmt.Errorf("gomod parser cannot parse %q: only go.mod, go.sum, and go.work are supported", filepath.Base(path))
 }
 
 func parseGoMod(path string, isDependency bool, options shared.Options) (map[string]any, error) {
