@@ -274,6 +274,7 @@ gates:
       - "testdata/cassettes/crossplanesatisfiedby/**"
       - "testdata/cassettes/derivedfrom/**"
       - "testdata/cassettes/obscoverage/**"
+      - "testdata/cassettes/incidentrouting/**"
       - "testdata/cassettes/shellexec/**"
       - "testdata/cassettes/submodulepin/**"
       - "testdata/cassettes/workloaddependency/**"

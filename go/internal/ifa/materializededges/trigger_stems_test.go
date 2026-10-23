@@ -151,6 +151,12 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// (scripts/lib/ifa_fault_injection_observability_coverage_cells.sh),
 	// the fault cases file, and the Odù the triggers name.
 	"observability_coverage": "observability_coverage",
+	// incident_routing_evidence joins them with the #6228
+	// incident_routing_evidence live leaf: same stem shape, read off the
+	// fault cells file
+	// (scripts/lib/ifa_fault_injection_incident_routing_evidence_cells.sh),
+	// the fault cases file, and the Odù the triggers name.
+	"incident_routing_evidence": "incident_routing_evidence",
 }
 
 // TestEveryCoveredFamilyTriggersBothLiveGates closes the third side of the

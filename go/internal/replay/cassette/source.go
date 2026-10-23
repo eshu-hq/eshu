@@ -19,6 +19,27 @@ import (
 // collector.Service poll loop as the live collector.
 var _ replay.Source = (*Source)(nil)
 
+// DeriveFactID returns the fact_id a cassette-replayed envelope carries when
+// the cassette file leaves it unset: a StableID over the CassetteReplay
+// namespace keyed by scope, generation, and stable fact key, so every replay
+// of the same cassette stamps the same fact_ids.
+//
+// Exported because the incident_routing_evidence live leaf's vacuity guard
+// (#6228) must stamp the same ids onto the compiled Odù's envelopes before
+// running the production builder: the reducer keys incident-routing evidence
+// identity off the envelope fact_id, so a guard that kept the fixture's
+// literal ids would prove an edge set no live drive can reproduce. The
+// committed cassettes carry no fact_id field, so the drive always takes this
+// branch; stamping it in the guard replays the same derivation instead of
+// duplicating its body.
+func DeriveFactID(scopeID, generationID, stableFactKey string) string {
+	return facts.StableID("CassetteReplay", map[string]any{
+		"scope_id":        scopeID,
+		"generation_id":   generationID,
+		"stable_fact_key": stableFactKey,
+	})
+}
+
 // Source implements collector.Source for credential-free cassette replay. Each
 // Next call yields one CollectedGeneration for the next scope in the cassette
 // file. When all scopes are exhausted the source returns ok=false so the
@@ -106,11 +127,7 @@ func (s *Source) buildEnvelope(sc Scope, fct Fact) (facts.Envelope, error) {
 	ck := fct.collectorKind(sc.CollectorKind)
 
 	// Derive the FactID from the stable key if the cassette did not provide one.
-	factID := facts.StableID("CassetteReplay", map[string]any{
-		"scope_id":        sc.ScopeID,
-		"generation_id":   sc.GenerationID,
-		"stable_fact_key": fct.StableFactKey,
-	})
+	factID := DeriveFactID(sc.ScopeID, sc.GenerationID, fct.StableFactKey)
 
 	payload := fct.Payload
 	if payload == nil {

@@ -1,0 +1,155 @@
+{
+  "collector": "pagerduty",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "pagerduty:eshu-fixture-incident-routing",
+      "source_system": "pagerduty",
+      "scope_kind": "pagerduty_account",
+      "collector_kind": "pagerduty",
+      "partition_key": "pagerduty:eshu-fixture-incident-routing",
+      "metadata": {
+        "fixture": "ifa-incident-routing-evidence-family",
+        "repo_id": "repo-observability"
+      },
+      "generation_id": "gen-ifa-incident-routing-evidence-family-1",
+      "observed_at": "2026-10-22T00:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "incident.record",
+          "stable_fact_key": "pagerduty:incident.record:PINCIDENT6228",
+          "schema_version": "1.0.0",
+          "collector_kind": "pagerduty",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "provider": "pagerduty",
+            "provider_incident_id": "PINCIDENT6228",
+            "service": {
+              "id": "PSERVICE6228",
+              "summary": "Checkout API",
+              "url": "https://pagerduty.example.com/services/PSERVICE6228"
+            },
+            "service_id": "PSERVICE6228",
+            "source_url": "https://pagerduty.example.com/incidents/PINCIDENT6228"
+          }
+        },
+        {
+          "fact_kind": "incident_routing.applied_pagerduty_resource",
+          "stable_fact_key": "pagerduty:incident_routing.applied_pagerduty_resource:PSERVICE6228",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "backend_kind": "s3",
+            "declared_match_state": "matched",
+            "escalation_policy_reference": "PEP1",
+            "locator_hash": "hash-6228",
+            "module_address": "module.pagerduty",
+            "outcome": "exact",
+            "provider_address": "registry.terraform.io/pagerduty/pagerduty",
+            "provider_object_id": "PSERVICE6228",
+            "redaction_state": "none",
+            "resource_class": "service",
+            "resource_name": "checkout",
+            "resource_type": "pagerduty_service",
+            "scope_id": "pagerduty:eshu-fixture-incident-routing",
+            "source_class": "applied",
+            "source_kind": "terraform_state",
+            "state_generation_id": "tfstate-gen-6228",
+            "state_lineage": "lineage-6228",
+            "terraform_state_address": "pagerduty_service.checkout"
+          }
+        },
+        {
+          "fact_kind": "incident_routing.applied_pagerduty_resource",
+          "stable_fact_key": "pagerduty:incident_routing.applied_pagerduty_resource:PSERVICE6228:tombstoned",
+          "schema_version": "1.0.0",
+          "collector_kind": "terraform_state",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "is_tombstone": true,
+          "payload": {
+            "backend_kind": "s3",
+            "declared_match_state": "matched",
+            "escalation_policy_reference": "PEP1",
+            "locator_hash": "hash-6228",
+            "module_address": "module.pagerduty",
+            "outcome": "exact",
+            "provider_address": "registry.terraform.io/pagerduty/pagerduty",
+            "provider_object_id": "PSERVICE6228",
+            "redaction_state": "none",
+            "resource_class": "service",
+            "resource_name": "checkout",
+            "resource_type": "pagerduty_service",
+            "scope_id": "pagerduty:eshu-fixture-incident-routing",
+            "source_class": "applied",
+            "source_kind": "terraform_state",
+            "state_generation_id": "tfstate-gen-6228",
+            "state_lineage": "lineage-6228",
+            "terraform_state_address": "pagerduty_service.checkout"
+          }
+        },
+        {
+          "fact_kind": "incident_routing.observed_pagerduty_service",
+          "stable_fact_key": "pagerduty:incident_routing.observed_pagerduty_service:PSERVICE6228",
+          "schema_version": "1.0.0",
+          "collector_kind": "pagerduty",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "declared_match_state": "matched",
+            "escalation_policy_reference": "PEP1",
+            "outcome": "exact",
+            "provider": "pagerduty",
+            "provider_object_id": "PSERVICE6228",
+            "redaction_state": "none",
+            "resource_class": "service",
+            "scope_id": "pagerduty:eshu-fixture-incident-routing",
+            "service_id": "PSERVICE6228",
+            "source_class": "observed",
+            "source_kind": "pagerduty_api",
+            "status": "active"
+          }
+        },
+        {
+          "fact_kind": "content_entity",
+          "stable_fact_key": "content_entity:declared-entity-6228",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "end_line": 13,
+            "entity_id": "declared-entity-6228",
+            "entity_metadata": {
+              "declaration_kind": "terraform_module",
+              "escalation_policy": "PEP1",
+              "escalation_policy_resolution": "literal",
+              "module_name": "checkout",
+              "module_source_fingerprint": "b6e0e0110eeff737",
+              "module_source_redacted": true,
+              "outcome": "declared",
+              "path": "pagerduty/main.tf",
+              "redaction_state": "none",
+              "service_name": "Checkout API",
+              "service_name_resolution": "literal",
+              "source_class": "declared",
+              "source_revision": "unknown"
+            },
+            "entity_name": "module.checkout",
+            "entity_type": "PagerDutyDeclaration",
+            "graph_id": "declared-entity-6228",
+            "graph_kind": "content_entity",
+            "language": "hcl",
+            "relative_path": "pagerduty/main.tf",
+            "repo_id": "repo-observability",
+            "start_line": 13
+          }
+        }
+      ]
+    }
+  ]
+}

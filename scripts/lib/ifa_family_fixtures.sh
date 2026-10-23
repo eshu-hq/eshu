@@ -292,6 +292,20 @@ code_interproc_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/co
 # materialization off it).
 code_taint_evidence_cassette="${repo_root}/testdata/cassettes/codetaint/ifa-code-taint-evidence-family.json"
 code_taint_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/codetaint/ifa-code-taint-evidence-family-expected-edges.json"
+# incident_routing_evidence (#6228 incident_routing_evidence live leaf): a
+# projection of the compiled IncidentRoutingEvidenceFamilyOdu by construction
+# (TestDirectFamilyCassettesMatchTheirCompiledOdu holds it to that) -- one
+# incident.record anchor, one applied PagerDuty service resource, one
+# tombstoned duplicate applied fact (the negative control, skipped before
+# decoding so it contributes no edge), one observed PagerDuty service, and
+# one PagerDutyDeclaration content_entity fact (the declared half the
+# production loader reads out of content_entities). The declaration rides
+# the SAME PagerDuty scope: the projector commits content before it
+# enqueues that generation's reducer intent, so the handler's
+# service-name-scoped declared read is race-free. The single PagerDuty
+# scope owns its own ACTIVE generation, like every sibling above.
+incident_routing_evidence_cassette="${repo_root}/testdata/cassettes/incidentrouting/ifa-incident-routing-evidence-family.json"
+incident_routing_evidence_expected_edges="${repo_root}/go/internal/ifa/testdata/incidentroutingevidence/ifa-incident-routing-evidence-family-expected-edges.json"
 
 # ifa_family_fixtures_require fails fast, before any Compose stack is started,
 # when a committed fixture is missing. Each message names the specific fixture
@@ -372,6 +386,8 @@ ifa_family_fixtures_require() {
 	[[ -f "${code_interproc_evidence_expected_edges}" ]] || { echo "${gate}: code-interproc-evidence expected-edge set not found: ${code_interproc_evidence_expected_edges}" >&2; exit 1; }
 	[[ -f "${code_taint_evidence_cassette}" ]] || { echo "${gate}: code-taint-evidence cassette not found: ${code_taint_evidence_cassette}" >&2; exit 1; }
 	[[ -f "${code_taint_evidence_expected_edges}" ]] || { echo "${gate}: code-taint-evidence expected-edge set not found: ${code_taint_evidence_expected_edges}" >&2; exit 1; }
+	[[ -f "${incident_routing_evidence_cassette}" ]] || { echo "${gate}: incident-routing-evidence cassette not found: ${incident_routing_evidence_cassette}" >&2; exit 1; }
+	[[ -f "${incident_routing_evidence_expected_edges}" ]] || { echo "${gate}: incident-routing-evidence expected-edge set not found: ${incident_routing_evidence_expected_edges}" >&2; exit 1; }
 	# The family scope MUST be stamped source_system='oci_registry': replay
 	# stamps fact.source_system from the scope, and the
 	# container-image-identity loader the handler reads only accepts OCI

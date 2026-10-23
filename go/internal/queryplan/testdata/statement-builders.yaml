@@ -394,6 +394,13 @@ builders:
             - template: MATCH (n:IncidentRoutingEvidence) WHERE n.scope_id IN $scope_ids AND n.evidence_source = $evidence_source DETACH DELETE n
           source_sha256: d8a63cd7911767af58d2a2026afba5b6eeb10b71f8b6274e8253ba340b2aff1b
           exempt: B-7 differential captures contain zero executions of this retract builder on either backend (pair1+pair2 neo4j+nornicdb); retract path is pinned by leaf unit tests, not the corpus replay
+        - symbol: (*IncidentRoutingEvidenceWriter).WriteIncidentRoutingEvidence
+          count: 1
+          operation: sourcecypher.OperationCanonicalUpsert
+          variants:
+            - template: 'UNWIND $incidents AS row MERGE (incident:IncidentRoutingEvidence {uid: row.incident_uid}) ON CREATE SET incident.node_kind = ''incident'' SET incident.id = row.incident_uid, incident.node_kind = ''incident'', incident.provider = row.provider, incident.provider_incident_id = row.provider_incident_id, incident.service_id = row.service_id, incident.service_url = row.service_url, incident.service_name_hash = row.service_name_hash, incident.incident_fact_id = row.incident_fact_id, incident.scope_id = row.scope_id, incident.generation_id = row.generation_id, incident.evidence_source = row.evidence_source'
+          source_sha256: 0c213e9cc38b1229279881ff1095bbd47e0751ef1778d10a3392f529db5c32a0
+          exempt: B-7 differential captures contain zero executions of this upsert builder on either backend (pair1+pair2 neo4j+nornicdb); anchor-write path is pinned by leaf unit tests and the live leaf matrices, not the corpus replay
     - file: internal/storage/cypher/edge/writer/kubernetes_correlation.go
       builders:
         - symbol: (*KubernetesCorrelationEdgeWriter).RetractKubernetesCorrelationEdges

@@ -211,6 +211,12 @@ func directFamilyCassetteCases() []directFamilyCassetteCase {
 			cassettePath: ifa.DerivedFromFamilyCassetteFullPath,
 			load:         ifa.LoadDerivedFromFamilyOdu,
 		},
+		{
+			name:         ifa.IncidentRoutingEvidenceFamilyOduName,
+			compiled:     ifa.IncidentRoutingEvidenceFamilyOdu,
+			cassettePath: ifa.IncidentRoutingEvidenceFamilyCassetteFullPath,
+			load:         ifa.LoadIncidentRoutingEvidenceFamilyOdu,
+		},
 	}
 }
 

@@ -209,14 +209,10 @@ var guardedDirectMaterializedEdgeFamilies = []guardedDirectFamily{
 		EdgeTypes: []string{"PUBLISHES"},
 	},
 	{
-		// LiveProven stays false: no live matrix drives this family yet,
-		// so the ledger's two waiver rows stand untouched and no coverage
-		// row is claimed. The roster records the four offline conditions
-		// the guard proves: registered edge-type set, named vacuity guard,
-		// cataloged Odù, and hand-derived expected-edge-set fixture.
-		Family:    incidentRoutingEvidenceFamily,
-		OduName:   ifa.IncidentRoutingEvidenceFamilyOduName,
-		EdgeTypes: []string{"HAS_INTENDED_ROUTING", "HAS_APPLIED_ROUTING", "HAS_LIVE_ROUTING"},
+		Family:     incidentRoutingEvidenceFamily,
+		OduName:    ifa.IncidentRoutingEvidenceFamilyOduName,
+		EdgeTypes:  []string{"HAS_INTENDED_ROUTING", "HAS_APPLIED_ROUTING", "HAS_LIVE_ROUTING"},
+		LiveProven: true,
 	},
 }
 

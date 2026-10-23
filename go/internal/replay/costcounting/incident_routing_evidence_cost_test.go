@@ -130,14 +130,15 @@ func newInstrumentedIncidentRoutingEvidenceWriter(t *testing.T) (
 //
 // Instrument read: eshu_dp_neo4j_batches_executed_total. InstrumentedExecutor
 // records this once per UNWIND-shaped statement (a statement whose Parameters
-// carry a "rows" key) passed through Execute or ExecuteGroup. Both fixture
-// rows share slot "applied_routing", so they group into ONE Cypher statement
-// (the shared MERGE incident + MERGE routing + MERGE edge template with one
-// slot-derived relationship type), which fits in one raw-writer batch
-// (default 500) — the writer emits exactly one batch despite writing TWO node
-// pairs and TWO edges (mixed node+edge MERGE per UNWIND row, still one
-// statement). Any increase — an N+1 write cycle, an extra slot-group split, or
-// an extra batch split — trips the gate.
+// carry a "rows" key) passed through Execute or ExecuteGroup. The writer is
+// two-phase: the deduped incident anchor commits first in one UNWIND
+// statement keyed by "incidents" (not "rows", so the instrument does not
+// count it), then both fixture rows — sharing slot "applied_routing" — group
+// into ONE Cypher rows statement (the shared MERGE routing + MERGE edge
+// template with one slot-derived relationship type), which fits in one
+// raw-writer batch (default 500). Total: one counted batch, two executed
+// statements. Any increase — an N+1 write cycle, an extra slot-group split,
+// an extra batch split, or an extra phase — trips the gate.
 func TestCostBudget_IncidentRoutingEvidenceMaterialization(t *testing.T) {
 	t.Parallel()
 
