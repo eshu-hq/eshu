@@ -82,9 +82,21 @@ type seedRow struct {
 	status    string
 	ageCycles int // cycle index from liveEpoch; higher is newer
 	young     bool
+	kind      string    // collector_kind and source_system; empty means aws
+	at        time.Time // explicit updated_at; zero uses ageCycles and young
+}
+
+func (r seedRow) collectorKind() string {
+	if r.kind == "" {
+		return "aws"
+	}
+	return r.kind
 }
 
 func (r seedRow) updatedAt() time.Time {
+	if !r.at.IsZero() {
+		return r.at
+	}
 	if r.young {
 		return liveAsOf.Add(-time.Hour).Add(time.Duration(r.ageCycles) * time.Minute)
 	}
@@ -116,8 +128,9 @@ INSERT INTO workflow_work_items (
     work_item_id, run_id, collector_kind, collector_instance_id, source_system,
     scope_id, acceptance_unit_id, source_run_id, generation_id, status, attempt_count,
     current_claim_id, current_owner_id, lease_expires_at, created_at, updated_at
-) VALUES ($1, $2, 'aws', 'inst-1', 'aws', $3, $3, $4, $4, $5, 1, $6, $7, $8, $9, $9)`,
+) VALUES ($1, $2, $10, 'inst-1', $10, $3, $3, $4, $4, $5, 1, $6, $7, $8, $9, $9)`,
 			row.id, row.runID, row.scopeID, row.generationID(), row.status, claimID, ownerID, lease, row.updatedAt(),
+			row.collectorKind(),
 		); err != nil {
 			t.Fatalf("seed work item %s: %v", row.id, err)
 		}

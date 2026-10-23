@@ -14,6 +14,7 @@ TABLE = {
         ),
         "go/internal/storage/postgres/retention/work/items/sweeper_live_test.go": (
             "TestPruneWorkItemsLiveKeepsRowsNeededForFailureReporting",
+            "TestPruneWorkItemsLiveKeepsRegistryLastCompletedAt",
             "TestPruneWorkItemsLiveLeavesLiveAndYoungRowsAlone",
             "TestPruneWorkItemsLiveRespectsBatchBoundAndIsIdempotent",
         ),

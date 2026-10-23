@@ -4,12 +4,15 @@
 package items
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8829 disposable PostgreSQL 18 proofs that workflow_work_items retention keeps the newest unresolved terminal failure, the newest completed row, the newest row and the active-generation row per target, never touches claimed, pending, retrying, expired, open-run or young rows, respects its batch bound and deletes nothing on a second walk; each proof creates and drops its own database from the bootstrap schema; about 1 to 2 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated
+//eshu:readiness:reason #8829 disposable PostgreSQL 18 proofs that workflow_work_items retention keeps the newest unresolved terminal failure, the newest completed row (so the status registry last_completed_at survives), the newest row and the active-generation row per target, never touches claimed, pending, retrying, expired, open-run or young rows, respects its batch bound and deletes nothing on a second walk; each proof creates and drops its own database from the bootstrap schema; about 1 to 2 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_DSN
 
 import (
+	"context"
+	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -73,6 +76,67 @@ func TestPruneWorkItemsLiveKeepsRowsNeededForFailureReporting(t *testing.T) {
 	if orphans := orphanClaims(t, ctx, database); orphans != 0 {
 		t.Fatalf("orphan claims = %d, want 0 (claims cascade with their work item)", orphans)
 	}
+}
+
+// TestPruneWorkItemsLiveKeepsRegistryLastCompletedAt reproduces the #8829
+// review counterexample through the production status read: a
+// package_registry target last completed 40 days ago, then failed terminally
+// from 39 to 31 days ago and again 1 day ago. With the 720h default the
+// completed row is past the cutoff, and only failures are newer. The
+// registry's last_completed_at must keep its date instead of going absent.
+func TestPruneWorkItemsLiveKeepsRegistryLastCompletedAt(t *testing.T) {
+	database, ctx := isolatedLiveDB(t)
+	seedRun(t, ctx, database, "run-closed", "complete")
+	const day = 24 * time.Hour
+	completedAt := liveAsOf.Add(-40 * day)
+	rows := []seedRow{{
+		id: "pkg-completed-40d", runID: "run-closed", scopeID: "scope-pkg",
+		kind: "package_registry", status: "completed", at: completedAt,
+	}}
+	for daysAgo := 39; daysAgo >= 31; daysAgo-- {
+		rows = append(rows, seedRow{
+			id: fmt.Sprintf("pkg-failed-%02dd", daysAgo), runID: "run-closed", scopeID: "scope-pkg",
+			kind: "package_registry", status: "failed_terminal", at: liveAsOf.Add(-time.Duration(daysAgo) * day),
+		})
+	}
+	rows = append(rows, seedRow{
+		id: "pkg-failed-01d", runID: "run-closed", scopeID: "scope-pkg",
+		kind: "package_registry", status: "failed_terminal", at: liveAsOf.Add(-day),
+	})
+	seedRows(t, ctx, database, rows...)
+	statusStore := postgres.NewStatusStore(postgres.SQLDB{DB: database})
+
+	if before := registryLastCompletedAt(t, ctx, statusStore, "package_registry"); !before.Equal(completedAt) {
+		t.Fatalf("last_completed_at before retention = %s, want %s", before, completedAt)
+	}
+	sweeper := NewSweeper(postgres.SQLDB{DB: database})
+	deleted := drainToWrap(t, ctx, sweeper, 1000)
+	if after := registryLastCompletedAt(t, ctx, statusStore, "package_registry"); !after.Equal(completedAt) {
+		t.Fatalf("last_completed_at after retention = %s, want %s (the last completion must survive)", after, completedAt)
+	}
+	if deleted != 9 {
+		t.Fatalf("deleted = %d, want 9 (the superseded failures 39 to 31 days old)", deleted)
+	}
+	if got, want := remainingIDs(t, ctx, database), []string{"pkg-completed-40d", "pkg-failed-01d"}; !slices.Equal(got, want) {
+		t.Fatalf("remaining work items = %v, want %v", got, want)
+	}
+}
+
+// registryLastCompletedAt reads last_completed_at for one registry collector
+// kind through the production status snapshot read.
+func registryLastCompletedAt(t *testing.T, ctx context.Context, store postgres.StatusStore, kind string) time.Time {
+	t.Helper()
+	snapshot, err := store.ReadStatusSnapshot(ctx, liveAsOf)
+	if err != nil {
+		t.Fatalf("ReadStatusSnapshot() error = %v, want nil", err)
+	}
+	for _, collector := range snapshot.RegistryCollectors {
+		if collector.CollectorKind == kind {
+			return collector.LastCompletedAt
+		}
+	}
+	t.Fatalf("status snapshot has no registry collector row for %s", kind)
+	return time.Time{}
 }
 
 // TestPruneWorkItemsLiveLeavesLiveAndYoungRowsAlone proves the pass deletes
