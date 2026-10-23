@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
 
-// calledWorkflowRun retains the raw PR field: only an explicit [] permits
+// calledWorkflowRun retains the raw PR field: only an explicit empty array permits
 // fork fallback. Missing or null association must never become that signal.
 type calledWorkflowRun struct {
 	ID                  int64           `json:"id"`
@@ -32,13 +32,13 @@ func calledRunBelongsToPR(ctx context.Context, runner ghRunner, repo string, pr 
 	if len(association) == 0 || bytes.Equal(association, []byte("null")) {
 		return false, nil
 	}
-	if !bytes.Equal(association, []byte("[]")) {
-		var prs []struct {
-			Number int `json:"number"`
-		}
-		if err := json.Unmarshal(association, &prs); err != nil {
-			return false, fmt.Errorf("decode run %d PR association: %w", run.ID, err)
-		}
+	var prs []struct {
+		Number int `json:"number"`
+	}
+	if err := json.Unmarshal(association, &prs); err != nil {
+		return false, fmt.Errorf("decode run %d PR association: %w", run.ID, err)
+	}
+	if len(prs) != 0 {
 		return len(prs) == 1 && prs[0].Number == pr, nil
 	}
 	mergeSHA, ok := referencedForkMergeSHA(repo, pr, run.ReferencedWorkflows)
