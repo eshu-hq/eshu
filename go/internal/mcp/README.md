@@ -564,7 +564,7 @@ dispatch spans and per-route latency/error metrics — is emitted by the
 `"mcp server started"` (with `transport`, `tools` count, and `tool_surface`, `server.go`),
 `"sse session started"`, `"sse session closed"`, and `"sse session buffer full
 or closed"` (`server_sse.go`). `dispatchTool` logs at debug level with tool
-name, HTTP method, and path (`dispatch.go:26`).
+name, HTTP method, and path; status handling: [dispatch-status.md](dispatch-status.md).
 
 ## Operational notes
 

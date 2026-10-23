@@ -235,6 +235,11 @@ MCP preserves the plain JSON payload in `structuredContent` and in an
 }
 ```
 
+A tool call returns `isError: true` for any handler status outside 2xx, redirects
+included. A call that leaves a required path id empty, for example
+`get_workload_context` with `{}`, returns a text error such as
+`workload_id is required` and does not reach the handler.
+
 The serialized MCP result object has a 256 KiB budget; the enclosing JSON-RPC
 wrapper and transport newline are outside that count. If the two-copy result exceeds
 that budget but the complete embedded resource fits, MCP omits
