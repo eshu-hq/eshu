@@ -100,17 +100,23 @@ func run(parent context.Context) error {
 			},
 		)...,
 	)
+	graphBackend, err := runtimecfg.LoadGraphBackend(os.Getenv)
+	if err != nil {
+		return err
+	}
+	// POST /admin/retire-legacy-workloads (#8795): operator-driven retirement
+	// of pre-#5385 name-only Workload nodes, served on the admin listener.
+	legacyRetirement, err := legacyWorkloadRetirementHandler(cypherExecutor, neo4jReader, graphReader, graphBackend, db, instruments, logger)
+	if err != nil {
+		return err
+	}
 	service, err := app.NewHostedWithStatusServer(
 		"reducer",
 		serviceRunner,
 		statusReader,
 		runtimecfg.WithPrometheusHandler(providers.PrometheusHandler),
+		runtimecfg.WithLegacyWorkloadRetirement(legacyRetirement),
 	)
-	if err != nil {
-		return err
-	}
-
-	graphBackend, err := runtimecfg.LoadGraphBackend(os.Getenv)
 	if err != nil {
 		return err
 	}

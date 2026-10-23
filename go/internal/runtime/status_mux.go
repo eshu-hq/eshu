@@ -61,11 +61,12 @@ func NewStatusAdminMux(
 	probes = append(probes, options.readinessProbes...)
 
 	adminMux, err := NewAdminMux(AdminMuxConfig{
-		ServiceName:     serviceName,
-		Ready:           combineReadinessProbes(probes),
-		StatusHandler:   statusHandler,
-		MetricsHandler:  metricsHandler,
-		RecoveryHandler: options.recoveryHandler,
+		ServiceName:              serviceName,
+		Ready:                    combineReadinessProbes(probes),
+		StatusHandler:            statusHandler,
+		MetricsHandler:           metricsHandler,
+		RecoveryHandler:          options.recoveryHandler,
+		LegacyWorkloadRetirement: options.legacyRetirement,
 	})
 	if err != nil {
 		return nil, err
