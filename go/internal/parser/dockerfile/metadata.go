@@ -35,6 +35,8 @@ type Stage struct {
 	// placeholder text.
 	UnresolvedArgs []string
 	// ArgDefaults holds ARG defaults seen for UnresolvedArgs, as evidence only.
+	// It is bounded: at most maxArgDefaultsPerStage entries, each cut to
+	// maxArgDefaultLen bytes. It never feeds resolution.
 	ArgDefaults map[string]string
 	Platform    string
 	Alias       string
@@ -45,6 +47,12 @@ type Stage struct {
 	Cmd         string
 	User        string
 	Healthcheck string
+	// ArgDefaultsTruncated names the ArgDefaults entries that were cut to the
+	// per-value cap, so a reader knows the stored text is a prefix.
+	ArgDefaultsTruncated []string
+	// ArgDefaultsOmitted is set when a default was left out because the stage
+	// already held the per-stage maximum.
+	ArgDefaultsOmitted bool
 }
 
 // Arg records a Dockerfile ARG instruction.
@@ -262,9 +270,12 @@ func parseStage(item instruction, stageIndex int, escape rune, resolver *baseRef
 
 		BaseRefTemplate: ref.template,
 		UnresolvedArgs:  ref.unresolved,
-		ArgDefaults:     ref.defaults,
+		ArgDefaults:     ref.defaults.values,
 		Alias:           alias,
 		Path:            filepath.Base(name),
+
+		ArgDefaultsTruncated: ref.defaults.truncated,
+		ArgDefaultsOmitted:   ref.defaults.omitted,
 	}
 }
 

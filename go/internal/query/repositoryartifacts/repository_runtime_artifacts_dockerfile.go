@@ -69,7 +69,7 @@ func buildDockerfileRuntimeArtifacts(file querycontract.FileContent) []map[strin
 // addDockerfileBaseRefEvidence copies the ARG substitution evidence of a FROM
 // reference onto the artifact row. base_tag already holds the expanded tag when
 // every variable resolved; base_ref_unresolved is true when it still holds a
-// placeholder, with the ARG defaults the parser saw as evidence.
+// placeholder, with the bounded ARG defaults the parser saw as evidence.
 func addDockerfileBaseRefEvidence(row map[string]any, stage map[string]any) {
 	if template := strings.TrimSpace(querycontract.StringVal(stage, "base_ref_template")); template != "" {
 		row["base_ref_template"] = template
@@ -88,6 +88,14 @@ func addDockerfileBaseRefEvidence(row map[string]any, stage map[string]any) {
 		if len(defaults) > 0 {
 			row["base_ref_arg_defaults"] = defaults
 		}
+	}
+	// The parser bounds the defaults it keeps. These two keys say what that
+	// bound left out, so a reader does not take a cut default for the whole one.
+	if names := stringsFromAny(stage["base_ref_arg_defaults_truncated"]); len(names) > 0 {
+		row["base_ref_arg_defaults_truncated"] = names
+	}
+	if omitted, _ := stage["base_ref_arg_defaults_omitted"].(bool); omitted {
+		row["base_ref_arg_defaults_omitted"] = true
 	}
 }
 

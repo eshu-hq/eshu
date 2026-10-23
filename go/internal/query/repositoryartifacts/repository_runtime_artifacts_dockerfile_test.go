@@ -5,6 +5,7 @@ package repositoryartifacts
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -80,5 +81,40 @@ func TestBuildRepositoryRuntimeArtifactsLeavesPlainDockerfileRowsUnchanged(t *te
 		if _, ok := row[key]; ok {
 			t.Fatalf("plain row carries %q: %#v", key, row)
 		}
+	}
+}
+
+func TestBuildRepositoryRuntimeArtifactsCarriesDockerfileArgDefaultMarkers(t *testing.T) {
+	t.Parallel()
+
+	got := BuildRepositoryRuntimeArtifacts([]querycontract.FileContent{{
+		RelativePath: "Dockerfile",
+		ArtifactType: "dockerfile",
+		Content: "FROM node:${V}-slim AS app\nARG V=" + strings.Repeat("9", 1000) + "\n" +
+			"ARG A=1\nARG B=2\nARG C=3\nARG D=4\nARG E=5\nARG F=6\nARG G=7\nARG H=8\nARG I=9\n" +
+			"ARG J=1\nARG K=2\nARG L=3\nARG M=4\nARG N=5\nARG O=6\nARG P=7\nARG Q=8\n",
+	}, {
+		RelativePath: "Dockerfile.many",
+		ArtifactType: "dockerfile",
+		Content: "FROM x:${V}-${A}-${B}-${C}-${D}-${E}-${F}-${G}-${H}-${I}-${J}-${K}-${L}-${M}-${N}-${O}-${P}-${Q}\n" +
+			"ARG V=1\nARG A=1\nARG B=2\nARG C=3\nARG D=4\nARG E=5\nARG F=6\nARG G=7\nARG H=8\nARG I=9\n" +
+			"ARG J=1\nARG K=2\nARG L=3\nARG M=4\nARG N=5\nARG O=6\nARG P=7\nARG Q=8\n",
+	}})
+	rows := got["deployment_artifacts"].([]map[string]any)
+	byName := map[string]map[string]any{}
+	for _, row := range rows {
+		byName[row["relative_path"].(string)] = row
+	}
+	cut := byName["Dockerfile"]
+	defaults, _ := cut["base_ref_arg_defaults"].(map[string]string)
+	if len(defaults["V"]) == 0 || len(defaults["V"]) >= 1000 {
+		t.Fatalf("base_ref_arg_defaults[V] has %d bytes, want the capped prefix", len(defaults["V"]))
+	}
+	if !reflect.DeepEqual(cut["base_ref_arg_defaults_truncated"], []string{"V"}) {
+		t.Fatalf("base_ref_arg_defaults_truncated = %#v, want [V]", cut["base_ref_arg_defaults_truncated"])
+	}
+	many := byName["Dockerfile.many"]
+	if many["base_ref_arg_defaults_omitted"] != true {
+		t.Fatalf("base_ref_arg_defaults_omitted = %#v, want true for 18 unresolved names", many["base_ref_arg_defaults_omitted"])
 	}
 }

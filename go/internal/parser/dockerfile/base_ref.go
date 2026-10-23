@@ -6,6 +6,7 @@ package dockerfile
 import (
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // predefinedBuildArgs are the platform ARGs the builder supplies to every
@@ -34,6 +35,53 @@ const (
 	maxReferenceLen = maxExpandedLen
 	maxBraceDepth   = 64
 )
+
+// The ARG default evidence on a stage is bounded in both dimensions. A raw
+// default is repeated on every FROM stage that reads it, so without a bound the
+// payload grows with ARGs times FROM lines: 200 ARGs of 4 KB each read by 1000
+// FROM lines marshal to 800 MB from 1.7 MB of input. maxArgDefaultLen bounds one
+// stored default and maxArgDefaultsPerStage bounds how many a stage carries.
+// Both only trim evidence: the value a FROM resolves to never comes from the
+// stored copy.
+const (
+	maxArgDefaultLen       = 256
+	maxArgDefaultsPerStage = 16
+)
+
+// argDefaultEvidence collects the bounded ARG default evidence of one stage.
+type argDefaultEvidence struct {
+	values map[string]string
+	// truncated names the stored defaults that were cut to maxArgDefaultLen.
+	truncated []string
+	// omitted is set when a default was left out because the stage already
+	// held maxArgDefaultsPerStage.
+	omitted bool
+}
+
+// add stores the first default seen for name, cutting it at maxArgDefaultLen on
+// a rune boundary, and records the cut or the omission so the evidence says
+// what it leaves out.
+func (e *argDefaultEvidence) add(name, value string) {
+	if _, seen := e.values[name]; seen {
+		return
+	}
+	if len(e.values) >= maxArgDefaultsPerStage {
+		e.omitted = true
+		return
+	}
+	if len(value) > maxArgDefaultLen {
+		cut := maxArgDefaultLen
+		for cut > 0 && !utf8.RuneStart(value[cut]) {
+			cut--
+		}
+		value = value[:cut]
+		e.truncated = append(e.truncated, name)
+	}
+	if e.values == nil {
+		e.values = map[string]string{}
+	}
+	e.values[name] = value
+}
 
 // argDecl is one name[=default] pair of an ARG instruction.
 type argDecl struct {
@@ -92,8 +140,8 @@ type baseRef struct {
 	template string
 	// unresolved lists the variables whose value is not known at parse time.
 	unresolved []string
-	// defaults holds the ARG defaults seen for unresolved variables.
-	defaults map[string]string
+	// defaults holds the bounded ARG default evidence for unresolved variables.
+	defaults argDefaultEvidence
 }
 
 func (r *baseRefResolver) resolve(ref string) baseRef {
@@ -112,13 +160,10 @@ func (r *baseRefResolver) resolve(ref string) baseRef {
 		return baseRef{ref: expanded.out, template: ref}
 	}
 	unresolved = sortedUnique(unresolved)
-	var defaults map[string]string
+	var defaults argDefaultEvidence
 	for _, name := range unresolved {
 		if global, ok := r.globals[name]; ok && global.hasDefault {
-			if defaults == nil {
-				defaults = map[string]string{}
-			}
-			defaults[name] = global.rawDefault
+			defaults.add(name, global.rawDefault)
 		}
 	}
 	return baseRef{ref: ref, template: ref, unresolved: unresolved, defaults: defaults}
@@ -130,18 +175,20 @@ func noteStageArgDefaults(stage *Stage, decls []argDecl) {
 	if stage == nil {
 		return
 	}
+	evidence := argDefaultEvidence{
+		values:    stage.ArgDefaults,
+		truncated: stage.ArgDefaultsTruncated,
+		omitted:   stage.ArgDefaultsOmitted,
+	}
 	for _, decl := range decls {
 		if !decl.hasDefault || !slices.Contains(stage.UnresolvedArgs, decl.name) {
 			continue
 		}
-		if _, seen := stage.ArgDefaults[decl.name]; seen {
-			continue
-		}
-		if stage.ArgDefaults == nil {
-			stage.ArgDefaults = map[string]string{}
-		}
-		stage.ArgDefaults[decl.name] = decl.value
+		evidence.add(decl.name, decl.value)
 	}
+	stage.ArgDefaults = evidence.values
+	stage.ArgDefaultsTruncated = evidence.truncated
+	stage.ArgDefaultsOmitted = evidence.omitted
 }
 
 type expansion struct {
@@ -419,5 +466,15 @@ func addBaseRefEvidence(row map[string]any, stage Stage) {
 			defaults[name] = value
 		}
 		row["base_ref_arg_defaults"] = defaults
+	}
+	if len(stage.ArgDefaultsTruncated) > 0 {
+		names := make([]any, 0, len(stage.ArgDefaultsTruncated))
+		for _, name := range stage.ArgDefaultsTruncated {
+			names = append(names, name)
+		}
+		row["base_ref_arg_defaults_truncated"] = names
+	}
+	if stage.ArgDefaultsOmitted {
+		row["base_ref_arg_defaults_omitted"] = true
 	}
 }

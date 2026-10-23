@@ -9,9 +9,9 @@
    rule, supported operators, unresolved evidence)
 5. tokens.go - Dockerfile escape directive detection and command-line token
    splitting for quoted and escaped metadata values
-6. metadata_test.go, base_ref_test.go, base_ref_bound_test.go and
-   base_ref_cap_test.go - behavior and expansion-bound coverage for runtime
-   metadata and map shape
+6. metadata_test.go, base_ref_test.go, base_ref_bound_test.go,
+   base_ref_cap_test.go and base_ref_payload_test.go - behavior, expansion-bound
+   and evidence-payload coverage for runtime metadata and map shape
 
 ## Invariants this package enforces
 
@@ -24,6 +24,11 @@
   and report it in UnresolvedArgs.
 - An expansion that produces more than 4096 bytes is unresolved, checked on the
   finished output. An ARG default past the cap is never stored as known.
+- The ARG default evidence on a stage (ArgDefaults) is capped at 256 bytes per
+  value and 16 entries per stage, with ArgDefaultsTruncated and
+  ArgDefaultsOmitted making the cut visible. Resolution reads the declared
+  default, never the stored evidence. Do not raise either cap without
+  re-measuring the marshaled payload (base_ref_payload_test.go).
 - Row ordering must stay deterministic because parser payloads are fact inputs.
 
 ## Common changes and how to scope them

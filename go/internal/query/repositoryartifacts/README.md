@@ -24,8 +24,11 @@ the parser expanded ARG defaults declared before the first `FROM`. A row adds
 `base_ref_template` (the `FROM` reference as written) when it held a variable.
 When a value is only known at build time the row keeps the placeholder in
 `base_tag`, sets `base_ref_unresolved: true`, lists `base_ref_unresolved_args`,
-and carries `base_ref_arg_defaults` as evidence. A consumer must not treat a
-`base_ref_unresolved` tag as a real version.
+and carries `base_ref_arg_defaults` as evidence. That evidence is bounded by the
+parser (256 bytes per default, 16 per stage): `base_ref_arg_defaults_truncated`
+names a default whose text is a prefix and `base_ref_arg_defaults_omitted: true`
+says a default was left out. A consumer must not treat a `base_ref_unresolved`
+tag as a real version, or a cut default as the whole one.
 
 ## Exported surface
 

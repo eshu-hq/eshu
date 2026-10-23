@@ -77,6 +77,8 @@ Dockerfile rule for how `ARG` and `FROM` interact:
   (for example a stage-local ARG default the `FROM` could not see). All three
   keys are omitted for a `FROM` with no variable, so existing payloads are
   byte-identical. They ride in the open attributes of the typed stage contract.
+  The default evidence is bounded (see the next bullets); the stored text is
+  never used to resolve a reference.
 - An unaliased stage is named after its expanded image.
 - A resolved value is the Dockerfile's own default. A CI `--build-arg` can
   override it at build time, and the parser cannot see that.
@@ -91,17 +93,30 @@ Dockerfile rule for how `ARG` and `FROM` interact:
   text, both hit the cap. The cap is checked on the finished output, so an ARG
   default that expands past it is never stored as a known value and later
   `FROM` lines cannot read it. In every case the reference stays unresolved.
+  Not retaining the value of an unknown default is hygiene: `lookup` already
+  ignores a global that is not known, so correctness does not depend on it.
+- The ARG default evidence is bounded too. A raw default is repeated on every
+  `FROM` stage that reads it, so an unbounded copy made the payload grow with
+  ARGs times `FROM` lines. Each stored default is cut to 256 bytes (on a rune
+  boundary) and a stage keeps at most 16 defaults (the first 16 names in sorted
+  order, then stage-local ARGs in declaration order). The cut is visible:
+  `base_ref_arg_defaults_truncated` lists the names whose stored text is a
+  prefix, and `base_ref_arg_defaults_omitted: true` says at least one default
+  was left out for the per-stage maximum (`base_ref_unresolved_args` still lists
+  every name). Both keys are absent when nothing was cut, so ordinary payloads
+  are unchanged. A stage row is self-contained evidence, so a default is not
+  deduplicated across stages; the per-stage cap bounds the repeat instead.
 
-No-Regression Evidence: #8810 review fixes. The reference bound adds one
-linear pass over each reference that contains `$`. The output cap adds one
-length compare after each expansion.
-`go test -run xxx -bench BaseRefExpansion -benchmem -benchtime=500000x -count 2`,
-old and new interleaved on one loaded host: the ordinary `ARG` plus `FROM`
-Dockerfile took 2.3-2.9 us/op when the host was quiet and 5.4-6.0 us/op when it
-was busy, with old and new within noise of each other in every pair, and 33 allocs/op
-and 5472 B/op both times. That is no measurable change, about 2.3 us. The
-earlier 5.0-12.2 us to 3.1-4.5 us improvement noted for this guard was
-cold-start noise from a short run and is withdrawn.
+No-Regression Evidence: #8810. The reference bound adds one linear pass over
+each reference that contains `$`. The output cap adds one length compare after
+each expansion. The evidence cap adds one length compare per stored default.
+`go test -run xxx -bench BaseRefExpansion/ordinary -benchmem -benchtime=500000x`,
+old and new interleaved on one loaded host (load average about 32): the ordinary
+`ARG` plus `FROM` Dockerfile took 2.3 to 6.3 us per Dockerfile depending on host
+load, with old and new within noise of each other in every pair, and 33
+allocs/op both times (5472 B/op old, 5504 B/op new: the three added `Stage`
+fields). That is no measurable change. Differential: `RuntimeMetadata(...).Map()`
+JSON for the 23 tracked Dockerfiles is byte-identical before and after.
 Hostile input, `-benchtime=3x`: a balanced 60 KB line of nested `${A:-`
 blocks took 461-887 ms/op and 835.7 MB/op with the reference bound disabled and
 0.54 ms/op and 0.54 MB/op with it. 200 such lines in one Dockerfile took 59.8 s
@@ -110,10 +125,26 @@ about 4000 literal bytes each repeating the previous one, then 1000
 `FROM i:${A100}` lines, 416 KB of input) took 563-576 ms/op and 426.6 MB/op
 before the output cap, and left 400 MB of base tags across the 1000 stages. It
 takes 7.8-13.1 ms/op and 5.0 MB/op after, and every stage stays unresolved with
-a 7-byte tag (`${A100}`). `TestBaseRefOversizedNestedReferenceIsUnresolvedAndFast`,
+a 7-byte tag (`${A100}`).
+ARG default evidence, marshaled `json.Marshal(RuntimeMetadata(src).Map())`
+(`TestBaseRefArgDefaultEvidencePayloadStaysBounded`; 200 ARGs of
+`ARG Un=${TARGETARCH}` plus 4000 bytes, one `FROM i:$U0$U1...$U199` line per
+stage):
+
+| Shape | Input | Payload before | Payload after |
+| --- | --- | --- | --- |
+| 200 ARGs, 100 FROM lines | 894,290 B | 81,589,217 B | 1,583,117 B |
+| 200 ARGs, 1000 FROM lines | 1,702,490 B | 808,575,218 B | 8,514,218 B |
+| 1000 ARGs, 800 refs per FROM, 1000 FROM lines | 7,920,890 B | 3,235,828,818 B | 21,967,818 B |
+
+Wall time to parse and marshal the second row: 1.53 s before, 0.08-0.12 s after;
+the third: 5.56 s before, 0.27-0.32 s after (a loaded host, two runs). The remaining payload is the input carried
+through: every ARG row holds its default once, and each stage row holds its own
+`FROM` text and name list. The evidence a stage adds is at most 16 entries of
+256 bytes (4251 B measured). `TestBaseRefOversizedNestedReferenceIsUnresolvedAndFast`,
 `TestBaseRefManyNestedReferencesStayBounded`,
 `TestBaseRefPaddedArgChainIsUnresolved`, and
-`TestBaseRefPaddedArgChainDoesNotAmplifyAcrossStages` pin these cases.
+`TestBaseRefPaddedArgChainDoesNotAmplifyAcrossStages` pin the expansion cases.
 
 No-Observability-Change: the parser emits no telemetry of its own. Parse
 timing stays on the parent parser engine's existing per-file duration. A

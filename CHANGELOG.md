@@ -103,6 +103,11 @@ recent shipped work grouped by feature area.
   the Dockerfile's own default: a CI `--build-arg` can override it at build
   time, and the parser cannot see that. A reference over 4096 bytes, nested deeper
   than 64 `${` levels, or expanding to more than 4096 bytes stays unresolved.
+  The default evidence is bounded as well: each `base_ref_arg_defaults` value
+  is cut to 256 bytes and a stage keeps at most 16, with
+  `base_ref_arg_defaults_truncated` and `base_ref_arg_defaults_omitted` marking
+  what was left out, so a Dockerfile with many long `ARG` defaults and many
+  `FROM` lines cannot multiply into a huge payload.
 
 ### Shared-snapshot export refused on unqualified PostgreSQL readers (breaking)
 
