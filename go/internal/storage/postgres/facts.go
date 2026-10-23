@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
+	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -134,6 +135,84 @@ func (s FactStore) countFactsGeneration(ctx context.Context, scopeID, generation
 		}
 	}
 	return count, rows.Err()
+}
+
+// successorGuardCountQuery sizes one generation for the #7926
+// successor-emptiness backstop in a single index-only pass over
+// fact_records_scope_generation_idx (#8750): the rows a collector stream can
+// replace, every row, and the file rows. Reducer domains write
+// reducer_-prefixed facts into the source generation after it activates; no
+// collector stream carries them, so counting them inflated the prior and
+// refused ordinary successors. File rows include tombstones so the count
+// matches successorGuardAnchorFilePathsQuery row for row; a full generation,
+// the only kind sized by files, carries no file tombstones.
+const successorGuardCountQuery = `
+SELECT COUNT(*) FILTER (WHERE ` + linksfreshnessstore.ExcludeReducerDerivedKinds + `),
+       COUNT(*),
+       COUNT(*) FILTER (WHERE fact_kind = 'file')
+FROM fact_records
+WHERE scope_id = $1
+  AND generation_id = $2
+`
+
+// guardFactCounts is one generation's size as the backstop sees it.
+type guardFactCounts struct {
+	// Collector counts the rows a collector stream emits: every row except
+	// reducer-derived ones.
+	Collector int
+	// Total counts every row, reducer-derived ones included.
+	Total int
+	// Files counts the file rows.
+	Files int
+}
+
+func (c guardFactCounts) add(other guardFactCounts) guardFactCounts {
+	return guardFactCounts{
+		Collector: c.Collector + other.Collector,
+		Total:     c.Total + other.Total,
+		Files:     c.Files + other.Files,
+	}
+}
+
+// countGuardFacts sizes one generation for the backstop. A delta generation
+// with a projected base reports base plus own rows, the same upper bound
+// CountFacts reports, and unioned true; a delta whose base is missing returns
+// projector.DeltaBaseMissingError so the caller can size it on its own rows
+// (#8362).
+func (s FactStore) countGuardFacts(ctx context.Context, scopeID, generationID string) (guardFactCounts, bool, error) {
+	if s.database == nil {
+		return guardFactCounts{}, false, fmt.Errorf("fact store database is required")
+	}
+	baseGenerationID, _, wantUnion, err := s.resolveDeltaUnionBase(ctx, scopeID, generationID)
+	if err != nil {
+		return guardFactCounts{}, false, err
+	}
+	own, err := s.countGuardFactsGeneration(ctx, scopeID, generationID)
+	if err != nil || !wantUnion {
+		return own, false, err
+	}
+	base, err := s.countGuardFactsGeneration(ctx, scopeID, baseGenerationID)
+	if err != nil {
+		return guardFactCounts{}, false, err
+	}
+	return base.add(own), true, nil
+}
+
+// countGuardFactsGeneration runs successorGuardCountQuery for one
+// (scope, generation), with no delta-union resolution.
+func (s FactStore) countGuardFactsGeneration(ctx context.Context, scopeID, generationID string) (guardFactCounts, error) {
+	rows, err := s.database.QueryContext(ctx, successorGuardCountQuery, scopeID, generationID)
+	if err != nil {
+		return guardFactCounts{}, fmt.Errorf("count guard facts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var counts guardFactCounts
+	if rows.Next() {
+		if err := rows.Scan(&counts.Collector, &counts.Total, &counts.Files); err != nil {
+			return guardFactCounts{}, fmt.Errorf("count guard facts scan: %w", err)
+		}
+	}
+	return counts, rows.Err()
 }
 
 // UpsertFacts persists fact envelopes into fact_records.

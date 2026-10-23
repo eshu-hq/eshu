@@ -68,3 +68,5 @@ Observability Evidence (#8362): the fallback records a
 the refusal log carries `prior_orphan_fallback=true` alongside
 `prior_fact_count`, so an operator can tell a fallback-sized prior from a
 union-sized one.
+
+Later sizing change: #8750 made the guard compare collector rows only and size git deltas by their file union; see `docs/internal/evidence/8750-successor-guard-sizing.md`.

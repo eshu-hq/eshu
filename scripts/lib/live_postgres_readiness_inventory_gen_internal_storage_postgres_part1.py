@@ -234,6 +234,20 @@ TABLE = {
             "TestListAllDeployableUnitAdmittedAnchorReposConvergesAfterSupersedingDecisionLive",
             "TestListAllDeployableUnitAdmittedAnchorReposBreaksDecidedAtTiesLive",
         ),
+        "go/internal/storage/postgres/ingestion_successor_guard_sizing_live_test.go": (
+            "TestGuardStoresForcedFullOverReducerHeavyPriorLive",
+            "TestGuardRefusesSharplyShrunkenFullOverReducerHeavyPriorLive",
+            "TestGuardStoresSmallDeltaOverLargePriorLive",
+            "TestGuardRefusesMassDeleteDeltaLive",
+            "TestGuardStoresRenameDeltaLive",
+            "TestGuardStoresDeltaDeletingNeverIndexedPathsLive",
+            "TestGuardStoresDeltaWithMissingBaseLive",
+            "TestGuardSizesDeltaWithoutRepositoryFactAsFullLive",
+            "TestGuardRefusesSharpShrinkFullWhileChainedDeltaPendingLive",
+            "TestGuardStoresHalfSizeFullWhileChainedDeltaPendingLive",
+            "TestGuardSizesAgainstLargerPendingFullLive",
+            "TestGuardRefusesStepwiseShrinkThroughPendingFullLive",
+        ),
         "go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go": (
             "TestReducerContentionGateManifestLessDirtyRuleReturnsTheSameDefinitions",
             "TestReducerContentionGateManifestLessDirtyRuleNaiveRuleLosesTheHole",
@@ -471,20 +485,6 @@ TABLE = {
             "TestCompletionWakeRunningItemReplayBitLive",
             "TestCompletionWakeClaimedMissingFingerprintNotFlaggedLive",
             "TestCompletionWakeRetryConvergesAfterLostWakeLive",
-        ),
-        "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
-            "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
-        ),
-        "go/internal/storage/postgres/service_catalog_runtime_producer_store_live_test.go": (
-            "TestReducerContentionGateRuntimeProducerStatesActiveGenerationOnly",
-            "TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt",
-            "TestReducerContentionGateRuntimeProducerStatesPlanUsesScopeGenerationIndex",
-        ),
-        "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
-            "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",
-        ),
-        "go/internal/storage/postgres/trigger_bootstrap_parity_live_test.go": (
-            "TestWebhookTriggerStoreRunsOnBootstrapSchemaLive",
         ),
     },
 }

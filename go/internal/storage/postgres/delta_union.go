@@ -116,9 +116,23 @@ func (s FactStore) resolveDeltaUnionBase(
 	if !isDelta || baseline == "" {
 		return "", "", false, nil
 	}
+	baseID, err := s.resolveDeltaBaseAtCommit(ctx, scopeID, generationID, baseline)
+	if err != nil {
+		return "", baseline, false, err
+	}
+	return baseID, baseline, true, nil
+}
+
+// resolveDeltaBaseAtCommit returns the newest projected full generation at
+// baseline, the base a delta diffed from baseline overlays at projection.
+// The #8750 destructive-successor guard sizes a delta against the same base
+// through this helper, so the guard and the projector cannot disagree on it.
+// A missing, pruned, or unconfirmed base fails closed with
+// projector.DeltaBaseMissingError naming generationID.
+func (s FactStore) resolveDeltaBaseAtCommit(ctx context.Context, scopeID, generationID, baseline string) (string, error) {
 	baseRows, err := s.database.QueryContext(ctx, deltaUnionBaseQuery, scopeID, baseline)
 	if err != nil {
-		return "", "", false, fmt.Errorf("resolve delta union base: %w", err)
+		return "", fmt.Errorf("resolve delta union base: %w", err)
 	}
 	defer func() { _ = baseRows.Close() }()
 	var (
@@ -127,15 +141,15 @@ func (s FactStore) resolveDeltaUnionBase(
 	)
 	if baseRows.Next() {
 		if scanErr := baseRows.Scan(&baseID, &baseStatus); scanErr != nil {
-			return "", "", false, fmt.Errorf("resolve delta union base scan: %w", scanErr)
+			return "", fmt.Errorf("resolve delta union base scan: %w", scanErr)
 		}
 	}
 	if err := baseRows.Err(); err != nil {
-		return "", "", false, fmt.Errorf("resolve delta union base: %w", err)
+		return "", fmt.Errorf("resolve delta union base: %w", err)
 	}
 	baseID = strings.TrimSpace(baseID)
 	if baseID == "" {
-		return "", baseline, false, deltaBaseMissing(scopeID, generationID, baseline)
+		return "", deltaBaseMissing(scopeID, generationID, baseline)
 	}
 	if baseStatus == "superseded" {
 		pruned, err := s.deltaUnionBasePruned(ctx, scopeID, baseID)
@@ -151,13 +165,13 @@ func (s FactStore) resolveDeltaUnionBase(
 					slog.String("generation_id", generationID),
 					slog.Any("probe_error", err))
 			}
-			return "", baseline, false, deltaBaseMissing(scopeID, generationID, baseline)
+			return "", deltaBaseMissing(scopeID, generationID, baseline)
 		}
 		if pruned {
-			return "", baseline, false, deltaBaseMissing(scopeID, generationID, baseline)
+			return "", deltaBaseMissing(scopeID, generationID, baseline)
 		}
 	}
-	return baseID, baseline, true, nil
+	return baseID, nil
 }
 
 // deltaBaseMissing builds the fail-closed refusal for a delta with no usable

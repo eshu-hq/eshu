@@ -111,3 +111,75 @@ func ResetSkippedRefreshCountForTesting() {
 		skippedRefreshCountByReason[index].Store(0)
 	}
 }
+
+// Successor guard rules label eshu_dp_ingestion_successor_guard_decisions_total
+// and the successor_guard log stage (#8750): which arm of the #7926
+// destructive-successor backstop decided one commit. The set is closed; an
+// unknown rule records as SuccessorGuardRuleOther.
+const (
+	// SuccessorGuardRuleTrustedDeletion: the collector attested the
+	// deletion, so the successor stores whatever its size.
+	SuccessorGuardRuleTrustedDeletion = "trusted_deletion"
+	// SuccessorGuardRuleNoPrior: the scope has no prior generation, or the
+	// prior holds no collector rows, so nothing can be retracted.
+	SuccessorGuardRuleNoPrior = "no_prior"
+	// SuccessorGuardRuleOrphanFallback: the prior is a delta whose base is
+	// missing (#8362), so it is sized on its own rows.
+	SuccessorGuardRuleOrphanFallback = "orphan_fallback"
+	// SuccessorGuardRuleEmpty: the successor streamed no facts.
+	SuccessorGuardRuleEmpty = "empty"
+	// SuccessorGuardRuleCollectorRatio: a full successor compared with the
+	// prior's collector rows (reducer-derived rows excluded).
+	SuccessorGuardRuleCollectorRatio = "collector_ratio"
+	// SuccessorGuardRuleAnchorMissing: a delta with no projected full
+	// generation at its baseline commit stores; the projector refuses it as
+	// base-missing and arms the reindex watermark.
+	SuccessorGuardRuleAnchorMissing = "anchor_missing"
+	// SuccessorGuardRuleFileUnionBound: a delta whose zero-query lower bound
+	// on its union's file count holds at least half the base's files.
+	SuccessorGuardRuleFileUnionBound = "file_union_bound"
+	// SuccessorGuardRuleFileUnionExact: a delta whose lower bound failed and
+	// whose exact union file count was probed against the base's paths.
+	SuccessorGuardRuleFileUnionExact = "file_union_exact"
+	// SuccessorGuardRuleOther counts a rule outside this set.
+	SuccessorGuardRuleOther = "other"
+)
+
+// Successor guard outcomes and kinds, the other two closed label sets of
+// eshu_dp_ingestion_successor_guard_decisions_total.
+const (
+	// SuccessorGuardOutcomeStored: the successor was stored.
+	SuccessorGuardOutcomeStored = "stored"
+	// SuccessorGuardOutcomeRefused: the successor was refused and the prior
+	// generation stays active.
+	SuccessorGuardOutcomeRefused = "refused"
+	// SuccessorGuardKindFull labels a full successor generation.
+	SuccessorGuardKindFull = "full"
+	// SuccessorGuardKindDelta labels a delta successor generation.
+	SuccessorGuardKindDelta = "delta"
+)
+
+var successorGuardRules = [...]string{
+	SuccessorGuardRuleTrustedDeletion,
+	SuccessorGuardRuleNoPrior,
+	SuccessorGuardRuleOrphanFallback,
+	SuccessorGuardRuleEmpty,
+	SuccessorGuardRuleCollectorRatio,
+	SuccessorGuardRuleAnchorMissing,
+	SuccessorGuardRuleFileUnionBound,
+	SuccessorGuardRuleFileUnionExact,
+	SuccessorGuardRuleOther,
+}
+
+// SuccessorGuardRules returns the closed, ordered successor guard rule set.
+func SuccessorGuardRules() []string {
+	return slices.Clone(successorGuardRules[:])
+}
+
+// SuccessorGuardRule maps rule onto the closed set.
+func SuccessorGuardRule(rule string) string {
+	if slices.Contains(successorGuardRules[:], rule) {
+		return rule
+	}
+	return SuccessorGuardRuleOther
+}

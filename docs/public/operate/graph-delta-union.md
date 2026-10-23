@@ -23,6 +23,28 @@ routes the next selection to the forced-full path, which restores the base.
 The watermark write retries on the next sync's refusal, so a transient
 failure self-heals.
 
+## Successor guard anchor (#8750)
+
+The ingestion commit's destructive-successor guard (#7926) sizes a git delta
+by the same union the projector will build, not by the delta's own stream. It
+finds the delta's anchor with the base rule above (the newest projected full
+generation at the delta's baseline commit), through the same resolver, so the
+guard and the projection agree about the base. A delta with no anchor stores;
+the projector then refuses it as `refused_base_missing` and arms the reindex
+watermark, which a store-side refusal would not.
+
+The guard stores a delta unless its union would hold under half of the
+anchor's files. It checks a zero-query lower bound first
+(`anchorFiles - |touched ∪ live| + live`). Only a delta that may remove most
+of the anchor's files reads the anchor's file paths once to get the exact
+union. Paths are matched the way the overlay matches them, so a rename nets to
+zero and a deleted path that was never indexed removes nothing. Every guarded
+commit logs the `successor_guard` stage and counts
+`eshu_dp_ingestion_successor_guard_decisions_total` by `kind`, `rule`, and
+`outcome`; a refused delta leaves the prior generation active and the next
+sync recollects. The sizing evidence is in
+`docs/internal/evidence/8750-successor-guard-sizing.md`.
+
 ## Operator signals
 
 - `eshu_dp_projector_delta_union_total` by closed `outcome`

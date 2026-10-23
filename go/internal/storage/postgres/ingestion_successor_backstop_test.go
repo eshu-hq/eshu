@@ -30,15 +30,15 @@ func successorBackstopFixture(generationID string, trusted bool) (scope.Ingestio
 }
 
 // successorBackstopDB stages the pre-write reads for one Store-path commit:
-// the unchanged-generation candidate row plus the candidate's committed fact
-// count.
+// the unchanged-generation candidate row plus the candidate's guard counts.
 func successorBackstopDB(tx *fakeTx, priorFacts int) *fakeTransactionalDB {
 	return &fakeTransactionalDB{tx: tx, queryResponses: []queueFakeRows{
 		{rows: [][]any{{"generation-active", "hint-prior", "", "active", false, false}}},
 		// The delta-union base probe (#8189) CountFacts issues before the
 		// count: not a delta here, so no union.
 		{rows: [][]any{{false, ""}}},
-		{rows: [][]any{{priorFacts}}},
+		// Guard counts: collector rows, all rows, file rows (#8750).
+		{rows: [][]any{{priorFacts, priorFacts, 0}}},
 	}}
 }
 

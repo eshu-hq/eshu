@@ -37,9 +37,46 @@ LIMIT 1
 // activeGenerationPredicate selects a scope's active generation. The delta
 // baseline read above and the projector's delta-baseline fence
 // (deltaBaselineFenceQuery, #7319) share it, so the commit a delta is diffed
-// from and the commit the fence compares it with come from the same rule.
+// from and the commit the fence compares it with come from the same rule. The
+// destructive-successor guard's active read (#8750) uses it too.
 const activeGenerationPredicate = `status = 'active'
   AND activated_at IS NOT NULL`
+
+// successorGuardActiveGenerationQuery reads the scope's active generation id
+// for the destructive-successor guard (#8750 review F1): the generation whose
+// content the graph holds, sized next to a pending duplicate-check candidate.
+// It never falls back to a pending row (backfill.ActiveScopeGenerationQuery
+// does, through COALESCE over the newest row): sizing the guard on a pending
+// generation is the defect this read exists to close. A single-row lookup on
+// the partial unique index scope_generations_active_scope_idx.
+const successorGuardActiveGenerationQuery = `
+SELECT generation_id
+FROM scope_generations
+WHERE scope_id = $1
+  AND ` + activeGenerationPredicate + `
+LIMIT 1
+`
+
+// activeGenerationForGuard returns the scope's active generation id, or false
+// when no generation is active. The guard calls it only when its candidate is
+// not itself active, on the base connection before the commit transaction
+// opens; an error fails the commit closed.
+func (s IngestionStore) activeGenerationForGuard(ctx context.Context, scopeID string) (string, bool, error) {
+	rows, err := s.database.QueryContext(ctx, successorGuardActiveGenerationQuery, scopeID)
+	if err != nil {
+		return "", false, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return "", false, rows.Err()
+	}
+	var generationID string
+	if err := rows.Scan(&generationID); err != nil {
+		return "", false, err
+	}
+	generationID = strings.TrimSpace(generationID)
+	return generationID, generationID != "", rows.Err()
+}
 
 // LastProjectedCommitSHA returns the source commit SHA of the active generation
 // for scopeID, or an empty string when the scope has no active generation or

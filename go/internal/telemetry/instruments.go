@@ -1145,6 +1145,10 @@ type Instruments struct {
 	// reindex_unsupported). Never carries scope ids. Registered in
 	// instruments_recovery_delta_active.go.
 	RecoveryDeltaActiveScopes metric.Int64Counter
+	// IngestionSuccessorGuardDecisions counts destructive-successor guard
+	// decisions (#8750) by kind (full, delta), the closed
+	// SuccessorGuardRule* rule set, and outcome (stored, refused).
+	IngestionSuccessorGuardDecisions metric.Int64Counter
 	// ProjectorDeltaUnion counts delta-base union fact-load decisions by the
 	// closed outcome set (union_base_found, union_base_missing_refused,
 	// union_resolve_failed, union_scope_mismatch),
@@ -5930,6 +5934,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	}
 	if err := registerRecoveryDeltaActiveScopes(meter, inst); err != nil {
 		return nil, err
+	}
+	if inst.IngestionSuccessorGuardDecisions, err = meter.Int64Counter(
+		"eshu_dp_ingestion_successor_guard_decisions_total",
+		metric.WithDescription("Destructive-successor guard decisions per commit (#8750), by kind (full, delta), "+
+			"rule (trusted_deletion, no_prior, orphan_fallback, empty, collector_ratio, anchor_missing, file_union_bound, file_union_exact, other) "+
+			"and outcome (stored, refused)"),
+	); err != nil {
+		return nil, fmt.Errorf("register IngestionSuccessorGuardDecisions counter: %w", err)
 	}
 	if err := registerProjectorDeltaUnion(meter, inst); err != nil {
 		return nil, err

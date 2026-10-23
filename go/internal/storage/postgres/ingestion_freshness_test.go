@@ -130,8 +130,9 @@ func TestIngestionStoreCommitScopeGenerationContinuesWhenActiveFingerprintDiffer
 			// before the count: not a delta here, so no union.
 			{rows: [][]any{{false, ""}}},
 			// The destructive-successor guard's prior fact count (#7926):
-			// the empty successor over an empty prior stores.
-			{rows: [][]any{{0}}},
+			// the empty successor over an empty prior stores (collector
+			// rows, all rows, file rows; #8750).
+			{rows: [][]any{{0, 0, 0}}},
 		},
 	}
 	store := NewIngestionStore(db)

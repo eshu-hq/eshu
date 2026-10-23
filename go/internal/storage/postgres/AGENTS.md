@@ -69,7 +69,7 @@
   re-opens the active generation's projector work (#7978). Exclude `failed`
   generations so a later snapshot retries a failed first projection. Separately
   (#6738), the generation upsert rewrites only `pending` rows and never refreshes
-  `observed_at`/`ingested_at`; a finalized same-ID retry rolls back and drains.
+  `observed_at`/`ingested_at`; a finalized same-ID retry rolls back and drains. The #7926 destructive-successor backstop sizes like for like (#8750): `successor_guard.go` compares a full successor with the prior's collector rows (`linksfreshnessstore.ExcludeReducerDerivedKinds` strips the `reducer_` rows a reducer writes back into a generation), and sizes a git delta successor by its file-level union against its anchor, which must come from `resolveDeltaBaseAtCommit`, the resolver the projector overlays on, never a second copy of that rule; path matching must use `facts.DeltaScope.FilePath`, the overlay's own qualifier. Keep `successorGuardCountQuery` one index-only pass, keep the anchor probe off the common path (it runs only when the zero-query bound fails), and keep the rule, kind, and outcome labels on `eshu_dp_ingestion_successor_guard_decisions_total` inside the closed `telemetry.SuccessorGuardRule*` sets; see `docs/internal/evidence/8750-successor-guard-sizing.md`.
 - **JSONB sanitization** — `sanitizeJSONB` removes JSON-encoded U+0000
   characters and raw control bytes before every fact INSERT. It preserves
   literal source text such as the six characters `\u0000`. Skipping this causes

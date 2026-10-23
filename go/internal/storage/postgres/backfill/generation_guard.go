@@ -270,8 +270,10 @@ func DecideUnchangedGeneration(
 //   - a successor holding less than half the prior's facts is a sharp
 //     shrink and is refused; exactly half or milder drift stores.
 //
-// Counts are envelope counts on both sides: the prior's committed
-// fact_records rows and the successor's streamed envelopes. The comparison
+// Counts must be like for like (#8750): the successor's streamed envelopes
+// against the prior's collector rows, never the prior's reducer-derived rows,
+// which no collector stream carries. A delta successor is not sized here at
+// all; DecideSuccessor sizes it by its projected file union. The comparison
 // is deliberately coarse — it is a backstop against provider outages and
 // broken queries wiping a scope, not a precision drift detector. A refusal
 // keeps the prior generation active; the caller records it under

@@ -61,6 +61,26 @@ reconciliation, plus the anchors scanner.
 - `RefuseDestructiveSuccessor` — the #7926 successor-emptiness backstop
   predicate: refuses an empty or sharply shrunken successor over a
   content-bearing prior unless the generation carries trusted deletion.
+  The shrink arm compares like for like (#8750): the root passes the
+  prior's collector rows (the reducer-prefixed rows a reducer writes back
+  into a generation are excluded), never every row of the generation.
+- `DecideSuccessor`, `SuccessorGuardInput`, `SuccessorGuardDecision`,
+  `DecideDeltaFileUnion` — the #8750 decision for one commit. A full
+  successor goes through `RefuseDestructiveSuccessor` against the prior's
+  collector rows. A git delta successor is sized by its projected file
+  union against its anchor, the newest projected full generation at
+  `DeltaBaselineCommitSHA`, resolved by the root with the same resolver the
+  projector overlays on. `DecideSuccessor` first applies the zero-query
+  lower bound `anchorFiles - |touched ∪ live| + live`. A bound at or above
+  half the anchor's files stores. Under half it sets `NeedsProbe`, the
+  root counts the anchor files inside `touched ∪ live` with one probe, and
+  `DecideDeltaFileUnion` refuses only when the exact union holds under half
+  the anchor's files. A delta with no anchor stores, so the projector's
+  base-missing refusal arms the reindex watermark. The `Rule` it returns is
+  one of the closed `telemetry.SuccessorGuardRule*` values. Its
+  `PriorCollector` and `PriorOrphan` come from the larger of the
+  duplicate-check candidate and the scope's active generation (#8750 F1),
+  which the root picks before calling it.
   Covered collectors (each with an explicit operator attestation surface,
   #8267, #8329): `jira` (`allow_empty_successor` target key),
   `pagerduty` (`allow_empty_successor` target key), `confluence`
@@ -177,10 +197,20 @@ call.
   `docs/internal/evidence/8082-fanin-unchanged-partitions.md`.
 - Differentials derive from the shipped constants. A hand-frozen copy
   drifts and goes false-green.
+- `DecideSuccessor` does no I/O and never refuses on its lower bound alone:
+  the bound subtracts every touched or live path as if it were an anchor
+  file, so it can only under-estimate the union. A failed bound means
+  "probe", and only `DecideDeltaFileUnion` over the exact count can refuse a
+  delta (#8750). The root owns the counts, the probe, the
+  `successor_guard` log stage, and
+  `eshu_dp_ingestion_successor_guard_decisions_total`; this package owns
+  only the verdict and the closed rule names.
 
 ## Related docs
 
 - `docs/public/architecture.md` (pipeline: sync to query surface)
+- `docs/internal/evidence/8750-successor-guard-sizing.md` (successor guard
+  sizing)
 - `docs/public/reference/cypher-performance.md` for hot-path query work
 
 ## No-Regression Evidence (#7794 extraction):
