@@ -6,7 +6,9 @@ PostgreSQL 18.6 service and Neo4j service. Its PostgreSQL database is disposable
 the shared overlay harness drops the public schema. Its Neo4j graph is likewise
 owned by the job, because the harness clears it. The job uses pinned service
 images, an anchored Go selector, `-race -count=1`, a twelve minute test timeout,
-`pipefail`, strict Go JSON event accounting, and uploaded events. The workflow
+`pipefail`, strict Go JSON event accounting, and uploaded events. Its artifact
+also records the checkout SHA, Go version, PostgreSQL and Neo4j versions,
+service image IDs, and proof wall seconds. The workflow
 sets nonempty Neo4j username and password values even with `NEO4J_AUTH: none`.
 
 The static mirror compares the actual source functions with the selector and

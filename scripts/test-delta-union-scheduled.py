@@ -35,6 +35,16 @@ class DeltaUnionScheduledTest(unittest.TestCase):
             "disabled_job": workflow.replace("    runs-on: ubuntu-latest", "    if: false\n    runs-on: ubuntu-latest", 1),
             "disabled_step": workflow.replace("      - name: Run delta union proofs", "      - name: Run delta union proofs\n        if: false", 1),
             "suppressed_failure": workflow.replace("      - name: Run delta union proofs", "      - name: Run delta union proofs\n        continue-on-error: true", 1),
+            "early_exit": workflow.replace("          set -euo pipefail\n", "          set -euo pipefail\n          exit 0\n", 1),
+            "contract_early_exit": workflow.replace(
+                "          python3 scripts/test-delta-union-scheduled.py\n",
+                "          exit 0\n          python3 scripts/test-delta-union-scheduled.py\n", 1),
+            "metadata_early_exit": workflow.replace(
+                "          {\n            printf 'checkout_sha=",
+                "          exit 0\n          {\n            printf 'checkout_sha=", 1),
+            "missing_backend_version": workflow.replace(
+                "          neo_version=\"$(docker exec '${{ job.services.neo4j.id }}' cypher-shell",
+                "          neo_version=\"$(printf skipped # docker exec '${{ job.services.neo4j.id }}' cypher-shell", 1),
             "bad_postgres_pin": workflow.replace("ci-postgres-bookworm@sha256:", "ci-postgres-alpine@sha256:", 1),
             "bad_neo4j_pin": workflow.replace("neo4j:2026-community@sha256:", "neo4j:latest@sha256:", 1),
             "missing_selector": workflow.replace("TestDeltaUnionBaseMissingRefusesWithoutPartialLive", "TestUnrelatedProof", 1),

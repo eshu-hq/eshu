@@ -81,6 +81,24 @@ jobs:
           cache-dependency-path: go/go.sum
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
+      - name: Record backend and checkout metadata
+        run: |
+          set -euo pipefail
+          checkout_sha="$(git rev-parse HEAD)"
+          go_version="$(go version)"
+          pg_image="$(docker inspect --format '{{.Image}}' '${{ job.services.postgres.id }}')"
+          pg_version="$(docker exec '${{ job.services.postgres.id }}' psql -U eshu -d eshu_delta_union -tAc 'SHOW server_version')"
+          neo_image="$(docker inspect --format '{{.Image}}' '${{ job.services.neo4j.id }}')"
+          neo_version="$(docker exec '${{ job.services.neo4j.id }}' cypher-shell -a bolt://localhost:7687 'CALL dbms.components() YIELD name, versions RETURN name, versions')"
+          test -n "$checkout_sha" && test -n "$go_version" && test -n "$pg_image" && test -n "$pg_version" && test -n "$neo_image" && test -n "$neo_version"
+          {
+            printf 'checkout_sha=%s\n' "$checkout_sha"
+            printf 'go_version=%s\n' "$go_version"
+            printf 'postgres_image_id=%s\n' "$pg_image"
+            printf 'postgres_version=%s\n' "$pg_version"
+            printf 'neo4j_image_id=%s\n' "$neo_image"
+            printf 'neo4j_version=%s\n' "$neo_version"
+          } > "${RUNNER_TEMP}/delta-union-meta.txt"
       - name: Run delta union proofs
         working-directory: go
         env:
@@ -91,12 +109,16 @@ jobs:
           ESHU_NEO4J_DATABASE: neo4j
         run: |
           set -euo pipefail
+          started=${SECONDS}
           go test ./cmd/projector -run '^(TestDeltaUnionProjectsFullTreeFromEmptyLive|TestDeltaUnionBaseMissingRefusesWithoutPartialLive)$' -json -race -count=1 -p 4 -timeout 12m | tee "${RUNNER_TEMP}/delta-union.jsonl"
           python3 ../scripts/lib/delta_union_scheduled.py --events "${RUNNER_TEMP}/delta-union.jsonl"
+          printf 'proof_wall_seconds=%s\n' "$((SECONDS-started))" >> "${RUNNER_TEMP}/delta-union-meta.txt"
       - name: Upload delta union events
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: delta-union-events
-          path: ${{ runner.temp }}/delta-union.jsonl
+          path: |
+            ${{ runner.temp }}/delta-union.jsonl
+            ${{ runner.temp }}/delta-union-meta.txt
           if-no-files-found: error
