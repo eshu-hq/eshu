@@ -157,6 +157,19 @@ families are:
 | Runtime status | `list_collectors`, `list_ingesters`, `get_ingester_status`, `get_index_status`, `get_semantic_capability_status`, `get_answer_narration_status`, `get_capability_catalog`, `list_component_extensions`, `get_component_extension_diagnostics` |
 | Diagnostics | `execute_cypher_query`, `visualize_graph_query` |
 
+`get_workload_context`, `get_service_context`, and `get_service_story` take an
+`evidence_detail` argument, `full` or `handles`, and default to `handles` over
+MCP. `handles` keeps every section, count, and top-level status, truth, and
+freshness field, and names each reduced family, with its total, in
+`truth.omissions`; a list it cut also carries `truncated` and an omitted count.
+On `get_service_story` the bulky evidence lists become identity rows that keep
+their row-level truth labels. On all three tools, deployment artifact rows keep
+`id`, `relationship_type`, and `resolved_id`; `get_relationship_evidence` by
+`resolved_id` returns the rest, including confidence. Pass `evidence_detail: full` for every
+row. On a large service `full` can exceed the response budget and fail with
+`mcp_response_over_budget`. The HTTP routes default to `full`. See
+[Context Evidence Budget](http-api/context-evidence-budget.md).
+
 ## Content And Repository Identity
 
 Repository-bearing results may include `repo_access` metadata. Remote runtimes

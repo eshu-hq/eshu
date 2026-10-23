@@ -37,7 +37,7 @@
   it with an explicit alias.
 - Preserve each tool's exact method, path, and query keys. All four requests
   are `GET` with a query map and no body.
-- `get_service_context` defaults `evidence_detail` to `handles` and forwards an explicit value untouched; the story route never carries it. Keep the default here and the HTTP default (`full`) in the handler distinct (#7129).
+- `get_service_context` and `get_service_story` default `evidence_detail` to `handles` and forward an explicit value untouched. Keep the default here and the HTTP default (`full`) in the handler distinct (#7129, #8798). The other two tools never carry it.
 - `get_service_story` checks `service_id`, then `workload_id`, then
   `service_name` (#8797). Keep that order: the `ambiguous` answer tells the
   caller to pass `service_id`, so it must win over a `workload_id` or

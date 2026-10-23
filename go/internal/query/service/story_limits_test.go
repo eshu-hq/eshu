@@ -90,9 +90,20 @@ func TestServiceStoryDossierBoundsRawPayloadsAndNestedAPISurface(t *testing.T) {
 	if got := len(querycontract.MapSliceValue(deploymentEvidence, "artifacts")); got != serviceStoryItemLimit {
 		t.Fatalf("deployment_evidence.artifacts length = %d, want cap %d", got, serviceStoryItemLimit)
 	}
+	// #8798: the endpoint rows ship once, at the top level; the overview copy
+	// keeps its counts and names where the rows are.
+	if got := len(querycontract.MapSliceValue(querycontract.MapValue(got, "api_surface"), "endpoints")); got != serviceStoryItemLimit {
+		t.Fatalf("api_surface.endpoints length = %d, want cap %d", got, serviceStoryItemLimit)
+	}
 	overviewAPI := querycontract.MapValue(querycontract.MapValue(got, "deployment_overview"), "api_surface")
-	if got := len(querycontract.MapSliceValue(overviewAPI, "endpoints")); got != serviceStoryItemLimit {
-		t.Fatalf("deployment_overview.api_surface.endpoints length = %d, want cap %d", got, serviceStoryItemLimit)
+	if _, has := overviewAPI["endpoints"]; has {
+		t.Fatalf("deployment_overview.api_surface.endpoints present = %#v, want the rows shipped once at api_surface", overviewAPI)
+	}
+	if got := querycontract.StringVal(overviewAPI, "endpoints_shipped_at"); got != "api_surface.endpoints" {
+		t.Fatalf("deployment_overview.api_surface.endpoints_shipped_at = %q, want api_surface.endpoints", got)
+	}
+	if got, want := querycontract.IntVal(overviewAPI, "endpoint_count"), 60; got != want {
+		t.Fatalf("deployment_overview.api_surface.endpoint_count = %d, want %d (counts stay)", got, want)
 	}
 	rawLimits := querycontract.MapValue(got, "raw_context_limits")
 	if !querycontract.BoolVal(querycontract.MapValue(rawLimits, "hostnames"), "truncated") {
