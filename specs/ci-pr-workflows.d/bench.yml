@@ -1,0 +1,26 @@
+# Frozen synchronize applicability before central PR scheduling (#8847).
+schema_version: 1
+workflows:
+- file: bench.yml
+  name: Benchmarks
+  synchronize: true
+  paths:
+  - go/**
+  - scripts/run-go-benchmarks.sh
+  - scripts/verify-bench-regression.sh
+  - scripts/refresh-bench-baseline.sh
+  - scripts/ci/install-apt-packages.sh
+  - scripts/ci/go-mod-download-retry.sh
+  - scripts/ci/go-install-retry.sh
+  - testdata/benchmarks/**
+  - .github/workflows/bench.yml
+  jobs:
+  - bench-regression
+  - benchmarks
+  - reducer-perf-gate
+  - test-mirror
+  job_names:
+    bench-regression: bench regression (benchstat vs baseline)
+    benchmarks: go benchmarks
+    reducer-perf-gate: reducer per-handler latency gate
+    test-mirror: bench script contract

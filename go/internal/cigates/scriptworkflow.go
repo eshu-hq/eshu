@@ -41,6 +41,7 @@ const scriptWorkflowSoundSubsetCount = 59
 // runStep is the minimal shape needed to read a step's executable command.
 type runStep struct {
 	Run              string `yaml:"run"`
+	Uses             string `yaml:"uses"`
 	WorkingDirectory string `yaml:"working-directory"`
 }
 
@@ -87,6 +88,51 @@ func workflowRunCommands(raw []byte) []string {
 		}
 	}
 	return cmds
+}
+
+// workflowRunCommandsWithActions includes executable steps moved into local
+// composite actions. A workflow remains the host of those commands.
+func workflowRunCommandsWithActions(repoRoot string, raw []byte) ([]string, error) {
+	var wf runWorkflowFile
+	if err := yaml.Unmarshal(raw, &wf); err != nil {
+		// Other workflow validators report malformed YAML; this scanner has no
+		// executable-position evidence to add for it.
+		return nil, nil
+	}
+	var commands []string
+	for _, job := range wf.Jobs {
+		for _, step := range job.Steps {
+			if step.Run != "" {
+				commands = append(commands, step.Run)
+			}
+			if !strings.HasPrefix(step.Uses, "./.github/actions/") {
+				continue
+			}
+			actionDir := filepath.Clean(strings.TrimPrefix(step.Uses, "./"))
+			if !strings.HasPrefix(actionDir, ".github/actions/") {
+				return nil, fmt.Errorf("local action escapes .github/actions: %q", step.Uses)
+			}
+			path := filepath.Join(repoRoot, actionDir, "action.yml")
+			actionRaw, err := os.ReadFile(path) // #nosec G304 -- confined local action path
+			if err != nil {
+				return nil, fmt.Errorf("read local action %s: %w", path, err)
+			}
+			var action struct {
+				Runs struct {
+					Steps []runStep `yaml:"steps"`
+				} `yaml:"runs"`
+			}
+			if err := yaml.Unmarshal(actionRaw, &action); err != nil {
+				return nil, fmt.Errorf("parse local action %s: %w", path, err)
+			}
+			for _, actionStep := range action.Runs.Steps {
+				if actionStep.Run != "" {
+					commands = append(commands, actionStep.Run)
+				}
+			}
+		}
+	}
+	return commands, nil
 }
 
 // workflowRunsScript reports whether raw invokes exactly this script.
@@ -218,7 +264,7 @@ func scriptWorkflowSoundSubset(repoRoot string, reg *Registry) (map[string]scrip
 		return nil, fmt.Errorf("read workflow dir %s: %w", wfDir, err)
 	}
 
-	raws := make(map[string]string)
+	commandsByWorkflow := make(map[string][]string)
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".yml") {
 			continue
@@ -237,7 +283,11 @@ func scriptWorkflowSoundSubset(repoRoot string, reg *Registry) (map[string]scrip
 			// than reporting only this one file (#5939 review).
 			return nil, fmt.Errorf("read workflow file %s: %w", p, err)
 		}
-		raws[e.Name()] = string(b)
+		commands, err := workflowRunCommandsWithActions(repoRoot, b)
+		if err != nil {
+			return nil, fmt.Errorf("read executable steps of %s: %w", p, err)
+		}
+		commandsByWorkflow[e.Name()] = commands
 	}
 
 	subset := make(map[string]scriptWorkflowSoundSubsetEntry)
@@ -251,9 +301,12 @@ func scriptWorkflowSoundSubset(repoRoot string, reg *Registry) (map[string]scrip
 		}
 
 		var hosts []string
-		for name, raw := range raws {
-			if workflowRunsScript(raw, script) {
-				hosts = append(hosts, name)
+		for name, commands := range commandsByWorkflow {
+			for _, command := range commands {
+				if commandRunsScript(command, script) {
+					hosts = append(hosts, name)
+					break
+				}
 			}
 		}
 		if len(hosts) != 1 {

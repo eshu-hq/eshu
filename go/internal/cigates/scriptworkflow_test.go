@@ -4,10 +4,53 @@
 package cigates_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
+
+// TestDriftCheck_VerifyScriptInCompositeAction treats an invoked local action
+// as part of its workflow and ignores the action's non-executable metadata.
+func TestDriftCheck_VerifyScriptInCompositeAction(t *testing.T) {
+	t.Parallel()
+	root := buildDriftRepo(t, minimalPreCommit("my-gate"), nil)
+	writeWorkflow(t, root, "test.yml", runsNothingRelevant)
+	writeWorkflow(t, root, "action-host.yml", "name: Action host\non: [push]\njobs:\n"+
+		"  verify:\n    runs-on: ubuntu-latest\n    steps:\n"+
+		"      - uses: ./.github/actions/verify-example\n")
+	actionDir := filepath.Join(root, ".github", "actions", "verify-example")
+	if err := os.MkdirAll(actionDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(actionDir, "action.yml")
+	const action = "name: Verify example\nruns:\n  using: composite\n  steps:\n" +
+		"    - shell: bash\n      run: bash scripts/verify-no-ai-attribution.sh\n"
+	if err := os.WriteFile(path, []byte(action), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g := scriptGate("test.yml", "bash scripts/verify-no-ai-attribution.sh")
+	g.CI.Job = "docs-helm-hygiene"
+	reg := minimalReg([]cigates.Gate{g}, nil, nil)
+	hasMismatch := func() bool {
+		for _, err := range cigates.DriftCheck(root, reg) {
+			if containsAll(err.Error(), "verify script", "action-host.yml") {
+				return true
+			}
+		}
+		return false
+	}
+	if !hasMismatch() {
+		t.Fatal("executable action script did not identify the actual workflow host")
+	}
+	if err := os.WriteFile(path, []byte("name: Verify example\nruns:\n  using: composite\n  steps:\n    - shell: bash\n      run: echo harmless\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if hasMismatch() {
+		t.Fatal("a non-executable action mention identified a workflow host")
+	}
+}
 
 func scriptGate(workflow, command string) cigates.Gate {
 	g := gateWith("no-ai-attribution", "my-gate", workflow)

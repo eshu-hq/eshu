@@ -43,7 +43,7 @@ type readinessStrategy struct {
 // selects: the single-quoted name inside contains(...), skipping the '[]'
 // empty-array literal. An empty result means the condition names no job.
 func readinessSelectedJob(condition string) string {
-	anchor := strings.Index(condition, "contains(")
+	anchor := strings.Index(condition, "contains(fromJSON(needs.queue-selection.outputs.jobs")
 	if anchor < 0 {
 		return ""
 	}
@@ -93,7 +93,10 @@ const (
 	readinessQueueSelection     = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)')) }}"
 	readinessUnemittedSelection = "${{ github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness hermetic')) }}"
 	readinessCleanupSelection   = "${{ (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) && (always()) }}"
+	readinessHermeticPlan       = "${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'hermetic') }}"
+	readinessShardPlan          = "${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness-shards')) && (github.event_name != 'merge_group' || (contains(fromJSON(needs.queue-selection.outputs.jobs || '[]'), 'live-postgres-readiness (postgres18)'))) }}"
 	readinessAlways             = "${{ always() }}"
+	readinessAggregatePlan      = "${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'live-postgres-readiness')) && (always()) }}"
 
 	readinessShardJob  = "live-postgres-readiness-shards"
 	readinessShardName = "live-postgres-readiness (postgres18) shard (${{ matrix.shard }}/4)"
@@ -126,7 +129,7 @@ type readinessStep struct {
 	Env             map[string]string `yaml:"env"`
 }
 
-func checkReadinessSplit(workflow []byte, gate Gate) string {
+func checkReadinessSplit(workflow []byte, gate Gate, prPaths []string) string {
 	var parsed readinessWorkflow
 	if err := yaml.Unmarshal(workflow, &parsed); err != nil {
 		return err.Error()
@@ -148,19 +151,19 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		selector.With["workflow"] != "live-postgres-readiness.yml" {
 		return "workflow must use the shared queue selector"
 	}
-	for _, trigger := range []string{"merge_group", "pull_request", "push"} {
+	for _, trigger := range []string{"merge_group", "workflow_call", "push"} {
 		if _, ok := parsed.On[trigger]; !ok {
 			return "missing workflow trigger " + trigger
 		}
 	}
-	if len(parsed.On["pull_request"].Paths) == 0 ||
-		!slices.Equal(parsed.On["pull_request"].Paths, parsed.On["push"].Paths) ||
-		!slices.Contains(parsed.On["pull_request"].Paths, ".github/workflows/live-postgres-readiness.yml") ||
-		!slices.Contains(parsed.On["pull_request"].Paths, "go/internal/cigates/readiness_job_split_test.go") ||
-		!slices.Contains(parsed.On["pull_request"].Paths, "scripts/lib/live_postgres_readiness_shards.py") ||
-		!slices.Contains(parsed.On["pull_request"].Paths, "scripts/test-live-postgres-readiness-shards.py") ||
-		!slices.Contains(parsed.On["pull_request"].Paths, "scripts/lib/live_postgres_readiness_events.py") {
-		return "pull and push paths must select the workflow, its regression, and the shard contract"
+	if _, directPR := parsed.On["pull_request"]; directPR || len(prPaths) == 0 ||
+		!slices.Equal(prPaths, parsed.On["push"].Paths) ||
+		!slices.Contains(prPaths, ".github/workflows/live-postgres-readiness.yml") ||
+		!slices.Contains(prPaths, "go/internal/cigates/readiness_job_split_test.go") ||
+		!slices.Contains(prPaths, "scripts/lib/live_postgres_readiness_shards.py") ||
+		!slices.Contains(prPaths, "scripts/test-live-postgres-readiness-shards.py") ||
+		!slices.Contains(prPaths, "scripts/lib/live_postgres_readiness_events.py") {
+		return "PR inventory and push paths must select the workflow, its regression, and the shard contract"
 	}
 	hermetic, ok := parsed.Jobs["hermetic"]
 	if !ok || hermetic.Name != gate.CI.CheckNames[0] {
@@ -179,16 +182,16 @@ func checkReadinessSplit(workflow []byte, gate Gate) string {
 		return "hermetic, shard, and aggregate jobs must retain independent 30/30/10-minute limits"
 	}
 	if !slices.Equal(readinessNeedsList(hermetic), []string{"queue-selection"}) ||
-		hermetic.If != "" || hermetic.ContinueOnError != "" {
+		hermetic.If != readinessHermeticPlan || hermetic.ContinueOnError != "" {
 		return "hermetic must wait for queue selection without skipping or waiving"
 	}
 	if !slices.Equal(readinessNeedsList(shards), []string{"queue-selection"}) ||
-		shards.If != readinessQueueSelection || shards.ContinueOnError != "" {
+		shards.If != readinessShardPlan || shards.ContinueOnError != "" {
 		return "shards must wait for queue selection without waiving failure"
 	}
 	if !slices.Equal(readinessNeedsList(aggregate),
 		[]string{"queue-selection", readinessShardJob}) ||
-		aggregate.If != readinessAlways || aggregate.ContinueOnError != "" {
+		aggregate.If != readinessAggregatePlan || aggregate.ContinueOnError != "" {
 		return "aggregate must wait for selection and every shard without waiving failure"
 	}
 	if shards.Strategy.FailFast == nil || *shards.Strategy.FailFast {
@@ -315,7 +318,16 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 	if gate == nil {
 		t.Fatal("live-postgres-readiness registry row missing")
 	}
-	if problem := checkReadinessSplit(workflow, *gate); problem != "" {
+	fragment, err := os.ReadFile(filepath.Join(root, "specs", "ci-pr-workflows.d", "live-postgres-readiness.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	definitions, err := ParsePRPlanFragment(fragment)
+	if err != nil || len(definitions) != 1 {
+		t.Fatalf("invalid readiness PR inventory: %v", err)
+	}
+	prPaths := definitions[0].Paths
+	if problem := checkReadinessSplit(workflow, *gate, prPaths); problem != "" {
 		t.Fatal(problem)
 	}
 	t.Run("merge queue selects both proof jobs via the shared ci.job token", func(t *testing.T) {
@@ -364,7 +376,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 		t.Run(mutation.name, func(t *testing.T) {
 			changed := *gate
 			mutation.edit(&changed)
-			if problem := checkReadinessSplit(workflow, changed); problem == "" {
+			if problem := checkReadinessSplit(workflow, changed, prPaths); problem == "" {
 				t.Fatal("seeded registry violation passed")
 			}
 		})
@@ -375,7 +387,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 				t.Fatalf("mutation anchor missing: %s", mutation.old)
 			}
 			changed := strings.Replace(string(workflow), mutation.old, mutation.replacement, 1)
-			if problem := checkReadinessSplit([]byte(changed), *gate); problem == "" {
+			if problem := checkReadinessSplit([]byte(changed), *gate, prPaths); problem == "" {
 				t.Fatal("seeded violation passed")
 			}
 		})
@@ -386,7 +398,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 				t.Fatalf("mutation anchor missing: %s", mutation.old)
 			}
 			changed := strings.Replace(string(workflow), mutation.old, mutation.replacement, 1)
-			if problem := checkReadinessSplit([]byte(changed), *gate); problem == "" {
+			if problem := checkReadinessSplit([]byte(changed), *gate, prPaths); problem == "" {
 				t.Fatal("seeded service image violation passed")
 			}
 		})
@@ -414,7 +426,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			"          persist-credentials: false\n"+
 			loginStep+
 			"      - name: Set up Go\n", 1)
-		if problem := checkReadinessSplit([]byte(changed), *gate); problem == "" {
+		if problem := checkReadinessSplit([]byte(changed), *gate, prPaths); problem == "" {
 			t.Fatal("added Docker Hub login passed")
 		}
 	})
@@ -438,7 +450,7 @@ func TestReadinessWorkflowSplit(t *testing.T) {
 			"          persist-credentials: false\n"+
 			ghcrLoginStep+
 			"      - name: Set up Go\n", 1)
-		if problem := checkReadinessSplit([]byte(changed), *gate); problem != "" {
+		if problem := checkReadinessSplit([]byte(changed), *gate, prPaths); problem != "" {
 			t.Fatalf("added GHCR login failed: %s", problem)
 		}
 	})

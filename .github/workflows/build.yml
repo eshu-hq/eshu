@@ -1,23 +1,23 @@
 name: Build and Release Binaries
 
 on:
+  workflow_call:
+    inputs:
+      plan_jobs:
+        required: true
+        type: string
+      plan_gates:
+        required: true
+        type: string
+      plan_mode:
+        required: true
+        type: string
   push:
     branches: [ main ]
     tags: [ 'v*' ]
-  pull_request:
-    branches: [ main ]
-    # A docs-only PR (docs tree, root markdown, mkdocs config) does not change
-    # any compiled binary, so skip the two-OS build for it. Push-to-main and
-    # tag pushes still build and release.
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'mkdocs.yml'
-      - '.github/**/*.md'
-      - '.agents/**'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  group: ci-leaf-build-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -25,6 +25,7 @@ permissions:
 
 jobs:
   build:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'build') }}
     name: Build on ${{ matrix.os }}
     timeout-minutes: 20
     runs-on: ${{ matrix.os }}
@@ -76,9 +77,9 @@ jobs:
           path: dist/${{ matrix.artifact_name }}
 
   release:
+    if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'release')) && (startsWith(github.ref, 'refs/tags/v')) }}
     name: Create Release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
