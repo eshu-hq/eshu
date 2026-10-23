@@ -315,8 +315,8 @@ node), which the route matches exactly. `GET /api/v0/investigations/services/{se
 `workload_id` and `service_name`.
 
 A candidate marked `legacy_id: true` is a leftover from the identity change:
-its id is the name-only handle `workload:<name>`, and the scoped candidate with
-the same name is the live workload. See the
+its id is the name-only handle `workload:<name>`, so it is not the live
+workload; choose a scoped candidate. See the
 [retirement runbook](../../operate/legacy-workload-retirement-runbook.md). A
 scoped candidate carries no `legacy_id` field. The marker checks only the id
 shape; the runbook's dry run decides whether the node is safe to retire. The

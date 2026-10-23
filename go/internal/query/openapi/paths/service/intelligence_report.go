@@ -12,7 +12,7 @@ const IntelligenceReport = `
       "get": {
         "tags": ["entities"],
         "summary": "Service intelligence report",
-        "description": "Composes the one-call service intelligence report: identity, code-to-runtime trace, deployment/config influence, supply-chain, and incident sections, each with preserved truth labels, evidence handles, limitations, and bounded next calls, plus deterministic suggested investigations. Returns schema service_intelligence_report.v1. Runs no LLM interpretation path. An ambiguous selector answers 409 with error.code ambiguous; each candidate in error.details.candidates carries next_selector, the argument (service_id) and value to pass next. A candidate with legacy_id true is a leftover name-only workload from the identity change; the scoped candidate is the live workload.",
+        "description": "Composes the one-call service intelligence report: identity, code-to-runtime trace, deployment/config influence, supply-chain, and incident sections, each with preserved truth labels, evidence handles, limitations, and bounded next calls, plus deterministic suggested investigations. Returns schema service_intelligence_report.v1. Runs no LLM interpretation path. An ambiguous selector answers 409 with error.code ambiguous; each candidate in error.details.candidates carries next_selector, the argument (service_id) and value to pass next. A candidate with legacy_id true is a leftover name-only workload from the identity change, not the live workload; choose a scoped candidate.",
         "operationId": "getServiceIntelligenceReport",
         "x-scoped-token-support": true,
         "parameters": [
