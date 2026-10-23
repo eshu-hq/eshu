@@ -126,6 +126,11 @@ interpolates anything that could carry shell syntax.
 {{- end -}}
 {{- $process := default (dict) $activation.process -}}
 {{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s.process" $at) "value" $process) -}}
+{{- range $entry := default (list) $process.env -}}
+{{- if regexMatch "(?i)(password|passwd|secret|token|api[-_]?key|credential|private[-_]?key|authorization|bearer)" (first (splitList "=" (toString $entry))) -}}
+{{- fail (printf "%s.process.env entry %q looks like a credential; process.env is stored in a ConfigMap, so pass secrets through extraEnv secretKeyRef" $at (first (splitList "=" (toString $entry)))) -}}
+{{- end -}}
+{{- end -}}
 {{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s.config" $at) "value" (default (dict) $activation.config)) -}}
 {{- $grants := default (list) $activation.grants -}}
 {{- range $gi, $grant := $grants -}}

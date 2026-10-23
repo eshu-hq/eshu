@@ -144,6 +144,12 @@ func TestHelmComponentActivationsValidation(t *testing.T) {
 			wantOutput: "looks like a credential",
 		},
 		{
+			name:       "credential in process env",
+			old:        `args: ["--sdk-stdio"]`,
+			new:        `args: ["--sdk-stdio"]` + "\n        env: [\"PAGERDUTY_API_TOKEN=abc123\"]",
+			wantOutput: "process.env entry",
+		},
+		{
 			name:       "credential-shaped config value",
 			old:        "api_token_env: PAGERDUTY_API_TOKEN",
 			new:        "note: ghp_abcdefghijklmnopqrstuvwxyz0123456789",
