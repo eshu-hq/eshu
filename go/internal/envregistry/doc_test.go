@@ -120,6 +120,51 @@ func TestReferenceRegenerationWritesAllPagesAndRemovesOrphans(t *testing.T) {
 	}
 }
 
+// TestReferenceRegenerationLeavesSubdirectoriesAlone: the generator owns the
+// page files in the pages directory, not directories someone placed there. A
+// non-empty subdirectory must not fail regeneration with "directory not
+// empty", an empty one must not be deleted, and a stray page FILE is still
+// removed. The drift check likewise reports only files.
+func TestReferenceRegenerationLeavesSubdirectoriesAlone(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pagesDir := filepath.Join(dir, PagesDir)
+	full := filepath.Join(pagesDir, "notes")
+	empty := filepath.Join(pagesDir, "scratch")
+	for _, d := range []string{full, empty} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keep := filepath.Join(full, "keep.md")
+	stray := filepath.Join(pagesDir, "leftover-page.md")
+	for path, body := range map[string]string{keep: "keep\n", stray: "stale\n"} {
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	orphans, err := orphanedPages(dir, mustRenderPages(t, Default()))
+	if err != nil {
+		t.Fatalf("orphanedPages: %v", err)
+	}
+	if want := PagesDir + "/leftover-page.md"; len(orphans) != 1 || orphans[0] != want {
+		t.Fatalf("orphanedPages = %v, want only the stray file [%s]", orphans, want)
+	}
+	if err := regenerateReference(dir, Default().RenderPages); err != nil {
+		t.Fatalf("regenerateReference must tolerate subdirectories: %v", err)
+	}
+	if _, err := os.Stat(stray); !os.IsNotExist(err) {
+		t.Errorf("stray page file still exists (stat err %v)", err)
+	}
+	if body, err := os.ReadFile(keep); err != nil || string(body) != "keep\n" {
+		t.Errorf("file inside the non-empty subdirectory changed (read err %v)", err)
+	}
+	if info, err := os.Stat(empty); err != nil || !info.IsDir() {
+		t.Errorf("empty subdirectory was removed (stat err %v)", err)
+	}
+}
+
 // regenerateReference renders the reference and, only when rendering succeeds,
 // writes every page under refDir and removes files in the generated pages
 // directory that the render no longer produces. A failed render touches
@@ -149,8 +194,10 @@ func regenerateReference(refDir string, render func() ([]Page, error)) error {
 	return nil
 }
 
-// orphanedPages lists files under the generated pages directory that pages no
-// longer includes, as paths relative to refDir.
+// orphanedPages lists regular files under the generated pages directory that
+// pages no longer includes, as paths relative to refDir. Subdirectories are not
+// the generator's to remove and are skipped, so a directory someone placed
+// there neither fails regeneration nor is deleted by it.
 func orphanedPages(refDir string, pages []Page) ([]string, error) {
 	want := map[string]struct{}{}
 	for _, p := range pages {
@@ -165,6 +212,9 @@ func orphanedPages(refDir string, pages []Page) ([]string, error) {
 	}
 	var orphans []string
 	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
 		rel := PagesDir + "/" + e.Name()
 		if _, ok := want[rel]; !ok {
 			orphans = append(orphans, rel)

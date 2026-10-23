@@ -131,6 +131,30 @@ else
 fi
 restore
 
+# A directory inside the pages directory is not a generated page: the verifier
+# must not call it an orphan, and the generator must neither fail on a
+# non-empty one nor delete an empty one.
+mkdir -p "${pages_dir}/notes" "${pages_dir}/scratch"
+printf 'keep\n' >"${pages_dir}/notes/keep.md"
+printf '# leftover\n' >"${pages_dir}/leftover-page.md"
+subdir_out="${tmp_root}/subdir.out"
+if "${generator}" >"${subdir_out}" 2>&1 \
+  && [ -f "${pages_dir}/notes/keep.md" ] && [ -d "${pages_dir}/scratch" ] \
+  && [ ! -e "${pages_dir}/leftover-page.md" ]; then
+  record_pass "generator leaves subdirectories alone and still removes a stray page file"
+else
+  cat "${subdir_out}" >&2
+  record_fail "generator failed on, or deleted, a subdirectory of the pages directory"
+fi
+verify_subdir_out="${tmp_root}/verify-subdir.out"
+if "${verifier}" >"${verify_subdir_out}" 2>&1; then
+  record_pass "verifier ignores subdirectories of the pages directory"
+else
+  cat "${verify_subdir_out}" >&2
+  record_fail "verifier flagged a subdirectory of the pages directory"
+fi
+restore
+
 # A missing family page must be caught.
 rm -f "${page_one}"
 missing_out="${tmp_root}/missing.out"
