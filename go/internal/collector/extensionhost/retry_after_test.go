@@ -6,6 +6,7 @@ package extensionhost
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -129,4 +130,60 @@ func sumWithAttr(rm metricdata.ResourceMetrics, name, key, value string) int64 {
 		}
 	}
 	return total
+}
+
+// TestNextClaimedRetryAfterIsClamped proves an oversized retry_after_seconds
+// cannot hide a work item beyond MaxRetryAfterDelay or overflow
+// time.Duration, while a value at the cap is kept exactly.
+func TestNextClaimedRetryAfterIsClamped(t *testing.T) {
+	t.Parallel()
+
+	capSeconds := int(MaxRetryAfterDelay / time.Second)
+	tests := []struct {
+		name    string
+		seconds int
+		want    time.Duration
+	}{
+		{name: "at cap", seconds: capSeconds, want: MaxRetryAfterDelay},
+		{name: "one over cap", seconds: capSeconds + 1, want: MaxRetryAfterDelay},
+		{name: "would overflow duration", seconds: math.MaxInt, want: MaxRetryAfterDelay},
+		{name: "one second", seconds: 1, want: time.Second},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			item := testWorkItem()
+			source := mustNewSource(t, &recordingRunner{result: retryableResultWithDelays(item, tc.seconds)}, nil)
+			_, _, err := source.NextClaimed(context.Background(), item)
+			var delayed interface{ RetryAfterDelay() time.Duration }
+			if !errors.As(err, &delayed) {
+				t.Fatalf("error %v does not expose RetryAfterDelay", err)
+			}
+			if got := delayed.RetryAfterDelay(); got != tc.want {
+				t.Fatalf("RetryAfterDelay() = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestNextClaimedTerminalCarriesNoRetryAfter proves only a retryable result
+// requests pacing: a terminal result never schedules a retry.
+func TestNextClaimedTerminalCarriesNoRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	item := testWorkItem()
+	result := baseResult(item, sdkcollector.ResultTerminal)
+	result.Statuses = []sdkcollector.Status{{
+		Class:             sdkcollector.StatusFailure,
+		FailureClass:      "invalid_config",
+		RetryAfterSeconds: 90,
+	}}
+	source := mustNewSource(t, &recordingRunner{result: result}, nil)
+	_, _, err := source.NextClaimed(context.Background(), item)
+	assertFailure(t, err, "invalid_config", true)
+	var delayed interface{ RetryAfterDelay() time.Duration }
+	if errors.As(err, &delayed) && delayed.RetryAfterDelay() != 0 {
+		t.Fatalf("terminal RetryAfterDelay() = %s, want 0", delayed.RetryAfterDelay())
+	}
 }

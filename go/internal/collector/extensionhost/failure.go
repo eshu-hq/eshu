@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
@@ -24,12 +25,24 @@ const (
 	FailureClassStatusRecord = "status_record"
 )
 
+// MaxRetryAfterDelay caps the provider retry delay an extension can request
+// through status.retry_after_seconds on a retryable result. The SDK only
+// requires the value to be non-negative, so without a cap one result could
+// hide its work item for years (or overflow time.Duration) while the claim
+// row still counts the attempt. One hour matches the GitHub App token-mint
+// Retry-After cap; a provider that needs longer is retried hourly until its
+// attempt budget runs out.
+const MaxRetryAfterDelay = time.Hour
+
 var failureClassPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,95}$`)
 
 type extensionFailure struct {
 	class    string
 	terminal bool
-	cause    error
+	// retryAfter is the provider-requested delay before the next attempt,
+	// already clamped to MaxRetryAfterDelay. Zero means no request.
+	retryAfter time.Duration
+	cause      error
 }
 
 func (e extensionFailure) Error() string {
@@ -51,6 +64,32 @@ func (e extensionFailure) FailureClass() string {
 // TerminalFailure reports whether ClaimedService should stop retrying.
 func (e extensionFailure) TerminalFailure() bool {
 	return e.terminal
+}
+
+// RetryAfterDelay returns the provider-requested retry delay that
+// ClaimedService honors when it re-queues a retryable claim. It is the largest
+// status.retry_after_seconds on the result, clamped to MaxRetryAfterDelay, or
+// zero when the result requested none.
+func (e extensionFailure) RetryAfterDelay() time.Duration {
+	return e.retryAfter
+}
+
+// retryAfterFromStatuses returns the largest retry_after_seconds across the
+// result's statuses as a duration clamped to MaxRetryAfterDelay. The clamp is
+// applied in seconds before the multiply so no int value can overflow
+// time.Duration.
+func retryAfterFromStatuses(result sdkcollector.Result) time.Duration {
+	largest := 0
+	for _, status := range result.Statuses {
+		largest = max(largest, status.RetryAfterSeconds)
+	}
+	if largest <= 0 {
+		return 0
+	}
+	if capSeconds := int(MaxRetryAfterDelay / time.Second); largest > capSeconds {
+		return MaxRetryAfterDelay
+	}
+	return time.Duration(largest) * time.Second
 }
 
 func validateBoundedStatuses(result sdkcollector.Result) error {

@@ -118,8 +118,9 @@ func (s *Source) NextClaimed(
 	switch result.State {
 	case sdkcollector.ResultRetryable:
 		return collector.CollectedGeneration{}, false, extensionFailure{
-			class: failureClassFromStatus(result, "retryable"),
-			cause: errors.New("extension requested retryable result"),
+			class:      failureClassFromStatus(result, "retryable"),
+			retryAfter: retryAfterFromStatuses(result),
+			cause:      errors.New("extension requested retryable result"),
 		}
 	case sdkcollector.ResultTerminal:
 		return collector.CollectedGeneration{}, false, extensionFailure{
