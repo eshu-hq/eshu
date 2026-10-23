@@ -41,6 +41,7 @@ func buildDockerfileRuntimeArtifacts(file querycontract.FileContent) []map[strin
 		if baseTag := strings.TrimSpace(querycontract.StringVal(stage, "base_tag")); baseTag != "" {
 			row["base_tag"] = baseTag
 		}
+		addDockerfileBaseRefEvidence(row, stage)
 		if platform := strings.TrimSpace(querycontract.StringVal(stage, "platform")); platform != "" {
 			row["platform"] = platform
 		}
@@ -63,6 +64,47 @@ func buildDockerfileRuntimeArtifacts(file querycontract.FileContent) []map[strin
 		return querycontract.StringVal(rows[i], "artifact_name") < querycontract.StringVal(rows[j], "artifact_name")
 	})
 	return rows
+}
+
+// addDockerfileBaseRefEvidence copies the ARG substitution evidence of a FROM
+// reference onto the artifact row. base_tag already holds the expanded tag when
+// every variable resolved; base_ref_unresolved is true when it still holds a
+// placeholder, with the ARG defaults the parser saw as evidence.
+func addDockerfileBaseRefEvidence(row map[string]any, stage map[string]any) {
+	if template := strings.TrimSpace(querycontract.StringVal(stage, "base_ref_template")); template != "" {
+		row["base_ref_template"] = template
+	}
+	if names := stringsFromAny(stage["base_ref_unresolved_args"]); len(names) > 0 {
+		row["base_ref_unresolved"] = true
+		row["base_ref_unresolved_args"] = names
+	}
+	if raw, ok := stage["base_ref_arg_defaults"].(map[string]any); ok && len(raw) > 0 {
+		defaults := make(map[string]string, len(raw))
+		for name, value := range raw {
+			if text, isText := value.(string); isText {
+				defaults[name] = text
+			}
+		}
+		if len(defaults) > 0 {
+			row["base_ref_arg_defaults"] = defaults
+		}
+	}
+}
+
+func stringsFromAny(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return append([]string(nil), typed...)
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text, ok := item.(string); ok && text != "" {
+				out = append(out, text)
+			}
+		}
+		return out
+	}
+	return nil
 }
 
 func dockerfileRuntimeSignals(stage map[string]any, metadata map[string]any) []string {
