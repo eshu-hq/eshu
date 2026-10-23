@@ -61,7 +61,8 @@ func scrapeStore(queryer *fake.ExecQueryer, readerOn bool) postgres.StatusStore 
 // empty store and counts the statements one scrape issues: before this change
 // (full minus Terraform, reader off), and now with the reader off and on. The
 // reader on removes the live active-work statement and adds the clock and the
-// keyed row read; both selections drop the fact_records aggregate and the three
+// keyed row read; the newest-terminal-failure read (#8803) adds one statement
+// to every selection; both selections drop the fact_records aggregate and the three
 // registry collector statements, which the scrape never renders.
 func TestStatusMetricsStatementInventory(t *testing.T) {
 	t.Parallel()
@@ -77,13 +78,13 @@ func TestStatusMetricsStatementInventory(t *testing.T) {
 	off := count(metricsSnapshotSelection(), false)
 	on := count(metricsSnapshotSelection(), true)
 
-	if want := (scrapeInventory{total: 25, activeWork: 1, factRecords: 1}); before != want {
+	if want := (scrapeInventory{total: 26, activeWork: 1, factRecords: 1}); before != want {
 		t.Fatalf("before = %+v, want %+v", before, want)
 	}
-	if want := (scrapeInventory{total: 21, activeWork: 1}); off != want {
+	if want := (scrapeInventory{total: 22, activeWork: 1}); off != want {
 		t.Fatalf("reader off = %+v, want %+v", off, want)
 	}
-	if want := (scrapeInventory{total: 22, clock: 1, modelRow: 1}); on != want {
+	if want := (scrapeInventory{total: 23, clock: 1, modelRow: 1}); on != want {
 		t.Fatalf("reader on = %+v, want %+v", on, want)
 	}
 }

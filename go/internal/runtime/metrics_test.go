@@ -285,3 +285,40 @@ func TestStatusMetricsHandlerIncludesCoordinatorSnapshotMetrics(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusMetricsHandlerReportsCollectorTerminalFailureGauge(t *testing.T) {
+	handler, err := NewStatusMetricsHandler("workflow-coordinator", &fakeStatusReader{
+		snapshot: statuspkg.RawSnapshot{
+			AsOf: time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC),
+			Coordinator: &statuspkg.CoordinatorSnapshot{
+				CollectorInstances: []collector.InstanceSummary{
+					{InstanceID: "alerts-a", CollectorKind: "security_alert", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+					{InstanceID: "alerts-b", CollectorKind: "security_alert", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+					{InstanceID: "git-a", CollectorKind: "git", Mode: "continuous", Enabled: true, ClaimsEnabled: true},
+				},
+				CollectorTerminalFailures: []collector.TerminalFailure{
+					{CollectorKind: "security_alert", InstanceID: "alerts-a", FailureClass: "auth_denied", FailureOperation: "list_org_alerts", Terminal: true},
+					{CollectorKind: "security_alert", InstanceID: "alerts-b", FailureClass: "auth_denied", FailureOperation: "list_org_alerts", Terminal: true},
+					{CollectorKind: "security_alert", InstanceID: "ghost", FailureClass: "token_ghp_secret", Terminal: true},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewStatusMetricsHandler() error = %v, want nil", err)
+	}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := recorder.Body.String()
+
+	want := `eshu_runtime_coordinator_collector_terminal_failure_instances{collector_kind="security_alert",failure_class="auth_denied",service_name="workflow-coordinator"} 2`
+	if !strings.Contains(body, want) {
+		t.Fatalf("GET /metrics body missing %q\nbody:\n%s", want, body)
+	}
+	if strings.Contains(body, "ghp_secret") {
+		t.Fatalf("GET /metrics leaked an unbounded failure class:\n%s", body)
+	}
+	if strings.Contains(body, `collector_kind="git"`) && strings.Contains(body, "terminal_failure_instances{collector_kind=\"git\"") {
+		t.Fatalf("healthy git instance reported a terminal failure:\n%s", body)
+	}
+}

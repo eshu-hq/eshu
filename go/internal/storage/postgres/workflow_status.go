@@ -95,6 +95,62 @@ SELECT
      WHERE status IN ('failed_terminal', 'expired')
        AND updated_at >= $1) AS recent_terminal_work_items
 `
+
+	// workflowCollectorTerminalFailuresQuery returns, per enabled collector
+	// instance, the newest terminal work-item failure that no later completed
+	// work item for the same scope has superseded (#8803). The inner query
+	// takes the 20 newest failed_terminal rows of the instance from
+	// workflow_work_items_claimable_idx (kind, instance, status), so the cost
+	// follows the instance's terminal-row history, not the table size. The
+	// anti-join probes workflow_work_items_collector_scope_generation_updated_idx
+	// per candidate. A terminal failure followed by a later success on the same
+	// scope therefore drops out. Only the bounded class and operation tokens are
+	// selected; last_failure_message and last_failure_status_code can carry
+	// provider text and are never read.
+	workflowCollectorTerminalFailuresQuery = `
+SELECT
+    i.collector_kind,
+    i.instance_id,
+    COALESCE(f.last_failure_class, ''),
+    COALESCE(f.last_failure_operation, ''),
+    COALESCE(f.last_failure_terminal, TRUE),
+    f.updated_at
+FROM collector_instances AS i
+CROSS JOIN LATERAL (
+    SELECT
+        c.last_failure_class,
+        c.last_failure_operation,
+        c.last_failure_terminal,
+        c.updated_at
+    FROM (
+        SELECT
+            t.scope_id,
+            t.last_failure_class,
+            t.last_failure_operation,
+            t.last_failure_terminal,
+            t.updated_at
+        FROM workflow_work_items AS t
+        WHERE t.collector_kind = i.collector_kind
+          AND t.collector_instance_id = i.instance_id
+          AND t.status = 'failed_terminal'
+        ORDER BY t.updated_at DESC
+        LIMIT 20
+    ) AS c
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM workflow_work_items AS s
+        WHERE s.collector_kind = i.collector_kind
+          AND s.scope_id = c.scope_id
+          AND s.status = 'completed'
+          AND s.updated_at > c.updated_at
+    )
+    ORDER BY c.updated_at DESC
+    LIMIT 1
+) AS f
+WHERE i.enabled
+  AND i.deactivated_at IS NULL
+ORDER BY i.collector_kind ASC, i.instance_id ASC
+`
 )
 
 // defaultCoordinatorRecentFailureWindow bounds how far back a workflow failure
@@ -131,20 +187,25 @@ func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.
 	if err != nil {
 		return nil, err
 	}
+	terminalFailures, err := readWorkflowCollectorTerminalFailures(ctx, queryer)
+	if err != nil {
+		return nil, err
+	}
 	if len(instances) == 0 && len(runCounts) == 0 && len(workItemCounts) == 0 && len(completenessCounts) == 0 && activeClaims == 0 && overdueClaims == 0 && oldestPendingAge == 0 && len(backpressure) == 0 {
 		return nil, nil
 	}
 
 	return &statuspkg.CoordinatorSnapshot{
-		CollectorInstances:    instances,
-		RunStatusCounts:       runCounts,
-		WorkItemStatusCounts:  workItemCounts,
-		CompletenessCounts:    completenessCounts,
-		CollectorBackpressure: backpressure,
-		ActiveClaims:          activeClaims,
-		OverdueClaims:         overdueClaims,
-		OldestPendingAge:      oldestPendingAge,
-		RecentFailures:        recentFailures,
+		CollectorInstances:        instances,
+		RunStatusCounts:           runCounts,
+		WorkItemStatusCounts:      workItemCounts,
+		CompletenessCounts:        completenessCounts,
+		CollectorBackpressure:     backpressure,
+		CollectorTerminalFailures: terminalFailures,
+		ActiveClaims:              activeClaims,
+		OverdueClaims:             overdueClaims,
+		OldestPendingAge:          oldestPendingAge,
+		RecentFailures:            recentFailures,
 	}, nil
 }
 
@@ -188,6 +249,42 @@ func readWorkflowCoordinatorRecentFailures(
 	recent.BlockedCompleteness = int(blockedCompleteness)
 	recent.TerminalWorkItems = int(terminalWorkItems)
 	return recent, nil
+}
+
+// readWorkflowCollectorTerminalFailures reads the newest unresolved terminal
+// work-item failure per enabled collector instance. The result carries only
+// bounded class and operation tokens; the status layer re-validates them
+// before they reach a payload.
+func readWorkflowCollectorTerminalFailures(
+	ctx context.Context,
+	queryer db.Queryer,
+) ([]collector.TerminalFailure, error) {
+	rows, err := queryer.QueryContext(ctx, workflowCollectorTerminalFailuresQuery)
+	if err != nil {
+		return nil, fmt.Errorf("read workflow collector terminal failures: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var failures []collector.TerminalFailure
+	for rows.Next() {
+		var failure collector.TerminalFailure
+		if err := rows.Scan(
+			&failure.CollectorKind,
+			&failure.InstanceID,
+			&failure.FailureClass,
+			&failure.FailureOperation,
+			&failure.Terminal,
+			&failure.ObservedAt,
+		); err != nil {
+			return nil, fmt.Errorf("read workflow collector terminal failures: %w", err)
+		}
+		failure.ObservedAt = failure.ObservedAt.UTC()
+		failures = append(failures, failure)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read workflow collector terminal failures: %w", err)
+	}
+	return failures, nil
 }
 
 func listCoordinatorCollectorInstances(ctx context.Context, queryer db.Queryer) ([]collector.InstanceSummary, error) {

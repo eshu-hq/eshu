@@ -308,6 +308,8 @@ func writeCoordinatorMetrics(
 		strconv.Itoa(len(snapshot.CollectorInstances)),
 	)
 
+	writeCollectorTerminalFailureMetrics(writeGauge, serviceName, snapshot)
+
 	for _, row := range summarizeCollectorInstances(snapshot.CollectorInstances) {
 		writeGauge(
 			"eshu_runtime_coordinator_collector_instances",
