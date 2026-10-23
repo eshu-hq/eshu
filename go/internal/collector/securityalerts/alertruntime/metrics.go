@@ -50,3 +50,36 @@ func (s *ClaimedSource) recordFacts(ctx context.Context, target TargetConfig, en
 		))
 	}
 }
+
+// Bounded Dependabot endpoint operation tokens used as the operation label of
+// eshu_dp_security_alert_truncated_reads_total. They match the tokens the
+// provider client stamps on failures (#8258): an endpoint shape, never a
+// repository, organization, URL, or credential.
+const (
+	dependabotRepositoryAlertsOperation   = "list_repo_alerts"
+	dependabotOrganizationAlertsOperation = "list_org_alerts"
+)
+
+// recordTruncatedRead counts one provider read that hit max_pages before the
+// provider stream ended.
+func (s *ClaimedSource) recordTruncatedRead(ctx context.Context, target TargetConfig, operation string) {
+	if s.instruments == nil {
+		return
+	}
+	s.instruments.SecurityAlertTruncatedReads.Add(ctx, 1, metric.WithAttributes(
+		attribute.String(telemetry.MetricDimensionProvider, target.Provider),
+		attribute.String(telemetry.MetricDimensionOperation, operation),
+	))
+}
+
+// recordFanoutOutcome counts one allowlisted repository handled by the org
+// fan-out, labeled by its closed outcome.
+func (s *ClaimedSource) recordFanoutOutcome(ctx context.Context, target TargetConfig, outcome string) {
+	if s.instruments == nil {
+		return
+	}
+	s.instruments.SecurityAlertOrgFanoutRepositories.Add(ctx, 1, metric.WithAttributes(
+		attribute.String(telemetry.MetricDimensionProvider, target.Provider),
+		attribute.String(telemetry.MetricDimensionOutcome, outcome),
+	))
+}

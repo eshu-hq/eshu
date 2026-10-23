@@ -16,4 +16,43 @@ const (
 	// It is a bounded span attribute, not a metric label, so cardinality stays
 	// safe while operators can still tell org fan-out work from per-repo polls.
 	AttrSecurityAlertTargetScope = "eshu.security_alert.target_scope"
+
+	// AttrSecurityAlertFanoutRepositories is the span attribute key recording
+	// how many allowlisted repositories inside the target organization the
+	// per-repository fan-out considered after a truncated org read (#8805).
+	// It is a count, never a repository name.
+	AttrSecurityAlertFanoutRepositories = "eshu.security_alert.org_fanout.repositories"
+	// AttrSecurityAlertFanoutRequested is the span attribute key recording how
+	// many bounded per-repository reads the fan-out issued (#8805).
+	AttrSecurityAlertFanoutRequested = "eshu.security_alert.org_fanout.requested"
+	// AttrSecurityAlertFanoutIncomplete is the span attribute key recording how
+	// many fan-out repositories still have incomplete coverage: truncated,
+	// failed, rate limited, or skipped at the repository cap (#8805).
+	AttrSecurityAlertFanoutIncomplete = "eshu.security_alert.org_fanout.incomplete"
+	// AttrSecurityAlertFanoutRateLimited is the span attribute key recording
+	// whether the provider rate limited the fan-out and stopped it (#8805).
+	AttrSecurityAlertFanoutRateLimited = "eshu.security_alert.org_fanout.rate_limited"
+)
+
+// Org-scope security-alert fan-out outcomes (#8805), recorded on the existing
+// outcome dimension of eshu_dp_security_alert_org_fanout_repositories_total.
+// The value set is closed: one value per allowlisted repository per truncated
+// org read.
+const (
+	// SecurityAlertFanoutOutcomeComplete means the repository's own bounded
+	// read returned every open alert inside max_pages.
+	SecurityAlertFanoutOutcomeComplete = "complete"
+	// SecurityAlertFanoutOutcomeTruncated means the repository's own bounded
+	// read still hit max_pages, so its facts stay incomplete.
+	SecurityAlertFanoutOutcomeTruncated = "truncated"
+	// SecurityAlertFanoutOutcomeFailed means the repository read failed with a
+	// non-rate-limit provider failure; the fan-out continued.
+	SecurityAlertFanoutOutcomeFailed = "failed"
+	// SecurityAlertFanoutOutcomeRateLimited means the provider rate limited
+	// this or an earlier repository read, so the fan-out stopped and the
+	// repository was not read.
+	SecurityAlertFanoutOutcomeRateLimited = "rate_limited"
+	// SecurityAlertFanoutOutcomeSkippedCap means the repository sat past the
+	// per-claim fan-out repository cap and was not read.
+	SecurityAlertFanoutOutcomeSkippedCap = "skipped_cap"
 )

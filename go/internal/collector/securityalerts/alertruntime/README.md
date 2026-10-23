@@ -28,6 +28,53 @@ flowchart LR
   D --> E["collector.ClaimedService"]
 ```
 
+## Org-scope fan-out (#8805)
+
+An org read is a window: GitHub pages the whole organization's open alerts
+newest first, so `max_pages` x 100 alerts may hold few or none of a quiet
+allowlisted repository's alerts. When the org read is truncated,
+`collectTarget` hands off to `fanOutOrganization` (`org_fanout.go`), which reads
+each allowlisted repository of the organization with
+`ListRepositoryAlertsPages`, bounded by the same `max_pages`, sequentially in
+allowlist order and capped at `maxOrganizationFanoutRepositories` (100) per
+claim. `mergeFanoutAlerts` merges the reads into the claim's generation and
+org `scope_id`: a complete repository read replaces that repository's
+org-window alerts, every other allowlisted repository keeps its org-window
+alerts, and duplicates collapse on (repository, alert number). Fan-out alerts
+are stamped with the requested repository, so their `repository_id` and stable
+fact key match the org path. Per-repository coverage (`coverage.go`) stamps each
+fact: a still-truncated read keeps `provider_open_alert_page_limit_reached`;
+a failed, rate-limited, or capped repository adds
+`org_repository_read_failed`, `org_repository_read_rate_limited`, or
+`org_repository_fanout_cap_reached`. The first rate-limited read stops the
+fan-out; the claim still commits what it read and never loops. Only a cancelled
+claim context fails the claim. The freshness digest includes each alert's
+repository and the fan-out outcomes, so a changed outcome is a new refresh
+boundary.
+
+Performance Evidence: one org claim sends at most
+`max_pages` x (1 + min(allowlisted org repositories, 100)) alert-page requests
+(plus one App token mint per listing call under `github_app`). A claim whose
+org read is not truncated sends exactly the requests it sent before.
+`TestClaimedSourceOrgFanoutReplaysProviderCassette` replays
+`testdata/org_fanout_cassette.json` against the real `GitHubDependabotClient`
+and pins the request count: 5 requests for a truncated two-page org read with
+one complete and one two-page-truncated repository, and 3 requests when the
+second repository read is rate limited (the third allowlisted repository is
+never requested). `TestClaimedSourceBoundsFanoutRepositories` pins the
+100-repository cap.
+
+Observability Evidence: `eshu_dp_security_alert_truncated_reads_total`
+(`provider`, `operation`) counts every truncated read, and
+`eshu_dp_security_alert_org_fanout_repositories_total` (`provider`, `outcome`)
+counts each fan-out repository outcome. Each fan-out read also records the
+existing provider request, fetch-duration, and rate-limit instruments under its
+own `security_alert.fetch` span, and the `security_alert.observe` span carries
+`eshu.security_alert.org_fanout.repositories`, `.requested`, `.incomplete`, and
+`.rate_limited`. No label or attribute carries a repository or organization.
+`TestClaimedSourceReportsRepositoryStillTruncatedAfterFanout` and
+`TestClaimedSourceStopsFanoutOnRateLimit` assert the counters.
+
 Operationally useful signals are emitted on the caller-provided telemetry
 handle: provider request totals, emitted fact totals, rate-limit totals, fetch
 duration histograms, and security-alert observe/fetch spans. Labels are bounded

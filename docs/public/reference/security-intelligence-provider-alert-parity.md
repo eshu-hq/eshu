@@ -17,10 +17,9 @@ by the target `scope` field (default `repository`):
 - `org`-scoped targets poll one organization
   (`GET /orgs/{org}/dependabot/alerts`) and fan the response out into
   per-repository `security_alert.repository_alert` facts keyed on each alert's
-  source repository. One org target replaces N per-repository targets and
-  collapses N per-repository requests into one paginated org request per
-  collection, while producing the same per-repository fact shape so reducer
-  reconciliation is unchanged.
+  source repository, with the same per-repository fact shape so reducer
+  reconciliation is unchanged. The org read is a bounded window, not a full
+  scan; see [Org-scope window and per-repository fan-out](#org-scope-window-and-per-repository-fan-out).
 
 Targets name a `token_env` rather than a token value. Any `api_base_url`
 override must use HTTPS because the runtime sends the bearer token to that
@@ -28,8 +27,54 @@ endpoint. Both scopes share the same bounded cursor pagination, cross-host
 next-link rejection, and rate-limit handling. Collection is bounded by
 `repository_alert_limit` and `max_pages`, requests GitHub's open-alert view
 directly, and surfaces `source_freshness=partial` plus a coverage summary when
-the open-alert provider page cap is reached. Provider rate-limit responses are
-surfaced as retryable workflow failures.
+the open-alert provider page cap is reached. A rate-limited first read for a
+target is surfaced as a retryable workflow failure.
+
+### Org-scope window and per-repository fan-out
+
+GitHub returns an organization's open alerts newest first across every
+repository and pages them by cursor only. An org read therefore covers at most
+`max_pages` x 100 alerts for the whole organization before the
+`allowed_repositories` filter runs. On a large organization a quiet allowlisted
+repository can have few or none of its alerts inside that window, even with the
+maximum of 100 pages.
+
+When the org read hits `max_pages`, the runtime reads each allowlisted
+repository of that organization through
+`GET /repos/{owner}/{repo}/dependabot/alerts`, each read bounded by the same
+`max_pages`, and merges the results into the same generation and `scope_id`:
+
+- A repository whose own read completes replaces its org-window alerts and
+  reports complete coverage. Facts keep one stable key whichever read produced
+  them, so the org path and the per-repository path are idempotent.
+- A repository whose own read still hits `max_pages` keeps
+  `collection_incomplete_reasons=["provider_open_alert_page_limit_reached"]`
+  and counts on `eshu_dp_security_alert_truncated_reads_total`.
+- Reads run one at a time in allowlist order. The first rate-limited read stops
+  the fan-out; that repository and every later one keep only their org-window
+  facts with `org_repository_read_rate_limited`. The claim still commits, and
+  the next scheduled claim reads again. Nothing retries inside the claim.
+- A read that fails for another reason (for example `not_found`) marks that
+  repository `org_repository_read_failed` and the fan-out continues.
+- At most 100 repositories are read per claim. Later allowlisted repositories
+  keep their org-window facts with `org_repository_fanout_cap_reached`.
+
+One claim sends at most `max_pages` x (1 + min(allowlisted repositories in the
+organization, 100)) alert-page requests. Under `github_app` auth each listing
+call also mints one installation token. Allowlisted repositories owned by
+another account are never read through an org target.
+
+A repository that the fan-out could not read and that has no alert in the org
+window emits no fact, so no fact carries its reason. The
+`eshu_dp_security_alert_org_fanout_repositories_total` outcome counter still
+counts it.
+
+Prefer `repository`-scoped targets when the allowlist is a small part of a
+large organization. They cost the sum of `ceil(open alerts / 100)` requests
+across the allowlisted repositories, while an org target whose window
+truncates pays for the org window and then the same per-repository reads. Use
+an `org` target when the organization's whole open-alert stream fits inside
+`max_pages` x 100 alerts.
 
 `security_alert.repository_alert` facts preserve repository-scoped provider
 alert state from GitHub Dependabot. The runtime emits only that source fact

@@ -51,7 +51,7 @@ queries filtering by scope `eshu-api` should update the filter to
 | AWS collector | `aws.collector.claim.process`, `aws.credentials.assume_role`, `aws.service.scan`, and `aws.service.pagination.page`. |
 | Terraform-state collector | `tfstate.collector.claim.process`, `tfstate.discovery.resolve`, `tfstate.source.open`, `tfstate.parser.stream`, and `tfstate.fact.emit_batch`. |
 | Vulnerability intelligence collector | `vulnerability_intelligence.observe` and `vulnerability_intelligence.fetch`. |
-| Security alert collector | `security_alert.observe` and `security_alert.fetch`. |
+| Security alert collector | `security_alert.observe` and `security_alert.fetch`. `observe` carries `eshu.security_alert.target_scope`; after a truncated org read it also carries the fan-out counts `eshu.security_alert.org_fanout.repositories`, `.requested`, `.incomplete`, and `.rate_limited`, and each per-repository fan-out read gets its own `fetch` span. |
 | CI/CD run collector | `ci_cd_run.observe` and `ci_cd_run.fetch`. |
 | PagerDuty collector | `pagerduty.observe` and `pagerduty.fetch`. |
 | Jira collector | `jira.observe` and `jira.fetch`; fetch spans carry bounded page, emitted-fact, rejected-link, unsupported-provider, and Retry-After counters. |

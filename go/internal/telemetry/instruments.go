@@ -2853,6 +2853,14 @@ type Instruments struct {
 	// noop, error), once per transaction. Registered by
 	// registerCompletionWakeInstruments.
 	ReducerCompletionWake metric.Int64Counter
+	// SecurityAlertTruncatedReads counts #8805 provider security-alert reads
+	// that hit max_pages, by provider and endpoint operation
+	// (list_repo_alerts, list_org_alerts).
+	SecurityAlertTruncatedReads metric.Int64Counter
+	// SecurityAlertOrgFanoutRepositories counts #8805 allowlisted
+	// repositories handled by the org-scope per-repository fan-out, by
+	// provider and the closed outcome set in contract/security_alert.go.
+	SecurityAlertOrgFanoutRepositories metric.Int64Counter
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
@@ -3781,6 +3789,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecurityAlertRateLimited counter: %w", err)
+	}
+
+	inst.SecurityAlertTruncatedReads, err = meter.Int64Counter(
+		"eshu_dp_security_alert_truncated_reads_total",
+		metric.WithDescription("Provider security-alert reads that hit max_pages before the provider stream ended, by provider and endpoint operation (list_repo_alerts, list_org_alerts) (#8805)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecurityAlertTruncatedReads counter: %w", err)
+	}
+
+	inst.SecurityAlertOrgFanoutRepositories, err = meter.Int64Counter(
+		"eshu_dp_security_alert_org_fanout_repositories_total",
+		metric.WithDescription("Allowlisted repositories handled by the per-repository fan-out after a truncated org-scope security-alert read, by provider and outcome (complete, truncated, failed, rate_limited, skipped_cap) (#8805)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecurityAlertOrgFanoutRepositories counter: %w", err)
 	}
 
 	inst.CICDRunProviderRequests, err = meter.Int64Counter(
