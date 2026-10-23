@@ -97,8 +97,9 @@ def run_claude(question: str, config: str, model: str, cwd: str,
            "--model", model, "--setting-sources", "", "--disable-slash-commands",
            "--no-session-persistence"]
     # Raise the client's MCP output limit so a large result arrives inline.
-    # Otherwise it is saved to a file the tool-less agent cannot read, and the
-    # run would measure the client limit instead of tool choice.
+    # Claude Code 2.1.309 still saved some large results to a file the
+    # tool-less agent cannot read; the scorer counts those as overflows, so
+    # they show up as lost answers instead of silently passing.
     env = dict(os.environ, CLAUDE_CODE_DISABLE_CLAUDE_MDS="1",
                MAX_MCP_OUTPUT_TOKENS="200000")
     try:
