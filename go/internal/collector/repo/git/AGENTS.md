@@ -275,10 +275,10 @@ covers both modes).
 Performance Evidence: `BenchmarkSymlinkTargetAdmitted` (committed in
 `snapshot_native_symlink_cost_test.go`) measures the matcher, not an end-to-end
 discovery before/after. `go test -run '^$' -bench BenchmarkSymlinkTargetAdmitted
--benchtime=20000x -count=5 ./internal/collector/repo/git/` on a loaded 16-thread
-arm64 Linux host gave 0.82 to 1.40 µs per regular file (one `Lstat`) and 14.0 to
-16.4 µs per symlink (`EvalSymlinks`, the location rules, and `Stat`), against
-zero before. Both are far below the parse and read cost of the file they guard,
+-benchtime=20000x -count=5 ./internal/collector/repo/git/`, run twice on a shared
+16-thread arm64 Linux host, gave 0.68 to 1.40 µs per regular file (one `Lstat`)
+and 10.6 to 16.4 µs per symlink (`EvalSymlinks`, the location rules, and
+`Stat`), against zero before. The spread is host load. Both are far below the parse and read cost of the file they guard,
 and no queue, graph, or SQL path changes. A repository-scale discovery
 comparison is NOT_CHECKED.
 
