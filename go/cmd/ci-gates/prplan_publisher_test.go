@@ -6,10 +6,32 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 )
+
+func TestTrustedFragmentsRejectMissingPlannerJob(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	workflowDir := filepath.Join(root, ".github", "workflows")
+	fragmentDir := filepath.Join(root, "specs", "ci-pr-workflows.d")
+	for _, dir := range []string{workflowDir, fragmentDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(workflowDir, "test.yml"), []byte("name: Build Test\non: pull_request\njobs:\n  other: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(fragmentDir, "frontend.yml"), []byte("schema_version: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := requiredPlannerGate(root); err == nil || !strings.Contains(err.Error(), "test.yml") || !strings.Contains(err.Error(), "pr-plan") {
+		t.Fatalf("missing planner job must fail before polling: %v", err)
+	}
+}
 
 func TestTrustedFragmentsMakePlannerJobRequired(t *testing.T) {
 	t.Parallel()

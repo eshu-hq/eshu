@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,6 +29,19 @@ func requiredPlannerGate(root string) (resolvedRequiredGate, bool, error) {
 	}
 	if !info.IsDir() {
 		return resolvedRequiredGate{}, false, fmt.Errorf("trusted PR plan fragment path is not a directory")
+	}
+	workflowPath := filepath.Join(root, ".github", "workflows", "test.yml")
+	raw, err := os.ReadFile(workflowPath) // #nosec G304 -- fixed path in the trusted checkout
+	if err != nil {
+		return resolvedRequiredGate{}, false, fmt.Errorf("read trusted planner workflow test.yml: %w", err)
+	}
+	def, included, err := cigates.ParsePRWorkflowDefinition("test.yml", raw)
+	if err != nil {
+		return resolvedRequiredGate{}, false, fmt.Errorf("parse trusted planner workflow test.yml: %w", err)
+	}
+	if !included || !def.Synchronize || !slices.Contains(def.Jobs, "pr-plan") ||
+		(def.JobNames["pr-plan"] != "" && def.JobNames["pr-plan"] != "pr-plan") {
+		return resolvedRequiredGate{}, false, fmt.Errorf("trusted planner workflow test.yml must define a synchronize pull_request pr-plan job with check name pr-plan")
 	}
 	gates, err := resolveRequiredGateWorkflows(root, []cigates.RequiredGate{{Workflow: "test.yml", Job: "pr-plan", GateIDs: []string{"central-pr-plan"}}})
 	if err != nil || len(gates) != 1 {

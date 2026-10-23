@@ -165,6 +165,24 @@ func TestCalledFailureCannotBeClearedByDirectSuccess(t *testing.T) {
 	}
 }
 
+func TestDirectCallPrefixedJobStillRereadsNewestRun(t *testing.T) {
+	t.Parallel()
+	gate := resolvedRequiredGate{WorkflowFile: "test.yml", WorkflowName: "Build Test", Job: "call-direct", GateIDs: []string{"direct"}}
+	failed := checkRollup{Name: "call-direct", Workflow: "Build Test", Event: eventPullRequest, Bucket: "fail", State: "FAILURE", RunID: 20, HeadSHA: headSHAFixture}
+	evaluation := evaluateRequiredChecks([]resolvedRequiredGate{gate}, []checkRollup{failed}, nil)
+	if len(evaluation.Failed) != 1 {
+		t.Fatalf("setup failed: %#v", evaluation)
+	}
+	runner := &endpointRunner{routes: map[string]string{
+		"actions/runs?": `[{"workflow_runs":[{"id":21,"name":"Build Test","event":"pull_request","check_suite_id":121}]}]`,
+		"/check-runs":   `[{"check_runs":[{"name":"call-direct","status":"completed","conclusion":"success","check_suite":{"id":121}}]}]`,
+	}}
+	got := attributeFailedGatesToNewestRun(context.Background(), runner, "eshu-hq/eshu", headSHAFixture, eventPullRequest, evaluation.Failed, nil, io.Discard)
+	if len(got.Confirmed)+len(got.Redirected.Pending)+len(got.Redirected.Cancelled) != 0 {
+		t.Fatalf("direct call-prefixed failure was not re-read: %#v", got)
+	}
+}
+
 func TestCalledCheckCancelledAndAmbiguousFailClosed(t *testing.T) {
 	t.Parallel()
 	gate := resolvedRequiredGate{WorkflowFile: "frontend.yml", WorkflowName: "Frontend", Job: "console"}

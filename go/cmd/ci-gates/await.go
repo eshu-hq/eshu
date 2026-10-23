@@ -337,15 +337,12 @@ func evaluateRequiredChecks(
 		// Precedence within one gate is failure > pending > cancelled
 		// (#6189).
 		//
-		// Scope, stated honestly: with the reader this command actually has,
-		// `matches` holds at most one row, so no ordering here is observable
-		// today. `gh pr checks` de-duplicates check contexts on
-		// name/workflow/event (read in cli/cli v2.97.0
-		// pkg/cmd/pr/checks/aggregate.go, eliminateDuplicates -- the version
-		// installed here), which is the same triple matchingChecks keys on.
-		// The precedence that decides real verdicts is the one in
-		// awaitPRRequiredChecks, where a non-empty Failed wins over
-		// everything else.
+		// `gh pr checks` de-duplicates rows with the same name, workflow,
+		// and event. A gate can still match both its direct check and the
+		// Build Test caller alias. A failure in either must beat a pending or
+		// cancelled sibling; a pending sibling must beat cancellation. This
+		// prevents a direct green row from hiding a called failure, and the
+		// outer await gives any Failed finding priority over other gates.
 		//
 		// It is kept, and ordered deliberately, because this repository does
 		// not pin the runner's gh -- the same reason isCancelledCheck in

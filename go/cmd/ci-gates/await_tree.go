@@ -70,7 +70,7 @@ func findingFor(gate resolvedRequiredGate, state string, runID int64) requiredCh
 // owning run's tree so the verdict names what it evaluated.
 func findingForCheck(gate resolvedRequiredGate, check checkRollup, state string) requiredCheckFinding {
 	finding := findingFor(gate, state, check.RunID)
-	finding.Called = check.Workflow == "Build Test" && strings.HasPrefix(check.Name, "call-")
+	finding.Called = check.Workflow == "Build Test" && strings.HasPrefix(check.Name, "call-") && strings.Contains(check.Name, " / ")
 	if check.Event != "" {
 		finding.Event = check.Event
 	}

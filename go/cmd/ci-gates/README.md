@@ -193,7 +193,7 @@ Use one trusted default-branch checkout for the registry, workflows, and optiona
 `full` selects every applicable synchronize workflow and local job ID, including non-gate jobs; opened-only and labeled-only workflows stay outside it.
 `reuse` selects zero leaf jobs only after full-backed v2 proof. `smoke` emits the proved `source_sha` and current `tree`, fast gate IDs, dependency-closed fast jobs, and the two transfer-aware Go complete jobs; uncertain ownership, changed definitions, and truncated paths fall back to `full`.
 Missing or malformed output fails; the command reports a plan but does not dispatch it.
-The awaiter accepts direct checks and the fixed `Build Test / call-<workflow filename stem> / <check>` alias for `.yml` or `.yaml` leaves. Both identities must be green if both ran. Caller results bind to the current attempt of `.github/workflows/test.yml` for the requested PR and head; missing run ownership stays pending. Once fragments deploy, the awaiter also requires `Build Test / pr-plan`, including before a reuse transfer.
+The awaiter accepts direct checks and the fixed `Build Test / call-<workflow filename stem> / <check>` alias for `.yml` or `.yaml` leaves. Both identities must be green if both ran. Caller results bind to the current attempt of `.github/workflows/test.yml` for the requested PR and head; missing run ownership stays pending. Once fragments deploy, the awaiter requires `Build Test / pr-plan`, including before a reuse transfer, and rejects a trusted `test.yml` that cannot produce that check.
 
 ### await
 
