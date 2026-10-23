@@ -98,9 +98,13 @@ not `failed`.
   impact evidence on attempts 1 and 2 only. At attempt 3 it stops waiting,
   writes `unmatched` decisions, and the attempt records `succeeded`. At the
   default budget (`ESHU_REDUCER_MAX_ATTEMPTS=3`) the wait therefore never fails
-  and nothing dead-letters. Check the `supply_chain_impact` queue age and
-  blockages for the package's scope and generation. #8827 tracks the
-  reconciliation burning attempts while it waits on its own producer.
+  and nothing dead-letters. No signal marks the give-up itself yet: the
+  attempt records `succeeded`, and the execution metric has no
+  `failure_class` for it (#8827 tracks one). Check
+  `eshu_runtime_domain_oldest_age_seconds{domain="supply_chain_impact"}` and
+  the blockage view in the status endpoint above for the package's scope and
+  generation. #8827 also tracks the reconciliation burning attempts while it
+  waits on its own producer.
 - A `failed` execution with this `failure_class` is not a normal end of the
   wait. It means `ESHU_REDUCER_MAX_ATTEMPTS` is 1 or 2, so the queue
   dead-letters before the handler's cap of 3, or the error is a real one. Replay
