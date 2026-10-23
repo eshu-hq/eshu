@@ -176,6 +176,19 @@ class OverflowTest(unittest.TestCase):
         run = score.parse_claude(stream)
         self.assertEqual([c.overflowed for c in run.calls], [True])
 
+    def test_a_readable_result_that_mentions_the_marker_is_not_an_overflow(
+            self) -> None:
+        # A real result can quote the marker text mid-body, for example a code
+        # search hit on this scorer. Only a result that starts with the marker
+        # is the client's saved-file notice.
+        readable = ('{"hits": [{"snippet": "marker = \'<persisted-output>\'"}]}')
+        stream = _claude_stream(
+            _tool_use("mcp__eshu__find_code", {}, "a"),
+            _tool_result_text("a", readable),
+            _result())
+        run = score.parse_claude(stream)
+        self.assertEqual([c.overflowed for c in run.calls], [False])
+
     def test_overflowed_expected_call_is_not_success(self) -> None:
         run = score.Run(
             calls=[score.Call("find_symbol", "find_symbol", overflowed=True)],

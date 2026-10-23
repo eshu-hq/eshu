@@ -39,8 +39,11 @@ _WRAPPER = "call_tool"
 _DISCOVERY = "find_tool"
 # Wording the client uses when it cannot show a tool result: the older error
 # text, and the newer notice that swaps the result for a short preview and a
-# file path the tool-less agent cannot open.
-_OVERFLOW_MARKERS = ("exceeds maximum allowed tokens", "<persisted-output>")
+# file path the tool-less agent cannot open. The error text may follow a prefix,
+# so it matches anywhere. The saved-file notice is the whole result, so it must
+# be at the start: a readable result that quotes the marker is not an overflow.
+_OVERFLOW_ERROR = "exceeds maximum allowed tokens"
+_SAVED_NOTICE = "<persisted-output>"
 
 # Lookups that resolve identifiers or give context for another tool. A call to
 # one of these is not counted as a wrong pick even when the corpus does not list
@@ -184,8 +187,9 @@ def parse_claude(stream: str) -> Run:
                     if call is not None:
                         call.is_error = bool(block.get("is_error"))
                         text = _text_of(block.get("content"))
-                        call.overflowed = any(m in text
-                                              for m in _OVERFLOW_MARKERS)
+                        call.overflowed = (
+                            _OVERFLOW_ERROR in text
+                            or text.strip().startswith(_SAVED_NOTICE))
         elif kind == "result":
             final_text = str(event.get("result") or "")
             wall = float(event.get("duration_ms") or 0) / 1000.0

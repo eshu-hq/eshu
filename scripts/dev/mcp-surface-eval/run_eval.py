@@ -7,6 +7,12 @@ deployment is written to the repository: the base URL and the key come from the
 environment, raw logs go to ``--out``, and entity bindings come from a private
 ``--bindings`` file.
 
+Private data left behind: the ``--out`` raw logs hold tool results with real
+entity names. Claude Code also stores large tool results it persists under
+``~/.claude/projects/-tmp-eshu-eval-*``, outside ``--out``. Delete those
+directories when the run is done. The runner removes its own temporary
+directory at exit unless ``--keep`` is set.
+
 Environment:
     ESHU_MCP_BASE_URL: Server base URL, for example ``https://host``.
     ESHU_MCP_KEY: Bearer key for the server. Never written to disk.
@@ -24,6 +30,7 @@ import json
 import os
 import pathlib
 import random
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -126,6 +133,10 @@ def make_codex_home(directory: pathlib.Path) -> str:
     home = directory / "codex_home"
     home.mkdir()
     src = pathlib.Path.home() / ".codex"
+    if not (src / "config.toml").is_file():
+        raise SystemExit(
+            f"{src / 'config.toml'} is missing: run Codex once so the runner "
+            "can carry over the model and reasoning effort")
     for name in ("auth.json",):
         if (src / name).exists():
             (home / name).symlink_to(src / name)
@@ -185,6 +196,22 @@ def client_version(client: str) -> str:
     return done.stdout.strip().splitlines()[0] if done.stdout else "unknown"
 
 
+def check_bindings_path(path: pathlib.Path) -> None:
+    """Refuses a bindings file inside the git repository.
+
+    The file holds private question text, so it must never sit where
+    ``git add`` could pick it up.
+
+    Raises:
+        SystemExit: If the resolved path is under the repository root.
+    """
+    resolved = path.resolve()
+    if resolved == _REPO_ROOT or _REPO_ROOT in resolved.parents:
+        raise SystemExit(
+            f"--bindings {path} is inside the repository; the file holds "
+            "private question text, so keep it outside the checkout")
+
+
 def main(argv: list[str]) -> int:
     """Parses flags, runs the matrix, writes raw logs and scores."""
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -199,12 +226,16 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--seed", type=int, default=8760)
     ap.add_argument("--repeat", type=int, default=1,
                     help="runs per task and surface; model output varies")
+    ap.add_argument("--keep", action="store_true",
+                    help="keep the temporary directory (MCP configs, Codex home)")
     ap.add_argument("--build", default="",
                     help="deployed Eshu build SHA, recorded in the results")
     args = ap.parse_args(argv)
     base = os.environ.get("ESHU_MCP_BASE_URL", "")
     if not base or not os.environ.get("ESHU_MCP_KEY"):
         raise SystemExit("set ESHU_MCP_BASE_URL and ESHU_MCP_KEY")
+    if args.bindings:
+        check_bindings_path(args.bindings)
     bindings = json.loads(args.bindings.read_text()) if args.bindings else {}
     only = {t for t in args.only.split(",") if t}
     tasks = [t for t in load_tasks(bindings) if not only or t[0].task_id in only]
@@ -213,42 +244,46 @@ def main(argv: list[str]) -> int:
             for i in range(args.repeat)]
     random.Random(args.seed).shuffle(jobs)
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="eshu-eval-"))
-    configs = {s: write_mcp_config(tmp, base, s) for s in surfaces}
-    urls = {s: f"{base.rstrip('/')}/mcp/message?surface={s}" for s in surfaces}
-    codex_home = make_codex_home(tmp) if args.client == "codex" else ""
-    cwd = str(tmp / "cwd"); os.makedirs(cwd)
-    raw = args.out / "raw" / args.client
-    raw.mkdir(parents=True, exist_ok=True)
+    try:
+        configs = {s: write_mcp_config(tmp, base, s) for s in surfaces}
+        urls = {s: f"{base.rstrip('/')}/mcp/message?surface={s}" for s in surfaces}
+        codex_home = make_codex_home(tmp) if args.client == "codex" else ""
+        cwd = str(tmp / "cwd"); os.makedirs(cwd)
+        raw = args.out / "raw" / args.client
+        raw.mkdir(parents=True, exist_ok=True)
 
-    def one(job: tuple[score.Task, str, str, int]) -> dict[str, Any]:
-        task, question, surface, repeat = job
-        if args.client == "codex":
-            stream, run = run_codex(question, urls[surface], codex_home, cwd,
-                                    args.timeout)
-        else:
-            stream, run = run_claude(question, configs[surface], args.model,
-                                     cwd, args.timeout)
-        (raw / f"{surface}__{task.task_id}__{repeat}.jsonl").write_text(stream)
-        sc = score.score(task, run)
-        return {"surface": surface, "repeat": repeat,
-                "non_mcp_calls": run.non_mcp_calls, "turns": run.turns,
-                **sc.__dict__}
+        def one(job: tuple[score.Task, str, str, int]) -> dict[str, Any]:
+            task, question, surface, repeat = job
+            if args.client == "codex":
+                stream, run = run_codex(question, urls[surface], codex_home, cwd,
+                                        args.timeout)
+            else:
+                stream, run = run_claude(question, configs[surface], args.model,
+                                         cwd, args.timeout)
+            (raw / f"{surface}__{task.task_id}__{repeat}.jsonl").write_text(stream)
+            sc = score.score(task, run)
+            return {"surface": surface, "repeat": repeat,
+                    "non_mcp_calls": run.non_mcp_calls, "turns": run.turns,
+                    **sc.__dict__}
 
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
-        for r in pool.map(one, jobs):
-            results.append(r)
-            print(f"{r['surface']:<12} {r['task_id']:<26} #{r['repeat']} "
-                  f"calls={r['tool_calls']} "
-                  f"wrong={r['wrong_tool_calls']} ok={r['success']} "
-                  f"{r['wall_seconds']:.0f}s", flush=True)
-    model = codex_model(codex_home) if args.client == "codex" else args.model
-    meta = {"client": args.client, "version": client_version(args.client),
-            "model": model, "seed": args.seed, "repeat": args.repeat,
-            "build": args.build}
-    (args.out / f"results_{args.client}.json").write_text(
-        json.dumps({"meta": meta, "results": results}, indent=1))
-    return 0
+        results = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
+            for r in pool.map(one, jobs):
+                results.append(r)
+                print(f"{r['surface']:<12} {r['task_id']:<26} #{r['repeat']} "
+                      f"calls={r['tool_calls']} "
+                      f"wrong={r['wrong_tool_calls']} ok={r['success']} "
+                      f"{r['wall_seconds']:.0f}s", flush=True)
+        model = codex_model(codex_home) if args.client == "codex" else args.model
+        meta = {"client": args.client, "version": client_version(args.client),
+                "model": model, "seed": args.seed, "repeat": args.repeat,
+                "build": args.build}
+        (args.out / f"results_{args.client}.json").write_text(
+            json.dumps({"meta": meta, "results": results}, indent=1))
+        return 0
+    finally:
+        if not args.keep:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":
