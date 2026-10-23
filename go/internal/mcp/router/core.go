@@ -4,36 +4,38 @@
 package router
 
 // coreToolNames lists the tools SurfaceCoreRouter advertises beside find_tool
-// and call_tool. The list is the top 10 tools by share of measured MCP calls
-// on a QA deployment, in descending share order (#8759). The measurement, the
-// shares, and the deviation checks are in
-// docs/internal/design/8759-mcp-core-router-tool-set.md; change this list only
-// with a new measurement and a matching change to that record and to
-// measuredCoreToolNames in go/internal/mcp/core_tool_set_test.go.
+// and call_tool. The list is the top 10 tools by mean per-day share of MCP
+// calls over a 21-day QA window (2026-10-02 to 2026-10-22), with one
+// canonical-family swap (#8759). The window, the rule, the scores, and the
+// deviations are in docs/internal/design/8759-mcp-core-router-tool-set.md;
+// change this list only with a new measurement and a matching change to that
+// record and to measuredCoreToolNames in go/internal/mcp/core_tool_set_test.go.
+// The traffic is concentrated on a few days that look like test-driver runs,
+// so the list is not a measure of assistant usage (#8760 measures that).
 //
-// Reason per tool (share of traffic, percent):
-//   - list_codeowners_ownership (29.6): top tool; who owns a path. The QA
-//     sample may be test-driver heavy.
-//   - search_file_content (19.0): text search across indexed file bodies.
-//   - get_file_lines (12.4): read a line range after a search hit.
-//   - get_repository_freshness (6.5): is this repository's index current.
-//   - get_file_content (3.5): read a whole file by repository and path.
-//   - list_repository_files (3.4): list a repository's indexed files.
-//   - find_code (2.6): symbol and code lookup by name.
-//   - list_repositories_by_language (2.6): which repositories use a language.
-//   - find_infra_resources (2.4): infrastructure resource search.
-//   - investigate_code_topic (2.4): topic-level code investigation.
+// Reason per tool (per-day score, percent):
+//   - search_file_content (26.3): text search across indexed file bodies.
+//   - get_service_context (10.4): one-call service dossier.
+//   - get_file_content (5.5): read a whole file by repository and path.
+//   - find_cross_repo_dead_code (5.0): dead-code candidates across repositories.
+//   - search_semantic_context (4.9): semantic search over indexed context.
+//   - investigate_dead_code (3.5): canonical dead-code investigation.
+//   - plan_developer_change (3.3): plan a change with its surface and impact.
+//   - get_file_lines (2.5): read a line range after a search hit.
+//   - analyze_pre_change_impact (2.5): impact of a change before it is made.
+//   - get_repo_story (0.1): canonical repository-overview tool. It replaces
+//     get_repo_context (2.8) by the record's canonical-swap rule.
 var coreToolNames = []string{
-	"list_codeowners_ownership",
 	"search_file_content",
-	"get_file_lines",
-	"get_repository_freshness",
+	"get_service_context",
 	"get_file_content",
-	"list_repository_files",
-	"find_code",
-	"list_repositories_by_language",
-	"find_infra_resources",
-	"investigate_code_topic",
+	"find_cross_repo_dead_code",
+	"search_semantic_context",
+	"investigate_dead_code",
+	"plan_developer_change",
+	"get_file_lines",
+	"analyze_pre_change_impact",
+	"get_repo_story",
 }
 
 // CoreToolNames returns a fresh copy of the tool names SurfaceCoreRouter

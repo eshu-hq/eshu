@@ -91,9 +91,11 @@ once and about 1.1 MB of heap, because `find_tool` stays callable there and a
 `?surface=router` override can select the router surface.
 `core_router` advertises `find_tool`, `call_tool`, and the 10 core tools listed
 in `go/internal/mcp/router/core.go` (#8759). They are the 10 tools with the
-largest share of measured calls on a QA deployment; the
+highest mean per-day share of measured calls over a 21-day QA window, with one
+canonical-family swap. The traffic is concentrated on a few days that look
+like test-driver runs, so the list does not measure assistant usage. The
 [decision record](https://github.com/eshu-hq/eshu/blob/main/docs/internal/design/8759-mcp-core-router-tool-set.md)
-holds the shares and the checks.
+holds the scores, the swap, and the checks.
 
 At startup the server logs `mcp tool surface` with the `surface`, the
 `tool_count`, and the `tools_list_bytes` size of the `tools/list` result, plus
