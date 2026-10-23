@@ -354,6 +354,7 @@ type fakeTransactionalDB struct {
 	beginErr       error
 	queries        []fakeQueryCall
 	queryResponses []queueFakeRows
+	recheckRows    map[string]queueFakeRows // see rememberRecheckRead
 }
 
 func (f *fakeTransactionalDB) Begin(context.Context) (db.Transaction, error) {
@@ -364,9 +365,9 @@ func (f *fakeTransactionalDB) Begin(context.Context) (db.Transaction, error) {
 	if len(f.txs) > 0 {
 		tx := f.txs[0]
 		f.txs = f.txs[1:]
-		return tx, nil
+		return f.withRecheckRows(tx), nil
 	}
-	return f.tx, nil
+	return f.withRecheckRows(f.tx), nil
 }
 
 func (f *fakeTransactionalDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
@@ -388,6 +389,7 @@ func (f *fakeTransactionalDB) QueryContext(_ context.Context, query string, args
 
 	rows := f.queryResponses[0]
 	f.queryResponses = f.queryResponses[1:]
+	f.rememberRecheckRead(query, rows)
 	if rows.err != nil {
 		return nil, rows.err
 	}
@@ -403,6 +405,7 @@ type fakeTx struct {
 	committed      bool
 	rolledBack     bool
 	rollbackHook   func()
+	recheckRows    map[string]queueFakeRows // see fakeTx.recheckRead
 }
 
 func (f *fakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
@@ -416,6 +419,9 @@ func (f *fakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.
 
 func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	f.queries = append(f.queries, fakeQueryCall{query: query, args: args})
+	if rows, ok, err := f.recheckRead(query); ok {
+		return rows, err
+	}
 	if len(f.queryResponses) > 0 {
 		rows := f.queryResponses[0]
 		f.queryResponses = f.queryResponses[1:]

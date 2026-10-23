@@ -169,15 +169,19 @@ func TestIngestionStoreCommitScopeGenerationContinuesWhenActiveFingerprintDiffer
 		t.Fatalf("base query count = %d, want %d", got, want)
 	}
 	// The gated scope upsert (#7766) runs before the catalog load, so the
-	// transaction now carries the gate query first.
-	if got, want := len(db.tx.queries), 2; got != want {
+	// transaction now carries the gate query first, then the guard's in-tx
+	// candidate recheck (#8750 window), then the catalog load.
+	if got, want := len(db.tx.queries), 3; got != want {
 		t.Fatalf("transaction query count = %d, want %d", got, want)
 	}
 	if !strings.Contains(db.tx.queries[0].query, "WITH gate AS") {
 		t.Fatalf("transaction query[0] = %q, want the gated scope upsert first", db.tx.queries[0].query)
 	}
-	if !strings.Contains(db.tx.queries[1].query, "fact_kind = 'repository'") {
-		t.Fatalf("transaction query[1] = %q, want repository catalog load", db.tx.queries[1].query)
+	if db.tx.queries[1].query != unchangedGenerationCandidateQuery {
+		t.Fatalf("transaction query[1] = %q, want the guard's candidate recheck", db.tx.queries[1].query)
+	}
+	if !strings.Contains(db.tx.queries[2].query, "fact_kind = 'repository'") {
+		t.Fatalf("transaction query[2] = %q, want repository catalog load", db.tx.queries[2].query)
 	}
 	if got, want := db.beginCalls, 1; got != want {
 		t.Fatalf("begin call count = %d, want %d", got, want)

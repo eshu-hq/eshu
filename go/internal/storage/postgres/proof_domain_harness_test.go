@@ -184,26 +184,7 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 	case query == deltaBaselineFenceQuery:
 		return newProofRows(proofDeltaBaselineFenceRows(database.state, args)), nil
 	case query == unchangedGenerationCandidateQuery:
-		if len(args) != 1 {
-			return nil, fmt.Errorf("active generation freshness args = %d, want 1", len(args))
-		}
-		scopeID := args[0].(string)
-		activeGenerationID := database.state.activeGenerations[scopeID]
-		if activeGenerationID == "" {
-			return newProofRows(nil), nil
-		}
-		generation, ok := database.state.generations[activeGenerationID]
-		if !ok {
-			return newProofRows(nil), nil
-		}
-		return newProofRows([][]any{{
-			generation.GenerationID,
-			generation.FreshnessHint,
-			generation.SourceCommitSHA,
-			string(generation.Status),
-			false, // stream_dropped
-			true,
-		}}), nil
+		return proofUnchangedGenerationCandidateRows(database.state, args)
 	case strings.Contains(query, "FROM ingestion_scopes") && strings.Contains(query, "GROUP BY status"):
 		return newProofRows(proofScopeCountRows(database.state.scopeStatuses)), nil
 	case strings.Contains(query, "FROM scope_generations") && strings.Contains(query, "GROUP BY status"):
@@ -487,4 +468,29 @@ func TestProofDomainHarnessCountFactsRejectsNonStringArgs(t *testing.T) {
 	if _, err := database.QueryContext(context.Background(), countFactsQuery, 123, 456); err == nil {
 		t.Fatal("QueryContext(countFactsQuery, non-string args) error = nil, want a type error: silent empty strings would read as an empty prior")
 	}
+}
+
+// proofUnchangedGenerationCandidateRows answers the duplicate-check candidate
+// read from state: the scope's active generation, the only candidate the
+// proof domain models.
+func proofUnchangedGenerationCandidateRows(state proofState, args []any) (db.Rows, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("active generation freshness args = %d, want 1", len(args))
+	}
+	activeGenerationID := state.activeGenerations[args[0].(string)]
+	if activeGenerationID == "" {
+		return newProofRows(nil), nil
+	}
+	generation, ok := state.generations[activeGenerationID]
+	if !ok {
+		return newProofRows(nil), nil
+	}
+	return newProofRows([][]any{{
+		generation.GenerationID,
+		generation.FreshnessHint,
+		generation.SourceCommitSHA,
+		string(generation.Status),
+		false, // stream_dropped
+		true,
+	}}), nil
 }

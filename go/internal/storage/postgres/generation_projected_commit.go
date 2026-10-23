@@ -7,9 +7,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // lastProjectedCommitSHAQuery returns the source commit of the scope's active
@@ -59,10 +64,11 @@ LIMIT 1
 
 // activeGenerationForGuard returns the scope's active generation id, or false
 // when no generation is active. The guard calls it only when its candidate is
-// not itself active, on the base connection before the commit transaction
-// opens; an error fails the commit closed.
-func (s IngestionStore) activeGenerationForGuard(ctx context.Context, scopeID string) (string, bool, error) {
-	rows, err := s.database.QueryContext(ctx, successorGuardActiveGenerationQuery, scopeID)
+// not itself active: on the base connection before the commit transaction
+// opens, and on the commit transaction for the in-tx recheck (#8750 window).
+// An error fails the commit closed.
+func activeGenerationForGuard(ctx context.Context, querier db.Queryer, scopeID string) (string, bool, error) {
+	rows, err := querier.QueryContext(ctx, successorGuardActiveGenerationQuery, scopeID)
 	if err != nil {
 		return "", false, err
 	}
@@ -76,6 +82,75 @@ func (s IngestionStore) activeGenerationForGuard(ctx context.Context, scopeID st
 	}
 	generationID = strings.TrimSpace(generationID)
 	return generationID, generationID != "", rows.Err()
+}
+
+// recheckSuccessorPrior closes the #8750 window. The guard's prior is sized
+// on the base connection before the commit transaction opens, so a
+// same-scope commit or Ack that lands before the scope upsert locks the
+// scope row can leave it stale and smaller than the truth: a fail-open. Once
+// the row is locked no same-scope generation can be stored or activated and
+// the active pointer cannot move until this transaction ends, so the caller
+// runs this after upsertIngestionScope and before upsertScopeGeneration
+// (after which the successor's own row would be the newest candidate). It
+// re-reads on tx what the pre-tx sizing read: the candidate tuple, and the
+// active id only when the in-tx candidate is pending. Equal: the pre-tx prior
+// stands, at one or two indexed single-row reads. Different: the prior is
+// re-sized on tx with the same helper and the in-tx result is used alone,
+// never max(pre-tx, in-tx), so the decision is a function of the committed
+// state at the lock. Any read or count error fails the commit closed.
+func (s IngestionStore) recheckSuccessorPrior(
+	ctx context.Context,
+	tx db.Transaction,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	prior successorPrior,
+) (successorPrior, error) {
+	if !backfill.GenerationNeedsDuplicateCheck(generation) || generation.TrustedDeletion {
+		return prior, nil
+	}
+	start := time.Now()
+	candidate, found, err := unchangedGenerationOn(ctx, tx, scopeValue.ScopeID)
+	if err != nil {
+		return successorPrior{}, fmt.Errorf("recheck successor guard candidate on scope %s: %w", scopeValue.ScopeID, err)
+	}
+	reads := 1
+	changed := found != prior.found || (found && !sameGuardCandidate(candidate, prior.candidate))
+	var activeID string
+	if found && candidate.Status != scope.GenerationStatusActive {
+		reads = 2
+		var hasActive bool
+		activeID, hasActive, err = activeGenerationForGuard(ctx, tx, scopeValue.ScopeID)
+		if err != nil {
+			return successorPrior{}, fmt.Errorf("recheck successor guard active generation on scope %s: %w", scopeValue.ScopeID, err)
+		}
+		changed = changed || !prior.activeRead || hasActive != prior.hasActive || activeID != prior.activeID
+	}
+	attrs := []any{
+		slog.Bool("changed", changed),
+		slog.Int("recheck_reads", reads),
+		slog.String("previous_candidate_generation_id", prior.candidate.GenerationID),
+		slog.String("candidate_generation_id", candidate.GenerationID),
+		slog.String("previous_active_generation_id", prior.activeID),
+		slog.String("active_generation_id", activeID),
+	}
+	if changed {
+		resizeStart := time.Now()
+		resized, err := s.successorPriorForGuard(ctx, tx, scopeValue, candidate, found, generation)
+		if err != nil {
+			return successorPrior{}, fmt.Errorf("re-size successor guard prior on the commit transaction: %w", err)
+		}
+		prior = resized
+		attrs = append(attrs, slog.Float64("resize_duration_seconds", time.Since(resizeStart).Seconds()))
+	}
+	s.logCommitStage(ctx, scopeValue, generation, "successor_prior_rechecked", start, attrs...)
+	return prior, nil
+}
+
+// sameGuardCandidate compares the candidate fields the guard's sizing
+// depends on: which generation, whether it is active, and whether its
+// projector work is live (a wedged pending is not sized next to an active).
+func sameGuardCandidate(a, b backfill.UnchangedGenerationCandidate) bool {
+	return a.GenerationID == b.GenerationID && a.Status == b.Status && a.WorkLive == b.WorkLive
 }
 
 // LastProjectedCommitSHA returns the source commit SHA of the active generation

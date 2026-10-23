@@ -65,7 +65,9 @@ func (side guardPriorSide) collector() int {
 // with counts.Collector. orphanFallback (#8362): the deciding side holds
 // only a base-missing delta's own rows; an empty successor still refuses.
 // For a delta successor the anchor fields name the base full generation the
-// projector will overlay it on (#8750).
+// projector will overlay it on (#8750). activeRead, hasActive, and activeID
+// record the active read as it ran, so the in-tx recheck compares it exactly
+// (#8750 window).
 type successorPrior struct {
 	candidate      backfill.UnchangedGenerationCandidate
 	found          bool
@@ -78,6 +80,9 @@ type successorPrior struct {
 	anchorID       string
 	anchorMissing  bool
 	anchorFiles    int
+	activeRead     bool
+	hasActive      bool
+	activeID       string
 }
 
 // sizing names how counts was derived, for the guard log.
@@ -109,8 +114,9 @@ func pickGuardPrior(candidate, active guardPriorSide) (chosen guardPriorSide, fr
 	return candidate, false
 }
 
-// successorPriorForGuard reads the guard counts on the base connection
-// before the commit transaction opens. The prior is the larger of the
+// successorPriorForGuard reads the guard counts on database: the base
+// connection before the commit transaction opens, and the commit transaction
+// when the in-tx recheck re-sizes (#8750 window). The prior is the larger of the
 // duplicate-check candidate and the scope's active generation (#8750 F1): a
 // pending candidate is not yet in the graph, and the claim sweep lets a
 // newer full supersede it unprojected, so neither side alone bounds what a
@@ -123,6 +129,7 @@ func pickGuardPrior(candidate, active guardPriorSide) (chosen guardPriorSide, fr
 // anchor's file count.
 func (s IngestionStore) successorPriorForGuard(
 	ctx context.Context,
+	database db.ExecQueryer,
 	scopeValue scope.IngestionScope,
 	candidate backfill.UnchangedGenerationCandidate,
 	found bool,
@@ -132,12 +139,13 @@ func (s IngestionStore) successorPriorForGuard(
 	if !found || generation.TrustedDeletion {
 		return prior, nil
 	}
-	store := NewFactStore(s.database)
+	store := NewFactStore(database)
 	if candidate.Status != scope.GenerationStatusActive {
-		activeID, hasActive, err := s.activeGenerationForGuard(ctx, scopeValue.ScopeID)
+		activeID, hasActive, err := activeGenerationForGuard(ctx, database, scopeValue.ScopeID)
 		if err != nil {
 			return successorPrior{}, fmt.Errorf("read active generation for successor guard on scope %s: %w", scopeValue.ScopeID, err)
 		}
+		prior.activeRead, prior.hasActive, prior.activeID = true, hasActive, activeID
 		if hasActive && activeID != candidate.GenerationID {
 			if prior.activeSide, err = s.sizeGuardGeneration(ctx, store, scopeValue, generation, candidate.GenerationID, activeID); err != nil {
 				return successorPrior{}, err
@@ -409,7 +417,8 @@ func (s IngestionStore) refuseDestructiveSuccessor(
 	if input.Delta {
 		guardAttrs = append(guardAttrs,
 			slog.Int("anchor_file_count", input.AnchorFiles),
-			slog.Int("touched_path_count", len(observer.scope.Touched())),
+			slog.Int("touched_path_count", input.TouchedOrLive),
+			slog.Int("manifest_path_count", len(observer.scope.Touched())),
 			slog.Int("successor_live_file_count", input.LiveFiles),
 			slog.Int("union_file_lower_bound", decision.UnionLowerBound),
 		)

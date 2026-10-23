@@ -327,10 +327,20 @@ FROM (
 // duplicate decision (backfill.DecideUnchangedGeneration) consumes it; the
 // freshness read itself stays root-owned.
 func (s IngestionStore) unchangedGeneration(ctx context.Context, scopeID string) (backfill.UnchangedGenerationCandidate, bool, error) {
-	if s.database == nil || strings.TrimSpace(scopeID) == "" {
+	if s.database == nil {
 		return backfill.UnchangedGenerationCandidate{}, false, nil
 	}
-	rows, err := s.database.QueryContext(ctx, unchangedGenerationCandidateQuery, scopeID)
+	return unchangedGenerationOn(ctx, s.database, scopeID)
+}
+
+// unchangedGenerationOn runs the candidate read on querier: the base
+// connection before the commit transaction opens, or the commit transaction
+// itself for the destructive-successor guard's in-tx recheck (#8750 window).
+func unchangedGenerationOn(ctx context.Context, querier db.Queryer, scopeID string) (backfill.UnchangedGenerationCandidate, bool, error) {
+	if strings.TrimSpace(scopeID) == "" {
+		return backfill.UnchangedGenerationCandidate{}, false, nil
+	}
+	rows, err := querier.QueryContext(ctx, unchangedGenerationCandidateQuery, scopeID)
 	if err != nil {
 		return backfill.UnchangedGenerationCandidate{}, false, err
 	}
