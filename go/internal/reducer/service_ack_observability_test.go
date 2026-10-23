@@ -191,11 +191,15 @@ func TestServiceRunRecordsStaleAckWithoutSuccess(t *testing.T) {
 	}
 }
 
+// TestServiceRunLogsClassifiedExecutionFailure covers a plain, non-retryable
+// self-classified error: it logs at ERROR with its own failure_class. It uses a
+// synthetic class on purpose and does not model the expected-wait path, which
+// service_expected_wait_test.go covers (#8826).
 func TestServiceRunLogsClassifiedExecutionFailure(t *testing.T) {
 	t.Parallel()
 
 	intent := reducercontract.Intent{
-		IntentID:        "intent-waiting-impact",
+		IntentID:        "intent-classified-failure",
 		ScopeID:         "scope-security-alert",
 		GenerationID:    "generation-security-alert",
 		SourceSystem:    "security_alert",
@@ -211,8 +215,8 @@ func TestServiceRunLogsClassifiedExecutionFailure(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 	wantErr := classifiedReducerExecutionError{
-		message:      "security alert reconciliation waiting for package impact evidence: npm://registry.npmjs.org/pending-lib",
-		failureClass: "security_alert_reconciliation_waiting_for_impact",
+		message:      "handler failed with a self-classified, non-retryable error",
+		failureClass: "test_self_classified_failure",
 	}
 	service := Service{
 		PollInterval: 10 * time.Millisecond,
@@ -231,11 +235,11 @@ func TestServiceRunLogsClassifiedExecutionFailure(t *testing.T) {
 	if !strings.Contains(logOutput, `"msg":"reducer execution failed"`) {
 		t.Fatalf("logs missing reducer failure message in %s", logOutput)
 	}
-	if !strings.Contains(logOutput, `"failure_class":"security_alert_reconciliation_waiting_for_impact"`) {
-		t.Fatalf("logs missing classified readiness failure in %s", logOutput)
+	if !strings.Contains(logOutput, `"failure_class":"test_self_classified_failure"`) {
+		t.Fatalf("logs missing self-classified failure in %s", logOutput)
 	}
 	if strings.Contains(logOutput, `"failure_class":"reducer_failure"`) {
-		t.Fatalf("logs used generic reducer failure for classified readiness wait: %s", logOutput)
+		t.Fatalf("logs used generic reducer failure for self-classified failure: %s", logOutput)
 	}
 }
 
