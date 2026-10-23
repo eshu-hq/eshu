@@ -185,7 +185,7 @@ def verify_canonical_workflow(workflow: str) -> None:
             concurrency.group(1), 2, concurrency_keys
         ) != {
             "group": "  group: postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}",
-            "cancel-in-progress": "  cancel-in-progress: false",
+            "cancel-in-progress": "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
         }):
         raise ValueError("non-fail-closed workflow PR concurrency")
     blocks = job_blocks(workflow)
@@ -256,8 +256,9 @@ def verify_trigger(workflow: str, inventory: dict[str, dict[str, object]],
     if active != expected:
         raise ValueError("scheduled workflow PR paths or branches differ from exact enrollment")
     group = "  group: postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}"
+    cancel = "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}"
     if (len(re.findall("(?m)^" + re.escape(group) + "$", workflow)) != 1
-            or not re.search(r"(?m)^  cancel-in-progress: false$", workflow)):
+            or len(re.findall("(?m)^" + re.escape(cancel) + "$", workflow)) != 1):
         raise ValueError("scheduled workflow PR concurrency is not separate")
     jobs = workflow.split("\njobs:\n", 1)
     if len(jobs) != 2 or re.findall(r"(?m)^  ([A-Za-z0-9_-]+):", jobs[1]) != list(JOB_ORDER):

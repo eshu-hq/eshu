@@ -13,6 +13,8 @@ workflow's token scope and passes the private cassette-author identifiers only
 to the static-contract workflow. Each called workflow has its own concurrency
 group so it cannot cancel the caller. Opened-only Discord and labeled-only
 cassette refresh still use their own PR triggers.
+Scheduled PostgreSQL proofs use PR-conditional cancellation in their event/ref
+group; scheduled and manual runs retain noncancelling behavior.
 
 | Plan mode | Hosted work on the PR head |
 | --- | --- |

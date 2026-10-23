@@ -9,6 +9,22 @@ import re
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 FRAGMENTS = ROOT / "specs" / "ci-pr-workflows.d"
+POSTGRES_GROUP = "postgres-scheduled-live-${{ github.event_name }}-${{ github.ref }}"
+PR_CANCEL = "${{ github.event_name == 'pull_request' }}"
+
+
+def concurrency_fields(source: str) -> dict[str, str]:
+    """Parse the workflow's top-level concurrency mapping from its source."""
+    match = re.search(r"^concurrency:\n((?:  [^\n]+\n)+)", source, re.MULTILINE)
+    if match is None:
+        raise ValueError("workflow concurrency block missing")
+    fields = {}
+    for line in match.group(1).splitlines():
+        key, separator, value = line.strip().partition(":")
+        if not separator or key in fields:
+            raise ValueError("workflow concurrency mapping is malformed")
+        fields[key] = value.strip()
+    return fields
 
 
 def check_leaf(name: str, source: str) -> None:
@@ -22,7 +38,11 @@ def check_leaf(name: str, source: str) -> None:
             raise ValueError(f"{name}: {input_name} input missing")
     if "contains(fromJSON(inputs.plan_jobs" not in source:
         raise ValueError(f"{name}: selected-job guard missing")
-    if name != "postgres-scheduled-live.yml":
+    if name == "postgres-scheduled-live.yml":
+        fields = concurrency_fields(source)
+        if fields != {"group": POSTGRES_GROUP, "cancel-in-progress": PR_CANCEL}:
+            raise ValueError(f"{name}: PR cancellation or event/ref group changed")
+    else:
         group = f"ci-leaf-{name.removesuffix('.yml')}-"
         if group not in source:
             raise ValueError(f"{name}: distinct concurrency group missing")
@@ -36,6 +56,8 @@ def main() -> None:
     central = (WORKFLOWS / "test.yml").read_text(encoding="utf-8")
     if "  pr-plan:\n" not in central or "ci-gates-bin\" pr-plan" not in central:
         raise ValueError("Build Test has no trusted PR planner")
+    if concurrency_fields(central).get("group") == POSTGRES_GROUP:
+        raise ValueError("Postgres leaf concurrency group collides with Build Test")
     for lane in ("go-core", "go-race"):
         section = re.search(
             rf"^  {lane}-complete:\n(.*?)(?=^  [a-z0-9-]+:\n|\Z)",
@@ -65,6 +87,17 @@ def main() -> None:
         pass
     else:
         raise ValueError("seeded duplicate PR trigger was accepted")
+    postgres = (WORKFLOWS / "postgres-scheduled-live.yml").read_text(encoding="utf-8")
+    for invalid in ("false", "true"):
+        broken = postgres.replace(f"cancel-in-progress: {PR_CANCEL}", f"cancel-in-progress: {invalid}", 1)
+        if broken == postgres:
+            raise ValueError("Postgres cancellation seed did not alter the workflow")
+        try:
+            check_leaf("postgres-scheduled-live.yml", broken)
+        except ValueError:
+            pass
+        else:
+            raise ValueError(f"Postgres cancellation accepted unconditional {invalid}")
     print("PR scheduling wiring PASS")
 
 
