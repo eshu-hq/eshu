@@ -47,7 +47,10 @@ A terminal failure counts while both of these hold:
 
 An instance that keeps failing fails again every cycle, so it stays reported.
 A failure on a target that was removed from the configuration (an orphan) ages
-out after the window. A retryable failure never sets the fields.
+out after the window. A retryable failure never sets the fields. The
+`failed_terminal` status decides what counts: a dead-lettered item counts even
+when its collector did not mark the failure terminal, as the scanner worker
+does not.
 
 To clear it, fix the cause and let the next cycle complete the scope, or
 remove the target and wait one window. There is no explicit acknowledge.
@@ -57,6 +60,19 @@ window. Check coordinator liveness and the work-item backlog before reading a
 cleared failure as recovery. If items wait in the claim backlog for more than
 about two scan intervals, a failing instance can age out between failures and
 the signal can flap.
+
+Known limits of the window:
+
+- The window uses the instance's `scan_interval`, not the coordinator's global
+  `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL`, which the status reader does
+  not know. With no `scan_interval` set and a global reconcile interval longer
+  than 10 minutes, a failing instance can age out between failures and the
+  signal can flap. Set `scan_interval` on the instance to match.
+- A bootstrap instance is always planned on the global reconcile interval, and
+  the coordinator ignores its `scan_interval`. The status window still uses
+  that `scan_interval`, so a bootstrap failure that no later run revisits can
+  stay reported for 3 x that interval, or the 30 minute floor when that is
+  longer.
 
 A disabled or deactivated instance is never read, so it keeps
 `health=disabled` and reports no failure fields. A terminal failure on an

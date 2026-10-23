@@ -101,8 +101,12 @@ non-terminal rows, disabled, and deactivated instances never reported; an
 orphan older than the window not reported while a row inside it is; 12h
 interval keeps 20 h and drops 40 h; no `scan_interval` keeps 25 min and drops
 35 min; a malformed `scan_interval` uses the floor; equal `updated_at` picks the
-lowest `work_item_id`; `EXPLAIN` seeks the migration 210 index with no
-per-instance sort; re-applying migration 210 twice on a populated table leaves
+lowest `work_item_id`; a completion at the failure's exact `updated_at` does
+not clear it (a `>` to `>=` mutation fails this proof); a `scanner_worker`
+`failed_terminal` row whose `last_failure_terminal` flag is false still degrades
+its instance through the status builder, including when an older row of the
+same instance has the flag true (the reader never reads the flag); `EXPLAIN`
+seeks the migration 210 index with no per-instance sort; re-applying migration 210 twice on a populated table leaves
 one valid index. Five SQL mutations (drop the same-instance probe, drop the
 window, flip the tiebreak, let pending or retrying rows clear, drop the floor)
 each fail at least one of these proofs.
@@ -117,6 +121,10 @@ Known limits:
   two scan intervals, or the global reconcile interval is longer than 10
   minutes with no `scan_interval` set, a failing instance can age out between
   re-failures and the signal can flap.
+- A bootstrap instance is always planned on the global reconcile interval;
+  the coordinator ignores its `scan_interval`, but the status window still uses
+  it, so an orphaned bootstrap failure stays reported for 3 x that
+  `scan_interval`, or the 30 minute floor when that is longer.
 - To clear a failure in this version, fix the cause and let a completed item
   land, or remove the target and wait one window. There is no explicit
   acknowledge.

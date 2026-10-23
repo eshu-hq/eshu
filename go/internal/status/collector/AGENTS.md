@@ -42,8 +42,11 @@ failure message or provider status code to `TerminalFailure`, `RuntimeStatus`,
 failures of enabled, non-deactivated instances inside the instance's window
 (3 x `scan_interval`, 30 minute floor) with no later completed work item of the
 same instance for the same scope, so clearing and aging out are the reader's
-job, not this package's. A failure for an unregistered or disabled instance
-never changes health.
+job, not this package's. Every `TerminalFailure` is terminal by construction:
+the reader selects rows by the `failed_terminal` status, never by the
+`last_failure_terminal` flag, because the scanner worker dead-letters without
+setting that flag. Do not add a per-row terminal gate back. A failure for an
+unregistered or disabled instance never changes health.
 
 ## Exporting the render/clone/JSON surface
 

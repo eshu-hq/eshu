@@ -43,7 +43,9 @@
 //
 // TerminalFailure is the newest unresolved terminal work-item failure for one
 // collector instance, supplied by the storage reader through
-// Evidence.TerminalFailures. RuntimeStatuses degrades the matching registered
+// Evidence.TerminalFailures. The reader selects it by the failed_terminal
+// work-item status, not the last_failure_terminal flag, so every value is
+// terminal and carries no flag of its own. RuntimeStatuses degrades the matching registered
 // instance and sets LastFailureClass, LastFailureOperation,
 // LastFailureTerminal, and LastFailureAt; PromotionProofs then reports the
 // instance as failed with the blocker "terminal provider failure: <class>
