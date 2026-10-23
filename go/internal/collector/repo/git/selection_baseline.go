@@ -38,9 +38,9 @@ func syncExistingRepository(
 		// holdIfHead, a9-126); the nil onFallback avoids double-counting the
 		// sweep. The caller records the reconciliation metric only when the
 		// forced sync actually produced a generation.
-		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil, holdIfHead)
+		return updateRepository(ctx, config, repoPath, token, logger, event, scope.DeltaSyncBaseline{}, nil, holdIfHead)
 	}
-	baselineSHA, err := baseline.resolveScopeBaseline(ctx, config, repoPath)
+	syncBaseline, err := baseline.resolveScopeBaseline(ctx, config, repoPath)
 	if err != nil {
 		logBaselineLookupFailed(ctx, logger, repoPath, err)
 		// Classify the fallback here as a lookup error so a Postgres outage is
@@ -48,10 +48,10 @@ func syncExistingRepository(
 		// updateRepository's own emission (nil onFallback) to avoid a double
 		// count. The empty baseline still drives a safe full snapshot.
 		baseline.recordFallback(ctx, deltaFallbackBaselineLookupError)
-		return updateRepository(ctx, config, repoPath, token, logger, event, "", nil, "")
+		return updateRepository(ctx, config, repoPath, token, logger, event, scope.DeltaSyncBaseline{}, nil, "")
 	}
 	onFallback := func(reason string) { baseline.recordFallback(ctx, reason) }
-	return updateRepository(ctx, config, repoPath, token, logger, event, baselineSHA, onFallback, "")
+	return updateRepository(ctx, config, repoPath, token, logger, event, syncBaseline, onFallback, "")
 }
 
 // DeltaBaselineResolver resolves the durable incremental-sync baseline for a
@@ -69,7 +69,7 @@ func syncExistingRepository(
 // graph, never activated, and are not covered by a later activated full
 // generation (#7389); a non-empty result is the graph_dirty reconcile reason.
 type DeltaBaselineResolver interface {
-	LastProjectedCommitSHA(ctx context.Context, scopeID string) (string, error)
+	DeltaSyncBaseline(ctx context.Context, scopeID string) (scope.DeltaSyncBaseline, error)
 	FullReconcileState(ctx context.Context, scopeID string) (scope.FullReconcileState, error)
 	UncoveredProjectionWriters(ctx context.Context, scopeID string) ([]scope.UncoveredProjectionWriter, error)
 }
@@ -87,6 +87,13 @@ const (
 	// deltaFallbackDefaultBranchChanged: the remote default branch changed, so
 	// the projected commit belongs to another branch's history (#7678).
 	deltaFallbackDefaultBranchChanged = "default_branch_changed"
+	// deltaFallbackNoProjectedFull: the scope has an active generation but no
+	// activated full generation to diff a cumulative delta from (#8780).
+	deltaFallbackNoProjectedFull = "no_projected_full"
+	// deltaFallbackDeltaExceedsBaseHalf: the cumulative delta touches at
+	// least half the union base's files, so a full snapshot is cheaper (#8780
+	// growth valve).
+	deltaFallbackDeltaExceedsBaseHalf = "delta_exceeds_base_half"
 )
 
 // reconcilePolicyFromConfig lifts the reconciliation knobs off RepoSyncConfig
@@ -268,24 +275,24 @@ func (b gitDeltaBaseline) recordSuppressedDecision(ctx context.Context, reason s
 	}
 }
 
-// resolveScopeBaseline returns the last projected commit SHA for the managed
-// repository checkout at repoPath, or an empty string when no resolver is
-// configured, the scope identity cannot be derived, or no projected generation
-// exists yet. A non-nil resolver error is returned so the caller can record it
-// and fall back to a full snapshot rather than trusting a stale baseline.
+// resolveScopeBaseline returns the delta-sync baseline for the managed
+// repository checkout at repoPath, or a zero baseline when no resolver is
+// configured or the scope identity cannot be derived. A non-nil resolver error
+// is returned so the caller can record it and fall back to a full snapshot
+// rather than trusting a stale baseline.
 func (b gitDeltaBaseline) resolveScopeBaseline(
 	ctx context.Context,
 	config RepoSyncConfig,
 	repoPath string,
-) (string, error) {
+) (scope.DeltaSyncBaseline, error) {
 	if b.Resolver == nil {
-		return "", nil
+		return scope.DeltaSyncBaseline{}, nil
 	}
 	scopeID := gitScopeIDForManagedRepo(config, repoPath)
 	if scopeID == "" {
-		return "", nil
+		return scope.DeltaSyncBaseline{}, nil
 	}
-	return b.Resolver.LastProjectedCommitSHA(ctx, scopeID)
+	return b.Resolver.DeltaSyncBaseline(ctx, scopeID)
 }
 
 // gitScopeIDForManagedRepo derives the ingestion scope ID for a managed git

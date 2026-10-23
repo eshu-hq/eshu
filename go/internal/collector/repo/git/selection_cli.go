@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/deadline"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 const staleGitLockMinAge = 5 * time.Minute
@@ -232,7 +233,7 @@ func updateRepository(
 	token string,
 	logger *slog.Logger,
 	event gitSyncLogEvent,
-	baselineSHA string,
+	syncBaseline scope.DeltaSyncBaseline,
 	onFallback func(reason string),
 	holdIfHead string,
 ) (updated bool, delta GitSyncDelta, sourceCommitSHA string, _ error) {
@@ -264,7 +265,7 @@ func updateRepository(
 		return false, GitSyncDelta{ReconcileHeld: true}, "", nil
 	}
 
-	baseline := strings.TrimSpace(baselineSHA)
+	baseline := strings.TrimSpace(syncBaseline.ActiveCommitSHA)
 	switch {
 	case detection != "":
 		// The projected commit belongs to the previous default branch's

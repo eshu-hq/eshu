@@ -494,6 +494,11 @@ tests:
     class: postgres_ci
     reason: "#8261 poison recovery (RecoverDeadLettersQuery) lock order over 400,000 analyzed background rows on an en_US.utf8 database: the held-middle-row race against the scoped and stage-only recovery replays completes for production-shaped work ids (codeowners_ownership against code_taint_evidence and code_value_flow_refresh, which en_US and C order differently), mixed-case and lower-case ids (main: 40P01 for the first two), 150 rounds of poison plus both replays over production-shaped ids with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 with every row re-driven once (main: 5 x 40P01), and the EvalPlanQual case drops a row claimed or whose recovery budget was spent before the lock step; isolated schemas; about 70-90 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/delta_union_chain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8780 disposable PostgreSQL proof that a cumulative delta over an active delta (diffed from the newest activated full, its fence commit the active delta's) projects over that full through the production projector service and activates, with no base-missing refusal and no reindex watermark; isolated bootstrapped schema per test; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/delta_union_live_test.go
     tag: ~
     class: postgres_ci

@@ -190,6 +190,13 @@ func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID stri
 	return strings.TrimSpace(sha.String), nil
 }
 
+// DeltaSyncBaseline returns the scope's delta-sync baseline (#8780). This
+// first cut reports only the active commit, read by LastProjectedCommitSHA.
+func (s IngestionStore) DeltaSyncBaseline(ctx context.Context, scopeID string) (scope.DeltaSyncBaseline, error) {
+	active, err := s.LastProjectedCommitSHA(ctx, scopeID)
+	return scope.DeltaSyncBaseline{ActiveCommitSHA: active}, err
+}
+
 // fullReconcileStateQuery reads the two facts the reconciliation sweep decides
 // on for one scope (#7288), always as exactly one row:
 //

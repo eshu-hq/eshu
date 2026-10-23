@@ -38,13 +38,22 @@ type reconcileWorld struct {
 	writers []scope.UncoveredProjectionWriter
 }
 
-func (w *reconcileWorld) LastProjectedCommitSHA(_ context.Context, _ string) (string, error) {
+// DeltaSyncBaseline mirrors deltaSyncBaselineQuery: the active generation
+// and the newest activated full generation's commit (#8780).
+func (w *reconcileWorld) DeltaSyncBaseline(_ context.Context, _ string) (scope.DeltaSyncBaseline, error) {
+	var baseline scope.DeltaSyncBaseline
+	var newestFull time.Time
+	haveFull := false
 	for _, generation := range w.generations {
 		if generation.status == "active" && generation.activated {
-			return generation.sha, nil
+			baseline.ActiveCommitSHA, baseline.ActiveIsDelta = generation.sha, generation.isDelta
+		}
+		if !generation.isDelta && generation.activated && (!haveFull || !generation.ingestedAt.Before(newestFull)) {
+			haveFull, newestFull = true, generation.ingestedAt
+			baseline.NewestActivatedFullCommitSHA = generation.sha
 		}
 	}
-	return "", nil
+	return baseline, nil
 }
 
 // FullReconcileState mirrors fullReconcileStateQuery: the newest activated

@@ -57,7 +57,9 @@ func discardLogger() *slog.Logger {
 var errStubResolver = errors.New("stub resolver failure")
 
 type stubBaselineResolver struct {
-	sha          string
+	sha string
+	// baseline, when set, answers DeltaSyncBaseline instead of sha (#8780).
+	baseline     *scope.DeltaSyncBaseline
 	err          error
 	scopeIDs     []string
 	state        scope.FullReconcileState
@@ -68,9 +70,18 @@ type stubBaselineResolver struct {
 	writersErr error
 }
 
-func (s *stubBaselineResolver) LastProjectedCommitSHA(_ context.Context, scopeID string) (string, error) {
+func (s *stubBaselineResolver) DeltaSyncBaseline(_ context.Context, scopeID string) (scope.DeltaSyncBaseline, error) {
 	s.scopeIDs = append(s.scopeIDs, scopeID)
-	return s.sha, s.err
+	if s.baseline != nil {
+		return *s.baseline, s.err
+	}
+	return activeFullBaseline(s.sha), s.err
+}
+
+// activeFullBaseline is the baseline of a scope whose active generation is
+// the full generation at sha: the union base and the fence commit coincide.
+func activeFullBaseline(sha string) scope.DeltaSyncBaseline {
+	return scope.DeltaSyncBaseline{ActiveCommitSHA: sha, NewestActivatedFullCommitSHA: sha}
 }
 
 func (s *stubBaselineResolver) FullReconcileState(_ context.Context, scopeID string) (scope.FullReconcileState, error) {
@@ -279,7 +290,7 @@ func TestUpdateRepositoryBaselinesDeltaOnLastProjectedCommit(t *testing.T) {
 		"",
 		discardLogger(),
 		baselineTestEvent(),
-		"oldsha",
+		activeFullBaseline("oldsha"),
 		nil,
 		"",
 	)
@@ -318,7 +329,7 @@ func TestUpdateRepositoryNoOpWhenBaselineEqualsRemote(t *testing.T) {
 		"",
 		discardLogger(),
 		baselineTestEvent(),
-		"newsha",
+		activeFullBaseline("newsha"),
 		nil,
 		"",
 	)
@@ -356,7 +367,7 @@ func TestUpdateRepositoryFallsBackToFullSnapshotWhenNoBaseline(t *testing.T) {
 		"",
 		discardLogger(),
 		baselineTestEvent(),
-		"",
+		activeFullBaseline(""),
 		func(reason string) { fallbacks = append(fallbacks, reason) },
 		"",
 	)
@@ -401,7 +412,7 @@ func TestUpdateRepositoryFallsBackWhenBaselineUnreachable(t *testing.T) {
 		"",
 		discardLogger(),
 		baselineTestEvent(),
-		"prunedsha",
+		activeFullBaseline("prunedsha"),
 		func(reason string) { fallbacks = append(fallbacks, reason) },
 		"",
 	)

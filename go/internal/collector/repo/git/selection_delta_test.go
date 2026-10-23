@@ -57,7 +57,7 @@ esac
 		"",
 		slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		gitSyncLogEventFor("example/private-service", 1, 1),
-		"oldsha",
+		activeFullBaseline("oldsha"),
 		nil,
 		"",
 	)

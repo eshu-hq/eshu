@@ -182,8 +182,8 @@ type staticBaselineResolver struct {
 	sha string
 }
 
-func (r staticBaselineResolver) LastProjectedCommitSHA(_ context.Context, _ string) (string, error) {
-	return r.sha, nil
+func (r staticBaselineResolver) DeltaSyncBaseline(context.Context, string) (scope.DeltaSyncBaseline, error) {
+	return activeFullBaseline(r.sha), nil
 }
 
 func (r staticBaselineResolver) FullReconcileState(_ context.Context, _ string) (scope.FullReconcileState, error) {

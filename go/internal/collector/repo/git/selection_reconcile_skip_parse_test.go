@@ -38,8 +38,8 @@ type skipParseResolver struct {
 	reprojectReason string
 }
 
-func (r *skipParseResolver) LastProjectedCommitSHA(context.Context, string) (string, error) {
-	return "samesha", nil
+func (r *skipParseResolver) DeltaSyncBaseline(context.Context, string) (scope.DeltaSyncBaseline, error) {
+	return activeFullBaseline("samesha"), nil
 }
 
 func (r *skipParseResolver) FullReconcileState(_ context.Context, scopeID string) (scope.FullReconcileState, error) {

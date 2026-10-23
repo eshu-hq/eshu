@@ -92,8 +92,8 @@ type dirtyScopes struct {
 	dirty map[string]bool
 }
 
-func (d *dirtyScopes) LastProjectedCommitSHA(context.Context, string) (string, error) {
-	return "samesha", nil
+func (d *dirtyScopes) DeltaSyncBaseline(context.Context, string) (scope.DeltaSyncBaseline, error) {
+	return activeFullBaseline("samesha"), nil
 }
 
 func (d *dirtyScopes) FullReconcileState(context.Context, string) (scope.FullReconcileState, error) {

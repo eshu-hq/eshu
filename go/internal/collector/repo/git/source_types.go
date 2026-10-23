@@ -51,6 +51,10 @@ type SelectedRepository struct {
 	// DeltaBaselineCommitSHA is the commit a Delta selection was diffed from
 	// (#7319). Empty unless Delta is true.
 	DeltaBaselineCommitSHA string `json:"delta_baseline_commit_sha,omitempty"`
+	// DeltaUnionBaseCommitSHA is the commit of the newest activated full
+	// generation the Delta selection's changed set was diffed from (#8780),
+	// the union base the projector overlays it on. Empty unless Delta is true.
+	DeltaUnionBaseCommitSHA string `json:"delta_union_base_commit_sha,omitempty"`
 	// Reconcile marks a forced full reconciliation observation whose generation
 	// must bypass the freshness-hint skip so it always re-projects and retracts
 	// any drift the delta path missed (epic #2340).
@@ -129,6 +133,10 @@ type RepositorySnapshot struct {
 	// DeltaBaselineCommitSHA is the commit a Delta snapshot was diffed from
 	// (#7319). It becomes ScopeGeneration.DeltaBaselineCommitSHA.
 	DeltaBaselineCommitSHA string `json:"delta_baseline_commit_sha,omitempty"`
+	// DeltaUnionBaseCommitSHA is the union-base commit a Delta snapshot's
+	// changed set was diffed from (#8780). It becomes
+	// ScopeGeneration.DeltaUnionBaseCommitSHA.
+	DeltaUnionBaseCommitSHA string `json:"delta_union_base_commit_sha,omitempty"`
 	// Reconcile marks a forced full reconciliation snapshot (epic #2340). Its
 	// generation keeps the content freshness hint and carries ReconcileReason;
 	// when it matches the active generation, the ingestion store re-projects

@@ -28,7 +28,7 @@ func (s stubRepositoryReindexWatermarks) RepositoryReindexWatermarks(context.Con
 //
 // The fetch count reads resolver.fullScopeIDs, not scopeIDs: decideForScope
 // consults FullReconcileState for every visited repository on every path,
-// while the LastProjectedCommitSHA baseline lookup runs only off the forced
+// while the DeltaSyncBaseline lookup runs only off the forced
 // path, so a forced pinned visit is invisible in scopeIDs.
 func TestNativeSelectorSweepYieldResumeSkipsVisitedPinnedRepos(t *testing.T) {
 	reposDir, repos := sweepYieldWorld(t, 5)

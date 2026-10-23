@@ -300,6 +300,12 @@ type ScopeGeneration struct {
 	// baseline. The projector refuses the delta unless that is still the active
 	// commit. Set only when IsDelta is true; empty for full generations.
 	DeltaBaselineCommitSHA string
+	// DeltaUnionBaseCommitSHA is the commit of the newest activated full
+	// generation a delta's changed set was diffed from (#8780): the projector
+	// resolves the delta's union base at this commit, falling back to
+	// DeltaBaselineCommitSHA for a delta stored before the column existed.
+	// Set only when IsDelta is true; Validate rejects it on a full generation.
+	DeltaUnionBaseCommitSHA string
 	// ReconcileReason is the bounded reason a forced full reconciliation
 	// snapshot was taken (epic #2340, #7978), for example interval_elapsed or
 	// graph_dirty. Empty for an ordinary observation. It never changes

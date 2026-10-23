@@ -39,7 +39,7 @@ func TestUpdateRepositoryRecordsDeltaBaseline(t *testing.T) {
 		{name: "unreachable baseline", baseline: "prunedsha", want: ""},
 	} {
 		updated, delta, _, err := updateRepository(context.Background(), baselineTestConfig(), t.TempDir(), "",
-			discardLogger(), baselineTestEvent(), tc.baseline, nil, "")
+			discardLogger(), baselineTestEvent(), activeFullBaseline(tc.baseline), nil, "")
 		if err != nil || !updated {
 			t.Fatalf("%s: updateRepository() = %v, %v; want updated", tc.name, updated, err)
 		}
@@ -121,5 +121,76 @@ func TestBuildStreamingGenerationRecordsDeltaBaseline(t *testing.T) {
 	drainFactChannel(got.Facts)
 	if got.Generation.DeltaBaselineCommitSHA != "" {
 		t.Fatalf("full generation baseline = %q, want empty", got.Generation.DeltaBaselineCommitSHA)
+	}
+}
+
+// TestDeltaUnionBaseTravelsToGeneration proves the #8780 union-base commit
+// rides the selection, the snapshot, and the generation row for a delta, and
+// never reaches a full generation.
+func TestDeltaUnionBaseTravelsToGeneration(t *testing.T) {
+	t.Parallel()
+	repoPath := filepath.Join(t.TempDir(), "org", "repo")
+	config := RepoSyncConfig{SourceMode: "explicit", ReposDir: filepath.Dir(filepath.Dir(repoPath))}
+	deltas := map[string]GitSyncDelta{repoPath: {
+		ChangedFileTargets: []string{filepath.Join(repoPath, "a.go")}, BaselineCommitSHA: "A", UnionBaseCommitSHA: "F",
+	}}
+	selected := buildSelectedRepositories(config, []string{repoPath}, deltas, nil, nil, nil, nil, nil)
+	if len(selected) != 1 || selected[0].DeltaUnionBaseCommitSHA != "F" {
+		t.Fatalf("selected = %+v, want the union base F", selected)
+	}
+
+	engine, err := parser.DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() = %v", err)
+	}
+	snapshot, err := (NativeRepositorySnapshotter{Engine: engine}).SnapshotRepository(context.Background(), SelectedRepository{
+		RepoPath: t.TempDir(), Delta: true, DeletedRelativePaths: []string{"gone.go"},
+		DeltaBaselineCommitSHA: "A", DeltaUnionBaseCommitSHA: "F",
+	})
+	if err != nil {
+		t.Fatalf("SnapshotRepository() = %v", err)
+	}
+	if snapshot.DeltaUnionBaseCommitSHA != "F" {
+		t.Fatalf("snapshot DeltaUnionBaseCommitSHA = %q, want F", snapshot.DeltaUnionBaseCommitSHA)
+	}
+
+	root := t.TempDir()
+	observedAt := time.Date(2026, time.October, 23, 1, 0, 0, 0, time.UTC)
+	repo := testCollectorRepositoryMetadata(root)
+	delta := testCollectorSnapshot(root, "package main\n", "digest-delta")
+	delta.Delta, delta.DeltaBaselineCommitSHA, delta.DeltaUnionBaseCommitSHA = true, "A", "F"
+	got := buildStreamingGeneration(root, repo, "run-delta", observedAt, delta, false, "")
+	drainFactChannel(got.Facts)
+	if got.Generation.DeltaUnionBaseCommitSHA != "F" {
+		t.Fatalf("delta generation union base = %q, want F", got.Generation.DeltaUnionBaseCommitSHA)
+	}
+	full := testCollectorSnapshot(root, "package main\n", "digest-full")
+	full.DeltaUnionBaseCommitSHA = "F"
+	got = buildStreamingGeneration(root, repo, "run-full", observedAt, full, false, "")
+	drainFactChannel(got.Facts)
+	if got.Generation.DeltaUnionBaseCommitSHA != "" {
+		t.Fatalf("full generation union base = %q, want empty", got.Generation.DeltaUnionBaseCommitSHA)
+	}
+}
+
+// TestSnapshotFreshnessHintFoldsDeltaUnionBase extends ruling a9-120 to the
+// #8780 union base: the same head, paths, and active commit diffed from a
+// different full is a different observation.
+func TestSnapshotFreshnessHintFoldsDeltaUnionBase(t *testing.T) {
+	t.Parallel()
+	delta := func(unionBase string) RepositorySnapshot {
+		snapshot := testCollectorSnapshot("/repos/proof", "package main\n", "digest-1")
+		snapshot.Delta = true
+		snapshot.DeltaRelativePaths = []string{"main.go"}
+		snapshot.DeltaBaselineCommitSHA = "active"
+		snapshot.DeltaUnionBaseCommitSHA = unionBase
+		return snapshot
+	}
+	first := snapshotFreshnessHint(delta("full-a"))
+	if first == snapshotFreshnessHint(delta("full-b")) {
+		t.Fatal("deltas from different union bases share a hint")
+	}
+	if again := snapshotFreshnessHint(delta("full-a")); again != first {
+		t.Fatalf("re-diff from the same union base changed the hint: %s then %s", first, again)
 	}
 }
