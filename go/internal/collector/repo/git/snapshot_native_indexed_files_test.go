@@ -11,12 +11,13 @@ import (
 )
 
 // TestResolveNativeSnapshotFileSetIndexedFileRule pins the indexed-file rule
-// that the list_repository_files, get_file_content, and search_file_content
-// tool descriptions, the MCP guide, and the assistant guidance state (#8808):
-// a file is indexed only if it matched a parser-registry name, prefix,
-// extension, or documentation format, or is a .gitmodules or CODEOWNERS file;
-// dotfiles are not hidden. If discovery changes what it admits, this test goes
-// red and that text must change with it.
+// that the list_repository_files, get_file_content, get_file_lines, and
+// search_file_content tool descriptions, the MCP guide, and the assistant
+// guidance state (#8808): a file is indexed only if it matched a
+// parser-registry name, prefix, extension, or documentation format, or is a
+// .gitmodules or CODEOWNERS file; dotfiles are not hidden. If discovery
+// changes what it admits, this test goes red and that text must change with
+// it.
 func TestResolveNativeSnapshotFileSetIndexedFileRule(t *testing.T) {
 	t.Parallel()
 
