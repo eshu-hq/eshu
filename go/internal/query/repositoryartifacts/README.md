@@ -75,7 +75,10 @@ importing a query package. This package keeps:
   clip: `listAnchorCandidateFiles` returns a truncated flag alongside the
   clipped list (#8157), and each anchor-only loader propagates it, so a
   direct nil caller can disclose the cut via `AnchorFileListTruncatedReason`
-  the same way production callers do;
+  the same way production callers do. A canceled context starts no read
+  after the pass observes it and returns the context error with nil rows
+  once the in-flight reads drain (#8889); a chunk failure still wins over
+  the context error, and neither case returns a partly hydrated slice;
 - `ConfigArtifactReadStats`, which sums the per-repository `ReadStats` of the
   neutral package with the stage's statement and byte counts;
 - the shadow compare (`shadow.go`, #8155 PR3c): after the live load, an
@@ -190,6 +193,26 @@ anchor pass adds no per-loader counts of its own.
 The metric and log fields are in
 [Telemetry metrics](../../../../docs/public/reference/telemetry/metrics.md) and
 [Telemetry logs](../../../../docs/public/reference/telemetry/logs.md).
+
+### Canceled-context hydration (#8889)
+
+No-Regression Evidence (#8889): the pass now checks the context before each
+chunk send and before each chunk read, and returns the parent context error
+after the workers drain. `BenchmarkAnchorHydrationWholeWindow` (500
+candidates, 10 `GetFileContents` statements, go1.26.10 linux/arm64, Neoverse-V3,
+16 CPUs, `-benchtime=2s`, three alternating runs) measured 1.318, 1.342 and
+1.340 ms/op on `origin/main` and 1.311, 1.336 and 1.314 ms/op with the change,
+so the extra `ctx.Err()` loads are inside run-to-run noise. The statement
+count is unchanged, the concurrency bound stays 8, and a pre-canceled context
+now issues 0 statements. `go test -race -count=200 -cpu 1,16` over the three
+tests in `repository_artifact_hydration_cancel_test.go` (pre-canceled,
+mid-flight, worker-error-first) passed 600 of 600 runs at each `-cpu` setting
+with the change; without it the pre-canceled and mid-flight tests failed 200
+of 200 runs at each setting.
+
+No-Observability-Change: no new metric, span, log field, or stage-line field.
+A canceled request surfaces as the context error to the caller; no signal is
+added by this package.
 
 ### Hydration chunk width ten to fifty (#7009)
 
