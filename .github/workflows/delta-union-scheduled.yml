@@ -1,0 +1,102 @@
+name: Delta Union Scheduled Proof
+
+on:
+  schedule:
+    - cron: '20 5 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/delta-union-scheduled.yml'
+      - 'go/cmd/projector/**'
+      - 'go/internal/projector/**'
+      - 'go/internal/storage/cypher/**'
+      - 'go/internal/projector/runtime/**'
+      - 'go/internal/facts/**'
+      - 'go/internal/collector/**'
+      - 'go/go.mod'
+      - 'go/go.sum'
+      - 'scripts/lib/delta_union_scheduled.py'
+      - 'scripts/lib/live_tests_legacy_policy.py'
+      - 'scripts/test-delta-union-scheduled.py'
+      - 'scripts/lib/reducer_contention_events.py'
+      - 'scripts/lib/verify-live-tests-ledger.py'
+      - 'scripts/verify-live-tests-ledger.sh'
+      - 'specs/live-tests.v1.yaml'
+      - 'specs/live-tests.d/**'
+      - 'specs/ci-gates.v1.yaml'
+      - 'specs/ci-gates.d/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  delta-union:
+    name: Delta union proof vs Neo4j and PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+        env:
+          POSTGRES_DB: eshu_delta_union
+          POSTGRES_USER: eshu
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U eshu -d eshu_delta_union"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      neo4j:
+        image: neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+        env:
+          NEO4J_AUTH: none
+        ports:
+          - 17687:7687
+        options: >-
+          --health-cmd "cypher-shell -a bolt://localhost:7687 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Verify delta union contract
+        run: |
+          python3 scripts/test-delta-union-scheduled.py
+          python3 scripts/lib/delta_union_scheduled.py
+          bash scripts/verify-live-tests-ledger.sh
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Run delta union proofs
+        working-directory: go
+        env:
+          ESHU_7389_PROOF_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu_delta_union?sslmode=disable
+          ESHU_NEO4J_URI: bolt://localhost:17687
+          ESHU_NEO4J_USERNAME: neo4j
+          ESHU_NEO4J_PASSWORD: change-me
+          ESHU_NEO4J_DATABASE: neo4j
+        run: |
+          set -euo pipefail
+          go test ./cmd/projector -run '^(TestDeltaUnionProjectsFullTreeFromEmptyLive|TestDeltaUnionBaseMissingRefusesWithoutPartialLive)$' -json -race -count=1 -p 4 -timeout 12m | tee "${RUNNER_TEMP}/delta-union.jsonl"
+          python3 ../scripts/lib/delta_union_scheduled.py --events "${RUNNER_TEMP}/delta-union.jsonl"
+      - name: Upload delta union events
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: delta-union-events
+          path: ${{ runner.temp }}/delta-union.jsonl
+          if-no-files-found: error

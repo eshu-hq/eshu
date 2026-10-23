@@ -15,6 +15,7 @@ from golden_corpus_identity import (
     verify_routes as verify_identity_routes,
 )
 from live_tests_registry import load_ledger_text
+from live_tests_legacy_policy import verify_legacy_policy
 from live_postgres_migrations import MIGRATION_PATHS
 from reducer_contention_events import load_inventory, verify_inventory
 from ifa_scheduled_events import (
@@ -275,6 +276,7 @@ verified_scheduled_paths = set()
 ifa_scheduled_inventory = load_ifa_scheduled_inventory()
 ifa_scheduled_paths = set(ifa_scheduled_inventory)
 verified_ifa_scheduled_paths = set()
+delta_union_scheduled_paths = set()
 identity_ledger_paths = set()
 for path, tag, cls, reason, runner, backends in rows:
     if path in seen_files:
@@ -322,6 +324,11 @@ for path, tag, cls, reason, runner, backends in rows:
                     or backends != "nornicdb"):
                 sys.exit(f"Ifá scheduled row needs its exact runner, tag, and NornicDB backend: {path}")
             verified_ifa_scheduled_paths.add(path)
+        elif runner == "delta-union-scheduled":
+            if (path != "go/cmd/projector/delta_union_live_test.go"
+                    or tag.strip() != "~" or backends != "neo4j"):
+                sys.exit(f"delta union scheduled row needs exact file and Neo4j backend: {path}")
+            delta_union_scheduled_paths.add(path)
         else:
             if runner != "postgres-scheduled" or tag.strip() != "~":
                 sys.exit(f"verified scheduled row needs its named runner and untagged file: {path}")
@@ -387,6 +394,14 @@ try:
 except (OSError, ValueError, re.error) as error:
     sys.exit(f"PostgreSQL scheduled runner enrollment failed: {error}")
 
+if delta_union_scheduled_paths != {"go/cmd/projector/delta_union_live_test.go"}:
+    sys.exit("delta union scheduled row missing or demoted")
+try:
+    from delta_union_scheduled import verify as verify_delta_union_scheduled
+    verify_delta_union_scheduled(Path(repo_root))
+except (OSError, ValueError, re.error) as error:
+    sys.exit(f"delta union scheduled enrollment failed: {error}")
+
 if verified_ifa_scheduled_paths != ifa_scheduled_paths:
     sys.exit(
         "Ifá scheduled rows differ from exact inventory: "
@@ -414,31 +429,11 @@ try:
 except (OSError, ValueError, re.error) as error:
     sys.exit(f"Nornic conformance runner enrollment failed: {error}")
 
-# Bind the grandfathered paths to a fixed digest. Canonical input is
-# sorted unique UTF-8 paths, each followed by one LF.
-legacy_policy = re.search(
-    r"^legacy_scheduled_exemptions:\n"
-    r"  baseline_main: ([0-9a-f]{40})\n"
-    r"  steward: (\S+)\n"
-    r"  tracking_issue: ([1-9][0-9]*)\n"
-    r"  count: ([0-9]+)\n"
-    r"  sha256: ([0-9a-f]{64})$",
-    text,
-    re.M,
-)
-if not legacy_policy:
-    sys.exit("missing or invalid legacy scheduled exemption owner, issue, count, or digest")
-expected_count = int(legacy_policy.group(4))
-canonical_paths = sorted(legacy_scheduled)
-actual_digest = hashlib.sha256(
-    "".join(f"{path}\n" for path in canonical_paths).encode("utf-8")
-).hexdigest()
-if expected_count != len(canonical_paths) or actual_digest != legacy_policy.group(5):
-    sys.exit(
-        "legacy scheduled exemption inventory changed without reviewed disposition: "
-        f"count={len(canonical_paths)} sha256={actual_digest}, "
-        f"want count={expected_count} sha256={legacy_policy.group(5)}"
-    )
+# The legacy ledger digest also binds sorted UTF-8 paths with one LF each.
+try:
+    verify_legacy_policy(text, legacy_scheduled)
+except ValueError as error:
+    sys.exit(str(error))
 
 # --cached plus --others: a brand-new live test must be at least present on
 # disk to be classified. Untracked-but-ignored build output stays excluded
