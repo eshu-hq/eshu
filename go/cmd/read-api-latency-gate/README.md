@@ -53,6 +53,9 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   MCP HTTP server for this operation. Each pilot must return its seeded
   result shape; an empty, unrelated, or inconsistent 200 payload fails.
   An MCP JSON-RPC error or `result.isError` also fails.
+  The MCP pilot accepts both the one-block (`structured`) and two-block
+  (`dual`) result layouts and asks the server for no result shape, so this gate
+  cannot catch a `dual` server that drops its embedded resource.
 - `SweepConcurrentOperations` — optional bounded worker proof over the pilots
   after the required sequential metered sweep. It rejects a work meter because
   overlapping requests cannot be attributed to one operation. Its report

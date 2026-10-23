@@ -52,8 +52,8 @@ filter `shape="dual"`, and a sum across shapes mixes the two meanings.
   `mcp tool response budget page` log includes `tool`, `shape`, `response_bytes`
   (attempted size in the connection's shape), `emitted_bytes`, `budget_bytes`, `rows_returned`,
   and `rows_available`. Clients should follow `next_offset` or lower `limit`.
-- A non-zero `eshu_dp_mcp_response_over_budget_total` rate means even the full
-  resource does not fit. The `mcp tool response over budget` log includes
+- A non-zero `eshu_dp_mcp_response_over_budget_total` rate means the result as
+  sent (under `dual`, even the resource-only copy) does not fit. The `mcp tool response over budget` log includes
   `tool`, `shape`, `response_bytes`, and `budget_bytes`, plus `resource_bytes`
   under `dual` only; narrow the query scope or page size to retrieve the
   remaining data. `resource_bytes` is the size of the resource-only copy.

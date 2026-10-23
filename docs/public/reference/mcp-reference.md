@@ -291,8 +291,12 @@ the `structured` shape is pending, so this page claims no token figure for it.
 The default does not flip to `structured` until these are done, each recorded
 where it ran:
 
-- The two-client token re-measurement and the scoring run named in the
-  design record `docs/internal/design/7206-mcp-response-budget-fallback.md`.
+- The two-client token re-measurement at three sizes, within 1.1 times the
+  one-copy rate, and a scoring run on the same prompts that is not worse, both
+  named in the design record
+  `docs/internal/design/7206-mcp-response-budget-fallback.md`.
+- A manual run on the other documented clients.
+- One week with no over-budget increase on a hosted deployment.
 - The golden-corpus gate in `structured`. That run is pending: it needs a live
   Docker stack and has not been run for this change. Run it with
   `GATE_MCP_RESULT_SHAPE=structured ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh`.
