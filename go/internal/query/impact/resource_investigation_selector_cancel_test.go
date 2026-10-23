@@ -15,12 +15,16 @@ import (
 // TestResourceInvestigationSelectorFanoutNeverReadsOnCanceledContext is the
 // #8881 regression. A context canceled before the fanout starts has both
 // select cases ready in every goroutine (a free semaphore slot and a closed
-// Done channel), and Go picks one of two ready cases at random. Without a
-// ctx.Err() check ahead of the select, each of the 11 default-label goroutines
-// started its graph read about half the time, so the resolver reported a
-// client cancel only when at least one goroutine happened to pick Done. A
-// canceled request must always return its cancel error and never issue a
-// graph read. Not parallel-sensitive: the graph and context are per iteration.
+// Done channel), and Go picks one of two ready cases at random. Without both
+// ctx.Err() checks (the one ahead of the select and the one after taking the
+// slot), each of the 11 default-label goroutines started its graph read about
+// half the time, so the resolver reported a client cancel only when at least
+// one goroutine happened to pick Done. This test fails only when both checks
+// are removed; removing one alone is caught by
+// TestResourceInvestigationSelectorFanoutRechecksContextAfterTakingSlot, which
+// pins each check separately. A canceled request must always return its cancel
+// error and never issue a graph read. Not parallel-sensitive: the graph and
+// context are per iteration.
 func TestResourceInvestigationSelectorFanoutNeverReadsOnCanceledContext(t *testing.T) {
 	t.Parallel()
 
