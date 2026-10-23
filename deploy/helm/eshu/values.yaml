@@ -836,6 +836,42 @@ componentExtensionCollector:
   extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []
+  # activations runs extracted collectors. Each entry renders its own worker
+  # Deployment (instance ID, registry volume, metrics Service, PDB). An init
+  # container copies the collector binary and manifest out of the entry's
+  # digest-pinned seed image, then installs, enables and grants the component
+  # in a pod-local registry. The workflow coordinator gets the same registry so
+  # it can plan the work. An empty list keeps the single hand-mounted worker
+  # above. When set, instanceId, extraVolumes and extraVolumeMounts above must
+  # stay empty. Keep credentials out of this list: pass them through extraEnv
+  # secretKeyRef and name the env var in config.
+  #
+  # - instanceId: pagerduty-example          # DNS label, <= 30 chars, unique
+  #   componentId: dev.example.collector.pagerduty
+  #   componentVersion: 0.1.0                # version in the seeded manifest
+  #   mode: scheduled
+  #   seed:
+  #     image: ghcr.io/example/collector-pagerduty@sha256:<64 hex>  # digest required
+  #     pullPolicy: IfNotPresent
+  #     command: ["/collector", "seed"]      # image entrypoint; --dest is appended
+  #   host:
+  #     sourceSystem: pagerduty
+  #     scope: {id: pagerduty:account:example, kind: pagerduty_account}
+  #   process:
+  #     args: ["--sdk-stdio"]
+  #   config: {}                             # non-secret collector config
+  #   grants:                                # core-owned fact kinds only
+  #     - kind: incident_routing
+  #       schemaVersions: ["1.0.0"]
+  #       scope: pagerduty
+  #       expiresIn: 720h
+  #   replicas: 1
+  #   resources: {}
+  #   env: {}
+  #   extraEnv: []                           # secretKeyRef credentials
+  #   extraVolumes: []
+  #   extraVolumeMounts: []
+  activations: []
   connectionTuning:
     postgres:
       maxOpenConns: ""

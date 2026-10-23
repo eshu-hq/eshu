@@ -1,0 +1,184 @@
+{{/*
+Validation for componentExtensionCollector.
+
+Every value that reaches an init-container script, a file path, or a resource
+name is checked against a strict pattern here, so the rendered script never
+interpolates anything that could carry shell syntax.
+*/}}
+
+{{/* Legacy single-worker checks: the operator mounts the registry volume by hand. */}}
+{{- define "eshu.validate.componentExtensionLegacyMounts" -}}
+{{- if not .Values.workflowCoordinator.extraVolumes -}}
+{{- fail "workflowCoordinator.extraVolumes must mount the component registry when componentExtensionCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.workflowCoordinator.extraVolumeMounts -}}
+{{- fail "workflowCoordinator.extraVolumeMounts must mount componentExtensionCollector.componentHome when componentExtensionCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.componentExtensionCollector.extraVolumes -}}
+{{- fail "componentExtensionCollector.extraVolumes must mount the component registry when componentExtensionCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.componentExtensionCollector.extraVolumeMounts -}}
+{{- fail "componentExtensionCollector.extraVolumeMounts must mount componentExtensionCollector.componentHome when componentExtensionCollector.enabled=true" -}}
+{{- end -}}
+{{- $coordinatorComponentHomeMounted := false -}}
+{{- range .Values.workflowCoordinator.extraVolumeMounts -}}
+{{- if eq (default "" .mountPath) $.Values.componentExtensionCollector.componentHome -}}
+{{- $coordinatorComponentHomeMounted = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $coordinatorComponentHomeMounted -}}
+{{- fail "workflowCoordinator.extraVolumeMounts must include componentExtensionCollector.componentHome when componentExtensionCollector.enabled=true" -}}
+{{- end -}}
+{{- $workerComponentHomeMounted := false -}}
+{{- range .Values.componentExtensionCollector.extraVolumeMounts -}}
+{{- if eq (default "" .mountPath) $.Values.componentExtensionCollector.componentHome -}}
+{{- $workerComponentHomeMounted = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $workerComponentHomeMounted -}}
+{{- fail "componentExtensionCollector.extraVolumeMounts must include componentExtensionCollector.componentHome when componentExtensionCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Recursively rejects secret-looking keys and credential-shaped values. */}}
+{{- define "eshu.validate.componentActivationNoSecrets" -}}
+{{- $path := .path -}}
+{{- $value := .value -}}
+{{- if kindIs "map" $value -}}
+{{- range $key, $child := $value -}}
+{{- if and (regexMatch "(?i)(password|passwd|secret|token|api[-_]?key|credential|private[-_]?key|authorization|bearer)" (toString $key)) (not (regexMatch "(?i)(_env|env|_env_name|envname|_ref|ref)$" (toString $key))) -}}
+{{- fail (printf "%s.%s looks like a credential; activation config is stored in a ConfigMap, so pass secrets through extraEnv secretKeyRef and put only the env var NAME in config" $path $key) -}}
+{{- end -}}
+{{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s.%s" $path $key) "value" $child) -}}
+{{- end -}}
+{{- else if kindIs "slice" $value -}}
+{{- range $index, $child := $value -}}
+{{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s[%d]" $path $index) "value" $child) -}}
+{{- end -}}
+{{- else if kindIs "string" $value -}}
+{{- if regexMatch "^(ghp_|gho_|ghs_|github_pat_|xox[abprs]-|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20}|-----BEGIN )" $value -}}
+{{- fail (printf "%s holds a credential-shaped value; activation config is stored in a ConfigMap, so pass secrets through extraEnv secretKeyRef" $path) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "eshu.validate.componentActivation" -}}
+{{- $root := .root -}}
+{{- $activation := .activation -}}
+{{- $at := printf "componentExtensionCollector.activations[%d]" .index -}}
+{{- if not (kindIs "map" $activation) -}}
+{{- fail (printf "%s must be an object" $at) -}}
+{{- end -}}
+{{- $id := toString (default "" $activation.instanceId) -}}
+{{- if eq $id "" -}}
+{{- fail (printf "%s.instanceId is required" $at) -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $id) -}}
+{{- fail (printf "%s.instanceId %q must be a lowercase DNS label (letters, digits, hyphen)" $at $id) -}}
+{{- end -}}
+{{- if gt (len $id) 30 -}}
+{{- fail (printf "%s.instanceId %q must be at most 30 characters" $at $id) -}}
+{{- end -}}
+{{- $name := include "eshu.componentActivationFullname" (dict "root" $root "activation" $activation) -}}
+{{- if gt (len $name) 63 -}}
+{{- fail (printf "%s.instanceId %q makes the Deployment name %q longer than 63 characters; shorten the instance ID or the release name" $at $id $name) -}}
+{{- end -}}
+{{- $componentId := toString (default "" $activation.componentId) -}}
+{{- if not (regexMatch "^[a-z0-9][a-z0-9._-]*$" $componentId) -}}
+{{- fail (printf "%s.componentId is required and must be a lowercase component identifier" $at) -}}
+{{- end -}}
+{{- $allowed := list -}}
+{{- range splitList "," (default "" $root.Values.componentExtensionCollector.allowIds) -}}
+{{- $allowed = append $allowed (trim .) -}}
+{{- end -}}
+{{- if not (has $componentId $allowed) -}}
+{{- fail (printf "%s.componentId %q must be listed in componentExtensionCollector.allowIds" $at $componentId) -}}
+{{- end -}}
+{{- if not (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$" (toString (default "" $activation.componentVersion))) -}}
+{{- fail (printf "%s.componentVersion is required and must be the semantic version in the seeded manifest" $at) -}}
+{{- end -}}
+{{- $seed := default (dict) $activation.seed -}}
+{{- $seedImage := toString (default "" $seed.image) -}}
+{{- if eq $seedImage "" -}}
+{{- fail (printf "%s.seed.image is required" $at) -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9][A-Za-z0-9._:/-]*@sha256:[a-f0-9]{64}$" $seedImage) -}}
+{{- fail (printf "%s.seed.image %q must be pinned by digest (repository@sha256:<64 hex>); tags are not accepted" $at $seedImage) -}}
+{{- end -}}
+{{- range $arg := default (list) $seed.command -}}
+{{- if not (regexMatch "^[A-Za-z0-9._/:=@-]+$" (toString $arg)) -}}
+{{- fail (printf "%s.seed.command entries may only contain letters, digits and ._/:=@-" $at) -}}
+{{- end -}}
+{{- end -}}
+{{- $host := default (dict) $activation.host -}}
+{{- $hostScope := default (dict) $host.scope -}}
+{{- if not (regexMatch "^[A-Za-z0-9._-]+$" (toString (default "" $host.sourceSystem))) -}}
+{{- fail (printf "%s.host.sourceSystem is required (letters, digits, ._-)" $at) -}}
+{{- end -}}
+{{- if not (regexMatch "^[A-Za-z0-9._:/@-]+$" (toString (default "" $hostScope.id))) -}}
+{{- fail (printf "%s.host.scope.id is required (letters, digits, ._:/@-)" $at) -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9_.-]+$" (toString (default "" $hostScope.kind))) -}}
+{{- fail (printf "%s.host.scope.kind is required (lowercase letters, digits, ._-)" $at) -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9_-]+$" (toString (default "scheduled" $activation.mode))) -}}
+{{- fail (printf "%s.mode must be a lowercase identifier" $at) -}}
+{{- end -}}
+{{- $process := default (dict) $activation.process -}}
+{{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s.process" $at) "value" $process) -}}
+{{- include "eshu.validate.componentActivationNoSecrets" (dict "path" (printf "%s.config" $at) "value" (default (dict) $activation.config)) -}}
+{{- $grants := default (list) $activation.grants -}}
+{{- range $gi, $grant := $grants -}}
+{{- $gat := printf "%s.grants[%d]" $at $gi -}}
+{{- if not (regexMatch "^[a-z0-9_.]+$" (toString (default "" $grant.kind))) -}}
+{{- fail (printf "%s.kind is required (lowercase letters, digits, _.)" $gat) -}}
+{{- end -}}
+{{- if not $grant.schemaVersions -}}
+{{- fail (printf "%s.schemaVersions must list at least one schema version" $gat) -}}
+{{- end -}}
+{{- range $version := $grant.schemaVersions -}}
+{{- if not (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+$" (toString $version)) -}}
+{{- fail (printf "%s.schemaVersions entry %q must be major.minor.patch" $gat $version) -}}
+{{- end -}}
+{{- end -}}
+{{- if not (regexMatch "^[A-Za-z0-9._:-]+$" (toString (default "" $grant.scope))) -}}
+{{- fail (printf "%s.scope is required (letters, digits, ._:-)" $gat) -}}
+{{- end -}}
+{{- if not (regexMatch "^([0-9]+(h|m|s))+$" (toString (default "720h" $grant.expiresIn))) -}}
+{{- fail (printf "%s.expiresIn must be a positive Go duration such as 720h" $gat) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Validates the activations list as a whole when it is non-empty. */}}
+{{- define "eshu.validate.componentActivations" -}}
+{{- $activations := default (list) .Values.componentExtensionCollector.activations -}}
+{{- if and (gt (len $activations) 0) .Values.componentExtensionCollector.enabled -}}
+{{- if .Values.componentExtensionCollector.instanceId -}}
+{{- fail "componentExtensionCollector.instanceId cannot be set together with componentExtensionCollector.activations; each activation carries its own instanceId" -}}
+{{- end -}}
+{{- if or .Values.componentExtensionCollector.extraVolumes .Values.componentExtensionCollector.extraVolumeMounts -}}
+{{- fail "componentExtensionCollector.extraVolumes and extraVolumeMounts cannot be set together with componentExtensionCollector.activations; the chart owns the registry volume, and each activation takes its own extraVolumes" -}}
+{{- end -}}
+{{- $seenIDs := dict -}}
+{{- $versionByComponent := dict -}}
+{{- $imageByComponent := dict -}}
+{{- range $index, $activation := $activations -}}
+{{- include "eshu.validate.componentActivation" (dict "root" $ "activation" $activation "index" $index) -}}
+{{- if hasKey $seenIDs $activation.instanceId -}}
+{{- fail (printf "componentExtensionCollector.activations[%d].instanceId %q is used more than once" $index $activation.instanceId) -}}
+{{- end -}}
+{{- $_ := set $seenIDs $activation.instanceId true -}}
+{{- if hasKey $versionByComponent $activation.componentId -}}
+{{- if ne (get $versionByComponent $activation.componentId) $activation.componentVersion -}}
+{{- fail (printf "componentExtensionCollector.activations[%d] pins %s at version %s but an earlier activation pins version %s; one component ID must use one version" $index $activation.componentId $activation.componentVersion (get $versionByComponent $activation.componentId)) -}}
+{{- end -}}
+{{- if ne (get $imageByComponent $activation.componentId) $activation.seed.image -}}
+{{- fail (printf "componentExtensionCollector.activations[%d] uses a different seed.image than an earlier activation of %s; one component ID must use one seed image" $index $activation.componentId) -}}
+{{- end -}}
+{{- end -}}
+{{- $_ := set $versionByComponent $activation.componentId $activation.componentVersion -}}
+{{- $_ := set $imageByComponent $activation.componentId $activation.seed.image -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
