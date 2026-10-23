@@ -44,8 +44,8 @@ pending-impact error is an expected wait and that the handler stops waiting at
 attempt 3, whatever the queue budget.
 
 Observability Evidence (#8826, doc correction): this follow-up changes no
-instrument, label name, log key or status value; it corrects the operator text
-only. The rest of this paragraph is the earlier runtime change, kept as
+instrument, label name, log key or status value; it corrects docs and code
+comments only. The rest of this paragraph is the earlier runtime change, kept as
 history: no instrument, label name or log key was added. The existing `status`
 label on `eshu_dp_reducer_executions_total` and the log `status` field gain no
 new value; `deferred` now also applies to
