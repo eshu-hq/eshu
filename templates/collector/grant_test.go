@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/sdk/go/collector/conformance"
 )
 
 // GrantRequest is the template-side shape of a #6709 first-party producer
@@ -123,6 +125,110 @@ func TestGrantExampleScopeIsCollectorKind(t *testing.T) {
 	}
 	if grant.Scope != CollectorKind {
 		t.Fatalf("grant scope %q, want the collector kind %q", grant.Scope, CollectorKind)
+	}
+}
+
+// TestManifestEmissionsAreAuthorized proves every kind the shipped manifest
+// declares is either namespaced in the template's own namespace or covered by
+// a grant in grant.example.json. The check derives its verdict from the
+// manifest alone: the template cannot import the core registry, so it never
+// guesses which kinds are core-owned.
+func TestManifestEmissionsAreAuthorized(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("grant.example.json")
+	if err != nil {
+		t.Fatalf("os.ReadFile(grant.example.json) error = %v", err)
+	}
+	var grant GrantRequest
+	if err := json.Unmarshal(raw, &grant); err != nil {
+		t.Fatalf("json.Unmarshal(grant.example.json) error = %v", err)
+	}
+	problems := uncoveredEmissions(loadManifest(t), []GrantRequest{grant}, time.Now())
+	if len(problems) != 0 {
+		t.Fatalf("shipped manifest has unauthorized emissions: %v", problems)
+	}
+}
+
+// TestUncoveredEmissionsRejectsDottedCoreLookingKind is the regression for the
+// original defect: a dotted heuristic treated incident.record as namespaced and
+// let it through without a grant. The new check treats a kind as exempt only
+// when it sits in the template's own namespace.
+func TestUncoveredEmissionsRejectsDottedCoreLookingKind(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	manifest := loadManifest(t)
+	manifest.Spec.EmittedFacts = append(manifest.Spec.EmittedFacts, conformance.FactFamily{
+		Kind:             "incident.record",
+		SchemaVersions:   []string{"1.0.0", "1.1.0"},
+		SourceConfidence: []string{"observed"},
+	})
+	grantFor := func(mutate func(*GrantRequest)) GrantRequest {
+		g := GrantRequest{
+			ProducerID:     ComponentID,
+			Version:        manifest.Metadata.Version,
+			Kind:           "incident.record",
+			SchemaVersions: []string{"1.0.0", "1.1.0"},
+			Scope:          CollectorKind,
+			ExpiresAt:      now.Add(time.Hour),
+		}
+		mutate(&g)
+		return g
+	}
+	cases := []struct {
+		name    string
+		grants  []GrantRequest
+		covered bool
+	}{
+		{"no grant", nil, false},
+		{"grant scoped to the collector kind", []GrantRequest{grantFor(func(*GrantRequest) {})}, true},
+		{"v-prefixed grant version", []GrantRequest{grantFor(func(g *GrantRequest) { g.Version = "v" + g.Version })}, true},
+		{"scope not in collectorKinds", []GrantRequest{grantFor(func(g *GrantRequest) { g.Scope = "other" })}, false},
+		{"missing one declared schema version", []GrantRequest{grantFor(func(g *GrantRequest) { g.SchemaVersions = []string{"1.0.0"} })}, false},
+		{"revoked grant", []GrantRequest{grantFor(func(g *GrantRequest) { g.Revoked = true })}, false},
+		{"expired grant", []GrantRequest{grantFor(func(g *GrantRequest) { g.ExpiresAt = now.Add(-time.Minute) })}, false},
+		{"zero expiry", []GrantRequest{grantFor(func(g *GrantRequest) { g.ExpiresAt = time.Time{} })}, false},
+		{"foreign producer", []GrantRequest{grantFor(func(g *GrantRequest) { g.ProducerID = "dev.eshu.other.collector" })}, false},
+		{"other kind", []GrantRequest{grantFor(func(g *GrantRequest) { g.Kind = "change.record" })}, false},
+		{"versions split across two grants", []GrantRequest{
+			grantFor(func(g *GrantRequest) { g.SchemaVersions = []string{"1.0.0"} }),
+			grantFor(func(g *GrantRequest) { g.SchemaVersions = []string{"1.1.0"} }),
+		}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			problems := uncoveredEmissions(manifest, tc.grants, now)
+			if tc.covered && len(problems) != 0 {
+				t.Fatalf("uncoveredEmissions() = %v, want none", problems)
+			}
+			if !tc.covered && !slices.ContainsFunc(problems, func(p string) bool { return strings.Contains(p, "incident.record") }) {
+				t.Fatalf("uncoveredEmissions() = %v, want incident.record reported", problems)
+			}
+		})
+	}
+}
+
+// TestUncoveredEmissionsNamespaceBoundary proves the namespace exemption is the
+// template's own namespace only: a revoked grant never blocks an own-namespace
+// kind, a foreign dotted namespace is not exempt, and the bare namespace
+// without a following dot does not count.
+func TestUncoveredEmissionsNamespaceBoundary(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	revoked := GrantRequest{ProducerID: ComponentID, Version: "0.1.0", Kind: "x", Revoked: true}
+	own := loadManifest(t)
+	if problems := uncoveredEmissions(own, []GrantRequest{revoked}, now); len(problems) != 0 {
+		t.Fatalf("own-namespace kinds with a revoked unrelated grant: %v, want none", problems)
+	}
+	for _, kind := range []string{"dev.eshu.other.collector.record", ComponentID, ComponentID + "x.record"} {
+		manifest := loadManifest(t)
+		manifest.Spec.EmittedFacts = []conformance.FactFamily{{Kind: kind, SchemaVersions: []string{"1.0.0"}}}
+		if problems := uncoveredEmissions(manifest, nil, now); len(problems) == 0 {
+			t.Fatalf("kind %q outside the template namespace was exempt without a grant", kind)
+		}
 	}
 }
 
