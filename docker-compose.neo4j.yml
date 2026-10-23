@@ -208,7 +208,7 @@ services:
       # extra setup and a `docker compose down/up` cycle keeps decrypting the
       # same sealed envelope (a randomly-generated key would strand it after
       # every restart). Real deployments MUST override this with their own
-      # secret DEK; see docs/public/reference/env-registry.md.
+      # secret DEK; see docs/public/reference/env-registry/api-and-auth.md.
       ESHU_AUTH_SECRET_ENC_KEY: ${ESHU_AUTH_SECRET_ENC_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
       ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
       ESHU_PROMETHEUS_METRICS_ENABLED: "true"

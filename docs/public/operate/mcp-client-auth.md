@@ -136,7 +136,7 @@ designed behavior, not a bug or a gap to close — GitHub's OAuth2 flow simply
 has no MCP-side authorization-server role to advertise. `allowed_orgs` in the
 GitHub provider config file remains the tenant boundary regardless of MCP
 credential posture (see `ESHU_AUTH_GITHUB_CONFIG_FILE` in the [Environment
-Variable Registry](../reference/env-registry.md)).
+Variable Registry](../reference/env-registry/api-and-auth.md#api)).
 
 ## Shared key
 

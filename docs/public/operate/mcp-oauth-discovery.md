@@ -54,7 +54,7 @@ validation — there is no separate on/off switch:
    example `https://eshu.example.com/mcp`). It must be an `https` URL — or an
    `http` loopback URL for local development — with no query string or fragment.
 2. Configure at least one OIDC bearer provider (see
-   [Environment Variable Registry](../reference/env-registry.md) for
+   [Environment Variable Registry](../reference/env-registry/api-and-auth.md#api) for
    `ESHU_AUTH_OIDC_CONFIG_FILE` and the DB-backed provider path).
 
 The document answers `404` — indistinguishable from a token-only deployment —
