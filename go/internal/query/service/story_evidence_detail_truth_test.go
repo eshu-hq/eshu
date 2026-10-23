@@ -5,6 +5,7 @@ package service
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -215,11 +216,16 @@ func TestStoryHandlesOmissionTotalsAreTrueTotals(t *testing.T) {
 	})
 }
 
-// storyRowTruthLabels are the per-row fields that say how much to trust a row
-// or why it is not promoted. A handle row must keep each one its full row has.
+// storyRowTruthLabels are the per-row fields that say how much to trust a row,
+// how it was established, or why it is not promoted. A handle row must keep
+// each one its full row has. The per-family decisions over rows built by the
+// production builders live in TestStoryHandlesKeepProductionRowTruthLabels;
+// this test runs the same labels over every list of the large fixture.
 var storyRowTruthLabels = []string{
-	"confidence", "candidate_status", "missing_relationship", "match_basis", "relationship_basis",
+	"confidence", "candidate_status", "missing_relationship", "relationship_basis",
+	"resolution_mode", "evidence_source", "service_anchor_source",
 	"service_anchor_status", "service_anchor_reason", "materialization_status",
+	"relationship_types", "graph_relationship_types", "consumer_kinds", "evidence_kinds",
 	"identity_outcome", "identity_strength", "sbom_attachment_status",
 }
 
@@ -253,7 +259,7 @@ func TestStoryHandlesKeepRowTruthLabels(t *testing.T) {
 						continue
 					}
 					checked++
-					if row[label] != fullValue {
+					if !reflect.DeepEqual(row[label], fullValue) {
 						t.Errorf("%s[%d].%s = %v under handles, want %v", path, i, label, row[label], fullValue)
 					}
 				}

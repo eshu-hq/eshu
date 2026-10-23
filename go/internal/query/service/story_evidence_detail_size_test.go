@@ -77,9 +77,14 @@ func marshalStory(t *testing.T, data map[string]any) int {
 }
 
 // TestOversizedServiceStoryHandlesFitMCPBudget pins the #8798 failure: the
-// story of a large service serializes past the whole MCP response budget with
-// no bound, and the handles view brings it under half the budget so the doubled
-// MCP copy fits.
+// story of a large service serializes past the whole MCP response budget even
+// as a single copy, so the dispatch has no fallback and returns
+// mcp_response_over_budget. Under handles the single copy fits, so the story
+// ships. The dual result shape (#8796) carries a second, escaped copy; with the
+// production row truth labels kept it is past the budget on this fixture, and
+// the dispatch falls back to the resource copy alone until the result is sent
+// once (#8800). The test gates the escaped single copy, the larger of the two
+// copies, and logs the dual size.
 func TestOversizedServiceStoryHandlesFitMCPBudget(t *testing.T) {
 	t.Parallel()
 
@@ -93,17 +98,22 @@ func TestOversizedServiceStoryHandlesFitMCPBudget(t *testing.T) {
 	omissions := querycontract.ApplyStoryEvidenceDetail(handles, querycontract.ContextEvidenceDetailHandles)
 	handlesBytes := marshalStory(t, handles)
 	fullMCP := mcpResultBytes(t, full, nil)
+	fullText := marshalStoryText(t, full, nil)
 	handlesMCP := mcpResultBytes(t, handles, omissions)
-	t.Logf("story bytes: full=%d handles=%d (%.1f%% of full); MCP result bytes: full=%d handles=%d, budget=%d",
-		fullBytes, handlesBytes, 100*float64(handlesBytes)/float64(fullBytes), fullMCP, handlesMCP, storyMCPResponseBudget)
+	handlesText := marshalStoryText(t, handles, omissions)
+	t.Logf("story bytes: full=%d handles=%d (%.1f%% of full); MCP result bytes: full=%d handles=%d (dual shape), "+
+		"handles structured copy=%d, handles escaped text copy=%d, full escaped text copy=%d, budget=%d",
+		fullBytes, handlesBytes, 100*float64(handlesBytes)/float64(fullBytes), fullMCP, handlesMCP,
+		handlesMCP-handlesText, handlesText, fullText, storyMCPResponseBudget)
 	logStoryKeyBytes(t, "full", full)
 	logStoryKeyBytes(t, "handles", handles)
-	if fullMCP <= storyMCPResponseBudget {
-		t.Fatalf("full MCP result = %d bytes, want past the %d-byte budget so the test proves the bound", fullMCP, storyMCPResponseBudget)
+	if fullMCP-fullText <= storyMCPResponseBudget {
+		t.Fatalf("full structured copy = %d bytes, want past the %d-byte budget so even the resource fallback fails, as in #8798",
+			fullMCP-fullText, storyMCPResponseBudget)
 	}
-	if handlesMCP+storyMCPWrapperBytes > storyMCPResponseBudget {
-		t.Fatalf("handles MCP result = %d bytes plus %d wrapper, want <= the %d-byte budget",
-			handlesMCP, storyMCPWrapperBytes, storyMCPResponseBudget)
+	if handlesText+storyMCPWrapperBytes > storyMCPResponseBudget {
+		t.Fatalf("handles escaped single copy = %d bytes plus %d wrapper, want <= the %d-byte budget",
+			handlesText, storyMCPWrapperBytes, storyMCPResponseBudget)
 	}
 	if len(omissions) == 0 {
 		t.Fatal("handles view reduced the story but reported no truth omissions")
@@ -161,9 +171,11 @@ func logStoryKeyBytes(t *testing.T, label string, data map[string]any) {
 
 // TestOversizedServiceStoryHandlesKeepTruthAndCounts proves the handles view
 // changes only what ships: the truth-bearing and count-bearing fields are
-// byte-identical to the full view, every projected list keeps its length, and
-// every cut carries a marker and an omission with its total (a lower bound for
-// investigation.repositories_with_evidence, which records no count past 50).
+// byte-identical to the full view, every projected list keeps its length, a
+// trace preview carries truncated, evidence_shipped, and evidence_omitted, the
+// node cut carries nodes_truncated and nodes_omitted, a dropped downstream list
+// is named by its *_shipped_at pointer, and the reduced families carry an
+// omission with their total.
 func TestOversizedServiceStoryHandlesKeepTruthAndCounts(t *testing.T) {
 	t.Parallel()
 

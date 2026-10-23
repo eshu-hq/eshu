@@ -6,20 +6,41 @@ package querycontract
 import "fmt"
 
 // storyListHandleKeys names the top-level story lists the handles view
-// projects and the identity keys each row keeps. The rows come from the same
-// builders the full view uses, so a handle row is the full row minus the keys
-// not listed here; every list keeps its length.
+// projects and the keys each row keeps. The rows come from the same builders
+// the full view uses, so a handle row is the full row minus the keys not listed
+// here; every list keeps its length. Each list keeps the identity keys of its
+// production rows and their truth labels, the fields that say how a row was
+// established; the provenance detail (paths, reasons, matched values, source
+// record ids) ships only under full. The per-family decisions are pinned
+// against rows built by the production builders in
+// service.TestStoryHandlesKeepProductionRowTruthLabels:
+//
+//   - upstream_dependencies keep relationship_type, resolved_id (the
+//     get_relationship_evidence key), and confidence; rationale, evidence_count,
+//     and modules go.
+//   - dependents keep relationship_types; relationship_reasons go.
+//   - consumer_repositories keep consumer_kinds, graph_relationship_types, and
+//     evidence_kinds; matched_values, sample_paths, and
+//     graph_relationship_reasons go.
+//   - provisioning_source_chains keep relationship_types and evidence_kinds
+//     (which already include the relationship reasons); sample_paths, modules,
+//     config_paths, and relationship_reasons go.
+//   - hostnames and entrypoints keep their environment (and an entrypoint its
+//     visibility); relative_path and the extraction reason go.
+//   - cloud_resources keep relationship_basis, resolution_mode, evidence_source,
+//     and the service anchor source and reason; the provider, account, region,
+//     ARN, and source record fields go.
 var storyListHandleKeys = []struct {
 	key  string
 	keys []string
 }{
 	{"upstream_dependencies", []string{"resolved_id", "relationship_type", "source", "source_repo_id", "target", "target_repo_id", "target_id", "confidence"}},
-	{"dependents", []string{"repo_id", "repository"}},
-	{"consumer_repositories", []string{"repo_id", "repository"}},
-	{"provisioning_source_chains", []string{"repo_id", "repository", "confidence"}},
-	{"hostnames", []string{"hostname", "environment", "visibility"}},
-	{"entrypoints", []string{"type", "target", "hostname", "environment", "visibility"}},
-	{"cloud_resources", []string{"id", "name", "kind", "resource_type", "confidence", "relationship_basis"}},
+	{"dependents", []string{"repo_id", "repository", "relationship_types"}},
+	{"consumer_repositories", []string{"repo_id", "repository", "consumer_kinds", "graph_relationship_types", "evidence_kinds"}},
+	{"provisioning_source_chains", []string{"repo_id", "repository", "relationship_types", "evidence_kinds"}},
+	{"hostnames", []string{"hostname", "environment"}},
+	{"entrypoints", []string{"type", "target", "environment", "visibility"}},
+	{"cloud_resources", storyCloudResourceHandleKeys},
 	{"uncorrelated_cloud_resources", storyCloudCandidateHandleKeys},
 	{"entrypoint_candidates", storyEntrypointCandidateHandleKeys},
 	{"network_paths", storyNetworkPathHandleKeys},
@@ -51,15 +72,23 @@ var storyEntrypointCandidateHandleKeys = []string{"candidate", "classification",
 // handle row also drops, so neither ships under handles.
 var storyNetworkPathHandleKeys = []string{"path_type", "from_type", "from", "to", "platform_kind", "environment", "visibility"}
 
+// storyCloudResourceHandleKeys keep an attached cloud resource to its
+// identity plus how the workload-to-cloud relationship was established:
+// relationship_basis, resolution_mode, evidence_source, and the service anchor
+// source and reason.
+var storyCloudResourceHandleKeys = []string{
+	"id", "name", "kind", "resource_type",
+	"relationship_basis", "resolution_mode", "evidence_source", "service_anchor_source", "service_anchor_reason",
+}
+
 // storyCloudCandidateHandleKeys keep an uncorrelated cloud resource candidate
 // to its identity plus every label that says why it is not promoted:
-// candidate_status, missing_relationship, match_basis, and the service anchor
-// status and reason. Dropping them would turn "not correlated, and why" into a
-// bare resource name.
+// candidate_status, missing_relationship, and the service anchor status and
+// reason. Dropping them would turn "not correlated, and why" into a bare
+// resource name.
 var storyCloudCandidateHandleKeys = []string{
 	"id", "name", "kind", "resource_type",
-	"candidate_status", "missing_relationship", "match_basis",
-	"service_anchor_status", "service_anchor_reason", "relationship_basis",
+	"candidate_status", "missing_relationship", "service_anchor_status", "service_anchor_reason",
 }
 
 // storyDownstreamShippedAt maps each downstream_consumers row list to the
@@ -104,9 +133,13 @@ var storyTraceHandleKeys = map[string][]string{
 	},
 	"deployment_config": {"id", "resolved_id", "relationship_type", "confidence", "path", "tool_family", "kind", "environment"},
 	"runtime":           {"instance_id", "platform_name", "platform_kind", "environment", "materialization_status"},
+	// The cloud_dependencies rows are the cloud_resources rows or, when none
+	// attached, the uncorrelated candidates, so the segment keeps the keys of
+	// both.
 	"cloud_dependencies": {
-		"id", "name", "kind", "resource_type", "confidence", "relationship_basis",
-		"candidate_status", "missing_relationship", "match_basis", "service_anchor_status", "service_anchor_reason",
+		"id", "name", "kind", "resource_type",
+		"relationship_basis", "resolution_mode", "evidence_source", "service_anchor_source", "service_anchor_reason",
+		"candidate_status", "missing_relationship", "service_anchor_status",
 	},
 }
 

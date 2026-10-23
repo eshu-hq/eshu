@@ -6,10 +6,13 @@ package testutil
 import "fmt"
 
 // OversizedServiceDossierContext builds a workload context for a large
-// service: every row family past the story's 50-row cap, with row widths that
-// match what the graph and content readers return for a real deployment. The
-// story builder run over it serializes past the 256 KiB MCP response budget,
-// which the byte-size tests for #8798 pin. Names are synthetic.
+// service: every row family past the story's 50-row cap, with the row keys the
+// production builders emit (BuildGraphDependents, the consumer and provisioning
+// chain enrichment, the hostname and entrypoint builders, and the materialized
+// cloud-resource reader) and row widths that match what the graph and content
+// readers return for a real deployment. The story builder run over it
+// serializes past the 256 KiB MCP response budget, which the byte-size tests for
+// #8798 pin. Names are synthetic.
 func OversizedServiceDossierContext() map[string]any {
 	const rows = 60
 	endpoints := make([]map[string]any, 0, rows)
@@ -49,12 +52,12 @@ func OversizedServiceDossierContext() map[string]any {
 			"kind": "shared_config", "environment": "staging", "repo_id": "repo-gitops",
 		})
 		hostnames = append(hostnames, map[string]any{
-			"hostname": fmt.Sprintf("checkout-%03d.staging.example.test", i), "environment": "staging", "visibility": "internal",
-			"source": "ingress", "path": fmt.Sprintf("charts/checkout-service/templates/ingress-%03d.yaml", i),
+			"hostname": fmt.Sprintf("checkout-%03d.staging.example.test", i), "environment": "staging",
+			"relative_path": fmt.Sprintf("charts/checkout-service/templates/ingress-%03d.yaml", i), "reason": "exact_hostname_candidate_reference",
 		})
 		entrypoints = append(entrypoints, map[string]any{
-			"type": "ingress", "target": fmt.Sprintf("checkout-%03d.staging.example.test", i), "hostname": fmt.Sprintf("checkout-%03d.staging.example.test", i),
-			"environment": "staging", "visibility": "internal",
+			"type": "hostname", "target": fmt.Sprintf("checkout-%03d.staging.example.test", i), "environment": "staging", "visibility": "public",
+			"relative_path": fmt.Sprintf("charts/checkout-service/templates/ingress-%03d.yaml", i), "reason": "exact_hostname_candidate_reference",
 		})
 		instances = append(instances, map[string]any{
 			"instance_id": fmt.Sprintf("inst-%03d", i), "platform_name": fmt.Sprintf("eks-staging-%03d", i), "platform_kind": "argocd_applicationset",
@@ -63,26 +66,28 @@ func OversizedServiceDossierContext() map[string]any {
 		})
 		dependents = append(dependents, map[string]any{
 			"repository": fmt.Sprintf("consumer-service-%03d", i), "repo_id": fmt.Sprintf("repo-consumer-%03d", i),
-			"relationship_types": []string{"DEPLOYS_FROM", "READS_CONFIG_FROM"}, "evidence_count": 4,
-			"sample_paths": []string{fmt.Sprintf("deploy/consumer-%03d/values.yaml", i)},
+			"relationship_types":   []string{"DEPLOYS_FROM", "READS_CONFIG_FROM"},
+			"relationship_reasons": []string{"helm_values_reference"},
 		})
 		consumers = append(consumers, map[string]any{
 			"repository": fmt.Sprintf("search-service-%03d", i), "repo_id": fmt.Sprintf("repo-search-%03d", i),
-			"evidence_kinds": []string{"hostname_reference", "service_name_reference"},
+			"consumer_kinds": []string{"hostname_reference_consumer"},
+			"evidence_kinds": []string{"hostname_reference"},
 			"matched_values": []string{"checkout-service.staging.example.test", "checkout-service"},
 			"sample_paths":   []string{fmt.Sprintf("config/staging-%03d.json", i), fmt.Sprintf("src/clients/checkout-%03d.ts", i)},
 		})
 		chains = append(chains, map[string]any{
 			"repository": fmt.Sprintf("terraform-runtime-%03d", i), "repo_id": fmt.Sprintf("repo-terraform-%03d", i),
-			"modules": []string{"ecs_service", "alb_listener", "iam_role"}, "relationship_types": []string{"PROVISIONS_DEPENDENCY_FOR"},
+			"relationship_types": []string{"PROVISIONS_DEPENDENCY_FOR"}, "relationship_reasons": []string{"terraform_module_source"},
 			"evidence_kinds": []string{"terraform_module_source"}, "sample_paths": []string{fmt.Sprintf("env/staging/%03d/main.tf", i)},
-			"confidence": 0.9,
+			"modules": []string{"ecs_service", "alb_listener", "iam_role"},
 		})
 		cloud = append(cloud, map[string]any{
 			"id": fmt.Sprintf("cloud:aws:sqs:checkout-queue-%03d", i), "name": fmt.Sprintf("checkout-queue-%03d", i), "kind": "sqs_queue",
-			"provider": "aws", "account_id": "000000000000", "region": "us-east-1", "relationship": "USES",
-			"confidence": 0.88, "evidence_path": fmt.Sprintf("env/staging/%03d/sqs.tf", i),
-			"relationship_basis": "aws_resource_service_anchor",
+			"resource_type": "aws_sqs_queue", "provider": "aws", "environment": "staging", "account_id": "000000000000", "region": "us-east-1",
+			"arn":                fmt.Sprintf("arn:aws:sqs:us-east-1:000000000000:checkout-queue-%03d", i),
+			"relationship_basis": "materialized_workload_cloud_relationship", "resolution_mode": "exact_arn",
+			"evidence_source": "terraform_state", "service_anchor_source": "resource_tag", "service_anchor_reason": "service_tag_match",
 		})
 	}
 	return map[string]any{
@@ -139,11 +144,11 @@ func OversizedServiceDossierCandidatesOnly() map[string]any {
 	for i := range rows {
 		uncorrelated = append(uncorrelated, map[string]any{
 			"id": fmt.Sprintf("cloud:aws:sns:checkout-topic-%03d", i), "name": fmt.Sprintf("checkout-topic-%03d", i), "kind": "sns_topic",
-			"resource_type": "aws_sns_topic", "provider": "aws", "environment": "staging", "source": "deployment_config",
+			"resource_type": "aws_sns_topic", "provider": "aws", "environment": "staging", "source": "terraform_state",
 			"config_path": fmt.Sprintf("env/staging/%03d/sns.tf", i), "arn": fmt.Sprintf("arn:aws:sns:us-east-1:000000000000:checkout-topic-%03d", i),
 			"account_id": "000000000000", "region": "us-east-1", "service_anchor_status": "weak",
 			"candidate_status": candidateStatuses[i%len(candidateStatuses)], "service_anchor_reason": "name_only_match",
-			"missing_relationship": "workload_cloud_relationship", "match_basis": "deployment_config_read_evidence",
+			"missing_relationship": "workload_cloud_relationship", "resource_service": "sns", "service_kind": "sns",
 		})
 	}
 	ctx := OversizedServiceDossierContext()
@@ -175,7 +180,7 @@ func OversizedServiceDossierWithEntrypointFamilies() map[string]any {
 		networkPaths = append(networkPaths, map[string]any{
 			"path_type": "hostname_to_runtime", "from_type": "hostname", "from": fmt.Sprintf("checkout-%03d.staging.example.test", i),
 			"to_type": "runtime_platform", "to": fmt.Sprintf("eks-staging-%03d", i), "platform_kind": "argocd_applicationset",
-			"environment": "staging", "reason": "exact_hostname_candidate_reference", "visibility": "internal",
+			"environment": "staging", "reason": "exact_hostname_candidate_reference", "visibility": "public",
 		})
 	}
 	ctx := OversizedServiceDossierContext()

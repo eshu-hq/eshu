@@ -120,17 +120,34 @@ truth, and freshness field is computed from the full rows.
     `network_paths`, `dependents`, `consumer_repositories`,
     `provisioning_source_chains`, `cloud_resources`,
     `uncorrelated_cloud_resources`, and the `investigation` repositories, to
-    identity keys. Each list keeps its length. An `entrypoint_candidates` row
-    keeps `candidate`, `classification`, and `reason` (the only statement of why
-    the token is not an entrypoint) and drops `relative_path`; a `network_paths`
-    row keeps `path_type`, `from_type`, `from`, `to`, `platform_kind`,
-    `environment`, and `visibility` and drops the constant `to_type` and the
-    repeated `reason`. The identity keys include the
-    row-level truth labels: `confidence` on upstream dependencies and chains;
-    `candidate_status`, `missing_relationship`, `match_basis`,
-    `service_anchor_status`, and `service_anchor_reason` on uncorrelated cloud
-    resources; `relationship_basis` on cloud resources. The investigation
-    truncation marker row keeps its `note`.
+    identity keys plus the row truth labels, the fields that say how a row was
+    established. Each list keeps its length, and the provenance detail (paths,
+    reasons, matched values, source record ids) ships only under `full`. The
+    kept keys follow the rows the production builders emit:
+    - `upstream_dependencies`: `resolved_id`, `relationship_type`, `source`,
+      `source_repo_id`, `target`, `target_repo_id`, `target_id`, and
+      `confidence`.
+    - `dependents`: `repo_id`, `repository`, and `relationship_types`.
+    - `consumer_repositories`: `repo_id`, `repository`, `consumer_kinds`,
+      `graph_relationship_types`, and `evidence_kinds`.
+    - `provisioning_source_chains`: `repo_id`, `repository`,
+      `relationship_types`, and `evidence_kinds`, which already include the
+      relationship reasons.
+    - `hostnames`: `hostname` and `environment`. `entrypoints`: `type`,
+      `target`, `environment`, and `visibility`.
+    - `entrypoint_candidates`: `candidate`, `classification`, and `reason`, the
+      only statement of why the token is not an entrypoint.
+    - `network_paths`: `path_type`, `from_type`, `from`, `to`, `platform_kind`,
+      `environment`, and `visibility`; the constant `to_type` and the repeated
+      `reason` go.
+    - `cloud_resources`: `id`, `name`, `kind`, `resource_type`,
+      `relationship_basis`, `resolution_mode`, `evidence_source`,
+      `service_anchor_source`, and `service_anchor_reason`.
+    - `uncorrelated_cloud_resources`: `id`, `name`, `kind`, `resource_type`,
+      `candidate_status`, `missing_relationship`, `service_anchor_status`, and
+      `service_anchor_reason`.
+
+    The investigation truncation marker row keeps its `note`.
   - `evidence_graph.edges`, to `id`, `source`, `target`, `relationship_type`,
     `confidence`, and `resolved_id`. `evidence_graph.nodes` keeps the nodes a shipped edge touches
     and the workload and its source repository; `node_count`, `nodes_truncated`,
@@ -155,27 +172,32 @@ truth, and freshness field is computed from the full rows.
   or fetch one relationship by `resolved_id` with `get_relationship_evidence`.
 
 Measured on a synthetic large-service fixture with every list past its 50-row
-cap, the dossier is 334,498 bytes under `full` and 110,274 bytes under `handles`
-(33.0 percent). The MCP result carries the envelope twice, once structured and
-once as an escaped JSON string; that dual result is 718,050 bytes under `full`,
-over the 262,144-byte budget, and 252,744 bytes under `handles`, inside it.
-A story with no attached cloud resources and 60 uncorrelated cloud-resource
-candidates (the enrichment loads candidates only when no cloud resource
-attached, so the two lists never ship together) is 120,758 bytes of data under
-`handles` and 274,854 bytes in the dual shape. That exceeds the budget, so
-dispatch falls back to the resource copy alone: 130,500 bytes as the structured
-copy, 144,354 as the escaped text copy. Sending the result once (#8800)
-removes the fallback.
+cap and the row keys the production builders emit, the dossier is 360,361 bytes
+under `full` and 128,547 bytes under `handles` (35.7 percent). The MCP result
+carries the envelope twice, once structured and once as an escaped JSON string.
+Under `full` even one copy is over the 262,144-byte budget (366,409 bytes
+structured, 405,267 escaped), so the resource-copy fallback cannot help and the
+dispatch returns `mcp_response_over_budget`, the #8798 failure. Under `handles` one copy fits
+(138,263 bytes structured, 152,707 escaped). The dual result is 290,970 bytes,
+over the budget, so the dispatch falls back to the resource copy alone and
+counts it in `eshu_dp_mcp_response_resource_fallback_total`. Sending the result
+once (#8800) removes the fallback. A story with no attached cloud resources and
+60 uncorrelated cloud-resource candidates (the enrichment loads candidates only
+when no cloud resource attached, so the two lists never ship together) is
+125,578 bytes of data under `handles` and 284,854 bytes in the dual shape, and
+also falls back: 135,320 bytes as the structured copy, 149,534 as the escaped
+text copy.
 
 The standard fixture leaves out `entrypoint_candidates` and `network_paths`,
 which also cap at 50 rows. With 60 rows of each added (every family at its cap),
-the story is 360,030 bytes under `full` and 128,706 under `handles`
-(`entrypoint_candidates` 10,837 to 7,487 bytes, `network_paths` 14,401 to
-10,651). That shape is 292,174 bytes in the dual MCP shape, over the budget by
-about 30,000 bytes, so dispatch falls back to the resource copy alone (138,670 bytes
-structured, 153,504 escaped); the dual shape fits again once the result is sent
-once (#8800). `TestEntrypointFamiliesStoryHandlesMCPSize` gates the single copy
-and logs these figures.
+the story is 385,793 bytes under `full` and 146,879 under `handles`
+(`entrypoint_candidates` 10,837 to 7,487 bytes, `network_paths` 14,301 to
+10,551). That shape is 330,200 bytes in the dual MCP shape, so dispatch falls
+back to the resource copy alone (156,843 bytes structured, 173,357 escaped).
+`TestOversizedServiceStoryHandlesFitMCPBudget`,
+`TestCandidateHeavyServiceStoryHandlesMCPSize`, and
+`TestEntrypointFamiliesStoryHandlesMCPSize` gate the escaped single copy of
+each shape and log these figures.
 
 ### Service story evidence
 
@@ -185,18 +207,23 @@ in the handler after `BuildServiceStoryEnvelope` returns, and the in-process
 service intelligence report calls the builder directly and is not shaped. The
 only builder change drops the endpoint rows from the overview's copy of
 `api_surface`, which removes about 12 KB of serialization work on this fixture.
-Input shape: a fixture with every row list past its 50-row cap (60 rows each),
-plus CI/CD and supply-chain evidence. Under `full`: 334,498 bytes. Under
-`handles`: 110,274 bytes (33.0 percent of `full`); the escaped dual MCP result
-is 252,744 bytes against the unchanged 262,144-byte budget (`full`: 718,050).
+Input shape: a fixture with every row list past its 50-row cap (60 rows each)
+and the production row keys, plus CI/CD and supply-chain evidence. Under `full`:
+360,361 bytes. Under `handles`: 128,547 bytes (35.7 percent of `full`); the
+escaped single copy is 152,707 bytes against the unchanged 262,144-byte budget
+(`full`: 405,267), and the dual result, 290,970 bytes (`full`: 771,676), takes
+the resource-copy fallback until #8800.
 `go test ./internal/query/service -run 'OversizedServiceStory|StoryHandles'
 -count=1` pins the budget on the escaped size, the unchanged truth and count
-fields, a marker on every cut, no empty handle row, the true omission total of
+fields, the preview and node-cut markers and the ship-once pointers, no empty handle row, the true omission total of
 every reduced family, and the per-row truth labels.
+`TestStoryHandlesKeepProductionRowTruthLabels` builds the rows with the
+production builders and fails on a row key with no kept or dropped decision.
 
 Observability Evidence: `eshu_dp_mcp_response_bytes` and
 `eshu_dp_mcp_response_over_budget_total`, both labeled by tool, show the
 `get_service_story` size falling under the budget and the over-budget count
-stopping. Each response names its level in `evidence_detail` and every reduced
-family, with its total, in `truth.omissions`. No metric, span, or log field is
-added.
+stopping; `eshu_dp_mcp_response_resource_fallback_total` counts the dual
+results that fall back to the resource copy until #8800. Each response names its
+level in `evidence_detail` and every reduced family, with its total, in
+`truth.omissions`. No metric, span, or log field is added.

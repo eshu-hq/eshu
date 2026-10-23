@@ -9,25 +9,30 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
-### Service story fits the MCP response budget in the standard case
+### Service story fits the MCP response budget as one copy
 
 - **`get_service_story` defaults to a bounded `handles` view** ([#8798](https://github.com/eshu-hq/eshu/issues/8798)).
   A large service's story measured 266 KB and failed `mcp_response_over_budget`.
   The route now takes `evidence_detail` (`full` or `handles`); the MCP tool
   defaults to `handles` and the HTTP route stays `full`. `handles` projects the
-  bulky lists to identity rows that keep their row-level truth labels, except
+  bulky lists to identity rows that keep the identity keys and row-level truth
+  labels of the rows the production builders emit, except
   that deployment artifact rows keep `id`, `relationship_type`, and
   `resolved_id`; `get_relationship_evidence` by `resolved_id` returns the rest,
-  including confidence. It marks every cut with `truncated` and an omitted
-  count, and lists each reduced family in `truth.omissions` with its true
-  total; `investigation.repositories_considered` reports the packet's true
+  including confidence. It lists each reduced family in `truth.omissions` with
+  its true total. A trace preview also carries `truncated`, `evidence_shipped`,
+  and `evidence_omitted`, the evidence graph carries `nodes_truncated` and
+  `nodes_omitted`, and a dropped list is named by a `*_shipped_at` pointer or
+  only in `truth.omissions`; `investigation.repositories_considered` reports the packet's true
   repository count, `investigation.repositories_with_evidence` the 50 rows
-  shipped, a lower bound, and the `__truncated__` marker row says more exist. The standard
-  large fixture fits the budget (252,744 of 262,144 bytes); a story with a
-  full list of uncorrelated cloud-resource candidates, or with
-  `entrypoint_candidates` and `network_paths` also at their 50-row cap
-  (292,174 bytes), still exceeds the dual-copy budget until the result is sent
-  once (#8800). `handles` projects those two lists to identity rows too. In both modes the
+  shipped, a lower bound, and the `__truncated__` marker row says more exist. On
+  the standard large fixture one copy of the result now fits (152,707 of
+  262,144 bytes escaped), where under `full` even one copy is over (405,267).
+  The dual result (290,970 bytes on that fixture, 284,854 with a full list of
+  uncorrelated cloud-resource candidates, 330,200 with `entrypoint_candidates`
+  and `network_paths` also at their 50-row cap) still exceeds the budget, so
+  the dispatch sends the resource copy alone until the result is sent once
+  (#8800). `handles` projects those two lists to identity rows too. In both modes the
   endpoint rows now ship once, at `api_surface.endpoints`;
   `deployment_overview.api_surface` keeps its counts and points there with
   `endpoints_shipped_at`. Pass `evidence_detail: full` for every row.
