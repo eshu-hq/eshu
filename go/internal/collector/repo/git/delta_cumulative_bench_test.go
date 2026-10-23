@@ -13,12 +13,17 @@ import (
 	"testing"
 )
 
-// benchGit runs git for a benchmark fixture and returns trimmed stdout.
+// benchGit runs git for a benchmark fixture and returns trimmed stdout. Auto
+// maintenance and auto gc are off: since Git 2.47 a fetch starts a detached
+// `git maintenance run --auto` that keeps writing objects after the command
+// returns, which races the TempDir cleanup and the next run's fixture.
 func benchGit(b *testing.B, dir string, args ...string) string {
 	b.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...) // #nosec G204 -- benchmark fixture, controlled args
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null",
-		"GIT_AUTHOR_NAME=eshu", "GIT_AUTHOR_EMAIL=eshu@example.com", "GIT_COMMITTER_NAME=eshu", "GIT_COMMITTER_EMAIL=eshu@example.com")
+		"GIT_AUTHOR_NAME=eshu", "GIT_AUTHOR_EMAIL=eshu@example.com", "GIT_COMMITTER_NAME=eshu", "GIT_COMMITTER_EMAIL=eshu@example.com",
+		"GIT_CONFIG_COUNT=2", "GIT_CONFIG_KEY_0=maintenance.auto", "GIT_CONFIG_VALUE_0=false",
+		"GIT_CONFIG_KEY_1=gc.auto", "GIT_CONFIG_VALUE_1=0")
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -61,6 +66,12 @@ func newChainBenchFixture(b *testing.B) (checkout, full, active string) {
 	active = commit("c1")
 	benchGit(b, root, "clone", "-q", "--bare", src, remote)
 	benchGit(b, root, "clone", "-q", "file://"+remote, checkout)
+	// updateRepository runs its own git with the process environment, so the
+	// checkout and remote also carry the setting in their repository config.
+	for _, repo := range []string{remote, checkout} {
+		benchGit(b, repo, "config", "maintenance.auto", "false")
+		benchGit(b, repo, "config", "gc.auto", "0")
+	}
 	for i := 20; i < 40; i++ {
 		write(fmt.Sprintf("f%03d.go", i), fmt.Sprintf("package p\n\nfunc f%03dC() {}\n", i))
 	}
