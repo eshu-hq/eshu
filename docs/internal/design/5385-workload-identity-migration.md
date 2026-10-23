@@ -467,3 +467,21 @@ the `telemetry-coverage` gate. Structured logs on `ambiguous` carry the handle
 and candidate `repo_id`s; the reducer log also carries the distinct skip
 reason so `workload_handle_ambiguous` and `ambiguous_anchor` are never read as
 one number.
+
+## 9. Post-cutover leftovers (#8795)
+
+A deployment that missed step 5 can still hold name-only `Workload` nodes
+(`workload:<name>`) next to the scoped ones. They make by-name lookups
+ambiguous and make the reducer's handle ladder skip edges as
+`workload_handle_ambiguous`. Hosted readiness fails the check
+`workload_identity_leftovers` while a leftover with a scoped twin exists.
+
+Retirement is an explicit operator action on the reducer admin listener
+(`POST /admin/retire-legacy-workloads`, dry run first), never an automatic
+reducer behavior: the rollback in section 3 re-materializes old ids with the old
+binary, and an automatic reaper would fight it during a mixed-version window.
+The delete is a graph production data change, so it runs only after an operator
+reviews the dry run. The statement and its safe set are described in the
+[leftover retirement runbook](../../public/operate/legacy-workload-retirement-runbook.md);
+the NornicDB findings that shaped the detection are in
+`docs/internal/evidence/8795-legacy-workload-retirement.md`.

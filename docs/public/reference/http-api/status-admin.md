@@ -99,8 +99,8 @@ readiness, queue drain, collector completion, shared projection backlog, and
 first-query truth. The report returns `state=not_ready` with stable
 `failure_classes[]` when the status snapshot is empty, hosted collector
 instances are missing, queue work is stalled or not drained, work is
-dead-lettered, shared projection backlog remains, graph readback fails, or the
-repository readback returns zero rows. It returns `state=ready` only when those
+dead-lettered, shared projection backlog remains, graph readback fails, the
+repository readback returns zero rows, or [leftover name-only Workload nodes](hosted-readiness-leftovers.md) remain. It returns `state=ready` only when those
 checks pass. Diagnostic pointers reference `/admin/status`,
 `/api/v0/status/index`, `/api/v0/status/collectors`, and repository coverage;
 raw graph backend errors, resource IDs, account-local names, paths, and

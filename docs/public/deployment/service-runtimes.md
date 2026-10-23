@@ -40,6 +40,8 @@ Long-running HTTP runtimes expose the shared admin surface:
 - `/admin/replay`, `/admin/refinalize`, and
   `/admin/replay-collector-generations` only on runtimes configured with the
   recovery handler
+- `/admin/retire-legacy-workloads` only on the resolution engine (reducer); see
+  the [leftover retirement runbook](../operate/legacy-workload-retirement-runbook.md)
 
 Pod readiness gates on the migration ledger. Every Eshu runtime workload
 with a `readinessProbe` probes `/readyz`, which includes the `status_schema` check

@@ -32,8 +32,8 @@
 
 - **Admin endpoints are not authenticated** — `NewAdminMux` mounts `/healthz`,
   `/readyz`, `/admin/status`, `/metrics`, and optionally `/admin/replay`,
-  `/admin/refinalize`, and `/admin/replay-collector-generations` without
-  authentication. These must be served only on the admin/metrics port, never on
+  `/admin/refinalize`, `/admin/replay-collector-generations`, and the reducer-only
+  `/admin/retire-legacy-workloads` without authentication. These must be served only on the admin/metrics port, never on
   the public API port.
 
 - **Retry defaults are positive** — `LoadRetryPolicyConfig` rejects

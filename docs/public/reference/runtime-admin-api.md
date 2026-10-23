@@ -29,8 +29,14 @@ When configured with the recovery handler, it exposes:
 - `POST /admin/refinalize`
 - `POST /admin/replay-collector-generations`
 
+When configured with the legacy workload retirement handler (the reducer only),
+it exposes:
+
+- `POST /admin/retire-legacy-workloads`
+
 Unsupported verbs return `405 Method Not Allowed` with `Allow: GET, HEAD` for
-probe and status endpoints, or `Allow: POST` for recovery endpoints.
+probe and status endpoints, or `Allow: POST` for recovery endpoints and the
+retirement endpoint.
 
 ## Current Runtime Shape
 
@@ -243,6 +249,21 @@ because their scope generation is superseded (#7130), counted on every replay
 call. Replaying one would re-project the retired generation's graph and content
 over the published one, so the replay and the dead-letter backlog count both
 exclude them.
+
+`POST /admin/retire-legacy-workloads` lists or retires the name-only `Workload`
+nodes (`workload:<name>`) that the repository-scoped identity change left
+behind (#8795). The body is `{"dry_run": true|false, "limit": <1-100>,
+"ids": [...], "reason": "..."}`. `dry_run` is required, and `reason` is required
+when it is false. A dry run only reads. The response carries `dry_run`,
+`candidates[]` (`id`, `twin_id`, `repo_id`, `name`, `relationships` by type,
+`eligible`, `blocked_reason` of `has_instances`, `no_twin`, or `relationships`),
+`eligible`, `blocked`, `deleted`, and `truncated`. Execute deletes at most
+`limit` eligible nodes in one transaction whose statement re-checks every
+retirement clause, so it never trusts the dry run. A bad body answers `400`, a
+rejected request `422`, and an execute on NornicDB `501`; a server fault answers
+`500` with a fixed message. The route is unauthenticated like the rest of this
+surface. See the
+[leftover retirement runbook](../operate/legacy-workload-retirement-runbook.md).
 
 `POST /admin/refinalize` re-enqueues projector work for `scope_ids`. The
 response includes `status`, `enqueued`, and `scope_ids`, plus
