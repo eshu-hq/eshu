@@ -25,7 +25,7 @@ func contentTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_file_lines",
-			Description: "Return a line range for a repo-relative file using a repository selector plus relative path.",
+			Description: "Return a line range for a repo-relative file using a repository selector plus relative path." + indexedFilesRule,
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

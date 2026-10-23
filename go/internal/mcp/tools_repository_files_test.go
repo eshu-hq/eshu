@@ -73,7 +73,7 @@ func TestRepositoryFilesToolLanguageIsOptional(t *testing.T) {
 func TestIndexedFilesRuleInFileToolDescriptions(t *testing.T) {
 	t.Parallel()
 
-	for _, name := range []string{"list_repository_files", "get_file_content", "search_file_content"} {
+	for _, name := range []string{"list_repository_files", "get_file_content", "get_file_lines", "search_file_content"} {
 		desc := requireToolDefinition(t, name).Description
 		for _, want := range []string{
 			"parser-registry name, prefix, extension, or documentation format",
@@ -84,7 +84,9 @@ func TestIndexedFilesRuleInFileToolDescriptions(t *testing.T) {
 			".eshuignore",
 			"default-pruned",
 			".eslintrc.js",
-			".github/workflows/*",
+			".github/workflows/ci.yml",
+			"for example",
+			"eshuignore.md#default-skips",
 			".env",
 			"may simply not be indexed",
 		} {

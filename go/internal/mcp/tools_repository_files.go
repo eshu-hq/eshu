@@ -9,9 +9,9 @@ package mcp
 // proof that Eshu cannot see it (#8808). The collector test
 // TestResolveNativeSnapshotFileSetIndexedFileRule pins this text.
 const indexedFilesRule = " A file is indexed only if it matched a parser-registry name, prefix, extension, or documentation format, or is a .gitmodules or CODEOWNERS file. " +
-	"Dotfiles are not hidden: .eslintrc.js and .github/workflows/* are indexed; " +
+	"Dotfiles are not hidden: .eslintrc.js and .github/workflows/ci.yml are indexed; " +
 	"extensionless names with no registry entry, such as .env, are not. " +
-	"A file not found may simply not be indexed, or may be gitignored, in .eshuignore, in a default-pruned directory (node_modules, vendor, dist, build), have an ignored extension, or be generated."
+	"A file not found may simply not be indexed, or may be gitignored, in .eshuignore, in a default-pruned directory (for example node_modules, vendor, dist, or build; the full set is under Default skips in the .eshuignore reference, eshuignore.md#default-skips), have an ignored extension, or be generated."
 
 // repositoryFilesTool defines the bounded repository file-listing tool. It
 // proxies GET /api/v0/repositories/{repo_id}/tree, which reconstructs a

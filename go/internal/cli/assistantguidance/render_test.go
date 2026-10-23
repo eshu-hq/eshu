@@ -249,6 +249,9 @@ func TestGuidanceBodyStatesIndexedFileRule(t *testing.T) {
 			"gitignored",
 			".eshuignore",
 			"default-pruned",
+			".github/workflows/ci.yml",
+			"get_file_lines",
+			"for example",
 			"may simply not be indexed",
 		} {
 			if !strings.Contains(body, want) {
