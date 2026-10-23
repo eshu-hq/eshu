@@ -48,9 +48,14 @@ func buildClaimedService(
 		ConfigHandle:        config.ConfigHandle,
 		Config:              config.ExtensionConfig,
 		Runner:              config.Runner,
-		Clock:               time.Now,
-		Grants:              config.Grants,
-		GrantObserver:       grantObserver,
+		// StatusTelemetry turns the extension's SDK status rows into the
+		// eshu_dp_component_extension_* instruments and one bounded log
+		// line per claim result (#8908); an extracted collector emits no
+		// telemetry of its own.
+		StatusRecorder: extensionhost.NewStatusTelemetry(instruments, logger),
+		Clock:          time.Now,
+		Grants:         config.Grants,
+		GrantObserver:  grantObserver,
 		// LiveGrants re-reads the registry on every emission so a
 		// grant revoked during execution fails the next result
 		// closed. A read failure is returned, not swallowed: the host
