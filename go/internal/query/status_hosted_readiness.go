@@ -82,7 +82,11 @@ func (h *StatusHandler) getHostedReadiness(w http.ResponseWriter, r *http.Reques
 	}
 
 	repositoryCount, graphErr := h.readHostedRepositoryCount(r.Context())
-	payload := buildHostedReadinessReport(raw, report, repositoryCount, graphErr, scopedAuthContext(r.Context()))
+	var leftovers workloadLeftovers
+	if graphErr == nil {
+		leftovers = h.readWorkloadLeftovers(r.Context())
+	}
+	payload := buildHostedReadinessReport(raw, report, repositoryCount, graphErr, leftovers, scopedAuthContext(r.Context()))
 	if QueryParam(r, "format") == "text" {
 		writeHostedReadinessText(w, payload)
 		return
@@ -109,6 +113,7 @@ func buildHostedReadinessReport(
 	report status.Report,
 	repositoryCount int,
 	graphErr error,
+	leftovers workloadLeftovers,
 	scoped bool,
 ) hostedReadinessReport {
 	builder := hostedReadinessBuilder{}
@@ -118,6 +123,7 @@ func buildHostedReadinessReport(
 	builder.addCollectorChecks(report.Coordinator)
 	builder.addSharedProjectionChecks(raw.DomainBacklogs)
 	builder.addQueryReadbackCheck(repositoryCount, graphErr)
+	builder.addWorkloadLeftoversCheck(leftovers)
 	builder.addEmptyStateCheck(raw, repositoryCount)
 
 	state := hostedReadinessReady

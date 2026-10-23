@@ -260,7 +260,7 @@ func TestHostedReadinessAndOperationsCarryTheActiveWorkSource(t *testing.T) {
 	snapshot := sourcedSnapshot()
 	report := statuspkg.BuildReport(snapshot, statuspkg.DefaultOptions())
 
-	readiness, err := json.Marshal(buildHostedReadinessReport(snapshot, report, 1, nil, false))
+	readiness, err := json.Marshal(buildHostedReadinessReport(snapshot, report, 1, nil, workloadLeftovers{}, false))
 	if err != nil {
 		t.Fatal(err)
 	}
