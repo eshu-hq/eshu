@@ -203,6 +203,9 @@ func TestSecurityAlertReconciliationHandlerDefersPackageTriggeredLockfileEvidenc
 	if retryable, ok := err.(interface{ Retryable() bool }); !ok || !retryable.Retryable() {
 		t.Fatalf("Handle() error = %T %v, want retryable pending-impact error", err, err)
 	}
+	if !reducercontract.IsExpectedWait(err) {
+		t.Fatalf("Handle() error = %T %v, want an expected wait the reducer records as deferred", err, err)
+	}
 	if writer.calls != 0 {
 		t.Fatalf("writer calls = %d, want 0 while impact evidence is pending", writer.calls)
 	}
@@ -275,6 +278,9 @@ func TestSecurityAlertReconciliationHandlerDefersProviderTriggeredPendingImpactE
 	}
 	if retryable, ok := err.(interface{ Retryable() bool }); !ok || !retryable.Retryable() {
 		t.Fatalf("Handle() error = %T %v, want retryable pending-impact error", err, err)
+	}
+	if !reducercontract.IsExpectedWait(err) {
+		t.Fatalf("Handle() error = %T %v, want an expected wait the reducer records as deferred", err, err)
 	}
 	if writer.calls != 0 {
 		t.Fatalf("writer calls = %d, want 0 while provider-triggered impact evidence is pending", writer.calls)

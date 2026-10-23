@@ -82,6 +82,25 @@ is not draining.
   If the migration 096 gauges identify an old reducer, roll that reducer
   forward. Do not disable the compatibility-fence triggers.
 
+### Deferred reconciliation: `security_alert_reconciliation_waiting_for_impact`
+
+A `security_alert_reconciliation` work item that logs WARN `reducer execution deferred`
+with `failure_class=security_alert_reconciliation_waiting_for_impact` is waiting
+by design. The repository has alert facts and owned dependency evidence, but the
+package has no impact finding yet. The queue retries it, and it is counted as
+`eshu_dp_reducer_executions_total{domain="security_alert_reconciliation",status="deferred"}`,
+not `failed`.
+
+- **Do nothing** while the deferred count is small and the impact findings
+  arrive on the next attempt. Do not page on `deferred` alone.
+- **Worry** when the same work item is still deferred after the attempt budget
+  (`ESHU_REDUCER_MAX_ATTEMPTS`, default 3). The last attempt logs ERROR
+  `reducer execution failed` with the same `failure_class` and records
+  `status="failed"`, and the item dead-letters. That means the package impact
+  evidence never arrived: check that `supply_chain_impact` ran for the
+  package's scope and generation, then replay the class from
+  [deadletter growth](#symptom-deadletter-growth).
+
 ## Symptom: collector failure
 
 A source is not refreshing, or a collector family reports unhealthy.

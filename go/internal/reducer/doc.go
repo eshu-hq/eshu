@@ -68,6 +68,8 @@
 // counting producer-terminal failure instead of the non-counting deferral
 // (#7597), and Service.IsDeferredFailureClass records non-counting failures as
 // status "deferred" rather than "failed".
+// A retryable expected-wait error (reducercontract.IsExpectedWait) records
+// "deferred" too while Service.RetryMaxAttempts has attempts left (#8826).
 // Repo-wide shared-projection refresh fences are generation-local: an exact
 // same-generation retry reuses completed deterministic intent IDs, while a
 // later generation must complete its own refresh before its edge rows write.

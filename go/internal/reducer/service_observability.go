@@ -34,7 +34,7 @@ func reducerQueueWaitSeconds(start time.Time, availableAt time.Time) float64 {
 }
 
 func (s Service) recordReducerResult(ctx context.Context, intent reducercontract.Intent, result reducercontract.Result, duration float64, queueWait float64, status string, workerID int, execErr error) {
-	if status == "failed" && s.isDeferredFailure(execErr) {
+	if status == "failed" && s.isDeferredFailure(execErr, intent.AttemptCount) {
 		status = executionStatusDeferred
 	}
 	if s.Instruments != nil {
@@ -142,13 +142,35 @@ func (s Service) recordReducerResult(ctx context.Context, intent reducercontract
 // failure whose class the queue exempts from the retry budget (#7597).
 const executionStatusDeferred = "deferred"
 
-// isDeferredFailure mirrors the queue's retry decision for a non-counting
-// class: the error is Retryable and self-classifies into a class the injected
-// IsDeferredFailureClass names. A producer-terminal or any other counting
-// class, and a non-retryable error, stay "failed".
-func (s Service) isDeferredFailure(execErr error) bool {
-	return execErr != nil && s.IsDeferredFailureClass != nil && IsRetryable(execErr) &&
-		s.IsDeferredFailureClass(reducerExecutionFailureClass(execErr))
+// defaultRetryMaxAttempts mirrors the queue's attempt budget when
+// Service.RetryMaxAttempts is unset (postgres.ReducerQueue.maxAttempts).
+const defaultRetryMaxAttempts = 3
+
+// isDeferredFailure reports whether a failed execution is a wait the queue
+// retries. Two shapes qualify. A non-counting readiness class (the injected
+// IsDeferredFailureClass) never spends the retry budget. An expected-wait error
+// (reducercontract.IsExpectedWait) does spend it, so it only counts as deferred
+// while the queue will still retry it: the final attempt dead-letters and stays
+// "failed" so the exhausted wait is the ERROR an operator should see. A
+// producer-terminal or any other counting class, and a non-retryable error,
+// stay "failed".
+func (s Service) isDeferredFailure(execErr error, attempt int) bool {
+	if execErr == nil || !IsRetryable(execErr) {
+		return false
+	}
+	if s.IsDeferredFailureClass != nil && s.IsDeferredFailureClass(reducerExecutionFailureClass(execErr)) {
+		return true
+	}
+	return reducercontract.IsExpectedWait(execErr) && attempt < s.retryMaxAttempts()
+}
+
+// retryMaxAttempts is the queue attempt budget the Service mirrors, so the
+// deferred/failed split matches the queue's retry-or-dead-letter decision.
+func (s Service) retryMaxAttempts() int {
+	if s.RetryMaxAttempts > 0 {
+		return s.RetryMaxAttempts
+	}
+	return defaultRetryMaxAttempts
 }
 
 const (

@@ -399,6 +399,11 @@ values each counter carries.
   retryable failure in a non-counting class into
   `eshu_dp_reducer_executions_total{status="deferred"}` and a WARN
   `reducer execution deferred` log; every other failure stays `failed`/ERROR.
+  A retryable error that implements `ExpectedWait() bool` (`reducercontract.IsExpectedWait`,
+  e.g. `security_alert_reconciliation_waiting_for_impact`) also records `deferred`/WARN,
+  but only while `intent.AttemptCount < Service.RetryMaxAttempts` (wired from
+  `ESHU_REDUCER_MAX_ATTEMPTS`). The queue still counts that attempt, and the final attempt,
+  which dead-letters, stays `failed`/ERROR (#8826).
 - **Phase publications and graph writes are not atomic** — if a graph write
   commits but the phase publication fails, `gpphase.PhaseRepairQueue`
   captures the retry.

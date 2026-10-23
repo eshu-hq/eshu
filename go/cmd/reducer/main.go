@@ -531,6 +531,7 @@ func buildReducerService(
 		},
 		QuarantineWriter:       postgres.NewReducerInputInvalidFactStore(database),
 		IsDeferredFailureClass: postgres.IsNonCountingReducerRetryFailureClass,
+		RetryMaxAttempts:       retryCfg.MaxAttempts,
 		Workers:                workers,
 		BatchClaimSize:         loadReducerBatchClaimSize(getenv, workers, graphBackend),
 		Tracer:                 tracer,
