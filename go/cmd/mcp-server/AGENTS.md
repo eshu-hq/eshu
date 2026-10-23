@@ -108,6 +108,11 @@
   value is not `full`, `router`, or `core_router`; the log lists the allowed
   values. The setting changes `tools/list` only, never what `tools/call` accepts.
 
+- Symptom: pod exits at startup with `mcp server refused to start: invalid
+  ESHU_MCP_RESULT_SHAPE` → the value is not `dual` or `structured`; the log
+  carries the allowed values in its `allowed` attribute. The setting changes how
+  `tools/call` results are shaped, never what the tools return.
+
 - Symptom: `/healthz` returns 404 in stdio mode → by design; admin routes are
   only mounted in HTTP mode via `Server.RunHTTP`.
 

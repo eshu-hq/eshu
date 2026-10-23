@@ -83,8 +83,7 @@ cd "${repo_root}"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: keep fix
 : "${ESHU_NEO4J_PASSWORD:=change-me}"
 : "${ESHU_POSTGRES_PASSWORD:=change-me}"
 : "${GATE_API_PORT:=18080}"   # off the default 8080 so a sibling stack does not collide
-: "${GATE_MCP_PORT:=18091}"   # eshu-mcp-server http transport for B-7(c) MCP query truth
-: "${GATE_MCP_RESULT_SHAPE:=}" # dual|structured; empty = server default (#8800)
+: "${GATE_MCP_PORT:=18091}" "${GATE_MCP_RESULT_SHAPE:=}" # B-7(c) MCP port; shape dual|structured, empty = server default (#8800)
 : "${GATE_PROMETHEUS_SOURCE_PORT:=19090}" # credential-free Prometheus-compatible range source
 : "${GATE_ASK_PROVIDER_PORT:=19191}" # credential-free OpenAI-compatible Ask provider
 : "${GATE_API_KEY:=golden-corpus-gate-local-key}"
