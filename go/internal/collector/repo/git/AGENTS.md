@@ -247,3 +247,15 @@ yield-disabled-by-outage alerts instead of hiding behind the quiet queue;
 operator reads the wait histogram for the #8123 outcome, the yield
 counter and log for where sweeps stopped, the failed-probe stream for
 silent yield loss, and the existing sweep logs for the sweep period.
+
+## Symlink admission evidence (#8809)
+
+`symlinkTargetAdmitted` runs once per file whose name discovery already
+admitted. No-Regression Evidence: on a 16-thread Linux dev host, 20,000
+iterations of the matcher cost 949 ns for a regular file (one `Lstat`) and
+15.5 µs for a symlink (`EvalSymlinks` plus `Stat`), against zero before; both
+are far below the parse and read cost of the file they guard, and no queue,
+graph, or SQL path changes. Observability Evidence: none added. A dropped link
+is not counted, so discovery stats and `git_snapshot` logs read the same as for
+a repository that never held the link. No-Observability-Change: the
+`symlink admission` tests pin the dropped paths instead.
