@@ -37,8 +37,11 @@ keeps Dependabot-specific rate-limit metadata on its local `ProviderFailure`
 wrapper.
 
 Security Review Evidence: target configuration must name a credential
-environment variable and an explicit repository allowlist before the runtime can
-construct a provider client. Org-scoped targets require a non-empty
+environment shape (`token_env`, or `github_app` with the three App env
+references) and an explicit repository allowlist before the runtime can
+construct a provider client. The two shapes never mix, and a minted
+installation token is never persisted on the target, in logs, in spans, or
+in facts. Org-scoped targets require a non-empty
 `allowed_repositories` allowlist at construction time; fan-out only emits facts
 for repositories in that list, preserving the same private-data boundary that
 per-repository targets enforce. Provider errors are mapped to bounded failure

@@ -37,17 +37,21 @@ type securityAlertRuntimeConfiguration struct {
 }
 
 type targetJSON struct {
-	Provider             string   `json:"provider"`
-	Scope                string   `json:"scope"`
-	ScopeID              string   `json:"scope_id"`
-	Repository           string   `json:"repository"`
-	Organization         string   `json:"organization"`
-	TokenEnv             string   `json:"token_env"`
-	AllowedRepositories  []string `json:"allowed_repositories"`
-	APIBaseURL           string   `json:"api_base_url"`
-	RepositoryAlertLimit int      `json:"repository_alert_limit"`
-	MaxPages             int      `json:"max_pages"`
-	SourceURI            string   `json:"source_uri"`
+	Provider                   string   `json:"provider"`
+	Scope                      string   `json:"scope"`
+	ScopeID                    string   `json:"scope_id"`
+	Repository                 string   `json:"repository"`
+	Organization               string   `json:"organization"`
+	TokenEnv                   string   `json:"token_env"`
+	AuthMode                   string   `json:"auth_mode"`
+	GitHubAppIDEnv             string   `json:"github_app_id_env"`
+	GitHubAppInstallationIDEnv string   `json:"github_app_installation_id_env"`
+	GitHubAppPrivateKeyEnv     string   `json:"github_app_private_key_env"`
+	AllowedRepositories        []string `json:"allowed_repositories"`
+	APIBaseURL                 string   `json:"api_base_url"`
+	RepositoryAlertLimit       int      `json:"repository_alert_limit"`
+	MaxPages                   int      `json:"max_pages"`
+	SourceURI                  string   `json:"source_uri"`
 }
 
 func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig, error) {
@@ -158,27 +162,88 @@ func parseSecurityAlertRuntimeConfiguration(
 }
 
 func mapTarget(target targetJSON, getenv func(string) string) (alertruntime.TargetConfig, error) {
-	tokenEnv := strings.TrimSpace(target.TokenEnv)
-	token := ""
-	if tokenEnv != "" {
-		token = strings.TrimSpace(getenv(tokenEnv))
+	authMode := strings.ToLower(strings.TrimSpace(target.AuthMode))
+	if authMode == "" {
+		authMode = alertruntime.AuthModeTokenEnv
 	}
-	if token == "" {
-		return alertruntime.TargetConfig{}, fmt.Errorf("token_env %s did not resolve a credential", tokenEnv)
+	switch authMode {
+	case alertruntime.AuthModeTokenEnv:
+		if strings.TrimSpace(target.GitHubAppIDEnv) != "" ||
+			strings.TrimSpace(target.GitHubAppInstallationIDEnv) != "" ||
+			strings.TrimSpace(target.GitHubAppPrivateKeyEnv) != "" {
+			return alertruntime.TargetConfig{}, fmt.Errorf("github_app env references must be empty when auth_mode is %q", alertruntime.AuthModeTokenEnv)
+		}
+		tokenEnv := strings.TrimSpace(target.TokenEnv)
+		token := ""
+		if tokenEnv != "" {
+			token = strings.TrimSpace(getenv(tokenEnv))
+		}
+		if token == "" {
+			return alertruntime.TargetConfig{}, fmt.Errorf("token_env %s did not resolve a credential", tokenEnv)
+		}
+		return alertruntime.TargetConfig{
+			Provider:             strings.TrimSpace(target.Provider),
+			Scope:                strings.TrimSpace(target.Scope),
+			ScopeID:              strings.TrimSpace(target.ScopeID),
+			Repository:           strings.Trim(target.Repository, "/"),
+			Organization:         strings.Trim(target.Organization, "/"),
+			Token:                token,
+			AuthMode:             alertruntime.AuthModeTokenEnv,
+			AllowedRepositories:  cleanConfigStrings(target.AllowedRepositories),
+			APIBaseURL:           strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
+			RepositoryAlertLimit: target.RepositoryAlertLimit,
+			MaxPages:             target.MaxPages,
+			SourceURI:            strings.TrimSpace(firstNonBlank(target.SourceURI, target.APIBaseURL)),
+		}, nil
+	case alertruntime.AuthModeGitHubApp:
+		if strings.TrimSpace(target.TokenEnv) != "" {
+			return alertruntime.TargetConfig{}, fmt.Errorf("token_env must be empty when auth_mode is %q", alertruntime.AuthModeGitHubApp)
+		}
+		appID, err := resolveCredentialEnv(getenv, "github_app_id_env", target.GitHubAppIDEnv)
+		if err != nil {
+			return alertruntime.TargetConfig{}, err
+		}
+		installationID, err := resolveCredentialEnv(getenv, "github_app_installation_id_env", target.GitHubAppInstallationIDEnv)
+		if err != nil {
+			return alertruntime.TargetConfig{}, err
+		}
+		privateKey, err := resolveCredentialEnv(getenv, "github_app_private_key_env", target.GitHubAppPrivateKeyEnv)
+		if err != nil {
+			return alertruntime.TargetConfig{}, err
+		}
+		return alertruntime.TargetConfig{
+			Provider:                strings.TrimSpace(target.Provider),
+			Scope:                   strings.TrimSpace(target.Scope),
+			ScopeID:                 strings.TrimSpace(target.ScopeID),
+			Repository:              strings.Trim(target.Repository, "/"),
+			Organization:            strings.Trim(target.Organization, "/"),
+			AuthMode:                alertruntime.AuthModeGitHubApp,
+			GitHubAppID:             appID,
+			GitHubAppInstallationID: installationID,
+			GitHubAppPrivateKey:     privateKey,
+			AllowedRepositories:     cleanConfigStrings(target.AllowedRepositories),
+			APIBaseURL:              strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
+			RepositoryAlertLimit:    target.RepositoryAlertLimit,
+			MaxPages:                target.MaxPages,
+			SourceURI:               strings.TrimSpace(firstNonBlank(target.SourceURI, target.APIBaseURL)),
+		}, nil
+	default:
+		return alertruntime.TargetConfig{}, fmt.Errorf("unsupported security alert auth_mode %q", strings.TrimSpace(target.AuthMode))
 	}
-	return alertruntime.TargetConfig{
-		Provider:             strings.TrimSpace(target.Provider),
-		Scope:                strings.TrimSpace(target.Scope),
-		ScopeID:              strings.TrimSpace(target.ScopeID),
-		Repository:           strings.Trim(target.Repository, "/"),
-		Organization:         strings.Trim(target.Organization, "/"),
-		Token:                token,
-		AllowedRepositories:  cleanConfigStrings(target.AllowedRepositories),
-		APIBaseURL:           strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
-		RepositoryAlertLimit: target.RepositoryAlertLimit,
-		MaxPages:             target.MaxPages,
-		SourceURI:            strings.TrimSpace(firstNonBlank(target.SourceURI, target.APIBaseURL)),
-	}, nil
+}
+
+// resolveCredentialEnv resolves one credential env reference to its value. A
+// blank reference or an unresolvable value fails closed: the process never
+// starts with a half-configured credential shape.
+func resolveCredentialEnv(getenv func(string) string, field, envName string) (string, error) {
+	envName = strings.TrimSpace(envName)
+	if envName == "" {
+		return "", fmt.Errorf("%s is required", field)
+	}
+	if value := strings.TrimSpace(getenv(envName)); value != "" {
+		return value, nil
+	}
+	return "", fmt.Errorf("%s %s did not resolve a credential", field, envName)
 }
 
 func envDuration(getenv func(string) string, key string, fallback time.Duration) (time.Duration, error) {

@@ -20,6 +20,13 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	target.Repository = normalizeRepository(target.Repository)
 	target.Organization = normalizeOrganization(target.Organization)
 	target.Token = strings.TrimSpace(target.Token)
+	target.AuthMode = strings.ToLower(strings.TrimSpace(target.AuthMode))
+	if target.AuthMode == "" {
+		target.AuthMode = AuthModeTokenEnv
+	}
+	target.GitHubAppID = strings.TrimSpace(target.GitHubAppID)
+	target.GitHubAppInstallationID = strings.TrimSpace(target.GitHubAppInstallationID)
+	target.GitHubAppPrivateKey = strings.TrimSpace(target.GitHubAppPrivateKey)
 	target.APIBaseURL = strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/")
 	target.SourceURI = strings.TrimSpace(target.SourceURI)
 	target.AllowedRepositories = cleanRepositories(target.AllowedRepositories)
@@ -32,8 +39,29 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	if target.ScopeID == "" {
 		return TargetConfig{}, fmt.Errorf("scope_id is required")
 	}
-	if target.Token == "" {
-		return TargetConfig{}, fmt.Errorf("token is required")
+	switch target.AuthMode {
+	case AuthModeTokenEnv:
+		if target.Token == "" {
+			return TargetConfig{}, fmt.Errorf("token is required")
+		}
+		if target.GitHubAppID != "" || target.GitHubAppInstallationID != "" || target.GitHubAppPrivateKey != "" {
+			return TargetConfig{}, fmt.Errorf("github_app credentials must be empty when auth_mode is %q", AuthModeTokenEnv)
+		}
+	case AuthModeGitHubApp:
+		if target.Token != "" {
+			return TargetConfig{}, fmt.Errorf("token must be empty when auth_mode is %q", AuthModeGitHubApp)
+		}
+		if target.GitHubAppID == "" {
+			return TargetConfig{}, fmt.Errorf("github_app_id is required when auth_mode is %q", AuthModeGitHubApp)
+		}
+		if target.GitHubAppInstallationID == "" {
+			return TargetConfig{}, fmt.Errorf("github_app_installation_id is required when auth_mode is %q", AuthModeGitHubApp)
+		}
+		if target.GitHubAppPrivateKey == "" {
+			return TargetConfig{}, fmt.Errorf("github_app_private_key is required when auth_mode is %q", AuthModeGitHubApp)
+		}
+	default:
+		return TargetConfig{}, fmt.Errorf("unsupported security alert auth_mode %q", target.AuthMode)
 	}
 	switch target.Scope {
 	case TargetScopeRepository:

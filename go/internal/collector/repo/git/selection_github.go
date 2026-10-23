@@ -4,9 +4,7 @@
 package git
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -16,11 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
-
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/membership"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/rest"
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/gitlab"
+	"github.com/eshu-hq/eshu/go/internal/github/app"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -414,85 +411,52 @@ func listGitHubOrgRepositoriesFromWithRetry(
 }
 
 // mintGitHubAppToken exchanges the configured GitHub App credentials for an
-// installation token. It shares the org listing's retry budget and fault
-// classes (#8084): a transient fault retries and then returns a
-// *rest.RetryableError, while 401, 403 and 404 are final.
+// installation token through the shared github/app minter. It keeps the org
+// listing's retry budget and fault classes (#8084): a transient fault retries
+// and then returns a *rest.RetryableError, while 401, 403 and 404 are final.
 func mintGitHubAppToken(ctx context.Context, config RepoSyncConfig) (string, error) {
-	if strings.TrimSpace(config.GitHubAppID) == "" ||
-		strings.TrimSpace(config.GitHubAppInstallation) == "" ||
-		strings.TrimSpace(config.GitHubAppPrivateKey) == "" {
-		return "", fmt.Errorf("GitHub App auth requires GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, and GITHUB_APP_PRIVATE_KEY")
-	}
-
-	now := time.Now().Unix()
-	claims := jwt.MapClaims{
-		"iat": now - 60,
-		"exp": now + 540,
-		"iss": config.GitHubAppID,
-	}
-	parsedKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(normalizePrivateKeyPEM(config.GitHubAppPrivateKey)))
-	if err != nil {
-		return "", fmt.Errorf("parse GitHub App private key: %w", err)
-	}
-	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(parsedKey)
-	if err != nil {
-		return "", fmt.Errorf("sign GitHub App JWT: %w", err)
-	}
-
 	baseURL, retry := config.GitHubAPI.Resolve()
-	mintURL := fmt.Sprintf("%s/app/installations/%s/access_tokens", baseURL, config.GitHubAppInstallation)
-	var token string
-	call := rest.Call{
-		Operation:     rest.OperationMint,
-		FailurePrefix: "mint GitHub App token",
-		DecodePrefix:  "decode GitHub App token response",
-		NewRequest: func(ctx context.Context) (*http.Request, error) {
-			request, err := http.NewRequestWithContext(ctx, http.MethodPost, mintURL, bytes.NewReader([]byte("{}")))
-			if err != nil {
-				return nil, fmt.Errorf("build GitHub App token request: %w", err)
-			}
-			request.Header.Set("Accept", "application/vnd.github+json")
-			request.Header.Set("Authorization", "Bearer "+signed)
-			request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-			request.Header.Set("User-Agent", "eshu-go")
-			return request, nil
-		},
-		Read: func(response *http.Response) error {
-			var payload struct {
-				Token string `json:"token"`
-			}
-			if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
-				return err
-			}
-			token = payload.Token
-			return nil
-		},
-	}
-	client := &http.Client{Timeout: 15 * time.Second}
-	if err := rest.Do(ctx, client, retry, call); err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(token) == "" {
-		return "", errors.New("GitHub App token response omitted token")
+	token, err := app.MintInstallationToken(ctx, app.Config{
+		BaseURL:        baseURL,
+		AppID:          config.GitHubAppID,
+		InstallationID: config.GitHubAppInstallation,
+		PrivateKey:     config.GitHubAppPrivateKey,
+		MaxAttempts:    retry.MaxAttempts,
+		BaseBackoff:    retry.BaseBackoff,
+		Jitter:         retry.Jitter,
+		Sleep:          retry.Sleep,
+		Now:            retry.Now,
+		Observe:        restMintObserver{ctx: ctx},
+	})
+	if err != nil {
+		return "", mapMintError(err)
 	}
 	return token, nil
 }
 
-func normalizePrivateKeyPEM(privateKey string) string {
-	stripped := strings.TrimSpace(privateKey)
-	if strings.Contains(stripped, "\n") || !strings.HasPrefix(stripped, "-----BEGIN ") {
-		return stripped
+// mapMintError restores the discovery error shapes callers count on: a
+// transient that outlasted the budget becomes the listing's
+// *rest.RetryableError, while final faults stay plain errors.
+func mapMintError(err error) error {
+	var retryable *app.RetryableError
+	if errors.As(err, &retryable) {
+		return rest.NewRetryableError(app.OperationMint, retryable.Class, retryable.Attempts, retryable.RetryAfter, err)
 	}
-	stripped = strings.ReplaceAll(stripped, "-----BEGIN RSA PRIVATE KEY-----", "")
-	stripped = strings.ReplaceAll(stripped, "-----END RSA PRIVATE KEY-----", "")
-	stripped = strings.TrimSpace(stripped)
-	body := make([]string, 0, len(stripped)/64+1)
-	for len(stripped) > 64 {
-		body = append(body, stripped[:64])
-		stripped = stripped[64:]
-	}
-	if stripped != "" {
-		body = append(body, stripped)
-	}
-	return "-----BEGIN RSA PRIVATE KEY-----\n" + strings.Join(body, "\n") + "\n-----END RSA PRIVATE KEY-----\n"
+	return err
+}
+
+// restMintObserver forwards shared-minter callbacks to the discovery
+// operation signals so the mint keeps counting under operation "mint".
+type restMintObserver struct {
+	ctx context.Context
+}
+
+// MintAttempt implements app.Observer.
+func (o restMintObserver) MintAttempt(operation, class, outcome string) {
+	rest.RecordAttempt(o.ctx, operation, class, outcome)
+}
+
+// MintRetry implements app.Observer.
+func (o restMintObserver) MintRetry(operation, class string, attempt, status int, wait time.Duration) {
+	rest.RecordRetry(o.ctx, operation, class, attempt, status, wait)
 }

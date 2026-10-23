@@ -15,9 +15,25 @@ flowchart LR
 
 Each target is repository-scoped or org-scoped (`scope: "org"`). Repository
 targets require a `repository` and `allowed_repositories` allowlist; org targets
-require an `organization` and fan the org-wide endpoint out into per-repository
-facts. Every target needs a token env reference. The token value is read only
-inside this process and is never copied into workflow run metadata.
+require an `organization` and `allowed_repositories` and fan the org-wide
+endpoint out into per-repository facts. Every target authenticates in one
+`auth_mode` (`token_env` default, or `github_app`). Static mode reads the
+named `token_env` variable once at startup. App mode resolves
+`github_app_id_env`, `github_app_installation_id_env`, and
+`github_app_private_key_env` (the existing `GITHUB_APP_*` secret envs) and
+mints one installation token per claim — never per page — from the target
+`api_base_url`, signing a fresh JWT per claim with 60 seconds of clock-skew
+tolerance. The two modes never mix on one target, and a minted token is never
+persisted, logged, or emitted in facts. Credential values are read only
+inside this process and are never copied into workflow run metadata. Run
+`--preflight-provider-access` against a real installation before relying on a
+new App credential: only a live pass proves the installation can reach the
+Dependabot endpoints. Operator watch: App-mode 401 stays retryable by design
+(the token was minted seconds earlier, so expiry is the likely cause), which
+means a persistently unauthorized App — e.g. a missing Dependabot alerts
+permission — retries every claim, minting a fresh token per attempt. Repeated
+mint+401 pairs in the logs point at scope/permission, not expiry; the static
+path denies terminally instead, so only App mode needs this watch.
 
 `--preflight-provider-access` runs a one-shot provider access check using the
 same collector instance JSON, token env resolution, allowlist validation, and
@@ -48,3 +64,23 @@ runtime for one provider page, and returns an `auth_denied` failure without
 leaking token or repository values.
 `TestRunProviderAccessPreflightRecordsProviderTelemetry` proves the preflight
 path records the existing security-alert provider metric and spans.
+
+No-Regression Evidence (github_app auth_mode): baseline is the unchanged
+static `token_env` path (existing suites green unmodified); after measurement
+is the focused suites on this branch head (`internal/github/app`,
+`collector/securityalerts` + `alertruntime`, `internal/workflow`,
+`cmd/collector-security-alerts` all green, plus the full `repo/git` package
+green for the extraction consumer), backend go toolchain per go.mod on a linux/arm64 dev box,
+input shape fake-server mint tests (transient/401/403/404/rate-limit) plus
+the dual-mode 401 table plus live `--preflight-provider-access` for one
+repository-scope and one org-scope target (both exit 0), terminal state all
+suites pass with zero failures, telemetry via the existing provider metric
+and spans named above. The change is safe because it is additive (default
+`token_env` byte-identical), adds no Cypher, queue, lease, or concurrency
+surface, and issues one bounded 15s context-cancellable POST per claim at the
+existing claim cadence.
+
+No-Observability-Change (github_app auth_mode): no new metric family, span,
+or status field; mint outcomes reuse the existing failure taxonomy
+(`auth_denied` terminal, `rate_limited`/`retryable`) with the same redaction
+as the static path, so dashboards and alerts need no update.
