@@ -58,6 +58,11 @@ func TestIncidentRoutingEvidenceEnvelopeMirrorsParserOutput(t *testing.T) {
 		}
 	}
 	if len(envelopes) != 1 {
+		for i, env := range envelopes {
+			name, _ := env["entity_name"].(string)
+			line, _ := env["start_line"].(int)
+			t.Logf("content_entity envelope %d: entity_name=%q start_line=%d", i, name, line)
+		}
 		t.Fatalf("odù carries %d content_entity envelopes, want 1", len(envelopes))
 	}
 	envelope := envelopes[0]
