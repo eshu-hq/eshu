@@ -94,17 +94,17 @@ public query API status.
   coverage rows for one repository.
 
 The hosted readiness report composes existing status and query-readback signals
-without changing Kubernetes probes. It separates process health, dependency readiness,
-queue drain, collector completion, shared projection backlog, first-query truth, and
-legacy workload leftovers. The report returns `state=not_ready` with stable
-`failure_classes[]` when the status snapshot is empty, hosted collector instances are
-missing, queue work is stalled or not drained, work is dead-lettered, shared
-projection backlog remains, graph readback fails, the repository readback returns zero
-rows, or [leftover name-only Workload nodes](hosted-readiness-leftovers.md) remain. It
-returns `state=ready` only when those checks pass. Diagnostic pointers reference
-`/admin/status`, `/api/v0/status/index`, `/api/v0/status/collectors`, and repository
-coverage; raw graph backend errors, resource IDs, account-local names, paths, and
-credentials are not included. The MCP equivalent is `get_hosted_readiness`.
+without changing Kubernetes probes. It separates process health, dependency
+readiness, queue drain, collector completion, shared projection backlog, and
+first-query truth. It returns `state=not_ready` with stable `failure_classes[]`
+when the status snapshot is empty, collector instances are missing, queue work
+is stalled or not drained, work is dead-lettered, projection backlog remains,
+graph readback fails, the repository readback returns zero rows, or [legacy
+workload leftovers](hosted-readiness-leftovers.md) remain. It returns
+`state=ready` only when those checks pass. Diagnostics point to `/admin/status`,
+`/api/v0/status/index`, `/api/v0/status/collectors`, and repository coverage;
+raw backend errors, resource IDs, account-local names, paths, and credentials
+are not included. The MCP equivalent is `get_hosted_readiness`.
 
 The governance status report composes explicit runtime readback from
 `ESHU_GOVERNANCE_*` settings and existing semantic aggregate status. It reports

@@ -63,8 +63,14 @@ The response lists candidates with `eligible` and, for blocked nodes,
 | `blocked_reason` | meaning | what to do |
 | --- | --- | --- |
 | `has_instances` | an instance still references the node | find why an instance keeps the old id; do not delete |
-| `no_twin` | no scoped twin the same repository defines | wait for workload materialization, or investigate; deleting would lose the only node |
+| `no_twin` | no scoped twin the same repository defines; also a name or repository id with leading or trailing whitespace, which has no twin because the delete matches byte for byte | wait for workload materialization, or investigate; deleting would lose the only node. For a padded name or repository id, fix it at the source (see the note after this table) |
 | `relationships` | an edge outside the safe set; `relationships` shows counts by type | decide whether that evidence lives on the twin; remove it deliberately or leave the node |
+
+A node whose name or repository id has leading or trailing whitespace is always
+reported `no_twin`, and the readiness check does not count it. Readiness can
+therefore pass while that node still makes the service name ambiguous. This is a
+known limit: retirement cannot remove it, so fix the padded name or repository id
+at the source and let the next materialization write a clean node.
 
 `truncated: true` means more candidates exist than one request examined. Page by
 repeating the call after retiring, or name a subset with `"ids": [...]`.
@@ -126,7 +132,9 @@ The reducer records the `eshu_dp_workload_legacy_retirements_total{outcome}`
 counter, an INFO line per request, a WARN line per node it kept, and a governance
 audit event. A WARN `legacy workload retirement deleted fewer nodes than were
 eligible` means a node changed under the delete, so re-run the dry run. An ERROR
-`legacy workload retirement failed` means the delete statement itself failed.
+`legacy workload retirement failed` means the delete statement itself failed. A
+WARN `legacy workload retirement audit append failed` means the audit event was
+lost; the retirement itself is unaffected.
 
 ## 5. Verify
 

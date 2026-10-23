@@ -137,7 +137,8 @@ WARN line `legacy workload kept` carries the node id, the blocked reason, and
 the per-type relationship counts for each node kept. A WARN `legacy workload
 retirement deleted fewer nodes than were eligible` (eligible, deleted) marks a
 node that changed between the read and the delete, and an ERROR `legacy workload
-retirement failed` marks a failed delete statement. A Neo4j reducer with no
+retirement failed` marks a failed delete statement, and a WARN `legacy workload
+retirement audit append failed` marks a lost audit event. A Neo4j reducer with no
 graph writer wired refuses execute with `503` and the audit reason
 `legacy_workload_retire_refused_writer_unavailable`. A governance audit event
 (`admin_recovery_action`, reason `legacy_workload_retire_executed`, `_failed`,

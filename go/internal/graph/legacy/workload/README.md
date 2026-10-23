@@ -28,6 +28,11 @@ the reducer's handle ladder skips edges as `workload_handle_ambiguous`.
   repository, `SAME_NAME` to another `Workload`).
 - The first reason that applies is reported: `has_instances`, then `no_twin`,
   then `relationships`.
+- A name or repository id with leading or trailing whitespace has no twin, because
+  the delete joins them byte for byte (`TwinID` returns empty). The node is
+  reported `no_twin`, and `WithScopedTwin` does not count it, so readiness can
+  pass while it still makes the name ambiguous. Known limit; the operator fixes
+  the padded value at the source.
 - The negative clauses are decided in Go on purpose, so one code path serves
   readiness, the dry run, and the pre-delete verification, and the reads avoid
   the shapes `docs/public/reference/nornicdb-pitfalls.md` records as unreliable

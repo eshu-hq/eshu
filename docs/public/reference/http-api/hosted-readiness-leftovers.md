@@ -23,6 +23,11 @@ Fields on the check:
 | `detail` | `<N> name-only Workload nodes with a scoped twin (pre-#5385 leftovers)`, or `no name-only Workload nodes with a scoped twin` |
 | `next_diagnostic` | `POST /admin/retire-legacy-workloads {"dry_run":true}` on the reducer admin port, and the retirement runbook |
 
+A node whose name or repository id has leading or trailing whitespace has no
+twin the delete could match. It is reported `no_twin` and is not counted, so the
+check can pass while that node still makes the name ambiguous. This is a known
+limit: fix the padded name or repository id at the source.
+
 The count is a lower bound (`N+`) if the read hit its examined cap of 5,000
 candidates. The read is the same detection the retirement dry run uses, so the
 two share one classification of each node. The numbers can still differ: this
