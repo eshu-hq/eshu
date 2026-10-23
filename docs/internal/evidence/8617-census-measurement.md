@@ -42,3 +42,12 @@ The [retrospective re-read](8617-census-20261023-retrospective.json) was produce
 by `fetch_window` and `cancellation_cost` with the original window bounds. The
 complete source population was re-read, not reconstructed from the original
 623 run IDs.
+
+Future census JSON reports give each enrichment a `completeness` value. A failed
+required-green or cancellation API read records `failed` and an `error` string;
+the Markdown report warns that its metrics are unavailable while retaining raw
+run totals and the other enrichment. A cancellation read records `partial` when
+unknown jobs, an exhausted job budget, or missing REST runs leave runner cost
+incomplete. Successful complete reads record `complete`. Enrichment failures
+also print a warning to stderr. These fields describe report coverage, not CI
+improvement or regression.

@@ -138,50 +138,74 @@ def render_markdown(report: dict[str, Any], start: str, end: str) -> str:
             f"{name} {count}" for count, name in failures[:8]) + "."]
     green = report.get("required_green")
     if green:
-        lines += ["", "### Required-green latency (merged PR final heads)",
-                  "First observed PR workflow enqueue → last required context green by merge; "
-                  "includes queueing and retries. Push-to-dispatch delay: NOT_CHECKED.",
-                  f"Outcomes: {green['outcomes']}.",
-                  "| Publisher outcome | Heads | Green | P50 min | P95 min |",
-                  "|---|---:|---:|---:|---:|"]
-        overall = green["overall"]
-        overall_p50 = overall["p50_minutes"] if overall["p50_minutes"] is not None else "—"
-        overall_p95 = overall["p95_minutes"] if overall["p95_minutes"] is not None else "—"
-        lines.append(f"| All | {overall['heads']} | {overall['success']} | "
-                     f"{overall_p50} | {overall_p95} |")
-        for kind, stats in green["groups"].items():
-            p50 = stats["p50_minutes"] if stats["p50_minutes"] is not None else "—"
-            p95 = stats["p95_minutes"] if stats["p95_minutes"] is not None else "—"
-            lines.append(f"| {kind} | {stats['heads']} | {stats['success']} | "
-                         f"{p50} | {p95} |")
-        non_green = [f"#{head['number']} {head['outcome']}"
-                     for head in green["heads"] if head["outcome"] != "success"]
-        if non_green:
-            lines.append("Non-green final heads at merge: " + ", ".join(non_green) + ".")
+        if green.get("completeness") == "failed":
+            lines += ["", "### Required-green latency (merged PR final heads)",
+                      "WARNING: enrichment failed; required-green metrics are "
+                      f"unavailable: {green['error']}."]
+        else:
+            lines += _render_required_green(green)
     cancellation = report.get("cancellation_cost")
     if cancellation:
-        lines += ["", "### Cancelled-run runner cost",
-                  "Raw cancelled share above is unchanged. Job evidence covers "
-                  f"{cancellation['runs']} cancelled runs; "
-                  f"categories: {cancellation['categories']}.",
-                  f"Evidenced runner occupancy: "
-                  f"{cancellation['evidenced_runner_minutes']} runner-minutes. "
-                  "Unknown runs are excluded from this sum."]
-        if cancellation["job_budget_exhausted"]:
-            lines.append(f"WARNING: job enrichment stopped at "
-                         f"{cancellation['job_enrichments']} requests; "
-                         f"{cancellation['job_budget_exhausted']} further "
-                         "cancelled runs are unknown.")
-        if cancellation["categories"].get("unknown"):
-            lines.append("WARNING: unknown cancellation observations have incomplete "
-                         "suite or job evidence; runner cost is a floor.")
-        drift = cancellation["source_drift"]
-        if drift["missing_from_rest"] or drift["late_cancelled"]:
-            lines.append(f"Source drift after raw snapshot: "
-                         f"{drift['missing_from_rest']} raw cancellations missing "
-                         f"from REST; {drift['late_cancelled']} later cancellations "
-                         "excluded from raw totals and classification.")
+        if cancellation.get("completeness") == "failed":
+            lines += ["", "### Cancelled-run runner cost",
+                      "WARNING: enrichment failed; runner-cost metrics are "
+                      f"unavailable: {cancellation['error']}."]
+        else:
+            lines += _render_cancellation_cost(cancellation)
     return "\n".join(lines) + "\n"
+
+
+def _render_required_green(green: dict[str, Any]) -> list[str]:
+    """Render successful required-green enrichment."""
+    lines = ["", "### Required-green latency (merged PR final heads)",
+             "First observed PR workflow enqueue → last required context green by merge; "
+             "includes queueing and retries. Push-to-dispatch delay: NOT_CHECKED.",
+             f"Outcomes: {green['outcomes']}.",
+             "| Publisher kind | Heads | Green | P50 min | P95 min |",
+             "|---|---:|---:|---:|---:|"]
+    overall = green["overall"]
+    overall_p50 = overall["p50_minutes"] if overall["p50_minutes"] is not None else "—"
+    overall_p95 = overall["p95_minutes"] if overall["p95_minutes"] is not None else "—"
+    lines.append(f"| All | {overall['heads']} | {overall['success']} | "
+                 f"{overall_p50} | {overall_p95} |")
+    for kind, stats in green["groups"].items():
+        p50 = stats["p50_minutes"] if stats["p50_minutes"] is not None else "—"
+        p95 = stats["p95_minutes"] if stats["p95_minutes"] is not None else "—"
+        lines.append(f"| {kind} | {stats['heads']} | {stats['success']} | "
+                     f"{p50} | {p95} |")
+    non_green = [f"#{head['number']} {head['outcome']}"
+                 for head in green["heads"] if head["outcome"] != "success"]
+    if non_green:
+        lines.append("Non-green final heads at merge: " + ", ".join(non_green) + ".")
+    return lines
+
+
+def _render_cancellation_cost(cancellation: dict[str, Any]) -> list[str]:
+    """Render successful cancellation-cost enrichment."""
+    lines = ["", "### Cancelled-run runner cost",
+             "Raw cancelled share above is unchanged. Job evidence covers "
+             f"{cancellation['runs']} cancelled runs; "
+             f"categories: {cancellation['categories']}.",
+             "Evidenced runner occupancy: "
+             f"{cancellation['evidenced_runner_minutes']} runner-minutes. "
+             "Unknown runs are excluded from this sum."]
+    if cancellation["job_budget_exhausted"]:
+        lines.append("WARNING: job enrichment stopped at "
+                     f"{cancellation['job_enrichments']} requests; "
+                     f"{cancellation['job_budget_exhausted']} further "
+                     "cancelled runs are unknown.")
+    if cancellation["categories"].get("unknown"):
+        lines.append("WARNING: unknown cancellation observations have incomplete "
+                     "suite or job evidence; runner cost is a floor.")
+    drift = cancellation["source_drift"]
+    if drift["missing_from_rest"] or drift["late_cancelled"]:
+        lines.append("Source drift after raw snapshot: "
+                     f"{drift['missing_from_rest']} raw cancellations missing "
+                     f"from REST; {drift['late_cancelled']} later cancellations "
+                     "excluded from raw totals and classification.")
+    if cancellation.get("completeness") == "partial":
+        lines.append("Completeness: partial; inspect unknown runs and source drift.")
+    return lines
 
 
 def _gh_run_list(start: datetime, end: datetime) -> list[Run]:
@@ -249,8 +273,24 @@ def main(argv: Sequence[str] | None = None) -> int:
               "maximum subdivision; counts for those windows are a floor",
               file=sys.stderr)
     report["window"] = {"start": start.isoformat(), "end": end.isoformat()}
-    report["required_green"] = required_green(start, end)
-    report["cancellation_cost"] = cancellation_cost(start, end, runs)
+    try:
+        report["required_green"] = required_green(start, end)
+        report["required_green"]["completeness"] = "complete"
+    except Exception as exc:  # noqa: BLE001 -- retain raw census on enrichment failure
+        print(f"gha-census: warning: required-green enrichment failed: {exc}",
+              file=sys.stderr)
+        report["required_green"] = {"completeness": "failed", "error": str(exc)}
+    try:
+        report["cancellation_cost"] = cancellation_cost(start, end, runs)
+        cost = report["cancellation_cost"]
+        cost["completeness"] = (
+            "partial" if cost["categories"].get("unknown") or
+            cost["job_budget_exhausted"] or
+            cost["source_drift"]["missing_from_rest"] else "complete")
+    except Exception as exc:  # noqa: BLE001 -- the enrichments are independent
+        print(f"gha-census: warning: cancellation enrichment failed: {exc}",
+              file=sys.stderr)
+        report["cancellation_cost"] = {"completeness": "failed", "error": str(exc)}
     sys.stdout.write(render_markdown(
         report, report["window"]["start"], report["window"]["end"]))
     if args.json_out:
