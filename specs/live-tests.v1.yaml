@@ -15,12 +15,12 @@ legacy_scheduled_exemptions:
   baseline_main: 101cd4f6ab7b72ff01f018ad52112e3a9955168b
   steward: linuxdynasty
   tracking_issue: 7533
-  count: 358
-  sha256: 1ec9a6e3e54c0bf9b93ac051377f7f8272f5a1f36d76b39347aaf4031b4711c4
+  count: 357
+  sha256: 3f234e78b86bc80a586408ae56d05b74f49f271414cf0c30182492838c4b1e3b
 
 purpose: >
   Classify every live backend proof in go/ as graph CI, PostgreSQL CI,
-  dedicated CI, verified scheduled PostgreSQL or Ifá proof, legacy-scheduled
+  dedicated CI, verified scheduled PostgreSQL, Ifá, or delta union proof, legacy-scheduled
   exemption, or retired with
   a reason and explicit execution or exemption ownership. The graph
   live-backend CI job runs every ci-class row on its selected backend; the
@@ -30,7 +30,9 @@ purpose: >
   test from Go JSON events in its expected package. The B-7 identity runner
   verifies its two PostgreSQL proofs through the existing golden corpus job.
   The postgres-scheduled job checks its exact enrolled groups daily on
-  PostgreSQL. The ifa-scheduled job checks eight exact tagged tests daily and
+  PostgreSQL. The delta-union-scheduled job checks two exact untagged tests on
+  disposable PostgreSQL and Neo4j daily and on scoped PRs. The ifa-scheduled job
+  checks eight exact tagged tests daily and
   on scoped PRs on disposable NornicDB and PostgreSQL, with a second NornicDB
   identity endpoint. The replay-tier gate checks 27 exact tests from 23 files;
   25 require NornicDB. The NornicDB backend conformance job accounts for all nine

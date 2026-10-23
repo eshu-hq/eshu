@@ -1,5 +1,64 @@
 version: v1
 gates:
+  - id: content-entity-bucket-sync
+    name: Content-entity bucket<->label sync and projector-label totality (#5531, #6206)
+    category: exactness
+    layer: contract
+    purpose: "Checks that collector content-entity buckets, projector label maps, and the drift ledger all agree with each other and the code."
+    tier: pre-pr
+    blocking: true
+    # Trigger on all three sources: shape, collector twin, and projector map.
+    # The -run list is hand-maintained; #6206 reverse coverage once ran only incidentally.
+    triggers:
+      - "go/internal/content/shape/**"
+      - "go/internal/collector/repo/git/snapshot_entity_buckets.go"
+      - "go/internal/projector/canonical/materialization.go"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+      - ".github/static-contract-filters.yml"
+    local:
+      command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest|TestEveryProjectorLabelHasASource' -count=1"
+      test_command: "cd go && go test ./internal/content/shape -run 'TestContentEntityBucketsMatchCollectorTwin|TestContentEntityLabelsHaveProjectorLabels|TestBucketSyncDriftLedgerIsHonest|TestEveryProjectorLabelHasASource' -count=1"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify content-entity bucket sync gate"
+    requirements:
+      - go
+    ci_only_reason: ""
+  - id: delta-union-scheduled
+    name: Delta union scheduled proof enrollment (#8785)
+    category: exactness
+    layer: contract
+    purpose: "Runs the two exact delta union projector proofs on isolated PostgreSQL 18.6 and Neo4j, with JSON event accounting."
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - ".github/workflows/delta-union-scheduled.yml"
+      - "go/cmd/projector/**"
+      - "go/internal/projector/**"
+      - "go/internal/storage/cypher/**"
+      - "go/internal/facts/**"
+      - "go/internal/collector/**"
+      - "go/go.mod"
+      - "go/go.sum"
+      - "scripts/lib/delta_union_scheduled.py"
+      - "scripts/lib/live_tests_legacy_policy.py"
+      - "scripts/test-delta-union-scheduled.py"
+      - "scripts/lib/reducer_contention_events.py"
+      - "scripts/lib/verify-live-tests-ledger.py"
+      - "scripts/verify-live-tests-ledger.sh"
+      - "specs/live-tests.v1.yaml"
+      - "specs/live-tests.d/**"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    ci:
+      workflow: delta-union-scheduled.yml
+      job: "Delta union proof vs Neo4j and PostgreSQL"
+    requirements:
+      - go
+      - docker
+      - postgres
+    ci_only_reason: "isolated hosted PostgreSQL and Neo4j services reset by the tests; the blocking static mirror verifies source, workflow, selector, event accounting, and ledger locally"
   # Scoped PR and scheduled proof. It remains nonblocking while hosted acceptance
   # is established on the reviewed split branch and is not a universal PR check.
   - id: ifa-scheduled-proofs
