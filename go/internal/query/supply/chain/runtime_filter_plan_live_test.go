@@ -3,6 +3,11 @@
 
 package chain
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #8835 PostgreSQL runtime and suppression proof; four executable roots passed the fresh PostgreSQL 18.6 replay with their original assertions and no skips.
+//eshu:readiness:env ESHU_POSTGRES_TEST_DSN
+//eshu:readiness:helper go/internal/query/supply/chain/runtime_context_scope_live_test.go
+
 import (
 	"context"
 	"database/sql"

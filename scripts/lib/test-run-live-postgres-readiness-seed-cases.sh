@@ -10,6 +10,7 @@ mkdir -p "${seed_dir}/empty" "${seed_dir}/malformed"
 for location in empty malformed; do
   cp "${checker}" "${seed_dir}/${location}/live_postgres_readiness_results.py"
   cp "${repo_root}/scripts/lib/live_postgres_readiness_events.py" "${seed_dir}/${location}/"
+  cp "${repo_root}/scripts/lib/live_postgres_readiness_gen_scan.py" "${seed_dir}/${location}/"
   cp "${repo_root}/scripts/lib/live_tests_registry.py" "${seed_dir}/${location}/"
   cp "${repo_root}/scripts/lib/live_postgres_readiness_records.py" "${seed_dir}/${location}/"
   cp "${repo_root}"/scripts/lib/live_postgres_readiness_inventory*.py "${seed_dir}/${location}/"

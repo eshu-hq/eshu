@@ -67,7 +67,6 @@ scratch_check() { python3 "${generator}" --root "${scratch}" --check 2>&1; }
 # idempotent: two consecutive generations are byte-identical.
 python3 "${generator}" --root "${scratch}" >/dev/null ||
   fail "first scratch generation failed"
-find "${scratch}/specs" "${scratch}/scripts" "${scratch}/.github" -type f | sort >"${scratch}/first.txt"
 cp -r "${scratch}/specs" "${scratch}/specs-first"
 cp -r "${scratch}/scripts" "${scratch}/scripts-first"
 cp -r "${scratch}/.github" "${scratch}/github-first"

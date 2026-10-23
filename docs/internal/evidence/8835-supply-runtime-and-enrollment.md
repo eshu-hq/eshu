@@ -35,6 +35,20 @@ added padded phase updates the existing identity rows only after those cases;
 that phase has different physical storage from the fresh scratch seed and is
 not a paired timing comparison with it.
 
+## Integrated production replay
+
+At `203f383f3cde7a72b6bcb512dd1ae3ce23a8aae9` on main `093143b350`,
+all four original roots passed with Go 1.26.10, race detection and no selected
+skips/failures on a fresh pinned PostgreSQL 18.6 database. The unchanged
+500 ms plan and 120 second write assertions include all original canonical
+cases and the added padded phase. Sixteen measured plans passed: canonical
+legacy/winners/aggregate combined execution was 1.546/1.292/1.279 ms;
+padded hit/miss was 357.867/333.151 ms with exactly one/zero result rows.
+The 300,000-row write took 21.004985909 seconds. These are declared fixture
+observations; the update-based padded phase is not comparable to fresh seed
+samples above. Process wall was 40.496 seconds; load1 start/max/end was
+4.42/4.88/4.24. Cleanup verified the database absent.
+
 ## Exactness
 
 A scratch differential derived baseline SQL from the shipped source and built
@@ -54,7 +68,9 @@ semantic proof or a copied SQL golden standard.
 
 ## Migration and execution proof
 
-Each new index has its own immutable concurrent-build migration. The bootstrap
+The five unshipped index migrations were renumbered to 211–215 during
+integration, preserving shipped migration 210 byte for byte. Each new index
+has its own immutable concurrent-build migration. The bootstrap
 mirror, definition order, DDL parity and migration-manifest contracts passed
 focused verification. The index contract first failed for all five missing
 migrations, then passed. A cold compilation timeout was not counted as RED.
@@ -62,10 +78,10 @@ migrations, then passed. A cold compilation timeout was not counted as RED.
 The dedicated restart proof passed with Go 1.26.10 and race detection on
 PostgreSQL 18.6. It uses the real tracked bootstrap path and an explicit
 disposable administrative DSN. On 30,000 populated facts, five builds took
-324.095 ms while 41 insert/normalize/tombstone/delete cycles completed; the
-maximum writer cycle was 11.985 ms. First application, stable repeat/restart,
+326.916 ms while 40 insert/normalize/tombstone/delete cycles completed; the
+maximum writer cycle was 14.458 ms. First application, stable repeat/restart,
 invalid-build recovery and rollback/reapplication passed. Process wall was
-7.002 seconds; load1 start/max/end was 3.81/3.81/3.75, and no proof database
+7.104 seconds; load1 start/max/end was 3.61/3.64/3.64, and no proof database
 survived. These are local fixture observations, not deployment capacity.
 
 The new root joins the existing `disposable_storage` runner group with its
@@ -77,7 +93,7 @@ No-Observability-Change: no metric, span, log or status schema changes. Existing
 PostgreSQL EXPLAIN ANALYZE/BUFFERS remains the query diagnostic surface; the
 live proof records execution, rows, buffers, write and migration observations.
 
-NOT_CHECKED: rebuilt production four-root race and padded-phase acceptance;
-final original-family runner mapping, helper closure, ledger promotion,
-promotion gates and hosted acceptance.
+NOT_CHECKED: final enrollment promotion gates, independent final review and
+hosted acceptance. Helper mappings and generated metadata receive their own
+focused seeded proof before publication.
 The scratch theory and output differential do not substitute for these checks.

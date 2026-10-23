@@ -9,6 +9,7 @@ import unicodedata
 
 from live_postgres_readiness_events import verify_results
 from live_postgres_readiness_inventory_helpers import HELPER_PROOFS
+from live_postgres_readiness_gen_scan import REQUIRED_HELPER_CONSUMERS
 from live_tests_registry import load_ledger_text
 
 from live_postgres_readiness_records import (
@@ -70,10 +71,9 @@ def parse_skips(args: list[str]) -> tuple[set[str], str]:
     return skipped, ""
 
 
-HELPER_PATH = "go/internal/query/supply/chain/impact/suppression_plan_proof_live_test.go"
-CONSUMER_PATH = "go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go"
-CONSUMER_TEST = "TestSupplyChainSuppressionPathsPerformanceLive"
 HELPER_FIELDS = {"consumer_file", "consumer_test", "helper_sha256", "consumer_sha256"}
+SHARED_FIELDS = {"helper_sha256", "consumers"}
+CONSUMER_FIELDS = {"consumer_file", "consumer_test", "consumer_sha256"}
 HASH_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 TEST_DECLARATION = re.compile(r"^func (Test\w*)\(", flags=re.MULTILINE)
 PACKAGE_DECLARATION = re.compile(r"^package ([A-Za-z_][A-Za-z_0-9]*)$", flags=re.MULTILINE)
@@ -81,51 +81,68 @@ BUILD_TAG = re.compile(r"^//(?:go:build| \+build) ", flags=re.MULTILINE)
 
 
 def verify_helper(repo_root: pathlib.Path) -> None:
-    """Bind the one helper-only file to its already enrolled consumer."""
-    if not isinstance(HELPER_PROOFS, dict) or set(HELPER_PROOFS) != {HELPER_PATH}:
-        raise ValueError("helper proof map must contain exactly the reviewed helper")
+    """Bind every reviewed helper edge to an enrolled, pinned consumer."""
+    if not isinstance(HELPER_PROOFS, dict) or set(HELPER_PROOFS) != set(REQUIRED_HELPER_CONSUMERS):
+        raise ValueError("helper proof map differs from the reviewed helpers")
     if set(HELPER_PROOFS) & set(EXPECTED):
         raise ValueError("helper source overlaps executable readiness inventory")
-    proof = HELPER_PROOFS[HELPER_PATH]
-    if not isinstance(proof, dict) or set(proof) != HELPER_FIELDS:
-        raise ValueError("helper proof fields differ from the closed contract")
-    consumer = proof["consumer_file"]
-    test = proof["consumer_test"]
-    if consumer != CONSUMER_PATH or test != CONSUMER_TEST:
-        raise ValueError("helper consumer differs from the reviewed owner")
-    if consumer not in EXPECTED or EXPECTED[consumer].count(test) != 1:
-        raise ValueError("helper consumer test is not enrolled exactly once")
-    package = "./" + pathlib.PurePosixPath(consumer).parent.as_posix().removeprefix("go/")
-    owners = [owner for owner, files in PACKAGES.items()
-              if list(files.get(consumer, ())).count(test) == 1]
-    if owners != [package]:
-        raise ValueError("helper consumer package does not uniquely own the test")
-    for file_path, pin_field in ((HELPER_PATH, "helper_sha256"),
-                                 (consumer, "consumer_sha256")):
-        pin = proof[pin_field]
-        if not isinstance(pin, str) or not HASH_PATTERN.fullmatch(pin):
-            raise ValueError(f"invalid helper proof pin: {pin_field}")
-        path = repo_root / file_path
-        try:
-            source = path.read_bytes()
-            text = source.decode("utf-8")
-        except (OSError, UnicodeError) as error:
-            raise ValueError(f"helper proof source unavailable: {file_path}: {error}") from error
-        if BUILD_TAG.search(text):
-            raise ValueError(f"helper proof source has a build tag: {file_path}")
-        packages = PACKAGE_DECLARATION.findall(text)
-        if len(packages) != 1:
-            raise ValueError(f"helper proof source has no unique package: {file_path}")
-        if file_path == HELPER_PATH:
-            helper_package = packages[0]
-            names = TEST_DECLARATION.findall(text)
-            if any(len(name) == 4 or unicodedata.category(name[4]) != "Ll"
-                   for name in names):
-                raise ValueError("helper proof source declares a Test root")
-        elif packages[0] != helper_package:
-            raise ValueError(f"helper and consumer Go packages differ: {file_path}")
-        if hashlib.sha256(source).hexdigest() != pin:
-            raise ValueError(f"helper proof source changed: {file_path}")
+    for helper_path, proof in sorted(HELPER_PROOFS.items()):
+        if not isinstance(proof, dict):
+            raise ValueError("helper proof fields differ from the closed contract")
+        if set(proof) == HELPER_FIELDS:
+            consumers = [{field: proof[field] for field in CONSUMER_FIELDS}]
+        elif set(proof) == SHARED_FIELDS and isinstance(proof["consumers"], list):
+            consumers = proof["consumers"]
+            if not consumers or any(not isinstance(item, dict) or set(item) != CONSUMER_FIELDS
+                                    for item in consumers):
+                raise ValueError("helper shared consumer fields differ from the closed contract")
+        else:
+            raise ValueError("helper proof fields differ from the closed contract")
+        files = [item["consumer_file"] for item in consumers]
+        if len(set(files)) != len(files) or set(files) != set(REQUIRED_HELPER_CONSUMERS[helper_path]):
+            raise ValueError("helper consumer edges differ from the reviewed owner")
+        helper_package = verify_source(repo_root, helper_path, proof["helper_sha256"], True)
+        for item in consumers:
+            consumer, test = item["consumer_file"], item["consumer_test"]
+            if consumer not in EXPECTED or EXPECTED[consumer].count(test) != 1:
+                raise ValueError("helper consumer test is not enrolled exactly once")
+            package = "./" + pathlib.PurePosixPath(consumer).parent.as_posix().removeprefix("go/")
+            owners = [owner for owner, files in PACKAGES.items()
+                      if list(files.get(consumer, ())).count(test) == 1]
+            if owners != [package]:
+                raise ValueError("helper consumer package does not uniquely own the test")
+            if pathlib.PurePosixPath(consumer).parent != pathlib.PurePosixPath(helper_path).parent:
+                raise ValueError(f"helper and consumer packages differ: {consumer}")
+            actual_package = verify_source(repo_root, consumer, item["consumer_sha256"], False)
+            if actual_package != helper_package:
+                raise ValueError(f"helper and consumer Go packages differ: {consumer}")
+
+
+def verify_source(repo_root: pathlib.Path, file_path: str, pin: str,
+                  helper: bool) -> str:
+    """Verify one whole-file pin and return the unique Go package name."""
+    pin_field = "helper_sha256" if helper else "consumer_sha256"
+    if not isinstance(pin, str) or not HASH_PATTERN.fullmatch(pin):
+        raise ValueError(f"invalid helper proof pin: {pin_field}")
+    path = repo_root / file_path
+    try:
+        source = path.read_bytes()
+        text = source.decode("utf-8")
+    except (OSError, UnicodeError) as error:
+        raise ValueError(f"helper proof source unavailable: {file_path}: {error}") from error
+    if BUILD_TAG.search(text):
+        raise ValueError(f"helper proof source has a build tag: {file_path}")
+    packages = PACKAGE_DECLARATION.findall(text)
+    if len(packages) != 1:
+        raise ValueError(f"helper proof source has no unique package: {file_path}")
+    if helper:
+        names = TEST_DECLARATION.findall(text)
+        if any(len(name) == 4 or unicodedata.category(name[4]) != "Ll"
+               for name in names):
+            raise ValueError("helper proof source declares a Test root")
+    if hashlib.sha256(source).hexdigest() != pin:
+        raise ValueError(f"helper proof source changed: {file_path}")
+    return packages[0]
 
 
 def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
@@ -145,24 +162,25 @@ def verify_ledger(ledger_path: pathlib.Path, repo_root: pathlib.Path) -> int:
         fields = dict(re.findall(r"^    (\w+): (.*)$", body, flags=re.MULTILINE))
         if fields.get("runner") == "live-postgres-readiness" or path in EXPECTED:
             selected[path] = fields
-    if set(selected) != set(EXPECTED) | {HELPER_PATH}:
+    if set(selected) != set(EXPECTED) | set(REQUIRED_HELPER_CONSUMERS):
         print(
             "postgres_ci ledger files differ: "
-            f"expected={sorted(set(EXPECTED) | {HELPER_PATH})} actual={sorted(selected)}",
+            f"expected={sorted(set(EXPECTED) | set(REQUIRED_HELPER_CONSUMERS))} actual={sorted(selected)}",
             file=sys.stderr,
         )
         return 1
-    helper_row = selected[HELPER_PATH]
-    if "backends" in helper_row:
-        print(f"postgres_ci helper row has unexpected backends: {HELPER_PATH}",
-              file=sys.stderr)
-        return 1
-    for field, want in (("class", "postgres_ci"), ("tag", "~"),
-                        ("runner", "live-postgres-readiness")):
-        if helper_row.get(field) != want:
-            print(f"postgres_ci helper row has unexpected {field}: {HELPER_PATH}",
+    for helper_path in REQUIRED_HELPER_CONSUMERS:
+        helper_row = selected[helper_path]
+        if "backends" in helper_row:
+            print(f"postgres_ci helper row has unexpected backends: {helper_path}",
                   file=sys.stderr)
             return 1
+        for field, want in (("class", "postgres_ci"), ("tag", "~"),
+                            ("runner", "live-postgres-readiness")):
+            if helper_row.get(field) != want:
+                print(f"postgres_ci helper row has unexpected {field}: {helper_path}",
+                      file=sys.stderr)
+                return 1
     try:
         verify_helper(repo_root)
     except ValueError as error:
