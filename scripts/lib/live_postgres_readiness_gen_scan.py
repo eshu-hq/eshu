@@ -236,8 +236,7 @@ def check_env_honesty(root: pathlib.Path, enrolled: dict) -> None:
         anywhere.update(code_literals(source))
     for rel in sorted(enrolled):
         marker = enrolled[rel]
-        if rel == CHILD_ONLY_FILE and CHILD_ONLY_DSN in (
-                set(marker["env"]) | set(marker["optional"])):
+        if CHILD_ONLY_DSN in (set(marker["env"]) | set(marker["optional"])):
             raise fail(f"{rel}: child-only DSN cannot be a parent marker: "
                        f"{CHILD_ONLY_DSN}")
         for var in marker["env"] + marker["optional"]:

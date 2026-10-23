@@ -62,6 +62,18 @@ class ChildEnvTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, CHILD):
             self.check_file(PROCESS, optional_child=True)
 
+    def test_other_file_required_child_dsn_is_rejected(self) -> None:
+        """No enrolled file may request the child DSN from its parent."""
+        with self.assertRaisesRegex(ValueError, CHILD):
+            self.check_file(PROCESS.replace("process_live", "other_live"),
+                            required_child=True)
+
+    def test_other_file_optional_child_dsn_is_rejected(self) -> None:
+        """No enrolled file may request the child DSN as optional."""
+        with self.assertRaisesRegex(ValueError, CHILD):
+            self.check_file(PROCESS.replace("process_live", "other_live"),
+                            optional_child=True)
+
     def test_unrelated_dsn_in_process_file_is_rejected(self) -> None:
         """An unrelated undeclared DSN still fails in the process file."""
         with self.assertRaisesRegex(ValueError, "ESHU_UNRELATED_TEST_DSN"):
