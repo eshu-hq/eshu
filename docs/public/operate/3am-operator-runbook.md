@@ -53,7 +53,9 @@ reported `truth.freshness.state = stale`.
   read with `coverage.state` other than `complete` names its cause in
   `coverage.reasons`. `collector_not_configured` and
   `repository_outside_target_set` are configuration: add an enabled
-  `security_alert` instance or a target that covers the repository.
+  `security_alert` instance or a target that covers the repository. The
+  `repository_outside_target_set` reason also covers a repository with no
+  provider slug mapped yet.
   `no_committed_generation` is still collecting. `collector_state_unavailable`
   means the state read failed: the stage log's `error_class` is
   `deadline_exceeded` (the 1 s deadline), `bound_exceeded` (more than 64

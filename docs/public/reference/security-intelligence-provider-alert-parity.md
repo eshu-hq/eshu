@@ -73,6 +73,11 @@ skip this read, because the rows already prove the collector ran.
 | Projected generation and no later terminal failure | `complete` | (absent) | `exact` | `fresh` |
 | Scoped token with no grants (no collector read) | `not_configured` | `no_authorized_repositories` | `fallback` | `unavailable` |
 
+`repository_outside_target_set` also covers a repository Eshu cannot map to a
+provider slug: one with no GitHub repository slug or remote URL and no provider
+facts yet. Nothing proves such a repository is outside every target, so the
+answer never reads `complete`; only the reason is broader than its name.
+
 Every non-complete row classified from a successful collector-state read sets
 `truth.freshness.cause=missing_collector_completion`, whose next check is
 `list_collectors`. `<class>` is the class the claim runner stored on the
@@ -83,10 +88,12 @@ with no class; `identity_mismatch`; `collect_failure` or `commit_failure` for a
 non-retryable collect or commit error; and `unclassified` for anything else.
 The no-enabled-instance row and the healthy row also carry
 `collector_readiness` (`not_configured` or `ready_zero_results`). The
-outside-target row and the `target_incomplete` rows carry none: an
-outside-target answer has an enabled instance, so the envelope's
-`not_configured` would be false, and `coverage.reasons` already says why the
-answer is not complete. These fields and the `coverage` object on an empty
+outside-target row and the still-collecting and terminal-failure
+(`target_incomplete`) rows carry none: an outside-target answer has an enabled
+instance, so the envelope's `not_configured` would be false, and
+`coverage.reasons` already says why the answer is not complete. The failed
+state read is also `target_incomplete` but carries `readiness_unavailable`,
+described below. These fields and the `coverage` object on an empty
 inventory page are additive.
 
 A scoped token whose grants authorize no repository is answered without

@@ -18,8 +18,9 @@ A caller with no grants gets `not_configured` with reason
 and the `collector_readiness` envelope are additive fields. The envelope appears
 on a healthy empty answer (`ready_zero_results`), on an answer with no enabled
 instance (`not_configured`), and on a failed state read
-(`readiness_unavailable`). A `target_incomplete` answer, a repository outside
-every target, and a grantless answer carry none.
+(`readiness_unavailable`). A still-collecting or terminal-failure
+(`target_incomplete`) answer, a repository outside every target, and a grantless
+answer carry none.
 
 This claim departs from binding ruling item 6, which said "every target that
 covers" the repository; the code says "a target that covers". An anchored read
