@@ -1,0 +1,517 @@
+{
+  "collector": "oci_registry",
+  "schema_version": "1",
+  "scopes": [
+    {
+      "scope_id": "oci-registry://registry-1.docker.io/library/busybox",
+      "source_system": "oci_registry",
+      "scope_kind": "container_registry_repository",
+      "collector_kind": "oci_registry",
+      "partition_key": "dockerhub",
+      "metadata": {
+        "provider": "dockerhub"
+      },
+      "generation_id": "oci-registry:10d3f638f809d61ea83f60bef282065cc0abf1114d16978e11dbb879d1ca4539",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "oci_registry.repository",
+          "stable_fact_key": "oci-registry://registry-1.docker.io/library/busybox",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "auth_mode": "anonymous",
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://registry-1.docker.io/library/busybox"
+            ],
+            "provider": "dockerhub",
+            "registry": "registry-1.docker.io",
+            "repository": "library/busybox",
+            "repository_id": "oci-registry://registry-1.docker.io/library/busybox",
+            "visibility": "public"
+          },
+          "source_uri": "https://registry-1.docker.io/v2/library/busybox",
+          "source_record_id": "oci-registry://registry-1.docker.io/library/busybox"
+        },
+        {
+          "fact_kind": "oci_registry.image_tag_observation",
+          "stable_fact_key": "5db467895dba1539624a2c3df809e97c5051e724a6bf0093a8389ec096bf8cb2",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://registry-1.docker.io/library/busybox",
+              "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            ],
+            "identity_strength": "weak_tag",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "mutated": false,
+            "previous_digest": "",
+            "provider": "dockerhub",
+            "registry": "registry-1.docker.io",
+            "repository": "library/busybox",
+            "repository_id": "oci-registry://registry-1.docker.io/library/busybox",
+            "resolved_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "tag": "latest"
+          },
+          "source_uri": "https://registry-1.docker.io/v2/library/busybox",
+          "source_record_id": "oci-registry://registry-1.docker.io/library/busybox#latest"
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-descriptor://registry-1.docker.io/library/busybox@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "artifact_type": "",
+            "collector_instance_id": "oci-parity-8861",
+            "config": {
+              "artifact_type": "",
+              "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+              "media_type": "application/vnd.oci.image.config.v1+json",
+              "size_bytes": 256
+            },
+            "correlation_anchors": [
+              "oci-registry://registry-1.docker.io/library/busybox",
+              "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            ],
+            "descriptor_id": "oci-descriptor://registry-1.docker.io/library/busybox@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "layers": [
+              {
+                "artifact_type": "",
+                "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+                "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "size_bytes": 1024
+              }
+            ],
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "provider": "dockerhub",
+            "registry": "registry-1.docker.io",
+            "repository": "library/busybox",
+            "repository_id": "oci-registry://registry-1.docker.io/library/busybox",
+            "size_bytes": 512,
+            "source_tag": "latest"
+          },
+          "source_uri": "https://registry-1.docker.io/v2/library/busybox",
+          "source_record_id": "oci-descriptor://registry-1.docker.io/library/busybox@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "fact_kind": "oci_registry.image_descriptor",
+          "stable_fact_key": "oci-descriptor://registry-1.docker.io/library/busybox@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "annotations": null,
+            "artifact_type": "",
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://registry-1.docker.io/library/busybox",
+              "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+            ],
+            "descriptor_id": "oci-descriptor://registry-1.docker.io/library/busybox@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "media_type": "application/vnd.oci.image.config.v1+json",
+            "provider": "dockerhub",
+            "registry": "registry-1.docker.io",
+            "repository": "library/busybox",
+            "repository_id": "oci-registry://registry-1.docker.io/library/busybox",
+            "size_bytes": 256
+          },
+          "source_uri": "https://registry-1.docker.io/v2/library/busybox",
+          "source_record_id": "oci-descriptor://registry-1.docker.io/library/busybox@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "fact_kind": "oci_registry.image_descriptor",
+          "stable_fact_key": "oci-descriptor://registry-1.docker.io/library/busybox@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "annotations": null,
+            "artifact_type": "",
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://registry-1.docker.io/library/busybox",
+              "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+            ],
+            "descriptor_id": "oci-descriptor://registry-1.docker.io/library/busybox@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
+            "provider": "dockerhub",
+            "registry": "registry-1.docker.io",
+            "repository": "library/busybox",
+            "repository_id": "oci-registry://registry-1.docker.io/library/busybox",
+            "size_bytes": 1024
+          },
+          "source_uri": "https://registry-1.docker.io/v2/library/busybox",
+          "source_record_id": "oci-descriptor://registry-1.docker.io/library/busybox@sha256:3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        {
+          "fact_kind": "oci_registry.image_referrer",
+          "stable_fact_key": "7db3c9e9e9e457b0b9e644756813547562d369420aab4c1b60354dc6b66fe766",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 7,
+          "source_confidence": "reported",
+          "payload": {
+            "annotations": null,
+            "artifact_type": "application/vnd.in-toto+json",
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://registry-1.docker.io/library/busybox",
+              "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+              "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+            ],
+            "provider": "dockerhub",
+            "referrer_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+            "referrer_media_type": "application/vnd.oci.image.manifest.v1+json",
+            "registry": "registry-1.docker.io",
+            "repository": "library/busybox",
+            "repository_id": "oci-registry://registry-1.docker.io/library/busybox",
+            "size_bytes": 128,
+            "source_api_path": "/v2/\u003crepository\u003e/referrers/\u003cdigest\u003e",
+            "subject_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "subject_media_type": "application/vnd.oci.image.manifest.v1+json"
+          },
+          "source_uri": "https://registry-1.docker.io/v2/library/busybox",
+          "source_record_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111-\u003esha256:4444444444444444444444444444444444444444444444444444444444444444"
+        }
+      ]
+    },
+    {
+      "scope_id": "oci-registry://ghcr.io/eshu-hq/parity-demo",
+      "source_system": "oci_registry",
+      "scope_kind": "container_registry_repository",
+      "collector_kind": "oci_registry",
+      "partition_key": "ghcr",
+      "metadata": {
+        "provider": "ghcr"
+      },
+      "generation_id": "oci-registry:790902062d5692683fa2c962794d99b4c76431d7411780a197e62a17f61f5962",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "oci_registry.repository",
+          "stable_fact_key": "oci-registry://ghcr.io/eshu-hq/parity-demo",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "auth_mode": "anonymous",
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/parity-demo"
+            ],
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/parity-demo",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/parity-demo",
+            "visibility": "public"
+          },
+          "source_uri": "https://ghcr.io/v2/eshu-hq/parity-demo",
+          "source_record_id": "oci-registry://ghcr.io/eshu-hq/parity-demo"
+        },
+        {
+          "fact_kind": "oci_registry.image_tag_observation",
+          "stable_fact_key": "a16f31cf3582b0579fc7ad088db0213a79878cfba7491238758a40ec31a1e5a7",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/parity-demo",
+              "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            ],
+            "identity_strength": "weak_tag",
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "mutated": false,
+            "previous_digest": "",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/parity-demo",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/parity-demo",
+            "resolved_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "tag": "v1"
+          },
+          "source_uri": "https://ghcr.io/v2/eshu-hq/parity-demo",
+          "source_record_id": "oci-registry://ghcr.io/eshu-hq/parity-demo#v1"
+        },
+        {
+          "fact_kind": "oci_registry.image_manifest",
+          "stable_fact_key": "oci-descriptor://ghcr.io/eshu-hq/parity-demo@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "artifact_type": "",
+            "collector_instance_id": "oci-parity-8861",
+            "config": {
+              "artifact_type": "",
+              "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+              "media_type": "application/vnd.oci.image.config.v1+json",
+              "size_bytes": 256
+            },
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/parity-demo",
+              "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            ],
+            "descriptor_id": "oci-descriptor://ghcr.io/eshu-hq/parity-demo@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "layers": [
+              {
+                "artifact_type": "",
+                "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+                "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
+                "size_bytes": 1024
+              }
+            ],
+            "media_type": "application/vnd.oci.image.manifest.v1+json",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/parity-demo",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/parity-demo",
+            "size_bytes": 512,
+            "source_tag": "v1"
+          },
+          "source_uri": "https://ghcr.io/v2/eshu-hq/parity-demo",
+          "source_record_id": "oci-descriptor://ghcr.io/eshu-hq/parity-demo@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "fact_kind": "oci_registry.image_descriptor",
+          "stable_fact_key": "oci-descriptor://ghcr.io/eshu-hq/parity-demo@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "annotations": null,
+            "artifact_type": "",
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/parity-demo",
+              "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+            ],
+            "descriptor_id": "oci-descriptor://ghcr.io/eshu-hq/parity-demo@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            "media_type": "application/vnd.oci.image.config.v1+json",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/parity-demo",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/parity-demo",
+            "size_bytes": 256
+          },
+          "source_uri": "https://ghcr.io/v2/eshu-hq/parity-demo",
+          "source_record_id": "oci-descriptor://ghcr.io/eshu-hq/parity-demo@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        {
+          "fact_kind": "oci_registry.image_descriptor",
+          "stable_fact_key": "oci-descriptor://ghcr.io/eshu-hq/parity-demo@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "annotations": null,
+            "artifact_type": "",
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/parity-demo",
+              "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+            ],
+            "descriptor_id": "oci-descriptor://ghcr.io/eshu-hq/parity-demo@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "media_type": "application/vnd.oci.image.layer.v1.tar+gzip",
+            "provider": "ghcr",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/parity-demo",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/parity-demo",
+            "size_bytes": 1024
+          },
+          "source_uri": "https://ghcr.io/v2/eshu-hq/parity-demo",
+          "source_record_id": "oci-descriptor://ghcr.io/eshu-hq/parity-demo@sha256:3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        {
+          "fact_kind": "oci_registry.warning",
+          "stable_fact_key": "eddbe7c4c1882f4e6a730b91b208fb9061b2dcb3ae121f1a6175bf11a2e1f442",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/parity-demo",
+              "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            ],
+            "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "message": "referrers API not supported by this registry",
+            "provider": "ghcr",
+            "referrers_state": "unsupported",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/parity-demo",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/parity-demo",
+            "severity": "info",
+            "warning_code": "unsupported_referrers_api",
+            "warning_key": "unsupported_referrers_api:referrers API not supported by this registry"
+          },
+          "source_uri": "https://ghcr.io/v2/eshu-hq/parity-demo",
+          "source_record_id": "unsupported_referrers_api:referrers API not supported by this registry"
+        },
+        {
+          "fact_kind": "oci_registry.warning",
+          "stable_fact_key": "8f2fcb74f3b406a1a9129f000fa575d4961913ed7da34988eee6b301fb3b87ec",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 9,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://ghcr.io/eshu-hq/parity-demo",
+              ""
+            ],
+            "digest": "",
+            "message": "repository tag list exceeded the configured bounded collection window",
+            "provider": "ghcr",
+            "referrers_state": "",
+            "registry": "ghcr.io",
+            "repository": "eshu-hq/parity-demo",
+            "repository_id": "oci-registry://ghcr.io/eshu-hq/parity-demo",
+            "severity": "info",
+            "warning_code": "tag_list_truncated",
+            "warning_key": "tag_list_truncated:repository tag list exceeded the configured bounded collection window"
+          },
+          "source_uri": "https://ghcr.io/v2/eshu-hq/parity-demo",
+          "source_record_id": "tag_list_truncated:repository tag list exceeded the configured bounded collection window"
+        }
+      ]
+    },
+    {
+      "scope_id": "oci-registry://harbor.example.test/team/multiarch",
+      "source_system": "oci_registry",
+      "scope_kind": "container_registry_repository",
+      "collector_kind": "oci_registry",
+      "partition_key": "harbor",
+      "metadata": {
+        "provider": "harbor"
+      },
+      "generation_id": "oci-registry:5fe99d77d40a255a5ab6f34a2d7a69b7741b3804b7f1fadf232f077bd5876b6a",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "trigger_kind": "snapshot",
+      "facts": [
+        {
+          "fact_kind": "oci_registry.repository",
+          "stable_fact_key": "oci-registry://harbor.example.test/team/multiarch",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 11,
+          "source_confidence": "reported",
+          "payload": {
+            "auth_mode": "credentialed",
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://harbor.example.test/team/multiarch"
+            ],
+            "provider": "harbor",
+            "registry": "harbor.example.test",
+            "repository": "team/multiarch",
+            "repository_id": "oci-registry://harbor.example.test/team/multiarch",
+            "visibility": "private"
+          },
+          "source_uri": "https://harbor.example.test/v2/team/multiarch",
+          "source_record_id": "oci-registry://harbor.example.test/team/multiarch"
+        },
+        {
+          "fact_kind": "oci_registry.image_tag_observation",
+          "stable_fact_key": "fb151b2f5f87256ef5ea2287e24ac73bc4f23035665ea8515041443116299808",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 11,
+          "source_confidence": "reported",
+          "payload": {
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://harbor.example.test/team/multiarch",
+              "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+            ],
+            "identity_strength": "weak_tag",
+            "media_type": "application/vnd.oci.image.index.v1+json",
+            "mutated": false,
+            "previous_digest": "",
+            "provider": "harbor",
+            "registry": "harbor.example.test",
+            "repository": "team/multiarch",
+            "repository_id": "oci-registry://harbor.example.test/team/multiarch",
+            "resolved_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+            "tag": "multiarch"
+          },
+          "source_uri": "https://harbor.example.test/v2/team/multiarch",
+          "source_record_id": "oci-registry://harbor.example.test/team/multiarch#multiarch"
+        },
+        {
+          "fact_kind": "oci_registry.image_index",
+          "stable_fact_key": "oci-descriptor://harbor.example.test/team/multiarch@sha256:4444444444444444444444444444444444444444444444444444444444444444",
+          "schema_version": "1.0.0",
+          "collector_kind": "oci_registry",
+          "fencing_token": 11,
+          "source_confidence": "reported",
+          "payload": {
+            "annotations": null,
+            "artifact_type": "",
+            "collector_instance_id": "oci-parity-8861",
+            "correlation_anchors": [
+              "oci-registry://harbor.example.test/team/multiarch",
+              "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+            ],
+            "descriptor_id": "oci-descriptor://harbor.example.test/team/multiarch@sha256:4444444444444444444444444444444444444444444444444444444444444444",
+            "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+            "manifests": [
+              {
+                "annotations": null,
+                "artifact_type": "",
+                "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+                "media_type": "application/vnd.oci.image.manifest.v1+json",
+                "platform": null,
+                "size_bytes": 512
+              },
+              {
+                "annotations": null,
+                "artifact_type": "",
+                "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+                "media_type": "application/vnd.oci.image.manifest.v1+json",
+                "platform": null,
+                "size_bytes": 256
+              }
+            ],
+            "media_type": "application/vnd.oci.image.index.v1+json",
+            "provider": "harbor",
+            "registry": "harbor.example.test",
+            "repository": "team/multiarch",
+            "repository_id": "oci-registry://harbor.example.test/team/multiarch",
+            "size_bytes": 1024
+          },
+          "source_uri": "https://harbor.example.test/v2/team/multiarch",
+          "source_record_id": "oci-descriptor://harbor.example.test/team/multiarch@sha256:4444444444444444444444444444444444444444444444444444444444444444"
+        }
+      ]
+    }
+  ]
+}
