@@ -1,69 +1,70 @@
 name: Bench Baseline Refresh
-
-# B-2 (#3795): recapture testdata/benchmarks/baseline.txt weekly on ubuntu-latest so the
-# committed baseline stays a like-for-like comparison target for the per-PR
-# benchstat regression gate (a baseline captured on a different runner class is
-# not a valid benchstat comparison). Opens a PR rather than pushing to main, so
-# the refreshed numbers go through the normal review bar.
-
-on:
-  schedule:
-    - cron: '0 6 * * 1' # Mondays 06:00 UTC
-  workflow_dispatch:
-
-concurrency:
-  group: bench-baseline-refresh
-  cancel-in-progress: false
-
+'on':
+  workflow_dispatch: null
 permissions:
-  contents: write
-  pull-requests: write
-
+  contents: read
+concurrency:
+  group: 8617-lint-cache-proof
+  cancel-in-progress: false
 jobs:
   refresh:
-    name: refresh baseline
+    name: Bounded lint cache proof; no baseline publication
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 35
+    env:
+      GOCACHE: /tmp/eshu-ci/go-build
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
-
-      - name: Install ripgrep
-        run: scripts/ci/install-apt-packages.sh ripgrep
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing as a baseline
-      # refresh that never compiled anything (#6615 follow-up to #6075).
-      - name: Pre-warm Go modules
-        run: scripts/ci/go-mod-download-retry.sh
-
-      - name: Recapture benchmark baseline
-        run: scripts/refresh-bench-baseline.sh
-
-      - name: Open a PR if the baseline changed
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          if git diff --quiet -- testdata/benchmarks/baseline.txt; then
-            echo "baseline unchanged — nothing to refresh"
-            exit 0
-          fi
-          branch="automation/bench-baseline-refresh"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "${branch}"
-          git add testdata/benchmarks/baseline.txt
-          git commit -m "chore(bench): weekly baseline refresh (#3795)"
-          git push -f origin "${branch}"
-          gh pr create --base main --head "${branch}" \
-            --title "chore(bench): weekly baseline refresh" \
-            --body "Automated weekly recapture of \`testdata/benchmarks/baseline.txt\` on ubuntu-latest (B-2, #3795). Review the benchstat diff before merging; this keeps the per-PR regression gate's baseline like-for-like." \
-            || gh pr edit "${branch}" --body "Automated weekly recapture of testdata/benchmarks/baseline.txt (updated $(date -u +%Y-%m-%d))."
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 2
+    - name: Restore Go build cache
+      uses: actions/cache/restore@v4
+      with:
+        path: /tmp/eshu-ci/go-build
+        key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ hashFiles('go/go.sum') }}
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: go/go.mod
+        cache-dependency-path: go/go.sum
+    - name: Install ripgrep
+      run: scripts/ci/install-apt-packages.sh ripgrep
+      env:
+        GH_TOKEN: ${{ github.token }}
+    - name: Pre-warm Go modules
+      run: scripts/ci/go-mod-download-retry.sh
+    - name: Install golangci-lint
+      run: scripts/ci/go-install-retry.sh github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+    - name: Pre-warm golangci-lint filelength plugin modules
+      run: scripts/ci/go-mod-download-retry.sh tools/golangci-lint-filelength
+    - name: Build golangci-lint filelength plugin
+      working-directory: tools/golangci-lint-filelength
+      run: make build
+    - name: Measure same-source cold control and warm lint
+      run: bash scripts/experiments/lint-cache-proof.sh measure
+    - name: Save isolated analyzer cache
+      uses: actions/cache/save@v4
+      with:
+        path: /tmp/eshu-lint-proof/seed
+        key: 8617-lint-proof-${{ github.run_id }}-${{ github.run_attempt }}
+    - name: Remove only experiment analyzer cache
+      run: bash scripts/experiments/lint-cache-proof.sh clear
+    - name: Restore exact experiment analyzer cache
+      uses: actions/cache/restore@v4
+      with:
+        path: /tmp/eshu-lint-proof/seed
+        key: 8617-lint-proof-${{ github.run_id }}-${{ github.run_attempt }}
+        fail-on-cache-miss: true
+    - name: Measure restored-cache lint
+      run: bash scripts/experiments/lint-cache-proof.sh restored
+    - name: Prove source and configuration invalidation
+      run: bash scripts/experiments/lint-cache-proof.sh invalidation
+    - name: Upload raw experiment evidence
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: 8617-lint-cache-proof
+        path: /tmp/eshu-lint-proof
+        retention-days: 7
+        if-no-files-found: error
