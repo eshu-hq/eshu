@@ -157,6 +157,9 @@ type serviceClaimStore struct {
 	retryableCalls int
 	terminalCalls  int
 	failureClass   string
+	// retryVisibleAt is the VisibleAt the service wrote on the last
+	// retryable failure: the earliest time the work item can be re-claimed.
+	retryVisibleAt time.Time
 }
 
 func (s *serviceClaimStore) ClaimNextEligible(
@@ -191,6 +194,7 @@ func (s *serviceClaimStore) ReleaseClaim(context.Context, workflow.ClaimMutation
 func (s *serviceClaimStore) FailClaimRetryable(_ context.Context, mutation workflow.ClaimMutation) error {
 	s.retryableCalls++
 	s.failureClass = mutation.FailureClass
+	s.retryVisibleAt = mutation.VisibleAt
 	s.cancel()
 	return nil
 }
