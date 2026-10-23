@@ -188,8 +188,8 @@ Observability Evidence (#8757): an operator answers "does routing work" from
 `eshu_dp_mcp_router_find_total{outcome}` (`candidates`, `empty`, `error`),
 `eshu_dp_mcp_router_call_total{tool,outcome}` (`dispatched`,
 `invalid_arguments`, `unknown_tool`, `refused`), and
-`eshu_dp_mcp_router_target_rank` (0 = the agent called a tool `find_tool`
-did not offer). Both spans carry `outcome`; `mcp.router.call` also carries
+`eshu_dp_mcp_router_target_rank` (dispatched calls only; 0 = the agent ran a
+tool `find_tool` did not offer). Both spans carry `outcome`; `mcp.router.call` also carries
 `mcp.router.target`, and a dispatched call's own spans nest inside
 `mcp.router.call`. Error results carry typed codes:
 `mcp_router_invalid_arguments` (with `field_errors` and

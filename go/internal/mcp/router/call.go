@@ -43,7 +43,9 @@ func (e *Engine) Call(ctx context.Context, req Request, args map[string]any) Cal
 		span.SetStatus(codes.Error, "call_tool "+outcome)
 	}
 	recordCall(ctx, label, outcome)
-	if _, registered := e.registry[out.Target]; registered {
+	if outcome == callOutcomeDispatched {
+		// Only a dispatched call says whether find_tool offered what the
+		// agent ran; refused and malformed calls would pile into bucket 0.
 		recordTargetRank(ctx, e.recent.rank(req.Session, out.Target))
 	}
 	return out

@@ -108,10 +108,11 @@ func TestRouterTelemetryRecordsOutcomesAndTargetRank(t *testing.T) {
 			t.Fatalf("call %v = %d, want %d (all: %v)", key, got.calls[key], want, got.calls)
 		}
 	}
-	// Buckets: [<=0, <=1, <=2, <=3, ...]. get_repo_summary sat third (rank 3),
-	// find_code first (rank 1), build_evidence_citation_packet was not offered (0).
-	if len(got.ranks) < 4 || got.ranks[0] != 1 || got.ranks[1] != 1 || got.ranks[3] != 1 {
-		t.Fatalf("rank buckets = %v, want one each at 0, 1, and 3", got.ranks)
+	// Buckets: [<=0, <=1, <=2, <=3, ...]. Only the two dispatched calls record:
+	// get_repo_summary sat third (rank 3) and build_evidence_citation_packet
+	// was not offered (0). The invalid find_code call records nothing.
+	if len(got.ranks) < 4 || got.ranks[0] != 1 || got.ranks[1] != 0 || got.ranks[3] != 1 || sumBuckets(got.ranks) != 2 {
+		t.Fatalf("rank buckets = %v, want one each at 0 and 3 and nothing else", got.ranks)
 	}
 
 	var sawFind, sawCall bool
@@ -152,4 +153,34 @@ func TestRecentFindsIsBoundedAndPerSession(t *testing.T) {
 	if got := r.rank("b", "q"); got != 1 {
 		t.Fatalf("rank(b, q) after refresh = %d, want 1", got)
 	}
+}
+
+// TestTargetRankRecordsDispatchedCallsOnly keeps the rank histogram readable:
+// a refused or malformed call says nothing about whether ranking matched the
+// agent's intent, so only dispatched calls record a rank.
+func TestTargetRankRecordsDispatchedCallsOnly(t *testing.T) {
+	reader, _ := routerTelemetryForTest(t)
+	engine := newFixtureEngine(t, orderRanker{})
+	req := fixtureRequest(&recordingDispatcher{})
+
+	engine.Find(context.Background(), req, map[string]any{"intent": "x", "limit": 3})
+	engine.Call(context.Background(), req, map[string]any{"name": "find_code", "arguments": map[string]any{}})                                 // invalid_arguments
+	engine.Call(context.Background(), req, map[string]any{"name": "ask", "arguments": map[string]any{"question": "q"}})                        // refused, registered target
+	engine.Call(scopedContext(), req, map[string]any{"name": "execute_cypher_query", "arguments": map[string]any{"cypher_query": "RETURN 1"}}) // refused, not permitted
+	if ranks := collectRouterMetrics(t, reader).ranks; sumBuckets(ranks) != 0 {
+		t.Fatalf("rank buckets after refused and invalid calls = %v, want no samples", ranks)
+	}
+	engine.Call(context.Background(), req, map[string]any{"name": "find_code", "arguments": map[string]any{"query": "handler"}})
+	ranks := collectRouterMetrics(t, reader).ranks
+	if sumBuckets(ranks) != 1 || len(ranks) < 2 || ranks[1] != 1 {
+		t.Fatalf("rank buckets after one dispatched call = %v, want one sample at rank 1", ranks)
+	}
+}
+
+func sumBuckets(buckets []uint64) uint64 {
+	var total uint64
+	for _, n := range buckets {
+		total += n
+	}
+	return total
 }

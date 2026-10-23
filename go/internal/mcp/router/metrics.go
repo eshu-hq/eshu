@@ -72,7 +72,7 @@ func routerMetrics() *routerInstruments {
 		}
 		if hist, err := meter.Int64Histogram(
 			"eshu_dp_mcp_router_target_rank",
-			metric.WithDescription("Position of each call_tool target in the same session's last find_tool result, 1-based; 0 when it was not offered"),
+			metric.WithDescription("Position of each dispatched call_tool target in the same session's last find_tool result, 1-based; 0 when it was not offered"),
 			metric.WithExplicitBucketBoundaries(targetRankBuckets...),
 		); err == nil {
 			inst.rank = hist

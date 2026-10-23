@@ -12,7 +12,7 @@ how often do their arguments fail the target's schema.
 | --- | --- | --- | --- |
 | `eshu_dp_mcp_router_find_total` | counter | `outcome` | `find_tool` requests. `candidates`: at least one tool returned. `empty`: the ranker matched nothing the caller may call. `error`: invalid request, no ranker configured, or a ranker failure. |
 | `eshu_dp_mcp_router_call_total` | counter | `tool`, `outcome` | `call_tool` requests. `dispatched`: the target ran through the same dispatch as a direct `tools/call` (its own errors are in the result, not here). `invalid_arguments`: the arguments failed the target's input schema, or the `call_tool` request itself was malformed. `unknown_tool`: no registered tool has that name. `refused`: the target was `find_tool`, `call_tool`, or `ask`, or the credential can never call it. |
-| `eshu_dp_mcp_router_target_rank` | histogram | none | Where the `call_tool` target sat in the same session's last `find_tool` result, 1-based. `0` means it was not offered, or the session had no `find_tool` result. Buckets 0 through 10 give every position its own bucket. |
+| `eshu_dp_mcp_router_target_rank` | histogram | none | Where a dispatched `call_tool` target sat in the same session's last `find_tool` result, 1-based. `0` means it was not offered, or the session had no `find_tool` result. Refused, unknown-tool, and invalid-argument calls record nothing, so the distribution reflects only calls that ran. Buckets 0 through 10 give every position its own bucket. |
 
 `tool` is a registered tool name, or one of the three refused target names
 (`find_tool`, `call_tool`, `ask`), or `unregistered`. An unregistered name, a
@@ -24,8 +24,8 @@ A session is the caller's credential principal, the same key that binds an SSE
 session. Stdio and unauthenticated transports share one session. The engine
 remembers the last result of at most 1024 sessions. Eviction is first-in,
 first-out by a session's first `find_tool`; a repeat `find_tool` replaces the
-result but does not move the session. An evicted session's next `call_tool`
-records rank `0`.
+result but does not move the session. An evicted session's next dispatched
+`call_tool` records rank `0`.
 
 Router error results are bounded whatever the input: a `call_tool` name over
 128 bytes is rejected without being echoed or compared with registered names;
@@ -57,9 +57,9 @@ status.
 - `eshu_dp_mcp_router_call_total{outcome="invalid_arguments"}` by `tool` shows
   which schemas agents misread. The result carries the field errors, the input
   schema, and an example call, so a retry should succeed.
-- A target-rank distribution weighted at `0` means agents call tools
+- A target-rank distribution weighted at `0` means agents run tools
   `find_tool` did not offer: either they skip discovery or ranking misses their
-  intent. Weight at 1 means the top candidate is the one agents use.
+  intent. Refused and malformed calls are not in it. Weight at 1 means the top candidate is the one agents use.
 - `refused` on `call_tool` for a scoped credential is a policy answer, not a
   fault. The same call through `tools/call` would get HTTP 403 from the API
   auth middleware.
