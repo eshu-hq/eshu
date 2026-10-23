@@ -151,9 +151,10 @@
 // Probes whether a previous head of the same pull request already proved the
 // current head's exact git tree green on every required status context
 // (#8617). Candidates are the head a force-push replaced and the first
-// parent; tree equality plus a success verdict from every reporting source
-// (latest check run and latest commit status per context) is required, and
-// anything else fails closed. It prints reuse/source_sha/tree/reason lines
+// parent; tree equality, a success verdict from every reporting source
+// (latest check run and latest commit status per context), and full-run or
+// versioned full-backed reuse provenance are required. Anything else fails
+// closed. It prints reuse/source_sha/tree/reason lines
 // for workflow outputs and is bounded to two minutes: probe failure means
 // "run the gates", never a verdict.
 //

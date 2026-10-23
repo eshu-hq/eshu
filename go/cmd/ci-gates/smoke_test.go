@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -26,17 +27,44 @@ func smokeRoutes(compareFiles string) []mappedGHRoute {
 // with the given publisher description. The statuses route precedes the
 // successRoutes one (first match wins) so the description survives.
 func smokeRoutesDesc(compareFiles, description string) []mappedGHRoute {
+	var compared compareResponseFixture
+	if err := json.Unmarshal([]byte(compareFiles), &compared); err != nil {
+		panic(err)
+	}
+	paths := make([]string, 0, len(compared.Files))
+	for _, file := range compared.Files {
+		paths = append(paths, file.Filename)
+	}
+	newTree := treeJSONFixture(paths...)
 	return append([]mappedGHRoute{
 		{match: "graphql", output: forcePushJSON(reuseOldSHA, reuseHeadSHA)},
-		{match: "compare/", output: compareFiles},
+		{match: "git/commits/" + reuseOldSHA, output: commitJSON(reuseTreeSHA, "")},
+		{match: "git/commits/" + reuseHeadSHA, output: commitJSON(reuseOtherTree, "")},
+		{match: "git/trees/" + reuseTreeSHA, output: treeJSONFixture()},
+		{match: "git/trees/" + reuseOtherTree, output: newTree},
 		{match: "commits/" + reuseOldSHA + "/statuses", output: `[{"context":"required-gates-complete","state":"success","description":"` + description + `"}]`},
 	}, successRoutes(reuseOldSHA)...)
+}
+
+type compareResponseFixture struct {
+	Files []struct {
+		Filename string `json:"filename"`
+	} `json:"files"`
+}
+
+func treeJSONFixture(paths ...string) string {
+	entries := make([]string, 0, len(paths))
+	for _, path := range paths {
+		entries = append(entries, `{"path":"`+path+`","mode":"100644","type":"blob","sha":"`+reuseTreeSHA+`"}`)
+	}
+	return `{"truncated":false,"tree":[` + strings.Join(entries, ",") + `]}`
 }
 
 const (
 	fullRunDescription = "All path-selected blocking gates passed"
 	smokeDescription   = "Smoke subset passed on a clean rebase; heavy verdicts transferred (see run log)"
 	reuseDescription   = "Tree-identical reuse: verdict copied from a previous head (see run log)"
+	reuseV2Description = "Tree-identical reuse v2: full-backed verdict copied from a previous head (see run log)"
 )
 
 func compareJSON(files ...string) string {
@@ -133,7 +161,7 @@ func TestProbeSmoke_SmokeCandidateRefusesChain(t *testing.T) {
 func TestProbeSmoke_ReuseCandidateApplies(t *testing.T) {
 	t.Parallel()
 
-	runner := &mappedGHRunner{routes: smokeRoutesDesc(compareJSON("docs/x.md"), reuseDescription)}
+	runner := &mappedGHRunner{routes: smokeRoutesDesc(compareJSON("docs/x.md"), reuseV2Description)}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
 		[]string{"go/cmd/ci-gates/reuse.go"},
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
@@ -145,17 +173,27 @@ func TestProbeSmoke_ReuseCandidateApplies(t *testing.T) {
 	}
 }
 
-// A compare response at the page cap cannot prove disjointness and
-// must refuse, even when every listed file is disjoint.
-func TestProbeSmoke_TruncatedCompareRefuses(t *testing.T) {
+func TestProbeSmoke_HistoricalGenericReuseRefuses(t *testing.T) {
+	runner := &mappedGHRunner{routes: smokeRoutesDesc(compareJSON("docs/x.md"), reuseDescription)}
+	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
+		[]string{"go/cmd/ci-gates/reuse.go"},
+		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
+	if err != nil || got {
+		t.Fatalf("historical generic reuse must refuse smoke: got=%v err=%v", got, err)
+	}
+	for _, call := range runner.calls {
+		if strings.Contains(strings.Join(call, " "), "/git/trees/") {
+			t.Fatal("unbacked source fetched endpoint trees")
+		}
+	}
+}
+
+// A truncated recursive tree cannot prove disjointness and must refuse.
+func TestProbeSmoke_TruncatedTreeRefuses(t *testing.T) {
 	t.Parallel()
 
-	files := make([]string, 0, 101)
-	for i := range 101 {
-		files = append(files, "docs/disjoint.md")
-		_ = i
-	}
-	runner := &mappedGHRunner{routes: smokeRoutes(compareJSON(files...))}
+	routes := append([]mappedGHRoute{{match: "git/trees/" + reuseOtherTree, output: `{"truncated":true,"tree":[]}`}}, smokeRoutes(compareJSON("docs/disjoint.md"))...)
+	runner := &mappedGHRunner{routes: routes}
 	got, err := probeSmoke(context.Background(), runner, "eshu-hq/eshu", 42, reuseHeadSHA,
 		[]string{"go/cmd/ci-gates/reuse.go"},
 		[]string{"go-core-complete", "go-race-complete", "required-gates-complete"})
@@ -163,7 +201,7 @@ func TestProbeSmoke_TruncatedCompareRefuses(t *testing.T) {
 		t.Fatalf("probeSmoke returned error: %v", err)
 	}
 	if got {
-		t.Fatal("a possibly truncated compare must refuse smoke")
+		t.Fatal("a truncated endpoint tree must refuse smoke")
 	}
 }
 
@@ -275,7 +313,8 @@ func publisherArmDescriptions(t *testing.T) map[int]string {
 // candidateRanFull's switch cases by parsing smoke.go, not by
 // searching it for text. A fixed-string search would still pass if a
 // case were commented out or moved into dead code. Only case-list
-// literals count: any third accept (or a missing one) fails the
+// literals or the canonical provenance constant count: any third accept
+// (or a missing one) fails the
 // caller, so widening the allowlist without updating the publisher
 // coupling it claims cannot slip through.
 func smokeAllowedDescriptions(t *testing.T) map[string]bool {
@@ -300,6 +339,14 @@ func smokeAllowedDescriptions(t *testing.T) map[string]bool {
 				return true
 			}
 			for _, expression := range clause.List {
+				if selector, ok := expression.(*ast.SelectorExpr); ok {
+					owner, valid := selector.X.(*ast.Ident)
+					if !valid || owner.Name != "cigates" || selector.Sel.Name != "FullBackedReuseDescription" {
+						t.Fatal("candidateRanFull case accepts an unknown constant")
+					}
+					allowed[cigates.FullBackedReuseDescription] = true
+					continue
+				}
 				literal, ok := expression.(*ast.BasicLit)
 				if !ok || literal.Kind != token.STRING {
 					t.Fatalf("candidateRanFull case accepts a non-literal")

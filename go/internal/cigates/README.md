@@ -168,10 +168,11 @@ observable value.
 Two consequences worth knowing. The description is now REQUIRED rather than
 merely bound to a variable: a cancelled gate and a broken aggregation both
 publish `error`, so with the descriptions gone nothing separates them and
-deleting the cancelled arm would be invisible. And distinctness is asserted
-rather than any particular phrase, so the workflow's prose can be reworded
-freely -- an earlier draft that required the word "cancel" turned an ordinary
-rewording into a red, which is the wording-pin failure in miniature.
+deleting the cancelled arm would be invisible. Descriptions are distinct without pinning ordinary prose. The one exception
+is reuse code 14: its v2 full-backed sentence is exact because smoke accepts
+that sentence as provenance. Rewording it without changing the consumer would
+silently disable smoke, and publishing the old generic sentence would make an
+unproven reused result appear eligible.
 
 What the harness does not cover is written down on `EvaluatePublisher` itself:
 the shell flags it runs under, the environment it does not model, the `gh`
