@@ -140,7 +140,7 @@ revoke_line="$(first_line 'eshu component revoke-grant')"
 helm_line="$(first_line 'helm upgrade')"
 drain_between="$(calls | awk -v a="${revoke_line}" -v b="${helm_line}" 'NR > a && NR < b && index($0, "psql drain") { n++ } END { print n + 0 }')"
 if [[ "${drain_between}" -ge 1 ]]; then pass "drain is re-checked between revoke and restore"; else fail "no drain re-check before restore"; fi
-for n in 1 2 3 4 5 6; do expect_out "run reports STEP ${n}" "STEP ${n} "; done
+for n in 1 2 3 4 5 6; do expect_out "run reports STEP ${n}" "STEP ${n}/6 "; done
 expect_out "run prints evidence lines" "EVIDENCE[step 2]"
 expect_out "run reports the final verdict" "ROLLBACK COMPLETE"
 missing=0

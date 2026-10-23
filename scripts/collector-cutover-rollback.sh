@@ -26,6 +26,9 @@
 # PGUSER, PGDATABASE, PGPASSFILE, ...). No secret is ever passed on a command
 # line or printed.
 
+# The exit codes and option variables below are consumed by the sourced step
+# library, which shellcheck cannot see when this file is linted alone.
+# shellcheck disable=SC2034
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -235,14 +238,20 @@ check_number() {
 	[[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "$EX_USAGE" "$name must be a number: '$value'"
 }
 
+check_seconds() {
+	local name="$1" value="$2"
+	[[ "$value" =~ ^[0-9]+$ ]] || die "$EX_USAGE" "$name must be whole seconds: '$value'"
+}
+
 validate() {
 	check_token "--collector-kind" "$collector_kind"
 	check_list "--external-instance" "$external_instances"
 	check_list "--in-tree-instance" "$in_tree_instances"
 	check_number "--poll-seconds" "$poll_seconds"
-	check_number "--drain-timeout" "$drain_timeout"
-	check_number "--step-timeout" "$step_timeout"
-	check_number "--replay-timeout" "$replay_timeout"
+	check_seconds "--drain-timeout" "$drain_timeout"
+	check_seconds "--step-timeout" "$step_timeout"
+	check_seconds "--replay-timeout" "$replay_timeout"
+	[[ -z "$since" || "$since" =~ ^[0-9A-Za-z:+.\ -]+$ ]] || die "$EX_USAGE" "--since is not a timestamp: '$since'"
 	[[ "$from_step" =~ ^[1-6]$ ]] || die "$EX_USAGE" "--from-step must be 1 to 6"
 	[[ "$through_step" =~ ^[1-6]$ ]] || die "$EX_USAGE" "--through-step must be 1 to 6"
 	((from_step <= through_step)) || die "$EX_USAGE" "--from-step must not exceed --through-step"
@@ -326,16 +335,18 @@ show_cmd() {
 
 # --- plan ---------------------------------------------------------------------
 
-plan_psql_line() { # description
-	printf '  $ %s -X -A -t -F "|" -v ON_ERROR_STOP=1 -v kind=%s ... -f -   # %s (read-only SQL on stdin)\n' \
-		"$PSQL_BIN" "$collector_kind" "$1"
+sql_file() { printf '%s/lib/collector-cutover-rollback-%s.sql' "$script_dir" "$1"; }
+
+plan_psql_line() { # sql-name description
+	printf '  $ %s -X -A -t -F "|" -v ON_ERROR_STOP=1 -v kind=%s ... -f %s   # %s (read-only)\n' \
+		"$PSQL_BIN" "$collector_kind" "$(sql_file "$1")" "$2"
 }
 
 print_plan() {
 	local instance kind
 	printf 'Rollback plan for collector kind %s\n' "$collector_kind"
 	printf 'External instance(s): %s   In-tree instance(s): %s\n' "$external_instances" "$in_tree_instances"
-	printf 'Nothing below has been executed. `run --yes` performs it in this order.\n\n'
+	printf 'Nothing below has been executed. "run --yes" performs it in this order.\n\n'
 
 	printf 'STEP 1 stop new claims for the external producer\n'
 	local -a externals
@@ -356,7 +367,7 @@ print_plan() {
 	printf '  Record: disable result per instance, worker pod count 0, coordinator rollout line.\n\n'
 
 	printf 'STEP 2 wait for in-flight leases to drain (refuses to start before step 1 is confirmed)\n'
-	plan_psql_line "claimed work items and active claims for the external instance(s)"
+	plan_psql_line drain "claimed work items and active claims for the external instance(s)"
 	printf '  Gate: 0 claimed work items and 0 active claims. The coordinator reaper expires stale\n'
 	printf '  leases on its own interval; this step only waits. It never rewrites claim rows.\n'
 	printf '  Record: final counts and the seconds waited.\n\n'
@@ -372,7 +383,7 @@ print_plan() {
 	printf '  Record: the grants listing after revocation.\n\n'
 
 	printf 'STEP 4 restore the in-tree producer (refuses unless steps 1 to 3 still hold)\n'
-	plan_psql_line "re-check the drain gate immediately before restoring"
+	plan_psql_line drain "re-check the drain gate immediately before restoring"
 	if [[ "$restore_by_gitops" == "true" ]]; then
 		printf '  (restore values were applied through GitOps after step 3; the script only scales and waits)\n'
 	else
@@ -390,15 +401,15 @@ print_plan() {
 	printf '  Record: restore start time (database clock), helm revision or GitOps commit, rollout lines.\n\n'
 
 	printf 'STEP 5 replay from the last committed generation\n'
-	plan_psql_line "work items for the in-tree instance(s) updated since the restore start"
+	plan_psql_line replay "work items for the in-tree instance(s) updated since the restore start"
 	printf '  The restart in step 4 triggers the first planning pass; later passes follow the\n'
 	printf '  coordinator reconcile interval. Gate: no pending, claimed, or retryable item remains,\n'
 	printf '  at least one completed, none failed terminal.\n'
 	printf '  Record: pending/claimed/completed/retryable/terminal counts.\n\n'
 
 	printf 'STEP 6 verify exact truth against the pre-cutover baseline\n'
-	plan_psql_line "dual-authority check: external claims, in-tree claims, overlapping claim intervals"
-	plan_psql_line "per fact kind: count, stable-key digest, payload digest over active generations"
+	plan_psql_line dual "dual-authority check: external claims, in-tree claims, overlapping claim intervals"
+	plan_psql_line truth "per fact kind: count, stable-key digest, payload digest over active generations"
 	printf '  Gate: no dual authority, and every fact kind equals the baseline file.\n'
 	printf '  Then compare the API and MCP read-truth queries in the runbook.\n'
 	printf '  Record: the verify output and the read-truth comparison.\n'
@@ -410,7 +421,7 @@ main() {
 	case "$subcommand" in
 	plan) print_plan ;;
 	run | verify)
-		# shellcheck source=lib/collector-cutover-rollback-steps.sh
+		# shellcheck source=scripts/lib/collector-cutover-rollback-steps.sh
 		source "${script_dir}/lib/collector-cutover-rollback-steps.sh"
 		"cmd_${subcommand}"
 		;;

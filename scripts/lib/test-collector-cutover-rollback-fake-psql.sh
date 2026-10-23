@@ -10,9 +10,13 @@
 set -euo pipefail
 
 state="${FAKE_STATE:?FAKE_STATE is required}"
-kind="" instances=""
+kind="" instances="" sql_path="-"
 while [[ $# -gt 0 ]]; do
 	case "$1" in
+	-f)
+		sql_path="$2"
+		shift 2
+		;;
 	-v)
 		case "$2" in
 		kind=*) kind="${2#kind=}" ;;
@@ -24,7 +28,7 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-query="$(cat)"
+if [[ "${sql_path}" == "-" ]]; then query="$(cat)"; else query="$(cat "${sql_path}")"; fi
 tag="$(printf '%s\n' "${query}" | awk '/^-- eshu-rollback:/ { sub(/^-- eshu-rollback:/, ""); print; exit }')"
 printf 'psql %s kind=%s\n' "${tag}" "${kind}" >>"${state}/calls.log"
 
