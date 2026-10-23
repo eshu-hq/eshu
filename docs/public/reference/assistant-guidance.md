@@ -138,7 +138,7 @@ The block instructs assistants to:
   [default-pruned directory](eshuignore.md#default-skips) (for example
   `node_modules` or `dist`; the linked list is the full set), has an ignored
   extension, is generated, or is a symlink whose target fails admission (it
-  leaves the repository, sits in a skipped path, or is a different file kind).
+  leaves the repository, sits in a skipped path, dangles or loops, or is a different file kind).
 - Start from concrete first prompts such as building a service story or tracing a
   deployment chain.
 - Respect Eshu truth labels: read `truth.level` (exact, derived, partial, fallback) and
